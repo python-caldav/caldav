@@ -9,7 +9,6 @@ import StringIO
 from lxml import etree
 
 import utils.vcal
-import webdavlib
 
 class DavObject:
     url = None

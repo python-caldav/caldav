@@ -18,5 +18,5 @@ if __name__ == '__main__':
         packages = find_packages (),
         include_package_data=True,
         zip_safe=False,
-        install_requires=['vobject', 'lxml'],
+        install_requires=['vobject', 'lxml', 'nose', 'coverage'],
         )
