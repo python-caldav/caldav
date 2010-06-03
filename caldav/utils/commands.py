@@ -6,7 +6,7 @@ import uuid
 
 from caldav.objects import Principal, Calendar, Event
 from caldav.utils.namespace import ns, nsmap
-from caldav.utils.url import glue
+from caldav.utils import url
 
 
 def children(client, parent, type = None):
@@ -27,7 +27,7 @@ def children(client, parent, type = None):
                 cls = Calendar
 
             if resource_type == type or type is None:
-                c.append(cls(client, url = parent.geturl(path), 
+                c.append(cls(client, url = url.make(parent.url, path), 
                              parent = parent))
 
     return c
@@ -94,7 +94,7 @@ def date_search(client, calendar, start, end = None):
     for r in response.tree.findall(".//" + ns("D", "response")):
         href = r.find(ns("D", "href")).text
         data = r.find(".//" + ns("C", "calendar-data")).text
-        rc.append(Event(client, url = calendar.geturl(href), 
+        rc.append(Event(client, url = url.make(calendar.url, href), 
                         data = data, parent = object))
 
     return rc
@@ -103,7 +103,7 @@ def create_calendar(client, parent, name, id = None):
     """
     Create a new calendar with display name `name` in `parent`.
     """
-    url = None
+    path = None
     if id is None:
         id = str(uuid.uuid1())
 
@@ -117,22 +117,28 @@ def create_calendar(client, parent, name, id = None):
     dname.text = name
 
     q = etree.tostring(root, encoding="utf-8", xml_declaration=True)
-    path = glue(parent.url.path, id)
+    path = url.join(parent.url.path, id)
 
     r = client.mkcol(path, q)
     if r.status == 201:
-        url = parent.geturl(path)
+        path = url.make(parent.url, path)
 
-    return url
+    return (id, path)
 
 def create_event(client, calendar, data, id = None):
-    url = None
+    path = None
     if id is None:
         id = str(uuid.uuid1())
 
-    path = glue(calendar.url.path, id + ".ics")
+    path = url.join(calendar.url.path, id + ".ics")
     r = client.put(path, data)
     if r.status == 201:
-        url = calendar.geturl(path)
+        path = url.make(calendar.url, path)
 
-    return url
+    return (id, path)
+
+def delete(client, object):
+    path = object.url.path
+    r = client.delete(path)
+
+    return r.status == 204

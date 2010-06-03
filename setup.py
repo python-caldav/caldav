@@ -8,7 +8,7 @@ if __name__ == '__main__':
     setup(
         name='caldav',
         version=version,
-        description="CalDAV client",
+        description="CalDAV (RFC4791) client library",
         classifiers=[],
         keywords='',
         author='Cyril Robert',
