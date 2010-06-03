@@ -7,6 +7,7 @@ from conf import principal_url, principal_url_ssl
 
 from caldav.davclient import DAVClient
 from caldav.objects import Principal, Calendar, Event
+from caldav.utils import url
 
 
 ev1 = """BEGIN:VCALENDAR
@@ -35,6 +36,7 @@ END:VEVENT
 END:VCALENDAR
 """
 
+testcal_id = "pythoncaldav-test"
 
 
 class TestCalDAV:
@@ -43,21 +45,26 @@ class TestCalDAV:
         self.principal = Principal(self.caldav, principal_url)
 
     def teardown(self):
-        pass
+        p = url.make(self.principal.url)
+        path = url.join(p, testcal_id)
+
+        cal = Calendar(self.caldav, name="Yep", parent = self.principal, 
+                       url = path)
+        cal.delete()
 
     def testSSL(self):
         c = DAVClient(principal_url_ssl)
 
     def testPrincipal(self):
-        assert_equal(self.principal.geturl(), principal_url)
+        assert_equal(url.make(self.principal.url), principal_url)
 
         collections = self.principal.calendars()
         for c in collections:
             assert_equal(c.__class__.__name__, "Calendar")
 
     def testCalendar(self):
-        c = Calendar(self.caldav, name="Yep", 
-                     parent = self.principal, id = "yepyep").save()
+        c = Calendar(self.caldav, name="Yep", parent = self.principal, 
+                     id = testcal_id).save()
         assert_not_equal(c.url, None)
         print c
         # TODO: fail
@@ -68,12 +75,13 @@ class TestCalDAV:
         assert_not_equal(e.url, None)
         print e
 
-        ee = Event(self.caldav, url = e.geturl(), parent = c)
+        ee = Event(self.caldav, url = url.make(e.url), parent = c)
         ee.load()
         assert_equal(e.instance.vevent.uid, ee.instance.vevent.uid)
 
         r = c.date_search("20060713T170000Z", "20060715T170000Z")
         assert_equal(e.instance.vevent.uid, r[0].instance.vevent.uid)
+        print r
         assert_equal(len(r), 1)
 
         all = c.events()

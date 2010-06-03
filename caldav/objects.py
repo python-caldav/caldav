@@ -8,8 +8,9 @@ import StringIO
 
 from lxml import etree
 
-import utils.vcal
-from utils.namespace import ns
+from caldav.utils import vcal
+from caldav.utils.namespace import ns
+from caldav.utils import url
 
 class DAVObject:
     id = None
@@ -25,24 +26,17 @@ class DAVObject:
         self.id = id
         if url is not None:
             self.url = urlparse.urlparse(url)
-
-    def geturl(self, path = None):
-        u = ""
-        if self.url is not None:
-            if path is None:
-                u = self.url.geturl()
-            else:
-                # Replace path with the one provided
-                u = urlparse.urlunparse((self.url.scheme, self.url.netloc, 
-                                         path, self.url.params, self.url.query,
-                                         self.url.fragment))
-        return u
-
+ 
     def properties(self, props):
         return commands.properties(self.client, self, props)
     
     def save(self):
         raise Exception("Must be defined in subclasses")
+
+    def delete(self):
+        if self.url is not None:
+            commands.delete(self.client, self)
+
 
 
 class Principal(DAVObject):
@@ -57,10 +51,11 @@ class Principal(DAVObject):
 class Calendar(DAVObject):
     def save(self):
         if self.url is None:
-            url = commands.create_calendar(self.client, self.parent, 
-                                           self.name, self.id)
-            if url is not None:
-                self.url = urlparse.urlparse(url)
+            (id, path) = commands.create_calendar(self.client, self.parent, 
+                                                  self.name, self.id)
+            self.id = id
+            if path is not None:
+                self.url = urlparse.urlparse(path)
         return self
 
     def date_search(self, start, end = None):
@@ -70,7 +65,7 @@ class Calendar(DAVObject):
         return commands.children(self.client, self)
 
     def __str__(self):
-        return "Collection: %s" % self.geturl()
+        return "Collection: %s" % url.make(self.url)
 
 class Event(DAVObject):
     instance = None
@@ -82,23 +77,25 @@ class Event(DAVObject):
 
     def load(self):
         r = self.client.request(self.url.path)
-        r.raw = utils.vcal.fix(r.raw)
+        r.raw = vcal.fix(r.raw)
         self.instance = vobject.readOne(StringIO.StringIO(r.raw))
 
     def save(self):
         if self.instance is not None:
             if self.url is None:
-                url = commands.create_event(self.client, self.parent, 
-                                            self.instance.serialize(), self.id)
-                if url is not None:
-                    self.url = urlparse.urlparse(url)
+                (id, path) = commands.create_event(self.client, self.parent, 
+                                                   self.instance.serialize(), 
+                                                   self.id)
+                self.id = id
+                if path is not None:
+                    self.url = urlparse.urlparse(path)
             else:
                 #OMGTODO
                 pass
         return self
 
     def __str__(self):
-        return "Event: %s" % self.geturl()
+        return "Event: %s" % url.make(self.url)
 
 
 

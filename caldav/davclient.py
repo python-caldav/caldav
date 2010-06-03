@@ -59,6 +59,8 @@ class DAVClient:
     def put(self, url, body):
         return self.request(url, "PUT", body)
 
+    def delete(self, url):
+        return self.request(url, "DELETE")
 
     def request(self, url, method = "GET", body = "", headers = {}):
         headers.update(self.headers)
