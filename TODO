@@ -3,7 +3,7 @@ TODO before release:
 X -> Remove geturl() crap, do something in utils.url
  -> Cleanup objects
 X -> Complete Add / Update operations on all items
- -> Cleanup properties(*props*) param definition
+X -> Cleanup properties(*props*) param definition
  -> Make sure API is clean and coherent
 X -> Add Delete operation
  -> Add propset
