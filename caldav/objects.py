@@ -65,6 +65,7 @@ class Calendar(DAVObject):
     def __str__(self):
         return "Collection: %s" % url.make(self.url)
 
+
 class Event(DAVObject):
     instance = None
 
@@ -77,10 +78,12 @@ class Event(DAVObject):
         r = self.client.request(self.url.path)
         r.raw = vcal.fix(r.raw)
         self.instance = vobject.readOne(StringIO.StringIO(r.raw))
+        return self
 
     def update(self, data):
         self.data = vcal.fix(data)
         self.instance = vobject.readOne(StringIO.StringIO(self.data))
+        return self
 
     def save(self):
         if self.instance is not None:
