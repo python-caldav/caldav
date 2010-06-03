@@ -7,7 +7,6 @@ from conf import principal_url, principal_url_ssl
 
 from caldav.davclient import DAVClient
 from caldav.objects import Principal, Calendar, Event
-from caldav.utils import namespace
 
 
 ev1 = """BEGIN:VCALENDAR
@@ -41,7 +40,7 @@ END:VCALENDAR
 class TestCalDAV:
     def setup(self):
         self.caldav = DAVClient(principal_url)
-        self.p = Principal(self.caldav, principal_url)
+        self.principal = Principal(self.caldav, principal_url)
 
     def teardown(self):
         pass
@@ -50,14 +49,15 @@ class TestCalDAV:
         c = DAVClient(principal_url_ssl)
 
     def testPrincipal(self):
-        assert_equal(self.p.geturl(), principal_url)
+        assert_equal(self.principal.geturl(), principal_url)
 
-        collections = self.p.calendars()
+        collections = self.principal.calendars()
         for c in collections:
             assert_equal(c.__class__.__name__, "Calendar")
 
     def testCalendar(self):
-        c = Calendar(self.caldav, name="Yep", parent = self.p).save()
+        c = Calendar(self.caldav, name="Yep", 
+                     parent = self.principal, id = "yepyep").save()
         assert_not_equal(c.url, None)
         print c
         # TODO: fail

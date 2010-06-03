@@ -11,11 +11,20 @@ from lxml import etree
 import utils.vcal
 from utils.namespace import ns
 
-class DavObject:
+class DAVObject:
+    id = None
     url = None
     client = None
     parent = None
     name = None
+
+    def __init__(self, client, url = None, parent = None, name = None, id = None):
+        self.client = client
+        self.parent = parent
+        self.name = name
+        self.id = id
+        if url is not None:
+            self.url = urlparse.urlparse(url)
 
     def geturl(self, path = None):
         u = ""
@@ -23,22 +32,20 @@ class DavObject:
             if path is None:
                 u = self.url.geturl()
             else:
+                # Replace path with the one provided
                 u = urlparse.urlunparse((self.url.scheme, self.url.netloc, 
                                          path, self.url.params, self.url.query,
                                          self.url.fragment))
         return u
 
-    def properties(self, props = []):
+    def properties(self, props):
         return commands.properties(self.client, self, props)
     
     def save(self):
         raise Exception("Must be defined in subclasses")
 
-    def append(self, client, obj):
-        pass
 
-
-class Principal(DavObject):
+class Principal(DAVObject):
     def __init__(self, client, url):
         self.client = client
         self.url = urlparse.urlparse(url)
@@ -47,18 +54,11 @@ class Principal(DavObject):
         return commands.children(self.client, self, ns("D", "collection"))
 
 
-class Calendar(DavObject):
-    def __init__(self, client, url = None, parent = None, name = None):
-        self.client = client
-        self.parent = parent
-        self.name = name
-        if url is not None:
-            self.url = urlparse.urlparse(url)
-
-
+class Calendar(DAVObject):
     def save(self):
         if self.url is None:
-            url = commands.create_calendar(self.client, self.parent, self.name)
+            url = commands.create_calendar(self.client, self.parent, 
+                                           self.name, self.id)
             if url is not None:
                 self.url = urlparse.urlparse(url)
         return self
@@ -72,14 +72,11 @@ class Calendar(DavObject):
     def __str__(self):
         return "Collection: %s" % self.geturl()
 
-class Event(DavObject):
+class Event(DAVObject):
     instance = None
 
-    def __init__(self, client, url = None, data = None, parent = None):
-        self.client = client
-        self.parent = parent
-        if url is not None:
-            self.url = urlparse.urlparse(url)
+    def __init__(self, client, url = None, data = None, parent = None, id = None):
+        DAVObject.__init__(self, client, url, parent, id)
         if data is not None:
             self.instance = vobject.readOne(StringIO.StringIO(data))
 
@@ -91,7 +88,8 @@ class Event(DavObject):
     def save(self):
         if self.instance is not None:
             if self.url is None:
-                url = commands.create_event(self.client, self.parent, self.instance.serialize())
+                url = commands.create_event(self.client, self.parent, 
+                                            self.instance.serialize(), self.id)
                 if url is not None:
                     self.url = urlparse.urlparse(url)
             else:

@@ -1,0 +1,12 @@
+TODO before release:
+
+-> Remove geturl() crap, do something in utils.url
+-> Cleanup objects
+-> Complete Add / Update operations on all items
+-> Cleanup properties(*props*) param definition
+-> Make sure API is clean and coherent
+
+
+TODO after:
+-> Add Delete oper
+-> Add some cache mechanism?
