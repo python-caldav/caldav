@@ -68,7 +68,7 @@ class TestCalDAV:
         assert_not_equal(c.url, None)
         print c
         # TODO: fail
-        #props = c.properties([("D", "displayname"),])
+        #props = c.properties([ns("D", "displayname"),])
         #assert_equal("Yep", props["{DAV:}displayname"])
 
         e = Event(self.caldav, data = ev1, parent = c).save()

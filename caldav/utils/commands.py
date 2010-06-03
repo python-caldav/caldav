@@ -17,7 +17,7 @@ def children(client, parent, type = None):
     """
     c = []
 
-    response = properties(client, parent, [("D", "resourcetype"),], 1)
+    response = properties(client, parent, [ns("D", "resourcetype"),], 1)
     for path in response.keys():
         if path != parent.url.path:
             resource_type = response[path][ns("D", 'resourcetype')]
@@ -46,7 +46,7 @@ def properties(client, object, props = [], depth = 0):
         root = etree.Element("propfind", nsmap = nsmap)
         prop = etree.SubElement(root, ns("D", "prop"))
         for p in props:
-            prop.append(etree.Element(ns(*p)))
+            prop.append(etree.Element(p))
         body = etree.tostring(root, encoding="utf-8", xml_declaration=True)
 
     response = client.propfind(object.url.path, body, depth)
@@ -55,7 +55,7 @@ def properties(client, object, props = [], depth = 0):
         href = r.find(ns("D", "href")).text
         rc[href] = {}
         for p in props:
-            t = r.find(".//" + ns(*p))
+            t = r.find(".//" + p)
             if t.text is None:
                 val = t.find(".//*")
                 if val is not None:
@@ -64,7 +64,7 @@ def properties(client, object, props = [], depth = 0):
                     val = None
             else:
                 val = t.text
-            rc[href][ns(*p)] = val
+            rc[href][p] = val
 
     return rc
 
