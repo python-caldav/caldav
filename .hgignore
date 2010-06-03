@@ -11,3 +11,4 @@ dist
 .*.egg-info
 .installed.cfg
 accountific.db
+.coverage
