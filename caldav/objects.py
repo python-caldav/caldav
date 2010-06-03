@@ -6,8 +6,6 @@ import urlparse
 import vobject
 import StringIO
 
-from lxml import etree
-
 from caldav.utils import vcal
 from caldav.utils.namespace import ns
 from caldav.utils import url
@@ -80,18 +78,18 @@ class Event(DAVObject):
         r.raw = vcal.fix(r.raw)
         self.instance = vobject.readOne(StringIO.StringIO(r.raw))
 
+    def update(self, data):
+        self.data = vcal.fix(data)
+        self.instance = vobject.readOne(StringIO.StringIO(self.data))
+
     def save(self):
         if self.instance is not None:
-            if self.url is None:
-                (id, path) = commands.create_event(self.client, self.parent, 
-                                                   self.instance.serialize(), 
-                                                   self.id)
-                self.id = id
-                if path is not None:
-                    self.url = urlparse.urlparse(path)
-            else:
-                #OMGTODO
-                pass
+            (id, path) = commands.create_event(self.client, self.parent, 
+                                               self.instance.serialize(), 
+                                               self.id)
+            self.id = id
+            if path is not None:
+                self.url = urlparse.urlparse(path)
         return self
 
     def __str__(self):

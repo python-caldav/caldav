@@ -92,3 +92,9 @@ class TestCalDAV:
 
         r = c.date_search("20060713T170000Z", "20060715T170000Z")
         assert_equal(len(r), 1)
+
+        e.update(ev2)
+        e.save()
+
+        r = c.date_search("20060713T170000Z", "20060715T170000Z")
+        assert_equal(len(r), 0)
