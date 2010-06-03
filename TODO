@@ -7,3 +7,8 @@ X -> Cleanup properties(*props*) param definition
 X -> Make sure API is clean and coherent
 X -> Add Delete operation
  -> Add propset
+
+Cool stuff to have:
+ -> Integration with django-piston
+ -> A better idea for the architecture
+ -> Ensure flexibility
