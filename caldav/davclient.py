@@ -53,6 +53,12 @@ class DAVClient:
                             {'depth': depth, "Content-Type": 
                              "application/xml; charset=\"utf-8\""})
 
+    def mkcol(self, url, body):
+        return self.request(url, "MKCOL", body)
+
+    def put(self, url, body):
+        return self.request(url, "PUT", body)
+
 
     def request(self, url, method = "GET", body = "", headers = {}):
         headers.update(self.headers)
