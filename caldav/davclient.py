@@ -65,7 +65,7 @@ class DAVClient:
          * depth: maximum recursion depth
 
         Returns
-           DAVResponse
+         * DAVResponse
         """
         return self.request(url, "PROPFIND", props, {'depth': depth})
 
@@ -78,7 +78,7 @@ class DAVClient:
          * body: XML propertyupdate request
 
         Returns
-           DAVResponse
+         * DAVResponse
         """
         return self.request(url, "PROPPATCH", body)
 
@@ -92,7 +92,7 @@ class DAVClient:
          * depth: maximum recursion depth
 
         Returns
-           DAVResponse
+         * DAVResponse
         """
         return self.request(url, "REPORT", query, 
                             {'depth': depth, "Content-Type": 
@@ -107,7 +107,7 @@ class DAVClient:
          * body: XML request
 
         Returns
-           DAVResponse
+         * DAVResponse
         """
         return self.request(url, "MKCOL", body)
 

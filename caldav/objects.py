@@ -47,7 +47,7 @@ class DAVObject(object):
          * props = [ns("C", "propname"), ...]
 
         Returns:
-           {ns("C", "propname"): value, ...}
+         * {ns("C", "propname"): value, ...}
         """
         p = commands.get_properties(self.client, self, props)
         return p[self.url.path]
@@ -60,7 +60,7 @@ class DAVObject(object):
          * props = {ns("C", "propname"): value, ...}
 
         Returns: 
-           self
+         * self
         """
         commands.set_properties(self.client, self, props)
         return self
@@ -97,7 +97,7 @@ class Principal(DAVObject):
         List all calendar collections in this principal.
 
         Returns:
-           [Calendar(), ...]
+         * [Calendar(), ...]
         """
         return commands.children(self.client, self, ns("D", "collection"))
 
@@ -128,7 +128,7 @@ class Calendar(DAVObject):
         We know we have to create it when we don't have a url.
 
         Returns:
-           self
+         * self
         """
         if self.url is None:
             (id, path) = commands.create_calendar(self.client, self.parent, 
@@ -149,7 +149,7 @@ class Calendar(DAVObject):
          * end = "20100528T124500Z", same as above.
 
         Returns:
-           [Event(), ...]
+         * [Event(), ...]
         """
         return commands.date_search(self.client, self, start, end)
 
@@ -158,7 +158,7 @@ class Calendar(DAVObject):
         List all events from the calendar.
 
         Returns:
-           [Event(), ...]
+         * [Event(), ...]
         """
         return commands.children(self.client, self)
 
@@ -195,7 +195,7 @@ class Event(DAVObject):
         Save the event, can be used for creation and update.
 
         Returns:
-           self
+         * self
         """
         if self._instance is not None:
             (id, path) = commands.create_event(self.client, self.parent, 
