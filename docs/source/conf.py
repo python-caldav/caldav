@@ -38,7 +38,7 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = u'python-caldav'
+project = u'caldav'
 copyright = u'2010, Cyril Robert'
 
 # The version info for the project you're documenting, acts as replacement for
