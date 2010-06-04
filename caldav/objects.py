@@ -79,8 +79,11 @@ class DAVObject(object):
 
 class Principal(DAVObject):
     """
-    This classe represents a DAV Principal. It doesn't do much, except play 
+    This class represents a DAV Principal. It doesn't do much, except play 
     the role of the parent to all calendar collections.
+
+    Available DAV properties:
+     * ns("D", "displayname")
     """
     def __init__(self, client, url):
         """
@@ -103,7 +106,7 @@ class Calendar(DAVObject):
     """
     The `Calendar` object is used to represent a calendar collection.
 
-    Available properties:
+    Available CalDAV properties:
      * ns("C", "calendar-description")
      * ns("C", "calendar-timezone")
      * ns("C", "supported-calendar-component-set")
@@ -113,6 +116,9 @@ class Calendar(DAVObject):
      * ns("C", "max-date-time")
      * ns("C", "max-instances")
      * ns("C", "max-attendees-per-instance")
+
+    Available DAV properties:
+     * ns("D", "displayname")
     
     Refer to the RFC for details: http://www.ietf.org/rfc/rfc4791.txt
     """
