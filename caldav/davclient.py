@@ -7,6 +7,10 @@ from lxml import etree
 
 
 class DAVResponse:
+    """
+    This class is a response from a DAV request.
+    Since we often get XML responses, it tries to parse it into `self.tree`
+    """
     raw = ""
     tree = None
     headers = {}
@@ -24,7 +28,13 @@ class DAVResponse:
         
 
 class DAVClient:
+    """
+    Basic client for webdav, heavily based on httplib
+    """
     def __init__(self, url):
+        """
+        Connects to the server, as defined in the url.
+        """
         url = urlparse.urlparse(url)
         self.hostname = url.hostname
         self.port = url.port
@@ -46,26 +56,77 @@ class DAVClient:
         self.handle.connect()
 
     def propfind(self, url, props = "", depth = 0):
+        """
+        Send a propfind request.
+
+        Parameters:
+         * url: url for the root of the propfind.
+         * props = [ns("C", "bla"), ...], properties we want
+         * depth: maximum recursion depth
+
+        Returns
+           DAVResponse
+        """
         return self.request(url, "PROPFIND", props, {'depth': depth})
 
     def proppatch(self, url, body):
+        """
+        Send a proppatch request.
+
+        Parameters:
+         * url: url for the root of the propfind.
+         * body: XML propertyupdate request
+
+        Returns
+           DAVResponse
+        """
         return self.request(url, "PROPPATCH", body)
 
     def report(self, url, query = "", depth = 0):
+        """
+        Send a report request.
+
+        Parameters:
+         * url: url for the root of the propfind.
+         * query: XML request
+         * depth: maximum recursion depth
+
+        Returns
+           DAVResponse
+        """
         return self.request(url, "REPORT", query, 
                             {'depth': depth, "Content-Type": 
                              "application/xml; charset=\"utf-8\""})
 
     def mkcol(self, url, body):
+        """
+        Send a mkcol request.
+
+        Parameters:
+         * url: url for the root of the propfind.
+         * body: XML request
+
+        Returns
+           DAVResponse
+        """
         return self.request(url, "MKCOL", body)
 
     def put(self, url, body):
+        """
+        Send a put request.
+        """
         return self.request(url, "PUT", body)
 
     def delete(self, url):
+        """
+        Send a delete request.
+        """
         return self.request(url, "DELETE")
 
     def request(self, url, method = "GET", body = "", headers = {}):
+        """
+        Actually sends the request
+        """
         headers.update(self.headers)
         self.handle.request(method, url, body, headers)
         return DAVResponse(self.handle.getresponse())

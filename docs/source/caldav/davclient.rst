@@ -3,4 +3,4 @@
 
 .. automodule:: caldav.davclient
    :synopsis: Classe d'interaction avec les données
-   :members: DAVClient
+   :members: DAVClient, DAVResponse
