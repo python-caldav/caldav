@@ -7,7 +7,8 @@ from conf import principal_url, principal_url_ssl
 
 from caldav.davclient import DAVClient
 from caldav.objects import Principal, Calendar, Event
-from caldav.utils import url
+from caldav.lib import url
+from caldav.lib.namespace import ns
 
 
 ev1 = """BEGIN:VCALENDAR
@@ -66,14 +67,21 @@ class TestCalDAV:
         c = Calendar(self.caldav, name="Yep", parent = self.principal, 
                      id = testcal_id).save()
         assert_not_equal(c.url, None)
-        print c
         # TODO: fail
-        #props = c.properties([ns("D", "displayname"),])
         #assert_equal("Yep", props["{DAV:}displayname"])
+
+        c.set_properties({ns("D", "displayname"): "hooray",})
+        props = c.get_properties([ns("D", "displayname"),])
+        assert_equal(props[ns("D", "displayname")], "hooray")
+        print c
+
+        cc = Calendar(self.caldav, name="Yep", parent = self.principal).save()
+        assert_not_equal(cc.url, None)
+        cc.delete()
 
         e = Event(self.caldav, data = ev1, parent = c).save()
         assert_not_equal(e.url, None)
-        print e
+        print e, e.data
 
         ee = Event(self.caldav, url = url.make(e.url), parent = c)
         ee.load()
@@ -93,7 +101,14 @@ class TestCalDAV:
         r = c.date_search("20060713T170000Z", "20060715T170000Z")
         assert_equal(len(r), 1)
 
-        e.update(ev2).save()
+        e.data = ev2
+        e.save()
+
+        r = c.date_search("20060713T170000Z", "20060715T170000Z")
+        assert_equal(len(r), 0)
+
+        e.instance = e2.instance
+        e.save()
 
         r = c.date_search("20060713T170000Z", "20060715T170000Z")
         assert_equal(len(r), 0)

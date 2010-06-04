@@ -5,8 +5,8 @@ from lxml import etree
 import uuid
 
 from caldav.objects import Principal, Calendar, Event
-from caldav.utils.namespace import ns, nsmap
-from caldav.utils import url
+from caldav.lib.namespace import ns, nsmap
+from caldav.lib import url
 
 
 def children(client, parent, type = None):
@@ -17,7 +17,7 @@ def children(client, parent, type = None):
     """
     c = []
 
-    response = properties(client, parent, [ns("D", "resourcetype"),], 1)
+    response = get_properties(client, parent, [ns("D", "resourcetype"),], 1)
     for path in response.keys():
         if path != parent.url.path:
             resource_type = response[path][ns("D", 'resourcetype')]
@@ -33,7 +33,7 @@ def children(client, parent, type = None):
     return c
 
 
-def properties(client, object, props = [], depth = 0):
+def get_properties(client, object, props = [], depth = 0):
     """
     Find the properies `props` of object `object` and its children at
     maximum `depth` levels. (0 means only `object`).
@@ -67,6 +67,19 @@ def properties(client, object, props = [], depth = 0):
             rc[href][p] = val
 
     return rc
+
+
+def set_properties(client, object, props = []):
+    root = etree.Element(ns("D", "propertyupdate"), nsmap = nsmap)
+    set = etree.SubElement(root, ns("D", "set"))
+    prop = etree.SubElement(set, ns("D", "prop"))
+    for property in props.keys():
+        elt = etree.SubElement(prop, property)
+        elt.text = props[property]
+    q = etree.tostring(root, encoding="utf-8", xml_declaration=True)
+    print q
+    r = client.proppatch(object.url.path, q)
+    print r, r.raw
 
 
 def date_search(client, calendar, start, end = None):

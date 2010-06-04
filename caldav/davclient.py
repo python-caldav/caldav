@@ -48,6 +48,9 @@ class DAVClient:
     def propfind(self, url, props = "", depth = 0):
         return self.request(url, "PROPFIND", props, {'depth': depth})
 
+    def proppatch(self, url, body):
+        return self.request(url, "PROPPATCH", body)
+
     def report(self, url, query = "", depth = 0):
         return self.request(url, "REPORT", query, 
                             {'depth': depth, "Content-Type": 
