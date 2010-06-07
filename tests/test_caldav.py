@@ -68,6 +68,7 @@ class TestCalDAV:
                      id = testcal_id).save()
         assert_not_equal(c.url, None)
         # TODO: fail
+        #props = c.get_properties([ns("D", "displayname"),])
         #assert_equal("Yep", props["{DAV:}displayname"])
 
         c.set_properties({ns("D", "displayname"): "hooray",})

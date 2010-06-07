@@ -4,7 +4,6 @@
 from lxml import etree
 import uuid
 
-from caldav.objects import Principal, Calendar, Event
 from caldav.lib.namespace import ns, nsmap
 from caldav.lib import url
 
@@ -21,14 +20,8 @@ def children(client, parent, type = None):
     for path in response.keys():
         if path != parent.url.path:
             resource_type = response[path][ns("D", 'resourcetype')]
-            cls = Event
-            if resource_type is not None \
-               and resource_type == ns("D", "collection"):
-                cls = Calendar
-
             if resource_type == type or type is None:
-                c.append(cls(client, url = url.make(parent.url, path), 
-                             parent = parent))
+                c.append((url.make(parent.url, path), resource_type))
 
     return c
 
@@ -107,8 +100,7 @@ def date_search(client, calendar, start, end = None):
     for r in response.tree.findall(".//" + ns("D", "response")):
         href = r.find(ns("D", "href")).text
         data = r.find(".//" + ns("C", "calendar-data")).text
-        rc.append(Event(client, url = url.make(calendar.url, href), 
-                        data = data, parent = object))
+        rc.append((url.make(calendar.url, href), data))
 
     return rc
 
