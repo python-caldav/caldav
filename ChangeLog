@@ -1,0 +1,7 @@
+2010-06-07  Cyril Robert <cyrilrbt@gmail.com>
+
+	* caldav/lib/commands.py (children, date_search): Removed instanciation of 
+	children / events, it should be done in objects.
+	* caldav/objects.py (Calendar.events, Principal.calendars, 
+	Calendar.date_search): Made changes according to the new commands.children 
+	method. Moved ugly import.

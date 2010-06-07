@@ -9,6 +9,7 @@ import StringIO
 from caldav.lib import vcal
 from caldav.lib.namespace import ns
 from caldav.lib import url
+from caldav.lib import commands
 
 class DAVObject(object):
     """
@@ -99,7 +100,13 @@ class Principal(DAVObject):
         Returns:
          * [Calendar(), ...]
         """
-        return commands.children(self.client, self, ns("D", "collection"))
+        c = []
+
+        data = commands.children(self.client, self, ns("D", "collection"))
+        for c_url, c_type in data:
+            c.append(Calendar(self.client, c_url, parent = self))
+
+        return c
 
 
 class Calendar(DAVObject):
@@ -151,7 +158,14 @@ class Calendar(DAVObject):
         Returns:
          * [Event(), ...]
         """
-        return commands.date_search(self.client, self, start, end)
+        e = []
+
+        data = commands.date_search(self.client, self, start, end)
+        for e_url, e_data in data:
+            e.append(Event(self.client, url = e_url, data = e_data, 
+                           parent = self))
+
+        return e
 
     def events(self):
         """
@@ -160,7 +174,13 @@ class Calendar(DAVObject):
         Returns:
          * [Event(), ...]
         """
-        return commands.children(self.client, self)
+        e = []
+
+        data = commands.children(self.client, self)
+        for e_url, e_type in data:
+            e.append(Event(self.client, e_url, parent = self))
+
+        return e
 
     def __str__(self):
         return "Collection: %s" % url.make(self.url)
@@ -229,5 +249,3 @@ class Event(DAVObject):
                         doc = "vobject instance of the event")
 
 
-#TODO: This is ugly
-from lib import commands
