@@ -31,28 +31,47 @@ class DAVClient:
     """
     Basic client for webdav, heavily based on httplib
     """
-    def __init__(self, url):
+    proxy = None
+    url = None
+
+    def __init__(self, url, proxy = None):
         """
         Connects to the server, as defined in the url.
+        Parameters:
+         * url: A fully qualified url: `scheme://user:pass@hostname:port`
+         * proxy: A string defining a proxy server: `hostname:port`
         """
-        url = urlparse.urlparse(url)
-        self.hostname = url.hostname
-        self.port = url.port
-        self.username = url.username
-        self.password = url.password
+        
+        self.url = urlparse.urlparse(url)
+
+        # Prepare proxy info
+        if proxy is not None:
+            self.proxy = proxy.split(":")
+            if len(self.proxy) == 1:
+                self.proxy.append(8080)
+            else:
+                self.proxy[1] = int(self.proxy[1])
 
         # Build global headers
         self.headers = { "User-Agent": "Mozilla/5.0" }
-        if self.username is not None:
-            hash = (("%s:%s" % (self.username, self.password))\
+        if self.url.username is not None:
+            hash = (("%s:%s" % (self.url.username, self.url.password))\
                     .encode('base64')[:-1])
             self.headers['authorization'] = "Basic %s" % hash
 
-        # Connect
-        if self.port == 443 or url.scheme == "https":
-            self.handle = httplib.HTTPSConnection(self.hostname, self.port)
+        # Connection
+        # proxy
+        if self.proxy is not None:
+            self.handle = httplib.HTTPConnection(*self.proxy)
+        # direct, https
+        elif self.url.port == 443 or self.url.scheme == 'https':
+            self.handle = httplib.HTTPSConnection(self.url.hostname, 
+                                                  self.url.port)
+        # direct, http
         else:
-            self.handle = httplib.HTTPConnection(self.hostname, self.port)
+            self.handle = httplib.HTTPConnection(self.url.hostname, 
+                                                 self.url.port)
+
         self.handle.connect()
 
     def propfind(self, url, props = "", depth = 0):
@@ -127,6 +146,10 @@ class DAVClient:
         """
         Actually sends the request
         """
+        if self.proxy is not None:
+            url = "%s://%s:%s%s" % (self.url.scheme, self.url.hostname, 
+                                    self.url.port, url)
+
         headers.update(self.headers)
         self.handle.request(method, url, body, headers)
         return DAVResponse(self.handle.getresponse())
