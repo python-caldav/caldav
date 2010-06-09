@@ -167,6 +167,21 @@ class Calendar(DAVObject):
 
         return e
 
+    def event(self, uid):
+        """
+        Get one event from the calendar.
+
+        Parameters:
+         * uid: the event uid
+
+        Returns:
+         * Event() or None
+        """
+        (e_url, e_data) = commands.uid_search(self.client, self, uid)
+        e = Event(self.client, url = e_url, data = e_data, parent = self)
+
+        return e
+
     def events(self):
         """
         List all events from the calendar.

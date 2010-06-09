@@ -107,6 +107,9 @@ class TestCalDAV:
         e2 = Event(self.caldav, data = ev2, parent = c).save()
         assert_not_equal(e.url, None)
 
+        tmp = c.event("20010712T182145Z-123401@example.com")
+        assert_equal(e2.instance.vevent.uid, tmp.instance.vevent.uid)
+
         r = c.date_search("20060713T170000Z", "20060715T170000Z")
         assert_equal(len(r), 1)
 

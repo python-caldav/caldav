@@ -5,6 +5,10 @@
 	* tests/test_caldav.py (TestCalDAV.testProxy): Added a new test for the
 	new proxy option.
 	* tests/test_caldav.py (TestCalDAV.testSSL): Added one more test.
+	* caldav/lib/commands.py (uid_search): Added new method.
+	* caldav/objects.py (Calendar.event): Added new method to find an event by
+	its UID.
+	* tests/test_caldav.py: Added a quick test for the new methods
 
 2010-06-07  Cyril Robert <cyrilrbt@gmail.com>
 
