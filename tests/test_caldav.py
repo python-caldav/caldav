@@ -3,7 +3,7 @@
 
 from nose.tools import assert_equal, assert_not_equal
 
-from conf import principal_url, principal_url_ssl
+from conf import principal_url, principal_url_ssl, proxy
 
 from caldav.davclient import DAVClient
 from caldav.objects import Principal, Calendar, Event
@@ -55,6 +55,14 @@ class TestCalDAV:
 
     def testSSL(self):
         c = DAVClient(principal_url_ssl)
+        # the demo ssl url doesn't actually work...
+        #p = Principal(c, principal_url_ssl)
+        #assert_not_equal(len(p.calendars()), 0)
+
+    def testProxy(self):
+        c = DAVClient(principal_url, proxy)
+        p = Principal(c, principal_url)
+        assert_not_equal(len(p.calendars()), 0)
 
     def testPrincipal(self):
         assert_equal(url.make(self.principal.url), principal_url)

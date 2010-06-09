@@ -1,3 +1,11 @@
+2010-06-09  Cyril Robert <cyrilrbt@gmail.com>
+
+	* caldav/davclient.py (DAVClient.__init__, DAVClient.request): Added
+	support for an optional http proxy.
+	* tests/test_caldav.py (TestCalDAV.testProxy): Added a new test for the
+	new proxy option.
+	* tests/test_caldav.py (TestCalDAV.testSSL): Added one more test.
+
 2010-06-07  Cyril Robert <cyrilrbt@gmail.com>
 
 	* caldav/lib/commands.py (children, date_search): Removed instanciation of 
