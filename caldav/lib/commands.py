@@ -25,7 +25,6 @@ def children(client, parent, type = None):
 
     return c
 
-
 def get_properties(client, object, props = [], depth = 0):
     """
     Find the properies `props` of object `object` and its children at
@@ -103,6 +102,28 @@ def date_search(client, calendar, start, end = None):
         rc.append((url.make(calendar.url, href), data))
 
     return rc
+
+def uid_search(client, calendar, uid):
+    """
+    Perform a uid search in the `calendar`.
+    """
+    root = etree.Element(ns("C", "calendar-query"), nsmap = nsmap)
+    prop = etree.SubElement(root, ns("D", "prop"))
+    cdata = etree.SubElement(prop, ns("C", "calendar-data"))
+    filter = etree.SubElement(root, ns("C", "filter"))
+    fcal = etree.SubElement(filter, ns("C", "comp-filter"), name = "VCALENDAR")
+    fevt = etree.SubElement(fcal, ns("C", "comp-filter"), name = "VEVENT")
+    fuid = etree.SubElement(fevt, ns("C", "prop-filter"), name = "UID")
+    match = etree.SubElement(fuid, ns("C", "text-match"),
+                             collation = "i; octet")
+    match.text = uid
+
+    q = etree.tostring(root, encoding="utf-8", xml_declaration=True)
+    response = client.report(calendar.url.path, q, 1)
+    r = response.tree.find(".//" + ns("D", "response"))
+    href = r.find(ns("D", "href")).text
+    data = r.find(".//" + ns("C", "calendar-data")).text
+    return (url.make(calendar.url, href), data)
 
 def create_calendar(client, parent, name, id = None):
     """
