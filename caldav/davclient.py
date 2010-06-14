@@ -130,11 +130,11 @@ class DAVClient:
         """
         return self.request(url, "MKCOL", body)
 
-    def put(self, url, body):
+    def put(self, url, body, headers = {}):
         """
         Send a put request.
         """
-        return self.request(url, "PUT", body)
+        return self.request(url, "PUT", body, headers)
 
     def delete(self, url):
         """

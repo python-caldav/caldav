@@ -1,3 +1,8 @@
+2010-06-14  Cyril Robert <cyrilrbt@gmail.com>
+
+	* caldav/davclient.py (DAVClient.put): Added a new "headers" parameter.
+	* caldav/lib/commands.py (create_event): Added headers for content-type.
+
 2010-06-09  Cyril Robert <cyrilrbt@gmail.com>
 
 	* caldav/davclient.py (DAVClient.__init__, DAVClient.request): Added
