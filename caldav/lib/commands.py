@@ -6,6 +6,7 @@ import uuid
 
 from caldav.lib.namespace import ns, nsmap
 from caldav.lib import url
+from caldav.lib import error
 
 
 def children(client, parent, type = None):
@@ -69,9 +70,12 @@ def set_properties(client, object, props = []):
         elt = etree.SubElement(prop, property)
         elt.text = props[property]
     q = etree.tostring(root, encoding="utf-8", xml_declaration=True)
-    print q
     r = client.proppatch(object.url.path, q)
-    print r, r.raw
+
+    statuses = r.tree.findall(".//" + ns("D", "status"))
+    for s in statuses:
+        if not s.text.endswith("200 OK"):
+            raise error.PropsetError(r.raw)
 
 
 def date_search(client, calendar, start, end = None):
@@ -97,9 +101,13 @@ def date_search(client, calendar, start, end = None):
     q = etree.tostring(root, encoding="utf-8", xml_declaration=True)
     response = client.report(calendar.url.path, q, 1)
     for r in response.tree.findall(".//" + ns("D", "response")):
-        href = r.find(ns("D", "href")).text
-        data = r.find(".//" + ns("C", "calendar-data")).text
-        rc.append((url.make(calendar.url, href), data))
+        status = r.find(".//" + ns("D", "status"))
+        if status.text.endswith("200 OK"):
+            href = r.find(ns("D", "href")).text
+            data = r.find(".//" + ns("C", "calendar-data")).text
+            rc.append((url.make(calendar.url, href), data))
+        else:
+            raise error.ReportError(r.raw)
 
     return rc
 
@@ -121,9 +129,14 @@ def uid_search(client, calendar, uid):
     q = etree.tostring(root, encoding="utf-8", xml_declaration=True)
     response = client.report(calendar.url.path, q, 1)
     r = response.tree.find(".//" + ns("D", "response"))
-    href = r.find(ns("D", "href")).text
-    data = r.find(".//" + ns("C", "calendar-data")).text
-    return (url.make(calendar.url, href), data)
+    if r is not None:
+        href = r.find(ns("D", "href")).text
+        data = r.find(".//" + ns("C", "calendar-data")).text
+        info = (url.make(calendar.url, href), data)
+    else:
+        raise error.NotFoundError(response.raw)
+
+    return info
 
 def create_calendar(client, parent, name, id = None):
     """
@@ -148,6 +161,8 @@ def create_calendar(client, parent, name, id = None):
     r = client.mkcol(path, q)
     if r.status == 201:
         path = url.make(parent.url, path)
+    else:
+        raise error.MkcolError(r.raw)
 
     return (id, path)
 
@@ -158,8 +173,10 @@ def create_event(client, calendar, data, id = None):
 
     path = url.join(calendar.url.path, id + ".ics")
     r = client.put(path, data, {"Content-Type": "text/calendar; charset=\"utf-8\""})
-    if r.status == 201:
+    if r.status == 204 or r.status == 201:
         path = url.make(calendar.url, path)
+    else:
+        raise error.PutError(r.raw)
 
     return (id, path)
 
@@ -167,4 +184,6 @@ def delete(client, object):
     path = object.url.path
     r = client.delete(path)
 
-    return r.status == 204
+    #TODO: find out why we get 404
+    if r.status != 204 and r.status != 404:
+        raise error.DeleteError(r.raw)

@@ -2,6 +2,9 @@
 
 	* caldav/davclient.py (DAVClient.put): Added a new "headers" parameter.
 	* caldav/lib/commands.py (create_event): Added headers for content-type.
+	* caldav/lib/commands.py: Added basic error management throughout the file.
+	* caldav/objects.py: Minor improvements.
+	* caldav/lib/error.py: New file, contains error definitions.
 
 2010-06-09  Cyril Robert <cyrilrbt@gmail.com>
 
