@@ -40,7 +40,7 @@ Quickstart
   """
 
   client = caldav.DAVClient(url)
-  principal = caldav.Principal(url)
+  principal = caldav.Principal(client, url)
   calendars = principal.calendars()
   if len(calendars) > 0:
       calendar = calendars[0]
