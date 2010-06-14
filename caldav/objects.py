@@ -8,8 +8,7 @@ import StringIO
 
 from caldav.lib import vcal
 from caldav.lib.namespace import ns
-from caldav.lib import url
-from caldav.lib import commands
+from caldav.lib import url, commands
 
 class DAVObject(object):
     """
@@ -141,8 +140,7 @@ class Calendar(DAVObject):
             (id, path) = commands.create_calendar(self.client, self.parent, 
                                                   self.name, self.id)
             self.id = id
-            if path is not None:
-                self.url = urlparse.urlparse(path)
+            self.url = urlparse.urlparse(path)
         return self
 
     def date_search(self, start, end = None):
@@ -237,8 +235,7 @@ class Event(DAVObject):
                                                self._instance.serialize(), 
                                                self.id)
             self.id = id
-            if path is not None:
-                self.url = urlparse.urlparse(path)
+            self.url = urlparse.urlparse(path)
         return self
 
     def __str__(self):
