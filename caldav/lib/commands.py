@@ -157,7 +157,7 @@ def create_event(client, calendar, data, id = None):
         id = str(uuid.uuid1())
 
     path = url.join(calendar.url.path, id + ".ics")
-    r = client.put(path, data)
+    r = client.put(path, data, {"Content-Type": "text/calendar; charset=\"utf-8\""})
     if r.status == 201:
         path = url.make(calendar.url, path)
 
