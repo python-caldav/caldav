@@ -1,3 +1,13 @@
+2010-06-29  Cyril Robert <cyrilrbt@gmail.com>
+
+	* caldav/elements/*.py: New files, definition for many dav and caldav
+	elements to introduce a somewhat major refactoring.
+	* caldav/davclient.py (DAVClient.propfind): Fixed documentation.
+	* caldav/lib/commands.py: Major changes throughout the file to make use of
+	the newly defined classes.
+	* caldav/objects.py: Many small changes to the documentation an the usage
+	of the ns method.
+
 2010-06-14  Cyril Robert <cyrilrbt@gmail.com>
 
 	* caldav/davclient.py (DAVClient.put): Added a new "headers" parameter.

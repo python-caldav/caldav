@@ -80,7 +80,7 @@ class DAVClient:
 
         Parameters:
          * url: url for the root of the propfind.
-         * props = [ns("C", "bla"), ...], properties we want
+         * props = [dav.DisplayName(), ...], properties we want
          * depth: maximum recursion depth
 
         Returns

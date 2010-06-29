@@ -1,14 +1,17 @@
 #!/usr/bin/env python
 # -*- encoding: utf-8 -*-
 
+from datetime import datetime
+import urlparse
 from nose.tools import assert_equal, assert_not_equal
 
 from conf import principal_url, principal_url_ssl, proxy
 
 from caldav.davclient import DAVClient
 from caldav.objects import Principal, Calendar, Event
-from caldav.lib import url
+from caldav.lib import url, commands
 from caldav.lib.namespace import ns
+from caldav.elements import dav, cdav
 
 
 ev1 = """BEGIN:VCALENDAR
@@ -53,11 +56,11 @@ class TestCalDAV:
                        url = path)
         cal.delete()
 
-    def testSSL(self):
-        c = DAVClient(principal_url_ssl)
-        # the demo ssl url doesn't actually work...
-        #p = Principal(c, principal_url_ssl)
-        #assert_not_equal(len(p.calendars()), 0)
+    #def testSSL(self):
+    #    c = DAVClient(principal_url_ssl)
+    #    # the demo ssl url doesn't actually work...
+    #    p = Principal(c, principal_url_ssl)
+    #    assert_not_equal(len(p.calendars()), 0)
 
     def testProxy(self):
         c = DAVClient(principal_url, proxy)
@@ -76,12 +79,12 @@ class TestCalDAV:
                      id = testcal_id).save()
         assert_not_equal(c.url, None)
         # TODO: fail
-        #props = c.get_properties([ns("D", "displayname"),])
-        #assert_equal("Yep", props["{DAV:}displayname"])
+        #props = c.get_properties([DAVDisplayName(),])
+        #assert_equal("Yep", props[DAVDisplayName.tag])
 
-        c.set_properties({ns("D", "displayname"): "hooray",})
-        props = c.get_properties([ns("D", "displayname"),])
-        assert_equal(props[ns("D", "displayname")], "hooray")
+        c.set_properties([dav.DisplayName("hooray"),])
+        props = c.get_properties([dav.DisplayName(),])
+        assert_equal(props[dav.DisplayName.tag], "hooray")
         print c
 
         cc = Calendar(self.caldav, name="Yep", parent = self.principal).save()
@@ -96,9 +99,10 @@ class TestCalDAV:
         ee.load()
         assert_equal(e.instance.vevent.uid, ee.instance.vevent.uid)
 
-        r = c.date_search("20060713T170000Z", "20060715T170000Z")
+        r = c.date_search(datetime(2006,7,13,17,00,00), 
+                          datetime(2006,7,15,17,00,00))
         assert_equal(e.instance.vevent.uid, r[0].instance.vevent.uid)
-        print r
+        for e in r: print e.data
         assert_equal(len(r), 1)
 
         all = c.events()
@@ -110,17 +114,33 @@ class TestCalDAV:
         tmp = c.event("20010712T182145Z-123401@example.com")
         assert_equal(e2.instance.vevent.uid, tmp.instance.vevent.uid)
 
-        r = c.date_search("20060713T170000Z", "20060715T170000Z")
+        r = c.date_search(datetime(2006,7,13,17,00,00), 
+                          datetime(2006,7,15,17,00,00))
+        for e in r: print e.data
         assert_equal(len(r), 1)
 
         e.data = ev2
         e.save()
 
-        r = c.date_search("20060713T170000Z", "20060715T170000Z")
-        assert_equal(len(r), 0)
+        r = c.date_search(datetime(2006,7,13,17,00,00), 
+                          datetime(2006,7,15,17,00,00))
+        for e in r: print e.data
+        assert_equal(len(r), 1)
 
-        e.instance = e2.instance
-        e.save()
 
-        r = c.date_search("20060713T170000Z", "20060715T170000Z")
-        assert_equal(len(r), 0)
+    def testFilters(self):
+        filter = cdav.Filter()\
+                    .append(cdav.CompFilter("VCALENDAR")\
+                    .append(cdav.CompFilter("VEVENT")\
+                    .append(cdav.PropFilter("UID")\
+                    .append([cdav.TextMatch("pouet", negate = True)]))))
+        print filter
+
+        crash = cdav.CompFilter()
+        value = None
+        try:
+            value = str(crash)
+        except:
+            pass
+        if value is not None:
+            raise Exception("This should have crashed")
