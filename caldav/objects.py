@@ -9,6 +9,7 @@ import StringIO
 from caldav.lib import vcal
 from caldav.lib.namespace import ns
 from caldav.lib import url, commands
+from caldav.elements import dav, cdav
 
 class DAVObject(object):
     """
@@ -44,10 +45,10 @@ class DAVObject(object):
         Get properties (PROPFIND) for this object.
 
         Parameters:
-         * props = [ns("C", "propname"), ...]
+         * props = [dav.ResourceType(), dav.DisplayName(), ...]
 
         Returns:
-         * {ns("C", "propname"): value, ...}
+         * {proptag: value, ...}
         """
         p = commands.get_properties(self.client, self, props)
         return p[self.url.path]
@@ -57,7 +58,7 @@ class DAVObject(object):
         Set properties (PROPPATCH) for this object.
 
         Parameters:
-         * props = {ns("C", "propname"): value, ...}
+         * props = [dav.DisplayName('name'), ...]
 
         Returns: 
          * self
@@ -81,9 +82,6 @@ class Principal(DAVObject):
     """
     This class represents a DAV Principal. It doesn't do much, except play 
     the role of the parent to all calendar collections.
-
-    Available DAV properties:
-     * ns("D", "displayname")
     """
     def __init__(self, client, url):
         """
@@ -101,7 +99,7 @@ class Principal(DAVObject):
         """
         c = []
 
-        data = commands.children(self.client, self, ns("D", "collection"))
+        data = commands.children(self.client, self, dav.Collection.tag)
         for c_url, c_type in data:
             c.append(Calendar(self.client, c_url, parent = self))
 
@@ -110,22 +108,7 @@ class Principal(DAVObject):
 
 class Calendar(DAVObject):
     """
-    The `Calendar` object is used to represent a calendar collection.
-
-    Available CalDAV properties:
-     * ns("C", "calendar-description")
-     * ns("C", "calendar-timezone")
-     * ns("C", "supported-calendar-component-set")
-     * ns("C", "supported-calendar-data")
-     * ns("C", "max-resource-size")
-     * ns("C", "min-date-time")
-     * ns("C", "max-date-time")
-     * ns("C", "max-instances")
-     * ns("C", "max-attendees-per-instance")
-
-    Available DAV properties:
-     * ns("D", "displayname")
-    
+    The `Calendar` object is used to represent a calendar collection.    
     Refer to the RFC for details: http://www.ietf.org/rfc/rfc4791.txt
     """
     def save(self):

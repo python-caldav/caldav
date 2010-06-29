@@ -7,6 +7,7 @@ import uuid
 from caldav.lib.namespace import ns, nsmap
 from caldav.lib import url
 from caldav.lib import error
+from caldav.elements import dav, cdav
 
 
 def children(client, parent, type = None):
@@ -17,10 +18,10 @@ def children(client, parent, type = None):
     """
     c = []
 
-    response = get_properties(client, parent, [ns("D", "resourcetype"),], 1)
+    response = get_properties(client, parent, [dav.ResourceType(),], 1)
     for path in response.keys():
         if path != parent.url.path:
-            resource_type = response[path][ns("D", 'resourcetype')]
+            resource_type = response[path][dav.ResourceType.tag]
             if resource_type == type or type is None:
                 c.append((url.make(parent.url, path), resource_type))
 
@@ -36,19 +37,19 @@ def get_properties(client, object, props = [], depth = 0):
     body = ""
     # build the propfind request
     if len(props) > 0:
-        root = etree.Element("propfind", nsmap = nsmap)
-        prop = etree.SubElement(root, ns("D", "prop"))
-        for p in props:
-            prop.append(etree.Element(p))
-        body = etree.tostring(root, encoding="utf-8", xml_declaration=True)
+        prop = dav.Prop() + props
+        root = dav.Propfind() + prop
+
+        body = etree.tostring(root.xmlelement(), encoding="utf-8", 
+                              xml_declaration=True)
 
     response = client.propfind(object.url.path, body, depth)
     # All items should be in a <D:response> element
-    for r in response.tree.findall(ns("D", "response")):
-        href = r.find(ns("D", "href")).text
+    for r in response.tree.findall(dav.Response.tag):
+        href = r.find(dav.Href.tag).text
         rc[href] = {}
         for p in props:
-            t = r.find(".//" + p)
+            t = r.find(".//" + p.tag)
             if t.text is None:
                 val = t.find(".//*")
                 if val is not None:
@@ -57,22 +58,20 @@ def get_properties(client, object, props = [], depth = 0):
                     val = None
             else:
                 val = t.text
-            rc[href][p] = val
+            rc[href][p.tag] = val
 
     return rc
 
 
 def set_properties(client, object, props = []):
-    root = etree.Element(ns("D", "propertyupdate"), nsmap = nsmap)
-    set = etree.SubElement(root, ns("D", "set"))
-    prop = etree.SubElement(set, ns("D", "prop"))
-    for property in props.keys():
-        elt = etree.SubElement(prop, property)
-        elt.text = props[property]
-    q = etree.tostring(root, encoding="utf-8", xml_declaration=True)
+    prop = dav.Prop() + props
+    set = dav.Set() + prop
+    root = dav.PropertyUpdate() + set
+
+    q = etree.tostring(root.xmlelement(), encoding="utf-8", xml_declaration=True)
     r = client.proppatch(object.url.path, q)
 
-    statuses = r.tree.findall(".//" + ns("D", "status"))
+    statuses = r.tree.findall(".//" + dav.Status.tag)
     for s in statuses:
         if not s.text.endswith("200 OK"):
             raise error.PropsetError(r.raw)
@@ -84,27 +83,25 @@ def date_search(client, calendar, start, end = None):
     """
     rc = []
 
-    dates = {"start": start}
-    if end is not None:
-        dates['end'] = end
-    
     # build the request
-    root = etree.Element(ns("C", "calendar-query"), nsmap = nsmap)
-    prop = etree.SubElement(root, ns("D", "prop"))
-    cdata = etree.SubElement(prop, ns("C", "calendar-data"))
-    expand = etree.SubElement(cdata, ns("C", "expand"), **dates)
-    filter = etree.SubElement(root, ns("C", "filter"))
-    fcal = etree.SubElement(filter, ns("C", "comp-filter"), name = "VCALENDAR")
-    fevt = etree.SubElement(fcal, ns("C", "comp-filter"), name = "VEVENT")
-    etree.SubElement(fevt, ns("C", "time-range"), **dates)
+    expand = cdav.Expand(start, end)
+    data = cdav.CalendarData() + expand
+    prop = dav.Prop() + data
 
-    q = etree.tostring(root, encoding="utf-8", xml_declaration=True)
+    range = cdav.TimeRange(start, end)
+    vevent = cdav.CompFilter("VEVENT") + range
+    vcal = cdav.CompFilter("VCALENDAR") + vevent
+    filter = cdav.Filter() + vcal
+
+    root = cdav.CalendarQuery() + [prop, filter]
+
+    q = etree.tostring(root.xmlelement(), encoding="utf-8", xml_declaration=True)
     response = client.report(calendar.url.path, q, 1)
-    for r in response.tree.findall(".//" + ns("D", "response")):
-        status = r.find(".//" + ns("D", "status"))
+    for r in response.tree.findall(".//" + dav.Response.tag):
+        status = r.find(".//" + dav.Status.tag)
         if status.text.endswith("200 OK"):
-            href = r.find(ns("D", "href")).text
-            data = r.find(".//" + ns("C", "calendar-data")).text
+            href = r.find(dav.Href.tag).text
+            data = r.find(".//" + cdav.CalendarData.tag).text
             rc.append((url.make(calendar.url, href), data))
         else:
             raise error.ReportError(r.raw)
@@ -115,23 +112,23 @@ def uid_search(client, calendar, uid):
     """
     Perform a uid search in the `calendar`.
     """
-    root = etree.Element(ns("C", "calendar-query"), nsmap = nsmap)
-    prop = etree.SubElement(root, ns("D", "prop"))
-    cdata = etree.SubElement(prop, ns("C", "calendar-data"))
-    filter = etree.SubElement(root, ns("C", "filter"))
-    fcal = etree.SubElement(filter, ns("C", "comp-filter"), name = "VCALENDAR")
-    fevt = etree.SubElement(fcal, ns("C", "comp-filter"), name = "VEVENT")
-    fuid = etree.SubElement(fevt, ns("C", "prop-filter"), name = "UID")
-    match = etree.SubElement(fuid, ns("C", "text-match"),
-                             collation = "i; octet")
-    match.text = uid
+    data = cdav.CalendarData()
+    prop = dav.Prop() + data
 
-    q = etree.tostring(root, encoding="utf-8", xml_declaration=True)
+    match = cdav.TextMatch(uid)
+    propf = cdav.PropFilter("UID") + match
+    vevent = cdav.CompFilter("VEVENT") + propf
+    vcal = cdav.CompFilter("VCALENDAR") + vevent
+    filter = cdav.Filter() + vcal
+
+    root = cdav.CalendarQuery() + [prop, filter]
+
+    q = etree.tostring(root.xmlelement(), encoding="utf-8", xml_declaration=True)
     response = client.report(calendar.url.path, q, 1)
-    r = response.tree.find(".//" + ns("D", "response"))
+    r = response.tree.find(".//" + dav.Response.tag)
     if r is not None:
-        href = r.find(ns("D", "href")).text
-        data = r.find(".//" + ns("C", "calendar-data")).text
+        href = r.find(".//" + dav.Href.tag).text
+        data = r.find(".//" + cdav.CalendarData.tag).text
         info = (url.make(calendar.url, href), data)
     else:
         raise error.NotFoundError(response.raw)
@@ -146,16 +143,17 @@ def create_calendar(client, parent, name, id = None):
     if id is None:
         id = str(uuid.uuid1())
 
-    root = etree.Element(ns("D", "mkcol"), nsmap = nsmap)
-    set = etree.SubElement(root, ns("D", "set"))
-    prop = etree.SubElement(set, ns("D", "prop"))
-    type = etree.SubElement(prop, ns("D", "resourcetype"))
-    coll = etree.SubElement(type, ns("D", "collection"))
-    calc = etree.SubElement(coll, ns("C", "calendar-collection"))
-    dname = etree.SubElement(prop, ns("D", "displayname"))
-    dname.text = name
+    name = dav.DisplayName(name)
+    cal = cdav.CalendarCollection()
+    coll = dav.Collection() + cal
+    type = dav.ResourceType() + coll
+    
+    prop = dav.Prop() + [type, name]
+    set = dav.Set() + prop
 
-    q = etree.tostring(root, encoding="utf-8", xml_declaration=True)
+    mkcol = dav.Mkcol() + set
+
+    q = etree.tostring(mkcol.xmlelement(), encoding="utf-8", xml_declaration=True)
     path = url.join(parent.url.path, id)
 
     r = client.mkcol(path, q)
