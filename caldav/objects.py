@@ -132,9 +132,8 @@ class Calendar(DAVObject):
         if they have an occurence during the specified time frame.
 
         Parameters:
-         * start = "20100528T124500Z", a vCal-formatted string describing 
-           a date-time.
-         * end = "20100528T124500Z", same as above.
+         * start = datetime.now().
+         * end = same as above.
 
         Returns:
          * [Event(), ...]
