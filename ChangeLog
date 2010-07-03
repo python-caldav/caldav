@@ -1,3 +1,8 @@
+2010-07-02  Cyril Robert <cyrilrbt@gmail.com>
+
+	* caldav/lib/commands.py (get_properties): Merged patch from issue #1.
+	Thanks to http://bitbucket.org/ofosos
+
 2010-06-29  Cyril Robert <cyrilrbt@gmail.com>
 
 	* caldav/elements/*.py: New files, definition for many dav and caldav
