@@ -50,7 +50,7 @@ def get_properties(client, object, props = [], depth = 0):
         rc[href] = {}
         for p in props:
             t = r.find(".//" + p.tag)
-            if t.text is None:
+            if len(list(t)) > 0:
                 val = t.find(".//*")
                 if val is not None:
                     val = val.tag
