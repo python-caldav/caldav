@@ -5,6 +5,7 @@ import httplib
 import urlparse
 from lxml import etree
 
+from caldav.lib import error
 
 class DAVResponse:
     """
@@ -12,6 +13,7 @@ class DAVResponse:
     Since we often get XML responses, it tries to parse it into `self.tree`
     """
     raw = ""
+    reason = ""
     tree = None
     headers = {}
     status = 0
@@ -20,6 +22,7 @@ class DAVResponse:
         self.raw = response.read()
         self.headers = response.getheaders()
         self.status = response.status
+        self.reason = response.reason
 
         try:
             self.tree = etree.XML (self.raw)
@@ -152,4 +155,14 @@ class DAVClient:
 
         headers.update(self.headers)
         self.handle.request(method, url, body, headers)
-        return DAVResponse(self.handle.getresponse())
+        
+        response = DAVResponse(self.handle.getresponse())
+
+        # this is an error condition the application wants to know
+        if response.status == httplib.FORBIDDEN:
+            ex = error.AuthorizationError()
+            ex.url = url
+            ex.reason = response.reason
+            raise ex
+
+        return response
