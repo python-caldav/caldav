@@ -1,7 +1,9 @@
 2010-07-05  Cyril Robert <cyrilrbt@gmail.com>
 
 	* caldav/lib/commands.py (date_search): Fixed a typo.
-	Thanks to http://bitbucket.org/ofosos
+	* caldav/lib/error.py (AuthorizationError): Added AuthorizationError.
+	* caldav/davclient.py (DAVClient.request): Added 403 error handling.
+	Thanks to http://bitbucket.org/ofosos (all of the above)
 
 2010-07-02  Cyril Robert <cyrilrbt@gmail.com>
 
