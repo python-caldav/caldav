@@ -56,7 +56,9 @@ class DAVClient:
                 self.proxy[1] = int(self.proxy[1])
 
         # Build global headers
-        self.headers = { "User-Agent": "Mozilla/5.0" }
+        self.headers = {"User-Agent": "Mozilla/5.0",
+                        "Content-Type": "text/xml",
+                        "Accept": "text/xml"}
         if self.url.username is not None:
             hash = (("%s:%s" % (self.url.username, self.url.password))\
                     .encode('base64')[:-1])
