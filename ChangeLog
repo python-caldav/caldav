@@ -1,3 +1,8 @@
+2010-07-05  Cyril Robert <cyrilrbt@gmail.com>
+
+	* caldav/lib/commands.py (date_search): Fixed a typo.
+	Thanks to http://bitbucket.org/ofosos
+
 2010-07-02  Cyril Robert <cyrilrbt@gmail.com>
 
 	* caldav/lib/commands.py (get_properties): Merged patch from issue #1.

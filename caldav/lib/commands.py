@@ -104,7 +104,7 @@ def date_search(client, calendar, start, end = None):
             data = r.find(".//" + cdav.CalendarData.tag).text
             rc.append((url.make(calendar.url, href), data))
         else:
-            raise error.ReportError(r.raw)
+            raise error.ReportError(report.raw)
 
     return rc
 
