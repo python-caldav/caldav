@@ -2,6 +2,8 @@
 
 	* caldav/elements/base.py (BaseElement.__add__): Removed unnecessary
 	verification.
+	* caldav/objects.py: Merged all methods from caldav.lib.commands.
+	* caldav/commands.py: Removed, no longer needed.
 
 2010-07-05  Cyril Robert <cyrilrbt@gmail.com>
 

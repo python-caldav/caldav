@@ -9,7 +9,7 @@ from conf import principal_url, principal_url_ssl, proxy, proxy_noport
 
 from caldav.davclient import DAVClient
 from caldav.objects import Principal, Calendar, Event, DAVObject
-from caldav.lib import url, commands
+from caldav.lib import url
 from caldav.lib.namespace import ns
 from caldav.elements import dav, cdav
 
@@ -109,6 +109,7 @@ class TestCalDAV:
         assert_equal(len(r), 1)
 
         all = c.events()
+        print all
         assert_equal(len(all), 1)
 
         e2 = Event(self.caldav, data = ev2, parent = c).save()
