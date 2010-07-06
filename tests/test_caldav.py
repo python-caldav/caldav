@@ -8,7 +8,7 @@ from nose.tools import assert_equal, assert_not_equal
 from conf import principal_url, principal_url_ssl, proxy, proxy_noport
 
 from caldav.davclient import DAVClient
-from caldav.objects import Principal, Calendar, Event
+from caldav.objects import Principal, Calendar, Event, DAVObject
 from caldav.lib import url, commands
 from caldav.lib.namespace import ns
 from caldav.elements import dav, cdav
@@ -130,6 +130,13 @@ class TestCalDAV:
         for e in r: print e.data
         assert_equal(len(r), 1)
 
+        e.instance = e2.instance
+        e.save()
+        r = c.date_search(datetime(2006,7,13,17,00,00), 
+                          datetime(2006,7,15,17,00,00))
+        for e in r: print e.data
+        assert_equal(len(r), 1)
+
 
     def testFilters(self):
         filter = cdav.Filter()\
@@ -147,3 +154,13 @@ class TestCalDAV:
             pass
         if value is not None:
             raise Exception("This should have crashed")
+
+    def testObjects(self):
+        o = DAVObject(self.caldav)
+        failed = False
+        try:
+            o.save()
+        except:
+            failed = True
+        assert_equal(failed, True)
+
