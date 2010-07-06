@@ -20,11 +20,7 @@ class BaseElement(object):
             self.value = value
 
     def __add__(self, other):
-        if isinstance(other,BaseElement) or hasattr(other, '__iter__'):
-            self.append(other)
-        else:
-            raise Exception("oppsies")
-        return self
+        return self.append(other)
 
     def __str__(self):
         return etree.tostring(self.xmlelement(), encoding="utf-8", 

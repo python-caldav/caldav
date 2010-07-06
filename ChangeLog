@@ -1,3 +1,8 @@
+2010-07-06  Cyril Robert <cyrilrbt@gmail.com>
+
+	* caldav/elements/base.py (BaseElement.__add__): Removed unnecessary
+	verification.
+
 2010-07-05  Cyril Robert <cyrilrbt@gmail.com>
 
 	* caldav/lib/commands.py (date_search): Fixed a typo.
