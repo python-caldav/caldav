@@ -5,10 +5,11 @@ import copy
 import urlparse
 import vobject
 import StringIO
+import uuid
+from lxml import etree
 
-from caldav.lib import vcal
+from caldav.lib import error, vcal, url
 from caldav.lib.namespace import ns
-from caldav.lib import url, commands
 from caldav.elements import dav, cdav
 
 class DAVObject(object):
@@ -40,7 +41,54 @@ class DAVObject(object):
         if url is not None:
             self.url = urlparse.urlparse(url)
  
-    def get_properties(self, props):
+    def children(self, type = None):
+        """
+        List children, using a propfind (resourcetype) on the parent object,
+        at depth = 1.
+        """
+        c = []
+
+        response = self._get_properties([dav.ResourceType(),], 1)
+        for path in response.keys():
+            resource_type = response[path][dav.ResourceType.tag]
+            if resource_type == type or type is None:
+                if path != self.url.path:
+                    c.append((url.make(self.url, path), resource_type))
+
+        return c
+
+    def _get_properties(self, props = [], depth = 0):
+        properties = {}
+
+        body = ""
+        # build the propfind request
+        if len(props) > 0:
+            prop = dav.Prop() + props
+            root = dav.Propfind() + prop
+
+            body = etree.tostring(root.xmlelement(), encoding="utf-8", 
+                                  xml_declaration=True)
+
+        response = self.client.propfind(self.url.path, body, depth)
+        # All items should be in a <D:response> element
+        for r in response.tree.findall(dav.Response.tag):
+            href = r.find(dav.Href.tag).text
+            properties[href] = {}
+            for p in props:
+                t = r.find(".//" + p.tag)
+                if len(list(t)) > 0:
+                    val = t.find(".//*")
+                    if val is not None:
+                        val = val.tag
+                    else:
+                        val = None
+                else:
+                    val = t.text
+                properties[href][p.tag] = val
+
+        return properties
+
+    def get_properties(self, props = [], depth = 0):
         """
         Get properties (PROPFIND) for this object.
 
@@ -50,10 +98,10 @@ class DAVObject(object):
         Returns:
          * {proptag: value, ...}
         """
-        p = commands.get_properties(self.client, self, props)
-        return p[self.url.path]
+        return self._get_properties(props, depth)[self.url.path]
 
-    def set_properties(self, props):
+
+    def set_properties(self, props = []):
         """
         Set properties (PROPPATCH) for this object.
 
@@ -63,7 +111,18 @@ class DAVObject(object):
         Returns: 
          * self
         """
-        commands.set_properties(self.client, self, props)
+        prop = dav.Prop() + props
+        set = dav.Set() + prop
+        root = dav.PropertyUpdate() + set
+
+        q = etree.tostring(root.xmlelement(), encoding="utf-8", xml_declaration=True)
+        r = self.client.proppatch(self.url.path, q)
+
+        statuses = r.tree.findall(".//" + dav.Status.tag)
+        for s in statuses:
+            if not s.text.endswith("200 OK"):
+                raise error.PropsetError(r.raw)
+
         return self
     
     def save(self):
@@ -74,7 +133,12 @@ class DAVObject(object):
         Delete the object.
         """
         if self.url is not None:
-            commands.delete(self.client, self)
+            path = self.url.path
+            r = self.client.delete(path)
+
+            #TODO: find out why we get 404
+            if r.status != 204 and r.status != 404:
+                raise error.DeleteError(r.raw)
 
 
 
@@ -97,13 +161,13 @@ class Principal(DAVObject):
         Returns:
          * [Calendar(), ...]
         """
-        c = []
+        cals = []
 
-        data = commands.children(self.client, self, dav.Collection.tag)
+        data = self.children(dav.Collection.tag)
         for c_url, c_type in data:
-            c.append(Calendar(self.client, c_url, parent = self))
+            cals.append(Calendar(self.client, c_url, parent = self))
 
-        return c
+        return cals
 
 
 class Calendar(DAVObject):
@@ -111,6 +175,35 @@ class Calendar(DAVObject):
     The `Calendar` object is used to represent a calendar collection.    
     Refer to the RFC for details: http://www.ietf.org/rfc/rfc4791.txt
     """
+    def _create(self, name, id = None):
+        """
+        Create a new calendar with display name `name` in `parent`.
+        """
+        path = None
+        if id is None:
+            id = str(uuid.uuid1())
+
+        name = dav.DisplayName(name)
+        cal = cdav.CalendarCollection()
+        coll = dav.Collection() + cal
+        type = dav.ResourceType() + coll
+    
+        prop = dav.Prop() + [type, name]
+        set = dav.Set() + prop
+
+        mkcol = dav.Mkcol() + set
+
+        q = etree.tostring(mkcol.xmlelement(), encoding="utf-8", xml_declaration=True)
+        path = url.join(self.parent.url.path, id)
+
+        r = self.client.mkcol(path, q)
+        if r.status == 201:
+            path = url.make(self.parent.url, path)
+        else:
+            raise error.MkcolError(r.raw)
+
+        return (id, path)
+
     def save(self):
         """
         The save method for a calendar is only used to create it, for now.
@@ -120,8 +213,7 @@ class Calendar(DAVObject):
          * self
         """
         if self.url is None:
-            (id, path) = commands.create_calendar(self.client, self.parent, 
-                                                  self.name, self.id)
+            (id, path) = self._create(self.name, self.id)
             self.id = id
             self.url = urlparse.urlparse(path)
         return self
@@ -138,14 +230,34 @@ class Calendar(DAVObject):
         Returns:
          * [Event(), ...]
         """
-        e = []
+        matches = []
 
-        data = commands.date_search(self.client, self, start, end)
-        for e_url, e_data in data:
-            e.append(Event(self.client, url = e_url, data = e_data, 
-                           parent = self))
+        # build the request
+        expand = cdav.Expand(start, end)
+        data = cdav.CalendarData() + expand
+        prop = dav.Prop() + data
 
-        return e
+        range = cdav.TimeRange(start, end)
+        vevent = cdav.CompFilter("VEVENT") + range
+        vcal = cdav.CompFilter("VCALENDAR") + vevent
+        filter = cdav.Filter() + vcal
+
+        root = cdav.CalendarQuery() + [prop, filter]
+
+        q = etree.tostring(root.xmlelement(), encoding="utf-8", xml_declaration=True)
+        response = self.client.report(self.url.path, q, 1)
+        for r in response.tree.findall(".//" + dav.Response.tag):
+            status = r.find(".//" + dav.Status.tag)
+            if status.text.endswith("200 OK"):
+                href = r.find(dav.Href.tag).text
+                data = r.find(".//" + cdav.CalendarData.tag).text
+                e = Event(self.client, url = url.make(self.url, href), 
+                          data = data, parent = self)
+                matches.append(e)
+            else:
+                raise error.ReportError(response.raw)
+
+        return matches
 
     def event(self, uid):
         """
@@ -157,8 +269,29 @@ class Calendar(DAVObject):
         Returns:
          * Event() or None
         """
-        (e_url, e_data) = commands.uid_search(self.client, self, uid)
-        e = Event(self.client, url = e_url, data = e_data, parent = self)
+        e = None
+
+        data = cdav.CalendarData()
+        prop = dav.Prop() + data
+
+        match = cdav.TextMatch(uid)
+        propf = cdav.PropFilter("UID") + match
+        vevent = cdav.CompFilter("VEVENT") + propf
+        vcal = cdav.CompFilter("VCALENDAR") + vevent
+        filter = cdav.Filter() + vcal
+
+        root = cdav.CalendarQuery() + [prop, filter]
+
+        q = etree.tostring(root.xmlelement(), encoding="utf-8", xml_declaration=True)
+        response = self.client.report(self.url.path, q, 1)
+        r = response.tree.find(".//" + dav.Response.tag)
+        if r is not None:
+            href = r.find(".//" + dav.Href.tag).text
+            data = r.find(".//" + cdav.CalendarData.tag).text
+            e = Event(self.client, url = url.make(self.url, href), 
+                      data = data, parent = self)
+        else:
+            raise error.NotFoundError(response.raw)
 
         return e
 
@@ -169,13 +302,13 @@ class Calendar(DAVObject):
         Returns:
          * [Event(), ...]
         """
-        e = []
+        all = []
 
-        data = commands.children(self.client, self)
+        data = self.children()
         for e_url, e_type in data:
-            e.append(Event(self.client, e_url, parent = self))
+            all.append(Event(self.client, e_url, parent = self))
 
-        return e
+        return all
 
     def __str__(self):
         return "Collection: %s" % url.make(self.url)
@@ -205,6 +338,20 @@ class Event(DAVObject):
         self.data = vcal.fix(r.raw)
         return self
 
+    def _create(self, data, id = None):
+        path = None
+        if id is None:
+            id = str(uuid.uuid1())
+
+        path = url.join(self.parent.url.path, id + ".ics")
+        r = self.client.put(path, data, {"Content-Type": "text/calendar; charset=\"utf-8\""})
+        if r.status == 204 or r.status == 201:
+            path = url.make(self.parent.url, path)
+        else:
+            raise error.PutError(r.raw)
+
+        return (id, path)
+
     def save(self):
         """
         Save the event, can be used for creation and update.
@@ -213,9 +360,7 @@ class Event(DAVObject):
          * self
         """
         if self._instance is not None:
-            (id, path) = commands.create_event(self.client, self.parent, 
-                                               self._instance.serialize(), 
-                                               self.id)
+            (id, path) = self._create(self._instance.serialize(), self.id)
             self.id = id
             self.url = urlparse.urlparse(path)
         return self
