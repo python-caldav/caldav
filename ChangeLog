@@ -1,3 +1,10 @@
+2010-07-06  Mark Meyer  <ofosos@gmail.com>
+
+	* caldav/objects.py (DAVObject.save): Use idiomatic
+	NotImplementedError and add a docstring
+	* caldav/davclient.py (DAVObject.request): raise error on a http
+	unauthorized (400) condition.
+
 2010-07-06  Cyril Robert <cyrilrbt@gmail.com>
 
 	* caldav/elements/base.py (BaseElement.__add__): Removed unnecessary

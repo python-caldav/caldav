@@ -161,7 +161,8 @@ class DAVClient:
         response = DAVResponse(self.handle.getresponse())
 
         # this is an error condition the application wants to know
-        if response.status == httplib.FORBIDDEN:
+        if response.status == httplib.FORBIDDEN or \
+                response.status == httplib.UNAUTHORIZED:
             ex = error.AuthorizationError()
             ex.url = url
             ex.reason = response.reason
