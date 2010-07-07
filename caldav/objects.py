@@ -48,9 +48,39 @@ class DAVObject(object):
         """
         c = []
 
-        response = self._get_properties([dav.ResourceType(),], 1)
-        for path in response.keys():
-            resource_type = response[path][dav.ResourceType.tag]
+        depth = 1
+        properties = {}
+
+        body = ""
+        props = [dav.ResourceType(),]
+
+        prop = dav.Prop() + props
+        root = dav.Propfind() + prop
+        
+        body = etree.tostring(root.xmlelement(), encoding="utf-8", 
+                              xml_declaration=True)
+
+        response = self.client.propfind(self.url.path, body, depth)
+        for r in response.tree.findall(dav.Response.tag):
+            href = r.find(dav.Href.tag).text
+            properties[href] = {}
+            for p in props:
+                t = r.find(".//" + p.tag)
+                if len(list(t)) > 0:
+                    if type is not None:
+                        val = t.find(".//" + type)
+                    else:
+                        val = t.find(".//*")
+                    if val is not None:
+                        val = val.tag
+                    else:
+                        val = None
+                else:
+                    val = t.text
+                properties[href][p.tag] = val
+
+        for path in properties.keys():
+            resource_type = properties[path][dav.ResourceType.tag]
             if resource_type == type or type is None:
                 if path != self.url.path:
                     c.append((url.make(self.url, path), resource_type))
@@ -90,7 +120,8 @@ class DAVObject(object):
 
     def get_properties(self, props = [], depth = 0):
         """
-        Get properties (PROPFIND) for this object.
+        Get properties (PROPFIND) for this object. Works only for
+        properties, that don't have comples types.
 
         Parameters:
          * props = [dav.ResourceType(), dav.DisplayName(), ...]
@@ -170,7 +201,7 @@ class Principal(DAVObject):
         """
         cals = []
 
-        data = self.children(dav.Collection.tag)
+        data = self.children(cdav.Calendar.tag)
         for c_url, c_type in data:
             cals.append(Calendar(self.client, c_url, parent = self))
 

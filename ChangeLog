@@ -1,3 +1,14 @@
+2010-07-07  Mark Meyer  <ofosos@gmail.com>
+
+	* caldav/elements/cdav.py: Add Calendar, representing the calendar
+	resource type.
+	* caldav/objects.py (DAVObject.children): Pull in code from
+	_get_properties to enable PROPFINDs for properties with complex
+	values.
+	* caldav/objects.py (DAVObject.properties): Add a warning message.
+	* caldav/objects.py (Principal.calendars): retrieve only child
+	collections that have a cdav.Calendar property.
+	
 2010-07-06  Mark Meyer  <ofosos@gmail.com>
 
 	* caldav/objects.py (DAVObject.save): Use idiomatic
