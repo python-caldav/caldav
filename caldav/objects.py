@@ -126,7 +126,14 @@ class DAVObject(object):
         return self
     
     def save(self):
-        raise Exception("Must be defined in subclasses")
+        """
+        Save the object. This is an abstract methed, that all classes
+        derived .from DAVObject implement.
+
+        Returns:
+         * self
+        """
+        raise NotImplementedError()
 
     def delete(self):
         """
