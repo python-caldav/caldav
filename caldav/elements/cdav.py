@@ -67,6 +67,11 @@ class CalendarCollection(BaseElement):
 
 
 ## Properties
+
+# calendar resource type, see rfc4791, sec. 4.2
+class Calendar(BaseElement):
+    tag = ns("C", "calendar")
+
 class CalendarDescription(ValuedBaseElement):
     tag = ns("C", "calendar-description")
 
