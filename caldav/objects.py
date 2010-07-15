@@ -121,7 +121,7 @@ class DAVObject(object):
     def get_properties(self, props = [], depth = 0):
         """
         Get properties (PROPFIND) for this object. Works only for
-        properties, that don't have comples types.
+        properties, that don't have complex types.
 
         Parameters:
          * props = [dav.ResourceType(), dav.DisplayName(), ...]
