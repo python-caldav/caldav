@@ -1,3 +1,9 @@
+2010-07-15  Cyril Robert <cyrilrbt@gmail.com>
+
+	* caldav/davclient.py (DAVClient.__init__): Fixed an issue with usernames
+	that contain a '@'.
+	Thanks to the reporter of issue #2
+
 2010-07-07  Mark Meyer  <ofosos@gmail.com>
 
 	* caldav/elements/cdav.py: Add Calendar, representing the calendar

@@ -60,7 +60,8 @@ class DAVClient:
                         "Content-Type": "text/xml",
                         "Accept": "text/xml"}
         if self.url.username is not None:
-            hash = (("%s:%s" % (self.url.username, self.url.password))\
+            hash = (("%s:%s" % (self.url.username.replace('%40', '@'), 
+                                self.url.password))\
                     .encode('base64')[:-1])
             self.headers['authorization'] = "Basic %s" % hash
 
