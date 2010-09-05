@@ -13,7 +13,7 @@ def make(url, path = None):
     u = ""
 
     if path is not None:
-        u = urlparse.urlunparse((url.scheme, url.netloc, path, url.params, 
+        u = urlparse.urlunparse((url.scheme, url.netloc, path, url.params,
                                  url.query, url.fragment))
     else:
         u = url.geturl()

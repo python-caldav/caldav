@@ -24,7 +24,7 @@ class DAVObject(object):
 
     def __init__(self, client, url = None, parent = None, name = None, id = None):
         """
-        Default constructor. 
+        Default constructor.
 
         Parameters:
          * client: A DAVClient instance
@@ -51,13 +51,12 @@ class DAVObject(object):
         depth = 1
         properties = {}
 
-        body = ""
         props = [dav.ResourceType(),]
 
         prop = dav.Prop() + props
         root = dav.Propfind() + prop
-        
-        body = etree.tostring(root.xmlelement(), encoding="utf-8", 
+
+        body = etree.tostring(root.xmlelement(), encoding="utf-8",
                               xml_declaration=True)
 
         response = self.client.propfind(self.url.path, body, depth)
@@ -96,7 +95,7 @@ class DAVObject(object):
             prop = dav.Prop() + props
             root = dav.Propfind() + prop
 
-            body = etree.tostring(root.xmlelement(), encoding="utf-8", 
+            body = etree.tostring(root.xmlelement(), encoding="utf-8",
                                   xml_declaration=True)
 
         response = self.client.propfind(self.url.path, body, depth)
@@ -139,7 +138,7 @@ class DAVObject(object):
         Parameters:
          * props = [dav.DisplayName('name'), ...]
 
-        Returns: 
+        Returns:
          * self
         """
         prop = dav.Prop() + props
@@ -155,7 +154,7 @@ class DAVObject(object):
                 raise error.PropsetError(r.raw)
 
         return self
-    
+
     def save(self):
         """
         Save the object. This is an abstract methed, that all classes
@@ -182,7 +181,7 @@ class DAVObject(object):
 
 class Principal(DAVObject):
     """
-    This class represents a DAV Principal. It doesn't do much, except play 
+    This class represents a DAV Principal. It doesn't do much, except play
     the role of the parent to all calendar collections.
     """
     def __init__(self, client, url):
@@ -210,7 +209,7 @@ class Principal(DAVObject):
 
 class Calendar(DAVObject):
     """
-    The `Calendar` object is used to represent a calendar collection.    
+    The `Calendar` object is used to represent a calendar collection.
     Refer to the RFC for details: http://www.ietf.org/rfc/rfc4791.txt
     """
     def _create(self, name, id = None):
@@ -225,7 +224,7 @@ class Calendar(DAVObject):
         cal = cdav.CalendarCollection()
         coll = dav.Collection() + cal
         type = dav.ResourceType() + coll
-    
+
         prop = dav.Prop() + [type, name]
         set = dav.Set() + prop
 
@@ -258,7 +257,7 @@ class Calendar(DAVObject):
 
     def date_search(self, start, end = None):
         """
-        Search events by date in the calendar. Recurring events are expanded 
+        Search events by date in the calendar. Recurring events are expanded
         if they have an occurence during the specified time frame.
 
         Parameters:
@@ -413,7 +412,7 @@ class Event(DAVObject):
         return self
     def get_data(self):
         return self._data
-    data = property(get_data, set_data, 
+    data = property(get_data, set_data,
                     doc = "vCal representation of the event")
 
     def set_instance(self, inst):
@@ -422,7 +421,7 @@ class Event(DAVObject):
         return self
     def get_instance(self):
         return self._instance
-    instance = property(get_instance, set_instance, 
+    instance = property(get_instance, set_instance,
                         doc = "vobject instance of the event")
 
 
