@@ -40,7 +40,11 @@ class DAVObject(object):
         self.id = id
         if url is not None:
             self.url = urlparse.urlparse(url)
- 
+
+    @property
+    def canonical_url(self):
+        return url.canonicalize(self.url, self.parent)
+
     def children(self, type = None):
         """
         List children, using a propfind (resourcetype) on the parent object,
@@ -61,7 +65,9 @@ class DAVObject(object):
 
         response = self.client.propfind(self.url.path, body, depth)
         for r in response.tree.findall(dav.Response.tag):
-            href = r.find(dav.Href.tag).text
+            # We use canonicalized urls to index children
+            href = urlparse.urlparse(r.find(dav.Href.tag).text)
+            href = url.canonicalize(href, self)
             properties[href] = {}
             for p in props:
                 t = r.find(".//" + p.tag)
@@ -81,8 +87,8 @@ class DAVObject(object):
         for path in properties.keys():
             resource_type = properties[path][dav.ResourceType.tag]
             if resource_type == type or type is None:
-                if path != self.url.path:
-                    c.append((url.make(self.url, path), resource_type))
+                if path != self.canonical_url:
+                    c.append((path, resource_type))
 
         return c
 
@@ -235,6 +241,7 @@ class Calendar(DAVObject):
 
         r = self.client.mkcol(path, q)
         if r.status == 201:
+            # XXX Should we use self.canonical_url ?
             path = url.make(self.parent.url, path)
         else:
             raise error.MkcolError(r.raw)
@@ -286,10 +293,10 @@ class Calendar(DAVObject):
         for r in response.tree.findall(".//" + dav.Response.tag):
             status = r.find(".//" + dav.Status.tag)
             if status.text.endswith("200 OK"):
-                href = r.find(dav.Href.tag).text
+                href = urlparse.urlparse(r.find(dav.Href.tag).text)
+                href = url.canonicalize(href, self)
                 data = r.find(".//" + cdav.CalendarData.tag).text
-                e = Event(self.client, url = url.make(self.url, href), 
-                          data = data, parent = self)
+                e = Event(self.client, url = href, data = data, parent = self)
                 matches.append(e)
             else:
                 raise error.ReportError(response.raw)
@@ -323,10 +330,10 @@ class Calendar(DAVObject):
         response = self.client.report(self.url.path, q, 1)
         r = response.tree.find(".//" + dav.Response.tag)
         if r is not None:
-            href = r.find(".//" + dav.Href.tag).text
+            href = urlparse.urlparse(r.find(".//" + dav.Href.tag).text)
+            href = url.canonicalize(href, self)
             data = r.find(".//" + cdav.CalendarData.tag).text
-            e = Event(self.client, url = url.make(self.url, href), 
-                      data = data, parent = self)
+            e = Event(self.client, url = href, data = data, parent = self)
         else:
             raise error.NotFoundError(response.raw)
 
@@ -348,7 +355,7 @@ class Calendar(DAVObject):
         return all
 
     def __str__(self):
-        return "Collection: %s" % url.make(self.url)
+        return "Collection: %s" % self.canonical_url
 
 
 class Event(DAVObject):
@@ -383,6 +390,7 @@ class Event(DAVObject):
         path = url.join(self.parent.url.path, id + ".ics")
         r = self.client.put(path, data, {"Content-Type": "text/calendar; charset=\"utf-8\""})
         if r.status == 204 or r.status == 201:
+            # XXX Should we use self.canonical_url ?
             path = url.make(self.parent.url, path)
         else:
             raise error.PutError(r.raw)
@@ -403,7 +411,7 @@ class Event(DAVObject):
         return self
 
     def __str__(self):
-        return "Event: %s" % url.make(self.url)
+        return "Event: %s" % self.canonical_url
 
 
     def set_data(self, data):
