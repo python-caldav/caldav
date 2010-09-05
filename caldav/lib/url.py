@@ -19,3 +19,14 @@ def make(url, path = None):
         u = url.geturl()
 
     return u
+
+def canonicalize(url, parent=None):
+    if url.scheme:
+        netloc_unauth = ('%s:%s' % (url.hostname, url.port) if url.port != 80
+                         else url.hostname)
+        return urlparse.urlunparse((url.scheme, netloc_unauth,
+                                    url.path.replace('//', '/'),
+                                    url.params, url.query, url.fragment))
+    else:
+        return urlparse.urljoin(parent.canonical_url,
+                                url.path.replace('//', '/'))
