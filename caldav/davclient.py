@@ -78,8 +78,6 @@ class DAVClient:
             self.handle = httplib.HTTPConnection(self.url.hostname, 
                                                  self.url.port)
 
-        self.handle.connect()
-
     def propfind(self, url, props = "", depth = 0):
         """
         Send a propfind request.
