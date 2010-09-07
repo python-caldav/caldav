@@ -22,7 +22,8 @@ def make(url, path = None):
 
 def canonicalize(url, parent=None):
     if url.scheme:
-        netloc_unauth = ('%s:%s' % (url.hostname, url.port) if url.port != 80
+        netloc_unauth = ('%s:%s' % (url.hostname, url.port)
+                         if url.port not in (80, None)
                          else url.hostname)
         return urlparse.urlunparse((url.scheme, netloc_unauth,
                                     url.path.replace('//', '/'),
