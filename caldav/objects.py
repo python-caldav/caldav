@@ -288,7 +288,8 @@ class Calendar(DAVObject):
 
         root = cdav.CalendarQuery() + [prop, filter]
 
-        q = etree.tostring(root.xmlelement(), encoding="utf-8", xml_declaration=True)
+        q = etree.tostring(root.xmlelement(), encoding="utf-8",
+                           xml_declaration=True)
         response = self.client.report(self.url.path, q, 1)
         for r in response.tree.findall(".//" + dav.Response.tag):
             status = r.find(".//" + dav.Status.tag)

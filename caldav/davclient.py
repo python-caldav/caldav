@@ -28,7 +28,7 @@ class DAVResponse:
             self.tree = etree.XML (self.raw)
         except:
             self.tree = None
-        
+
 
 class DAVClient:
     """
@@ -44,7 +44,7 @@ class DAVClient:
          * url: A fully qualified url: `scheme://user:pass@hostname:port`
          * proxy: A string defining a proxy server: `hostname:port`
         """
-        
+
         self.url = urlparse.urlparse(url)
 
         # Prepare proxy info
@@ -60,22 +60,21 @@ class DAVClient:
                         "Content-Type": "text/xml",
                         "Accept": "text/xml"}
         if self.url.username is not None:
-            hash = (("%s:%s" % (self.url.username.replace('%40', '@'), 
+            hash = (("%s:%s" % (self.url.username.replace('%40', '@'),
                                 self.url.password))\
                     .encode('base64')[:-1])
             self.headers['authorization'] = "Basic %s" % hash
 
-        # Connection
-        # proxy
+        # Connection proxy
         if self.proxy is not None:
             self.handle = httplib.HTTPConnection(*self.proxy)
         # direct, https
         elif self.url.port == 443 or self.url.scheme == 'https':
-            self.handle = httplib.HTTPSConnection(self.url.hostname, 
+            self.handle = httplib.HTTPSConnection(self.url.hostname,
                                                   self.url.port)
         # direct, http
         else:
-            self.handle = httplib.HTTPConnection(self.url.hostname, 
+            self.handle = httplib.HTTPConnection(self.url.hostname,
                                                  self.url.port)
 
     def propfind(self, url, props = "", depth = 0):
@@ -117,8 +116,8 @@ class DAVClient:
         Returns
          * DAVResponse
         """
-        return self.request(url, "REPORT", query, 
-                            {'depth': depth, "Content-Type": 
+        return self.request(url, "REPORT", query,
+                            {'depth': depth, "Content-Type":
                              "application/xml; charset=\"utf-8\""})
 
     def mkcol(self, url, body):
@@ -151,12 +150,12 @@ class DAVClient:
         Actually sends the request
         """
         if self.proxy is not None:
-            url = "%s://%s:%s%s" % (self.url.scheme, self.url.hostname, 
+            url = "%s://%s:%s%s" % (self.url.scheme, self.url.hostname,
                                     self.url.port, url)
 
         headers.update(self.headers)
         self.handle.request(method, url, body, headers)
-        
+
         response = DAVResponse(self.handle.getresponse())
 
         # this is an error condition the application wants to know
