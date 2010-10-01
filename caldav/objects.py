@@ -257,7 +257,7 @@ class Calendar(DAVObject):
          * self
         """
         if self.url is None:
-            (id, path) = self._create(self.name, self.id)
+            (id, path) = self._create(self.name, self.url)
             self.id = id
             self.url = urlparse.urlparse(path)
         return self
@@ -371,7 +371,7 @@ class Event(DAVObject):
         Event has an additional parameter for its constructor:
          * data = "...", vCal data for the event
         """
-        DAVObject.__init__(self, client, url, parent, id)
+        DAVObject.__init__(self, client, url = url, parent = parent, id = id)
         if data is not None:
             self.data = data
 
@@ -383,12 +383,11 @@ class Event(DAVObject):
         self.data = vcal.fix(r.raw)
         return self
 
-    def _create(self, data, id = None):
-        path = None
+    def _create(self, data, id = None, path = None):
         if id is None:
             id = str(uuid.uuid1())
-
-        path = url.join(self.parent.url.path, id + ".ics")
+        if path is None:
+            path = url.join(self.parent.url.path, id + ".ics")
         r = self.client.put(path, data, {"Content-Type": "text/calendar; charset=\"utf-8\""})
         if r.status == 204 or r.status == 201:
             # XXX Should we use self.canonical_url ?
@@ -406,7 +405,9 @@ class Event(DAVObject):
          * self
         """
         if self._instance is not None:
-            (id, path) = self._create(self._instance.serialize(), self.id)
+            path = self.url.path if self.url else None
+            (id, path) = self._create(self._instance.serialize(), self.id,
+                     path)
             self.id = id
             self.url = urlparse.urlparse(path)
         return self
