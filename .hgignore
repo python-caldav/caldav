@@ -1,0 +1,14 @@
+.*\.pyc
+.*\.swp
+.DS_Store
+parts
+downloads
+eggs
+develop-eggs
+bin
+build
+dist
+.*.egg-info
+.installed.cfg
+accountific.db
+.coverage
