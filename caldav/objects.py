@@ -371,7 +371,7 @@ class Event(DAVObject):
         Event has an additional parameter for its constructor:
          * data = "...", vCal data for the event
         """
-        DAVObject.__init__(self, client, url, parent, id)
+        DAVObject.__init__(self, client=client, url=url, parent=parent, id=id)
         if data is not None:
             self.data = data
 
