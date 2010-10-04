@@ -2,7 +2,7 @@
 from setuptools import setup, find_packages
 import sys, os
 
-version = '0.1.4'
+version = '0.1.4.3-auf'
 
 if __name__ == '__main__':
     setup(
@@ -24,5 +24,5 @@ if __name__ == '__main__':
         packages = find_packages (),
         include_package_data=True,
         zip_safe=False,
-        install_requires=['vobject', 'lxml', 'nose', 'coverage'],
+        install_requires=['vobject', 'lxml==2.1.5', 'nose', 'coverage'],
         )

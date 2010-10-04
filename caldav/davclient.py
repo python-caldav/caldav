@@ -153,8 +153,9 @@ class DAVClient:
             url = "%s://%s:%s%s" % (self.url.scheme, self.url.hostname,
                                     self.url.port, url)
 
-        headers.update(self.headers)
-        self.handle.request(method, url, body, headers)
+        combined_headers = self.headers
+        combined_headers.update(headers)
+        self.handle.request(method, url, body, combined_headers)
 
         response = DAVResponse(self.handle.getresponse())
 
