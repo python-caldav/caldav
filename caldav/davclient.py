@@ -7,6 +7,7 @@ from lxml import etree
 
 from caldav.lib import error
 
+
 class DAVResponse:
     """
     This class is a response from a DAV request.
@@ -25,7 +26,7 @@ class DAVResponse:
         self.reason = response.reason
 
         try:
-            self.tree = etree.XML (self.raw)
+            self.tree = etree.XML(self.raw)
         except:
             self.tree = None
 
@@ -37,7 +38,7 @@ class DAVClient:
     proxy = None
     url = None
 
-    def __init__(self, url, proxy = None):
+    def __init__(self, url, proxy=None):
         """
         Connects to the server, as defined in the url.
         Parameters:
@@ -77,7 +78,7 @@ class DAVClient:
             self.handle = httplib.HTTPConnection(self.url.hostname,
                                                  self.url.port)
 
-    def propfind(self, url, props = "", depth = 0):
+    def propfind(self, url, props="", depth=0):
         """
         Send a propfind request.
 
@@ -104,7 +105,7 @@ class DAVClient:
         """
         return self.request(url, "PROPPATCH", body)
 
-    def report(self, url, query = "", depth = 0):
+    def report(self, url, query="", depth=0):
         """
         Send a report request.
 
@@ -133,7 +134,7 @@ class DAVClient:
         """
         return self.request(url, "MKCOL", body)
 
-    def put(self, url, body, headers = {}):
+    def put(self, url, body, headers={}):
         """
         Send a put request.
         """
@@ -145,7 +146,7 @@ class DAVClient:
         """
         return self.request(url, "DELETE")
 
-    def request(self, url, method = "GET", body = "", headers = {}):
+    def request(self, url, method="GET", body="", headers={}):
         """
         Actually sends the request
         """

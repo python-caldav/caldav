@@ -3,13 +3,15 @@
 
 import urlparse
 
+
 def join(url, part):
     sep = "/"
     if url.endswith("/"):
         sep = ""
     return "%s%s%s" % (url, sep, part)
 
-def make(url, path = None):
+
+def make(url, path=None):
     u = ""
 
     if path is not None:
@@ -19,6 +21,7 @@ def make(url, path = None):
         u = url.geturl()
 
     return u
+
 
 def canonicalize(url, parent=None):
     if url.scheme:

@@ -12,6 +12,7 @@ from caldav.lib import error, vcal, url
 from caldav.lib.namespace import ns
 from caldav.elements import dav, cdav
 
+
 class DAVObject(object):
     """
     Base class for all DAV objects.
@@ -22,7 +23,7 @@ class DAVObject(object):
     parent = None
     name = None
 
-    def __init__(self, client, url = None, parent = None, name = None, id = None):
+    def __init__(self, client, url=None, parent=None, name=None, id=None):
         """
         Default constructor.
 
@@ -45,7 +46,7 @@ class DAVObject(object):
     def canonical_url(self):
         return url.canonicalize(self.url, self.parent)
 
-    def children(self, type = None):
+    def children(self, type=None):
         """
         List children, using a propfind (resourcetype) on the parent object,
         at depth = 1.
@@ -55,7 +56,7 @@ class DAVObject(object):
         depth = 1
         properties = {}
 
-        props = [dav.ResourceType(),]
+        props = [dav.ResourceType(), ]
 
         prop = dav.Prop() + props
         root = dav.Propfind() + prop
@@ -92,7 +93,7 @@ class DAVObject(object):
 
         return c
 
-    def _get_properties(self, props = [], depth = 0):
+    def _get_properties(self, props=[], depth=0):
         properties = {}
 
         body = ""
@@ -123,7 +124,7 @@ class DAVObject(object):
 
         return properties
 
-    def get_properties(self, props = [], depth = 0):
+    def get_properties(self, props=[], depth=0):
         """
         Get properties (PROPFIND) for this object. Works only for
         properties, that don't have complex types.
@@ -136,8 +137,7 @@ class DAVObject(object):
         """
         return self._get_properties(props, depth)[self.url.path]
 
-
-    def set_properties(self, props = []):
+    def set_properties(self, props=[]):
         """
         Set properties (PROPPATCH) for this object.
 
@@ -151,7 +151,8 @@ class DAVObject(object):
         set = dav.Set() + prop
         root = dav.PropertyUpdate() + set
 
-        q = etree.tostring(root.xmlelement(), encoding="utf-8", xml_declaration=True)
+        q = etree.tostring(root.xmlelement(), encoding="utf-8",
+                           xml_declaration=True)
         r = self.client.proppatch(self.url.path, q)
 
         statuses = r.tree.findall(".//" + dav.Status.tag)
@@ -184,7 +185,6 @@ class DAVObject(object):
                 raise error.DeleteError(r.raw)
 
 
-
 class Principal(DAVObject):
     """
     This class represents a DAV Principal. It doesn't do much, except play
@@ -208,7 +208,7 @@ class Principal(DAVObject):
 
         data = self.children(cdav.Calendar.tag)
         for c_url, c_type in data:
-            cals.append(Calendar(self.client, c_url, parent = self))
+            cals.append(Calendar(self.client, c_url, parent=self))
 
         return cals
 
@@ -218,7 +218,7 @@ class Calendar(DAVObject):
     The `Calendar` object is used to represent a calendar collection.
     Refer to the RFC for details: http://www.ietf.org/rfc/rfc4791.txt
     """
-    def _create(self, name, id = None):
+    def _create(self, name, id=None):
         """
         Create a new calendar with display name `name` in `parent`.
         """
@@ -236,7 +236,8 @@ class Calendar(DAVObject):
 
         mkcol = dav.Mkcol() + set
 
-        q = etree.tostring(mkcol.xmlelement(), encoding="utf-8", xml_declaration=True)
+        q = etree.tostring(mkcol.xmlelement(), encoding="utf-8",
+                           xml_declaration=True)
         path = url.join(self.parent.url.path, id)
 
         r = self.client.mkcol(path, q)
@@ -262,13 +263,13 @@ class Calendar(DAVObject):
             self.url = urlparse.urlparse(path)
         return self
 
-    def date_search(self, start, end = None):
+    def date_search(self, start, end=None):
         """
         Search events by date in the calendar. Recurring events are expanded
         if they have an occurence during the specified time frame.
 
         Parameters:
-         * start = datetime.now().
+         * start = datetime.today().
          * end = same as above.
 
         Returns:
@@ -297,7 +298,53 @@ class Calendar(DAVObject):
                 href = urlparse.urlparse(r.find(dav.Href.tag).text)
                 href = url.canonicalize(href, self)
                 data = r.find(".//" + cdav.CalendarData.tag).text
-                e = Event(self.client, url = href, data = data, parent = self)
+                e = Event(self.client, url=href, data=data, parent=self)
+                matches.append(e)
+            else:
+                raise error.ReportError(response.raw)
+
+        return matches
+
+    def freebusy(self, start=None, end=None):
+        """
+        Search freebusy information by date in the calendar.
+        Recurring events are expanded if they have an occurence during the
+        specified time frame.
+
+        Parameters:
+         * start = datetime.today().
+         * end = same as above.
+
+        Returns:
+         * [Event(), ...]
+        """
+        matches = []
+
+        # build the request
+        expand = cdav.Expand(start, end)
+        data = cdav.CalendarData() + expand
+        prop = dav.Prop() + data
+
+        if start is not None or end is not None:
+            range = cdav.TimeRange(start, end)
+            vevent = cdav.CompFilter("VFREEBUSY") + range
+        else:
+            vevent = cdav.CompFilter("VFREEBUSY")
+        vcal = cdav.CompFilter("VCALENDAR") + vevent
+        filter = cdav.Filter() + vcal
+
+        root = cdav.CalendarQuery() + [prop, filter]
+
+        q = etree.tostring(root.xmlelement(), encoding="utf-8",
+                           xml_declaration=True)
+        response = self.client.report(self.url.path, q, 1)
+        for r in response.tree.findall(".//" + dav.Response.tag):
+            status = r.find(".//" + dav.Status.tag)
+            if status.text.endswith("200 OK"):
+                href = urlparse.urlparse(r.find(dav.Href.tag).text)
+                href = url.canonicalize(href, self)
+                data = r.find(".//" + cdav.CalendarData.tag).text
+                e = Event(self.client, url=href, data=data, parent=self)
                 matches.append(e)
             else:
                 raise error.ReportError(response.raw)
@@ -327,14 +374,15 @@ class Calendar(DAVObject):
 
         root = cdav.CalendarQuery() + [prop, filter]
 
-        q = etree.tostring(root.xmlelement(), encoding="utf-8", xml_declaration=True)
+        q = etree.tostring(root.xmlelement(), encoding="utf-8",
+                           xml_declaration=True)
         response = self.client.report(self.url.path, q, 1)
         r = response.tree.find(".//" + dav.Response.tag)
         if r is not None:
             href = urlparse.urlparse(r.find(".//" + dav.Href.tag).text)
             href = url.canonicalize(href, self)
             data = r.find(".//" + cdav.CalendarData.tag).text
-            e = Event(self.client, url = href, data = data, parent = self)
+            e = Event(self.client, url=href, data=data, parent=self)
         else:
             raise error.NotFoundError(response.raw)
 
@@ -351,7 +399,7 @@ class Calendar(DAVObject):
 
         data = self.children()
         for e_url, e_type in data:
-            all.append(Event(self.client, e_url, parent = self))
+            all.append(Event(self.client, e_url, parent=self))
 
         return all
 
@@ -366,7 +414,7 @@ class Event(DAVObject):
     _instance = None
     _data = None
 
-    def __init__(self, client, url = None, data = None, parent = None, id = None):
+    def __init__(self, client, url=None, data=None, parent=None, id=None):
         """
         Event has an additional parameter for its constructor:
          * data = "...", vCal data for the event
@@ -383,13 +431,14 @@ class Event(DAVObject):
         self.data = vcal.fix(r.raw)
         return self
 
-    def _create(self, data, id = None):
+    def _create(self, data, id=None):
         path = None
         if id is None:
             id = str(uuid.uuid1())
 
         path = url.join(self.parent.url.path, id + ".ics")
-        r = self.client.put(path, data, {"Content-Type": "text/calendar; charset=\"utf-8\""})
+        r = self.client.put(path, data,
+                            {"Content-Type": 'text/calendar; charset="utf-8"'})
         if r.status == 204 or r.status == 201:
             # XXX Should we use self.canonical_url ?
             path = url.make(self.parent.url, path)
@@ -414,23 +463,22 @@ class Event(DAVObject):
     def __str__(self):
         return "Event: %s" % self.canonical_url
 
-
     def set_data(self, data):
         self._data = vcal.fix(data)
         self._instance = vobject.readOne(StringIO.StringIO(self._data))
         return self
+
     def get_data(self):
         return self._data
     data = property(get_data, set_data,
-                    doc = "vCal representation of the event")
+                    doc="vCal representation of the event")
 
     def set_instance(self, inst):
         self._instance = inst
         self._data = inst.serialize()
         return self
+
     def get_instance(self):
         return self._instance
     instance = property(get_instance, set_instance,
-                        doc = "vobject instance of the event")
-
-
+                        doc="vobject instance of the event")

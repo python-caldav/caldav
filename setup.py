@@ -1,8 +1,9 @@
 # -*- encoding: utf-8 -*-
 from setuptools import setup, find_packages
-import sys, os
+import sys
+import os
 
-version = '0.1.4.3-auf'
+version = '0.1.5'
 
 if __name__ == '__main__':
     setup(
@@ -11,17 +12,19 @@ if __name__ == '__main__':
         description="CalDAV (RFC4791) client library",
         classifiers=["Development Status :: 3 - Alpha",
                      "Intended Audience :: Developers",
-                     "License :: OSI Approved :: GNU General Public License (GPL)",
+                     "License :: OSI Approved :: GNU General " \
+                     "Public License (GPL)",
                      "Operating System :: OS Independent",
                      "Programming Language :: Python",
                      "Topic :: Office/Business :: Scheduling",
-                     "Topic :: Software Development :: Libraries :: Python Modules"],
+                     "Topic :: Software Development :: Libraries" \
+                     ":: Python Modules"],
         keywords='',
         author='Cyril Robert',
         author_email='cyril.robert@auf.org',
         url='http://bitbucket.org/cyrilrbt/caldav',
         license='GPL',
-        packages = find_packages (),
+        packages=find_packages(),
         include_package_data=True,
         zip_safe=False,
         install_requires=['vobject', 'lxml==2.1.5', 'nose', 'coverage'],

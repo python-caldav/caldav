@@ -9,8 +9,10 @@ from base import BaseElement, NamedBaseElement, ValuedBaseElement
 class Propfind(BaseElement):
     tag = ns("D", "propfind")
 
+
 class PropertyUpdate(BaseElement):
     tag = ns("D", "propertyupdate")
+
 
 class Mkcol(BaseElement):
     tag = ns("D", "mkcol")
@@ -20,11 +22,15 @@ class Mkcol(BaseElement):
 ## Conditions
 
 ## Components / Data
+
+
 class Prop(BaseElement):
     tag = ns("D", "prop")
 
+
 class Collection(BaseElement):
     tag = ns("D", "collection")
+
 
 class Set(BaseElement):
     tag = ns("D", "set")
@@ -34,14 +40,18 @@ class Set(BaseElement):
 class ResourceType(BaseElement):
     tag = ns("D", "resourcetype")
 
+
 class DisplayName(ValuedBaseElement):
     tag = ns("D", "displayname")
+
 
 class Href(BaseElement):
     tag = ns("D", "href")
 
+
 class Response(BaseElement):
     tag = ns("D", "response")
+
 
 class Status(BaseElement):
     tag = ns("D", "status")

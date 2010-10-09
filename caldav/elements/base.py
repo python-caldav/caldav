@@ -4,13 +4,14 @@
 from lxml import etree
 from caldav.lib.namespace import nsmap
 
+
 class BaseElement(object):
     children = None
     tag = None
     value = None
     attributes = None
 
-    def __init__(self, name = None, value = None):
+    def __init__(self, name=None, value=None):
         self.children = []
         self.attributes = {}
         self.value = None
@@ -23,11 +24,11 @@ class BaseElement(object):
         return self.append(other)
 
     def __str__(self):
-        return etree.tostring(self.xmlelement(), encoding="utf-8", 
-                              xml_declaration=True, pretty_print = True)
+        return etree.tostring(self.xmlelement(), encoding="utf-8",
+                              xml_declaration=True, pretty_print=True)
 
     def xmlelement(self):
-        root = etree.Element(self.tag, nsmap = nsmap)
+        root = etree.Element(self.tag, nsmap=nsmap)
         if self.value is not None:
             root.text = self.value
         if len(self.attributes) > 0:
@@ -48,14 +49,17 @@ class BaseElement(object):
             self.children.append(element)
         return self
 
+
 class NamedBaseElement(BaseElement):
-    def __init__(self, name = None):
-        super(NamedBaseElement,self).__init__(name = name)
+    def __init__(self, name=None):
+        super(NamedBaseElement, self).__init__(name=name)
+
     def xmlelement(self):
         if self.attributes.get('name') is None:
             raise Exception("name attribute must be defined")
-        return super(NamedBaseElement,self).xmlelement()
+        return super(NamedBaseElement, self).xmlelement()
+
 
 class ValuedBaseElement(BaseElement):
-    def __init__(self, value = None):
-        super(ValuedBaseElement,self).__init__(value = value)
+    def __init__(self, value=None):
+        super(ValuedBaseElement, self).__init__(value=value)
