@@ -258,7 +258,7 @@ class Calendar(DAVObject):
          * self
         """
         if self.url is None:
-            (id, path) = self._create(self.name, self.id)
+            (id, path) = self._create(self.name, self.url)
             self.id = id
             self.url = urlparse.urlparse(path)
         return self
@@ -431,12 +431,12 @@ class Event(DAVObject):
         self.data = vcal.fix(r.raw)
         return self
 
-    def _create(self, data, id=None):
-        path = None
+    def _create(self, data, id=None, path=None):
         if id is None:
             id = str(uuid.uuid1())
+        if path is None:
+            path = url.join(self.parent.url.path, id + ".ics")
 
-        path = url.join(self.parent.url.path, id + ".ics")
         r = self.client.put(path, data,
                             {"Content-Type": 'text/calendar; charset="utf-8"'})
         if r.status == 204 or r.status == 201:
@@ -455,7 +455,9 @@ class Event(DAVObject):
          * self
         """
         if self._instance is not None:
-            (id, path) = self._create(self._instance.serialize(), self.id)
+            path = self.url.path if self.url else None
+            (id, path) = self._create(self._instance.serialize(), self.id,
+                     path)
             self.id = id
             self.url = urlparse.urlparse(path)
         return self
