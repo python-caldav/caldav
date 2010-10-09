@@ -14,11 +14,14 @@ class CalendarQuery(BaseElement):
 class Filter(BaseElement):
     tag = ns("C", "filter")
 
+
 class CompFilter(NamedBaseElement):
     tag = ns("C", "comp-filter")
 
+
 class PropFilter(NamedBaseElement):
     tag = ns("C", "prop-filter")
+
 
 class ParamFilter(NamedBaseElement):
     tag = ns("C", "param-filter")
@@ -27,21 +30,26 @@ class ParamFilter(NamedBaseElement):
 ## Conditions
 class TextMatch(ValuedBaseElement):
     tag = ns("C", "text-match")
-    def __init__(self, value, collation = "i; octet", negate = False):
-        super(TextMatch,self).__init__(value = value)
+
+    def __init__(self, value, collation="i; octet", negate=False):
+        super(TextMatch, self).__init__(value=value)
         self.attributes['collation'] = collation
         self.attributes['negate'] = "no"
         if negate:
             self.attributes['negate'] = "yes"
 
+
 class TimeRange(BaseElement):
     tag = ns("C", "time-range")
-    def __init__(self, start = None, end = None):
-        super(TimeRange,self).__init__()
+
+    def __init__(self, start=None, end=None):
+        super(TimeRange, self).__init__()
         if start is not None:
-            self.attributes['start'] = start.strftime("%Y%02m%02dT%02H%02M%02SZ")
+            self.attributes['start'] = \
+                    start.strftime("%Y%02m%02dT%02H%02M%02SZ")
         if end is not None:
             self.attributes['end'] = end.strftime("%Y%02m%02dT%02H%02M%02SZ")
+
 
 class NotDefined(BaseElement):
     tag = ns("C", "is-not-defined")
@@ -51,16 +59,20 @@ class NotDefined(BaseElement):
 class CalendarData(BaseElement):
     tag = ns("C", "calendar-data")
 
+
 class Expand(BaseElement):
     tag = ns("C", "expand")
-    def __init__(self, start, end = None):
-        super(Expand,self).__init__()
+
+    def __init__(self, start, end=None):
+        super(Expand, self).__init__()
         self.attributes['start'] = start.strftime("%Y%02m%02dT%02H%02M%02SZ")
         if end is not None:
             self.attributes['end'] = end.strftime("%Y%02m%02dT%02H%02M%02SZ")
 
+
 class Comp(NamedBaseElement):
     tag = ns("C", "comp")
+
 
 class CalendarCollection(BaseElement):
     tag = ns("C", "calendar-collection")
@@ -72,29 +84,38 @@ class CalendarCollection(BaseElement):
 class Calendar(BaseElement):
     tag = ns("C", "calendar")
 
+
 class CalendarDescription(ValuedBaseElement):
     tag = ns("C", "calendar-description")
+
 
 class CalendarTimeZone(ValuedBaseElement):
     tag = ns("C", "calendar-timezone")
 
+
 class SupportedCalendarComponentSet(ValuedBaseElement):
     tag = ns("C", "supported-calendar-component-set")
+
 
 class SupportedCalendarData(ValuedBaseElement):
     tag = ns("C", "supported-calendar-data")
 
+
 class MaxResourceSize(ValuedBaseElement):
     tag = ns("C", "max-resource-size")
+
 
 class MinDateTime(ValuedBaseElement):
     tag = ns("C", "min-date-time")
 
+
 class MaxDateTime(ValuedBaseElement):
     tag = ns("C", "max-date-time")
 
+
 class MaxInstances(ValuedBaseElement):
     tag = ns("C", "max-instances")
+
 
 class MaxAttendeesPerInstance(ValuedBaseElement):
     tag = ns("C", "max-attendees-per-instance")

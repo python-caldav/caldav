@@ -1,3 +1,7 @@
+2010-10-09  Cyril Robert <cyrilrbt@gmail.com>
+
+	* All files: Made PEP8 compliant 
+
 2010-10-04  Olivier Larchevêque <olivier.larcheveque@gmail.com>
 
     * caldav/davclient.py (DAVClient.request): fix headers merge before sending request

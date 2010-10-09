@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- encoding: utf-8 -*-
 
+
 class AuthorizationError(Exception):
     """
     The client encountered an HTTP 403 error and is passing it on
@@ -14,20 +15,26 @@ class AuthorizationError(Exception):
         return "AuthorizationError at '%s', reason '%s'" % \
             (self.url, self.reason)
 
+
 class PropsetError(Exception):
     pass
+
 
 class ReportError(Exception):
     pass
 
+
 class MkcolError(Exception):
     pass
+
 
 class PutError(Exception):
     pass
 
+
 class DeleteError(Exception):
     pass
+
 
 class NotFoundError(Exception):
     pass
