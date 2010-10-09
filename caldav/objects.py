@@ -305,52 +305,6 @@ class Calendar(DAVObject):
 
         return matches
 
-    def freebusy(self, start=None, end=None):
-        """
-        Search freebusy information by date in the calendar.
-        Recurring events are expanded if they have an occurence during the
-        specified time frame.
-
-        Parameters:
-         * start = datetime.today().
-         * end = same as above.
-
-        Returns:
-         * [Event(), ...]
-        """
-        matches = []
-
-        # build the request
-        expand = cdav.Expand(start, end)
-        data = cdav.CalendarData() + expand
-        prop = dav.Prop() + data
-
-        if start is not None or end is not None:
-            range = cdav.TimeRange(start, end)
-            vevent = cdav.CompFilter("VFREEBUSY") + range
-        else:
-            vevent = cdav.CompFilter("VFREEBUSY")
-        vcal = cdav.CompFilter("VCALENDAR") + vevent
-        filter = cdav.Filter() + vcal
-
-        root = cdav.CalendarQuery() + [prop, filter]
-
-        q = etree.tostring(root.xmlelement(), encoding="utf-8",
-                           xml_declaration=True)
-        response = self.client.report(self.url.path, q, 1)
-        for r in response.tree.findall(".//" + dav.Response.tag):
-            status = r.find(".//" + dav.Status.tag)
-            if status.text.endswith("200 OK"):
-                href = urlparse.urlparse(r.find(dav.Href.tag).text)
-                href = url.canonicalize(href, self)
-                data = r.find(".//" + cdav.CalendarData.tag).text
-                e = Event(self.client, url=href, data=data, parent=self)
-                matches.append(e)
-            else:
-                raise error.ReportError(response.raw)
-
-        return matches
-
     def event(self, uid):
         """
         Get one event from the calendar.
