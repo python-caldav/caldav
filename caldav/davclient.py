@@ -90,7 +90,7 @@ class DAVClient:
         Returns
          * DAVResponse
         """
-        return self.request(url, "PROPFIND", props, {'depth': depth})
+        return self.request(url, "PROPFIND", props, {'depth': str(depth)})
 
     def proppatch(self, url, body):
         """
@@ -118,7 +118,7 @@ class DAVClient:
          * DAVResponse
         """
         return self.request(url, "REPORT", query,
-                            {'depth': depth, "Content-Type":
+                            {'depth': str(depth), "Content-Type":
                              "application/xml; charset=\"utf-8\""})
 
     def mkcol(self, url, body):
