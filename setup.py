@@ -17,7 +17,7 @@ if __name__ == '__main__':
                      "Operating System :: OS Independent",
                      "Programming Language :: Python",
                      "Topic :: Office/Business :: Scheduling",
-                     "Topic :: Software Development :: Libraries" \
+                     "Topic :: Software Development :: Libraries " \
                      ":: Python Modules"],
         keywords='',
         author='Cyril Robert',
