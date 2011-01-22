@@ -52,7 +52,7 @@ class TestCalDAV:
         p = url.make(self.principal.url)
         path = url.join(p, testcal_id)
 
-        cal = Calendar(self.caldav, name="Yep", parent = self.principal, 
+        cal = Calendar(self.caldav, name="Yep", parent = self.principal,
                        url = path)
         cal.delete()
 
@@ -78,12 +78,12 @@ class TestCalDAV:
             assert_equal(c.__class__.__name__, "Calendar")
 
     def testCalendar(self):
-        c = Calendar(self.caldav, name="Yep", parent = self.principal, 
+        c = Calendar(self.caldav, name="Yep", parent = self.principal,
                      id = testcal_id).save()
         assert_not_equal(c.url, None)
         # TODO: fail
-        #props = c.get_properties([DAVDisplayName(),])
-        #assert_equal("Yep", props[DAVDisplayName.tag])
+        #props = c.get_properties([dav.DisplayName(),])
+        #assert_equal("Yep", props[dav.DisplayName.tag])
 
         c.set_properties([dav.DisplayName("hooray"),])
         props = c.get_properties([dav.DisplayName(),])
@@ -102,7 +102,7 @@ class TestCalDAV:
         ee.load()
         assert_equal(e.instance.vevent.uid, ee.instance.vevent.uid)
 
-        r = c.date_search(datetime(2006,7,13,17,00,00), 
+        r = c.date_search(datetime(2006,7,13,17,00,00),
                           datetime(2006,7,15,17,00,00))
         assert_equal(e.instance.vevent.uid, r[0].instance.vevent.uid)
         for e in r: print e.data
@@ -118,7 +118,7 @@ class TestCalDAV:
         tmp = c.event("20010712T182145Z-123401@example.com")
         assert_equal(e2.instance.vevent.uid, tmp.instance.vevent.uid)
 
-        r = c.date_search(datetime(2006,7,13,17,00,00), 
+        r = c.date_search(datetime(2006,7,13,17,00,00),
                           datetime(2006,7,15,17,00,00))
         for e in r: print e.data
         assert_equal(len(r), 1)
@@ -126,14 +126,14 @@ class TestCalDAV:
         e.data = ev2
         e.save()
 
-        r = c.date_search(datetime(2006,7,13,17,00,00), 
+        r = c.date_search(datetime(2006,7,13,17,00,00),
                           datetime(2006,7,15,17,00,00))
         for e in r: print e.data
         assert_equal(len(r), 1)
 
         e.instance = e2.instance
         e.save()
-        r = c.date_search(datetime(2006,7,13,17,00,00), 
+        r = c.date_search(datetime(2006,7,13,17,00,00),
                           datetime(2006,7,15,17,00,00))
         for e in r: print e.data
         assert_equal(len(r), 1)
