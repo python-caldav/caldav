@@ -3,14 +3,14 @@ from setuptools import setup, find_packages
 import sys
 import os
 
-version = '0.1.6'
+version = '0.1.7'
 
 if __name__ == '__main__':
     setup(
         name='caldav',
         version=version,
         description="CalDAV (RFC4791) client library",
-        classifiers=["Development Status :: 3 - Alpha",
+        classifiers=["Development Status :: 4 - Beta",
                      "Intended Audience :: Developers",
                      "License :: OSI Approved :: GNU General " \
                      "Public License (GPL)",
