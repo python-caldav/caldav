@@ -5,9 +5,12 @@ parts
 downloads
 eggs
 develop-eggs
-bin
-build
-dist
+^bin
+^build
+^dist
+^lib
+^include
+^\.Python
 .*.egg-info
 .installed.cfg
 accountific.db
