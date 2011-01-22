@@ -21,7 +21,7 @@ if __name__ == '__main__':
                      ":: Python Modules"],
         keywords='',
         author='Cyril Robert',
-        author_email='cyril.robert@auf.org',
+        author_email='cyril@pantherific.com',
         url='http://bitbucket.org/cyrilrbt/caldav',
         license='GPL',
         packages=find_packages(),
