@@ -1,3 +1,8 @@
+2011-01-22  Cyril Robert <cyrilrbt@gmail.com>
+
+	* caldav/elements/cdav.py (Expand.__init__, 
+							   TimeRange.__init__) : Fixed strftime fmt.
+
 2010-10-09  Cyril Robert <cyrilrbt@gmail.com>
 
 	* All files: Made PEP8 compliant 
