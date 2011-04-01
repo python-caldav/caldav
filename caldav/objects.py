@@ -65,7 +65,6 @@ class DAVObject(object):
                               xml_declaration=True)
 
         response = self.client.propfind(self.url.path, body, depth)
-        print response.raw
         for r in response.tree.findall(dav.Response.tag):
             # We use canonicalized urls to index children
             href = urlparse.urlparse(r.find(dav.Href.tag).text)
@@ -395,7 +394,6 @@ class Event(DAVObject):
         Load the event from the caldav server.
         """
         r = self.client.request(self.url.path)
-        print r.raw
         self.data = vcal.fix(r.raw)
         return self
 
