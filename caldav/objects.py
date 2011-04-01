@@ -65,6 +65,7 @@ class DAVObject(object):
                               xml_declaration=True)
 
         response = self.client.propfind(self.url.path, body, depth)
+        print response.raw
         for r in response.tree.findall(dav.Response.tag):
             # We use canonicalized urls to index children
             href = urlparse.urlparse(r.find(dav.Href.tag).text)
@@ -135,7 +136,19 @@ class DAVObject(object):
         Returns:
          * {proptag: value, ...}
         """
-        return self._get_properties(props, depth)[self.url.path]
+        rc = None
+        properties =  self._get_properties(props, depth)
+        path = self.url.path
+        exchange_path = self.url.path + '/'
+
+        if path in properties.keys():
+            rc = properties[path]
+        elif exchange_path in properties.keys():
+            rc = properties[exchange_path]
+        else:
+            raise Exception("The CalDAV server you are using has a problem with path handling.")
+
+        return rc
 
     def set_properties(self, props=[]):
         """
@@ -382,6 +395,7 @@ class Event(DAVObject):
         Load the event from the caldav server.
         """
         r = self.client.request(self.url.path)
+        print r.raw
         self.data = vcal.fix(r.raw)
         return self
 
