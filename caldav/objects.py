@@ -194,7 +194,7 @@ class DAVObject(object):
             r = self.client.delete(path)
 
             #TODO: find out why we get 404
-            if r.status != 204 and r.status != 404:
+            if r.status not in (200, 204, 404):
                 raise error.DeleteError(r.raw)
 
 
