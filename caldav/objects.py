@@ -270,7 +270,7 @@ class Calendar(DAVObject):
          * self
         """
         if self.url is None:
-            (id, path) = self._create(self.name, self.url)
+            (id, path) = self._create(self.name, self.id)
             self.id = id
             self.url = urlparse.urlparse(path)
         return self
