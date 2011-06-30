@@ -14,6 +14,7 @@ if __name__ == '__main__':
                      "Intended Audience :: Developers",
                      "License :: OSI Approved :: GNU General " \
                      "Public License (GPL)",
+                     "License :: OSI Approved :: Apache Software License",
                      "Operating System :: OS Independent",
                      "Programming Language :: Python",
                      "Topic :: Office/Business :: Scheduling",
