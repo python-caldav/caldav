@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 import sys
 import os
 
-version = '0.1.10'
+version = '0.1.11'
 
 if __name__ == '__main__':
     setup(
@@ -28,5 +28,5 @@ if __name__ == '__main__':
         packages=find_packages(),
         include_package_data=True,
         zip_safe=False,
-        install_requires=['vobject', 'lxml==2.1.5', 'nose', 'coverage'],
+        install_requires=['vobject', 'lxml', 'nose', 'coverage'],
         )
