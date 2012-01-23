@@ -156,6 +156,8 @@ class DAVClient:
 
         combined_headers = self.headers
         combined_headers.update(headers)
+        if body is None or body == "" and "Content-Type" in combined_headers:
+            del combined_headers["Content-Type"]
         self.handle.request(method, url, body, combined_headers)
 
         response = DAVResponse(self.handle.getresponse())
