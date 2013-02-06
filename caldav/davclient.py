@@ -2,6 +2,7 @@
 # -*- encoding: utf-8 -*-
 
 import httplib
+import urllib
 import urlparse
 from lxml import etree
 
@@ -61,8 +62,9 @@ class DAVClient:
                         "Content-Type": "text/xml",
                         "Accept": "text/xml"}
         if self.url.username is not None:
-            hash = (("%s:%s" % (self.url.username.replace('%40', '@'),
-                                self.url.password))\
+            username = urllib.unquote(self.url.username)
+            password = urllib.unquote(self.url.password)
+            hash = (("%s:%s" % (username, password))\
                     .encode('base64')[:-1])
             self.headers['authorization'] = "Basic %s" % hash
 
