@@ -39,7 +39,9 @@ class DAVObject(object):
         self.parent = parent
         self.name = name
         self.id = id
-        if url is not None:
+        if isinstance(url, urlparse.ParseResult):
+            self.url = url
+        elif url is not None:
             self.url = urlparse.urlparse(url)
 
     @property
