@@ -7,6 +7,7 @@ eggs
 develop-eggs
 ^bin
 ^build
+^docs/build
 ^dist
 ^lib
 ^include
