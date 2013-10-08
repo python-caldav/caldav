@@ -3,9 +3,12 @@
 
 from datetime import datetime
 import urlparse
+import logging
+import threading
 from nose.tools import assert_equal, assert_not_equal
 
 from conf import principal_url, principal_url_ssl, proxy, proxy_noport
+from proxy import ThreadingHTTPServer, ProxyHandler
 
 from caldav.davclient import DAVClient
 from caldav.objects import Principal, Calendar, Event, DAVObject
@@ -62,6 +65,10 @@ class TestCalDAV:
         assert_not_equal(len(p.calendars()), 0)
 
     def testProxy(self):
+        server_address = ('127.0.0.1', 8080)
+        proxy_httpd = ThreadingHTTPServer (server_address, ProxyHandler, logging.getLogger ("TinyHTTPProxy"))
+        threading.Thread(target=proxy_httpd.serve_forever).start()
+        
         c = DAVClient(principal_url, proxy)
         p = Principal(c, principal_url)
         assert_not_equal(len(p.calendars()), 0)
