@@ -67,12 +67,13 @@ class TestCalDAV:
     def testProxy(self):
         server_address = ('127.0.0.1', 8080)
         proxy_httpd = ThreadingHTTPServer (server_address, ProxyHandler, logging.getLogger ("TinyHTTPProxy"))
-        threading.Thread(target=proxy_httpd.serve_forever).start()
         
+        threading.Thread(target=proxy_httpd.handle_request).start()
         c = DAVClient(principal_url, proxy)
         p = Principal(c, principal_url)
         assert_not_equal(len(p.calendars()), 0)
 
+        threading.Thread(target=proxy_httpd.handle_request).start()
         c = DAVClient(principal_url, proxy_noport)
         p = Principal(c, principal_url)
         assert_not_equal(len(p.calendars()), 0)
