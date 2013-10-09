@@ -2,9 +2,10 @@
 # -*- encoding: utf-8 -*-
 
 
-nsmap = {"D": "DAV:",
-         "C": "urn:ietf:params:xml:ns:caldav",
-        }
+nsmap = {
+    "D": "DAV:",
+    "C": "urn:ietf:params:xml:ns:caldav",
+}
 
 
 def ns(prefix, tag=None):

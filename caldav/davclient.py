@@ -64,7 +64,7 @@ class DAVClient:
         if self.url.username is not None:
             username = urllib.unquote(self.url.username)
             password = urllib.unquote(self.url.password)
-            hash = (("%s:%s" % (username, password))\
+            hash = (("%s:%s" % (username, password))
                     .encode('base64')[:-1])
             self.headers['authorization'] = "Basic %s" % hash
 

@@ -43,7 +43,7 @@ class BaseElement(object):
 
     def append(self, element):
         try:
-            x = iter(element)
+            iter(element)
             self.children.extend(element)
         except TypeError:
             self.children.append(element)
