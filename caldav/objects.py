@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 # -*- encoding: utf-8 -*-
 
-import copy
 import urlparse
 import vobject
 import StringIO
@@ -9,7 +8,6 @@ import uuid
 from lxml import etree
 
 from caldav.lib import error, vcal, url
-from caldav.lib.namespace import ns
 from caldav.elements import dav, cdav
 
 
@@ -138,7 +136,7 @@ class DAVObject(object):
          * {proptag: value, ...}
         """
         rc = None
-        properties =  self._get_properties(props, depth)
+        properties = self._get_properties(props, depth)
         path = self.url.path
         exchange_path = self.url.path + '/'
 
@@ -147,7 +145,8 @@ class DAVObject(object):
         elif exchange_path in properties.keys():
             rc = properties[exchange_path]
         else:
-            raise Exception("The CalDAV server you are using has a problem with path handling.")
+            raise Exception("The CalDAV server you are using has "
+                            "a problem with path handling.")
 
         return rc
 
@@ -298,8 +297,8 @@ class Calendar(DAVObject):
 
         range = cdav.TimeRange(start, end)
         vevent = cdav.CompFilter("VEVENT") + range
-        vcal = cdav.CompFilter("VCALENDAR") + vevent
-        filter = cdav.Filter() + vcal
+        vcalendar = cdav.CompFilter("VCALENDAR") + vevent
+        filter = cdav.Filter() + vcalendar
 
         root = cdav.CalendarQuery() + [prop, filter]
 
@@ -337,8 +336,8 @@ class Calendar(DAVObject):
         match = cdav.TextMatch(uid)
         propf = cdav.PropFilter("UID") + match
         vevent = cdav.CompFilter("VEVENT") + propf
-        vcal = cdav.CompFilter("VCALENDAR") + vevent
-        filter = cdav.Filter() + vcal
+        vcalendar = cdav.CompFilter("VCALENDAR") + vevent
+        filter = cdav.Filter() + vcalendar
 
         root = cdav.CalendarQuery() + [prop, filter]
 
