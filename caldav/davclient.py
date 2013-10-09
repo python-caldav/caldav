@@ -41,7 +41,7 @@ class DAVClient:
 
     def __init__(self, url, proxy=None):
         """
-        Connects to the server, as defined in the url.
+        Sets up a HTTPConnection object towards the server in the url.
         Parameters:
          * url: A fully qualified url: `scheme://user:pass@hostname:port`
          * proxy: A string defining a proxy server: `hostname:port`
@@ -51,6 +51,8 @@ class DAVClient:
 
         # Prepare proxy info
         if proxy is not None:
+            # TODO: this will break if using basic auth and embedding 
+            # username:password in the proxy URL
             self.proxy = proxy.split(":")
             if len(self.proxy) == 1:
                 self.proxy.append(8080)
@@ -72,6 +74,7 @@ class DAVClient:
         if self.proxy is not None:
             self.handle = httplib.HTTPConnection(*self.proxy)
         # direct, https
+        # TODO: we shouldn't use SSL on http://weird.server.example.com:443/
         elif self.url.port == 443 or self.url.scheme == 'https':
             self.handle = httplib.HTTPSConnection(self.url.hostname,
                                                   self.url.port)
