@@ -7,7 +7,7 @@ import logging
 import threading
 from nose.tools import assert_equal, assert_not_equal
 
-from conf import principal_url, principal_url_ssl, proxy, proxy_noport
+from conf import caldav_urls, proxy, proxy_noport
 from proxy import ThreadingHTTPServer, ProxyHandler
 
 from caldav.davclient import DAVClient
@@ -42,14 +42,17 @@ SUMMARY:Bastille Day Party +1year
 END:VEVENT
 END:VCALENDAR
 """
-
 testcal_id = "pythoncaldav-test"
 
-
-class TestCalDAV:
+class RepeatedFunctionalTestsBaseClass(object):
+    """
+    This is a class with functional tests (tests that goes through
+    basic functionality and actively communicates with third parties)
+    that we want to repeat for all configured caldav_urls.
+    """
     def setup(self):
-        self.caldav = DAVClient(principal_url)
-        self.principal = Principal(self.caldav, principal_url)
+        self.caldav = DAVClient(self.principal_url)
+        self.principal = Principal(self.caldav, self.principal_url)
 
     def teardown(self):
         p = url.make(self.principal.url)
@@ -59,27 +62,25 @@ class TestCalDAV:
                        url = path)
         cal.delete()
 
-    def testSSL(self):
-        c = DAVClient(principal_url_ssl)
-        p = Principal(c, principal_url_ssl)
-        assert_not_equal(len(p.calendars()), 0)
+    def testGetCalendars(self):
+        assert_not_equal(len(self.principal.calendars()), 0)
 
     def testProxy(self):
         server_address = ('127.0.0.1', 8080)
         proxy_httpd = ThreadingHTTPServer (server_address, ProxyHandler, logging.getLogger ("TinyHTTPProxy"))
         
         threading.Thread(target=proxy_httpd.handle_request).start()
-        c = DAVClient(principal_url, proxy)
-        p = Principal(c, principal_url)
+        c = DAVClient(self.principal_url, proxy)
+        p = Principal(c, self.principal_url)
         assert_not_equal(len(p.calendars()), 0)
 
         threading.Thread(target=proxy_httpd.handle_request).start()
-        c = DAVClient(principal_url, proxy_noport)
-        p = Principal(c, principal_url)
+        c = DAVClient(self.principal_url, proxy_noport)
+        p = Principal(c, self.principal_url)
         assert_not_equal(len(p.calendars()), 0)
 
     def testPrincipal(self):
-        assert_equal(url.make(self.principal.url), principal_url)
+        assert_equal(url.make(self.principal.url), self.principal_url)
 
         collections = self.principal.calendars()
         for c in collections:
@@ -146,8 +147,49 @@ class TestCalDAV:
         for e in r: print e.data
         assert_equal(len(r), 1)
 
+    def testObjects(self):
+        o = DAVObject(self.caldav)
+        failed = False
+        try:
+            o.save()
+        except:
+            failed = True
+        assert_equal(failed, True)
 
+# We want to run all tests in the above class through all caldav_urls;
+# and I don't really want to create a custom nose test loader.  The
+# solution here seems to be to generate one child class for each
+# caldav_url, and inject it into the module namespace. TODO: This is
+# very hacky.  If there are better ways to do it, please let me know.
+# (maybe a custom nose test loader really would be the better option?)
+# -- Tobias Brox <t-caldav@tobixen.no>, 2013-10-10
+
+_servernames = set()
+for _caldav_url in caldav_urls:
+    # create a unique identifier out of the server domain name
+    _parsed_url = urlparse.urlparse(_caldav_url)
+    _servername = _parsed_url.hostname.replace('.','_') + str(_parsed_url.port or '')
+    while _servername in _servernames:
+        _servername = _servername + '_'
+    _servernames.add(_servername)
+
+    # create a classname and a class
+    _classname = 'TestForServer_' + _servername
+
+    # inject the new class into this namespace
+    vars()[_classname] = type(_classname, (RepeatedFunctionalTestsBaseClass,), {'principal_url': _caldav_url})
+
+class TestCalDAV:
+    """
+    Test class for "pure" unit tests (small internal tests, testing that
+    a small unit of code works as expected, without any no third party
+    dependencies)
+    """
     def testFilters(self):
+        # TODO: move this into a separate class, since it does not
+        # depend on self.setup() and is a pure unit test (meaning,
+        # without third party dependencies)?
+
         filter = cdav.Filter()\
                     .append(cdav.CompFilter("VCALENDAR")\
                     .append(cdav.CompFilter("VEVENT")\
@@ -163,13 +205,3 @@ class TestCalDAV:
             pass
         if value is not None:
             raise Exception("This should have crashed")
-
-    def testObjects(self):
-        o = DAVObject(self.caldav)
-        failed = False
-        try:
-            o.save()
-        except:
-            failed = True
-        assert_equal(failed, True)
-
