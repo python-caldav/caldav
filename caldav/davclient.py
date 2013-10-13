@@ -39,7 +39,7 @@ class DAVClient:
     proxy = None
     url = None
 
-    def __init__(self, url, proxy=None):
+    def __init__(self, url, proxy=None, username=None, password=None):
         """
         Sets up a HTTPConnection object towards the server in the url.
         Parameters:
@@ -66,6 +66,7 @@ class DAVClient:
         if self.url.username is not None:
             username = urllib.unquote(self.url.username)
             password = urllib.unquote(self.url.password)
+        if username is not None:
             hash = (("%s:%s" % (username, password))
                     .encode('base64')[:-1])
             self.headers['authorization'] = "Basic %s" % hash
