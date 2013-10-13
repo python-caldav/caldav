@@ -7,7 +7,7 @@ import logging
 import threading
 from nose.tools import assert_equal, assert_not_equal
 
-from conf import caldav_urls, proxy, proxy_noport
+from conf import caldav_servers, proxy, proxy_noport
 from proxy import ThreadingHTTPServer, ProxyHandler
 
 from caldav.davclient import DAVClient
@@ -48,11 +48,13 @@ class RepeatedFunctionalTestsBaseClass(object):
     """
     This is a class with functional tests (tests that goes through
     basic functionality and actively communicates with third parties)
-    that we want to repeat for all configured caldav_urls.
+    that we want to repeat for all configured caldav_servers.
+    
+    (what a truely ugly name for this class - any better ideas?)
     """
     def setup(self):
-        self.caldav = DAVClient(self.principal_url)
-        self.principal = Principal(self.caldav, self.principal_url)
+        self.caldav = DAVClient(**self.conn_params)
+        self.principal = Principal(self.caldav, self.conn_params['url'])
 
     def teardown(self):
         p = url.make(self.principal.url)
@@ -70,17 +72,21 @@ class RepeatedFunctionalTestsBaseClass(object):
         proxy_httpd = ThreadingHTTPServer (server_address, ProxyHandler, logging.getLogger ("TinyHTTPProxy"))
         
         threading.Thread(target=proxy_httpd.handle_request).start()
-        c = DAVClient(self.principal_url, proxy)
-        p = Principal(c, self.principal_url)
+        conn_params = self.conn_params.copy()
+        conn_params['proxy'] = proxy
+        c = DAVClient(**conn_params)
+        p = Principal(c, conn_params['url'])
         assert_not_equal(len(p.calendars()), 0)
 
         threading.Thread(target=proxy_httpd.handle_request).start()
-        c = DAVClient(self.principal_url, proxy_noport)
-        p = Principal(c, self.principal_url)
+        conn_params = self.conn_params.copy()
+        conn_params['proxy'] = proxy_noport
+        c = DAVClient(**conn_params)
+        p = Principal(c, conn_params['url'])
         assert_not_equal(len(p.calendars()), 0)
 
     def testPrincipal(self):
-        assert_equal(url.make(self.principal.url), self.principal_url)
+        assert_equal(url.make(self.principal.url), self.conn_params['url'])
 
         collections = self.principal.calendars()
         for c in collections:
@@ -156,7 +162,7 @@ class RepeatedFunctionalTestsBaseClass(object):
             failed = True
         assert_equal(failed, True)
 
-# We want to run all tests in the above class through all caldav_urls;
+# We want to run all tests in the above class through all caldav_servers;
 # and I don't really want to create a custom nose test loader.  The
 # solution here seems to be to generate one child class for each
 # caldav_url, and inject it into the module namespace. TODO: This is
@@ -165,9 +171,9 @@ class RepeatedFunctionalTestsBaseClass(object):
 # -- Tobias Brox <t-caldav@tobixen.no>, 2013-10-10
 
 _servernames = set()
-for _caldav_url in caldav_urls:
+for _caldav_server in caldav_servers:
     # create a unique identifier out of the server domain name
-    _parsed_url = urlparse.urlparse(_caldav_url)
+    _parsed_url = urlparse.urlparse(_caldav_server['url'])
     _servername = _parsed_url.hostname.replace('.','_') + str(_parsed_url.port or '')
     while _servername in _servernames:
         _servername = _servername + '_'
@@ -177,7 +183,7 @@ for _caldav_url in caldav_urls:
     _classname = 'TestForServer_' + _servername
 
     # inject the new class into this namespace
-    vars()[_classname] = type(_classname, (RepeatedFunctionalTestsBaseClass,), {'principal_url': _caldav_url})
+    vars()[_classname] = type(_classname, (RepeatedFunctionalTestsBaseClass,), {'conn_params': _caldav_server})
 
 class TestCalDAV:
     """
