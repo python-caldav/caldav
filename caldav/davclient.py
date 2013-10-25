@@ -2,6 +2,7 @@
 # -*- encoding: utf-8 -*-
 
 import httplib
+import logging
 import urllib
 import urlparse
 from lxml import etree
@@ -25,6 +26,9 @@ class DAVResponse:
         self.headers = response.getheaders()
         self.status = response.status
         self.reason = response.reason
+        logging.debug("response headers: " + str(self.headers))
+        logging.debug("response status: " + str(self.status))
+        logging.debug("raw response: " + str(self.raw))
 
         try:
             self.tree = etree.XML(self.raw)
@@ -166,6 +170,7 @@ class DAVClient:
             del combined_headers["Content-Type"]
 
         try:
+            logging.debug("sending request - method=%s, url=%s, headers=%s\nbody:\n%s" % (method, url, combined_headers, body))
             self.handle.request(method, url, body, combined_headers)
             response = DAVResponse(self.handle.getresponse())
         except httplib.BadStatusLine:
