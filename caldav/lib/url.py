@@ -91,13 +91,6 @@ class URL:
         return URL(urlparse.ParseResult(
             self.scheme or path.scheme, self.netloc or path.netloc, ret_path, path.params, path.query, path.fragment))
 
-def join(url, part):
-    sep = "/"
-    if url.endswith("/"):
-        sep = ""
-    return "%s%s%s" % (url, sep, part)
-
-
 def make(url, path=None):
     u = ""
 
