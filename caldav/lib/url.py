@@ -39,6 +39,8 @@ class URL:
     ## object, else will instantiate a new URL object
     @classmethod
     def objectify(self, url):
+        if url is None:
+            return None
         if isinstance(url, URL):
             return url
         else:
@@ -49,7 +51,10 @@ class URL:
     def __getattr__(self, attr):
         if self.url_parsed is None:
             self.url_parsed = urlparse.urlparse(self.url_raw)
-        return getattr(self.url_parsed, attr)
+        if hasattr(self.url_parsed, attr):
+            return getattr(self.url_parsed, attr)
+        else:
+            return getattr(str(self), attr)
 
     ## returns the url in text format
     def __str__(self):
