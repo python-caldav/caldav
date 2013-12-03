@@ -112,7 +112,9 @@ class DAVObject(object):
                 if len(list(t)) > 0:
                     val = t.find(".//*")
                     if val is not None:
-                        val = val.tag
+                        ## I assume this is a bug?
+                        #val = val.tag
+                        val = val.text
                     else:
                         val = None
                 else:
@@ -205,7 +207,12 @@ class Principal(DAVObject):
         This object has a specific constructor.  If url is not given, deduct from doing a propfind.
         """
         self.client = client
-        self.url = URL.objectify(url)
+        if url is not None:
+            self.url = URL.objectify(url)
+        else:
+            self.url = self.client.url
+            cup = self.get_properties([dav.CurrentUserPrincipal()])
+            self.url = URL.objectify(cup['{DAV:}current-user-principal'])
 
     def calendars(self):
         """

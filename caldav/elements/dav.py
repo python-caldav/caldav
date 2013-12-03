@@ -55,3 +55,7 @@ class Response(BaseElement):
 
 class Status(BaseElement):
     tag = ns("D", "status")
+
+class CurrentUserPrincipal(BaseElement):
+    tag = ns("D", "current-user-principal")
+
