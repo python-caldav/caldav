@@ -63,9 +63,10 @@ class DAVObject(object):
 
         response = self.client.propfind(self.url.path, body, depth)
         for r in response.tree.findall(dav.Response.tag):
-            # We use canonicalized urls to index children
             href = URL.objectify(r.find(dav.Href.tag).text)
-            href = url.canonicalize(href, self)
+            # We use canonicalized urls to index children
+            ## TODO ... do we need to?
+            #href = url.canonicalize(href, self)
             properties[href] = {}
             for p in props:
                 t = r.find(".//" + p.tag)
@@ -85,7 +86,7 @@ class DAVObject(object):
         for path in properties.keys():
             resource_type = properties[path][dav.ResourceType.tag]
             if resource_type == type or type is None:
-                if path != self.canonical_url:
+                if path != self.url:
                     c.append((path, resource_type))
 
         return c
@@ -208,11 +209,11 @@ class Principal(DAVObject):
         """
         self.client = client
         if url is not None:
-            self.url = URL.objectify(url)
+            self.url = client.url.join(URL.objectify(url))
         else:
             self.url = self.client.url
             cup = self.get_properties([dav.CurrentUserPrincipal()])
-            self.url = URL.objectify(cup['{DAV:}current-user-principal'])
+            self.url = self.client.url.join(URL.objectify(cup['{DAV:}current-user-principal']))
 
     def calendars(self):
         """
@@ -277,7 +278,7 @@ class Calendar(DAVObject):
         if self.url is None:
             (id, path) = self._create(self.name, self.id)
             self.id = id
-            self.url = URL.objectify(path)
+            self.url = self.client.url.join(URL.objectify(path))
         return self
 
     def date_search(self, start, end=None):
@@ -313,7 +314,7 @@ class Calendar(DAVObject):
             status = r.find(".//" + dav.Status.tag)
             if status.text.endswith("200 OK"):
                 href = URL.objectify(r.find(dav.Href.tag).text)
-                href = url.canonicalize(href, self)
+                href = self.url.join(href)
                 data = r.find(".//" + cdav.CalendarData.tag).text
                 e = Event(self.client, url=href, data=data, parent=self)
                 matches.append(e)
@@ -375,7 +376,7 @@ class Calendar(DAVObject):
         return all
 
     def __str__(self):
-        return "Collection: %s" % self.canonical_url
+        return "Collection: %s" % self.url
 
 
 class Event(DAVObject):
@@ -430,11 +431,11 @@ class Event(DAVObject):
             (id, path) = self._create(self._instance.serialize(), self.id,
                      path)
             self.id = id
-            self.url = URL.objectify(path)
+            self.url = self.client.url.join(URL.objectify(path))
         return self
 
     def __str__(self):
-        return "Event: %s" % self.canonical_url
+        return "Event: %s" % self.url
 
     def set_data(self, data):
         self._data = vcal.fix(data)
