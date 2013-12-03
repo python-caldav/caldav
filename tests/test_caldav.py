@@ -5,7 +5,7 @@ from datetime import datetime
 import urlparse
 import logging
 import threading
-from nose.tools import assert_equal, assert_not_equal
+from nose.tools import assert_equal, assert_not_equal, assert_raises
 
 from conf import caldav_servers, proxy, proxy_noport
 from proxy import ThreadingHTTPServer, ProxyHandler
@@ -191,11 +191,51 @@ class TestCalDAV:
     a small unit of code works as expected, without any no third party
     dependencies)
     """
-    def testFilters(self):
-        # TODO: move this into a separate class, since it does not
-        # depend on self.setup() and is a pure unit test (meaning,
-        # without third party dependencies)?
+    def testURL(self):
+        ## Excersising the URL class
 
+        ## 1) url.URL.objectify should return a valid URL object almost no matter what's thrown in
+        url1 = url.URL.objectify("http://foo:bar@www.example.com:8080/caldav.php/?foo=bar")
+        url2 = url.URL.objectify(url1)
+        url3 = url.URL.objectify("/bar")
+        url4 = url.URL.objectify(urlparse.urlparse(str(url1)))
+        url5 = url.URL.objectify(urlparse.urlparse("/bar"))
+    
+        ## 2) __eq__ works well
+        assert_equal(url1, url2)
+        assert_equal(url1, url4)
+        assert_equal(url3, url5)
+
+        ## 3) str will always return the URL
+        assert_equal(str(url1), "http://foo:bar@www.example.com:8080/caldav.php/?foo=bar")
+        assert_equal(str(url3), "/bar")
+        assert_equal(str(url4), "http://foo:bar@www.example.com:8080/caldav.php/?foo=bar")
+        assert_equal(str(url5), "/bar")
+
+        ## 4) join method
+        url6 = url1.join(url2)
+        url7 = url1.join(url3)
+        url8 = url1.join(url4)
+        url9 = url1.join(url5)
+        urlA = url1.join("someuser/calendar")
+        urlB = url5.join(url1)
+        assert_equal(url6, url1)
+        assert_equal(url7, "http://foo:bar@www.example.com:8080/bar")
+        assert_equal(url8, url1)
+        assert_equal(url9, url7)
+        assert_equal(urlA, "http://foo:bar@www.example.com:8080/caldav.php/someuser/calendar")
+        assert_equal(urlB, url1)
+        assert_raises(ValueError, url1.join, "http://www.google.com")
+
+        ## 5) all urlparse methods will work.  always.
+        assert_equal(url1.scheme, 'http')
+        assert_equal(url2.path, '/caldav.php/')
+        assert_equal(url7.username, 'foo')
+        assert_equal(url5.path, '/bar')
+        urlC = url.URL.objectify("https://www.example.com:443/foo")
+        assert_equal(urlC.port, 443)
+        
+    def testFilters(self):
         filter = cdav.Filter()\
                     .append(cdav.CompFilter("VCALENDAR")\
                     .append(cdav.CompFilter("VEVENT")\
