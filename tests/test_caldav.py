@@ -55,7 +55,7 @@ class RepeatedFunctionalTestsBaseClass(object):
     """
     def setup(self):
         self.caldav = DAVClient(**self.conn_params)
-        self.principal = Principal(self.caldav, self.conn_params['url'])
+        self.principal = Principal(self.caldav, self.conn_params.get('principal_url', self.conn_params['url']))
         try:
             cal = Calendar(self.caldav, name="Yep", parent = self.principal,
                        url = URL.objectify(self.principal.url).join(testcal_id))
@@ -70,6 +70,10 @@ class RepeatedFunctionalTestsBaseClass(object):
 
     def testGetCalendars(self):
         assert_not_equal(len(self.principal.calendars()), 0)
+
+    def testFindPrincipalPath(self):
+        principal = Principal(self.caldav)
+        assertEqual(principal.url, self.principal.url)
 
     def testProxy(self):
         server_address = ('127.0.0.1', 8080)

@@ -94,7 +94,7 @@ class DAVClient:
 
         Parameters:
          * url: url for the root of the propfind.
-         * props = [dav.DisplayName(), ...], properties we want
+         * props = (xml request), properties we want
          * depth: maximum recursion depth
 
         Returns
