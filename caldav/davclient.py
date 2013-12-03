@@ -4,10 +4,10 @@
 import httplib
 import logging
 import urllib
-import urlparse
 from lxml import etree
 
 from caldav.lib import error
+from caldav.lib.url import URL
 
 
 class DAVResponse:
@@ -51,7 +51,7 @@ class DAVClient:
          * proxy: A string defining a proxy server: `hostname:port`
         """
 
-        self.url = urlparse.urlparse(url)
+        self.url = URL.objectify(url)
 
         # Prepare proxy info
         if proxy is not None:
@@ -100,7 +100,7 @@ class DAVClient:
         Returns
          * DAVResponse
         """
-        return self.request(url, "PROPFIND", props, {'depth': str(depth)})
+        return self.request(url or self.url, "PROPFIND", props, {'depth': str(depth)})
 
     def proppatch(self, url, body):
         """
@@ -160,6 +160,7 @@ class DAVClient:
         """
         Actually sends the request
         """
+        url = URL.objectify(url)
         if self.proxy is not None:
             url = "%s://%s:%s%s" % (self.url.scheme, self.url.hostname,
                                     self.url.port, url)
