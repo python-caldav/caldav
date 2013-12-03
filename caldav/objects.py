@@ -253,7 +253,7 @@ class Calendar(DAVObject):
         r = self.client.mkcol(path, q)
         if r.status == 201:
             # XXX Should we use self.canonical_url ?
-            path = url.make(self.parent.url, path)
+            path = self.parent.url.join(path)
         else:
             raise error.MkcolError(r.raw)
 
@@ -405,7 +405,7 @@ class Event(DAVObject):
                             {"Content-Type": 'text/calendar; charset="utf-8"'})
         if r.status == 204 or r.status == 201:
             # XXX Should we use self.canonical_url ?
-            path = url.make(self.parent.url, path)
+            path = self.parent.url.join(path)
         else:
             raise error.PutError(r.raw)
 

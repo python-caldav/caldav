@@ -90,7 +90,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert_not_equal(len(p.calendars()), 0)
 
     def testPrincipal(self):
-        assert_equal(url.make(self.principal.url), self.conn_params['url'])
+        assert_equal(URL.objectify(self.principal.url), self.conn_params['url'])
 
         collections = self.principal.calendars()
         for c in collections:
@@ -117,7 +117,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert_not_equal(e.url, None)
         print e, e.data
 
-        ee = Event(self.caldav, url = url.make(e.url), parent = c)
+        ee = Event(self.caldav, url = URL.objectify(e.url), parent = c)
         ee.load()
         assert_equal(e.instance.vevent.uid, ee.instance.vevent.uid)
 
