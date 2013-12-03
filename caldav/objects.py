@@ -200,9 +200,9 @@ class Principal(DAVObject):
     This class represents a DAV Principal. It doesn't do much, except play
     the role of the parent to all calendar collections.
     """
-    def __init__(self, client, url):
+    def __init__(self, client, url=None):
         """
-        This object has a specific constructor, because its url is mandatory.
+        This object has a specific constructor.  If url is not given, deduct from doing a propfind.
         """
         self.client = client
         self.url = URL.objectify(url)
