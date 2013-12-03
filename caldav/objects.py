@@ -248,7 +248,7 @@ class Calendar(DAVObject):
 
         q = etree.tostring(mkcol.xmlelement(), encoding="utf-8",
                            xml_declaration=True)
-        path = url.join(self.parent.url.path, id)
+        path = self.parent.url.path.join(id)
 
         r = self.client.mkcol(path, q)
         if r.status == 201:
@@ -399,7 +399,7 @@ class Event(DAVObject):
         if id is None:
             id = str(uuid.uuid1())
         if path is None:
-            path = url.join(self.parent.url.path, id + ".ics")
+            path = self.parent.url.path.join(id + ".ics")
 
         r = self.client.put(path, data,
                             {"Content-Type": 'text/calendar; charset="utf-8"'})

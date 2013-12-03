@@ -13,6 +13,7 @@ from proxy import ThreadingHTTPServer, ProxyHandler
 from caldav.davclient import DAVClient
 from caldav.objects import Principal, Calendar, Event, DAVObject
 from caldav.lib import url
+from caldav.lib.url import URL
 from caldav.lib.namespace import ns
 from caldav.elements import dav, cdav
 
@@ -55,13 +56,16 @@ class RepeatedFunctionalTestsBaseClass(object):
     def setup(self):
         self.caldav = DAVClient(**self.conn_params)
         self.principal = Principal(self.caldav, self.conn_params['url'])
+        try:
+            cal = Calendar(self.caldav, name="Yep", parent = self.principal,
+                       url = URL.objectify(self.principal.url).join(testcal_id))
+            cal.delete()
+        except:
+            pass
 
     def teardown(self):
-        p = url.make(self.principal.url)
-        path = url.join(p, testcal_id)
-
         cal = Calendar(self.caldav, name="Yep", parent = self.principal,
-                       url = path)
+                       url = URL.objectify(self.principal.url).join(testcal_id))
         cal.delete()
 
     def testGetCalendars(self):
