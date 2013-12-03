@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- encoding: utf-8 -*-
 
-import urlparse
 import vobject
 import StringIO
 import uuid
 from lxml import etree
 
 from caldav.lib import error, vcal, url
+from caldav.lib.url import URL
 from caldav.elements import dav, cdav
 
 
@@ -37,10 +37,7 @@ class DAVObject(object):
         self.parent = parent
         self.name = name
         self.id = id
-        if isinstance(url, urlparse.ParseResult):
-            self.url = url
-        elif url is not None:
-            self.url = urlparse.urlparse(url)
+        self.url = URL.objectify(url)
 
     @property
     def canonical_url(self):
@@ -67,7 +64,7 @@ class DAVObject(object):
         response = self.client.propfind(self.url.path, body, depth)
         for r in response.tree.findall(dav.Response.tag):
             # We use canonicalized urls to index children
-            href = urlparse.urlparse(r.find(dav.Href.tag).text)
+            href = URL.objectify(r.find(dav.Href.tag).text)
             href = url.canonicalize(href, self)
             properties[href] = {}
             for p in props:
@@ -208,7 +205,7 @@ class Principal(DAVObject):
         This object has a specific constructor, because its url is mandatory.
         """
         self.client = client
-        self.url = urlparse.urlparse(url)
+        self.url = URL.objectify(url)
 
     def calendars(self):
         """
@@ -273,7 +270,7 @@ class Calendar(DAVObject):
         if self.url is None:
             (id, path) = self._create(self.name, self.id)
             self.id = id
-            self.url = urlparse.urlparse(path)
+            self.url = URL.objectify(path)
         return self
 
     def date_search(self, start, end=None):
@@ -308,7 +305,7 @@ class Calendar(DAVObject):
         for r in response.tree.findall(".//" + dav.Response.tag):
             status = r.find(".//" + dav.Status.tag)
             if status.text.endswith("200 OK"):
-                href = urlparse.urlparse(r.find(dav.Href.tag).text)
+                href = URL.objectify(r.find(dav.Href.tag).text)
                 href = url.canonicalize(href, self)
                 data = r.find(".//" + cdav.CalendarData.tag).text
                 e = Event(self.client, url=href, data=data, parent=self)
@@ -346,7 +343,7 @@ class Calendar(DAVObject):
         response = self.client.report(self.url.path, q, 1)
         r = response.tree.find(".//" + dav.Response.tag)
         if r is not None:
-            href = urlparse.urlparse(r.find(".//" + dav.Href.tag).text)
+            href = URL.objectify(r.find(".//" + dav.Href.tag).text)
             href = url.canonicalize(href, self)
             data = r.find(".//" + cdav.CalendarData.tag).text
             e = Event(self.client, url=href, data=data, parent=self)
@@ -426,7 +423,7 @@ class Event(DAVObject):
             (id, path) = self._create(self._instance.serialize(), self.id,
                      path)
             self.id = id
-            self.url = urlparse.urlparse(path)
+            self.url = URL.objectify(path)
         return self
 
     def __str__(self):
