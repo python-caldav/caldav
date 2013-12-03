@@ -91,18 +91,6 @@ class URL:
         return URL(urlparse.ParseResult(
             self.scheme or path.scheme, self.netloc or path.netloc, ret_path, path.params, path.query, path.fragment))
 
-def make(url, path=None):
-    u = ""
-
-    if path is not None:
-        u = urlparse.urlunparse((url.scheme, url.netloc, path, url.params,
-                                 url.query, url.fragment))
-    else:
-        u = url.geturl()
-
-    return u
-
-
 def canonicalize(url, parent=None):
     if url.scheme:
         netloc_unauth = ('%s:%s' % (url.hostname, url.port)
