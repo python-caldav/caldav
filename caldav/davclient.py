@@ -87,6 +87,7 @@ class DAVClient:
         else:
             self.handle = httplib.HTTPConnection(self.url.hostname,
                                                  self.url.port)
+        self.url = self.url.unauth()
 
     def propfind(self, url=None, props="", depth=0):
         """
@@ -180,7 +181,7 @@ class DAVClient:
             self.handle.connect()
 
             self.handle.request(method, url, body, combined_headers)
-            response = DAVResponse(self.handle.getresponse())
+            response = DAVResponse(self.handle.getresponse(n))
 
         # this is an error condition the application wants to know
         if response.status == httplib.FORBIDDEN or \

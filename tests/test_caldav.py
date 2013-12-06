@@ -54,28 +54,44 @@ class RepeatedFunctionalTestsBaseClass(object):
     (what a truely ugly name for this class - any better ideas?)
     """
     def setup(self):
+        self.conn_params = self.server_params.copy()
+        for x in self.conn_params.keys():
+            if not x in ('url', 'proxy', 'username', 'password'):
+                self.conn_params.pop(x)
         self.caldav = DAVClient(**self.conn_params)
-        self.principal = Principal(self.caldav, self.conn_params.get('principal_url', self.conn_params['url']))
-        try:
+        self.principal = Principal(self.caldav)
+
+    def teardown(self):
+        try:                        
             cal = Calendar(self.caldav, name="Yep", parent = self.principal,
-                       url = URL.objectify(self.principal.url).join(testcal_id))
+                           url = URL.objectify(self.principal.url).join(testcal_id))
             cal.delete()
         except:
             pass
+ 
 
-    def teardown(self):
-        cal = Calendar(self.caldav, name="Yep", parent = self.principal,
-                       url = URL.objectify(self.principal.url).join(testcal_id))
-        cal.delete()
+    def testPropfind(self):
+        """
+        Test of the propfind methods. (This is sort of redundant, since
+        this is implicitly run by the setup)
+        """
+        ## first a raw xml propfind to the root URL
+        foo = self.caldav.propfind(self.principal.url, props="""<?xml version="1.0" encoding="UTF-8"?>
+<D:propfind xmlns:D="DAV:">
+  <D:allprop/>
+        </D:propfind>""")
+        assert('resourcetype' in foo.raw)
+        
+        ## next, the internal _query_properties, returning an xml tree ...
+        foo2 = self.principal._query_properties([dav.Status(),])
+        assert('resourcetype' in foo.raw)
+        ## TODO: more advanced asserts
 
-    def testGetCalendars(self):
+
+    def _testGetCalendars(self):
         assert_not_equal(len(self.principal.calendars()), 0)
 
-    def testFindPrincipalPath(self):
-        principal = Principal(self.caldav)
-        assertEqual(principal.url, self.principal.url)
-
-    def testProxy(self):
+    def _testProxy(self):
         server_address = ('127.0.0.1', 8080)
         proxy_httpd = ThreadingHTTPServer (server_address, ProxyHandler, logging.getLogger ("TinyHTTPProxy"))
         
@@ -94,13 +110,13 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert_not_equal(len(p.calendars()), 0)
 
     def testPrincipal(self):
-        assert_equal(URL.objectify(self.principal.url), self.conn_params['url'])
-
         collections = self.principal.calendars()
+        if 'principal_url' in self.server_params:
+            assert_equal(self.principal.url, self.server_params['principal_url'])
         for c in collections:
             assert_equal(c.__class__.__name__, "Calendar")
 
-    def testCalendar(self):
+    def _testCalendar(self):
         c = Calendar(self.caldav, name="Yep", parent = self.principal,
                      id = testcal_id).save()
         assert_not_equal(c.url, None)
@@ -191,7 +207,7 @@ for _caldav_server in caldav_servers:
     _classname = 'TestForServer_' + _servername
 
     # inject the new class into this namespace
-    vars()[_classname] = type(_classname, (RepeatedFunctionalTestsBaseClass,), {'conn_params': _caldav_server})
+    vars()[_classname] = type(_classname, (RepeatedFunctionalTestsBaseClass,), {'server_params': _caldav_server})
 
 class TestCalDAV:
     """
@@ -242,6 +258,13 @@ class TestCalDAV:
         assert_equal(url5.path, '/bar')
         urlC = url.URL.objectify("https://www.example.com:443/foo")
         assert_equal(urlC.port, 443)
+
+        ## 6) is_auth returns True if the URL contains a username.  
+        assert_equal(urlC.is_auth(), False)
+        assert_equal(url7.is_auth(), True)
+
+        ## 7) unauth() strips username/password
+        assert_equal(url7.unauth(), 'http://www.example.com:8080/bar')
         
     def testFilters(self):
         filter = cdav.Filter()\

@@ -65,6 +65,16 @@ class URL:
     def __repr__(self):
         return "URL(%s)" % str(self)
 
+    def is_auth(self):
+        return self.username is not None
+
+    def unauth(self):
+        if not self.is_auth():
+            return self
+        return URL.objectify(urlparse.ParseResult(
+            self.scheme, '%s:%s' % (self.hostname, self.port),
+            self.path.replace('//', '/'), self.params, self.query, self.fragment))
+
     def join(self, path):
         """
         assumes this object is the base URL or base path.  If the path
@@ -91,14 +101,3 @@ class URL:
         return URL(urlparse.ParseResult(
             self.scheme or path.scheme, self.netloc or path.netloc, ret_path, path.params, path.query, path.fragment))
 
-def canonicalize(url, parent=None):
-    if url.scheme:
-        netloc_unauth = ('%s:%s' % (url.hostname, url.port)
-                         if url.port not in (80, None)
-                         else url.hostname)
-        return urlparse.urlunparse((url.scheme, netloc_unauth,
-                                    url.path.replace('//', '/'),
-                                    url.params, url.query, url.fragment))
-    else:
-        return urlparse.urljoin(parent.canonical_url,
-                                url.path.replace('//', '/'))
