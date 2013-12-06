@@ -41,7 +41,7 @@ class DAVObject(object):
 
     @property
     def canonical_url(self):
-        return url.canonicalize(self.url, self.parent)
+        return str(self.url.unauth())
 
     def children(self, type=None):
         """
@@ -54,20 +54,14 @@ class DAVObject(object):
         properties = {}
 
         props = [dav.ResourceType(), ]
+        response = self._query_properties(props, depth)
 
-        prop = dav.Prop() + props
-        root = dav.Propfind() + prop
-
-        body = etree.tostring(root.xmlelement(), encoding="utf-8",
-                              xml_declaration=True)
-
-        response = self.client.propfind(self.url.path, body, depth)
         for r in response.tree.findall(dav.Response.tag):
-            href = URL.objectify(r.find(dav.Href.tag).text)
+            href = self.url.join(URL.objectify(r.find(dav.Href.tag).text))
             # We use canonicalized urls to index children
             ## TODO ... do we need to?
             #href = url.canonicalize(href, self)
-            properties[href] = {}
+            properties[str(href.unauth())] = {}
             for p in props:
                 t = r.find(".//" + p.tag)
                 if len(list(t)) > 0:
@@ -81,7 +75,7 @@ class DAVObject(object):
                         val = None
                 else:
                     val = t.text
-                properties[href][p.tag] = val
+                properties[str(href.unauth())][p.tag] = val
 
         for path in properties.keys():
             resource_type = properties[path][dav.ResourceType.tag]
@@ -91,9 +85,7 @@ class DAVObject(object):
 
         return c
 
-    def _get_properties(self, props=[], depth=0):
-        properties = {}
-
+    def _query_properties(self, props=[], depth=0):
         body = ""
         # build the propfind request
         if len(props) > 0:
@@ -103,7 +95,13 @@ class DAVObject(object):
             body = etree.tostring(root.xmlelement(), encoding="utf-8",
                                   xml_declaration=True)
 
-        response = self.client.propfind(self.url.path, body, depth)
+        return self.client.propfind(self.url, body, depth)
+
+    def _get_properties(self, props=[], depth=0):
+        properties = {}
+
+        response = self._query_properties(props, depth)
+
         # All items should be in a <D:response> element
         for r in response.tree.findall(dav.Response.tag):
             href = r.find(dav.Href.tag).text
