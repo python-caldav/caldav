@@ -211,6 +211,14 @@ class CalendarSet(DAVObject):
 
         return cals
 
+    def calendar(self, name=None, cal_id=None):
+        """
+        The calendar method will return a calendar object.  It will not initiate any communication with the server.
+        """
+        return Calendar(self.client, name=name, parent = self,
+                        url = self.url.join(cal_id))
+
+
 class Principal(DAVObject):
     """
     This class represents a DAV Principal. It doesn't do much, except
@@ -233,12 +241,25 @@ class Principal(DAVObject):
             cup = self.get_properties([dav.CurrentUserPrincipal()])
             self.url = self.client.url.join(URL.objectify(cup['{DAV:}current-user-principal']))
 
+    def calendar(self, name=None, cal_id=None):
+        """
+        The calendar method will return a calendar object.  It will not initiate any communication with the server.
+        """
+        return self.calendar_home_set.calendar(name, cal_id)
+
     @property
     def calendar_home_set(self):
         if not self._calendar_home_set:
             chs = self.get_properties([cdav.CalendarHomeSet()])
-            self._calendar_home_set = CalendarSet(self.client, self.client.url.join(URL.objectify(chs['{urn:ietf:params:xml:ns:caldav}calendar-home-set'])))
+            self.calendar_home_set = chs['{urn:ietf:params:xml:ns:caldav}calendar-home-set']
         return self._calendar_home_set
+
+    @calendar_home_set.setter
+    def calendar_home_set(self, url):
+        if isinstance(url, CalendarSet):
+            self._calendar_home_set = url
+        else:
+            self._calendar_home_set = CalendarSet(self.client, self.client.url.join(URL.objectify(url)))
 
     def calendars(self):
         return self.calendar_home_set.calendars()
@@ -287,7 +308,7 @@ class Calendar(DAVObject):
         if self.url is None:
             (id, path) = self._create(self.name, self.id)
             self.id = id
-            self.url = self.client.url.join(URL.objectify(path))
+            self.url = self.client.url.join(path)
         return self
 
     def date_search(self, start, end=None):

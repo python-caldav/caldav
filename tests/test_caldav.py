@@ -11,7 +11,7 @@ from conf import caldav_servers, proxy, proxy_noport
 from proxy import ProxyHandler, NonThreadingHTTPServer
 
 from caldav.davclient import DAVClient
-from caldav.objects import Principal, Calendar, Event, DAVObject
+from caldav.objects import Principal, Calendar, Event, DAVObject, CalendarSet
 from caldav.lib import url
 from caldav.lib.url import URL
 from caldav.lib.namespace import ns
@@ -61,16 +61,14 @@ class RepeatedFunctionalTestsBaseClass(object):
         self.caldav = DAVClient(**self.conn_params)
         self.principal = Principal(self.caldav)
         try:                        
-            cal = Calendar(self.caldav, name="Yep", parent = self.principal.calendar_home_set,
-                           url = URL.objectify(self.principal.calendar_home_set.url).join(testcal_id))
+            cal = self.principal.calendar(name="Yep", cal_id=testcal_id)
             cal.delete()
         except:
             pass
 
     def teardown(self):
         try:                        
-            cal = Calendar(self.caldav, name="Yep", parent = self.principal.calendar_home_set,
-                           url = URL.objectify(self.principal.calendar_home_set.url).join(testcal_id))
+            cal = self.principal.calendar(name="Yep", cal_id=testcal_id)
             cal.delete()
         except:
             pass
@@ -241,8 +239,33 @@ class TestCalDAV:
     a small unit of code works as expected, without any no third party
     dependencies)
     """
+    def testCalendar(self):
+        """
+        Principal.calendar() and CalendarSet.calendar() should create Calendar
+        objects without initiating any communication with the server.
+
+        DAVClient.__init__ also doesn't do any communication
+        Principal.__init__ as well, if the principal_url is given
+        Principal.calendar_home_set needs to be set or the server will be queried
+        """
+        client = DAVClient(url="http://me:hunter2@calendar.example:80/")
+        principal = Principal(client, "http://me:hunter2@calendar.example:80/me/")
+        principal.calendar_home_set = "http://me:hunter2@calendar.example:80/me/calendars/"
+        ## calendar_home_set is actually a CalendarSet object
+        assert(isinstance(principal.calendar_home_set, CalendarSet))
+        calendar1 = principal.calendar(name="foo", cal_id="bar")
+        calendar2 = principal.calendar_home_set.calendar(name="foo", cal_id="bar")
+        assert_equal(calendar1.url, calendar2.url)
+        assert_equal(calendar1.url, "http://calendar.example:80/me/calendars/bar")
+
+        ## principal.calendar_home_set can also be set to an object
+        ## This should be noop
+        principal.calendar_home_set = principal.calendar_home_set
+        calendar1 = principal.calendar(name="foo", cal_id="bar")
+        assert_equal(calendar1.url, calendar2.url)
+    
     def testURL(self):
-        ## Excersising the URL class
+        """Excersising the URL class"""
 
         ## 1) url.URL.objectify should return a valid URL object almost no matter what's thrown in
         url1 = url.URL.objectify("http://foo:bar@www.example.com:8080/caldav.php/?foo=bar")
