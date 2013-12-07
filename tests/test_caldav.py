@@ -160,15 +160,13 @@ class RepeatedFunctionalTestsBaseClass(object):
         c.set_properties([dav.DisplayName("hooray"),])
         props = c.get_properties([dav.DisplayName(),])
         assert_equal(props[dav.DisplayName.tag], "hooray")
-        print c
 
-        cc = Calendar(self.caldav, name="Yep", parent = self.principal).save()
+        cc = Calendar(self.caldav, name="Yep", parent = self.principal.calendar_home_set).save()
         assert_not_equal(cc.url, None)
         cc.delete()
 
         e = Event(self.caldav, data = ev1, parent = c).save()
         assert_not_equal(e.url, None)
-        print e, e.data
 
         ee = Event(self.caldav, url = URL.objectify(e.url), parent = c)
         ee.load()
@@ -177,11 +175,9 @@ class RepeatedFunctionalTestsBaseClass(object):
         r = c.date_search(datetime(2006,7,13,17,00,00),
                           datetime(2006,7,15,17,00,00))
         assert_equal(e.instance.vevent.uid, r[0].instance.vevent.uid)
-        for e in r: print e.data
         assert_equal(len(r), 1)
 
         all = c.events()
-        print all
         assert_equal(len(all), 1)
 
         e2 = Event(self.caldav, data = ev2, parent = c).save()
@@ -192,7 +188,6 @@ class RepeatedFunctionalTestsBaseClass(object):
 
         r = c.date_search(datetime(2006,7,13,17,00,00),
                           datetime(2006,7,15,17,00,00))
-        for e in r: print e.data
         assert_equal(len(r), 1)
 
         e.data = ev2
@@ -200,14 +195,12 @@ class RepeatedFunctionalTestsBaseClass(object):
 
         r = c.date_search(datetime(2006,7,13,17,00,00),
                           datetime(2006,7,15,17,00,00))
-        for e in r: print e.data
         assert_equal(len(r), 1)
 
         e.instance = e2.instance
         e.save()
         r = c.date_search(datetime(2006,7,13,17,00,00),
                           datetime(2006,7,15,17,00,00))
-        for e in r: print e.data
         assert_equal(len(r), 1)
 
     def testObjects(self):

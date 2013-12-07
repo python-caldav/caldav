@@ -193,6 +193,8 @@ class DAVClient:
             self.handle.close()
             self.handle.connect()
 
+            ## TODO: we're missing test code on this.  (will need to
+            ## mock up a server to test this)
             self.handle.request(method, url, body, combined_headers)
             response = DAVResponse(self.handle.getresponse(n))
 
