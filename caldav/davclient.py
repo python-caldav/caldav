@@ -137,13 +137,26 @@ class DAVClient:
         Send a mkcol request.
 
         Parameters:
-         * url: url for the root of the propfind.
+         * url: url for the root of the mkcol
          * body: XML request
 
         Returns
          * DAVResponse
         """
         return self.request(url, "MKCOL", body)
+
+    def mkcalendar(self, url, body):
+        """
+        Send a mkcalendar request.
+
+        Parameters:
+         * url: url for the root of the mkcalendar
+         * body: XML request
+
+        Returns
+         * DAVResponse
+        """
+        return self.request(url, "MKCALENDAR", body)
 
     def put(self, url, body, headers={}):
         """

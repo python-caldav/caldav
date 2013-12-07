@@ -60,11 +60,17 @@ class RepeatedFunctionalTestsBaseClass(object):
                 self.conn_params.pop(x)
         self.caldav = DAVClient(**self.conn_params)
         self.principal = Principal(self.caldav)
+        try:                        
+            cal = Calendar(self.caldav, name="Yep", parent = self.principal.calendar_home_set,
+                           url = URL.objectify(self.principal.calendar_home_set.url).join(testcal_id))
+            cal.delete()
+        except:
+            pass
 
     def teardown(self):
         try:                        
-            cal = Calendar(self.caldav, name="Yep", parent = self.principal,
-                           url = URL.objectify(self.principal.url).join(testcal_id))
+            cal = Calendar(self.caldav, name="Yep", parent = self.principal.calendar_home_set,
+                           url = URL.objectify(self.principal.calendar_home_set.url).join(testcal_id))
             cal.delete()
         except:
             pass
@@ -136,11 +142,12 @@ class RepeatedFunctionalTestsBaseClass(object):
         for c in collections:
             assert_equal(c.__class__.__name__, "Calendar")
 
-    def _testCreateCalendar(self):
+    def testCreateDeleteCalendar(self):
         c = Calendar(self.caldav, name="Yep", parent = self.principal.calendar_home_set,
                      id = testcal_id)
-        c2 = c.save()
-        assert_not_equal(c2.url, None)
+        c.save()
+        assert_not_equal(c.url, None)
+        c.delete()
 
     def _testCalendar(self):
         c = Calendar(self.caldav, name="Yep", parent = self.principal.calendar_home_set,

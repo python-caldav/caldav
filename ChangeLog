@@ -1,3 +1,29 @@
+2013-12-07  Tobias Brox <t-caldav@tobixen.no>
+	* caldav/davclient.py (DAVClient.request, DAVResponse): Full HTTP
+	communication is now available in debug logs
+
+	* caldav/davclient.py (DAVClient.__init__): Username and password
+	can now (optionally) be given as separate parameters instead of as
+	a part of the configuration URL
+
+	* caldav/objects.py: By now it's sufficient to pass the base URL
+	while initializing the DAVClient object.  The library will find
+	the principal URL and home calendar set URL through GETPROP
+
+	* caldav/lib/url.py: (internal change) Complete rewrite and
+	API-change. internally all URLs are now handled as objects
+
+	* caldav/objects.py: (internal change) Since the principal path and the calendar
+	home set path are different on most CALDav server implementations,
+	a new class CalendarSet has been made.
+
+	* tests/test_caldav.py: all broken tests have been disabled.
+	Temporary made smaller tests to demonstrate what is actually
+	working on all caldav servers I've tested against (Zimbra,
+	DAViCal, Baikal and SoGo).
+
+	* All files: misc minor changes to reflect the changes above.
+
 2011-01-22  Cyril Robert <cyrilrbt@gmail.com>
 
 	* caldav/elements/cdav.py (Expand.__init__, 

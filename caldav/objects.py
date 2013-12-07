@@ -264,15 +264,15 @@ class Calendar(DAVObject):
         prop = dav.Prop() + [type, name]
         set = dav.Set() + prop
 
-        mkcol = dav.Mkcol() + set
+        mkcol = cdav.Mkcalendar() + set
 
         q = etree.tostring(mkcol.xmlelement(), encoding="utf-8",
                            xml_declaration=True)
         path = self.parent.url.join(id)
 
-        r = self.client.mkcol(path, q)
+        r = self.client.mkcalendar(path, q)
         if r.status != 201:
-            raise error.MkcolError(r.raw)
+            raise error.MkcalendarError(r.raw)
 
         return (id, path)
 
