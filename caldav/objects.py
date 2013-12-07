@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- encoding: utf-8 -*-
 
-import urlparse
 import vobject
 import StringIO
 import uuid
 from lxml import etree
 
 from caldav.lib import error, vcal, url
+from caldav.lib.url import URL
 from caldav.elements import dav, cdav
 
 
@@ -37,14 +37,11 @@ class DAVObject(object):
         self.parent = parent
         self.name = name
         self.id = id
-        if isinstance(url, urlparse.ParseResult):
-            self.url = url
-        elif url is not None:
-            self.url = urlparse.urlparse(url)
+        self.url = URL.objectify(url)
 
     @property
     def canonical_url(self):
-        return url.canonicalize(self.url, self.parent)
+        return str(self.url.unauth())
 
     def children(self, type=None):
         """
@@ -57,19 +54,14 @@ class DAVObject(object):
         properties = {}
 
         props = [dav.ResourceType(), ]
+        response = self._query_properties(props, depth)
 
-        prop = dav.Prop() + props
-        root = dav.Propfind() + prop
-
-        body = etree.tostring(root.xmlelement(), encoding="utf-8",
-                              xml_declaration=True)
-
-        response = self.client.propfind(self.url.path, body, depth)
         for r in response.tree.findall(dav.Response.tag):
+            href = self.url.join(URL.objectify(r.find(dav.Href.tag).text))
             # We use canonicalized urls to index children
-            href = urlparse.urlparse(r.find(dav.Href.tag).text)
-            href = url.canonicalize(href, self)
-            properties[href] = {}
+            ## TODO ... do we need to?
+            #href = url.canonicalize(href, self)
+            properties[str(href.unauth())] = {}
             for p in props:
                 t = r.find(".//" + p.tag)
                 if len(list(t)) > 0:
@@ -83,19 +75,17 @@ class DAVObject(object):
                         val = None
                 else:
                     val = t.text
-                properties[href][p.tag] = val
+                properties[str(href.unauth())][p.tag] = val
 
         for path in properties.keys():
             resource_type = properties[path][dav.ResourceType.tag]
             if resource_type == type or type is None:
-                if path != self.canonical_url:
+                if path != self.url:
                     c.append((path, resource_type))
 
         return c
 
-    def _get_properties(self, props=[], depth=0):
-        properties = {}
-
+    def _query_properties(self, props=[], depth=0):
         body = ""
         # build the propfind request
         if len(props) > 0:
@@ -105,7 +95,13 @@ class DAVObject(object):
             body = etree.tostring(root.xmlelement(), encoding="utf-8",
                                   xml_declaration=True)
 
-        response = self.client.propfind(self.url.path, body, depth)
+        return self.client.propfind(self.url, body, depth)
+
+    def _get_properties(self, props=[], depth=0):
+        properties = {}
+
+        response = self._query_properties(props, depth)
+
         # All items should be in a <D:response> element
         for r in response.tree.findall(dav.Response.tag):
             href = r.find(dav.Href.tag).text
@@ -115,7 +111,9 @@ class DAVObject(object):
                 if len(list(t)) > 0:
                     val = t.find(".//*")
                     if val is not None:
-                        val = val.tag
+                        ## I assume this is a bug?
+                        #val = val.tag
+                        val = val.text
                     else:
                         val = None
                 else:
@@ -197,22 +195,10 @@ class DAVObject(object):
             if r.status not in (200, 204, 404):
                 raise error.DeleteError(r.raw)
 
-
-class Principal(DAVObject):
-    """
-    This class represents a DAV Principal. It doesn't do much, except play
-    the role of the parent to all calendar collections.
-    """
-    def __init__(self, client, url):
-        """
-        This object has a specific constructor, because its url is mandatory.
-        """
-        self.client = client
-        self.url = urlparse.urlparse(url)
-
+class CalendarSet(DAVObject):
     def calendars(self):
         """
-        List all calendar collections in this principal.
+        List all calendar collections in this set.
 
         Returns:
          * [Calendar(), ...]
@@ -225,6 +211,37 @@ class Principal(DAVObject):
 
         return cals
 
+class Principal(DAVObject):
+    """
+    This class represents a DAV Principal. It doesn't do much, except
+    keep track of the URLs for the calendar-home-set, etc.
+    """
+    def __init__(self, client, url=None):
+        """
+        url input is for backward compatibility and should normally be avoided.
+
+        If url is not given, deduct principal path as well as calendar home set path from doing propfinds.
+        """
+        self.client = client
+        self._calendar_home_set = None
+
+        ## backwards compatibility.  
+        if url is not None:
+            self.url = client.url.join(URL.objectify(url))
+        else:
+            self.url = self.client.url
+            cup = self.get_properties([dav.CurrentUserPrincipal()])
+            self.url = self.client.url.join(URL.objectify(cup['{DAV:}current-user-principal']))
+
+    @property
+    def calendar_home_set(self):
+        if not self._calendar_home_set:
+            chs = self.get_properties([cdav.CalendarHomeSet()])
+            self._calendar_home_set = CalendarSet(self.client, self.client.url.join(URL.objectify(chs['{urn:ietf:params:xml:ns:caldav}calendar-home-set'])))
+        return self._calendar_home_set
+
+    def calendars(self):
+        return self.calendar_home_set.calendars()
 
 class Calendar(DAVObject):
     """
@@ -251,13 +268,10 @@ class Calendar(DAVObject):
 
         q = etree.tostring(mkcol.xmlelement(), encoding="utf-8",
                            xml_declaration=True)
-        path = url.join(self.parent.url.path, id)
+        path = self.parent.url.join(id)
 
         r = self.client.mkcol(path, q)
-        if r.status == 201:
-            # XXX Should we use self.canonical_url ?
-            path = url.make(self.parent.url, path)
-        else:
+        if r.status != 201:
             raise error.MkcolError(r.raw)
 
         return (id, path)
@@ -273,7 +287,7 @@ class Calendar(DAVObject):
         if self.url is None:
             (id, path) = self._create(self.name, self.id)
             self.id = id
-            self.url = urlparse.urlparse(path)
+            self.url = self.client.url.join(URL.objectify(path))
         return self
 
     def date_search(self, start, end=None):
@@ -308,8 +322,8 @@ class Calendar(DAVObject):
         for r in response.tree.findall(".//" + dav.Response.tag):
             status = r.find(".//" + dav.Status.tag)
             if status.text.endswith("200 OK"):
-                href = urlparse.urlparse(r.find(dav.Href.tag).text)
-                href = url.canonicalize(href, self)
+                href = URL.objectify(r.find(dav.Href.tag).text)
+                href = self.url.join(href)
                 data = r.find(".//" + cdav.CalendarData.tag).text
                 e = Event(self.client, url=href, data=data, parent=self)
                 matches.append(e)
@@ -346,7 +360,7 @@ class Calendar(DAVObject):
         response = self.client.report(self.url.path, q, 1)
         r = response.tree.find(".//" + dav.Response.tag)
         if r is not None:
-            href = urlparse.urlparse(r.find(".//" + dav.Href.tag).text)
+            href = URL.objectify(r.find(".//" + dav.Href.tag).text)
             href = url.canonicalize(href, self)
             data = r.find(".//" + cdav.CalendarData.tag).text
             e = Event(self.client, url=href, data=data, parent=self)
@@ -371,7 +385,7 @@ class Calendar(DAVObject):
         return all
 
     def __str__(self):
-        return "Collection: %s" % self.canonical_url
+        return "Collection: %s" % self.url
 
 
 class Event(DAVObject):
@@ -402,14 +416,12 @@ class Event(DAVObject):
         if id is None:
             id = str(uuid.uuid1())
         if path is None:
-            path = url.join(self.parent.url.path, id + ".ics")
-
+            path = id + ".ics"
+        path = self.parent.url.join(path)
         r = self.client.put(path, data,
                             {"Content-Type": 'text/calendar; charset="utf-8"'})
-        if r.status == 204 or r.status == 201:
-            # XXX Should we use self.canonical_url ?
-            path = url.make(self.parent.url, path)
-        else:
+
+        if not (r.status in (204, 201)):
             raise error.PutError(r.raw)
 
         return (id, path)
@@ -426,11 +438,11 @@ class Event(DAVObject):
             (id, path) = self._create(self._instance.serialize(), self.id,
                      path)
             self.id = id
-            self.url = urlparse.urlparse(path)
+            self.url = self.client.url.join(URL.objectify(path))
         return self
 
     def __str__(self):
-        return "Event: %s" % self.canonical_url
+        return "Event: %s" % self.url
 
     def set_data(self, data):
         self._data = vcal.fix(data)
