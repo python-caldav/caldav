@@ -87,7 +87,9 @@ class URL:
         if (
             (path.scheme and self.scheme and path.scheme != self.scheme)
             or
-            (path.netloc and self.netloc and path.netloc != self.netloc)
+            (path.hostname and self.hostname and path.hostname != self.hostname)
+            or
+            (path.port and self.port and path.port != self.port)
         ):
             raise ValueError("%s can't be joined with %s" % (self, path))
                 
