@@ -27,6 +27,8 @@ class ReportError(Exception):
 class MkcolError(Exception):
     pass
 
+class MkcalendarError(Exception):
+    pass
 
 class PutError(Exception):
     pass
