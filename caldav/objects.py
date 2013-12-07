@@ -57,11 +57,10 @@ class DAVObject(object):
         response = self._query_properties(props, depth)
 
         for r in response.tree.findall(dav.Response.tag):
-            href = self.url.join(URL.objectify(r.find(dav.Href.tag).text))
             # We use canonicalized urls to index children
-            ## TODO ... do we need to?
-            #href = url.canonicalize(href, self)
-            properties[str(href.unauth())] = {}
+            href = str(self.url.join(URL.objectify(r.find(dav.Href.tag).text)).canonical())
+            assert(href)
+            properties[href] = {}
             for p in props:
                 t = r.find(".//" + p.tag)
                 if len(list(t)) > 0:
@@ -75,13 +74,13 @@ class DAVObject(object):
                         val = None
                 else:
                     val = t.text
-                properties[str(href.unauth())][p.tag] = val
+                properties[href][p.tag] = val
 
         for path in properties.keys():
             resource_type = properties[path][dav.ResourceType.tag]
             if resource_type == type or type is None:
-                if path != self.url:
-                    c.append((path, resource_type))
+                if self.url != path:
+                    c.append((URL.objectify(path), resource_type))
 
         return c
 
@@ -95,7 +94,10 @@ class DAVObject(object):
             body = etree.tostring(root.xmlelement(), encoding="utf-8",
                                   xml_declaration=True)
 
-        return self.client.propfind(self.url, body, depth)
+        ret = self.client.propfind(self.url, body, depth)
+        if ret.status == 404:
+            raise error.NotFoundError 
+        return ret
 
     def _get_properties(self, props=[], depth=0):
         properties = {}
@@ -218,12 +220,15 @@ class CalendarSet(DAVObject):
 
         return cals
 
+    def make_calendar(self, name=None, cal_id=None):
+        return Calendar(self.client, name=name, parent=self, id=cal_id).save()
+
     def calendar(self, name=None, cal_id=None):
         """
         The calendar method will return a calendar object.  It will not initiate any communication with the server.
         """
         return Calendar(self.client, name=name, parent = self,
-                        url = self.url.join(cal_id))
+                        url = self.url.join(cal_id), id=cal_id)
 
 
 class Principal(DAVObject):
@@ -247,6 +252,9 @@ class Principal(DAVObject):
             self.url = self.client.url
             cup = self.get_properties([dav.CurrentUserPrincipal()])
             self.url = self.client.url.join(URL.objectify(cup['{DAV:}current-user-principal']))
+
+    def make_calendar(self, name=None, cal_id=None):
+        return self.calendar_home_set.make_calendar(name, cal_id)
 
     def calendar(self, name=None, cal_id=None):
         """
@@ -316,6 +324,8 @@ class Calendar(DAVObject):
             (id, path) = self._create(self.name, self.id)
             self.id = id
             self.url = self.client.url.join(path)
+            if not self.url.endswith('/'):
+                self.url = URL.objectify(str(self.url) + '/')
         return self
 
     def date_search(self, start, end=None):
