@@ -12,7 +12,6 @@ from proxy import ProxyHandler, NonThreadingHTTPServer
 
 from caldav.davclient import DAVClient
 from caldav.objects import Principal, Calendar, Event, DAVObject, CalendarSet
-from caldav.lib import url
 from caldav.lib.url import URL
 from caldav.lib.namespace import ns
 from caldav.elements import dav, cdav
@@ -267,12 +266,12 @@ class TestCalDAV:
     def testURL(self):
         """Excersising the URL class"""
 
-        ## 1) url.URL.objectify should return a valid URL object almost no matter what's thrown in
-        url1 = url.URL.objectify("http://foo:bar@www.example.com:8080/caldav.php/?foo=bar")
-        url2 = url.URL.objectify(url1)
-        url3 = url.URL.objectify("/bar")
-        url4 = url.URL.objectify(urlparse.urlparse(str(url1)))
-        url5 = url.URL.objectify(urlparse.urlparse("/bar"))
+        ## 1) URL.objectify should return a valid URL object almost no matter what's thrown in
+        url1 = URL.objectify("http://foo:bar@www.example.com:8080/caldav.php/?foo=bar")
+        url2 = URL.objectify(url1)
+        url3 = URL.objectify("/bar")
+        url4 = URL.objectify(urlparse.urlparse(str(url1)))
+        url5 = URL.objectify(urlparse.urlparse("/bar"))
     
         ## 2) __eq__ works well
         assert_equal(url1, url2)
@@ -305,7 +304,7 @@ class TestCalDAV:
         assert_equal(url2.path, '/caldav.php/')
         assert_equal(url7.username, 'foo')
         assert_equal(url5.path, '/bar')
-        urlC = url.URL.objectify("https://www.example.com:443/foo")
+        urlC = URL.objectify("https://www.example.com:443/foo")
         assert_equal(urlC.port, 443)
 
         ## 6) is_auth returns True if the URL contains a username.  
