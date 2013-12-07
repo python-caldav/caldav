@@ -195,27 +195,10 @@ class DAVObject(object):
             if r.status not in (200, 204, 404):
                 raise error.DeleteError(r.raw)
 
-
-class Principal(DAVObject):
-    """
-    This class represents a DAV Principal. It doesn't do much, except play
-    the role of the parent to all calendar collections.
-    """
-    def __init__(self, client, url=None):
-        """
-        This object has a specific constructor.  If url is not given, deduct from doing a propfind.
-        """
-        self.client = client
-        if url is not None:
-            self.url = client.url.join(URL.objectify(url))
-        else:
-            self.url = self.client.url
-            cup = self.get_properties([dav.CurrentUserPrincipal()])
-            self.url = self.client.url.join(URL.objectify(cup['{DAV:}current-user-principal']))
-
+class CalendarSet(DAVObject):
     def calendars(self):
         """
-        List all calendar collections in this principal.
+        List all calendar collections in this set.
 
         Returns:
          * [Calendar(), ...]
@@ -228,6 +211,33 @@ class Principal(DAVObject):
 
         return cals
 
+class Principal(DAVObject):
+    """
+    This class represents a DAV Principal. It doesn't do much, except
+    keep track of the URLs for the calendar-home-set, etc.
+    """
+    def __init__(self, client, url=None):
+        """
+        url input is for backward compatibility and should normally be avoided.
+
+        If url is not given, deduct principal path as well as calendar home set path from doing propfinds.
+        """
+        self.client = client
+        self.calendar_home_set = None
+
+        ## backwards compatibility.  
+        if url is not None:
+            self.url = client.url.join(URL.objectify(url))
+        else:
+            self.url = self.client.url
+            cup = self.get_properties([dav.CurrentUserPrincipal()])
+            self.url = self.client.url.join(URL.objectify(cup['{DAV:}current-user-principal']))
+
+    def calendars(self):
+        if not self.calendar_home_set:
+            chs = self.get_properties([cdav.CalendarHomeSet()])
+            self.calendar_home_set = CalendarSet(self.client, self.client.url.join(URL.objectify(chs['{urn:ietf:params:xml:ns:caldav}calendar-home-set'])))
+        return self.calendar_home_set.calendars()
 
 class Calendar(DAVObject):
     """
