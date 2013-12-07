@@ -22,6 +22,14 @@
 	working on all caldav servers I've tested against (Zimbra,
 	DAViCal, Baikal and SoGo).
 
+	* caldav/objects.py (Principal, CalendarSet): created a method
+	calendar() to make it easier to generate a calendar object.  The
+	method does not do any communication towards the server.
+
+	* caldav/objects.py (Principal): made it possible to set
+	principal.calendar_home_set (hardly useful except for from the
+	unit testing code).
+
 	* All files: misc minor changes to reflect all the changes above.
 
 2011-01-22  Cyril Robert <cyrilrbt@gmail.com>
