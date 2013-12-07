@@ -223,7 +223,7 @@ class Principal(DAVObject):
         If url is not given, deduct principal path as well as calendar home set path from doing propfinds.
         """
         self.client = client
-        self.calendar_home_set = None
+        self._calendar_home_set = None
 
         ## backwards compatibility.  
         if url is not None:
@@ -233,10 +233,14 @@ class Principal(DAVObject):
             cup = self.get_properties([dav.CurrentUserPrincipal()])
             self.url = self.client.url.join(URL.objectify(cup['{DAV:}current-user-principal']))
 
-    def calendars(self):
-        if not self.calendar_home_set:
+    @property
+    def calendar_home_set(self):
+        if not self._calendar_home_set:
             chs = self.get_properties([cdav.CalendarHomeSet()])
-            self.calendar_home_set = CalendarSet(self.client, self.client.url.join(URL.objectify(chs['{urn:ietf:params:xml:ns:caldav}calendar-home-set'])))
+            self._calendar_home_set = CalendarSet(self.client, self.client.url.join(URL.objectify(chs['{urn:ietf:params:xml:ns:caldav}calendar-home-set'])))
+        return self._calendar_home_set
+
+    def calendars(self):
         return self.calendar_home_set.calendars()
 
 class Calendar(DAVObject):
@@ -264,13 +268,10 @@ class Calendar(DAVObject):
 
         q = etree.tostring(mkcol.xmlelement(), encoding="utf-8",
                            xml_declaration=True)
-        path = self.parent.url.path.join(id)
+        path = self.parent.url.join(id)
 
         r = self.client.mkcol(path, q)
-        if r.status == 201:
-            # XXX Should we use self.canonical_url ?
-            path = self.parent.url.join(path)
-        else:
+        if r.status != 201:
             raise error.MkcolError(r.raw)
 
         return (id, path)
@@ -415,14 +416,12 @@ class Event(DAVObject):
         if id is None:
             id = str(uuid.uuid1())
         if path is None:
-            path = self.parent.url.path.join(id + ".ics")
-
+            path = id + ".ics"
+        path = self.parent.url.join(path)
         r = self.client.put(path, data,
                             {"Content-Type": 'text/calendar; charset="utf-8"'})
-        if r.status == 204 or r.status == 201:
-            # XXX Should we use self.canonical_url ?
-            path = self.parent.url.join(path)
-        else:
+
+        if not (r.status in (204, 201)):
             raise error.PutError(r.raw)
 
         return (id, path)

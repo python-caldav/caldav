@@ -136,8 +136,14 @@ class RepeatedFunctionalTestsBaseClass(object):
         for c in collections:
             assert_equal(c.__class__.__name__, "Calendar")
 
+    def testCreateCalendar(self):
+        c = Calendar(self.caldav, name="Yep", parent = self.principal.calendar_home_set,
+                     id = testcal_id)
+        c2 = c.save()
+        assert_not_equal(c2.url, None)
+
     def _testCalendar(self):
-        c = Calendar(self.caldav, name="Yep", parent = self.principal,
+        c = Calendar(self.caldav, name="Yep", parent = self.principal.calendar_home_set,
                      id = testcal_id).save()
         assert_not_equal(c.url, None)
         # TODO: fail
