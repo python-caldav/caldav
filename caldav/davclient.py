@@ -2,11 +2,12 @@
 # -*- encoding: utf-8 -*-
 
 import httplib
+import logging
 import urllib
-import urlparse
 from lxml import etree
 
 from caldav.lib import error
+from caldav.lib.url import URL
 
 
 class DAVResponse:
@@ -25,6 +26,9 @@ class DAVResponse:
         self.headers = response.getheaders()
         self.status = response.status
         self.reason = response.reason
+        logging.debug("response headers: " + str(self.headers))
+        logging.debug("response status: " + str(self.status))
+        logging.debug("raw response: " + str(self.raw))
 
         try:
             self.tree = etree.XML(self.raw)
@@ -39,7 +43,7 @@ class DAVClient:
     proxy = None
     url = None
 
-    def __init__(self, url, proxy=None):
+    def __init__(self, url, proxy=None, username=None, password=None):
         """
         Sets up a HTTPConnection object towards the server in the url.
         Parameters:
@@ -47,7 +51,7 @@ class DAVClient:
          * proxy: A string defining a proxy server: `hostname:port`
         """
 
-        self.url = urlparse.urlparse(url)
+        self.url = URL.objectify(url)
 
         # Prepare proxy info
         if proxy is not None:
@@ -66,6 +70,7 @@ class DAVClient:
         if self.url.username is not None:
             username = urllib.unquote(self.url.username)
             password = urllib.unquote(self.url.password)
+        if username is not None:
             hash = (("%s:%s" % (username, password))
                     .encode('base64')[:-1])
             self.headers['authorization'] = "Basic %s" % hash
@@ -82,20 +87,21 @@ class DAVClient:
         else:
             self.handle = httplib.HTTPConnection(self.url.hostname,
                                                  self.url.port)
+        self.url = self.url.unauth()
 
-    def propfind(self, url, props="", depth=0):
+    def propfind(self, url=None, props="", depth=0):
         """
         Send a propfind request.
 
         Parameters:
          * url: url for the root of the propfind.
-         * props = [dav.DisplayName(), ...], properties we want
+         * props = (xml request), properties we want
          * depth: maximum recursion depth
 
         Returns
          * DAVResponse
         """
-        return self.request(url, "PROPFIND", props, {'depth': str(depth)})
+        return self.request(url or self.url, "PROPFIND", props, {'depth': str(depth)})
 
     def proppatch(self, url, body):
         """
@@ -155,9 +161,10 @@ class DAVClient:
         """
         Actually sends the request
         """
+        url = URL.objectify(url)
         if self.proxy is not None:
             url = "%s://%s:%s%s" % (self.url.scheme, self.url.hostname,
-                                    self.url.port, url)
+                                    self.url.port, url.path)
 
         combined_headers = self.headers
         combined_headers.update(headers)
@@ -165,6 +172,7 @@ class DAVClient:
             del combined_headers["Content-Type"]
 
         try:
+            logging.debug("sending request - method=%s, url=%s, headers=%s\nbody:\n%s" % (method, url, combined_headers, body))
             self.handle.request(method, url, body, combined_headers)
             response = DAVResponse(self.handle.getresponse())
         except httplib.BadStatusLine:
@@ -173,7 +181,7 @@ class DAVClient:
             self.handle.connect()
 
             self.handle.request(method, url, body, combined_headers)
-            response = DAVResponse(self.handle.getresponse())
+            response = DAVResponse(self.handle.getresponse(n))
 
         # this is an error condition the application wants to know
         if response.status == httplib.FORBIDDEN or \

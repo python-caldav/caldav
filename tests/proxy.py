@@ -163,6 +163,12 @@ class ThreadingHTTPServer (SocketServer.ThreadingMixIn,
                                             RequestHandlerClass)
         self.logger = logger
 
+class NonThreadingHTTPServer (BaseHTTPServer.HTTPServer):
+    def __init__ (self, server_address, RequestHandlerClass, logger=None):
+        BaseHTTPServer.HTTPServer.__init__ (self, server_address,
+                                            RequestHandlerClass)
+        self.logger = logger
+
 def logSetup (filename, log_size, daemon):
     logger = logging.getLogger ("TinyHTTPProxy")
     logger.setLevel (logging.INFO)
