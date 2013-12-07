@@ -7,6 +7,8 @@ except:
     caldav_servers = []
 
 caldav_servers.append({"url": "http://sogo1:sogo1@sogo-demo.inverse.ca:80/SOGo/dav/", "principal_url": "http://sogo-demo.inverse.ca:80/SOGo/dav/sogo1/"})
+## For backward compatibility.  Earlier the home calendar set URL was expected as input.
+caldav_servers.append({"url": "http://sogo1:sogo1@sogo-demo.inverse.ca:80/SOGo/dav/sogo1/Calendar/"})
 ## This one is not available anymore
 #caldav_servers.append({"url": "https://sogo1:sogo1@sogo-demo.inverse.ca:443/SOGo/dav/sogo1/Calendar/"})
 caldav_servers.append({"url": "http://baikal.tobixen.no:80/cal.php/", "username": "testlogin", "password": "testing123", "principal_url": "http://baikal.tobixen.no:80/cal.php/principals/testlogin/"})

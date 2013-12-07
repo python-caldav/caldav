@@ -87,8 +87,11 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert('resourcetype' in foo.raw)
         ## TODO: more advanced asserts
 
+    def testGetCalendarHomeSet(self):
+        chs = self.principal.get_properties([cdav.CalendarHomeSet()])
+        assert '{urn:ietf:params:xml:ns:caldav}calendar-home-set' in chs
 
-    def _testGetCalendars(self):
+    def testGetCalendars(self):
         assert_not_equal(len(self.principal.calendars()), 0)
 
     def _testProxy(self):
