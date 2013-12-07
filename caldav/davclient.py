@@ -164,7 +164,7 @@ class DAVClient:
         url = URL.objectify(url)
         if self.proxy is not None:
             url = "%s://%s:%s%s" % (self.url.scheme, self.url.hostname,
-                                    self.url.port, url)
+                                    self.url.port, url.path)
 
         combined_headers = self.headers
         combined_headers.update(headers)

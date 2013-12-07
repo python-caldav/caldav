@@ -8,7 +8,7 @@ import threading
 from nose.tools import assert_equal, assert_not_equal, assert_raises
 
 from conf import caldav_servers, proxy, proxy_noport
-from proxy import ThreadingHTTPServer, ProxyHandler
+from proxy import ProxyHandler, NonThreadingHTTPServer
 
 from caldav.davclient import DAVClient
 from caldav.objects import Principal, Calendar, Event, DAVObject
@@ -94,23 +94,40 @@ class RepeatedFunctionalTestsBaseClass(object):
     def testGetCalendars(self):
         assert_not_equal(len(self.principal.calendars()), 0)
 
-    def _testProxy(self):
-        server_address = ('127.0.0.1', 8080)
-        proxy_httpd = ThreadingHTTPServer (server_address, ProxyHandler, logging.getLogger ("TinyHTTPProxy"))
-        
-        threading.Thread(target=proxy_httpd.handle_request).start()
-        conn_params = self.conn_params.copy()
-        conn_params['proxy'] = proxy
-        c = DAVClient(**conn_params)
-        p = Principal(c, conn_params['url'])
-        assert_not_equal(len(p.calendars()), 0)
+    def testProxy(self):
+        if self.caldav.url.scheme == 'https':
+            logging.info("Skipping %s.testProxy as the TinyHTTPProxy implementation doesn't support https")
+            return
 
-        threading.Thread(target=proxy_httpd.handle_request).start()
-        conn_params = self.conn_params.copy()
-        conn_params['proxy'] = proxy_noport
-        c = DAVClient(**conn_params)
-        p = Principal(c, conn_params['url'])
-        assert_not_equal(len(p.calendars()), 0)
+        server_address = ('127.0.0.1', 8080)
+        proxy_httpd = NonThreadingHTTPServer (server_address, ProxyHandler, logging.getLogger ("TinyHTTPProxy"))
+
+        threadobj = threading.Thread(target=proxy_httpd.serve_forever)
+        try:
+            threadobj.start()
+            assert(threadobj.is_alive())
+            conn_params = self.conn_params.copy()
+            conn_params['proxy'] = proxy
+            c = DAVClient(**conn_params)
+            p = Principal(c)
+            assert_not_equal(len(p.calendars()), 0)
+        finally:
+            proxy_httpd.shutdown()
+            assert(not threadobj.is_alive())
+
+        threadobj = threading.Thread(target=proxy_httpd.serve_forever)
+        try:
+            threadobj.start()
+            assert(threadobj.is_alive())
+            conn_params = self.conn_params.copy()
+            conn_params['proxy'] = proxy_noport
+            c = DAVClient(**conn_params)
+            p = Principal(c)
+            assert_not_equal(len(p.calendars()), 0)
+            assert(threadobj.is_alive())
+        finally:
+            proxy_httpd.shutdown()
+            assert(not threadobj.is_alive())
 
     def testPrincipal(self):
         collections = self.principal.calendars()
