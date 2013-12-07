@@ -13,6 +13,7 @@ from proxy import ProxyHandler, NonThreadingHTTPServer
 from caldav.davclient import DAVClient
 from caldav.objects import Principal, Calendar, Event, DAVObject, CalendarSet
 from caldav.lib.url import URL
+from caldav.lib import error
 from caldav.lib.namespace import ns
 from caldav.elements import dav, cdav
 
@@ -116,6 +117,9 @@ class RepeatedFunctionalTestsBaseClass(object):
             assert_not_equal(len(p.calendars()), 0)
         finally:
             proxy_httpd.shutdown()
+            ## this should not be necessary, but I've observed some failures
+            if threadobj.is_alive():
+                time.sleep(0.05)
             assert(not threadobj.is_alive())
 
         threadobj = threading.Thread(target=proxy_httpd.serve_forever)
@@ -130,6 +134,9 @@ class RepeatedFunctionalTestsBaseClass(object):
             assert(threadobj.is_alive())
         finally:
             proxy_httpd.shutdown()
+            ## this should not be necessary
+            if threadobj.is_alive():
+                time.sleep(0.05)
             assert(not threadobj.is_alive())
 
     def testPrincipal(self):
@@ -140,11 +147,16 @@ class RepeatedFunctionalTestsBaseClass(object):
             assert_equal(c.__class__.__name__, "Calendar")
 
     def testCreateDeleteCalendar(self):
-        c = Calendar(self.caldav, name="Yep", parent = self.principal.calendar_home_set,
-                     id = testcal_id)
-        c.save()
+        c = self.principal.make_calendar(name="Yep", cal_id=testcal_id)
         assert_not_equal(c.url, None)
+        events = c.events()
+        assert_equal(len(events), 0)
+        events = self.principal.calendar(name="Yep", cal_id=testcal_id).events()
+        assert_equal(len(events), 0)
         c.delete()
+        
+        ## verify that calendar does not exist
+        assert_raises(error.NotFoundError, self.principal.calendar(name="Yep", cal_id=testcal_id).events)
 
     def _testCalendar(self):
         c = Calendar(self.caldav, name="Yep", parent = self.principal.calendar_home_set,
@@ -201,13 +213,9 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert_equal(len(r), 1)
 
     def testObjects(self):
+        ## TODO: description ... what are we trying to test for here?
         o = DAVObject(self.caldav)
-        failed = False
-        try:
-            o.save()
-        except:
-            failed = True
-        assert_equal(failed, True)
+        assert_raises(Exception, o.save)
 
 # We want to run all tests in the above class through all caldav_servers;
 # and I don't really want to create a custom nose test loader.  The
