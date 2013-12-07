@@ -80,6 +80,9 @@ class CalendarCollection(BaseElement):
 
 ## Properties
 
+class CalendarHomeSet(BaseElement):
+    tag = ns("C", "calendar-home-set")
+
 # calendar resource type, see rfc4791, sec. 4.2
 class Calendar(BaseElement):
     tag = ns("C", "calendar")

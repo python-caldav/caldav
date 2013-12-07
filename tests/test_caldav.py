@@ -5,14 +5,15 @@ from datetime import datetime
 import urlparse
 import logging
 import threading
-from nose.tools import assert_equal, assert_not_equal
+from nose.tools import assert_equal, assert_not_equal, assert_raises
 
 from conf import caldav_servers, proxy, proxy_noport
-from proxy import ThreadingHTTPServer, ProxyHandler
+from proxy import ProxyHandler, NonThreadingHTTPServer
 
 from caldav.davclient import DAVClient
 from caldav.objects import Principal, Calendar, Event, DAVObject
 from caldav.lib import url
+from caldav.lib.url import URL
 from caldav.lib.namespace import ns
 from caldav.elements import dav, cdav
 
@@ -53,47 +54,96 @@ class RepeatedFunctionalTestsBaseClass(object):
     (what a truely ugly name for this class - any better ideas?)
     """
     def setup(self):
+        self.conn_params = self.server_params.copy()
+        for x in self.conn_params.keys():
+            if not x in ('url', 'proxy', 'username', 'password'):
+                self.conn_params.pop(x)
         self.caldav = DAVClient(**self.conn_params)
-        self.principal = Principal(self.caldav, self.conn_params['url'])
+        self.principal = Principal(self.caldav)
 
     def teardown(self):
-        p = url.make(self.principal.url)
-        path = url.join(p, testcal_id)
+        try:                        
+            cal = Calendar(self.caldav, name="Yep", parent = self.principal,
+                           url = URL.objectify(self.principal.url).join(testcal_id))
+            cal.delete()
+        except:
+            pass
+ 
 
-        cal = Calendar(self.caldav, name="Yep", parent = self.principal,
-                       url = path)
-        cal.delete()
+    def testPropfind(self):
+        """
+        Test of the propfind methods. (This is sort of redundant, since
+        this is implicitly run by the setup)
+        """
+        ## first a raw xml propfind to the root URL
+        foo = self.caldav.propfind(self.principal.url, props="""<?xml version="1.0" encoding="UTF-8"?>
+<D:propfind xmlns:D="DAV:">
+  <D:allprop/>
+        </D:propfind>""")
+        assert('resourcetype' in foo.raw)
+        
+        ## next, the internal _query_properties, returning an xml tree ...
+        foo2 = self.principal._query_properties([dav.Status(),])
+        assert('resourcetype' in foo.raw)
+        ## TODO: more advanced asserts
+
+    def testGetCalendarHomeSet(self):
+        chs = self.principal.get_properties([cdav.CalendarHomeSet()])
+        assert '{urn:ietf:params:xml:ns:caldav}calendar-home-set' in chs
 
     def testGetCalendars(self):
         assert_not_equal(len(self.principal.calendars()), 0)
 
     def testProxy(self):
-        server_address = ('127.0.0.1', 8080)
-        proxy_httpd = ThreadingHTTPServer (server_address, ProxyHandler, logging.getLogger ("TinyHTTPProxy"))
-        
-        threading.Thread(target=proxy_httpd.handle_request).start()
-        conn_params = self.conn_params.copy()
-        conn_params['proxy'] = proxy
-        c = DAVClient(**conn_params)
-        p = Principal(c, conn_params['url'])
-        assert_not_equal(len(p.calendars()), 0)
+        if self.caldav.url.scheme == 'https':
+            logging.info("Skipping %s.testProxy as the TinyHTTPProxy implementation doesn't support https")
+            return
 
-        threading.Thread(target=proxy_httpd.handle_request).start()
-        conn_params = self.conn_params.copy()
-        conn_params['proxy'] = proxy_noport
-        c = DAVClient(**conn_params)
-        p = Principal(c, conn_params['url'])
-        assert_not_equal(len(p.calendars()), 0)
+        server_address = ('127.0.0.1', 8080)
+        proxy_httpd = NonThreadingHTTPServer (server_address, ProxyHandler, logging.getLogger ("TinyHTTPProxy"))
+
+        threadobj = threading.Thread(target=proxy_httpd.serve_forever)
+        try:
+            threadobj.start()
+            assert(threadobj.is_alive())
+            conn_params = self.conn_params.copy()
+            conn_params['proxy'] = proxy
+            c = DAVClient(**conn_params)
+            p = Principal(c)
+            assert_not_equal(len(p.calendars()), 0)
+        finally:
+            proxy_httpd.shutdown()
+            assert(not threadobj.is_alive())
+
+        threadobj = threading.Thread(target=proxy_httpd.serve_forever)
+        try:
+            threadobj.start()
+            assert(threadobj.is_alive())
+            conn_params = self.conn_params.copy()
+            conn_params['proxy'] = proxy_noport
+            c = DAVClient(**conn_params)
+            p = Principal(c)
+            assert_not_equal(len(p.calendars()), 0)
+            assert(threadobj.is_alive())
+        finally:
+            proxy_httpd.shutdown()
+            assert(not threadobj.is_alive())
 
     def testPrincipal(self):
-        assert_equal(url.make(self.principal.url), self.conn_params['url'])
-
         collections = self.principal.calendars()
+        if 'principal_url' in self.server_params:
+            assert_equal(self.principal.url, self.server_params['principal_url'])
         for c in collections:
             assert_equal(c.__class__.__name__, "Calendar")
 
-    def testCalendar(self):
-        c = Calendar(self.caldav, name="Yep", parent = self.principal,
+    def _testCreateCalendar(self):
+        c = Calendar(self.caldav, name="Yep", parent = self.principal.calendar_home_set,
+                     id = testcal_id)
+        c2 = c.save()
+        assert_not_equal(c2.url, None)
+
+    def _testCalendar(self):
+        c = Calendar(self.caldav, name="Yep", parent = self.principal.calendar_home_set,
                      id = testcal_id).save()
         assert_not_equal(c.url, None)
         # TODO: fail
@@ -113,7 +163,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert_not_equal(e.url, None)
         print e, e.data
 
-        ee = Event(self.caldav, url = url.make(e.url), parent = c)
+        ee = Event(self.caldav, url = URL.objectify(e.url), parent = c)
         ee.load()
         assert_equal(e.instance.vevent.uid, ee.instance.vevent.uid)
 
@@ -183,7 +233,7 @@ for _caldav_server in caldav_servers:
     _classname = 'TestForServer_' + _servername
 
     # inject the new class into this namespace
-    vars()[_classname] = type(_classname, (RepeatedFunctionalTestsBaseClass,), {'conn_params': _caldav_server})
+    vars()[_classname] = type(_classname, (RepeatedFunctionalTestsBaseClass,), {'server_params': _caldav_server})
 
 class TestCalDAV:
     """
@@ -191,11 +241,58 @@ class TestCalDAV:
     a small unit of code works as expected, without any no third party
     dependencies)
     """
-    def testFilters(self):
-        # TODO: move this into a separate class, since it does not
-        # depend on self.setup() and is a pure unit test (meaning,
-        # without third party dependencies)?
+    def testURL(self):
+        ## Excersising the URL class
 
+        ## 1) url.URL.objectify should return a valid URL object almost no matter what's thrown in
+        url1 = url.URL.objectify("http://foo:bar@www.example.com:8080/caldav.php/?foo=bar")
+        url2 = url.URL.objectify(url1)
+        url3 = url.URL.objectify("/bar")
+        url4 = url.URL.objectify(urlparse.urlparse(str(url1)))
+        url5 = url.URL.objectify(urlparse.urlparse("/bar"))
+    
+        ## 2) __eq__ works well
+        assert_equal(url1, url2)
+        assert_equal(url1, url4)
+        assert_equal(url3, url5)
+
+        ## 3) str will always return the URL
+        assert_equal(str(url1), "http://foo:bar@www.example.com:8080/caldav.php/?foo=bar")
+        assert_equal(str(url3), "/bar")
+        assert_equal(str(url4), "http://foo:bar@www.example.com:8080/caldav.php/?foo=bar")
+        assert_equal(str(url5), "/bar")
+
+        ## 4) join method
+        url6 = url1.join(url2)
+        url7 = url1.join(url3)
+        url8 = url1.join(url4)
+        url9 = url1.join(url5)
+        urlA = url1.join("someuser/calendar")
+        urlB = url5.join(url1)
+        assert_equal(url6, url1)
+        assert_equal(url7, "http://foo:bar@www.example.com:8080/bar")
+        assert_equal(url8, url1)
+        assert_equal(url9, url7)
+        assert_equal(urlA, "http://foo:bar@www.example.com:8080/caldav.php/someuser/calendar")
+        assert_equal(urlB, url1)
+        assert_raises(ValueError, url1.join, "http://www.google.com")
+
+        ## 5) all urlparse methods will work.  always.
+        assert_equal(url1.scheme, 'http')
+        assert_equal(url2.path, '/caldav.php/')
+        assert_equal(url7.username, 'foo')
+        assert_equal(url5.path, '/bar')
+        urlC = url.URL.objectify("https://www.example.com:443/foo")
+        assert_equal(urlC.port, 443)
+
+        ## 6) is_auth returns True if the URL contains a username.  
+        assert_equal(urlC.is_auth(), False)
+        assert_equal(url7.is_auth(), True)
+
+        ## 7) unauth() strips username/password
+        assert_equal(url7.unauth(), 'http://www.example.com:8080/bar')
+        
+    def testFilters(self):
         filter = cdav.Filter()\
                     .append(cdav.CompFilter("VCALENDAR")\
                     .append(cdav.CompFilter("VEVENT")\
