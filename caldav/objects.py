@@ -195,6 +195,13 @@ class DAVObject(object):
             if r.status not in (200, 204, 404):
                 raise error.DeleteError(r.raw)
 
+    def __str__(self):
+        return str(self.url)
+
+    def __repr__(self):
+        return "%s(%s)" % (self.__class__.__name__, self.url)
+
+
 class CalendarSet(DAVObject):
     def calendars(self):
         """
@@ -404,10 +411,6 @@ class Calendar(DAVObject):
             all.append(Event(self.client, e_url, parent=self))
 
         return all
-
-    def __str__(self):
-        return "Collection: %s" % self.url
-
 
 class Event(DAVObject):
     """

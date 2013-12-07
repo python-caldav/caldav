@@ -10,25 +10,28 @@
 	while initializing the DAVClient object.  The library will find
 	the principal URL and home calendar set URL through GETPROP
 
-	* caldav/lib/url.py: (internal change) Complete rewrite and
-	API-change. internally all URLs are now handled as objects
-
-	* caldav/objects.py: (internal change) Since the principal path and the calendar
-	home set path are different on most CALDav server implementations,
-	a new class CalendarSet has been made.
+	* caldav/objects.py (Principal, CalendarSet): created a method
+	calendar() to make it easier to generate a calendar object.  The
+	method does not do any communication towards the server.
 
 	* tests/test_caldav.py: all broken tests have been disabled.
 	Temporary made smaller tests to demonstrate what is actually
 	working on all caldav servers I've tested against (Zimbra,
 	DAViCal, Baikal and SoGo).
 
-	* caldav/objects.py (Principal, CalendarSet): created a method
-	calendar() to make it easier to generate a calendar object.  The
-	method does not do any communication towards the server.
+	* caldav/objects.py (DAVObject): (internal change) set __str__ and
+	__repr__ to make debugging easier
 
-	* caldav/objects.py (Principal): made it possible to set
-	principal.calendar_home_set (hardly useful except for from the
-	unit testing code).
+	* caldav/objects.py: (internal change) Since the principal path and the calendar
+	home set path are different on most CALDav server implementations,
+	a new class CalendarSet has been made.
+
+	* caldav/lib/url.py: (internal change) Complete rewrite and
+	API-change. internally all URLs are now handled as objects
+
+	* caldav/objects.py (Principal): (internal change) made it
+	possible to set principal.calendar_home_set (hardly useful except
+	for from the unit testing code).
 
 	* All files: misc minor changes to reflect all the changes above.
 
