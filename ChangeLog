@@ -10,6 +10,9 @@
 	while initializing the DAVClient object.  The library will find
 	the principal URL and home calendar set URL through GETPROP
 
+	* caldav/objects.py (Calendar): workaround for problem that
+	calendar name didn't get set on some (all?) caldav servers.
+
 	* caldav/objects.py (Principal, CalendarSet): created a method
 	calendar() to make it easier to generate a calendar object
 	(without server-side communication), and make_calendar for
