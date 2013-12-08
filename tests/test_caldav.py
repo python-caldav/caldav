@@ -44,6 +44,7 @@ END:VEVENT
 END:VCALENDAR
 """
 testcal_id = "pythoncaldav-test"
+testcal_id2 = "pythoncaldav-test2"
 
 class RepeatedFunctionalTestsBaseClass(object):
     """
@@ -54,6 +55,7 @@ class RepeatedFunctionalTestsBaseClass(object):
     (what a truely ugly name for this class - any better ideas?)
     """
     def setup(self):
+        logging.debug("############## test setup")
         self.conn_params = self.server_params.copy()
         for x in self.conn_params.keys():
             if not x in ('url', 'proxy', 'username', 'password'):
@@ -65,13 +67,21 @@ class RepeatedFunctionalTestsBaseClass(object):
             cal.delete()
         except:
             pass
+        logging.debug("############## test setup done")
 
     def teardown(self):
+        logging.debug("############## test teardown")
         try:                        
             cal = self.principal.calendar(name="Yep", cal_id=testcal_id)
             cal.delete()
         except:
             pass
+        try:                        
+            cal = self.principal.calendar(name="Yep", cal_id=testcal_id2)
+            cal.delete()
+        except:
+            pass
+        logging.debug("############## test teardown done")
  
 
     def testPropfind(self):
@@ -166,28 +176,31 @@ class RepeatedFunctionalTestsBaseClass(object):
         props = c.get_properties([dav.DisplayName(),])
         assert_equal("Yep", props[dav.DisplayName.tag])
 
+        ## Creating a new calendar with different ID but with existing name - fails on zimbra only
+        if 'zimbra' in str(c.url):
+            assert_raises(Exception, self.principal.make_calendar, "Yep", testcal_id2)
+
         c.set_properties([dav.DisplayName("hooray"),])
         props = c.get_properties([dav.DisplayName(),])
         assert_equal(props[dav.DisplayName.tag], "hooray")
 
-        c.delete()
+        ## Creating a new calendar with different ID and old name - should never fail
+        cc = self.principal.make_calendar(name="Yep", cal_id=testcal_id2).save()
+        assert_not_equal(cc.url, None)
+        cc.delete()
+
+    def testAddEvent(self):
+        c = self.principal.make_calendar(name="Yep", cal_id=testcal_id)
+        assert_not_equal(c.url, None)
+
+        e = c.add_event(ev1)
+        assert_not_equal(e.url, None)
 
     def _testCalendar(self):
         c = self.principal.make_calendar(name="Yep", cal_id=testcal_id)
         assert_not_equal(c.url, None)
 
-        #props = c.get_properties([dav.DisplayName(),])
-        #assert_equal("Yep", props[dav.DisplayName.tag])
-
-        c.set_properties([dav.DisplayName("hooray"),])
-        props = c.get_properties([dav.DisplayName(),])
-        assert_equal(props[dav.DisplayName.tag], "hooray")
-
-        cc = Calendar(self.caldav, name="Yep", parent = self.principal.calendar_home_set).save()
-        assert_not_equal(cc.url, None)
-        cc.delete()
-
-        e = Event(self.caldav, data = ev1, parent = c).save()
+        c.add_event(ev1)
         assert_not_equal(e.url, None)
 
         ee = Event(self.caldav, url = URL.objectify(e.url), parent = c)

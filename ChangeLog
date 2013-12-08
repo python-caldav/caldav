@@ -1,3 +1,12 @@
+2013-12-08  Tobias Brox <t-caldav@tobixen.no>
+	* caldav/objects.py (Calendar): Convenience fix: method add_event
+	for making it easier to add events.  Better error handling; if
+	calendar creation succeeds but setting calendar name fails, delete
+	the calendar before raising the exception.
+
+	* caldav/objects.py (Event): Bugfix for zimbra - 302 is now an
+	acceptable return code when creating a new event.
+
 2013-12-07  Tobias Brox <t-caldav@tobixen.no>
 	* caldav/davclient.py (DAVClient.request, DAVResponse): Full HTTP
 	communication is now available in debug logs
