@@ -32,8 +32,17 @@ class URL:
             self.url_raw = url
             self.url_parsed = None
 
+    def __ne__(self, other):
+        return not self == other
+
     def __eq__(self, other):
-        return str(self) == str(other)
+        if str(self) == str(other):
+            return True
+        ## The URLs could have insignificant differences
+        me = self.canonical()
+        if hasattr(other, 'canonical'):
+            other = other.canonical()
+        return str(me) == str(other)
 
     ## TODO: better naming?  Will return url if url is already an URL
     ## object, else will instantiate a new URL object
@@ -74,6 +83,32 @@ class URL:
         return URL.objectify(urlparse.ParseResult(
             self.scheme, '%s:%s' % (self.hostname, self.port),
             self.path.replace('//', '/'), self.params, self.query, self.fragment))
+
+    def canonical(self):
+        """
+        a canonical URL ... remove authentication details, make sure there 
+        are no double slashes, and to make sure the URL is always the same, 
+        run it through the urlparser
+        """
+        url = self.unauth()
+
+        ## this is actually already done in the unauth method ...
+        if '//' in url.path:
+            raise NotImplementedError("remove the double slashes")
+
+        ## TODO: optimize - we're going to burn some CPU cycles here
+        if url.endswith('/'):
+            url = URL.objectify(str(url)[:-1])
+
+        ## This looks like a noop - but it may have the side effect
+        ## that urlparser be run (actually not - unauth ensures we
+        ## have an urlparse.ParseResult object)
+        url.scheme
+
+        ## make sure to delete the string version
+        url.url_raw = None
+
+        return url
 
     def join(self, path):
         """
