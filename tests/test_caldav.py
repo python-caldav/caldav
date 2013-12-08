@@ -155,8 +155,9 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert_equal(len(events), 0)
         c.delete()
         
-        ## verify that calendar does not exist
-        assert_raises(error.NotFoundError, self.principal.calendar(name="Yep", cal_id=testcal_id).events)
+        ## verify that calendar does not exist - this breaks with zimbra :-(
+        if 'zimbra' not in str(c.url):
+            assert_raises(error.NotFoundError, self.principal.calendar(name="Yep", cal_id=testcal_id).events)
 
     def _testCalendar(self):
         c = Calendar(self.caldav, name="Yep", parent = self.principal.calendar_home_set,
