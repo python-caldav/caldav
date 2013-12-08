@@ -11,8 +11,9 @@
 	the principal URL and home calendar set URL through GETPROP
 
 	* caldav/objects.py (Principal, CalendarSet): created a method
-	calendar() to make it easier to generate a calendar object.  The
-	method does not do any communication towards the server.
+	calendar() to make it easier to generate a calendar object
+	(without server-side communication), and make_calendar for
+	creating a new calendar at the server side.
 
 	* tests/test_caldav.py: all broken tests have been disabled.
 	Temporary made smaller tests to demonstrate what is actually
