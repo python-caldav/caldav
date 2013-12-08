@@ -145,7 +145,7 @@ class DAVClient:
         """
         return self.request(url, "MKCOL", body)
 
-    def mkcalendar(self, url, body):
+    def mkcalendar(self, url, body=""):
         """
         Send a mkcalendar request.
 

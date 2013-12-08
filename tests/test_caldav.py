@@ -158,11 +158,23 @@ class RepeatedFunctionalTestsBaseClass(object):
         ## verify that calendar does not exist
         assert_raises(error.NotFoundError, self.principal.calendar(name="Yep", cal_id=testcal_id).events)
 
-    def _testCalendar(self):
-        c = Calendar(self.caldav, name="Yep", parent = self.principal.calendar_home_set,
-                     id = testcal_id).save()
+    def testSetCalendarProperties(self):
+        c = self.principal.make_calendar(name="Yep", cal_id=testcal_id)
         assert_not_equal(c.url, None)
-        # TODO: fail
+
+        props = c.get_properties([dav.DisplayName(),])
+        assert_equal("Yep", props[dav.DisplayName.tag])
+
+        c.set_properties([dav.DisplayName("hooray"),])
+        props = c.get_properties([dav.DisplayName(),])
+        assert_equal(props[dav.DisplayName.tag], "hooray")
+
+        c.delete()
+
+    def _testCalendar(self):
+        c = self.principal.make_calendar(name="Yep", cal_id=testcal_id)
+        assert_not_equal(c.url, None)
+
         #props = c.get_properties([dav.DisplayName(),])
         #assert_equal("Yep", props[dav.DisplayName.tag])
 
