@@ -288,27 +288,39 @@ class Calendar(DAVObject):
         """
         Create a new calendar with display name `name` in `parent`.
         """
-        path = None
         if id is None:
             id = str(uuid.uuid1())
 
-        name = dav.DisplayName(name)
+        path = self.parent.url.join(id)
+        self.url = path
+
+        ## TODO: mkcalendar seems to ignore the body on most servers?  
+        ## at least the name doesn't get set this way.
+        ## zimbra gives 500 (!) if body is omitted ...
+
+        if name:
+            name = dav.DisplayName(name)
         cal = cdav.CalendarCollection()
         coll = dav.Collection() + cal
         type = dav.ResourceType() + coll
 
-        prop = dav.Prop() + [type, name]
+        prop = dav.Prop() + [type,]
+        if name:
+            prop += [name,]
         set = dav.Set() + prop
 
         mkcol = cdav.Mkcalendar() + set
 
         q = etree.tostring(mkcol.xmlelement(), encoding="utf-8",
                            xml_declaration=True)
-        path = self.parent.url.join(id)
 
         r = self.client.mkcalendar(path, q)
+
         if r.status != 201:
             raise error.MkcalendarError(r.raw)
+
+        if name:
+            self.set_properties([name])
 
         return (id, path)
 
@@ -396,10 +408,15 @@ class Calendar(DAVObject):
         q = etree.tostring(root.xmlelement(), encoding="utf-8",
                            xml_declaration=True)
         response = self.client.report(self.url.path, q, 1)
+
+        if response.status == 404:
+            raise error.NotFoundError(response.raw)
+        elif response.status == 400:
+            raise error.ReportError(response.raw)
+            
         r = response.tree.find(".//" + dav.Response.tag)
         if r is not None:
             href = URL.objectify(r.find(".//" + dav.Href.tag).text)
-            href = url.canonicalize(href, self)
             data = r.find(".//" + cdav.CalendarData.tag).text
             e = Event(self.client, url=href, data=data, parent=self)
         else:
