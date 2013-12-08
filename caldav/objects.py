@@ -320,9 +320,16 @@ class Calendar(DAVObject):
             raise error.MkcalendarError(r.raw)
 
         if name:
-            self.set_properties([name])
+            try:
+                self.set_properties([name])
+            except:
+                self.delete()
+                raise
 
         return (id, path)
+
+    def add_event(self, ical):
+        return Event(self.client, data = ical, parent = self).save()
 
     def save(self):
         """
@@ -472,9 +479,12 @@ class Event(DAVObject):
         r = self.client.put(path, data,
                             {"Content-Type": 'text/calendar; charset="utf-8"'})
 
-        if not (r.status in (204, 201)):
+        if r.status == 302:
+            path = [x[1] for x in r.headers if x[0]=='location'][0]
+        elif not (r.status in (204, 201)):
             raise error.PutError(r.raw)
 
+        self.url = URL.objectify(path)
         return (id, path)
 
     def save(self):
