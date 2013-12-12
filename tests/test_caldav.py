@@ -5,6 +5,7 @@ from datetime import datetime
 import urlparse
 import logging
 import threading
+import time
 from nose.tools import assert_equal, assert_not_equal, assert_raises
 
 from conf import caldav_servers, proxy, proxy_noport
@@ -189,28 +190,36 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert_not_equal(cc.url, None)
         cc.delete()
 
-    def testAddEvent(self):
+    def testEvent(self):
+        """
+        Run through various things - testing that it's possible to put,
+        search and fetch calendar events from a calendar
+        """
         c = self.principal.make_calendar(name="Yep", cal_id=testcal_id)
         assert_not_equal(c.url, None)
 
-        e = c.add_event(ev1)
-        assert_not_equal(e.url, None)
+        ## This apparently fails on zimbra.  I get "201" back from it, and then 404 on the following GET :-(
+        e1 = c.add_event(ev1)
+        assert_not_equal(e1.url, None)
+
+        logging.info(e1.url)
+
+        e2 = c.event_by_url(e1.url)
+        e3 = c.event_by_uid("20010712T182145Z-123401@example.com")
+        assert_equal(e2.instance.vevent.uid, e1.instance.vevent.uid)
+        assert_equal(e3.instance.vevent.uid, e1.instance.vevent.uid)
+
+        assert_equal(e1.instance.vevent.uid, e2.instance.vevent.uid)
+
+        r = c.date_search(datetime(2006,7,13,17,00,00),
+                          datetime(2006,7,15,17,00,00))
+
+        assert_equal(e1.instance.vevent.uid, r[0].instance.vevent.uid)
+        assert_equal(len(r), 1)
 
     def _testCalendar(self):
         c = self.principal.make_calendar(name="Yep", cal_id=testcal_id)
         assert_not_equal(c.url, None)
-
-        c.add_event(ev1)
-        assert_not_equal(e.url, None)
-
-        ee = Event(self.caldav, url = URL.objectify(e.url), parent = c)
-        ee.load()
-        assert_equal(e.instance.vevent.uid, ee.instance.vevent.uid)
-
-        r = c.date_search(datetime(2006,7,13,17,00,00),
-                          datetime(2006,7,15,17,00,00))
-        assert_equal(e.instance.vevent.uid, r[0].instance.vevent.uid)
-        assert_equal(len(r), 1)
 
         all = c.events()
         assert_equal(len(all), 1)
@@ -274,12 +283,15 @@ class TestCalDAV:
     """
     def testCalendar(self):
         """
-        Principal.calendar() and CalendarSet.calendar() should create Calendar
-        objects without initiating any communication with the server.
+        Principal.calendar() and CalendarSet.calendar() should create
+        Calendar objects without initiating any communication with the
+        server.  Calendar.event() should create Event object without
+        initiating any communication with the server.
 
         DAVClient.__init__ also doesn't do any communication
         Principal.__init__ as well, if the principal_url is given
         Principal.calendar_home_set needs to be set or the server will be queried
+
         """
         client = DAVClient(url="http://me:hunter2@calendar.example:80/")
         principal = Principal(client, "http://me:hunter2@calendar.example:80/me/")
@@ -296,7 +308,14 @@ class TestCalDAV:
         principal.calendar_home_set = principal.calendar_home_set
         calendar1 = principal.calendar(name="foo", cal_id="bar")
         assert_equal(calendar1.url, calendar2.url)
-    
+
+    def testDefaultClient(self):
+        """When no client is given to a DAVObject, but the parent is given, parent.client will be used"""
+        client = DAVClient(url="http://me:hunter2@calendar.example:80/")
+        calhome = CalendarSet(client, "http://me:hunter2@calendar.example:80/me/")
+        calendar = Calendar(parent=calhome)
+        assert_equal(calendar.client, calhome.client)
+
     def testURL(self):
         """Excersising the URL class"""
 

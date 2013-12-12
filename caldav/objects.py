@@ -4,6 +4,7 @@
 import vobject
 import StringIO
 import uuid
+import re
 from lxml import etree
 
 from caldav.lib import error, vcal, url
@@ -21,7 +22,7 @@ class DAVObject(object):
     parent = None
     name = None
 
-    def __init__(self, client, url=None, parent=None, name=None, id=None):
+    def __init__(self, client=None, url=None, parent=None, name=None, id=None):
         """
         Default constructor.
 
@@ -33,6 +34,8 @@ class DAVObject(object):
          * id: The resource id (UID for an Event)
         """
 
+        if client is None and parent is not None:
+            client = parent.client
         self.client = client
         self.parent = parent
         self.name = name
@@ -236,7 +239,7 @@ class Principal(DAVObject):
     This class represents a DAV Principal. It doesn't do much, except
     keep track of the URLs for the calendar-home-set, etc.
     """
-    def __init__(self, client, url=None):
+    def __init__(self, client=None, url=None):
         """
         url input is for backward compatibility and should normally be avoided.
 
@@ -290,6 +293,7 @@ class Calendar(DAVObject):
         """
         if id is None:
             id = str(uuid.uuid1())
+            
 
         path = self.parent.url.join(id)
         self.url = path
@@ -389,7 +393,10 @@ class Calendar(DAVObject):
 
         return matches
 
-    def event(self, uid):
+    def event_by_url(self, href, data=None):
+        return Event(url=href, data=data, parent=self).load()
+
+    def event_by_uid(self, uid):
         """
         Get one event from the calendar.
 
@@ -431,6 +438,9 @@ class Calendar(DAVObject):
 
         return e
 
+    ## alias for backward compatibility
+    event = event_by_uid
+
     def events(self):
         """
         List all events from the calendar.
@@ -453,7 +463,7 @@ class Event(DAVObject):
     _instance = None
     _data = None
 
-    def __init__(self, client, url=None, data=None, parent=None, id=None):
+    def __init__(self, client=None, url=None, data=None, parent=None, id=None):
         """
         Event has an additional parameter for its constructor:
          * data = "...", vCal data for the event
@@ -471,8 +481,10 @@ class Event(DAVObject):
         return self
 
     def _create(self, data, id=None, path=None):
-        if id is None:
-            id = str(uuid.uuid1())
+        if id is None and path is not None and str(path).endswith('.ics'):
+            id = re.search('(/|^)([^/]*).ics',str(path)).group(2)
+        elif id is None:
+            id = self.instance.vevent.uid.value
         if path is None:
             path = id + ".ics"
         path = self.parent.url.join(path)

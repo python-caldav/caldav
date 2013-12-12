@@ -33,7 +33,7 @@ class ParamFilter(NamedBaseElement):
 class TextMatch(ValuedBaseElement):
     tag = ns("C", "text-match")
 
-    def __init__(self, value, collation="i; octet", negate=False):
+    def __init__(self, value, collation="i;octet", negate=False):
         super(TextMatch, self).__init__(value=value)
         self.attributes['collation'] = collation
         self.attributes['negate'] = "no"
