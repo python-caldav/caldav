@@ -293,8 +293,8 @@ class Calendar(DAVObject):
         """
         if id is None:
             id = str(uuid.uuid1())
+        self.id = id
             
-
         path = self.parent.url.join(id)
         self.url = path
 
@@ -303,14 +303,14 @@ class Calendar(DAVObject):
         ## zimbra gives 500 (!) if body is omitted ...
 
         if name:
-            name = dav.DisplayName(name)
+            display_name = dav.DisplayName(name)
         cal = cdav.CalendarCollection()
         coll = dav.Collection() + cal
         type = dav.ResourceType() + coll
 
         prop = dav.Prop() + [type,]
         if name:
-            prop += [name,]
+            prop += [display_name,]
         set = dav.Set() + prop
 
         mkcol = cdav.Mkcalendar() + set
@@ -325,13 +325,33 @@ class Calendar(DAVObject):
 
         if name:
             try:
-                self.set_properties([name])
+                self.set_properties([display_name])
             except:
                 self.delete()
                 raise
 
-        return (id, path)
+        ## Special hack for Zimbra!  The calendar we've made exists at
+        ## the specified URL, and we can do operations like ls, even
+        ## PUT an event to the calendar.  Zimbra will enforce that the
+        ## event uuid matches the event url, and return either 201 or
+        ## 302 - but alas, try to do a GET towards the event and we
+        ## get 404!  But turn around and replace the calendar ID with
+        ## the calendar name in the URL and hey ... it works!  
 
+        ## TODO: write test cases for calendars with non-trivial
+        ## names and calendars with names already matching existing
+        ## calendar urls and ensure they pass.
+        zimbra_url = self.parent.url.join(name)
+        try:
+            ret = self.client.request(zimbra_url)
+            if ret.status == 404:
+                raise error.NotFoundError
+            ## insane server
+            self.url = zimbra_url
+        except error.NotFoundError:
+            ## sane server
+            pass
+        
     def add_event(self, ical):
         return Event(self.client, data = ical, parent = self).save()
 
@@ -344,9 +364,7 @@ class Calendar(DAVObject):
          * self
         """
         if self.url is None:
-            (id, path) = self._create(self.name, self.id)
-            self.id = id
-            self.url = self.client.url.join(path)
+            self._create(self.name, self.id)
             if not self.url.endswith('/'):
                 self.url = URL.objectify(str(self.url) + '/')
         return self
@@ -477,6 +495,8 @@ class Event(DAVObject):
         Load the event from the caldav server.
         """
         r = self.client.request(self.url.path)
+        if r.status == 404:
+            raise error.NotFoundError(r.raw)
         self.data = vcal.fix(r.raw)
         return self
 
@@ -497,7 +517,7 @@ class Event(DAVObject):
             raise error.PutError(r.raw)
 
         self.url = URL.objectify(path)
-        return (id, path)
+        self.id = id
 
     def save(self):
         """
@@ -508,10 +528,7 @@ class Event(DAVObject):
         """
         if self._instance is not None:
             path = self.url.path if self.url else None
-            (id, path) = self._create(self._instance.serialize(), self.id,
-                     path)
-            self.id = id
-            self.url = self.client.url.join(URL.objectify(path))
+            self._create(self._instance.serialize(), self.id, path)
         return self
 
     def __str__(self):

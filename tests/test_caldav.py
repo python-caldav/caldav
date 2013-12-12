@@ -68,6 +68,12 @@ class RepeatedFunctionalTestsBaseClass(object):
             cal.delete()
         except:
             pass
+        try:
+            ## For zimbra
+            cal = self.principal.calendar(name="Yep", cal_id="Yep")
+            cal.delete()
+        except:
+            pass
         logging.debug("############## test setup done")
 
     def teardown(self):
@@ -79,6 +85,12 @@ class RepeatedFunctionalTestsBaseClass(object):
             pass
         try:                        
             cal = self.principal.calendar(name="Yep", cal_id=testcal_id2)
+            cal.delete()
+        except:
+            pass
+        try:
+            ## For zimbra
+            cal = self.principal.calendar(name="Yep", cal_id="Yep")
             cal.delete()
         except:
             pass
@@ -198,7 +210,6 @@ class RepeatedFunctionalTestsBaseClass(object):
         c = self.principal.make_calendar(name="Yep", cal_id=testcal_id)
         assert_not_equal(c.url, None)
 
-        ## This apparently fails on zimbra.  I get "201" back from it, and then 404 on the following GET :-(
         e1 = c.add_event(ev1)
         assert_not_equal(e1.url, None)
 
