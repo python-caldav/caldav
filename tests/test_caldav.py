@@ -202,25 +202,33 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert_not_equal(cc.url, None)
         cc.delete()
 
-    def testEvent(self):
+    def testLookupEvent(self):
         """
-        Run through various things - testing that it's possible to put,
-        search and fetch calendar events from a calendar
+        Makes sure we can add events and look them up by URL and ID
         """
+        ## Create calendar
         c = self.principal.make_calendar(name="Yep", cal_id=testcal_id)
         assert_not_equal(c.url, None)
 
+        ## add event
         e1 = c.add_event(ev1)
         assert_not_equal(e1.url, None)
 
-        logging.info(e1.url)
-
+        ## Verify that we can look it up, both by URL and by ID
         e2 = c.event_by_url(e1.url)
         e3 = c.event_by_uid("20010712T182145Z-123401@example.com")
         assert_equal(e2.instance.vevent.uid, e1.instance.vevent.uid)
         assert_equal(e3.instance.vevent.uid, e1.instance.vevent.uid)
 
-        assert_equal(e1.instance.vevent.uid, e2.instance.vevent.uid)
+
+    def testDateSearch(self):
+        """
+        Verifies that date search works with a non-recurring event
+        """
+        c = self.principal.make_calendar(name="Yep", cal_id=testcal_id)
+        assert_not_equal(c.url, None)
+
+        e1 = c.add_event(ev1)
 
         r = c.date_search(datetime(2006,7,13,17,00,00),
                           datetime(2006,7,15,17,00,00))
@@ -228,18 +236,13 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert_equal(e1.instance.vevent.uid, r[0].instance.vevent.uid)
         assert_equal(len(r), 1)
 
+        ## TODO: verify that date search works i.e. for a recurring
+        ## weekly event, when searching i.e. one year after the event
+        ## date.
+
+
     def _testCalendar(self):
-        c = self.principal.make_calendar(name="Yep", cal_id=testcal_id)
-        assert_not_equal(c.url, None)
 
-        all = c.events()
-        assert_equal(len(all), 1)
-
-        e2 = Event(self.caldav, data = ev2, parent = c).save()
-        assert_not_equal(e.url, None)
-
-        tmp = c.event("20010712T182145Z-123401@example.com")
-        assert_equal(e2.instance.vevent.uid, tmp.instance.vevent.uid)
 
         r = c.date_search(datetime(2006,7,13,17,00,00),
                           datetime(2006,7,15,17,00,00))
