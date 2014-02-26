@@ -224,42 +224,35 @@ class RepeatedFunctionalTestsBaseClass(object):
     def testDateSearch(self):
         """
         Verifies that date search works with a non-recurring event
+        Also verifies that it's possible to change a date of a
+        non-recurring event
         """
         c = self.principal.make_calendar(name="Yep", cal_id=testcal_id)
         assert_not_equal(c.url, None)
 
-        e1 = c.add_event(ev1)
+        e = c.add_event(ev1)
 
         r = c.date_search(datetime(2006,7,13,17,00,00),
                           datetime(2006,7,15,17,00,00))
 
-        assert_equal(e1.instance.vevent.uid, r[0].instance.vevent.uid)
+        assert_equal(e.instance.vevent.uid, r[0].instance.vevent.uid)
+        assert_equal(len(r), 1)
+
+        ## ev2 is same UID, but one year ahead.
+        ## The timestamp should change.
+        e.data = ev2
+        e.save()
+        r = c.date_search(datetime(2006,7,13,17,00,00),
+                          datetime(2006,7,15,17,00,00))
+        assert_equal(len(r), 0)
+
+        r = c.date_search(datetime(2007,7,13,17,00,00),
+                          datetime(2007,7,15,17,00,00))
         assert_equal(len(r), 1)
 
         ## TODO: verify that date search works i.e. for a recurring
         ## weekly event, when searching i.e. one year after the event
         ## date.
-
-
-    def _testCalendar(self):
-
-
-        r = c.date_search(datetime(2006,7,13,17,00,00),
-                          datetime(2006,7,15,17,00,00))
-        assert_equal(len(r), 1)
-
-        e.data = ev2
-        e.save()
-
-        r = c.date_search(datetime(2006,7,13,17,00,00),
-                          datetime(2006,7,15,17,00,00))
-        assert_equal(len(r), 1)
-
-        e.instance = e2.instance
-        e.save()
-        r = c.date_search(datetime(2006,7,13,17,00,00),
-                          datetime(2006,7,15,17,00,00))
-        assert_equal(len(r), 1)
 
     def testObjects(self):
         ## TODO: description ... what are we trying to test for here?
