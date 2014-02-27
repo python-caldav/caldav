@@ -44,6 +44,23 @@ SUMMARY:Bastille Day Party +1year
 END:VEVENT
 END:VCALENDAR
 """
+
+## example from http://www.rfc-editor.org/rfc/rfc5545.txt
+evr = """BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Example Corp.//CalDAV Client//EN
+BEGIN:VEVENT
+UID:19970901T130000Z-123403@example.com
+DTSTAMP:19970901T130000Z
+DTSTART;VALUE=DATE:19971102
+SUMMARY:Our Blissful Anniversary
+TRANSP:TRANSPARENT
+CLASS:CONFIDENTIAL
+CATEGORIES:ANNIVERSARY,PERSONAL,SPECIAL OCCASION
+RRULE:FREQ=YEARLY
+END:VEVENT
+END:VCALENDAR"""
+
 testcal_id = "pythoncaldav-test"
 testcal_id2 = "pythoncaldav-test2"
 
@@ -250,9 +267,29 @@ class RepeatedFunctionalTestsBaseClass(object):
                           datetime(2007,7,15,17,00,00))
         assert_equal(len(r), 1)
 
-        ## TODO: verify that date search works i.e. for a recurring
-        ## weekly event, when searching i.e. one year after the event
-        ## date.
+    def testRecurringDateSearch(self):
+        """
+        This is more sanity testing of the server side than testing of the
+        library per se
+        """
+        c = self.principal.make_calendar(name="Yep", cal_id=testcal_id)
+
+        ## evr is a yearly event starting at 1997-02-11
+        e = c.add_event(evr)
+        r = c.date_search(datetime(2008,11,1,17,00,00),
+                          datetime(2008,11,3,17,00,00))
+        assert_equal(len(r), 1)
+        assert_equal(r[0].data.count("END:VEVENT"), 1)
+        r = c.date_search(datetime(2008,11,1,17,00,00),
+                          datetime(2009,11,3,17,00,00))
+        assert_equal(len(r), 1)
+        
+        ## So much for standards ... seems like different servers
+        ## behaves differently
+        if "RRULE" in r[0].data and not "BEGIN:STANDARD" in r[0].data:
+            assert_equal(r[0].data.count("END:VEVENT"), 1)
+        else:
+            assert_equal(r[0].data.count("END:VEVENT"), 2)
 
     def testObjects(self):
         ## TODO: description ... what are we trying to test for here?
