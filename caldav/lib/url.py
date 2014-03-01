@@ -138,3 +138,6 @@ class URL:
         return URL(urlparse.ParseResult(
             self.scheme or path.scheme, self.netloc or path.netloc, ret_path, path.params, path.query, path.fragment))
 
+def make(url):
+    """Backward compatibility"""
+    return URL(url)

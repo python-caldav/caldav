@@ -14,6 +14,7 @@ from proxy import ProxyHandler, NonThreadingHTTPServer
 from caldav.davclient import DAVClient
 from caldav.objects import Principal, Calendar, Event, DAVObject, CalendarSet
 from caldav.lib.url import URL
+from caldav.lib import url
 from caldav.lib import error
 from caldav.lib.namespace import ns
 from caldav.elements import dav, cdav
@@ -315,9 +316,6 @@ class RepeatedFunctionalTestsBaseClass(object):
 
         e = Event(caldav, data = ev1, parent = c).save()
         assert_not_equal(e.url, None)
-        print e, e.data
-
-        return
 
         ee = Event(caldav, url = url.make(e.url), parent = c)
         ee.load()
@@ -326,11 +324,9 @@ class RepeatedFunctionalTestsBaseClass(object):
         r = c.date_search(datetime(2006,7,13,17,00,00),
                           datetime(2006,7,15,17,00,00))
         assert_equal(e.instance.vevent.uid, r[0].instance.vevent.uid)
-        for e in r: print e.data
         assert_equal(len(r), 1)
 
         all = c.events()
-        print all
         assert_equal(len(all), 1)
 
         e2 = Event(caldav, data = ev2, parent = c).save()
@@ -341,7 +337,7 @@ class RepeatedFunctionalTestsBaseClass(object):
 
         r = c.date_search(datetime(2006,7,13,17,00,00),
                           datetime(2006,7,15,17,00,00))
-        for e in r: print e.data
+        return
         assert_equal(len(r), 1)
 
         e.data = ev2
