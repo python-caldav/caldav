@@ -335,9 +335,8 @@ class RepeatedFunctionalTestsBaseClass(object):
         tmp = c.event("20010712T182145Z-123401@example.com")
         assert_equal(e2.instance.vevent.uid, tmp.instance.vevent.uid)
 
-        r = c.date_search(datetime(2006,7,13,17,00,00),
-                          datetime(2006,7,15,17,00,00))
-        return
+        r = c.date_search(datetime(2007,7,13,17,00,00),
+                          datetime(2007,7,15,17,00,00))
         assert_equal(len(r), 1)
 
         e.data = ev2
