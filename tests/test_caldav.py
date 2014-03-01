@@ -291,6 +291,75 @@ class RepeatedFunctionalTestsBaseClass(object):
         else:
             assert_equal(r[0].data.count("END:VEVENT"), 2)
 
+    def testBackwardCompatibility(self):
+        """
+        Tobias Brox has done some API changes - but this thing should
+        still be backward compatible.  Here is some of the original
+        test code.  The test code did not pass on any servers when tobixen
+        took over the project.
+        """
+        if not 'backwards_compatibility_url' in self.server_params:
+            return
+        caldav = DAVClient(self.server_params['backwards_compatibility_url'])
+        principal = Principal(caldav, self.server_params['backwards_compatibility_url'])
+        c = Calendar(caldav, name="Yep", parent = principal, id = testcal_id).save()
+        assert_not_equal(c.url, None)
+
+        c.set_properties([dav.DisplayName("hooray"),])
+        props = c.get_properties([dav.DisplayName(),])
+        assert_equal(props[dav.DisplayName.tag], "hooray")
+
+        cc = Calendar(caldav, name="Yep", parent = principal).save()
+        assert_not_equal(cc.url, None)
+        cc.delete()
+
+        e = Event(caldav, data = ev1, parent = c).save()
+        assert_not_equal(e.url, None)
+        print e, e.data
+
+        return
+
+        ee = Event(caldav, url = url.make(e.url), parent = c)
+        ee.load()
+        assert_equal(e.instance.vevent.uid, ee.instance.vevent.uid)
+
+        r = c.date_search(datetime(2006,7,13,17,00,00),
+                          datetime(2006,7,15,17,00,00))
+        assert_equal(e.instance.vevent.uid, r[0].instance.vevent.uid)
+        for e in r: print e.data
+        assert_equal(len(r), 1)
+
+        all = c.events()
+        print all
+        assert_equal(len(all), 1)
+
+        e2 = Event(caldav, data = ev2, parent = c).save()
+        assert_not_equal(e.url, None)
+
+        tmp = c.event("20010712T182145Z-123401@example.com")
+        assert_equal(e2.instance.vevent.uid, tmp.instance.vevent.uid)
+
+        r = c.date_search(datetime(2006,7,13,17,00,00),
+                          datetime(2006,7,15,17,00,00))
+        for e in r: print e.data
+        assert_equal(len(r), 1)
+
+        e.data = ev2
+        e.save()
+
+        r = c.date_search(datetime(2007,7,13,17,00,00),
+                          datetime(2007,7,15,17,00,00))
+        for e in r: print e.data
+        assert_equal(len(r), 1)
+
+        e.instance = e2.instance
+        e.save()
+        r = c.date_search(datetime(2007,7,13,17,00,00),
+                          datetime(2007,7,15,17,00,00))
+        for e in r: print e.data
+        assert_equal(len(r), 1)
+        
+
     def testObjects(self):
         ## TODO: description ... what are we trying to test for here?
         o = DAVObject(self.caldav)
