@@ -1,3 +1,12 @@
+2014-03-01  Tobias Brox <t-caldav@tobixen.no>
+	* caldav/lib/url.py (make): function for backward compatibility
+
+	* tests/: more test code, including backward compatibility test
+
+2014-02-16  Tobias Brox <t-caldav@tobixen.no>
+	* caldav/lib/namespace.py: fixing issue
+	https://bitbucket.org/cyrilrbt/caldav/issue/29/centos59-minifix
+
 2013-12-12  Tobias Brox <t-caldav@tobixen.no>
 	* caldav/objects.py (Calendar): compatibility hack for zimbra -
 	gotcha!  Use Calendar display name in the Calendar URL instead of
