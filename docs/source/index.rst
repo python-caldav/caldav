@@ -55,8 +55,10 @@ Quickstart
       event = calendar.add_event(vcal)
       print "Event", event, "created"
   
-      print "Looking for events after 2010-05-01"
-      results = calendar.date_search(datetime(2010, 5, 1))
+      print "Looking for events in 2010-05"
+      results = calendar.date_search(
+          datetime(2010, 5, 1), datetime(2010, 6, 1))
+
       for event in results:
           print "Found", event
 
