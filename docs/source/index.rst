@@ -25,8 +25,8 @@ Quickstart
   import caldav
   from caldav.elements import dav, cdav
   
-  # Principal url
-  url = "https://user:pass@hostname/user/Calendar"
+  # Caldav url
+  url = "https://user:pass@hostname/caldav.php/"
   
   vcal = """BEGIN:VCALENDAR
   VERSION:2.0
@@ -42,7 +42,7 @@ Quickstart
   """
   
   client = caldav.DAVClient(url)
-  principal = caldav.Principal(client, url)
+  principal = caldav.Principal(client)
   calendars = principal.calendars()
   if len(calendars) > 0:
       calendar = calendars[0]
@@ -52,7 +52,7 @@ Quickstart
       calendar.set_properties([dav.DisplayName("Test calendar"),])
       print calendar.get_properties([dav.DisplayName(),])
   
-      event = caldav.Event(client, data = vcal, parent = calendar).save()
+      event = calendar.add_event(vcal)
       print "Event", event, "created"
   
       print "Looking for events after 2010-05-01"
