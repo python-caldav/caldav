@@ -238,7 +238,6 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert_equal(e2.instance.vevent.uid, e1.instance.vevent.uid)
         assert_equal(e3.instance.vevent.uid, e1.instance.vevent.uid)
 
-
     def testDateSearch(self):
         """
         Verifies that date search works with a non-recurring event
@@ -266,6 +265,10 @@ class RepeatedFunctionalTestsBaseClass(object):
 
         r = c.date_search(datetime(2007,7,13,17,00,00),
                           datetime(2007,7,15,17,00,00))
+        assert_equal(len(r), 1)
+
+        ## date search without closing date should also find it
+        r = c.date_search(datetime(2007,7,13,17,00,00))
         assert_equal(len(r), 1)
 
     def testRecurringDateSearch(self):
