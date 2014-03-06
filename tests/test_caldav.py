@@ -200,6 +200,23 @@ class RepeatedFunctionalTestsBaseClass(object):
         if 'zimbra' not in str(c.url):
             assert_raises(error.NotFoundError, self.principal.calendar(name="Yep", cal_id=testcal_id).events)
 
+    def testCreateCalendarAndEvent(self):
+        c = self.principal.make_calendar(name="Yep", cal_id=testcal_id)
+
+        ## add event
+        e1 = c.add_event(ev1)
+
+        ## c.events() should give a full list of events
+        events = c.events()
+        assert_equal(len(events), 1)
+
+        ## We should be able to access the calender through the URL
+        c2 = Calendar(client=self.caldav, url=c.url)
+        events2 = c.events()
+        assert_equal(len(events2), 1)
+        assert_equal(events2[0].url, events[0].url)
+        
+
     def testSetCalendarProperties(self):
         c = self.principal.make_calendar(name="Yep", cal_id=testcal_id)
         assert_not_equal(c.url, None)
@@ -238,17 +255,25 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert_equal(e2.instance.vevent.uid, e1.instance.vevent.uid)
         assert_equal(e3.instance.vevent.uid, e1.instance.vevent.uid)
 
+        ## Knowing the URL of an event, we should be able to get to it
+        ## without going through a calendar object
+        e4 = Event(client=self.caldav, url=e1.url)
+        e4.load()
+        assert_equal(e4.instance.vevent.uid, e1.instance.vevent.uid)
+
     def testDateSearch(self):
         """
         Verifies that date search works with a non-recurring event
         Also verifies that it's possible to change a date of a
         non-recurring event
         """
+        ## Create calendar, add event ...
         c = self.principal.make_calendar(name="Yep", cal_id=testcal_id)
         assert_not_equal(c.url, None)
 
         e = c.add_event(ev1)
 
+        ## .. and search for it.
         r = c.date_search(datetime(2006,7,13,17,00,00),
                           datetime(2006,7,15,17,00,00))
 
@@ -276,7 +301,8 @@ class RepeatedFunctionalTestsBaseClass(object):
     def testRecurringDateSearch(self):
         """
         This is more sanity testing of the server side than testing of the
-        library per se
+        library per se.  How will it behave if we serve it a recurring
+        event?
         """
         c = self.principal.make_calendar(name="Yep", cal_id=testcal_id)
 
@@ -297,12 +323,15 @@ class RepeatedFunctionalTestsBaseClass(object):
         else:
             assert_equal(r[0].data.count("END:VEVENT"), 2)
 
+        ## The recurring events should not be expanded when using the
+        ## events() method
+        r = c.events()
+        assert_equal(len(r), 1)
+
     def testBackwardCompatibility(self):
         """
         Tobias Brox has done some API changes - but this thing should
-        still be backward compatible.  Here is some of the original
-        test code.  The test code did not pass on any servers when tobixen
-        took over the project.
+        still be backward compatible.
         """
         if not 'backwards_compatibility_url' in self.server_params:
             return
@@ -391,7 +420,7 @@ for _caldav_server in caldav_servers:
 class TestCalDAV:
     """
     Test class for "pure" unit tests (small internal tests, testing that
-    a small unit of code works as expected, without any no third party
+    a small unit of code works as expected, without any third party
     dependencies)
     """
     def testCalendar(self):

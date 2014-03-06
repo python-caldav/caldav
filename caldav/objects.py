@@ -29,7 +29,7 @@ class DAVObject(object):
         Parameters:
          * client: A DAVClient instance
          * url: The url for this object
-         * parent: The parent object
+         * parent: The parent object - used when creating objects
          * name: A displayname
          * id: The resource id (UID for an Event)
         """
