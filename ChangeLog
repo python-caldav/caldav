@@ -1,3 +1,13 @@
+2014-03-07  Tobias Brox <t-caldav@tobixen.no>
+	* caldav/objects.py - minor doc enhancement
+	* tests/test_caldav.py - more test code; tests that it's possible
+	to load an event or a calendar by the URL, tests that the
+	calendar.events() method works, and that it works as expected when
+	having recurring events in the calendar.
+	* docs/source/index.rst - documentation on how to run the test
+	suite towards private calendar servers
+	* setup.py - version bump
+
 2014-03-01  Tobias Brox <t-caldav@tobixen.no>
 	* caldav/lib/url.py (make): function for backward compatibility
 
