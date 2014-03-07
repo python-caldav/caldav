@@ -14,6 +14,8 @@ class BaseElement(object):
     def __init__(self, name=None, value=None):
         self.children = []
         self.attributes = {}
+        if value and not isinstance(value, unicode):
+            value = unicode(value, 'utf-8')
         self.value = None
         if name is not None:
             self.attributes['name'] = name

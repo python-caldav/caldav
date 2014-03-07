@@ -1,11 +1,19 @@
 2014-03-07  Tobias Brox <t-caldav@tobixen.no>
+	* caldav/davclient.py - support for unicode and utf8
+
+	* caldav/lib/url.py - support for unicode and utf8
+
 	* caldav/objects.py - minor doc enhancement
-	* tests/test_caldav.py - more test code; tests that it's possible
-	to load an event or a calendar by the URL, tests that the
-	calendar.events() method works, and that it works as expected when
-	having recurring events in the calendar.
+
+	* tests/test_caldav.py - load an event or a calendar by the URL
+
+	* tests/test_caldav.py - test calendar.events()
+
+	* tests/test_caldav.py - test utf8 and unicode
+
 	* docs/source/index.rst - documentation on how to run the test
 	suite towards private calendar servers
+
 	* setup.py - version bump
 
 2014-03-01  Tobias Brox <t-caldav@tobixen.no>

@@ -25,6 +25,9 @@ class URL:
     URL.
     """
     def __init__(self, url):
+        if isinstance(url, unicode):
+            ## TODO: this doesn't feel quite right ...
+            url = url.encode('utf8')
         if isinstance(url, urlparse.ParseResult) or isinstance(url, urlparse.SplitResult):
             self.url_parsed = url
             self.url_raw = None

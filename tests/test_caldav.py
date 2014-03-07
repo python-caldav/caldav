@@ -81,38 +81,25 @@ class RepeatedFunctionalTestsBaseClass(object):
                 self.conn_params.pop(x)
         self.caldav = DAVClient(**self.conn_params)
         self.principal = Principal(self.caldav)
-        try:                        
-            cal = self.principal.calendar(name="Yep", cal_id=testcal_id)
-            cal.delete()
-        except:
-            pass
-        try:
-            ## For zimbra
-            cal = self.principal.calendar(name="Yep", cal_id="Yep")
-            cal.delete()
-        except:
-            pass
+
+        ## tear down old test calendars, in case teardown wasn't properly 
+        ## executed last time tests were run
+        self._teardown()
+
         logging.debug("############## test setup done")
 
     def teardown(self):
         logging.debug("############## test teardown")
-        try:                        
-            cal = self.principal.calendar(name="Yep", cal_id=testcal_id)
-            cal.delete()
-        except:
-            pass
-        try:                        
-            cal = self.principal.calendar(name="Yep", cal_id=testcal_id2)
-            cal.delete()
-        except:
-            pass
-        try:
-            ## For zimbra
-            cal = self.principal.calendar(name="Yep", cal_id="Yep")
-            cal.delete()
-        except:
-            pass
+        self._teardown()
         logging.debug("############## test teardown done")
+
+    def _teardown(self):
+        for combos in (('Yep', testcal_id), ('Yep', testcal_id2), ('Yølp', testcal_id), ('Yep', 'Yep'), ('Yølp', 'Yølp')):
+            try:                        
+                cal = self.principal.calendar(name="Yep", cal_id=testcal_id)
+                cal.delete()
+            except:
+                pass
  
 
     def testPropfind(self):
@@ -197,6 +184,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         c.delete()
         
         ## verify that calendar does not exist - this breaks with zimbra :-(
+        ## COMPATIBILITY PROBLEM - todo, look more into it
         if 'zimbra' not in str(c.url):
             assert_raises(error.NotFoundError, self.principal.calendar(name="Yep", cal_id=testcal_id).events)
 
@@ -216,6 +204,30 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert_equal(len(events2), 1)
         assert_equal(events2[0].url, events[0].url)
         
+    def testUtf8Event(self):
+        c = self.principal.make_calendar(name="Yølp", cal_id=testcal_id)
+
+        ## add event
+        e1 = c.add_event(ev1.replace("Bastille Day Party", "Bringebærsyltetøyfestival"))
+
+        events = c.events()
+
+        ## COMPATIBILITY PROBLEM - todo, look more into it
+        if not 'zimbra' in str(c.url):
+            assert_equal(len(events), 1)
+
+    def testUnicodeEvent(self):
+        c = self.principal.make_calendar(name=u"Yølp", cal_id=testcal_id)
+
+        ## add event
+        e1 = c.add_event(unicode(ev1.replace("Bastille Day Party", "Bringebærsyltetøyfestival"), 'utf-8'))
+
+        ## c.events() should give a full list of events
+        events = c.events()
+
+        ## COMPATIBILITY PROBLEM - todo, look more into it
+        if not 'zimbra' in str(c.url):
+            assert_equal(len(events), 1)
 
     def testSetCalendarProperties(self):
         c = self.principal.make_calendar(name="Yep", cal_id=testcal_id)
@@ -224,7 +236,8 @@ class RepeatedFunctionalTestsBaseClass(object):
         props = c.get_properties([dav.DisplayName(),])
         assert_equal("Yep", props[dav.DisplayName.tag])
 
-        ## Creating a new calendar with different ID but with existing name - fails on zimbra only
+        ## Creating a new calendar with different ID but with existing name - fails on zimbra only.
+        ## This is OK to fail.
         if 'zimbra' in str(c.url):
             assert_raises(Exception, self.principal.make_calendar, "Yep", testcal_id2)
 
@@ -295,6 +308,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         ## date search without closing date should also find it
         r = c.date_search(datetime(2007,7,13,17,00,00))
         ## ... but alas, some servers don't support it
+        ## COMPATIBILITY PROBLEM - todo, look more into it
         if not 'baikal' in str(c.url):
             assert_equal(len(r), 1)
 
@@ -318,6 +332,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         
         ## So much for standards ... seems like different servers
         ## behaves differently
+        ## COMPATIBILITY PROBLEMS - look into it
         if "RRULE" in r[0].data and not "BEGIN:STANDARD" in r[0].data:
             assert_equal(r[0].data.count("END:VEVENT"), 1)
         else:

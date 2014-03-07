@@ -184,6 +184,9 @@ class DAVClient:
         if body is None or body == "" and "Content-Type" in combined_headers:
             del combined_headers["Content-Type"]
 
+        if isinstance(body, unicode):
+            body = body.encode('utf-8')
+
         try:
             logging.debug("sending request - method=%s, url=%s, headers=%s\nbody:\n%s" % (method, url, combined_headers, body))
             self.handle.request(method, url, body, combined_headers)
