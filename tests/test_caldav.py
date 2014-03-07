@@ -80,7 +80,7 @@ class RepeatedFunctionalTestsBaseClass(object):
             if not x in ('url', 'proxy', 'username', 'password'):
                 self.conn_params.pop(x)
         self.caldav = DAVClient(**self.conn_params)
-        self.principal = Principal(self.caldav)
+        self.principal = self.caldav.principal()
         try:                        
             cal = self.principal.calendar(name="Yep", cal_id=testcal_id)
             cal.delete()
@@ -154,7 +154,7 @@ class RepeatedFunctionalTestsBaseClass(object):
             conn_params = self.conn_params.copy()
             conn_params['proxy'] = proxy
             c = DAVClient(**conn_params)
-            p = Principal(c)
+            p = c.principal()
             assert_not_equal(len(p.calendars()), 0)
         finally:
             proxy_httpd.shutdown()
@@ -170,7 +170,7 @@ class RepeatedFunctionalTestsBaseClass(object):
             conn_params = self.conn_params.copy()
             conn_params['proxy'] = proxy_noport
             c = DAVClient(**conn_params)
-            p = Principal(c)
+            p = c.principal()
             assert_not_equal(len(p.calendars()), 0)
             assert(threadobj.is_alive())
         finally:
@@ -433,9 +433,9 @@ class TestCalDAV:
         DAVClient.__init__ also doesn't do any communication
         Principal.__init__ as well, if the principal_url is given
         Principal.calendar_home_set needs to be set or the server will be queried
-
         """
         client = DAVClient(url="http://me:hunter2@calendar.example:80/")
+
         principal = Principal(client, "http://me:hunter2@calendar.example:80/me/")
         principal.calendar_home_set = "http://me:hunter2@calendar.example:80/me/calendars/"
         ## calendar_home_set is actually a CalendarSet object
