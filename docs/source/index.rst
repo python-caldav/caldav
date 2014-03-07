@@ -42,7 +42,7 @@ Quickstart
   """
   
   client = caldav.DAVClient(url)
-  principal = caldav.Principal(client)
+  principal = client.principal()
   calendars = principal.calendars()
   if len(calendars) > 0:
       calendar = calendars[0]
@@ -72,6 +72,12 @@ To start the tests code, run:
 
   $ python setup.py nosetests
 
+Note that there is a big bug in the functional tests; if the test
+suite is run in parallell towards the same servers/principals, some
+tests will fail or raise exceptions, and this may very well happen if
+multiple developers runs the tests at the same time.  This hasn't been
+a problem so far.
+
 It will run some unit tests and some functional tests against two
 public caldav servers, one dedicated baikal server hosted by Tobias
 Brox, and the official SoGO demo server.  You may add your own private
@@ -83,7 +89,7 @@ servers into tests/conf_private.py, like this:
 
 the dict may contain:
  * username and password (if not embedded in the URL)
- * principal_url (used to verify Principal(...).url)
+ * principal_url (used to verify client.principal().url)
  * backwards_compatibility_url (use this if you've been using caldav versions prior to 0.2)
 
 

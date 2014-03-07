@@ -8,6 +8,7 @@ from lxml import etree
 
 from caldav.lib import error
 from caldav.lib.url import URL
+from caldav.objects import Principal
 
 
 class DAVResponse:
@@ -88,6 +89,13 @@ class DAVClient:
             self.handle = httplib.HTTPConnection(self.url.hostname,
                                                  self.url.port)
         self.url = self.url.unauth()
+
+    def principal(self):
+        """
+        Convenience method, it gives a bit more object-oriented feel to
+        write client.principal() than Principal(client)
+        """
+        return Principal(self)
 
     def propfind(self, url=None, props="", depth=0):
         """

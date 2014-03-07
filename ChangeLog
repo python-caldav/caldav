@@ -1,12 +1,29 @@
 2014-03-07  Tobias Brox <t-caldav@tobixen.no>
+	* setup.py - version bump (0.3-devel)
+
+	* caldav/davclient.py - minor api difference; it feels more
+	object-oriented to write principal = client.principal() than
+	principal = Principal(client)
+
+	* caldav/tests/test_caldav.py - work to reflect the above
+
+	* docs/source/index.rst - work to reflect the above
+
+	* docs/source/index.rst - added documentation that the tests may
+	fail if several test runs are performed simultaneously
+
+2014-03-07  Tobias Brox <t-caldav@tobixen.no>
 	* caldav/objects.py - minor doc enhancement
+
 	* tests/test_caldav.py - more test code; tests that it's possible
 	to load an event or a calendar by the URL, tests that the
 	calendar.events() method works, and that it works as expected when
 	having recurring events in the calendar.
+
 	* docs/source/index.rst - documentation on how to run the test
 	suite towards private calendar servers
-	* setup.py - version bump
+
+	* setup.py - version bump (0.2.1-devel)
 
 2014-03-01  Tobias Brox <t-caldav@tobixen.no>
 	* caldav/lib/url.py (make): function for backward compatibility
