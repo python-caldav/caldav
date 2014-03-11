@@ -40,7 +40,11 @@ class DAVObject(object):
         self.parent = parent
         self.name = name
         self.id = id
-        self.url = URL.objectify(url)
+        ## url may be a path relative to the caldav root
+        if client and url:
+            self.url = client.url.join(url)
+        else:
+            self.url = URL.objectify(url)
 
     @property
     def canonical_url(self):
