@@ -17,12 +17,12 @@ class URL:
     Remark that hostname, port, user, pass is typically given when
     instantiating the DAVClient object and cannot be overridden later.
 
-    As of 2013-11, some methods expects strings and some expects
-    urlparse.ParseResult objects, some expects fully qualified URLs
-    and most expects absolute paths.  The purpose of this class is to
-    ensure consistency and at the same time maintaining backward
-    compatibility.  Basically, all methods should accept any kind of
-    URL.
+    As of 2013-11, some methods in the caldav library expected strings
+    and some expected urlparse.ParseResult objects, some expected
+    fully qualified URLs and most expected absolute paths.  The purpose
+    of this class is to ensure consistency and at the same time
+    maintaining backward compatibility.  Basically, all methods should
+    accept any kind of URL.
     """
     def __init__(self, url):
         if isinstance(url, unicode):
@@ -34,6 +34,12 @@ class URL:
         else:
             self.url_raw = url
             self.url_parsed = None
+
+    def __nonzero__(self):
+        if self.url_raw or self.url_parsed:
+            return True
+        else:
+            return False
 
     def __ne__(self, other):
         return not self == other
@@ -72,7 +78,7 @@ class URL:
     def __str__(self):
         if self.url_raw is None:
             self.url_raw = self.url_parsed.geturl()
-        return self.url_raw
+        return self.url_raw.__str__()
 
     def __repr__(self):
         return "URL(%s)" % str(self)
@@ -121,6 +127,8 @@ class URL:
         self.  If the path already contains connection details and the
         connection details differ from self, raise an error.
         """
+        if not path:
+            return self
         path = URL.objectify(path)
         if (
             (path.scheme and self.scheme and path.scheme != self.scheme)
@@ -143,4 +151,4 @@ class URL:
 
 def make(url):
     """Backward compatibility"""
-    return URL(url)
+    return URL.objectify(url)

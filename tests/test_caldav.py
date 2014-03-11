@@ -80,7 +80,7 @@ class RepeatedFunctionalTestsBaseClass(object):
             if not x in ('url', 'proxy', 'username', 'password'):
                 self.conn_params.pop(x)
         self.caldav = DAVClient(**self.conn_params)
-        self.principal = Principal(self.caldav)
+        self.principal = self.caldav.principal()
 
         ## tear down old test calendars, in case teardown wasn't properly 
         ## executed last time tests were run
@@ -141,7 +141,7 @@ class RepeatedFunctionalTestsBaseClass(object):
             conn_params = self.conn_params.copy()
             conn_params['proxy'] = proxy
             c = DAVClient(**conn_params)
-            p = Principal(c)
+            p = c.principal()
             assert_not_equal(len(p.calendars()), 0)
         finally:
             proxy_httpd.shutdown()
@@ -157,7 +157,7 @@ class RepeatedFunctionalTestsBaseClass(object):
             conn_params = self.conn_params.copy()
             conn_params['proxy'] = proxy_noport
             c = DAVClient(**conn_params)
-            p = Principal(c)
+            p = c.principal()
             assert_not_equal(len(p.calendars()), 0)
             assert(threadobj.is_alive())
         finally:
@@ -448,9 +448,9 @@ class TestCalDAV:
         DAVClient.__init__ also doesn't do any communication
         Principal.__init__ as well, if the principal_url is given
         Principal.calendar_home_set needs to be set or the server will be queried
-
         """
         client = DAVClient(url="http://me:hunter2@calendar.example:80/")
+
         principal = Principal(client, "http://me:hunter2@calendar.example:80/me/")
         principal.calendar_home_set = "http://me:hunter2@calendar.example:80/me/calendars/"
         ## calendar_home_set is actually a CalendarSet object
@@ -466,6 +466,11 @@ class TestCalDAV:
         calendar1 = principal.calendar(name="foo", cal_id="bar")
         assert_equal(calendar1.url, calendar2.url)
 
+        ## When building a calendar from a relative URL and a client, the relative URL should be appended to the base URL in the client
+        calendar1 = Calendar(client, 'someoneelse/calendars/main_calendar')
+        calendar2 = Calendar(client, 'http://me:hunter2@calendar.example:80/someoneelse/calendars/main_calendar')
+        assert_equal(calendar1.url, calendar2.url)
+
     def testDefaultClient(self):
         """When no client is given to a DAVObject, but the parent is given, parent.client will be used"""
         client = DAVClient(url="http://me:hunter2@calendar.example:80/")
@@ -477,6 +482,8 @@ class TestCalDAV:
         """Excersising the URL class"""
 
         ## 1) URL.objectify should return a valid URL object almost no matter what's thrown in
+        url0 = URL.objectify(None)
+        url0b= URL.objectify("")
         url1 = URL.objectify("http://foo:bar@www.example.com:8080/caldav.php/?foo=bar")
         url2 = URL.objectify(url1)
         url3 = URL.objectify("/bar")
@@ -501,6 +508,26 @@ class TestCalDAV:
         url9 = url1.join(url5)
         urlA = url1.join("someuser/calendar")
         urlB = url5.join(url1)
+        assert_equal(url6, url1)
+        assert_equal(url7, "http://foo:bar@www.example.com:8080/bar")
+        assert_equal(url8, url1)
+        assert_equal(url9, url7)
+        assert_equal(urlA, "http://foo:bar@www.example.com:8080/caldav.php/someuser/calendar")
+        assert_equal(urlB, url1)
+        assert_raises(ValueError, url1.join, "http://www.google.com")
+
+        ## 4b) join method, with URL as input parameter
+        url6 = url1.join(URL.objectify(url2))
+        url7 = url1.join(URL.objectify(url3))
+        url8 = url1.join(URL.objectify(url4))
+        url9 = url1.join(URL.objectify(url5))
+        urlA = url1.join(URL.objectify("someuser/calendar"))
+        urlB = url5.join(URL.objectify(url1))
+        url6b= url6.join(url0)
+        url6c= url6.join(url0b)
+        url6d= url6.join(None)
+        for url6alt in (url6b, url6c, url6d):
+            assert_equal(url6, url6alt)
         assert_equal(url6, url1)
         assert_equal(url7, "http://foo:bar@www.example.com:8080/bar")
         assert_equal(url8, url1)
