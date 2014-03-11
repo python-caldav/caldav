@@ -1,3 +1,14 @@
+2014-03-12  Tobias Brox <t-caldav@tobixen.no>
+	* setup.py - version bump (0.3)
+
+	* caldav/lib/url.py - battle hardening
+
+	* caldav/objects.py - allowing for relative URLs to be used
+
+	* caldav/test_caldav.py - test that relative URLs works as expected
+
+	* caldav/test_caldav.py - test that the URL library is robust
+
 2014-03-07  Tobias Brox <t-caldav@tobixen.no>
 	* setup.py - version bump (0.3-devel)
 

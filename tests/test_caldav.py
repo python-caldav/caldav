@@ -466,6 +466,11 @@ class TestCalDAV:
         calendar1 = principal.calendar(name="foo", cal_id="bar")
         assert_equal(calendar1.url, calendar2.url)
 
+        ## When building a calendar from a relative URL and a client, the relative URL should be appended to the base URL in the client
+        calendar1 = Calendar(client, 'someoneelse/calendars/main_calendar')
+        calendar2 = Calendar(client, 'http://me:hunter2@calendar.example:80/someoneelse/calendars/main_calendar')
+        assert_equal(calendar1.url, calendar2.url)
+
     def testDefaultClient(self):
         """When no client is given to a DAVObject, but the parent is given, parent.client will be used"""
         client = DAVClient(url="http://me:hunter2@calendar.example:80/")
@@ -477,6 +482,8 @@ class TestCalDAV:
         """Excersising the URL class"""
 
         ## 1) URL.objectify should return a valid URL object almost no matter what's thrown in
+        url0 = URL.objectify(None)
+        url0b= URL.objectify("")
         url1 = URL.objectify("http://foo:bar@www.example.com:8080/caldav.php/?foo=bar")
         url2 = URL.objectify(url1)
         url3 = URL.objectify("/bar")
@@ -501,6 +508,26 @@ class TestCalDAV:
         url9 = url1.join(url5)
         urlA = url1.join("someuser/calendar")
         urlB = url5.join(url1)
+        assert_equal(url6, url1)
+        assert_equal(url7, "http://foo:bar@www.example.com:8080/bar")
+        assert_equal(url8, url1)
+        assert_equal(url9, url7)
+        assert_equal(urlA, "http://foo:bar@www.example.com:8080/caldav.php/someuser/calendar")
+        assert_equal(urlB, url1)
+        assert_raises(ValueError, url1.join, "http://www.google.com")
+
+        ## 4b) join method, with URL as input parameter
+        url6 = url1.join(URL.objectify(url2))
+        url7 = url1.join(URL.objectify(url3))
+        url8 = url1.join(URL.objectify(url4))
+        url9 = url1.join(URL.objectify(url5))
+        urlA = url1.join(URL.objectify("someuser/calendar"))
+        urlB = url5.join(URL.objectify(url1))
+        url6b= url6.join(url0)
+        url6c= url6.join(url0b)
+        url6d= url6.join(None)
+        for url6alt in (url6b, url6c, url6d):
+            assert_equal(url6, url6alt)
         assert_equal(url6, url1)
         assert_equal(url7, "http://foo:bar@www.example.com:8080/bar")
         assert_equal(url8, url1)
