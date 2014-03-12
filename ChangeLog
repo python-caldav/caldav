@@ -1,5 +1,5 @@
 2014-03-12  Tobias Brox <t-caldav@tobixen.no>
-	* setup.py - version bump (0.3)
+	* setup.py - version bump (0.2.2)
 
 	* caldav/lib/url.py - battle hardening
 
@@ -10,8 +10,6 @@
 	* caldav/test_caldav.py - test that the URL library is robust
 
 2014-03-07  Tobias Brox <t-caldav@tobixen.no>
-	* setup.py - version bump (0.3-devel)
-
 	* caldav/davclient.py - minor api difference; it feels more
 	object-oriented to write principal = client.principal() than
 	principal = Principal(client)
@@ -23,7 +21,6 @@
 	* docs/source/index.rst - added documentation that the tests may
 	fail if several test runs are performed simultaneously
 
-2014-03-07  Tobias Brox <t-caldav@tobixen.no>
 	* caldav/davclient.py - support for unicode and utf8
 
 	* caldav/lib/url.py - support for unicode and utf8
