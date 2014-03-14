@@ -13,8 +13,10 @@ from caldav.objects import Principal
 
 class DAVResponse:
     """
-    This class is a response from a DAV request.
-    Since we often get XML responses, it tries to parse it into `self.tree`
+    This class is a response from a DAV request.  It is instantiated from
+    the DAVClient class.  End users of the library should not need to
+    know anything about this class.  Since we often get XML responses,
+    it tries to parse it into `self.tree`
     """
     raw = ""
     reason = ""
@@ -39,7 +41,11 @@ class DAVResponse:
 
 class DAVClient:
     """
-    Basic client for webdav, heavily based on httplib
+    Basic client for webdav, heavily based on httplib; gives access to
+    low-level operations towards the caldav server.
+
+    Unless you have special needs, you should probably care most about
+    the __init__ and principal methods.
     """
     proxy = None
     url = None
@@ -50,6 +56,7 @@ class DAVClient:
         Parameters:
          * url: A fully qualified url: `scheme://user:pass@hostname:port`
          * proxy: A string defining a proxy server: `hostname:port`
+         * username and password should be passed as arguments or in the URL
         """
 
         self.url = URL.objectify(url)
@@ -93,7 +100,11 @@ class DAVClient:
     def principal(self):
         """
         Convenience method, it gives a bit more object-oriented feel to
-        write client.principal() than Principal(client)
+        write client.principal() than Principal(client).
+
+        This method returns a :class:`caldav.Principal` object, with
+        higher-level methods for dealing with the principals
+        calendars.
         """
         return Principal(self)
 

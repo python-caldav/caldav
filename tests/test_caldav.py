@@ -309,7 +309,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         r = c.date_search(datetime(2007,7,13,17,00,00))
         ## ... but alas, some servers don't support it
         ## COMPATIBILITY PROBLEM - todo, look more into it
-        if not 'baikal' in str(c.url):
+        if not 'baikal' in str(c.url) and not 'owncloud' in str(c.url):
             assert_equal(len(r), 1)
 
     def testRecurringDateSearch(self):

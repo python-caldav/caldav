@@ -3,11 +3,12 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Documentation: caldav |release|
-======================================
+=================================
+ Documentation: caldav |release|
+=================================
 
 Contents
---------
+========
 
 .. toctree::
    :maxdepth: 1
@@ -17,7 +18,7 @@ Contents
 
 
 Quickstart
-----------
+==========
 
 .. code-block:: python
 
@@ -62,9 +63,65 @@ Quickstart
       for event in results:
           print "Found", event
 
+More examples
+=============
+
+See the `test code <https://bitbucket.org/cyrilrbt/caldav/src/default/tests/test_caldav.py?at=default>`_ for more usage examples.  Tobias Brox is also working on a `command line interface <https://github.com/tobixen/calendar-cli>`_  built around the caldav library.
+
+Notable classes and workflow
+============================
+
+ * You'd always start by initiating a :class:`caldav.davclient.DAVClient`
+   object, this object holds the authentication details for the
+   server.
+
+ * From the client object one can get hold of a
+   :class:`caldav.objects.Principal`
+   object representing the logged in principal.
+
+ * From the principal object one can fetch / generate
+   :class:`caldav.objects.Calendar` objects.  Calendar objects can also be
+   instantiated directly from an absolute or relative URL and the client 
+   object.
+
+ * From the calendar object one can fetch / generate
+   :class:`caldav.objects.Event` objects.  Event objects can also be
+   instantiated directly from an absolute or relative URL and the client
+   object.
+
+Note that those are also available as :class:`caldav.DAVClient`,
+:class:`caldav.Principal`, :class:`caldav.Calendar` and
+:class:`caldav.Event`.
+
+
+Compatibility
+=============
+
+The test suite is regularly run against SoGO, Baikal, DAViCal, Zimbra
+and OwnCloud.  Some compatibility issues have been found, search the
+test code for "COMPATIBILITY" for details.  Notably;
+
+ * Baikal and OwnCloud apparently doesn't support open ended date
+   searches (search yields nothing).  The end timestamp in the
+   calendar.date_search method is optional, but you may want to pass
+   it anyway.
+
+ * You may want to avoid non-ASCII characters in the calendar name, or
+   Zimbra may behave a bit unexpectedly.
+
+ * How would you expect the result to be when doing date searches
+   spanning multiple instances of a recurring event?  Would you expect
+   one ical object for each occurrence (and maybe that's why
+   open-ended date searches tend to break at some implementations) or
+   one recurring ical object?  Different servers behave a bit
+   differently (but more research is needed on this one).
+
+ * Zimbra seems to be the least compatible server, there are some
+   special hacks in the code to work around compatibility issues in
+   Zimbra.
 
 Unit testing
-------------
+============
 
 To start the tests code, run:
 
@@ -92,9 +149,8 @@ the dict may contain:
  * principal_url (used to verify client.principal().url)
  * backwards_compatibility_url (use this if you've been using caldav versions prior to 0.2)
 
-
 Documentation
--------------
+=============
 
 To build the documentation, run:
 
@@ -103,8 +159,9 @@ To build the documentation, run:
   $ python setup.py build_sphinx
 
 
-Indices and tables
-==================
+====================
+ Indices and tables
+====================
 
 * :ref:`genindex`
 * :ref:`modindex`

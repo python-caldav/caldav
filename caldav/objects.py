@@ -1,6 +1,10 @@
 #!/usr/bin/env python
 # -*- encoding: utf-8 -*-
 
+"""
+A "DAV object" is anything we get from the caldav server or push into the caldav server, notably principal, calendars and calendar events.
+"""
+
 import vobject
 import StringIO
 import uuid
@@ -14,7 +18,8 @@ from caldav.elements import dav, cdav
 
 class DAVObject(object):
     """
-    Base class for all DAV objects.
+    Base class for all DAV objects.  Can be instantiated by a client
+    and an absolute or relative URL, or from the parent object.
     """
     id = None
     url = None
@@ -28,7 +33,7 @@ class DAVObject(object):
 
         Parameters:
          * client: A DAVClient instance
-         * url: The url for this object
+         * url: The url for this object.  May be a full URL or a relative URL.
          * parent: The parent object - used when creating objects
          * name: A displayname
          * id: The resource id (UID for an Event)
