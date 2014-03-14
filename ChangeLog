@@ -1,3 +1,8 @@
+2014-03-14  Tobias Brox <t-caldav@tobixen.no>
+	* General - more verbose documentation
+
+	* caldav/test_caldav.py - added an exception for OwnCloud, it does not support open-ended date searches
+
 2014-03-12  Tobias Brox <t-caldav@tobixen.no>
 	* setup.py - version bump (0.2.2)
 

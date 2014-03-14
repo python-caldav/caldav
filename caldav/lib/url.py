@@ -4,7 +4,14 @@
 import urlparse
 
 class URL:
-    """Addresses may be one out of three:
+    """
+    This class is for wrapping URLs into objects.  It's used
+    internally in the library, end users should not need to know
+    anything about this class.  All methods that accept URLs can be
+    fed either with an URL object, a string or an urlparse.ParsedURL
+    object.
+
+    Addresses may be one out of three:
 
     1) a path relative to the DAV-root, i.e. "someuser/calendar" may
     refer to
@@ -23,6 +30,7 @@ class URL:
     of this class is to ensure consistency and at the same time
     maintaining backward compatibility.  Basically, all methods should
     accept any kind of URL.
+
     """
     def __init__(self, url):
         if isinstance(url, unicode):
