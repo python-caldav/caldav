@@ -218,7 +218,7 @@ class DAVClient:
             ## TODO: we're missing test code on this.  (will need to
             ## mock up a server to test this)
             self.handle.request(method, url, body, combined_headers)
-            response = DAVResponse(self.handle.getresponse(n))
+            response = DAVResponse(self.handle.getresponse())
 
         # this is an error condition the application wants to know
         if response.status == httplib.FORBIDDEN or \
