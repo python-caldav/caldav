@@ -33,9 +33,6 @@ class URL:
 
     """
     def __init__(self, url):
-        if isinstance(url, unicode):
-            ## TODO: this doesn't feel quite right ...
-            url = url.encode('utf8')
         if isinstance(url, urlparse.ParseResult) or isinstance(url, urlparse.SplitResult):
             self.url_parsed = url
             self.url_raw = None
@@ -84,9 +81,16 @@ class URL:
 
     ## returns the url in text format
     def __str__(self):
+        return self.__unicode__()
+
+    ## returns the url in text format
+    def __unicode__(self):
         if self.url_raw is None:
             self.url_raw = self.url_parsed.geturl()
-        return self.url_raw.__str__()
+        if isinstance(self.url_raw, unicode):
+            return self.url_raw
+        else:
+            return unicode(self.url_raw, 'utf-8')
 
     def __repr__(self):
         return "URL(%s)" % str(self)
