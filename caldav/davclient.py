@@ -42,7 +42,7 @@ class DAVResponse:
 
 class DAVClient:
     """
-    Basic client for webdav, heavily based on httplib; gives access to
+    Basic client for webdav, uses the requests lib; gives access to
     low-level operations towards the caldav server.
 
     Unless you have special needs, you should probably care most about
