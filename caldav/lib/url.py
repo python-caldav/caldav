@@ -103,8 +103,8 @@ class URL:
 
     def canonical(self):
         """
-        a canonical URL ... remove authentication details, make sure there 
-        are no double slashes, and to make sure the URL is always the same, 
+        a canonical URL ... remove authentication details, make sure there
+        are no double slashes, and to make sure the URL is always the same,
         run it through the urlparser
         """
         url = self.unauth()
@@ -112,10 +112,6 @@ class URL:
         ## this is actually already done in the unauth method ...
         if '//' in url.path:
             raise NotImplementedError("remove the double slashes")
-
-        ## TODO: optimize - we're going to burn some CPU cycles here
-        if url.endswith('/'):
-            url = URL.objectify(str(url)[:-1])
 
         ## This looks like a noop - but it may have the side effect
         ## that urlparser be run (actually not - unauth ensures we
@@ -146,7 +142,7 @@ class URL:
             (path.port and self.port and path.port != self.port)
         ):
             raise ValueError("%s can't be joined with %s" % (self, path))
-                
+
         if path.path[0] == '/':
             ret_path = path.path
         else:
