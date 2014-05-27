@@ -3,6 +3,13 @@
 
 import urlparse
 
+def uc2utf8(input):
+    ## argh!  this feels wrong, but seems to be needed.
+    if type(input) == unicode:
+        return input.encode('utf-8')
+    else:
+        return input
+
 class URL:
     """
     This class is for wrapping URLs into objects.  It's used
@@ -77,11 +84,11 @@ class URL:
         if hasattr(self.url_parsed, attr):
             return getattr(self.url_parsed, attr)
         else:
-            return getattr(str(self), attr)
+            return getattr(self.__unicode__(), attr)
 
     ## returns the url in text format
     def __str__(self):
-        return self.__unicode__()
+        return self.__unicode__().encode('utf-8')
 
     ## returns the url in text format
     def __unicode__(self):
@@ -152,12 +159,12 @@ class URL:
             raise ValueError("%s can't be joined with %s" % (self, path))
                 
         if path.path[0] == '/':
-            ret_path = path.path
+            ret_path = uc2utf8(path.path)
         else:
             sep = "/"
             if self.path.endswith("/"):
                 sep = ""
-            ret_path = "%s%s%s" % (self.path, sep, path.path)
+            ret_path = "%s%s%s" % (self.path, sep, uc2utf8(path.path))
         return URL(urlparse.ParseResult(
             self.scheme or path.scheme, self.netloc or path.netloc, ret_path, path.params, path.query, path.fragment))
 
