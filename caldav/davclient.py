@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 # -*- encoding: utf-8 -*-
 
-import httplib
+import requests
 import logging
 import urllib
+import re
 from lxml import etree
 
 from caldav.lib import error
@@ -25,9 +26,9 @@ class DAVResponse:
     status = 0
 
     def __init__(self, response):
-        self.raw = response.read()
-        self.headers = response.getheaders()
-        self.status = response.status
+        self.raw = response.content
+        self.headers = response.headers
+        self.status = response.status_code
         self.reason = response.reason
         logging.debug("response headers: " + str(self.headers))
         logging.debug("response status: " + str(self.status))
@@ -41,7 +42,7 @@ class DAVResponse:
 
 class DAVClient:
     """
-    Basic client for webdav, heavily based on httplib; gives access to
+    Basic client for webdav, uses the requests lib; gives access to
     low-level operations towards the caldav server.
 
     Unless you have special needs, you should probably care most about
@@ -59,17 +60,22 @@ class DAVClient:
          * username and password should be passed as arguments or in the URL
         """
 
+        logging.debug("url: " + str(url))
         self.url = URL.objectify(url)
 
         # Prepare proxy info
         if proxy is not None:
+            self.proxy = proxy
+            if re.match('^.*://', proxy) is None:  # requests library expects the proxy url to have a scheme
+                self.proxy = self.url.scheme + '://' + proxy
+
+            # add a port is one is not specified
             # TODO: this will break if using basic auth and embedding 
             # username:password in the proxy URL
-            self.proxy = proxy.split(":")
-            if len(self.proxy) == 1:
-                self.proxy.append(8080)
-            else:
-                self.proxy[1] = int(self.proxy[1])
+            p = self.proxy.split(":")
+            if len(p) == 2:
+                self.proxy += ':8080'
+            logging.debug("init - proxy: %s" % (self.proxy))
 
         # Build global headers
         self.headers = {"User-Agent": "Mozilla/5.0",
@@ -78,24 +84,11 @@ class DAVClient:
         if self.url.username is not None:
             username = urllib.unquote(self.url.username)
             password = urllib.unquote(self.url.password)
-        if username is not None:
-            hash = (("%s:%s" % (username, password))
-                    .encode('base64')[:-1])
-            self.headers['authorization'] = "Basic %s" % hash
 
-        # Connection proxy
-        if self.proxy is not None:
-            self.handle = httplib.HTTPConnection(*self.proxy)
-        # direct, https
-        # TODO: we shouldn't use SSL on http://weird.server.example.com:443/
-        elif self.url.port == 443 or self.url.scheme == 'https':
-            self.handle = httplib.HTTPSConnection(self.url.hostname,
-                                                  self.url.port)
-        # direct, http
-        else:
-            self.handle = httplib.HTTPConnection(self.url.hostname,
-                                                 self.url.port)
+        self.username = username
+        self.password = password
         self.url = self.url.unauth()
+        logging.debug("self.url: " + str(url))
 
     def principal(self):
         """
@@ -193,10 +186,17 @@ class DAVClient:
         """
         Actually sends the request
         """
+
+        # objectify the url
         url = URL.objectify(url)
+
+        proxies = None
         if self.proxy is not None:
-            url = "%s://%s:%s%s" % (self.url.scheme, self.url.hostname,
-                                    self.url.port, url.path)
+            proxies = {url.scheme: self.proxy}
+            logging.debug("using proxy - %s" % (proxies))
+
+        # ensure that url is a unicode string
+        url = unicode(URL.objectify(url))
 
         combined_headers = self.headers
         combined_headers.update(headers)
@@ -206,23 +206,17 @@ class DAVClient:
         if isinstance(body, unicode):
             body = body.encode('utf-8')
 
-        try:
-            logging.debug("sending request - method=%s, url=%s, headers=%s\nbody:\n%s" % (method, url, combined_headers, body))
-            self.handle.request(method, url, body, combined_headers)
-            response = DAVResponse(self.handle.getresponse())
-        except httplib.BadStatusLine:
-            # Try to reconnect
-            self.handle.close()
-            self.handle.connect()
+        logging.debug("sending request - method={0}, url={1}, headers={2}\nbody:\n{3}".format(method, url.encode('utf-8'), combined_headers, body))
+        auth = None
+        if self.username is not None:
+            auth = requests.auth.HTTPBasicAuth(self.username, self.password)
 
-            ## TODO: we're missing test code on this.  (will need to
-            ## mock up a server to test this)
-            self.handle.request(method, url, body, combined_headers)
-            response = DAVResponse(self.handle.getresponse())
+        r = requests.request(method, url, data=body, headers=combined_headers, proxies=proxies, auth=auth)
+        response = DAVResponse(r)
 
         # this is an error condition the application wants to know
-        if response.status == httplib.FORBIDDEN or \
-                response.status == httplib.UNAUTHORIZED:
+        if response.status == requests.codes.forbidden or \
+                response.status == requests.codes.unauthorized:
             ex = error.AuthorizationError()
             ex.url = url
             ex.reason = response.reason
