@@ -102,6 +102,12 @@ class URL:
     def __repr__(self):
         return "URL(%s)" % str(self)
 
+    def strip_trailing_slash(self):
+        if str(self)[-1] == '/':
+            return URL.objectify(str(self)[:-1])
+        else:
+            return self
+
     def is_auth(self):
         return self.username is not None
 
