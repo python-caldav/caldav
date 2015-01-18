@@ -3,6 +3,13 @@
 
 import urlparse
 
+def uc2utf8(input):
+    ## argh!  this feels wrong, but seems to be needed.
+    if type(input) == unicode:
+        return input.encode('utf-8')
+    else:
+        return input
+
 class URL:
     """
     This class is for wrapping URLs into objects.  It's used
@@ -33,9 +40,6 @@ class URL:
 
     """
     def __init__(self, url):
-        if isinstance(url, unicode):
-            ## TODO: this doesn't feel quite right ...
-            url = url.encode('utf8')
         if isinstance(url, urlparse.ParseResult) or isinstance(url, urlparse.SplitResult):
             self.url_parsed = url
             self.url_raw = None
@@ -80,13 +84,20 @@ class URL:
         if hasattr(self.url_parsed, attr):
             return getattr(self.url_parsed, attr)
         else:
-            return getattr(str(self), attr)
+            return getattr(self.__unicode__(), attr)
 
     ## returns the url in text format
     def __str__(self):
+        return self.__unicode__().encode('utf-8')
+
+    ## returns the url in text format
+    def __unicode__(self):
         if self.url_raw is None:
             self.url_raw = self.url_parsed.geturl()
-        return self.url_raw.__str__()
+        if isinstance(self.url_raw, unicode):
+            return self.url_raw
+        else:
+            return unicode(self.url_raw, 'utf-8')
 
     def __repr__(self):
         return "URL(%s)" % str(self)
@@ -103,8 +114,8 @@ class URL:
 
     def canonical(self):
         """
-        a canonical URL ... remove authentication details, make sure there 
-        are no double slashes, and to make sure the URL is always the same, 
+        a canonical URL ... remove authentication details, make sure there
+        are no double slashes, and to make sure the URL is always the same,
         run it through the urlparser
         """
         url = self.unauth()
@@ -112,10 +123,6 @@ class URL:
         ## this is actually already done in the unauth method ...
         if '//' in url.path:
             raise NotImplementedError("remove the double slashes")
-
-        ## TODO: optimize - we're going to burn some CPU cycles here
-        if url.endswith('/'):
-            url = URL.objectify(str(url)[:-1])
 
         ## This looks like a noop - but it may have the side effect
         ## that urlparser be run (actually not - unauth ensures we
@@ -146,14 +153,14 @@ class URL:
             (path.port and self.port and path.port != self.port)
         ):
             raise ValueError("%s can't be joined with %s" % (self, path))
-                
+
         if path.path[0] == '/':
-            ret_path = path.path
+            ret_path = uc2utf8(path.path)
         else:
             sep = "/"
             if self.path.endswith("/"):
                 sep = ""
-            ret_path = "%s%s%s" % (self.path, sep, path.path)
+            ret_path = "%s%s%s" % (self.path, sep, uc2utf8(path.path))
         return URL(urlparse.ParseResult(
             self.scheme or path.scheme, self.netloc or path.netloc, ret_path, path.params, path.query, path.fragment))
 
