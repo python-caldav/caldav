@@ -1,7 +1,7 @@
 # -*- encoding: utf-8 -*-
 from setuptools import setup, find_packages
 
-version = '0.2.2'
+version = '0.2.1'
 
 if __name__ == '__main__':
     setup(
@@ -26,5 +26,5 @@ if __name__ == '__main__':
         packages=find_packages(),
         include_package_data=True,
         zip_safe=False,
-        install_requires=['vobject', 'lxml', 'nose', 'coverage', 'sphinx'],
+        install_requires=['vobject', 'lxml', 'nose', 'coverage', 'sphinx', 'requests'],
     )

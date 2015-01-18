@@ -178,7 +178,7 @@ class DAVObject(object):
 
         q = etree.tostring(root.xmlelement(), encoding="utf-8",
                            xml_declaration=True)
-        r = self.client.proppatch(self.url.path, q)
+        r = self.client.proppatch(self.url, q)
 
         statuses = r.tree.findall(".//" + dav.Status.tag)
         for s in statuses:
@@ -202,8 +202,7 @@ class DAVObject(object):
         Delete the object.
         """
         if self.url is not None:
-            path = self.url.path
-            r = self.client.delete(path)
+            r = self.client.delete(self.url)
 
             #TODO: find out why we get 404
             if r.status not in (200, 204, 404):
@@ -406,7 +405,7 @@ class Calendar(DAVObject):
 
         q = etree.tostring(root.xmlelement(), encoding="utf-8",
                            xml_declaration=True)
-        response = self.client.report(self.url.path, q, 1)
+        response = self.client.report(self.url, q, 1)
         for r in response.tree.findall(".//" + dav.Response.tag):
             status = r.find(".//" + dav.Status.tag)
             if status.text.endswith("200 OK"):
@@ -448,7 +447,7 @@ class Calendar(DAVObject):
 
         q = etree.tostring(root.xmlelement(), encoding="utf-8",
                            xml_declaration=True)
-        response = self.client.report(self.url.path, q, 1)
+        response = self.client.report(self.url, q, 1)
 
         if response.status == 404:
             raise error.NotFoundError(response.raw)
@@ -503,7 +502,7 @@ class Event(DAVObject):
         """
         Load the event from the caldav server.
         """
-        r = self.client.request(self.url.path)
+        r = self.client.request(self.url)
         if r.status == 404:
             raise error.NotFoundError(r.raw)
         self.data = vcal.fix(r.raw)
