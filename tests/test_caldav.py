@@ -183,7 +183,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         ## huh ... we're quite constantly getting out a list with one item, the URL for
 	## the caldav server.  This needs to be investigated, it is surely a bug in our
 	## code.  Anyway, better to ignore it now than to have broken test code.
-        #assert_equal(len(events), 0)
+        assert_equal(len(events), 0)
         c.delete()
         
         ## verify that calendar does not exist - this breaks with zimbra :-(
