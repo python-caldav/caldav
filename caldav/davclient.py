@@ -196,7 +196,7 @@ class DAVClient:
             logging.debug("using proxy - %s" % (proxies))
 
         # ensure that url is a unicode string
-        url = unicode(URL.objectify(url))
+        url = unicode(url)
 
         combined_headers = self.headers
         combined_headers.update(headers)
