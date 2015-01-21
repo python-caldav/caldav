@@ -115,7 +115,7 @@ class URL:
         if not self.is_auth():
             return self
         return URL.objectify(urlparse.ParseResult(
-            self.scheme, '%s:%s' % (self.hostname, self.port),
+            self.scheme, '%s:%s' % (self.hostname, self.port or {'https': 443, 'http': 80}[self.scheme]),
             self.path.replace('//', '/'), self.params, self.query, self.fragment))
 
     def canonical(self):
