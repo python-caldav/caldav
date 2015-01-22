@@ -91,8 +91,14 @@ class DAVObject(object):
         for path in properties.keys():
             resource_type = properties[path][dav.ResourceType.tag]
             if resource_type == type or type is None:
-                if self.url != path:
-                    c.append((URL.objectify(path), resource_type))
+                path = URL.objectify(path)
+
+                ## TODO: investigate the RFCs thoroughly - why does a "get 
+                ## members of this collection"-request also return the collection URL itself?  
+                ## And why is the strip_trailing_slash-method needed?  The collection URL 
+                ## should always end with a slash according to RFC 2518, section 5.2.
+                if self.url.strip_trailing_slash() != path.strip_trailing_slash():
+                    c.append((path, resource_type))
 
         return c
 

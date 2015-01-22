@@ -102,6 +102,12 @@ class URL:
     def __repr__(self):
         return "URL(%s)" % str(self)
 
+    def strip_trailing_slash(self):
+        if str(self)[-1] == '/':
+            return URL.objectify(str(self)[:-1])
+        else:
+            return self
+
     def is_auth(self):
         return self.username is not None
 
@@ -109,7 +115,7 @@ class URL:
         if not self.is_auth():
             return self
         return URL.objectify(urlparse.ParseResult(
-            self.scheme, '%s:%s' % (self.hostname, self.port),
+            self.scheme, '%s:%s' % (self.hostname, self.port or {'https': 443, 'http': 80}[self.scheme]),
             self.path.replace('//', '/'), self.params, self.query, self.fragment))
 
     def canonical(self):
