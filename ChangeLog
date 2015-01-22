@@ -1,7 +1,47 @@
+2015-01-21  Tobias Brox <t-caldav@tobixen.no>
+	* caldav/lib/url.py - workaround: "unauth"-method added port
+	":None" if no port were given.
+
+2015-01-19  Tobias Brox <t-caldav@tobixen.no>
+	* caldav/lib/url.py - added method strip_trailing_slash
+	* caldav/objects.py - test breakages on several server
+	implementations after the trailing slashes were removed.  Made a
+	workaround, though this issue should be investigated better.
+
+2014-05-27  Christian Roeder <christian.roeder@red-hood.de>
+        * caldav/davclient.py - RFC compliance fix; Use capitalised Depth:
+	Header
+
+2014-05-27  Tobias Brox <t-caldav@tobixen.no>
+	* caldav/lib/url.py - Workaround for Zimbra; Zimbra generates
+	non-ascii URLs when using non-ascii characters in the calendar
+	name, hence the URL library must accept non-ascii characters.
+
+2014-05-27  Tobias Brox <t-caldav@tobixen.no>
+	* setup.py - include the requests library dependency
+
+2014-05-20  Christian Roeder <christian.roeder@red-hood.de>
+	* caldav/lib/url.py - Do not remove trailing slashes of all URLs.
+	According to the RFC, all collection URLs should end with a
+	trailing slash, though most caldav server implementations will
+	handle URLs with and without trailing slashes the same.
+
+2014-05-11  Abdul Rehman Gani <abdulg@gmail.com>
+	* caldav/davclient.py - Change to use the requests library. Fixes
+	an issue with iCloud where a get_properties call would fail with a
+	Path Handling exception. Happens when httplib specifies the netloc
+	in the HTTP request, and the returned xml has the base path equal
+	to that netloc instead of the path.
+
+2014-04-13  Abdul Rehman Gani <abdulg@gmail.com>
+	* caldav/davclient.py - Removed extraneous parameter passed to
+	getresponse(); bugfix in a section not covered by test code
+
 2014-03-14  Tobias Brox <t-caldav@tobixen.no>
 	* General - more verbose documentation
 
-	* caldav/test_caldav.py - added an exception for OwnCloud, it does not support open-ended date searches
+	* caldav/test_caldav.py - added an exception for OwnCloud, it does
+	not support open-ended date searches
 
 2014-03-12  Tobias Brox <t-caldav@tobixen.no>
 	* setup.py - version bump (0.2.2)
