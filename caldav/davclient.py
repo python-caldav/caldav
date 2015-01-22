@@ -113,7 +113,7 @@ class DAVClient:
         Returns
          * DAVResponse
         """
-        return self.request(url or self.url, "PROPFIND", props, {'depth': str(depth)})
+        return self.request(url or self.url, "PROPFIND", props, {'Depth': str(depth)})
 
     def proppatch(self, url, body):
         """
@@ -141,7 +141,7 @@ class DAVClient:
          * DAVResponse
         """
         return self.request(url, "REPORT", query,
-                            {'depth': str(depth), "Content-Type":
+                            {'Depth': str(depth), "Content-Type":
                              "application/xml; charset=\"utf-8\""})
 
     def mkcol(self, url, body):
@@ -196,7 +196,7 @@ class DAVClient:
             logging.debug("using proxy - %s" % (proxies))
 
         # ensure that url is a unicode string
-        url = unicode(URL.objectify(url))
+        url = unicode(url)
 
         combined_headers = self.headers
         combined_headers.update(headers)
