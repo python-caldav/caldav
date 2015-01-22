@@ -28,10 +28,10 @@
 
 2014-05-11  Abdul Rehman Gani <abdulg@gmail.com>
 	* caldav/davclient.py - Change to use the requests library. Fixes
-	an issue with iCloud where a get_properties call would fail with a
-	Path Handling exception. Happens when httplib specifies the netloc
-	in the HTTP request, and the returned xml has the base path equal
-	to that netloc instead of the path.
+	several compatibility-issues, i.e. with iCloud a get_properties
+	call would fail with a Path Handling exception. Happens when
+	httplib specifies the netloc in the HTTP request, and the returned
+	xml has the base path equal to that netloc instead of the path.
 
 2014-04-13  Abdul Rehman Gani <abdulg@gmail.com>
 	* caldav/davclient.py - Removed extraneous parameter passed to
