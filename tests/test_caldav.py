@@ -77,7 +77,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         logging.debug("############## test setup")
         self.conn_params = self.server_params.copy()
         for x in self.conn_params.keys():
-            if not x in ('url', 'proxy', 'username', 'password'):
+            if not x in ('url', 'proxy', 'username', 'password', 'ssl_verify_cert'):
                 self.conn_params.pop(x)
         self.caldav = DAVClient(**self.conn_params)
         self.principal = self.caldav.principal()
@@ -312,7 +312,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         r = c.date_search(datetime(2007,7,13,17,00,00))
         ## ... but alas, some servers don't support it
         ## COMPATIBILITY PROBLEM - todo, look more into it
-        if not 'baikal' in str(c.url) and not 'owncloud' in str(c.url) and not '/cal.php/' in str(c.url):
+        if not 'baikal' in str(c.url) and not 'owncloud' in str(c.url) and not '/cal.php/' in str(c.url) and not '/remote.php/' in str(c.url):
             assert_equal(len(r), 1)
 
     def testRecurringDateSearch(self):
