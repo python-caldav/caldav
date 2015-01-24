@@ -51,7 +51,7 @@ class DAVClient:
     proxy = None
     url = None
 
-    def __init__(self, url, proxy=None, username=None, password=None):
+    def __init__(self, url, proxy=None, username=None, password=None, auth=None, ssl_verify_cert=None):
         """
         Sets up a HTTPConnection object towards the server in the url.
         Parameters:
@@ -87,6 +87,8 @@ class DAVClient:
 
         self.username = username
         self.password = password
+        self.auth = auth
+        self.ssl_verify_cert = ssl_verify_cert
         self.url = self.url.unauth()
         logging.debug("self.url: " + str(url))
 
@@ -208,11 +210,19 @@ class DAVClient:
 
         logging.debug("sending request - method={0}, url={1}, headers={2}\nbody:\n{3}".format(method, url.encode('utf-8'), combined_headers, body))
         auth = None
-        if self.username is not None:
-            auth = requests.auth.HTTPBasicAuth(self.username, self.password)
+        if self.auth is None and self.username is not None:
+            auth = requests.auth.HTTPDigestAuth(self.username, self.password)
+        else:
+            auth = self.auth
 
         r = requests.request(method, url, data=body, headers=combined_headers, proxies=proxies, auth=auth)
         response = DAVResponse(r)
+
+        ## If server supports BasicAuth and not DigestAuth, let's try again:
+        if response.status == 401 and self.auth is None and auth is not None:
+            auth = requests.auth.HTTPBasicAuth(self.username, self.password)
+            r = requests.request(method, url, data=body, headers=combined_headers, proxies=proxies, auth=auth)
+            response = DAVResponse(r)
 
         # this is an error condition the application wants to know
         if response.status == requests.codes.forbidden or \
@@ -221,5 +231,11 @@ class DAVClient:
             ex.url = url
             ex.reason = response.reason
             raise ex
+
+        ## let's save the auth object and remove the user/pass information
+        if not self.auth and auth:
+            self.auth = auth
+            del self.username
+            del self.password
 
         return response
