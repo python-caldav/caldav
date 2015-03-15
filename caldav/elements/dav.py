@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 
 from caldav.lib.namespace import ns
-from base import BaseElement, ValuedBaseElement
+from .base import BaseElement, ValuedBaseElement
 
 
 ## Operations
