@@ -1,7 +1,7 @@
 # -*- encoding: utf-8 -*-
 from setuptools import setup, find_packages
 
-version = '0.2.2'
+version = '0.3-devel'
 
 if __name__ == '__main__':
     setup(
@@ -15,6 +15,7 @@ if __name__ == '__main__':
                      "License :: OSI Approved :: Apache Software License",
                      "Operating System :: OS Independent",
                      "Programming Language :: Python",
+                     "Programming Language :: Python3",
                      "Topic :: Office/Business :: Scheduling",
                      "Topic :: Software Development :: Libraries "
                      ":: Python Modules"],
@@ -23,8 +24,8 @@ if __name__ == '__main__':
         author_email='cyril@hippie.io',
         url='http://bitbucket.org/cyrilrbt/caldav',
         license='GPL',
-        packages=find_packages(),
+        packages=find_packages(exclude="tests"),
         include_package_data=True,
         zip_safe=False,
-        install_requires=['vobject', 'lxml', 'nose', 'coverage', 'sphinx', 'requests'],
+        install_requires=['vobject', 'lxml', 'nose', 'coverage', 'requests', 'six'],
     )
