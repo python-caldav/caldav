@@ -51,13 +51,15 @@ class DAVClient:
     proxy = None
     url = None
 
-    def __init__(self, url, proxy=None, username=None, password=None):
+    def __init__(self, url, proxy=None, username=None, password=None, auth=None, ssl_verify_cert=True):
         """
         Sets up a HTTPConnection object towards the server in the url.
         Parameters:
          * url: A fully qualified url: `scheme://user:pass@hostname:port`
          * proxy: A string defining a proxy server: `hostname:port`
          * username and password should be passed as arguments or in the URL
+         * auth and ssl_verify_cert is passed to requests.request.  
+         ** ssl_verify_cert can be the path of a CA-bundle or False.
         """
 
         logging.debug("url: " + str(url))
@@ -87,6 +89,8 @@ class DAVClient:
 
         self.username = username
         self.password = password
+        self.auth = auth ## TODO: it's possible to force through a specific auth method here, but no test code for this.
+        self.ssl_verify_cert = ssl_verify_cert
         self.url = self.url.unauth()
         logging.debug("self.url: " + str(url))
 
@@ -208,11 +212,19 @@ class DAVClient:
 
         logging.debug("sending request - method={0}, url={1}, headers={2}\nbody:\n{3}".format(method, url.encode('utf-8'), combined_headers, body))
         auth = None
-        if self.username is not None:
-            auth = requests.auth.HTTPBasicAuth(self.username, self.password)
+        if self.auth is None and self.username is not None:
+            auth = requests.auth.HTTPDigestAuth(self.username, self.password)
+        else:
+            auth = self.auth
 
-        r = requests.request(method, url, data=body, headers=combined_headers, proxies=proxies, auth=auth)
+        r = requests.request(method, url, data=body, headers=combined_headers, proxies=proxies, auth=auth, verify=self.ssl_verify_cert)
         response = DAVResponse(r)
+
+        ## If server supports BasicAuth and not DigestAuth, let's try again:
+        if response.status == 401 and self.auth is None and auth is not None:
+            auth = requests.auth.HTTPBasicAuth(self.username, self.password)
+            r = requests.request(method, url, data=body, headers=combined_headers, proxies=proxies, auth=auth, verify=self.ssl_verify_cert)
+            response = DAVResponse(r)
 
         # this is an error condition the application wants to know
         if response.status == requests.codes.forbidden or \
@@ -221,5 +233,11 @@ class DAVClient:
             ex.url = url
             ex.reason = response.reason
             raise ex
+
+        ## let's save the auth object and remove the user/pass information
+        if not self.auth and auth:
+            self.auth = auth
+            del self.username
+            del self.password
 
         return response

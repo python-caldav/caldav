@@ -77,7 +77,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         logging.debug("############## test setup")
         self.conn_params = self.server_params.copy()
         for x in self.conn_params.keys():
-            if not x in ('url', 'proxy', 'username', 'password'):
+            if not x in ('url', 'proxy', 'username', 'password', 'ssl_verify_cert'):
                 self.conn_params.pop(x)
         self.caldav = DAVClient(**self.conn_params)
         self.principal = self.caldav.principal()
@@ -277,6 +277,25 @@ class RepeatedFunctionalTestsBaseClass(object):
         e4.load()
         assert_equal(e4.instance.vevent.uid, e1.instance.vevent.uid)
 
+    def testDeleteEvent(self):
+        """
+        Makes sure we can add events and delete them
+        """
+        ## Create calendar
+        c = self.principal.make_calendar(name="Yep", cal_id=testcal_id)
+        assert_not_equal(c.url, None)
+
+        ## add event
+        e1 = c.add_event(ev1)
+        assert_not_equal(e1.url, None)
+
+        ## delete event
+        e1.delete()
+
+        ## Verify that we can't look it up, both by URL and by ID
+        assert_raises(error.NotFoundError, c.event_by_url, e1.url)
+        assert_raises(error.NotFoundError, c.event_by_uid, "20010712T182145Z-123401@example.com")
+
     def testDateSearch(self):
         """
         Verifies that date search works with a non-recurring event
@@ -312,7 +331,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         r = c.date_search(datetime(2007,7,13,17,00,00))
         ## ... but alas, some servers don't support it
         ## COMPATIBILITY PROBLEM - todo, look more into it
-        if not 'baikal' in str(c.url) and not 'owncloud' in str(c.url):
+        if not 'baikal' in str(c.url) and not 'owncloud' in str(c.url) and not '/cal.php/' in str(c.url) and not '/remote.php/' in str(c.url):
             assert_equal(len(r), 1)
 
     def testRecurringDateSearch(self):
