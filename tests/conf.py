@@ -1,9 +1,10 @@
+
 #!/usr/bin/env python
 # -*- encoding: utf-8 -*-
 
 try:
     from conf_private import caldav_servers
-except:
+except ImportError:
     caldav_servers = []
 
 # caldav_servers.append({"url": "http://sogo1:sogo1@sogo-demo.inverse.ca:80/SOGo/dav/", "principal_url": "http://sogo-demo.inverse.ca:80/SOGo/dav/sogo1/", "backwards_compatibility_url": "http://sogo1:sogo1@sogo-demo.inverse.ca:80/SOGo/dav/sogo1/Calendar/"})
