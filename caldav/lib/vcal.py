@@ -3,10 +3,11 @@
 
 
 import re
+from caldav.lib.python_utilities import to_local
 
 
 def fix(event):
-    fixed = re.sub('COMPLETED:(\d+)\s', 'COMPLETED:\g<1>T120000Z', event)
+    fixed = re.sub('COMPLETED:(\d+)\s', 'COMPLETED:\g<1>T120000Z', to_local(event))
     #The following line fixes a data bug in some Google Calendar events
     fixed = re.sub('CREATED:00001231T000000Z',
                    'CREATED:19700101T000000Z', fixed)
