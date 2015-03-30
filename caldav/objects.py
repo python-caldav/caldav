@@ -493,16 +493,17 @@ class Calendar(DAVObject):
 
         return all
 
-class Event(DAVObject):
+class CalendarObjectResource(DAVObject):
     """
-    The `Event` object is used to represent an event.
+    Ref RFC 4791, section 4.1, a "Calendar Object Resource" can be an
+    event, a todo-item, a journal entry, a free/busy entry, etc.
     """
     _instance = None
     _data = None
 
     def __init__(self, client=None, url=None, data=None, parent=None, id=None):
         """
-        Event has an additional parameter for its constructor:
+        CalendarObjectResource has an additional parameter for its constructor:
          * data = "...", vCal data for the event
         """
         DAVObject.__init__(self, client=client, url=url, parent=parent, id=id)
@@ -511,7 +512,7 @@ class Event(DAVObject):
 
     def load(self):
         """
-        Load the event from the caldav server.
+        Load the object from the caldav server.
         """
         r = self.client.request(self.url)
         if r.status == 404:
@@ -523,6 +524,7 @@ class Event(DAVObject):
         if id is None and path is not None and str(path).endswith('.ics'):
             id = re.search('(/|^)([^/]*).ics',str(path)).group(2)
         elif id is None:
+            ## TODO: may break for objects that aren't vevent?
             id = self.instance.vevent.uid.value
         if path is None:
             path = id + ".ics"
@@ -540,7 +542,7 @@ class Event(DAVObject):
 
     def save(self):
         """
-        Save the event, can be used for creation and update.
+        Save the object, can be used for creation and update.
 
         Returns:
          * self
@@ -551,7 +553,7 @@ class Event(DAVObject):
         return self
 
     def __str__(self):
-        return "Event: %s" % self.url
+        return "%s: %s" % (self.__class__.__name__, self.url)
 
     def set_data(self, data):
         self._data = vcal.fix(data)
@@ -561,7 +563,7 @@ class Event(DAVObject):
     def get_data(self):
         return self._data
     data = property(get_data, set_data,
-                    doc="vCal representation of the event")
+                    doc="vCal representation of the object")
 
     def set_instance(self, inst):
         self._instance = inst
@@ -571,4 +573,17 @@ class Event(DAVObject):
     def get_instance(self):
         return self._instance
     instance = property(get_instance, set_instance,
-                        doc="vobject instance of the event")
+                        doc="vobject instance of the object")
+
+
+class Event(CalendarObjectResource):
+    """
+    The `Event` object is used to represent an event (VEVENT).
+    """
+    pass
+    
+class Todo(CalendarObjectResource):
+    """
+    The `Todo` object is used to represent a todo item (VTODO).
+    """
+    pass
