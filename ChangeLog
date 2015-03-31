@@ -1,3 +1,41 @@
+2015-04-01  Tobias Brox  <t-caldav@tobixen.no>
+        * caldav/lib/url.py - work on python3-support
+
+        * tests/conf.py - work on python3-support
+
+2015-03-29  Tobias Brox  <t-caldav@tobixen.no>
+        * caldav/objects.py - work on iCloud support.  Solves issue #38,
+        read-only access to iCloud seems to work.  Writing still fails,
+        ref issue #40.
+
+2015-03-19  Tobias Brox  <t-caldav@tobixen.no>
+        * tests/conf.py - ignore ImportError when importing conf_private,
+        but not other exceptions.  This way conf_private will be ignored
+        if it doesn't exist, but if there are syntax error, nosetest should
+        bark.
+
+2015-03-15  Tobias Brox  <t-caldav@tobixen.no>
+        * caldav/lib/python_utilities.py - fixing broken charset
+
+2015-02-26  Jack Laxson  <jackjrabbit@gmail.com>
+        * setup.py - remove sphinx from install_requires as it is huge and only used 
+        for generating the documentation.
+
+2015-02-23  Luke  <github@woydziak.com>
+        * Interceptable logging
+
+2015-02-16  Luke  <github@woydziak.com>
+        * python3 support
+
+2015-02-14  Tobias Brox <t-caldav@tobixen.no>
+        * tests/test_caldav.py - new test that deletes events
+
+2015-01-24  Tobias Brox <t-caldav@tobixen.no>
+        * caldav/davclient.py - support for digest auth and self-signed
+        SSL certs, re issue #26 and #34.
+        * tests/test_caldav.py - more generic URL checks to discover
+        owncloud and baikal servers.
+
 2015-01-21  Tobias Brox <t-caldav@tobixen.no>
 	* caldav/lib/url.py - workaround: "unauth"-method added port
 	":None" if no port were given.

@@ -6,7 +6,7 @@ A "DAV object" is anything we get from the caldav server or push into the caldav
 """
 
 import vobject
-import StringIO
+import io
 import uuid
 import re
 from lxml import etree
@@ -14,6 +14,7 @@ from lxml import etree
 from caldav.lib import error, vcal, url
 from caldav.lib.url import URL
 from caldav.elements import dav, cdav
+from caldav.lib.python_utilities import to_unicode
 
 
 class DAVObject(object):
@@ -88,7 +89,7 @@ class DAVObject(object):
                     val = t.text
                 properties[href][p.tag] = val
 
-        for path in properties.keys():
+        for path in list(properties.keys()):
             resource_type = properties[path][dav.ResourceType.tag]
             if resource_type == type or type is None:
                 path = URL.objectify(path)
@@ -158,9 +159,9 @@ class DAVObject(object):
         path = self.url.path
         exchange_path = self.url.path + '/'
 
-        if path in properties.keys():
+        if path in list(properties.keys()):
             rc = properties[path]
-        elif exchange_path in properties.keys():
+        elif exchange_path in list(properties.keys()):
             rc = properties[exchange_path]
         else:
             raise Exception("The CalDAV server you are using has "
@@ -290,8 +291,12 @@ class Principal(DAVObject):
     def calendar_home_set(self, url):
         if isinstance(url, CalendarSet):
             self._calendar_home_set = url
-        else:
-            self._calendar_home_set = CalendarSet(self.client, self.client.url.join(URL.objectify(url)))
+            return
+        sanitized_url = URL.objectify(url)
+        if sanitized_url.hostname and sanitized_url.hostname != self.client.url.hostname:
+            ## icloud (and others?) having a load balanced system, where each principal resides on one named host
+            self.client.url = sanitized_url
+        self._calendar_home_set = CalendarSet(self.client, self.client.url.join(sanitized_url))
 
     def calendars(self):
         return self.calendar_home_set.calendars()
@@ -308,7 +313,7 @@ class Calendar(DAVObject):
         if id is None:
             id = str(uuid.uuid1())
         self.id = id
-            
+
         path = self.parent.url.join(id)
         self.url = path
 
@@ -550,7 +555,7 @@ class Event(DAVObject):
 
     def set_data(self, data):
         self._data = vcal.fix(data)
-        self._instance = vobject.readOne(StringIO.StringIO(self._data))
+        self._instance = vobject.readOne(io.StringIO(to_unicode(self._data)))
         return self
 
     def get_data(self):
