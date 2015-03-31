@@ -1,7 +1,7 @@
 # -*- encoding: utf-8 -*-
 from setuptools import setup, find_packages
 
-version = '0.3.dev1'
+version = '0.3.0'
 
 if __name__ == '__main__':
     setup(

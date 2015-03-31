@@ -13,7 +13,7 @@ else:
 
 def uc2utf8(input):
     ## argh!  this feels wrong, but seems to be needed.
-    if type(input) == unicode and not isPython3():
+    if not isPython3() and type(input) == unicode:
         return input.encode('utf-8')
     else:
         return input
