@@ -3,13 +3,20 @@
 
 import requests
 import logging
-import urllib
+from caldav.lib.python_utilities import isPython3, to_unicode, to_wire
+if isPython3():
+    from urllib import parse
+    from urllib.parse import unquote
+else:
+    from urlparse import unquote, urlparse as parse
 import re
 from lxml import etree
 
 from caldav.lib import error
 from caldav.lib.url import URL
 from caldav.objects import Principal
+
+log = logging.getLogger('caldav')
 
 
 class DAVResponse:
@@ -30,9 +37,9 @@ class DAVResponse:
         self.headers = response.headers
         self.status = response.status_code
         self.reason = response.reason
-        logging.debug("response headers: " + str(self.headers))
-        logging.debug("response status: " + str(self.status))
-        logging.debug("raw response: " + str(self.raw))
+        log.debug("response headers: " + str(self.headers))
+        log.debug("response status: " + str(self.status))
+        log.debug("raw response: " + str(self.raw))
 
         try:
             self.tree = etree.XML(self.raw)
@@ -51,16 +58,18 @@ class DAVClient:
     proxy = None
     url = None
 
-    def __init__(self, url, proxy=None, username=None, password=None):
+    def __init__(self, url, proxy=None, username=None, password=None, auth=None, ssl_verify_cert=True):
         """
         Sets up a HTTPConnection object towards the server in the url.
         Parameters:
          * url: A fully qualified url: `scheme://user:pass@hostname:port`
          * proxy: A string defining a proxy server: `hostname:port`
          * username and password should be passed as arguments or in the URL
+         * auth and ssl_verify_cert is passed to requests.request.  
+         ** ssl_verify_cert can be the path of a CA-bundle or False.
         """
 
-        logging.debug("url: " + str(url))
+        log.debug("url: " + str(url))
         self.url = URL.objectify(url)
 
         # Prepare proxy info
@@ -75,20 +84,22 @@ class DAVClient:
             p = self.proxy.split(":")
             if len(p) == 2:
                 self.proxy += ':8080'
-            logging.debug("init - proxy: %s" % (self.proxy))
+            log.debug("init - proxy: %s" % (self.proxy))
 
         # Build global headers
         self.headers = {"User-Agent": "Mozilla/5.0",
                         "Content-Type": "text/xml",
                         "Accept": "text/xml"}
         if self.url.username is not None:
-            username = urllib.unquote(self.url.username)
-            password = urllib.unquote(self.url.password)
+            username = unquote(self.url.username)
+            password = unquote(self.url.password)
 
         self.username = username
         self.password = password
+        self.auth = auth ## TODO: it's possible to force through a specific auth method here, but no test code for this.
+        self.ssl_verify_cert = ssl_verify_cert
         self.url = self.url.unauth()
-        logging.debug("self.url: " + str(url))
+        log.debug("self.url: " + str(url))
 
     def principal(self):
         """
@@ -193,26 +204,31 @@ class DAVClient:
         proxies = None
         if self.proxy is not None:
             proxies = {url.scheme: self.proxy}
-            logging.debug("using proxy - %s" % (proxies))
+            log.debug("using proxy - %s" % (proxies))
 
         # ensure that url is a unicode string
-        url = unicode(url)
+        url = str(url)
 
         combined_headers = self.headers
         combined_headers.update(headers)
         if body is None or body == "" and "Content-Type" in combined_headers:
             del combined_headers["Content-Type"]
 
-        if isinstance(body, unicode):
-            body = body.encode('utf-8')
-
-        logging.debug("sending request - method={0}, url={1}, headers={2}\nbody:\n{3}".format(method, url.encode('utf-8'), combined_headers, body))
+        log.debug("sending request - method={0}, url={1}, headers={2}\nbody:\n{3}".format(method, url, combined_headers, body))
         auth = None
-        if self.username is not None:
-            auth = requests.auth.HTTPBasicAuth(self.username, self.password)
+        if self.auth is None and self.username is not None:
+            auth = requests.auth.HTTPDigestAuth(self.username, self.password)
+        else:
+            auth = self.auth
 
-        r = requests.request(method, url, data=body, headers=combined_headers, proxies=proxies, auth=auth)
+        r = requests.request(method, url, data=to_wire(body), headers=combined_headers, proxies=proxies, auth=auth, verify=self.ssl_verify_cert)
         response = DAVResponse(r)
+
+        ## If server supports BasicAuth and not DigestAuth, let's try again:
+        if response.status == 401 and self.auth is None and auth is not None:
+            auth = requests.auth.HTTPBasicAuth(self.username, self.password)
+            r = requests.request(method, url, data=to_wire(body), headers=combined_headers, proxies=proxies, auth=auth, verify=self.ssl_verify_cert)
+            response = DAVResponse(r)
 
         # this is an error condition the application wants to know
         if response.status == requests.codes.forbidden or \
@@ -221,5 +237,11 @@ class DAVClient:
             ex.url = url
             ex.reason = response.reason
             raise ex
+
+        ## let's save the auth object and remove the user/pass information
+        if not self.auth and auth:
+            self.auth = auth
+            del self.username
+            del self.password
 
         return response

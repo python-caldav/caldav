@@ -3,7 +3,7 @@
 # -*- encoding: utf-8 -*-
 
 try:
-    from conf_private import caldav_servers
+    from .conf_private import caldav_servers
 except ImportError:
     caldav_servers = []
 

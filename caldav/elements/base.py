@@ -3,6 +3,7 @@
 
 from lxml import etree
 from caldav.lib.namespace import nsmap
+from caldav.lib.python_utilities import isPython3, to_unicode
 
 
 class BaseElement(object):
@@ -14,8 +15,7 @@ class BaseElement(object):
     def __init__(self, name=None, value=None):
         self.children = []
         self.attributes = {}
-        if value and not isinstance(value, unicode):
-            value = unicode(value, 'utf-8')
+        value = to_unicode(value)
         self.value = None
         if name is not None:
             self.attributes['name'] = name
@@ -26,15 +26,18 @@ class BaseElement(object):
         return self.append(other)
 
     def __str__(self):
-        return etree.tostring(self.xmlelement(), encoding="utf-8",
+        utf8 = etree.tostring(self.xmlelement(), encoding="utf-8",
                               xml_declaration=True, pretty_print=True)
+        if isPython3():
+            return str(utf8, 'utf-8')
+        return utf8
 
     def xmlelement(self):
         root = etree.Element(self.tag, nsmap=nsmap)
         if self.value is not None:
             root.text = self.value
         if len(self.attributes) > 0:
-            for k in self.attributes.keys():
+            for k in list(self.attributes.keys()):
                 root.set(k, self.attributes[k])
         self.xmlchildren(root)
         return root
