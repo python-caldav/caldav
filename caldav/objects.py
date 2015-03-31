@@ -374,6 +374,9 @@ class Calendar(DAVObject):
     def add_event(self, ical):
         return Event(self.client, data = ical, parent = self).save()
 
+    def add_todo(self, ical):
+        return Todo(self.client, data = ical, parent = self).save()
+
     def save(self):
         """
         The save method for a calendar is only used to create it, for now.
@@ -524,8 +527,10 @@ class CalendarObjectResource(DAVObject):
         if id is None and path is not None and str(path).endswith('.ics'):
             id = re.search('(/|^)([^/]*).ics',str(path)).group(2)
         elif id is None:
-            ## TODO: may break for objects that aren't vevent?
-            id = self.instance.vevent.uid.value
+            for obj in ('vevent', 'vtodo', 'vjournal', 'vfreebusy'):
+                if hasattr(self.instance, obj):
+                    id = getattr(self.instance, obj).uid.value
+                    break
         if path is None:
             path = id + ".ics"
         path = self.parent.url.join(path)
