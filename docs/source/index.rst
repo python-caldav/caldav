@@ -120,6 +120,10 @@ test code for "COMPATIBILITY" for details.  Notably;
    special hacks in the code to work around compatibility issues in
    Zimbra.
 
+ * iCloud - we've managed read-only access to iCloud so far - see
+   https://bitbucket.org/cyrilrbt/caldav/issue/40/icloud-not-fully-supported
+   for details.
+
 Unit testing
 ============
 
@@ -152,7 +156,7 @@ the dict may contain:
 Documentation
 =============
 
-To build the documentation, run:
+To build the documentation, install sphinx and run:
 
 .. code-block:: bash
 
