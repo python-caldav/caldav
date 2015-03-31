@@ -76,6 +76,21 @@ RRULE:FREQ=YEARLY
 END:VEVENT
 END:VCALENDAR"""
 
+## example from http://www.rfc-editor.org/rfc/rfc5545.txt
+todo = """BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Example Corp.//CalDAV Client//EN
+BEGIN:VTODO
+UID:20070313T123432Z-456553@example.com
+DTSTAMP:20070313T123432Z
+DUE;VALUE=DATE:20070501
+SUMMARY:Submit Quebec Income Tax Return for 2006
+CLASS:CONFIDENTIAL
+CATEGORIES:FAMILY,FINANCE
+STATUS:NEEDS-ACTION
+END:VTODO
+END:VCALENDAR"""
+
 testcal_id = "pythoncaldav-test"
 testcal_id2 = "pythoncaldav-test2"
 
@@ -210,6 +225,22 @@ class RepeatedFunctionalTestsBaseClass(object):
 
         ## add event
         e1 = c.add_event(ev1)
+
+        ## c.events() should give a full list of events
+        events = c.events()
+        assert_equal(len(events), 1)
+
+        ## We should be able to access the calender through the URL
+        c2 = Calendar(client=self.caldav, url=c.url)
+        events2 = c.events()
+        assert_equal(len(events2), 1)
+        assert_equal(events2[0].url, events[0].url)
+        
+    def testCreateCalendarAndTodo(self):
+        c = self.principal.make_calendar(name="Yep", cal_id=testcal_id)
+
+        ## add event
+        e1 = c.add_todo(todo)
 
         ## c.events() should give a full list of events
         events = c.events()
