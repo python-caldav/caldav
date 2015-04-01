@@ -28,7 +28,7 @@ class DAVObject(object):
     parent = None
     name = None
 
-    def __init__(self, client=None, url=None, parent=None, name=None, id=None):
+    def __init__(self, client=None, url=None, parent=None, name=None, id=None, **extra):
         """
         Default constructor.
 
@@ -46,6 +46,7 @@ class DAVObject(object):
         self.parent = parent
         self.name = name
         self.id = id
+        self.extra_init_options = extra
         ## url may be a path relative to the caldav root
         if client and url:
             self.url = client.url.join(url)
@@ -306,7 +307,7 @@ class Calendar(DAVObject):
     The `Calendar` object is used to represent a calendar collection.
     Refer to the RFC for details: http://www.ietf.org/rfc/rfc4791.txt
     """
-    def _create(self, name, id=None):
+    def _create(self, name, id=None, supported_calendar_component_set=None):
         """
         Create a new calendar with display name `name` in `parent`.
         """
@@ -321,15 +322,17 @@ class Calendar(DAVObject):
         ## at least the name doesn't get set this way.
         ## zimbra gives 500 (!) if body is omitted ...
 
-        if name:
-            display_name = dav.DisplayName(name)
         cal = cdav.CalendarCollection()
         coll = dav.Collection() + cal
         type = dav.ResourceType() + coll
 
         prop = dav.Prop() + [type,]
         if name:
+            display_name = dav.DisplayName(name)
             prop += [display_name,]
+        if supported_calendar_component_set:
+            sccs = dav.SupportedCalendarComponentSet(supported_calendar_component_set)
+            prop += sccs
         set = dav.Set() + prop
 
         mkcol = cdav.Mkcalendar() + set
@@ -386,7 +389,7 @@ class Calendar(DAVObject):
          * self
         """
         if self.url is None:
-            self._create(self.name, self.id)
+            self._create(name=self.name, id=self.id, **self.extra_init_options)
             if not self.url.endswith('/'):
                 self.url = URL.objectify(str(self.url) + '/')
         return self
