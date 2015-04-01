@@ -15,7 +15,6 @@ if __name__ == '__main__':
                      "License :: OSI Approved :: Apache Software License",
                      "Operating System :: OS Independent",
                      "Programming Language :: Python",
-                     "Programming Language :: Python3",
                      "Topic :: Office/Business :: Scheduling",
                      "Topic :: Software Development :: Libraries "
                      ":: Python Modules"],
