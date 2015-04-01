@@ -101,6 +101,19 @@ class RepeatedFunctionalTestsBaseClass(object):
     that we want to repeat for all configured caldav_servers.
     
     (what a truely ugly name for this class - any better ideas?)
+
+    NOTE: this tests relies heavily on the assumption that we can create 
+    calendars on the remote caldav server, but the RFC says ...
+
+       Support for MKCALENDAR on the server is only RECOMMENDED and not
+       REQUIRED because some calendar stores only support one calendar per
+       user (or principal), and those are typically pre-created for each
+       account.
+
+    However, iCloud is the only server where I have been denied creating a
+    calendar.  Creating a calendar through the WebUI works, and creating an
+    event through the library fails, so I don't think the problem is lack of 
+    MKCALENDAR support.
     """
     def setup(self):
         logging.debug("############## test setup")
@@ -254,6 +267,8 @@ class RepeatedFunctionalTestsBaseClass(object):
         events2 = c.events()
         assert_equal(len(events2), 1)
         assert_equal(events2[0].url, events[0].url)
+
+    ## TODO: https://www.ietf.org/rfc/rfc4791.txt, section 7.8.9
         
     def testUtf8Event(self):
         c = self.principal.make_calendar(name="Yølp", cal_id=testcal_id)
