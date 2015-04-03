@@ -239,8 +239,8 @@ class CalendarSet(DAVObject):
 
         return cals
 
-    def make_calendar(self, name=None, cal_id=None):
-        return Calendar(self.client, name=name, parent=self, id=cal_id).save()
+    def make_calendar(self, name=None, cal_id=None, supported_calendar_component_set=None):
+        return Calendar(self.client, name=name, parent=self, id=cal_id, supported_calendar_component_set=supported_calendar_component_set).save()
 
     def calendar(self, name=None, cal_id=None):
         """
@@ -272,8 +272,8 @@ class Principal(DAVObject):
             cup = self.get_properties([dav.CurrentUserPrincipal()])
             self.url = self.client.url.join(URL.objectify(cup['{DAV:}current-user-principal']))
 
-    def make_calendar(self, name=None, cal_id=None):
-        return self.calendar_home_set.make_calendar(name, cal_id)
+    def make_calendar(self, name=None, cal_id=None, supported_calendar_component_set=None):
+        return self.calendar_home_set.make_calendar(name, cal_id, supported_calendar_component_set=supported_calendar_component_set)
 
     def calendar(self, name=None, cal_id=None):
         """
@@ -331,7 +331,9 @@ class Calendar(DAVObject):
             display_name = dav.DisplayName(name)
             prop += [display_name,]
         if supported_calendar_component_set:
-            sccs = dav.SupportedCalendarComponentSet(supported_calendar_component_set)
+            sccs = cdav.SupportedCalendarComponentSet()
+            for scc in supported_calendar_component_set:
+                sccs += cdav.Comp(scc)
             prop += sccs
         set = dav.Set() + prop
 
