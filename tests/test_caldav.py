@@ -251,9 +251,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         
     def testCreateCalendarAndTodo(self):
         ## TODO: read the supported-calendar-component-set attribute that we get from the caldav server in the initial communication.  vtodo seems not to be supported by zimbra (which is weird, because I can add "tasks" through the webui)
-	if 'zimbra' in self.__class__.__name__.lower():
-            return
-        c = self.principal.make_calendar(name="Yep", cal_id=testcal_id)
+        c = self.principal.make_calendar(name="Yep", cal_id=testcal_id, supported_calendar_component_set=['VTODO'])
 
         ## add event
         e1 = c.add_todo(todo)

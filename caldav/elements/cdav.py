@@ -124,3 +124,6 @@ class MaxInstances(ValuedBaseElement):
 
 class MaxAttendeesPerInstance(ValuedBaseElement):
     tag = ns("C", "max-attendees-per-instance")
+
+class SupportedCalendarComponentSet(BaseElement):
+    tag = ns("C", "supported-calendar-component-set")
