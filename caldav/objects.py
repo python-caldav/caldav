@@ -70,9 +70,12 @@ class DAVObject(object):
         props = [dav.ResourceType(), ]
         response = self._query_properties(props, depth)
 
+        #properties = self._handle_prop_response(response=response, props=props)
+        ## TODO: can we use _handle_prop_response here?
+        #if False:
         for r in response.tree.findall(dav.Response.tag):
             # We use canonicalized urls to index children
-            href = str(self.url.join(URL.objectify(r.find(dav.Href.tag).text)).canonical())
+            href = r.find(dav.Href.tag).text
             assert(href)
             properties[href] = {}
             for p in props:
@@ -93,14 +96,12 @@ class DAVObject(object):
         for path in list(properties.keys()):
             resource_type = properties[path][dav.ResourceType.tag]
             if resource_type == type or type is None:
-                path = URL.objectify(path)
-
                 ## TODO: investigate the RFCs thoroughly - why does a "get 
                 ## members of this collection"-request also return the collection URL itself?  
                 ## And why is the strip_trailing_slash-method needed?  The collection URL 
                 ## should always end with a slash according to RFC 2518, section 5.2.
-                if self.url.strip_trailing_slash() != path.strip_trailing_slash():
-                    c.append((path, resource_type))
+                if self.url.strip_trailing_slash() != self.url.join(path).strip_trailing_slash():
+                    c.append((self.url.join(path), resource_type))
 
         return c
 
@@ -116,14 +117,15 @@ class DAVObject(object):
 
         ret = self.client.propfind(self.url, body, depth)
         if ret.status == 404:
-            raise error.NotFoundError 
+            raise error.NotFoundError
         return ret
 
     def _get_properties(self, props=[], depth=0):
-        properties = {}
-
         response = self._query_properties(props, depth)
+        return self._handle_prop_response(response, props)
 
+    def _handle_prop_response(self, response, props=[]):
+        properties = {}
         # All items should be in a <D:response> element
         for r in response.tree.findall(dav.Response.tag):
             href = r.find(dav.Href.tag).text
@@ -410,6 +412,8 @@ class Calendar(DAVObject):
         """
         matches = []
 
+        ## TODO: quite much overlapping with _query_properties, consider some refactoring
+        
         # build the request
         expand = cdav.Expand(start, end)
         data = cdav.CalendarData() + expand
@@ -425,13 +429,15 @@ class Calendar(DAVObject):
         q = etree.tostring(root.xmlelement(), encoding="utf-8",
                            xml_declaration=True)
         response = self.client.report(self.url, q, 1)
+        
+        ## TODO: quite much overlapping with _handle_prop_response here,
+        ## should consider some refactoring
         for r in response.tree.findall(".//" + dav.Response.tag):
             status = r.find(".//" + dav.Status.tag)
             if status.text.endswith("200 OK"):
-                href = URL.objectify(r.find(dav.Href.tag).text)
-                href = self.url.join(href)
+                href = r.find(dav.Href.tag).text
                 data = r.find(".//" + cdav.CalendarData.tag).text
-                e = Event(self.client, url=href, data=data, parent=self)
+                e = Event(self.client, url=self.url.join(href), data=data, parent=self)
                 matches.append(e)
             else:
                 raise error.ReportError(response.raw)
@@ -475,9 +481,9 @@ class Calendar(DAVObject):
             
         r = response.tree.find(".//" + dav.Response.tag)
         if r is not None:
-            href = URL.objectify(r.find(".//" + dav.Href.tag).text)
+            href = r.find(".//" + dav.Href.tag).text
             data = r.find(".//" + cdav.CalendarData.tag).text
-            e = Event(self.client, url=href, data=data, parent=self)
+            e = Event(self.client, url=URL.objectify(href), data=data, parent=self)
         else:
             raise error.NotFoundError(response.raw)
 
