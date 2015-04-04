@@ -128,6 +128,14 @@ class DAVObject(object):
         properties = {}
         # All items should be in a <D:response> element
         for r in response.tree.findall('.//' + dav.Response.tag):
+            status = r.find('.//' + dav.Status.tag)
+            if not status.text.endswith('200 OK'):
+                if status.text.endswith('404 Not Found'):
+                    ## Silently ignoring the 404
+                    ## (we should probably spit out some debug logging here)
+                    continue
+                raise error.ReportError(response.raw)
+
             href = r.find('.//' + dav.Href.tag).text
             properties[href] = {}
             for p in props:
@@ -429,19 +437,11 @@ class Calendar(DAVObject):
         q = etree.tostring(root.xmlelement(), encoding="utf-8",
                            xml_declaration=True)
         response = self.client.report(self.url, q, 1)
+        results = self._handle_prop_response(response=response, props=[cdav.CalendarData()])
+        for r in results:
+            matches.append(
+                Event(self.client, url=self.url.join(r), data=results[r][cdav.CalendarData.tag], parent=self))
         
-        ## TODO: quite much overlapping with _handle_prop_response here,
-        ## should consider some refactoring
-        for r in response.tree.findall(".//" + dav.Response.tag):
-            status = r.find(".//" + dav.Status.tag)
-            if status.text.endswith("200 OK"):
-                href = r.find(dav.Href.tag).text
-                data = r.find(".//" + cdav.CalendarData.tag).text
-                e = Event(self.client, url=self.url.join(href), data=data, parent=self)
-                matches.append(e)
-            else:
-                raise error.ReportError(response.raw)
-
         return matches
 
     def event_by_url(self, href, data=None):
