@@ -127,8 +127,8 @@ class DAVObject(object):
     def _handle_prop_response(self, response, props=[]):
         properties = {}
         # All items should be in a <D:response> element
-        for r in response.tree.findall(dav.Response.tag):
-            href = r.find(dav.Href.tag).text
+        for r in response.tree.findall('.//' + dav.Response.tag):
+            href = r.find('.//' + dav.Href.tag).text
             properties[href] = {}
             for p in props:
                 t = r.find(".//" + p.tag)
