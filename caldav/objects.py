@@ -69,11 +69,11 @@ class DAVObject(object):
 
         props = [dav.ResourceType(), ]
         response = self._query_properties(props, depth)
+        properties = self._handle_prop_response(response=response, props=props, type=type, what='tag')
 
-        #properties = self._handle_prop_response(response=response, props=props)
         ## TODO: can we use _handle_prop_response here?
-        #if False:
-        for r in response.tree.findall(dav.Response.tag):
+        if False:
+         for r in response.tree.findall(dav.Response.tag):
             # We use canonicalized urls to index children
             href = r.find(dav.Href.tag).text
             assert(href)
@@ -106,6 +106,11 @@ class DAVObject(object):
         return c
 
     def _query_properties(self, props=[], depth=0):
+        """
+        This is an internal method for doing a propfind.  It's a
+        result of code-refactoring work, attempting to consolidate
+        similar-g code into a common method.
+        """
         body = ""
         # build the propfind request
         if len(props) > 0:
@@ -124,7 +129,10 @@ class DAVObject(object):
         response = self._query_properties(props, depth)
         return self._handle_prop_response(response, props)
 
-    def _handle_prop_response(self, response, props=[]):
+    def _handle_prop_response(self, response, props=[], type=None, what='text'):
+        """
+        Internal method to massage an XML response into a dict.  (This method is a result of some code refactoring work, attempting to consolidate similar-looking code)
+        """
         properties = {}
         # All items should be in a <D:response> element
         for r in response.tree.findall('.//' + dav.Response.tag):
@@ -141,11 +149,12 @@ class DAVObject(object):
             for p in props:
                 t = r.find(".//" + p.tag)
                 if len(list(t)) > 0:
-                    val = t.find(".//*")
+                    if type is not None:
+                        val = t.find(".//" + type)
+                    else:
+                        val = t.find(".//*")
                     if val is not None:
-                        ## I assume this is a bug?
-                        #val = val.tag
-                        val = val.text
+                        val = getattr(val, what)
                     else:
                         val = None
                 else:
