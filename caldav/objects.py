@@ -71,28 +71,6 @@ class DAVObject(object):
         response = self._query_properties(props, depth)
         properties = self._handle_prop_response(response=response, props=props, type=type, what='tag')
 
-        ## TODO: can we use _handle_prop_response here?
-        if False:
-         for r in response.tree.findall(dav.Response.tag):
-            # We use canonicalized urls to index children
-            href = r.find(dav.Href.tag).text
-            assert(href)
-            properties[href] = {}
-            for p in props:
-                t = r.find(".//" + p.tag)
-                if len(list(t)) > 0:
-                    if type is not None:
-                        val = t.find(".//" + type)
-                    else:
-                        val = t.find(".//*")
-                    if val is not None:
-                        val = val.tag
-                    else:
-                        val = None
-                else:
-                    val = t.text
-                properties[href][p.tag] = val
-
         for path in list(properties.keys()):
             resource_type = properties[path][dav.ResourceType.tag]
             if resource_type == type or type is None:
@@ -453,6 +431,40 @@ class Calendar(DAVObject):
         
         return matches
 
+    def todos(self, sort_key='DUE'):
+        """
+        fetches a list of todo events.
+        """
+        ## ref https://www.ietf.org/rfc/rfc4791.txt, section 7.8.9
+        matches = []
+
+        ## TODO: quite much overlapping with _query_properties, consider some refactoring
+        
+        # build the request
+        data = cdav.CalendarData()
+        prop = dav.Prop() + data
+
+        vnotcompleted = cdav.TextMatch('COMPLETED', negate=True)
+        vnotcancelled = cdav.TextMatch('CANCELLED', negate=True)
+        vstatus = cdav.PropFilter('STATUS') + vnotcancelled + vnotcompleted
+        vnocompletedate = cdav.PropFilter('COMPLETED') + cdav.NotDefined()
+        vtodo = cdav.CompFilter("VTODO") + vnocompletedate + vstatus
+        vcalendar = cdav.CompFilter("VCALENDAR") + vtodo
+        filter = cdav.Filter() + vcalendar
+
+        root = cdav.CalendarQuery() + [prop, filter]
+
+        q = etree.tostring(root.xmlelement(), encoding="utf-8",
+                           xml_declaration=True)
+        
+        response = self.client.report(self.url, q, 1)
+        results = self._handle_prop_response(response=response, props=[cdav.CalendarData()])
+        for r in results:
+            matches.append(
+                Todo(self.client, url=self.url.join(r), data=results[r][cdav.CalendarData.tag], parent=self))
+        
+        return matches
+
     def event_by_url(self, href, data=None):
         return Event(url=href, data=data, parent=self).load()
 
@@ -503,13 +515,17 @@ class Calendar(DAVObject):
 
     def events(self):
         """
-        List all events from the calendar.
+        List all events from the calendar.  TODO: a bit assymmetric with
+        the "todos"-method, as this method probably will return
+        todo-items as well.
 
         Returns:
          * [Event(), ...]
+
         """
         all = []
 
+        ## TODO: do the filtering on the server side
         data = self.children()
         for e_url, e_type in data:
             all.append(Event(self.client, e_url, parent=self))

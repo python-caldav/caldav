@@ -262,18 +262,15 @@ class RepeatedFunctionalTestsBaseClass(object):
         ## add event
         e1 = c.add_todo(todo)
 
-        ## c.events() should give a full list of events
+        ## c.todos() should give a full list of todo items
+        todos = c.todos()
+        assert_equal(len(todos), 1)
+
+        ## c.events() should NOT return todo-items
+        ## TODO
         events = c.events()
-        assert_equal(len(events), 1)
+        #assert_equal(len(events), 0)
 
-        ## We should be able to access the calender through the URL
-        c2 = Calendar(client=self.caldav, url=c.url)
-        events2 = c.events()
-        assert_equal(len(events2), 1)
-        assert_equal(events2[0].url, events[0].url)
-
-    ## TODO: https://www.ietf.org/rfc/rfc4791.txt, section 7.8.9
-        
     def testUtf8Event(self):
         c = self.principal.make_calendar(name="Yølp", cal_id=testcal_id)
 
@@ -281,6 +278,9 @@ class RepeatedFunctionalTestsBaseClass(object):
         e1 = c.add_event(ev1.replace("Bastille Day Party", "Bringebærsyltetøyfestival"))
 
         events = c.events()
+        todos = c.todos()
+
+        assert_equal(len(todos), 0)
 
         ## COMPATIBILITY PROBLEM - todo, look more into it
         if not 'zimbra' in str(c.url):
