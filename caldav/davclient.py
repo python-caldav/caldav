@@ -126,13 +126,14 @@ class DAVClient:
         """
         return self.request(url or self.url, "PROPFIND", props, {'Depth': str(depth)})
 
-    def proppatch(self, url, body):
+    def proppatch(self, url, body, dummy=None):
         """
         Send a proppatch request.
 
         Parameters:
          * url: url for the root of the propfind.
          * body: XML propertyupdate request
+         * dummy: compatibility parameter
 
         Returns
          * DAVResponse
@@ -155,13 +156,14 @@ class DAVClient:
                             {'Depth': str(depth), "Content-Type":
                              "application/xml; charset=\"utf-8\""})
 
-    def mkcol(self, url, body):
+    def mkcol(self, url, body, dummy=None):
         """
         Send a mkcol request.
 
         Parameters:
          * url: url for the root of the mkcol
          * body: XML request
+         * dummy: compatibility parameter
 
         Returns
          * DAVResponse
