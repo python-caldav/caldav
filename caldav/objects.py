@@ -453,10 +453,7 @@ class Calendar(DAVObject):
 
         root = cdav.CalendarQuery() + [prop, filter]
 
-        q = etree.tostring(root.xmlelement(), encoding="utf-8",
-                           xml_declaration=True)
-        
-        response = self.client.report(self.url, q, 1)
+        response = self._query(root, 1, 'report')
         results = self._handle_prop_response(response=response, props=[cdav.CalendarData()])
         for r in results:
             matches.append(
