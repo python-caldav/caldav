@@ -36,9 +36,9 @@ class TextMatch(ValuedBaseElement):
     def __init__(self, value, collation="i;octet", negate=False):
         super(TextMatch, self).__init__(value=value)
         self.attributes['collation'] = collation
-        self.attributes['negate'] = "no"
+        self.attributes['negate-condition'] = "no"
         if negate:
-            self.attributes['negate'] = "yes"
+            self.attributes['negate-condition'] = "yes"
 
 
 class TimeRange(BaseElement):
