@@ -84,28 +84,29 @@ class DAVObject(object):
         return c
 
     def _query_properties(self, props=[], depth=0):
-        """
-        This is an internal method for doing a propfind.  It's a
-        result of code-refactoring work, attempting to consolidate
-        similar-g code into a common method.
-        """
-        body = ""
+        root = None
         # build the propfind request
         if len(props) > 0:
             prop = dav.Prop() + props
             root = dav.Propfind() + prop
 
+        return self._query(root, depth)
+
+    def _query(self, root=None, depth=0):
+        """
+        This is an internal method for doing a query.  It's a
+        result of code-refactoring work, attempting to consolidate
+        similar-looking code into a common method.
+        """
+        body = ""
+        if root:
             body = etree.tostring(root.xmlelement(), encoding="utf-8",
                                   xml_declaration=True)
-
         ret = self.client.propfind(self.url, body, depth)
         if ret.status == 404:
             raise error.NotFoundError
         return ret
-
-    def _get_properties(self, props=[], depth=0):
-        response = self._query_properties(props, depth)
-        return self._handle_prop_response(response, props)
+        
 
     def _handle_prop_response(self, response, props=[], type=None, what='text'):
         """
@@ -153,7 +154,8 @@ class DAVObject(object):
          * {proptag: value, ...}
         """
         rc = None
-        properties = self._get_properties(props, depth)
+        response = self._query_properties(props, depth)
+        properties = self._handle_prop_response(response, props)
         path = self.url.path
         exchange_path = self.url.path + '/'
 
