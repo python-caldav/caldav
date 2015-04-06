@@ -92,7 +92,7 @@ class DAVObject(object):
 
         return self._query(root, depth)
 
-    def _query(self, root=None, depth=0):
+    def _query(self, root=None, depth=0, query_method='propfind'):
         """
         This is an internal method for doing a query.  It's a
         result of code-refactoring work, attempting to consolidate
@@ -102,9 +102,12 @@ class DAVObject(object):
         if root:
             body = etree.tostring(root.xmlelement(), encoding="utf-8",
                                   xml_declaration=True)
-        ret = self.client.propfind(self.url, body, depth)
+        ret = getattr(self.client, query_method)(
+            self.url, body, depth)
         if ret.status == 404:
-            raise error.NotFoundError
+            raise error.NotFoundError(ret.raw)
+        if ret.status >= 400:
+            raise error.exception_by_method[query_method](ret.raw)
         return ret
         
 
@@ -121,7 +124,7 @@ class DAVObject(object):
                     ## Silently ignoring the 404
                     ## (we should probably spit out some debug logging here)
                     continue
-                raise error.ReportError(response.raw)
+                raise error.ReportError(response.raw) ## TODO: may be wrong error class
 
             href = r.find('.//' + dav.Href.tag).text
             properties[href] = {}
@@ -183,9 +186,7 @@ class DAVObject(object):
         set = dav.Set() + prop
         root = dav.PropertyUpdate() + set
 
-        q = etree.tostring(root.xmlelement(), encoding="utf-8",
-                           xml_declaration=True)
-        r = self.client.proppatch(self.url, q)
+        r = self._query(root, query_method='proppatch')
 
         statuses = r.tree.findall(".//" + dav.Status.tag)
         for s in statuses:
@@ -480,8 +481,6 @@ class Calendar(DAVObject):
         Returns:
          * Event() or None
         """
-        e = None
-
         data = cdav.CalendarData()
         prop = dav.Prop() + data
 
@@ -493,9 +492,7 @@ class Calendar(DAVObject):
 
         root = cdav.CalendarQuery() + [prop, filter]
 
-        q = etree.tostring(root.xmlelement(), encoding="utf-8",
-                           xml_declaration=True)
-        response = self.client.report(self.url, q, 1)
+        response = self._query(root, 1, 'report')
 
         if response.status == 404:
             raise error.NotFoundError(response.raw)
@@ -506,11 +503,9 @@ class Calendar(DAVObject):
         if r is not None:
             href = r.find(".//" + dav.Href.tag).text
             data = r.find(".//" + cdav.CalendarData.tag).text
-            e = Event(self.client, url=URL.objectify(href), data=data, parent=self)
+            return Event(self.client, url=URL.objectify(href), data=data, parent=self)
         else:
             raise error.NotFoundError(response.raw)
-
-        return e
 
     ## alias for backward compatibility
     event = event_by_uid
