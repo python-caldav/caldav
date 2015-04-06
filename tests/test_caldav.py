@@ -270,6 +270,11 @@ class RepeatedFunctionalTestsBaseClass(object):
         events = c.events()
         assert_equal(len(events), 0)
 
+        ## TODO: add more events
+        ## TODO: test sorting
+        ## TODO: complete events
+        ## TODO: test the include_completed attrib
+
     def testUtf8Event(self):
         c = self.principal.make_calendar(name="Yølp", cal_id=testcal_id)
 
