@@ -92,21 +92,25 @@ class DAVObject(object):
 
         return self._query(root, depth)
 
-    def _query(self, root=None, depth=0, query_method='propfind'):
+    def _query(self, root=None, depth=0, query_method='propfind', url=None, expected_return_value=None):
         """
         This is an internal method for doing a query.  It's a
         result of code-refactoring work, attempting to consolidate
         similar-looking code into a common method.
         """
+        if url is None:
+            url = self.url
         body = ""
         if root:
             body = etree.tostring(root.xmlelement(), encoding="utf-8",
                                   xml_declaration=True)
         ret = getattr(self.client, query_method)(
-            self.url, body, depth)
+            url, body, depth)
         if ret.status == 404:
             raise error.NotFoundError(ret.raw)
-        if ret.status >= 400:
+        if (
+                (expected_return_value is not None and ret.status != expected_return_value) or
+                ret.status >= 400):
             raise error.exception_by_method[query_method](ret.raw)
         return ret
         
@@ -339,13 +343,7 @@ class Calendar(DAVObject):
 
         mkcol = cdav.Mkcalendar() + set
 
-        q = etree.tostring(mkcol.xmlelement(), encoding="utf-8",
-                           xml_declaration=True)
-
-        r = self.client.mkcalendar(path, q)
-
-        if r.status != 201:
-            raise error.MkcalendarError(r.raw)
+        r = self._query(root=mkcol, query_method='mkcalendar', url=path, expected_return_value=201)
 
         if name:
             try:
