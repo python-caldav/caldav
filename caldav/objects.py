@@ -391,7 +391,8 @@ class Calendar(DAVObject):
     def date_search(self, start, end=None):
         """
         Search events by date in the calendar. Recurring events are expanded
-        if they have an occurence during the specified time frame.
+        if they have an occurence during the specified time frame and if
+        an end timestamp is given.
 
         Parameters:
          * start = datetime.today().
@@ -403,8 +404,10 @@ class Calendar(DAVObject):
         matches = []
 
         # build the request
-        expand = cdav.Expand(start, end)
-        data = cdav.CalendarData() + expand
+        if end:
+            data = cdav.CalendarData() + cdav.Expand(start, end)
+        else:
+            data = cdav.CalendarData()
         prop = dav.Prop() + data
 
         range = cdav.TimeRange(start, end)
