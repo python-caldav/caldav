@@ -397,7 +397,8 @@ class Calendar(DAVObject):
     def date_search(self, start, end=None):
         """
         Search events by date in the calendar. Recurring events are expanded
-        if they have an occurence during the specified time frame.
+        if they have an occurence during the specified time frame and if
+        an end time is given.
 
         Parameters:
          * start = datetime.today().
@@ -408,11 +409,11 @@ class Calendar(DAVObject):
         """
         matches = []
 
-        ## TODO: quite much overlapping with _query_properties, consider some refactoring
-        
         # build the request
-        expand = cdav.Expand(start, end)
-        data = cdav.CalendarData() + expand
+        if end:
+            data = cdav.CalendarData() + cdav.Expand(start, end)
+        else:
+            data = cdav.CalendarData()
         prop = dav.Prop() + data
 
         range = cdav.TimeRange(start, end)
@@ -421,10 +422,7 @@ class Calendar(DAVObject):
         filter = cdav.Filter() + vcalendar
 
         root = cdav.CalendarQuery() + [prop, filter]
-
-        q = etree.tostring(root.xmlelement(), encoding="utf-8",
-                           xml_declaration=True)
-        response = self.client.report(self.url, q, 1)
+        response = self._query(root, 1, 'report')
         results = self._handle_prop_response(response=response, props=[cdav.CalendarData()])
         for r in results:
             matches.append(
