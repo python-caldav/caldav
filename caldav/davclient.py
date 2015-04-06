@@ -170,13 +170,14 @@ class DAVClient:
         """
         return self.request(url, "MKCOL", body)
 
-    def mkcalendar(self, url, body=""):
+    def mkcalendar(self, url, body="", dummy=None):
         """
         Send a mkcalendar request.
 
         Parameters:
          * url: url for the root of the mkcalendar
          * body: XML request
+         * dummy: compatibility parameter
 
         Returns
          * DAVResponse
