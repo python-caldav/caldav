@@ -267,9 +267,8 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert_equal(len(todos), 1)
 
         ## c.events() should NOT return todo-items
-        ## TODO
         events = c.events()
-        #assert_equal(len(events), 0)
+        assert_equal(len(events), 0)
 
     def testUtf8Event(self):
         c = self.principal.make_calendar(name="Yølp", cal_id=testcal_id)

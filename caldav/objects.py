@@ -437,8 +437,6 @@ class Calendar(DAVObject):
         ## ref https://www.ietf.org/rfc/rfc4791.txt, section 7.8.9
         matches = []
 
-        ## TODO: quite much overlapping with _query_properties, consider some refactoring
-        
         # build the request
         data = cdav.CalendarData()
         prop = dav.Prop() + data
@@ -458,6 +456,8 @@ class Calendar(DAVObject):
         for r in results:
             matches.append(
                 Todo(self.client, url=self.url.join(r), data=results[r][cdav.CalendarData.tag], parent=self))
+
+        #matches.sort(....)
         
         return matches
 
@@ -505,9 +505,7 @@ class Calendar(DAVObject):
 
     def events(self):
         """
-        List all events from the calendar.  TODO: a bit assymmetric with
-        the "todos"-method, as this method probably will return
-        todo-items as well.
+        List all events from the calendar.
 
         Returns:
          * [Event(), ...]
@@ -515,10 +513,17 @@ class Calendar(DAVObject):
         """
         all = []
 
-        ## TODO: do the filtering on the server side
-        data = self.children()
-        for e_url, e_type in data:
-            all.append(Event(self.client, e_url, parent=self))
+        data = cdav.CalendarData()
+        prop = dav.Prop() + data
+        vevent = cdav.CompFilter("VEVENT")
+        vcalendar = cdav.CompFilter("VCALENDAR") + vevent
+        filter = cdav.Filter() + vcalendar
+        root = cdav.CalendarQuery() + [prop, filter]
+        
+        response = self._query(root, 1, query_method='report')
+        results = self._handle_prop_response(response, props=[cdav.CalendarData()])
+        for r in results:
+            all.append(Event(self.client, url=self.url.join(r), data=results[r][cdav.CalendarData.tag], parent=self))
 
         return all
 
