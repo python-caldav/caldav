@@ -430,7 +430,7 @@ class Calendar(DAVObject):
         
         return matches
 
-    def todos(self, sort_key='DUE'):
+    def todos(self, sort_key='DUE', include_completed=False):
         """
         fetches a list of todo events.
         """
@@ -441,11 +441,14 @@ class Calendar(DAVObject):
         data = cdav.CalendarData()
         prop = dav.Prop() + data
 
-        vnotcompleted = cdav.TextMatch('COMPLETED', negate=True)
-        vnotcancelled = cdav.TextMatch('CANCELLED', negate=True)
-        vstatus = cdav.PropFilter('STATUS') + vnotcancelled + vnotcompleted
-        vnocompletedate = cdav.PropFilter('COMPLETED') + cdav.NotDefined()
-        vtodo = cdav.CompFilter("VTODO") + vnocompletedate + vstatus
+        if not include_completed:
+            vnotcompleted = cdav.TextMatch('COMPLETED', negate=True)
+            vnotcancelled = cdav.TextMatch('CANCELLED', negate=True)
+            vstatus = cdav.PropFilter('STATUS') + vnotcancelled + vnotcompleted
+            vnocompletedate = cdav.PropFilter('COMPLETED') + cdav.NotDefined()
+            vtodo = cdav.CompFilter("VTODO") + vnocompletedate + vstatus
+        else:
+            vtodo = cdav.CompFilter("VTODO")
         vcalendar = cdav.CompFilter("VCALENDAR") + vtodo
         filter = cdav.Filter() + vcalendar
 
