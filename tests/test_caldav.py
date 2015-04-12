@@ -91,6 +91,41 @@ STATUS:NEEDS-ACTION
 END:VTODO
 END:VCALENDAR"""
 
+## example from RFC2445, 4.6.2
+todo2 = """BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Example Corp.//CalDAV Client//EN
+BEGIN:VTODO
+UID:19970901T130000Z-123404@host.com
+DTSTAMP:19970901T130000Z
+DTSTART:19970415T133000Z
+DUE:19970416T045959Z
+SUMMARY:1996 Income Tax Preparation
+CLASS:CONFIDENTIAL
+CATEGORIES:FAMILY,FINANCE
+PRIORITY:2
+STATUS:NEEDS-ACTION
+END:VTODO
+END:VCALENDAR"""
+
+todo3 = """
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Example Corp.//CalDAV Client//EN
+BEGIN:VTODO
+UID:19970901T130000Z-123405@host.com
+DTSTAMP:19970901T130000Z
+DTSTART:19970415T133000Z
+DUE:19970516T045959Z
+SUMMARY:1996 Income Tax Preparation
+CLASS:CONFIDENTIAL
+CATEGORIES:FAMILY,FINANCE
+PRIORITY:1
+STATUS:NEEDS-ACTION
+END:VTODO
+END:VCALENDAR"""
+
+
 testcal_id = "pythoncaldav-test"
 testcal_id2 = "pythoncaldav-test2"
 
@@ -270,7 +305,11 @@ class RepeatedFunctionalTestsBaseClass(object):
         events = c.events()
         assert_equal(len(events), 0)
 
-        ## TODO: add more events
+	e2 = c.add_todo(todo2)
+        e3 = c.add_todo(todo3)
+
+	todos = c.todos()
+
         ## TODO: test sorting
         ## TODO: complete events
         ## TODO: test the include_completed attrib
