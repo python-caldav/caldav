@@ -318,6 +318,9 @@ class RepeatedFunctionalTestsBaseClass(object):
         pri = lambda lst: [x.instance.vtodo.priority.value for x in lst if hasattr(x.instance.vtodo, 'priority')]
         assert_equal(pri(todos), pri([e3, e2]))
 
+        e3.complete()
+	todos = c.todos()
+        assert_equal(len(todos), 2)
 
         ## TODO: complete events
         ## TODO: test the include_completed attrib
