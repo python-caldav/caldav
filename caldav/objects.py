@@ -430,7 +430,7 @@ class Calendar(DAVObject):
         
         return matches
 
-    def todos(self, sort_key='DUE', include_completed=False):
+    def todos(self, sort_key='due', include_completed=False):
         """
         fetches a list of todo events.
         """
@@ -460,8 +460,15 @@ class Calendar(DAVObject):
             matches.append(
                 Todo(self.client, url=self.url.join(r), data=results[r][cdav.CalendarData.tag], parent=self))
 
-        #matches.sort(....)
-        
+        def sort_key_func(x):
+            val = getattr(x.instance.vtodo, sort_key, None)
+            if not val:
+                return None
+            val = val.value
+            if hasattr(val, 'strftime'):
+                return val.strftime('%F%H%M%S')
+            return val
+        matches.sort(key=sort_key_func)
         return matches
 
     def event_by_url(self, href, data=None):
