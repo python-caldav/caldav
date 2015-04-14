@@ -322,8 +322,8 @@ class RepeatedFunctionalTestsBaseClass(object):
 	todos = c.todos()
         assert_equal(len(todos), 2)
 
-        ## TODO: complete events
-        ## TODO: test the include_completed attrib
+	todos = c.todos(include_completed=True)
+        assert_equal(len(todos), 3)
 
     def testUtf8Event(self):
         c = self.principal.make_calendar(name="Yølp", cal_id=testcal_id)
