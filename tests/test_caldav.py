@@ -310,6 +310,12 @@ class RepeatedFunctionalTestsBaseClass(object):
 
 	todos = c.todos()
 
+        assert_equal(len(todos), 3)
+        uids = lambda lst: [x.instance.vtodo.uid for x in lst]
+        assert_equal(uids(todos), uids([e2, e3, e1]))
+
+        todos = c.todos(sort_key='priority')
+
         ## TODO: test sorting
         ## TODO: complete events
         ## TODO: test the include_completed attrib
