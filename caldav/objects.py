@@ -9,6 +9,7 @@ import vobject
 import io
 import uuid
 import re
+import datetime
 from lxml import etree
 
 from caldav.lib import error, vcal, url
@@ -632,4 +633,7 @@ class Todo(CalendarObjectResource):
     """
     The `Todo` object is used to represent a todo item (VTODO).
     """
-    pass
+    def complete(self):
+        self.instance.vtodo.status.value = 'COMPLETED'
+        self.instance.vtodo.add('completed').value = datetime.datetime.now()
+        self.save()
