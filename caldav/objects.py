@@ -430,7 +430,7 @@ class Calendar(DAVObject):
         """
         Search events by date in the calendar. Recurring events are expanded
         if they have an occurence during the specified time frame and if
-        an end time is given.
+        an end timestamp is given.
 
         Parameters:
          * start = datetime.today().
