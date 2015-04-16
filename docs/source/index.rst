@@ -16,6 +16,10 @@ Contents
    caldav/davclient
    caldav/objects
 
+Python 3
+========
+
+The caldav library should work well with python3, but there is one dependency on vobject, a library that doesn't work out of the box in python3 as of 2015-042.  There exists forks.  See `issue #41 - vobject dependency situation <https://bitbucket.org/cyrilrbt/caldav/issue/41/vobject-dependency-situation>` for details.
 
 Quickstart
 ==========
@@ -85,7 +89,8 @@ Notable classes and workflow
    object.
 
  * From the calendar object one can fetch / generate
-   :class:`caldav.objects.Event` objects.  Event objects can also be
+   :class:`caldav.objects.Event` objects and
+   :class:`caldav.objects.Todo` objects.  Event objects can also be
    instantiated directly from an absolute or relative URL and the client
    object.
 
@@ -100,11 +105,6 @@ Compatibility
 The test suite is regularly run against SoGO, Baikal, DAViCal, Zimbra
 and OwnCloud.  Some compatibility issues have been found, search the
 test code for "COMPATIBILITY" for details.  Notably;
-
- * Baikal and OwnCloud apparently doesn't support open ended date
-   searches (search yields nothing).  The end timestamp in the
-   calendar.date_search method is optional, but you may want to pass
-   it anyway.
 
  * You may want to avoid non-ASCII characters in the calendar name, or
    Zimbra may behave a bit unexpectedly.

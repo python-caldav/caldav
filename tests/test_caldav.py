@@ -284,18 +284,27 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert_equal(len(events2), 1)
         assert_equal(events2[0].url, events[0].url)
         
-    def testCreateCalendarAndTodo(self):
-
-        ## Zimbra has separate calendars and task lists, and it's not allowed 
-        ## to put TODO-tasks into the calendar.  We need to tell Zimbra that 
-        ## the new "calendar" is a task list, though the 
-        ## supported_calendar_compontent_set property.  For all other servers
-        ## I've tested against, the calendar allows tasks without setting that
-        ## property.
+    def testCreateEventListAndTodo(self):
+        """
+        This test demonstrates the support for task lists.
+        * It will create a "task list"
+        * It will add some tasks to it
+        * It will list out all pending tasks, sorted by due date
+        * It will list out all pending tasks, sorted by priority
+        * It will complete a task
+        * It will delete a task
+        """
+        ## For all servers I've tested against except Zimbra, it's
+        ## possible to create a calendar and add todo-items to it.
+        ## Zimbra has separate calendars and task lists, and it's not
+        ## allowed to put TODO-tasks into the calendar.  We need to
+        ## tell Zimbra that the new "calendar" is a task list.  This
+        ## is done though the supported_calendar_compontent_set
+        ## property - hence the extra parameter here:
         c = self.principal.make_calendar(name="Yep", cal_id=testcal_id, supported_calendar_component_set=['VTODO'])
 
-        ## add event
-        e1 = c.add_todo(todo)
+        ## add todo-item
+        t1 = c.add_todo(todo)
 
         ## c.todos() should give a full list of todo items
         todos = c.todos()
@@ -305,25 +314,30 @@ class RepeatedFunctionalTestsBaseClass(object):
         events = c.events()
         assert_equal(len(events), 0)
 
-	e2 = c.add_todo(todo2)
-        e3 = c.add_todo(todo3)
+	t2 = c.add_todo(todo2)
+        t3 = c.add_todo(todo3)
 
 	todos = c.todos()
 
         assert_equal(len(todos), 3)
         uids = lambda lst: [x.instance.vtodo.uid for x in lst]
-        assert_equal(uids(todos), uids([e2, e3, e1]))
+        assert_equal(uids(todos), uids([t2, t3, t1]))
 
         todos = c.todos(sort_key='priority')
         pri = lambda lst: [x.instance.vtodo.priority.value for x in lst if hasattr(x.instance.vtodo, 'priority')]
-        assert_equal(pri(todos), pri([e3, e2]))
+        assert_equal(pri(todos), pri([t3, t2]))
 
-        e3.complete()
+        t3.complete()
 	todos = c.todos()
         assert_equal(len(todos), 2)
 
 	todos = c.todos(include_completed=True)
         assert_equal(len(todos), 3)
+
+        t2.delete()
+
+        todos = c.todos(include_completed=True)
+        assert_equal(len(todos), 2)
 
     def testUtf8Event(self):
         c = self.principal.make_calendar(name="Yølp", cal_id=testcal_id)

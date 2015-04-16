@@ -85,6 +85,11 @@ class DAVObject(object):
         return c
 
     def _query_properties(self, props=[], depth=0):
+        """
+        This is an internal method for doing a propfind query.  It's a
+        result of code-refactoring work, attempting to consolidate
+        similar-looking code into a common method.
+        """
         root = None
         # build the propfind request
         if len(props) > 0:
@@ -118,7 +123,9 @@ class DAVObject(object):
 
     def _handle_prop_response(self, response, props=[], type=None, what='text'):
         """
-        Internal method to massage an XML response into a dict.  (This method is a result of some code refactoring work, attempting to consolidate similar-looking code)
+        Internal method to massage an XML response into a dict.  (This
+        method is a result of some code refactoring work, attempting
+        to consolidate similar-looking code)
         """
         properties = {}
         # All items should be in a <D:response> element
@@ -245,11 +252,30 @@ class CalendarSet(DAVObject):
         return cals
 
     def make_calendar(self, name=None, cal_id=None, supported_calendar_component_set=None):
+        """
+        Utility method for creating a new calendar.
+        
+        Parameters:
+         * name: the name of the new calendar
+         * cal_id: the uuid of the new calendar
+         * supported_calendar_component_set: what kind of objects (EVENT, VTODO, VFREEBUSY, VJOURNAL) the calendar should handle.  Should be set to ['VTODO'] when creating a task list in Zimbra - in most other cases the default will be OK.
+
+        Returns:
+         * Calendar(...)-object
+        """
         return Calendar(self.client, name=name, parent=self, id=cal_id, supported_calendar_component_set=supported_calendar_component_set).save()
 
     def calendar(self, name=None, cal_id=None):
         """
-        The calendar method will return a calendar object.  It will not initiate any communication with the server.
+        The calendar method will return a calendar object.  It will not
+        initiate any communication with the server.
+
+        Parameters:
+         * name: return the calendar with this name
+         * cal_id: return the calendar with this calendar id
+
+        Returns:
+         * Calendar(...)-object
         """
         return Calendar(self.client, name=name, parent = self,
                         url = self.url.join(cal_id), id=cal_id)
@@ -262,7 +288,12 @@ class Principal(DAVObject):
     """
     def __init__(self, client=None, url=None):
         """
+        Returns a Principal.
         url input is for backward compatibility and should normally be avoided.
+
+        Parameters:
+         * client: a DAVClient() oject
+         * url: Deprecated - for backwards compatibility purposes only.
 
         If url is not given, deduct principal path as well as calendar home set path from doing propfinds.
         """
@@ -473,6 +504,9 @@ class Calendar(DAVObject):
         return matches
 
     def event_by_url(self, href, data=None):
+        """
+        Returns the event with the given URL
+        """
         return Event(url=href, data=data, parent=self).load()
 
     def event_by_uid(self, uid):
@@ -633,7 +667,15 @@ class Todo(CalendarObjectResource):
     """
     The `Todo` object is used to represent a todo item (VTODO).
     """
-    def complete(self):
+    def complete(self, completion_timestamp=None):
+        """
+        Marks the task as completed.
+
+        Parameters:
+         * completion_timestamp - datetime object.  Defaults to datetime.datetime.now().
+        """
+        if not completion_timestamp:
+            completion_timestamp = datetime.datetime.now()
         self.instance.vtodo.status.value = 'COMPLETED'
-        self.instance.vtodo.add('completed').value = datetime.datetime.now()
+        self.instance.vtodo.add('completed').value = completion_timestamp
         self.save()
