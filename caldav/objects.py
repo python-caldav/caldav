@@ -209,7 +209,7 @@ class DAVObject(object):
 
     def save(self):
         """
-        Save the object. This is an abstract methed, that all classes
+        Save the object. This is an abstract method, that all classes
         derived .from DAVObject implement.
 
         Returns:
@@ -289,7 +289,6 @@ class Principal(DAVObject):
     def __init__(self, client=None, url=None):
         """
         Returns a Principal.
-        url input is for backward compatibility and should normally be avoided.
 
         Parameters:
          * client: a DAVClient() oject
@@ -309,6 +308,10 @@ class Principal(DAVObject):
             self.url = self.client.url.join(URL.objectify(cup['{DAV:}current-user-principal']))
 
     def make_calendar(self, name=None, cal_id=None, supported_calendar_component_set=None):
+        """
+        Convenience method, bypasses the self.calendar_home_set object.
+        See CalendarSet.make_calendar for details.
+        """
         return self.calendar_home_set.make_calendar(name, cal_id, supported_calendar_component_set=supported_calendar_component_set)
 
     def calendar(self, name=None, cal_id=None):
@@ -336,6 +339,9 @@ class Principal(DAVObject):
         self._calendar_home_set = CalendarSet(self.client, self.client.url.join(sanitized_url))
 
     def calendars(self):
+        """
+        Return the principials calendars
+        """
         return self.calendar_home_set.calendars()
 
 class Calendar(DAVObject):
@@ -407,9 +413,21 @@ class Calendar(DAVObject):
             pass
         
     def add_event(self, ical):
+        """
+        Add a new event to the calendar, with the given ical.
+
+        Parameters:
+         * ical - ical object (text)
+        """
         return Event(self.client, data = ical, parent = self).save()
 
     def add_todo(self, ical):
+        """
+        Add a new task to the calendar, with the given ical.
+
+        Parameters:
+         * ical - ical object (text)
+        """
         return Todo(self.client, data = ical, parent = self).save()
 
     def save(self):
@@ -428,9 +446,9 @@ class Calendar(DAVObject):
 
     def date_search(self, start, end=None):
         """
-        Search events by date in the calendar. Recurring events are expanded
-        if they have an occurence during the specified time frame and if
-        an end timestamp is given.
+        Search events by date in the calendar. Recurring events are
+        expanded if they are occuring during the specified time frame
+        and if an end timestamp is given.
 
         Parameters:
          * start = datetime.today().
@@ -438,10 +456,17 @@ class Calendar(DAVObject):
 
         Returns:
          * [Event(), ...]
+
         """
         matches = []
 
         # build the request
+        
+        ## Some servers will raise an error if we send the expand flag
+        ## but don't set any end-date - expand doesn't make much sense
+        ## if we have one recurring event describing an indefinite
+        ## series of events.  Hence, if the end date is not set, we
+        ## skip asking for expanded events.
         if end:
             data = cdav.CalendarData() + cdav.Expand(start, end)
         else:
@@ -465,6 +490,10 @@ class Calendar(DAVObject):
     def todos(self, sort_key='due', include_completed=False):
         """
         fetches a list of todo events.
+
+        Parameters:
+         * sort_key: use this field in the VTODO for sorting (lower case string, i.e. 'priority').
+         * include_completed: boolean - by default, only pending tasks are listed
         """
         ## ref https://www.ietf.org/rfc/rfc4791.txt, section 7.8.9
         matches = []
@@ -500,7 +529,8 @@ class Calendar(DAVObject):
             if hasattr(val, 'strftime'):
                 return val.strftime('%F%H%M%S')
             return val
-        matches.sort(key=sort_key_func)
+        if sort_key:
+            matches.sort(key=sort_key_func)
         return matches
 
     def event_by_url(self, href, data=None):
@@ -554,7 +584,6 @@ class Calendar(DAVObject):
 
         Returns:
          * [Event(), ...]
-
         """
         all = []
 
@@ -636,24 +665,24 @@ class CalendarObjectResource(DAVObject):
     def __str__(self):
         return "%s: %s" % (self.__class__.__name__, self.url)
 
-    def set_data(self, data):
+    def _set_data(self, data):
         self._data = vcal.fix(data)
         self._instance = vobject.readOne(io.StringIO(to_unicode(self._data)))
         return self
 
-    def get_data(self):
+    def _get_data(self):
         return self._data
-    data = property(get_data, set_data,
+    data = property(_get_data, _set_data,
                     doc="vCal representation of the object")
 
-    def set_instance(self, inst):
+    def _set_instance(self, inst):
         self._instance = inst
         self._data = inst.serialize()
         return self
 
-    def get_instance(self):
+    def _get_instance(self):
         return self._instance
-    instance = property(get_instance, set_instance,
+    instance = property(_get_instance, _set_instance,
                         doc="vobject instance of the object")
 
 
