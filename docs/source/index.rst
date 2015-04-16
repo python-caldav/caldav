@@ -95,8 +95,8 @@ Notable classes and workflow
    object.
 
 Note that those are also available as :class:`caldav.DAVClient`,
-:class:`caldav.Principal`, :class:`caldav.Calendar` and
-:class:`caldav.Event`.
+:class:`caldav.Principal`, :class:`caldav.Calendar`,
+:class:`caldav.Event` and :class:`caldav.Todo`.
 
 
 Compatibility

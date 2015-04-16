@@ -1,3 +1,33 @@
+2015-04-16  Tobias Brox <t-caldav@tobixen.no>
+	* caldav/lib/error.py - added error class for the propfind method.
+	Made a dict index for method name -> exception class.
+
+	* caldav/elements/cdav.py - bugfix - "negate-condition", not
+	"negate" in the TextMatch class.  Added
+	SupportedCalendarComponentSet class.
+
+	* caldav/elements/davclient.py - obscured the API a bit by
+	allowing a dummy parameter to be passed to various methods.  Not
+	very nice, but needed for the refactoring work in objects.py.
+
+	* caldav/objects.py - VTODO support, new class for Todo-items with
+	method for completing the task.  Calendar creation methods takes a
+	list of supported element types as optional parameter.  Quite some
+	refactoring, consolidating similar-looking code.  Minor bugfix
+	with the event date search - asking for an expanded event list
+	with an open end date is not supported by all server
+	implementations, for obvious reasons.  Brushed up some docstrings
+	and prefixed some internal methods with underscore.
+
+	* caldav/tests/test_caldav.py - VTODO support, test code that
+	creates a task list, adds todo-items to it, completes todo-items,
+	list them out and deletes todo-items.
+
+2015-04-01  Tobias Brox  <t-caldav@tobixen.no>
+	* caldav/objects.py - started working on VTODO support
+
+	* caldav/tests/test_caldav.py - started working on VTODO support
+
 2015-04-01  Tobias Brox  <t-caldav@tobixen.no>
         * caldav/lib/url.py - work on python3-support
 
