@@ -428,7 +428,16 @@ class Calendar(DAVObject):
         Parameters:
          * ical - ical object (text)
         """
-        return Todo(self.client, data = ical, parent = self).save()
+        return Todo(self.client, data=ical, parent=self).save()
+
+    def add_journal(self, ical):
+        """
+        Add a new journal entry to the calendar, with the given ical.
+
+        Parameters:
+         * ical - ical object (text)
+        """
+        return Journal(self.client, data=ical, parent=self).save()
 
     def save(self):
         """
@@ -486,6 +495,27 @@ class Calendar(DAVObject):
                 Event(self.client, url=self.url.join(r), data=results[r][cdav.CalendarData.tag], parent=self))
         
         return matches
+
+    def freebusy_request(self, start, end):
+        """
+        Search the calendar, but return only the free/busy information.
+
+        Parameters:
+         * start = datetime.today().
+         * end = same as above.
+
+        Returns:
+         * [FreeBusy(), ...]
+
+        """
+        root = cdav.FreeBusyQuery() + [ cdav.TimeRange(start, end) ]
+        response = self._query(root, 1, 'report')
+        return FreeBusy(self, response.raw)
+
+    def journals(self):
+        """
+        fetches a list of journal entries.
+        """
 
     def todos(self, sort_key='due', include_completed=False):
         """
@@ -601,6 +631,32 @@ class Calendar(DAVObject):
 
         return all
 
+    def journals(self):
+        """
+        List all journals from the calendar.
+
+        Returns:
+         * [Journal(), ...]
+        """
+        ## TODO: this is basically a copy of events() - can we do more
+        ## refactoring and consolidation here?  Maybe it's wrong to do
+        ## separate methods for journals, todos and events?
+        all = []
+
+        data = cdav.CalendarData()
+        prop = dav.Prop() + data
+        vevent = cdav.CompFilter("VJOURNAL")
+        vcalendar = cdav.CompFilter("VCALENDAR") + vevent
+        filter = cdav.Filter() + vcalendar
+        root = cdav.CalendarQuery() + [prop, filter]
+        
+        response = self._query(root, 1, query_method='report')
+        results = self._handle_prop_response(response, props=[cdav.CalendarData()])
+        for r in results:
+            all.append(Journal(self.client, url=self.url.join(r), data=results[r][cdav.CalendarData.tag], parent=self))
+
+        return all
+
 class CalendarObjectResource(DAVObject):
     """
     Ref RFC 4791, section 4.1, a "Calendar Object Resource" can be an
@@ -691,7 +747,26 @@ class Event(CalendarObjectResource):
     The `Event` object is used to represent an event (VEVENT).
     """
     pass
-    
+
+class Journal(CalendarObjectResource):
+    """
+    The `Journal` object is used to represent a journal entry (VJOURNAL).
+    """
+    pass
+
+class FreeBusy(CalendarObjectResource):
+    """
+    The `FreeBusy` object is used to represent a freebusy response from the server.
+    """
+    def __init__(self, parent, data):
+        """
+        A freebusy response object has no URL or ID (TODO: reconsider the
+        class hierarchy?  most of the inheritated methods are moot and
+        will fail?).  Raw response can be accessed through self.data,
+        instantiated vobject as self.instance.
+        """
+        CalendarObjectResource.__init__(self, client=parent.client, url=None, data=data, parent=parent, id=None)
+
 class Todo(CalendarObjectResource):
     """
     The `Todo` object is used to represent a todo item (VTODO).

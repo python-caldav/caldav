@@ -18,7 +18,7 @@ from .conf import caldav_servers, proxy, proxy_noport
 from .proxy import ProxyHandler, NonThreadingHTTPServer
 
 from caldav.davclient import DAVClient
-from caldav.objects import Principal, Calendar, Event, DAVObject, CalendarSet
+from caldav.objects import Principal, Calendar, Event, DAVObject, CalendarSet, FreeBusy
 from caldav.lib.url import URL
 from caldav.lib import url
 from caldav.lib import error
@@ -125,6 +125,41 @@ STATUS:NEEDS-ACTION
 END:VTODO
 END:VCALENDAR"""
 
+## example from http://www.kanzaki.com/docs/ical/vjournal.html
+journal1 = """
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Example Corp.//CalDAV Client//EN
+BEGIN:VJOURNAL
+UID:19970901T130000Z-123405@host.com
+DTSTAMP:19970901T1300Z
+DTSTART;VALUE=DATE:19970317
+SUMMARY:Staff meeting minutes
+DESCRIPTION:1. Staff meeting: Participants include Joe\, Lisa
+  and Bob. Aurora project plans were reviewed. There is currently
+  no budget reserves for this project. Lisa will escalate to
+  management. Next meeting on Tuesday.\n
+  2. Telephone Conference: ABC Corp. sales representative called
+  to discuss new printer. Promised to get us a demo by Friday.\n
+  3. Henry Miller (Handsoff Insurance): Car was totaled by tree.
+  Is looking into a loaner car. 654-2323 (tel).
+END:VJOURNAL
+END:VCALENDAR
+"""
+
+journal2 = """
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Example Corp.//CalDAV Client//EN
+BEGIN:VJOURNAL
+UID:19970901T130000Z-123405@host.com
+DTSTAMP:19970901T130000Z
+DTSTART;VALUE=DATE:19970317
+SUMMARY:Staff meeting minutes
+DESCRIPTION:1. Staff meeting: Participants include Joe\, Lisa and Bob. Aurora project plans were reviewed. There is currently no budget reserves for this project. Lisa will escalate to management. Next meeting on Tuesday.\n 2. Telephone Conference: ABC Corp. sales representative called to discuss new printer. Promised to get us a demo by Friday.\n 3. Henry Miller (Handsoff Insurance): Car was totaled by tree. Is looking into a loaner car. 654-2323 (tel).
+END:VJOURNAL
+END:VCALENDAR
+"""
 
 testcal_id = "pythoncaldav-test"
 testcal_id2 = "pythoncaldav-test2"
@@ -283,8 +318,32 @@ class RepeatedFunctionalTestsBaseClass(object):
         events2 = c.events()
         assert_equal(len(events2), 1)
         assert_equal(events2[0].url, events[0].url)
-        
-    def testCreateEventListAndTodo(self):
+
+    def testCreateJournalListAndJournalEntry(self):
+        """
+        This test demonstrates the support for journals.
+        * It will create a journal list
+        * It will add some journal entries to it
+        * It will list out all journal entries
+        """
+        if '/remote.php/caldav' in str(self.caldav.url) or self.caldav.url.path.startswith('/dav/'):
+            ## COMPATIBILITY TODO: read the RFC.  sabredav/owncloud:
+            ## got the error: "This calendar only supports VEVENT,
+            ## VTODO. We found a VJOURNAL".  Should probably learn
+            ## that some other way.  (why doesn't make_calendar break?
+            ## what does the RFC say on that?)  Same with zimbra,
+            ## though different error.
+            return
+        c = self.principal.make_calendar(name="Yep", cal_id=testcal_id, supported_calendar_component_set=['VJOURNAL'])
+        #j1 = c.add_journal(journal1) ## vobjects breaks here
+        j1 = c.add_journal(journal2)
+        journals = c.journals()
+        assert_equal(len(journals), 1)
+        todos = c.todos()
+        events = c.events()
+        assert_equal(todos + events, [])
+
+    def testCreateTaskListAndTodo(self):
         """
         This test demonstrates the support for task lists.
         * It will create a "task list"
@@ -431,7 +490,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert_raises(error.NotFoundError, c.event_by_url, e1.url)
         assert_raises(error.NotFoundError, c.event_by_uid, "20010712T182145Z-123401@example.com")
 
-    def testDateSearch(self):
+    def testDateSearchAndFreeBusy(self):
         """
         Verifies that date search works with a non-recurring event
         Also verifies that it's possible to change a date of a
@@ -465,6 +524,16 @@ class RepeatedFunctionalTestsBaseClass(object):
         ## date search without closing date should also find it
         r = c.date_search(datetime(2007,7,13,17,00,00))
         assert_equal(len(r), 1)
+
+        ## Lets try a freebusy request as well
+        ## except for on my own DAViCal, it returns 500 Internal Server Error for me.  Should look more into that.  TODO.
+        if 'calendar.bekkenstenveien53c.oslo' in str(self.caldav.url):
+            return
+        freebusy = c.freebusy_request(datetime(2007,7,13,17,00,00),
+                                      datetime(2007,7,15,17,00,00))
+        ## TODO: assert something more complex on the return object
+        assert(isinstance(freebusy, FreeBusy))
+        assert(freebusy.instance.vfreebusy)
 
     def testRecurringDateSearch(self):
         """
