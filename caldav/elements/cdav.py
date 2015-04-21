@@ -9,6 +9,9 @@ from .base import BaseElement, NamedBaseElement, ValuedBaseElement
 class CalendarQuery(BaseElement):
     tag = ns("C", "calendar-query")
 
+class FreeBusyQuery(BaseElement):
+    tag = ns("C", "free-busy-query")
+
 class Mkcalendar(BaseElement):
     tag = ns("D", "mkcalendar")
 

@@ -19,7 +19,7 @@ Contents
 Python 3
 ========
 
-The caldav library should work well with python3, but there is one dependency on vobject, a library that doesn't work out of the box in python3 as of 2015-042.  There exists forks.  See `issue #41 - vobject dependency situation <https://bitbucket.org/cyrilrbt/caldav/issue/41/vobject-dependency-situation>` for details.
+The caldav library should work well with python3, but there is one dependency on vobject, a library that doesn't work out of the box in python3 as of 2015-04-21.  There exists forks.  See `issue #41 - vobject dependency situation <https://bitbucket.org/cyrilrbt/caldav/issue/41/vobject-dependency-situation>` for details.
 
 Quickstart
 ==========
