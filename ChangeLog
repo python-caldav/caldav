@@ -1,3 +1,10 @@
+2015-04-21  Tobias Brox <t-caldav@tobixen.no>
+        * caldav/elements/cdav.py - now support for the free-busy-query element.
+
+	* caldav/objects.py - added FreeBusy and Journal objects, plus calendar methods to retrieve them, and for adding journal entries.
+
+	* caldav/tests/test_caldav.py - added tests to add and fetch journal entries, and to request freebusy information.
+
 2015-04-16  Tobias Brox <t-caldav@tobixen.no>
 	* caldav/lib/error.py - added error class for the propfind method.
 	Made a dict index for method name -> exception class.
