@@ -139,19 +139,21 @@ tests will fail or raise exceptions, and this may very well happen if
 multiple developers runs the tests at the same time.  This hasn't been
 a problem so far.
 
-It will run some unit tests and some functional tests against two
-public caldav servers, one dedicated baikal server hosted by Tobias
-Brox, and the official SoGO demo server.  You may add your own private
-servers into tests/conf_private.py, like this:
+It will run some unit tests and some functional tests against a
+dedicated baikal server hosted by Tobias Brox.  You may add your own
+private servers into tests/conf_private.py, like this:
 
 .. code-block:: python
 
-  caldav_servers = [{"url": "https://myuser:mypass@myserver.example.com:80/caldav.php/"}]
+  caldav_servers = [{
+      "url": "https://myserver.example.com:80/caldav.php/",
+      'username': 'testuser',
+      'password': 'hunter2'}]
 
 the dict may contain:
  * username and password (if not embedded in the URL)
  * principal_url (used to verify client.principal().url)
- * backwards_compatibility_url (use this if you've been using caldav versions prior to 0.2)
+ * backwards_compatibility_url (deprecated - URLs that worked with caldav versions prior to 0.2 goes here)
 
 Documentation
 =============
