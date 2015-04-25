@@ -563,7 +563,7 @@ class Calendar(DAVObject):
             matches.sort(key=sort_key_func)
         return matches
 
-    def _calendar_comp_class_by_data(data):
+    def _calendar_comp_class_by_data(self, data):
         for line in data.split('\n'):
             if line == 'BEGIN:VEVENT':
                 return Event
