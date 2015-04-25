@@ -563,13 +563,24 @@ class Calendar(DAVObject):
             matches.sort(key=sort_key_func)
         return matches
 
+    def _calendar_comp_class_by_data(data):
+        for line in data.split('\n'):
+            if line == 'BEGIN:VEVENT':
+                return Event
+            if line == 'BEGIN:VTODO':
+                return Todo
+            if line == 'BEGIN:VJOURNAL':
+                return Journal
+            if line == 'BEGIN:VFREEBUSY':
+                return FreeBusy
+
     def event_by_url(self, href, data=None):
         """
         Returns the event with the given URL
         """
         return Event(url=href, data=data, parent=self).load()
 
-    def event_by_uid(self, uid):
+    def object_by_uid(self, uid, comp_filter=None):
         """
         Get one event from the calendar.
 
@@ -582,10 +593,11 @@ class Calendar(DAVObject):
         data = cdav.CalendarData()
         prop = dav.Prop() + data
 
-        match = cdav.TextMatch(uid)
-        propf = cdav.PropFilter("UID") + match
-        vevent = cdav.CompFilter("VEVENT") + propf
-        vcalendar = cdav.CompFilter("VCALENDAR") + vevent
+        query = cdav.TextMatch(uid)
+        query = cdav.PropFilter("UID") + query
+        if comp_filter:
+            query = comp_filter + query
+        vcalendar = cdav.CompFilter("VCALENDAR") + query
         filter = cdav.Filter() + vcalendar
 
         root = cdav.CalendarQuery() + [prop, filter]
@@ -601,10 +613,12 @@ class Calendar(DAVObject):
         if r is not None:
             href = r.find(".//" + dav.Href.tag).text
             data = r.find(".//" + cdav.CalendarData.tag).text
-            return Event(self.client, url=URL.objectify(href), data=data, parent=self)
+            return self._calendar_comp_class_by_data(data)(self.client, url=URL.objectify(href), data=data, parent=self)
         else:
             raise error.NotFoundError(response.raw)
 
+    def event_by_uid(self, uid):
+        return self.object_by_uid(uid, comp_filter=cdav.CompFilter("VEVENT"))
     ## alias for backward compatibility
     event = event_by_uid
 
@@ -783,3 +797,5 @@ class Todo(CalendarObjectResource):
         self.instance.vtodo.status.value = 'COMPLETED'
         self.instance.vtodo.add('completed').value = completion_timestamp
         self.save()
+
+
