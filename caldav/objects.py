@@ -517,13 +517,14 @@ class Calendar(DAVObject):
         fetches a list of journal entries.
         """
 
-    def todos(self, sort_key='due', include_completed=False):
+    def todos(self, sort_keys=('due','priority'), include_completed=False, sort_key=None):
         """
         fetches a list of todo events.
 
         Parameters:
-         * sort_key: use this field in the VTODO for sorting (lower case string, i.e. 'priority').
+         * sort_keys: use this field in the VTODO for sorting (iterable of lower case string, i.e. ('priority','due')).
          * include_completed: boolean - by default, only pending tasks are listed
+         * sort_key: DEPRECATED, for backwards compatibility with version 0.4.
         """
         ## ref https://www.ietf.org/rfc/rfc4791.txt, section 7.8.9
         matches = []
@@ -531,6 +532,9 @@ class Calendar(DAVObject):
         # build the request
         data = cdav.CalendarData()
         prop = dav.Prop() + data
+
+        if sort_key:
+            sort_keys = (sort_key,)
 
         if not include_completed:
             vnotcompleted = cdav.TextMatch('COMPLETED', negate=True)
@@ -552,14 +556,19 @@ class Calendar(DAVObject):
                 Todo(self.client, url=self.url.join(r), data=results[r][cdav.CalendarData.tag], parent=self))
 
         def sort_key_func(x):
-            val = getattr(x.instance.vtodo, sort_key, None)
-            if not val:
-                return None
-            val = val.value
-            if hasattr(val, 'strftime'):
-                return val.strftime('%F%H%M%S')
-            return val
-        if sort_key:
+            ret = []
+            for sort_key in sort_keys:
+                val = getattr(x.instance.vtodo, sort_key, None)
+                if not val:
+                    ret.append(None)
+                    continue
+                val = val.value
+                if hasattr(val, 'strftime'):
+                    ret.append(val.strftime('%F%H%M%S'))
+                else:
+                    ret.append(val)
+            return ret
+        if sort_keys:
             matches.sort(key=sort_key_func)
         return matches
 

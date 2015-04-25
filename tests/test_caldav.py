@@ -366,7 +366,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         t1 = c.add_todo(todo)
 
         ## c.todos() should give a full list of todo items
-        todos = c.todos()
+        todos = c.todos(sort_keys=('due',))
         assert_equal(len(todos), 1)
 
         ## c.events() should NOT return todo-items
@@ -382,10 +382,13 @@ class RepeatedFunctionalTestsBaseClass(object):
         uids = lambda lst: [x.instance.vtodo.uid for x in lst]
         assert_equal(uids(todos), uids([t2, t3, t1]))
 
-        todos = c.todos(sort_key='priority')
+        todos = c.todos(sort_keys=('priority',))
         pri = lambda lst: [x.instance.vtodo.priority.value for x in lst if hasattr(x.instance.vtodo, 'priority')]
         assert_equal(pri(todos), pri([t3, t2]))
 
+        todos = c.todos(sort_keys=('summary','priority',))
+        assert_equal(uids(todos), uids([t3, t2, t1]))
+        
         t3.complete()
 	todos = c.todos()
         assert_equal(len(todos), 2)
