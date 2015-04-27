@@ -453,7 +453,7 @@ class Calendar(DAVObject):
                 self.url = URL.objectify(str(self.url) + '/')
         return self
 
-    def date_search(self, start, end=None):
+    def date_search(self, start, end=None, compfilter="VEVENT"):
         """
         Search events by date in the calendar. Recurring events are
         expanded if they are occuring during the specified time frame
@@ -462,9 +462,10 @@ class Calendar(DAVObject):
         Parameters:
          * start = datetime.today().
          * end = same as above.
+         * compfilter = defaults to events only.  Set to None to fetch all calendar components.
 
         Returns:
-         * [Event(), ...]
+         * [CalendarObjectResource(), ...]
 
         """
         matches = []
@@ -482,9 +483,10 @@ class Calendar(DAVObject):
             data = cdav.CalendarData()
         prop = dav.Prop() + data
 
-        range = cdav.TimeRange(start, end)
-        vevent = cdav.CompFilter("VEVENT") + range
-        vcalendar = cdav.CompFilter("VCALENDAR") + vevent
+        query = cdav.TimeRange(start, end)
+        if compfilter:
+            query = cdav.CompFilter(compfilter) + query
+        vcalendar = cdav.CompFilter("VCALENDAR") + query
         filter = cdav.Filter() + vcalendar
 
         root = cdav.CalendarQuery() + [prop, filter]

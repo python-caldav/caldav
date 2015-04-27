@@ -125,6 +125,21 @@ STATUS:NEEDS-ACTION
 END:VTODO
 END:VCALENDAR"""
 
+todo4 = """
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Example Corp.//CalDAV Client//EN
+BEGIN:VTODO
+UID:19970901T130000Z-123406@host.com
+DTSTAMP:19970901T130000Z
+SUMMARY:1996 Income Tax Preparation
+CLASS:CONFIDENTIAL
+CATEGORIES:FAMILY,FINANCE
+PRIORITY:1
+STATUS:NEEDS-ACTION
+END:VTODO
+END:VCALENDAR"""
+
 ## example from http://www.kanzaki.com/docs/ical/vjournal.html
 journal1 = """
 BEGIN:VCALENDAR
@@ -347,11 +362,9 @@ class RepeatedFunctionalTestsBaseClass(object):
         """
         This test demonstrates the support for task lists.
         * It will create a "task list"
-        * It will add some tasks to it
-        * It will list out all pending tasks, sorted by due date
-        * It will list out all pending tasks, sorted by priority
-        * It will complete a task
-        * It will delete a task
+        * It will add a task to it
+        * Verify the cal.todos() method
+        * Verify that cal.events() method returns nothing
         """
         ## For all servers I've tested against except Zimbra, it's
         ## possible to create a calendar and add todo-items to it.
@@ -366,13 +379,23 @@ class RepeatedFunctionalTestsBaseClass(object):
         t1 = c.add_todo(todo)
 
         ## c.todos() should give a full list of todo items
-        todos = c.todos(sort_keys=('due',))
+        todos = c.todos()
         assert_equal(len(todos), 1)
 
         ## c.events() should NOT return todo-items
         events = c.events()
         assert_equal(len(events), 0)
 
+    def testTodos(self):
+        """
+        This test will excercise the cal.todos() method, and in particular the sort_keys attribute.
+        * It will list out all pending tasks, sorted by due date
+        * It will list out all pending tasks, sorted by priority
+        """
+        c = self.principal.make_calendar(name="Yep", cal_id=testcal_id, supported_calendar_component_set=['VTODO'])
+
+        ## add todo-item
+        t1 = c.add_todo(todo)
 	t2 = c.add_todo(todo2)
         t3 = c.add_todo(todo3)
 
@@ -388,18 +411,78 @@ class RepeatedFunctionalTestsBaseClass(object):
 
         todos = c.todos(sort_keys=('summary','priority',))
         assert_equal(uids(todos), uids([t3, t2, t1]))
+
+    def testTodoDatesearch(self):
+        """
+        Let's see how the date search method works for todo events
+        """
+        c = self.principal.make_calendar(name="Yep", cal_id=testcal_id, supported_calendar_component_set=['VTODO'])
+
+        ## add todo-item
+        t1 = c.add_todo(todo)
+	t2 = c.add_todo(todo2)
+        t3 = c.add_todo(todo3)
+        t4 = c.add_todo(todo4)
+        todos = c.todos()
+        assert_equal(len(todos), 4)
+
+        notodos = c.date_search(start=datetime(1997, 4, 14), end=datetime(2015,5,14)) ## default compfilter is events
+        assert(not notodos)
+
+        ## Now, this is interesting.  2 events have dtstart set, 3 has due set and 1 has neither due nor dtstart set.  None has duration set.  What will a date search yield?
+        todos = c.date_search(start=datetime(1997, 4, 14), end=datetime(2015,5,14), compfilter='VTODO')
+        ## What to expect here?  Various caldav implementations gives me 2, 3 or 4 events, most of them 4.  I think less than 4 is incorrect, the iCal RFC states that ...
+        ### A "VTODO" calendar component without the "DTSTART" and "DUE" (or
+        ### "DURATION") properties specifies a to-do that will be associated
+        ### with each successive calendar date, until it is completed.
+        ## since we have "expand" set, it could even imply that we should get
+        ## two VTODO items our for each day in the time range!
+        ## (Though, I didn't fine-read what the caldav RFC say ...)
+
+        ## TODO: fine-read the caldav RFC and prod the caldav server
+        ## implementators about the RFC breakages.
+
+        ## This is probably correct:
+        #assert_equal(len(todos), 4)
+        ## ... but some caldav implementations yields 2 and 3:
+        assert(len(todos) >= 2)
+
+    def testTodoCompletion(self):
+        """
+        Will check that todo-items can be completed and deleted
+        """
+        c = self.principal.make_calendar(name="Yep", cal_id=testcal_id, supported_calendar_component_set=['VTODO'])
+
+        ## add todo-items
+        t1 = c.add_todo(todo)
+	t2 = c.add_todo(todo2)
+        t3 = c.add_todo(todo3)
+
+        ## There are now three todo-items at the calendar
+	todos = c.todos()
+        assert_equal(len(todos), 3)
         
+        ## Complete one of them
         t3.complete()
+        
+        ## There are now two todo-items at the calendar
 	todos = c.todos()
         assert_equal(len(todos), 2)
 
+        ## There historic todo-item can still be accessed
 	todos = c.todos(include_completed=True)
         assert_equal(len(todos), 3)
 
         t2.delete()
 
+        ## ... the deleted one is gone ...
         todos = c.todos(include_completed=True)
         assert_equal(len(todos), 2)
+
+        ## date search should not include completed events ... hum.  TODO, fixme.
+        #todos = c.date_search(start=datetime(1990, 4, 14), end=datetime(2015,5,14), compfilter='VTODO', hide_completed_todos=True)
+        #assert_equal(len(todos), 1)
+        
 
     def testUtf8Event(self):
         c = self.principal.make_calendar(name="Yølp", cal_id=testcal_id)
