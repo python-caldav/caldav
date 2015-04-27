@@ -794,6 +794,8 @@ class Todo(CalendarObjectResource):
         """
         if not completion_timestamp:
             completion_timestamp = datetime.datetime.now()
+        if not hasattr(self.instance.vtodo, 'status'):
+            self.instance.vtodo.add('status')
         self.instance.vtodo.status.value = 'COMPLETED'
         self.instance.vtodo.add('completed').value = completion_timestamp
         self.save()
