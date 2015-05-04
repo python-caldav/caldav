@@ -131,32 +131,19 @@ BEGIN:VCALENDAR
 VERSION:2.0
 PRODID:-//Example Corp.//CalDAV Client//EN
 BEGIN:VJOURNAL
-UID:19970901T130000Z-123405@host.com
-DTSTAMP:19970901T1300Z
-DTSTART;VALUE=DATE:19970317
-SUMMARY:Staff meeting minutes
-DESCRIPTION:1. Staff meeting: Participants include Joe\, Lisa
-  and Bob. Aurora project plans were reviewed. There is currently
-  no budget reserves for this project. Lisa will escalate to
-  management. Next meeting on Tuesday.\n
-  2. Telephone Conference: ABC Corp. sales representative called
-  to discuss new printer. Promised to get us a demo by Friday.\n
-  3. Henry Miller (Handsoff Insurance): Car was totaled by tree.
-  Is looking into a loaner car. 654-2323 (tel).
-END:VJOURNAL
-END:VCALENDAR
-"""
-
-journal2 = """
-BEGIN:VCALENDAR
-VERSION:2.0
-PRODID:-//Example Corp.//CalDAV Client//EN
-BEGIN:VJOURNAL
-UID:19970901T130000Z-123405@host.com
+UID:19970901T130000Z-123405@example.com
 DTSTAMP:19970901T130000Z
 DTSTART;VALUE=DATE:19970317
 SUMMARY:Staff meeting minutes
-DESCRIPTION:1. Staff meeting: Participants include Joe\, Lisa and Bob. Aurora project plans were reviewed. There is currently no budget reserves for this project. Lisa will escalate to management. Next meeting on Tuesday.\n 2. Telephone Conference: ABC Corp. sales representative called to discuss new printer. Promised to get us a demo by Friday.\n 3. Henry Miller (Handsoff Insurance): Car was totaled by tree. Is looking into a loaner car. 654-2323 (tel).
+DESCRIPTION:1. Staff meeting: Participants include Joe\\,
+  Lisa\\, and Bob. Aurora project plans were reviewed.
+  There is currently no budget reserves for this project.
+  Lisa will escalate to management. Next meeting on Tuesday.\\n
+ 2. Telephone Conference: ABC Corp. sales representative
+  called to discuss new printer. Promised to get us a demo by
+  Friday.\\n3. Henry Miller (Handsoff Insurance): Car was
+  totaled by tree. Is looking into a loaner car. 555-2323
+  (tel).
 END:VJOURNAL
 END:VCALENDAR
 """
@@ -335,8 +322,7 @@ class RepeatedFunctionalTestsBaseClass(object):
             ## though different error.
             return
         c = self.principal.make_calendar(name="Yep", cal_id=testcal_id, supported_calendar_component_set=['VJOURNAL'])
-        #j1 = c.add_journal(journal1) ## vobjects breaks here
-        j1 = c.add_journal(journal2)
+        j1 = c.add_journal(journal)
         journals = c.journals()
         assert_equal(len(journals), 1)
         todos = c.todos()
@@ -373,10 +359,10 @@ class RepeatedFunctionalTestsBaseClass(object):
         events = c.events()
         assert_equal(len(events), 0)
 
-	t2 = c.add_todo(todo2)
+        t2 = c.add_todo(todo2)
         t3 = c.add_todo(todo3)
 
-	todos = c.todos()
+        todos = c.todos()
 
         assert_equal(len(todos), 3)
         uids = lambda lst: [x.instance.vtodo.uid for x in lst]
@@ -387,10 +373,10 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert_equal(pri(todos), pri([t3, t2]))
 
         t3.complete()
-	todos = c.todos()
+        todos = c.todos()
         assert_equal(len(todos), 2)
 
-	todos = c.todos(include_completed=True)
+        todos = c.todos(include_completed=True)
         assert_equal(len(todos), 3)
 
         t2.delete()
