@@ -429,20 +429,26 @@ class RepeatedFunctionalTestsBaseClass(object):
         notodos = c.date_search(start=datetime(1997, 4, 14), end=datetime(2015,5,14)) ## default compfilter is events
         assert(not notodos)
 
-        ## Now, this is interesting.  2 events have dtstart set, 3 has due set and 1 has neither due nor dtstart set.  None has duration set.  What will a date search yield?
+        ## Now, this is interesting.  2 events have dtstart set, 3 has
+        ## due set and 1 has neither due nor dtstart set.  None has
+        ## duration set.  What will a date search yield?
         todos = c.date_search(start=datetime(1997, 4, 14), end=datetime(2015,5,14), compfilter='VTODO')
-        ## What to expect here?  Various caldav implementations gives me 2, 3 or 4 events, most of them 4.  I think less than 4 is incorrect, the iCal RFC states that ...
+        ## The RFCs are pretty clear on this.  rfc5545 states:
+
         ### A "VTODO" calendar component without the "DTSTART" and "DUE" (or
         ### "DURATION") properties specifies a to-do that will be associated
         ### with each successive calendar date, until it is completed.
-        ## since we have "expand" set, it could even imply that we should get
-        ## two VTODO items our for each day in the time range!
-        ## (Though, I didn't fine-read what the caldav RFC say ...)
 
-        ## TODO: fine-read the caldav RFC and prod the caldav server
-        ## implementators about the RFC breakages.
+        ## and RFC4791, section 9.9 also says that events without
+        ## dtstart or due should be counted.  Since we have "expand"
+        ## set, it could even imply that we should get two VTODO items
+        ## our for each day in the time range!  In any case, less than
+        ## 4 todos returned is a breach of the RFCs.
 
-        ## This is probably correct:
+        ## TODO: prod the caldav server implementators about the RFC
+        ## breakages.
+
+        ## This is probably correct, and most server implementations gives this:
         #assert_equal(len(todos), 4)
         ## ... but some caldav implementations yields 2 and 3:
         assert(len(todos) >= 2)
