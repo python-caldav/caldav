@@ -126,7 +126,7 @@ END:VTODO
 END:VCALENDAR"""
 
 ## example from http://www.kanzaki.com/docs/ical/vjournal.html
-journal1 = """
+journal = """
 BEGIN:VCALENDAR
 VERSION:2.0
 PRODID:-//Example Corp.//CalDAV Client//EN
