@@ -289,8 +289,8 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert_equal(len(events), 0)
         events = self.principal.calendar(name="Yep", cal_id=testcal_id).events()
         ## huh ... we're quite constantly getting out a list with one item, the URL for
-	## the caldav server.  This needs to be investigated, it is surely a bug in our
-	## code.  Anyway, better to ignore it now than to have broken test code.
+        ## the caldav server.  This needs to be investigated, it is surely a bug in our
+        ## code.  Anyway, better to ignore it now than to have broken test code.
         assert_equal(len(events), 0)
         c.delete()
         
@@ -376,7 +376,7 @@ class RepeatedFunctionalTestsBaseClass(object):
 
         ## add todo-item
         t1 = c.add_todo(todo)
-	t2 = c.add_todo(todo2)
+        t2 = c.add_todo(todo2)
         t3 = c.add_todo(todo3)
 
         todos = c.todos()
