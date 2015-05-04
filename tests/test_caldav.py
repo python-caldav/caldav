@@ -154,6 +154,7 @@ DESCRIPTION:1. Staff meeting: Participants include Joe\, Lisa
   and Bob. Aurora project plans were reviewed. There is currently
   no budget reserves for this project. Lisa will escalate to
   management. Next meeting on Tuesday.\n
+END:VJOURNAL
 END:VCALENDAR
 """
 

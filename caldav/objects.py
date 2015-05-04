@@ -561,8 +561,8 @@ class Calendar(DAVObject):
             ret = []
             for sort_key in sort_keys:
                 defaults = {
-                    'due': '2050-01-01'
-                    'dtstart': '1970-01-01'
+                    'due': '2050-01-01',
+                    'dtstart': '1970-01-01',
                     'priority': 0
                 }
                 val = getattr(x.instance.vtodo, sort_key, None)
