@@ -563,11 +563,11 @@ class Calendar(DAVObject):
                 defaults = {
                     'due': '2050-01-01',
                     'dtstart': '1970-01-01',
-                    'priority': 0
+                    'priority': '0'
                 }
                 val = getattr(x.instance.vtodo, sort_key, None)
                 if val is None:
-                    ret.append(defaults.get(sort_key,0))
+                    ret.append(defaults.get(sort_key,'0'))
                     continue
                 val = val.value
                 if hasattr(val, 'strftime'):
