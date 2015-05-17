@@ -559,12 +559,14 @@ class Calendar(DAVObject):
 
         def sort_key_func(x):
             ret = []
+            defaults = {
+                'due': '2050-01-01',
+                'dtstart': '1970-01-01',
+                'priority': '0',
+                'isnt_overdue': not (hasattr(x.instance.vtodo, 'due') and x.instance.vtodo.due.value.strftime('%F%H%M%S') < datetime.datetime.now().strftime('%F%H%M%S')),
+                'hasnt_started': (hasattr(x.instance.vtodo, 'dtstart') and x.instance.vtodo.dtstart.value.strftime('%F%H%M%S') > datetime.datetime.now().strftime('%F%H%M%S'))
+            }
             for sort_key in sort_keys:
-                defaults = {
-                    'due': '2050-01-01',
-                    'dtstart': '1970-01-01',
-                    'priority': '0'
-                }
                 val = getattr(x.instance.vtodo, sort_key, None)
                 if val is None:
                     ret.append(defaults.get(sort_key,'0'))
