@@ -706,6 +706,9 @@ class CalendarObjectResource(DAVObject):
         if data is not None:
             self.data = data
 
+    def copy(self):
+        return self.__class__(self.client, parent=self.parent, data=self.data, id = str(uuid.uuid1()))
+            
     def load(self):
         """
         Load the object from the caldav server.
@@ -720,9 +723,17 @@ class CalendarObjectResource(DAVObject):
         if id is None and path is not None and str(path).endswith('.ics'):
             id = re.search('(/|^)([^/]*).ics',str(path)).group(2)
         elif id is None:
-            for obj in ('vevent', 'vtodo', 'vjournal', 'vfreebusy'):
-                if hasattr(self.instance, obj):
-                    id = getattr(self.instance, obj).uid.value
+            for obj_type in ('vevent', 'vtodo', 'vjournal', 'vfreebusy'):
+                if hasattr(self.instance, obj_type):
+                    id = getattr(self.instance, obj_type).uid.value
+                    break
+        else:
+            for obj_type in ('vevent', 'vtodo', 'vjournal', 'vfreebusy'):
+                if hasattr(self.instance, obj_type):
+                    obj = getattr(self.instance, obj_type)
+                    if not hasattr(obj, 'uid'):
+                        obj.add('uid')
+                    obj.uid = id
                     break
         if path is None:
             path = id + ".ics"
