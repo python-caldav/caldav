@@ -17,6 +17,9 @@ from caldav.lib.url import URL
 from caldav.elements import dav, cdav
 from caldav.lib.python_utilities import to_unicode
 
+## utility for formatting a response xml tree to an error string
+def errmsg(r):
+    return "%s %s\n\n%s" % (r.status, r.reason, r.raw)
 
 class DAVObject(object):
     """
@@ -113,11 +116,11 @@ class DAVObject(object):
         ret = getattr(self.client, query_method)(
             url, body, depth)
         if ret.status == 404:
-            raise error.NotFoundError(ret.raw)
+            raise error.NotFoundError(errmsg(ret))
         if (
                 (expected_return_value is not None and ret.status != expected_return_value) or
                 ret.status >= 400):
-            raise error.exception_by_method[query_method](ret.raw)
+            raise error.exception_by_method[query_method](errmsg(ret))
         return ret
         
 
@@ -136,7 +139,7 @@ class DAVObject(object):
                     ## Silently ignoring the 404
                     ## (we should probably spit out some debug logging here)
                     continue
-                raise error.ReportError(response.raw) ## TODO: may be wrong error class
+                raise error.ReportError(errmsg(response))
 
             href = r.find('.//' + dav.Href.tag).text
             properties[href] = {}
@@ -203,8 +206,7 @@ class DAVObject(object):
         statuses = r.tree.findall(".//" + dav.Status.tag)
         for s in statuses:
             if not s.text.endswith("200 OK"):
-                raise error.PropsetError(r.raw)
-
+                raise error.PropsetError(errmsg(r))
         return self
 
     def save(self):
@@ -226,7 +228,7 @@ class DAVObject(object):
 
             #TODO: find out why we get 404
             if r.status not in (200, 204, 404):
-                raise error.DeleteError(r.raw)
+                raise error.DeleteError(errmsg(r))
 
     def __str__(self):
         return str(self.url)
@@ -623,9 +625,9 @@ class Calendar(DAVObject):
         response = self._query(root, 1, 'report')
 
         if response.status == 404:
-            raise error.NotFoundError(response.raw)
+            raise error.NotFoundError(errmsg(response))
         elif response.status == 400:
-            raise error.ReportError(response.raw)
+            raise error.ReportError(errmsg(response))
             
         r = response.tree.find(".//" + dav.Response.tag)
         if r is not None:
@@ -633,7 +635,7 @@ class Calendar(DAVObject):
             data = r.find(".//" + cdav.CalendarData.tag).text
             return self._calendar_comp_class_by_data(data)(self.client, url=URL.objectify(href), data=data, parent=self)
         else:
-            raise error.NotFoundError(response.raw)
+            raise error.NotFoundError(errmsg(response))
 
     def event_by_uid(self, uid):
         return self.object_by_uid(uid, comp_filter=cdav.CompFilter("VEVENT"))
@@ -712,7 +714,7 @@ class CalendarObjectResource(DAVObject):
         """
         r = self.client.request(self.url)
         if r.status == 404:
-            raise error.NotFoundError(r.raw)
+            raise error.NotFoundError(errmsg(r))
         self.data = vcal.fix(r.raw)
         return self
 
@@ -733,7 +735,7 @@ class CalendarObjectResource(DAVObject):
         if r.status == 302:
             path = [x[1] for x in r.headers if x[0]=='location'][0]
         elif not (r.status in (204, 201)):
-            raise error.PutError(r.raw)
+            raise error.PutError(errmsg(r))
 
         self.url = URL.objectify(path)
         self.id = id
