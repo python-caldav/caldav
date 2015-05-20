@@ -131,8 +131,8 @@ class DAVObject(object):
         # All items should be in a <D:response> element
         for r in response.tree.findall('.//' + dav.Response.tag):
             status = r.find('.//' + dav.Status.tag)
-            if not status.text.endswith('200 OK'):
-                if status.text.endswith('404 Not Found'):
+            if not status.text.endswith('200 '):
+                if status.text.endswith('404 '):
                     ## Silently ignoring the 404
                     ## (we should probably spit out some debug logging here)
                     continue
@@ -202,7 +202,7 @@ class DAVObject(object):
 
         statuses = r.tree.findall(".//" + dav.Status.tag)
         for s in statuses:
-            if not s.text.endswith("200 OK"):
+            if not s.text.endswith("200 "):
                 raise error.PropsetError(r.raw)
 
         return self
