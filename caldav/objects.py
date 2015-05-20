@@ -706,9 +706,15 @@ class CalendarObjectResource(DAVObject):
         if data is not None:
             self.data = data
 
-    def copy(self):
-        return self.__class__(self.client, parent=self.parent, data=self.data, id = str(uuid.uuid1()))
-            
+    def copy(self, keep_uid=False, new_parent=None):
+        """
+        Events, todos etc can be copied within the same calendar, to another calendar or even to another caldav server
+        """
+        return self.__class__(
+            parent=new_parent or self.parent,
+            data=self.data,
+            id = self.id if keep_uid else str(uuid.uuid1()))
+
     def load(self):
         """
         Load the object from the caldav server.
