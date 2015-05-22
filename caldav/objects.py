@@ -131,11 +131,7 @@ class DAVObject(object):
         # All items should be in a <D:response> element
         for r in response.tree.findall('.//' + dav.Response.tag):
             status = r.find('.//' + dav.Status.tag)
-            if not '200 ' in status.text:
-                if '404 ' in status.text:
-                    ## Silently ignoring the 404
-                    ## (we should probably spit out some debug logging here)
-                    continue
+            if not '200 ' in status.text and not '404 ' in status.text:
                 raise error.ReportError(response.raw) ## TODO: may be wrong error class
 
             href = r.find('.//' + dav.Href.tag).text
