@@ -17,6 +17,9 @@ from caldav.lib.url import URL
 from caldav.elements import dav, cdav
 from caldav.lib.python_utilities import to_unicode
 
+## utility for formatting a response xml tree to an error string
+def errmsg(r):
+    return "%s %s\n\n%s" % (r.status, r.reason, r.raw)
 
 class DAVObject(object):
     """
@@ -113,11 +116,11 @@ class DAVObject(object):
         ret = getattr(self.client, query_method)(
             url, body, depth)
         if ret.status == 404:
-            raise error.NotFoundError(ret.raw)
+            raise error.NotFoundError(errmsg(ret))
         if (
                 (expected_return_value is not None and ret.status != expected_return_value) or
                 ret.status >= 400):
-            raise error.exception_by_method[query_method](ret.raw)
+            raise error.exception_by_method[query_method](errmsg(ret))
         return ret
         
 
@@ -131,9 +134,8 @@ class DAVObject(object):
         # All items should be in a <D:response> element
         for r in response.tree.findall('.//' + dav.Response.tag):
             status = r.find('.//' + dav.Status.tag)
-            if not '200 ' in status.text and not '404 ' in status.text:
-                raise error.ReportError(response.raw) ## TODO: may be wrong error class
-
+            if not ' 200 ' in status.text and not ' 207 ' in status.text and not ' 404 ' in status.text:
+                raise error.ReportError(errmsg(response)) ## TODO: may be wrong error class
             href = r.find('.//' + dav.Href.tag).text
             properties[href] = {}
             for p in props:
@@ -184,7 +186,6 @@ class DAVObject(object):
         """
         Set properties (PROPPATCH) for this object.
 
-        Parameters:
          * props = [dav.DisplayName('name'), ...]
 
         Returns:
@@ -198,8 +199,8 @@ class DAVObject(object):
 
         statuses = r.tree.findall(".//" + dav.Status.tag)
         for s in statuses:
-            if not '200 ' in s.text:
-                raise error.PropsetError(r.raw)
+            if not ' 200 ' in s.text:
+                raise error.PropsetError(errmsg(r))
 
         return self
 
@@ -222,7 +223,7 @@ class DAVObject(object):
 
             #TODO: find out why we get 404
             if r.status not in (200, 204, 404):
-                raise error.DeleteError(r.raw)
+                raise error.DeleteError(errmsg(r))
 
     def __str__(self):
         return str(self.url)
@@ -449,7 +450,7 @@ class Calendar(DAVObject):
                 self.url = URL.objectify(str(self.url) + '/')
         return self
 
-    def date_search(self, start, end=None):
+    def date_search(self, start, end=None, compfilter="VEVENT"):
         """
         Search events by date in the calendar. Recurring events are
         expanded if they are occuring during the specified time frame
@@ -458,9 +459,10 @@ class Calendar(DAVObject):
         Parameters:
          * start = datetime.today().
          * end = same as above.
+         * compfilter = defaults to events only.  Set to None to fetch all calendar components.
 
         Returns:
-         * [Event(), ...]
+         * [CalendarObjectResource(), ...]
 
         """
         matches = []
@@ -478,9 +480,10 @@ class Calendar(DAVObject):
             data = cdav.CalendarData()
         prop = dav.Prop() + data
 
-        range = cdav.TimeRange(start, end)
-        vevent = cdav.CompFilter("VEVENT") + range
-        vcalendar = cdav.CompFilter("VCALENDAR") + vevent
+        query = cdav.TimeRange(start, end)
+        if compfilter:
+            query = cdav.CompFilter(compfilter) + query
+        vcalendar = cdav.CompFilter("VCALENDAR") + query
         filter = cdav.Filter() + vcalendar
 
         root = cdav.CalendarQuery() + [prop, filter]
@@ -513,13 +516,14 @@ class Calendar(DAVObject):
         fetches a list of journal entries.
         """
 
-    def todos(self, sort_key='due', include_completed=False):
+    def todos(self, sort_keys=('due','priority'), include_completed=False, sort_key=None):
         """
         fetches a list of todo events.
 
         Parameters:
-         * sort_key: use this field in the VTODO for sorting (lower case string, i.e. 'priority').
+         * sort_keys: use this field in the VTODO for sorting (iterable of lower case string, i.e. ('priority','due')).
          * include_completed: boolean - by default, only pending tasks are listed
+         * sort_key: DEPRECATED, for backwards compatibility with version 0.4.
         """
         ## ref https://www.ietf.org/rfc/rfc4791.txt, section 7.8.9
         matches = []
@@ -527,6 +531,9 @@ class Calendar(DAVObject):
         # build the request
         data = cdav.CalendarData()
         prop = dav.Prop() + data
+
+        if sort_key:
+            sort_keys = (sort_key,)
 
         if not include_completed:
             vnotcompleted = cdav.TextMatch('COMPLETED', negate=True)
@@ -548,14 +555,26 @@ class Calendar(DAVObject):
                 Todo(self.client, url=self.url.join(r), data=results[r][cdav.CalendarData.tag], parent=self))
 
         def sort_key_func(x):
-            val = getattr(x.instance.vtodo, sort_key, None)
-            if not val:
-                return None
-            val = val.value
-            if hasattr(val, 'strftime'):
-                return val.strftime('%F%H%M%S')
-            return val
-        if sort_key:
+            ret = []
+            defaults = {
+                'due': '2050-01-01',
+                'dtstart': '1970-01-01',
+                'priority': '0',
+                'isnt_overdue': not (hasattr(x.instance.vtodo, 'due') and x.instance.vtodo.due.value.strftime('%F%H%M%S') < datetime.datetime.now().strftime('%F%H%M%S')),
+                'hasnt_started': (hasattr(x.instance.vtodo, 'dtstart') and x.instance.vtodo.dtstart.value.strftime('%F%H%M%S') > datetime.datetime.now().strftime('%F%H%M%S'))
+            }
+            for sort_key in sort_keys:
+                val = getattr(x.instance.vtodo, sort_key, None)
+                if val is None:
+                    ret.append(defaults.get(sort_key,'0'))
+                    continue
+                val = val.value
+                if hasattr(val, 'strftime'):
+                    ret.append(val.strftime('%F%H%M%S'))
+                else:
+                    ret.append(val)
+            return ret
+        if sort_keys:
             matches.sort(key=sort_key_func)
         return matches
 
@@ -601,9 +620,9 @@ class Calendar(DAVObject):
         response = self._query(root, 1, 'report')
 
         if response.status == 404:
-            raise error.NotFoundError(response.raw)
+            raise error.NotFoundError(errmsg(response))
         elif response.status == 400:
-            raise error.ReportError(response.raw)
+            raise error.ReportError(errmsg(response))
             
         r = response.tree.find(".//" + dav.Response.tag)
         if r is not None:
@@ -611,7 +630,7 @@ class Calendar(DAVObject):
             data = r.find(".//" + cdav.CalendarData.tag).text
             return self._calendar_comp_class_by_data(data)(self.client, url=URL.objectify(href), data=data, parent=self)
         else:
-            raise error.NotFoundError(response.raw)
+            raise error.NotFoundError(errmsg(response))
 
     def event_by_uid(self, uid):
         return self.object_by_uid(uid, comp_filter=cdav.CompFilter("VEVENT"))
@@ -684,13 +703,22 @@ class CalendarObjectResource(DAVObject):
         if data is not None:
             self.data = data
 
+    def copy(self, keep_uid=False, new_parent=None):
+        """
+        Events, todos etc can be copied within the same calendar, to another calendar or even to another caldav server
+        """
+        return self.__class__(
+            parent=new_parent or self.parent,
+            data=self.data,
+            id = self.id if keep_uid else str(uuid.uuid1()))
+
     def load(self):
         """
         Load the object from the caldav server.
         """
         r = self.client.request(self.url)
         if r.status == 404:
-            raise error.NotFoundError(r.raw)
+            raise error.NotFoundError(errmsg(r))
         self.data = vcal.fix(r.raw)
         return self
 
@@ -698,9 +726,17 @@ class CalendarObjectResource(DAVObject):
         if id is None and path is not None and str(path).endswith('.ics'):
             id = re.search('(/|^)([^/]*).ics',str(path)).group(2)
         elif id is None:
-            for obj in ('vevent', 'vtodo', 'vjournal', 'vfreebusy'):
-                if hasattr(self.instance, obj):
-                    id = getattr(self.instance, obj).uid.value
+            for obj_type in ('vevent', 'vtodo', 'vjournal', 'vfreebusy'):
+                if hasattr(self.instance, obj_type):
+                    id = getattr(self.instance, obj_type).uid.value
+                    break
+        else:
+            for obj_type in ('vevent', 'vtodo', 'vjournal', 'vfreebusy'):
+                if hasattr(self.instance, obj_type):
+                    obj = getattr(self.instance, obj_type)
+                    if not hasattr(obj, 'uid'):
+                        obj.add('uid')
+                    obj.uid = id
                     break
         if path is None:
             path = id + ".ics"
@@ -711,7 +747,7 @@ class CalendarObjectResource(DAVObject):
         if r.status == 302:
             path = [x[1] for x in r.headers if x[0]=='location'][0]
         elif not (r.status in (204, 201)):
-            raise error.PutError(r.raw)
+            raise error.PutError(errmsg(r))
 
         self.url = URL.objectify(path)
         self.id = id
