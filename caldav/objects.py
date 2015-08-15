@@ -5,7 +5,6 @@
 A "DAV object" is anything we get from the caldav server or push into the caldav server, notably principal, calendars and calendar events.
 """
 
-import vobject
 import io
 import uuid
 import re
@@ -759,9 +758,9 @@ class CalendarObjectResource(DAVObject):
         Returns:
          * self
         """
-        if self._instance is not None:
+        if self._data is not None:
             path = self.url.path if self.url else None
-            self._create(self._instance.serialize(), self.id, path)
+            self._create(self.instance.serialize(), self.id, path)
         return self
 
     def __str__(self):
@@ -769,20 +768,32 @@ class CalendarObjectResource(DAVObject):
 
     def _set_data(self, data):
         self._data = vcal.fix(data)
-        self._instance = vobject.readOne(io.StringIO(to_unicode(self._data)))
+        self._instance = None
         return self
 
     def _get_data(self):
         return self._data
+    
     data = property(_get_data, _set_data,
                     doc="vCal representation of the object")
 
+    ## instance is a vobject instance.  The vobject dependency was
+    ## found to be unwanted - ref
+    ## https://bitbucket.org/cyrilrbt/caldav/issues/41/vobject-dependency-situation
+    ## - but we can't break backward compatibility.
     def _set_instance(self, inst):
         self._instance = inst
         self._data = inst.serialize()
         return self
 
     def _get_instance(self):
+        ## possibly a bug in the tBaxter fork of vobject, this one has to be
+        ## imported explicitly to make sure the attribute behaviour gets
+        ## correctly loaded:
+        from vobject import icalendar 
+        import vobject
+        if self._instance is None:
+            self._instance = vobject.readOne(io.StringIO(to_unicode(self._data)))
         return self._instance
     instance = property(_get_instance, _set_instance,
                         doc="vobject instance of the object")
