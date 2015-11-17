@@ -538,9 +538,10 @@ class Calendar(DAVObject):
         if not include_completed:
             vnotcompleted = cdav.TextMatch('COMPLETED', negate=True)
             vnotcancelled = cdav.TextMatch('CANCELLED', negate=True)
-            vstatus = cdav.PropFilter('STATUS') + vnotcancelled + vnotcompleted
+            vstatusNotCompleted = cdav.PropFilter('STATUS') + vnotcompleted
+            vstatusNotCancelled = cdav.PropFilter('STATUS') + vnotcancelled
             vnocompletedate = cdav.PropFilter('COMPLETED') + cdav.NotDefined()
-            vtodo = cdav.CompFilter("VTODO") + vnocompletedate + vstatus
+            vtodo = cdav.CompFilter("VTODO") + vnocompletedate + vstatusNotCompleted + vstatusNotCancelled
         else:
             vtodo = cdav.CompFilter("VTODO")
         vcalendar = cdav.CompFilter("VCALENDAR") + vtodo
