@@ -140,7 +140,9 @@ class DAVObject(object):
             properties[href] = {}
             for p in props:
                 t = r.find(".//" + p.tag)
-                if t and len(list(t)) > 0:
+                if t is None:
+                    val = None
+                elif t and len(list(t)) > 0:
                     if type is not None:
                         val = t.find(".//" + type)
                     else:
