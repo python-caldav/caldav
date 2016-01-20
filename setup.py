@@ -1,7 +1,8 @@
+#!/usr/bin/python2
 # -*- encoding: utf-8 -*-
 from setuptools import setup, find_packages
 
-version = '0.4.0'
+version = '0.5.0.dev'
 
 if __name__ == '__main__':
     setup(
