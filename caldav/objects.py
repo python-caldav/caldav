@@ -68,7 +68,7 @@ class DAVObject(object):
         depth = 1
         properties = {}
 
-        props = [dav.ResourceType(), dav.DisplayName ]
+        props = [dav.ResourceType(), dav.DisplayName() ]
         response = self._query_properties(props, depth)
         properties = self._handle_prop_response(response=response, props=props, type=type, what='tag')
 
@@ -250,8 +250,8 @@ class CalendarSet(DAVObject):
         cals = []
 
         data = self.children(cdav.Calendar.tag)
-        for c_url, c_type in data:
-            cals.append(Calendar(self.client, c_url, parent=self))
+        for c_url, c_type, c_name in data:
+            cals.append(Calendar(self.client, c_url, parent=self, name=c_name))
 
         return cals
 
