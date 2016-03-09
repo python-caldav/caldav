@@ -615,6 +615,9 @@ class Calendar(DAVObject):
         else:
             raise error.NotFoundError(response.raw)
 
+    def todo_by_uid(self, uid):
+        return self.object_by_uid(uid, comp_filter=cdav.CompFilter("VTODO"))
+
     def event_by_uid(self, uid):
         return self.object_by_uid(uid, comp_filter=cdav.CompFilter("VEVENT"))
     ## alias for backward compatibility
