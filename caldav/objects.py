@@ -68,19 +68,21 @@ class DAVObject(object):
         depth = 1
         properties = {}
 
-        props = [dav.ResourceType(), ]
+        props = [dav.ResourceType(), dav.DisplayName() ]
         response = self._query_properties(props, depth)
         properties = self._handle_prop_response(response=response, props=props, type=type, what='tag')
 
         for path in list(properties.keys()):
             resource_type = properties[path][dav.ResourceType.tag]
+            resource_name = properties[path][dav.DisplayName.tag]
+
             if resource_type == type or type is None:
                 ## TODO: investigate the RFCs thoroughly - why does a "get 
                 ## members of this collection"-request also return the collection URL itself?  
                 ## And why is the strip_trailing_slash-method needed?  The collection URL 
                 ## should always end with a slash according to RFC 2518, section 5.2.
                 if self.url.strip_trailing_slash() != self.url.join(path).strip_trailing_slash():
-                    c.append((self.url.join(path), resource_type))
+                    c.append((self.url.join(path), resource_type, resource_name))
 
         return c
 
@@ -138,17 +140,23 @@ class DAVObject(object):
             properties[href] = {}
             for p in props:
                 t = r.find(".//" + p.tag)
-                if len(list(t)) > 0:
-                    if type is not None:
-                        val = t.find(".//" + type)
+
+                if t is not None:
+
+                    if len(list(t)) > 0:
+                        if type is not None:
+                            val = t.find(".//" + type)
+                        else:
+                            val = t.find(".//*")
+                        if val is not None:
+                            val = getattr(val, what)
+                        else:
+                            val = None
                     else:
-                        val = t.find(".//*")
-                    if val is not None:
-                        val = getattr(val, what)
-                    else:
-                        val = None
+                        val = t.text
                 else:
-                    val = t.text
+                    val = None
+
                 properties[href][p.tag] = val
 
         return properties
@@ -242,8 +250,8 @@ class CalendarSet(DAVObject):
         cals = []
 
         data = self.children(cdav.Calendar.tag)
-        for c_url, c_type in data:
-            cals.append(Calendar(self.client, c_url, parent=self))
+        for c_url, c_type, c_name in data:
+            cals.append(Calendar(self.client, c_url, parent=self, name=c_name))
 
         return cals
 
