@@ -142,7 +142,7 @@ class DAVObject(object):
                 t = r.find(".//" + p.tag)
                 if t is None:
                     val = None
-                elif t and len(list(t)) > 0:
+                elif t and list(t):
                     if type is not None:
                         val = t.find(".//" + type)
                     else:
