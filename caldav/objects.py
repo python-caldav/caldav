@@ -779,7 +779,7 @@ class CalendarObjectResource(DAVObject):
 
     def _set_data(self, data):
         self._data = vcal.fix(data)
-        self._instance = vobject.readOne(io.StringIO(to_unicode(self._data)))
+        self._instance = vobject.readOne(to_unicode(self._data))
         return self
 
     def _get_data(self):
