@@ -354,15 +354,19 @@ class RepeatedFunctionalTestsBaseClass(object):
         ## tell Zimbra that the new "calendar" is a task list.  This
         ## is done though the supported_calendar_compontent_set
         ## property - hence the extra parameter here:
+        logging.info("Creating calendar Yep for tasks")
         c = self.principal.make_calendar(name="Yep", cal_id=testcal_id, supported_calendar_component_set=['VTODO'])
 
         ## add todo-item
+        logging.info("Adding todo item to calendar Yep")
         t1 = c.add_todo(todo)
 
         ## c.todos() should give a full list of todo items
+        logging.info("Fetching the full list of todo items (should be one)")
         todos = c.todos()
         assert_equal(len(todos), 1)
 
+        logging.info("Fetching the events (should be none)")
         ## c.events() should NOT return todo-items
         events = c.events()
         assert_equal(len(events), 0)
