@@ -617,8 +617,6 @@ class Calendar(DAVObject):
         query = cdav.PropFilter("UID") + query
         if comp_filter:
             query = comp_filter + query
-        else:
-            raise Exception("Need a comp_filter")
         vcalendar = cdav.CompFilter("VCALENDAR") + query
         filter = cdav.Filter() + vcalendar
 
