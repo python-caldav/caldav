@@ -735,13 +735,22 @@ class CalendarObjectResource(DAVObject):
             id = re.search('(/|^)([^/]*).ics',str(path)).group(2)
         elif id is None:
             for obj_type in ('vevent', 'vtodo', 'vjournal', 'vfreebusy'):
+                obj = None
                 if hasattr(self.instance, obj_type):
-                    id = getattr(self.instance, obj_type).uid.value
+                    obj =  getattr(self.instance, obj_type)
+                elif self.instance.name.lower() == obj_type:
+                    obj = self.instance
+                if obj is not None:
+                    id = obj.uid.value
                     break
         else:
             for obj_type in ('vevent', 'vtodo', 'vjournal', 'vfreebusy'):
+                obj = None
                 if hasattr(self.instance, obj_type):
                     obj = getattr(self.instance, obj_type)
+                elif self.instance.name.lower() == obj_type:
+                    obj = self.instance
+                if obj is not None:
                     if not hasattr(obj, 'uid'):
                         obj.add('uid')
                     obj.uid = id
