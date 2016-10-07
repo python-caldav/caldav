@@ -13,7 +13,7 @@ class FreeBusyQuery(BaseElement):
     tag = ns("C", "free-busy-query")
 
 class Mkcalendar(BaseElement):
-    tag = ns("D", "mkcalendar")
+    tag = ns("C", "mkcalendar")
 
 ## Filters
 class Filter(BaseElement):
