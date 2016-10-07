@@ -1,0 +1,345 @@
+2015-04-21  Tobias Brox <t-caldav@tobixen.no>
+        * caldav/elements/cdav.py - now support for the free-busy-query element.
+
+	* caldav/objects.py - added FreeBusy and Journal objects, plus calendar methods to retrieve them, and for adding journal entries.
+
+	* caldav/tests/test_caldav.py - added tests to add and fetch journal entries, and to request freebusy information.
+
+2015-04-16  Tobias Brox <t-caldav@tobixen.no>
+	* caldav/lib/error.py - added error class for the propfind method.
+	Made a dict index for method name -> exception class.
+
+	* caldav/elements/cdav.py - bugfix - "negate-condition", not
+	"negate" in the TextMatch class.  Added
+	SupportedCalendarComponentSet class.
+
+	* caldav/elements/davclient.py - obscured the API a bit by
+	allowing a dummy parameter to be passed to various methods.  Not
+	very nice, but needed for the refactoring work in objects.py.
+
+	* caldav/objects.py - VTODO support, new class for Todo-items with
+	method for completing the task.  Calendar creation methods takes a
+	list of supported element types as optional parameter.  Quite some
+	refactoring, consolidating similar-looking code.  Minor bugfix
+	with the event date search - asking for an expanded event list
+	with an open end date is not supported by all server
+	implementations, for obvious reasons.  Brushed up some docstrings
+	and prefixed some internal methods with underscore.
+
+	* caldav/tests/test_caldav.py - VTODO support, test code that
+	creates a task list, adds todo-items to it, completes todo-items,
+	list them out and deletes todo-items.
+
+2015-04-01  Tobias Brox  <t-caldav@tobixen.no>
+	* caldav/objects.py - started working on VTODO support
+
+	* caldav/tests/test_caldav.py - started working on VTODO support
+
+2015-04-01  Tobias Brox  <t-caldav@tobixen.no>
+        * caldav/lib/url.py - work on python3-support
+
+        * tests/conf.py - work on python3-support
+
+2015-03-29  Tobias Brox  <t-caldav@tobixen.no>
+        * caldav/objects.py - work on iCloud support.  Solves issue #38,
+        read-only access to iCloud seems to work.  Writing still fails,
+        ref issue #40.
+
+2015-03-19  Tobias Brox  <t-caldav@tobixen.no>
+        * tests/conf.py - ignore ImportError when importing conf_private,
+        but not other exceptions.  This way conf_private will be ignored
+        if it doesn't exist, but if there are syntax error, nosetest should
+        bark.
+
+2015-03-15  Tobias Brox  <t-caldav@tobixen.no>
+        * caldav/lib/python_utilities.py - fixing broken charset
+
+2015-02-26  Jack Laxson  <jackjrabbit@gmail.com>
+        * setup.py - remove sphinx from install_requires as it is huge and only used 
+        for generating the documentation.
+
+2015-02-23  Luke  <github@woydziak.com>
+        * Interceptable logging
+
+2015-02-16  Luke  <github@woydziak.com>
+        * python3 support
+
+2015-02-14  Tobias Brox <t-caldav@tobixen.no>
+        * tests/test_caldav.py - new test that deletes events
+
+2015-01-24  Tobias Brox <t-caldav@tobixen.no>
+        * caldav/davclient.py - support for digest auth and self-signed
+        SSL certs, re issue #26 and #34.
+        * tests/test_caldav.py - more generic URL checks to discover
+        owncloud and baikal servers.
+
+2015-01-21  Tobias Brox <t-caldav@tobixen.no>
+	* caldav/lib/url.py - workaround: "unauth"-method added port
+	":None" if no port were given.
+
+2015-01-19  Tobias Brox <t-caldav@tobixen.no>
+	* caldav/lib/url.py - added method strip_trailing_slash
+	* caldav/objects.py - test breakages on several server
+	implementations after the trailing slashes were removed.  Made a
+	workaround, though this issue should be investigated better.
+
+2014-05-27  Christian Roeder <christian.roeder@red-hood.de>
+        * caldav/davclient.py - RFC compliance fix; Use capitalised Depth:
+	Header
+
+2014-05-27  Tobias Brox <t-caldav@tobixen.no>
+	* caldav/lib/url.py - Workaround for Zimbra; Zimbra generates
+	non-ascii URLs when using non-ascii characters in the calendar
+	name, hence the URL library must accept non-ascii characters.
+
+2014-05-27  Tobias Brox <t-caldav@tobixen.no>
+	* setup.py - include the requests library dependency
+
+2014-05-20  Christian Roeder <christian.roeder@red-hood.de>
+	* caldav/lib/url.py - Do not remove trailing slashes of all URLs.
+	According to the RFC, all collection URLs should end with a
+	trailing slash, though most caldav server implementations will
+	handle URLs with and without trailing slashes the same.
+
+2014-05-11  Abdul Rehman Gani <abdulg@gmail.com>
+	* caldav/davclient.py - Change to use the requests library. Fixes
+	several compatibility-issues, i.e. with iCloud a get_properties
+	call would fail with a Path Handling exception. Happens when
+	httplib specifies the netloc in the HTTP request, and the returned
+	xml has the base path equal to that netloc instead of the path.
+
+2014-04-13  Abdul Rehman Gani <abdulg@gmail.com>
+	* caldav/davclient.py - Removed extraneous parameter passed to
+	getresponse(); bugfix in a section not covered by test code
+
+2014-03-14  Tobias Brox <t-caldav@tobixen.no>
+	* General - more verbose documentation
+
+	* caldav/test_caldav.py - added an exception for OwnCloud, it does
+	not support open-ended date searches
+
+2014-03-12  Tobias Brox <t-caldav@tobixen.no>
+	* setup.py - version bump (0.2.2)
+
+	* caldav/lib/url.py - battle hardening
+
+	* caldav/objects.py - allowing for relative URLs to be used
+
+	* caldav/test_caldav.py - test that relative URLs works as expected
+
+	* caldav/test_caldav.py - test that the URL library is robust
+
+2014-03-07  Tobias Brox <t-caldav@tobixen.no>
+	* caldav/davclient.py - minor api difference; it feels more
+	object-oriented to write principal = client.principal() than
+	principal = Principal(client)
+
+	* caldav/tests/test_caldav.py - work to reflect the above
+
+	* docs/source/index.rst - work to reflect the above
+
+	* docs/source/index.rst - added documentation that the tests may
+	fail if several test runs are performed simultaneously
+
+	* caldav/davclient.py - support for unicode and utf8
+
+	* caldav/lib/url.py - support for unicode and utf8
+
+	* caldav/objects.py - minor doc enhancement
+
+	* tests/test_caldav.py - load an event or a calendar by the URL
+
+	* tests/test_caldav.py - test calendar.events()
+
+	* tests/test_caldav.py - test utf8 and unicode
+
+	* docs/source/index.rst - documentation on how to run the test
+	suite towards private calendar servers
+
+	* setup.py - version bump (0.2.1)
+
+2014-03-01  Tobias Brox <t-caldav@tobixen.no>
+	* caldav/lib/url.py (make): function for backward compatibility
+
+	* tests/: more test code, including backward compatibility test
+
+2014-02-16  Tobias Brox <t-caldav@tobixen.no>
+	* caldav/lib/namespace.py: fixing issue
+	https://bitbucket.org/cyrilrbt/caldav/issue/29/centos59-minifix
+
+2013-12-12  Tobias Brox <t-caldav@tobixen.no>
+	* caldav/objects.py (Calendar): compatibility hack for zimbra -
+	gotcha!  Use Calendar display name in the Calendar URL instead of
+	Calendar ID.
+
+	* caldav/objects.py: internal change - _create method now returns
+	nothing, but sets self.url and self.id instead.
+
+2013-12-11  Tobias Brox <t-caldav@tobixen.no>
+	* caldav/objects.py (DAVObject): convenience fix - made client a
+	conditional parameter to __init__.  Defaults to parent.client if
+	parent is given.
+
+	* caldav/objects.py (Calendar): convenience fix - made methods
+	Calendar.event_by_uid and Calendar.event_by_url.  Calendar.event
+	is an alias to Calendar.event_by_uid for backwards compatibility.
+	Those methods also loads the object from the remote server (hmmm
+	... does that make sense, it's inconsistent with the
+	CalendarSet.calendar method)
+
+	* caldav/objects.py (Event): a potential compatibility fix - when
+	creating an event, some servers seems to want the uid to match the
+	URL (zimbra will yield 302 on the PUT request).  However, I wasn't
+	able to GET the event from zimbra, neither before nor after this
+	fix :-(
+
+	* caldav/elements/cdav.py: compatibility fix - collation 
+	"i; octet" (with whitespace) not recognized by baikal.  "i;octet"
+	(without whitespace) is OK.
+
+2013-12-08  Tobias Brox <t-caldav@tobixen.no>
+	* caldav/objects.py (Calendar): Convenience fix: method add_event
+	for making it easier to add events.  Better error handling; if
+	calendar creation succeeds but setting calendar name fails, delete
+	the calendar before raising the exception.
+
+	* caldav/objects.py (Event): Bugfix for zimbra - 302 is now an
+	acceptable return code when creating a new event.
+
+2013-12-07  Tobias Brox <t-caldav@tobixen.no>
+	* caldav/davclient.py (DAVClient.request, DAVResponse): Full HTTP
+	communication is now available in debug logs
+
+	* caldav/davclient.py (DAVClient.__init__): Username and password
+	can now (optionally) be given as separate parameters instead of as
+	a part of the configuration URL
+
+	* caldav/objects.py: By now it's sufficient to pass the base URL
+	while initializing the DAVClient object.  The library will find
+	the principal URL and home calendar set URL through GETPROP
+
+	* caldav/objects.py (Calendar): workaround for problem that
+	calendar name didn't get set on some (all?) caldav servers.
+
+	* caldav/objects.py (Principal, CalendarSet): created a method
+	calendar() to make it easier to generate a calendar object
+	(without server-side communication), and make_calendar for
+	creating a new calendar at the server side.
+
+	* tests/test_caldav.py: all broken tests have been disabled.
+	Temporary made smaller tests to demonstrate what is actually
+	working on all caldav servers I've tested against (Zimbra,
+	DAViCal, Baikal and SoGo).
+
+	* caldav/objects.py (DAVObject): (internal change) set __str__ and
+	__repr__ to make debugging easier
+
+	* caldav/objects.py: (internal change) Since the principal path and the calendar
+	home set path are different on most CALDav server implementations,
+	a new class CalendarSet has been made.
+
+	* caldav/lib/url.py: (internal change) Complete rewrite and
+	API-change. internally all URLs are now handled as objects
+
+	* caldav/objects.py (Principal): (internal change) made it
+	possible to set principal.calendar_home_set (hardly useful except
+	for from the unit testing code).
+
+	* All files: misc minor changes to reflect all the changes above.
+
+2011-01-22  Cyril Robert <cyrilrbt@gmail.com>
+
+	* caldav/elements/cdav.py (Expand.__init__, 
+							   TimeRange.__init__) : Fixed strftime fmt.
+
+2010-10-09  Cyril Robert <cyrilrbt@gmail.com>
+
+	* All files: Made PEP8 compliant 
+
+2010-10-04  Olivier Larchevêque <olivier.larcheveque@gmail.com>
+
+    * caldav/davclient.py (DAVClient.request): fix headers merge before sending request
+    * caldav/objects.py (Event.__init__): fix for respecting davobject signature
+
+2010-07-15  Cyril Robert <cyrilrbt@gmail.com>
+
+	* caldav/davclient.py (DAVClient.__init__): Fixed an issue with usernames
+	that contain a '@'.
+	Thanks to the reporter of issue #2
+
+2010-07-07  Mark Meyer  <ofosos@gmail.com>
+
+	* caldav/elements/cdav.py: Add Calendar, representing the calendar
+	resource type.
+	* caldav/objects.py (DAVObject.children): Pull in code from
+	_get_properties to enable PROPFINDs for properties with complex
+	values.
+	* caldav/objects.py (DAVObject.properties): Add a warning message.
+	* caldav/objects.py (Principal.calendars): retrieve only child
+	collections that have a cdav.Calendar property.
+	
+2010-07-06  Mark Meyer  <ofosos@gmail.com>
+
+	* caldav/objects.py (DAVObject.save): Use idiomatic
+	NotImplementedError and add a docstring
+	* caldav/davclient.py (DAVObject.request): raise error on a http
+	unauthorized (400) condition.
+
+2010-07-06  Cyril Robert <cyrilrbt@gmail.com>
+
+	* caldav/elements/base.py (BaseElement.__add__): Removed unnecessary
+	verification.
+	* caldav/objects.py: Merged all methods from caldav.lib.commands.
+	* caldav/commands.py: Removed, no longer needed.
+
+2010-07-05  Cyril Robert <cyrilrbt@gmail.com>
+
+	* caldav/lib/commands.py (date_search): Fixed a typo.
+	* caldav/lib/error.py (AuthorizationError): Added AuthorizationError.
+	* caldav/davclient.py (DAVClient.request): Added 403 error handling.
+	* caldav/davclient.py (DAVClient.__init__): Always pass proper Content-Type
+	and Accept headers to the server. This is required by at least davical.
+	Thanks to http://bitbucket.org/ofosos (all of the above)
+
+2010-07-02  Cyril Robert <cyrilrbt@gmail.com>
+
+	* caldav/lib/commands.py (get_properties): Merged patch from issue #1.
+	Thanks to http://bitbucket.org/ofosos
+
+2010-06-29  Cyril Robert <cyrilrbt@gmail.com>
+
+	* caldav/elements/*.py: New files, definition for many dav and caldav
+	elements to introduce a somewhat major refactoring.
+	* caldav/davclient.py (DAVClient.propfind): Fixed documentation.
+	* caldav/lib/commands.py: Major changes throughout the file to make use of
+	the newly defined classes.
+	* caldav/objects.py: Many small changes to the documentation an the usage
+	of the ns method.
+
+2010-06-14  Cyril Robert <cyrilrbt@gmail.com>
+
+	* caldav/davclient.py (DAVClient.put): Added a new "headers" parameter.
+	* caldav/lib/commands.py (create_event): Added headers for content-type.
+	* caldav/lib/commands.py: Added basic error management throughout the file.
+	* caldav/objects.py: Minor improvements.
+	* caldav/lib/error.py: New file, contains error definitions.
+
+2010-06-09  Cyril Robert <cyrilrbt@gmail.com>
+
+	* caldav/davclient.py (DAVClient.__init__, DAVClient.request): Added
+	support for an optional http proxy.
+	* tests/test_caldav.py (TestCalDAV.testProxy): Added a new test for the
+	new proxy option.
+	* tests/test_caldav.py (TestCalDAV.testSSL): Added one more test.
+	* caldav/lib/commands.py (uid_search): Added new method.
+	* caldav/objects.py (Calendar.event): Added new method to find an event by
+	its UID.
+	* tests/test_caldav.py: Added a quick test for the new methods
+
+2010-06-07  Cyril Robert <cyrilrbt@gmail.com>
+
+	* caldav/lib/commands.py (children, date_search): Removed instanciation of 
+	children / events, it should be done in objects.
+	* caldav/objects.py (Calendar.events, Principal.calendars, 
+	Calendar.date_search): Made changes according to the new commands.children 
+	method. Moved ugly import.
