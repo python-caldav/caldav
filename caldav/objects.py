@@ -80,9 +80,9 @@ class DAVObject(object):
             resource_name = properties[path][dav.DisplayName.tag]
 
             if resource_type == type or type is None:
-                ## TODO: investigate the RFCs thoroughly - why does a "get 
-                ## members of this collection"-request also return the collection URL itself?  
-                ## And why is the strip_trailing_slash-method needed?  The collection URL 
+                ## TODO: investigate the RFCs thoroughly - why does a "get
+                ## members of this collection"-request also return the collection URL itself?
+                ## And why is the strip_trailing_slash-method needed?  The collection URL
                 ## should always end with a slash according to RFC 2518, section 5.2.
                 if self.url.strip_trailing_slash() != self.url.join(path).strip_trailing_slash():
                     c.append((self.url.join(path), resource_type, resource_name))
@@ -124,7 +124,7 @@ class DAVObject(object):
                 ret.status >= 400):
             raise error.exception_by_method[query_method](errmsg(ret))
         return ret
-        
+
 
     def _handle_prop_response(self, response, props=[], type=None, what='text'):
         """
@@ -144,7 +144,7 @@ class DAVObject(object):
                 t = r.find(".//" + p.tag)
                 if t is None:
                     val = None
-                elif t and list(t):
+                elif t is not None and list(t):
                     if type is not None:
                         val = t.find(".//" + type)
                     else:
@@ -255,7 +255,7 @@ class CalendarSet(DAVObject):
     def make_calendar(self, name=None, cal_id=None, supported_calendar_component_set=None):
         """
         Utility method for creating a new calendar.
-        
+
         Parameters:
          * name: the name of the new calendar
          * cal_id: the uuid of the new calendar
@@ -300,7 +300,7 @@ class Principal(DAVObject):
         self.client = client
         self._calendar_home_set = None
 
-        ## backwards compatibility.  
+        ## backwards compatibility.
         if url is not None:
             self.url = client.url.join(URL.objectify(url))
         else:
@@ -361,7 +361,7 @@ class Calendar(DAVObject):
         path = self.parent.url.join(id)
         self.url = path
 
-        ## TODO: mkcalendar seems to ignore the body on most servers?  
+        ## TODO: mkcalendar seems to ignore the body on most servers?
         ## at least the name doesn't get set this way.
         ## zimbra gives 500 (!) if body is omitted ...
 
@@ -397,7 +397,7 @@ class Calendar(DAVObject):
         ## event uuid matches the event url, and return either 201 or
         ## 302 - but alas, try to do a GET towards the event and we
         ## get 404!  But turn around and replace the calendar ID with
-        ## the calendar name in the URL and hey ... it works!  
+        ## the calendar name in the URL and hey ... it works!
 
         ## TODO: write test cases for calendars with non-trivial
         ## names and calendars with names already matching existing
@@ -412,7 +412,7 @@ class Calendar(DAVObject):
         except error.NotFoundError:
             ## sane server
             pass
-        
+
     def add_event(self, ical):
         """
         Add a new event to the calendar, with the given ical.
@@ -472,7 +472,7 @@ class Calendar(DAVObject):
         matches = []
 
         # build the request
-        
+
         ## Some servers will raise an error if we send the expand flag
         ## but don't set any end-date - expand doesn't make much sense
         ## if we have one recurring event describing an indefinite
@@ -496,7 +496,7 @@ class Calendar(DAVObject):
         for r in results:
             matches.append(
                 Event(self.client, url=self.url.join(r), data=results[r][cdav.CalendarData.tag], parent=self))
-        
+
         return matches
 
     def freebusy_request(self, start, end):
@@ -628,7 +628,7 @@ class Calendar(DAVObject):
             raise error.NotFoundError(errmsg(response))
         elif response.status == 400:
             raise error.ReportError(errmsg(response))
-            
+
         r = response.tree.find(".//" + dav.Response.tag)
         if r is not None:
             href = r.find(".//" + dav.Href.tag).text
@@ -660,7 +660,7 @@ class Calendar(DAVObject):
         vcalendar = cdav.CompFilter("VCALENDAR") + vevent
         filter = cdav.Filter() + vcalendar
         root = cdav.CalendarQuery() + [prop, filter]
-        
+
         response = self._query(root, 1, query_method='report')
         results = self._handle_prop_response(response, props=[cdav.CalendarData()])
         for r in results:
@@ -686,7 +686,7 @@ class Calendar(DAVObject):
         vcalendar = cdav.CompFilter("VCALENDAR") + vevent
         filter = cdav.Filter() + vcalendar
         root = cdav.CalendarQuery() + [prop, filter]
-        
+
         response = self._query(root, 1, query_method='report')
         results = self._handle_prop_response(response, props=[cdav.CalendarData()])
         for r in results:
