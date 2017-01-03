@@ -354,6 +354,7 @@ class Calendar(DAVObject):
         """
         Create a new calendar with display name `name` in `parent`.
         """
+        import pdb; pdb.set_trace()
         if id is None:
             id = str(uuid.uuid1())
         self.id = id
@@ -408,8 +409,11 @@ class Calendar(DAVObject):
             ret = self.client.request(zimbra_url)
             if ret.status == 404:
                 raise error.NotFoundError
-            ## insane server
-            self.url = zimbra_url
+            ## special hack for radicale.  It will happily accept any calendar-URL without returning 404.
+            ret = self.client.request(self.parent.url.join('ANYTHINGGOESHEREthisshouldforsurereturn404'))
+            if ret.status == 404:
+                ## insane server
+                self.url = zimbra_url
         except error.NotFoundError:
             ## sane server
             pass
