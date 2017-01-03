@@ -77,10 +77,9 @@ class Expand(BaseElement):
 class Comp(NamedBaseElement):
     tag = ns("C", "comp")
 
-
-class CalendarCollection(BaseElement):
-    tag = ns("C", "calendar-collection")
-
+## Uhhm ... can't find any references to calendar-collection in rfc4791.txt and newer versions of baikal gives 403 forbidden when this one is encountered
+#class CalendarCollection(BaseElement):
+#    tag = ns("C", "calendar-collection")
 
 ## Properties
 
