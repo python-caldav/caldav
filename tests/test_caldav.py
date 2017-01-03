@@ -162,8 +162,7 @@ testcal_id = "pythoncaldav-test"
 testcal_id2 = "pythoncaldav-test2"
 
 class RepeatedFunctionalTestsBaseClass(object):
-    """
-    This is a class with functional tests (tests that goes through
+    """This is a class with functional tests (tests that goes through
     basic functionality and actively communicates with third parties)
     that we want to repeat for all configured caldav_servers.
     
@@ -177,10 +176,13 @@ class RepeatedFunctionalTestsBaseClass(object):
        user (or principal), and those are typically pre-created for each
        account.
 
-    However, iCloud is the only server where I have been denied creating a
-    calendar.  Creating a calendar through the WebUI works, and creating an
-    event through the library fails, so I don't think the problem is lack of 
+    On iCloud I've been denied creating a calendar.  Creating a
+    calendar through the WebUI works, and creating an event through
+    the library fails, so I don't think the problem is lack of
     MKCALENDAR support.
+
+    On Radicale, apparently there is some bug with MKCALENDAR, ref
+    https://github.com/Kozea/Radicale/issues/330
     """
     def setup(self):
         logging.debug("############## test setup")
