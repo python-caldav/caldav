@@ -365,11 +365,12 @@ class Calendar(DAVObject):
         ## at least the name doesn't get set this way.
         ## zimbra gives 500 (!) if body is omitted ...
 
-        cal = cdav.CalendarCollection()
-        coll = dav.Collection() + cal
-        type = dav.ResourceType() + coll
+        ## ehm ... this element seems non-existent in the RFC?  Breaks with baikal, too ...
+        #cal = cdav.CalendarCollection()
+        #coll = dav.Collection() # + cal ## also breaks on baikal, and probably not needed?
+        #type = dav.ResourceType() ## probably not needed?
 
-        prop = dav.Prop() + [type,]
+        prop = dav.Prop() #+ [type,]
         if name:
             display_name = dav.DisplayName(name)
             prop += [display_name,]
