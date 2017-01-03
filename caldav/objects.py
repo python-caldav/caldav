@@ -354,7 +354,6 @@ class Calendar(DAVObject):
         """
         Create a new calendar with display name `name` in `parent`.
         """
-        import pdb; pdb.set_trace()
         if id is None:
             id = str(uuid.uuid1())
         self.id = id
