@@ -13,6 +13,7 @@ import logging
 import threading
 import time
 from nose.tools import assert_equal, assert_not_equal, assert_raises
+from nose.plugins.skip import SkipTest
 
 from .conf import caldav_servers, proxy, proxy_noport
 from .proxy import ProxyHandler, NonThreadingHTTPServer
@@ -218,6 +219,12 @@ class RepeatedFunctionalTestsBaseClass(object):
         Test of the propfind methods. (This is sort of redundant, since
         this is implicitly run by the setup)
         """
+        ## ResourceType MUST be defined, and SHOULD be returned on a propfind for
+        ## "allprop" if I have the permission to see it.
+        ## So, no ResourceType returned seems like a bug in bedework
+        if 'nopropfind' in self.server_params:
+            raise SkipTest("Skipping propfind test, re test suite configuration.  Perhaps the caldav server is not adhering to the standards")
+        
         ## first a raw xml propfind to the root URL
         foo = self.caldav.propfind(self.principal.url, props="""<?xml version="1.0" encoding="UTF-8"?>
 <D:propfind xmlns:D="DAV:">
@@ -239,8 +246,7 @@ class RepeatedFunctionalTestsBaseClass(object):
 
     def testProxy(self):
         if self.caldav.url.scheme == 'https':
-            logging.info("Skipping %s.testProxy as the TinyHTTPProxy implementation doesn't support https")
-            return
+            raise SkipTest("Skipping %s.testProxy as the TinyHTTPProxy implementation doesn't support https")
 
         server_address = ('127.0.0.1', 8080)
         proxy_httpd = NonThreadingHTTPServer (server_address, ProxyHandler, logging.getLogger ("TinyHTTPProxy"))
@@ -298,8 +304,9 @@ class RepeatedFunctionalTestsBaseClass(object):
         c.delete()
         
         ## verify that calendar does not exist - this breaks with zimbra :-(
+        ## (also breaks with radicale, which by default creates a new calendar)
         ## COMPATIBILITY PROBLEM - todo, look more into it
-        if 'zimbra' not in str(c.url):
+        if not 'nocalendarnotfound' in self.server_params:
             assert_raises(error.NotFoundError, self.principal.calendar(name="Yep", cal_id=testcal_id).events)
 
     def testCreateCalendarAndEvent(self):
@@ -325,14 +332,14 @@ class RepeatedFunctionalTestsBaseClass(object):
         * It will add some journal entries to it
         * It will list out all journal entries
         """
-        if '/remote.php/caldav' in str(self.caldav.url) or self.caldav.url.path.startswith('/dav/'):
+        if 'nojournal' in self.server_params:
             ## COMPATIBILITY TODO: read the RFC.  sabredav/owncloud:
             ## got the error: "This calendar only supports VEVENT,
             ## VTODO. We found a VJOURNAL".  Should probably learn
             ## that some other way.  (why doesn't make_calendar break?
             ## what does the RFC say on that?)  Same with zimbra,
             ## though different error.
-            return
+            raise SkipTest("Journal testing skipped due to test configuration")
         c = self.principal.make_calendar(name="Yep", cal_id=testcal_id, supported_calendar_component_set=['VJOURNAL'])
         j1 = c.add_journal(journal)
         journals = c.journals()
@@ -349,6 +356,10 @@ class RepeatedFunctionalTestsBaseClass(object):
         * Verify the cal.todos() method
         * Verify that cal.events() method returns nothing
         """
+        ## bedeworks does not support VTODO
+        if 'notodo' in self.server_params:
+            raise SkipTest("VTODO testing skipped due to test configuration")
+            
         ## For all servers I've tested against except Zimbra, it's
         ## possible to create a calendar and add todo-items to it.
         ## Zimbra has separate calendars and task lists, and it's not
@@ -379,6 +390,10 @@ class RepeatedFunctionalTestsBaseClass(object):
         * It will list out all pending tasks, sorted by due date
         * It will list out all pending tasks, sorted by priority
         """
+        ## bedeworks does not support VTODO
+        if 'notodo' in self.server_params:
+            raise SkipTest("VTODO testing skipped due to test configuration")
+            
         c = self.principal.make_calendar(name="Yep", cal_id=testcal_id, supported_calendar_component_set=['VTODO'])
 
         ## add todo-item
@@ -403,6 +418,10 @@ class RepeatedFunctionalTestsBaseClass(object):
         """
         Let's see how the date search method works for todo events
         """
+        ## bedeworks does not support VTODO
+        if 'notodo' in self.server_params:
+            raise SkipTest("VTODO testing skipped due to test configuration")
+            
         c = self.principal.make_calendar(name="Yep", cal_id=testcal_id, supported_calendar_component_set=['VTODO'])
 
         ## add todo-item
@@ -444,6 +463,10 @@ class RepeatedFunctionalTestsBaseClass(object):
         """
         Will check that todo-items can be completed and deleted
         """
+        ## bedeworks does not support VTODO
+        if 'notodo' in self.server_params:
+            raise SkipTest("VTODO testing skipped due to test configuration")
+            
         c = self.principal.make_calendar(name="Yep", cal_id=testcal_id, supported_calendar_component_set=['VTODO'])
 
         ## add todo-items
@@ -607,7 +630,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         ## Lets try a freebusy request as well
         ## except for on my own DAViCal, it returns 500 Internal Server Error for me.  Should look more into that.  TODO.
         if 'calendar.bekkenstenveien53c.oslo' in str(self.caldav.url):
-            return
+            raise SkipTest("TEMP/TODO/KLUDGE - skipping this test as for now")
         freebusy = c.freebusy_request(datetime(2007,7,13,17,00,00),
                                       datetime(2007,7,15,17,00,00))
         ## TODO: assert something more complex on the return object
