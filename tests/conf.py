@@ -14,5 +14,14 @@ caldav_servers.append({"url": "http://baikal.tobixen.no:80/cal.php/", "username"
 caldav_servers.append({"url": "http://baikal-test.caldav-servers.tobixen.no/cal.php/", "username": "testuser", "password": "123"})
 caldav_servers.append({"url": "https://baikal-test.caldav-servers.tobixen.no/cal.php/", "username": "testuser", "password": "123", "ssl_verify_cert": False})
 
+## radicale - too many problems, postponing
+#caldav_servers.append({"url": "http://radicale.caldav-servers.tobixen.no/testuser/", "username": "testuser", "password": "123"})
+
+## bedework:
+## * todos and journals are not properly supported - ref https://github.com/Bedework/bedework/issues/5
+## * propfind fails to return resourcetype, ref https://github.com/Bedework/bedework/issues/110
+## * won't run cleanly in openshift without giving it root permissions.  Will look a bit into if that's really needed.
+#caldav_servers=[{"url": "http://localhost:8080/ucaldav/", "username": "vbede", "password": "bedework", "nojournal": True, "notodo": True, "nopropfind": True}]
+
 proxy = "127.0.0.1:8080"
 proxy_noport = "127.0.0.1"
