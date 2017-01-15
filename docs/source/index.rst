@@ -19,7 +19,7 @@ Contents
 Python 3
 ========
 
-The caldav library should work well with python3, but there is one dependency on vobject, a library that doesn't work out of the box in python3 as of 2015-04-21.  There exists forks.  See `issue #41 - vobject dependency situation <https://bitbucket.org/cyrilrbt/caldav/issue/41/vobject-dependency-situation>` for details.
+The caldav library should work well both with python2 and python3.
 
 Quickstart
 ==========
@@ -102,8 +102,8 @@ Note that those are also available as :class:`caldav.DAVClient`,
 Compatibility
 =============
 
-The test suite is regularly run against SoGO, Baikal, DAViCal, Zimbra
-and OwnCloud.  Some compatibility issues have been found, search the
+The test suite is regularly run against Baikal, DAViCal, Zimbra
+and bedework.  Some compatibility issues have been found, search the
 test code for "COMPATIBILITY" for details.  Notably;
 
  * You may want to avoid non-ASCII characters in the calendar name, or
@@ -119,6 +119,13 @@ test code for "COMPATIBILITY" for details.  Notably;
  * Zimbra seems to be the least compatible server, there are some
    special hacks in the code to work around compatibility issues in
    Zimbra.
+
+ * The Radicale caldav server seems to be too radical - lots and lots
+   of tests fails towards it.
+
+ * Bedework does not support journal entries (who uses those anyway).
+   Bedework is supposed to support todo-lists, but queries for "all
+   non-completed tasks" does not work.
 
  * iCloud - we've managed read-only access to iCloud so far - see
    https://bitbucket.org/cyrilrbt/caldav/issue/40/icloud-not-fully-supported

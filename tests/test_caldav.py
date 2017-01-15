@@ -643,6 +643,8 @@ class RepeatedFunctionalTestsBaseClass(object):
         library per se.  How will it behave if we serve it a recurring
         event?
         """
+        if 'norecurring' in self.server_params:
+            raise SkipTest("recurring date search test skipped due to test configuration")
         c = self.principal.make_calendar(name="Yep", cal_id=testcal_id)
 
         ## evr is a yearly event starting at 1997-02-11
