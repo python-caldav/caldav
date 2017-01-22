@@ -103,11 +103,11 @@ Compatibility
 =============
 
 The test suite is regularly run against Baikal, DAViCal, Zimbra
-and bedework.  Some compatibility issues have been found, search the
+and Bedework.  Some compatibility issues have been found, search the
 test code for "COMPATIBILITY" for details.  Notably;
 
  * You may want to avoid non-ASCII characters in the calendar name, or
-   Zimbra may behave a bit unexpectedly.
+   some servers (at least Zimbra) may behave a bit unexpectedly.
 
  * How would you expect the result to be when doing date searches
    spanning multiple instances of a recurring event?  Would you expect
@@ -116,16 +116,20 @@ test code for "COMPATIBILITY" for details.  Notably;
    one recurring ical object?  Different servers behave a bit
    differently (but more research is needed on this one).
 
- * Zimbra seems to be the least compatible server, there are some
-   special hacks in the code to work around compatibility issues in
-   Zimbra.
+ * Date search for future instances or recurring events does not seem
+   to work in Bedework.
+
+ * There are some special hacks both in the code and the tests to work
+   around compatibility issues in Zimbra.
 
  * The Radicale caldav server seems to be too radical - lots and lots
    of tests fails towards it.
 
- * Bedework does not support journal entries (who uses those anyway).
-   Bedework is supposed to support todo-lists, but queries for "all
-   non-completed tasks" does not work.
+ * Bedework and Zimbra does not support journal entries (but who uses those
+   anyway?).
+
+ * Bedework is supposed to support todo-lists, but queries
+   for "all non-completed tasks" does not work.
 
  * iCloud - we've managed read-only access to iCloud so far - see
    https://bitbucket.org/cyrilrbt/caldav/issue/40/icloud-not-fully-supported
