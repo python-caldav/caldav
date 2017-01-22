@@ -116,6 +116,9 @@ class DAVObject(object):
         """
         if url is None:
             url = self.url
+            if not url.endswith('/'):
+                url = URL(str(url) + '/')
+
         body = ""
         if root:
             body = etree.tostring(root.xmlelement(), encoding="utf-8",
