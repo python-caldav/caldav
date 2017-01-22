@@ -12,6 +12,11 @@ import re
 import datetime
 from lxml import etree
 
+try:
+    from urllib.parse import unquote
+except ImportError:
+    from urllib import unquote
+
 from caldav.lib import error, vcal, url
 from caldav.lib.url import URL
 from caldav.elements import dav, cdav
@@ -138,7 +143,7 @@ class DAVObject(object):
             status = r.find('.//' + dav.Status.tag)
             if not ' 200 ' in status.text and not ' 207 ' in status.text and not ' 404 ' in status.text:
                 raise error.ReportError(errmsg(response)) ## TODO: may be wrong error class
-            href = r.find('.//' + dav.Href.tag).text
+            href = unquote(r.find('.//' + dav.Href.tag).text)
             properties[href] = {}
             for p in props:
                 t = r.find(".//" + p.tag)
@@ -635,8 +640,8 @@ class Calendar(DAVObject):
 
         r = response.tree.find(".//" + dav.Response.tag)
         if r is not None:
-            href = r.find(".//" + dav.Href.tag).text
-            data = r.find(".//" + cdav.CalendarData.tag).text
+            href = unquote(r.find(".//" + dav.Href.tag).text)
+            data = unquote(r.find(".//" + cdav.CalendarData.tag).text)
             return self._calendar_comp_class_by_data(data)(self.client, url=URL.objectify(href), data=data, parent=self)
         else:
             raise error.NotFoundError(errmsg(response))
