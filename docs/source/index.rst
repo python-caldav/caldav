@@ -150,8 +150,8 @@ tests will fail or raise exceptions, and this may very well happen if
 multiple developers runs the tests at the same time.  This hasn't been
 a problem so far.
 
-It will run some unit tests and some functional tests against a
-dedicated baikal server hosted by Tobias Brox.  You may add your own
+It will run some unit tests and some functional tests against some
+dedicated caldav servers hosted by Tobias Brox.  You may add your own
 private servers into tests/conf_private.py, like this:
 
 .. code-block:: python

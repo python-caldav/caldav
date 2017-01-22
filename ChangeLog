@@ -1,9 +1,78 @@
+2017-01-22  Tobias Brox <t-caldav@tobixen.no>
+        * caldav/objects.py - bugfix: after a zimbra upgrade, tests started breaking again as the data from the server was urlencoded.  Merged in bugfix for bitbucket issue #46
+
+2017-01-03  Tobias Brox <t-caldav@tobixen.no>
+	* caldav/elements/cdav.py, caldav/objects.py: found a
+	Calendar-Collection tag that was nowhere to be found in the RFC,
+	and that also caused tests to break against some caldav servers.
+
+2016-05-15  Alex Martin <maddin4t0r@gmail.com>
+        * caldav/objects.py - bugfix, ref pull request #21
+
+2016-10-07  Benedykt Przybyło <b3niup@gmail.com>
+	* caldav/elements/cdav.py - bugfix, Fixed namespace for Mkcalendar.
+
+2016-04-25  Tobias Brox <t-caldav@tobixen.no>
+	* caldav/objects.py - adjustments for changes in the vobject module
+
+2016-04-07  Johan Olofsson <johano99@bitbucket>
+	* caldav/objects.py - add a displayName prop query to the
+	calendars() method, ref issue #51
+
+2016-03-09  Rian Hunter <rian@alum.mit.edu>
+	* caldav/objects.py - added todo_by_uid() method
+
+2016-02-03  Johan Olofsson <johano99@bitbucket>
+	* caldav/objects.py - add a displayName prop query to the
+	calendars() method, ref issue #51
+
+2016-01-20  Tobias Brox <t-caldav@tobixen.no>
+	* setup.py - missing shebang, problem observed by jbar@freenode, #calendar-cli
+	* caldav/objects.py - bugfix for problem observed by jbar@freenode, #calendar-cli
+
+2015-11-16  Tobias Brox <t-caldav@tobixen.no>
+	* caldav/objects.py, caldav/elements/cdav.py - attempt on solving bitbucket issue #40
+
+2015-08-15  Tobias Brox <t-caldav@tobixen.no>
+	* caldav/objects.py, caldav/__init__.py - vobjects did not support
+	python3, so move the "import"-statement so everything not
+	dependent on vobjects can work under python3.
+
+2015-08-11  Tobias Brox <t-caldav@tobixen.no>
+	* caldav/objects.py - support for http return code 207 multi status from server
+
+2015-05-21  Jochen Sprickerhof <bitbucket@jochen.sprickerhof.de>
+	* caldav/objects.py - proper fix for issue #43
+
+2015-05-20  Tobias Brox <t-caldav@tobixen.no>
+	* caldav/objects.py - allow copying objects.  Needed for the
+	recurring todo completed functionality in calendar-cli.  Fixed
+	bitbucket issue #43 (compatbility fix).  Polishing some error
+	messages.
+
+2015-05-17  Tobias Brox <t-caldav@tobixen.no>
+	* caldav/objects.py - sorting todo events by due date or dstart.
+	Feature needed by the calendar-cli task management.
+
+2015-04-27  Tobias Brox <t-caldav@tobixen.no>
+	* caldav/objects.py - generalized the calendar date search so
+	todo-events also can be searched by date.  The calendar-cli task
+	handling depends on this.
+
+2015-04-25  Tobias Brox <t-caldav@tobixen.no>
+	* caldav/objects.py - generalized the code a bit, added a
+	method object_by_uid and made event_by_uid a wrapper around this
+	one.  Added improved sorting functionality.  The task handling in
+	calendar-cli is dependent on those features.
+
 2015-04-21  Tobias Brox <t-caldav@tobixen.no>
         * caldav/elements/cdav.py - now support for the free-busy-query element.
 
-	* caldav/objects.py - added FreeBusy and Journal objects, plus calendar methods to retrieve them, and for adding journal entries.
+	* caldav/objects.py - added FreeBusy and Journal objects, plus
+	calendar methods to retrieve them, and for adding journal entries.
 
-	* caldav/tests/test_caldav.py - added tests to add and fetch journal entries, and to request freebusy information.
+	* caldav/tests/test_caldav.py - added tests to add and fetch
+	journal entries, and to request freebusy information.
 
 2015-04-16  Tobias Brox <t-caldav@tobixen.no>
 	* caldav/lib/error.py - added error class for the propfind method.
@@ -24,7 +93,7 @@
 	with the event date search - asking for an expanded event list
 	with an open end date is not supported by all server
 	implementations, for obvious reasons.  Brushed up some docstrings
-	and prefixed some internal methods with underscore.
+ 	and prefixed some internal methods with underscore.
 
 	* caldav/tests/test_caldav.py - VTODO support, test code that
 	creates a task list, adds todo-items to it, completes todo-items,
