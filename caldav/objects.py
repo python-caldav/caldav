@@ -641,13 +641,20 @@ class Calendar(DAVObject):
         elif response.status == 400:
             raise error.ReportError(errmsg(response))
 
-        r = response.tree.find(".//" + dav.Response.tag)
-        if r is not None:
+        items_found = response.tree.findall(".//" + dav.Response.tag)
+        for r in items_found:
             href = unquote(r.find(".//" + dav.Href.tag).text)
             data = unquote(r.find(".//" + cdav.CalendarData.tag).text)
+            ## Ref Lucas Verney, we've actually done a substring search, if the 
+            ## uid given in the query is short (i.e. just "0") we're likely to 
+            ## get false positives back from the server.
+            if not "\nUID:%s\n" % uid in data:
+                ## TODO: optimistic assumption, uid line is not folded.  We 
+                ## need to unfold the content to be 100% sure that we won't 
+                ## filter away true positives here.
+                continue
             return self._calendar_comp_class_by_data(data)(self.client, url=URL.objectify(href), data=data, parent=self)
-        else:
-            raise error.NotFoundError(errmsg(response))
+        raise error.NotFoundError(errmsg(response))
 
     def todo_by_uid(self, uid):
         return self.object_by_uid(uid, comp_filter=cdav.CompFilter("VTODO"))

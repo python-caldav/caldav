@@ -573,6 +573,11 @@ class RepeatedFunctionalTestsBaseClass(object):
         e4.load()
         assert_equal(e4.instance.vevent.uid, e1.instance.vevent.uid)
 
+        ## Re bug report from Lucas Verney, https://bitbucket.org/cyrilrbt/caldav/issues/54/wrong-uid-fetching-in-calendarevent_by_uid
+        assert_raises(error.NotFoundError, c.event_by_uid, "0")
+        c.add_event(evr)
+        assert_raises(error.NotFoundError, c.event_by_uid, "0")
+
     def testDeleteEvent(self):
         """
         Makes sure we can add events and delete them
