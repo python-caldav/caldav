@@ -393,6 +393,9 @@ class Calendar(DAVObject):
 
         r = self._query(root=mkcol, query_method='mkcalendar', url=path, expected_return_value=201)
 
+        ## COMPATIBILITY ISSUE
+        ## name should already be set, but we've seen caldav servers failing on
+        ## setting the DisplayName on calendar creation (DAViCal, Zimbra, ...).  Better to be explicit.
         if name:
             try:
                 self.set_properties([display_name])
