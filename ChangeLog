@@ -1,3 +1,8 @@
+2017-01-26 Phyks (Lucas Verney) <phyks@phyks.me>
+	* caldav/objects.py - enhancement: add the ability to add events to
+	calendar using directly a vobject object, and not necessarily an ical
+	string.
+
 2017-01-22  Tobias Brox <t-caldav@tobixen.no>
         * caldav/objects.py - bugfix: after a zimbra upgrade, tests started breaking again as the data from the server was urlencoded.  Merged in bugfix for bitbucket issue #46
 
@@ -124,7 +129,7 @@
         * caldav/lib/python_utilities.py - fixing broken charset
 
 2015-02-26  Jack Laxson  <jackjrabbit@gmail.com>
-        * setup.py - remove sphinx from install_requires as it is huge and only used 
+        * setup.py - remove sphinx from install_requires as it is huge and only used
         for generating the documentation.
 
 2015-02-23  Luke  <github@woydziak.com>
@@ -262,7 +267,7 @@
 	able to GET the event from zimbra, neither before nor after this
 	fix :-(
 
-	* caldav/elements/cdav.py: compatibility fix - collation 
+	* caldav/elements/cdav.py: compatibility fix - collation
 	"i; octet" (with whitespace) not recognized by baikal.  "i;octet"
 	(without whitespace) is OK.
 
@@ -318,12 +323,12 @@
 
 2011-01-22  Cyril Robert <cyrilrbt@gmail.com>
 
-	* caldav/elements/cdav.py (Expand.__init__, 
+	* caldav/elements/cdav.py (Expand.__init__,
 							   TimeRange.__init__) : Fixed strftime fmt.
 
 2010-10-09  Cyril Robert <cyrilrbt@gmail.com>
 
-	* All files: Made PEP8 compliant 
+	* All files: Made PEP8 compliant
 
 2010-10-04  Olivier Larchevêque <olivier.larcheveque@gmail.com>
 
@@ -346,7 +351,7 @@
 	* caldav/objects.py (DAVObject.properties): Add a warning message.
 	* caldav/objects.py (Principal.calendars): retrieve only child
 	collections that have a cdav.Calendar property.
-	
+
 2010-07-06  Mark Meyer  <ofosos@gmail.com>
 
 	* caldav/objects.py (DAVObject.save): Use idiomatic
@@ -407,8 +412,8 @@
 
 2010-06-07  Cyril Robert <cyrilrbt@gmail.com>
 
-	* caldav/lib/commands.py (children, date_search): Removed instanciation of 
+	* caldav/lib/commands.py (children, date_search): Removed instanciation of
 	children / events, it should be done in objects.
-	* caldav/objects.py (Calendar.events, Principal.calendars, 
-	Calendar.date_search): Made changes according to the new commands.children 
+	* caldav/objects.py (Calendar.events, Principal.calendars,
+	Calendar.date_search): Made changes according to the new commands.children
 	method. Moved ugly import.

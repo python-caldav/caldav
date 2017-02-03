@@ -393,6 +393,9 @@ class Calendar(DAVObject):
 
         r = self._query(root=mkcol, query_method='mkcalendar', url=path, expected_return_value=201)
 
+        ## COMPATIBILITY ISSUE
+        ## name should already be set, but we've seen caldav servers failing on
+        ## setting the DisplayName on calendar creation (DAViCal, Zimbra, ...).  Better to be explicit.
         if name:
             try:
                 self.set_properties([display_name])
@@ -645,12 +648,12 @@ class Calendar(DAVObject):
         for r in items_found:
             href = unquote(r.find(".//" + dav.Href.tag).text)
             data = unquote(r.find(".//" + cdav.CalendarData.tag).text)
-            ## Ref Lucas Verney, we've actually done a substring search, if the 
-            ## uid given in the query is short (i.e. just "0") we're likely to 
+            ## Ref Lucas Verney, we've actually done a substring search, if the
+            ## uid given in the query is short (i.e. just "0") we're likely to
             ## get false positives back from the server.
             if not "\nUID:%s\n" % uid in data:
-                ## TODO: optimistic assumption, uid line is not folded.  We 
-                ## need to unfold the content to be 100% sure that we won't 
+                ## TODO: optimistic assumption, uid line is not folded.  We
+                ## need to unfold the content to be 100% sure that we won't
                 ## filter away true positives here.
                 continue
             return self._calendar_comp_class_by_data(data)(self.client, url=URL.objectify(href), data=data, parent=self)
@@ -804,8 +807,12 @@ class CalendarObjectResource(DAVObject):
         return "%s: %s" % (self.__class__.__name__, self.url)
 
     def _set_data(self, data):
-        self._data = vcal.fix(data)
-        self._instance = vobject.readOne(to_unicode(self._data))
+        if type(data).__module__.startswith("vobject"):
+            self._data = data
+            self._instance = data
+        else:
+            self._data = vcal.fix(data)
+            self._instance = vobject.readOne(to_unicode(self._data))
         return self
 
     def _get_data(self):
