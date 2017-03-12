@@ -114,6 +114,19 @@ class DAVObject(object):
         result of code-refactoring work, attempting to consolidate
         similar-looking code into a common method.
         """
+        ## ref https://bitbucket.org/cyrilrbt/caldav/issues/46 -
+        ## COMPATIBILITY ISSUE. The lines below seems to solve real
+        ## world problems, though I believe it's the wrong place to
+        ## inject the missing slash.
+        ## TODO: find out why the slash is missing and fix
+        ## it properly.
+        ## Background: Collection URLs ends with a slash,
+        ## non-collection URLs does not end with a slash.  If the
+        ## slash is missing, Servers MAY pretend it's present (RFC
+        ## 4918, section 5.2, collection resources), hence only some
+        ## few servers break when the slash is missing.  RFC 4918
+        ## specifies that collection URLs end with a slash while
+        ## non-collection URLs should not end with a slash.
         if url is None:
             url = self.url
             if not url.endswith('/'):
