@@ -13,6 +13,7 @@ else:
 import logging
 import threading
 import time
+import vobject
 from nose.tools import assert_equal, assert_not_equal, assert_raises
 from nose.plugins.skip import SkipTest
 
@@ -164,10 +165,10 @@ class RepeatedFunctionalTestsBaseClass(object):
     """This is a class with functional tests (tests that goes through
     basic functionality and actively communicates with third parties)
     that we want to repeat for all configured caldav_servers.
-    
+
     (what a truely ugly name for this class - any better ideas?)
 
-    NOTE: this tests relies heavily on the assumption that we can create 
+    NOTE: this tests relies heavily on the assumption that we can create
     calendars on the remote caldav server, but the RFC says ...
 
        Support for MKCALENDAR on the server is only RECOMMENDED and not
@@ -216,12 +217,11 @@ class RepeatedFunctionalTestsBaseClass(object):
 
     def _teardown(self):
         for combos in (('Yep', self.testcal_id), ('Yep', self.testcal_id2), ('Yølp', self.testcal_id), ('Yep', 'Yep'), ('Yølp', 'Yølp')):
-            try:                        
+            try:
                 cal = self.principal.calendar(name="Yep", cal_id=self.testcal_id)
                 cal.delete()
             except:
                 pass
- 
 
     def testPropfind(self):
         """
@@ -233,14 +233,14 @@ class RepeatedFunctionalTestsBaseClass(object):
         ## So, no ResourceType returned seems like a bug in bedework
         if 'nopropfind' in self.server_params:
             raise SkipTest("Skipping propfind test, re test suite configuration.  Perhaps the caldav server is not adhering to the standards")
-        
+
         ## first a raw xml propfind to the root URL
         foo = self.caldav.propfind(self.principal.url, props="""<?xml version="1.0" encoding="UTF-8"?>
 <D:propfind xmlns:D="DAV:">
   <D:allprop/>
         </D:propfind>""")
         assert('resourcetype' in to_local(foo.raw))
-        
+
         ## next, the internal _query_properties, returning an xml tree ...
         foo2 = self.principal._query_properties([dav.Status(),])
         assert('resourcetype' in to_local(foo.raw))
@@ -311,7 +311,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         ## code.  Anyway, better to ignore it now than to have broken test code.
         assert_equal(len(events), 0)
         c.delete()
-        
+
         ## verify that calendar does not exist - this breaks with zimbra :-(
         ## (also breaks with radicale, which by default creates a new calendar)
         ## COMPATIBILITY PROBLEM - todo, look more into it
@@ -323,6 +323,23 @@ class RepeatedFunctionalTestsBaseClass(object):
 
         ## add event
         e1 = c.add_event(ev1)
+
+        ## c.events() should give a full list of events
+        events = c.events()
+        assert_equal(len(events), 1)
+
+        ## We should be able to access the calender through the URL
+        c2 = Calendar(client=self.caldav, url=c.url)
+        events2 = c.events()
+        assert_equal(len(events2), 1)
+        assert_equal(events2[0].url, events[0].url)
+
+    def testCreateCalendarAndEventFromVobject(self):
+        c = self.principal.make_calendar(name="Yep", cal_id=testcal_id)
+
+        ## add event from vobject data
+        ve1 = vobject.readOne(ev1)
+        e1 = c.add_event(ve1)
 
         ## c.events() should give a full list of events
         events = c.events()
@@ -368,7 +385,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         ## bedeworks does not support VTODO
         if 'notodo' in self.server_params:
             raise SkipTest("VTODO testing skipped due to test configuration")
-            
+
         ## For all servers I've tested against except Zimbra, it's
         ## possible to create a calendar and add todo-items to it.
         ## Zimbra has separate calendars and task lists, and it's not
@@ -402,7 +419,6 @@ class RepeatedFunctionalTestsBaseClass(object):
         ## bedeworks does not support VTODO
         if 'notodo' in self.server_params:
             raise SkipTest("VTODO testing skipped due to test configuration")
-            
         c = self.principal.make_calendar(name="Yep", cal_id=self.testcal_id, supported_calendar_component_set=['VTODO'])
 
         ## add todo-item
@@ -430,7 +446,6 @@ class RepeatedFunctionalTestsBaseClass(object):
         ## bedeworks does not support VTODO
         if 'notodo' in self.server_params:
             raise SkipTest("VTODO testing skipped due to test configuration")
-            
         c = self.principal.make_calendar(name="Yep", cal_id=self.testcal_id, supported_calendar_component_set=['VTODO'])
 
         ## add todo-item
@@ -475,7 +490,6 @@ class RepeatedFunctionalTestsBaseClass(object):
         ## bedeworks does not support VTODO
         if 'notodo' in self.server_params:
             raise SkipTest("VTODO testing skipped due to test configuration")
-            
         c = self.principal.make_calendar(name="Yep", cal_id=self.testcal_id, supported_calendar_component_set=['VTODO'])
 
         ## add todo-items
@@ -486,10 +500,10 @@ class RepeatedFunctionalTestsBaseClass(object):
         ## There are now three todo-items at the calendar
         todos = c.todos()
         assert_equal(len(todos), 3)
-        
+
         ## Complete one of them
         t3.complete()
-        
+
         ## There are now two todo-items at the calendar
         todos = c.todos()
         assert_equal(len(todos), 2)
@@ -507,7 +521,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         ## date search should not include completed events ... hum.  TODO, fixme.
         #todos = c.date_search(start=datetime(1990, 4, 14), end=datetime(2015,5,14), compfilter='VTODO', hide_completed_todos=True)
         #assert_equal(len(todos), 1)
-        
+
 
     def testUtf8Event(self):
         c = self.principal.make_calendar(name="Yølp", cal_id=self.testcal_id)
@@ -582,7 +596,6 @@ class RepeatedFunctionalTestsBaseClass(object):
         e4.load()
         assert_equal(e4.instance.vevent.uid, e1.instance.vevent.uid)
 
-        ## Re bug report from Lucas Verney, https://bitbucket.org/cyrilrbt/caldav/issues/54/wrong-uid-fetching-in-calendarevent_by_uid
         assert_raises(error.NotFoundError, c.event_by_uid, "0")
         c.add_event(evr)
         assert_raises(error.NotFoundError, c.event_by_uid, "0")
@@ -670,7 +683,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         r = c.date_search(datetime(2008,11,1,17,00,00),
                           datetime(2009,11,3,17,00,00))
         assert_equal(len(r), 1)
-        
+
         ## So much for standards ... seems like different servers
         ## behaves differently
         ## COMPATIBILITY PROBLEMS - look into it
@@ -743,7 +756,6 @@ class RepeatedFunctionalTestsBaseClass(object):
                           datetime(2007,7,15,17,00,00))
         for e in r: print(e.data)
         assert_equal(len(r), 1)
-        
 
     def testObjects(self):
         ## TODO: description ... what are we trying to test for here?
@@ -830,7 +842,7 @@ class TestCalDAV:
         url3 = URL.objectify("/bar")
         url4 = URL.objectify(urlparse(str(url1)))
         url5 = URL.objectify(urlparse("/bar"))
-    
+
         ## 2) __eq__ works well
         assert_equal(url1, url2)
         assert_equal(url1, url4)
@@ -885,13 +897,13 @@ class TestCalDAV:
         urlC = URL.objectify("https://www.example.com:443/foo")
         assert_equal(urlC.port, 443)
 
-        ## 6) is_auth returns True if the URL contains a username.  
+        ## 6) is_auth returns True if the URL contains a username.
         assert_equal(urlC.is_auth(), False)
         assert_equal(url7.is_auth(), True)
 
         ## 7) unauth() strips username/password
         assert_equal(url7.unauth(), 'http://www.example.com:8080/bar')
-        
+
     def testFilters(self):
         filter = cdav.Filter()\
                     .append(cdav.CompFilter("VCALENDAR")\
