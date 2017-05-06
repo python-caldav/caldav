@@ -2,18 +2,12 @@
 # -*- encoding: utf-8 -*-
 
 from datetime import datetime
-from caldav.lib.python_utilities import isPython3
 import uuid
-if isPython3():
-    from urllib import parse
-    from urllib.parse import urlparse
-else:
-    from urlparse import urlparse as parse
-    from urlparse import urlparse
 import logging
 import threading
 import time
 import vobject
+from six import PY3
 from nose.tools import assert_equal, assert_not_equal, assert_raises
 from nose.plugins.skip import SkipTest
 
@@ -28,6 +22,11 @@ from caldav.lib import error
 from caldav.lib.namespace import ns
 from caldav.elements import dav, cdav
 from caldav.lib.python_utilities import to_local, to_str
+
+if PY3:
+    from urllib.parse import urlparse
+else:
+    from urlparse import urlparse
 
 log = logging.getLogger("caldav")
 

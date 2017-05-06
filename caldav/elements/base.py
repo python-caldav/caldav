@@ -2,8 +2,9 @@
 # -*- encoding: utf-8 -*-
 
 from lxml import etree
+from six import PY3
 from caldav.lib.namespace import nsmap
-from caldav.lib.python_utilities import isPython3, to_unicode
+from caldav.lib.python_utilities import to_unicode
 
 
 class BaseElement(object):
@@ -28,7 +29,7 @@ class BaseElement(object):
     def __str__(self):
         utf8 = etree.tostring(self.xmlelement(), encoding="utf-8",
                               xml_declaration=True, pretty_print=True)
-        if isPython3():
+        if PY3:
             return str(utf8, 'utf-8')
         return utf8
 

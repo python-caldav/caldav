@@ -1,22 +1,22 @@
 #!/usr/bin/env python
 # -*- encoding: utf-8 -*-
 
-from caldav.lib.python_utilities import isPython3, to_unicode
-if isPython3():
-    from urllib import parse
-    from urllib.parse import ParseResult, SplitResult, urlparse, unquote
+from six import PY3
+from caldav.lib.python_utilities import to_unicode
+if PY3:
+    from urllib.parse import ParseResult, SplitResult, urlparse
 else:
-    from urlparse import urlparse as parse
     from urlparse import ParseResult, SplitResult
     from urlparse import urlparse
 
 
 def uc2utf8(input):
-    ## argh!  this feels wrong, but seems to be needed.
-    if not isPython3() and type(input) == unicode:
+    # argh!  this feels wrong, but seems to be needed.
+    if not PY3 and type(input) == unicode:
         return input.encode('utf-8')
     else:
         return input
+
 
 class URL:
     """
@@ -96,7 +96,7 @@ class URL:
 
     ## returns the url in text format
     def __str__(self):
-        if isPython3():
+        if PY3:
             return self.__unicode__()
         return self.__unicode__().encode('utf-8')
 

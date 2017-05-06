@@ -18,8 +18,8 @@ Any help will be greatly appreciated.		SUZUKI Hisao
 
 __version__ = "0.3.1"
 
-from caldav.lib.python_utilities import isPython3
-if isPython3():
+from six import PY3
+if PY3:
     from urllib import parse
     from urllib.parse import urlparse, urlunparse
     from http.server import BaseHTTPRequestHandler, HTTPServer

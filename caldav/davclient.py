@@ -3,18 +3,19 @@
 
 import requests
 import logging
-from caldav.lib.python_utilities import isPython3, to_unicode, to_wire
-if isPython3():
-    from urllib import parse
-    from urllib.parse import unquote
-else:
-    from urlparse import unquote, urlparse as parse
 import re
+import six
+from caldav.lib.python_utilities import to_wire
 from lxml import etree
 
 from caldav.lib import error
 from caldav.lib.url import URL
 from caldav.objects import Principal
+
+if six.PY3:
+    from urllib.parse import unquote
+else:
+    from urlparse import unquote
 
 log = logging.getLogger('caldav')
 
