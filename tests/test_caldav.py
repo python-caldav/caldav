@@ -243,7 +243,7 @@ class RepeatedFunctionalTestsBaseClass(object):
 
         ## next, the internal _query_properties, returning an xml tree ...
         foo2 = self.principal._query_properties([dav.Status(),])
-        assert('resourcetype' in to_local(foo.raw))
+        assert('resourcetype' in to_local(foo2.raw))
         ## TODO: more advanced asserts
 
     def testGetCalendarHomeSet(self):
@@ -330,7 +330,7 @@ class RepeatedFunctionalTestsBaseClass(object):
 
         ## We should be able to access the calender through the URL
         c2 = Calendar(client=self.caldav, url=c.url)
-        events2 = c.events()
+        events2 = c2.events()
         assert_equal(len(events2), 1)
         assert_equal(events2[0].url, events[0].url)
 
@@ -347,7 +347,7 @@ class RepeatedFunctionalTestsBaseClass(object):
 
         ## We should be able to access the calender through the URL
         c2 = Calendar(client=self.caldav, url=c.url)
-        events2 = c.events()
+        events2 = c2.events()
         assert_equal(len(events2), 1)
         assert_equal(events2[0].url, events[0].url)
 
