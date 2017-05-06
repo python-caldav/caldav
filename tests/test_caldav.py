@@ -10,6 +10,7 @@ import vobject
 from six import PY3
 from nose.tools import assert_equal, assert_not_equal, assert_raises
 from nose.plugins.skip import SkipTest
+from requests.packages import urllib3
 
 from .conf import caldav_servers, proxy, proxy_noport
 from .proxy import ProxyHandler, NonThreadingHTTPServer
@@ -29,6 +30,8 @@ else:
     from urlparse import urlparse
 
 log = logging.getLogger("caldav")
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 class NullHandler(logging.Handler):
     def emit(self, record):
