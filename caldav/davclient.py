@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 # -*- encoding: utf-8 -*-
 
-import requests
 import logging
 import re
+import requests
 import six
 from caldav.lib.python_utilities import to_wire
 from lxml import etree
@@ -59,14 +59,15 @@ class DAVClient:
     proxy = None
     url = None
 
-    def __init__(self, url, proxy=None, username=None, password=None, auth=None, ssl_verify_cert=True):
+    def __init__(self, url, proxy=None, username=None, password=None,
+                 auth=None, ssl_verify_cert=True):
         """
         Sets up a HTTPConnection object towards the server in the url.
         Parameters:
          * url: A fully qualified url: `scheme://user:pass@hostname:port`
          * proxy: A string defining a proxy server: `hostname:port`
          * username and password should be passed as arguments or in the URL
-         * auth and ssl_verify_cert is passed to requests.request.  
+         * auth and ssl_verify_cert is passed to requests.request.
          ** ssl_verify_cert can be the path of a CA-bundle or False.
         """
 
@@ -76,11 +77,12 @@ class DAVClient:
         # Prepare proxy info
         if proxy is not None:
             self.proxy = proxy
-            if re.match('^.*://', proxy) is None:  # requests library expects the proxy url to have a scheme
+            # requests library expects the proxy url to have a scheme
+            if re.match('^.*://', proxy) is None:
                 self.proxy = self.url.scheme + '://' + proxy
 
             # add a port is one is not specified
-            # TODO: this will break if using basic auth and embedding 
+            # TODO: this will break if using basic auth and embedding
             # username:password in the proxy URL
             p = self.proxy.split(":")
             if len(p) == 2:
@@ -97,7 +99,9 @@ class DAVClient:
 
         self.username = username
         self.password = password
-        self.auth = auth ## TODO: it's possible to force through a specific auth method here, but no test code for this.
+        self.auth = auth
+        # TODO: it's possible to force through a specific auth method here,
+        # but no test code for this.
         self.ssl_verify_cert = ssl_verify_cert
         self.url = self.url.unauth()
         log.debug("self.url: " + str(url))
@@ -125,7 +129,8 @@ class DAVClient:
         Returns
          * DAVResponse
         """
-        return self.request(url or self.url, "PROPFIND", props, {'Depth': str(depth)})
+        return self.request(url or self.url, "PROPFIND", props,
+                            {'Depth': str(depth)})
 
     def proppatch(self, url, body, dummy=None):
         """
@@ -218,20 +223,26 @@ class DAVClient:
         if body is None or body == "" and "Content-Type" in combined_headers:
             del combined_headers["Content-Type"]
 
-        log.debug("sending request - method={0}, url={1}, headers={2}\nbody:\n{3}".format(method, url, combined_headers, body))
+        log.debug(
+            "sending request - method={0}, url={1}, headers={2}\nbody:\n{3}"
+            .format(method, url, combined_headers, body))
         auth = None
         if self.auth is None and self.username is not None:
             auth = requests.auth.HTTPDigestAuth(self.username, self.password)
         else:
             auth = self.auth
 
-        r = requests.request(method, url, data=to_wire(body), headers=combined_headers, proxies=proxies, auth=auth, verify=self.ssl_verify_cert)
+        r = requests.request(method, url, data=to_wire(body),
+                             headers=combined_headers, proxies=proxies,
+                             auth=auth, verify=self.ssl_verify_cert)
         response = DAVResponse(r)
 
-        ## If server supports BasicAuth and not DigestAuth, let's try again:
+        # If server supports BasicAuth and not DigestAuth, let's try again:
         if response.status == 401 and self.auth is None and auth is not None:
             auth = requests.auth.HTTPBasicAuth(self.username, self.password)
-            r = requests.request(method, url, data=to_wire(body), headers=combined_headers, proxies=proxies, auth=auth, verify=self.ssl_verify_cert)
+            r = requests.request(method, url, data=to_wire(body),
+                                 headers=combined_headers, proxies=proxies,
+                                 auth=auth, verify=self.ssl_verify_cert)
             response = DAVResponse(r)
 
         # this is an error condition the application wants to know
@@ -242,7 +253,7 @@ class DAVClient:
             ex.reason = response.reason
             raise ex
 
-        ## let's save the auth object and remove the user/pass information
+        # let's save the auth object and remove the user/pass information
         if not self.auth and auth:
             self.auth = auth
             del self.username

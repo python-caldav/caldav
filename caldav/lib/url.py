@@ -34,8 +34,8 @@ class URL:
 
     2) an absolute path, i.e. "/caldav.php/someuser/calendar"
 
-    3) a fully qualified URL,
-    i.e. "http://someuser:somepass@my.davical-server.example.com/caldav.php/someuser/calendar".
+    3) a fully qualified URL, i.e.
+    "http://someuser:somepass@my.davical-server.example.com/caldav.php/someuser/calendar".
     Remark that hostname, port, user, pass is typically given when
     instantiating the DAVClient object and cannot be overridden later.
 
@@ -67,14 +67,14 @@ class URL:
     def __eq__(self, other):
         if str(self) == str(other):
             return True
-        ## The URLs could have insignificant differences
+        # The URLs could have insignificant differences
         me = self.canonical()
         if hasattr(other, 'canonical'):
             other = other.canonical()
         return str(me) == str(other)
 
-    ## TODO: better naming?  Will return url if url is already an URL
-    ## object, else will instantiate a new URL object
+    # TODO: better naming?  Will return url if url is already an URL
+    # object, else will instantiate a new URL object
     @classmethod
     def objectify(self, url):
         if url is None:
@@ -84,8 +84,8 @@ class URL:
         else:
             return URL(url)
 
-    ## To deal with all kind of methods/properties in the ParseResult
-    ## class
+    # To deal with all kind of methods/properties in the ParseResult
+    # class
     def __getattr__(self, attr):
         if self.url_parsed is None:
             self.url_parsed = urlparse(self.url_raw)
@@ -94,13 +94,13 @@ class URL:
         else:
             return getattr(self.__unicode__(), attr)
 
-    ## returns the url in text format
+    # returns the url in text format
     def __str__(self):
         if PY3:
             return self.__unicode__()
         return self.__unicode__().encode('utf-8')
 
-    ## returns the url in text format
+    # returns the url in text format
     def __unicode__(self):
         if self.url_raw is None:
             self.url_raw = self.url_parsed.geturl()
@@ -125,8 +125,11 @@ class URL:
         if not self.is_auth():
             return self
         return URL.objectify(ParseResult(
-            self.scheme, '%s:%s' % (self.hostname, self.port or {'https': 443, 'http': 80}[self.scheme]),
-            self.path.replace('//', '/'), self.params, self.query, self.fragment))
+            self.scheme,
+            '%s:%s' % (self.hostname,
+                       self.port or {'https': 443, 'http': 80}[self.scheme]),
+            self.path.replace('//', '/'), self.params, self.query,
+            self.fragment))
 
     def canonical(self):
         """
@@ -136,16 +139,16 @@ class URL:
         """
         url = self.unauth()
 
-        ## this is actually already done in the unauth method ...
+        # this is actually already done in the unauth method ...
         if '//' in url.path:
             raise NotImplementedError("remove the double slashes")
 
-        ## This looks like a noop - but it may have the side effect
-        ## that urlparser be run (actually not - unauth ensures we
-        ## have an urlParseResult object)
+        # This looks like a noop - but it may have the side effect
+        # that urlparser be run (actually not - unauth ensures we
+        # have an urlParseResult object)
         url.scheme
 
-        ## make sure to delete the string version
+        # make sure to delete the string version
         url.url_raw = None
 
         return url
@@ -163,10 +166,9 @@ class URL:
             return self
         path = URL.objectify(path)
         if (
-            (path.scheme and self.scheme and path.scheme != self.scheme)
-            or
-            (path.hostname and self.hostname and path.hostname != self.hostname)
-            or
+            (path.scheme and self.scheme and path.scheme != self.scheme) or
+            (path.hostname and self.hostname and
+             path.hostname != self.hostname) or
             (path.port and self.port and path.port != self.port)
         ):
             raise ValueError("%s can't be joined with %s" % (self, path))
@@ -179,7 +181,9 @@ class URL:
                 sep = ""
             ret_path = "%s%s%s" % (self.path, sep, uc2utf8(path.path))
         return URL(ParseResult(
-            self.scheme or path.scheme, self.netloc or path.netloc, ret_path, path.params, path.query, path.fragment))
+            self.scheme or path.scheme, self.netloc or path.netloc, ret_path,
+            path.params, path.query, path.fragment))
+
 
 def make(url):
     """Backward compatibility"""
