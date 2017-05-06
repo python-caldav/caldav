@@ -242,7 +242,7 @@ class RepeatedFunctionalTestsBaseClass(object):
 
         ## next, the internal _query_properties, returning an xml tree ...
         foo2 = self.principal._query_properties([dav.Status(),])
-        assert('resourcetype' in to_local(foo2.raw))
+        assert('resourcetype' in to_local(foo.raw))
         ## TODO: more advanced asserts
 
     def testGetCalendarHomeSet(self):
