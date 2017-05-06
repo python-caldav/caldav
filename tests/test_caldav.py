@@ -335,7 +335,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert_equal(events2[0].url, events[0].url)
 
     def testCreateCalendarAndEventFromVobject(self):
-        c = self.principal.make_calendar(name="Yep", cal_id=testcal_id)
+        c = self.principal.make_calendar(name="Yep", cal_id=self.testcal_id)
 
         ## add event from vobject data
         ve1 = vobject.readOne(ev1)
