@@ -1,6 +1,11 @@
 from six import string_types, PY3
 
 
+def isPython3():
+    """ Deprecated. Use six.PY3 """
+    return PY3
+
+
 def to_wire(text):
     if text and isinstance(text, string_types) and PY3:
         text = bytes(text, 'utf-8')
