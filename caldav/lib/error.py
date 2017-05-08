@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- encoding: utf-8 -*-
 
+
 class AuthorizationError(Exception):
     """
     The client encountered an HTTP 403 error and is passing it on
@@ -18,17 +19,22 @@ class AuthorizationError(Exception):
 class PropsetError(Exception):
     pass
 
+
 class PropfindError(Exception):
     pass
+
 
 class ReportError(Exception):
     pass
 
+
 class MkcolError(Exception):
     pass
 
+
 class MkcalendarError(Exception):
     pass
+
 
 class PutError(Exception):
     pass
@@ -37,10 +43,13 @@ class PutError(Exception):
 class DeleteError(Exception):
     pass
 
+
 class NotFoundError(Exception):
     pass
 
+
 exception_by_method = {}
-for method in ('delete', 'put', 'mkcalendar', 'mkcol', 'report', 'propset', 'propfind'):
-    exception_by_method[method] = locals()[method[0].upper() + method[1:] + 'Error']
-    
+for method in ('delete', 'put', 'mkcalendar', 'mkcol', 'report', 'propset',
+               'propfind'):
+    exception_by_method[method] = \
+        locals()[method[0].upper() + method[1:] + 'Error']

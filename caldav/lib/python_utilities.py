@@ -1,15 +1,15 @@
-import sys
-from six import string_types
+from six import string_types, PY3
 
 
 def isPython3():
-    return sys.version_info >= (3, 0)
+    """ Deprecated. Use six.PY3 """
+    return PY3
 
 
 def to_wire(text):
-    if text and isinstance(text, string_types) and isPython3():
+    if text and isinstance(text, string_types) and PY3:
         text = bytes(text, 'utf-8')
-    elif not isPython3():
+    elif not PY3:
         text = to_unicode(text).encode('utf-8')
     return text
 
@@ -27,6 +27,7 @@ def to_str(text):
 
 
 def to_unicode(text):
-    if text and isinstance(text, string_types) and not isPython3() and not isinstance(text, unicode):
+    if (text and isinstance(text, string_types) and not PY3 and
+            not isinstance(text, unicode)):
         text = unicode(text, 'utf-8')
     return text

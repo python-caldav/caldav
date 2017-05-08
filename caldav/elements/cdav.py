@@ -5,17 +5,20 @@ from caldav.lib.namespace import ns
 from .base import BaseElement, NamedBaseElement, ValuedBaseElement
 
 
-## Operations
+# Operations
 class CalendarQuery(BaseElement):
     tag = ns("C", "calendar-query")
+
 
 class FreeBusyQuery(BaseElement):
     tag = ns("C", "free-busy-query")
 
+
 class Mkcalendar(BaseElement):
     tag = ns("C", "mkcalendar")
 
-## Filters
+
+# Filters
 class Filter(BaseElement):
     tag = ns("C", "filter")
 
@@ -32,7 +35,7 @@ class ParamFilter(NamedBaseElement):
     tag = ns("C", "param-filter")
 
 
-## Conditions
+# Conditions
 class TextMatch(ValuedBaseElement):
     tag = ns("C", "text-match")
 
@@ -49,8 +52,7 @@ class TimeRange(BaseElement):
     def __init__(self, start=None, end=None):
         super(TimeRange, self).__init__()
         if start is not None:
-            self.attributes['start'] = \
-                    start.strftime("%Y%m%dT%H%M%SZ")
+            self.attributes['start'] = start.strftime("%Y%m%dT%H%M%SZ")
         if end is not None:
             self.attributes['end'] = end.strftime("%Y%m%dT%H%M%SZ")
 
@@ -59,7 +61,7 @@ class NotDefined(BaseElement):
     tag = ns("C", "is-not-defined")
 
 
-## Components / Data
+# Components / Data
 class CalendarData(BaseElement):
     tag = ns("C", "calendar-data")
 
@@ -77,14 +79,17 @@ class Expand(BaseElement):
 class Comp(NamedBaseElement):
     tag = ns("C", "comp")
 
-## Uhhm ... can't find any references to calendar-collection in rfc4791.txt and newer versions of baikal gives 403 forbidden when this one is encountered
-#class CalendarCollection(BaseElement):
-#    tag = ns("C", "calendar-collection")
+# Uhhm ... can't find any references to calendar-collection in rfc4791.txt
+# and newer versions of baikal gives 403 forbidden when this one is
+# encountered
+# class CalendarCollection(BaseElement):
+#     tag = ns("C", "calendar-collection")
 
-## Properties
 
+# Properties
 class CalendarHomeSet(BaseElement):
     tag = ns("C", "calendar-home-set")
+
 
 # calendar resource type, see rfc4791, sec. 4.2
 class Calendar(BaseElement):
@@ -126,5 +131,7 @@ class MaxInstances(ValuedBaseElement):
 class MaxAttendeesPerInstance(ValuedBaseElement):
     tag = ns("C", "max-attendees-per-instance")
 
-class SupportedCalendarComponentSet(BaseElement):
-    tag = ns("C", "supported-calendar-component-set")
+
+# This seems redundant, it redefines line 107
+# class SupportedCalendarComponentSet(BaseElement):
+#     tag = ns("C", "supported-calendar-component-set")
