@@ -330,12 +330,12 @@ class RepeatedFunctionalTestsBaseClass(object):
 
         ## We should be able to access the calender through the URL
         c2 = Calendar(client=self.caldav, url=c.url)
-        events2 = c.events()
+        events2 = c2.events()
         assert_equal(len(events2), 1)
         assert_equal(events2[0].url, events[0].url)
 
     def testCreateCalendarAndEventFromVobject(self):
-        c = self.principal.make_calendar(name="Yep", cal_id=testcal_id)
+        c = self.principal.make_calendar(name="Yep", cal_id=self.testcal_id)
 
         ## add event from vobject data
         ve1 = vobject.readOne(ev1)
@@ -347,7 +347,7 @@ class RepeatedFunctionalTestsBaseClass(object):
 
         ## We should be able to access the calender through the URL
         c2 = Calendar(client=self.caldav, url=c.url)
-        events2 = c.events()
+        events2 = c2.events()
         assert_equal(len(events2), 1)
         assert_equal(events2[0].url, events[0].url)
 
