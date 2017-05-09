@@ -5,7 +5,7 @@ from caldav.lib.namespace import ns
 from .base import BaseElement, ValuedBaseElement
 
 
-## Operations
+# Operations
 class Propfind(BaseElement):
     tag = ns("D", "propfind")
 
@@ -17,11 +17,11 @@ class PropertyUpdate(BaseElement):
 class Mkcol(BaseElement):
     tag = ns("D", "mkcol")
 
-## Filters
+# Filters
 
-## Conditions
+# Conditions
 
-## Components / Data
+# Components / Data
 
 
 class Prop(BaseElement):
@@ -36,7 +36,7 @@ class Set(BaseElement):
     tag = ns("D", "set")
 
 
-## Properties
+# Properties
 class ResourceType(BaseElement):
     tag = ns("D", "resourcetype")
 
@@ -56,6 +56,6 @@ class Response(BaseElement):
 class Status(BaseElement):
     tag = ns("D", "status")
 
+
 class CurrentUserPrincipal(BaseElement):
     tag = ns("D", "current-user-principal")
-
