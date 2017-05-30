@@ -218,7 +218,7 @@ class DAVClient:
         # ensure that url is a unicode string
         url = str(url)
 
-        combined_headers = self.headers
+        combined_headers = dict(self.headers)
         combined_headers.update(headers)
         if body is None or body == "" and "Content-Type" in combined_headers:
             del combined_headers["Content-Type"]
