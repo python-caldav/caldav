@@ -206,12 +206,12 @@ class DAVObject(object):
         rc = None
         response = self._query_properties(props, depth)
         properties = self._handle_prop_response(response, props)
-        path = self.url.path
-        exchange_path = self.url.path + '/'
+        path = unquote(self.url.path)
+        exchange_path = path + '/'
 
-        if path in list(properties.keys()):
+        if path in properties:
             rc = properties[path]
-        elif exchange_path in list(properties.keys()):
+        elif exchange_path in properties:
             rc = properties[exchange_path]
         else:
             raise Exception("The CalDAV server you are using has "
