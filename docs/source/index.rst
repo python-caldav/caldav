@@ -131,9 +131,11 @@ test code for "COMPATIBILITY" for details.  Notably;
  * Bedework is supposed to support todo-lists, but queries
    for "all non-completed tasks" does not work.
 
- * iCloud - we've managed read-only access to iCloud so far - see
-   https://bitbucket.org/cyrilrbt/caldav/issue/40/icloud-not-fully-supported
-   for details.
+ * iCloud is a bit tricky, the URL discovery part doesn't seem to work
+   out very well, out of the box it seems like we get only read-only
+   access.  The trick may seem to be to find alternative caldav URLs.
+   This is tracked in issue
+   https://github.com/python-caldav/caldav/issues/3
 
 Unit testing
 ============
