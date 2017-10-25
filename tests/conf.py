@@ -19,15 +19,6 @@ except ImportError:
 #####################
 if not only_private:
     # This one will eventually go the way of the dodo at some future point
-    caldav_servers.append(
-        {"url": "http://baikal.tobixen.no:80/cal.php/",
-         "username": "testlogin",
-         "password": "testing123",
-         "principal_url":
-             "http://baikal.tobixen.no:80/cal.php/principals/testlogin/",
-         "backwards_compatibility_url":
-            "http://testlogin:testing123@baikal.tobixen.no:80/cal.php/calendars/testlogin/"})
-
     # newer version of baikal, running under openshift.
     caldav_servers.append({
         "url": "http://baikal-test.caldav-servers.tobixen.no/cal.php/",
