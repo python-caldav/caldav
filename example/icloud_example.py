@@ -26,7 +26,6 @@ class iCloudConnector(object):
     password = None
     propfind_principal = u'''<?xml version="1.0" encoding="utf-8"?><propfind xmlns='DAV:'><prop><current-user-principal/></prop></propfind>'''
     propfind_calendar_home_set = u'''<?xml version="1.0" encoding="utf-8"?><propfind xmlns='DAV:' xmlns:cd='urn:ietf:params:xml:ns:caldav'><prop><cd:calendar-home-set/></prop></propfind>'''
-    client_agent = 'Mozilla/5.0 (iPad; U; CPU OS 3_2_1 like Mac OS X; en-us) AppleWebKit/531.21.10 (KHTML, like Gecko) Mobile/7B405'
     
     def __init__(self,username,password,**kwargs):
         self.username = username
@@ -47,7 +46,6 @@ class iCloudConnector(object):
     def discover(self):
         # Build and dispatch a request to discover the prncipal us for the given credentials
         headers = {  
-            'User-Agent': self.client_agent,
             'Depth': '1',
         }
         auth = HTTPBasicAuth(self.username, self.password)
