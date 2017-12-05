@@ -9,9 +9,8 @@
 from datetime import datetime
 import caldav
 from caldav.elements import dav, cdav
-import urllib,urllib2
-from urllib import FancyURLopener
-from urllib2 import HTTPPasswordMgrWithDefaultRealm, HTTPBasicAuthHandler, build_opener
+import requests
+from requests.auth import HTTPBasicAuthHandler
 from bs4 import BeautifulSoup
 import httplib,  base64, sys
 from lxml import etree
@@ -42,44 +41,41 @@ class iCloudConnector(object):
     # once doscivered, these  can then be used to manage calendars
             
     def discover(self):
-        
-        auth_string = 'Basic {0}'.format(base64.encodestring(self.username+':'+self.password)[:-1])
         # Build and dispatch a request to discover the prncipal us for the given credentials
         headers = {  
-            'Authorization': auth_string,
             'User-Agent': self.client_agent,
-            'Depth': 1,
-            'Content-Length': str(len(self.propfind_principal))}
-        # Need to do this long hand to get HTTPS request built with all the fiddley bits set
-        urllib2.install_opener(urllib2.build_opener(urllib2.HTTPSHandler()))
-        req = urllib2.Request(self.icloud_url,self.propfind_principal,headers)
-        req.get_method = lambda: 'PROPFIND'
-        # Need to do exception handling properly here
-        try:
-            response = urllib2.urlopen(req)
-        except Exception as e:
+            'Depth': '1',
+        }
+        auth = HTTPBasicAuth(self.username, self.password)
+        principal_response = requests.request(
+            'PROPFIND',
+            self.icloud_url,
+            auth=auth,
+            headers=headers,
+            data=self.propfind_principal.encode('utf-8')
+        )
+        if principal_response.status_code != 207:
             print 'Failed to retrieve Principal'
-            print e.info()
-            print e.reason
+            print principal_response.status_code
             exit(-1)
         # Parse the resulting XML response
-        soup = BeautifulSoup(response.read(),'lxml')
+        soup = BeautifulSoup(principal_response.content, 'lxml')
         self.principal_path = soup.find('current-user-principal').find('href').get_text()        
         discovery_url = self.icloud_url+self.principal_path
         # Next use the discovery URL to get more detailed properties - such as the calendar-home-set
-        headers['Content-Length'] = str(len(self.propfind_calendar_home_set))
-        req = urllib2.Request(discovery_url, self.propfind_calendar_home_set, headers)
-        req.get_method = lambda: 'PROPFIND'
-    
-        try:
-            response = urllib2.urlopen(req)
-        except Exception as e:
+        home_set_response = requests.request(
+            'PROPFIND',
+            discovery_url,
+            auth=auth,
+            headers=headers,
+            data=self.propfind_calendar_home_set.encode('utf-8')
+        )
+        if home_set_response.status_code != 207:
             print 'Failed to retrieve calendar-home-set'
-            print e.info()
-            print e.reason
+            print home_set_response.status_code
             exit(-1)
         # And then extract the calendar-home-set URL
-        soup = BeautifulSoup(response.read(),'lxml')
+        soup = BeautifulSoup(home_set_response.content, 'lxml')
         self.calendar_home_set_url = soup.find('href', attrs={'xmlns':'DAV:'}).get_text()
 
     # get_calendars
