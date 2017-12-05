@@ -7,14 +7,17 @@
 #
 
 from __future__ import print_function
+
 from datetime import datetime
+import sys
+
+from bs4 import BeautifulSoup
 import caldav
 from caldav.elements import dav, cdav
-import requests
-from requests.auth import HTTPBasicAuthHandler
-from bs4 import BeautifulSoup
-import httplib,  base64, sys
 from lxml import etree
+import requests
+from requests.auth import HTTPBasicAuth
+
 
 class iCloudConnector(object):
     
