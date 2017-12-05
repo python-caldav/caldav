@@ -6,6 +6,7 @@
 # If the example is re-run - an Authorisation error will occur as the example will try to re-add the same event which will be rejected due to the duplicate ID
 #
 
+from __future__ import print_function
 from datetime import datetime
 import caldav
 from caldav.elements import dav, cdav
@@ -55,8 +56,8 @@ class iCloudConnector(object):
             data=self.propfind_principal.encode('utf-8')
         )
         if principal_response.status_code != 207:
-            print 'Failed to retrieve Principal'
-            print principal_response.status_code
+            print('Failed to retrieve Principal: ',
+                  principal_response.status_code)
             exit(-1)
         # Parse the resulting XML response
         soup = BeautifulSoup(principal_response.content, 'lxml')
@@ -71,8 +72,8 @@ class iCloudConnector(object):
             data=self.propfind_calendar_home_set.encode('utf-8')
         )
         if home_set_response.status_code != 207:
-            print 'Failed to retrieve calendar-home-set'
-            print home_set_response.status_code
+            print('Failed to retrieve calendar-home-set',
+                  home_set_response.status_code)
             exit(-1)
         # And then extract the calendar-home-set URL
         soup = BeautifulSoup(home_set_response.content, 'lxml')
@@ -144,5 +145,4 @@ if not cal:
 try:
     cal.add_event(vcal) 
 except AuthorisationError as ae:
-    print 'Couldn\'t add event'
-    print ae.reason
+    print('Couldn\'t add event', ae.reason)
