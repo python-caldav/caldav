@@ -1,4 +1,4 @@
-#!/usr/local/bin/python
+#!/usr/bin/env python
 #
 # This file defines a class that eases the connection to iCload for caldav manipulation
 # Is uses the credentials supplied in the constructor to discver the users principal and calendar-home-set urls then uses
