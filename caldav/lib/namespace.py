@@ -8,11 +8,13 @@
 nsmap = {
     "D": "DAV",
     "C": "urn:ietf:params:xml:ns:caldav",
+    "I": "http://apple.com/ns/ical/",
 }
 
 nsmap2 = {
     "D": "DAV:",
     "C": "urn:ietf:params:xml:ns:caldav",
+    "I": "http://apple.com/ns/ical/",
 }
 
 
