@@ -71,7 +71,8 @@ class Expand(BaseElement):
 
     def __init__(self, start, end=None):
         super(Expand, self).__init__()
-        self.attributes['start'] = start.strftime("%Y%m%dT%H%M%SZ")
+        if start is not None:
+            self.attributes['start'] = start.strftime("%Y%m%dT%H%M%SZ")
         if end is not None:
             self.attributes['end'] = end.strftime("%Y%m%dT%H%M%SZ")
 
