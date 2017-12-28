@@ -719,10 +719,12 @@ class Calendar(DAVObject):
             # Ref Lucas Verney, we've actually done a substring search, if the
             # uid given in the query is short (i.e. just "0") we're likely to
             # get false positives back from the server.
-            if not "\nUID:%s\n" % uid in data:
-                # TODO: optimistic assumption, uid line is not folded.  We
-                # need to unfold the content to be 100% sure that we won't
-                # filter away true positives here.
+            #
+            # Long uids are folded, so splice the lines together here before
+            # attempting a match.
+            item_uid = re.search(r'\nUID:((.|\n[ \t])*)\n', data)
+            if (not item_uid or
+                    re.sub(r'\n[ \t]', '', item_uid.group(1)) != uid):
                 continue
             return self._calendar_comp_class_by_data(data)(
                 self.client, url=URL.objectify(href), data=data, parent=self)
