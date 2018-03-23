@@ -6,11 +6,12 @@ A "DAV object" is anything we get from the caldav server or push into the
 caldav server, notably principal, calendars and calendar events.
 """
 
-import vobject
 import uuid
 import re
 import datetime
+
 from lxml import etree
+import icalendar
 
 try:
     from urllib.parse import unquote
@@ -569,7 +570,6 @@ class Calendar(DAVObject):
             matches.append(
                 Event(self.client, url=self.url.join(r),
                       data=results[r][cdav.CalendarData.tag], parent=self))
-
         return matches
 
     def freebusy_request(self, start, end):
@@ -807,7 +807,8 @@ class CalendarObjectResource(DAVObject):
         CalendarObjectResource has an additional parameter for its constructor:
          * data = "...", vCal data for the event
         """
-        DAVObject.__init__(self, client=client, url=url, parent=parent, id=id)
+        super(CalendarObjectResource, self).__init__(
+            client=client, url=url, parent=parent, id=id)
         if data is not None:
             self.data = data
 
@@ -837,24 +838,26 @@ class CalendarObjectResource(DAVObject):
         elif id is None:
             for obj_type in ('vevent', 'vtodo', 'vjournal', 'vfreebusy'):
                 obj = None
-                if hasattr(self.instance, obj_type):
-                    obj = getattr(self.instance, obj_type)
-                elif self.instance.name.lower() == obj_type:
+                for subcomp in self.instance.subcomponents:
+                    if subcomp.name.lower() == obj_type:
+                        obj = subcomp
+                        break
+                if obj is None and self.instance.name.lower == obj_type:
                     obj = self.instance
                 if obj is not None:
-                    id = obj.uid.value
+                    id = obj["uid"]
                     break
         else:
             for obj_type in ('vevent', 'vtodo', 'vjournal', 'vfreebusy'):
                 obj = None
-                if hasattr(self.instance, obj_type):
-                    obj = getattr(self.instance, obj_type)
-                elif self.instance.name.lower() == obj_type:
+                for subcomp in self.instance.subcomponents:
+                    if subcomp.name.lower() == obj_type:
+                        obj = subcomp
+                        break
+                if obj is None and self.instance.name.lower == obj_type:
                     obj = self.instance
                 if obj is not None:
-                    if not hasattr(obj, 'uid'):
-                        obj.add('uid')
-                    obj.uid = id
+                    obj.add("uid", id)
                     break
         if path is None:
             path = id + ".ics"
@@ -879,19 +882,20 @@ class CalendarObjectResource(DAVObject):
         """
         if self._instance is not None:
             path = self.url.path if self.url else None
-            self._create(self._instance.serialize(), self.id, path)
+            self._create(self._instance.to_ical(), self.id, path)
         return self
 
     def __str__(self):
         return "%s: %s" % (self.__class__.__name__, self.url)
 
     def _set_data(self, data):
-        if type(data).__module__.startswith("vobject"):
+        if type(data).__module__.startswith("icalendar"):
             self._data = data
             self._instance = data
         else:
             self._data = vcal.fix(data)
-            self._instance = vobject.readOne(to_unicode(self._data))
+            self._instance = icalendar.Calendar.from_ical(
+                to_unicode(self._data))
         return self
 
     def _get_data(self):
@@ -907,7 +911,7 @@ class CalendarObjectResource(DAVObject):
     def _get_instance(self):
         return self._instance
     instance = property(_get_instance, _set_instance,
-                        doc="vobject instance of the object")
+                        doc="icalendar instance of the object")
 
 
 class Event(CalendarObjectResource):
@@ -934,7 +938,7 @@ class FreeBusy(CalendarObjectResource):
         A freebusy response object has no URL or ID (TODO: reconsider the
         class hierarchy?  most of the inheritated methods are moot and
         will fail?).  Raw response can be accessed through self.data,
-        instantiated vobject as self.instance.
+        instantiated icalendar as self.instance.
         """
         CalendarObjectResource.__init__(self, client=parent.client, url=None,
                                         data=data, parent=parent, id=None)

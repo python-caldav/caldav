@@ -10,7 +10,7 @@ from lxml import etree
 
 from caldav.lib import error
 from caldav.lib.url import URL
-from caldav.objects import Principal
+from caldav.objects import Calendar, Principal
 
 if six.PY3:
     from urllib.parse import unquote
@@ -116,6 +116,16 @@ class DAVClient:
         calendars.
         """
         return Principal(self)
+
+    def calendar(self, url):
+        """
+        Instantiante a calendar by knowing its url.
+
+        This method returns a :class:`caldav.Calendar` object, with
+        higher-level methods for dealing with the calendar
+        events.
+        """
+        return Calendar(self, url)
 
     def propfind(self, url=None, props="", depth=0):
         """

@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 # -*- encoding: utf-8 -*-
 
+import icalendar
 import logging
 import threading
 import time
-import vobject
 import uuid
 from datetime import datetime
 from six import PY3
@@ -361,8 +361,8 @@ class RepeatedFunctionalTestsBaseClass(object):
     def testCreateCalendarAndEventFromVobject(self):
         c = self.principal.make_calendar(name="Yep", cal_id=self.testcal_id)
 
-        # add event from vobject data
-        ve1 = vobject.readOne(ev1)
+        # add event from icalendar data
+        ve1 = icalendar.Calendar.from_ical(ev1)
         c.add_event(ve1)
 
         # c.events() should give a full list of events
