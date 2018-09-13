@@ -27,6 +27,5 @@ if __name__ == '__main__':
         packages=find_packages(exclude=['tests']),
         include_package_data=True,
         zip_safe=False,
-        install_requires=['vobject', 'lxml', 'requests', 'six'],
-        test_requires=['nose', 'coverage']
+        install_requires=['vobject', 'lxml', 'nose', 'coverage', 'requests', 'six'],
     )

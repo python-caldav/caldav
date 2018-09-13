@@ -431,11 +431,6 @@ class RepeatedFunctionalTestsBaseClass(object):
         # c.todos() should give a full list of todo items
         logging.info("Fetching the full list of todo items (should be one)")
         todos = c.todos()
-        if not todos:
-            import pdb; pdb.set_trace()
-            t1 = c.add_todo(todo)
-            todos = c.todos()
-            
         assert_equal(len(todos), 1)
 
         logging.info("Fetching the events (should be none)")
