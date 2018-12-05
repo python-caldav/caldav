@@ -45,6 +45,10 @@ class DisplayName(ValuedBaseElement):
     tag = ns("D", "displayname")
 
 
+class GetEtag(ValuedBaseElement):
+    tag = ns("D", "getetag")
+
+
 class Href(BaseElement):
     tag = ns("D", "href")
 
