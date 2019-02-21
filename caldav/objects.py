@@ -914,7 +914,44 @@ class Event(CalendarObjectResource):
     """
     The `Event` object is used to represent an event (VEVENT).
     """
-    pass
+
+    # return wheter or not the other event intersects with the current one
+    def intersects(self, other):
+        if not isinstance(other, Event):
+            raise Exception("Caldav Event can not intersect with given object")
+
+        thisVobj = self.instance.vevent
+        otherVobj = other.instance.vevent
+
+        thisStart = thisVobj.dtstart.value
+        thisEnd = thisVobj.dtend.value
+        otherStart = otherVobj.dtstart.value
+        otherEnd = otherVobj.dtend.value
+
+        # it will NOT intersect when other object ends before our start, or when
+        # other object's start happensa after our end
+        notIntersects = otherEnd < thisStart or otherStart > thisEnd
+        return not notIntersects
+
+    # returns a copy of the current object whose time frame is the union between
+    # the current and the other events.
+    def doUnion(self, other):
+        if not self.intersects(other):
+            raise Exception("Can only perform union with intersecting objects")
+
+        newEvent = self.copy()
+        newStart = min(self.instance.vevent.dtstart.value,
+                       other.instance.vevent.dtstart.value)
+        newEnd = max(self.instance.vevent.dtend.value,
+                     other.instance.vevent.dtend.value)
+
+        newEvent.instance.vevent.dtstart.value = newStart
+        newEvent.instance.vevent.dtend.value = newEnd
+        newEvent.data = newEvent.instance.serialize()
+        return newEvent
+
+    __xor__ = intersects
+    __and__ = doUnion
 
 
 class Journal(CalendarObjectResource):
