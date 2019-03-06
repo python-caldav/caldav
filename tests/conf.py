@@ -20,15 +20,15 @@ except ImportError:
 if not only_private:
     # This one will eventually go the way of the dodo at some future point
     # newer version of baikal, running under openshift.
-    caldav_servers.append({
-        "url": "http://baikal-test.caldav-servers.tobixen.no/cal.php/",
-        "username": "testuser",
-        "password": "123"})
-    caldav_servers.append({
-        "url": "https://baikal-test.caldav-servers.tobixen.no/cal.php/",
-        "username": "testuser",
-        "password": "123",
-        "ssl_verify_cert": False})
+    #caldav_servers.append({
+        #"url": "http://baikal-test.caldav-servers.tobixen.no/cal.php/",
+        #"username": "testuser",
+        #"password": "123"})
+    #caldav_servers.append({
+        #"url": "https://baikal-test.caldav-servers.tobixen.no/cal.php/",
+        #"username": "testuser",
+        #"password": "123",
+        #"ssl_verify_cert": False})
 
     # radicale - too many problems, postponing
     # caldav_servers.append({
@@ -44,7 +44,7 @@ if not only_private:
     # * date search on recurrences of recurring events doesn't work
     #   (not reported yet - TODO)
     caldav_servers.append({
-        "url": "http://bedework.caldav-servers.tobixen.no/ucaldav/",
+        "url": "http://bedework-caldav-servers.cloudapps.bitbit.net/ucaldav/",
         "username": "vbede",
         "password": "bedework",
         "nojournal": True,
