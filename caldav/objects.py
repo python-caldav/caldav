@@ -10,6 +10,7 @@ import vobject
 import uuid
 import re
 import datetime
+import tzlocal
 from lxml import etree
 
 try:
@@ -27,8 +28,19 @@ def errmsg(r):
     """Utility for formatting a response xml tree to an error string"""
     return "%s %s\n\n%s" % (r.status, r.reason, r.raw)
 
+def _fix_tz(dt):
+    """
+    if the dt object is a date, do nothing.  if the dt object is a
+    datetime and it has no tzinfo, assume it's localtime and set the
+    tzinfo explicitly.
+    """
+    if hasattr(dt, 'tzname') and dt.tzname() is None:
+        import pytz
+        return dt.replace(tzinfo=pytz.utc)
+        return dt.replace(tzinfo=tzlocal.get_localzone())
 
 class DAVObject(object):
+
     """
     Base class for all DAV objects.  Can be instantiated by a client
     and an absolute or relative URL, or from the parent object.
@@ -544,6 +556,10 @@ class Calendar(DAVObject):
 
         # build the request
 
+        # fix missing tzinfo in the start and end datetimes
+        start = _fix_tz(start)
+        end = _fix_tz(end)
+
         # Some servers will raise an error if we send the expand flag
         # but don't set any end-date - expand doesn't make much sense
         # if we have one recurring event describing an indefinite
@@ -584,6 +600,10 @@ class Calendar(DAVObject):
          * [FreeBusy(), ...]
 
         """
+        # fix missing tzinfo in the start and end datetimes
+        start = _fix_tz(start)
+        end = _fix_tz(end)
+
         root = cdav.FreeBusyQuery() + [cdav.TimeRange(start, end)]
         response = self._query(root, 1, 'report')
         return FreeBusy(self, response.raw)
