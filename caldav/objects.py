@@ -608,6 +608,28 @@ class Calendar(DAVObject):
         response = self._query(root, 1, 'report')
         return FreeBusy(self, response.raw)
 
+    def _fetch_todos(self, filters):
+        # ref https://www.ietf.org/rfc/rfc4791.txt, section 7.8.9
+        matches = []
+
+        # build the request
+        data = cdav.CalendarData()
+        prop = dav.Prop() + data
+
+        vcalendar = cdav.CompFilter("VCALENDAR") + filters
+        filter = cdav.Filter() + vcalendar
+
+        root = cdav.CalendarQuery() + [prop, filter]
+
+        response = self._query(root, 1, 'report')
+        results = self._handle_prop_response(
+            response=response, props=[cdav.CalendarData()])
+        for r in results:
+            matches.append(
+                Todo(self.client, url=self.url.join(r),
+                     data=results[r][cdav.CalendarData.tag], parent=self))
+        return matches
+
     def todos(self, sort_keys=('due', 'priority'), include_completed=False,
               sort_key=None):
         """
@@ -620,13 +642,6 @@ class Calendar(DAVObject):
            by default, only pending tasks are listed
          * sort_key: DEPRECATED, for backwards compatibility with version 0.4.
         """
-        # ref https://www.ietf.org/rfc/rfc4791.txt, section 7.8.9
-        matches = []
-
-        # build the request
-        data = cdav.CalendarData()
-        prop = dav.Prop() + data
-
         if sort_key:
             sort_keys = (sort_key,)
 
@@ -635,23 +650,41 @@ class Calendar(DAVObject):
             vnotcancelled = cdav.TextMatch('CANCELLED', negate=True)
             vstatusNotCompleted = cdav.PropFilter('STATUS') + vnotcompleted
             vstatusNotCancelled = cdav.PropFilter('STATUS') + vnotcancelled
+            vstatusNotDefined = cdav.PropFilter('STATUS') + cdav.NotDefined()
             vnocompletedate = cdav.PropFilter('COMPLETED') + cdav.NotDefined()
-            vtodo = (cdav.CompFilter("VTODO") + vnocompletedate +
-                     vstatusNotCompleted + vstatusNotCancelled)
+            filters1 = (cdav.CompFilter("VTODO") + vnocompletedate +
+                        vstatusNotCompleted + vstatusNotCancelled)
+            ## This query is quite much in line with https://tools.ietf.org/html/rfc4791#section-7.8.9
+            matches1 = self._fetch_todos(filters1)
+            ## However ... some server implementations (i.e. NextCloud
+            ## and Baikal) will yield "false" on a negated TextMatch
+            ## if the field is not defined.  Hence, for those
+            ## implementations we need to turn back and ask again
+            ## ... do you have any VTODOs for us where the STATUS
+            ## field is not defined? (ref
+            ## https://github.com/python-caldav/caldav/issues/14)
+            filters2 = (cdav.CompFilter("VTODO") + vnocompletedate +
+                        vstatusNotDefined)
+            matches2 = self._fetch_todos(filters2)
+
+            ## For most caldav servers, everything in matches2 already exists
+            ## in matches1.  We need to make a union ...
+            match_set = set()
+            matches = []
+            for todo in matches1 + matches2:
+                if not str(todo.url) in match_set:
+                    match_set.add(str(todo.url))
+                    ## and still, Zimbra seems to deliver too many TODOs on the
+                    ## filter2 ... let's do some post-filtering in case the
+                    ## server fails in filtering things the right way
+                    if (not '\nCOMPLETED:' in todo.data and
+                        not '\nSTATUS:COMPLETED' in todo.data and
+                        not '\nSTATUS:CANCELLED' in todo.data):
+                        matches.append(todo)
+
         else:
-            vtodo = cdav.CompFilter("VTODO")
-        vcalendar = cdav.CompFilter("VCALENDAR") + vtodo
-        filter = cdav.Filter() + vcalendar
-
-        root = cdav.CalendarQuery() + [prop, filter]
-
-        response = self._query(root, 1, 'report')
-        results = self._handle_prop_response(
-            response=response, props=[cdav.CalendarData()])
-        for r in results:
-            matches.append(
-                Todo(self.client, url=self.url.join(r),
-                     data=results[r][cdav.CalendarData.tag], parent=self))
+            filters = cdav.CompFilter("VTODO")
+            matches = self._fetch_todos(filters)
 
         def sort_key_func(x):
             ret = []
@@ -662,6 +695,12 @@ class Calendar(DAVObject):
                 'priority': '0',
                 # JA: why compare datetime.strftime('%F%H%M%S')
                 # JA: and not simply datetime?
+
+                # tobixen: probably it was made like this because we can get
+                # both dates and timestamps from the objects.
+                # Python will yield an exception if trying to compare
+                # a timestamp with a date.
+
                 'isnt_overdue':
                     not (hasattr(vtodo, 'due') and
                          vtodo.due.value.strftime('%F%H%M%S') <
