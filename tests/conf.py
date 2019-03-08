@@ -18,17 +18,17 @@ except ImportError:
 # Public test servers
 #####################
 if not only_private:
-    # This one will eventually go the way of the dodo at some future point
-    # newer version of baikal, running under openshift.
-    #caldav_servers.append({
-        #"url": "http://baikal-test.caldav-servers.tobixen.no/cal.php/",
-        #"username": "testuser",
-        #"password": "123"})
-    #caldav_servers.append({
-        #"url": "https://baikal-test.caldav-servers.tobixen.no/cal.php/",
-        #"username": "testuser",
-        #"password": "123",
-        #"ssl_verify_cert": False})
+    
+    ## TODO: this one is set up on emphemeral storage on OpenShift and
+    ## then configured manually through the webui installer, it will
+    ## most likely only work for some few days until it's down again.
+    ## It's needed to hard-code the configuration into
+    ## https://github.com/python-caldav/baikal
+    
+    caldav_servers.append({
+        "url": "http://baikal-caldav-servers.cloudapps.bitbit.net/html/cal.php/",
+        "username": "baikaluser",
+        "password": "asdf"})
 
     # radicale - too many problems, postponing
     # caldav_servers.append({
