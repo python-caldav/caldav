@@ -430,7 +430,9 @@ class RepeatedFunctionalTestsBaseClass(object):
         # c.todos() should give a full list of todo items
         logging.info("Fetching the full list of todo items (should be one)")
         todos = c.todos()
+        todos2 = c.todos(include_completed=True)
         assert_equal(len(todos), 1)
+        assert_equal(len(todos2), 1)
 
         logging.info("Fetching the events (should be none)")
         # c.events() should NOT return todo-items
