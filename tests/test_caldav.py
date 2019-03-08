@@ -611,17 +611,25 @@ class RepeatedFunctionalTestsBaseClass(object):
         if 'zimbra' in str(c.url):
             assert_raises(Exception, self.principal.make_calendar,
                           "Yep", self.testcal_id2)
+        else:
+            # This may fail, and if it fails, add an exception to the test
+            # (see the "if" above)
+            cc = self.principal.make_calendar("Yep", self.testcal_id2)
+            cc.delete()
 
         c.set_properties([dav.DisplayName("hooray"), ])
         props = c.get_properties([dav.DisplayName(), ])
         assert_equal(props[dav.DisplayName.tag], "hooray")
 
-        # Creating a new calendar with different ID and old name
-        # - should never fail
-        cc = self.principal.make_calendar(
-            name="Yep", cal_id=self.testcal_id2).save()
-        assert_not_equal(cc.url, None)
-        cc.delete()
+        # Creating a new calendar with different ID and old name, this should
+        # work, shouldn't it?
+        # ... ouch, now it fails with a 409 on zimbra (it didn't fail
+        # earlier)
+        if not 'zimbra' in str(c.url):
+            cc = self.principal.make_calendar(
+                name="Yep", cal_id=self.testcal_id2).save()
+            assert_not_equal(cc.url, None)
+            cc.delete()
 
     def testLookupEvent(self):
         """

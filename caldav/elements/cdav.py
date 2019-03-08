@@ -59,13 +59,10 @@ class TextMatch(ValuedBaseElement):
 
 class TimeRange(BaseElement):
     tag = ns("C", "time-range")
-    
+
     def __init__(self, start=None, end=None):
         ## start and end should be an icalendar "date with UTC time",
         ## ref https://tools.ietf.org/html/rfc4791#section-9.9
-        
-        ## We assume the timestamp is already in UTC time if no tz is given.
-        ## We convert the timestamp to UTC if tzinfo is given.
         super(TimeRange, self).__init__()
         if start is not None:
             self.attributes['start'] = _date_with_utc_time(start)
