@@ -856,9 +856,9 @@ class Calendar(DAVObject):
 class CalendarObjectResource(DAVObject):
     """
     Ref RFC 4791, section 4.1, a "Calendar Object Resource" can be an
-    event, a todo-item, a journal entry, a free/busy entry, etc.
+    event, a todo-item, a journal entry, or a free/busy entry
     """
-    _instance = None
+    _vobject_instance = None
     _data = None
 
     def __init__(self, client=None, url=None, data=None, parent=None, id=None):
@@ -896,20 +896,20 @@ class CalendarObjectResource(DAVObject):
         elif id is None:
             for obj_type in ('vevent', 'vtodo', 'vjournal', 'vfreebusy'):
                 obj = None
-                if hasattr(self.instance, obj_type):
-                    obj = getattr(self.instance, obj_type)
-                elif self.instance.name.lower() == obj_type:
-                    obj = self.instance
+                if hasattr(self.vobject_instance, obj_type):
+                    obj = getattr(self.vobject_instance, obj_type)
+                elif self.vobject_instance.name.lower() == obj_type:
+                    obj = self.vobject_instance
                 if obj is not None:
                     id = obj.uid.value
                     break
         else:
             for obj_type in ('vevent', 'vtodo', 'vjournal', 'vfreebusy'):
                 obj = None
-                if hasattr(self.instance, obj_type):
-                    obj = getattr(self.instance, obj_type)
-                elif self.instance.name.lower() == obj_type:
-                    obj = self.instance
+                if hasattr(self.vobject_instance, obj_type):
+                    obj = getattr(self.vobject_instance, obj_type)
+                elif self.vobject_instance.name.lower() == obj_type:
+                    obj = self.vobject_instance
                 if obj is not None:
                     if not hasattr(obj, 'uid'):
                         obj.add('uid')
@@ -936,9 +936,22 @@ class CalendarObjectResource(DAVObject):
         Returns:
          * self
         """
-        if self._instance is not None:
-            path = self.url.path if self.url else None
-            self._create(self._instance.serialize(), self.id, path)
+        if self._vobject_instance is None and self._data is None:
+            return self
+        path = self.url.path if self.url else None
+
+        if self._vobject_instance is None:
+            ## ref https://github.com/python-caldav/caldav/issues/43
+            ## we don't want to use vobject unless needed, but
+            ## sometimes the caldav server may balk on slightly
+            ## non-conforming icalendar data.  We'll just throw in a
+            ## try-send-data-except-wash-through-vobject-logic here.
+            try:
+                self._create(self._data, self.id, path)
+            except error.PutError:
+                self._create(self.vobject_instance.serialize(), self.id, path)
+        else:
+            self._create(self._vobject_instance.serialize(), self.id, path)
         return self
 
     def __str__(self):
@@ -946,11 +959,12 @@ class CalendarObjectResource(DAVObject):
 
     def _set_data(self, data):
         if type(data).__module__.startswith("vobject"):
-            self._data = data
-            self._instance = data
+            self._data = self._vobject_instance
+            self._vobject_instance = data
         else:
             self._data = vcal.fix(data)
-            self._instance = vobject.readOne(to_unicode(self._data))
+            self._vobject_instance = None
+            #self._instance = vobject.readOne(to_unicode(self._data))
         return self
 
     def _get_data(self):
@@ -958,15 +972,20 @@ class CalendarObjectResource(DAVObject):
     data = property(_get_data, _set_data,
                     doc="vCal representation of the object")
 
-    def _set_instance(self, inst):
-        self._instance = inst
+    def _set_vobject_instance(self, inst):
+        self._vobject_instance = inst
         self._data = inst.serialize()
         return self
 
-    def _get_instance(self):
-        return self._instance
-    instance = property(_get_instance, _set_instance,
+    def _get_vobject_instance(self):
+        if not self._vobject_instance and self._data:
+            self._vobject_instance = vobject.readOne(to_unicode(self._data))
+        return self._vobject_instance
+
+    vobject_instance = property(_get_vobject_instance, _set_vobject_instance,
                         doc="vobject instance of the object")
+    ## for backward-compatibility
+    instance = vobject_instance
 
 
 class Event(CalendarObjectResource):
@@ -993,7 +1012,7 @@ class FreeBusy(CalendarObjectResource):
         A freebusy response object has no URL or ID (TODO: reconsider the
         class hierarchy?  most of the inheritated methods are moot and
         will fail?).  Raw response can be accessed through self.data,
-        instantiated vobject as self.instance.
+        instantiated vobject as self.vobject_instance.
         """
         CalendarObjectResource.__init__(self, client=parent.client, url=None,
                                         data=data, parent=parent, id=None)
@@ -1013,8 +1032,8 @@ class Todo(CalendarObjectResource):
         """
         if not completion_timestamp:
             completion_timestamp = datetime.datetime.now()
-        if not hasattr(self.instance.vtodo, 'status'):
-            self.instance.vtodo.add('status')
-        self.instance.vtodo.status.value = 'COMPLETED'
-        self.instance.vtodo.add('completed').value = completion_timestamp
+        if not hasattr(self.vobject_instance.vtodo, 'status'):
+            self.vobject_instance.vtodo.add('status')
+        self.vobject_instance.vtodo.status.value = 'COMPLETED'
+        self.vobject_instance.vtodo.add('completed').value = completion_timestamp
         self.save()
