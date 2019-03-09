@@ -219,7 +219,10 @@ class DAVObject(object):
         response = self._query_properties(props, depth)
         properties = self._handle_prop_response(response, props)
         path = unquote(self.url.path)
-        exchange_path = path + '/'
+        if path.endswith('/'):
+            exchange_path = path[:-1]
+        else:
+            exchange_path = path + '/'
 
         if path in properties:
             rc = properties[path]
