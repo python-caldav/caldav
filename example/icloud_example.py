@@ -1,5 +1,16 @@
 #!/usr/bin/env python
-#
+
+####
+# Comment from Tobias Brox: This example file from 2017 does lots of
+# low-level interaction with the iCloud caldav server.  Some of the
+# point with the caldav library is that one should not need to go
+# through such many hoops to access the calendar.  I'm not sure if the
+# logic below is needed in 2019 and with the upcoming 0.6.0-release of
+# the caldav library - I hope it's not.  Compatibility with iCloud has
+# been an issue for a long time, it's tracked in
+# https://github.com/python-caldav/caldav/issues/3.
+####
+
 # This file defines a class that eases the connection to iCload for caldav manipulation
 # Is uses the credentials supplied in the constructor to discver the users principal and calendar-home-set urls then uses
 # these as inputs to the CALDAV library to add a caledndar, and create an event
