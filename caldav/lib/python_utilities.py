@@ -15,7 +15,7 @@ def to_wire(text):
 
 
 def to_local(text):
-    if text and not isinstance(text, string_types):
+    if text is not None and not isinstance(text, string_types):
         text = text.decode('utf-8')
     return text
 
