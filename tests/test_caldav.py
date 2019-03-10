@@ -495,7 +495,8 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert_equal(len(todos), 4)
 
         notodos = c.date_search(  # default compfilter is events
-            start=datetime(1997, 4, 14), end=datetime(2015, 5, 14))
+            start=datetime(1997, 4, 14), end=datetime(2015, 5, 14),
+            expand=False)
         assert(not notodos)
 
         # Now, this is interesting.  2 events have dtstart set, 3 has
@@ -503,7 +504,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         # duration set.  What will a date search yield?
         todos = c.date_search(
             start=datetime(1997, 4, 14), end=datetime(2015, 5, 14),
-            compfilter='VTODO')
+            compfilter='VTODO', expand=False)
         # The RFCs are pretty clear on this.  rfc5545 states:
 
         # A "VTODO" calendar component without the "DTSTART" and "DUE" (or
@@ -695,7 +696,7 @@ class RepeatedFunctionalTestsBaseClass(object):
 
         # .. and search for it.
         r = c.date_search(datetime(2006, 7, 13, 17, 00, 00),
-                          datetime(2006, 7, 15, 17, 00, 00))
+                          datetime(2006, 7, 15, 17, 00, 00), expand=False)
 
         assert_equal(e.instance.vevent.uid, r[0].instance.vevent.uid)
         assert_equal(len(r), 1)
@@ -705,15 +706,15 @@ class RepeatedFunctionalTestsBaseClass(object):
         e.data = ev2
         e.save()
         r = c.date_search(datetime(2006, 7, 13, 17, 00, 00),
-                          datetime(2006, 7, 15, 17, 00, 00))
+                          datetime(2006, 7, 15, 17, 00, 00), expand=False)
         assert_equal(len(r), 0)
 
         r = c.date_search(datetime(2007, 7, 13, 17, 00, 00),
-                          datetime(2007, 7, 15, 17, 00, 00))
+                          datetime(2007, 7, 15, 17, 00, 00), expand=False)
         assert_equal(len(r), 1)
 
         # date search without closing date should also find it
-        r = c.date_search(datetime(2007, 7, 13, 17, 00, 00))
+        r = c.date_search(datetime(2007, 7, 13, 17, 00, 00), expand=False)
         assert_equal(len(r), 1)
 
         # Lets try a freebusy request as well
@@ -741,11 +742,11 @@ class RepeatedFunctionalTestsBaseClass(object):
         # evr is a yearly event starting at 1997-02-11
         e = c.add_event(evr)
         r = c.date_search(datetime(2008, 11, 1, 17, 00, 00),
-                          datetime(2008, 11, 3, 17, 00, 00))
+                          datetime(2008, 11, 3, 17, 00, 00), expand=True)
         assert_equal(len(r), 1)
         assert_equal(r[0].data.count("END:VEVENT"), 1)
         r = c.date_search(datetime(2008, 11, 1, 17, 00, 00),
-                          datetime(2009, 11, 3, 17, 00, 00))
+                          datetime(2009, 11, 3, 17, 00, 00), expand=True)
         assert_equal(len(r), 1)
 
         # So much for standards ... seems like different servers
@@ -792,7 +793,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert_equal(e.instance.vevent.uid, ee.instance.vevent.uid)
 
         r = c.date_search(datetime(2006, 7, 13, 17, 00, 00),
-                          datetime(2006, 7, 15, 17, 00, 00))
+                          datetime(2006, 7, 15, 17, 00, 00), expand=False)
         assert_equal(e.instance.vevent.uid, r[0].instance.vevent.uid)
         assert_equal(len(r), 1)
 
@@ -806,21 +807,21 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert_equal(e2.instance.vevent.uid, tmp.instance.vevent.uid)
 
         r = c.date_search(datetime(2007, 7, 13, 17, 00, 00),
-                          datetime(2007, 7, 15, 17, 00, 00))
+                          datetime(2007, 7, 15, 17, 00, 00), expand=False)
         assert_equal(len(r), 1)
 
         e.data = ev2
         e.save()
 
         r = c.date_search(datetime(2007, 7, 13, 17, 00, 00),
-                          datetime(2007, 7, 15, 17, 00, 00))
+                          datetime(2007, 7, 15, 17, 00, 00), expand=False)
         # for e in r: print(e.data)
         assert_equal(len(r), 1)
 
         e.instance = e2.instance
         e.save()
         r = c.date_search(datetime(2007, 7, 13, 17, 00, 00),
-                          datetime(2007, 7, 15, 17, 00, 00))
+                          datetime(2007, 7, 15, 17, 00, 00), expand=False)
         # for e in r: print(e.data)
         assert_equal(len(r), 1)
 

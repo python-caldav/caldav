@@ -55,9 +55,9 @@ if not only_private:
     caldav_servers.append({
         "url": "http://xandikos-caldav-servers.cloudapps.bitbit.net/",
         "username": "user1",
-        "password": "password1"
+        "password": "password1",
+        "norecurring": True
         })
-
     caldav_servers.pop()
 
 proxy = "127.0.0.1:8080"
