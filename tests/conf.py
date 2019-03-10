@@ -58,5 +58,7 @@ if not only_private:
         "password": "password1"
         })
 
+    caldav_servers.pop()
+
 proxy = "127.0.0.1:8080"
 proxy_noport = "127.0.0.1"

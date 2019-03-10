@@ -539,7 +539,7 @@ class Calendar(DAVObject):
                 self.url = URL.objectify(str(self.url) + '/')
         return self
 
-    def date_search(self, start, end=None, compfilter="VEVENT"):
+    def date_search(self, start, end=None, compfilter="VEVENT", expand="maybe"):
         """
         Search events by date in the calendar. Recurring events are
         expanded if they are occuring during the specified time frame
@@ -550,6 +550,7 @@ class Calendar(DAVObject):
          * end = same as above.
          * compfilter = defaults to events only.  Set to None to fetch all
            calendar components.
+         * expand - should recurrent events be expanded?  (to preserve backward-compatibility the default "maybe" will be changed into True unless the date_search is open-ended)
 
         Returns:
          * [CalendarObjectResource(), ...]
@@ -563,12 +564,18 @@ class Calendar(DAVObject):
         start = _fix_tz(start)
         end = _fix_tz(end)
 
+        ## fror backward compatibility
+        if expand == 'maybe':
+            expand = end
+
         # Some servers will raise an error if we send the expand flag
         # but don't set any end-date - expand doesn't make much sense
         # if we have one recurring event describing an indefinite
         # series of events.  Hence, if the end date is not set, we
         # skip asking for expanded events.
-        if end:
+        if not end and expand:
+            raise error.ReportError("an open-ended date search cannot be expanded")
+        elif expand:
             data = cdav.CalendarData() + cdav.Expand(start, end)
         else:
             data = cdav.CalendarData()
