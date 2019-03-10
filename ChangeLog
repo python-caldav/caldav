@@ -1,10 +1,84 @@
-2017-01-26 Phyks (Lucas Verney) <phyks@phyks.me>
+2019-03-10  Tobias Brox <t-caldav@tobixen.no>
+	* setup.py - pushed the version number to 0.6.0, preparing for release
+	* ChangeLog - updated with most of the activity since 2017-02
+	* caldav/objects.py - "expand" in the date_search should be optional.
+
+2019-03-09  Tobias Brox <t-caldav@tobixen.no>
+	* caldav/objects.py - preparing for introducing support for the icalendar module and making the vobject support a legacy thing.  Delaying instantiation of vobject.  Compatibility fix required by the xandikos server implementation.
+
+2019-03-08  Tobias Brox <t-caldav@tobixen.no>
+	* caldav/elements/cdav.py - proper timezone support, the support made by Alghost was not following the standard, and caused breakage with one of the servers.  Caveat: In 0.5.0, a timestamp date_search was assumed to be UTC, with the patch from Alghost a timestamp without tzinfo was passed without any time zone info (and possibly interpreted to be in the same time zone as the caldav server), with this patch it's assumed to be in the clients local timezone.  Backward compatibility may be slightly broken (and test results may depend on the time zone the tests are run under)
+	* setup.py - now we're dependent on pytz and tzlocal
+	* caldav/object.py - some caldav servers don't want to give us all pending TODOs in one query.  Working around it.  Credits to mayjs <johannes.may@udo.edu> for pointing out this issue and attempting to solve it.
+	* test/caldav_test.py - letting one of the VTODO items in the test file be without a defined STATUS.
+
+2018-12-05  Notmarrco <marrco@wohecha.fr>
+	* caldav/elements/dav.py - add GetEtag
+
+2018-09-13  Diane Trout
+	* setup.py - move out test dependencies
+
+2017-12-28  Earl Chew <earl_chew@yahoo.com>
+	* caldav/objects.py - bugfix
+
+2017-12-25  Earl Chew <earl_chew@yahoo.com>
+	* caldav/elements/cdav.py - allow Expand tag to be used with open-ended start
+
+2017-12-04  Will Ross <paxswill@paxswill.com>
+	* example/icloud_example.py - misc cleanup
+
+2017-11-20  Matthias Bilger <matthias@bilger.info>
+	* caldav/lib/namespace.py - Added Apple ical namespace and properties
+
+2017-08-09  Ian Bottomley <github@kyloe.net>
+	* example/icloud_example.py - some code snippet showing one way to access calendaring information through iCloud
+
+2017-06-01  Andrei Martsinchyk <andrei.martsinchyk@gmail.com>
+	* caldav/objects.py - Bugfixing and tweaking, ref https://github.com/python-caldav/caldav/issues/11
+
+2017-05-30  Tobias Brox <t-caldav@tobixen.no>
+	* caldav/davclient.py - bugfix, ref
+	https://github.com/python-caldav/caldav/issues/12 and
+	https://github.com/python-caldav/caldav/issues/7
+	Credits to Andrei Martsinchyk
+
+2017-05-06  Johannes Ammon <j.ammon@dr-ammon.de>
+	* tests/test_caldav.py - bugfixing, introducing six library, disabling warnings
+	* caldav/davclient.py - introducing six library
+	* caldav/element/base.py - introducing six library
+	* caldav/lib/python_utilities.py - introducing six library
+	* caldav/lib/url.py - introducing six library
+	* tests/proxy.py - introducing six library
+	* * - PEP8
+
+2017-02-03  Tobias Brox <t-caldav@tobixen.no>
+	* setup.py - bugfix, credits to slavkoja
+
+2017-01-26  Tobias Brox <t-caldav@tobixen.no>
+	* tests/test_caldav.py - support for unique calendar IDs in the
+	test framework.  Should make it possible to run tests in parallell
+	against the same server and user
+
+2017-01-26  Phyks (Lucas Verney) <phyks@phyks.me>
 	* caldav/objects.py - enhancement: add the ability to add events to
 	calendar using directly a vobject object, and not necessarily an ical
 	string.
 
+2017-01-24  Tobias Brox <t-caldav@tobixen.no>
+	* caldav/objects.py - bugfix: uid handling while fetching
+	elements, ref
+	https://bitbucket.org/cyrilrbt/caldav/issues/54/wrong-uid-fetching-in-calendarevent_by_uid
+	- credits to Lucas Verney
+	* tests/conf.py - make it easier to override the public test
+	servers and run tests exclusively against custom test servers
+
+2017-01-23  Cyril Roberts <cyril@hippie.io>
+	* README.md - Changed the documentation to follow github
+	standards, while moving the project from bitbucket/hg to
+	github/git
+
 2017-01-22  Tobias Brox <t-caldav@tobixen.no>
-        * caldav/objects.py - bugfix: after a zimbra upgrade, tests started breaking again as the data from the server was urlencoded.  Merged in bugfix for bitbucket issue #46
+	* caldav/objects.py - bugfix: after a zimbra upgrade, tests started breaking again as the data from the server was urlencoded.  Merged in bugfix for bitbucket issue #46
 
 2017-01-03  Tobias Brox <t-caldav@tobixen.no>
 	* caldav/elements/cdav.py, caldav/objects.py: found a
@@ -12,7 +86,7 @@
 	and that also caused tests to break against some caldav servers.
 
 2016-05-15  Alex Martin <maddin4t0r@gmail.com>
-        * caldav/objects.py - bugfix, ref pull request #21
+	* caldav/objects.py - bugfix, ref pull request #21
 
 2016-10-07  Benedykt Przybyło <b3niup@gmail.com>
 	* caldav/elements/cdav.py - bugfix, Fixed namespace for Mkcalendar.
@@ -71,7 +145,7 @@
 	calendar-cli is dependent on those features.
 
 2015-04-21  Tobias Brox <t-caldav@tobixen.no>
-        * caldav/elements/cdav.py - now support for the free-busy-query element.
+	* caldav/elements/cdav.py - now support for the free-busy-query element.
 
 	* caldav/objects.py - added FreeBusy and Journal objects, plus
 	calendar methods to retrieve them, and for adding journal entries.
@@ -110,42 +184,42 @@
 	* caldav/tests/test_caldav.py - started working on VTODO support
 
 2015-04-01  Tobias Brox  <t-caldav@tobixen.no>
-        * caldav/lib/url.py - work on python3-support
+	* caldav/lib/url.py - work on python3-support
 
-        * tests/conf.py - work on python3-support
+	* tests/conf.py - work on python3-support
 
 2015-03-29  Tobias Brox  <t-caldav@tobixen.no>
-        * caldav/objects.py - work on iCloud support.  Solves issue #38,
-        read-only access to iCloud seems to work.  Writing still fails,
-        ref issue #40.
+	* caldav/objects.py - work on iCloud support.  Solves issue #38,
+	read-only access to iCloud seems to work.  Writing still fails,
+	ref issue #40.
 
 2015-03-19  Tobias Brox  <t-caldav@tobixen.no>
-        * tests/conf.py - ignore ImportError when importing conf_private,
-        but not other exceptions.  This way conf_private will be ignored
-        if it doesn't exist, but if there are syntax error, nosetest should
-        bark.
+	* tests/conf.py - ignore ImportError when importing conf_private,
+	but not other exceptions.  This way conf_private will be ignored
+	if it doesn't exist, but if there are syntax error, nosetest should
+	bark.
 
 2015-03-15  Tobias Brox  <t-caldav@tobixen.no>
-        * caldav/lib/python_utilities.py - fixing broken charset
+	* caldav/lib/python_utilities.py - fixing broken charset
 
 2015-02-26  Jack Laxson  <jackjrabbit@gmail.com>
-        * setup.py - remove sphinx from install_requires as it is huge and only used
-        for generating the documentation.
+	* setup.py - remove sphinx from install_requires as it is huge and only used
+	for generating the documentation.
 
 2015-02-23  Luke  <github@woydziak.com>
-        * Interceptable logging
+	* Interceptable logging
 
 2015-02-16  Luke  <github@woydziak.com>
-        * python3 support
+	* python3 support
 
 2015-02-14  Tobias Brox <t-caldav@tobixen.no>
-        * tests/test_caldav.py - new test that deletes events
+	* tests/test_caldav.py - new test that deletes events
 
 2015-01-24  Tobias Brox <t-caldav@tobixen.no>
-        * caldav/davclient.py - support for digest auth and self-signed
-        SSL certs, re issue #26 and #34.
-        * tests/test_caldav.py - more generic URL checks to discover
-        owncloud and baikal servers.
+	* caldav/davclient.py - support for digest auth and self-signed
+	SSL certs, re issue #26 and #34.
+	* tests/test_caldav.py - more generic URL checks to discover
+	owncloud and baikal servers.
 
 2015-01-21  Tobias Brox <t-caldav@tobixen.no>
 	* caldav/lib/url.py - workaround: "unauth"-method added port
@@ -158,7 +232,7 @@
 	workaround, though this issue should be investigated better.
 
 2014-05-27  Christian Roeder <christian.roeder@red-hood.de>
-        * caldav/davclient.py - RFC compliance fix; Use capitalised Depth:
+	* caldav/davclient.py - RFC compliance fix; Use capitalised Depth:
 	Header
 
 2014-05-27  Tobias Brox <t-caldav@tobixen.no>
