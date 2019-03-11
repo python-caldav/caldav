@@ -92,7 +92,7 @@ class DAVClient:
         # Build global headers
         self.headers = {"User-Agent": "Mozilla/5.0",
                         "Content-Type": "text/xml",
-                        "Accept": "text/xml"}
+                        "Accept": "text/xml, text/calendar"}
         if self.url.username is not None:
             username = unquote(self.url.username)
             password = unquote(self.url.password)
