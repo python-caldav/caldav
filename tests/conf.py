@@ -30,12 +30,6 @@ if not only_private:
         "username": "baikaluser",
         "password": "asdf"})
 
-    # radicale - too many problems, postponing
-    # caldav_servers.append({
-    #     "url": "http://radicale.caldav-servers.tobixen.no/testuser/",
-    #     "username": "testuser",
-    #     "password": "123"})
-
     # bedework:
     # * todos and journals are not properly supported -
     #   ref https://github.com/Bedework/bedework/issues/5
@@ -58,6 +52,16 @@ if not only_private:
         "password": "password1",
         "norecurring": True
         })
+
+    # radicale
+    caldav_servers.append({
+        "url": "http://radicale-caldav-servers.cloudapps.bitbit.net/",
+        "username": "testuser",
+        "password": "123",
+        "nofreebusy": True,
+        "nodefaultcalendar": True,
+        "noproxy": True
+    })
 
 proxy = "127.0.0.1:8080"
 proxy_noport = "127.0.0.1"

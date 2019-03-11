@@ -33,12 +33,6 @@ log = logging.getLogger("caldav")
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-class NullHandler(logging.Handler):
-    def emit(self, record):
-        logging.debug(record)
-
-log.addHandler(NullHandler())
-
 ev1 = """BEGIN:VCALENDAR
 VERSION:2.0
 PRODID:-//Example Corp.//CalDAV Client//EN
@@ -265,11 +259,19 @@ class RepeatedFunctionalTestsBaseClass(object):
         chs = self.principal.get_properties([cdav.CalendarHomeSet()])
         assert '{urn:ietf:params:xml:ns:caldav}calendar-home-set' in chs
 
-    def testGetCalendars(self):
+    def testGetDefaultCalendar(self):
+        if 'nodefaultcalendar' in self.server_params:
+            raise SkipTest("Skipping GetDefaultCalendar, caldav server has no default calendar for the user?")
+        assert_not_equal(len(self.principal.calendars()), 0)
+        
+    def testGetCalendar(self):
+        # Create calendar
+        c = self.principal.make_calendar(name="Yep", cal_id=self.testcal_id)
+        assert_not_equal(c.url, None)
         assert_not_equal(len(self.principal.calendars()), 0)
 
     def testProxy(self):
-        if self.caldav.url.scheme == 'https':
+        if self.caldav.url.scheme == 'https' or 'noproxy' in self.server_params:
             raise SkipTest("Skipping %s.testProxy as the TinyHTTPProxy "
                            "implementation doesn't support https")
 
@@ -718,10 +720,8 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert_equal(len(r), 1)
 
         # Lets try a freebusy request as well
-        # except for on my own DAViCal, it returns 500 Internal Server Error
-        # for me.  Should look more into that.  TODO.
-        if 'calendar.bekkenstenveien53c.oslo' in str(self.caldav.url):
-            raise SkipTest("TEMP/TODO/KLUDGE - skipping this test as for now")
+        if 'nofreebusy' in self.server_params:
+            raise SkipTest("FreeBusy test skipped - not supported by server?")
         freebusy = c.freebusy_request(datetime(2007, 7, 13, 17, 00, 00),
                                       datetime(2007, 7, 15, 17, 00, 00))
         # TODO: assert something more complex on the return object
