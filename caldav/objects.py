@@ -37,7 +37,7 @@ def _fix_tz(dt):
     if hasattr(dt, 'tzname') and dt.tzname() is None:
         import pytz
         return dt.replace(tzinfo=pytz.utc)
-        return dt.replace(tzinfo=tzlocal.get_localzone())
+    return dt.replace(tzinfo=tzlocal.get_localzone())
 
 class DAVObject(object):
 
