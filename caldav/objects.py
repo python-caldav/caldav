@@ -550,7 +550,9 @@ class Calendar(DAVObject):
          * end = same as above.
          * compfilter = defaults to events only.  Set to None to fetch all
            calendar components.
-         * expand - should recurrent events be expanded?  (to preserve backward-compatibility the default "maybe" will be changed into True unless the date_search is open-ended)
+         * expand - should recurrent events be expanded?  (to preserve 
+           backward-compatibility the default "maybe" will be changed into True 
+           unless the date_search is open-ended)
 
         Returns:
          * [CalendarObjectResource(), ...]
@@ -564,15 +566,16 @@ class Calendar(DAVObject):
         start = _fix_tz(start)
         end = _fix_tz(end)
 
-        ## fror backward compatibility
+        ## for backward compatibility - expand should be false
+        ## in an open-ended date search, otherwise true
         if expand == 'maybe':
             expand = end
 
         # Some servers will raise an error if we send the expand flag
         # but don't set any end-date - expand doesn't make much sense
         # if we have one recurring event describing an indefinite
-        # series of events.  Hence, if the end date is not set, we
-        # skip asking for expanded events.
+        # series of events.  I think it's appropriate to raise an error
+        # in this case.
         if not end and expand:
             raise error.ReportError("an open-ended date search cannot be expanded")
         elif expand:

@@ -116,7 +116,7 @@ test code for "COMPATIBILITY" for details.  Notably;
    one recurring ical object?  Different servers behave a bit
    differently (but more research is needed on this one).
 
- * Date search for future instances or recurring events does not seem
+ * Date search for future instances of recurring events does not seem
    to work in Bedework.
 
  * There are some special hacks both in the code and the tests to work
