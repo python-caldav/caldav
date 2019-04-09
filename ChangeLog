@@ -1,3 +1,6 @@
+2019-04-09  Cyril Robert <cyril@hippie.io>
+  * setup.py - Update to 0.6.1 to fix a tagging issue
+
 2019-03-11  Tobias Brox <t-caldav@tobixen.no>
 	* caldav/objects.py - bugfix: accept text/calendar (required for fetching calendar items from the xandikos server, ref https://github.com/python-caldav/caldav/issues/40
 
