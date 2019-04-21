@@ -178,11 +178,12 @@ class DAVObject(object):
         # All items should be in a <D:response> element
         for r in response.tree.findall('.//' + dav.Response.tag):
             status = r.find('.//' + dav.Status.tag)
-            if (' 200 ' not in status.text and
-                ' 207 ' not in status.text and
-                ' 404 ' not in status.text):
-                raise error.ReportError(errmsg(response))
-                # TODO: may be wrong error class
+            if status != None:
+                if (' 200 ' not in status.text and
+                    ' 207 ' not in status.text and
+                    ' 404 ' not in status.text):
+                    raise error.ReportError(errmsg(response))
+                    # TODO: may be wrong error class
             href = unquote(r.find('.//' + dav.Href.tag).text)
             properties[href] = {}
             for p in props:
@@ -402,11 +403,12 @@ class Principal(DAVObject):
             self._calendar_home_set = url
             return
         sanitized_url = URL.objectify(url)
-        if (sanitized_url.hostname and
-            sanitized_url.hostname != self.client.url.hostname):
-            # icloud (and others?) having a load balanced system,
-            # where each principal resides on one named host
-            self.client.url = sanitized_url
+        if sanitized_url != None:
+            if (sanitized_url.hostname and
+                sanitized_url.hostname != self.client.url.hostname):
+                # icloud (and others?) having a load balanced system,
+                # where each principal resides on one named host
+                self.client.url = sanitized_url
         self._calendar_home_set = CalendarSet(
             self.client, self.client.url.join(sanitized_url))
 
