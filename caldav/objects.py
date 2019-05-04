@@ -34,6 +34,8 @@ def _fix_tz(dt):
     datetime and it has no tzinfo, assume it's localtime and set the
     tzinfo explicitly.
     """
+    if dt is None:
+        return None
     if hasattr(dt, 'tzname') and dt.tzname() is None:
         import pytz
         return dt.replace(tzinfo=pytz.utc)
