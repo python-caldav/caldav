@@ -11,6 +11,7 @@ import uuid
 import re
 import datetime
 import tzlocal
+import pytz
 from lxml import etree
 
 try:
@@ -37,9 +38,8 @@ def _fix_tz(dt):
     if dt is None:
         return None
     if hasattr(dt, 'tzname') and dt.tzname() is None:
-        import pytz
-        return dt.replace(tzinfo=pytz.utc)
-    return dt.replace(tzinfo=tzlocal.get_localzone())
+            return dt.replace(tzinfo=tzlocal.get_localzone())
+    return dt
 
 class DAVObject(object):
 
