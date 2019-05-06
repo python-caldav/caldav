@@ -11,7 +11,6 @@ import uuid
 import re
 import datetime
 import tzlocal
-import pytz
 from lxml import etree
 
 try:
@@ -31,9 +30,17 @@ def errmsg(r):
 
 def _fix_tz(dt):
     """
-    if the dt object is a date, do nothing.  if the dt object is a
-    datetime and it has no tzinfo, assume it's localtime and set the
-    tzinfo explicitly.
+    This method takes a datetime or a date and returns the same.
+
+    * if the dt object is a date, return it.
+    * if the dt object is a datetime with tzinfo, return it.
+    * if the dt object is a datetime without tzinfo, assume it's in localtime,
+      set it as such and return.
+
+    This method is used when searching the calendar with a date range;
+    datetime objects will later be converted to UTC in elements.cdav
+
+    See also https://github.com/python-caldav/caldav/commit/7878d65fa4553cf91dde26334e5794c0852613b5#commitcomment-33417016 for more details
     """
     if dt is None:
         return None
