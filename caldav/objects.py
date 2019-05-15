@@ -9,14 +9,19 @@ caldav server, notably principal, calendars and calendar events.
 import vobject
 import uuid
 import re
-import datetime
-import tzlocal
+from datetime import datetime, date
 from lxml import etree
 
 try:
+    # noinspection PyCompatibility
     from urllib.parse import unquote
 except ImportError:
     from urllib import unquote
+
+try:
+    from typing import Union, Optional
+except:
+    pass
 
 from caldav.lib import error, vcal
 from caldav.lib.url import URL
@@ -28,24 +33,21 @@ def errmsg(r):
     """Utility for formatting a response xml tree to an error string"""
     return "%s %s\n\n%s" % (r.status, r.reason, r.raw)
 
-def _fix_tz(dt):
+
+def _add_missing_tz(dt):
+    # type: (Optional[Union[date,datetime]]) -> Optional[Union[date,datetime]]
     """
     This method takes a datetime or a date and returns the same.
 
-    * if the dt object is a date, return it.
-    * if the dt object is a datetime with tzinfo, return it.
     * if the dt object is a datetime without tzinfo, assume it's in localtime,
       set it as such and return.
+    * otherwise (especially if it is a date or a datetime with tzinfo), return it unchanged.
 
     This method is used when searching the calendar with a date range;
     datetime objects will later be converted to UTC in elements.cdav
-
-    See also https://github.com/python-caldav/caldav/commit/7878d65fa4553cf91dde26334e5794c0852613b5#commitcomment-33417016 for more details
     """
-    if dt is None:
-        return None
-    if hasattr(dt, 'tzname') and dt.tzname() is None:
-            return dt.replace(tzinfo=tzlocal.get_localzone())
+    if hasattr(dt, 'tzinfo') and dt.tzinfo is None:
+        return dt.astimezone()
     return dt
 
 class DAVObject(object):
@@ -574,8 +576,8 @@ class Calendar(DAVObject):
         # build the request
 
         # fix missing tzinfo in the start and end datetimes
-        start = _fix_tz(start)
-        end = _fix_tz(end)
+        start = _add_missing_tz(start)
+        end = _add_missing_tz(end)
 
         ## for backward compatibility - expand should be false
         ## in an open-ended date search, otherwise true
@@ -625,8 +627,8 @@ class Calendar(DAVObject):
 
         """
         # fix missing tzinfo in the start and end datetimes
-        start = _fix_tz(start)
-        end = _fix_tz(end)
+        start = _add_missing_tz(start)
+        end = _add_missing_tz(end)
 
         root = cdav.FreeBusyQuery() + [cdav.TimeRange(start, end)]
         response = self._query(root, 1, 'report')
