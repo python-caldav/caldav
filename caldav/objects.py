@@ -123,7 +123,7 @@ class DAVObject(object):
 
         return c
 
-    def _query_properties(self, props=[], depth=0):
+    def _query_properties(self, props=None, depth=0):
         """
         This is an internal method for doing a propfind query.  It's a
         result of code-refactoring work, attempting to consolidate
@@ -131,7 +131,7 @@ class DAVObject(object):
         """
         root = None
         # build the propfind request
-        if len(props) > 0:
+        if props is not None and len(props) > 0:
             prop = dav.Prop() + props
             root = dav.Propfind() + prop
 
@@ -214,7 +214,7 @@ class DAVObject(object):
 
         return properties
 
-    def get_properties(self, props=[], depth=0):
+    def get_properties(self, props=None, depth=0):
         """
         Get properties (PROPFIND) for this object. Works only for
         properties, that don't have complex types.
@@ -244,7 +244,7 @@ class DAVObject(object):
 
         return rc
 
-    def set_properties(self, props=[]):
+    def set_properties(self, props=None):
         """
         Set properties (PROPPATCH) for this object.
 
@@ -253,6 +253,7 @@ class DAVObject(object):
         Returns:
          * self
         """
+        props = [] if props is None else props
         prop = dav.Prop() + props
         set = dav.Set() + prop
         root = dav.PropertyUpdate() + set
