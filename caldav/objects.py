@@ -9,14 +9,20 @@ caldav server, notably principal, calendars and calendar events.
 import vobject
 import uuid
 import re
-import datetime
-import tzlocal
+from datetime import datetime, date
 from lxml import etree
 
 try:
+    # noinspection PyCompatibility
     from urllib.parse import unquote
 except ImportError:
     from urllib import unquote
+
+try:
+    from typing import Union, Optional
+    TimeStamp = Optional[Union[date,datetime]]
+except:
+    pass
 
 from caldav.lib import error, vcal
 from caldav.lib.url import URL
@@ -28,25 +34,6 @@ def errmsg(r):
     """Utility for formatting a response xml tree to an error string"""
     return "%s %s\n\n%s" % (r.status, r.reason, r.raw)
 
-def _fix_tz(dt):
-    """
-    This method takes a datetime or a date and returns the same.
-
-    * if the dt object is a date, return it.
-    * if the dt object is a datetime with tzinfo, return it.
-    * if the dt object is a datetime without tzinfo, assume it's in localtime,
-      set it as such and return.
-
-    This method is used when searching the calendar with a date range;
-    datetime objects will later be converted to UTC in elements.cdav
-
-    See also https://github.com/python-caldav/caldav/commit/7878d65fa4553cf91dde26334e5794c0852613b5#commitcomment-33417016 for more details
-    """
-    if dt is None:
-        return None
-    if hasattr(dt, 'tzname') and dt.tzname() is None:
-            return dt.replace(tzinfo=tzlocal.get_localzone())
-    return dt
 
 class DAVObject(object):
 
@@ -552,6 +539,7 @@ class Calendar(DAVObject):
         return self
 
     def date_search(self, start, end=None, compfilter="VEVENT", expand="maybe"):
+        # type (TimeStamp, TimeStamp, str, str) -> CalendarObjectResource
         """
         Search events by date in the calendar. Recurring events are
         expanded if they are occuring during the specified time frame
@@ -573,10 +561,6 @@ class Calendar(DAVObject):
         matches = []
 
         # build the request
-
-        # fix missing tzinfo in the start and end datetimes
-        start = _fix_tz(start)
-        end = _fix_tz(end)
 
         ## for backward compatibility - expand should be false
         ## in an open-ended date search, otherwise true
@@ -625,9 +609,6 @@ class Calendar(DAVObject):
          * [FreeBusy(), ...]
 
         """
-        # fix missing tzinfo in the start and end datetimes
-        start = _fix_tz(start)
-        end = _fix_tz(end)
 
         root = cdav.FreeBusyQuery() + [cdav.TimeRange(start, end)]
         response = self._query(root, 1, 'report')
