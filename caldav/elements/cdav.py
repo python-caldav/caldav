@@ -1,20 +1,18 @@
 #!/usr/bin/env python
 # -*- encoding: utf-8 -*-
+from datetime import datetime, timezone
 
 from caldav.lib.namespace import ns
 from .base import BaseElement, NamedBaseElement, ValuedBaseElement
-import pytz
 
-def _date_with_utc_time(ts):
-    ## If tzinfo is given, convert to UTC
-    if (hasattr(ts, 'tzname') and
-        ts.tzname() is not None and
-        ts.tzname() != 'UTC'):
-        ts = ts.astimezone(pytz.utc)
-    ## If not, assume the timestamp is already in UTC
-    ## (that's very naïve - but in object.py, we explicitly add the
-    ## local tzinfo if no tzinfo is given)
+
+def _to_utc_date_string(ts):
+    # type (Union[date,datetime]]) -> str
+    """coerce datetimes to UTC (assume localtime if nothing is given)"""
+    if (isinstance(ts, datetime)):
+        ts = ts.astimezone(timezone.utc)
     return ts.strftime("%Y%m%dT%H%M%SZ")
+
 
 # Operations
 class CalendarQuery(BaseElement):
@@ -65,9 +63,9 @@ class TimeRange(BaseElement):
         ## ref https://tools.ietf.org/html/rfc4791#section-9.9
         super(TimeRange, self).__init__()
         if start is not None:
-            self.attributes['start'] = _date_with_utc_time(start)
+            self.attributes['start'] = _to_utc_date_string(start)
         if end is not None:
-            self.attributes['end'] = _date_with_utc_time(end)
+            self.attributes['end'] = _to_utc_date_string(end)
 
 
 class NotDefined(BaseElement):
@@ -85,9 +83,9 @@ class Expand(BaseElement):
     def __init__(self, start, end=None):
         super(Expand, self).__init__()
         if start is not None:
-            self.attributes['start'] = _date_with_utc_time(start)
+            self.attributes['start'] = _to_utc_date_string(start)
         if end is not None:
-            self.attributes['end'] = _date_with_utc_time(end)
+            self.attributes['end'] = _to_utc_date_string(end)
 
 
 class Comp(NamedBaseElement):
