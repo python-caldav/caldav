@@ -4,7 +4,6 @@ from datetime import datetime, timezone
 
 from caldav.lib.namespace import ns
 from .base import BaseElement, NamedBaseElement, ValuedBaseElement
-import pytz
 
 
 def _to_utc_date_string(ts):
