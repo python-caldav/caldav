@@ -178,6 +178,11 @@ To build the documentation, install sphinx and run:
   $ python setup.py build_sphinx
 
 
+License
+=======
+
+Caldav is dual-licensed under the GNU GENERAL PUBLIC LICENSE Version 3 and the Apache License 2.0.
+
 ====================
  Indices and tables
 ====================
