@@ -710,11 +710,11 @@ class Calendar(DAVObject):
                 'isnt_overdue':
                     not (hasattr(vtodo, 'due') and
                          vtodo.due.value.strftime('%F%H%M%S') <
-                         datetime.datetime.now().strftime('%F%H%M%S')),
+                         datetime.now().strftime('%F%H%M%S')),
                 'hasnt_started':
                     (hasattr(vtodo, 'dtstart') and
                      vtodo.dtstart.value.strftime('%F%H%M%S') >
-                     datetime.datetime.now().strftime('%F%H%M%S'))
+                     datetime.now().strftime('%F%H%M%S'))
             }
             for sort_key in sort_keys:
                 val = getattr(vtodo, sort_key, None)
@@ -1034,10 +1034,10 @@ class Todo(CalendarObjectResource):
 
         Parameters:
          * completion_timestamp - datetime object.  Defaults to
-           datetime.datetime.now().
+           datetime.now().
         """
         if not completion_timestamp:
-            completion_timestamp = datetime.datetime.now()
+            completion_timestamp = datetime.now()
         if not hasattr(self.vobject_instance.vtodo, 'status'):
             self.vobject_instance.vtodo.add('status')
         self.vobject_instance.vtodo.status.value = 'COMPLETED'
