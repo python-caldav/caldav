@@ -1,0 +1,13 @@
+language: python
+python:
+    - 2.7
+    - 3.5
+    - 3.6
+    - 3.7
+
+install:
+    ## dependency list is manually copied from setup.py as for now.
+    ## Remember to edit setup.py if more dependencies are needed!
+    - pip install vobject lxml requests six nose coverage tzlocal pytz xandikos 
+script:
+    nosetests
