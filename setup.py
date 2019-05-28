@@ -28,5 +28,5 @@ if __name__ == '__main__':
         include_package_data=True,
         zip_safe=False,
         install_requires=['vobject', 'lxml', 'requests', 'six'],
-        tests_requires=['nose', 'coverage', 'tzlocal', 'pytz']
+        tests_requires=['nose', 'coverage', 'tzlocal', 'pytz', 'xandikos']
     )

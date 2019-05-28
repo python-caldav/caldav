@@ -1,23 +1,48 @@
 #!/usr/bin/env python
 # -*- encoding: utf-8 -*-
 
-############################
-# Private test server config
-############################
+## YOU SHOULD MOST LIKELY NOT EDIT THIS FILE!
+## Make a conf_private.py for personal configuration.
+## Check conf_private.py.EXAMPLE
+
+####################################
+# Import personal test server config
+####################################
+try:
+    from .conf_private import only_private ## legacy compatibility
+    test_public_test_servers = only_private
+except ImportError:
+    try:
+        from .conf_private import public_test_servers
+        test_public_test_servers = only_private
+    except ImportError:
+        test_public_test_servers = False
+
 try:
     from .conf_private import caldav_servers
 except ImportError:
     caldav_servers = []
 
 try:
-    from .conf_private import only_private
+    from .conf_private import test_private_test_servers
+    if not test_private_test_servers:
+        caldav_servers = []
 except ImportError:
-    only_private = False
+    pass
+
+
+try:
+    from .conf_private import test_xandikos, xandikos_host, xandikos_port
+except ImportError:
+    test_xandikos = True
+    xandikos_host = 'localhost'
+    xandikos_port = 8993 ## random port above 8000
+
 
 #####################
 # Public test servers
 #####################
-if not only_private:
+if test_public_test_servers:
     
     ## TODO: this one is set up on emphemeral storage on OpenShift and
     ## then configured manually through the webui installer, it will

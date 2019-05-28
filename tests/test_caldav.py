@@ -6,13 +6,14 @@ import threading
 import time
 import vobject
 import uuid
+import tempfile
 from datetime import datetime
 from six import PY3
 from nose.tools import assert_equal, assert_not_equal, assert_raises
 from nose.plugins.skip import SkipTest
 from requests.packages import urllib3
 
-from .conf import caldav_servers, proxy, proxy_noport
+from .conf import caldav_servers, proxy, proxy_noport, test_xandikos, xandikos_port, xandikos_host
 from .proxy import ProxyHandler, NonThreadingHTTPServer
 
 from caldav.davclient import DAVClient
@@ -23,6 +24,10 @@ from caldav.lib import url
 from caldav.lib import error
 from caldav.elements import dav, cdav
 from caldav.lib.python_utilities import to_local, to_str
+
+if test_xandikos:
+    from xandikos.web import XandikosBackend, XandikosApp
+    from wsgiref.simple_server import make_server
 
 if PY3:
     from urllib.parse import urlparse
@@ -155,7 +160,6 @@ DESCRIPTION:1. Staff meeting: Participants include Joe\, Lisa
 END:VJOURNAL
 END:VCALENDAR
 """
-
 
 class RepeatedFunctionalTestsBaseClass(object):
     """This is a class with functional tests (tests that goes through
@@ -856,6 +860,38 @@ for _caldav_server in caldav_servers:
         _classname, (RepeatedFunctionalTestsBaseClass,),
         {'server_params': _caldav_server})
 
+class TestLocalXandikos(RepeatedFunctionalTestsBaseClass):
+    """
+    Sets up a local Xandikos server and Runs the functional tests towards it
+    """
+    def setup(self):
+        if not test_xandikos:
+            raise SkipTest("Skipping Xadikos test due to configuration")
+        self.serverdir = tempfile.TemporaryDirectory()
+        self.serverdir.__enter__()
+        ## TODO - we should do something with the access logs from Xandikos
+        self.backend = XandikosBackend(path=self.serverdir.name)
+        self.backend.create_principal('/sometestuser/', create_defaults=True)
+        self.xandikos_server = make_server(xandikos_host, xandikos_port, XandikosApp(self.backend, '/sometestuser/'))
+        self.xandikos_thread = threading.Thread(target=self.xandikos_server.serve_forever)
+        self.xandikos_thread.start()
+        self.server_params = {'url': 'http://%s:%i/sometestuser/' % (xandikos_host, xandikos_port), 'username': 'user1', 'password': 'password1'}
+        ## TODO: this should go away eventually.  Ref https://github.com/jelmer/xandikos/issues/102 support for expanded search for recurring events has been fixed in the master branch of xandikos.
+        self.server_params['norecurring'] = True
+        RepeatedFunctionalTestsBaseClass.setup(self)
+
+    def teardown(self):
+        if not test_xandikos:
+            return
+        self.xandikos_server.shutdown()
+        self.xandikos_server.socket.close()
+        i=0
+        while (self.xandikos_thread.is_alive()):
+            time.sleep(0.05)
+            i+=1
+            assert(i<100)
+        self.serverdir.__exit__(None, None, None)
+        RepeatedFunctionalTestsBaseClass.teardown(self)
 
 class TestCalDAV:
     """
