@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 from setuptools import setup, find_packages
 
-version = '0.6.1'
+version = '0.6.2'
 
 if __name__ == '__main__':
     ## For python 2.7 and 3.5 we depend on pytz and tzlocal.  For 3.6 and up, batteries are included.
