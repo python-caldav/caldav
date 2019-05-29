@@ -9,7 +9,8 @@ python:
 install:
     ## dependency list is manually copied from setup.py as for now.
     ## Remember to edit setup.py if more dependencies are needed!
-    - pip install vobject lxml requests six nose coverage tzlocal pytz xandikos 
+    - pip install vobject lxml requests six nose coverage tzlocal pytz xandikos
+    - pip install xandikos || true ## optional test dependency, only available for python 3.x
 
 script:
     nosetests
