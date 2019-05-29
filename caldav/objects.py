@@ -250,7 +250,7 @@ class DAVObject(object):
         statuses = r.tree.findall(".//" + dav.Status.tag)
         for s in statuses:
             if ' 200 ' not in s.text:
-                raise error.PropsetError(errmsg(r))
+                raise error.PropsetError(s.text)
 
         return self
 

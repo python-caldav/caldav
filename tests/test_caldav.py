@@ -937,6 +937,28 @@ class TestCalDAV:
             'http://me:hunter2@calendar.example:80/someoneelse/calendars/main_calendar')
         assert_equal(calendar1.url, calendar2.url)
 
+    def testFailedQuery(self):
+        """
+        ref https://github.com/python-caldav/caldav/issues/54
+        """
+        cal_url = "http://me:hunter2@calendar.example:80/"
+        client = DAVClient(url=cal_url)
+        calhome = CalendarSet(client, cal_url + "me/")
+
+        ## syntesize a failed response
+        class FailedResp:
+            pass
+        failedresp = FailedResp()
+        failedresp.status = 400
+        failedresp.reason = "you are wrong"
+        failedresp.raw = "your request does not adhere to standards"
+
+        ## synthesize a new http method
+        calhome.client.unknown_method = lambda url, body, depth: failedresp
+
+        ## call it.
+        assert_raises(error.DAVError, calhome._query, query_method='unknown_method')
+
     def testDefaultClient(self):
         """When no client is given to a DAVObject, but the parent is given,
         parent.client will be used"""
