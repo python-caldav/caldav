@@ -1,6 +1,12 @@
 #!/usr/bin/env python
 # -*- encoding: utf-8 -*-
-from datetime import datetime, timezone
+from datetime import datetime
+try:
+    from datetime import timezone
+    utc_tz = timezone.utc
+except:
+    import pytz
+    utc_tz = pytz.utc
 
 from caldav.lib.namespace import ns
 from .base import BaseElement, NamedBaseElement, ValuedBaseElement
@@ -10,7 +16,16 @@ def _to_utc_date_string(ts):
     # type (Union[date,datetime]]) -> str
     """coerce datetimes to UTC (assume localtime if nothing is given)"""
     if (isinstance(ts, datetime)):
-        ts = ts.astimezone(timezone.utc)
+        try:
+            ## in python 3.6 and higher, ts.astimezone() will assume a
+            ## naive timestamp is localtime (and so do we)
+            ts = ts.astimezone(utc_tz)
+        except:
+            ## in python 2.7 and 3.5, ts.astimezone() will fail on
+            ## naive timestamps, but we'd like to assume they are
+            ## localtime
+            import tzlocal
+            ts = tzlocal.get_localzone().localize(ts).astimezone(utc_tz)
     return ts.strftime("%Y%m%dT%H%M%SZ")
 
 
