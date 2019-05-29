@@ -1,5 +1,44 @@
+2019-05-29  Tobias Brox <t-caldav@tobixen.no>
+	* .travis.yml - xandikos cannot be installed on python2.7, but we still want to run the available tests
+	* caldav/lib/error.py - ProppatchError was not defined, ref https://github.com/python-caldav/caldav/issues/54.  Also added a common base class DAVError, and made sure the error referenced in #54 will never reappear, even if new methods are added to DAVClient.
+	* tests/test_caldav.py - testing that the bug referenced in #54 has been properly plugged in caldav/lib/error.py
+	* caldav/elements/cdav.py - fixing a retention problem - the timezone fixes done recently was not compatible with python 2.7 nor 3.5.
+	* caldav/objects.py - revisiting https://github.com/python-caldav/caldav/issues/54 - "... is not None" feels more kosher than "... != None", and added TODO-comment that we need to do more research when those variables are None.  Bugfix on the error handling for multi-status-return, should return the specific error code and error message found, not the "207 Multi-Status".
+	* setup.py - reintroducing dependencies pytz and tzlocal - but only for old python versions
+	* tests/conf.py - test_xandikos should be defaulted to False if xandikos not present (as it can never be present on 2.7)
+	* tests/test_cdav.py - make the test python2.7-compatible (though some of the testing is a bit moot, as same code path is used in code and in test)
+
+2019-05-28  Tobias Brox <t-caldav@tobixen.no>
+	* .travis.yml - ref https://github.com/python-caldav/caldav/issues/57, fixing automated test runs after each commit and on each pull request.
+	* setup.py - new default tests depends on xandikos
+	* tests/conf.py - new defaults - testing towards external unreliable public test servers are disabled by default, an internal xandikos server is set up and tests are by default run towards that one
+	* tests/conf_private.py.EXAMPLE - new file, setting an example on how to run tests towards personal servers
+	* tests/test_caldav.py - added a test class that spawns a xandikos server instance and runs the functional test suite towards it.  Unfortunately it only works under python3.  Ref https://github.com/python-caldav/caldav/issues/46
+
+2019-05-19  Jelmer Vernooĳ <jelmer@jelmer.uk>
+	* caldav/objects.py - bugfixing
+
+2019-05-19  Achim Herwig <achim.herwig@tngtech.com>
+	* README.md - proper documentation of the dual licensing, ref https://github.com/python-caldav/caldav/issues/60
+
+2019-05-17  Achim Herwig <achim.herwig@tngtech.com>
+	* caldav/objects.py - bugfixing
+	* caldav/elements/cdav.py - more work on timezone handling, ref https://github.com/python-caldav/caldav/issues/55 https://github.com/python-caldav/caldav/issues/52 https://github.com/python-caldav/caldav/pull/59 etc
+
+2019-05-06  Tobias Brox <t-caldav@tobixen.no>
+	* caldav/objects.py - yet another attempt on fixing the timezone handling mess, ref https://github.com/python-caldav/caldav/issues/55 https://github.com/python-caldav/caldav/issues/52 etc
+
+2019-04-21  Mark Meijer <mark@ziro.nl>
+	* caldav/objects.py - fixes (or workarounds?) that solves real-world issues with iCloud and MS Exchange.  Ref https://github.com/python-caldav/caldav/pull/56
+
 2019-04-09  Cyril Robert <cyril@hippie.io>
-  * setup.py - Update to 0.6.1 to fix a tagging issue
+	* setup.py - Update to 0.6.1 to fix a tagging issue
+
+2019-04-06  Achim Herwig <achim.herwig@tngtech.com>
+	* caldav/objects.py - bugfix, ref #52
+
+2019-03-11  Tomáš Chvátal <tomas.chvatal@gmail.com>
+	* MANIFEST.in - Include tests and changelog in pypi sdist tarball, ref https://github.com/python-caldav/caldav/pull/49
 
 2019-03-11  Tobias Brox <t-caldav@tobixen.no>
 	* caldav/objects.py - bugfix: accept text/calendar (required for fetching calendar items from the xandikos server, ref https://github.com/python-caldav/caldav/issues/40
