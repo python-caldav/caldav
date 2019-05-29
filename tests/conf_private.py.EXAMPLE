@@ -33,7 +33,8 @@ test_private_test_servers = True
 
 ## test_xandikos - since the xandikos caldav server implementation is
 ## written in python and can be instantiated quite easily, this will
-## be the default caldav implementation to test towards.
+## be the default caldav implementation to test towards ... but, unfortunately
+## it works only with python 3.4 and higher
 test_xandikos = True
 
 ## DEPRECATED - only_private is superceded by test_public_servers

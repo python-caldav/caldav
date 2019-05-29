@@ -34,7 +34,11 @@ except ImportError:
 try:
     from .conf_private import test_xandikos, xandikos_host, xandikos_port
 except ImportError:
-    test_xandikos = True
+    try:
+        import xandikos
+        test_xandikos = True
+    except:
+        test_xandikos = False
     xandikos_host = 'localhost'
     xandikos_port = 8993 ## random port above 8000
 
