@@ -174,7 +174,10 @@ class DAVObject(object):
         # All items should be in a <D:response> element
         for r in response.tree.findall('.//' + dav.Response.tag):
             status = r.find('.//' + dav.Status.tag)
-            if status != None:
+            ## TODO: status should never be None, this needs more research.
+            ## added here as it solves real-world issues, ref
+            ## https://github.com/python-caldav/caldav/pull/56
+            if status is not None:
                 if (' 200 ' not in status.text and
                     ' 207 ' not in status.text and
                     ' 404 ' not in status.text):
@@ -400,7 +403,10 @@ class Principal(DAVObject):
             self._calendar_home_set = url
             return
         sanitized_url = URL.objectify(url)
-        if sanitized_url != None:
+        ## TODO: sanitized_url should never be None, this needs more
+        ## research.  added here as it solves real-world issues, ref
+        ## https://github.com/python-caldav/caldav/pull/56
+        if sanitized_url is not None:
             if (sanitized_url.hostname and
                 sanitized_url.hostname != self.client.url.hostname):
                 # icloud (and others?) having a load balanced system,
