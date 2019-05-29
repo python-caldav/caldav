@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 # -*- encoding: utf-8 -*-
 
+from collections import defaultdict
+
 
 class AuthorizationError(Exception):
     """
@@ -16,40 +18,46 @@ class AuthorizationError(Exception):
             (self.url, self.reason)
 
 
-class PropsetError(Exception):
+class DAVError(Exception):
     pass
 
 
-class PropfindError(Exception):
+class PropsetError(DAVError):
+    pass
+
+class ProppatchError(DAVError):
     pass
 
 
-class ReportError(Exception):
+class PropfindError(DAVError):
     pass
 
 
-class MkcolError(Exception):
+class ReportError(DAVError):
     pass
 
 
-class MkcalendarError(Exception):
+class MkcolError(DAVError):
     pass
 
 
-class PutError(Exception):
+class MkcalendarError(DAVError):
     pass
 
 
-class DeleteError(Exception):
+class PutError(DAVError):
     pass
 
 
-class NotFoundError(Exception):
+class DeleteError(DAVError):
     pass
 
 
-exception_by_method = {}
+class NotFoundError(DAVError):
+    pass
+
+exception_by_method = defaultdict(lambda: DAVError)
 for method in ('delete', 'put', 'mkcalendar', 'mkcol', 'report', 'propset',
-               'propfind'):
+               'propfind', 'proppatch'):
     exception_by_method[method] = \
         locals()[method[0].upper() + method[1:] + 'Error']
