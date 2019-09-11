@@ -46,7 +46,9 @@ except ImportError:
 #####################
 # Public test servers
 #####################
-if test_public_test_servers:
+## As of 2019-09, all of those are down.  Will try to fix Real Soon.
+if False:
+#if test_public_test_servers:
     
     ## TODO: this one is set up on emphemeral storage on OpenShift and
     ## then configured manually through the webui installer, it will
