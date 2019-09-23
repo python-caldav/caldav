@@ -30,7 +30,7 @@ if __name__ == '__main__':
         keywords='',
         author='Cyril Robert',
         author_email='cyril@hippie.io',
-        url='http://bitbucket.org/cyrilrbt/caldav',
+        url='https://github.com/python-caldav/caldav',
         license='GPL',
         packages=find_packages(exclude=['tests']),
         include_package_data=True,

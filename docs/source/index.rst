@@ -70,7 +70,7 @@ Quickstart
 More examples
 =============
 
-See the `test code <https://bitbucket.org/cyrilrbt/caldav/src/default/tests/test_caldav.py?at=default>`_ for more usage examples.  Tobias Brox is also working on a `command line interface <https://github.com/tobixen/calendar-cli>`_  built around the caldav library.
+See the `test code <https://github.com/python-caldav/caldav/blob/master/tests/test_caldav.py>`_ for more usage examples.  Tobias Brox is also working on a `command line interface <https://github.com/tobixen/calendar-cli>`_  built around the caldav library.
 
 Notable classes and workflow
 ============================
