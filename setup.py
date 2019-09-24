@@ -17,6 +17,7 @@ if __name__ == '__main__':
         name='caldav',
         version=version,
         description="CalDAV (RFC4791) client library",
+        long_description=open("README.md").read(),
         classifiers=["Development Status :: 4 - Beta",
                      "Intended Audience :: Developers",
                      "License :: OSI Approved :: GNU General "
