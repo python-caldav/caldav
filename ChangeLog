@@ -1,3 +1,6 @@
+2019-11-15  Tobias Brox <t-caldav@tobixen.no>
+	* caldav/davclient.py - ref https://github.com/python-caldav/caldav/issues/81 and jimays at github, some versions of the request libary may produce a response object without the reason attribute.
+
 2019-05-29  Tobias Brox <t-caldav@tobixen.no>
 	* .travis.yml - xandikos cannot be installed on python2.7, but we still want to run the available tests
 	* caldav/lib/error.py - ProppatchError was not defined, ref https://github.com/python-caldav/caldav/issues/54.  Also added a common base class DAVError, and made sure the error referenced in #54 will never reappear, even if new methods are added to DAVClient.

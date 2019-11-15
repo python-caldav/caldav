@@ -37,7 +37,13 @@ class DAVResponse:
         self.raw = response.content
         self.headers = response.headers
         self.status = response.status_code
-        self.reason = response.reason
+        ## ref https://github.com/python-caldav/caldav/issues/81,
+        ## incidents with a response without a reason has been
+        ## observed
+        try:
+            self.reason = response.reason
+        except AttributeError:
+            self.reason = ''
         log.debug("response headers: " + str(self.headers))
         log.debug("response status: " + str(self.status))
         log.debug("raw response: " + str(self.raw))
@@ -250,7 +256,13 @@ class DAVClient:
                 response.status == requests.codes.unauthorized:
             ex = error.AuthorizationError()
             ex.url = url
-            ex.reason = response.reason
+            ## ref https://github.com/python-caldav/caldav/issues/81,
+            ## incidents with a response without a reason has been
+            ## observed
+            try:
+                ex.reason = response.reason
+            except AttributeError:
+                ex.reason = "None given"
             raise ex
 
         # let's save the auth object and remove the user/pass information
