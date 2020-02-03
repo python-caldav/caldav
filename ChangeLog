@@ -1,3 +1,6 @@
+2020-02-03  Tobias Brox <t-caldav@tobixen.no>
+	* caldav/objects.py - improved error messages
+
 2019-11-15  Tobias Brox <t-caldav@tobixen.no>
 	* caldav/davclient.py - ref https://github.com/python-caldav/caldav/issues/81 and jimays at github, some versions of the request libary may produce a response object without the reason attribute.
 

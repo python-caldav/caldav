@@ -779,7 +779,7 @@ class Calendar(DAVObject):
         response = self._query(root, 1, 'report')
 
         if response.status == 404:
-            raise error.NotFoundError(errmsg(response))
+            raise error.NotFoundError("%s not found on server" % uid)
         elif response.status == 400:
             raise error.ReportError(errmsg(response))
 
@@ -799,7 +799,7 @@ class Calendar(DAVObject):
                 continue
             return self._calendar_comp_class_by_data(data)(
                 self.client, url=URL.objectify(href), data=data, parent=self)
-        raise error.NotFoundError(errmsg(response))
+        raise error.NotFoundError("%s not found on server" % uid)
 
     def todo_by_uid(self, uid):
         return self.object_by_uid(uid, comp_filter=cdav.CompFilter("VTODO"))
