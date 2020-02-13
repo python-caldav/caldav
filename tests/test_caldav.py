@@ -7,11 +7,13 @@ import time
 import vobject
 import uuid
 import tempfile
+from collections import namedtuple
 from datetime import datetime
 from six import PY3
 from nose.tools import assert_equal, assert_not_equal, assert_raises
 from nose.plugins.skip import SkipTest
 from requests.packages import urllib3
+import requests
 
 from .conf import caldav_servers, proxy, proxy_noport, test_xandikos, xandikos_port, xandikos_host
 from .proxy import ProxyHandler, NonThreadingHTTPServer
@@ -31,8 +33,10 @@ if test_xandikos:
 
 if PY3:
     from urllib.parse import urlparse
+    from unittest import mock
 else:
     from urlparse import urlparse
+    import mock
 
 log = logging.getLogger("caldav")
 
@@ -899,6 +903,16 @@ class TestCalDAV:
     a small unit of code works as expected, without any third party
     dependencies)
     """
+    @mock.patch('requests.request')
+    def testRequestNonAscii(self, mocked):
+        """
+        ref https://github.com/python-caldav/caldav/issues/83
+        """
+        mocked().status_code=200
+        cal_url = "http://me:hunter2@calendar.møøh.example:80/"
+        client = DAVClient(url=cal_url)
+        client.put('/foo/bar', 'bringebærsyltetøy 北京 пиво', {})
+
     def testCalendar(self):
         """
         Principal.calendar() and CalendarSet.calendar() should create

@@ -1,8 +1,9 @@
 #!/usr/bin/python
 # -*- encoding: utf-8 -*-
 from setuptools import setup, find_packages
+import sys
 
-version = '0.6.2'
+version = '0.6.3.dev0'
 
 if __name__ == '__main__':
     ## For python 2.7 and 3.5 we depend on pytz and tzlocal.  For 3.6 and up, batteries are included.
@@ -13,6 +14,12 @@ if __name__ == '__main__':
         extra_packages = []
     except:
         extra_packages = ['pytz', 'tzlocal']
+    try:
+        from unittest.mock import MagicMock
+        extra_test_packages = []
+    except:
+        extra_test_packages = ['mock']
+
     setup(
         name='caldav',
         version=version,
@@ -37,5 +44,5 @@ if __name__ == '__main__':
         include_package_data=True,
         zip_safe=False,
         install_requires=['vobject', 'lxml', 'requests', 'six'] + extra_packages,
-        tests_require=['nose', 'coverage', 'tzlocal', 'pytz', 'xandikos']
+        tests_require=['nose', 'coverage', 'tzlocal', 'pytz', 'xandikos'] + extra_test_packages
     )
