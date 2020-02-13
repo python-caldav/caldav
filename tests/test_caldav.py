@@ -911,7 +911,9 @@ class TestCalDAV:
         mocked().status_code=200
         cal_url = "http://me:hunter2@calendar.møøh.example:80/"
         client = DAVClient(url=cal_url)
-        client.put('/foo/bar', 'bringebærsyltetøy 北京 пиво', {})
+        response = client.put('/foo/bar', 'bringebærsyltetøy 北京 пиво', {})
+        assert_equal(response.status, 200)
+        assert(response.tree is None)
 
     def testCalendar(self):
         """
