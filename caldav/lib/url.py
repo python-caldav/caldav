@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 
 from six import PY3
-from caldav.lib.python_utilities import to_unicode
+from caldav.lib.python_utilities import to_unicode, to_normal_str
 if PY3:
     from urllib.parse import ParseResult, SplitResult, urlparse
 else:
@@ -96,18 +96,13 @@ class URL:
 
     # returns the url in text format
     def __str__(self):
-        if PY3:
-            return self.__unicode__()
-        return self.__unicode__().encode('utf-8')
+        return to_normal_str(self.__unicode__())
 
     # returns the url in text format
     def __unicode__(self):
         if self.url_raw is None:
             self.url_raw = self.url_parsed.geturl()
-        if isinstance(self.url_raw, str):
-            return to_unicode(self.url_raw)
-        else:
-            return to_unicode(str(self.url_raw))
+        return to_unicode(self.url_raw)
 
     def __repr__(self):
         return "URL(%s)" % str(self)

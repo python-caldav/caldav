@@ -25,6 +25,17 @@ def to_str(text):
         text = text.decode('utf-8')
     return text
 
+def to_normal_str(text):
+    """
+    A str object is a unicode on python3 and a byte string on python2.
+    Make sure we return a normal string, no matter what version of
+    python ...
+    """
+    if PY3 and text and not isinstance(text, str):
+        text = text.decode('utf-8')
+    elif not PY3 and text and not isinstance(text, str):
+        text = text.encode('utf-8')
+    return text
 
 def to_unicode(text):
     if (text and isinstance(text, string_types) and not PY3 and

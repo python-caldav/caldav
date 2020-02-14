@@ -5,7 +5,7 @@ import logging
 import re
 import requests
 import six
-from caldav.lib.python_utilities import to_wire
+from caldav.lib.python_utilities import to_wire, to_unicode, to_normal_str
 from lxml import etree
 
 from caldav.lib import error
@@ -221,7 +221,7 @@ class DAVClient:
             proxies = {url.scheme: self.proxy}
             log.debug("using proxy - %s" % (proxies))
 
-        # ensure that url is a unicode string
+        # ensure that url is a normal string
         url = str(url)
 
         combined_headers = dict(self.headers)
@@ -231,7 +231,7 @@ class DAVClient:
 
         log.debug(
             "sending request - method={0}, url={1}, headers={2}\nbody:\n{3}"
-            .format(method, url, combined_headers, body))
+            .format(method, url, combined_headers, to_normal_str(body)))
         auth = None
         if self.auth is None and self.username is not None:
             auth = requests.auth.HTTPDigestAuth(self.username, self.password)
