@@ -911,7 +911,14 @@ class TestCalDAV:
         mocked().status_code=200
         cal_url = "http://me:hunter2@calendar.møøh.example:80/"
         client = DAVClient(url=cal_url)
-        response = client.put('/foo/bar', 'bringebærsyltetøy 北京 пиво', {})
+        response = client.put('/foo/møøh/bar', 'bringebærsyltetøy 北京 пиво', {})
+        assert_equal(response.status, 200)
+        assert(response.tree is None)
+        
+        if PY3:
+            response = client.put('/foo/møøh/bar'.encode('utf-8'), 'bringebærsyltetøy 北京 пиво'.encode('utf-8'), {})
+        else:
+            response = client.put(u'/foo/møøh/bar', u'bringebærsyltetøy 北京 пиво', {})
         assert_equal(response.status, 200)
         assert(response.tree is None)
 
