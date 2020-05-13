@@ -877,21 +877,40 @@ class TestLocalRadicale(RepeatedFunctionalTestsBaseClass):
     """
     def setup(self):
         if not test_radicale:
-            raise SkipTest("Skipping Xadikos test due to configuration")
+            raise SkipTest("Skipping Radicale test due to configuration")
         self.serverdir = tempfile.TemporaryDirectory()
         self.serverdir.__enter__()
         self.configuration = radicale.config.load("")
-        configuration.set('storage', 'filesystem_folder', self.serverdir.name)
+        self.configuration.set('storage', 'filesystem_folder', self.serverdir.name)
         app = radicale.Application(
             self.configuration,
-            logging.getLogger('caldav-test-Radicale'),
+            logging.getLogger('caldav-test-Radicale'))
+        self.server = make_server(
+            radicale_host, radicale_port, app,
             radicale.ThreadedHTTPServer, radicale.RequestHandler)
-        server = make_server(radicale_host, radicale_port, app)
-        self.server_params = {'url': 'http://%s:%i/sometestuser/' % (radicale_host, radicale_port), 'username': 'user1', 'password': 'password1'}
-        self.radicale_thread = threading.Thread(target=self.xandikos_server.serve_forever)
+        self.server_params = {'url': 'http://%s:%i/' % (radicale_host, radicale_port), 'username': 'user1', 'password': 'password1'}
+        
+        self.radicale_thread = threading.Thread(target=self.server.serve_forever)
         self.radicale_thread.start()
 
-        RepeatedFunctionalTestsBaseClass.setup(self)
+        try:
+            RepeatedFunctionalTestsBaseClass.setup(self)
+        except:
+            logging.critical("something bad happened in setup", exc_info=True)
+            self.teardown()
+
+    def teardown(self):
+        if not test_radicale:
+            return
+        self.server.shutdown()
+        self.server.socket.close()
+        i=0
+        while (self.radicale_thread.is_alive()):
+            time.sleep(0.05)
+            i+=1
+            assert(i<100)
+        self.serverdir.__exit__(None, None, None)
+        RepeatedFunctionalTestsBaseClass.teardown(self)
 
 
 class TestLocalXandikos(RepeatedFunctionalTestsBaseClass):
