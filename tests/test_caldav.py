@@ -15,7 +15,9 @@ from nose.plugins.skip import SkipTest
 from requests.packages import urllib3
 import requests
 
-from .conf import caldav_servers, proxy, proxy_noport, test_xandikos, xandikos_port, xandikos_host
+from .conf import caldav_servers, proxy, proxy_noport
+from .conf import test_xandikos, xandikos_port, xandikos_host
+from .conf import test_radicale, radicale_port, radicale_host
 from .proxy import ProxyHandler, NonThreadingHTTPServer
 
 from caldav.davclient import DAVClient
@@ -29,6 +31,11 @@ from caldav.lib.python_utilities import to_local, to_str
 
 if test_xandikos:
     from xandikos.web import XandikosBackend, XandikosApp
+    from wsgiref.simple_server import make_server
+
+if test_radicale:
+    import radicale.config
+    from radicale import ThreadedHTTPServer, RequestHandler, config, Application
     from wsgiref.simple_server import make_server
 
 if PY3:
@@ -864,9 +871,32 @@ for _caldav_server in caldav_servers:
         _classname, (RepeatedFunctionalTestsBaseClass,),
         {'server_params': _caldav_server})
 
+class TestLocalRadicale(RepeatedFunctionalTestsBaseClass):
+    """
+    Sets up a local Radicale server and runs the functional tests towards it
+    """
+    def setup(self):
+        if not test_radicale:
+            raise SkipTest("Skipping Xadikos test due to configuration")
+        self.serverdir = tempfile.TemporaryDirectory()
+        self.serverdir.__enter__()
+        self.configuration = radicale.config.load("")
+        configuration.set('storage', 'filesystem_folder', self.serverdir.name)
+        app = radicale.Application(
+            self.configuration,
+            logging.getLogger('caldav-test-Radicale'),
+            radicale.ThreadedHTTPServer, radicale.RequestHandler)
+        server = make_server(radicale_host, radicale_port, app)
+        self.server_params = {'url': 'http://%s:%i/sometestuser/' % (radicale_host, radicale_port), 'username': 'user1', 'password': 'password1'}
+        self.radicale_thread = threading.Thread(target=self.xandikos_server.serve_forever)
+        self.radicale_thread.start()
+
+        RepeatedFunctionalTestsBaseClass.setup(self)
+
+
 class TestLocalXandikos(RepeatedFunctionalTestsBaseClass):
     """
-    Sets up a local Xandikos server and Runs the functional tests towards it
+    Sets up a local Xandikos server and runs the functional tests towards it
     """
     def setup(self):
         if not test_xandikos:
@@ -879,9 +909,6 @@ class TestLocalXandikos(RepeatedFunctionalTestsBaseClass):
         self.xandikos_server = make_server(xandikos_host, xandikos_port, XandikosApp(self.backend, '/sometestuser/'))
         self.xandikos_thread = threading.Thread(target=self.xandikos_server.serve_forever)
         self.xandikos_thread.start()
-        self.server_params = {'url': 'http://%s:%i/sometestuser/' % (xandikos_host, xandikos_port), 'username': 'user1', 'password': 'password1'}
-        ## TODO: this should go away eventually.  Ref https://github.com/jelmer/xandikos/issues/102 support for expanded search for recurring events has been fixed in the master branch of xandikos.
-        self.server_params['norecurring'] = True
         RepeatedFunctionalTestsBaseClass.setup(self)
 
     def teardown(self):

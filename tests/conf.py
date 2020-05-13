@@ -42,6 +42,17 @@ except ImportError:
     xandikos_host = 'localhost'
     xandikos_port = 8993 ## random port above 8000
 
+try:
+    from .conf_private import test_radicale, radicale_host, radicale_port
+except ImportError:
+    try:
+        import radicale
+        test_radicale = True
+    except:
+        test_radicale = False
+    radicale_host = 'localhost'
+    radicale_port = 5232 ## default radicale host
+    
 
 #####################
 # Public test servers
