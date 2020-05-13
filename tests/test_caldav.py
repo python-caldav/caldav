@@ -954,6 +954,7 @@ class TestLocalXandikos(RepeatedFunctionalTestsBaseClass):
         self.xandikos_thread = threading.Thread(target=self.xandikos_server.serve_forever)
         self.xandikos_thread.start()
         self.server_params = {'url': 'http://%s:%i/' % (xandikos_host, xandikos_port), 'username': 'user1', 'password': 'password1'}
+        self.server_params['norecurring'] = True
         RepeatedFunctionalTestsBaseClass.setup(self)
 
     def teardown(self):
