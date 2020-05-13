@@ -193,7 +193,9 @@ class RepeatedFunctionalTestsBaseClass(object):
     MKCALENDAR support.
 
     On Radicale, apparently there is some bug with MKCALENDAR, ref
-    https://github.com/Kozea/Radicale/issues/330
+    https://github.com/Kozea/Radicale/issues/330 - but it also creates
+    a calendar automatically when one is trying to access a missing
+    calendar
     """
     def setup(self):
         logging.debug("############## test setup")
