@@ -19,6 +19,7 @@ from .conf import caldav_servers, proxy, proxy_noport
 from .conf import test_xandikos, xandikos_port, xandikos_host
 from .conf import test_radicale, radicale_port, radicale_host
 from .proxy import ProxyHandler, NonThreadingHTTPServer
+from . import compatibility_issues
 
 from caldav.davclient import DAVClient
 from caldav.objects import (Principal, Calendar, Event, DAVObject,
@@ -199,6 +200,8 @@ class RepeatedFunctionalTestsBaseClass(object):
     """
     def setup(self):
         logging.debug("############## test setup")
+        for incompatibility_flag in self.server_params.get('incompatibilities', []):
+            self.server_params[incompatibility_flag] = True
 
         if self.server_params.get('unique_calendar_ids', False):
             self.testcal_id = 'testcalendar-' + str(uuid.uuid4())
@@ -906,14 +909,7 @@ class TestLocalRadicale(RepeatedFunctionalTestsBaseClass):
             radicale.ThreadedHTTPServer, radicale.RequestHandler)
         self.server_params = {'url': 'http://%s:%i/' % (radicale_host, radicale_port), 'username': 'user1', 'password': 'password1'}
         
-        ## TODO: go through those carefully, and check if it's due to bugs or
-        ## missing functionality in radicale, or if it's problems at our side:
-
-        self.server_params['nodefaultcalendar'] = True
-        self.server_params['nofreebusy'] = True
-        self.server_params['nocalendarnotfound'] = True
-        ## TODO - see https://radicale.org/2.1.html#documentation/reverse-proxy
-        self.server_params['noproxy'] = True
+        self.server_params['incompatibilities'] = compatibility_issues.radicale
 
         self.radicale_thread = threading.Thread(target=self.server.serve_forever)
         self.radicale_thread.start()
@@ -954,7 +950,7 @@ class TestLocalXandikos(RepeatedFunctionalTestsBaseClass):
         self.xandikos_thread = threading.Thread(target=self.xandikos_server.serve_forever)
         self.xandikos_thread.start()
         self.server_params = {'url': 'http://%s:%i/' % (xandikos_host, xandikos_port), 'username': 'user1', 'password': 'password1'}
-        self.server_params['norecurring'] = True
+        self.server_params['incompatibilities'] = compatibility_issues.xandikos
         RepeatedFunctionalTestsBaseClass.setup(self)
 
     def teardown(self):
