@@ -27,7 +27,10 @@ zimbra = [
     'nocalendarnotfound',
 
     ## apparently, zimbra has no journal support
-    'nojournal'
+    'nojournal',
+
+    ## setting display name in zimbra does not work
+    'nodisplayname'
 
     ## TODO: there is more.  Search for 'zimbra' in the code repository!
 ]

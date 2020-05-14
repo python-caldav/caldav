@@ -623,6 +623,9 @@ class RepeatedFunctionalTestsBaseClass(object):
             assert_equal(len(events), 1)
 
     def testSetCalendarProperties(self):
+        if self.server_params.get('nodisplayname', False):
+            raise SkipTest("skipping properties test as display name is not supported by server")
+
         c = self.principal.make_calendar(name="Yep", cal_id=self.testcal_id)
         assert_not_equal(c.url, None)
 
@@ -774,7 +777,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert_equal(len(r), 1)
         assert_equal(r[0].data.count("END:VEVENT"), 1)
         ## due to expandation, the DTSTART should be in 2008
-        if not self.server_params['norecurringexpandation']:
+        if not self.server_params.get('norecurringexpandation', False):
             assert_equal(r[0].data.count("DTSTART;VALUE=DATE:2008"), 1)
 
         ## With expand=True and searching over two recurrences ...
@@ -786,15 +789,13 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert_equal(len(r), 1)
 
         ## not all servers supports expandation
-        if self.server_params['norecurringexpandation']:
+        if self.server_params.get('norecurringexpandation', False):
             ## without expandation, we'll get the original ics,
             ## with RRULE set
             assert("RRULE" in r[0].data)
-            assert("BEGIN:STANDARD" not in r[0].data)
             assert_equal(r[0].data.count("END:VEVENT"), 1)
         else:
             assert("RRULE" not in r[0].data)
-            assert("BEGIN:STANDARD" in r[0].data)
             assert_equal(r[0].data.count("END:VEVENT"), 2)
 
         # The recurring events should not be expanded when using the

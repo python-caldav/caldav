@@ -29,6 +29,7 @@ from caldav.lib.url import URL
 from caldav.elements import dav, cdav
 from caldav.lib.python_utilities import to_unicode
 
+import logging
 
 def errmsg(r):
     """Utility for formatting a response xml tree to an error string"""
@@ -425,9 +426,14 @@ class Principal(DAVObject):
 class Calendar(DAVObject):
     """
     The `Calendar` object is used to represent a calendar collection.
-    Refer to the RFC for details: http://www.ietf.org/rfc/rfc4791.txt
+    Refer to the RFC for details:
+    https://tools.ietf.org/html/rfc4791#section-5.3.1
+
+    Note that support for MKCALENDAR is RECOMMENDED and not REQUIRED
+    according to the RFC.  Support varies a bit between the different
+    calendar servers
     """
-    def _create(self, name, id=None, supported_calendar_component_set=None):
+    def _create(self, name=None, id=None, supported_calendar_component_set=None):
         """
         Create a new calendar with display name `name` in `parent`.
         """
@@ -442,14 +448,7 @@ class Calendar(DAVObject):
         # at least the name doesn't get set this way.
         # zimbra gives 500 (!) if body is omitted ...
 
-        # ehm ... this element seems non-existent in the RFC?
-        # Breaks with baikal, too ...
-        # cal = cdav.CalendarCollection()
-        # coll = dav.Collection() # + cal # also breaks on baikal,
-        #                                # and probably not needed?
-        # type = dav.ResourceType() ## probably not needed?
-
-        prop = dav.Prop()  # + [type,]
+        prop = dav.Prop()
         if name:
             display_name = dav.DisplayName(name)
             prop += [display_name, ]
@@ -468,40 +467,18 @@ class Calendar(DAVObject):
         # COMPATIBILITY ISSUE
         # name should already be set, but we've seen caldav servers failing
         # on setting the DisplayName on calendar creation
-        # (DAViCal, Zimbra, ...).  Better to be explicit.
+        # (DAViCal, Zimbra, ...).  Doing an attempt on explicitly setting the
+        # display name using PROPPATCH.
         if name:
             try:
                 self.set_properties([display_name])
             except:
-                self.delete()
-                raise
-
-        # Special hack for Zimbra!  The calendar we've made exists at
-        # the specified URL, and we can do operations like ls, even
-        # PUT an event to the calendar.  Zimbra will enforce that the
-        # event uuid matches the event url, and return either 201 or
-        # 302 - but alas, try to do a GET towards the event and we
-        # get 404!  But turn around and replace the calendar ID with
-        # the calendar name in the URL and hey ... it works!
-
-        # TODO: write test cases for calendars with non-trivial
-        # names and calendars with names already matching existing
-        # calendar urls and ensure they pass.
-        zimbra_url = self.parent.url.join(name)
-        try:
-            ret = self.client.request(zimbra_url)
-            if ret.status == 404:
-                raise error.NotFoundError
-            # special hack for radicale.
-            # It will happily accept any calendar-URL without returning 404.
-            ret = self.client.request(self.parent.url.join(
-                'ANYTHINGGOESHEREthisshouldforsurereturn404'))
-            if ret.status == 404:
-                # insane server
-                self.url = zimbra_url
-        except error.NotFoundError:
-            # sane server
-            pass
+                try:
+                    current_display_name = self.get_properties([display_name])
+                    if current_display_name != name:
+                        logging.warning("caldav server not complient with RFC4791. unable to set display name on calendar.  Wanted name: \"%s\" - gotten name: \"%s\".  Ignoring." % (name, current_display_name))
+                except:
+                    logging.warning("calendar server does not support display name on calendar?  Ignoring", exc_info=True)
 
     def add_event(self, ical):
         """
