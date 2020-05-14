@@ -773,6 +773,9 @@ class RepeatedFunctionalTestsBaseClass(object):
                           datetime(2008, 11, 3, 17, 00, 00), expand=True)
         assert_equal(len(r), 1)
         assert_equal(r[0].data.count("END:VEVENT"), 1)
+        ## due to expandation, the DTSTART should be in 2008
+        if not self.server_params['norecurringexpandation']:
+            assert_equal(r[0].data.count("DTSTART;VALUE=DATE:2008"), 1)
 
         ## With expand=True and searching over two recurrences ...
         r = c.date_search(datetime(2008, 11, 1, 17, 00, 00),
@@ -782,12 +785,16 @@ class RepeatedFunctionalTestsBaseClass(object):
         ## resultset should be one vcalendar with two events.
         assert_equal(len(r), 1)
 
-        # So much for standards ... seems like different servers
-        # behaves differently, not all of them manages to expand the event correctly
-        # TODO: COMPATIBILITY PROBLEMS - look into it
-        if "RRULE" in r[0].data and "BEGIN:STANDARD" not in r[0].data:
+        ## not all servers supports expandation
+        if self.server_params['norecurringexpandation']:
+            ## without expandation, we'll get the original ics,
+            ## with RRULE set
+            assert("RRULE" in r[0].data)
+            assert("BEGIN:STANDARD" not in r[0].data)
             assert_equal(r[0].data.count("END:VEVENT"), 1)
         else:
+            assert("RRULE" not in r[0].data)
+            assert("BEGIN:STANDARD" in r[0].data)
             assert_equal(r[0].data.count("END:VEVENT"), 2)
 
         # The recurring events should not be expanded when using the

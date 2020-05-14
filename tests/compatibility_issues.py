@@ -21,3 +21,14 @@ radicale = [
     ## ref https://github.com/Kozea/Radicale/issues/662
     "norecurringexpandation"
 ]
+
+zimbra = [
+    ## no idea why this breaks
+    'nocalendarnotfound',
+
+    ## apparently, zimbra has no journal support
+    'nojournal'
+
+    ## TODO: there is more.  Search for 'zimbra' in the code repository!
+]
+
