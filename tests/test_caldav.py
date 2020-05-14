@@ -803,13 +803,15 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert_equal(len(r), 1)
         assert_equal(r[0].data.count("END:VEVENT"), 1)
 
+    ## TODO: run this test, ref https://github.com/python-caldav/caldav/issues/91
+    ## It should be removed prior to a 1.0-release.
     def testBackwardCompatibility(self):
         """
         Tobias Brox has done some API changes - but this thing should
         still be backward compatible.
         """
         if 'backwards_compatibility_url' not in self.server_params:
-            return
+            raise SkipTest("backward compatibility check skipped - needs an URL like it was supposed to be in 2013")
         caldav = DAVClient(self.server_params['backwards_compatibility_url'])
         principal = Principal(
             caldav, self.server_params['backwards_compatibility_url'])
@@ -918,6 +920,8 @@ class TestLocalRadicale(RepeatedFunctionalTestsBaseClass):
         
         self.server_params['incompatibilities'] = compatibility_issues.radicale
 
+        ## TODO: set the backwards_compatibility_url (an URL pointing to the calendar, check the doc from 2013, see also https://github.com/python-caldav/caldav/issues/91)
+
         self.radicale_thread = threading.Thread(target=self.server.serve_forever)
         self.radicale_thread.start()
 
@@ -958,6 +962,7 @@ class TestLocalXandikos(RepeatedFunctionalTestsBaseClass):
         self.xandikos_thread.start()
         self.server_params = {'url': 'http://%s:%i/' % (xandikos_host, xandikos_port), 'username': 'user1', 'password': 'password1'}
         self.server_params['incompatibilities'] = compatibility_issues.xandikos
+        ## TODO: set the backwards_compatibility_url (an URL pointing to the calendar, with authentication information in the URL itself. check the doc from 2013, see also https://github.com/python-caldav/caldav/issues/91)
         RepeatedFunctionalTestsBaseClass.setup(self)
 
     def teardown(self):
