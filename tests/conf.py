@@ -10,11 +10,10 @@
 ####################################
 try:
     from .conf_private import only_private ## legacy compatibility
-    test_public_test_servers = only_private
+    test_public_test_servers = not only_private
 except ImportError:
     try:
-        from .conf_private import public_test_servers
-        test_public_test_servers = only_private
+        from .conf_private import test_public_test_servers
     except ImportError:
         test_public_test_servers = False
 

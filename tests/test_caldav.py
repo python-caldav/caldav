@@ -919,9 +919,8 @@ class TestLocalRadicale(RepeatedFunctionalTestsBaseClass):
             radicale.ThreadedHTTPServer, radicale.RequestHandler)
         self.server_params = {'url': 'http://%s:%i/' % (radicale_host, radicale_port), 'username': 'user1', 'password': 'password1'}
         
+        self.server_params['backwards_compatibility_url'] = self.server_params['url']+'user1/'
         self.server_params['incompatibilities'] = compatibility_issues.radicale
-
-        ## TODO: set the backwards_compatibility_url (an URL pointing to the calendar, check the doc from 2013, see also https://github.com/python-caldav/caldav/issues/91)
 
         self.radicale_thread = threading.Thread(target=self.server.serve_forever)
         self.radicale_thread.start()
@@ -961,9 +960,9 @@ class TestLocalXandikos(RepeatedFunctionalTestsBaseClass):
         self.xandikos_server = make_server(xandikos_host, xandikos_port, XandikosApp(self.backend, '/sometestuser/'))
         self.xandikos_thread = threading.Thread(target=self.xandikos_server.serve_forever)
         self.xandikos_thread.start()
-        self.server_params = {'url': 'http://%s:%i/' % (xandikos_host, xandikos_port), 'username': 'user1', 'password': 'password1'}
+        self.server_params = {'url': 'http://user1:password1@%s:%i/' % (xandikos_host, xandikos_port)}
+        self.server_params['backwards_compatibility_url'] = self.server_params['url']+'sometestuser/'
         self.server_params['incompatibilities'] = compatibility_issues.xandikos
-        ## TODO: set the backwards_compatibility_url (an URL pointing to the calendar, with authentication information in the URL itself. check the doc from 2013, see also https://github.com/python-caldav/caldav/issues/91)
         RepeatedFunctionalTestsBaseClass.setup(self)
 
     def teardown(self):
