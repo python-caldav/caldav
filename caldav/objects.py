@@ -480,7 +480,7 @@ class Calendar(DAVObject):
                 except:
                     logging.warning("calendar server does not support display name on calendar?  Ignoring", exc_info=True)
 
-    def add_event(self, ical):
+    def save_event(self, ical):
         """
         Add a new event to the calendar, with the given ical.
 
@@ -489,7 +489,7 @@ class Calendar(DAVObject):
         """
         return Event(self.client, data=ical, parent=self).save()
 
-    def add_todo(self, ical):
+    def save_todo(self, ical):
         """
         Add a new task to the calendar, with the given ical.
 
@@ -498,7 +498,7 @@ class Calendar(DAVObject):
         """
         return Todo(self.client, data=ical, parent=self).save()
 
-    def add_journal(self, ical):
+    def save_journal(self, ical):
         """
         Add a new journal entry to the calendar, with the given ical.
 
@@ -506,6 +506,11 @@ class Calendar(DAVObject):
          * ical - ical object (text)
         """
         return Journal(self.client, data=ical, parent=self).save()
+
+    ## legacy aliases
+    add_event = save_event
+    add_todo = save_todo
+    add_journal = save_journal
 
     def save(self):
         """
