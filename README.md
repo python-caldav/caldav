@@ -9,12 +9,12 @@ Features:
  * search events by dates
  * etc.
 
-See the file examples/basic_usage_examples.py to get started.
+See the file [examples/basic_usage_examples.py](examples/basic_usage_examples.py) to get started.
 
 Links:
 
  * [Pypi](https://pypi.org/projects/caldav)
- * [Documentation](https://pythonhosted.org/caldav)
+ * [Documentation](docs/index.rst) - should also be mirrored on https://pythonhosted.org/caldav
 
 Licences:
 
