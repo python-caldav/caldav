@@ -9,6 +9,8 @@ Features:
  * search events by dates
  * etc.
 
+See the file examples/basic_usage_examples.py to get started.
+
 Links:
 
  * [Pypi](http://pypi.python.org/pypi/caldav)

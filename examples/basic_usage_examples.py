@@ -110,11 +110,14 @@ print("Here is some more icalendar data:")
 print(todos[0].data)
 
 ## date_search also works on task lists, but one has to be explicit to get them
-todos_fetched = my_new_calendar.date_search(
+todos_found = my_new_calendar.date_search(
     start=datetime(2021, 1, 1), end=datetime(2024, 1, 1),
     compfilter='VTODO', expand=True)
-print("Here is even more icalendar data:")
-print(todos[0].data)
+if not todos_found:
+    print("Apparently your calendar server does not support searching for future instances of reoccurring tasks")
+else:
+    print("Here is even more icalendar data:")
+    print(todos_found[0].data)
 
 ## Mark the task as completed
 todos[0].complete()

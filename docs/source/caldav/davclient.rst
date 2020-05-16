@@ -2,5 +2,5 @@
 =======================================
 
 .. automodule:: caldav.davclient
-   :synopsis: Classe d'interaction avec les données
+   :synopsis: Class for storing server connection details
    :members: DAVClient, DAVResponse
