@@ -696,6 +696,9 @@ class RepeatedFunctionalTestsBaseClass(object):
 
         # attempts on updating/overwriting an existing event should fail
         assert_raises(error.ConsistencyError, c.save_event, ev1, no_create=True)
+        # no_create and no_overwrite is mutually exclusive, this will always
+        # raise an error (unless the ical given is blank)
+        assert_raises(error.ConsistencyError, c.save_event, ev1, no_create=True, no_overwrite=True)
 
         # add event
         e1 = c.save_event(ev1)
@@ -719,6 +722,7 @@ class RepeatedFunctionalTestsBaseClass(object):
 
         ## "no_overwrite" should throw a ConsistencyError
         assert_raises(error.ConsistencyError, c.save_event, ev1, no_overwrite=True)
+        assert_raises(error.ConsistencyError, c.save_event, ev1, no_create=True, no_overwrite=True)
 
         # delete event
         e1.delete()
