@@ -170,7 +170,16 @@ class DAVClient:
 
     def mkcol(self, url, body, dummy=None):
         """
-        Send a mkcol request.
+        Send a MKCOL request.
+
+        MKCOL is basically not used with caldav, one should use
+        MKCALENDAR instead.  However, some calendar servers MAY allow
+        "subcollections" to be made in a calendar, by using the MKCOL
+        query.  As for 2020-05, this method is not exercised by test
+        code or referenced anywhere else in the caldav library, it's
+        included just for the sake of completeness.  And, perhaps this
+        DAVClient class can be used for vCards and other WebDAV
+        purposes.
 
         Parameters:
          * url: url for the root of the mkcol
