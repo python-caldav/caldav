@@ -138,26 +138,26 @@ Check the examples folder, particularly `basic examples <https://github.com/pyth
 Notable classes and workflow
 ============================
 
- * You'd always start by initiating a :class:`caldav.davclient.DAVClient`
-   object, this object holds the authentication details for the
-   server.
+* You'd always start by initiating a :class:`caldav.davclient.DAVClient`
+  object, this object holds the authentication details for the
+  server.
 
- * From the client object one can get hold of a
-   :class:`caldav.objects.Principal`
-   object representing the logged-in principal.
+* From the client object one can get hold of a
+  :class:`caldav.objects.Principal`
+  object representing the logged-in principal.
 
- * From the principal object one can fetch / generate
-   :class:`caldav.objects.Calendar` objects.  Calendar objects can also be
-   instantiated directly from an absolute or relative URL and the client 
-   object.
+* From the principal object one can fetch / generate
+  :class:`caldav.objects.Calendar` objects.  Calendar objects can also be
+  instantiated directly from an absolute or relative URL and the client 
+  object.
+  
+* From the calendar object one can fetch / generate
+  :class:`caldav.objects.Event` objects and
+  :class:`caldav.objects.Todo` objects.
 
- * From the calendar object one can fetch / generate
-   :class:`caldav.objects.Event` objects and
-   :class:`caldav.objects.Todo` objects.
-
- * If one happens to know the URLs, objects like calendars, principals
-   and events can be instantiated without going through the
-   Principal-object of the logged-in user.
+* If one happens to know the URLs, objects like calendars, principals
+  and events can be instantiated without going through the
+  Principal-object of the logged-in user.
 
 For convenience, the classes above are also available as
 :class:`caldav.DAVClient`, :class:`caldav.Principal`,
@@ -170,27 +170,27 @@ Compatibility
 
 The test suite is regularly run against several calendar servers, see https://github.com/python-caldav/caldav/issues/45 for the latest updates.  See `tests/compatibility_issues.py` for the most up-to-date list of compatibility issues.
 
- * You may want to avoid non-ASCII characters in the calendar name, or
-   some servers (at least Zimbra) may behave a bit unexpectedly.
+* You may want to avoid non-ASCII characters in the calendar name, or
+  some servers (at least Zimbra) may behave a bit unexpectedly.
 
- * Not all servers supports searching for future instances of
-   recurring events or tasks, nor expanding recurring events.
+* Not all servers supports searching for future instances of
+  recurring events or tasks, nor expanding recurring events.
 
- * There are some special hacks both in the code and the tests to work
-   around compatibility issues in Zimbra
+* There are some special hacks both in the code and the tests to work
+  around compatibility issues in Zimbra
 
- * Not all servers supports task lists, not all servers supports
-   freebusy, and not all servers supports journals.
+* Not all servers supports task lists, not all servers supports
+  freebusy, and not all servers supports journals.
 
- * Calendar creation is actually not a mandatory feature according to
-   the RFC, but the tests depends on it - and I haven't experienced
-   any servers not supporting calendar creation.
+* Calendar creation is actually not a mandatory feature according to
+  the RFC, but the tests depends on it - and I haven't experienced
+  any servers not supporting calendar creation.
+  
+* iCloud may be a bit tricky, this is tracked in issue
+  https://github.com/python-caldav/caldav/issues/3
 
- * iCloud may be a bit tricky, this is tracked in issue
-   https://github.com/python-caldav/caldav/issues/3
-
- * Google seems to be the new Microsoft, according to the issue
-   tracker it seems like their CalDAV-support is rather lacking.
+* Google seems to be the new Microsoft, according to the issue
+  tracker it seems like their CalDAV-support is rather lacking.
 
 Unit testing
 ============
