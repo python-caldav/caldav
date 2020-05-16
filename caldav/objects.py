@@ -230,8 +230,8 @@ class DAVObject(object):
         elif exchange_path in properties:
             rc = properties[exchange_path]
         else:
-            raise Exception("The CalDAV server you are using has "
-                            "a problem with path handling.")
+            raise Exception(
+                "The CalDAV server you are using has a problem with path handling, or the URL is wrong.")
 
         return rc
 
