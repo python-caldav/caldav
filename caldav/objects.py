@@ -261,7 +261,7 @@ class DAVObject(object):
     def save(self):
         """
         Save the object. This is an abstract method, that all classes
-        derived .from DAVObject implement.
+        derived from DAVObject implement.
 
         Returns:
          * self
@@ -480,32 +480,32 @@ class Calendar(DAVObject):
                 except:
                     logging.warning("calendar server does not support display name on calendar?  Ignoring", exc_info=True)
 
-    def save_event(self, ical):
+    def save_event(self, ical, no_overwrite=False, no_create=False):
         """
         Add a new event to the calendar, with the given ical.
 
         Parameters:
          * ical - ical object (text)
         """
-        return Event(self.client, data=ical, parent=self).save()
+        return Event(self.client, data=ical, parent=self).save(no_overwrite=no_overwrite, no_create=no_create, obj_type='event')
 
-    def save_todo(self, ical):
+    def save_todo(self, ical, no_overwrite=False, no_create=False):
         """
         Add a new task to the calendar, with the given ical.
 
         Parameters:
          * ical - ical object (text)
         """
-        return Todo(self.client, data=ical, parent=self).save()
+        return Todo(self.client, data=ical, parent=self).save(no_overwrite=no_overwrite, no_create=no_create, obj_type='todo')
 
-    def save_journal(self, ical):
+    def save_journal(self, ical, no_overwrite=False, no_create=False):
         """
         Add a new journal entry to the calendar, with the given ical.
 
         Parameters:
          * ical - ical object (text)
         """
-        return Journal(self.client, data=ical, parent=self).save()
+        return Journal(self.client, data=ical, parent=self).save(no_overwrite=no_overwrite, no_create=no_create, obj_type='journal')
 
     ## legacy aliases
     add_event = save_event
@@ -788,6 +788,10 @@ class Calendar(DAVObject):
 
     def event_by_uid(self, uid):
         return self.object_by_uid(uid, comp_filter=cdav.CompFilter("VEVENT"))
+
+    def journal_by_uid(self, uid):
+        return self.object_by_uid(uid, comp_filter=cdav.CompFilter("VJOURNAL"))
+
     # alias for backward compatibility
     event = event_by_uid
 
@@ -907,7 +911,7 @@ class CalendarObjectResource(DAVObject):
                 if obj is not None:
                     if not hasattr(obj, 'uid'):
                         obj.add('uid')
-                    obj.uid = id
+                    obj.uid.value = id
                     break
         if path is None:
             path = id + ".ics"
@@ -923,16 +927,52 @@ class CalendarObjectResource(DAVObject):
         self.url = URL.objectify(path)
         self.id = id
 
-    def save(self):
+    def save(self, no_overwrite=False, no_create=False, obj_type=None):
         """
         Save the object, can be used for creation and update.
 
+        no_overwrite and no_create will check if the object exists.
+        Those two are mutually exclusive.  Some servers don't support
+        searching for an object uid without explicitly specifying what
+        kind of object it should be, hence obj_type can be passed.
+        obj_type is only used in conjunction with no_overwrite and
+        no_create.
+
         Returns:
          * self
+
         """
         if self._vobject_instance is None and self._data is None:
             return self
+
         path = self.url.path if self.url else None
+
+        if no_overwrite or no_create:
+            if not self.id:
+                try:
+                    self.id = self.vobject_instance.vevent.uid.value
+                except AttributeError:
+                    pass
+            if not self.id and no_create:
+                raise error.ConsistencyError("no_create flag was set, but no ID given")
+            existing = None
+            ## some servers require one to explicitly search for the right kind of object.
+            ## todo: would arguably be nicer to verify the type of the object and take it from there
+            if obj_type:
+                methods = (getattr(self.parent, "%s_by_uid" % obj_type),)
+            else:
+                methods = (self.parent.object_by_uid, self.parent.event_by_uid, self.parent.todo_by_uid, self.parent.journal_by_uid)
+            for method in methods:
+                try:
+                    existing = method(self.id)
+                    if no_overwrite:
+                        raise error.ConsistencyError("no_overwrite flag was set, but object already exists")
+                    break
+                except error.NotFoundError:
+                    pass
+
+            if no_create and not existing:
+                raise error.ConsistencyError("no_create flag was set, but object does not exists")
 
         if self._vobject_instance is None:
             ## ref https://github.com/python-caldav/caldav/issues/43

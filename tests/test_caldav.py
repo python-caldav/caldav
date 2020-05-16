@@ -367,7 +367,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         c = self.principal.make_calendar(name="Yep", cal_id=self.testcal_id)
 
         # add event
-        c.add_event(ev1)
+        c.save_event(ev1)
 
         # c.events() should give a full list of events
         events = c.events()
@@ -384,7 +384,7 @@ class RepeatedFunctionalTestsBaseClass(object):
 
         # add event from vobject data
         ve1 = vobject.readOne(ev1)
-        c.add_event(ve1)
+        c.save_event(ve1)
 
         # c.events() should give a full list of events
         events = c.events()
@@ -414,7 +414,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         c = self.principal.make_calendar(
             name="Yep", cal_id=self.testcal_id,
             supported_calendar_component_set=['VJOURNAL'])
-        j1 = c.add_journal(journal)
+        j1 = c.save_journal(journal)
         journals = c.journals()
         assert_equal(len(journals), 1)
         todos = c.todos()
@@ -447,7 +447,7 @@ class RepeatedFunctionalTestsBaseClass(object):
 
         # add todo-item
         logging.info("Adding todo item to calendar Yep")
-        t1 = c.add_todo(todo)
+        t1 = c.save_todo(todo)
 
         # c.todos() should give a full list of todo items
         logging.info("Fetching the full list of todo items (should be one)")
@@ -476,9 +476,9 @@ class RepeatedFunctionalTestsBaseClass(object):
             supported_calendar_component_set=['VTODO'])
 
         # add todo-item
-        t1 = c.add_todo(todo)
-        t2 = c.add_todo(todo2)
-        t3 = c.add_todo(todo3)
+        t1 = c.save_todo(todo)
+        t2 = c.save_todo(todo2)
+        t3 = c.save_todo(todo3)
 
         todos = c.todos()
         assert_equal(len(todos), 3)
@@ -509,10 +509,10 @@ class RepeatedFunctionalTestsBaseClass(object):
             supported_calendar_component_set=['VTODO'])
 
         # add todo-item
-        t1 = c.add_todo(todo)
-        t2 = c.add_todo(todo2)
-        t3 = c.add_todo(todo3)
-        t4 = c.add_todo(todo4)
+        t1 = c.save_todo(todo)
+        t2 = c.save_todo(todo2)
+        t3 = c.save_todo(todo3)
+        t4 = c.save_todo(todo4)
         todos = c.todos()
         assert_equal(len(todos), 4)
 
@@ -560,9 +560,9 @@ class RepeatedFunctionalTestsBaseClass(object):
             supported_calendar_component_set=['VTODO'])
 
         # add todo-items
-        t1 = c.add_todo(todo)
-        t2 = c.add_todo(todo2)
-        t3 = c.add_todo(todo3)
+        t1 = c.save_todo(todo)
+        t2 = c.save_todo(todo2)
+        t3 = c.save_todo(todo3)
 
         # There are now three todo-items at the calendar
         todos = c.todos()
@@ -596,7 +596,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         c = self.principal.make_calendar(name="Yølp", cal_id=self.testcal_id)
 
         # add event
-        e1 = c.add_event(
+        e1 = c.save_event(
             ev1.replace("Bastille Day Party", "Bringebærsyltetøyfestival"))
 
         events = c.events()
@@ -612,7 +612,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         c = self.principal.make_calendar(name="Yølp", cal_id=self.testcal_id)
 
         # add event
-        e1 = c.add_event(to_str(
+        e1 = c.save_event(to_str(
             ev1.replace("Bastille Day Party", "Bringebærsyltetøyfestival")))
 
         # c.events() should give a full list of events
@@ -667,7 +667,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert_not_equal(c.url, None)
 
         # add event
-        e1 = c.add_event(ev1)
+        e1 = c.save_event(ev1)
         assert_not_equal(e1.url, None)
 
         # Verify that we can look it up, both by URL and by ID
@@ -683,10 +683,10 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert_equal(e4.instance.vevent.uid, e1.instance.vevent.uid)
 
         assert_raises(error.NotFoundError, c.event_by_uid, "0")
-        c.add_event(evr)
+        c.save_event(evr)
         assert_raises(error.NotFoundError, c.event_by_uid, "0")
 
-    def testDeleteEvent(self):
+    def testCreateOverwriteDeleteEvent(self):
         """
         Makes sure we can add events and delete them
         """
@@ -694,15 +694,38 @@ class RepeatedFunctionalTestsBaseClass(object):
         c = self.principal.make_calendar(name="Yep", cal_id=self.testcal_id)
         assert_not_equal(c.url, None)
 
+        # attempts on updating/overwriting an existing event should fail
+        assert_raises(error.ConsistencyError, c.save_event, ev1, no_create=True)
+
         # add event
-        e1 = c.add_event(ev1)
+        e1 = c.save_event(ev1)
         assert_not_equal(e1.url, None)
+        c.event_by_url(e1.url)
+        c.event_by_uid(e1.id)
+
+        ## add same event again.  As it has same uid, it should be overwritten
+        e2 = c.save_event(ev1)
+
+        ## add same event with "no_create".  Should work like a charm.
+        e2 = c.save_event(ev1, no_create=True)
+
+        e2.instance.vevent.summary.value = e2.instance.vevent.summary.value + '!'
+
+        ## this should also work.
+        e2.save(no_create=True)
+
+        e3 = c.event_by_url(e1.url)
+        assert_equal(e3.instance.vevent.summary.value, 'Bastille Day Party!')
+
+        ## "no_overwrite" should throw a ConsistencyError
+        assert_raises(error.ConsistencyError, c.save_event, ev1, no_overwrite=True)
 
         # delete event
         e1.delete()
 
         # Verify that we can't look it up, both by URL and by ID
         assert_raises(error.NotFoundError, c.event_by_url, e1.url)
+        assert_raises(error.NotFoundError, c.event_by_url, e2.url)
         assert_raises(
             error.NotFoundError, c.event_by_uid,
             "20010712T182145Z-123401@example.com")
@@ -717,7 +740,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         c = self.principal.make_calendar(name="Yep", cal_id=self.testcal_id)
         assert_not_equal(c.url, None)
 
-        e = c.add_event(ev1)
+        e = c.save_event(ev1)
 
         # .. and search for it.
         r = c.date_search(datetime(2006, 7, 13, 17, 00, 00),
@@ -763,7 +786,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         c = self.principal.make_calendar(name="Yep", cal_id=self.testcal_id)
 
         # evr is a yearly event starting at 1997-02-11
-        e = c.add_event(evr)
+        e = c.save_event(evr)
 
         ## Without "expand", we should not find it when searching over 2008 ...
         ## or ... should we? TODO

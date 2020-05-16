@@ -56,6 +56,9 @@ class DeleteError(DAVError):
 class NotFoundError(DAVError):
     pass
 
+class ConsistencyError(DAVError):
+    pass
+
 exception_by_method = defaultdict(lambda: DAVError)
 for method in ('delete', 'put', 'mkcalendar', 'mkcol', 'report', 'propset',
                'propfind', 'proppatch'):
