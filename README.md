@@ -13,8 +13,8 @@ See the file examples/basic_usage_examples.py to get started.
 
 Links:
 
- * [Pypi](http://pypi.python.org/pypi/caldav)
- * [Documentation](http://packages.python.org/caldav)
+ * [Pypi](https://pypi.org/projects/caldav)
+ * [Documentation](https://pythonhosted.org/caldav)
 
 Licences:
 
