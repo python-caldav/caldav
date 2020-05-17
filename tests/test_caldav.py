@@ -527,11 +527,15 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert_equal(uids(todos), uids([t2, t3, t1]))
 
         todos = c.todos(sort_keys=('priority',))
+        ## sort_key is considered to be a legacy parameter,
+        ## but should work at least until 1.0
+        todos2 = c.todos(sort_key='priority')
 
         def pri(lst):
             return [x.instance.vtodo.priority.value for x in lst
                     if hasattr(x.instance.vtodo, 'priority')]
         assert_equal(pri(todos), pri([t3, t2]))
+        assert_equal(pri(todos2), pri([t3, t2]))
 
         todos = c.todos(sort_keys=('summary', 'priority',))
         assert_equal(uids(todos), uids([t3, t2, t1]))
@@ -656,6 +660,10 @@ class RepeatedFunctionalTestsBaseClass(object):
         # The historic todo-item can still be accessed
         todos = c.todos(include_completed=True)
         assert_equal(len(todos), 3)
+        t3_ = c.todo_by_uid(t3.id)
+        assert_equal(t3_.instance.vtodo.summary, t3.instance.vtodo.summary)
+        assert_equal(t3_.instance.vtodo.uid, t3.instance.vtodo.uid)
+        assert_equal(t3_.instance.vtodo.dtstart, t3.instance.vtodo.dtstart)
 
         t2.delete()
 
