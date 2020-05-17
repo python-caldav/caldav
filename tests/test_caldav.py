@@ -290,6 +290,12 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert_not_equal(c.url, None)
         assert_not_equal(len(self.principal.calendars()), 0)
 
+        ## Not sure if those asserts make much sense, the main point here is to exercise
+        ## the __str__ and __repr__ methods on the Calendar object.
+        assert_equal(str(c.url), str(c))
+        assert(str(c.url) in repr(c))
+        assert('Calendar' in repr(c))
+
     def testProxy(self):
         if self.caldav.url.scheme == 'https' or 'noproxy' in self.server_params:
             raise SkipTest("Skipping %s.testProxy as the TinyHTTPProxy "
@@ -497,6 +503,14 @@ class RepeatedFunctionalTestsBaseClass(object):
         todos = c.todos(sort_keys=('summary', 'priority',))
         assert_equal(uids(todos), uids([t3, t2, t1]))
 
+        ## str of CalendarObjectResource is slightly inconsistent compared to
+        ## the str of Calendar objects, as the class name is included.  Perhaps
+        ## it should be removed, hence no assertions on that.
+        ## (the statements below is mostly to exercise the __str__ and __repr__)
+        assert(str(todos[0].url) in str(todos[0]))
+        assert(str(todos[0].url) in repr(todos[0]))
+        assert('Todo' in repr(todos[0]))
+
     def testTodoDatesearch(self):
         """
         Let's see how the date search method works for todo events
@@ -521,12 +535,14 @@ class RepeatedFunctionalTestsBaseClass(object):
             expand=False)
         assert(not notodos)
 
-        # Now, this is interesting.  2 events have dtstart set, 3 has
+        # Now, this is interesting ...
+        # t1 has due set, but not dtstart
+
         # due set and 1 has neither due nor dtstart set.  None has
         # duration set.  What will a date search yield?
         todos = c.date_search(
             start=datetime(1997, 4, 14), end=datetime(2015, 5, 14),
-            compfilter='VTODO', expand=False)
+            compfilter='VTODO', expand=True)
         # The RFCs are pretty clear on this.  rfc5545 states:
 
         # A "VTODO" calendar component without the "DTSTART" and "DUE" (or
@@ -701,6 +717,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert_raises(error.ConsistencyError, c.save_event, ev1, no_create=True, no_overwrite=True)
 
         # add event
+        import pdb; pdb.set_trace()
         e1 = c.save_event(ev1)
         assert_not_equal(e1.url, None)
         c.event_by_url(e1.url)
