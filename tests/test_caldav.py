@@ -155,6 +155,39 @@ STATUS:NEEDS-ACTION
 END:VTODO
 END:VCALENDAR"""
 
+todo5 = """
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Example Corp.//CalDAV Client//EN
+BEGIN:VTODO
+UID:19920901T130000Z-123407@host.com
+DTSTAMP:19920901T130000Z
+DTSTART:19920415T133000Z
+DUE:19920516T045959Z
+SUMMARY:1992 Income Tax Preparation
+CLASS:CONFIDENTIAL
+CATEGORIES:FAMILY,FINANCE
+PRIORITY:1
+END:VTODO
+END:VCALENDAR"""
+
+todo6 = """
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Example Corp.//CalDAV Client//EN
+BEGIN:VTODO
+UID:19920901T130000Z-123408@host.com
+DTSTAMP:19920901T130000Z
+DTSTART:19920415T133000Z
+DUE:19920516T045959Z
+SUMMARY:Yearly Income Tax Preparation
+RRULE:FREQ=YEARLY
+CLASS:CONFIDENTIAL
+CATEGORIES:FAMILY,FINANCE
+PRIORITY:1
+END:VTODO
+END:VCALENDAR"""
+
 # example from http://www.kanzaki.com/docs/ical/vjournal.html
 journal = """
 BEGIN:VCALENDAR
@@ -527,22 +560,28 @@ class RepeatedFunctionalTestsBaseClass(object):
         t2 = c.save_todo(todo2)
         t3 = c.save_todo(todo3)
         t4 = c.save_todo(todo4)
+        t5 = c.save_todo(todo5)
+        t6 = c.save_todo(todo6)
         todos = c.todos()
-        assert_equal(len(todos), 4)
+        assert_equal(len(todos), 6)
 
         notodos = c.date_search(  # default compfilter is events
             start=datetime(1997, 4, 14), end=datetime(2015, 5, 14),
             expand=False)
         assert(not notodos)
 
-        # Now, this is interesting ...
-        # t1 has due set, but not dtstart
-
-        # due set and 1 has neither due nor dtstart set.  None has
-        # duration set.  What will a date search yield?
+        # Now, this is interesting.
+        # t1 has due set but not dtstart set
+        # t2 and t3 has dtstart and due set
+        # t4 has neither dtstart nor due set.
+        # t5 has dtstart and due set prior to the search window
+        # t6 has dtstart and due set prior to the search window,
+        # but is yearly recurring.
+        # None has duration set.  What will a date search yield?
+        noexpand = self.server_params.get('noexpand', False)
         todos = c.date_search(
             start=datetime(1997, 4, 14), end=datetime(2015, 5, 14),
-            compfilter='VTODO', expand=True)
+            compfilter='VTODO', expand=not noexpand)
         # The RFCs are pretty clear on this.  rfc5545 states:
 
         # A "VTODO" calendar component without the "DTSTART" and "DUE" (or
@@ -550,19 +589,42 @@ class RepeatedFunctionalTestsBaseClass(object):
         # with each successive calendar date, until it is completed.
 
         # and RFC4791, section 9.9 also says that events without
-        # dtstart or due should be counted.  Since we have "expand"
-        # set, it could even imply that we should get two VTODO items
-        # our for each day in the time range!  In any case, less than
-        # 4 todos returned is a breach of the RFCs.
+        # dtstart or due should be counted.  The expanded yearly event
+        # should be returned as one object with multiple BEGIN:VEVENT
+        # and DTSTART lines.
 
+        # Hence a compliant server should chuck out all the todos except t5.
+
+        # Not all servers perform according to (my interpretation of) the RFC.
+        foo = 5
+        if self.server_params.get('norecurring', False):
+            foo -= 1
+        if self.server_params.get('vtodo_datesearch_nodtstart_task_is_skipped', False):
+            foo -= 2
+        assert_equal(len(todos), foo)
+
+        ## verify that "expand" works
+        if (
+                not self.server_params.get('norecurringexpandation', False) and
+                not self.server_params.get('noexpand', False)):
+            assert_equal(len([x for x in todos if 'DTSTART:20020415T1330' in x.data]), 1)
+        ## exercise the default for expand (maybe -> False for open-ended search)
+        todos = c.date_search(
+            start=datetime(2025, 4, 14),
+            compfilter='VTODO')
+        
+        ## * t6 should be returned, as it's a yearly task spanning over 2025
+        ## * t1 should be returned, as it has no due date set and hence has an infinite duration.
+        ## * t4 should probably be returned, as it has no dtstart nor due and hence is also considered to span over infinite time
+        ## dtstart set but without due should also be returned.
+        if self.server_params.get('norecurring', False):
+            assert_equal(len(todos), 1)
+        else:
+            assert_equal(len(todos), 2)
+        assert_equal(len([x for x in todos if 'DTSTART:20270415T1330' in x.data]), 0)
+        
         # TODO: prod the caldav server implementators about the RFC
         # breakages.
-
-        # This is probably correct, and most server implementations
-        # give this:
-        # assert_equal(len(todos), 4)
-        # ... but some caldav implementations yields 2 and 3:
-        assert(len(todos) >= 2)
 
     def testTodoCompletion(self):
         """
@@ -815,32 +877,33 @@ class RepeatedFunctionalTestsBaseClass(object):
                           datetime(2008, 11, 3, 17, 00, 00), expand=False)
         #assert_equal(len(r), 0)
 
-        ## With expand=True, we should find one occurrence
-        r = c.date_search(datetime(2008, 11, 1, 17, 00, 00),
-                          datetime(2008, 11, 3, 17, 00, 00), expand=True)
-        assert_equal(len(r), 1)
-        assert_equal(r[0].data.count("END:VEVENT"), 1)
-        ## due to expandation, the DTSTART should be in 2008
-        if not self.server_params.get('norecurringexpandation', False):
-            assert_equal(r[0].data.count("DTSTART;VALUE=DATE:2008"), 1)
-
-        ## With expand=True and searching over two recurrences ...
-        r = c.date_search(datetime(2008, 11, 1, 17, 00, 00),
-                          datetime(2009, 11, 3, 17, 00, 00), expand=True)
-
-        ## According to https://tools.ietf.org/html/rfc4791#section-7.8.3, the
-        ## resultset should be one vcalendar with two events.
-        assert_equal(len(r), 1)
-
-        ## not all servers supports expandation
-        if self.server_params.get('norecurringexpandation', False):
-            ## without expandation, we'll get the original ics,
-            ## with RRULE set
-            assert("RRULE" in r[0].data)
+        if not self.server_params.get('noexpand', False):
+            ## With expand=True, we should find one occurrence
+            r = c.date_search(datetime(2008, 11, 1, 17, 00, 00),
+                              datetime(2008, 11, 3, 17, 00, 00), expand=True)
+            assert_equal(len(r), 1)
             assert_equal(r[0].data.count("END:VEVENT"), 1)
-        else:
-            assert("RRULE" not in r[0].data)
-            assert_equal(r[0].data.count("END:VEVENT"), 2)
+            ## due to expandation, the DTSTART should be in 2008
+            if not self.server_params.get('norecurringexpandation', False):
+                assert_equal(r[0].data.count("DTSTART;VALUE=DATE:2008"), 1)
+
+            ## With expand=True and searching over two recurrences ...
+            r = c.date_search(datetime(2008, 11, 1, 17, 00, 00),
+                              datetime(2009, 11, 3, 17, 00, 00), expand=True)
+
+            ## According to https://tools.ietf.org/html/rfc4791#section-7.8.3, the
+            ## resultset should be one vcalendar with two events.
+            assert_equal(len(r), 1)
+
+            ## not all servers supports expandation
+            if self.server_params.get('norecurringexpandation', False):
+                ## without expandation, we'll get the original ics,
+                ## with RRULE set
+                assert("RRULE" in r[0].data)
+                assert_equal(r[0].data.count("END:VEVENT"), 1)
+            else:
+                assert("RRULE" not in r[0].data)
+                assert_equal(r[0].data.count("END:VEVENT"), 2)
 
         # The recurring events should not be expanded when using the
         # events() method

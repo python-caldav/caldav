@@ -1,7 +1,11 @@
 xandikos = [
     ## Xandikos does not support recurring events as of 0.2.1/2020-05,
     ## ref https://github.com/jelmer/xandikos/issues/8
-    "norecurring"
+    "norecurring",
+
+    ## As of 2020-05-17 it even returns a 500 internal server error
+    ## when one attempts to use the expand-flag in a date search
+    "noexpand"
 ]
 
 radicale = [
@@ -57,6 +61,6 @@ baikal = [
 ## The version of davical I'm testing towards is very old, so this list may be outdated
 davical = [
     'nofreebusy',
-    'vtodo_datesearch_skips_vtodo_without_date_set'
+    'vtodo_datesearch_nodtstart_task_is_skipped'
 ]
 
