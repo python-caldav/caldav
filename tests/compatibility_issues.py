@@ -56,7 +56,7 @@ baikal = [
 
 ## The version of davical I'm testing towards is very old, so this list may be outdated
 davical = [
-    'nocalendarnotfound',
-    'nojournal'
+    'nofreebusy',
+    'vtodo_datesearch_skips_vtodo_without_date_set'
 ]
 
