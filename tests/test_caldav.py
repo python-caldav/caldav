@@ -776,10 +776,11 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert_raises(error.ConsistencyError, c.save_event, ev1, no_create=True)
         # no_create and no_overwrite is mutually exclusive, this will always
         # raise an error (unless the ical given is blank)
-        assert_raises(error.ConsistencyError, c.save_event, ev1, no_create=True, no_overwrite=True)
+        assert_raises(
+            error.ConsistencyError,
+            c.save_event, ev1, no_create=True, no_overwrite=True)
 
         # add event
-        import pdb; pdb.set_trace()
         e1 = c.save_event(ev1)
         assert_not_equal(e1.url, None)
         c.event_by_url(e1.url)
@@ -824,6 +825,18 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert_not_equal(c.url, None)
 
         e = c.save_event(ev1)
+
+        ## just a sanity check to increase coverage (ref
+        ## https://github.com/python-caldav/caldav/issues/93) -
+        ## expand=False and no end date given is no-no
+        assert_raises(
+            error.DAVError,
+            c.date_search, datetime(2006, 7, 13, 17,00, 00),
+            expand=True)
+
+        r = c.date_search(datetime(2006, 7, 13, 17, 00, 00),
+                          datetime(2006, 7, 15, 17, 00, 00), expand=False)
+
 
         # .. and search for it.
         r = c.date_search(datetime(2006, 7, 13, 17, 00, 00),
