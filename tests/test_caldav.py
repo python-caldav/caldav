@@ -456,6 +456,8 @@ class RepeatedFunctionalTestsBaseClass(object):
         j1 = c.save_journal(journal)
         journals = c.journals()
         assert_equal(len(journals), 1)
+        j1_ = c.journal_by_uid(j1.id)
+        assert_equal(j1_.data, journals[0].data)
         todos = c.todos()
         events = c.events()
         assert_equal(todos + events, [])
