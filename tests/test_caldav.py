@@ -268,14 +268,16 @@ class RepeatedFunctionalTestsBaseClass(object):
         logging.debug("############## test teardown done")
 
     def _teardown(self):
-        for combos in (('Yep', self.testcal_id),
+        for combo in (('Yep', self.testcal_id),
                        ('Yep', self.testcal_id2),
+                       ('Yapp', self.testcal_id2),
                        ('Yølp', self.testcal_id),
                        ('Yep', 'Yep'),
                        ('Yølp', 'Yølp')):
             try:
-                cal = self.principal.calendar(name="Yep",
-                                              cal_id=self.testcal_id)
+                ## TODO: why do we need a name here?  id is supposed to be unique, isn't it?
+                cal = self.principal.calendar(name=combo[0],
+                                              cal_id=combo[1])
                 cal.delete()
             except:
                 pass
@@ -417,6 +419,42 @@ class RepeatedFunctionalTestsBaseClass(object):
         events2 = c2.events()
         assert_equal(len(events2), 1)
         assert_equal(events2[0].url, events[0].url)
+
+    def testCopyEvent(self):
+        ## Let's create two calendars, and populate one event on the first calendar
+        c1 = self.principal.make_calendar(name="Yep", cal_id=self.testcal_id)
+        c2 = self.principal.make_calendar(name="Yapp", cal_id=self.testcal_id2)
+        c1.save_event(ev1)
+
+        ## Duplicate the event in the same calendar, with new uid
+        e1 = c1.events()[0]
+        e1_dup = e1.copy()
+        e1_dup.save()
+        assert(len(c1.events()), 2)
+
+        ## Duplicate the event in the other calendar, with same uid
+        e1_in_c2 = e1.copy(new_parent=c2, keep_uid=True)
+        e1_in_c2.save()
+        assert(len(c2.events()), 1)
+
+        ## what will happen with the event in c1 if we modify the event in c2,
+        ## which shares the id with the event in c1?
+        e1_in_c2.instance.vevent.summary.value = 'asdf'
+        e1_in_c2.save()
+        e1.load()
+        ## should e1.summary be 'asdf' or 'Bastille Day Party'?  I do
+        ## not know, but all implementations I've tested will treat
+        ## the copy in the other calendar as a distinct entity, even
+        ## if the uid is the same.
+        assert_equal(e1.instance.vevent.summary.value, 'Bastille Day Party')
+        assert_equal(c2.events()[0].instance.vevent.uid,
+                     e1.instance.vevent.uid)
+
+        ## Duplicate the event in the same calendar, with same uid -
+        ## this makes no sense, there won't be any duplication
+        e1_dup2 = e1.copy(keep_uid=True)
+        e1_dup2.save()
+        assert(len(c1.events()), 2)
 
     def testCreateCalendarAndEventFromVobject(self):
         c = self.principal.make_calendar(name="Yep", cal_id=self.testcal_id)
