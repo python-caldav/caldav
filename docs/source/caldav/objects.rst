@@ -1,4 +1,6 @@
 :mod:`objects` -- Object definitions
 ====================================
 
-.. automodapi:: caldav.objects
+.. automodule:: caldav.objects
+   :synopsis: Base DAVObject class
+   :members: DAVObject, Principal, Calendar, Event, Todo, Journal, CalendarSet, CalendarObjectResource
