@@ -1285,6 +1285,11 @@ class TestCalDAV:
         assert_equal(str(url4), long_url)
         assert_equal(str(url5), "/bar")
 
+        ## repr should also be exercised.  Returns URL(/bar) now.
+        assert("/bar" in repr(url5))
+        assert("URL" in repr(url5))
+        assert(len(repr(url5)) < 12)
+
         # 4) join method
         url6 = url1.join(url2)
         url7 = url1.join(url3)
@@ -1334,6 +1339,10 @@ class TestCalDAV:
 
         # 7) unauth() strips username/password
         assert_equal(url7.unauth(), 'http://www.example.com:8080/bar')
+
+        # 8) strip_trailing_slash
+        assert_equal(URL('http://www.example.com:8080/bar/').strip_trailing_slash(), URL('http://www.example.com:8080/bar'))
+        assert_equal(URL('http://www.example.com:8080/bar/').strip_trailing_slash(), URL('http://www.example.com:8080/bar').strip_trailing_slash())
 
     def testFilters(self):
         filter = \
