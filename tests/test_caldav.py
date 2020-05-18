@@ -470,7 +470,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         ## this makes no sense, there won't be any duplication
         e1_dup2 = e1.copy(keep_uid=True)
         e1_dup2.save()
-        assert(len(c1.events()), 2)
+        assert_equal(len(c1.events()), 2)
 
     def testCreateCalendarAndEventFromVobject(self):
         c = self.principal.make_calendar(name="Yep", cal_id=self.testcal_id)
@@ -1108,7 +1108,7 @@ class TestLocalRadicale(RepeatedFunctionalTestsBaseClass):
             radicale_host, radicale_port, app,
             radicale.ThreadedHTTPServer, radicale.RequestHandler)
         self.server_params = {'url': 'http://%s:%i/' % (radicale_host, radicale_port), 'username': 'user1', 'password': 'password1'}
-        
+
         self.server_params['backwards_compatibility_url'] = self.server_params['url']+'user1/'
         self.server_params['incompatibilities'] = compatibility_issues.radicale
 
@@ -1185,7 +1185,7 @@ class TestCalDAV:
         response = client.put('/foo/møøh/bar', 'bringebærsyltetøy 北京 пиво', {})
         assert_equal(response.status, 200)
         assert(response.tree is None)
-        
+
         if PY3:
             response = client.put('/foo/møøh/bar'.encode('utf-8'), 'bringebærsyltetøy 北京 пиво'.encode('utf-8'), {})
         else:
