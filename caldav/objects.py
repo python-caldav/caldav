@@ -899,7 +899,12 @@ class CalendarObjectResource(DAVObject):
                 elif self.vobject_instance.name.lower() == obj_type:
                     obj = self.vobject_instance
                 if obj is not None:
-                    id = obj.uid.value
+                    try:
+                        id = obj.uid.value
+                    except AttributeError:
+                        id = str(uuid.uuid1())
+                        obj.add('uid')
+                        obj.uid.value = id
                     break
         else:
             for obj_type in ('vevent', 'vtodo', 'vjournal', 'vfreebusy'):

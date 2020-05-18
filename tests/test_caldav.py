@@ -188,6 +188,22 @@ PRIORITY:1
 END:VTODO
 END:VCALENDAR"""
 
+## a todo without uid.  Should it be possible to store it at all?
+todo7 = """
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Example Corp.//CalDAV Client//EN
+BEGIN:VTODO
+DTSTAMP:19980101T130000Z
+DTSTART:19980415T133000Z
+DUE:19980516T045959Z
+SUMMARY:Get stuck with Netfix and forget about the tax income declaration
+CLASS:CONFIDENTIAL
+CATEGORIES:FAMILY
+PRIORITY:1
+END:VTODO
+END:VCALENDAR"""
+
 # example from http://www.kanzaki.com/docs/ical/vjournal.html
 journal = """
 BEGIN:VCALENDAR
@@ -467,11 +483,11 @@ class RepeatedFunctionalTestsBaseClass(object):
         events = c.events()
         assert_equal(len(events), 1)
 
-        # We should be able to access the calender through the URL
-        c2 = Calendar(client=self.caldav, url=c.url)
-        events2 = c2.events()
-        assert_equal(len(events2), 1)
-        assert_equal(events2[0].url, events[0].url)
+        # This makes no sense, it's a noop.  Perhaps an error
+        # should be raised, but as for now, this is simply ignored,
+        # and up until now not covered by test code.
+        c.save_event(None)
+        assert_equal(len(c.events()), 1)
 
     def testCreateJournalListAndJournalEntry(self):
         """
@@ -534,6 +550,10 @@ class RepeatedFunctionalTestsBaseClass(object):
         todos2 = c.todos(include_completed=True)
         assert_equal(len(todos), 1)
         assert_equal(len(todos2), 1)
+
+        # adding a todo without an UID, it should also work
+        c.save_todo(todo7)
+        assert_equal(len(c.todos()), 2)
 
         logging.info("Fetching the events (should be none)")
         # c.events() should NOT return todo-items
