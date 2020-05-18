@@ -260,6 +260,8 @@ class DAVClient:
                                  auth=auth, verify=self.ssl_verify_cert)
             response = DAVResponse(r)
 
+        self.auth = auth
+
         # this is an error condition the application wants to know
         if response.status == requests.codes.forbidden or \
                 response.status == requests.codes.unauthorized:
