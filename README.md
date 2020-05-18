@@ -14,7 +14,7 @@ See the file [examples/basic_usage_examples.py](examples/basic_usage_examples.py
 Links:
 
  * [Pypi](https://pypi.org/projects/caldav)
- * [Documentation](docs/source/index.rst) - should also be mirrored on https://pythonhosted.org/caldav
+ * [Documentation](docs/source/index.rst) - should be automatically mirrored on https://caldav.readthedocs.io/en/latest/
 
 Licences:
 
