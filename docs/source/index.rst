@@ -147,9 +147,7 @@ Notable classes and workflow
   object representing the logged-in principal.
 
 * From the principal object one can fetch / generate
-  :class:`caldav.objects.Calendar` objects.  Calendar objects can also be
-  instantiated directly from an absolute or relative URL and the client 
-  object.
+  :class:`caldav.objects.Calendar` objects.
   
 * From the calendar object one can fetch / generate
   :class:`caldav.objects.Event` objects and
@@ -157,7 +155,9 @@ Notable classes and workflow
 
 * If one happens to know the URLs, objects like calendars, principals
   and events can be instantiated without going through the
-  Principal-object of the logged-in user.
+  Principal-object of the logged-in user.  A path, relative URL or
+  full URL should work, but the URL should be without authentication
+  details.
 
 For convenience, the classes above are also available as
 :class:`caldav.DAVClient`, :class:`caldav.Principal`,
