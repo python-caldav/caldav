@@ -23,7 +23,7 @@ from . import compatibility_issues
 
 from caldav.davclient import DAVClient
 from caldav.objects import (Principal, Calendar, Event, DAVObject,
-                            CalendarSet, FreeBusy)
+                            CalendarSet, FreeBusy, Todo)
 from caldav.lib.url import URL
 from caldav.lib import url
 from caldav.lib import error
@@ -446,12 +446,12 @@ class RepeatedFunctionalTestsBaseClass(object):
         e1 = c1.events()[0]
         e1_dup = e1.copy()
         e1_dup.save()
-        assert(len(c1.events()), 2)
+        assert_equal(len(c1.events()), 2)
 
         ## Duplicate the event in the other calendar, with same uid
         e1_in_c2 = e1.copy(new_parent=c2, keep_uid=True)
         e1_in_c2.save()
-        assert(len(c2.events()), 1)
+        assert_equal(len(c2.events()), 1)
 
         ## what will happen with the event in c1 if we modify the event in c2,
         ## which shares the id with the event in c1?
@@ -676,6 +676,8 @@ class RepeatedFunctionalTestsBaseClass(object):
         todos = c.date_search(
             start=datetime(2025, 4, 14),
             compfilter='VTODO')
+
+        assert(isinstance(todos[0], Todo))
         
         ## * t6 should be returned, as it's a yearly task spanning over 2025
         ## * t1 should be returned, as it has no due date set and hence has an infinite duration.

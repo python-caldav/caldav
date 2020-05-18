@@ -579,9 +579,11 @@ class Calendar(DAVObject):
         results = self._handle_prop_response(
             response=response, props=[cdav.CalendarData()])
         for r in results:
+            data=results[r][cdav.CalendarData.tag]
+            comp_class = self._calendar_comp_class_by_data(data)
             matches.append(
-                Event(self.client, url=self.url.join(r),
-                      data=results[r][cdav.CalendarData.tag], parent=self))
+                comp_class(self.client, url=self.url.join(r),
+                           data=data, parent=self))
 
         return matches
 
