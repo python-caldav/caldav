@@ -133,7 +133,7 @@ Mark a task as completed:
 More examples
 =============
 
-Check the examples folder, particularly `basic examples <https://github.com/python-caldav/caldav/blob/master/examples/basic_examples.py>`_.  The `test code <https://github.com/python-caldav/caldav/blob/master/tests/test_caldav.py>`_ also covers lots of stuff, though it's not much optimized for readability.  Tobias Brox is also working on a `command line interface <https://github.com/tobixen/calendar-cli>`_  built around the caldav library.
+Check the examples folder, particularly `basic examples <https://github.com/python-caldav/caldav/blob/master/examples/basic_usage_examples.py>`_.  The `test code <https://github.com/python-caldav/caldav/blob/master/tests/test_caldav.py>`_ also covers lots of stuff, though it's not much optimized for readability.  Tobias Brox is also working on a `command line interface <https://github.com/tobixen/calendar-cli>`_  built around the caldav library.
 
 Notable classes and workflow
 ============================
