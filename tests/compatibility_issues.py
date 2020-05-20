@@ -1,3 +1,10 @@
+## The lists below are specifying what tests should be skipped or
+## modified to accept non-conforming resultsets from the different
+## calendar servers.  In addition there are some hacks in the library
+## code itself to work around some known compatibility issues, like
+## the caldav.lib.vcal.fix function.  We should probably keep a list
+## in the documentation on everything.
+
 xandikos = [
     ## Xandikos does not support recurring events as of 0.2.1/2020-05,
     ## ref https://github.com/jelmer/xandikos/issues/8

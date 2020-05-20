@@ -859,6 +859,7 @@ class CalendarObjectResource(DAVObject):
     event, a todo-item, a journal entry, or a free/busy entry
     """
     _vobject_instance = None
+    _icalendar_instance = None
     _data = None
 
     def __init__(self, client=None, url=None, data=None, parent=None, id=None):
@@ -866,7 +867,8 @@ class CalendarObjectResource(DAVObject):
         CalendarObjectResource has an additional parameter for its constructor:
          * data = "...", vCal data for the event
         """
-        DAVObject.__init__(self, client=client, url=url, parent=parent, id=id)
+        super(CalendarObjectResource, self).__init__(
+            client=client, url=url, parent=parent, id=id)
         if data is not None:
             self.data = data
 
@@ -890,6 +892,8 @@ class CalendarObjectResource(DAVObject):
         self.data = vcal.fix(r.raw)
         return self
 
+    ## TODO: this method should be simplified and renamed, and probably
+    ## some of the logic should be moved elsewhere
     def _create(self, data, id=None, path=None):
         if id is None and path is not None and str(path).endswith('.ics'):
             id = re.search('(/|^)([^/]*).ics', str(path)).group(2)
@@ -949,7 +953,9 @@ class CalendarObjectResource(DAVObject):
          * self
 
         """
-        if self._vobject_instance is None and self._data is None:
+        if (self._vobject_instance is None and
+            self._data is None and
+            self._icalendar_instance is None):
             return self
 
         path = self.url.path if self.url else None
@@ -981,51 +987,87 @@ class CalendarObjectResource(DAVObject):
             if no_create and not existing:
                 raise error.ConsistencyError("no_create flag was set, but object does not exists")
 
-        if self._vobject_instance is None:
-            ## ref https://github.com/python-caldav/caldav/issues/43
-            ## we don't want to use vobject unless needed, but
-            ## sometimes the caldav server may balk on slightly
-            ## non-conforming icalendar data.  We'll just throw in a
-            ## try-send-data-except-wash-through-vobject-logic here.
-            try:
-                self._create(self._data, self.id, path)
-            except error.PutError:
-                self._create(self.vobject_instance.serialize(), self.id, path)
-        else:
-            self._create(self._vobject_instance.serialize(), self.id, path)
+
+        ## ref https://github.com/python-caldav/caldav/issues/43
+        ## we don't want to use vobject unless needed, but
+        ## sometimes the caldav server may balk on slightly
+        ## non-conforming icalendar data.  We'll just throw in a
+        ## try-send-data-except-wash-through-vobject-logic here.
+        try:
+            self._create(self.data, self.id, path)
+        except error.PutError:
+            self._create(self.vobject_instance.serialize(), self.id, path)
         return self
 
     def __str__(self):
         return "%s: %s" % (self.__class__.__name__, self.url)
 
+    ## implementation of the properties self.data,
+    ## self.vobject_instance and self.icalendar_instance follows.  The
+    ## rule is that only one of them can be set at any time, this
+    ## since vobject_instance and icalendar_instance are mutable,
+    ## and any modification to those instances should apply
     def _set_data(self, data):
+        ## The __init__ takes a data attribute, and it should be allowable to
+        ## set it to an vobject object or an icalendar object, hence we should
+        ## do type checking on the data (TODO: but should probably use
+        ## isinstance rather than this kind of logic
         if type(data).__module__.startswith("vobject"):
-            self._data = self._vobject_instance
-            self._vobject_instance = data
-        else:
-            self._data = vcal.fix(data)
-            self._vobject_instance = None
-            #self._instance = vobject.readOne(to_unicode(self._data))
+            self._set_vobject_instance(data)
+            return self
+
+        if type(data).__module__.startswith("icalendar"):
+            self._set_icalendar_instance(data)
+            return self
+
+        self._data = vcal.fix(data)
+        self._vobject_instance = None
+        self._icalendar_instance = None
         return self
 
     def _get_data(self):
-        return self._data
+        if self._data:
+            return self._data
+        elif self._vobject_instance:
+            return self._vobject_instance.serialize()
+        elif self._icalendar_instance:
+            return self._icalendar_instance.to_ical()
+        return None
+
     data = property(_get_data, _set_data,
                     doc="vCal representation of the object")
 
     def _set_vobject_instance(self, inst):
         self._vobject_instance = inst
-        self._data = inst.serialize()
+        self._data = None
+        self._icalendar_instance = None
         return self
 
     def _get_vobject_instance(self):
-        if not self._vobject_instance and self._data:
-            self._vobject_instance = vobject.readOne(to_unicode(self._data))
+        if not self._vobject_instance:
+            self._set_vobject_instance(vobject.readOne(to_unicode(self._get_data())))
         return self._vobject_instance
 
     vobject_instance = property(_get_vobject_instance, _set_vobject_instance,
                         doc="vobject instance of the object")
-    ## for backward-compatibility
+
+    def _set_icalendar_instance(self, inst):
+        self._icalendar_instance = inst
+        self._data = None
+        self._vobject_instance = None
+        return self
+
+    def _get_icalendar_instance(self):
+        from icalendar import Calendar
+        if not self._icalendar_instance:
+            self.icalendar_instance = Calendar(ical = to_unicode(self.data))
+        return self._vobject_instance
+
+    icalendar_instance = property(_get_icalendar_instance, _set_icalendar_instance,
+                        doc="icalendar instance of the object")
+
+    ## for backward-compatibility - may be changed to
+    ## icalendar_instance in version 1.0
     instance = vobject_instance
 
 

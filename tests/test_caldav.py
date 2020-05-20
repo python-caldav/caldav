@@ -1262,6 +1262,15 @@ class TestCalDAV:
         calendar = Calendar(parent=calhome)
         assert_equal(calendar.client, calhome.client)
 
+    def testInstance(self):
+        cal_url = "http://me:hunter2@calendar.example:80/"
+        client = DAVClient(url=cal_url)
+        my_event = Event(client, data=ev1)
+        my_event.vobject_instance.vevent.summary.value='new summary'
+        assert('new summary' in my_event.data)
+        icalobj = my_event.icalendar_instance
+        #icalobj.
+
     def testURL(self):
         """Exercising the URL class"""
         long_url = "http://foo:bar@www.example.com:8080/caldav.php/?foo=bar"
