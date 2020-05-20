@@ -152,8 +152,11 @@ class DAVObject(object):
 
         body = ""
         if root:
-            body = etree.tostring(root.xmlelement(), encoding="utf-8",
-                                  xml_declaration=True)
+            if hasattr(root, 'xmlelement'):
+                body = etree.tostring(root.xmlelement(), encoding="utf-8",
+                                      xml_declaration=True)
+            else:
+                body = root
         ret = getattr(self.client, query_method)(
             url, body, depth)
         if ret.status == 404:
@@ -526,30 +529,13 @@ class Calendar(DAVObject):
                 self.url = URL.objectify(str(self.url) + '/')
         return self
 
-    def date_search(self, start, end=None, compfilter="VEVENT", expand="maybe"):
-        # type (TimeStamp, TimeStamp, str, str) -> CalendarObjectResource
+    def build_date_search_query(self, start, end=None, compfilter="VEVENT", expand="maybe"):
         """
-        Search events by date in the calendar. Recurring events are
-        expanded if they are occuring during the specified time frame
-        and if an end timestamp is given.
-
-        Parameters:
-         * start = datetime.today().
-         * end = same as above.
-         * compfilter = defaults to events only.  Set to None to fetch all
-           calendar components.
-         * expand - should recurrent events be expanded?  (to preserve 
-           backward-compatibility the default "maybe" will be changed into True 
-           unless the date_search is open-ended)
-
-        Returns:
-         * [CalendarObjectResource(), ...]
-
+        Split out from the date_search-method below.  The idea is that
+        maybe the generated query can be amended, i.e. to filter out
+        by category etc.  To be followed up in
+        https://github.com/python-caldav/caldav/issues/16
         """
-        matches = []
-
-        # build the request
-
         ## for backward compatibility - expand should be false
         ## in an open-ended date search, otherwise true
         if expand == 'maybe':
@@ -573,9 +559,48 @@ class Calendar(DAVObject):
             query = cdav.CompFilter(compfilter) + query
         vcalendar = cdav.CompFilter("VCALENDAR") + query
         filter = cdav.Filter() + vcalendar
-
         root = cdav.CalendarQuery() + [prop, filter]
-        response = self._query(root, 1, 'report')
+        return root
+
+    def date_search(self, start, end=None, compfilter="VEVENT", expand="maybe"):
+        # type (TimeStamp, TimeStamp, str, str) -> CalendarObjectResource
+        """
+        Search events by date in the calendar. Recurring events are
+        expanded if they are occuring during the specified time frame
+        and if an end timestamp is given.
+
+        Parameters:
+         * start = datetime.today().
+         * end = same as above.
+         * compfilter = defaults to events only.  Set to None to fetch all
+           calendar components.
+         * expand - should recurrent events be expanded?  (to preserve
+           backward-compatibility the default "maybe" will be changed into True
+           unless the date_search is open-ended)
+
+        Returns:
+         * [CalendarObjectResource(), ...]
+
+        """
+        # build the query
+        root = self.build_date_search_query(start, end, compfilter, expand)
+
+        ## xandikos now yields a 5xx-error when trying to pass
+        ## expand=True, after I prodded the developer that it doesn't
+        ## work.  By now there is some workaround in the test code to
+        ## avoid sending expand=True to xandikos, but perhaps we
+        ## should run a try-except-retry here with expand=False in the
+        ## retry, and warnings logged ... or perhaps not.
+        return self.search(root)
+
+    def search(self, xml):
+        """
+        Takes some input XML, does a report query on a calendar object
+        and returns the resource objects found.  Partly solves 
+        https://github.com/python-caldav/caldav/issues/16
+        """
+        matches = []
+        response = self._query(xml, 1, 'report')
         results = self._handle_prop_response(
             response=response, props=[cdav.CalendarData()])
         for r in results:
