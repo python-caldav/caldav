@@ -71,6 +71,12 @@ events_fetched = my_new_calendar.date_search(
     start=datetime(2021, 1, 1), end=datetime(2024, 1, 1), expand=True)
 print(events_fetched[0].data)
 
+event = events_fetched[0]
+
+## To modify an event, it's best to use either the vobject or icalendar module for it.  The caldav library has always been supporting vobject out of the box, but icalendar is more popular.  event.instance will as of version 0.x yield a vobject instance, but this may change in future versions.  Use .vobject_instance or .icalendar_instance instead.
+event.vobject_instance.vevent.summary.value = 'Norwegian national day celebrations'
+event.save()
+
 ## It's possible to access objects such as calendars without going
 ## through a Principal object, i.e. if one knows the URL
 the_same_calendar = caldav.Calendar(client=client, url=my_new_calendar.url)
@@ -78,6 +84,9 @@ the_same_calendar = caldav.Calendar(client=client, url=my_new_calendar.url)
 ## to get all events from the calendar, it's also possible to use the
 ## events()-method.  Recurring events will not be expanded.
 all_events = the_same_calendar.events()
+
+## Let's check that the summary got right
+assert all_events[0].vobject_instance.vevent.summary.value.startswith('Norwegian')
 
 ## Clean up - remove the new calendar
 my_new_calendar.delete()

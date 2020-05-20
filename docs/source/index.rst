@@ -63,7 +63,14 @@ Do a date search in a calendar:
 .. code-block:: python
 
   events_fetched = my_new_calendar.date_search(
-  start=datetime(2021, 1, 1), end=datetime(2024, 1, 1), expand=True)
+      start=datetime(2021, 1, 1), end=datetime(2024, 1, 1), expand=True)
+
+To modify an event:
+
+    event.vobject_instance.vevent.summary.value = 'Norwegian national day celebrations'
+    event.save()
+
+`event.icalendar_instance` is also supported.
 
 Find an object with a known URL, say, a calendar, without going through the Principal-object:
 

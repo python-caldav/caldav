@@ -40,5 +40,7 @@ def to_normal_str(text):
 def to_unicode(text):
     if (text and isinstance(text, string_types) and not PY3 and
             not isinstance(text, unicode)):
-        text = unicode(text, 'utf-8')
+        return unicode(text, 'utf-8')
+    if (PY3 and text and isinstance(text, bytes)):
+        return text.decode('utf-8')
     return text

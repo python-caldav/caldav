@@ -1083,10 +1083,10 @@ class CalendarObjectResource(DAVObject):
         return self
 
     def _get_icalendar_instance(self):
-        from icalendar import Calendar
+        import icalendar
         if not self._icalendar_instance:
-            self.icalendar_instance = Calendar(ical = to_unicode(self.data))
-        return self._vobject_instance
+            self.icalendar_instance = icalendar.Calendar.from_ical(to_unicode(self.data))
+        return self._icalendar_instance
 
     icalendar_instance = property(_get_icalendar_instance, _set_icalendar_instance,
                         doc="icalendar instance of the object")

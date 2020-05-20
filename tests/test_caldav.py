@@ -1269,7 +1269,14 @@ class TestCalDAV:
         my_event.vobject_instance.vevent.summary.value='new summary'
         assert('new summary' in my_event.data)
         icalobj = my_event.icalendar_instance
-        #icalobj.
+        icalobj.subcomponents[0]['SUMMARY']='yet another summary'
+        assert_equal(my_event.vobject_instance.vevent.summary.value, 'yet another summary')
+        ## Now the data has been converted from string to vobject to string to icalendar to string to vobject and ... will the string still match the original?
+        lines_now = my_event.data.split('\r\n')
+        lines_orig = ev1.replace('Bastille Day Party', 'yet another summary').split('\n')
+        lines_now.sort()
+        lines_orig.sort()
+        assert_equal(lines_now, lines_orig)
 
     def testURL(self):
         """Exercising the URL class"""
