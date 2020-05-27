@@ -14,9 +14,9 @@ from lxml import etree
 
 try:
     # noinspection PyCompatibility
-    from urllib.parse import unquote
+    from urllib.parse import unquote, quote
 except ImportError:
-    from urllib import unquote
+    from urllib import unquote, quote
 
 try:
     from typing import Union, Optional
@@ -106,7 +106,7 @@ class DAVObject(object):
                 # to RFC 2518, section 5.2.
                 if (self.url.strip_trailing_slash() !=
                         self.url.join(path).strip_trailing_slash()):
-                    c.append((self.url.join(path), resource_type,
+                    c.append((self.url.join(quote(path)), resource_type,
                               resource_name))
 
         return c
@@ -339,7 +339,7 @@ class CalendarSet(DAVObject):
          * Calendar(...)-object
         """
         return Calendar(self.client, name=name, parent=self,
-                        url=self.url.join(cal_id), id=cal_id)
+                        url=self.url.join(quote(cal_id)), id=cal_id)
 
 
 class Principal(DAVObject):
@@ -598,6 +598,9 @@ class Calendar(DAVObject):
         Takes some input XML, does a report query on a calendar object
         and returns the resource objects found.  Partly solves 
         https://github.com/python-caldav/caldav/issues/16
+
+        TODO: this code is duplicated many places, we ought to do more code
+        refactoring
         """
         matches = []
         response = self._query(xml, 1, 'report')
@@ -607,7 +610,7 @@ class Calendar(DAVObject):
             data=results[r][cdav.CalendarData.tag]
             comp_class = self._calendar_comp_class_by_data(data)
             matches.append(
-                comp_class(self.client, url=self.url.join(r),
+                comp_class(self.client, url=self.url.join(quote(r)),
                            data=data, parent=self))
 
         return matches
@@ -647,7 +650,7 @@ class Calendar(DAVObject):
             response=response, props=[cdav.CalendarData()])
         for r in results:
             matches.append(
-                Todo(self.client, url=self.url.join(r),
+                Todo(self.client, url=self.url.join(quote(r)),
                      data=results[r][cdav.CalendarData.tag], parent=self))
         return matches
 
@@ -843,7 +846,7 @@ class Calendar(DAVObject):
             response, props=[cdav.CalendarData()])
         for r in results:
             all.append(Event(
-                self.client, url=self.url.join(r),
+                self.client, url=self.url.join(quote(r)),
                 data=results[r][cdav.CalendarData.tag], parent=self))
 
         return all
@@ -872,7 +875,7 @@ class Calendar(DAVObject):
             response, props=[cdav.CalendarData()])
         for r in results:
             all.append(Journal(
-                self.client, url=self.url.join(r),
+                self.client, url=self.url.join(quote(r)),
                 data=results[r][cdav.CalendarData.tag], parent=self))
 
         return all
@@ -950,7 +953,7 @@ class CalendarObjectResource(DAVObject):
                     obj.uid.value = id
                     break
         if path is None:
-            path = id + ".ics"
+            path = quote(id) + ".ics"
         path = self.parent.url.join(path)
         r = self.client.put(path, data,
                             {"Content-Type": 'text/calendar; charset="utf-8"'})

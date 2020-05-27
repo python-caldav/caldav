@@ -52,6 +52,10 @@ zimbra = [
     ## anymore)
     'nodisplayname'
 
+    ## extra features not specified in RFC5545
+    "calendarorder",
+    "calendarcolor"
+
     ## TODO: there is more, it should be organized and moved here.
     ## Search for 'zimbra' in the code repository!
 ]
