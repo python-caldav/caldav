@@ -16,6 +16,42 @@ Contents
    caldav/davclient
    caldav/objects
 
+Objective and scope
+===================
+
+The objective is basically to support RFC 4791.  The python caldav
+library should make interactions with caldav servers simple and easy.
+Simple operations (like find a list of all calendars owned, inserting
+an icalendar object into a calendar, do a simple date search, etc)
+should be trivial to accomplish even if the end-user of the library
+has no or very little knowledge of the caldav, webdav or icalendar
+standards.  Further, the library should be agile enough to allow
+"power users" to do more advanced stuff.
+
+The scope of the library basically only covers the caldav
+communication in itself.  Parsing and changing icalendar data
+(RFC 5545) is considered to be outside the scope - though, exceptions
+may apply (like, there is a method for "completing" a task on a task
+list).  However, there should be a tight integration of another
+library handling RFC 5545.  There exists two libraries for that today,
+it's vobject and icalendar.  Version 0.x officially supports vobject,
+this is to be changed in upcoming versions 1.x.  As of 0.7 there is also
+support for icalendar.
+
+Some server implementations may have some "caldav"-support that either
+doesn't implement all of RFC 4791, breaks the standard a bit, or has
+extra features.  As long as it doesn't add too much complexity to the
+code, hacks and workarounds for "badly behaving caldav servers" are
+considered to be within the scope.
+
+There exists an extention to the standard covering calendar color and
+calendar order, allegedly with an xml namespace
+http://apple.com/ns/ical/ - however, that URL gives (301 https and
+then) 404.  I've done a quick google search, finding no documentation
+of this extension - however, it seems to be supported by several
+caldav libraries, clients and servers.  As of 0.7, this sorts under
+the category "available for power users".
+
 Quickstart
 ==========
 
@@ -140,7 +176,7 @@ Mark a task as completed:
 More examples
 =============
 
-Check the examples folder, particularly `basic examples <https://github.com/python-caldav/caldav/blob/master/examples/basic_usage_examples.py>`_.  The `test code <https://github.com/python-caldav/caldav/blob/master/tests/test_caldav.py>`_ also covers lots of stuff, though it's not much optimized for readability.  Tobias Brox is also working on a `command line interface <https://github.com/tobixen/calendar-cli>`_  built around the caldav library.
+Check the examples folder, particularly `basic examples <https://github.com/python-caldav/caldav/blob/master/examples/basic_usage_examples.py>`_.  The `test code <https://github.com/python-caldav/caldav/blob/master/tests/test_caldav.py>`_ also covers lots of stuff, though it's not much optimized for readability (at least not as of 2020-05).  Tobias Brox is also working on a `command line interface <https://github.com/tobixen/calendar-cli>`_  built around the caldav library.
 
 Notable classes and workflow
 ============================

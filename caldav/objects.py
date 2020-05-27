@@ -26,7 +26,7 @@ except:
 
 from caldav.lib import error, vcal
 from caldav.lib.url import URL
-from caldav.elements import dav, cdav
+from caldav.elements import dav, cdav, ical
 from caldav.lib.python_utilities import to_unicode
 
 import logging

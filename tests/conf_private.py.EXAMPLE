@@ -15,20 +15,28 @@ caldav_servers = [
         'username': 'testuser',
         'password': 'hunter2',
 
+	## skip ssl cert verification, for self-signed certificates
+	## (sort of moot nowadays with letsencrypt freely available)
+        #'ssl_cert_verify': False
+
 	## There are some boolean options that may be passed i.e. to
 	## skip tests (many CalDAV server features are marked as
 	## optional in the RFC, for one thing), to skip verifying SSL
 	## certificate, etc.  Leave the list blank on first attempt, then
-	## add things as needed.
+	## add things as needed (see also compatibility_issues.py)
 	#'nocalendarnotfound': True,
 	#'nodefaultcalendar: True,
+	#'nodisplayname: True,
 	#'noproxy': True,
         #'nojournal': True,
 	#'nofreebusy': True.
 	#'notodo': True,
 	#'nopropfind': True,
 	#'norecurring': True,
-        #'ssl_cert_verify': False
+	#'norecurringexpandation': True,
+	#'noexpand': True,
+	#'calendarcolor': True
+	#'calendarorder': True
     }]
 
 ## MASTER SWITCHES FOR TEST SERVER SETUP

@@ -27,7 +27,7 @@ from caldav.objects import (Principal, Calendar, Event, DAVObject,
 from caldav.lib.url import URL
 from caldav.lib import url
 from caldav.lib import error
-from caldav.elements import dav, cdav
+from caldav.elements import dav, cdav, ical
 from caldav.lib.python_utilities import to_local, to_str
 
 if test_xandikos:
@@ -36,8 +36,9 @@ if test_xandikos:
 
 if test_radicale:
     import radicale.config
-    from radicale import ThreadedHTTPServer, RequestHandler, config, Application
-    from wsgiref.simple_server import make_server
+    import radicale
+    import radicale.server
+    import socket
 
 if PY3:
     from urllib.parse import urlparse
@@ -806,6 +807,22 @@ class RepeatedFunctionalTestsBaseClass(object):
             assert_not_equal(cc.url, None)
             cc.delete()
 
+        ## calendar color and calendar order are extra properties not
+        ## described by RFC5545, but anyway supported by quite some
+        ## server implementations
+        if self.server_params.get('calendarcolor', False):
+            props = c.get_properties([ical.CalendarColor(), ])
+            assert_not_equal(props[ical.CalendarColor.tag], 'sort of blueish')
+            c.set_properties([ical.CalendarColor("blue"), ])
+            props = c.get_properties([ical.CalendarColor(), ])
+            assert_equal(props[ical.CalendarColor.tag], 'blue')
+        if self.server_params.get('calendarorder', False):
+            props = c.get_properties([ical.CalendarOrder(), ])
+            assert_not_equal(props[ical.CalendarOrder.tag], "-434")
+            c.set_properties([ical.CalendarOrder("12"), ])
+            props = c.get_properties([ical.CalendarOrder(), ])
+            assert_equal(props[ical.CalendarOrder.tag], "12")
+
     def testLookupEvent(self):
         """
         Makes sure we can add events and look them up by URL and ID
@@ -1100,20 +1117,27 @@ class TestLocalRadicale(RepeatedFunctionalTestsBaseClass):
         self.serverdir = tempfile.TemporaryDirectory()
         self.serverdir.__enter__()
         self.configuration = radicale.config.load("")
-        self.configuration.set('storage', 'filesystem_folder', self.serverdir.name)
-        app = radicale.Application(
-            self.configuration,
-            logging.getLogger('caldav-test-Radicale'))
-        self.server = make_server(
-            radicale_host, radicale_port, app,
-            radicale.ThreadedHTTPServer, radicale.RequestHandler)
+        self.configuration.update({'storage': {'filesystem_folder': self.serverdir.name}})
+        self.server = radicale.server
         self.server_params = {'url': 'http://%s:%i/' % (radicale_host, radicale_port), 'username': 'user1', 'password': 'password1'}
 
         self.server_params['backwards_compatibility_url'] = self.server_params['url']+'user1/'
         self.server_params['incompatibilities'] = compatibility_issues.radicale
 
-        self.radicale_thread = threading.Thread(target=self.server.serve_forever)
+        self.shutdown_socket, self.shutdown_socket_out = socket.socketpair()
+
+        self.radicale_thread = threading.Thread(target=self.server.serve, args=(self.configuration, self.shutdown_socket_out))
         self.radicale_thread.start()
+
+        i = 0
+        while True:
+            try:
+                requests.get(self.server_params['url'])
+                break
+            except:
+                time.sleep(0.05)
+                i+=1
+                assert(i<100)
 
         try:
             RepeatedFunctionalTestsBaseClass.setup(self)
@@ -1124,8 +1148,7 @@ class TestLocalRadicale(RepeatedFunctionalTestsBaseClass):
     def teardown(self):
         if not test_radicale:
             return
-        self.server.shutdown()
-        self.server.socket.close()
+        self.shutdown_socket.close()
         i=0
         while (self.radicale_thread.is_alive()):
             time.sleep(0.05)

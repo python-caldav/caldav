@@ -12,7 +12,7 @@ xandikos = [
 
     ## As of 2020-05-17 it even returns a 500 internal server error
     ## when one attempts to use the expand-flag in a date search
-    "noexpand"
+    "noexpand",
 ]
 
 radicale = [
@@ -30,7 +30,11 @@ radicale = [
 
     ## Expanding recurrent events is not yet supported
     ## ref https://github.com/Kozea/Radicale/issues/662
-    "norecurringexpandation"
+    "norecurringexpandation",
+
+    ## extra features not specified in RFC5545
+    "calendarorder",
+    "calendarcolor"
 ]
 
 zimbra = [
