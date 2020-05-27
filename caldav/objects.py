@@ -593,7 +593,7 @@ class Calendar(DAVObject):
         ## retry, and warnings logged ... or perhaps not.
         return self.search(root)
 
-    def search(self, xml):
+    def search(self, xml, comp_class=None):
         """
         Takes some input XML, does a report query on a calendar object
         and returns the resource objects found.  Partly solves 
@@ -608,7 +608,8 @@ class Calendar(DAVObject):
             response=response, props=[cdav.CalendarData()])
         for r in results:
             data=results[r][cdav.CalendarData.tag]
-            comp_class = self._calendar_comp_class_by_data(data)
+            if comp_class is None:
+                comp_class = self._calendar_comp_class_by_data(data)
             matches.append(
                 comp_class(self.client, url=self.url.join(quote(r)),
                            data=data, parent=self))
@@ -645,14 +646,7 @@ class Calendar(DAVObject):
 
         root = cdav.CalendarQuery() + [prop, filter]
 
-        response = self._query(root, 1, 'report')
-        results = self._handle_prop_response(
-            response=response, props=[cdav.CalendarData()])
-        for r in results:
-            matches.append(
-                Todo(self.client, url=self.url.join(quote(r)),
-                     data=results[r][cdav.CalendarData.tag], parent=self))
-        return matches
+        return self.search(root, comp_class=Todo)
 
     def todos(self, sort_keys=('due', 'priority'), include_completed=False,
               sort_key=None):
@@ -832,24 +826,14 @@ class Calendar(DAVObject):
         Returns:
          * [Event(), ...]
         """
-        all = []
-
         data = cdav.CalendarData()
         prop = dav.Prop() + data
         vevent = cdav.CompFilter("VEVENT")
         vcalendar = cdav.CompFilter("VCALENDAR") + vevent
         filter = cdav.Filter() + vcalendar
         root = cdav.CalendarQuery() + [prop, filter]
-
-        response = self._query(root, 1, query_method='report')
-        results = self._handle_prop_response(
-            response, props=[cdav.CalendarData()])
-        for r in results:
-            all.append(Event(
-                self.client, url=self.url.join(quote(r)),
-                data=results[r][cdav.CalendarData.tag], parent=self))
-
-        return all
+        
+        return self.search(root, comp_class=Event)
 
     def journals(self):
         """
@@ -861,8 +845,6 @@ class Calendar(DAVObject):
         # TODO: this is basically a copy of events() - can we do more
         # refactoring and consolidation here?  Maybe it's wrong to do
         # separate methods for journals, todos and events?
-        all = []
-
         data = cdav.CalendarData()
         prop = dav.Prop() + data
         vevent = cdav.CompFilter("VJOURNAL")
@@ -870,16 +852,7 @@ class Calendar(DAVObject):
         filter = cdav.Filter() + vcalendar
         root = cdav.CalendarQuery() + [prop, filter]
 
-        response = self._query(root, 1, query_method='report')
-        results = self._handle_prop_response(
-            response, props=[cdav.CalendarData()])
-        for r in results:
-            all.append(Journal(
-                self.client, url=self.url.join(quote(r)),
-                data=results[r][cdav.CalendarData.tag], parent=self))
-
-        return all
-
+        return self.search(root, comp_class=Journal)
 
 class CalendarObjectResource(DAVObject):
     """
