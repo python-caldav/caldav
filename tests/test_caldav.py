@@ -452,38 +452,41 @@ class RepeatedFunctionalTestsBaseClass(object):
         c1 = self.principal.make_calendar(name="Yep", cal_id=self.testcal_id)
         c2 = self.principal.make_calendar(name="Yapp", cal_id=self.testcal_id2)
         e1_ = c1.save_event(ev1)
-
-        ## Duplicate the event in the same calendar, with new uid
         e1 = c1.events()[0]
-        ## this should work.
-        e1.load()
-        e1_dup = e1.copy()
-        e1_dup.save()
-        assert_equal(len(c1.events()), 2)
+
+        if not self.server_params.get('duplicates_not_allowed', False):
+            ## Duplicate the event in the same calendar, with new uid
+            e1_dup = e1.copy()
+            e1_dup.save()
+            assert_equal(len(c1.events()), 2)
 
         ## Duplicate the event in the other calendar, with same uid
         e1_in_c2 = e1.copy(new_parent=c2, keep_uid=True)
         e1_in_c2.save()
-        assert_equal(len(c2.events()), 1)
+        if not self.server_params.get('duplicate_in_other_calendar_with_same_uid_is_lost', False):
+            assert_equal(len(c2.events()), 1)
 
-        ## what will happen with the event in c1 if we modify the event in c2,
-        ## which shares the id with the event in c1?
-        e1_in_c2.instance.vevent.summary.value = 'asdf'
-        e1_in_c2.save()
-        e1.load()
-        ## should e1.summary be 'asdf' or 'Bastille Day Party'?  I do
-        ## not know, but all implementations I've tested will treat
-        ## the copy in the other calendar as a distinct entity, even
-        ## if the uid is the same.
-        assert_equal(e1.instance.vevent.summary.value, 'Bastille Day Party')
-        assert_equal(c2.events()[0].instance.vevent.uid,
-                     e1.instance.vevent.uid)
+            ## what will happen with the event in c1 if we modify the event in c2,
+            ## which shares the id with the event in c1?
+            e1_in_c2.instance.vevent.summary.value = 'asdf'
+            e1_in_c2.save()
+            e1.load()
+            ## should e1.summary be 'asdf' or 'Bastille Day Party'?  I do
+            ## not know, but all implementations I've tested will treat
+            ## the copy in the other calendar as a distinct entity, even
+            ## if the uid is the same.
+            assert_equal(e1.instance.vevent.summary.value, 'Bastille Day Party')
+            assert_equal(c2.events()[0].instance.vevent.uid,
+                         e1.instance.vevent.uid)
 
         ## Duplicate the event in the same calendar, with same uid -
         ## this makes no sense, there won't be any duplication
         e1_dup2 = e1.copy(keep_uid=True)
         e1_dup2.save()
-        assert_equal(len(c1.events()), 2)
+        if self.server_params.get('duplicates_not_allowed', False):
+            assert_equal(len(c1.events()), 1)
+        else:
+            assert_equal(len(c1.events()), 2)
 
     def testCreateCalendarAndEventFromVobject(self):
         c = self.principal.make_calendar(name="Yep", cal_id=self.testcal_id)

@@ -66,7 +66,12 @@ bedework = [
     'nojournal',
     'notodo',
     'nopropfind',
-    'norecurring'
+    'norecurring',
+
+    ## taking an event, changing the uid, and saving in the same calendar gives a 403.
+    ## editing the content slightly and it works.  Weird ...
+    'duplicates_not_allowed',
+    'duplicate_in_other_calendar_with_same_uid_is_lost'
 ]
 
 baikal = [
