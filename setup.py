@@ -3,7 +3,7 @@
 from setuptools import setup, find_packages
 import sys
 
-version = '0.7.0.dev0'
+version = '0.7.0'
 
 if __name__ == '__main__':
     ## For python 2.7 and 3.5 we depend on pytz and tzlocal.  For 3.6 and up, batteries are included.  Same with mock.
