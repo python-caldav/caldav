@@ -626,7 +626,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         Let's see how the date search method works for todo events
         """
         # bedeworks does not support VTODO
-        if 'notodo' in self.server_params:
+        if 'notodo' in self.server_params or 'notododatesearch' in self.server_params:
             raise SkipTest("VTODO testing skipped due to test configuration")
         c = self.principal.make_calendar(
             name="Yep", cal_id=self.testcal_id,

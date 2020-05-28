@@ -70,7 +70,14 @@ bedework = [
 ]
 
 baikal = [
-    ## Quite a while since I tested towards baikal, but no issues were found
+    ## date search on todos does not seem to work
+    ## (TODO: do some research on this)
+    'notododatesearch',
+
+    ## extra features not specified in RFC5545
+    "calendarorder",
+    "calendarcolor"
+
 ]
 
 ## The version of davical I'm testing towards is very old, so this list may be outdated
