@@ -782,29 +782,20 @@ class Calendar(DAVObject):
 
         root = cdav.CalendarQuery() + [prop, filter]
 
-        response = self._query(root, 1, 'report')
+        items_found = self.search(root)
 
-        if response.status == 404:
-            raise error.NotFoundError("%s not found on server" % uid)
-        elif response.status == 400:
-            raise error.ReportError(errmsg(response))
-
-        items_found = response.tree.findall(".//" + dav.Response.tag)
-        for r in items_found:
-            href = unquote(r.find(".//" + dav.Href.tag).text)
-            data = unquote(r.find(".//" + cdav.CalendarData.tag).text)
-            # Ref Lucas Verney, we've actually done a substring search, if the
-            # uid given in the query is short (i.e. just "0") we're likely to
-            # get false positives back from the server.
-            #
+        # Ref Lucas Verney, we've actually done a substring search, if the
+        # uid given in the query is short (i.e. just "0") we're likely to
+        # get false positives back from the server, we need to do an extra
+        # check that the uid is correct
+        for item in items_found:
             # Long uids are folded, so splice the lines together here before
             # attempting a match.
-            item_uid = re.search(r'\nUID:((.|\n[ \t])*)\n', data)
+            item_uid = re.search(r'\nUID:((.|\n[ \t])*)\n', item.data)
             if (not item_uid or
                     re.sub(r'\n[ \t]', '', item_uid.group(1)) != uid):
                 continue
-            return self._calendar_comp_class_by_data(data)(
-                self.client, url=URL.objectify(href), data=data, parent=self)
+            return item
         raise error.NotFoundError("%s not found on server" % uid)
 
     def todo_by_uid(self, uid):
