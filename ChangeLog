@@ -1,8 +1,80 @@
+2020-05-28  Tobias Brox <t-caldav@tobixen.no>
+	* caldav/lib/namespace.py - The http://apple.com/ns/ical/ namespace should not be passed in every request
+	* caldav/objects.py - bugfix, URLs should be quoted, and not contain '@' etc.  That ical namespace for calendar color should be imported.  refactoring, the new search method can replace quite some duplicated code.
+	* docs/source/index.rst - comment on calendar-color and calendar-order, non-standard extentions supported by many server implementations.  Add a section for objectives/scope of the library.
+	* tests/compatibility_issues.py - should explicitly tell that calendarcolor and calendarorder should be tessted.
+	* tests/conf.py - it should be possible to disable xandikos/radicale testing without specifying server parameters in conf_private.py
+	* tests/conf_private.py.EXAMPLE - try to list up all flags
+	* tests/test_caldav.py - fix to support upstream changes in radicale that breaks the radicale server creation, make most of the duplication test skipable (due to bedeworks), tests for calendar color and order
+
+2020-05-20  Tobias Brox <t-caldav@tobixen.no>
+	* caldav/lib/python_utilities.py - still some more python2/python3-unicode/str/byte problem solving
+	* caldav/objects.py - splitting up the date_search into three submethods, making it easier to do custom searches.  icalendar support.  Making sure all modifications through either vobject, icalendar or raw data is honored.
+	* docs/source/index.rst - icalendar support
+	* examples/basic_usage_examples.py - vobject support
+	* setup.py - icalendar is now a test requirement (and also an optional requirement for library users)
+	* tests/test_caldav.py - the icalendar instantiation should be exercises
+
+2020-05-19  Tobias Brox <t-caldav@tobixen.no>
+	* caldav/davclient.py - save the auth object, to avoid lots of failed autentications on servers not handling digestauth.
+	* caldav/objects.py - bugfix, Event class should not be used for Todo items, etc
+	* tests/test_caldav.py - some bugfixes, some more test code
+
+2020-05-18  Tobias Brox <t-caldav@tobixen.no>
+	* caldav/davclient.py - save the auth object, to avoid lots of failed autentications on servers not handling digestauth.
+	* caldav/objects.py - bugfix, Event class should not be used for Todo items, etc
+	* tests/test_caldav.py - some bugfixes, some more test code
+
+2020-05-17  Tobias Brox <t-caldav@tobixen.no>
+	* README.md - correct pointers to updated documentation
+	* caldav/objects.py - support for creating entries even without a given uid field
+	* docs/source/conf.py - taking credits for the work.  trying to avoid a warning when generating the docs
+	* tests/caldav.py - more tests
+	* docs/source/index.rst - documentation tweaks
+	* setup.cfg - attempt on getting the sphinx-upload-thing to work
+
+2020-05-17  Tobias Brox <t-caldav@tobixen.no>
+	* tests/compatibility_issues.py - more research into server incompatibities
+	* tests/caldav.py - more tests
+
+2020-05-16  Tobias Brox <t-caldav@tobixen.no>
+	* README.md - work on improved documentation
+	* davclient.py - found some code that is probably not needed, and commented it
+	* caldav/lib/error.py - added a ConsistencyError
+	* caldav/objects.py - improved error message, typo fixing in docstrings, new options no_overwrite and no_create to the save methods, bugfixes
+	* docs/source/ - improved documentation
+	* examples/basic_usage_example.py - walkthrough of simple caldav usage
+	* setup.py - bumped version number
+	* tests/test_caldav.py - using save_-methods rather than add_-methods, exercising the new no_overwrite and no_cretae.
+
+2020-05-14  Tobias Brox <t-caldav@tobixen.no>
+	* caldav/objects.py - old zimbra tweaks are already obsoleted and has to be replaced with new ones.  Usage of the word "save" rather than "add" where it's possible both to create a new item or update an old.
+	* tests/compatibility_issues.py - trying to organize all the compatibility problems found through the tests in one file
+	* tests/test_caldav.py - support for improved passing of compatibility_issues into server params.  Added hooks for ignoring known incompatibilities from servers.
+
+2020-05-13  Tobias Brox <t-caldav@tobixen.no>
+	* .travis.yml - attempt on getting CI with travis on github to work
+	* caldav/lib/namespace.py - I've finally understood and ironed out some weird bugfix from 2014
+	* setup.py - tox should test with py37?  python 3.8 is the current.  Also, radicale is new test requirement.
+	* tests/conf.py - it should be possible to weak radicale config
+	* tests/test_caldav.py - spawning up a local radicale instance for test purposes + tweaks to get tests passing under radicale
+
+2020-02-14  Tobias Brox <t-caldav@tobixen.no>
+	* caldav/lib/url.py - unicode/str/byte handling in python2/3 is a mess
+	* caldav/lib/python_utilities.py - unicode/str/byte handling in python2/3 is a mess
+	* caldav/davclient.py - unicode/str/byte handling in python2/3 is a mess
+	* tests/test_caldav.py - made unit tests reproducing some reported unicode/ascii bug report
+	* setup.py - bumped version number, mock is now a test requirement for python2
+
 2020-02-03  Tobias Brox <t-caldav@tobixen.no>
 	* caldav/objects.py - improved error messages
 
 2019-11-15  Tobias Brox <t-caldav@tobixen.no>
 	* caldav/davclient.py - ref https://github.com/python-caldav/caldav/issues/81 and jimays at github, some versions of the request libary may produce a response object without the reason attribute.
+
+2019-09-30  Stephane Blondon <stephane.blondon@gmail.com>
+	* Makefile - fix a Makefile
+	* setup.py - fix tox
 
 2019-05-29  Tobias Brox <t-caldav@tobixen.no>
 	* .travis.yml - xandikos cannot be installed on python2.7, but we still want to run the available tests
