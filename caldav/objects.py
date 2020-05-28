@@ -610,6 +610,13 @@ class Calendar(DAVObject):
             data=results[r][cdav.CalendarData.tag]
             if comp_class is None:
                 comp_class = self._calendar_comp_class_by_data(data)
+            if comp_class is None:
+                ## Ouch, we really shouldn't get here.  This probably
+                ## means we got some bad data from the server.  I've
+                ## observed receiving a VCALENDAR from Baikal that did
+                ## not contain anything.  Let's assume the data is
+                ## void and should not be counted.
+                continue
             matches.append(
                 comp_class(self.client, url=self.url.join(quote(r)),
                            data=data, parent=self))
@@ -745,6 +752,7 @@ class Calendar(DAVObject):
 
     def _calendar_comp_class_by_data(self, data):
         for line in data.split('\n'):
+            line = line.strip()
             if line == 'BEGIN:VEVENT':
                 return Event
             if line == 'BEGIN:VTODO':
