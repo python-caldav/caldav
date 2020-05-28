@@ -448,7 +448,6 @@ class RepeatedFunctionalTestsBaseClass(object):
         e1.load()
 
     def testCopyEvent(self):
-        raise SkipTest('foo')
         ## Let's create two calendars, and populate one event on the first calendar
         c1 = self.principal.make_calendar(name="Yep", cal_id=self.testcal_id)
         c2 = self.principal.make_calendar(name="Yapp", cal_id=self.testcal_id2)

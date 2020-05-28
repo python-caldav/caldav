@@ -21,7 +21,6 @@ try:
     from .conf_private import caldav_servers
 except ImportError:
     caldav_servers = []
-
 try:
     from .conf_private import test_private_test_servers
     if not test_private_test_servers:
@@ -29,29 +28,34 @@ try:
 except ImportError:
     pass
 
-
 try:
-    from .conf_private import test_xandikos, xandikos_host, xandikos_port
+    from .conf_private import xandikos_host, xandikos_port
+except ImportError:
+    xandikos_host = 'localhost'
+    xandikos_port = 8993 ## random port above 8000
+try:
+    from .conf_private import test_xandikos
 except ImportError:
     try:
         import xandikos
         test_xandikos = True
     except:
         test_xandikos = False
-    xandikos_host = 'localhost'
-    xandikos_port = 8993 ## random port above 8000
 
 try:
-    from .conf_private import test_radicale, radicale_host, radicale_port
+    from .conf_private import radicale_host, radicale_port
+except ImportError:
+    radicale_host = 'localhost'
+    radicale_port = 5232 ## default radicale host
+
+try:
+    from .conf_private import test_radicale
 except ImportError:
     try:
         import radicale
         test_radicale = True
     except:
         test_radicale = False
-    radicale_host = 'localhost'
-    radicale_port = 5232 ## default radicale host
-    
 
 #####################
 # Public test servers
