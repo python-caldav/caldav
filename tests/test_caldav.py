@@ -437,6 +437,12 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert_equal(len(events2), 1)
         assert_equal(events2[0].url, events[0].url)
 
+        # We should be able to access the calender through the name
+        c2 = Calendar(client=self.caldav, name="Yep")
+        events2 = c2.events()
+        assert_equal(len(events2), 1)
+        assert_equal(events2[0].url, events[0].url)
+
     def testLoadEvent(self):
         ## This didn't work out very well on my zimbra.
         c1 = self.principal.make_calendar(name="Yep", cal_id=self.testcal_id)
@@ -1252,6 +1258,8 @@ class TestCalDAV:
         calendar1 = principal.calendar(name="foo", cal_id="bar")
         calendar2 = principal.calendar_home_set.calendar(
             name="foo", cal_id="bar")
+        calendar3 = principal.calendar(name="foo")
+        calendar4 = principal.calendar(cal_id="bar")
         assert_equal(calendar1.url, calendar2.url)
         assert_equal(
             calendar1.url, "http://calendar.example:80/me/calendars/bar")

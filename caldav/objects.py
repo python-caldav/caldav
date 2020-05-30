@@ -338,8 +338,11 @@ class CalendarSet(DAVObject):
         Returns:
          * Calendar(...)-object
         """
-        return Calendar(self.client, name=name, parent=self,
-                        url=self.url.join(quote(cal_id)), id=cal_id)
+        if cal_id:
+            return Calendar(self.client, name=name, parent=self,
+                            url=self.url.join(quote(cal_id)), id=cal_id)
+        else:
+            return Calendar(self.client, name=name, parent=self)
 
 
 class Principal(DAVObject):
