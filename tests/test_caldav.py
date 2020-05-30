@@ -1258,9 +1258,9 @@ class TestCalDAV:
         calendar1 = principal.calendar(name="foo", cal_id="bar")
         calendar2 = principal.calendar_home_set.calendar(
             name="foo", cal_id="bar")
-        calendar3 = principal.calendar(name="foo")
-        calendar4 = principal.calendar(cal_id="bar")
+        calendar3 = principal.calendar(cal_id="bar")
         assert_equal(calendar1.url, calendar2.url)
+        assert_equal(calendar1.url, calendar3.url)
         assert_equal(
             calendar1.url, "http://calendar.example:80/me/calendars/bar")
 
