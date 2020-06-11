@@ -98,6 +98,10 @@ class DAVObject(object):
             resource_name = properties[path][dav.DisplayName.tag]
 
             if resource_type == type or type is None:
+                url = URL(path)
+                if url.hostname is None:
+                    # Quote when path is not a full URL
+                    path = quote(path)
                 # TODO: investigate the RFCs thoroughly - why does a "get
                 # members of this collection"-request also return the
                 # collection URL itself?
@@ -106,7 +110,7 @@ class DAVObject(object):
                 # to RFC 2518, section 5.2.
                 if (self.url.strip_trailing_slash() !=
                         self.url.join(path).strip_trailing_slash()):
-                    c.append((self.url.join(quote(path)), resource_type,
+                    c.append((self.url.join(path), resource_type,
                               resource_name))
 
         return c
@@ -617,8 +621,12 @@ class Calendar(DAVObject):
                 ## not contain anything.  Let's assume the data is
                 ## void and should not be counted.
                 continue
+            url = URL(r)
+            if url.hostname is None:
+                # Quote when result is not a full URL
+                r = quote(r)
             matches.append(
-                comp_class(self.client, url=self.url.join(quote(r)),
+                comp_class(self.client, url=self.url.join(r),
                            data=data, parent=self))
 
         return matches
