@@ -21,7 +21,7 @@ from .conf import test_radicale, radicale_port, radicale_host
 from .proxy import ProxyHandler, NonThreadingHTTPServer
 from . import compatibility_issues
 
-from caldav.davclient import DAVClient
+from caldav.davclient import DAVClient, DAVResponse
 from caldav.objects import (Principal, Calendar, Event, DAVObject,
                             CalendarSet, FreeBusy, Todo)
 from caldav.lib.url import URL
@@ -1230,6 +1230,37 @@ class TestCalDAV:
             response = client.put(u'/foo/møøh/bar', u'bringebærsyltetøy 北京 пиво', {})
         assert_equal(response.status, 200)
         assert(response.tree is None)
+
+    def testAbsoluteURL(self):
+        """Version 0.7.0 does not handle responses with absolute URLs very well, ref https://github.com/python-caldav/caldav/pull/103"""
+        ## none of this should initiate any communication
+        client = DAVClient(url='http://cal.example.com/')
+        principal = Principal(client=client, url='http://cal.example.com/home/bernard/')
+        ## now, ask for the calendar_home_set, but first we need to mock up client.propfind
+        mocked_response = mock.MagicMock()
+        mocked_response.status_code = 207
+        mocked_response.reason = 'multistatus'
+        mocked_response.headers = {}
+        mocked_response.content = """
+<xml>
+<d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
+    <d:response>
+        <d:href>http://cal.example.com/home/bernard/</d:href>
+        <d:propstat>
+            <d:prop>
+                <c:calendar-home-set>
+                    <d:href>http://cal.example.com/home/bernard/calendars/</d:href>
+                </c:calendar-home-set>
+            </d:prop>
+            <d:status>HTTP/1.1 200 OK</d:status>
+        </d:propstat>
+    </d:response>
+</d:multistatus>
+</xml>"""
+        mocked_davresponse = DAVResponse(mocked_response)
+        client.propfind = mock.MagicMock(return_value=mocked_davresponse)
+        bernards_calendars = principal.calendar_home_set
+        assert_equal(bernards_calendars.url, URL('http://cal.example.com/home/bernard/calendars/'))
 
     def testCalendar(self):
         """
