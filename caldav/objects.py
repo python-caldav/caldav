@@ -811,7 +811,7 @@ class Calendar(DAVObject):
             # attempting a match.
             item_uid = re.search(r'\nUID:((.|\n[ \t])*)\n', item.data)
             if (not item_uid or
-                    re.sub(r'\n[ \t]', '', item_uid.group(1)) != uid):
+                    re.sub(r'\n[ \t]', '', item_uid.group(1).rstrip()) != uid):
                 continue
             return item
         raise error.NotFoundError("%s not found on server" % uid)
@@ -1115,6 +1115,13 @@ class Todo(CalendarObjectResource):
     """
     The `Todo` object is used to represent a todo item (VTODO).
     """
+
+    def __init__(self, *args, **kwargs):
+        """Set the object's ID."""
+        super().__init__(*args, **kwargs)
+        if hasattr(self.vobject_instance.vtodo, "uid"):
+            self.id = self.vobject_instance.vtodo.uid.value
+
     def complete(self, completion_timestamp=None):
         """
         Marks the task as completed.
