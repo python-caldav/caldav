@@ -77,6 +77,8 @@ class DAVClient:
          ** ssl_verify_cert can be the path of a CA-bundle or False.
         """
 
+        self.session = requests.Session()
+
         log.debug("url: " + str(url))
         self.url = URL.objectify(url)
 
@@ -247,7 +249,7 @@ class DAVClient:
         else:
             auth = self.auth
 
-        r = requests.request(method, url, data=to_wire(body),
+        r = self.session.request(method, url, data=to_wire(body),
                              headers=combined_headers, proxies=proxies,
                              auth=auth, verify=self.ssl_verify_cert)
         response = DAVResponse(r)
@@ -255,7 +257,7 @@ class DAVClient:
         # If server supports BasicAuth and not DigestAuth, let's try again:
         if response.status == 401 and self.auth is None and auth is not None:
             auth = requests.auth.HTTPBasicAuth(self.username, self.password)
-            r = requests.request(method, url, data=to_wire(body),
+            r = self.session.request(method, url, data=to_wire(body),
                                  headers=combined_headers, proxies=proxies,
                                  auth=auth, verify=self.ssl_verify_cert)
             response = DAVResponse(r)
