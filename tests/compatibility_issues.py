@@ -6,13 +6,6 @@
 ## in the documentation on everything.
 
 xandikos = [
-    ## Xandikos does not support recurring events as of 0.2.1/2020-05,
-    ## ref https://github.com/jelmer/xandikos/issues/8
-    "norecurring",
-
-    ## As of 2020-05-17 it even returns a 500 internal server error
-    ## when one attempts to use the expand-flag in a date search
-    "noexpand",
 ]
 
 radicale = [
