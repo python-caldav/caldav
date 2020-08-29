@@ -1212,7 +1212,7 @@ class TestCalDAV:
     a small unit of code works as expected, without any third party
     dependencies)
     """
-    @mock.patch('requests.request')
+    @mock.patch('requests.Session.request')
     def testRequestNonAscii(self, mocked):
         """
         ref https://github.com/python-caldav/caldav/issues/83
