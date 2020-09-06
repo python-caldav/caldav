@@ -41,6 +41,11 @@ class FreeBusyQuery(BaseElement):
 class Mkcalendar(BaseElement):
     tag = ns("C", "mkcalendar")
 
+class CalendarMultiGet(BaseElement):
+    tag = ns("C", "calendar-multiget")
+
+
+
 
 # Filters
 class Filter(BaseElement):
