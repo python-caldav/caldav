@@ -535,6 +535,24 @@ class Calendar(DAVObject):
                 self.url = URL.objectify(str(self.url) + '/')
         return self
 
+    def calendar_multiget(self, event_urls):
+        """
+		get multiple events' data
+        @author mtorange@gmail.com
+        @type events list of Event
+        """
+        rv=[]
+        prop = dav.Prop() + cdav.CalendarData()
+        root = cdav.CalendarMultiGet() + prop + [dav.Href(value=u.path) for u in event_urls]
+        response = self._query(root, 1, 'report')
+        results = self._handle_prop_response(response=response, props=[cdav.CalendarData()])
+        for r in results:
+            rv.append(
+                Event(self.client, url=self.url.join(r), data=results[r][cdav.CalendarData.tag], parent=self))
+
+        return rv
+
+
     def build_date_search_query(self, start, end=None, compfilter="VEVENT", expand="maybe"):
         """
         Split out from the date_search-method below.  The idea is that
@@ -591,13 +609,16 @@ class Calendar(DAVObject):
         # build the query
         root = self.build_date_search_query(start, end, compfilter, expand)
 
+        if compfilter == 'VEVENT': comp_class=Event
+        else: comp_class = None
+
         ## xandikos now yields a 5xx-error when trying to pass
         ## expand=True, after I prodded the developer that it doesn't
         ## work.  By now there is some workaround in the test code to
         ## avoid sending expand=True to xandikos, but perhaps we
         ## should run a try-except-retry here with expand=False in the
         ## retry, and warnings logged ... or perhaps not.
-        return self.search(root)
+        return self.search(root, comp_class)
 
     def search(self, xml, comp_class=None):
         """
