@@ -505,6 +505,13 @@ class RepeatedFunctionalTestsBaseClass(object):
         c.save_event(None)
         assert_equal(len(c.events()), 1)
 
+    def testGetSupportedComponents(self):
+        c = self.principal.make_calendar(name="Yep", cal_id=self.testcal_id)
+        #import pdb; pdb.set_trace()
+        components = c.get_supported_components()
+        #assert(components)
+        #assert('VEVENT' in components)
+
     def testCreateJournalListAndJournalEntry(self):
         """
         This test demonstrates the support for journals.

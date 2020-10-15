@@ -90,7 +90,7 @@ class DAVObject(object):
 
         props = [dav.ResourceType(), dav.DisplayName()]
         response = self._query_properties(props, depth)
-        properties = self._handle_prop_response(
+        properties = self._handle_xml_response(
             response=response, props=props, type=type, what='tag')
 
         for path in list(properties.keys()):
@@ -171,12 +171,10 @@ class DAVObject(object):
             raise error.exception_by_method[query_method](errmsg(ret))
         return ret
 
-    def _handle_prop_response(self, response, props=[], type=None,
+    def _handle_xml_response(self, response, props=[], type=None,
                               what='text'):
         """
-        Internal method to massage an XML response into a dict.  (This
-        method is a result of some code refactoring work, attempting
-        to consolidate similar-looking code)
+        Internal method to massage an XML response into a dict.
         """
         properties = {}
         # All items should be in a <D:response> element
@@ -198,14 +196,19 @@ class DAVObject(object):
                 if t is None:
                     val = None
                 elif t is not None and list(t):
-                    if type is not None:
-                        val = t.find(".//" + type)
-                    else:
-                        val = t.find(".//*")
-                    if val is not None:
-                        val = getattr(val, what)
-                    else:
-                        val = None
+                    if len(list(t))>1:
+                        #import pdb; pdb.set_trace()
+                        #val = [getattr(x, what) or getattr(x, 'attrib') for x in t]
+                        pass
+                    if True:
+                        if type is not None:
+                            val = t.find(".//" + type)
+                        else:
+                            val = t.find(".//*")
+                        if val is not None:
+                            val = getattr(val, what) or getattr(val, 'attrib')
+                        else:
+                            val = None
                 else:
                     val = t.text
                 properties[href][p.tag] = val
@@ -225,7 +228,7 @@ class DAVObject(object):
         """
         rc = None
         response = self._query_properties(props, depth)
-        properties = self._handle_prop_response(response, props)
+        properties = self._handle_xml_response(response, props)
         path = unquote(self.url.path)
         if path.endswith('/'):
             exchange_path = path[:-1]
@@ -489,6 +492,9 @@ class Calendar(DAVObject):
                 except:
                     logging.warning("calendar server does not support display name on calendar?  Ignoring", exc_info=True)
 
+    def get_supported_components(self):
+        return self.get_properties([cdav.SupportedCalendarComponentSet()])
+
     def save_event(self, ical, no_overwrite=False, no_create=False):
         """
         Add a new event to the calendar, with the given ical.
@@ -610,7 +616,7 @@ class Calendar(DAVObject):
         """
         matches = []
         response = self._query(xml, 1, 'report')
-        results = self._handle_prop_response(
+        results = self._handle_xml_response(
             response=response, props=[cdav.CalendarData()])
         for r in results:
             data=results[r][cdav.CalendarData.tag]
