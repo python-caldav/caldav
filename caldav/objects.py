@@ -175,6 +175,11 @@ class DAVObject(object):
                               what='text'):
         """
         Internal method to massage an XML response into a dict.
+        Most of the lifting here has been moved to DAVClient.
+        The remaining part here attempts to crush out some
+        simple string object from the assumed leave nodes
+        in the XML response, it should work well for most
+        simple cases.
         """
         if not props:
             return {}
@@ -486,6 +491,10 @@ class Calendar(DAVObject):
                     logging.warning("calendar server does not support display name on calendar?  Ignoring", exc_info=True)
 
     def get_supported_components(self):
+        """
+        returns a list of component types supported by the calendar, in
+        string format (typically ['VJOURNAL', 'VTODO', 'VEVENT'])
+        """
         props = [cdav.SupportedCalendarComponentSet()]
         response = self.get_properties(props, parse_response_xml=False)
         response_list = response.strip_boilerplate(props)
