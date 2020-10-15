@@ -489,10 +489,11 @@ class Calendar(DAVObject):
         props = [cdav.SupportedCalendarComponentSet()]
         response = self.get_properties(props, parse_response_xml=False)
         response_list = response.strip_boilerplate(props)
-        #import pdb; pdb.set_trace()
-        for href in response_list:
-            pass
-        return response_list
+        ## This ... should probably be rewritten and explained.
+        return [
+            z.attrib['name'] for z in [
+                [y for y in x.values()] for x in
+                response_list.values()][0][0][0]]
 
     def save_event(self, ical, no_overwrite=False, no_create=False):
         """
