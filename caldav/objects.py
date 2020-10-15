@@ -176,33 +176,29 @@ class DAVObject(object):
         """
         Internal method to massage an XML response into a dict.
         """
+        if not props:
+            return {}
         properties = {}
-        responses = response.find_response_list()
+        responses = response.find_response_list(props)
         # All items should be in a <D:response> element
         for href in responses:
             properties[href] = {}
-            r = responses[href]
-            for p in props:
-                t = r.find(".//" + p.tag)
-                if t is None:
+            for tag in responses[href]:
+                t = responses[href][tag]
+                if not t or t[0] is None:
                     val = None
-                elif t is not None and list(t):
-                    if len(list(t))>1:
-                        #import pdb; pdb.set_trace()
-                        #val = [getattr(x, what) or getattr(x, 'attrib') for x in t]
-                        pass
-                    if True:
-                        if type is not None:
-                            val = t.find(".//" + type)
-                        else:
-                            val = t.find(".//*")
-                        if val is not None:
-                            val = getattr(val, what) or getattr(val, 'attrib')
-                        else:
-                            val = None
+                elif list(t[0]):
+                    if type is not None:
+                        val = t[0].find(".//" + type)
+                    else:
+                        val = t[0].find(".//*")
+                    if val is not None:
+                        val = getattr(val, what) or getattr(val, 'attrib')
+                    else:
+                        val = None
                 else:
-                    val = t.text
-                properties[href][p.tag] = val
+                    val = t[0].text
+                properties[href][tag] = val
 
         return properties
 
@@ -494,10 +490,10 @@ class Calendar(DAVObject):
         response = self.get_properties([cdav.SupportedCalendarComponentSet()],
                                        parse_response_xml=False)
         response_list = response.find_response_list()
-        return response_list
         #import pdb; pdb.set_trace()
-        #for href in response_list:
-        #    pass
+        for href in response_list:
+            pass
+        return response_list
 
     def save_event(self, ical, no_overwrite=False, no_create=False):
         """

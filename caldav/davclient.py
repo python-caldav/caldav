@@ -55,11 +55,12 @@ class DAVResponse:
         except:
             self.tree = None
 
-    def find_response_list(self):
+    def find_response_list(self, properties=[]):
         """
         Will search for a response tag in the response xml block, scan
         through the status codes and make a list of subresponses, with
-        a href for each subresponse
+        a href for each subresponse.  If properties is given, filters
+        away everything except the wanted properties.
         """
         self.responses = {}
         for r in self.tree.findall('.//' + dav.Response.tag):
@@ -73,7 +74,12 @@ class DAVResponse:
                     ' 404 ' not in status.text):
                     raise error.ResponseError(errmsg(response))
             href = unquote(r.find('.//' + dav.Href.tag).text)
-            self.responses[href] = r
+            if not properties:
+                self.responses[href] = r
+            else:
+                self.responses[href] = {}
+                for p in properties:
+                    self.responses[href][p.tag] = r.findall('.//' + p.tag)
         return self.responses
 
 
