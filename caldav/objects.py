@@ -179,8 +179,7 @@ class DAVObject(object):
         if not props:
             return {}
         properties = {}
-        responses = response.find_response_list(props)
-        # All items should be in a <D:response> element
+        responses = response.strip_boilerplate(props)
         for href in responses:
             properties[href] = {}
             for tag in responses[href]:
@@ -487,9 +486,9 @@ class Calendar(DAVObject):
                     logging.warning("calendar server does not support display name on calendar?  Ignoring", exc_info=True)
 
     def get_supported_components(self):
-        response = self.get_properties([cdav.SupportedCalendarComponentSet()],
-                                       parse_response_xml=False)
-        response_list = response.find_response_list()
+        props = [cdav.SupportedCalendarComponentSet()]
+        response = self.get_properties(props, parse_response_xml=False)
+        response_list = response.strip_boilerplate(props)
         #import pdb; pdb.set_trace()
         for href in response_list:
             pass

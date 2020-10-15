@@ -55,12 +55,19 @@ class DAVResponse:
         except:
             self.tree = None
 
-    def find_response_list(self, properties=[]):
-        """
-        Will search for a response tag in the response xml block, scan
-        through the status codes and make a list of subresponses, with
-        a href for each subresponse.  If properties is given, filters
-        away everything except the wanted properties.
+    def strip_boilerplate(self, properties=[]):
+        """All responses from the server should contain a <response>-block,
+        this block should contain statuses and more data.  The
+        properties we've requested will be in a property block tagged
+        with said property.  The properties will also be tagged with a href.
+
+        This method will do a quick status verification, strip away lots of
+        boilerplate XML that the caller most likely won't need, and return 
+        a dict on this form: {href: {property_tag: [xmlelement]}}
+
+        (Most likely the list around xmlelement is redundant, there
+        will be only one xmlelement, not a list of them, but the
+        xmlelement itself is a list)
         """
         self.responses = {}
         for r in self.tree.findall('.//' + dav.Response.tag):
