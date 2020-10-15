@@ -8,6 +8,8 @@ import six
 from caldav.lib.python_utilities import to_wire, to_unicode, to_normal_str
 from lxml import etree
 
+from caldav.elements import dav, cdav, ical
+
 from caldav.lib import error
 from caldav.lib.url import URL
 from caldav.objects import Principal
@@ -52,6 +54,40 @@ class DAVResponse:
             self.tree = etree.XML(self.raw)
         except:
             self.tree = None
+
+    def strip_boilerplate(self, properties=[]):
+        """All responses from the server should contain a <response>-block,
+        this block should contain statuses and more data.  The
+        properties we've requested will be in a property block tagged
+        with said property.  The properties will also be tagged with a href.
+
+        This method will do a quick status verification, strip away lots of
+        boilerplate XML that the caller most likely won't need, and return 
+        a dict on this form: {href: {property_tag: [xmlelement]}}
+
+        (Most likely the list around xmlelement is redundant, there
+        will be only one xmlelement, not a list of them, but the
+        xmlelement itself is a list)
+        """
+        self.responses = {}
+        for r in self.tree.findall('.//' + dav.Response.tag):
+            status = r.find('.//' + dav.Status.tag)
+            ## TODO: status should never be None, this needs more research.
+            ## added here as it solves real-world issues, ref
+            ## https://github.com/python-caldav/caldav/pull/56
+            if status is not None:
+                if (' 200 ' not in status.text and
+                    ' 207 ' not in status.text and
+                    ' 404 ' not in status.text):
+                    raise error.ResponseError(errmsg(response))
+            href = unquote(r.find('.//' + dav.Href.tag).text)
+            if not properties:
+                self.responses[href] = r
+            else:
+                self.responses[href] = {}
+                for p in properties:
+                    self.responses[href][p.tag] = r.findall('.//' + p.tag)
+        return self.responses
 
 
 class DAVClient:

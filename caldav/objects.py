@@ -90,7 +90,7 @@ class DAVObject(object):
 
         props = [dav.ResourceType(), dav.DisplayName()]
         response = self._query_properties(props, depth)
-        properties = self._handle_prop_response(
+        properties = self._handle_xml_response(
             response=response, props=props, type=type, what='tag')
 
         for path in list(properties.keys()):
@@ -171,51 +171,54 @@ class DAVObject(object):
             raise error.exception_by_method[query_method](errmsg(ret))
         return ret
 
-    def _handle_prop_response(self, response, props=[], type=None,
+    def _handle_xml_response(self, response, props=[], type=None,
                               what='text'):
         """
-        Internal method to massage an XML response into a dict.  (This
-        method is a result of some code refactoring work, attempting
-        to consolidate similar-looking code)
+        Internal method to massage an XML response into a dict.
+        Most of the lifting here has been moved to DAVClient.
+        The remaining part here attempts to crush out some
+        simple string object from the assumed leave nodes
+        in the XML response, it should work well for most
+        simple cases.
         """
+        if not props:
+            return {}
         properties = {}
-        # All items should be in a <D:response> element
-        for r in response.tree.findall('.//' + dav.Response.tag):
-            status = r.find('.//' + dav.Status.tag)
-            ## TODO: status should never be None, this needs more research.
-            ## added here as it solves real-world issues, ref
-            ## https://github.com/python-caldav/caldav/pull/56
-            if status is not None:
-                if (' 200 ' not in status.text and
-                    ' 207 ' not in status.text and
-                    ' 404 ' not in status.text):
-                    raise error.ReportError(errmsg(response))
-                    # TODO: may be wrong error class
-            href = unquote(r.find('.//' + dav.Href.tag).text)
+        responses = response.strip_boilerplate(props)
+        for href in responses:
             properties[href] = {}
-            for p in props:
-                t = r.find(".//" + p.tag)
-                if t is None:
+            for tag in responses[href]:
+                t = responses[href][tag]
+                if t:
+                    ## I think there never should never be more than
+                    ## one property-block for a given property.  Said
+                    ## property block may contain a list, though.
+                    assert len(t)==1
+                if not t or t[0] is None:
                     val = None
-                elif t is not None and list(t):
+                elif list(t[0]):
                     if type is not None:
-                        val = t.find(".//" + type)
+                        val = t[0].find(".//" + type)
                     else:
-                        val = t.find(".//*")
+                        val = t[0].find(".//*")
                     if val is not None:
-                        val = getattr(val, what)
+                        val = getattr(val, what) or getattr(val, 'attrib')
                     else:
                         val = None
                 else:
-                    val = t.text
-                properties[href][p.tag] = val
+                    val = t[0].text
+                properties[href][tag] = val
 
         return properties
 
-    def get_properties(self, props=None, depth=0):
+    def get_properties(self, props=None, depth=0, parse_response_xml=True):
         """
-        Get properties (PROPFIND) for this object. Works only for
-        properties, that don't have complex types.
+        Get properties (PROPFIND) for this object.  With
+        parse_response_xml set to True a best-attempt will be done on
+        decoding the XML we get from the server - but this works only
+        for properties that don't have complex types.  With
+        parse_response_xml set to False, a DAVResponse object will be
+        returned, and it's up to the caller to decode it
 
         Parameters:
          * props = [dav.ResourceType(), dav.DisplayName(), ...]
@@ -225,7 +228,10 @@ class DAVObject(object):
         """
         rc = None
         response = self._query_properties(props, depth)
-        properties = self._handle_prop_response(response, props)
+        if not parse_response_xml:
+            return response
+
+        properties = self._handle_xml_response(response, props)
         path = unquote(self.url.path)
         if path.endswith('/'):
             exchange_path = path[:-1]
@@ -489,6 +495,20 @@ class Calendar(DAVObject):
                 except:
                     logging.warning("calendar server does not support display name on calendar?  Ignoring", exc_info=True)
 
+    def get_supported_components(self):
+        """
+        returns a list of component types supported by the calendar, in
+        string format (typically ['VJOURNAL', 'VTODO', 'VEVENT'])
+        """
+        props = [cdav.SupportedCalendarComponentSet()]
+        response = self.get_properties(props, parse_response_xml=False)
+        response_list = response.strip_boilerplate(props)
+        ## This ... should probably be rewritten and explained.
+        return [
+            z.attrib['name'] for z in [
+                [y for y in x.values()] for x in
+                response_list.values()][0][0][0]]
+
     def save_event(self, ical, no_overwrite=False, no_create=False):
         """
         Add a new event to the calendar, with the given ical.
@@ -631,7 +651,7 @@ class Calendar(DAVObject):
         """
         matches = []
         response = self._query(xml, 1, 'report')
-        results = self._handle_prop_response(
+        results = self._handle_xml_response(
             response=response, props=[cdav.CalendarData()])
         for r in results:
             data=results[r][cdav.CalendarData.tag]
