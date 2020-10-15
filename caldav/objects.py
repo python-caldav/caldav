@@ -206,10 +206,14 @@ class DAVObject(object):
 
         return properties
 
-    def get_properties(self, props=None, depth=0):
+    def get_properties(self, props=None, depth=0, parse_response_xml=True):
         """
-        Get properties (PROPFIND) for this object. Works only for
-        properties, that don't have complex types.
+        Get properties (PROPFIND) for this object.  With
+        parse_response_xml set to True a best-attempt will be done on
+        decoding the XML we get from the server - but this works only
+        for properties that don't have complex types.  With
+        parse_response_xml set to False, a DAVResponse object will be
+        returned, and it's up to the caller to decode it
 
         Parameters:
          * props = [dav.ResourceType(), dav.DisplayName(), ...]
@@ -219,6 +223,9 @@ class DAVObject(object):
         """
         rc = None
         response = self._query_properties(props, depth)
+        if not parse_response_xml:
+            return response
+
         properties = self._handle_xml_response(response, props)
         path = unquote(self.url.path)
         if path.endswith('/'):
@@ -484,7 +491,13 @@ class Calendar(DAVObject):
                     logging.warning("calendar server does not support display name on calendar?  Ignoring", exc_info=True)
 
     def get_supported_components(self):
-        return self.get_properties([cdav.SupportedCalendarComponentSet()])
+        response = self.get_properties([cdav.SupportedCalendarComponentSet()],
+                                       parse_response_xml=False)
+        response_list = response.find_response_list()
+        return response_list
+        #import pdb; pdb.set_trace()
+        #for href in response_list:
+        #    pass
 
     def save_event(self, ical, no_overwrite=False, no_create=False):
         """
