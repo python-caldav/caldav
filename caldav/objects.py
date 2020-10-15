@@ -177,20 +177,11 @@ class DAVObject(object):
         Internal method to massage an XML response into a dict.
         """
         properties = {}
+        responses = response.find_response_list()
         # All items should be in a <D:response> element
-        for r in response.tree.findall('.//' + dav.Response.tag):
-            status = r.find('.//' + dav.Status.tag)
-            ## TODO: status should never be None, this needs more research.
-            ## added here as it solves real-world issues, ref
-            ## https://github.com/python-caldav/caldav/pull/56
-            if status is not None:
-                if (' 200 ' not in status.text and
-                    ' 207 ' not in status.text and
-                    ' 404 ' not in status.text):
-                    raise error.ReportError(errmsg(response))
-                    # TODO: may be wrong error class
-            href = unquote(r.find('.//' + dav.Href.tag).text)
+        for href in responses:
             properties[href] = {}
+            r = responses[href]
             for p in props:
                 t = r.find(".//" + p.tag)
                 if t is None:
