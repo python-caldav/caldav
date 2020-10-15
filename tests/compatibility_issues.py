@@ -6,6 +6,9 @@
 ## in the documentation on everything.
 
 xandikos = [
+    ## TEMP TEMP TEMP - TODO - should be investigated
+    ## (perhaps my xandikos version is too old?)
+    "noexpand", "norecurring"
 ]
 
 radicale = [
