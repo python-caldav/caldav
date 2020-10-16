@@ -189,6 +189,11 @@ class DAVObject(object):
             properties[href] = {}
             for tag in responses[href]:
                 t = responses[href][tag]
+                if t:
+                    ## I think there never should never be more than
+                    ## one property-block for a given property.  Said
+                    ## property block may contain a list, though.
+                    assert len(t)==1
                 if not t or t[0] is None:
                     val = None
                 elif list(t[0]):
