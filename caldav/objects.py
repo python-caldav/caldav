@@ -912,7 +912,11 @@ class Calendar(DAVObject):
         sync_token = response.tree.findall('.//' + dav.SyncToken.tag)[0].text
         if load_objects:
             for obj in objects:
-                obj.load()
+                try:
+                    obj.load()
+                except error.NotFoundError:
+                    ## The object was deleted
+                    pass
         return CalendarCollection(calendar=self, objects=objects, sync_token=sync_token)
 
     def journals(self):

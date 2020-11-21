@@ -508,6 +508,15 @@ class RepeatedFunctionalTestsBaseClass(object):
         my_objects = c.objects_by_sync_token(sync_token=my_objects.sync_token)
         if not self.server_params.get('fragilesynctokens', False):
             assert_equal(len(list(my_objects)), 0)
+
+        ## Deleting the object.
+        obj.delete()
+        my_objects = c.objects_by_sync_token(sync_token=my_objects.sync_token, load_objects=True)
+        if not self.server_params.get('fragilesynctokens', False):
+            assert_equal(len(list(my_objects)), 1)
+        my_objects = c.objects_by_sync_token(sync_token=my_objects.sync_token)
+        if not self.server_params.get('fragilesynctokens', False):
+            assert_equal(len(list(my_objects)), 0)
         
     def testLoadEvent(self):
         ## This didn't work out very well on my zimbra.
