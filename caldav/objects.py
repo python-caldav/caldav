@@ -900,7 +900,19 @@ class Calendar(DAVObject):
 
     def objects_by_sync_token(self, sync_token=None, load_objects=False):
         """
-        do a sync-collection report, ref RFC 6578
+        Do a sync-collection report, ref RFC 6578 and
+        https://github.com/python-caldav/caldav/issues/87
+
+        This method will return all objects in the calendar, if
+        sync_token is set to None.  If a sync-token is set and it's
+        known by the server, it will return objects that are added,
+        deleted or modified since last time the sync-token was set.
+
+        If load_objects is set to True, the objects will be loaded -
+        otherwise empty CalendarResourceObjects will be returned.
+
+        This method will return a CalendarCollection object, which is
+        an iterable.
         """
         cmd = dav.SyncCollection()
         token = dav.SyncToken(value=sync_token)
@@ -939,6 +951,13 @@ class Calendar(DAVObject):
         return self.search(root, comp_class=Journal)
 
 class CalendarCollection(object):
+    """
+    This class may hold a cached snapshot of a calendar, and changes
+    in the calendar can easily be copied over through the sync method.
+
+    To create a CalendarCollection object, use
+    calendar.objects_by_sync_token(load_objects=True)
+    """
     def __init__(self, calendar, objects, sync_token):
         self.calendar = calendar
         self.sync_token = sync_token
@@ -949,6 +968,9 @@ class CalendarCollection(object):
         return self.objects.__iter__()
 
     def objects_by_url(self):
+        """
+        returns a dict of the contents of the CalendarCollection, URLs -> objects.
+        """
         if self._objects_by_url is None:
             self._objects_by_url = {}
             for obj in self:
@@ -956,6 +978,10 @@ class CalendarCollection(object):
         return self._objects_by_url
 
     def sync(self):
+        """
+        This method will contact the caldav server,
+        request all changes from it, and sync up the collection
+        """
         updates = self.calendar.objects_by_sync_token(self.sync_token)
         obu = self.objects_by_url()
         for obj in updates:
