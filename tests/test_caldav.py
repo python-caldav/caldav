@@ -477,6 +477,8 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert_not_equal(my_objects.sync_token, '')
         assert_equal(len(list(my_objects)), objcnt)
 
+        first_sync = my_objects
+
         ## They should not be loaded.
         for some_obj in my_objects:
             assert(some_obj.data is None)
@@ -500,7 +502,7 @@ class RepeatedFunctionalTestsBaseClass(object):
             assert_equal(len(list(my_objects)), 0)
 
         ## adding yet another object ... and it should also be reported
-        c.save_event(ev3)
+        obj3 = c.save_event(ev3)
 
         my_objects = c.objects_by_sync_token(sync_token=my_objects.sync_token)
         if not self.server_params.get('fragilesynctokens', False):
@@ -517,7 +519,16 @@ class RepeatedFunctionalTestsBaseClass(object):
         my_objects = c.objects_by_sync_token(sync_token=my_objects.sync_token)
         if not self.server_params.get('fragilesynctokens', False):
             assert_equal(len(list(my_objects)), 0)
+
+        first_sync.sync()
+        obj_by_url = {}
         
+        for some_obj in first_sync:
+            obj_by_url[str(some_obj.url)] = some_obj
+
+        assert(str(obj3.url) in obj_by_url) ## obj3 was added
+        assert(not str(obj.url) in obj_by_url) ## obj was deleted
+
     def testLoadEvent(self):
         ## This didn't work out very well on my zimbra.
         c1 = self.principal.make_calendar(name="Yep", cal_id=self.testcal_id)

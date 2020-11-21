@@ -943,9 +943,30 @@ class CalendarCollection(object):
         self.calendar = calendar
         self.sync_token = sync_token
         self.objects = objects
+        self._objects_by_url = None
 
     def __iter__(self):
         return self.objects.__iter__()
+
+    def objects_by_url(self):
+        if self._objects_by_url is None:
+            self._objects_by_url = {}
+            for obj in self:
+                self._objects_by_url[str(obj.url)] = obj
+        return self._objects_by_url
+
+    def sync(self):
+        updates = self.calendar.objects_by_sync_token(self.sync_token)
+        obu = self.objects_by_url()
+        for obj in updates:
+            if str(obj.url) in obu:
+                try:
+                    obj.load()
+                except error.NotFoundError:
+                    obu.pop(str(obj.url))
+            else:
+                obu[str(obj.url)] = obj
+        self.objects = obu.values()
 
 class CalendarObjectResource(DAVObject):
     """
