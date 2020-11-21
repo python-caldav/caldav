@@ -640,13 +640,12 @@ class Calendar(DAVObject):
         ## retry, and warnings logged ... or perhaps not.
         return self.search(root, comp_class)
 
-    def search(self, xml, comp_class=None):
+    def _request_report_build_resultlist(self, xml, comp_class=None):
         """
         Takes some input XML, does a report query on a calendar object
-        and returns the resource objects found.  Partly solves 
-        https://github.com/python-caldav/caldav/issues/16
+        and returns the resource objects found.
 
-        TODO: this code is duplicated many places, we ought to do more code
+        TODO: similar code is duplicated many places, we ought to do even more code
         refactoring
         """
         matches = []
@@ -672,7 +671,17 @@ class Calendar(DAVObject):
                 comp_class(self.client, url=self.url.join(r),
                            data=data, parent=self))
 
-        return matches
+        return (response, matches)
+
+    def search(self, xml, comp_class=None):
+        """
+        This method was partly written to approach
+        https://github.com/python-caldav/caldav/issues/16 This is a
+        result of some code refactoring, and after the next round of
+        refactoring we've ended up with this:
+        """
+        (response, objects) = self._request_report_build_resultlist(xml, comp_class)
+        return objects
 
     def freebusy_request(self, start, end):
         """
@@ -802,6 +811,10 @@ class Calendar(DAVObject):
         return matches
 
     def _calendar_comp_class_by_data(self, data):
+        if data is None:
+            ## no data received - we'd need to load it before we can know what
+            ## class it really is.  Assign the base class as for now.
+            return CalendarObjectResource
         for line in data.split('\n'):
             line = line.strip()
             if line == 'BEGIN:VEVENT':
@@ -885,6 +898,23 @@ class Calendar(DAVObject):
         
         return self.search(root, comp_class=Event)
 
+    def objects_by_sync_token(self, sync_token=None, load_objects=False):
+        """
+        do a sync-collection report, ref RFC 6578
+        """
+        cmd = dav.SyncCollection()
+        token = dav.SyncToken(value=sync_token)
+        level = dav.SyncLevel(value='1')
+        props = dav.Prop() + dav.GetEtag()
+        root = cmd + [level, token, props]
+        ## here be dragons - self.search probably won't handle 404s like they should be handled
+        (response, objects) = self._request_report_build_resultlist(root)
+        sync_token = response.tree.findall('.//' + dav.SyncToken.tag)[0].text
+        if load_objects:
+            for obj in objects:
+                obj.load()
+        return CalendarCollection(calendar=self, objects=objects, sync_token=sync_token)
+
     def journals(self):
         """
         List all journals from the calendar.
@@ -903,6 +933,15 @@ class Calendar(DAVObject):
         root = cdav.CalendarQuery() + [prop, filter]
 
         return self.search(root, comp_class=Journal)
+
+class CalendarCollection(object):
+    def __init__(self, calendar, objects, sync_token):
+        self.calendar = calendar
+        self.sync_token = sync_token
+        self.objects = objects
+
+    def __iter__(self):
+        return self.objects.__iter__()
 
 class CalendarObjectResource(DAVObject):
     """
@@ -1120,7 +1159,6 @@ class CalendarObjectResource(DAVObject):
     ## for backward-compatibility - may be changed to
     ## icalendar_instance in version 1.0
     instance = vobject_instance
-
 
 class Event(CalendarObjectResource):
     """

@@ -17,9 +17,17 @@ class PropertyUpdate(BaseElement):
 class Mkcol(BaseElement):
     tag = ns("D", "mkcol")
 
+class SyncCollection(BaseElement):
+    tag = ns("D", "sync-collection")
+
 # Filters
 
 # Conditions
+class SyncToken(BaseElement):
+    tag = ns("D", "sync-token")
+
+class SyncLevel(BaseElement):
+    tag = ns("D", "sync-level")
 
 # Components / Data
 
@@ -47,7 +55,6 @@ class DisplayName(ValuedBaseElement):
 
 class GetEtag(ValuedBaseElement):
     tag = ns("D", "getetag")
-
 
 class Href(BaseElement):
     tag = ns("D", "href")

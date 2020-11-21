@@ -77,6 +77,19 @@ END:VEVENT
 END:VCALENDAR
 """
 
+ev3 = """BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Example Corp.//CalDAV Client//EN
+BEGIN:VEVENT
+UID:20080712T182145Z-123401@example.com
+DTSTAMP:20210712T182145Z
+DTSTART:20210714T170000Z
+DTEND:20060715T040000Z
+SUMMARY:Bastille Day Jitsi Party
+END:VEVENT
+END:VCALENDAR
+"""
+
 # example from http://www.rfc-editor.org/rfc/rfc5545.txt
 evr = """BEGIN:VCALENDAR
 VERSION:2.0
@@ -442,6 +455,60 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert_equal(len(events2), 1)
         assert_equal(events2[0].url, events[0].url)
 
+    def testObjectBySyncToken(self):
+        """
+        Support for sync-collection reports, ref https://github.com/python-caldav/caldav/issues/87
+        """
+        ## Boiler plate ... make a calendar and add some content
+        c = self.principal.make_calendar(name="Yep", cal_id=self.testcal_id)
+        obj = c.save_event(ev1)
+        objcnt = 1
+        if not self.server_params.get('norecurring', False):
+            c.save_event(evr)
+            objcnt += 1
+        if not self.server_params.get('notodo', False):
+            c.save_todo(todo)
+            c.save_todo(todo2)
+            c.save_todo(todo3)
+            objcnt += 3
+
+        ## objects_by_sync_token should return all 5 object.
+        my_objects = c.objects_by_sync_token()
+        assert_not_equal(my_objects.sync_token, '')
+        assert_equal(len(list(my_objects)), objcnt)
+
+        ## They should not be loaded.
+        for some_obj in my_objects:
+            assert(some_obj.data is None)
+
+        ## running sync_token again with the new token should return 0 hits
+        my_objects = c.objects_by_sync_token(sync_token=my_objects.sync_token)
+        if not self.server_params.get('fragilesynctokens', False):
+            assert_equal(len(list(my_objects)), 0)
+
+        ## modifying an object ... and it should be returned by the server
+        obj.icalendar_instance.subcomponents[0]['SUMMARY'] = 'foobar'
+        obj.save()
+
+        my_objects = c.objects_by_sync_token(sync_token=my_objects.sync_token, load_objects=True)
+        if not self.server_params.get('fragilesynctokens', False):
+            assert_equal(len(list(my_objects)), 1)
+        ## this time it should be loaded
+        assert(list(my_objects)[0].data is not None)
+        my_objects = c.objects_by_sync_token(sync_token=my_objects.sync_token)
+        if not self.server_params.get('fragilesynctokens', False):
+            assert_equal(len(list(my_objects)), 0)
+
+        ## adding yet another object ... and it should also be reported
+        c.save_event(ev3)
+
+        my_objects = c.objects_by_sync_token(sync_token=my_objects.sync_token)
+        if not self.server_params.get('fragilesynctokens', False):
+            assert_equal(len(list(my_objects)), 1)
+        my_objects = c.objects_by_sync_token(sync_token=my_objects.sync_token)
+        if not self.server_params.get('fragilesynctokens', False):
+            assert_equal(len(list(my_objects)), 0)
+        
     def testLoadEvent(self):
         ## This didn't work out very well on my zimbra.
         c1 = self.principal.make_calendar(name="Yep", cal_id=self.testcal_id)

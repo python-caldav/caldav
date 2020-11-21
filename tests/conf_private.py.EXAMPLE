@@ -36,8 +36,9 @@ caldav_servers = [
 	#'norecurring': True,
 	#'norecurringexpandation': True,
 	#'noexpand': True,
-	#'calendarcolor': True
-	#'calendarorder': True
+	#'calendarcolor': True,
+	#'calendarorder': True,
+	#'fragilesynctokens': True
     }]
 
 ## MASTER SWITCHES FOR TEST SERVER SETUP
