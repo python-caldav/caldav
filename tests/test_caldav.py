@@ -349,13 +349,18 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert('Calendar' in repr(c))
 
     def testProxy(self):
-        if self.caldav.url.scheme == 'https' or 'noproxy' in self.server_params:
+        if self.caldav.url.scheme == 'https':
             raise SkipTest("Skipping %s.testProxy as the TinyHTTPProxy "
                            "implementation doesn't support https")
-
+        if 'noproxy' in self.server_params:
+            raise SkipTest("Skipping %s.testProxy as per configuration ")
+ 
         server_address = ('127.0.0.1', 8080)
-        proxy_httpd = NonThreadingHTTPServer(
-            server_address, ProxyHandler, logging.getLogger("TinyHTTPProxy"))
+        try:
+            proxy_httpd = NonThreadingHTTPServer(
+                server_address, ProxyHandler, logging.getLogger("TinyHTTPProxy"))
+        except:
+            raise SkipTest("Unable to set up proxy server")
 
         threadobj = threading.Thread(target=proxy_httpd.serve_forever)
         try:

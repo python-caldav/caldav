@@ -57,6 +57,9 @@ except ImportError:
     except:
         test_radicale = False
 
+proxy = "127.0.0.1:8080"
+proxy_noport = "127.0.0.1"
+        
 #####################
 # Public test servers
 #####################
@@ -108,5 +111,3 @@ if False:
         "noproxy": True
     })
 
-proxy = "127.0.0.1:8080"
-proxy_noport = "127.0.0.1"
