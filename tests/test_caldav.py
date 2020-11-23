@@ -84,7 +84,7 @@ BEGIN:VEVENT
 UID:20080712T182145Z-123401@example.com
 DTSTAMP:20210712T182145Z
 DTSTART:20210714T170000Z
-DTEND:20060715T040000Z
+DTEND:20210715T040000Z
 SUMMARY:Bastille Day Jitsi Party
 END:VEVENT
 END:VCALENDAR
@@ -286,6 +286,11 @@ class RepeatedFunctionalTestsBaseClass(object):
                       "last time tests were run")
         self._teardown()
 
+        if self.server_params.get('object_by_uid_is_broken', False):
+            import caldav.objects
+            caldav.objects.NotImplemented = SkipTest
+
+        
         logging.debug("##############################")
         logging.debug("############## test setup done")
         logging.debug("##############################")
@@ -308,6 +313,12 @@ class RepeatedFunctionalTestsBaseClass(object):
                 ## TODO: why do we need a name here?  id is supposed to be unique, isn't it?
                 cal = self.principal.calendar(name=combo[0],
                                               cal_id=combo[1])
+                if self.server_params.get('stickyevents', False):
+                    try:
+                        for goo in cal.objects_by_sync_token():
+                            goo.delete()
+                    except:
+                        pass
                 cal.delete()
             except:
                 pass
@@ -423,10 +434,6 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert_equal(len(events), 0)
         events = self.principal.calendar(
             name="Yep", cal_id=self.testcal_id).events()
-        # huh ... we're quite constantly getting out a list with one item,
-        # the URL for the caldav server.  This needs to be investigated,
-        # it is surely a bug in our code.
-        # Anyway, better to ignore it now than to have broken test code.
         assert_equal(len(events), 0)
         c.delete()
 
@@ -441,6 +448,8 @@ class RepeatedFunctionalTestsBaseClass(object):
 
     def testCreateCalendarAndEvent(self):
         c = self.principal.make_calendar(name="Yep", cal_id=self.testcal_id)
+        no_events = c.events()
+        assert_equal(len(no_events), 0)
 
         # add event
         c.save_event(ev1)
@@ -545,31 +554,31 @@ class RepeatedFunctionalTestsBaseClass(object):
         c2 = self.principal.make_calendar(name="Yapp", cal_id=self.testcal_id2)
         e1_ = c1.save_event(ev1)
         e1 = c1.events()[0]
-
+ 
         if not self.server_params.get('duplicates_not_allowed', False):
-            ## Duplicate the event in the same calendar, with new uid
+           ## Duplicate the event in the same calendar, with new uid
             e1_dup = e1.copy()
             e1_dup.save()
             assert_equal(len(c1.events()), 2)
-
-        ## Duplicate the event in the other calendar, with same uid
-        e1_in_c2 = e1.copy(new_parent=c2, keep_uid=True)
-        e1_in_c2.save()
-        if not self.server_params.get('duplicate_in_other_calendar_with_same_uid_is_lost', False):
-            assert_equal(len(c2.events()), 1)
-
-            ## what will happen with the event in c1 if we modify the event in c2,
-            ## which shares the id with the event in c1?
-            e1_in_c2.instance.vevent.summary.value = 'asdf'
+ 
+        if not self.server_params.get('cross_calendar_duplicate_not_allowed', False):
+            e1_in_c2 = e1.copy(new_parent=c2, keep_uid=True)
             e1_in_c2.save()
-            e1.load()
-            ## should e1.summary be 'asdf' or 'Bastille Day Party'?  I do
-            ## not know, but all implementations I've tested will treat
-            ## the copy in the other calendar as a distinct entity, even
-            ## if the uid is the same.
-            assert_equal(e1.instance.vevent.summary.value, 'Bastille Day Party')
-            assert_equal(c2.events()[0].instance.vevent.uid,
-                         e1.instance.vevent.uid)
+            if not self.server_params.get('duplicate_in_other_calendar_with_same_uid_is_lost', False):
+                assert_equal(len(c2.events()), 1)
+
+                ## what will happen with the event in c1 if we modify the event in c2,
+                ## which shares the id with the event in c1?
+                e1_in_c2.instance.vevent.summary.value = 'asdf'
+                e1_in_c2.save()
+                e1.load()
+                ## should e1.summary be 'asdf' or 'Bastille Day Party'?  I do
+                ## not know, but all implementations I've tested will treat
+                ## the copy in the other calendar as a distinct entity, even
+                ## if the uid is the same.
+                assert_equal(e1.instance.vevent.summary.value, 'Bastille Day Party')
+                assert_equal(c2.events()[0].instance.vevent.uid,
+                             e1.instance.vevent.uid)
 
         ## Duplicate the event in the same calendar, with same uid -
         ## this makes no sense, there won't be any duplication
@@ -862,9 +871,9 @@ class RepeatedFunctionalTestsBaseClass(object):
             ev1.replace("Bastille Day Party", "Bringebærsyltetøyfestival"))
 
         events = c.events()
-        todos = c.todos()
-
-        assert_equal(len(todos), 0)
+        if not self.server_params.get('notodo', False):
+            todos = c.todos()
+            assert_equal(len(todos), 0)
 
         # COMPATIBILITY PROBLEM - todo, look more into it
         if 'zimbra' not in str(c.url):

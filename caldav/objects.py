@@ -186,7 +186,12 @@ class DAVObject(object):
         properties = {}
         responses = response.strip_boilerplate(props)
         for href in responses:
+            ## icloud returns the collection URL sometimes. It should be skipped.
+            ## TODO: need to do more research on weather this is allowed according
+            ## to the standard, and if there are more appropriate ways to deal with
+            ## this.
             properties[href] = {}
+            icloud_hack = False
             for tag in responses[href]:
                 t = responses[href][tag]
                 if t:
@@ -207,7 +212,13 @@ class DAVObject(object):
                         val = None
                 else:
                     val = t[0].text
-                properties[href][tag] = val
+                ## icloud sends the identity URL ... annoying
+                if val is None and tag.endswith('}calendar-data') and href.strip('/') in (self.url.strip_trailing_slash(), self.url.path.strip('/')):
+                    icloud_hack = True
+                else:
+                    properties[href][tag] = val
+            if icloud_hack and not properties[href]:
+                properties.pop(href)
 
         return properties
 
@@ -854,7 +865,12 @@ class Calendar(DAVObject):
 
         root = cdav.CalendarQuery() + [prop, filter]
 
-        items_found = self.search(root)
+        try:
+            items_found = self.search(root)
+        except error.NotFoundError:
+            raise
+        except Exception as err:
+            raise NotImplemented("The object_by_uid is not compatible with some server implementations.  work in progress.")
 
         # Ref Lucas Verney, we've actually done a substring search, if the
         # uid given in the query is short (i.e. just "0") we're likely to

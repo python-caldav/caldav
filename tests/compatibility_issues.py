@@ -81,9 +81,21 @@ baikal = [
 
 ]
 
+icloud = [
+    'unique_calendar_ids',
+    'cross_calendar_duplicate_not_allowed',
+    'stickyevents',
+    'nojournal', ## it threw a 500 internal server error!
+    'notodo',
+    'nofreebusy',
+    'norecurring',
+    'nopropfind',
+    'object_by_uid_is_broken'
+    ]
+
 ## The version of davical I'm testing towards is very old, so this list may be outdated
 davical = [
     'nofreebusy',
-    'vtodo_datesearch_nodtstart_task_is_skipped'
+    'vtodo_datesearch_nodtstart_task_is_skipped',
 ]
 
