@@ -81,6 +81,7 @@ baikal = [
 
 ]
 
+## See comments on https://github.com/python-caldav/caldav/issues/3
 icloud = [
     'unique_calendar_ids',
     'cross_calendar_duplicate_not_allowed',
