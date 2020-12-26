@@ -870,7 +870,7 @@ class Calendar(DAVObject):
         except error.NotFoundError:
             raise
         except Exception as err:
-            raise NotImplemented("The object_by_uid is not compatible with some server implementations.  work in progress.")
+            raise NotImplementedError("The object_by_uid is not compatible with some server implementations.  work in progress.")
 
         # Ref Lucas Verney, we've actually done a substring search, if the
         # uid given in the query is short (i.e. just "0") we're likely to

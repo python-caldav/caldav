@@ -100,3 +100,9 @@ davical = [
     'vtodo_datesearch_nodtstart_task_is_skipped',
 ]
 
+google = [
+    'nomkcalendar',
+    'nooverwrite',
+    'notodo',
+    'norecurringexpandation'
+]
