@@ -73,6 +73,9 @@ class URL:
             other = other.canonical()
         return str(me) == str(other)
 
+    def __hash__(self):
+        return hash(str(self))
+
     # TODO: better naming?  Will return url if url is already an URL
     # object, else will instantiate a new URL object
     @classmethod

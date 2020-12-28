@@ -48,7 +48,7 @@ class DAVObject(object):
     parent = None
     name = None
 
-    def __init__(self, client=None, url=None, parent=None, name=None, id=None,
+    def __init__(self, client=None, url=None, parent=None, name=None, id=None, props=None,
                  **extra):
         """
         Default constructor.
@@ -67,6 +67,10 @@ class DAVObject(object):
         self.parent = parent
         self.name = name
         self.id = id
+        if props is None:
+            self.props = {}
+        else:
+            self.props = props
         self.extra_init_options = extra
         # url may be a path relative to the caldav root
         if client and url:
@@ -90,7 +94,7 @@ class DAVObject(object):
 
         props = [dav.ResourceType(), dav.DisplayName()]
         response = self._query_properties(props, depth)
-        properties = self._handle_prop_response(
+        properties = self._handle_xml_response(
             response=response, props=props, type=type, what='tag')
 
         for path in list(properties.keys()):
@@ -98,6 +102,10 @@ class DAVObject(object):
             resource_name = properties[path][dav.DisplayName.tag]
 
             if resource_type == type or type is None:
+                url = URL(path)
+                if url.hostname is None:
+                    # Quote when path is not a full URL
+                    path = quote(path)
                 # TODO: investigate the RFCs thoroughly - why does a "get
                 # members of this collection"-request also return the
                 # collection URL itself?
@@ -106,7 +114,7 @@ class DAVObject(object):
                 # to RFC 2518, section 5.2.
                 if (self.url.strip_trailing_slash() !=
                         self.url.join(path).strip_trailing_slash()):
-                    c.append((self.url.join(quote(path)), resource_type,
+                    c.append((self.url.join(path), resource_type,
                               resource_name))
 
         return c
@@ -167,51 +175,65 @@ class DAVObject(object):
             raise error.exception_by_method[query_method](errmsg(ret))
         return ret
 
-    def _handle_prop_response(self, response, props=[], type=None,
+    def _handle_xml_response(self, response, props=[], type=None,
                               what='text'):
         """
-        Internal method to massage an XML response into a dict.  (This
-        method is a result of some code refactoring work, attempting
-        to consolidate similar-looking code)
+        Internal method to massage an XML response into a dict.
+        Most of the lifting here has been moved to DAVClient.
+        The remaining part here attempts to crush out some
+        simple string object from the assumed leave nodes
+        in the XML response, it should work well for most
+        simple cases.
         """
+        if not props:
+            return {}
         properties = {}
-        # All items should be in a <D:response> element
-        for r in response.tree.findall('.//' + dav.Response.tag):
-            status = r.find('.//' + dav.Status.tag)
-            ## TODO: status should never be None, this needs more research.
-            ## added here as it solves real-world issues, ref
-            ## https://github.com/python-caldav/caldav/pull/56
-            if status is not None:
-                if (' 200 ' not in status.text and
-                    ' 207 ' not in status.text and
-                    ' 404 ' not in status.text):
-                    raise error.ReportError(errmsg(response))
-                    # TODO: may be wrong error class
-            href = unquote(r.find('.//' + dav.Href.tag).text)
+        responses = response.strip_boilerplate(props)
+        for href in responses:
+            ## icloud returns the collection URL sometimes. It should be skipped.
+            ## TODO: need to do more research on weather this is allowed according
+            ## to the standard, and if there are more appropriate ways to deal with
+            ## this.
             properties[href] = {}
-            for p in props:
-                t = r.find(".//" + p.tag)
-                if t is None:
+            icloud_hack = False
+            for tag in responses[href]:
+                t = responses[href][tag]
+                if t:
+                    ## I think there never should never be more than
+                    ## one property-block for a given property.  Said
+                    ## property block may contain a list, though.
+                    assert len(t)==1
+                if not t or t[0] is None:
                     val = None
-                elif t is not None and list(t):
+                elif list(t[0]):
                     if type is not None:
-                        val = t.find(".//" + type)
+                        val = t[0].find(".//" + type)
                     else:
-                        val = t.find(".//*")
+                        val = t[0].find(".//*")
                     if val is not None:
-                        val = getattr(val, what)
+                        val = getattr(val, what) or getattr(val, 'attrib')
                     else:
                         val = None
                 else:
-                    val = t.text
-                properties[href][p.tag] = val
+                    val = t[0].text
+                ## icloud sends the identity URL ... annoying
+                if val is None and tag.endswith('}calendar-data') and href.strip('/') in (self.url.strip_trailing_slash(), self.url.path.strip('/')):
+                    icloud_hack = True
+                else:
+                    properties[href][tag] = val
+            if icloud_hack and not properties[href]:
+                properties.pop(href)
 
         return properties
 
-    def get_properties(self, props=None, depth=0):
+    def get_properties(self, props=None, depth=0, parse_response_xml=True):
         """
-        Get properties (PROPFIND) for this object. Works only for
-        properties, that don't have complex types.
+        Get properties (PROPFIND) for this object.  With
+        parse_response_xml set to True a best-attempt will be done on
+        decoding the XML we get from the server - but this works only
+        for properties that don't have complex types.  With
+        parse_response_xml set to False, a DAVResponse object will be
+        returned, and it's up to the caller to decode it
 
         Parameters:
          * props = [dav.ResourceType(), dav.DisplayName(), ...]
@@ -221,7 +243,10 @@ class DAVObject(object):
         """
         rc = None
         response = self._query_properties(props, depth)
-        properties = self._handle_prop_response(response, props)
+        if not parse_response_xml:
+            return response
+
+        properties = self._handle_xml_response(response, props)
         path = unquote(self.url.path)
         if path.endswith('/'):
             exchange_path = path[:-1]
@@ -232,6 +257,8 @@ class DAVObject(object):
             rc = properties[path]
         elif exchange_path in properties:
             rc = properties[exchange_path]
+        elif self.url in properties:
+            rc = properties[self.url]
         else:
             raise Exception(
                 "The CalDAV server you are using has a problem with path handling, or the URL is wrong.")
@@ -290,6 +317,9 @@ class DAVObject(object):
 
 
 class CalendarSet(DAVObject):
+    """
+    A CalendarSet is a set of calendars.
+    """
     def calendars(self):
         """
         List all calendar collections in this set.
@@ -338,12 +368,15 @@ class CalendarSet(DAVObject):
         Returns:
          * Calendar(...)-object
         """
-        if cal_id:
-            return Calendar(self.client, name=name, parent=self,
-                            url=self.url.join(quote(cal_id)), id=cal_id)
-        else:
-            return Calendar(self.client, name=name, parent=self)
-
+        if name and not cal_id:
+            for calendar in self.calendars():
+                properties = calendar.get_properties([dav.DisplayName(), ])
+                display_name = properties['{DAV:}displayname']
+                if display_name == name:
+                    return calendar
+        ## TODO: is this good if cal_id is None?
+        return Calendar(self.client, name=name, parent=self,
+                        url=self.url.join(quote(cal_id)), id=cal_id)
 
 class Principal(DAVObject):
     """
@@ -486,6 +519,20 @@ class Calendar(DAVObject):
                 except:
                     logging.warning("calendar server does not support display name on calendar?  Ignoring", exc_info=True)
 
+    def get_supported_components(self):
+        """
+        returns a list of component types supported by the calendar, in
+        string format (typically ['VJOURNAL', 'VTODO', 'VEVENT'])
+        """
+        props = [cdav.SupportedCalendarComponentSet()]
+        response = self.get_properties(props, parse_response_xml=False)
+        response_list = response.strip_boilerplate(props)
+        ## This ... should probably be rewritten and explained.
+        return [
+            z.attrib['name'] for z in [
+                [y for y in x.values()] for x in
+                response_list.values()][0][0][0]]
+
     def save_event(self, ical, no_overwrite=False, no_create=False):
         """
         Add a new event to the calendar, with the given ical.
@@ -531,6 +578,24 @@ class Calendar(DAVObject):
             if not self.url.endswith('/'):
                 self.url = URL.objectify(str(self.url) + '/')
         return self
+
+    def calendar_multiget(self, event_urls):
+        """
+		get multiple events' data
+        @author mtorange@gmail.com
+        @type events list of Event
+        """
+        rv=[]
+        prop = dav.Prop() + cdav.CalendarData()
+        root = cdav.CalendarMultiGet() + prop + [dav.Href(value=u.path) for u in event_urls]
+        response = self._query(root, 1, 'report')
+        results = self._handle_prop_response(response=response, props=[cdav.CalendarData()])
+        for r in results:
+            rv.append(
+                Event(self.client, url=self.url.join(r), data=results[r][cdav.CalendarData.tag], parent=self))
+
+        return rv
+
 
     def build_date_search_query(self, start, end=None, compfilter="VEVENT", expand="maybe"):
         """
@@ -588,31 +653,38 @@ class Calendar(DAVObject):
         # build the query
         root = self.build_date_search_query(start, end, compfilter, expand)
 
+        if compfilter == 'VEVENT': comp_class=Event
+        else: comp_class = None
+
         ## xandikos now yields a 5xx-error when trying to pass
         ## expand=True, after I prodded the developer that it doesn't
         ## work.  By now there is some workaround in the test code to
         ## avoid sending expand=True to xandikos, but perhaps we
         ## should run a try-except-retry here with expand=False in the
         ## retry, and warnings logged ... or perhaps not.
-        return self.search(root)
+        return self.search(root, comp_class)
 
-    def search(self, xml, comp_class=None):
+    def _request_report_build_resultlist(self, xml, comp_class=None, props=None):
         """
         Takes some input XML, does a report query on a calendar object
-        and returns the resource objects found.  Partly solves 
-        https://github.com/python-caldav/caldav/issues/16
+        and returns the resource objects found.
 
-        TODO: this code is duplicated many places, we ought to do more code
+        TODO: similar code is duplicated many places, we ought to do even more code
         refactoring
         """
         matches = []
+        if props is None:
+            props_ = [cdav.CalendarData()]
+        else:
+            props_ = [cdav.CalendarData()] + props
         response = self._query(xml, 1, 'report')
-        results = self._handle_prop_response(
-            response=response, props=[cdav.CalendarData()])
+        results = self._handle_xml_response(
+            response=response, props=props_)
         for r in results:
-            data=results[r][cdav.CalendarData.tag]
+            pdata = results[r]
+            cdata = pdata.pop(cdav.CalendarData.tag)
             if comp_class is None:
-                comp_class = self._calendar_comp_class_by_data(data)
+                comp_class = self._calendar_comp_class_by_data(cdata)
             if comp_class is None:
                 ## Ouch, we really shouldn't get here.  This probably
                 ## means we got some bad data from the server.  I've
@@ -620,11 +692,25 @@ class Calendar(DAVObject):
                 ## not contain anything.  Let's assume the data is
                 ## void and should not be counted.
                 continue
+            url = URL(r)
+            if url.hostname is None:
+                # Quote when result is not a full URL
+                r = quote(r)
             matches.append(
-                comp_class(self.client, url=self.url.join(quote(r)),
-                           data=data, parent=self))
+                comp_class(self.client, url=self.url.join(r),
+                           data=cdata, parent=self, props=pdata))
 
-        return matches
+        return (response, matches)
+
+    def search(self, xml, comp_class=None):
+        """
+        This method was partly written to approach
+        https://github.com/python-caldav/caldav/issues/16 This is a
+        result of some code refactoring, and after the next round of
+        refactoring we've ended up with this:
+        """
+        (response, objects) = self._request_report_build_resultlist(xml, comp_class)
+        return objects
 
     def freebusy_request(self, start, end):
         """
@@ -700,8 +786,8 @@ class Calendar(DAVObject):
             match_set = set()
             matches = []
             for todo in matches1 + matches2:
-                if not str(todo.url) in match_set:
-                    match_set.add(str(todo.url))
+                if not todo.url in match_set:
+                    match_set.add(todo.url)
                     ## and still, Zimbra seems to deliver too many TODOs on the
                     ## filter2 ... let's do some post-filtering in case the
                     ## server fails in filtering things the right way
@@ -754,6 +840,10 @@ class Calendar(DAVObject):
         return matches
 
     def _calendar_comp_class_by_data(self, data):
+        if data is None:
+            ## no data received - we'd need to load it before we can know what
+            ## class it really is.  Assign the base class as for now.
+            return CalendarObjectResource
         for line in data.split('\n'):
             line = line.strip()
             if line == 'BEGIN:VEVENT':
@@ -793,7 +883,12 @@ class Calendar(DAVObject):
 
         root = cdav.CalendarQuery() + [prop, filter]
 
-        items_found = self.search(root)
+        try:
+            items_found = self.search(root)
+        except error.NotFoundError:
+            raise
+        except Exception as err:
+            raise NotImplementedError("The object_by_uid is not compatible with some server implementations.  work in progress.")
 
         # Ref Lucas Verney, we've actually done a substring search, if the
         # uid given in the query is short (i.e. just "0") we're likely to
@@ -837,6 +932,43 @@ class Calendar(DAVObject):
         
         return self.search(root, comp_class=Event)
 
+    def objects_by_sync_token(self, sync_token=None, load_objects=False):
+        """objects_by_sync_token aka objects
+
+        Do a sync-collection report, ref RFC 6578 and
+        https://github.com/python-caldav/caldav/issues/87
+
+        This method will return all objects in the calendar if no
+        sync_token is passed (the method should then be referred to as
+        "objects"), or if the sync_token is unknown to the server.  If
+        a sync-token known by the server is passed, it will return
+        objects that are added, deleted or modified since last time
+        the sync-token was set.
+
+        If load_objects is set to True, the objects will be loaded -
+        otherwise empty CalendarResourceObjects will be returned.
+
+        This method will return a SynchronizableCalendarObjectCollection object, which is
+        an iterable.
+        """
+        cmd = dav.SyncCollection()
+        token = dav.SyncToken(value=sync_token)
+        level = dav.SyncLevel(value='1')
+        props = dav.Prop() + dav.GetEtag()
+        root = cmd + [level, token, props]
+        (response, objects) = self._request_report_build_resultlist(root, props=[dav.GetEtag()])
+        sync_token = response.tree.findall('.//' + dav.SyncToken.tag)[0].text
+        if load_objects:
+            for obj in objects:
+                try:
+                    obj.load()
+                except error.NotFoundError:
+                    ## The object was deleted
+                    pass
+        return SynchronizableCalendarObjectCollection(calendar=self, objects=objects, sync_token=sync_token)
+
+    objects = objects_by_sync_token
+
     def journals(self):
         """
         List all journals from the calendar.
@@ -856,6 +988,58 @@ class Calendar(DAVObject):
 
         return self.search(root, comp_class=Journal)
 
+class SynchronizableCalendarObjectCollection(object):
+    """
+    This class may hold a cached snapshot of a calendar, and changes
+    in the calendar can easily be copied over through the sync method.
+
+    To create a SynchronizableCalendarObjectCollection object, use
+    calendar.objects(load_objects=True)
+    """
+    def __init__(self, calendar, objects, sync_token):
+        self.calendar = calendar
+        self.sync_token = sync_token
+        self.objects = objects
+        self._objects_by_url = None
+
+    def __iter__(self):
+        return self.objects.__iter__()
+
+    def objects_by_url(self):
+        """
+        returns a dict of the contents of the SynchronizableCalendarObjectCollection, URLs -> objects.
+        """
+        if self._objects_by_url is None:
+            self._objects_by_url = {}
+            for obj in self:
+                self._objects_by_url[obj.url] = obj
+        return self._objects_by_url
+
+    def sync(self):
+        """
+        This method will contact the caldav server,
+        request all changes from it, and sync up the collection
+        """
+        updated_objs = []
+        deleted_objs = []
+        updates = self.calendar.objects_by_sync_token(self.sync_token, load_objects=False)
+        obu = self.objects_by_url()
+        for obj in updates:
+            if obj.url in obu and dav.GetEtag.tag in obu[obj.url].props and dav.GetEtag.tag in obj.props:
+                if obu[obj.url].props[dav.GetEtag.tag] == obj.props[dav.GetEtag.tag]:
+                    continue
+            obu[obj.url] = obj
+            try:
+                obj.load()
+                updated_objs.append(obj)
+            except error.NotFoundError:
+                deleted_objs.append(obj)
+                obu.pop(obj.url)
+
+        self.objects = obu.values()
+        self.sync_token = updates.sync_token
+        return (updated_objs, deleted_objs)
+
 class CalendarObjectResource(DAVObject):
     """
     Ref RFC 4791, section 4.1, a "Calendar Object Resource" can be an
@@ -865,13 +1049,13 @@ class CalendarObjectResource(DAVObject):
     _icalendar_instance = None
     _data = None
 
-    def __init__(self, client=None, url=None, data=None, parent=None, id=None):
+    def __init__(self, client=None, url=None, data=None, parent=None, id=None, props=None):
         """
         CalendarObjectResource has an additional parameter for its constructor:
          * data = "...", vCal data for the event
         """
         super(CalendarObjectResource, self).__init__(
-            client=client, url=url, parent=parent, id=id)
+            client=client, url=url, parent=parent, id=id, props=props)
         if data is not None:
             self.data = data
 
@@ -1072,7 +1256,6 @@ class CalendarObjectResource(DAVObject):
     ## for backward-compatibility - may be changed to
     ## icalendar_instance in version 1.0
     instance = vobject_instance
-
 
 class Event(CalendarObjectResource):
     """

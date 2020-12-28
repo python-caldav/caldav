@@ -6,13 +6,9 @@
 ## in the documentation on everything.
 
 xandikos = [
-    ## Xandikos does not support recurring events as of 0.2.1/2020-05,
-    ## ref https://github.com/jelmer/xandikos/issues/8
-    "norecurring",
-
-    ## As of 2020-05-17 it even returns a 500 internal server error
-    ## when one attempts to use the expand-flag in a date search
-    "noexpand",
+    ## TEMP TEMP TEMP - TODO - should be investigated
+    ## (perhaps my xandikos version is too old?)
+    "noexpand", "norecurring"
 ]
 
 radicale = [
@@ -85,9 +81,28 @@ baikal = [
 
 ]
 
+## See comments on https://github.com/python-caldav/caldav/issues/3
+icloud = [
+    'unique_calendar_ids',
+    'cross_calendar_duplicate_not_allowed',
+    'stickyevents',
+    'nojournal', ## it threw a 500 internal server error!
+    'notodo',
+    'nofreebusy',
+    'norecurring',
+    'nopropfind',
+    'object_by_uid_is_broken'
+    ]
+
 ## The version of davical I'm testing towards is very old, so this list may be outdated
 davical = [
     'nofreebusy',
-    'vtodo_datesearch_nodtstart_task_is_skipped'
+    'vtodo_datesearch_nodtstart_task_is_skipped',
 ]
 
+google = [
+    'nomkcalendar',
+    'nooverwrite',
+    'notodo',
+    'norecurringexpandation'
+]

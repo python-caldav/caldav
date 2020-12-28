@@ -88,6 +88,12 @@ all_events = the_same_calendar.events()
 ## Let's check that the summary got right
 assert all_events[0].vobject_instance.vevent.summary.value.startswith('Norwegian')
 
+## This calendar should as a minimum support VEVENTs ... most likely
+## it also supports VTODOs and maybe even VJOURNALs.  We can query the
+## server what it can accept:
+acceptable_component_types = my_new_calendar.get_supported_components()
+assert 'VEVENT' in acceptable_component_types
+
 ## Clean up - remove the new calendar
 my_new_calendar.delete()
 
@@ -149,3 +155,4 @@ assert(len(todos) == 1)
 todos[0].delete()
 
 my_new_tasklist.delete()
+        

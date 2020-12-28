@@ -1,3 +1,6 @@
+2020-11-21  Tobias Brox <t-caldav@tobixen.no>
+	* caldav/objects.py - support for sync-tokens, ref https://github.com/python-caldav/caldav/issues/87
+
 2020-05-28  Tobias Brox <t-caldav@tobixen.no>
 	* caldav/lib/namespace.py - The http://apple.com/ns/ical/ namespace should not be passed in every request
 	* caldav/objects.py - bugfix, URLs should be quoted, and not contain '@' etc.  That ical namespace for calendar color should be imported.  refactoring, the new search method can replace quite some duplicated code.
