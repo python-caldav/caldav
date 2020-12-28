@@ -37,6 +37,11 @@ class DAVResponse:
 
     def __init__(self, response):
         self.raw = response.content
+        # ref https://github.com/python-caldav/caldav/issues/112 stray CRs may cause problems
+        if type(self.raw) == bytes:
+            self.raw = self.raw.replace(b'\r\n', b'\n')
+        elif type(self.raw) == str:
+            self.raw = self.raw.replace('\r\n', '\n')
         self.headers = response.headers
         self.status = response.status_code
         ## ref https://github.com/python-caldav/caldav/issues/81,
