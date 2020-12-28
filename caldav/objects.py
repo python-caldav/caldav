@@ -368,9 +368,15 @@ class CalendarSet(DAVObject):
         Returns:
          * Calendar(...)-object
         """
+        if name and not cal_id:
+            for calendar in self.calendars():
+                properties = calendar.get_properties([dav.DisplayName(), ])
+                display_name = properties['{DAV:}displayname']
+                if display_name == name:
+                    return calendar
+        ## TODO: is this good if cal_id is None?
         return Calendar(self.client, name=name, parent=self,
                         url=self.url.join(quote(cal_id)), id=cal_id)
-
 
 class Principal(DAVObject):
     """

@@ -509,6 +509,12 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert_equal(len(events2), len(existing_events) + 1)
         assert_equal(events2[0].url, events[0].url)
 
+        # We should be able to access the calender through the name
+        c2 = self.principal.calendar(name="Yep")
+        events2 = c2.events()
+        assert_equal(len(events2), 1)
+        assert_equal(events2[0].url, events[0].url)
+
     def testObjectBySyncToken(self):
         """
         Support for sync-collection reports, ref https://github.com/python-caldav/caldav/issues/87.
@@ -1554,7 +1560,9 @@ class TestCalDAV:
         calendar1 = principal.calendar(name="foo", cal_id="bar")
         calendar2 = principal.calendar_home_set.calendar(
             name="foo", cal_id="bar")
+        calendar3 = principal.calendar(cal_id="bar")
         assert_equal(calendar1.url, calendar2.url)
+        assert_equal(calendar1.url, calendar3.url)
         assert_equal(
             calendar1.url, "http://calendar.example:80/me/calendars/bar")
 
