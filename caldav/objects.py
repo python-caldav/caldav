@@ -927,19 +927,22 @@ class Calendar(DAVObject):
         return self.search(root, comp_class=Event)
 
     def objects_by_sync_token(self, sync_token=None, load_objects=False):
-        """
+        """objects_by_sync_token aka objects
+
         Do a sync-collection report, ref RFC 6578 and
         https://github.com/python-caldav/caldav/issues/87
 
-        This method will return all objects in the calendar, if
-        sync_token is set to None.  If a sync-token is set and it's
-        known by the server, it will return objects that are added,
-        deleted or modified since last time the sync-token was set.
+        This method will return all objects in the calendar if no
+        sync_token is passed (the method should then be referred to as
+        "objects"), or if the sync_token is unknown to the server.  If
+        a sync-token known by the server is passed, it will return
+        objects that are added, deleted or modified since last time
+        the sync-token was set.
 
         If load_objects is set to True, the objects will be loaded -
         otherwise empty CalendarResourceObjects will be returned.
 
-        This method will return a CalendarCollection object, which is
+        This method will return a SynchronizableCalendarObjectCollection object, which is
         an iterable.
         """
         cmd = dav.SyncCollection()
@@ -956,7 +959,9 @@ class Calendar(DAVObject):
                 except error.NotFoundError:
                     ## The object was deleted
                     pass
-        return CalendarCollection(calendar=self, objects=objects, sync_token=sync_token)
+        return SynchronizableCalendarObjectCollection(calendar=self, objects=objects, sync_token=sync_token)
+
+    objects = objects_by_sync_token
 
     def journals(self):
         """
@@ -977,13 +982,13 @@ class Calendar(DAVObject):
 
         return self.search(root, comp_class=Journal)
 
-class CalendarCollection(object):
+class SynchronizableCalendarObjectCollection(object):
     """
     This class may hold a cached snapshot of a calendar, and changes
     in the calendar can easily be copied over through the sync method.
 
-    To create a CalendarCollection object, use
-    calendar.objects_by_sync_token(load_objects=True)
+    To create a SynchronizableCalendarObjectCollection object, use
+    calendar.objects(load_objects=True)
     """
     def __init__(self, calendar, objects, sync_token):
         self.calendar = calendar
@@ -996,7 +1001,7 @@ class CalendarCollection(object):
 
     def objects_by_url(self):
         """
-        returns a dict of the contents of the CalendarCollection, URLs -> objects.
+        returns a dict of the contents of the SynchronizableCalendarObjectCollection, URLs -> objects.
         """
         if self._objects_by_url is None:
             self._objects_by_url = {}

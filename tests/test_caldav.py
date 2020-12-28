@@ -336,7 +336,7 @@ class RepeatedFunctionalTestsBaseClass(object):
                                               cal_id=combo[1])
                 if self.server_params.get('stickyevents', False):
                     try:
-                        for goo in cal.objects_by_sync_token():
+                        for goo in cal.objects():
                             goo.delete()
                     except:
                         pass
@@ -533,8 +533,8 @@ class RepeatedFunctionalTestsBaseClass(object):
             c.save_todo(todo3)
             objcnt += 3
 
-        ## objects_by_sync_token should return all objcnt object.
-        my_objects = c.objects_by_sync_token()
+        ## objects should return all objcnt object.
+        my_objects = c.objects()
         assert_not_equal(my_objects.sync_token, '')
         assert_equal(len(list(my_objects)), objcnt)
 
@@ -617,8 +617,8 @@ class RepeatedFunctionalTestsBaseClass(object):
             c.save_todo(todo3)
             objcnt += 3
 
-        ## objects_by_sync_token should return all objcnt object.
-        my_objects = c.objects_by_sync_token(load_objects=True)
+        ## objects should return all objcnt object.
+        my_objects = c.objects(load_objects=True)
         assert_not_equal(my_objects.sync_token, '')
         assert_equal(len(list(my_objects)), objcnt)
 
@@ -1144,44 +1144,44 @@ class RepeatedFunctionalTestsBaseClass(object):
         # Create calendar
         c = self._fixCalendar()
         assert_not_equal(c.url, None)
-        
+
         # attempts on updating/overwriting a non-existing event should fail
         assert_raises(error.ConsistencyError, c.save_event, ev1, no_create=True)
-        
+
         # no_create and no_overwrite is mutually exclusive, this will always
         # raise an error (unless the ical given is blank)
         assert_raises(
             error.ConsistencyError,
             c.save_event, ev1, no_create=True, no_overwrite=True)
-        
+
         # add event
         e1 = c.save_event(ev1)
         assert_not_equal(e1.url, None)
         assert_equal(c.event_by_url(e1.url).url, e1.url)
         assert_equal(c.event_by_uid(e1.id).url, e1.url)
-        
+
         ## add same event again.  As it has same uid, it should be overwritten
         ## (but some calendars may throw a "409 Conflict")
         if not self.server_params.get('nooverwrite', False):
             e2 = c.save_event(ev1)
-            
+
             ## add same event with "no_create".  Should work like a charm.
             e2 = c.save_event(ev1, no_create=True)
-            
+
             e2.instance.vevent.summary.value = e2.instance.vevent.summary.value + '!'
-            
+
             ## this should also work.
             e2.save(no_create=True)
-            
+
             e3 = c.event_by_url(e1.url)
             assert_equal(e3.instance.vevent.summary.value, 'Bastille Day Party!')
-            
+
         ## "no_overwrite" should throw a ConsistencyError
         assert_raises(error.ConsistencyError, c.save_event, ev1, no_overwrite=True)
-        
+
         # delete event
         e1.delete()
-        
+
         # Verify that we can't look it up, both by URL and by ID
         assert_raises(error.NotFoundError, c.event_by_url, e1.url)
         if not self.server_params.get('nooverwrite', False):
@@ -1189,7 +1189,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert_raises(
             error.NotFoundError, c.event_by_uid,
             "20010712T182145Z-123401@example.com")
-        
+
     def testDateSearchAndFreeBusy(self):
         """
         Verifies that date search works with a non-recurring event
@@ -1200,7 +1200,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         c = self._fixCalendar()
         assert_not_equal(c.url, None)
         e = c.save_event(ev1)
-        
+
         ## just a sanity check to increase coverage (ref
         ## https://github.com/python-caldav/caldav/issues/93) -
         ## expand=False and no end date given is no-no
@@ -1208,14 +1208,14 @@ class RepeatedFunctionalTestsBaseClass(object):
             error.DAVError,
             c.date_search, datetime(2006, 7, 13, 17,00, 00),
             expand=True)
-        
+
         # .. and search for it.
         r = c.date_search(datetime(2006, 7, 13, 17, 00, 00),
                           datetime(2006, 7, 15, 17, 00, 00), expand=False)
-        
+
         assert_equal(e.instance.vevent.uid, r[0].instance.vevent.uid)
         assert_equal(len(r), 1)
-        
+
         ## The rest of the test code here depends on us changing an event.
         ## Apparently, in google calendar, events are immutable.
         ## TODO: delete the old event and insert a new one rather than skipping.
@@ -1224,7 +1224,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         ## changed event and not a cancellation and a new event).
         if self.server_params.get('nooverwrite', False):
             raise SkipTest("The rest of the test is temporarily disabled for calendars with immutable events")
-        
+
         # ev2 is same UID, but one year ahead.
         # The timestamp should change.
         e.data = ev2
@@ -1235,21 +1235,21 @@ class RepeatedFunctionalTestsBaseClass(object):
         r = c.date_search(datetime(2007, 7, 13, 17, 00, 00),
                           datetime(2007, 7, 15, 17, 00, 00), expand=False)
         assert_equal(len(r), 1)
-        
+
         # date search without closing date should also find it
         r = c.date_search(datetime(2007, 7, 13, 17, 00, 00), expand=False)
         assert_equal(len(r), 1)
-        
+
         # Lets try a freebusy request as well
         if 'nofreebusy' in self.server_params:
             raise SkipTest("FreeBusy test skipped - not supported by server?")
-        
+
         freebusy = c.freebusy_request(datetime(2007, 7, 13, 17, 00, 00),
                                       datetime(2007, 7, 15, 17, 00, 00))
         # TODO: assert something more complex on the return object
         assert(isinstance(freebusy, FreeBusy))
         assert(freebusy.instance.vfreebusy)
-        
+
     def testRecurringDateSearch(self):
         """
         This is more sanity testing of the server side than testing of the
@@ -1260,16 +1260,16 @@ class RepeatedFunctionalTestsBaseClass(object):
             raise SkipTest("recurring date search test skipped due to "
                            "test configuration")
         c = self._fixCalendar()
-        
+
         # evr is a yearly event starting at 1997-02-11
         e = c.save_event(evr)
-        
+
         ## Without "expand", we should not find it when searching over 2008 ...
         ## or ... should we? TODO
         r = c.date_search(datetime(2008, 11, 1, 17, 00, 00),
                           datetime(2008, 11, 3, 17, 00, 00), expand=False)
         #assert_equal(len(r), 0)
-        
+
         if not self.server_params.get('noexpand', False):
             ## With expand=True, we should find one occurrence
             r = c.date_search(datetime(2008, 11, 1, 17, 00, 00),
@@ -1279,15 +1279,15 @@ class RepeatedFunctionalTestsBaseClass(object):
             ## due to expandation, the DTSTART should be in 2008
             if not self.server_params.get('norecurringexpandation', False):
                 assert_equal(r[0].data.count("DTSTART;VALUE=DATE:2008"), 1)
-                
+
             ## With expand=True and searching over two recurrences ...
             r = c.date_search(datetime(2008, 11, 1, 17, 00, 00),
                               datetime(2009, 11, 3, 17, 00, 00), expand=True)
-            
+
             ## According to https://tools.ietf.org/html/rfc4791#section-7.8.3, the
             ## resultset should be one vcalendar with two events.
             assert_equal(len(r), 1)
-            
+
             ## not all servers supports expandation
             if self.server_params.get('norecurringexpandation', False):
                 ## without expandation, we'll get the original ics,
@@ -1297,13 +1297,13 @@ class RepeatedFunctionalTestsBaseClass(object):
             else:
                 assert("RRULE" not in r[0].data)
                 assert_equal(r[0].data.count("END:VEVENT"), 2)
-                
+
         # The recurring events should not be expanded when using the
         # events() method
         r = c.events()
         assert_equal(len(r), 1)
         assert_equal(r[0].data.count("END:VEVENT"), 1)
-        
+
     ## TODO: run this test, ref https://github.com/python-caldav/caldav/issues/91
     ## It should be removed prior to a 1.0-release.
     def testBackwardCompatibility(self):
@@ -1320,60 +1320,60 @@ class RepeatedFunctionalTestsBaseClass(object):
             caldav, name="Yep", parent=principal,
             id=self.testcal_id).save()
         assert_not_equal(c.url, None)
-        
+
         c.set_properties([dav.DisplayName("hooray"), ])
         props = c.get_properties([dav.DisplayName(), ])
         assert_equal(props[dav.DisplayName.tag], "hooray")
-        
+
         cc = Calendar(caldav, name="Yep", parent=principal).save()
         assert_not_equal(cc.url, None)
         cc.delete()
-        
+
         e = Event(caldav, data=ev1, parent=c).save()
         assert_not_equal(e.url, None)
         ee = Event(caldav, url=url.make(e.url), parent=c)
         ee.load()
         assert_equal(e.instance.vevent.uid, ee.instance.vevent.uid)
-        
+
         r = c.date_search(datetime(2006, 7, 13, 17, 00, 00),
                           datetime(2006, 7, 15, 17, 00, 00), expand=False)
         assert_equal(e.instance.vevent.uid, r[0].instance.vevent.uid)
         assert_equal(len(r), 1)
-        
+
         all = c.events()
         assert_equal(len(all), 1)
-        
+
         e2 = Event(caldav, data=ev2, parent=c).save()
         assert_not_equal(e.url, None)
-        
+
         tmp = c.event("20010712T182145Z-123401@example.com")
         assert_equal(e2.instance.vevent.uid, tmp.instance.vevent.uid)
-        
+
         r = c.date_search(datetime(2007, 7, 13, 17, 00, 00),
                           datetime(2007, 7, 15, 17, 00, 00), expand=False)
         assert_equal(len(r), 1)
-        
+
         e.data = ev2
         e.save()
-        
+
         r = c.date_search(datetime(2007, 7, 13, 17, 00, 00),
                           datetime(2007, 7, 15, 17, 00, 00), expand=False)
         # for e in r: print(e.data)
         assert_equal(len(r), 1)
-        
+
         e.instance = e2.instance
         e.save()
-        
+
         r = c.date_search(datetime(2007, 7, 13, 17, 00, 00),
                           datetime(2007, 7, 15, 17, 00, 00), expand=False)
         # for e in r: print(e.data)
         assert_equal(len(r), 1)
-        
+
     def testObjects(self):
         # TODO: description ... what are we trying to test for here?
         o = DAVObject(self.caldav)
         assert_raises(Exception, o.save)
-        
+
 # We want to run all tests in the above class through all caldav_servers;
 # and I don't really want to create a custom nose test loader.  The
 # solution here seems to be to generate one child class for each
@@ -1394,12 +1394,12 @@ for _caldav_server in caldav_servers:
 
     # create a classname and a class
     _classname = 'TestForServer_' + _servername
-    
+
     # inject the new class into this namespace
     vars()[_classname] = type(
         _classname, (RepeatedFunctionalTestsBaseClass,),
         {'server_params': _caldav_server})
-    
+
 class TestLocalRadicale(RepeatedFunctionalTestsBaseClass):
     """
     Sets up a local Radicale server and runs the functional tests towards it
@@ -1432,7 +1432,7 @@ class TestLocalRadicale(RepeatedFunctionalTestsBaseClass):
         except:
             logging.critical("something bad happened in setup", exc_info=True)
             self.teardown()
-            
+
     def teardown(self):
         if not test_radicale:
             return
@@ -1444,7 +1444,7 @@ class TestLocalRadicale(RepeatedFunctionalTestsBaseClass):
             assert(i<100)
         self.serverdir.__exit__(None, None, None)
         RepeatedFunctionalTestsBaseClass.teardown(self)
-        
+
 class TestLocalXandikos(RepeatedFunctionalTestsBaseClass):
     """
     Sets up a local Xandikos server and runs the functional tests towards it
@@ -1464,7 +1464,7 @@ class TestLocalXandikos(RepeatedFunctionalTestsBaseClass):
         self.server_params['backwards_compatibility_url'] = self.server_params['url']+'sometestuser/'
         self.server_params['incompatibilities'] = compatibility_issues.xandikos
         RepeatedFunctionalTestsBaseClass.setup(self)
-        
+
     def teardown(self):
         if not test_xandikos:
             return
@@ -1477,7 +1477,7 @@ class TestLocalXandikos(RepeatedFunctionalTestsBaseClass):
             assert(i<100)
         self.serverdir.__exit__(None, None, None)
         RepeatedFunctionalTestsBaseClass.teardown(self)
-        
+
 class TestCalDAV:
     """
     Test class for "pure" unit tests (small internal tests, testing that
@@ -1495,14 +1495,14 @@ class TestCalDAV:
         response = client.put('/foo/møøh/bar', 'bringebærsyltetøy 北京 пиво', {})
         assert_equal(response.status, 200)
         assert(response.tree is None)
-        
+
         if PY3:
             response = client.put('/foo/møøh/bar'.encode('utf-8'), 'bringebærsyltetøy 北京 пиво'.encode('utf-8'), {})
         else:
             response = client.put(u'/foo/møøh/bar', u'bringebærsyltetøy 北京 пиво', {})
         assert_equal(response.status, 200)
         assert(response.tree is None)
-        
+
     def testAbsoluteURL(self):
         """Version 0.7.0 does not handle responses with absolute URLs very well, ref https://github.com/python-caldav/caldav/pull/103"""
         ## none of this should initiate any communication
@@ -1533,7 +1533,7 @@ class TestCalDAV:
         client.propfind = mock.MagicMock(return_value=mocked_davresponse)
         bernards_calendars = principal.calendar_home_set
         assert_equal(bernards_calendars.url, URL('http://cal.example.com/home/bernard/calendars/'))
-        
+
     def testCalendar(self):
         """
         Principal.calendar() and CalendarSet.calendar() should create
@@ -1546,7 +1546,7 @@ class TestCalDAV:
         """
         cal_url = "http://me:hunter2@calendar.example:80/"
         client = DAVClient(url=cal_url)
-        
+
         principal = Principal(client, cal_url + "me/")
         principal.calendar_home_set = cal_url + "me/calendars/"
         # calendar_home_set is actually a CalendarSet object
@@ -1557,20 +1557,20 @@ class TestCalDAV:
         assert_equal(calendar1.url, calendar2.url)
         assert_equal(
             calendar1.url, "http://calendar.example:80/me/calendars/bar")
-        
+
         # principal.calendar_home_set can also be set to an object
         # This should be noop
         principal.calendar_home_set = principal.calendar_home_set
         calendar1 = principal.calendar(name="foo", cal_id="bar")
         assert_equal(calendar1.url, calendar2.url)
-        
+
         # When building a calendar from a relative URL and a client,
         # the relative URL should be appended to the base URL in the client
         calendar1 = Calendar(client, 'someoneelse/calendars/main_calendar')
         calendar2 = Calendar(client,
             'http://me:hunter2@calendar.example:80/someoneelse/calendars/main_calendar')
         assert_equal(calendar1.url, calendar2.url)
-        
+
     def testFailedQuery(self):
         """
         ref https://github.com/python-caldav/caldav/issues/54
@@ -1578,7 +1578,7 @@ class TestCalDAV:
         cal_url = "http://me:hunter2@calendar.example:80/"
         client = DAVClient(url=cal_url)
         calhome = CalendarSet(client, cal_url + "me/")
-        
+
         ## syntesize a failed response
         class FailedResp:
             pass
@@ -1586,13 +1586,13 @@ class TestCalDAV:
         failedresp.status = 400
         failedresp.reason = "you are wrong"
         failedresp.raw = "your request does not adhere to standards"
-        
+
         ## synthesize a new http method
         calhome.client.unknown_method = lambda url, body, depth: failedresp
-        
+
         ## call it.
         assert_raises(error.DAVError, calhome._query, query_method='unknown_method')
-        
+
     def testDefaultClient(self):
         """When no client is given to a DAVObject, but the parent is given,
         parent.client will be used"""
@@ -1601,7 +1601,7 @@ class TestCalDAV:
         calhome = CalendarSet(client, cal_url + "me/")
         calendar = Calendar(parent=calhome)
         assert_equal(calendar.client, calhome.client)
-        
+
     def testInstance(self):
         cal_url = "http://me:hunter2@calendar.example:80/"
         client = DAVClient(url=cal_url)
@@ -1617,11 +1617,11 @@ class TestCalDAV:
         lines_now.sort()
         lines_orig.sort()
         assert_equal(lines_now, lines_orig)
-        
+
     def testURL(self):
         """Exercising the URL class"""
         long_url = "http://foo:bar@www.example.com:8080/caldav.php/?foo=bar"
-        
+
         # 1) URL.objectify should return a valid URL object almost no matter
         # what's thrown in
         url0 = URL.objectify(None)
@@ -1631,23 +1631,23 @@ class TestCalDAV:
         url3 = URL.objectify("/bar")
         url4 = URL.objectify(urlparse(str(url1)))
         url5 = URL.objectify(urlparse("/bar"))
-        
+
         # 2) __eq__ works well
         assert_equal(url1, url2)
         assert_equal(url1, url4)
         assert_equal(url3, url5)
-        
+
         # 3) str will always return the URL
         assert_equal(str(url1), long_url)
         assert_equal(str(url3), "/bar")
         assert_equal(str(url4), long_url)
         assert_equal(str(url5), "/bar")
-        
+
         ## 3b) repr should also be exercised.  Returns URL(/bar) now.
         assert("/bar" in repr(url5))
         assert("URL" in repr(url5))
         assert(len(repr(url5)) < 12)
-        
+
         # 4) join method
         url6 = url1.join(url2)
         url7 = url1.join(url3)
@@ -1662,7 +1662,7 @@ class TestCalDAV:
         assert_equal(urlA, "http://foo:bar@www.example.com:8080/caldav.php/someuser/calendar")
         assert_equal(urlB, url1)
         assert_raises(ValueError, url1.join, "http://www.google.com")
-        
+
         # 4b) join method, with URL as input parameter
         url6 = url1.join(URL.objectify(url2))
         url7 = url1.join(URL.objectify(url3))
@@ -1682,7 +1682,7 @@ class TestCalDAV:
         assert_equal(urlA, "http://foo:bar@www.example.com:8080/caldav.php/someuser/calendar")
         assert_equal(urlB, url1)
         assert_raises(ValueError, url1.join, "http://www.google.com")
-        
+
         # 5) all urlparse methods will work.  always.
         assert_equal(url1.scheme, 'http')
         assert_equal(url2.path, '/caldav.php/')
@@ -1690,18 +1690,18 @@ class TestCalDAV:
         assert_equal(url5.path, '/bar')
         urlC = URL.objectify("https://www.example.com:443/foo")
         assert_equal(urlC.port, 443)
-        
+
         # 6) is_auth returns True if the URL contains a username.
         assert_equal(urlC.is_auth(), False)
         assert_equal(url7.is_auth(), True)
-        
+
         # 7) unauth() strips username/password
         assert_equal(url7.unauth(), 'http://www.example.com:8080/bar')
-        
+
         # 8) strip_trailing_slash
         assert_equal(URL('http://www.example.com:8080/bar/').strip_trailing_slash(), URL('http://www.example.com:8080/bar'))
         assert_equal(URL('http://www.example.com:8080/bar/').strip_trailing_slash(), URL('http://www.example.com:8080/bar').strip_trailing_slash())
-        
+
     def testFilters(self):
         filter = \
             cdav.Filter().append(
@@ -1710,7 +1710,7 @@ class TestCalDAV:
                         cdav.PropFilter("UID").append(
                             [cdav.TextMatch("pouet", negate=True)]))))
         # print(filter)
-        
+
         crash = cdav.CompFilter()
         value = None
         try:

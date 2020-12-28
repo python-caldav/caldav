@@ -9,7 +9,7 @@
 ## local contents.  (In case of a reboot, all contents will be
 ## downloaded again).
 
-my_events = cal_obj.objects_by_sync_token(load_objects=True)
+my_events = my_calendar.objects(load_objects=True)
 # (... some time later ...)
 my_events.sync()
 for event in my_events:
@@ -19,7 +19,7 @@ for event in my_events:
 ## remote caldav server and insert them into a database.  Later we
 ## need to do one-way syncing from the remote caldav server into the
 ## database.
-my_events = cal_obj.objects_by_sync_token(load_objects=True)
+my_events = my_calendar.objects(load_objects=True)
 for event in my_events:
      save_event_to_database(event)
 save_sync_token_to_database(my_events.sync_token)
@@ -27,7 +27,7 @@ save_sync_token_to_database(my_events.sync_token)
 # (... some time later ...)
 
 sync_token = load_sync_token_from_database()
-my_updated_events = cal_obj.objects_by_sync_token(sync_token, load_objects=True)
+my_updated_events = my_calendar.objects_by_sync_token(sync_token, load_objects=True)
 for event in my_updated_events:
     if event.data is None:
         delete_event_from_database(event)
@@ -39,7 +39,7 @@ for event in my_updated_events:
 ## significantly faster if the caldav server tends to discard sync
 ## tokens or if the remote caldav server supports etags but not sync
 ## tokens.
-my_events = cal_obj.objects_by_sync_token(load_objects=True)
+my_events = my_calendar.objects(load_objects=True)
 for event in my_events:
      save_event_to_database(event)
 save_sync_token_to_database(my_events.sync_token)
