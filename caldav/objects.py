@@ -48,7 +48,7 @@ class DAVObject(object):
     parent = None
     name = None
 
-    def __init__(self, client=None, url=None, parent=None, name=None, id=None,
+    def __init__(self, client=None, url=None, parent=None, name=None, id=None, props=None,
                  **extra):
         """
         Default constructor.
@@ -67,6 +67,10 @@ class DAVObject(object):
         self.parent = parent
         self.name = name
         self.id = id
+        if props is None:
+            self.props = {}
+        else:
+            self.props = props
         self.extra_init_options = extra
         # url may be a path relative to the caldav root
         if client and url:
@@ -253,8 +257,8 @@ class DAVObject(object):
             rc = properties[path]
         elif exchange_path in properties:
             rc = properties[exchange_path]
-        elif str(self.url) in properties:
-            rc = properties[str(self.url)]
+        elif self.url in properties:
+            rc = properties[self.url]
         else:
             raise Exception(
                 "The CalDAV server you are using has a problem with path handling, or the URL is wrong.")
@@ -313,6 +317,9 @@ class DAVObject(object):
 
 
 class CalendarSet(DAVObject):
+    """
+    A CalendarSet is a set of calendars.
+    """
     def calendars(self):
         """
         List all calendar collections in this set.
@@ -651,22 +658,27 @@ class Calendar(DAVObject):
         ## retry, and warnings logged ... or perhaps not.
         return self.search(root, comp_class)
 
-    def _request_report_build_resultlist(self, xml, comp_class=None):
+    def _request_report_build_resultlist(self, xml, comp_class=None, props=None):
         """
         Takes some input XML, does a report query on a calendar object
         and returns the resource objects found.
 
-        TODO: similar code is duplicated many places, we ought to do even more code
+        TODO: similar code is duplicated many places, we ought to do even more code
         refactoring
         """
         matches = []
+        if props is None:
+            props_ = [cdav.CalendarData()]
+        else:
+            props_ = [cdav.CalendarData()] + props
         response = self._query(xml, 1, 'report')
         results = self._handle_xml_response(
-            response=response, props=[cdav.CalendarData()])
+            response=response, props=props_)
         for r in results:
-            data=results[r][cdav.CalendarData.tag]
+            pdata = results[r]
+            cdata = pdata.pop(cdav.CalendarData.tag)
             if comp_class is None:
-                comp_class = self._calendar_comp_class_by_data(data)
+                comp_class = self._calendar_comp_class_by_data(cdata)
             if comp_class is None:
                 ## Ouch, we really shouldn't get here.  This probably
                 ## means we got some bad data from the server.  I've
@@ -680,7 +692,7 @@ class Calendar(DAVObject):
                 r = quote(r)
             matches.append(
                 comp_class(self.client, url=self.url.join(r),
-                           data=data, parent=self))
+                           data=cdata, parent=self, props=pdata))
 
         return (response, matches)
 
@@ -768,8 +780,8 @@ class Calendar(DAVObject):
             match_set = set()
             matches = []
             for todo in matches1 + matches2:
-                if not str(todo.url) in match_set:
-                    match_set.add(str(todo.url))
+                if not todo.url in match_set:
+                    match_set.add(todo.url)
                     ## and still, Zimbra seems to deliver too many TODOs on the
                     ## filter2 ... let's do some post-filtering in case the
                     ## server fails in filtering things the right way
@@ -935,8 +947,7 @@ class Calendar(DAVObject):
         level = dav.SyncLevel(value='1')
         props = dav.Prop() + dav.GetEtag()
         root = cmd + [level, token, props]
-        ## here be dragons - self.search probably won't handle 404s like they should be handled
-        (response, objects) = self._request_report_build_resultlist(root)
+        (response, objects) = self._request_report_build_resultlist(root, props=[dav.GetEtag()])
         sync_token = response.tree.findall('.//' + dav.SyncToken.tag)[0].text
         if load_objects:
             for obj in objects:
@@ -990,7 +1001,7 @@ class CalendarCollection(object):
         if self._objects_by_url is None:
             self._objects_by_url = {}
             for obj in self:
-                self._objects_by_url[str(obj.url)] = obj
+                self._objects_by_url[obj.url] = obj
         return self._objects_by_url
 
     def sync(self):
@@ -998,17 +1009,25 @@ class CalendarCollection(object):
         This method will contact the caldav server,
         request all changes from it, and sync up the collection
         """
-        updates = self.calendar.objects_by_sync_token(self.sync_token)
+        updated_objs = []
+        deleted_objs = []
+        updates = self.calendar.objects_by_sync_token(self.sync_token, load_objects=False)
         obu = self.objects_by_url()
         for obj in updates:
-            if str(obj.url) in obu:
-                try:
-                    obj.load()
-                except error.NotFoundError:
-                    obu.pop(str(obj.url))
-            else:
-                obu[str(obj.url)] = obj
+            if obj.url in obu and dav.GetEtag.tag in obu[obj.url].props and dav.GetEtag.tag in obj.props:
+                if obu[obj.url].props[dav.GetEtag.tag] == obj.props[dav.GetEtag.tag]:
+                    continue
+            obu[obj.url] = obj
+            try:
+                obj.load()
+                updated_objs.append(obj)
+            except error.NotFoundError:
+                deleted_objs.append(obj)
+                obu.pop(obj.url)
+
         self.objects = obu.values()
+        self.sync_token = updates.sync_token
+        return (updated_objs, deleted_objs)
 
 class CalendarObjectResource(DAVObject):
     """
@@ -1019,13 +1038,13 @@ class CalendarObjectResource(DAVObject):
     _icalendar_instance = None
     _data = None
 
-    def __init__(self, client=None, url=None, data=None, parent=None, id=None):
+    def __init__(self, client=None, url=None, data=None, parent=None, id=None, props=None):
         """
         CalendarObjectResource has an additional parameter for its constructor:
          * data = "...", vCal data for the event
         """
         super(CalendarObjectResource, self).__init__(
-            client=client, url=url, parent=parent, id=id)
+            client=client, url=url, parent=parent, id=id, props=props)
         if data is not None:
             self.data = data
 
