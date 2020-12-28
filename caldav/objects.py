@@ -897,9 +897,10 @@ class Calendar(DAVObject):
         for item in items_found:
             # Long uids are folded, so splice the lines together here before
             # attempting a match.
-            item_uid = re.search(r'\nUID:((.|\n[ \t])*)\n', item.data)
+            # ref https://github.com/python-caldav/caldav/issues/112 item.data may contain \r
+            item_uid = re.search(r'\nUID:((.|\n[ \t])*)\r?\n', item.data.replace('\r\n','\n'))
             if (not item_uid or
-                    re.sub(r'\n[ \t]', '', item_uid.group(1)) != uid):
+                    re.sub(r'\r?\n[ \t]', '', item_uid.group(1)) != uid):
                 continue
             return item
         raise error.NotFoundError("%s not found on server" % uid)
