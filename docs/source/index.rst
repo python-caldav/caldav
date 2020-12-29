@@ -19,38 +19,58 @@ Contents
 Objective and scope
 ===================
 
-The objective is basically to support RFC 4791.  The python caldav
-library should make interactions with caldav servers simple and easy.
-Simple operations (like find a list of all calendars owned, inserting
-an icalendar object into a calendar, do a simple date search, etc)
-should be trivial to accomplish even if the end-user of the library
-has no or very little knowledge of the caldav, webdav or icalendar
-standards.  Further, the library should be agile enough to allow
+The python caldav library should make interactions with calendar servers
+simple and easy.  Simple operations (like find a list of all calendars
+owned, inserting an icalendar object into a calendar, do a simple date
+search, etc) should be trivial to accomplish even if the end-user of
+the library has no or very little knowledge of the caldav, webdav or
+icalendar standards.  The library should be agile enough to allow
 "power users" to do more advanced stuff.
 
-The scope of the library basically only covers the caldav
-communication in itself.  Parsing and changing icalendar data
-(RFC 5545) is considered to be outside the scope - though, exceptions
-may apply (like, there is a method for "completing" a task on a task
-list).  However, there should be a tight integration of another
-library handling RFC 5545.  There exists two libraries for that today,
-it's vobject and icalendar.  Version 0.x officially supports vobject,
-this is to be changed in upcoming versions 1.x.  As of 0.7 there is also
-support for icalendar.
+RFC 4791, 2518 and 5545
+-----------------------
+
+RFC 4791 (CalDAV) outlines the standard way of communicating with a
+calendar server.  RFC 4791 is an extension of RFC 4918 (WebDAV).  The
+scope of this library is basically to cover RFC 4791/4918, the actual
+communication with the caldav server.  There exists another library
+webdavclient3 for handling RFC 4918, ideally we should depend on it
+rather than overlap it.
+
+This library should make it trivial to fetch an event, modify the date
+and save it back to the server - but to do that it's also needed to
+support RFC 5545 (icalendar).  It's outside the scope of this library
+to implement logic for parsing and modifying RFC 5545, instead we
+depend on another library for that.
+
+There exists two libraries supporting RFC 5545, vobject and icalendar.
+The icalendar library seems to be more popular.  Version 0.x depends
+on vobject, version 1.x will depend on icalendar.  Version 0.7 and
+higher supports both, but the "alternative" library will only be
+loaded when/if needed, and the vobject support may be deprecated in
+the future.
+
+Misbehaving server implementations
+----------------------------------
 
 Some server implementations may have some "caldav"-support that either
 doesn't implement all of RFC 4791, breaks the standard a bit, or has
 extra features.  As long as it doesn't add too much complexity to the
 code, hacks and workarounds for "badly behaving caldav servers" are
-considered to be within the scope.
+considered to be within the scope.  Ideally, users of the caldav
+library should be able to download all the data from one calendar
+server or cloud provider, upload it to another server type or cloud
+provider, and continue using the library without noticing any
+differences.  To get there, it may be needed to add tweaks in the
+library covering the things the servers are doing wrong.
 
 There exists an extention to the standard covering calendar color and
 calendar order, allegedly with an xml namespace
-http://apple.com/ns/ical/ - however, that URL gives (301 https and
+``http://apple.com/ns/ical/`` - however, that URL gives (301 https and
 then) 404.  I've done a quick google search, finding no documentation
 of this extension - however, it seems to be supported by several
-caldav libraries, clients and servers.  As of 0.7, this sorts under
-the category "available for power users".
+caldav libraries, clients and servers.  As of 0.7, calendar colors and
+order is available for "power users".
 
 Quickstart
 ==========
@@ -194,7 +214,7 @@ Notable classes and workflow
   
 * From the calendar object one can fetch / generate
   :class:`caldav.objects.Event` objects and
-  :class:`caldav.objects.Todo` objects.
+  :class:`caldav.objects.Todo` objects (as well as :class:`caldav.objects.Journal` objects - does anyone use Journal objects?).  Eventually the library may also spew out objects of the base class (:class:`caldav.objects.CalendarObjectResource`) if the object type is unknown when the object is instantiated.
 
 * If one happens to know the URLs, objects like calendars, principals
   and events can be instantiated without going through the
@@ -204,36 +224,91 @@ Notable classes and workflow
 
 For convenience, the classes above are also available as
 :class:`caldav.DAVClient`, :class:`caldav.Principal`,
-:class:`caldav.Calendar`, :class:`caldav.Event` and
-:class:`caldav.Todo`.
-
+:class:`caldav.Calendar`, :class:`caldav.Event`,
+:class:`caldav.Todo` etc.
 
 Compatibility
 =============
 
-The test suite is regularly run against several calendar servers, see https://github.com/python-caldav/caldav/issues/45 for the latest updates.  See `tests/compatibility_issues.py` for the most up-to-date list of compatibility issues.
+(This will probably never be completely up-to-date.  CalDAV-servers
+tend to be a moving target, and I rarely recheck if things works in
+newer versions of the software after I find an incompatibility)
+
+The test suite is regularly run against several calendar servers, see https://github.com/python-caldav/caldav/issues/45 for the latest updates.  See ``tests/compatibility_issues.py`` for the most up-to-date list of compatibility issues.  In early versions of this library test breakages was often an indication that the library did not conform well enough to the standards, but as of today it mostly indicates that the servers does not support the standard well enough.  It may be an option to add tweaks to the library code to cover some of the missing functionality.
+
+Here are some known issues:
 
 * You may want to avoid non-ASCII characters in the calendar name, or
   some servers (at least Zimbra) may behave a bit unexpectedly.
 
-* Not all servers supports searching for future instances of
-  recurring events or tasks, nor expanding recurring events.
+* It's non-trivial to fix proper support for recurring events and
+  tasks on the server side.  DAViCal and Baikal are the only one I
+  know of that does it right, all other calendar implementations that
+  I've tested fails (but in different ways) on the tests covering
+  recurrent events and tasks.  Xandikos developer claims that it
+  should work, I should probably revisit it again.
+
+* Baikal does not support date search for todo tasks.  DAViCal has
+  slightly broken support for such date search.
 
 * There are some special hacks both in the code and the tests to work
-  around compatibility issues in Zimbra
+  around compatibility issues in Zimbra (this should be solved differently)
 
 * Not all servers supports task lists, not all servers supports
-  freebusy, and not all servers supports journals.
+  freebusy, and not all servers supports journals.  Xandikos and
+  Baikal seems to support them all.
 
 * Calendar creation is actually not a mandatory feature according to
-  the RFC, but the tests depends on it - and I haven't experienced
-  any servers not supporting calendar creation.
-  
+  the RFC, but the tests depends on it.  The google calendar does
+  support creating calendars, but not through their CalDAV adapter.
+
 * iCloud may be a bit tricky, this is tracked in issue
-  https://github.com/python-caldav/caldav/issues/3
+  https://github.com/python-caldav/caldav/issues/3 - the list of incompatibilities found includes:
+
+  * No support for freebusy-requests, tasks or journals (only support for basic events).
+
+  * Broken (or no) support for recurring events
+
+  * We've observed information reappearing even if it has been deleted (i.e. recreating a calendar with the same name as a deleted calendar, and finding that the old events are still there)
+
+  * Seems impossible to have the same event on two calendars
+
+  * Some problems observed with the propfind method
+
+  * object_by_uid does not work (and my object_by_uid follows the example in the RFC)
 
 * Google seems to be the new Microsoft, according to the issue
-  tracker it seems like their CalDAV-support is rather lacking.
+  tracker it seems like their CalDAV-support is rather lacking.  At least they have a list ... https://developers.google.com/calendar/caldav/v2/guide
+
+* radicale will auto-create a calendar if one tries to access a calendar that does not exist.  The normal method of accessing a list of the calendars owned by the user seems to fail.
+
+Some notes on Caldav URLs
+=========================
+
+CalDAV URLs can be quite confusing, some software requires the URL to the calendar, other requires the URL to the principal.  The Python CalDAV library does support accessing calendars and principals using such URLs, but the recommended practice is to configure up the CalDAV root URL and tell the library to find the principal and calendars from that.  Typical examples of CalDAV URLs:
+
+* iCloud: ``https://caldav.icloud.com/``.  Note that there is no
+  template for finding the calendar URL and principal URL for iCloud -
+  such URLs contains some ID numbers, by simply sticking to the
+  recommended practice the caldav library will find those URLs.  A
+  typical icloud calendar URL looks like
+  ``https://p12-caldav.icloud.com/12345/calendars/CALNAME``.
+  
+* Google: ``https://www.google.com/calendar/dav/`` - but this is a
+  legacy URL, before using the officially supported URL
+  https://github.com/python-caldav/caldav/issues/119 has to be
+  resolved.  There are some details on the new CalDAV endpoints at
+  https://developers.google.com/calendar/caldav/v2/guide.  The legacy
+  calendar URL for the primary personal calendar seems to be of the
+  format
+  ``https://www.google.com/calendar/dav/donald%40gmail.com/events``. When
+  creating new calendars, they seem to end up under a global
+  namespace.
+
+* DAViCal: The caldav URL typically seems to be on the format ``https://your.server.example.com/caldav.php/``, though it depends on how the web server is configured.  The primary calendars have URLs like ``https://your.server.example.com/caldav.php/donald/calendar`` and other calendars have names like ``https://your.server.example.com/caldav.php/donald/golfing_calendar``.
+
+* Zimbra: The caldav URL is typically on the format ``https://mail.example.com/dav/``, calendar URLs can be on the format ``https://mail.example.com/dav/donald@example.com/My%20Golfing%20Calendar``.  Display name always matches the last part of the URL.
+
 
 Unit testing
 ============

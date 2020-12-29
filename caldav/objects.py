@@ -57,7 +57,8 @@ class DAVObject(object):
          * client: A DAVClient instance
          * url: The url for this object.  May be a full URL or a relative URL.
          * parent: The parent object - used when creating objects
-         * name: A displayname
+         * name: A displayname - to be removed in 1.0, see https://github.com/python-caldav/caldav/issues/128 for details
+         * props: a dict with known properties for this object (as of 2020-12, only used for etags, and only when fetching CalendarObjectResource using the .objects or .objects_by_sync_token methods).
          * id: The resource id (UID for an Event)
         """
 
@@ -467,10 +468,6 @@ class Calendar(DAVObject):
     The `Calendar` object is used to represent a calendar collection.
     Refer to the RFC for details:
     https://tools.ietf.org/html/rfc4791#section-5.3.1
-
-    Note that support for MKCALENDAR is RECOMMENDED and not REQUIRED
-    according to the RFC.  Support varies a bit between the different
-    calendar servers
     """
     def _create(self, name=None, id=None, supported_calendar_component_set=None):
         """
@@ -946,7 +943,7 @@ class Calendar(DAVObject):
         the sync-token was set.
 
         If load_objects is set to True, the objects will be loaded -
-        otherwise empty CalendarResourceObjects will be returned.
+        otherwise empty CalendarObjectResource objects will be returned.
 
         This method will return a SynchronizableCalendarObjectCollection object, which is
         an iterable.
@@ -1259,7 +1256,11 @@ class CalendarObjectResource(DAVObject):
 
 class Event(CalendarObjectResource):
     """
-    The `Event` object is used to represent an event (VEVENT).
+    The `Event` object is used to represent an event (VEVENT).  
+
+    As of 2020-12 it adds nothing to the inheritated class.  (I have
+    frequently asked myself if we need those subclasses ... perhaps
+    not)
     """
     pass
 
@@ -1267,37 +1268,51 @@ class Event(CalendarObjectResource):
 class Journal(CalendarObjectResource):
     """
     The `Journal` object is used to represent a journal entry (VJOURNAL).
+
+    As of 2020-12 it adds nothing to the inheritated class.  (I have
+    frequently asked myself if we need those subclasses ... perhaps
+    not)
     """
     pass
 
 
 class FreeBusy(CalendarObjectResource):
     """
-    The `FreeBusy` object is used to represent a freebusy response from the
-    server.
+    The `FreeBusy` object is used to represent a freebusy response from
+    the server.  __init__ is overridden, as a FreeBusy response has no
+    URL or ID.  The inheritated methods .save and .load is moot and
+    will probably throw errors (perhaps the class hierarchy should be
+    rethought, to prevent the FreeBusy from inheritating moot methods)
     """
     def __init__(self, parent, data):
         """
         A freebusy response object has no URL or ID (TODO: reconsider the
-        class hierarchy?  most of the inheritated methods are moot and
-        will fail?).  Raw response can be accessed through self.data,
-        instantiated vobject as self.vobject_instance.
+        class hierarchy?  Those responses share some logic with
+        Todo/Event/Journal, like the handling of self.data and
+        instantiation of vobject/icalendar objects, but other
+        inheritated methods like CalendarObjectResource.save and
+        CalendarObjectResource.load is moot any will fail.
         """
         CalendarObjectResource.__init__(self, client=parent.client, url=None,
                                         data=data, parent=parent, id=None)
 
-
 class Todo(CalendarObjectResource):
     """
-    The `Todo` object is used to represent a todo item (VTODO).
+    The `Todo` object is used to represent a todo item (VTODO).  A
+    Todo-object can be completed.
     """
     def complete(self, completion_timestamp=None):
-        """
-        Marks the task as completed.
+        """Marks the task as completed.
+
+        This method probably will do the wrong thing if the task is a
+        recurring task, in version 1.0 this will likely be changed -
+        see https://github.com/python-caldav/caldav/issues/127 for
+        details.
 
         Parameters:
          * completion_timestamp - datetime object.  Defaults to
            datetime.now().
+
         """
         if not completion_timestamp:
             completion_timestamp = datetime.now()
