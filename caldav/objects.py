@@ -1229,7 +1229,11 @@ class CalendarObjectResource(DAVObject):
 
     def _get_vobject_instance(self):
         if not self._vobject_instance:
-            self._set_vobject_instance(vobject.readOne(to_unicode(self._get_data())))
+            try:
+                self._set_vobject_instance(vobject.readOne(to_unicode(self._get_data())))
+            except:
+                logging.critical("Something went wrong while loading icalendar data into the vobject class.  ical url: " + self.url)
+                raise
         return self._vobject_instance
 
     vobject_instance = property(_get_vobject_instance, _set_vobject_instance,
