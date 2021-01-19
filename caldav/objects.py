@@ -1232,7 +1232,7 @@ class CalendarObjectResource(DAVObject):
             try:
                 self._set_vobject_instance(vobject.readOne(to_unicode(self._get_data())))
             except:
-                logging.critical("Something went wrong while loading icalendar data into the vobject class.  ical url: " + self.url)
+                logging.critical("Something went wrong while loading icalendar data into the vobject class.  ical url: " + str(self.url))
                 raise
         return self._vobject_instance
 
