@@ -563,7 +563,9 @@ class RepeatedFunctionalTestsBaseClass(object):
 
         ## The modified object should be returned by the server
         my_changed_objects = c.objects_by_sync_token(sync_token=my_changed_objects.sync_token, load_objects=True)
-        if not self.server_params.get('fragilesynctokens', False):
+        if self.server_params.get('fragilesynctokens', False):
+            assert(len(list(my_changed_objects)) >= 1)
+        else:
             assert_equal(len(list(my_changed_objects)), 1)
 
         ## this time it should be loaded

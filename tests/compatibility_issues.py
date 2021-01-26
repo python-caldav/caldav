@@ -22,7 +22,7 @@ radicale = [
     "nocalendarnotfound",
 
     ## freebusy is not supported yet, but on the long-term road map
-    "nofreebusy",
+    #"nofreebusy",
 
     ## Expanding recurrent events is not yet supported
     ## ref https://github.com/Kozea/Radicale/issues/662
@@ -46,7 +46,7 @@ zimbra = [
     ## earlier versions of Zimbra display-name could be changed, but
     ## then the calendar would not be available on the old URL
     ## anymore)
-    'nodisplayname'
+    'nodisplayname',
 
     ## extra features not specified in RFC5545
     "calendarorder",
@@ -94,10 +94,11 @@ icloud = [
     'object_by_uid_is_broken'
     ]
 
-## The version of davical I'm testing towards is very old, so this list may be outdated
 davical = [
-    'nofreebusy',
+    #'nofreebusy', ## for old versions 
     'vtodo_datesearch_nodtstart_task_is_skipped',
+    'fragilesynctokens',
+    'nojournal' ## it threw a 500 internal server error!
 ]
 
 google = [
