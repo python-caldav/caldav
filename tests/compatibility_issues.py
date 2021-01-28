@@ -22,7 +22,7 @@ radicale = [
     "nocalendarnotfound",
 
     ## freebusy is not supported yet, but on the long-term road map
-    #"nofreebusy",
+    "nofreebusy",
 
     ## Expanding recurrent events is not yet supported
     ## ref https://github.com/Kozea/Radicale/issues/662
@@ -33,6 +33,8 @@ radicale = [
     "calendarcolor"
 ]
 
+## ZIMBRA IS THE MOST SILLY, AND THERE ARE REGRESSIONS FOR EVERY RELEASE!
+## AAARGH!
 zimbra = [
     ## no idea why this breaks
     'nocalendarnotfound',
@@ -47,6 +49,12 @@ zimbra = [
     ## then the calendar would not be available on the old URL
     ## anymore)
     'nodisplayname',
+    'duplicate_in_other_calendar_with_same_uid_is_lost',
+    'event_by_url_is_broken',
+    'uid_required',
+    'no_todo_on_standard_calendar',
+    'no_sync_token',
+    'no_recurring_todo',
 
     ## extra features not specified in RFC5545
     "calendarorder",

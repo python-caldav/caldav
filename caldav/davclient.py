@@ -60,7 +60,8 @@ class DAVResponse:
         except:
             self.tree = None
 
-    def strip_boilerplate(self, properties=[]):
+    ## TODO: TODO: TODO: TODO: THIS SHOULD BE DELETED PRIOR TO THE NEXT RELEASE!
+    def strip_boilerplate_old(self, properties=[]):
         """All responses from the server should contain a <response>-block,
         this block should contain statuses and more data.  The
         properties we've requested will be in a property block tagged
@@ -92,6 +93,79 @@ class DAVResponse:
                 self.responses[href] = {}
                 for p in properties:
                     self.responses[href][p.tag] = r.findall('.//' + p.tag)
+        return self.responses
+
+    def strip_to_multistatus(self):
+        """
+        The general format of inbound data is something like this:
+
+        <xml><multistatus>
+            <response>(...)</response>
+            <response>(...)</response>
+            (...)
+        </multistatus></xml>
+
+        but sometimes the multistatus and/or xml element is missing in
+        self.tree.  We don't want to bother with the multistatus and
+        xml tags, we just want the response list.
+
+        An "Element" in the lxml library is a list-like object, so we
+        should typically return the element right above the responses.
+        If there is nothing but a response, return it as a list with
+        one element.
+        """
+        tree = self.tree
+        if (tree.tag == 'xml' and tree[0].tag == dav.MultiStatus.tag):
+            return tree[0]
+        if (tree.tag == dav.MultiStatus.tag):
+            return self.tree
+        return [ self.tree ]
+
+    def strip_boilerplate(self, properties=[]):
+        """All responses from the server should contain a <response>-block,
+        this block should contain statuses and more data.  The
+        properties we've requested will be in a property block tagged
+        with said property.  The properties will also be tagged with a href.
+
+        This method will do a quick status verification, strip away lots of
+        boilerplate XML that the caller most likely won't need, and return 
+        a dict on this form: {href: {property_tag: [xmlelement]}}
+
+        (Most likely the list around xmlelement is redundant, there
+        will be only one xmlelement, not a list of them, but the
+        xmlelement itself is a list)
+        """
+        ## TODO: TODO: TODO: TODO: THE LINE BELOW SHOULD BE DELETED PRIOR TO THE NEXT RELEASE!
+        old_results = self.strip_boilerplate_old(properties)
+
+        responses = self.strip_to_multistatus()
+
+        self.responses = {}
+
+        for r in responses:
+            if r.tag == dav.SyncToken.tag:
+                self.sync_token = r.text
+                continue
+            assert(r.tag == dav.Response.tag)
+            status = r.find('.//' + dav.Status.tag)
+            ## TODO: status should never be None, this needs more research.
+            ## added here as it solves real-world issues, ref
+            ## https://github.com/python-caldav/caldav/pull/56
+            if status is not None:
+                if (' 200 ' not in status.text and
+                    ' 207 ' not in status.text and
+                    ' 404 ' not in status.text):
+                    raise error.ResponseError(errmsg(response))
+                href = unquote(r.find('.//' + dav.Href.tag).text)
+                if not properties:
+                    self.responses[href] = r
+                else:
+                    self.responses[href] = {}
+                    for p in properties:
+                        self.responses[href][p.tag] = r.findall('.//' + p.tag)
+
+        ## TODO: TODO: TODO: TODO: THIS ASSERT SHOULD BE DELETED PRIOR TO THE NEXT RELEASE!
+        assert old_results == self.responses
         return self.responses
 
 

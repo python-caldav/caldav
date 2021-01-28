@@ -67,6 +67,8 @@ class Response(BaseElement):
 class Status(BaseElement):
     tag = ns("D", "status")
 
+class MultiStatus(BaseElement):
+    tag = ns("D", "multistatus")
 
 class CurrentUserPrincipal(BaseElement):
     tag = ns("D", "current-user-principal")

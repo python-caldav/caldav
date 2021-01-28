@@ -375,7 +375,11 @@ class CalendarSet(DAVObject):
                 display_name = properties['{DAV:}displayname']
                 if display_name == name:
                     return calendar
-        ## TODO: is this good if cal_id is None?
+        if name and not cal_id:
+            raise NotFoundError("No calendar with name %s found under %s" % (name, self.url))
+        if not cal_id and not name:
+            return self.calendars()[0]
+
         return Calendar(self.client, name=name, parent=self,
                         url=self.url.join(quote(cal_id)), id=cal_id)
 
@@ -661,7 +665,7 @@ class Calendar(DAVObject):
         ## retry, and warnings logged ... or perhaps not.
         return self.search(root, comp_class)
 
-    def _request_report_build_resultlist(self, xml, comp_class=None, props=None):
+    def _request_report_build_resultlist(self, xml, comp_class=None, props=None, no_calendardata=False):
         """
         Takes some input XML, does a report query on a calendar object
         and returns the resource objects found.
@@ -679,22 +683,24 @@ class Calendar(DAVObject):
             response=response, props=props_)
         for r in results:
             pdata = results[r]
-            cdata = pdata.pop(cdav.CalendarData.tag)
+            if cdav.CalendarData.tag in pdata:
+                cdata = pdata.pop(cdav.CalendarData.tag)
+                if comp_class is None:
+                    comp_class = self._calendar_comp_class_by_data(cdata)
+            else:
+                cdata = None
             if comp_class is None:
-                comp_class = self._calendar_comp_class_by_data(cdata)
-            if comp_class is None:
-                ## Ouch, we really shouldn't get here.  This probably
-                ## means we got some bad data from the server.  I've
-                ## observed receiving a VCALENDAR from Baikal that did
-                ## not contain anything.  Let's assume the data is
-                ## void and should not be counted.
-                continue
+                ## no CalendarData fetched - which is normal i.e. when doing a sync-token report and only asking for the URLs
+                comp_class = CalendarObjectResource
             url = URL(r)
             if url.hostname is None:
                 # Quote when result is not a full URL
-                r = quote(r)
+                url = quote(r)
+            ## icloud hack - icloud returns the calendar URL as well as the calendar item URLs
+            if self.url.join(url) == self.url:
+                continue
             matches.append(
-                comp_class(self.client, url=self.url.join(r),
+                comp_class(self.client, url=self.url.join(url),
                            data=cdata, parent=self, props=pdata))
 
         return (response, matches)
@@ -953,7 +959,7 @@ class Calendar(DAVObject):
         level = dav.SyncLevel(value='1')
         props = dav.Prop() + dav.GetEtag()
         root = cmd + [level, token, props]
-        (response, objects) = self._request_report_build_resultlist(root, props=[dav.GetEtag()])
+        (response, objects) = self._request_report_build_resultlist(root, props=[dav.GetEtag()], no_calendardata=True)
         sync_token = response.tree.findall('.//' + dav.SyncToken.tag)[0].text
         if load_objects:
             for obj in objects:

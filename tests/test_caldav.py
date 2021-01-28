@@ -509,11 +509,12 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert_equal(len(events2), len(existing_events) + 1)
         assert_equal(events2[0].url, events[0].url)
 
-        # We should be able to access the calender through the name
-        c2 = self.principal.calendar(name="Yep")
-        events2 = c2.events()
-        assert_equal(len(events2), 1)
-        assert_equal(events2[0].url, events[0].url)
+        if not self.server_params.get('nomkcalendar', False) and not self.server_params.get('nodisplayname', False):
+            # We should be able to access the calender through the name
+            c2 = self.principal.calendar(name="Yep")
+            events2 = c2.events()
+            assert_equal(len(events2), 1)
+            assert_equal(events2[0].url, events[0].url)
 
     def testObjectBySyncToken(self):
         """
@@ -521,6 +522,9 @@ class RepeatedFunctionalTestsBaseClass(object):
 
         This test is using explicit calls to objects_by_sync_token
         """
+        if self.server_params.get('no_sync_token', False):
+            raise SkipTest("sync-token reports not supported")
+        
         ## Boiler plate ... make a calendar and add some content
         c = self._fixCalendar()
         objcnt = 0
@@ -533,7 +537,8 @@ class RepeatedFunctionalTestsBaseClass(object):
         if not self.server_params.get('norecurring', False):
             c.save_event(evr)
             objcnt += 1
-        if not self.server_params.get('notodo', False):
+        if (not self.server_params.get('notodo', False) and
+            not self.server_params.get('no_todo_on_standard_calendar', False)):
             c.save_todo(todo)
             c.save_todo(todo2)
             c.save_todo(todo3)
@@ -607,6 +612,9 @@ class RepeatedFunctionalTestsBaseClass(object):
 
         Same test pattern as testObjectBySyncToken, but exercises the .sync() method
         """
+        if self.server_params.get('no_sync_token', False):
+            raise SkipTest("sync-token reports not supported")
+        
         ## Boiler plate ... make a calendar and add some content
         c = self._fixCalendar()
         objcnt = 0
@@ -619,7 +627,8 @@ class RepeatedFunctionalTestsBaseClass(object):
         if not self.server_params.get('norecurring', False):
             c.save_event(evr)
             objcnt += 1
-        if not self.server_params.get('notodo', False):
+        if (not self.server_params.get('notodo', False) and
+            not self.server_params.get('no_todo_on_standard_calendar', False)):
             c.save_todo(todo)
             c.save_todo(todo2)
             c.save_todo(todo3)
@@ -678,10 +687,12 @@ class RepeatedFunctionalTestsBaseClass(object):
         c1 = self.principal.make_calendar(name="Yep", cal_id=self.testcal_id)
         c2 = self.principal.make_calendar(name="Yapp", cal_id=self.testcal_id2)
         e1_ = c1.save_event(ev1)
-        e1_.load()
+        if not self.server_params.get('event_by_url_is_broken', False):
+            e1_.load()
         e1 = c1.events()[0]
         assert_equal(e1.url, e1_.url)
-        e1.load()
+        if not self.server_params.get('event_by_url_is_broken', False):
+            e1.load()
 
     def testCopyEvent(self):
         if self.server_params.get('nomkcalendar', False):
@@ -821,8 +832,9 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert_equal(len(todos2), 1)
 
         # adding a todo without an UID, it should also work
-        c.save_todo(todo7)
-        assert_equal(len(c.todos()), 2)
+        if not self.server_params.get('uid_required', False):
+            c.save_todo(todo7)
+            assert_equal(len(c.todos()), 2)
 
         logging.info("Fetching the events (should be none)")
         # c.events() should NOT return todo-items
@@ -938,7 +950,8 @@ class RepeatedFunctionalTestsBaseClass(object):
         # Hence a compliant server should chuck out all the todos except t5.
         # Not all servers perform according to (my interpretation of) the RFC.
         foo = 5
-        if self.server_params.get('norecurring', False):
+        if (self.server_params.get('norecurring', False) or
+            self.server_params.get('no_recurring_todo', False)):
             foo -= 1
         if self.server_params.get('vtodo_datesearch_nodtstart_task_is_skipped', False):
             foo -= 2
@@ -960,7 +973,8 @@ class RepeatedFunctionalTestsBaseClass(object):
         ## * t1 should be returned, as it has no due date set and hence has an infinite duration.
         ## * t4 should probably be returned, as it has no dtstart nor due and hence is also considered to span over infinite time
         ## dtstart set but without due should also be returned.
-        if self.server_params.get('norecurring', False):
+        if (self.server_params.get('norecurring', False) or
+            self.server_params.get('no_recurring_todo', False)):
             assert_equal(len(todos), 1)
         else:
             assert_equal(len(todos), 2)
@@ -1011,8 +1025,9 @@ class RepeatedFunctionalTestsBaseClass(object):
         t2.delete()
 
         # ... the deleted one is gone ...
-        todos = c.todos(include_completed=True)
-        assert_equal(len(todos), 2)
+        if not self.server_params.get('event_by_url_is_broken', False):
+            todos = c.todos(include_completed=True)
+            assert_equal(len(todos), 2)
 
         # date search should not include completed events ... hum.
         # TODO, fixme.
@@ -1130,16 +1145,20 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert_not_equal(e1.url, None)
 
         # Verify that we can look it up, both by URL and by ID
-        e2 = c.event_by_url(e1.url)
+        if not self.server_params.get('event_by_url_is_broken', False):
+            e2 = c.event_by_url(e1.url)
+            assert_equal(e2.instance.vevent.uid, e1.instance.vevent.uid)
+            assert_equal(e2.url, e1.url)
         e3 = c.event_by_uid("20010712T182145Z-123401@example.com")
-        assert_equal(e2.instance.vevent.uid, e1.instance.vevent.uid)
         assert_equal(e3.instance.vevent.uid, e1.instance.vevent.uid)
+        assert_equal(e3.url, e1.url)
 
         # Knowing the URL of an event, we should be able to get to it
         # without going through a calendar object
-        e4 = Event(client=self.caldav, url=e1.url)
-        e4.load()
-        assert_equal(e4.instance.vevent.uid, e1.instance.vevent.uid)
+        if not self.server_params.get('event_by_url_is_broken', False):
+            e4 = Event(client=self.caldav, url=e1.url)
+            e4.load()
+            assert_equal(e4.instance.vevent.uid, e1.instance.vevent.uid)
 
         assert_raises(error.NotFoundError, c.event_by_uid, "0")
         c.save_event(evr)
@@ -1165,7 +1184,8 @@ class RepeatedFunctionalTestsBaseClass(object):
         # add event
         e1 = c.save_event(ev1)
         assert_not_equal(e1.url, None)
-        assert_equal(c.event_by_url(e1.url).url, e1.url)
+        if not self.server_params.get('event_by_url_is_broken', False):
+            assert_equal(c.event_by_url(e1.url).url, e1.url)
         assert_equal(c.event_by_uid(e1.id).url, e1.url)
 
         ## add same event again.  As it has same uid, it should be overwritten
@@ -1181,8 +1201,9 @@ class RepeatedFunctionalTestsBaseClass(object):
             ## this should also work.
             e2.save(no_create=True)
 
-            e3 = c.event_by_url(e1.url)
-            assert_equal(e3.instance.vevent.summary.value, 'Bastille Day Party!')
+            if not self.server_params.get('event_by_url_is_broken', False):
+                e3 = c.event_by_url(e1.url)
+                assert_equal(e3.instance.vevent.summary.value, 'Bastille Day Party!')
 
         ## "no_overwrite" should throw a ConsistencyError
         assert_raises(error.ConsistencyError, c.save_event, ev1, no_overwrite=True)
@@ -1190,13 +1211,15 @@ class RepeatedFunctionalTestsBaseClass(object):
         # delete event
         e1.delete()
 
+
         # Verify that we can't look it up, both by URL and by ID
         assert_raises(error.NotFoundError, c.event_by_url, e1.url)
         if not self.server_params.get('nooverwrite', False):
             assert_raises(error.NotFoundError, c.event_by_url, e2.url)
-        assert_raises(
-            error.NotFoundError, c.event_by_uid,
-            "20010712T182145Z-123401@example.com")
+        if not self.server_params.get('event_by_url_is_broken', False):
+            assert_raises(
+                error.NotFoundError, c.event_by_uid,
+                "20010712T182145Z-123401@example.com")
 
     def testDateSearchAndFreeBusy(self):
         """
