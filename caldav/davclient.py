@@ -12,15 +12,12 @@ from caldav.elements import dav, cdav, ical
 
 from caldav.lib import error
 from caldav.lib.url import URL
-from caldav.objects import Principal
+from caldav.objects import Principal, errmsg, log
 
 if six.PY3:
     from urllib.parse import unquote
 else:
     from urlparse import unquote
-
-log = logging.getLogger('caldav')
-
 
 class DAVResponse:
     """
@@ -36,13 +33,46 @@ class DAVResponse:
     status = 0
 
     def __init__(self, response):
-        self.raw = response.content
-        # ref https://github.com/python-caldav/caldav/issues/112 stray CRs may cause problems
-        if type(self.raw) == bytes:
-            self.raw = self.raw.replace(b'\r\n', b'\n')
-        elif type(self.raw) == str:
-            self.raw = self.raw.replace('\r\n', '\n')
         self.headers = response.headers
+        log.debug("response headers: " + str(self.headers))
+        log.debug("response status: " + str(self.status))
+        if (self.headers.get('Content-Type', '').startswith('text/xml') or
+            self.headers.get('Content-Type', '').startswith('application/xml')):
+            try:
+                content_length = int(self.headers['Content-Length'])
+            except:
+                content_length=-1
+            if content_length == 0:
+                self._raw = ''
+                self.tree = None
+                logging.debug("No content delivered")
+            else:
+                #self.tree = etree.parse(response.raw, parser=etree.XMLParser(remove_blank_text=True))
+                self.tree = etree.XML(response.content, parser=etree.XMLParser(remove_blank_text=True))
+                if log.level <= logging.DEBUG:
+                    logging.debug(etree.tostring(self.tree, pretty_print=True))
+        elif (self.headers.get('Content-Type', '').startswith('text/calendar') or
+              self.headers.get('Content-Type', '').startswith('text/plain')):
+              ## text/plain is typically for errors, we shouldn't see it on 200/207 responses.
+              ## TODO: may want to log an error if it's text/plain and 200/207.
+            self._raw = response.content
+        else:
+            ## probably content-type was not given, i.e. iCloud does not seem to include those
+            if 'Content-Type' in self.headers:
+                log.error("unexpected content type from server: %s. %s" % (self.headers['Content-Type'], error.ERR_FRAGMENT))
+            self._raw = response.content
+            try:
+                self.tree = etree.XML(self._raw, parser=etree.XMLParser(remove_blank_text=True))
+            except:
+                pass
+
+        if hasattr(self, '_raw'):
+            logging.debug(self._raw)
+            # ref https://github.com/python-caldav/caldav/issues/112 stray CRs may cause problems
+            if type(self._raw) == bytes:
+                self._raw = self._raw.replace(b'\r\n', b'\n')
+            elif type(self._raw) == str:
+                self._raw = self._raw.replace('\r\n', '\n')
         self.status = response.status_code
         ## ref https://github.com/python-caldav/caldav/issues/81,
         ## incidents with a response without a reason has been
@@ -51,51 +81,15 @@ class DAVResponse:
             self.reason = response.reason
         except AttributeError:
             self.reason = ''
-        log.debug("response headers: " + str(self.headers))
-        log.debug("response status: " + str(self.status))
-        log.debug("raw response: " + str(self.raw))
 
-        try:
-            self.tree = etree.XML(self.raw)
-        except:
-            self.tree = None
+    @property
+    def raw(self):
+        ## TODO: this should not really be needed?
+        if not hasattr(self, '_raw'):
+            self._raw = etree.tostring(self.tree, pretty_print=True)
+        return self._raw
 
-    ## TODO: TODO: TODO: TODO: THIS SHOULD BE DELETED PRIOR TO THE NEXT RELEASE!
-    def strip_boilerplate_old(self, properties=[]):
-        """All responses from the server should contain a <response>-block,
-        this block should contain statuses and more data.  The
-        properties we've requested will be in a property block tagged
-        with said property.  The properties will also be tagged with a href.
-
-        This method will do a quick status verification, strip away lots of
-        boilerplate XML that the caller most likely won't need, and return 
-        a dict on this form: {href: {property_tag: [xmlelement]}}
-
-        (Most likely the list around xmlelement is redundant, there
-        will be only one xmlelement, not a list of them, but the
-        xmlelement itself is a list)
-        """
-        self.responses = {}
-        for r in self.tree.findall('.//' + dav.Response.tag):
-            status = r.find('.//' + dav.Status.tag)
-            ## TODO: status should never be None, this needs more research.
-            ## added here as it solves real-world issues, ref
-            ## https://github.com/python-caldav/caldav/pull/56
-            if status is not None:
-                if (' 200 ' not in status.text and
-                    ' 207 ' not in status.text and
-                    ' 404 ' not in status.text):
-                    raise error.ResponseError(errmsg(response))
-            href = unquote(r.find('.//' + dav.Href.tag).text)
-            if not properties:
-                self.responses[href] = r
-            else:
-                self.responses[href] = {}
-                for p in properties:
-                    self.responses[href][p.tag] = r.findall('.//' + p.tag)
-        return self.responses
-
-    def strip_to_multistatus(self):
+    def _strip_to_multistatus(self):
         """
         The general format of inbound data is something like this:
 
@@ -113,6 +107,9 @@ class DAVResponse:
         should typically return the element right above the responses.
         If there is nothing but a response, return it as a list with
         one element.
+
+        (The equivalent of this method could probably be found with a
+        simple XPath query, but I'm not much into XPath)
         """
         tree = self.tree
         if (tree.tag == 'xml' and tree[0].tag == dav.MultiStatus.tag):
@@ -121,51 +118,158 @@ class DAVResponse:
             return self.tree
         return [ self.tree ]
 
-    def strip_boilerplate(self, properties=[]):
-        """All responses from the server should contain a <response>-block,
-        this block should contain statuses and more data.  The
-        properties we've requested will be in a property block tagged
-        with said property.  The properties will also be tagged with a href.
-
-        This method will do a quick status verification, strip away lots of
-        boilerplate XML that the caller most likely won't need, and return 
-        a dict on this form: {href: {property_tag: [xmlelement]}}
-
-        (Most likely the list around xmlelement is redundant, there
-        will be only one xmlelement, not a list of them, but the
-        xmlelement itself is a list)
+    def validate_status(self, status):
         """
-        ## TODO: TODO: TODO: TODO: THE LINE BELOW SHOULD BE DELETED PRIOR TO THE NEXT RELEASE!
-        old_results = self.strip_boilerplate_old(properties)
+        status is a string like "HTTP/1.1 404 Not Found".
+        200, 207 and 404 are considered good statuses.
+        """
+        if (' 200 ' not in status and
+            ' 207 ' not in status and
+            ' 404 ' not in status):
+            raise error.ResponseError(status)
 
-        responses = self.strip_to_multistatus()
+    def _parse_response(self, response):
+        """
+        One response should contain one or zero status children, one
+        href tag and zero or more propstats.  Find them, assert there
+        isn't more in the response and return those three fields
+        """
+        status = None
+        href = None
+        propstats = []
+        assert(response.tag == dav.Response.tag)
+        for elem in response:
+            if elem.tag == dav.Status.tag:
+                assert(not status)
+                status = elem.text
+                assert(status)
+                self.validate_status(status)
+            elif elem.tag == dav.Href.tag:
+                assert not href
+                href = unquote(elem.text)
+            elif elem.tag == dav.PropStat.tag:
+                propstats.append(elem)
+            else:
+                assert(False)
+        assert(href)
+        return (href, propstats, status)
 
-        self.responses = {}
+    def find_objects_and_props(self, compatibility_mode=False):
+        """Check the response from the server, check that it is on an expected format,
+        find hrefs and props from it and check statuses delivered.
 
+        The parsed data will be put into self.objects, a dict {href:
+        {proptag: prop_element}}.  Further parsing of the prop_element
+        has to be done by the caller.
+
+        self.sync_token will be populated if found, self.objects will be populated.
+        """
+        self.objects = {}
+        
+        responses = self._strip_to_multistatus()
         for r in responses:
             if r.tag == dav.SyncToken.tag:
                 self.sync_token = r.text
                 continue
             assert(r.tag == dav.Response.tag)
-            status = r.find('.//' + dav.Status.tag)
-            ## TODO: status should never be None, this needs more research.
-            ## added here as it solves real-world issues, ref
-            ## https://github.com/python-caldav/caldav/pull/56
-            if status is not None:
-                if (' 200 ' not in status.text and
-                    ' 207 ' not in status.text and
-                    ' 404 ' not in status.text):
-                    raise error.ResponseError(errmsg(response))
-                href = unquote(r.find('.//' + dav.Href.tag).text)
-                if not properties:
-                    self.responses[href] = r
-                else:
-                    self.responses[href] = {}
-                    for p in properties:
-                        self.responses[href][p.tag] = r.findall('.//' + p.tag)
 
-        ## TODO: TODO: TODO: TODO: THIS ASSERT SHOULD BE DELETED PRIOR TO THE NEXT RELEASE!
-        assert old_results == self.responses
+            (href, propstats, status) = self._parse_response(r)
+            assert not href in self.objects
+            self.objects[href] = {}
+
+            ## The properties may be delivered either in one
+            ## propstat with multiple props or in multiple
+            ## propstat
+            for propstat in propstats:
+                cnt = 0
+                status = propstat.find(dav.Status.tag)
+                assert(status is not None)
+                if (status is not None):
+                    assert(len(status) == 0)
+                    cnt += 1
+                    self.validate_status(status.text)
+                    if not compatibility_mode:
+                        ## if a prop was not found, ignore it
+                        if ' 404 ' in status.text:
+                            continue
+                for prop in propstat.iterfind(dav.Prop.tag):
+                    cnt += 1
+                    for theprop in prop:
+                        self.objects[href][theprop.tag] = theprop
+
+                ## there shouldn't be any more elements except for status and prop
+                assert(cnt == len(propstat))
+
+        return self.objects
+
+    def _expand_prop(self, proptag, props_found, multi_value_allowed=False, xpath=None):
+        values = []
+        if proptag in props_found:
+            prop_xml = props_found[proptag]
+            if prop_xml.items():
+                import pdb; pdb.set_trace()
+            if not xpath and len(prop_xml)==0:
+                if prop_xml.text:
+                    values.append(prop_xml.text)
+            else:
+                _xpath = xpath if xpath else ".//*"
+                leafs = prop_xml.findall(_xpath)
+                values = []
+                for leaf in leafs:
+                    if leaf.items():
+                        import pdb; pdb.set_trace()
+                    if leaf.text:
+                        values.append(leaf.text)
+                    else:
+                        values.append(leaf.tag)
+        if multi_value_allowed:
+            return values
+        else:
+            if not values:
+                return None
+            assert(len(values)==1)
+            return values[0]
+
+    def expand_simple_props(self, props=[], multi_value_props=[], xpath=None):
+        """
+        The find_objects_and_props() will stop at the xml element
+        below the prop tag.  This method will expand those props into
+        text.
+
+        Executes find_objects_and_props if not run already, then
+        modifies and returns self.objects.
+        """
+        if not hasattr(self, 'objects'):
+            self.find_objects_and_props()
+        for href in self.objects:
+            props_found = self.objects[href]
+            for prop in props:
+                props_found[prop.tag] = self._expand_prop(prop.tag, props_found, xpath=xpath)
+            for prop in multi_value_props:
+                props_found[prop.tag] = self._expand_prop(prop.tag, props_found, xpath=xpath, multi_value_allowed=True)
+        return self.objects
+
+    
+    def strip_boilerplate(self, properties=[]):
+        """
+        For backward compatibility - this method should die eventually
+        TODO TODO TODO ... remove this code
+        """
+        objects = self.find_objects_and_props(compatibility_mode=True)
+
+        if not properties:
+            self.responses = self.objects
+            return self.responses
+
+        self.responses = {}
+        for href in self.objects:
+            self.responses[href] = {}
+            for prop_wanted in properties:
+                props_found = []
+                if prop_wanted.tag in self.objects[href]:
+                    props_found.append(self.objects[href][prop_wanted.tag])
+                self.responses[href][prop_wanted.tag] = props_found
+
         return self.responses
 
 
@@ -364,9 +468,10 @@ class DAVClient:
         else:
             auth = self.auth
 
-        r = self.session.request(method, url, data=to_wire(body),
-                             headers=combined_headers, proxies=proxies,
-                             auth=auth, verify=self.ssl_verify_cert)
+        r = self.session.request(
+            method, url, data=to_wire(body),
+            headers=combined_headers, proxies=proxies, auth=auth,
+            verify=self.ssl_verify_cert, stream=False) ## TODO: optimize with stream=True maybe
         response = DAVResponse(r)
 
         # If server supports BasicAuth and not DigestAuth, let's try again:

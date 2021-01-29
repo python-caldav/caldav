@@ -6,12 +6,12 @@ from six import PY3
 from caldav.lib.namespace import nsmap
 from caldav.lib.python_utilities import to_unicode
 
-
 class BaseElement(object):
     children = None
     tag = None
     value = None
     attributes = None
+    caldav_class = None
 
     def __init__(self, name=None, value=None):
         self.children = []

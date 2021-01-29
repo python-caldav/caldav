@@ -3,6 +3,7 @@
 
 from collections import defaultdict
 
+ERR_FRAGMENT="Please raise an issue at https://github.com/python-caldav/caldav/issues or reach out to t-caldav@tobixen.no, include this error and the traceback and tell what server you are using"
 
 class AuthorizationError(Exception):
     """

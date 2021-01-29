@@ -11,11 +11,8 @@ nsmap = {
 ## calendar-color and calendar-order properties.  However, those
 ## attributes aren't described anywhere, and the I-URL even gives a
 ## 404!  I don't want to ship it in the namespace list of every request.
-nsmap2 = {
-    "D": "DAV:",
-    "C": "urn:ietf:params:xml:ns:caldav",
-    "I": "http://apple.com/ns/ical/",
-}
+nsmap2 = nsmap.copy()
+nsmap2["I"] = "http://apple.com/ns/ical/",
 
 def ns(prefix, tag=None):
     name = "{%s}" % nsmap2[prefix]

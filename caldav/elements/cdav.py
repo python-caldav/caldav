@@ -10,6 +10,7 @@ except:
 
 from caldav.lib.namespace import ns
 from .base import BaseElement, NamedBaseElement, ValuedBaseElement
+import caldav.objects
 
 
 def _to_utc_date_string(ts):
@@ -121,12 +122,12 @@ class Comp(NamedBaseElement):
 # Properties
 class CalendarHomeSet(BaseElement):
     tag = ns("C", "calendar-home-set")
-
+    caldav_class = caldav.objects.CalendarSet
 
 # calendar resource type, see rfc4791, sec. 4.2
 class Calendar(BaseElement):
     tag = ns("C", "calendar")
-
+    caldav_class = caldav.objects.Calendar
 
 class CalendarDescription(ValuedBaseElement):
     tag = ns("C", "calendar-description")

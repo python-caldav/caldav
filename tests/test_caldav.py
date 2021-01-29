@@ -252,6 +252,26 @@ END:VJOURNAL
 END:VCALENDAR
 """
 
+def MockedDAVResponse(text):
+    """
+    For unit testing - a mocked DAVResponse with some specific content
+    """
+    resp = mock.MagicMock()
+    resp.status_code = 207
+    resp.reason = 'multistatus'
+    resp.headers = {}
+    resp.content = text
+    return DAVResponse(resp)
+
+def MockedDAVClient(xml_returned):
+    """
+    For unit testing - a mocked DAVClient returning some specific content every time
+    a request is performed
+    """
+    client = DAVClient(url='https://somwhere.in.the.universe.example/some/caldav/root')
+    client.request = mock.MagicMock(return_value=MockedDAVResponse(xml_returned))
+    return client
+
 class RepeatedFunctionalTestsBaseClass(object):
     """This is a class with functional tests (tests that goes through
     basic functionality and actively communicates with third parties)
@@ -1521,6 +1541,7 @@ class TestCalDAV:
         ref https://github.com/python-caldav/caldav/issues/83
         """
         mocked().status_code=200
+        mocked().headers = {}
         cal_url = "http://me:hunter2@calendar.møøh.example:80/"
         client = DAVClient(url=cal_url)
         response = client.put('/foo/møøh/bar', 'bringebærsyltetøy 北京 пиво', {})
@@ -1589,7 +1610,7 @@ class TestCalDAV:
         assert_equal(calendar1.url, calendar2.url)
         assert_equal(calendar1.url, calendar3.url)
         assert_equal(
-            calendar1.url, "http://calendar.example:80/me/calendars/bar")
+            calendar1.url, "http://calendar.example:80/me/calendars/bar/")
 
         # principal.calendar_home_set can also be set to an object
         # This should be noop
@@ -1604,6 +1625,329 @@ class TestCalDAV:
             'http://me:hunter2@calendar.example:80/someoneelse/calendars/main_calendar')
         assert_equal(calendar1.url, calendar2.url)
 
+    def test_get_events_icloud(self):
+        """
+        tests that some XML observed from the icloud returns 0 events found.
+        """
+        xml = """
+<multistatus xmlns="DAV:">
+  <response>
+    <href>/17149682/calendars/testcalendar-485d002e-31b9-4147-a334-1d71503a4e2c/</href>
+    <propstat>
+      <prop>    </prop>
+      <status>HTTP/1.1 200 OK</status>
+    </propstat>
+    <propstat>
+      <prop>
+        <calendar-data xmlns="urn:ietf:params:xml:ns:caldav"/>
+      </prop>
+      <status>HTTP/1.1 404 Not Found</status>
+    </propstat>
+  </response>
+</multistatus>
+        """
+        client = MockedDAVClient(xml)
+        calendar = Calendar(client, url='/17149682/calendars/testcalendar-485d002e-31b9-4147-a334-1d71503a4e2c/')
+        assert_equal(len(calendar.events()), 0)
+
+    def test_get_calendars(self):
+        xml="""
+<D:multistatus xmlns:D="DAV:">
+  <D:response>
+    <D:href>/dav/tobias%40redpill-linpro.com/</D:href>
+    <D:propstat>
+      <D:status>HTTP/1.1 200 OK</D:status>
+      <D:prop>
+        <D:resourcetype>
+          <D:collection/>
+        </D:resourcetype>
+        <D:displayname>USER_ROOT</D:displayname>
+      </D:prop>
+    </D:propstat>
+  </D:response>
+  <D:response>
+    <D:href>/dav/tobias%40redpill-linpro.com/Inbox/</D:href>
+    <D:propstat>
+      <D:status>HTTP/1.1 200 OK</D:status>
+      <D:prop>
+        <D:resourcetype>
+          <D:collection/>
+          <C:schedule-inbox xmlns:C="urn:ietf:params:xml:ns:caldav"/>
+        </D:resourcetype>
+        <D:displayname>Inbox</D:displayname>
+      </D:prop>
+    </D:propstat>
+  </D:response>
+  <D:response>
+    <D:href>/dav/tobias%40redpill-linpro.com/Emailed%20Contacts/</D:href>
+    <D:propstat>
+      <D:status>HTTP/1.1 200 OK</D:status>
+      <D:prop>
+        <D:resourcetype>
+          <D:collection/>
+          <C:addressbook xmlns:C="urn:ietf:params:xml:ns:carddav"/>
+        </D:resourcetype>
+        <D:displayname>Emailed Contacts</D:displayname>
+      </D:prop>
+    </D:propstat>
+  </D:response>
+  <D:response>
+    <D:href>/dav/tobias%40redpill-linpro.com/Calendarc5f1a47c-2d92-11e3-b654-0016eab36bf4.ics</D:href>
+    <D:propstat>
+      <D:status>HTTP/1.1 200 OK</D:status>
+      <D:prop>
+        <D:resourcetype/>
+        <D:displayname>Calendarc5f1a47c-2d92-11e3-b654-0016eab36bf4.ics</D:displayname>
+      </D:prop>
+    </D:propstat>
+  </D:response>
+  <D:response>
+    <D:href>/dav/tobias%40redpill-linpro.com/Yep/</D:href>
+    <D:propstat>
+      <D:status>HTTP/1.1 200 OK</D:status>
+      <D:prop>
+        <D:resourcetype>
+          <D:collection/>
+          <C:calendar xmlns:C="urn:ietf:params:xml:ns:caldav"/>
+        </D:resourcetype>
+        <D:displayname>Yep</D:displayname>
+      </D:prop>
+    </D:propstat>
+  </D:response>
+</D:multistatus>
+"""
+        client=MockedDAVClient(xml)
+        calendar_home_set = CalendarSet(client, url='/dav/tobias%40redpill-linpro.com/')
+        assert_equal(len(calendar_home_set.calendars()), 1)
+
+    def test_xml_parsing(self):
+        """
+        DAVResponse has quite some code to parse the XML received from the
+        server.  This test contains real XML received from various
+        caldav servers, and the expected result from the parse
+        methods.
+        """
+        xml = """
+<multistatus xmlns="DAV:">
+  <response xmlns="DAV:">
+    <href>/</href>
+    <propstat>
+      <prop>
+        <current-user-principal xmlns="DAV:">
+          <href xmlns="DAV:">/17149682/principal/</href>
+        </current-user-principal>
+      </prop>
+      <status>HTTP/1.1 200 OK</status>
+    </propstat>
+  </response>
+</multistatus>
+"""
+        expected_result = {'/':
+                            {'{DAV:}current-user-principal': '/17149682/principal/'}}
+        
+        assert_equal(MockedDAVResponse(xml).expand_simple_props(props=[dav.CurrentUserPrincipal()]),
+                     expected_result)
+
+        xml = """
+<multistatus xmlns="DAV:">
+  <response xmlns="DAV:">
+    <href>/17149682/principal/</href>
+    <propstat>
+      <prop>
+        <calendar-home-set xmlns="urn:ietf:params:xml:ns:caldav">
+          <href xmlns="DAV:">https://p62-caldav.icloud.com:443/17149682/calendars/</href>
+        </calendar-home-set>
+      </prop>
+      <status>HTTP/1.1 200 OK</status>
+    </propstat>
+  </response>
+</multistatus>"""
+        expected_result = {'/17149682/principal/':
+                           {'{urn:ietf:params:xml:ns:caldav}calendar-home-set': 'https://p62-caldav.icloud.com:443/17149682/calendars/'}}
+        assert_equal(MockedDAVResponse(xml).expand_simple_props(props=[cdav.CalendarHomeSet()]),
+                     expected_result)
+
+        xml = """
+<multistatus xmlns="DAV:">
+  <response xmlns="DAV:">
+    <href>/</href>
+    <propstat>
+      <prop>
+        <current-user-principal xmlns="DAV:">
+          <href xmlns="DAV:">/17149682/principal/</href>
+        </current-user-principal>
+      </prop>
+      <status>HTTP/1.1 200 OK</status>
+    </propstat>
+  </response>
+</multistatus>"""
+        expected_result = {'/': {'{DAV:}current-user-principal': '/17149682/principal/'}}
+        assert_equal(MockedDAVResponse(xml).expand_simple_props(props=[dav.CurrentUserPrincipal()]),
+                     expected_result)
+
+        xml = """
+<multistatus xmlns="DAV:">
+  <response>
+    <href>/17149682/calendars/testcalendar-84439d0b-ce46-4416-b978-7b4009122c64/</href>
+    <propstat>
+      <prop>
+                </prop>
+      <status>HTTP/1.1 200 OK</status>
+    </propstat>
+    <propstat>
+      <prop>
+        <calendar-data xmlns="urn:ietf:params:xml:ns:caldav"/>
+      </prop>
+      <status>HTTP/1.1 404 Not Found</status>
+    </propstat>
+  </response>
+  <response>
+    <href>/17149682/calendars/testcalendar-84439d0b-ce46-4416-b978-7b4009122c64/20010712T182145Z-123401%40example.com.ics</href>
+    <propstat>
+      <prop>
+        <calendar-data xmlns="urn:ietf:params:xml:ns:caldav">BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Example Corp.//CalDAV Client//EN
+BEGIN:VEVENT
+UID:20010712T182145Z-123401@example.com
+DTSTAMP:20060712T182145Z
+DTSTART:20060714T170000Z
+DTEND:20060715T040000Z
+SUMMARY:Bastille Day Party
+END:VEVENT
+END:VCALENDAR
+</calendar-data>
+      </prop>
+      <status>HTTP/1.1 200 OK</status>
+    </propstat>
+  </response>
+</multistatus>
+"""
+        expected_result = {'/17149682/calendars/testcalendar-84439d0b-ce46-4416-b978-7b4009122c64/': {'{urn:ietf:params:xml:ns:caldav}calendar-data': None}, '/17149682/calendars/testcalendar-84439d0b-ce46-4416-b978-7b4009122c64/20010712T182145Z-123401@example.com.ics': {'{urn:ietf:params:xml:ns:caldav}calendar-data': 'BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Example Corp.//CalDAV Client//EN\nBEGIN:VEVENT\nUID:20010712T182145Z-123401@example.com\nDTSTAMP:20060712T182145Z\nDTSTART:20060714T170000Z\nDTEND:20060715T040000Z\nSUMMARY:Bastille Day Party\nEND:VEVENT\nEND:VCALENDAR\n'}}
+        assert_equal(MockedDAVResponse(xml).expand_simple_props(props=[cdav.CalendarData()]),
+                     expected_result)
+
+        xml = """
+<multistatus xmlns="DAV:">
+  <response xmlns="DAV:">
+    <href>/17149682/calendars/</href>
+    <propstat>
+      <prop>
+        <resourcetype xmlns="DAV:">
+          <collection/>
+        </resourcetype>
+        <displayname xmlns="DAV:">Ny Test</displayname>
+      </prop>
+      <status>HTTP/1.1 200 OK</status>
+    </propstat>
+  </response>
+  <response xmlns="DAV:">
+    <href>/17149682/calendars/06888b87-397f-11eb-943b-3af9d3928d42/</href>
+    <propstat>
+      <prop>
+        <resourcetype xmlns="DAV:">
+          <collection/>
+          <calendar xmlns="urn:ietf:params:xml:ns:caldav"/>
+        </resourcetype>
+        <displayname xmlns="DAV:">calfoo3</displayname>
+      </prop>
+      <status>HTTP/1.1 200 OK</status>
+    </propstat>
+  </response>
+  <response xmlns="DAV:">
+    <href>/17149682/calendars/inbox/</href>
+    <propstat>
+      <prop>
+        <resourcetype xmlns="DAV:">
+          <collection/>
+          <schedule-inbox xmlns="urn:ietf:params:xml:ns:caldav"/>
+        </resourcetype>
+      </prop>
+      <status>HTTP/1.1 200 OK</status>
+    </propstat>
+    <propstat>
+      <prop>
+        <displayname xmlns="DAV:"/>
+      </prop>
+      <status>HTTP/1.1 404 Not Found</status>
+    </propstat>
+  </response>
+  <response xmlns="DAV:">
+    <href>/17149682/calendars/testcalendar-e2910e0a-feab-4b51-b3a8-55828acaa912/</href>
+    <propstat>
+      <prop>
+        <resourcetype xmlns="DAV:">
+          <collection/>
+          <calendar xmlns="urn:ietf:params:xml:ns:caldav"/>
+        </resourcetype>
+        <displayname xmlns="DAV:">Yep</displayname>
+      </prop>
+      <status>HTTP/1.1 200 OK</status>
+    </propstat>
+  </response>
+</multistatus>
+"""
+        expected_result = {
+            '/17149682/calendars/': {
+                '{DAV:}resourcetype': ['{DAV:}collection'],
+                '{DAV:}displayname': 'Ny Test'},
+            '/17149682/calendars/06888b87-397f-11eb-943b-3af9d3928d42/':  {
+                '{DAV:}resourcetype': ['{DAV:}collection', '{urn:ietf:params:xml:ns:caldav}calendar'],
+                '{DAV:}displayname': 'calfoo3'},
+            '/17149682/calendars/inbox/': {
+                '{DAV:}resourcetype': ['{DAV:}collection', '{urn:ietf:params:xml:ns:caldav}schedule-inbox'],
+                '{DAV:}displayname': None}, 
+            '/17149682/calendars/testcalendar-e2910e0a-feab-4b51-b3a8-55828acaa912/': {
+                '{DAV:}resourcetype': ['{DAV:}collection', '{urn:ietf:params:xml:ns:caldav}calendar'],
+                '{DAV:}displayname': 'Yep'}}
+        assert_equal(MockedDAVResponse(xml).expand_simple_props(props=[dav.DisplayName()], multi_value_props=[dav.ResourceType()]),
+                     expected_result)
+    
+        xml = """
+<multistatus xmlns="DAV:">
+  <response xmlns="DAV:">
+    <href>/17149682/calendars/testcalendar-f96b3bf0-09e1-4f3d-b891-3a25c99a2894/</href>
+    <propstat>
+      <prop>
+        <getetag xmlns="DAV:">"kkkgopik"</getetag>
+      </prop>
+      <status>HTTP/1.1 200 OK</status>
+    </propstat>
+  </response>
+  <response xmlns="DAV:">
+    <href>/17149682/calendars/testcalendar-f96b3bf0-09e1-4f3d-b891-3a25c99a2894/1761bf8c-6363-11eb-8fe4-74e5f9bfd8c1.ics</href>
+    <propstat>
+      <prop>
+        <getetag xmlns="DAV:">"kkkgorwx"</getetag>
+      </prop>
+      <status>HTTP/1.1 200 OK</status>
+    </propstat>
+  </response>
+  <response xmlns="DAV:">
+    <href>/17149682/calendars/testcalendar-f96b3bf0-09e1-4f3d-b891-3a25c99a2894/20010712T182145Z-123401%40example.com.ics</href>
+    <propstat>
+      <prop>
+        <getetag xmlns="DAV:">"kkkgoqqu"</getetag>
+      </prop>
+      <status>HTTP/1.1 200 OK</status>
+    </propstat>
+  </response>
+  <sync-token>HwoQEgwAAAh4yw8ntwAAAAAYAhgAIhUIopml463FieB4EKq9+NSn04DrkQEoAA==</sync-token>
+</multistatus>
+"""
+        expected_results = {
+            '/17149682/calendars/testcalendar-f96b3bf0-09e1-4f3d-b891-3a25c99a2894/': {
+                '{DAV:}getetag': '"kkkgopik"',
+                '{urn:ietf:params:xml:ns:caldav}calendar-data': None},
+            '/17149682/calendars/testcalendar-f96b3bf0-09e1-4f3d-b891-3a25c99a2894/1761bf8c-6363-11eb-8fe4-74e5f9bfd8c1.ics': {
+                '{DAV:}getetag': '"kkkgorwx"',
+                '{urn:ietf:params:xml:ns:caldav}calendar-data': None},
+            '/17149682/calendars/testcalendar-f96b3bf0-09e1-4f3d-b891-3a25c99a2894/20010712T182145Z-123401@example.com.ics': {
+                '{DAV:}getetag': '"kkkgoqqu"',
+                '{urn:ietf:params:xml:ns:caldav}calendar-data': None}
+        }
+
+        
     def testFailedQuery(self):
         """
         ref https://github.com/python-caldav/caldav/issues/54

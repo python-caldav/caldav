@@ -31,6 +31,9 @@ from caldav.lib.python_utilities import to_unicode
 
 import logging
 
+log = logging.getLogger('caldav')
+log.setLevel(logging.ERROR)
+
 def errmsg(r):
     """Utility for formatting a response xml tree to an error string"""
     return "%s %s\n\n%s" % (r.status, r.reason, r.raw)
@@ -93,16 +96,17 @@ class DAVObject(object):
         depth = 1
         properties = {}
 
-        props = [dav.ResourceType(), dav.DisplayName()]
-        response = self._query_properties(props, depth)
+        props = [ dav.DisplayName()]
+        multiprops = [ dav.ResourceType() ]
+        response = self._query_properties(props+multiprops, depth)
         properties = self._handle_xml_response(
-            response=response, props=props, type=type, what='tag')
+            response=response, props=props, multi_value_props=multiprops)
 
         for path in list(properties.keys()):
-            resource_type = properties[path][dav.ResourceType.tag]
+            resource_types = properties[path][dav.ResourceType.tag]
             resource_name = properties[path][dav.DisplayName.tag]
 
-            if resource_type == type or type is None:
+            if type is None or type in resource_types:
                 url = URL(path)
                 if url.hostname is None:
                     # Quote when path is not a full URL
@@ -115,9 +119,11 @@ class DAVObject(object):
                 # to RFC 2518, section 5.2.
                 if (self.url.strip_trailing_slash() !=
                         self.url.join(path).strip_trailing_slash()):
-                    c.append((self.url.join(path), resource_type,
+                    c.append((self.url.join(path), resource_types,
                               resource_name))
-
+                    
+        ## TODO: return objects rather than just URLs, and include
+        ## the properties we've already fetched
         return c
 
     def _query_properties(self, props=None, depth=0):
@@ -176,7 +182,7 @@ class DAVObject(object):
             raise error.exception_by_method[query_method](errmsg(ret))
         return ret
 
-    def _handle_xml_response(self, response, props=[], type=None,
+    def _handle_xml_response(self, response, props=[], multi_value_props=[], type=None,
                               what='text'):
         """
         Internal method to massage an XML response into a dict.
@@ -186,46 +192,14 @@ class DAVObject(object):
         in the XML response, it should work well for most
         simple cases.
         """
-        if not props:
-            return {}
-        properties = {}
-        responses = response.strip_boilerplate(props)
-        for href in responses:
-            ## icloud returns the collection URL sometimes. It should be skipped.
-            ## TODO: need to do more research on weather this is allowed according
-            ## to the standard, and if there are more appropriate ways to deal with
-            ## this.
-            properties[href] = {}
-            icloud_hack = False
-            for tag in responses[href]:
-                t = responses[href][tag]
-                if t:
-                    ## I think there never should never be more than
-                    ## one property-block for a given property.  Said
-                    ## property block may contain a list, though.
-                    assert len(t)==1
-                if not t or t[0] is None:
-                    val = None
-                elif list(t[0]):
-                    if type is not None:
-                        val = t[0].find(".//" + type)
-                    else:
-                        val = t[0].find(".//*")
-                    if val is not None:
-                        val = getattr(val, what) or getattr(val, 'attrib')
-                    else:
-                        val = None
-                else:
-                    val = t[0].text
-                ## icloud sends the identity URL ... annoying
-                if val is None and tag.endswith('}calendar-data') and href.strip('/') in (self.url.strip_trailing_slash(), self.url.path.strip('/')):
-                    icloud_hack = True
-                else:
-                    properties[href][tag] = val
-            if icloud_hack and not properties[href]:
-                properties.pop(href)
-
-        return properties
+        results = response.expand_simple_props(props=props, multi_value_props=multi_value_props)
+        ## iCloud hack, remove href to self if it contains no properties
+        #path = self.url.path
+        #if not path.endswith('/'): ## TODO: why not?
+            #path = path + '/'
+        #if path in results and not [ x for x in props if results[path][x.tag] is not None ]:
+            #results.pop(path)
+        return results
 
     def get_properties(self, props=None, depth=0, parse_response_xml=True):
         """
@@ -248,6 +222,11 @@ class DAVObject(object):
             return response
 
         properties = self._handle_xml_response(response, props)
+
+        if not properties:
+            import pdb; pdb.set_trace()
+            properties = self._handle_xml_response(response, props)
+        
         path = unquote(self.url.path)
         if path.endswith('/'):
             exchange_path = path[:-1]
@@ -257,12 +236,17 @@ class DAVObject(object):
         if path in properties:
             rc = properties[path]
         elif exchange_path in properties:
+            logging.error("potential path handling problem with ending slashes.  Path given: %s, path found: %s.  %s" % (path, exchange_path, error.ERR_FRAGMENT))
             rc = properties[exchange_path]
         elif self.url in properties:
             rc = properties[self.url]
+        elif '/principal/' in properties and path.endswith('/principal/'):
+            logging.error("Bypassing a known iCloud bug - path expected in response: %s, path found: /principal/" % (path, error.ERR_FRAGMENT))
+            ## The strange thing is that we apparently didn't encounter this problem in bc589093a34f0ed0ef489ad5e9cba048750c9837 or 3ee4e42e2fa8f78b71e5ffd1ef322e4007df7a60 - TODO: check this up
+            rc = properties['/principal/']
         else:
-            raise Exception(
-                "The CalDAV server you are using has a problem with path handling, or the URL is wrong.")
+            logging.error("Possibly the server has a path handling problem.  Path expected: %s, path found: %s %s" % (path, str(list(properties.keys)), error.ERR_FRAGMENT))
+            import pdb; pdb.set_trace()
 
         return rc
 
@@ -381,7 +365,7 @@ class CalendarSet(DAVObject):
             return self.calendars()[0]
 
         return Calendar(self.client, name=name, parent=self,
-                        url=self.url.join(quote(cal_id)), id=cal_id)
+                        url=self.url.join(quote(cal_id)+'/'), id=cal_id)
 
 class Principal(DAVObject):
     """
@@ -393,6 +377,9 @@ class Principal(DAVObject):
     and a DAV:resourcetype property (defined in Section 13.9 of [RFC2518]).
     Additionally, a principal MUST report the DAV:principal XML element
     in the value of the DAV:resourcetype property.
+
+    (TODO: the resourcetype is actually never checked, and the DisplayName 
+    is not stored anywhere)
     """
     def __init__(self, client=None, url=None):
         """
@@ -516,9 +503,9 @@ class Calendar(DAVObject):
                 try:
                     current_display_name = self.get_properties([display_name])
                     if current_display_name != name:
-                        logging.warning("caldav server not complient with RFC4791. unable to set display name on calendar.  Wanted name: \"%s\" - gotten name: \"%s\".  Ignoring." % (name, current_display_name))
+                        log.warning("caldav server not complient with RFC4791. unable to set display name on calendar.  Wanted name: \"%s\" - gotten name: \"%s\".  Ignoring." % (name, current_display_name))
                 except:
-                    logging.warning("calendar server does not support display name on calendar?  Ignoring", exc_info=True)
+                    log.warning("calendar server does not support display name on calendar?  Ignoring", exc_info=True)
 
     def get_supported_components(self):
         """
@@ -1238,7 +1225,7 @@ class CalendarObjectResource(DAVObject):
             try:
                 self._set_vobject_instance(vobject.readOne(to_unicode(self._get_data())))
             except:
-                logging.critical("Something went wrong while loading icalendar data into the vobject class.  ical url: " + str(self.url))
+                log.critical("Something went wrong while loading icalendar data into the vobject class.  ical url: " + str(self.url))
                 raise
         return self._vobject_instance
 
