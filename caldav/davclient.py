@@ -249,30 +249,6 @@ class DAVResponse:
                 props_found[prop.tag] = self._expand_prop(prop.tag, props_found, xpath=xpath, multi_value_allowed=True)
         return self.objects
 
-    
-    def strip_boilerplate(self, properties=[]):
-        """
-        For backward compatibility - this method should die eventually
-        TODO TODO TODO ... remove this code
-        """
-        objects = self.find_objects_and_props(compatibility_mode=True)
-
-        if not properties:
-            self.responses = self.objects
-            return self.responses
-
-        self.responses = {}
-        for href in self.objects:
-            self.responses[href] = {}
-            for prop_wanted in properties:
-                props_found = []
-                if prop_wanted.tag in self.objects[href]:
-                    props_found.append(self.objects[href][prop_wanted.tag])
-                self.responses[href][prop_wanted.tag] = props_found
-
-        return self.responses
-
-
 class DAVClient:
     """
     Basic client for webdav, uses the requests lib; gives access to

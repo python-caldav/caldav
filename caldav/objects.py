@@ -223,10 +223,8 @@ class DAVObject(object):
 
         properties = self._handle_xml_response(response, props)
 
-        if not properties:
-            import pdb; pdb.set_trace()
-            properties = self._handle_xml_response(response, props)
-        
+        assert(properties)
+
         path = unquote(self.url.path)
         if path.endswith('/'):
             exchange_path = path[:-1]
@@ -360,7 +358,7 @@ class CalendarSet(DAVObject):
                 if display_name == name:
                     return calendar
         if name and not cal_id:
-            raise NotFoundError("No calendar with name %s found under %s" % (name, self.url))
+            raise error.NotFoundError("No calendar with name %s found under %s" % (name, self.url))
         if not cal_id and not name:
             return self.calendars()[0]
 
@@ -514,12 +512,9 @@ class Calendar(DAVObject):
         """
         props = [cdav.SupportedCalendarComponentSet()]
         response = self.get_properties(props, parse_response_xml=False)
-        response_list = response.strip_boilerplate(props)
-        ## This ... should probably be rewritten and explained.
-        return [
-            z.attrib['name'] for z in [
-                [y for y in x.values()] for x in
-                response_list.values()][0][0][0]]
+        response_list = response.find_objects_and_props()
+        prop = response_list[unquote(self.url.path)][cdav.SupportedCalendarComponentSet().tag]
+        return [supported.get('name') for supported in prop]
 
     def save_event(self, ical, no_overwrite=False, no_create=False):
         """
