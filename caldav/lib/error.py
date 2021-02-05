@@ -2,6 +2,33 @@
 # -*- encoding: utf-8 -*-
 
 from collections import defaultdict
+import logging
+
+try:
+    import os
+    ## one of DEBUG_PDB, DEBUG, DEVELOPMENT, PRODUCTION
+    debugmode = os.environ['PYTHON_CALDAV_DEBUGMODE']
+except:
+    ## TODO: the default value here should be set to PRODUCTION prior to release
+    debugmode = 'DEVELOPMENT'
+
+log = logging.getLogger('caldav')
+if debugmode.startswith('DEBUG'):
+    log.setLevel(logging.DEBUG)
+else:
+    log.setLevel(logging.WARNING)
+
+def assert_(condition):
+    try:
+        assert(condition)
+    except AssertionError:
+        if debugmode == 'PRODUCTION':
+            log.error("Deviation from expectations found.  %s" % ERR_FRAGMENT, exc_info=True)
+        elif debugmode == 'DEBUG_PDB':
+            log.error("Deviation from expectations found.  Dropping into debugger")
+            import pdb; pdb.set_trace()
+        else:
+            raise
 
 ERR_FRAGMENT="Please raise an issue at https://github.com/python-caldav/caldav/issues or reach out to t-caldav@tobixen.no, include this error and the traceback and tell what server you are using"
 

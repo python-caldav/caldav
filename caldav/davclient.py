@@ -45,12 +45,12 @@ class DAVResponse:
             if content_length == 0:
                 self._raw = ''
                 self.tree = None
-                logging.debug("No content delivered")
+                log.debug("No content delivered")
             else:
                 #self.tree = etree.parse(response.raw, parser=etree.XMLParser(remove_blank_text=True))
                 self.tree = etree.XML(response.content, parser=etree.XMLParser(remove_blank_text=True))
                 if log.level <= logging.DEBUG:
-                    logging.debug(etree.tostring(self.tree, pretty_print=True))
+                    log.debug(etree.tostring(self.tree, pretty_print=True))
         elif (self.headers.get('Content-Type', '').startswith('text/calendar') or
               self.headers.get('Content-Type', '').startswith('text/plain')):
               ## text/plain is typically for errors, we shouldn't see it on 200/207 responses.
@@ -67,7 +67,7 @@ class DAVResponse:
                 pass
 
         if hasattr(self, '_raw'):
-            logging.debug(self._raw)
+            log.debug(self._raw)
             # ref https://github.com/python-caldav/caldav/issues/112 stray CRs may cause problems
             if type(self._raw) == bytes:
                 self._raw = self._raw.replace(b'\r\n', b'\n')
@@ -137,12 +137,12 @@ class DAVResponse:
         status = None
         href = None
         propstats = []
-        assert(response.tag == dav.Response.tag)
+        error.assert_(response.tag == dav.Response.tag)
         for elem in response:
             if elem.tag == dav.Status.tag:
-                assert(not status)
+                error.assert_(not status)
                 status = elem.text
-                assert(status)
+                error.assert_(status)
                 self.validate_status(status)
             elif elem.tag == dav.Href.tag:
                 assert not href
@@ -150,8 +150,8 @@ class DAVResponse:
             elif elem.tag == dav.PropStat.tag:
                 propstats.append(elem)
             else:
-                assert(False)
-        assert(href)
+                error.assert_(False)
+        error.assert_(href)
         return (href, propstats, status)
 
     def find_objects_and_props(self, compatibility_mode=False):
@@ -171,10 +171,10 @@ class DAVResponse:
             if r.tag == dav.SyncToken.tag:
                 self.sync_token = r.text
                 continue
-            assert(r.tag == dav.Response.tag)
+            error.assert_(r.tag == dav.Response.tag)
 
             (href, propstats, status) = self._parse_response(r)
-            assert not href in self.objects
+            error.assert_(not href in self.objects)
             self.objects[href] = {}
 
             ## The properties may be delivered either in one
@@ -183,9 +183,9 @@ class DAVResponse:
             for propstat in propstats:
                 cnt = 0
                 status = propstat.find(dav.Status.tag)
-                assert(status is not None)
+                error.assert_(status is not None)
                 if (status is not None):
-                    assert(len(status) == 0)
+                    error.assert_(len(status) == 0)
                     cnt += 1
                     self.validate_status(status.text)
                     if not compatibility_mode:
@@ -198,7 +198,7 @@ class DAVResponse:
                         self.objects[href][theprop.tag] = theprop
 
                 ## there shouldn't be any more elements except for status and prop
-                assert(cnt == len(propstat))
+                error.assert_(cnt == len(propstat))
 
         return self.objects
 
@@ -227,7 +227,7 @@ class DAVResponse:
         else:
             if not values:
                 return None
-            assert(len(values)==1)
+            error.assert_(len(values)==1)
             return values[0]
 
     def expand_simple_props(self, props=[], multi_value_props=[], xpath=None):

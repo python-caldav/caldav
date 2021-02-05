@@ -30,14 +30,11 @@ from caldav.elements import dav, cdav, ical
 from caldav.lib.python_utilities import to_unicode
 
 import logging
-
 log = logging.getLogger('caldav')
-log.setLevel(logging.ERROR)
 
 def errmsg(r):
     """Utility for formatting a response xml tree to an error string"""
     return "%s %s\n\n%s" % (r.status, r.reason, r.raw)
-
 
 class DAVObject(object):
 
@@ -223,7 +220,7 @@ class DAVObject(object):
 
         properties = self._handle_xml_response(response, props)
 
-        assert(properties)
+        error.assert_(properties)
 
         path = unquote(self.url.path)
         if path.endswith('/'):
@@ -234,17 +231,17 @@ class DAVObject(object):
         if path in properties:
             rc = properties[path]
         elif exchange_path in properties:
-            logging.error("potential path handling problem with ending slashes.  Path given: %s, path found: %s.  %s" % (path, exchange_path, error.ERR_FRAGMENT))
+            log.error("potential path handling problem with ending slashes.  Path given: %s, path found: %s.  %s" % (path, exchange_path, error.ERR_FRAGMENT))
             rc = properties[exchange_path]
         elif self.url in properties:
             rc = properties[self.url]
         elif '/principal/' in properties and path.endswith('/principal/'):
-            logging.error("Bypassing a known iCloud bug - path expected in response: %s, path found: /principal/" % (path, error.ERR_FRAGMENT))
+            log.error("Bypassing a known iCloud bug - path expected in response: %s, path found: /principal/" % (path, error.ERR_FRAGMENT))
             ## The strange thing is that we apparently didn't encounter this problem in bc589093a34f0ed0ef489ad5e9cba048750c9837 or 3ee4e42e2fa8f78b71e5ffd1ef322e4007df7a60 - TODO: check this up
             rc = properties['/principal/']
         else:
-            logging.error("Possibly the server has a path handling problem.  Path expected: %s, path found: %s %s" % (path, str(list(properties.keys)), error.ERR_FRAGMENT))
-            import pdb; pdb.set_trace()
+            log.error("Possibly the server has a path handling problem.  Path expected: %s, path found: %s %s" % (path, str(list(properties.keys)), error.ERR_FRAGMENT))
+            error.assert_(False)
 
         return rc
 
