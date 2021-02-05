@@ -939,7 +939,11 @@ class Calendar(DAVObject):
         props = dav.Prop() + dav.GetEtag()
         root = cmd + [level, token, props]
         (response, objects) = self._request_report_build_resultlist(root, props=[dav.GetEtag()], no_calendardata=True)
-        sync_token = response.tree.findall('.//' + dav.SyncToken.tag)[0].text
+        ## TODO: look more into this, I think sync_token should be directly available through response object
+        try:
+            sync_token = response.sync_token
+        except:
+            sync_token = response.tree.findall('.//' + dav.SyncToken.tag)[0].text
         if load_objects:
             for obj in objects:
                 try:

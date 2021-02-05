@@ -206,8 +206,7 @@ class DAVResponse:
         values = []
         if proptag in props_found:
             prop_xml = props_found[proptag]
-            if prop_xml.items():
-                import pdb; pdb.set_trace()
+            error.assert_(not prop_xml.items()):
             if not xpath and len(prop_xml)==0:
                 if prop_xml.text:
                     values.append(prop_xml.text)
@@ -216,8 +215,7 @@ class DAVResponse:
                 leafs = prop_xml.findall(_xpath)
                 values = []
                 for leaf in leafs:
-                    if leaf.items():
-                        import pdb; pdb.set_trace()
+                    error.assert_(not leaf.items)
                     if leaf.text:
                         values.append(leaf.text)
                     else:
