@@ -48,7 +48,11 @@ else:
 
 ## Let's try to create a calendar.  (this may fail, calendar creation
 ## is not a mandatory feature according to the RFC)
-my_new_calendar = my_principal.make_calendar(name="Test calendar")
+try:
+    my_new_calendar = my_principal.calendar(name="Test calendar")
+    assert(my_new_calendar)
+except:
+    my_principal.make_calendar(name="Test calendar")
 
 ## Let's add an event to our newly created calendar
 my_event = my_new_calendar.save_event("""BEGIN:VCALENDAR

@@ -17,3 +17,10 @@ include
 .installed.cfg
 accountific.db
 .coverage
+.noseids
+tests/.noseids
+*.bak
+*~
+#*#
+caldav.egg-info/
+tests/conf_private.py
