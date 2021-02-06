@@ -75,3 +75,9 @@ class MultiStatus(BaseElement):
 
 class CurrentUserPrincipal(BaseElement):
     tag = ns("D", "current-user-principal")
+
+class PrincipalCollectionSet(BaseElement):
+    tag = ns("D", "principal-collection-set")
+
+class Allprop(BaseElement):
+    tag = ns("D", "allprop")

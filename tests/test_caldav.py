@@ -16,6 +16,7 @@ import time
 import vobject
 import uuid
 import tempfile
+import random
 from collections import namedtuple
 from datetime import datetime
 from six import PY3
@@ -259,6 +260,31 @@ END:VJOURNAL
 END:VCALENDAR
 """
 
+## From RFC4438 examples, with some modifications
+sched = """BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Example Corp.//CalDAV Client//EN
+BEGIN:VEVENT
+UID:%s
+SEQUENCE:0
+DTSTAMP:20210206T%sZ
+DTSTART:203206%02iT%sZ
+DURATION:PT1H
+TRANSP:OPAQUE
+SUMMARY:Lunch or something
+ATTENDEE;CN="Tobias Brox";CUTYPE=INDIVIDUAL;PARTSTAT
+ =NEEDS-ACTION;ROLE=REQ-PARTICIPANT;RSVP=TRUE:mailto:tobias@redpill-linpro.com
+ATTENDEE;CN="Tobias Testing Brox";CUTYPE=INDIVIDUAL;PARTSTAT
+ =NEEDS-ACTION;ROLE=REQ-PARTICIPANT;RSVP=TRUE:mailto:t-caldav@tobixen.no
+ATTENDEE;CN="Tobias Test2 Brox";CUTYPE=INDIVIDUAL;PARTSTAT=NEEDS-A
+ CTION;RSVP=TRUE:mailto:t-caldav-test2@tobixen.no
+END:VEVENT
+END:VCALENDAR
+""" % (str(uuid.uuid4()), 
+       "%2i%2i%2i" % (random.randint(0,23), random.randint(0,59), random.randint(0,59)),
+       random.randint(1,28),
+       "%2i%2i%2i" % (random.randint(0,23), random.randint(0,59), random.randint(0,59)))
+
 class RepeatedFunctionalTestsBaseClass(object):
     """This is a class with functional tests (tests that goes through
     basic functionality and actively communicates with third parties)
@@ -371,6 +397,33 @@ class RepeatedFunctionalTestsBaseClass(object):
             return self._default_calendar
         else:
             return self.principal.make_calendar(name="Yep", cal_id=self.testcal_id)
+
+    def testSupport(self):
+        """
+        Test the check_*_support methods
+        """
+        assert(self.caldav.check_dav_support())
+        assert(self.caldav.check_cdav_support())
+        if 'no_scheduling' in self.server_params:
+            assert(not self.caldav.check_scheduling_support())
+        else:
+            assert(self.caldav.check_scheduling_support())
+
+    def testScheduling(self):
+        if 'no_scheduling' in self.server_params:
+            raise SkipTest("no scheduling support by caldav server")
+        inbox = self.principal.schedule_inbox()
+        outbox = self.principal.schedule_outbox()
+        calendar_user_address_set = self.principal.calendar_user_address_set()
+        me_a_participant = self.principal.get_vcal_address()
+        c = self._fixCalendar()
+        ## this should cause an email to be sent by the server
+        ## (I must find a better API for this ...)
+        e=Event(parent=c, data=sched)
+        e.add_organizer()
+        if 'zimbra' in str(self.principal.url):
+            import pdb; pdb.set_trace()
+        e.save()
 
     def testPropfind(self):
         """
@@ -1089,38 +1142,32 @@ class RepeatedFunctionalTestsBaseClass(object):
     def testSetCalendarProperties(self):
         if self.server_params.get('nodisplayname', False):
             raise SkipTest("skipping properties test as display name is not supported by server")
+        
         c = self._fixCalendar()
         assert_not_equal(c.url, None)
 
         props = c.get_properties([dav.DisplayName(), ])
-        if not self.server_params.get('nomkcalendar', False):
-            assert_equal("Yep", props[dav.DisplayName.tag])
-
+        
         ## TODO: there are more things in this test that
         ## should be run even if mkcalendar is not available.
         if self.server_params.get('nomkcalendar', False):
             raise SkipTest("MKCALENDAR not supported")
 
+        assert_equal("Yep", props[dav.DisplayName.tag])
+
         # Creating a new calendar with different ID but with existing name
-        # - fails on zimbra only.
-        # This is OK to fail.
-        if 'zimbra' in str(c.url):
-            assert_raises(Exception, self.principal.make_calendar,
-                          "Yep", self.testcal_id2)
-        else:
-            # This may fail, and if it fails, add an exception to the test
-            # (see the "if" above)
-            cc = self.principal.make_calendar("Yep", self.testcal_id2)
-            cc.delete()
+        cc = self.principal.make_calendar("Yep", self.testcal_id2)
+        cc.delete()
+        
         c.set_properties([dav.DisplayName("hooray"), ])
         props = c.get_properties([dav.DisplayName(), ])
         assert_equal(props[dav.DisplayName.tag], "hooray")
 
         # Creating a new calendar with different ID and old name, this should
-        # work, shouldn't it?
-        # ... ouch, now it fails with a 409 on zimbra (it didn't fail
-        # earlier)
-        if not 'zimbra' in str(c.url):
+        # work, shouldn't it?  (does not work entirely at iCloud, possibly due
+        # to some 'stickyness' or race condition problems.  make_calendar
+        # triggers an obscure assert, and all access to the calendar raises 404)
+        if not self.server_params.get('stickyevents', False):
             cc = self.principal.make_calendar(
                 name="Yep", cal_id=self.testcal_id2).save()
             assert_not_equal(cc.url, None)
@@ -1309,7 +1356,8 @@ class RepeatedFunctionalTestsBaseClass(object):
         ## or ... should we? TODO
         r = c.date_search(datetime(2008, 11, 1, 17, 00, 00),
                           datetime(2008, 11, 3, 17, 00, 00), expand=False)
-        #assert_equal(len(r), 0)
+        #if not 'nomkcalendar' in self.server_params:
+            #assert_equal(len(r), 0)
 
         if not self.server_params.get('noexpand', False):
             ## With expand=True, we should find one occurrence
@@ -1342,7 +1390,8 @@ class RepeatedFunctionalTestsBaseClass(object):
         # The recurring events should not be expanded when using the
         # events() method
         r = c.events()
-        assert_equal(len(r), 1)
+        if not 'nomkcalendar' in self.server_params:
+            assert_equal(len(r), 1)
         assert_equal(r[0].data.count("END:VEVENT"), 1)
 
     ## TODO: run this test, ref https://github.com/python-caldav/caldav/issues/91
@@ -1454,7 +1503,7 @@ class TestLocalRadicale(RepeatedFunctionalTestsBaseClass):
         self.configuration.update({'storage': {'filesystem_folder': self.serverdir.name}})
         self.server = radicale.server
         self.server_params = {'url': 'http://%s:%i/' % (radicale_host, radicale_port), 'username': 'user1', 'password': 'password1'}
-        self.server_params['backwards_compatibility_url'] = self.server_params['url']+'user1/'
+        self.server_params['backwards_compatibility_url'] = self.server_params['url']+'user1'
         self.server_params['incompatibilities'] = compatibility_issues.radicale
         self.shutdown_socket, self.shutdown_socket_out = socket.socketpair()
         self.radicale_thread = threading.Thread(target=self.server.serve, args=(self.configuration, self.shutdown_socket_out))
@@ -1502,7 +1551,7 @@ class TestLocalXandikos(RepeatedFunctionalTestsBaseClass):
         self.xandikos_thread = threading.Thread(target=self.xandikos_server.serve_forever)
         self.xandikos_thread.start()
         self.server_params = {'url': 'http://user1:password1@%s:%i/' % (xandikos_host, xandikos_port)}
-        self.server_params['backwards_compatibility_url'] = self.server_params['url']+'sometestuser/'
+        self.server_params['backwards_compatibility_url'] = self.server_params['url']+'sometestuser'
         self.server_params['incompatibilities'] = compatibility_issues.xandikos
         RepeatedFunctionalTestsBaseClass.setup(self)
 

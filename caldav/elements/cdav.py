@@ -10,8 +10,6 @@ except:
 
 from caldav.lib.namespace import ns
 from .base import BaseElement, NamedBaseElement, ValuedBaseElement
-import caldav.objects
-
 
 def _to_utc_date_string(ts):
     # type (Union[date,datetime]]) -> str
@@ -34,10 +32,8 @@ def _to_utc_date_string(ts):
 class CalendarQuery(BaseElement):
     tag = ns("C", "calendar-query")
 
-
 class FreeBusyQuery(BaseElement):
     tag = ns("C", "free-busy-query")
-
 
 class Mkcalendar(BaseElement):
     tag = ns("C", "mkcalendar")
@@ -45,8 +41,11 @@ class Mkcalendar(BaseElement):
 class CalendarMultiGet(BaseElement):
     tag = ns("C", "calendar-multiget")
 
+class ScheduleInboxURL(BaseElement):
+    tag = ns("C", "schedule-inbox-URL")
 
-
+class ScheduleOutboxURL(BaseElement):
+    tag = ns("C", "schedule-outbox-URL")
 
 # Filters
 class Filter(BaseElement):
@@ -120,14 +119,18 @@ class Comp(NamedBaseElement):
 
 
 # Properties
+class CalendarUserAddressSet(BaseElement):
+    tag = ns("C", "calendar-user-address-set")
+
+class CalendarUserType(BaseElement):
+    tag = ns("C", "calendar-user-type")
+
 class CalendarHomeSet(BaseElement):
     tag = ns("C", "calendar-home-set")
-    caldav_class = caldav.objects.CalendarSet
 
 # calendar resource type, see rfc4791, sec. 4.2
 class Calendar(BaseElement):
     tag = ns("C", "calendar")
-    caldav_class = caldav.objects.Calendar
 
 class CalendarDescription(ValuedBaseElement):
     tag = ns("C", "calendar-description")
@@ -164,7 +167,5 @@ class MaxInstances(ValuedBaseElement):
 class MaxAttendeesPerInstance(ValuedBaseElement):
     tag = ns("C", "max-attendees-per-instance")
 
-
-# This seems redundant, it redefines line 107
-# class SupportedCalendarComponentSet(BaseElement):
-#     tag = ns("C", "supported-calendar-component-set")
+class Allprop(BaseElement):
+    tag = ns("C", "allprop")

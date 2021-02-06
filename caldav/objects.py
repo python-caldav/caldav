@@ -96,8 +96,7 @@ class DAVObject(object):
         props = [ dav.DisplayName()]
         multiprops = [ dav.ResourceType() ]
         response = self._query_properties(props+multiprops, depth)
-        properties = self._handle_xml_response(
-            response=response, props=props, multi_value_props=multiprops)
+        properties = response.expand_simple_props(props=props, multi_value_props=multiprops)
 
         for path in list(properties.keys()):
             resource_types = properties[path][dav.ResourceType.tag]
@@ -144,24 +143,6 @@ class DAVObject(object):
         result of code-refactoring work, attempting to consolidate
         similar-looking code into a common method.
         """
-        # ref https://bitbucket.org/cyrilrbt/caldav/issues/46 -
-        # COMPATIBILITY ISSUE. The lines below seems to solve real
-        # world problems, though I believe it's the wrong place to
-        # inject the missing slash.
-        # TODO: find out why the slash is missing and fix
-        # it properly.
-        # Background: Collection URLs ends with a slash,
-        # non-collection URLs does not end with a slash.  If the
-        # slash is missing, Servers MAY pretend it's present (RFC
-        # 4918, section 5.2, collection resources), hence only some
-        # few servers break when the slash is missing.  RFC 4918
-        # specifies that collection URLs end with a slash while
-        # non-collection URLs should not end with a slash.
-        if url is None:
-            url = self.url
-            if not url.endswith('/'):
-                url = URL(str(url) + '/')
-
         body = ""
         if root:
             if hasattr(root, 'xmlelement'):
@@ -169,6 +150,8 @@ class DAVObject(object):
                                       xml_declaration=True)
             else:
                 body = root
+        if url is None:
+            url = self.url
         ret = getattr(self.client, query_method)(
             url, body, depth)
         if ret.status == 404:
@@ -179,47 +162,39 @@ class DAVObject(object):
             raise error.exception_by_method[query_method](errmsg(ret))
         return ret
 
-    def _handle_xml_response(self, response, props=[], multi_value_props=[], type=None,
-                              what='text'):
-        """
-        Internal method to massage an XML response into a dict.
-        Most of the lifting here has been moved to DAVClient.
-        The remaining part here attempts to crush out some
-        simple string object from the assumed leave nodes
-        in the XML response, it should work well for most
-        simple cases.
-        """
-        results = response.expand_simple_props(props=props, multi_value_props=multi_value_props)
-        ## iCloud hack, remove href to self if it contains no properties
-        #path = self.url.path
-        #if not path.endswith('/'): ## TODO: why not?
-            #path = path + '/'
-        #if path in results and not [ x for x in props if results[path][x.tag] is not None ]:
-            #results.pop(path)
-        return results
+    def get_property(self, prop, **passthrough):
+        foo = self.get_properties([prop], **passthrough)
+        return foo.get(prop.tag, None)
 
-    def get_properties(self, props=None, depth=0, parse_response_xml=True):
-        """
-        Get properties (PROPFIND) for this object.  With
-        parse_response_xml set to True a best-attempt will be done on
-        decoding the XML we get from the server - but this works only
-        for properties that don't have complex types.  With
-        parse_response_xml set to False, a DAVResponse object will be
-        returned, and it's up to the caller to decode it
+    def get_properties(self, props=None, depth=0, parse_response_xml=True, parse_props=True):
+        """Get properties (PROPFIND) for this object.  
 
+        With parse_response_xml and parse_props set to True a
+        best-attempt will be done on decoding the XML we get from the
+        server - but this works only for properties that don't have
+        complex types.  With parse_response_xml set to False, a
+        DAVResponse object will be returned, and it's up to the caller
+        to decode.  With parse_props set to false but
+        parse_response_xml set to true, xml elements will be returned
+        rather than values.
+        
         Parameters:
          * props = [dav.ResourceType(), dav.DisplayName(), ...]
 
         Returns:
          * {proptag: value, ...}
+
         """
         rc = None
         response = self._query_properties(props, depth)
         if not parse_response_xml:
             return response
 
-        properties = self._handle_xml_response(response, props)
-
+        if not parse_props:
+            properties = response.find_objects_and_props()
+        else:
+            properties = response.expand_simple_props(props)
+            
         error.assert_(properties)
 
         path = unquote(self.url.path)
@@ -231,18 +206,30 @@ class DAVObject(object):
         if path in properties:
             rc = properties[path]
         elif exchange_path in properties:
-            log.error("potential path handling problem with ending slashes.  Path given: %s, path found: %s.  %s" % (path, exchange_path, error.ERR_FRAGMENT))
+            if not isinstance(self, Principal):
+                ## Some caldav servers reports the URL for the current
+                ## principal to end with / when doing a propfind for
+                ## current-user-principal - I believe that's a bug,
+                ## the principal is not a collection and should not
+                ## end with /.  (example in rfc5397 does not end with /).
+                ## ... but it gets worse ... when doing a propfind on the
+                ## principal, the href returned may be without the slash.
+                ## Such inconsistency is clearly a bug.
+                log.error("potential path handling problem with ending slashes.  Path given: %s, path found: %s.  %s" % (path, exchange_path, error.ERR_FRAGMENT))
+                error._assert(False)
             rc = properties[exchange_path]
         elif self.url in properties:
             rc = properties[self.url]
         elif '/principal/' in properties and path.endswith('/principal/'):
-            log.error("Bypassing a known iCloud bug - path expected in response: %s, path found: /principal/" % (path, error.ERR_FRAGMENT))
+            log.error("Bypassing a known iCloud bug - path expected in response: %s, path found: /principal/ ... %s" % (path, error.ERR_FRAGMENT))
             ## The strange thing is that we apparently didn't encounter this problem in bc589093a34f0ed0ef489ad5e9cba048750c9837 or 3ee4e42e2fa8f78b71e5ffd1ef322e4007df7a60 - TODO: check this up
             rc = properties['/principal/']
         else:
-            log.error("Possibly the server has a path handling problem.  Path expected: %s, path found: %s %s" % (path, str(list(properties.keys)), error.ERR_FRAGMENT))
+            log.error("Possibly the server has a path handling problem.  Path expected: %s, path found: %s %s" % (path, str(list(properties.keys())), error.ERR_FRAGMENT))
             error.assert_(False)
 
+        if parse_props:
+            self.props.update(rc)
         return rc
 
     def set_properties(self, props=None):
@@ -350,8 +337,7 @@ class CalendarSet(DAVObject):
         """
         if name and not cal_id:
             for calendar in self.calendars():
-                properties = calendar.get_properties([dav.DisplayName(), ])
-                display_name = properties['{DAV:}displayname']
+                display_name = calendar.get_property(dav.DisplayName())
                 if display_name == name:
                     return calendar
         if name and not cal_id:
@@ -387,17 +373,14 @@ class Principal(DAVObject):
         If url is not given, deduct principal path as well as calendar home set
         path from doing propfinds.
         """
-        self.client = client
+        super(Principal, self).__init__(client=client, url=url)
         self._calendar_home_set = None
 
-        # backwards compatibility.
-        if url is not None:
-            self.url = client.url.join(URL.objectify(url))
-        else:
+        if url is None:
             self.url = self.client.url
-            cup = self.get_properties([dav.CurrentUserPrincipal()])
+            cup = self.get_property(dav.CurrentUserPrincipal())
             self.url = self.client.url.join(
-                URL.objectify(cup['{DAV:}current-user-principal']))
+                URL.objectify(cup))
 
     def make_calendar(self, name=None, cal_id=None,
                       supported_calendar_component_set=None):
@@ -416,12 +399,24 @@ class Principal(DAVObject):
         """
         return self.calendar_home_set.calendar(name, cal_id)
 
+    def get_vcal_address(self):
+        """
+        Returns the principal, as an icalendar.vCalAddress object
+        """
+        ## Late import.  Prior to 1.0, icalendar is only an optional dependency.
+        from icalendar import vCalAddress, vText
+        cn = self.get_property(dav.DisplayName())
+        ids = self.calendar_user_address_set()
+        cutype = self.get_property(cdav.CalendarUserType())
+        ret = vCalAddress(ids[0])
+        ret.params['cn'] = vText(cn)
+        ret.params['cutype'] = vText(cutype)
+        return ret
+
     @property
     def calendar_home_set(self):
         if not self._calendar_home_set:
-            chs = self.get_properties([cdav.CalendarHomeSet()])
-            self.calendar_home_set = chs[
-                '{urn:ietf:params:xml:ns:caldav}calendar-home-set']
+            self.calendar_home_set = self.get_property(cdav.CalendarHomeSet())
         return self._calendar_home_set
 
     @calendar_home_set.setter
@@ -438,6 +433,12 @@ class Principal(DAVObject):
                 sanitized_url.hostname != self.client.url.hostname):
                 # icloud (and others?) having a load balanced system,
                 # where each principal resides on one named host
+                ## TODO:
+                ## Here be dragons.  sanitized_url will be the root
+                ## of all future objects derived from client.  Changing
+                ## the client.url root by doing a principal.calendars()
+                ## is an unacceptable side effect and may be a cause of
+                ## incompatibilities with icloud.  Do more research!
                 self.client.url = sanitized_url
         self._calendar_home_set = CalendarSet(
             self.client, self.client.url.join(sanitized_url))
@@ -448,6 +449,23 @@ class Principal(DAVObject):
         """
         return self.calendar_home_set.calendars()
 
+    def calendar_user_address_set(self):
+        """
+        defined in RFC6638
+        """
+        addresses = self.get_property(cdav.CalendarUserAddressSet(), parse_props=False)
+        assert not [x for x in addresses if x.tag != dav.Href().tag]
+        addresses = list(addresses)
+        ## possibly the prefferred attribute is iCloud-specific.
+        ## TODO: do more research on that
+        addresses.sort(key=lambda x: -int(x.get('preferred', 0)))
+        return [x.text for x in addresses]
+
+    def schedule_inbox(self):
+        return ScheduleInbox(principal=self)
+
+    def schedule_outbox(self):
+        return ScheduleOutbox(principal=self)
 
 class Calendar(DAVObject):
     """
@@ -463,7 +481,7 @@ class Calendar(DAVObject):
             id = str(uuid.uuid1())
         self.id = id
 
-        path = self.parent.url.join(id)
+        path = self.parent.url.join(id + '/')
         self.url = path
 
         # TODO: mkcalendar seems to ignore the body on most servers?
@@ -495,12 +513,14 @@ class Calendar(DAVObject):
             try:
                 self.set_properties([display_name])
             except:
+                ## TODO: investigate.  Those asserts break.
+                error.assert_(False)
                 try:
-                    current_display_name = self.get_properties([display_name])
-                    if current_display_name != name:
-                        log.warning("caldav server not complient with RFC4791. unable to set display name on calendar.  Wanted name: \"%s\" - gotten name: \"%s\".  Ignoring." % (name, current_display_name))
+                    current_display_name = self.get_property(dav.DisplayName())
+                    error.assert_(current_display_name == name)
                 except:
                     log.warning("calendar server does not support display name on calendar?  Ignoring", exc_info=True)
+                    error.assert_(False)
 
     def get_supported_components(self):
         """
@@ -513,6 +533,9 @@ class Calendar(DAVObject):
         prop = response_list[unquote(self.url.path)][cdav.SupportedCalendarComponentSet().tag]
         return [supported.get('name') for supported in prop]
 
+    def send_invite(self, ical):
+        raise NotImplementedError("work in progress") ## TODO
+
     def save_event(self, ical, no_overwrite=False, no_create=False):
         """
         Add a new event to the calendar, with the given ical.
@@ -520,7 +543,9 @@ class Calendar(DAVObject):
         Parameters:
          * ical - ical object (text)
         """
-        return Event(self.client, data=ical, parent=self).save(no_overwrite=no_overwrite, no_create=no_create, obj_type='event')
+        e = Event(self.client, data=ical, parent=self)
+        e.save(no_overwrite=no_overwrite, no_create=no_create, obj_type='event')
+        return e
 
     def save_todo(self, ical, no_overwrite=False, no_create=False):
         """
@@ -555,8 +580,6 @@ class Calendar(DAVObject):
         """
         if self.url is None:
             self._create(name=self.name, id=self.id, **self.extra_init_options)
-            if not self.url.endswith('/'):
-                self.url = URL.objectify(str(self.url) + '/')
         return self
 
     def calendar_multiget(self, event_urls):
@@ -658,8 +681,7 @@ class Calendar(DAVObject):
         else:
             props_ = [cdav.CalendarData()] + props
         response = self._query(xml, 1, 'report')
-        results = self._handle_xml_response(
-            response=response, props=props_)
+        results = response.expand_simple_props(props_)
         for r in results:
             pdata = results[r]
             if cdav.CalendarData.tag in pdata:
@@ -992,6 +1014,65 @@ class Calendar(DAVObject):
 
         return self.search(root, comp_class=Journal)
 
+class ScheduleMailbox(Calendar):
+    """
+    RFC6638
+    TODO: This is a bit incorrect, a ScheduleMailbox is a collection,
+    but not really a calendar.  We should create a common base class
+    for ScheduleMailbox and Calendar eventually.
+    """
+    def __init__(self, client=None, principal=None, url=None):
+        """
+        Will locate the mbox if no url is given
+        """
+        super(ScheduleMailbox, self).__init__(client=client, url=url)
+        self._items = None
+        if not client and principal:
+            self.client = principal.client
+        if not principal and client:
+            principal = self.client.principal
+        if url is not None:
+            self.url = client.url.join(URL.objectify(url))
+        else:
+            self.url = principal.url
+            try:
+                self.url = self.client.url.join(URL(self.get_property(self.findprop())))
+            except:
+                logging.error("something bad happened", exc_info=True)
+                error.assert_(self.client.check_scheduling_support())
+                self.url = None
+                raise error.NotFoundError("principal has no %s.  %s" % (str(self.findprop()), error.ERR_FRAGMENT))
+
+    def get_items():
+        """
+        TODO: work in progress
+        TODO: perhaps this belongs to the super class?
+        """
+        if not self._items:
+            try:
+                self._items = self.objects()
+                logging.debug("caldav server does not seem to support a sync-token REPORT query on a scheduling mailbox")
+                error.assert_('google' in self.url)
+            except:
+                self._items = self.children()
+        else:
+            try:
+                self._items.sync()
+            except:
+                self._items = self.children()
+        return self._items
+
+    ## TODO: work in progress
+#    def get_invites():
+#        for item in self.get_items():
+#            if item.vobject_instance.vevent.
+
+class ScheduleInbox(ScheduleMailbox):
+    findprop = cdav.ScheduleInboxURL
+
+class ScheduleOutbox(ScheduleMailbox):
+    findprop = cdav.ScheduleOutboxURL
+
 class SynchronizableCalendarObjectCollection(object):
     """
     This class may hold a cached snapshot of a calendar, and changes
@@ -1063,6 +1144,14 @@ class CalendarObjectResource(DAVObject):
         if data is not None:
             self.data = data
 
+    def add_organizer(self):
+        """
+        goes via self.client, finds the principal, figures out the right attendee-format and adds an
+        organizer line to the event
+        """
+        principal = self.client.principal()
+        self.icalendar_instance.walk("vevent")[0].add('organizer', principal.get_vcal_address())
+
     def copy(self, keep_uid=False, new_parent=None):
         """
         Events, todos etc can be copied within the same calendar, to another
@@ -1128,6 +1217,12 @@ class CalendarObjectResource(DAVObject):
 
         self.url = URL.objectify(path)
         self.id = id
+
+    def change_attendee_status(status, attendee=None):
+        if not attendee:
+            attendee = self.client.principal()
+        pass
+        ## TODO - work in progress
 
     def save(self, no_overwrite=False, no_create=False, obj_type=None):
         """

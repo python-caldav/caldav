@@ -8,7 +8,11 @@
 xandikos = [
     ## TEMP TEMP TEMP - TODO - should be investigated
     ## (perhaps my xandikos version is too old?)
-    "noexpand", "norecurring"
+    "noexpand", "norecurring",
+    
+    ## scheduling is not supported
+    "no_scheduling",
+
 ]
 
 radicale = [
@@ -27,6 +31,8 @@ radicale = [
     ## Expanding recurrent events is not yet supported
     ## ref https://github.com/Kozea/Radicale/issues/662
     "norecurringexpandation",
+
+    'no_scheduling',
 
     ## extra features not specified in RFC5545
     "calendarorder",

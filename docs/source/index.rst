@@ -16,6 +16,14 @@ Contents
    caldav/davclient
    caldav/objects
 
+Project home
+============
+
+The project currently lives on github,
+https://github.com/python-caldav/caldav - if you have problems using
+the library (including problems understanding the documentation),
+please feel free to report it on the issue tracker there.
+
 Objective and scope
 ===================
 
@@ -27,15 +35,25 @@ the library has no or very little knowledge of the caldav, webdav or
 icalendar standards.  The library should be agile enough to allow
 "power users" to do more advanced stuff.
 
-RFC 4791, 2518 and 5545
------------------------
+RFC 4791, 2518, 5545, 6638 et al
+--------------------------------
 
 RFC 4791 (CalDAV) outlines the standard way of communicating with a
 calendar server.  RFC 4791 is an extension of RFC 4918 (WebDAV).  The
 scope of this library is basically to cover RFC 4791/4918, the actual
-communication with the caldav server.  There exists another library
-webdavclient3 for handling RFC 4918, ideally we should depend on it
-rather than overlap it.
+communication with the caldav server.  (The WebDAV standard also has
+quite some extensions, this library supports some of the relevant
+extensions as well).
+
+There exists another library webdavclient3 for handling RFC 4918
+(WebDAV), ideally we should be depending on it rather than overlap it.
+
+RFC 6638/RFC 6047 is extending the CalDAV and iCalendar protocols for
+scheduling purposes, work is in progress to support RFC 6638.  Support
+for RFC 6047 is considered mostly outside the scope of this library,
+though for convenience this library may contain methods like accept()
+on a calendar invite (which involves fetching the invite from the
+server, editing the calendar data and putting it to the server).
 
 This library should make it trivial to fetch an event, modify the date
 and save it back to the server - but to do that it's also needed to
