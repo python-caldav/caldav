@@ -2,12 +2,12 @@
 # -*- encoding: utf-8 -*-
 
 """
-Tests here does communicate with third party servers and/or
+Tests here communicate with third party servers and/or
 internal ad-hoc instances of Xandikos and Radicale, dependent on the
 configuration in conf_private.py.
 
-Tests that does not require communication with a working caldav server
-belongs to test_caldav_unit.py
+Tests that do not require communication with a working caldav server
+belong in test_caldav_unit.py
 """
 
 import logging
