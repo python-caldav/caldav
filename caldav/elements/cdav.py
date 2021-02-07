@@ -169,3 +169,6 @@ class MaxAttendeesPerInstance(ValuedBaseElement):
 
 class Allprop(BaseElement):
     tag = ns("C", "allprop")
+
+class ScheduleTag(BaseElement):
+    tag = ns("C", "schedule-tag")

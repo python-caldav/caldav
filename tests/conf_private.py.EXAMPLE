@@ -11,35 +11,20 @@ caldav_servers = [
         ## password.  The username and password may also be passed in
         ## the URL itself (like
         ## https://sam_i_am:hunter2@server.example.ccom/)
-	'url': 'https://some.server.example.com',
+        'url': 'https://some.server.example.com',
         'username': 'testuser',
         'password': 'hunter2',
 
-	## skip ssl cert verification, for self-signed certificates
-	## (sort of moot nowadays with letsencrypt freely available)
+        ## skip ssl cert verification, for self-signed certificates
+        ## (sort of moot nowadays with letsencrypt freely available)
         #'ssl_cert_verify': False
 
-	## There are some boolean options that may be passed i.e. to
-	## skip tests (many CalDAV server features are marked as
-	## optional in the RFC, for one thing), to skip verifying SSL
-	## certificate, etc.  Leave the list blank on first attempt, then
-	## add things as needed (see also compatibility_issues.py)
-	#'nocalendarnotfound': True,
-	#'nodefaultcalendar: True,
-	#'nodisplayname: True,
-	#'noproxy': True,
-        #'nojournal': True,
-	#'nofreebusy': True.
-	#'notodo': True,
-	#'notododatesearch': True
-	#'nopropfind': True,
-	#'norecurring': True,
-	#'norecurringexpandation': True,
-	#'noexpand': True,
-	#'calendarcolor': True,
-	#'calendarorder': True,
-	#'fragilesynctokens': True
-    }]
+        ## incompatibilities is a list of flags that can be set for
+        ## skipping (parts) of certain tests.  See
+        ## tests/compatibility_issues.py for premade lists
+        incompatibilities = []
+    }
+]
 
 ## MASTER SWITCHES FOR TEST SERVER SETUP
 ## With those configuration switches, pre-configured test servers in conf.py
@@ -62,3 +47,7 @@ test_radicale = True
 ## DEPRECATED - only_private is superceded by test_public_servers,
 ## left here for backward-compatibility.
 #only_private=False
+
+## For usage by ../examples/scheduling_examples.py.  Should typically
+## be three different users on the same caldav server.
+#rfc6638_users = [ caldav_servers[0], caldav_servers[1], caldav_servers[2] ]

@@ -4,26 +4,55 @@ from datetime import datetime, timedelta
 import uuid
 import sys
 
+####
+### SETUP
+### rfc6638 should be a list with three 
+###
+try:
+    from tests.conf_private import rfc6638_users
+except:
+    rfc6638_users = None
+
 ## Some inital setup.  We'll need three caldav client objects, with
 ## corresponding principal objects and calendars.
 class TestUser:
     def __init__(self, i):
-        self.client = DAVClient(username = "testuser%i" % i, password = "testpass%i" %i, url = "http://calendar.tobixen.no/caldav.php/")
+        if rfc6638_users and len(rfc6638_users)>i-1:
+            conndata = rfc6638_users[i-1].copy()
+            if 'incompatibilities' in conndata:
+                conndata.pop('incompatibilities')
+            self.client = DAVClient(**conndata)
+        else:
+            self.client = DAVClient(username = "testuser%i" % i, password = "testpass%i" %i, url = "http://calendar.tobixen.no/caldav.php/")
         self.principal = self.client.principal()
         calendar_id = "schedulingtestcalendar%i" % i
         calendar_name = "calendar #%i for scheduling demo" % i
+        self.cleanup(calendar_name)
+        self.calendar = self.principal.make_calendar(name=calendar_name, cal_id=calendar_id)
+
+    def cleanup(self, calendar_name):
+        ## Cleanup from earlier runs
         try:
             self.calendar = self.principal.calendar(name=calendar_name)
+            self.calendar.delete()
         except error.NotFoundError:
-            self.calendar = self.principal.make_calendar(name=calendar_name, cal_id=calendar_id)
+            pass
+
+        ## Hmm ... perhaps we shouldn't delete inbox items
+        #for inbox_item in self.principal.schedule_inbox().get_items():
+            #inbox_item.delete()
+
 organizer = TestUser(1)
 attendee1 = TestUser(2)
 attendee2 = TestUser(3)
 
-## Verify that the calendar server supports scheduling
-if not organizer.client.check_scheduling_support():
-    print("Server does not support RFC6638")
-    sys.exit(1)
+import pdb; pdb.set_trace()
+
+## Verify that the calendar server(s) supports scheduling
+for test_user in organizer, attendee1, attendee2:
+    if not test_user.client.check_scheduling_support():
+        print("Server does not support RFC6638")
+        sys.exit(1)
 
 ## We'll be using the icalendar library to set up a mock meeting,
 ## at some far point in the future.
@@ -40,9 +69,6 @@ event.add('uid', uid)
 event.add('summary', 'Some test event made to test scheduling in the caldav library')
 caldata.add_component(event)
 
-## print to stdout
-print("Here is our test event:")
-print(caldata.to_ical().decode('utf-8'))
 
 ## that event is without any attendee information.  If saved to the
 ## calendar, it will only be stored locally, no invitations sent.
@@ -53,32 +79,56 @@ print(caldata.to_ical().decode('utf-8'))
 ##   then use calendar.save_event(caldata) ... see RFC6638, appendix B.1
 ##   for an example.
 
-## * Use convenience-method calendar.send_invites(caldata, attendees).
+## * Use convenience-method calendar.save_with_invites(caldata, attendees).
 ##   It will fetch organizer from the principal object.  Method should
 ##   accept different kind of attendees: strings, VCalAddress, (cn,
 ##   email)-tuple and principal object.
 
-## In the example below, the organizer is inviting itself (by
-## VCalAddress), attendee1 (by CN/email tuple) and attendee2 (by
-## principle object).  (Arguably it would have been easy to use
-## attendee2.principle instead of building a new principle object -
-## but remember, the attendee2-object contains credentials for
-## attendee2, the organizer is not supposed to have access to this
-## object).
+## Lets make a list of attendees
+attendees = []
 
-organizer.calendar.send_schedule_request(
-    caldata, attendees=(
-        organizer.principal.get_vcal_address(),
-        ('Test User 2', 't-caldav-test2@tobixen.no'),
-        organizer.client.principal(url=organizer.principal.url.replace('testuser1', 'testuser2'))
-    ))
+## The organizer will invite himself.  We'll pass a vCalAddress (from
+## the icalendar library).
+attendees.append(organizer.principal.get_vcal_address())
 
-## Invite shipped.  The attendees should now respond to it.
-for inbox_item in attendee1.schedule_inbox.get_items():
+## Let's make it easy and add the other attendees by the Principal objects.
+## note that we've used login credentials to get the principal
+## objects below.  One would normally need to know the principal
+## URLs to create principal objects of other users, or perhaps use
+## the principal-collection-set prop to get a list.
+attendees.append(attendee1.principal)
+attendees.append(attendee2.principal)
+    
+## An attendee can also be added by email address
+attendees.append('some-random-guy@example.com')
+
+## Or by a (common_name, email) tuple
+attendees.append(
+    ('Some Other Random Guy', 'some-other-random-guy@example.com'))
+
+print("Sending a calendar invite")
+organizer.calendar.save_with_invites(caldata, attendees=attendees)
+
+## There are some attendee parameters that may be set (TODO: add
+## example code), the convenience method above will use sensible
+## defaults.
+
+## The invite has now been shipped.  The attendees should now respond to it.
+
+print("looking into the inbox of attendee1")
+all_cnt = 0
+part_req_cnt = 0
+for inbox_item in attendee1.principal.schedule_inbox().get_items():
+    all_cnt += 1
     ## an inbox_item is an ordinary CalendarResourceObject/Event/Todo etc.
-    ## is_invite() will be implemented on the base class and will yield True
+    ## is_invite_request will be implemented on the base class and will yield True
     ## for invite messages.
-    if inbox_item.is_invite():
+    print("Inbox item found for attendee1.  Here is the ical:")
+    print(inbox_item.data)
+    
+    if inbox_item.is_invite_request():
+        print("Inbox item is an invite request")
+        invite_req_cnt += 1 ## TODO: assert(invite_req_cnt == 1) after loop
         
         ## Ref RFC6638, example B.3 ... to respond to an invite, it's
         ## needed to edit the ical data, find the correct
@@ -90,27 +140,35 @@ for inbox_item in attendee1.schedule_inbox.get_items():
         ## library clearly needs convenience methods to deal with this.
 
         ## Invite objects will have methods accept_invite(),
-        ## reject_invite(),
-        ## tentative_accept_invite().  .delete() is also an option
+        ## decline_invite(),
+        ## tentatively_accept_invite().  .delete() is also an option
         ## (ref RFC6638, example B.2)
         inbox_item.accept_invite()
 
-## Testuser3 has other long-term plans and can't join the event
-for inbox_item in attendee2.principal.schedule_inbox.get_items():
-    if inbox_item.is_invite():
-        inbox_item.reject_invite()
+## attendee2 has other long-term plans and can't join the event
+for inbox_item in attendee2.principal.schedule_inbox().get_items():
+    print("found an inbox item for attendee 2, here is the ical:")
+    print(inbox_item.data)
+    if inbox_item.is_invite_request():
+        print("declining invite")
+        inbox_item.decline_invite()
 
-## Testuser0 will have an update on the participant status in the
+## Oganizer will have an update on the participant status in the
 ## inbox (or perhaps two updates?)  If I've understood the standard
 ## correctly, testuser0 should not get an invite and should not have
 ## to respond to it, but just in case we'll accept it.  As far as I've
 ## understood, deleting the ical objects in the inbox should be
 ## harmless, it should still exist on the organizers calendar.
 ## (Example B.4 in RFC6638)
-for inbox_item in organizer.principal.schedule_inbox.get_items():
-    if inbox_item.is_invite():
+print("looking into organizers inbox")
+for inbox_item in organizer.principal.schedule_inbox().get_items():
+    print("Inbox item found, here is the ical:")
+    print(inbox_item.data)
+    if inbox_item.is_invite_request():
+        print("It's an invite request, let's accept it")
         inbox_item.accept_invite()
-    elif inbox_item.is_reply():
+    elif inbox_item.is_invite_reply():
+        print("It's an invite reply, now that we've read it, we can delete it")
         inbox_item.delete()
 
 ## RFC6638/RFC5546 allows an organizer to check the freebusy status of
@@ -121,10 +179,10 @@ for inbox_item in organizer.principal.schedule_inbox.get_items():
 ## However, I will probably make a convenience method for doing the
 ## query, and leaving the parsing of the returned icalendar data to
 ## the user of the library:
-some_ical_returned = organizer.principal.freebusy_request(
-    start_time=datetime.now() + timedelta(days=3999),
-    end_time=datetime.now() + timedelta(days=4001),
-    participants=[
+some_data_returned = organizer.principal.freebusy_request(
+    dtstart=datetime.now() + timedelta(days=3999),
+    dtend=datetime.now() + timedelta(days=4001),
+    attendees=[
         ('Test User 2', 't-caldav-test2@tobixen.no'),
         ('Test User 3', 't-caldav-test3@tobixen.no')])
 

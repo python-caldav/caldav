@@ -162,7 +162,11 @@ class DAVObject(object):
             raise error.exception_by_method[query_method](errmsg(ret))
         return ret
 
-    def get_property(self, prop, **passthrough):
+    def get_property(self, prop, use_cached=False, **passthrough):
+        ## TODO: use_cached should probably be true
+        if use_cached:
+            if prop.tag in self.props:
+                return self.props[prop.tag]
         foo = self.get_properties([prop], **passthrough)
         return foo.get(prop.tag, None)
 
@@ -277,10 +281,13 @@ class DAVObject(object):
                 raise error.DeleteError(errmsg(r))
 
     def __str__(self):
-        return str(self.url)
+        if dav.DisplayName.tag in self.props:
+            return self.props[dav.DisplayName.tag]
+        else:
+            return str(self.url)
 
     def __repr__(self):
-        return "%s(%s)" % (self.__class__.__name__, self.url)
+        return "%s(%s)" % (self.__class__.__name__, str(self))
 
 
 class CalendarSet(DAVObject):
@@ -449,6 +456,29 @@ class Principal(DAVObject):
         """
         return self.calendar_home_set.calendars()
 
+    def freebusy_request(self, dtstart, dtend, attendees):
+        import icalendar
+        freebusy_ical = icalendar.Calendar()
+        freebusy_ical.add('prodid', '-//tobixen/python-caldav//en_DK')
+        freebusy_ical.add('version', '2.0')
+        freebusy_ical.add('method', 'REQUEST')
+        uid = uuid.uuid1()
+        freebusy_comp = icalendar.FreeBusy()
+        freebusy_comp.add('uid', uid)
+        freebusy_comp.add('dtstamp', datetime.now())
+        freebusy_comp.add('dtstart', dtstart)
+        freebusy_comp.add('dtend', dtend)
+        freebusy_ical.add_component(freebusy_comp)
+        outbox = self.schedule_outbox()
+        caldavobj = FreeBusy(data=freebusy_ical, parent=outbox)
+        caldavobj.add_organizer()
+        for attendee in attendees:
+            caldavobj.add_attendee(attendee, no_default_parameters=True)
+
+        import pdb; pdb.set_trace()
+        response = self.client.post(outbox.url, caldavobj.data)
+        return response.find_objects_and_props()
+
     def calendar_user_address_set(self):
         """
         defined in RFC6638
@@ -456,7 +486,7 @@ class Principal(DAVObject):
         addresses = self.get_property(cdav.CalendarUserAddressSet(), parse_props=False)
         assert not [x for x in addresses if x.tag != dav.Href().tag]
         addresses = list(addresses)
-        ## possibly the prefferred attribute is iCloud-specific.
+        ## possibly the preferred attribute is iCloud-specific.
         ## TODO: do more research on that
         addresses.sort(key=lambda x: -int(x.get('preferred', 0)))
         return [x.text for x in addresses]
@@ -533,8 +563,19 @@ class Calendar(DAVObject):
         prop = response_list[unquote(self.url.path)][cdav.SupportedCalendarComponentSet().tag]
         return [supported.get('name') for supported in prop]
 
-    def send_schedule_request(self, ical, attendees):
-        raise NotImplementedError("work in progress") ## TODO
+    def save_with_invites(self, ical, attendees, **attendeeoptions):
+        """
+        sends a schedule request to the server.  Equivalent with save_event, save_todo, etc,
+        but the attendees will be added to the ical object before sending it to the server.
+        """
+        ## TODO: method supports raw strings, probably not icalendar nor vobject.
+        obj = self._calendar_comp_class_by_data(ical)(data=ical, client=self.client)
+        obj.parent = self
+        obj.add_organizer()
+        for attendee in attendees:
+            obj.add_attendee(attendee, **attendeeoptions)
+        obj.id = obj.icalendar_instance.walk('vevent')[0]['uid']
+        obj.save()
 
     def save_event(self, ical, no_overwrite=False, no_create=False):
         """
@@ -874,7 +915,6 @@ class Calendar(DAVObject):
             for sc in data.subcomponents:
                 if sc.__class__ in ical2caldav:
                     return ical2caldav[sc.__class__]
-
         return CalendarObjectResource
 
     def event_by_url(self, href, data=None):
@@ -984,6 +1024,8 @@ class Calendar(DAVObject):
             sync_token = response.sync_token
         except:
             sync_token = response.tree.findall('.//' + dav.SyncToken.tag)[0].text
+
+        ## this is not quite right - the etag we've fetched can already be outdated
         if load_objects:
             for obj in objects:
                 try:
@@ -1043,17 +1085,17 @@ class ScheduleMailbox(Calendar):
                 self.url = None
                 raise error.NotFoundError("principal has no %s.  %s" % (str(self.findprop()), error.ERR_FRAGMENT))
 
-    def get_items():
+    def get_items(self):
         """
         TODO: work in progress
         TODO: perhaps this belongs to the super class?
         """
         if not self._items:
             try:
-                self._items = self.objects()
-                logging.debug("caldav server does not seem to support a sync-token REPORT query on a scheduling mailbox")
-                error.assert_('google' in self.url)
+                self._items = self.objects(load_objects=True)
             except:
+                logging.debug("caldav server does not seem to support a sync-token REPORT query on a scheduling mailbox")
+                error.assert_('google' in str(self.url))
                 self._items = self.children()
         else:
             try:
@@ -1150,7 +1192,117 @@ class CalendarObjectResource(DAVObject):
         organizer line to the event
         """
         principal = self.client.principal()
-        self.icalendar_instance.walk("vevent")[0].add('organizer', principal.get_vcal_address())
+        ## TODO: remove Organizer-field, if exists
+        ## TODO: what if walk returns more than one vevent?
+        self._icalendar_object().add('organizer', principal.get_vcal_address())
+
+    def _icalendar_object(self):
+        import icalendar
+        for x in self.icalendar_instance.subcomponents:
+            for cl in (icalendar.Event, icalendar.Journal, icalendar.Todo, icalendar.FreeBusy):
+                if isinstance(x, cl):
+                    return x
+
+    def add_attendee(self, attendee, no_default_parameters=False, **parameters):
+        """
+        For the current (event/todo/journal), add an attendee.
+
+        The attendee can be any of the following:
+        * A principal
+        * An email address prepended with "mailto:"
+        * An email address without the "mailto:"-prefix
+        * A two-item tuple containing a common name and an email address
+        * (not supported, but planned: an ical text line starting with the 
+          word "ATTENDEE")
+
+        Any number of attendee parameters can be given, those will be used
+        as defaults unless no_default_parameters is set to True:
+
+        partstat=NEEDS-ACTION
+        cutype=UNKNOWN (unless a principal object is given)
+        rsvp=TRUE
+        role=REQ-PARTICIPANT
+        schedule-agent is not set
+        """
+        from icalendar import vCalAddress, vText
+
+        if isinstance(attendee, Principal):
+            attendee_obj = attendee.get_vcal_address()
+        elif isinstance(attendee, vCalAddress):
+            attendee_obj = attendee
+        elif isinstance(attendee, tuple):
+            if attendee[1].startswith('mailto:'):
+                attendee_obj = vCalAddress(attendee[1])
+            else:
+                attendee_obj = vCalAddress('mailto:' + attendee[1])
+            attendee_obj.params['cn'] = vText(attendee[0])
+        elif isinstance(attendee, str):
+            if attendee.startswith('ATTENDEE'):
+                raise NotImplementedError("do we need to support this anyway?  Should be trivial, but can't figure out how to do it with the icalendar.Event/vCalAddress objects right now")
+            elif attendee.startswith('mailto:'):
+                attendee_obj = vCalAddress(attendee)
+            elif '@' in attendee and not ':' in attendee and not ';' in attendee:
+                attendee_obj = vCalAddress('mailto:' + attendee)
+
+        ## TODO: if possible, check that the attendee exists
+        ## TODO: check that the attendee will not be duplicated in the event.
+        if not no_default_parameters:
+            ## Sensible defaults:
+            attendee_obj.params['partstat']='NEEDS-ACTION'
+            if not 'cutype' in attendee_obj.params:
+                attendee_obj.params['cutype']='UNKNOWN'
+            attendee_obj.params['rsvp']='TRUE'
+            attendee_obj.params['role']='REQ-PARTICIPANT'
+            for key in parameters:
+                if '_' in key:
+                    parameters[key.replace('-', '_')] = parameters.pop(key)
+                if parameters[key] == True:
+                    parameters[key] = 'TRUE'
+        attendee_obj.params.update(parameters)
+        ievent = self._icalendar_object()
+        ievent.add('attendee', attendee_obj)
+
+    def is_invite_request(self):
+        if not self.data:
+            self.load()
+        return self.icalendar_instance.get('method', None) == 'REQUEST'
+
+    def accept_invite(self, calendar=None):
+        self._reply_to_invite_request('ACCEPTED', calendar)
+
+    def decline_invite(self, calendar=None):
+        self._reply_to_invite_request('DECLINED', calendar)
+
+    def tentatively_accept_invite(self, calendar=None):
+        self._reply_to_invite_request('TENTATIVE', calendar)
+
+    ## TODO: DELEGATED is also a valid option, and for vtodos the
+    ## partstat can also be set to COMPLETED and IN-PROGRESS.
+
+    def _reply_to_invite_request(self, partstat, calendar):
+        error.assert_(self.is_invite_request())
+        if not calendar:
+            calendar = self.client.principal().calendars()[0]
+        ## we need to modify the icalendar code, update our own participant status
+        self.icalendar_instance.pop('METHOD')
+        self.change_attendee_status(partstat=partstat)
+        self.get_property(cdav.ScheduleTag(), use_cached=True)
+        try:
+            Event(self.client, data=self.data, parent=calendar, id=self.id).save()
+        except Exception as some_exception:
+            ## TODO - TODO - TODO
+            ## RFC6638 does not seem to be very clear (or
+            ## perhaps I should read it more thoroughly) neither on
+            ## how to handle conflicts, nor if the reply should be
+            ## posted to the "outbox", saved back to the same url or
+            ## sent to a calendar.
+            self.load()
+            self.get_property(cdav.ScheduleTag(), use_cached=False)
+            outbox = self.client.principal().schedule_outbox()
+            if calendar != outbox:
+                self._reply_to_invite_request(partstat, calendar=outbox)
+            else:
+                self.save()
 
     def copy(self, keep_uid=False, new_parent=None):
         """
@@ -1170,6 +1322,10 @@ class CalendarObjectResource(DAVObject):
         if r.status == 404:
             raise error.NotFoundError(errmsg(r))
         self.data = vcal.fix(r.raw)
+        if 'Etag' in r.headers:
+            self.props[dav.GetEtag.tag] = r.headers['Etag']
+        if 'Schedule-Tag' in r.headers:
+            self.props[cdav.ScheduleTag.tag] = r.headers['Schedule-Tag']
         return self
 
     ## TODO: this method should be simplified and renamed, and probably
@@ -1218,13 +1374,36 @@ class CalendarObjectResource(DAVObject):
         self.url = URL.objectify(path)
         self.id = id
 
-    def change_attendee_status(status, attendee=None):
+    def change_attendee_status(self, attendee=None, **kwargs):
         if not attendee:
             attendee = self.client.principal()
-        pass
-        ## TODO - work in progress
 
-    def save(self, no_overwrite=False, no_create=False, obj_type=None):
+        cnt=0
+            
+        if isinstance(attendee, Principal):
+            for addr in attendee.calendar_user_address_set():
+                try:
+                    self.change_attendee_status(addr, **kwargs)
+                    ## TODO: can probably just return now
+                    cnt += 1
+                except error.NotFoundError:
+                    pass
+            if not cnt:
+                raise error.NotFoundError("Principal %s is not invited to event" % str(attendee))
+            error.assert_(cnt == 1)
+            return
+
+        ical_obj = self._icalendar_object()
+        ## TODO: can attendee be a single value?
+        for attendee_line in ical_obj['attendee']:
+            if str(attendee_line).replace('mailto:','') == str(attendee).replace('mailto:',''):
+                   attendee_line.params.update(kwargs)
+                   cnt += 1
+        if not cnt:
+            raise error.NotFoundError("Participant %s not found in attendee list")
+        error.assert_(cnt == 1)
+
+    def save(self, no_overwrite=False, no_create=False, obj_type=None, if_schedule_tag_match=False):
         """
         Save the object, can be used for creation and update.
 
@@ -1389,23 +1568,17 @@ class FreeBusy(CalendarObjectResource):
     URL or ID.  The inheritated methods .save and .load is moot and
     will probably throw errors (perhaps the class hierarchy should be
     rethought, to prevent the FreeBusy from inheritating moot methods)
+
+    Update: With RFC6638 a freebusy object can have an URL and an ID.
     """
-    def __init__(self, parent, data):
-        """
-        A freebusy response object has no URL or ID (TODO: reconsider the
-        class hierarchy?  Those responses share some logic with
-        Todo/Event/Journal, like the handling of self.data and
-        instantiation of vobject/icalendar objects, but other
-        inheritated methods like CalendarObjectResource.save and
-        CalendarObjectResource.load is moot any will fail.
-        """
-        CalendarObjectResource.__init__(self, client=parent.client, url=None,
-                                        data=data, parent=parent, id=None)
+    def __init__(self, parent, data, url=None, id=None):
+        CalendarObjectResource.__init__(self, client=parent.client, url=url,
+                                        data=data, parent=parent, id=id)
 
 class Todo(CalendarObjectResource):
     """
-    The `Todo` object is used to represent a todo item (VTODO).  A
-    Todo-object can be completed.
+    The `Todo` object is used to represent a todo item (VTODO).
+    A Todo-object can be completed.
     """
     def complete(self, completion_timestamp=None):
         """Marks the task as completed.

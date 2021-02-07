@@ -165,6 +165,10 @@ class DAVResponse:
         self.sync_token will be populated if found, self.objects will be populated.
         """
         self.objects = {}
+
+        if 'Schedule-Tag' in self.headers:
+            import pdb; pdb.set_trace()
+            self.schedule_tag = self.headers['Schedule-Tag']
         
         responses = self._strip_to_multistatus()
         for r in responses:
@@ -425,6 +429,12 @@ class DAVClient:
         Send a put request.
         """
         return self.request(url, "PUT", body, headers)
+
+    def post(self, url, body, headers={}):
+        """
+        Send a POST request.
+        """
+        return self.request(url, "POST", body, headers)
 
     def delete(self, url):
         """
