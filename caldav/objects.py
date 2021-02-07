@@ -533,7 +533,7 @@ class Calendar(DAVObject):
         prop = response_list[unquote(self.url.path)][cdav.SupportedCalendarComponentSet().tag]
         return [supported.get('name') for supported in prop]
 
-    def send_invite(self, ical):
+    def send_schedule_request(self, ical, attendees):
         raise NotImplementedError("work in progress") ## TODO
 
     def save_event(self, ical, no_overwrite=False, no_create=False):
