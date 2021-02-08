@@ -822,20 +822,38 @@ class Calendar(DAVObject):
         return matches
 
     def _calendar_comp_class_by_data(self, data):
+        """
+        takes some data, either as icalendar text or icalender object (TODO:
+        consider vobject) and returns the appropriate
+        CalendarResourceObject child class.
+        """
         if data is None:
             ## no data received - we'd need to load it before we can know what
             ## class it really is.  Assign the base class as for now.
             return CalendarObjectResource
-        for line in data.split('\n'):
-            line = line.strip()
-            if line == 'BEGIN:VEVENT':
-                return Event
-            if line == 'BEGIN:VTODO':
-                return Todo
-            if line == 'BEGIN:VJOURNAL':
-                return Journal
-            if line == 'BEGIN:VFREEBUSY':
-                return FreeBusy
+        if hasattr(data, 'split'):
+            for line in data.split('\n'):
+                line = line.strip()
+                if line == 'BEGIN:VEVENT':
+                    return Event
+                if line == 'BEGIN:VTODO':
+                    return Todo
+                if line == 'BEGIN:VJOURNAL':
+                    return Journal
+                if line == 'BEGIN:VFREEBUSY':
+                    return FreeBusy
+        elif hasattr(data, 'subcomponents'):
+            if not len(data.subcomponents):
+                return CalendarObjectResource
+
+            ## Late import, as icalendar is not yet on the official dependency list
+            import icalendar
+            ical2caldav = {icalendar.Event: Event, icalendar.Todo: Todo, icalendar.Journal: Journal, icalendar.FreeBusy: FreeBusy}
+            for sc in data.subcomponents:
+                if sc.__class__ in ical2caldav:
+                    return ical2caldav[sc.__class__]
+
+        return CalendarObjectResource
 
     def event_by_url(self, href, data=None):
         """

@@ -13,13 +13,13 @@ from six import PY3
 from nose.tools import assert_equal, assert_not_equal, assert_raises
 import caldav
 from caldav.davclient import DAVClient, DAVResponse
-from caldav.objects import (Principal, Calendar, Event, DAVObject,
-                            CalendarSet, FreeBusy, Todo)
+from caldav.objects import (Principal, Calendar, Journal, Event, DAVObject,
+                            CalendarSet, FreeBusy, Todo, CalendarObjectResource)
 from caldav.lib.url import URL
 from caldav.lib import url, error, vcal
 from caldav.elements import dav, cdav, ical
 from caldav.lib.python_utilities import to_local, to_str
-import vobject
+import vobject, icalendar
 from datetime import datetime
 
 
@@ -30,6 +30,7 @@ else:
     from urlparse import urlparse
     import mock
 
+## Some example icalendar data copied from test_caldav.py
 ev1 = """BEGIN:VCALENDAR
 VERSION:2.0
 PRODID:-//Example Corp.//CalDAV Client//EN
@@ -40,6 +41,37 @@ DTSTART:20060714T170000Z
 DTEND:20060715T040000Z
 SUMMARY:Bastille Day Party
 END:VEVENT
+END:VCALENDAR
+"""
+
+todo = """BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Example Corp.//CalDAV Client//EN
+BEGIN:VTODO
+UID:20070313T123432Z-456553@example.com
+DTSTAMP:20070313T123432Z
+DUE;VALUE=DATE:20070501
+SUMMARY:Submit Quebec Income Tax Return for 2006
+CLASS:CONFIDENTIAL
+CATEGORIES:FAMILY,FINANCE
+STATUS:NEEDS-ACTION
+END:VTODO
+END:VCALENDAR"""
+
+journal = """
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Example Corp.//CalDAV Client//EN
+BEGIN:VJOURNAL
+UID:19970901T130000Z-123405@example.com
+DTSTAMP:19970901T130000Z
+DTSTART;VALUE=DATE:19970317
+SUMMARY:Staff meeting minutes
+DESCRIPTION:1. Staff meeting: Participants include Joe\, Lisa
+  and Bob. Aurora project plans were reviewed. There is currently
+  no budget reserves for this project. Lisa will escalate to
+  management. Next meeting on Tuesday.\n
+END:VJOURNAL
 END:VCALENDAR
 """
 
@@ -767,3 +799,14 @@ END:VCALENDAR"""] ## todo: add more broken ical here
             assert_raises(vobject.base.ValidateError, vobject.readOne(ical).serialize)
             ## This should not raise error
             vobject.readOne(vcal.fix(ical)).serialize()
+
+    def test_calendar_comp_class_by_data(self):
+        calendar=Calendar()
+        for (ical,class_) in ((ev1, Event), (todo, Todo), (journal, Journal), (None, CalendarObjectResource), ("random rantings", CalendarObjectResource)): ## TODO: freebusy, time zone
+            assert_equal(
+                calendar._calendar_comp_class_by_data(ical),
+                class_)
+            if (ical != "random rantings" and ical):
+                assert_equal(
+                    calendar._calendar_comp_class_by_data(icalendar.Calendar.from_ical(ical)),
+                    class_)
