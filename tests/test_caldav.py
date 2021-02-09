@@ -421,8 +421,6 @@ class RepeatedFunctionalTestsBaseClass(object):
         ## (I must find a better API for this ...)
         e=Event(parent=c, data=sched)
         e.add_organizer()
-        if 'zimbra' in str(self.principal.url):
-            import pdb; pdb.set_trace()
         e.save()
 
     def testPropfind(self):
@@ -470,8 +468,11 @@ class RepeatedFunctionalTestsBaseClass(object):
 
         ## Not sure if those asserts make much sense, the main point here is to exercise
         ## the __str__ and __repr__ methods on the Calendar object.
-        assert_equal(str(c.url), str(c))
-        assert(str(c.url) in repr(c))
+        name = c.get_property(dav.DisplayName(), use_cached=True)
+        if not name:
+            name = c.url
+        assert_equal(str(name), str(c))
+        assert(str(name) in repr(c))
         assert('Calendar' in repr(c))
 
     def testProxy(self):

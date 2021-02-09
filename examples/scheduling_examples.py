@@ -1,6 +1,7 @@
 from caldav import DAVClient, error
 from icalendar import Calendar, Event
 from datetime import datetime, timedelta
+import pytz
 import uuid
 import sys
 
@@ -46,8 +47,6 @@ organizer = TestUser(1)
 attendee1 = TestUser(2)
 attendee2 = TestUser(3)
 
-import pdb; pdb.set_trace()
-
 ## Verify that the calendar server(s) supports scheduling
 for test_user in organizer, attendee1, attendee2:
     if not test_user.client.check_scheduling_support():
@@ -68,6 +67,19 @@ event.add('dtend', datetime.now() + timedelta(days=4000, hours=1))
 event.add('uid', uid)
 event.add('summary', 'Some test event made to test scheduling in the caldav library')
 caldata.add_component(event)
+
+caldata2 = Calendar()
+caldata2.add('prodid', '-//tobixen//python-icalendar//en_DK')
+caldata2.add('version', '2.0')
+
+uid = uuid.uuid1()
+event=Event()
+event.add('dtstamp', datetime.now())
+event.add('dtstart', datetime.now() + timedelta(days=4000))
+event.add('dtend', datetime.now() + timedelta(days=4000, hours=1))
+event.add('uid', uid)
+event.add('summary', 'Test event with participants but without invites')
+caldata2.add_component(event)
 
 
 ## that event is without any attendee information.  If saved to the
@@ -109,6 +121,9 @@ attendees.append(
 print("Sending a calendar invite")
 organizer.calendar.save_with_invites(caldata, attendees=attendees)
 
+print("Storing another calendar event with the same participants, but without sending out emails")
+organizer.calendar.save_with_invites(caldata2, attendees=attendees, schedule_agent='NONE')
+
 ## There are some attendee parameters that may be set (TODO: add
 ## example code), the convenience method above will use sensible
 ## defaults.
@@ -117,7 +132,7 @@ organizer.calendar.save_with_invites(caldata, attendees=attendees)
 
 print("looking into the inbox of attendee1")
 all_cnt = 0
-part_req_cnt = 0
+invite_req_cnt = 0
 for inbox_item in attendee1.principal.schedule_inbox().get_items():
     all_cnt += 1
     ## an inbox_item is an ordinary CalendarResourceObject/Event/Todo etc.
@@ -144,6 +159,7 @@ for inbox_item in attendee1.principal.schedule_inbox().get_items():
         ## tentatively_accept_invite().  .delete() is also an option
         ## (ref RFC6638, example B.2)
         inbox_item.accept_invite()
+        inbox_item.delete()
 
 ## attendee2 has other long-term plans and can't join the event
 for inbox_item in attendee2.principal.schedule_inbox().get_items():
@@ -152,6 +168,7 @@ for inbox_item in attendee2.principal.schedule_inbox().get_items():
     if inbox_item.is_invite_request():
         print("declining invite")
         inbox_item.decline_invite()
+        inbox_item.delete()
 
 ## Oganizer will have an update on the participant status in the
 ## inbox (or perhaps two updates?)  If I've understood the standard
@@ -179,12 +196,11 @@ for inbox_item in organizer.principal.schedule_inbox().get_items():
 ## However, I will probably make a convenience method for doing the
 ## query, and leaving the parsing of the returned icalendar data to
 ## the user of the library:
+import pdb; pdb.set_trace()
 some_data_returned = organizer.principal.freebusy_request(
-    dtstart=datetime.now() + timedelta(days=3999),
-    dtend=datetime.now() + timedelta(days=4001),
-    attendees=[
-        ('Test User 2', 't-caldav-test2@tobixen.no'),
-        ('Test User 3', 't-caldav-test3@tobixen.no')])
+    dtstart=datetime.now().astimezone(pytz.utc) + timedelta(days=399),
+    dtend=datetime.now().astimezone(pytz.utc) + timedelta(days=399, hours=1),
+    attendees=['t-caldav-test2@tobixen.no', 't-caldav-test3@tobixen.no'])
 
 ## Examples in RFC6638 goes on to describing how to accept and decline
 ## particular instances of a recurring events, and RFC5546 has a lot
