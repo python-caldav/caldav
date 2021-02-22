@@ -259,7 +259,7 @@ class DAVClient:
     url = None
 
     def __init__(self, url, proxy=None, username=None, password=None,
-                 auth=None, ssl_verify_cert=True):
+                 auth=None, ssl_verify_cert=True, ssl_cert=None):
         """
         Sets up a HTTPConnection object towards the server in the url.
         Parameters:
@@ -304,6 +304,7 @@ class DAVClient:
         # TODO: it's possible to force through a specific auth method here,
         # but no test code for this.
         self.ssl_verify_cert = ssl_verify_cert
+        self.ssl_cert = ssl_cert
         self.url = self.url.unauth()
         log.debug("self.url: " + str(url))
 
@@ -445,7 +446,7 @@ class DAVClient:
         r = self.session.request(
             method, url, data=to_wire(body),
             headers=combined_headers, proxies=proxies, auth=auth,
-            verify=self.ssl_verify_cert, stream=False) ## TODO: optimize with stream=True maybe
+            verify=self.ssl_verify_cert, cert=self.ssl_cert, stream=False) ## TODO: optimize with stream=True maybe
         response = DAVResponse(r)
 
         # If server supports BasicAuth and not DigestAuth, let's try again:
@@ -453,7 +454,7 @@ class DAVClient:
             auth = requests.auth.HTTPBasicAuth(self.username, self.password)
             r = self.session.request(method, url, data=to_wire(body),
                                  headers=combined_headers, proxies=proxies,
-                                 auth=auth, verify=self.ssl_verify_cert)
+                                 auth=auth, verify=self.ssl_verify_cert, cert=self.ssl_cert)
             response = DAVResponse(r)
 
         self.auth = auth
