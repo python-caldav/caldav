@@ -405,6 +405,39 @@ class TestCalDAV:
         assert_equal(MockedDAVResponse(xml).expand_simple_props(props=[dav.CurrentUserPrincipal()]),
                      expected_result)
 
+        ## This duplicated response is observed in the real world -
+        ## see https://github.com/python-caldav/caldav/issues/136
+        ## (though I suppose there was an email address instead of
+        ## simply "frank", the XML I got was obfuscated)
+        xml = """<multistatus xmlns="DAV:">
+  <response>
+    <href>/principals/users/frank/</href>
+    <propstat>
+      <prop>
+        <current-user-principal>
+          <href>/principals/users/frank/</href>
+        </current-user-principal>
+      </prop>
+      <status>HTTP/1.1 200 OK</status>
+    </propstat>
+  </response>
+  <response>
+    <href>/principals/users/frank/</href>
+    <propstat>
+      <prop>
+        <current-user-principal>
+          <href>/principals/users/frank/</href>
+        </current-user-principal>
+      </prop>
+      <status>HTTP/1.1 200 OK</status>
+    </propstat>
+  </response>
+</multistatus>
+"""
+        expected_result = {'/principals/users/frank/': {'{DAV:}current-user-principal': '/principals/users/frank/'}}
+        assert_equal(MockedDAVResponse(xml).expand_simple_props(props=[dav.CurrentUserPrincipal()]),
+                     expected_result)
+
         xml = """
 <multistatus xmlns="DAV:">
   <response xmlns="DAV:">

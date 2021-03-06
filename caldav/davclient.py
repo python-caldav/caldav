@@ -174,8 +174,11 @@ class DAVResponse:
             error.assert_(r.tag == dav.Response.tag)
 
             (href, propstats, status) = self._parse_response(r)
-            error.assert_(not href in self.objects)
-            self.objects[href] = {}
+            ## I would like to do this assert here ...
+            #error.assert_(not href in self.objects)
+            ## but then there was https://github.com/python-caldav/caldav/issues/136
+            if not href in self.objects:
+                self.objects[href] = {}
 
             ## The properties may be delivered either in one
             ## propstat with multiple props or in multiple
