@@ -568,7 +568,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert_equal(len(events), len(existing_events) + 1)
 
         # We should be able to access the calender through the URL
-        c2 = Calendar(client=self.caldav, url=c.url)
+        c2 = self.caldav.calendar(url=c.url)
         events2 = c2.events()
         assert_equal(len(events2), len(existing_events) + 1)
         assert_equal(events2[0].url, events[0].url)

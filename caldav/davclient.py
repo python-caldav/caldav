@@ -12,7 +12,7 @@ from caldav.elements import dav, cdav, ical
 
 from caldav.lib import error
 from caldav.lib.url import URL
-from caldav.objects import Principal, errmsg, log, ScheduleInbox, ScheduleOutbox
+from caldav.objects import Principal, Calendar, errmsg, log, ScheduleInbox, ScheduleOutbox
 
 if six.PY3:
     from urllib.parse import unquote
@@ -36,6 +36,12 @@ class DAVResponse:
         self.headers = response.headers
         log.debug("response headers: " + str(self.headers))
         log.debug("response status: " + str(self.status))
+
+        ## OPTIMIZE TODO: if content-type is text/xml, we could eventually do
+        ## streaming into the etree library rather than first read the whole
+        ## content into a string.  (the line below just needs to be moved to
+        ## the relevant if-pronges below)
+        self._raw = response.content
         if (self.headers.get('Content-Type', '').startswith('text/xml') or
             self.headers.get('Content-Type', '').startswith('application/xml')):
             try:
@@ -47,25 +53,29 @@ class DAVResponse:
                 self.tree = None
                 log.debug("No content delivered")
             else:
+                ## With response.raw we could be streaming the content, but it does not work because
+                ## the stream often is compressed.  We could add uncompression on the fly, but not
+                ## considered worth the effort as for now.
                 #self.tree = etree.parse(response.raw, parser=etree.XMLParser(remove_blank_text=True))
-                self.tree = etree.XML(response.content, parser=etree.XMLParser(remove_blank_text=True))
+                self.tree = etree.XML(self._raw, parser=etree.XMLParser(remove_blank_text=True))
                 if log.level <= logging.DEBUG:
                     log.debug(etree.tostring(self.tree, pretty_print=True))
         elif (self.headers.get('Content-Type', '').startswith('text/calendar') or
               self.headers.get('Content-Type', '').startswith('text/plain')):
               ## text/plain is typically for errors, we shouldn't see it on 200/207 responses.
               ## TODO: may want to log an error if it's text/plain and 200/207.
-            self._raw = response.content
+            ## Logic here was moved when refactoring
+            pass
         else:
             ## probably content-type was not given, i.e. iCloud does not seem to include those
             if 'Content-Type' in self.headers:
                 log.error("unexpected content type from server: %s. %s" % (self.headers['Content-Type'], error.ERR_FRAGMENT))
-            self._raw = response.content
             try:
                 self.tree = etree.XML(self._raw, parser=etree.XMLParser(remove_blank_text=True))
             except:
                 pass
 
+        ## this if will always be true as for now, see other comments on streaming.
         if hasattr(self, '_raw'):
             log.debug(self._raw)
             # ref https://github.com/python-caldav/caldav/issues/112 stray CRs may cause problems
@@ -329,6 +339,14 @@ class DAVClient:
         if not self._principal:
             self._principal = Principal(client=self, *largs, **kwargs)
         return self._principal
+
+    def calendar(self, **kwargs):
+        """
+        Returns a newly initiated calendar object.
+
+        Typically, an URL should be given as a named parameter (url)
+        """
+        return Calendar(client=self, **kwargs)
 
     def check_dav_support(self):
         response = self.options(self.url)

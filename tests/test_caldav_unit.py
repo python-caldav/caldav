@@ -138,7 +138,7 @@ class TestCalDAV:
   </D:response>
 </D:multistatus>"""
         client = MockedDAVClient(xml)
-        assert_equal(Calendar(client=client, url="https://somwhere.in.the.universe.example/some/caldav/root/133bahgr6ohlo9ungq0it45vf8%40group.calendar.google.com/events/").get_supported_components(), ['VEVENT'])
+        assert_equal(client.calendar(url="https://somwhere.in.the.universe.example/some/caldav/root/133bahgr6ohlo9ungq0it45vf8%40group.calendar.google.com/events/").get_supported_components(), ['VEVENT'])
 
     def testAbsoluteURL(self):
         """Version 0.7.0 does not handle responses with absolute URLs very well, ref https://github.com/python-caldav/caldav/pull/103"""
