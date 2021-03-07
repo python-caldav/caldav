@@ -84,9 +84,9 @@ library covering the things the servers are doing wrong.
 
 There exists an extention to the standard covering calendar color and
 calendar order, allegedly with an xml namespace
-``http://apple.com/ns/ical/`` - however, that URL gives (301 https and
-then) 404.  I've done a quick google search, finding no documentation
-of this extension - however, it seems to be supported by several
+``http://apple.com/ns/ical/``. That URL gives (301 https and
+then) 404.  I've so far found no documentation at all
+on this extension - however, it seems to be supported by several
 caldav libraries, clients and servers.  As of 0.7, calendar colors and
 order is available for "power users".
 
@@ -214,7 +214,7 @@ Mark a task as completed:
 More examples
 =============
 
-Check the examples folder, particularly `basic examples <https://github.com/python-caldav/caldav/blob/master/examples/basic_usage_examples.py>`_.  The `test code <https://github.com/python-caldav/caldav/blob/master/tests/test_caldav.py>`_ also covers lots of stuff, though it's not much optimized for readability (at least not as of 2020-05).  Tobias Brox is also working on a `command line interface <https://github.com/tobixen/calendar-cli>`_  built around the caldav library.
+Check the examples folder, particularly `basic examples <https://github.com/python-caldav/caldav/blob/master/examples/basic_usage_examples.py>`_. There is also a `scheduling examples <https://github.com/python-caldav/caldav/blob/master/examples/scheduling_examples.py>`_ for sending, receiving and replying to invites, though this is not very well-tested so far.  The `test code <https://github.com/python-caldav/caldav/blob/master/tests/test_caldav.py>`_ also covers lots of stuff, though it's not much optimized for readability (at least not as of 2020-05).  Tobias Brox is also working on a `command line interface <https://github.com/tobixen/calendar-cli>`_  built around the caldav library.
 
 Notable classes and workflow
 ============================
@@ -224,8 +224,9 @@ Notable classes and workflow
   server.
 
 * From the client object one can get hold of a
-  :class:`caldav.objects.Principal`
-  object representing the logged-in principal.
+  :class:`caldav.objects.Principal` object representing the logged-in
+  principal.  (One can also fetch calendar objects directly from the
+  client object if knowing the URL).
 
 * From the principal object one can fetch / generate
   :class:`caldav.objects.Calendar` objects.

@@ -83,7 +83,7 @@ event.save()
 
 ## It's possible to access objects such as calendars without going
 ## through a Principal object, i.e. if one knows the URL
-the_same_calendar = caldav.Calendar(client=client, url=my_new_calendar.url)
+the_same_calendar = client.calendar(url=my_new_calendar.url)
 
 ## to get all events from the calendar, it's also possible to use the
 ## events()-method.  Recurring events will not be expanded.
