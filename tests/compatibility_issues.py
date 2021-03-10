@@ -4,16 +4,120 @@
 ## code itself to work around some known compatibility issues, like
 ## the caldav.lib.vcal.fix function.
 
-## TODO: We should probably keep a list in the documentation on everything found.
+## Here is a list of all observed (in)compatibility issues the test framework needs to know about
+## TODO:
+## * references to the relevant parts of the RFC would be nice.
+## * Research should be done to triple-check that the issue is on the server side, and not on the client side
+## * Some of the things below should be possible to probe the server for.
+## * Perhaps some more readable format should be considered (yaml?).
+## * Consider how to get this into the documentation
+incompatibility_description = {
+    'no_expand':
+        """Server may throw errors when asked to do a expanded date search""",
+    
+    'no_recurring':
+        """Server is having issues with recurring events and/or todos. """
+        """date searches covering recurrances may yield no results, """
+        """and events/todos may not be expanded with recurrances""",
 
-## TODO: The full list of attributes below should also be documented somewhere
+    'no_recurring_expandation':
+        """Server will not expand recurring events""",
+    
+    'no_recurring_todo':
+        """Recurring events are supported, but not recurring todos""",
+    
+    'no_scheduling':
+        """RFC6833 is not supported""",
 
-## TODO: Should replace all weirdconcatinatednameswithoutspaces below with more_understandable_attributes_with_underscores.
+    'no_default_calendar':
+        """The given user starts without an assigned default calendar """
+        """(or without pre-defined calendars at all)""",
+
+    'non_existing_calendar_found':
+        """Server will not yield a 404 if existing a random calendar URL """
+        """(perhaps the calendar will be automatically created on access)""",
+
+    'no_freebusy_rfc4791':
+        """Server does not support a freebusy-request as per RFC4791""",
+
+    'no_freebusy_rfc6638':
+        """Server does not support a freebusy-request as per RFC6638""",
+
+    'calendar_order':
+        """Server supports (nonstandard) calendar ordering property""",
+
+    'calendar_color':
+        """Server supports (nonstandard) calendar color property""",
+
+    'no_journal':
+        """Server does not support journal entries""",
+
+    'no_displayname':
+        """The display name of a calendar cannot be set/changed """
+        """(in zimbra, display name is given from the URL)""",
+
+    'duplicates_not_allowed':
+        """Duplication of an event in the same calendar not allowed """
+        """(even with different uid)""",
+
+    'duplicate_in_other_calendar_with_same_uid_is_lost':
+        """Fetch an event from one calendar, save it to another ... """
+        """and the duplicate will be ignored""",
+
+    'duplicate_in_other_calendar_with_same_uid_breaks':
+        """Fetch an event from one calendar, save it to another ... """
+        """and get some error from the server""",
+
+    'event_by_url_is_broken':
+        """A GET towards a valid calendar object resource URL will yield 404 (wtf?)""",
+
+    'uid_required':
+        """Server will not accept calendar object resources without an UID""",
+
+    'no_sync_token':
+        """RFC6578 is not supported""",
+
+    'propfind_allprop_failure':
+        """The propfind test fails ... """
+        """it asserts DAV:allprop response contains the text 'resourcetype', """
+        """possibly this assert is wrong""",
+
+    'no_todo':
+        """Support for VTODO (tasks) apparently missing""",
+
+    'no_todo_datesearch':
+        """Date search on todo items fails""",
+
+    'vtodo_datesearch_nodtstart_task_is_skipped':
+        """date searches for todo-items will not find tasks without a dtstart""",
+
+    'no_todo_on_standard_calendar':
+        """Tasklists can be created, but a normal calendar does not support tasks""",
+
+    'unique_calendar_ids':
+        """For every test, generate a new and unique calendar id""",
+
+    'sticky_events':
+        """Events should be deleted before the calendar is deleted, """
+        """and/or deleting a calendar may not have immediate effect""",
+
+    'object_by_uid_is_broken':
+        """calendar.object_by_uid(uid) does not work""",
+
+    'fragile_sync_tokens':
+        """Every now and then, all calendar content will be returned on a simple sync request""",
+
+    'no_mkcalendar':
+        """mkcalendar is not supported""",
+
+    'no_overwrite':
+        """events cannot be edited""",
+}
 
 xandikos = [
     ## TEMP TEMP TEMP - TODO - should be investigated
     ## (perhaps my xandikos version is too old?)
-    "noexpand", "norecurring",
+    "no_expand", "no_recurring",
     
     ## scheduling is not supported
     "no_scheduling",
@@ -23,35 +127,35 @@ xandikos = [
 radicale = [
     ## The proxy test code needs to be rewritten
     ## ref https://github.com/python-caldav/caldav/issues/89    
-    "noproxy",
+    "no_proxy",
 
     ## calendar listings and calendar creation works a bit
     ## "weird" on radicale
-    "nodefaultcalendar",
-    "nocalendarnotfound",
+    "no_default_calendar",
+    "non_existing_calendar_found",
 
     ## freebusy is not supported yet, but on the long-term road map
-    "nofreebusy",
+    "no_freebusy_rfc4791",
 
     ## Expanding recurrent events is not yet supported
     ## ref https://github.com/Kozea/Radicale/issues/662
-    "norecurringexpandation",
+    "no_recurring_expandation",
 
     'no_scheduling',
 
     ## extra features not specified in RFC5545
-    "calendarorder",
-    "calendarcolor"
+    "calendar_order",
+    "calendar_color"
 ]
 
 ## ZIMBRA IS THE MOST SILLY, AND THERE ARE REGRESSIONS FOR EVERY RELEASE!
 ## AAARGH!
 zimbra = [
     ## no idea why this breaks
-    'nocalendarnotfound',
+    "non_existing_calendar_found",
 
     ## apparently, zimbra has no journal support
-    'nojournal',
+    'no_journal',
 
     ## setting display name in zimbra does not work (display name,
     ## calendar-ID and URL is the same, the display name cannot be
@@ -59,7 +163,7 @@ zimbra = [
     ## earlier versions of Zimbra display-name could be changed, but
     ## then the calendar would not be available on the old URL
     ## anymore)
-    'nodisplayname',
+    'no_displayname',
     'duplicate_in_other_calendar_with_same_uid_is_lost',
     'event_by_url_is_broken',
     'uid_required',
@@ -68,8 +172,8 @@ zimbra = [
     'no_recurring_todo',
 
     ## extra features not specified in RFC5545
-    "calendarorder",
-    "calendarcolor"
+    "calendar_order",
+    "calendar_color"
 
     ## TODO: there is more, it should be organized and moved here.
     ## Search for 'zimbra' in the code repository!
@@ -78,10 +182,10 @@ zimbra = [
 bedework = [
     ## quite a lot of things were missing in Bedework last I checked -
     ## but that's quite a while ago!
-    'nojournal',
-    'notodo',
-    'nopropfind',
-    'norecurring',
+    'no_journal',
+    'no_todo',
+    'propfind_allprop_failure',
+    'no_recurring',
 
     ## taking an event, changing the uid, and saving in the same calendar gives a 403.
     ## editing the content slightly and it works.  Weird ...
@@ -103,13 +207,13 @@ baikal = [
 ## See comments on https://github.com/python-caldav/caldav/issues/3
 icloud = [
     'unique_calendar_ids',
-    'cross_calendar_duplicate_not_allowed',
-    'stickyevents',
-    'nojournal', ## it threw a 500 internal server error!
-    'notodo',
-    'nofreebusy',
-    'norecurring',
-    'nopropfind',
+    'duplicate_in_other_calendar_with_same_uid_breaks',
+    'sticky_events',
+    'no_journal', ## it threw a 500 internal server error!
+    'no_todo',
+    "no_freebusy_rfc4791",
+    'no_recurring',
+    'propfind_allprop_failure',
     'object_by_uid_is_broken'
     ]
 

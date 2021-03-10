@@ -225,8 +225,7 @@ Notable classes and workflow
 
 * From the client object one can get hold of a
   :class:`caldav.objects.Principal` object representing the logged-in
-  principal.  (One can also fetch calendar objects directly from the
-  client object if knowing the URL).
+  principal.
 
 * From the principal object one can fetch / generate
   :class:`caldav.objects.Calendar` objects.
@@ -256,6 +255,8 @@ newer versions of the software after I find an incompatibility)
 The test suite is regularly run against several calendar servers, see https://github.com/python-caldav/caldav/issues/45 for the latest updates.  See ``tests/compatibility_issues.py`` for the most up-to-date list of compatibility issues.  In early versions of this library test breakages was often an indication that the library did not conform well enough to the standards, but as of today it mostly indicates that the servers does not support the standard well enough.  It may be an option to add tweaks to the library code to cover some of the missing functionality.
 
 Here are some known issues:
+
+* iCloud, Google and Zimbra are notoriously bad on their CalDAV-support.
 
 * You may want to avoid non-ASCII characters in the calendar name, or
   some servers (at least Zimbra) may behave a bit unexpectedly.

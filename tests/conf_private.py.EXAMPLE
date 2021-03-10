@@ -1,3 +1,5 @@
+from tests import compatibility_issues
+
 ## PRIVATE CALDAV SERVER(S) TO RUN TESTS TOWARDS
 ## Make a list of your own servers/accounts that you'd like to run the
 ## test towards.  Running the test suite towards a personal account
@@ -8,9 +10,7 @@
 caldav_servers = [
     {
         ## This is all that is really needed - url, username and
-        ## password.  The username and password may also be passed in
-        ## the URL itself (like
-        ## https://sam_i_am:hunter2@server.example.ccom/)
+        ## password.  (the URL may even include username and password)
         'url': 'https://some.server.example.com',
         'username': 'testuser',
         'password': 'hunter2',
@@ -22,7 +22,8 @@ caldav_servers = [
         ## incompatibilities is a list of flags that can be set for
         ## skipping (parts) of certain tests.  See
         ## tests/compatibility_issues.py for premade lists
-        incompatibilities = []
+        #incompatibilities = compatibility_issues.icloud
+	incompatibilities = []
     }
 ]
 
@@ -43,10 +44,6 @@ test_private_test_servers = True
 ## be the default caldav implementation to test towards.
 test_xandikos = True
 test_radicale = True
-
-## DEPRECATED - only_private is superceded by test_public_servers,
-## left here for backward-compatibility.
-#only_private=False
 
 ## For usage by ../examples/scheduling_examples.py.  Should typically
 ## be three different users on the same caldav server.

@@ -25,6 +25,7 @@ from nose.plugins.skip import SkipTest
 from requests.packages import urllib3
 import requests
 
+from .conf import client
 from .conf import caldav_servers, proxy, proxy_noport
 from .conf import test_xandikos, xandikos_port, xandikos_host
 from .conf import test_radicale, radicale_port, radicale_host
@@ -303,27 +304,34 @@ class RepeatedFunctionalTestsBaseClass(object):
     We've had some problems with iCloud and Radicale earlier.  Google
     still does not support mkcalendar.
     """
+    def check_compatibility_flag(self, flag):
+        ## yield an assertion error if checking for the wrong thig
+        assert(flag in compatibility_issues.incompatibility_description)
+        return flag in self.incompatibilities
+
+    def skip_on_compatibility_flag(self, flag):
+        if self.check_compatibility_flag(flag):
+            msg = compatibility_issues.incompatibility_description[flag]
+            raise SkipTest("Test skipped due to server incompatibility issue: "+msg)
+    
     def __init__(self):
         self._default_calendar=None
 
     def setup(self):
         logging.debug("############## test setup")
-        for incompatibility_flag in self.server_params.get('incompatibilities', []):
-            self.server_params[incompatibility_flag] = True
+        self.incompatibilities = set()
+        for flag in self.server_params['incompatibilities']:
+            assert(flag in compatibility_issues.incompatibility_description)
+            self.incompatibilities.add(flag)
 
-        if self.server_params.get('unique_calendar_ids', False):
+        if self.check_compatibility_flag('unique_calendar_ids'):
             self.testcal_id = 'testcalendar-' + str(uuid.uuid4())
             self.testcal_id2 = 'testcalendar-' + str(uuid.uuid4())
         else:
             self.testcal_id = "pythoncaldav-test"
             self.testcal_id2 = "pythoncaldav-test2"
 
-        self.conn_params = self.server_params.copy()
-        for x in list(self.conn_params.keys()):
-            if x not in ('url', 'proxy', 'username', 'password',
-                         'ssl_verify_cert'):
-                self.conn_params.pop(x)
-        self.caldav = DAVClient(**self.conn_params)
+        self.caldav = client(**self.server_params)
         self.principal = self.caldav.principal()
 
         logging.debug("## going to tear down old test calendars, "
@@ -331,7 +339,7 @@ class RepeatedFunctionalTestsBaseClass(object):
                       "last time tests were run")
         self._teardown()
 
-        if self.server_params.get('object_by_uid_is_broken', False):
+        if self.check_compatibility_flag('object_by_uid_is_broken'):
             import caldav.objects
             caldav.objects.NotImplementedError = SkipTest
 
@@ -347,7 +355,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         logging.debug("############## test teardown done")
 
     def _teardown(self):
-        if self.server_params.get('nomkcalendar', False):
+        if self.check_compatibility_flag('no_mkcalendar'):
             for uid in uids_used:
                 try:
                     obj = self._fixCalendar().object_by_uid(uid)
@@ -370,7 +378,7 @@ class RepeatedFunctionalTestsBaseClass(object):
                 ## TODO: why do we need a name here?  id is supposed to be unique, isn't it?
                 cal = self.principal.calendar(name=combo[0],
                                               cal_id=combo[1])
-                if self.server_params.get('stickyevents', False):
+                if self.check_compatibility_flag('sticky_events'):
                     try:
                         for goo in cal.objects():
                             goo.delete()
@@ -386,7 +394,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         should see if there exists a test calendar, if that's not
         possible, give up and return the primary calendar.
         """
-        if self.server_params.get('nomkcalendar', False):
+        if self.check_compatibility_flag('no_mkcalendar'):
             if not self._default_calendar:
                 calendars = self.principal.calendars()
                 for c in calendars:
@@ -404,14 +412,13 @@ class RepeatedFunctionalTestsBaseClass(object):
         """
         assert(self.caldav.check_dav_support())
         assert(self.caldav.check_cdav_support())
-        if 'no_scheduling' in self.server_params:
+        if self.check_compatibility_flag('no_scheduling'):
             assert(not self.caldav.check_scheduling_support())
         else:
             assert(self.caldav.check_scheduling_support())
 
     def testScheduling(self):
-        if 'no_scheduling' in self.server_params:
-            raise SkipTest("no scheduling support by caldav server")
+        self.skip_on_compatibility_flag('no_scheduling')
         inbox = self.principal.schedule_inbox()
         outbox = self.principal.schedule_outbox()
         calendar_user_address_set = self.principal.calendar_user_address_set()
@@ -431,11 +438,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         # ResourceType MUST be defined, and SHOULD be returned on a propfind
         # for "allprop" if I have the permission to see it.
         # So, no ResourceType returned seems like a bug in bedework
-        if 'nopropfind' in self.server_params:
-            raise SkipTest("Skipping propfind test, "
-                           "re test suite configuration.  "
-                           "Perhaps the caldav server is not adhering to "
-                           "the standards")
+        self.skip_on_compatibility_flag('propfind_allprop_failure')
 
         # first a raw xml propfind to the root URL
         foo = self.caldav.propfind(
@@ -456,8 +459,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert '{urn:ietf:params:xml:ns:caldav}calendar-home-set' in chs
 
     def testGetDefaultCalendar(self):
-        if 'nodefaultcalendar' in self.server_params:
-            raise SkipTest("Skipping GetDefaultCalendar, caldav server has no default calendar for the user?")
+        self.skip_on_compatibility_flag('no_default_calendar')
         assert_not_equal(len(self.principal.calendars()), 0)
 
     def testGetCalendar(self):
@@ -479,8 +481,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         if self.caldav.url.scheme == 'https':
             raise SkipTest("Skipping %s.testProxy as the TinyHTTPProxy "
                            "implementation doesn't support https")
-        if 'noproxy' in self.server_params:
-            raise SkipTest("Skipping %s.testProxy as per configuration ")
+        self.skip_on_compatibility_flag('no_default_calendar')
 
         server_address = ('127.0.0.1', 8080)
         try:
@@ -493,25 +494,25 @@ class RepeatedFunctionalTestsBaseClass(object):
         try:
             threadobj.start()
             assert(threadobj.is_alive())
-            conn_params = self.conn_params.copy()
+            conn_params = self.server_params.copy()
             conn_params['proxy'] = proxy
-            c = DAVClient(**conn_params)
+            c = client(**conn_params)
             p = c.principal()
             assert_not_equal(len(p.calendars()), 0)
         finally:
             proxy_httpd.shutdown()
             # this should not be necessary, but I've observed some failures
             if threadobj.is_alive():
-                time.sleep(0.05)
+                time.sleep(0.15)
             assert(not threadobj.is_alive())
 
         threadobj = threading.Thread(target=proxy_httpd.serve_forever)
         try:
             threadobj.start()
             assert(threadobj.is_alive())
-            conn_params = self.conn_params.copy()
+            conn_params = self.server_params.copy()
             conn_params['proxy'] = proxy_noport
-            c = DAVClient(**conn_params)
+            c = client(**conn_params)
             p = c.principal()
             assert_not_equal(len(p.calendars()), 0)
             assert(threadobj.is_alive())
@@ -531,8 +532,7 @@ class RepeatedFunctionalTestsBaseClass(object):
             assert_equal(c.__class__.__name__, "Calendar")
 
     def testCreateDeleteCalendar(self):
-        if self.server_params.get('nomkcalendar', False):
-            raise SkipTest("Cannot create calendar - should not test calendar deletion")
+        self.skip_on_compatibility_flag('no_mkcalendar')
         c = self.principal.make_calendar(name="Yep", cal_id=self.testcal_id)
         assert_not_equal(c.url, None)
         events = c.events()
@@ -542,10 +542,9 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert_equal(len(events), 0)
         c.delete()
 
-        # verify that calendar does not exist - this breaks with zimbra :-(
-        # (also breaks with radicale, which by default creates a new calendar)
-        # COMPATIBILITY PROBLEM - todo, look more into it
-        if 'nocalendarnotfound' not in self.server_params:
+        # verify that calendar does not exist
+        # this breaks with zimbra and radicale
+        if not self.check_compatibility_flag('non_existing_calendar_found'):
             assert_raises(
                 error.NotFoundError,
                 self.principal.calendar(
@@ -556,7 +555,7 @@ class RepeatedFunctionalTestsBaseClass(object):
 
         existing_events = c.events()
 
-        if not self.server_params.get('nomkcalendar', False):
+        if not self.check_compatibility_flag('no_mkcalendar'):
         ## we're supposed to be working towards a brand new calendar
             assert_equal(len(existing_events), 0)
 
@@ -573,7 +572,8 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert_equal(len(events2), len(existing_events) + 1)
         assert_equal(events2[0].url, events[0].url)
 
-        if not self.server_params.get('nomkcalendar', False) and not self.server_params.get('nodisplayname', False):
+        if (not self.check_compatibility_flag('no_mkcalendar') and
+            not self.check_compatibility_flag('no_displayname')):
             # We should be able to access the calender through the name
             c2 = self.principal.calendar(name="Yep")
             events2 = c2.events()
@@ -586,23 +586,22 @@ class RepeatedFunctionalTestsBaseClass(object):
 
         This test is using explicit calls to objects_by_sync_token
         """
-        if self.server_params.get('no_sync_token', False):
-            raise SkipTest("sync-token reports not supported")
+        self.skip_on_compatibility_flag('no_sync_token')
         
         ## Boiler plate ... make a calendar and add some content
         c = self._fixCalendar()
         objcnt = 0
         ## in case we need to reuse an existing calendar ...
-        if not self.server_params.get('notodo', False):
+        if not self.check_compatibility_flag('no_todo'):
             objcnt += len(c.todos())
         objcnt += len(c.events())
         obj = c.save_event(ev1)
         objcnt += 1
-        if not self.server_params.get('norecurring', False):
+        if not self.check_compatibility_flag('no_recurring'):
             c.save_event(evr)
             objcnt += 1
-        if (not self.server_params.get('notodo', False) and
-            not self.server_params.get('no_todo_on_standard_calendar', False)):
+        if (not self.check_compatibility_flag('no_todo') and
+            not self.check_compatibility_flag('no_todo_on_standard_calendar')):
             c.save_todo(todo)
             c.save_todo(todo2)
             c.save_todo(todo3)
@@ -619,12 +618,11 @@ class RepeatedFunctionalTestsBaseClass(object):
 
         ## running sync_token again with the new token should return 0 hits
         my_changed_objects = c.objects_by_sync_token(sync_token=my_objects.sync_token)
-        if not self.server_params.get('fragilesynctokens', False):
+        if not self.check_compatibility_flag('fragile_sync_tokens'):
             assert_equal(len(list(my_changed_objects)), 0)
 
         ## I was unable to run the rest of the tests towards Google using their legacy caldav API
-        if self.server_params.get('nooverwrite', False):
-            raise SkipTest("The rest of the test is temporarily disabled for calendars with immutable events")
+        self.skip_on_compatibility_flag('no_overwrite')
 
         ## MODIFYING an object
         obj.icalendar_instance.subcomponents[0]['SUMMARY'] = 'foobar'
@@ -632,7 +630,7 @@ class RepeatedFunctionalTestsBaseClass(object):
 
         ## The modified object should be returned by the server
         my_changed_objects = c.objects_by_sync_token(sync_token=my_changed_objects.sync_token, load_objects=True)
-        if self.server_params.get('fragilesynctokens', False):
+        if not self.check_compatibility_flag('fragile_sync_tokens'):
             assert(len(list(my_changed_objects)) >= 1)
         else:
             assert_equal(len(list(my_changed_objects)), 1)
@@ -642,31 +640,31 @@ class RepeatedFunctionalTestsBaseClass(object):
 
         ## Re-running objects_by_sync_token, and no objects should be returned
         my_changed_objects = c.objects_by_sync_token(sync_token=my_changed_objects.sync_token)
-        if not self.server_params.get('fragilesynctokens', False):
+        if not self.check_compatibility_flag('fragile_sync_tokens'):
             assert_equal(len(list(my_changed_objects)), 0)
 
         ## ADDING yet another object ... and it should also be reported
         obj3 = c.save_event(ev3)
         my_changed_objects = c.objects_by_sync_token(sync_token=my_changed_objects.sync_token)
-        if not self.server_params.get('fragilesynctokens', False):
+        if not self.check_compatibility_flag('fragile_sync_tokens'):
             assert_equal(len(list(my_changed_objects)), 1)
 
         ## Re-running objects_by_sync_token, and no objects should be returned
         my_changed_objects = c.objects_by_sync_token(sync_token=my_changed_objects.sync_token)
-        if not self.server_params.get('fragilesynctokens', False):
+        if not self.check_compatibility_flag('fragile_sync_tokens'):
             assert_equal(len(list(my_changed_objects)), 0)
 
         ## DELETING the object ... and it should be reported
         obj.delete()
         my_changed_objects = c.objects_by_sync_token(sync_token=my_changed_objects.sync_token, load_objects=True)
-        if not self.server_params.get('fragilesynctokens', False):
+        if not self.check_compatibility_flag('fragile_sync_tokens'):
             assert_equal(len(list(my_changed_objects)), 1)
         ## even if we have asked for the object to be loaded, data should be None as it's a deleted object
         assert(list(my_changed_objects)[0].data is None)
 
         ## Re-running objects_by_sync_token, and no objects should be returned
         my_changed_objects = c.objects_by_sync_token(sync_token=my_changed_objects.sync_token)
-        if not self.server_params.get('fragilesynctokens', False):
+        if not self.check_compatibility_flag('fragile_sync_tokens'):
             assert_equal(len(list(my_changed_objects)), 0)
 
 
@@ -676,23 +674,22 @@ class RepeatedFunctionalTestsBaseClass(object):
 
         Same test pattern as testObjectBySyncToken, but exercises the .sync() method
         """
-        if self.server_params.get('no_sync_token', False):
-            raise SkipTest("sync-token reports not supported")
+        self.skip_on_compatibility_flag('no_sync_token')
         
         ## Boiler plate ... make a calendar and add some content
         c = self._fixCalendar()
         objcnt = 0
         ## in case we need to reuse an existing calendar ...
-        if not self.server_params.get('notodo', False):
+        if not self.check_compatibility_flag('no_todo'):
             objcnt += len(c.todos())
         objcnt += len(c.events())
         obj = c.save_event(ev1)
         objcnt += 1
-        if not self.server_params.get('norecurring', False):
+        if not self.check_compatibility_flag('no_recurring'):
             c.save_event(evr)
             objcnt += 1
-        if (not self.server_params.get('notodo', False) and
-            not self.server_params.get('no_todo_on_standard_calendar', False)):
+        if (not self.check_compatibility_flag('no_todo') and
+            not self.check_compatibility_flag('no_todo_on_standard_calendar')):
             c.save_todo(todo)
             c.save_todo(todo2)
             c.save_todo(todo3)
@@ -705,20 +702,19 @@ class RepeatedFunctionalTestsBaseClass(object):
 
         ## sync() should do nothing
         updated, deleted = my_objects.sync()
-        if not self.server_params.get('fragilesynctokens', False):
+        if not self.check_compatibility_flag('fragile_sync_tokens'):
             assert_equal(len(list(updated)), 0)
             assert_equal(len(list(deleted)), 0)
 
         ## I was unable to run the rest of the tests towards Google using their legacy caldav API
-        if self.server_params.get('nooverwrite', False):
-            raise SkipTest("The rest of the test is temporarily disabled for calendars with immutable events")
+        self.skip_on_compatibility_flag('no_overwrite')
 
         ## MODIFYING an object
         obj.icalendar_instance.subcomponents[0]['SUMMARY'] = 'foobar'
         obj.save()
 
         updated, deleted = my_objects.sync()
-        if not self.server_params.get('fragilesynctokens', False):
+        if not self.check_compatibility_flag('fragile_sync_tokens'):
             assert_equal(len(list(updated)), 1)
             assert_equal(len(list(deleted)), 0)
         assert('foobar' in my_objects.objects_by_url()[obj.url].data)
@@ -726,7 +722,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         ## ADDING yet another object ... and it should also be reported
         obj3 = c.save_event(ev3)
         updated, deleted = my_objects.sync()
-        if not self.server_params.get('fragilesynctokens', False):
+        if not self.check_compatibility_flag('fragile_sync_tokens'):
             assert_equal(len(list(updated)), 1)
             assert_equal(len(list(deleted)), 0)
         assert(obj3.url in my_objects.objects_by_url())
@@ -734,49 +730,47 @@ class RepeatedFunctionalTestsBaseClass(object):
         ## DELETING the object ... and it should be reported
         obj.delete()
         updated, deleted = my_objects.sync()
-        if not self.server_params.get('fragilesynctokens', False):
+        if not self.check_compatibility_flag('fragile_sync_tokens'):
             assert_equal(len(list(updated)), 0)
             assert_equal(len(list(deleted)), 1)
         assert(not obj.url in my_objects.objects_by_url())
 
         ## sync() should do nothing
         updated, deleted = my_objects.sync()
-        if not self.server_params.get('fragilesynctokens', False):
+        if not self.check_compatibility_flag('fragile_sync_tokens'):
             assert_equal(len(list(updated)), 0)
             assert_equal(len(list(deleted)), 0)
 
     def testLoadEvent(self):
-        if self.server_params.get('nomkcalendar', False):
-            raise SkipTest("MKCALENDAR not supported")
+        self.skip_on_compatibility_flag('no_mkcalendar')
         c1 = self.principal.make_calendar(name="Yep", cal_id=self.testcal_id)
         c2 = self.principal.make_calendar(name="Yapp", cal_id=self.testcal_id2)
         e1_ = c1.save_event(ev1)
-        if not self.server_params.get('event_by_url_is_broken', False):
+        if not self.check_compatibility_flag('event_by_url_is_broken'):
             e1_.load()
         e1 = c1.events()[0]
         assert_equal(e1.url, e1_.url)
-        if not self.server_params.get('event_by_url_is_broken', False):
+        if not self.check_compatibility_flag('event_by_url_is_broken'):
             e1.load()
 
     def testCopyEvent(self):
-        if self.server_params.get('nomkcalendar', False):
-            raise SkipTest("MKCALENDAR not supported")
+        self.skip_on_compatibility_flag('no_mkcalendar')
         ## Let's create two calendars, and populate one event on the first calendar
         c1 = self.principal.make_calendar(name="Yep", cal_id=self.testcal_id)
         c2 = self.principal.make_calendar(name="Yapp", cal_id=self.testcal_id2)
         e1_ = c1.save_event(ev1)
         e1 = c1.events()[0]
 
-        if not self.server_params.get('duplicates_not_allowed', False):
+        if not self.check_compatibility_flag('duplicates_not_allowed'):
            ## Duplicate the event in the same calendar, with new uid
             e1_dup = e1.copy()
             e1_dup.save()
             assert_equal(len(c1.events()), 2)
 
-        if not self.server_params.get('cross_calendar_duplicate_not_allowed', False):
+        if not self.check_compatibility_flag('duplicate_in_other_calendar_with_same_uid_breaks'):
             e1_in_c2 = e1.copy(new_parent=c2, keep_uid=True)
             e1_in_c2.save()
-            if not self.server_params.get('duplicate_in_other_calendar_with_same_uid_is_lost', False):
+            if not self.check_compatibility_flag('duplicate_in_other_calendar_with_same_uid_is_lost'):
                 assert_equal(len(c2.events()), 1)
 
                 ## what will happen with the event in c1 if we modify the event in c2,
@@ -796,7 +790,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         ## this makes no sense, there won't be any duplication
         e1_dup2 = e1.copy(keep_uid=True)
         e1_dup2.save()
-        if self.server_params.get('duplicates_not_allowed', False):
+        if self.check_compatibility_flag('duplicates_not_allowed'):
             assert_equal(len(c1.events()), 1)
         else:
             assert_equal(len(c1.events()), 2)
@@ -833,16 +827,8 @@ class RepeatedFunctionalTestsBaseClass(object):
         * It will add some journal entries to it
         * It will list out all journal entries
         """
-        if self.server_params.get('nomkcalendar', False):
-            raise SkipTest("MKCALENDAR not supported")
-        if 'nojournal' in self.server_params:
-            # COMPATIBILITY TODO: read the RFC.  sabredav/owncloud:
-            # got the error: "This calendar only supports VEVENT,
-            # VTODO. We found a VJOURNAL".  Should probably learn
-            # that some other way.  (why doesn't make_calendar break?
-            # what does the RFC say on that?)  Same with zimbra,
-            # though different error.
-            raise SkipTest("Journal testing skipped due to test configuration")
+        self.skip_on_compatibility_flag('no_mkcalendar')
+        self.skip_on_compatibility_flag('no_journal')
         c = self.principal.make_calendar(
             name="Yep", cal_id=self.testcal_id,
             supported_calendar_component_set=['VJOURNAL'])
@@ -865,12 +851,10 @@ class RepeatedFunctionalTestsBaseClass(object):
         """
         # TODO: should try to add tasks to the default calendar if mkcalendar
         # does not work
-        if self.server_params.get('nomkcalendar', False):
-            raise SkipTest("MKCALENDAR not supported")
+        self.skip_on_compatibility_flag('no_mkcalendar')
 
         # bedeworks and google calendar and some others does not support VTODO
-        if 'notodo' in self.server_params:
-            raise SkipTest("VTODO testing skipped due to test configuration")
+        self.skip_on_compatibility_flag('no_todo')
 
         # For most servers (notable exception Zimbra), it's
         # possible to create a calendar and add todo-items to it.
@@ -896,7 +880,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert_equal(len(todos2), 1)
 
         # adding a todo without an UID, it should also work
-        if not self.server_params.get('uid_required', False):
+        if not self.check_compatibility_flag('uid_required'):
             c.save_todo(todo7)
             assert_equal(len(c.todos()), 2)
 
@@ -914,11 +898,9 @@ class RepeatedFunctionalTestsBaseClass(object):
         """
         # TODO: should try to add tasks to the default calendar if mkcalendar
         # does not work
-        if self.server_params.get('nomkcalendar', False):
-            raise SkipTest("MKCALENDAR not supported")
+        self.skip_on_compatibility_flag('no_mkcalendar')
         # Not all server implementations have support for VTODO
-        if 'notodo' in self.server_params:
-            raise SkipTest("VTODO testing skipped due to test configuration")
+        self.skip_on_compatibility_flag('no_todo')
 
         c = self.principal.make_calendar(
             name="Yep", cal_id=self.testcal_id,
@@ -964,11 +946,10 @@ class RepeatedFunctionalTestsBaseClass(object):
         """
         # TODO: should try to add tasks to the default calendar if mkcalendar
         # does not work
-        if self.server_params.get('nomkcalendar', False):
-            raise SkipTest("MKCALENDAR not supported")
+        self.skip_on_compatibility_flag('no_mkcalendar')
         # bedeworks does not support VTODO
-        if 'notodo' in self.server_params or 'notododatesearch' in self.server_params:
-            raise SkipTest("VTODO testing skipped due to test configuration")
+        self.skip_on_compatibility_flag('no_todo')
+        self.skip_on_compatibility_flag('no_todo_datesearch')
         c = self.principal.make_calendar(
             name="Yep", cal_id=self.testcal_id,
             supported_calendar_component_set=['VTODO'])
@@ -996,7 +977,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         # t6 has dtstart and due set prior to the search window,
         # but is yearly recurring.
         # None has duration set.  What will a date search yield?
-        noexpand = self.server_params.get('noexpand', False)
+        noexpand = self.check_compatibility_flag('no_expand')
         todos = c.date_search(
             start=datetime(1997, 4, 14), end=datetime(2015, 5, 14),
             compfilter='VTODO', expand=not noexpand)
@@ -1014,17 +995,17 @@ class RepeatedFunctionalTestsBaseClass(object):
         # Hence a compliant server should chuck out all the todos except t5.
         # Not all servers perform according to (my interpretation of) the RFC.
         foo = 5
-        if (self.server_params.get('norecurring', False) or
-            self.server_params.get('no_recurring_todo', False)):
+        if (self.check_compatibility_flag('no_recurring') or
+            self.check_compatibility_flag('no_recurring_todo')):
             foo -= 1
-        if self.server_params.get('vtodo_datesearch_nodtstart_task_is_skipped', False):
+        if self.check_compatibility_flag('vtodo_datesearch_nodtstart_task_is_skipped'):
             foo -= 2
         assert_equal(len(todos), foo)
 
         ## verify that "expand" works
         if (
-                not self.server_params.get('norecurringexpandation', False) and
-                not self.server_params.get('noexpand', False)):
+                not self.check_compatibility_flag('no_recurring_expandation') and
+                not self.check_compatibility_flag('no_expand')):
             assert_equal(len([x for x in todos if 'DTSTART:20020415T1330' in x.data]), 1)
         ## exercise the default for expand (maybe -> False for open-ended search)
         todos = c.date_search(
@@ -1037,8 +1018,8 @@ class RepeatedFunctionalTestsBaseClass(object):
         ## * t1 should be returned, as it has no due date set and hence has an infinite duration.
         ## * t4 should probably be returned, as it has no dtstart nor due and hence is also considered to span over infinite time
         ## dtstart set but without due should also be returned.
-        if (self.server_params.get('norecurring', False) or
-            self.server_params.get('no_recurring_todo', False)):
+        if (self.check_compatibility_flag('no_recurring') or
+            self.check_compatibility_flag('no_recurring_todo')):
             assert_equal(len(todos), 1)
         else:
             assert_equal(len(todos), 2)
@@ -1053,11 +1034,9 @@ class RepeatedFunctionalTestsBaseClass(object):
         """
         # TODO: should try to add tasks to the default calendar if mkcalendar
         # does not work
-        if self.server_params.get('nomkcalendar', False):
-            raise SkipTest("MKCALENDAR not supported")
+        self.skip_on_compatibility_flag('no_mkcalendar')
         # not all caldav servers support VTODO
-        if 'notodo' in self.server_params:
-            raise SkipTest("VTODO testing skipped due to test configuration")
+        self.skip_on_compatibility_flag('no_todo')
         c = self.principal.make_calendar(
             name="Yep", cal_id=self.testcal_id,
             supported_calendar_component_set=['VTODO'])
@@ -1089,7 +1068,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         t2.delete()
 
         # ... the deleted one is gone ...
-        if not self.server_params.get('event_by_url_is_broken', False):
+        if not self.check_compatibility_flag('event_by_url_is_broken'):
             todos = c.todos(include_completed=True)
             assert_equal(len(todos), 2)
 
@@ -1104,8 +1083,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         # TODO: what's the difference between this and testUnicodeEvent?
         # TODO: split up in creating a calendar with non-ascii name
         # and an event with non-ascii description
-        if self.server_params.get('nomkcalendar', False):
-            raise SkipTest("MKCALENDAR not supported")
+        self.skip_on_compatibility_flag('no_mkcalendar')
         c = self.principal.make_calendar(name="Yølp", cal_id=self.testcal_id)
 
         # add event
@@ -1116,7 +1094,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         events = c.events()
 
         # no todos should be added
-        if not self.server_params.get('notodo', False):
+        if not self.check_compatibility_flag('no_todo'):
             todos = c.todos()
             assert_equal(len(todos), 0)
 
@@ -1125,8 +1103,7 @@ class RepeatedFunctionalTestsBaseClass(object):
             assert_equal(len(events), 1)
 
     def testUnicodeEvent(self):
-        if self.server_params.get('nomkcalendar', False):
-            raise SkipTest("MKCALENDAR not supported")
+        self.skip_on_compatibility_flag('no_mkcalendar')
         c = self.principal.make_calendar(name="Yølp", cal_id=self.testcal_id)
 
         # add event
@@ -1141,8 +1118,7 @@ class RepeatedFunctionalTestsBaseClass(object):
             assert_equal(len(events), 1)
 
     def testSetCalendarProperties(self):
-        if self.server_params.get('nodisplayname', False):
-            raise SkipTest("skipping properties test as display name is not supported by server")
+        self.skip_on_compatibility_flag('no_displayname')
         
         c = self._fixCalendar()
         assert_not_equal(c.url, None)
@@ -1151,8 +1127,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         
         ## TODO: there are more things in this test that
         ## should be run even if mkcalendar is not available.
-        if self.server_params.get('nomkcalendar', False):
-            raise SkipTest("MKCALENDAR not supported")
+        self.skip_on_compatibility_flag('no_mkcalendar')
 
         assert_equal("Yep", props[dav.DisplayName.tag])
 
@@ -1168,7 +1143,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         # work, shouldn't it?  (does not work entirely at iCloud, possibly due
         # to some 'stickyness' or race condition problems.  make_calendar
         # triggers an obscure assert, and all access to the calendar raises 404)
-        if not self.server_params.get('stickyevents', False):
+        if not self.check_compatibility_flag('sticky_events'):
             cc = self.principal.make_calendar(
                 name="Yep", cal_id=self.testcal_id2).save()
             assert_not_equal(cc.url, None)
@@ -1177,13 +1152,13 @@ class RepeatedFunctionalTestsBaseClass(object):
         ## calendar color and calendar order are extra properties not
         ## described by RFC5545, but anyway supported by quite some
         ## server implementations
-        if self.server_params.get('calendarcolor', False):
+        if self.check_compatibility_flag('calendar_color'):
             props = c.get_properties([ical.CalendarColor(), ])
             assert_not_equal(props[ical.CalendarColor.tag], 'sort of blueish')
             c.set_properties([ical.CalendarColor("blue"), ])
             props = c.get_properties([ical.CalendarColor(), ])
             assert_equal(props[ical.CalendarColor.tag], 'blue')
-        if self.server_params.get('calendarorder', False):
+        if self.check_compatibility_flag('calendar_order'):
             props = c.get_properties([ical.CalendarOrder(), ])
             assert_not_equal(props[ical.CalendarOrder.tag], "-434")
             c.set_properties([ical.CalendarOrder("12"), ])
@@ -1203,7 +1178,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert_not_equal(e1.url, None)
 
         # Verify that we can look it up, both by URL and by ID
-        if not self.server_params.get('event_by_url_is_broken', False):
+        if not self.check_compatibility_flag('event_by_url_is_broken'):
             e2 = c.event_by_url(e1.url)
             assert_equal(e2.instance.vevent.uid, e1.instance.vevent.uid)
             assert_equal(e2.url, e1.url)
@@ -1213,7 +1188,7 @@ class RepeatedFunctionalTestsBaseClass(object):
 
         # Knowing the URL of an event, we should be able to get to it
         # without going through a calendar object
-        if not self.server_params.get('event_by_url_is_broken', False):
+        if not self.check_compatibility_flag('event_by_url_is_broken'):
             e4 = Event(client=self.caldav, url=e1.url)
             e4.load()
             assert_equal(e4.instance.vevent.uid, e1.instance.vevent.uid)
@@ -1242,13 +1217,13 @@ class RepeatedFunctionalTestsBaseClass(object):
         # add event
         e1 = c.save_event(ev1)
         assert_not_equal(e1.url, None)
-        if not self.server_params.get('event_by_url_is_broken', False):
+        if not self.check_compatibility_flag('event_by_url_is_broken'):
             assert_equal(c.event_by_url(e1.url).url, e1.url)
         assert_equal(c.event_by_uid(e1.id).url, e1.url)
 
         ## add same event again.  As it has same uid, it should be overwritten
         ## (but some calendars may throw a "409 Conflict")
-        if not self.server_params.get('nooverwrite', False):
+        if not self.check_compatibility_flag('no_overwrite'):
             e2 = c.save_event(ev1)
 
             ## add same event with "no_create".  Should work like a charm.
@@ -1259,7 +1234,7 @@ class RepeatedFunctionalTestsBaseClass(object):
             ## this should also work.
             e2.save(no_create=True)
 
-            if not self.server_params.get('event_by_url_is_broken', False):
+            if not self.check_compatibility_flag('event_by_url_is_broken'):
                 e3 = c.event_by_url(e1.url)
                 assert_equal(e3.instance.vevent.summary.value, 'Bastille Day Party!')
 
@@ -1272,9 +1247,9 @@ class RepeatedFunctionalTestsBaseClass(object):
 
         # Verify that we can't look it up, both by URL and by ID
         assert_raises(error.NotFoundError, c.event_by_url, e1.url)
-        if not self.server_params.get('nooverwrite', False):
+        if not self.check_compatibility_flag('no_overwrite'):
             assert_raises(error.NotFoundError, c.event_by_url, e2.url)
-        if not self.server_params.get('event_by_url_is_broken', False):
+        if not self.check_compatibility_flag('event_by_url_is_broken'):
             assert_raises(
                 error.NotFoundError, c.event_by_uid,
                 "20010712T182145Z-123401@example.com")
@@ -1311,8 +1286,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         ## (But events should not be immutable!  One should be able to change an event, push the changes
         ## out to all participants and all copies of the calendar, and let everyone know that it's a
         ## changed event and not a cancellation and a new event).
-        if self.server_params.get('nooverwrite', False):
-            raise SkipTest("The rest of the test is temporarily disabled for calendars with immutable events")
+        self.skip_on_compatibility_flag('no_overwrite')
 
         # ev2 is same UID, but one year ahead.
         # The timestamp should change.
@@ -1330,8 +1304,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert_equal(len(r), 1)
 
         # Lets try a freebusy request as well
-        if 'nofreebusy' in self.server_params:
-            raise SkipTest("FreeBusy test skipped - not supported by server?")
+        self.skip_on_compatibility_flag('no_freebusy_rfc4791')
 
         freebusy = c.freebusy_request(datetime(2007, 7, 13, 17, 00, 00),
                                       datetime(2007, 7, 15, 17, 00, 00))
@@ -1345,9 +1318,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         library per se.  How will it behave if we serve it a recurring
         event?
         """
-        if 'norecurring' in self.server_params:
-            raise SkipTest("recurring date search test skipped due to "
-                           "test configuration")
+        self.skip_on_compatibility_flag('no_recurring')
         c = self._fixCalendar()
 
         # evr is a yearly event starting at 1997-02-11
@@ -1357,17 +1328,17 @@ class RepeatedFunctionalTestsBaseClass(object):
         ## or ... should we? TODO
         r = c.date_search(datetime(2008, 11, 1, 17, 00, 00),
                           datetime(2008, 11, 3, 17, 00, 00), expand=False)
-        #if not 'nomkcalendar' in self.server_params:
+        #if not self.check_compatibility_flag('no_mkcalendar'):
             #assert_equal(len(r), 0)
 
-        if not self.server_params.get('noexpand', False):
+        if not self.check_compatibility_flag('no_expand'):
             ## With expand=True, we should find one occurrence
             r = c.date_search(datetime(2008, 11, 1, 17, 00, 00),
                               datetime(2008, 11, 3, 17, 00, 00), expand=True)
             assert_equal(len(r), 1)
             assert_equal(r[0].data.count("END:VEVENT"), 1)
             ## due to expandation, the DTSTART should be in 2008
-            if not self.server_params.get('norecurringexpandation', False):
+            if not self.check_compatibility_flag('no_recurring_expandation'):
                 assert_equal(r[0].data.count("DTSTART;VALUE=DATE:2008"), 1)
 
             ## With expand=True and searching over two recurrences ...
@@ -1379,7 +1350,7 @@ class RepeatedFunctionalTestsBaseClass(object):
             assert_equal(len(r), 1)
 
             ## not all servers supports expandation
-            if self.server_params.get('norecurringexpandation', False):
+            if self.check_compatibility_flag('no_recurring_expandation'):
                 ## without expandation, we'll get the original ics,
                 ## with RRULE set
                 assert("RRULE" in r[0].data)
@@ -1391,7 +1362,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         # The recurring events should not be expanded when using the
         # events() method
         r = c.events()
-        if not 'nomkcalendar' in self.server_params:
+        if not self.check_compatibility_flag('no_mkcalendar'):
             assert_equal(len(r), 1)
         assert_equal(r[0].data.count("END:VEVENT"), 1)
 
@@ -1529,10 +1500,6 @@ class TestLocalRadicale(RepeatedFunctionalTestsBaseClass):
             return
         self.shutdown_socket.close()
         i=0
-        while (self.radicale_thread.is_alive()):
-            time.sleep(0.05)
-            i+=1
-            assert(i<100)
         self.serverdir.__exit__(None, None, None)
         RepeatedFunctionalTestsBaseClass.teardown(self)
 

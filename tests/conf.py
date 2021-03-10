@@ -5,6 +5,9 @@
 ## Make a conf_private.py for personal configuration.
 ## Check conf_private.py.EXAMPLE
 
+from caldav.davclient import DAVClient
+#from .compability_issues import bedework, xandikos
+
 ####################################
 # Import personal test server config
 ####################################
@@ -63,7 +66,7 @@ proxy_noport = "127.0.0.1"
 #####################
 # Public test servers
 #####################
-## As of 2019-09, all of those are down.  Will try to fix Real Soon.
+## As of 2019-09, all of those are down.  Will try to fix Real Soon ... possibly before 2029 even.
 if False:
 #if test_public_test_servers:
     
@@ -89,17 +92,13 @@ if False:
         "url": "http://bedework-caldav-servers.cloudapps.bitbit.net/ucaldav/",
         "username": "vbede",
         "password": "bedework",
-        "nojournal": True,
-        "notodo": True,
-        "nopropfind": True,
-        "norecurring": True})
+        "incompatibilities": compatibility_issues.bedework})
 
     caldav_servers.append({
         "url": "http://xandikos-caldav-servers.cloudapps.bitbit.net/",
         "username": "user1",
         "password": "password1",
-        "norecurring": True
-        })
+        "incompatibilities": compatibility_issues.xandikos})
 
     # radicale
     caldav_servers.append({
@@ -108,6 +107,25 @@ if False:
         "password": "123",
         "nofreebusy": True,
         "nodefaultcalendar": True,
-        "noproxy": True
-    })
+        "noproxy": True})
+
+###################################################################
+# Convenience - get a DAVClient object from the caldav_servers list
+###################################################################
+CONNKEYS = set(('url', 'proxy', 'username', 'password', 'ssl_verify_cert', 'ssl_cert', 'auth'))
+def client(idx=None, **kwargs):
+    if idx is None and not kwargs:
+        return client(0)
+    elif idx and not kwargs and caldav_servers:
+        return client(**caldav_servers[idx])
+    elif not kwargs:
+        return None
+    for bad_param in ('incompatibilities', 'backwards_compatibility_url', 'principal_url'):
+        if bad_param in kwargs:
+            kwargs.pop(bad_param)
+    for kw in kwargs:
+        if not kw in CONNKEYS:
+            logging.critical("unknown keyword %s in connection parameters.  All compatibility flags should now be sent as a separate list, see conf_private.py.EXAMPLE.  Ignoring." % kw)
+            kwargs.pop(kw)
+    return DAVClient(**kwargs)
 
