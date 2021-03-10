@@ -94,6 +94,13 @@ the_same_calendar = client.calendar(url=my_new_calendar.url)
 ## events()-method.  Recurring events will not be expanded.
 all_events = the_same_calendar.events()
 
+## It's also possible to use .objects.
+all_objects = the_same_calendar.objects()
+
+## since we have only added events (and neither todos nor journals), those
+## should be equal ... except, all_objects is an iterator and not a list.
+assert(len(all_events) == len(list(all_objects))
+
 ## Let's check that the summary got right
 assert all_events[0].vobject_instance.vevent.summary.value.startswith('Norwegian')
 
