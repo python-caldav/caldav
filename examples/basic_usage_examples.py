@@ -3,56 +3,58 @@ import sys
 
 ## We'll try to use the local caldav library, not the system-installed
 sys.path.insert(0, '..')
+sys.path.insert(0, '.')
 
 import caldav
 
-## CONFIGURATION.  The minimum requirement is an URL.  Username and
-## password is also probably nice to have.  The DAVClient object also
-## supports a proxy (URL), an auth object (to be passed to the
-## requests library, instead of using username and password) and a
-## boolean ssl_verify_cert that can be set to False for self-signed
-## certificates.
-try:
-    ## To make it easy to actually execute this test code, connection
-    ## details to your caldav server can be given in the
-    ## tests/conf_private.py file (check conf_private.py.EXAMPLE)
-    from tests.conf_private import caldav_servers
-    url = caldav_servers[0]['url']
-    username = caldav_servers[0]['username']
-    password = caldav_servers[0]['password']
-    
-except ImportError:
-    ## ...or you can just edit this file and put your private details here
-    url = 'https://example.com/caldav.php'
-    username = 'somebody'
-    password = 'hunter2'
+## DO NOT name your file calendar.py or caldav.py!  We've had several
+## issues filed, things break because the wrong files are imported.
+## It's not a bug with the caldav library per se.
 
+## CONFIGURATION.  Edit here, or set up something in
+## tests/conf_private.py (see tests/conf_private.py.EXAMPLE).
+caldav_url = 'https://calendar.example.com/dav'
+username = 'somebody'
+password = 'hunter2'
 
-## A DAVClient object should be set up with the connection details.
-## Initiating the object does not cause any requests to the server.
-client = caldav.DAVClient(url=url, username=username, password=password)
+## When using the caldav library, one should always start off with initiating a
+## DAVClient object, which should contain connection details and credentials.
+## Initiating the object does not cause any requests to the server, so this
+## will not break even if caldav url is set to example.com
+client = caldav.DAVClient(url=caldav_url, username=username, password=password)
 
-## You may list up the calendars you own through the principal-object
+## For the convenience, if things are correctly set up in test config,
+## the code below may replace the client object with one that works.
+if 'example.com' in caldav_url and password == 'hunter2':
+    from tests.conf import client as client_
+    client = client_()
+
+## Typically the next step is to fetch a principal object.
+## This will cause communication with the server.
 my_principal = client.principal()
+
+## The principals calendars can be fetched like this:
 calendars = my_principal.calendars()
 if calendars:
     ## Some calendar servers will include all calendars you have
     ## access to in this list, and not only the calendars owned by
-    ## this principal.  TODO: see if it's possible to find a list of
-    ## calendars one has access to.
+    ## this principal.
     print("your principal has %i calendars:" % len(calendars))
     for c in calendars:
         print("    Name: %-20s  URL: %s" % (c.name, c.url))
 else:
     print("your principal has no calendars")
 
-## Let's try to create a calendar.  (this may fail, calendar creation
-## is not a mandatory feature according to the RFC)
+## Let's try to find or create a calendar ...
 try:
+    ## This will raise a NotFoundError if calendar does not exist
     my_new_calendar = my_principal.calendar(name="Test calendar")
     assert(my_new_calendar)
-except:
-    my_principal.make_calendar(name="Test calendar")
+    ## calendar did exist, probably it was made on an earlier run
+    ## of this script
+except caldav.error.NotFoundError:
+    ## Let's create a calendar
+    my_new_calendar = my_principal.make_calendar(name="Test calendar")
 
 ## Let's add an event to our newly created calendar
 my_event = my_new_calendar.save_event("""BEGIN:VCALENDAR
@@ -77,12 +79,15 @@ print(events_fetched[0].data)
 
 event = events_fetched[0]
 
-## To modify an event, it's best to use either the vobject or icalendar module for it.  The caldav library has always been supporting vobject out of the box, but icalendar is more popular.  event.instance will as of version 0.x yield a vobject instance, but this may change in future versions.  Use .vobject_instance or .icalendar_instance instead.
+## To modify an event, it's best to use either the vobject or icalendar module for it.
+## The caldav library has always been supporting vobject out of the box, but icalendar is more popular.
+## event.instance will as of version 0.x yield a vobject instance, but this may change in future versions.
+## Both event.vobject_instance and event.icalendar_instance works from 0.7.
 event.vobject_instance.vevent.summary.value = 'Norwegian national day celebrations'
 event.save()
 
 ## It's possible to access objects such as calendars without going
-## through a Principal object, i.e. if one knows the URL
+## through a Principal object if one knows the calendar URL
 the_same_calendar = client.calendar(url=my_new_calendar.url)
 
 ## to get all events from the calendar, it's also possible to use the
@@ -129,7 +134,7 @@ print("Here is some more icalendar data:")
 print(todos[0].data)
 
 ## date_search also works on task lists, but one has to be explicit to get them
-todos_found = my_new_calendar.date_search(
+todos_found = my_new_tasklist.date_search(
     start=datetime(2021, 1, 1), end=datetime(2024, 1, 1),
     compfilter='VTODO', expand=True)
 if not todos_found:

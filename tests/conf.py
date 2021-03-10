@@ -116,7 +116,7 @@ CONNKEYS = set(('url', 'proxy', 'username', 'password', 'ssl_verify_cert', 'ssl_
 def client(idx=None, **kwargs):
     if idx is None and not kwargs:
         return client(0)
-    elif idx and not kwargs and caldav_servers:
+    elif idx is not None and not kwargs and caldav_servers:
         return client(**caldav_servers[idx])
     elif not kwargs:
         return None
