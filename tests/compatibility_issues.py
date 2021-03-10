@@ -125,10 +125,6 @@ xandikos = [
 ]
 
 radicale = [
-    ## The proxy test code needs to be rewritten
-    ## ref https://github.com/python-caldav/caldav/issues/89    
-    "no_proxy",
-
     ## calendar listings and calendar creation works a bit
     ## "weird" on radicale
     "no_default_calendar",
@@ -220,13 +216,13 @@ icloud = [
 davical = [
     #'nofreebusy', ## for old versions 
     'vtodo_datesearch_nodtstart_task_is_skipped',
-    'fragilesynctokens',
-    'nojournal' ## it threw a 500 internal server error!
+    'fragile_sync_tokens',
+    'no_journal' ## it threw a 500 internal server error!
 ]
 
 google = [
-    'nomkcalendar',
-    'nooverwrite',
-    'notodo',
-    'norecurringexpandation'
+    'no_mkcalendar',
+    'no_overwrite',
+    'no_todo',
+    'no_recurring_expandation'
 ]

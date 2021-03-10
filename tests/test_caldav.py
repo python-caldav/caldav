@@ -320,6 +320,7 @@ class RepeatedFunctionalTestsBaseClass(object):
     def setup(self):
         logging.debug("############## test setup")
         self.incompatibilities = set()
+
         for flag in self.server_params['incompatibilities']:
             assert(flag in compatibility_issues.incompatibility_description)
             self.incompatibilities.add(flag)
@@ -630,7 +631,7 @@ class RepeatedFunctionalTestsBaseClass(object):
 
         ## The modified object should be returned by the server
         my_changed_objects = c.objects_by_sync_token(sync_token=my_changed_objects.sync_token, load_objects=True)
-        if not self.check_compatibility_flag('fragile_sync_tokens'):
+        if self.check_compatibility_flag('fragile_sync_tokens'):
             assert(len(list(my_changed_objects)) >= 1)
         else:
             assert_equal(len(list(my_changed_objects)), 1)
