@@ -4,7 +4,7 @@ from setuptools import setup, find_packages
 import sys
 
 ## ATTENTION! when doing releases, the default debugmode in lib/error.py should be set to PRODUCTION.
-version = '0.8.0pre'
+version = '0.8.0-rc1'
 ## (TODO: any nicer ways than doing this manually?  Make a "releases" branch, maybe?)
 
 if __name__ == '__main__':
