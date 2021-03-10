@@ -177,7 +177,6 @@ class DAVResponse:
         self.objects = {}
 
         if 'Schedule-Tag' in self.headers:
-            import pdb; pdb.set_trace()
             self.schedule_tag = self.headers['Schedule-Tag']
         
         responses = self._strip_to_multistatus()
