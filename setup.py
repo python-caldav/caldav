@@ -25,6 +25,7 @@ if __name__ == '__main__':
     setup(
         name='caldav',
         version=version,
+        py_modules=["caldav",],
         description="CalDAV (RFC4791) client library",
         long_description=open("README.md").read(),
         classifiers=["Development Status :: 4 - Beta",
