@@ -625,7 +625,7 @@ class Calendar(DAVObject):
 
     def calendar_multiget(self, event_urls):
         """
-		get multiple events' data
+	get multiple events' data
         @author mtorange@gmail.com
         @type events list of Event
         """
@@ -1212,8 +1212,7 @@ class CalendarObjectResource(DAVObject):
         * An email address prepended with "mailto:"
         * An email address without the "mailto:"-prefix
         * A two-item tuple containing a common name and an email address
-        * (not supported, but planned: an ical text line starting with the 
-          word "ATTENDEE")
+        * (not supported, but planned: an ical text line starting with the word "ATTENDEE")
 
         Any number of attendee parameters can be given, those will be used
         as defaults unless no_default_parameters is set to True:
