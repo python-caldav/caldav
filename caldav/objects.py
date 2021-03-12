@@ -625,7 +625,7 @@ class Calendar(DAVObject):
 
     def calendar_multiget(self, event_urls):
         """
-	get multiple events' data
+        get multiple events' data
         @author mtorange@gmail.com
         @type events list of Event
         """
