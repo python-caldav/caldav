@@ -269,7 +269,7 @@ class DAVClient:
     low-level operations towards the caldav server.
 
     Unless you have special needs, you should probably care most about
-    the __init__ and principal methods.
+    the constructor (__init__), the principal method and the calendar method.
     """
     proxy = None
     url = None
@@ -340,10 +340,15 @@ class DAVClient:
         return self._principal
 
     def calendar(self, **kwargs):
-        """
-        Returns a newly initiated calendar object.
+        """Returns a calendar object.
 
         Typically, an URL should be given as a named parameter (url)
+
+        No network traffic will be initiated by this method.
+
+        If you don't know the URL of the calendar, use
+        client.principal().calendar(...) instead, or
+        client.principal().calendars()
         """
         return Calendar(client=self, **kwargs)
 

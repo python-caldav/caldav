@@ -4,6 +4,10 @@
 """
 A "DAV object" is anything we get from the caldav server or push into the
 caldav server, notably principal, calendars and calendar events.
+
+(This file has become huge and will be split up prior to the next
+release.  I think it makes sense moving the CalendarObjectResource
+class hierarchy into a separate file)
 """
 
 import vobject
@@ -1058,10 +1062,13 @@ class Calendar(DAVObject):
 
 class ScheduleMailbox(Calendar):
     """
-    RFC6638
-    TODO: This is a bit incorrect, a ScheduleMailbox is a collection,
-    but not really a calendar.  We should create a common base class
-    for ScheduleMailbox and Calendar eventually.
+    RFC6638 defines an inbox and an outbox for handling event scheduling.
+
+    TODO: As ScheduleMailboxes works a bit like calendars, I've chosen
+    to inheritate the Calendar class, but this is a bit incorrect, a
+    ScheduleMailbox is a collection, but not really a calendar.  We
+    should create a common base class for ScheduleMailbox and Calendar
+    eventually.
     """
     def __init__(self, client=None, principal=None, url=None):
         """

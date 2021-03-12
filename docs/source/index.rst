@@ -141,13 +141,17 @@ To modify an event:
     event.vobject_instance.vevent.summary.value = 'Norwegian national day celebrations'
     event.save()
 
-`event.icalendar_instance` is also supported.
+.. code-block:: python
 
-Find an object with a known URL, say, a calendar, without going through the Principal-object:
+  event.icalendar_instance
+
+is also supported.
+
+Find a calendar with a known URL without going through the Principal-object:
 
 .. code-block:: python
 
-  the_same_calendar = caldav.Calendar(client=client, url=my_new_calendar.url)
+  the_same_calendar = client.calendar(url=my_new_calendar.url)
 
 Get all events from a calendar:
 

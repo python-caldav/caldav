@@ -3,4 +3,4 @@
 
 .. automodule:: caldav.davclient
    :synopsis: Class for storing server connection details
-   :members: DAVClient, DAVResponse
+   :members:
