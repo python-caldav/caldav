@@ -7,6 +7,7 @@ from tests import compatibility_issues
 ## and it should clean up after itself, but don't sue me if anything
 ## goes wrong ...
 
+## Define your primary caldav server here
 caldav_servers = [
     {
         ## This is all that is really needed - url, username and
@@ -26,6 +27,27 @@ caldav_servers = [
 	incompatibilities = []
     }
 ]
+
+
+## SOGo virtual test server
+## I did roughly those steps to set up a SOGo test server:
+## 1) I download the ZEG - "Zero Effort Groupware" - from https://sourceforge.net/projects/sogo-zeg/
+## 2) I installed virtualbox on my laptop
+## 3) "virtualbox ~/Downloads/ZEG-5.0.0.ova" (TODO: probably it's possible to launch it "headless"?)
+## 4) I clicked on some buttons to get the file "imported" and started
+## 5) I went to "tools" -> "preferences" -> "network" and created a NatNetwork
+## 6) I think I went to ZEG -> Settings -> Network and chose "Host-only Adapter"
+## 7) SOGo was then available at http://192.168.56.101/ from my laptop
+## 8) I added the lines below to my conf_private.py
+#caldav_servers.append({
+#    'url': 'http://192.168.56.101/SOGo/dav/',
+#    'username': 'sogo1'.
+#    'password': 'sogo'
+#})
+#for i in (1, 2, 3):
+#    sogo = caldav_servers[-1].copy()
+#    sogo['username'] = 'sogo%i' % i
+#    rfc6638_users.append(sogo)
 
 ## MASTER SWITCHES FOR TEST SERVER SETUP
 ## With those configuration switches, pre-configured test servers in conf.py

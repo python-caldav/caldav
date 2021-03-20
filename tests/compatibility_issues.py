@@ -14,7 +14,7 @@
 incompatibility_description = {
     'no_expand':
         """Server may throw errors when asked to do a expanded date search""",
-    
+
     'no_recurring':
         """Server is having issues with recurring events and/or todos. """
         """date searches covering recurrances may yield no results, """
@@ -22,10 +22,10 @@ incompatibility_description = {
 
     'no_recurring_expandation':
         """Server will not expand recurring events""",
-    
+
     'no_recurring_todo':
         """Recurring events are supported, but not recurring todos""",
-    
+
     'no_scheduling':
         """RFC6833 is not supported""",
 
@@ -75,7 +75,16 @@ incompatibility_description = {
         """Server will not accept calendar object resources without an UID""",
 
     'no_sync_token':
-        """RFC6578 is not supported""",
+        """RFC6578 is not supported, things will break if we try to do a sync-token report""",
+
+    'time_based_sync_tokens':
+        """The sync token is typically a time stamp, and we need to sleep a """
+        """second in the test code to get things right""",
+
+    'fragile_sync_tokens':
+        """Every now and then (or perhaps always), more content than expected """
+        """will be returned on a simple sync request.  Possibly a race condition """
+        """if the token is timstamp-based?""",
 
     'propfind_allprop_failure':
         """The propfind test fails ... """
@@ -91,6 +100,13 @@ incompatibility_description = {
     'vtodo_datesearch_nodtstart_task_is_skipped':
         """date searches for todo-items will not find tasks without a dtstart""",
 
+    'vtodo_no_due_infinite_duration':
+        """date search will find todo-items without due if dtstart is """
+        """before the date search interval.  I didn't find anything explicit """
+        """in The RFC on this (), but an event should be considered to have 0 """
+        """duration if no dtend is set, and most server implementations seems to """
+        """treat VTODOs the same""",
+
     'no_todo_on_standard_calendar':
         """Tasklists can be created, but a normal calendar does not support tasks""",
 
@@ -103,9 +119,6 @@ incompatibility_description = {
 
     'object_by_uid_is_broken':
         """calendar.object_by_uid(uid) does not work""",
-
-    'fragile_sync_tokens':
-        """Every now and then, all calendar content will be returned on a simple sync request""",
 
     'no_mkcalendar':
         """mkcalendar is not supported""",
@@ -211,7 +224,7 @@ icloud = [
     'no_recurring',
     'propfind_allprop_failure',
     'object_by_uid_is_broken'
-    ]
+]
 
 davical = [
     #'nofreebusy', ## for old versions 
@@ -225,4 +238,12 @@ google = [
     'no_overwrite',
     'no_todo',
     'no_recurring_expandation'
+]
+
+sogo = [
+    'no_journal',
+    'no_freebusy_rfc4791', ## https://www.sogo.nu/bugs/view.php?id=5282
+    "time_based_sync_tokens", ## Left a note on https://www.sogo.nu/bugs/view.php?id=5163
+    "no_expand", ## https://www.sogo.nu/bugs/view.php?id=3065
+    "vtodo_datesearch_nodtstart_task_is_skipped",
 ]

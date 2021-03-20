@@ -200,7 +200,7 @@ import pdb; pdb.set_trace()
 some_data_returned = organizer.principal.freebusy_request(
     dtstart=datetime.now().astimezone(pytz.utc) + timedelta(days=399),
     dtend=datetime.now().astimezone(pytz.utc) + timedelta(days=399, hours=1),
-    attendees=['t-caldav-test2@tobixen.no', 't-caldav-test3@tobixen.no'])
+    attendees=[attendee1.principal, attendee2.principal])
 
 ## Examples in RFC6638 goes on to describing how to accept and decline
 ## particular instances of a recurring events, and RFC5546 has a lot

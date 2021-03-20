@@ -130,10 +130,15 @@ class DAVResponse:
 
     def validate_status(self, status):
         """
-        status is a string like "HTTP/1.1 404 Not Found".
-        200, 207 and 404 are considered good statuses.
+        status is a string like "HTTP/1.1 404 Not Found".  200, 207 and
+        404 are considered good statuses.  The SOGo caldav server even
+        returns "201 created" when doing a sync-report, to indicate
+        that a resource was created after the last sync-token.  This
+        makes sense to me, but I've only seen it from SOGo, and it's
+        not in accordance with the examples in rfc6578.
         """
         if (' 200 ' not in status and
+            ' 201 ' not in status and
             ' 207 ' not in status and
             ' 404 ' not in status):
             raise error.ResponseError(status)
@@ -353,7 +358,15 @@ class DAVClient:
         return Calendar(client=self, **kwargs)
 
     def check_dav_support(self):
-        response = self.options(self.url)
+        try:
+            ## SOGo does not return the full capability list on the caldav
+            ## root URL, and that's OK according to the RFC ... so apparently
+            ## we need to do an extra step here to fetch the URL of some
+            ## element that should come with caldav extras.
+            ## Anyway, packing this into a try-except in case it fails.
+            response = self.options(self.principal().url)
+        except:
+            response = self.options(self.url)
         return response.headers.get('DAV', None)
 
     def check_cdav_support(self):
@@ -501,7 +514,9 @@ class DAVClient:
             method, url, data=to_wire(body),
             headers=combined_headers, proxies=proxies, auth=auth,
             verify=self.ssl_verify_cert, cert=self.ssl_cert, stream=False) ## TODO: optimize with stream=True maybe
+        log.debug("server responded with %i %s" % (r.status_code, r.reason))
         response = DAVResponse(r)
+
 
         # If server supports BasicAuth and not DigestAuth, let's try again:
         if response.status == 401 and self.auth is None and auth is not None:

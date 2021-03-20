@@ -10,7 +10,7 @@ try:
     debugmode = os.environ['PYTHON_CALDAV_DEBUGMODE']
 except:
     ## TODO: the default value here should be set to PRODUCTION prior to release
-    debugmode = 'PRODUCTION'
+    debugmode = 'DEVELOPMENT'
 
 log = logging.getLogger('caldav')
 if debugmode.startswith('DEBUG'):

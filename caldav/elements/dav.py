@@ -59,6 +59,8 @@ class GetEtag(ValuedBaseElement):
 class Href(BaseElement):
     tag = ns("D", "href")
 
+class SupportedReportSet(BaseElement):
+    tag = ns("D", "supported-report-set")
 
 class Response(BaseElement):
     tag = ns("D", "response")

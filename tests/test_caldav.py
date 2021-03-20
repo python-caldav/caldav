@@ -25,7 +25,7 @@ from nose.plugins.skip import SkipTest
 from requests.packages import urllib3
 import requests
 
-from .conf import client
+from .conf import client, rfc6638_users
 from .conf import caldav_servers, proxy, proxy_noport
 from .conf import test_xandikos, xandikos_port, xandikos_host
 from .conf import test_radicale, radicale_port, radicale_host
@@ -262,7 +262,7 @@ END:VCALENDAR
 """
 
 ## From RFC4438 examples, with some modifications
-sched = """BEGIN:VCALENDAR
+sched_template = """BEGIN:VCALENDAR
 VERSION:2.0
 PRODID:-//Example Corp.//CalDAV Client//EN
 BEGIN:VEVENT
@@ -273,18 +273,129 @@ DTSTART:203206%02iT%sZ
 DURATION:PT1H
 TRANSP:OPAQUE
 SUMMARY:Lunch or something
-ATTENDEE;CN="Tobias Brox";CUTYPE=INDIVIDUAL;PARTSTAT
- =NEEDS-ACTION;ROLE=REQ-PARTICIPANT;RSVP=TRUE:mailto:tobias@redpill-linpro.com
-ATTENDEE;CN="Tobias Testing Brox";CUTYPE=INDIVIDUAL;PARTSTAT
- =NEEDS-ACTION;ROLE=REQ-PARTICIPANT;RSVP=TRUE:mailto:t-caldav@tobixen.no
-ATTENDEE;CN="Tobias Test2 Brox";CUTYPE=INDIVIDUAL;PARTSTAT=NEEDS-A
- CTION;RSVP=TRUE:mailto:t-caldav-test2@tobixen.no
 END:VEVENT
 END:VCALENDAR
-""" % (str(uuid.uuid4()), 
+"""
+
+sched = sched_template % (str(uuid.uuid4()), 
        "%2i%2i%2i" % (random.randint(0,23), random.randint(0,59), random.randint(0,59)),
        random.randint(1,28),
        "%2i%2i%2i" % (random.randint(0,23), random.randint(0,59), random.randint(0,59)))
+
+class TestScheduling(object):
+    """Testing support of RFC6638.
+
+    TODO: work in progress.  Stalled a bit due to lack of proper testing accounts.  I haven't managed to get this test to pass at any systems yet, but I believe the problem is not on the library side.
+
+    * icloud: cannot really test much with only one test account
+      available.  I did some testing forth and back with emails sent
+      to an account on another service through the
+      scheduling_examples.py, and it seems like I was able both to
+      accept an invite from an external account (and the external
+      account got notified about it) and to receive notification that
+      the external party having accepted the calendar invite.
+      FreeBusy doesn't work.  I don't have capacity following up more
+      right now.
+
+    * DAViCal: I have only an old version to test with at the moment,
+      should look into that.  I did manage to send and receive a
+      calendar invite, but apparently I did not manage to accept the
+      calendar invite.  It should be looked more into.  FreeBusy
+      doesn't work in the old version, probably it works in a newer
+      version.
+
+    * SOGo: Sending a calendar invite, but receiving nothing in the
+      CalDAV inbox.  FreeBusy works somehow, but returns pure
+      iCalendar data and not XML, I believe that's not according to
+      RFC6638.
+    """
+    def __init__(self):
+        if not rfc6638_users:
+            raise SkipTest("need rfc6638_users to be set in order to run this test")
+        if len(rfc6638_users)<3:
+            raise SkipTest("need at least three users in rfc6638_users to be set in order to run this test")
+
+    def _getCalendar(self, i):
+        calendar_id = "schedulingnosetestcalendar%i" % i
+        calendar_name = "caldav scheduling test %i" % i
+        try:
+            self.principals[i].calendar(name=calendar_name).delete()
+        except error.NotFoundError:
+            pass
+        return self.principals[i].make_calendar(name=calendar_name, cal_id=calendar_id)
+
+    def setup(self):
+        self.clients = []
+        self.principals = []
+        for foo in rfc6638_users:
+            c = client(**foo)
+            self.clients.append(c)
+            self.principals.append(c.principal())
+
+    def teardown(self):
+        for i in range(0,len(self.principals)):
+            calendar_name = "caldav scheduling test %i" % i
+        try:
+            self.principals[i].calendar(name=calendar_name).delete()
+        except error.NotFoundError:
+            pass
+
+    ## TODO
+    #def testFreeBusy(self):
+        #pass
+    
+    def testInviteAndRespond(self):
+        ## Look through inboxes of principals[0] and principals[1] so we can sort
+        ## out existing stuff from new stuff
+        inbox_items = set([x.url for x in self.principals[0].schedule_inbox().get_items()])
+        inbox_items.update(set([x.url for x in self.principals[1].schedule_inbox().get_items()]))
+
+        ## self.principal[0] is the organizer, and invites self.principal[1]
+        organizers_calendar = self._getCalendar(0)
+        attendee_calendar = self._getCalendar(1)
+        organizers_calendar.save_with_invites(
+            sched, [self.principals[0], self.principals[1].get_vcal_address()])
+        assert_equal(len(organizers_calendar.events()), 1)
+
+        ## no new inbox items expected for principals[0]
+        for item in self.principals[0].schedule_inbox().get_items():
+            assert(item.url in inbox_items)
+
+        ## principals[1] should have one new inbox item
+        new_inbox_items = []
+        for item in self.principals[1].schedule_inbox().get_items():
+            if not item.url in inbox_items:
+                new_inbox_items.append(item)
+        assert_equal(len(new_inbox_items), 1)
+        ## ... and the new inbox item should be an invite request
+        assert(new_inbox_items[0].is_invite_request())
+
+        ## Approving the invite
+        import pdb; pdb.set_trace()
+        new_inbox_items[0].accept_invite(calendar=attendee_calendar)
+        ## (now, this item should probably appear on a calendar somewhere ...
+        ## TODO: make asserts on that)
+        ## TODO: what happens if we delete that invite request now?
+
+        ## principals[0] should now have a notification in the inbox that the
+        ## calendar invite was accepted
+        new_inbox_items = []
+        for item in self.principals[0].schedule_inbox().get_items():
+            if not item.url in inbox_items:
+                new_inbox_items.append(item)
+        assert_equal(len(new_inbox_items), 1)
+        assert(new_inbox_items[0].is_invite_reply())
+        new_inbox_items[0].delete()
+
+    ## TODO.  Invite two principals, let both of them load the
+    ## invitation, and then let them respond in order.  Lacks both
+    ## tests and the implementation also apparently doesn't work as
+    ## for now (perhaps I misunderstood the RFC).
+    #def testAcceptedInviteRaceCondition(self):
+       #pass
+
+    ## TODO: more testing ... what happens if deleting things from the
+    ## inbox/outbox?
 
 class RepeatedFunctionalTestsBaseClass(object):
     """This is a class with functional tests (tests that goes through
@@ -418,18 +529,12 @@ class RepeatedFunctionalTestsBaseClass(object):
         else:
             assert(self.caldav.check_scheduling_support())
 
-    def testScheduling(self):
+    def testSchedulingInfo(self):
         self.skip_on_compatibility_flag('no_scheduling')
         inbox = self.principal.schedule_inbox()
         outbox = self.principal.schedule_outbox()
         calendar_user_address_set = self.principal.calendar_user_address_set()
         me_a_participant = self.principal.get_vcal_address()
-        c = self._fixCalendar()
-        ## this should cause an email to be sent by the server
-        ## (I must find a better API for this ...)
-        e=Event(parent=c, data=sched)
-        e.add_organizer()
-        e.save()
 
     def testPropfind(self):
         """
@@ -608,6 +713,8 @@ class RepeatedFunctionalTestsBaseClass(object):
             c.save_todo(todo3)
             objcnt += 3
 
+        if self.check_compatibility_flag('time_based_sync_tokens'): time.sleep(1)
+
         ## objects should return all objcnt object.
         my_objects = c.objects()
         assert_not_equal(my_objects.sync_token, '')
@@ -616,6 +723,8 @@ class RepeatedFunctionalTestsBaseClass(object):
         ## They should not be loaded.
         for some_obj in my_objects:
             assert(some_obj.data is None)
+
+        if self.check_compatibility_flag('time_based_sync_tokens'): time.sleep(1)
 
         ## running sync_token again with the new token should return 0 hits
         my_changed_objects = c.objects_by_sync_token(sync_token=my_objects.sync_token)
@@ -626,8 +735,11 @@ class RepeatedFunctionalTestsBaseClass(object):
         self.skip_on_compatibility_flag('no_overwrite')
 
         ## MODIFYING an object
+        if self.check_compatibility_flag('time_based_sync_tokens'): time.sleep(1)
         obj.icalendar_instance.subcomponents[0]['SUMMARY'] = 'foobar'
         obj.save()
+
+        if self.check_compatibility_flag('time_based_sync_tokens'): time.sleep(1)
 
         ## The modified object should be returned by the server
         my_changed_objects = c.objects_by_sync_token(sync_token=my_changed_objects.sync_token, load_objects=True)
@@ -639,27 +751,37 @@ class RepeatedFunctionalTestsBaseClass(object):
         ## this time it should be loaded
         assert(list(my_changed_objects)[0].data is not None)
 
+        if self.check_compatibility_flag('time_based_sync_tokens'): time.sleep(1)
+
         ## Re-running objects_by_sync_token, and no objects should be returned
         my_changed_objects = c.objects_by_sync_token(sync_token=my_changed_objects.sync_token)
         if not self.check_compatibility_flag('fragile_sync_tokens'):
             assert_equal(len(list(my_changed_objects)), 0)
 
         ## ADDING yet another object ... and it should also be reported
+        if self.check_compatibility_flag('time_based_sync_tokens'): time.sleep(1)
         obj3 = c.save_event(ev3)
+        if self.check_compatibility_flag('time_based_sync_tokens'): time.sleep(1)
         my_changed_objects = c.objects_by_sync_token(sync_token=my_changed_objects.sync_token)
         if not self.check_compatibility_flag('fragile_sync_tokens'):
             assert_equal(len(list(my_changed_objects)), 1)
+
+        if self.check_compatibility_flag('time_based_sync_tokens'): time.sleep(1)
 
         ## Re-running objects_by_sync_token, and no objects should be returned
         my_changed_objects = c.objects_by_sync_token(sync_token=my_changed_objects.sync_token)
         if not self.check_compatibility_flag('fragile_sync_tokens'):
             assert_equal(len(list(my_changed_objects)), 0)
 
+        if self.check_compatibility_flag('time_based_sync_tokens'): time.sleep(1)
+
         ## DELETING the object ... and it should be reported
         obj.delete()
+        if self.check_compatibility_flag('time_based_sync_tokens'): time.sleep(1)
         my_changed_objects = c.objects_by_sync_token(sync_token=my_changed_objects.sync_token, load_objects=True)
         if not self.check_compatibility_flag('fragile_sync_tokens'):
             assert_equal(len(list(my_changed_objects)), 1)
+        if self.check_compatibility_flag('time_based_sync_tokens'): time.sleep(1)
         ## even if we have asked for the object to be loaded, data should be None as it's a deleted object
         assert(list(my_changed_objects)[0].data is None)
 
@@ -696,16 +818,22 @@ class RepeatedFunctionalTestsBaseClass(object):
             c.save_todo(todo3)
             objcnt += 3
 
+        if self.check_compatibility_flag('time_based_sync_tokens'): time.sleep(1)
+
         ## objects should return all objcnt object.
         my_objects = c.objects(load_objects=True)
         assert_not_equal(my_objects.sync_token, '')
         assert_equal(len(list(my_objects)), objcnt)
+
+        if self.check_compatibility_flag('time_based_sync_tokens'): time.sleep(1)
 
         ## sync() should do nothing
         updated, deleted = my_objects.sync()
         if not self.check_compatibility_flag('fragile_sync_tokens'):
             assert_equal(len(list(updated)), 0)
             assert_equal(len(list(deleted)), 0)
+
+        if self.check_compatibility_flag('time_based_sync_tokens'): time.sleep(1)
 
         ## I was unable to run the rest of the tests towards Google using their legacy caldav API
         self.skip_on_compatibility_flag('no_overwrite')
@@ -714,27 +842,39 @@ class RepeatedFunctionalTestsBaseClass(object):
         obj.icalendar_instance.subcomponents[0]['SUMMARY'] = 'foobar'
         obj.save()
 
+        if self.check_compatibility_flag('time_based_sync_tokens'): time.sleep(1)
+
         updated, deleted = my_objects.sync()
         if not self.check_compatibility_flag('fragile_sync_tokens'):
             assert_equal(len(list(updated)), 1)
             assert_equal(len(list(deleted)), 0)
         assert('foobar' in my_objects.objects_by_url()[obj.url].data)
 
+        if self.check_compatibility_flag('time_based_sync_tokens'): time.sleep(1)
+
         ## ADDING yet another object ... and it should also be reported
         obj3 = c.save_event(ev3)
+        
+        if self.check_compatibility_flag('time_based_sync_tokens'): time.sleep(1)
+
         updated, deleted = my_objects.sync()
         if not self.check_compatibility_flag('fragile_sync_tokens'):
             assert_equal(len(list(updated)), 1)
             assert_equal(len(list(deleted)), 0)
         assert(obj3.url in my_objects.objects_by_url())
 
+        if self.check_compatibility_flag('time_based_sync_tokens'): time.sleep(1)
+
         ## DELETING the object ... and it should be reported
         obj.delete()
+        if self.check_compatibility_flag('time_based_sync_tokens'): time.sleep(1)
         updated, deleted = my_objects.sync()
         if not self.check_compatibility_flag('fragile_sync_tokens'):
             assert_equal(len(list(updated)), 0)
             assert_equal(len(list(deleted)), 1)
         assert(not obj.url in my_objects.objects_by_url())
+
+        if self.check_compatibility_flag('time_based_sync_tokens'): time.sleep(1)
 
         ## sync() should do nothing
         updated, deleted = my_objects.sync()
@@ -998,9 +1138,9 @@ class RepeatedFunctionalTestsBaseClass(object):
         foo = 5
         if (self.check_compatibility_flag('no_recurring') or
             self.check_compatibility_flag('no_recurring_todo')):
-            foo -= 1
+            foo -= 1 ## t6 will not be returned
         if self.check_compatibility_flag('vtodo_datesearch_nodtstart_task_is_skipped'):
-            foo -= 2
+            foo -= 2 ## t1 and t4 not returned
         assert_equal(len(todos), foo)
 
         ## verify that "expand" works
@@ -1016,14 +1156,21 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert(isinstance(todos[0], Todo))
 
         ## * t6 should be returned, as it's a yearly task spanning over 2025
-        ## * t1 should be returned, as it has no due date set and hence has an infinite duration.
-        ## * t4 should probably be returned, as it has no dtstart nor due and hence is also considered to span over infinite time
-        ## dtstart set but without due should also be returned.
-        if (self.check_compatibility_flag('no_recurring') or
-            self.check_compatibility_flag('no_recurring_todo')):
-            assert_equal(len(todos), 1)
-        else:
-            assert_equal(len(todos), 2)
+        ## * t1 should probably be returned, as it has no due date set and hence
+        ## has an infinite duration.
+        ## * t4 should probably be returned, as it has no dtstart nor due and
+        ##  hence is also considered to span over infinite time
+        urls_found = [x.url for x in todos]
+        if not (self.check_compatibility_flag('no_recurring') or
+                self.check_compatibility_flag('no_recurring_todo')):
+            urls_found.remove(t6.url)
+        if not self.check_compatibility_flag('vtodo_datesearch_nodtstart_task_is_skipped'):
+            urls_found.remove(t4.url)
+        if self.check_compatibility_flag('vtodo_no_due_infinite_duration'):
+            urls_found.remove(t1.url)
+        ## everything should be popped from urls_found by now
+        assert_equal(len(urls_found), 0)
+
         assert_equal(len([x for x in todos if 'DTSTART:20270415T1330' in x.data]), 0)
 
         # TODO: prod the caldav server implementators about the RFC

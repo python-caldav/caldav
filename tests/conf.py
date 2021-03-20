@@ -11,6 +11,9 @@ from caldav.davclient import DAVClient
 ####################################
 # Import personal test server config
 ####################################
+
+## TODO: there are probably more elegant ways of doing this?
+
 try:
     from .conf_private import only_private ## legacy compatibility
     test_public_test_servers = not only_private
@@ -59,6 +62,11 @@ except ImportError:
         test_radicale = True
     except:
         test_radicale = False
+
+try:
+    from .conf_private import rfc6638_users
+except ImportError:
+    rfc6638_users = []
 
 proxy = "127.0.0.1:8080"
 proxy_noport = "127.0.0.1"

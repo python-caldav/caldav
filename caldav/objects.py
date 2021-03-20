@@ -479,7 +479,6 @@ class Principal(DAVObject):
         for attendee in attendees:
             caldavobj.add_attendee(attendee, no_default_parameters=True)
 
-        import pdb; pdb.set_trace()
         response = self.client.post(outbox.url, caldavobj.data, headers={'Content-Type': 'text/calendar; charset=utf-8'})
         return response.find_objects_and_props()
 
@@ -1249,6 +1248,9 @@ class CalendarObjectResource(DAVObject):
                 attendee_obj = vCalAddress(attendee)
             elif '@' in attendee and not ':' in attendee and not ';' in attendee:
                 attendee_obj = vCalAddress('mailto:' + attendee)
+        else:
+            error.assert_(False)
+            attendee_obj = vCalAddress()
 
         ## TODO: if possible, check that the attendee exists
         ## TODO: check that the attendee will not be duplicated in the event.
@@ -1296,7 +1298,7 @@ class CalendarObjectResource(DAVObject):
         self.change_attendee_status(partstat=partstat)
         self.get_property(cdav.ScheduleTag(), use_cached=True)
         try:
-            Event(self.client, data=self.data, parent=calendar, id=self.id).save()
+            calendar.save_event(self.data)
         except Exception as some_exception:
             ## TODO - TODO - TODO
             ## RFC6638 does not seem to be very clear (or
