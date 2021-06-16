@@ -336,12 +336,12 @@ class CalendarSet(DAVObject):
 
     def calendar(self, name=None, cal_id=None):
         """
-        The calendar method will return a calendar object.  It will not
-        initiate any communication with the server.
+        The calendar method will return a calendar object.  If it gets a cal_id
+        but no name, it will not initiate any communication with the server
 
         Parameters:
          * name: return the calendar with this name
-         * cal_id: return the calendar with this calendar id
+         * cal_id: return the calendar with this calendar id or URL
 
         Returns:
          * Calendar(...)-object

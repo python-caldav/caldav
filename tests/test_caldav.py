@@ -686,6 +686,19 @@ class RepeatedFunctionalTestsBaseClass(object):
             assert_equal(len(events2), 1)
             assert_equal(events2[0].url, events[0].url)
 
+    def testCalendarByFullURL(self):
+        """
+        ref private email, passing a full URL as cal_id works in 0.5.0 but
+        is broken in 0.8.0
+        """
+        mycal = self._fixCalendar()
+        samecal = self.caldav.principal().calendar(cal_id=str(mycal.url))
+        assert_equal(mycal.url, samecal.url)
+        ## passing cal_id as an URL object should also work.
+        samecal = self.caldav.principal().calendar(cal_id=mycal.url)
+        assert_equal(mycal.url, samecal.url)
+
+
     def testObjectBySyncToken(self):
         """
         Support for sync-collection reports, ref https://github.com/python-caldav/caldav/issues/87.
