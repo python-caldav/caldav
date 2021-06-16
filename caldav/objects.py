@@ -356,8 +356,15 @@ class CalendarSet(DAVObject):
         if not cal_id and not name:
             return self.calendars()[0]
 
+        if str(cal_id).startswith(str(self.client.url)):
+            url = self.client.url.join(cal_id)
+        elif isinstance(cal_id, URL):
+            url = self.url.join(cal_id)
+        else:
+            url = self.url.join(quote(cal_id) + '/')
+
         return Calendar(self.client, name=name, parent=self,
-                        url=self.url.join(quote(cal_id)+'/'), id=cal_id)
+                        url=url, id=cal_id)
 
 class Principal(DAVObject):
     """
