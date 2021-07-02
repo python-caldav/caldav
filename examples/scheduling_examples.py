@@ -5,9 +5,10 @@ import pytz
 import uuid
 import sys
 
-####
-### SETUP
-### rfc6638 should be a list with three 
+###############
+### SETUP START
+### rfc6638_users should be a list with three dicts containing credential details.
+### if none is given, attempt to use three test users on tobixens private calendar
 ###
 try:
     from tests.conf_private import rfc6638_users
@@ -46,6 +47,9 @@ class TestUser:
 organizer = TestUser(1)
 attendee1 = TestUser(2)
 attendee2 = TestUser(3)
+
+### SETUP  END
+###############
 
 ## Verify that the calendar server(s) supports scheduling
 for test_user in organizer, attendee1, attendee2:

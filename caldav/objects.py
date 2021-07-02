@@ -1411,7 +1411,9 @@ class CalendarObjectResource(DAVObject):
             return
 
         ical_obj = self._icalendar_object()
-        ## TODO: can attendee be a single value?
+        ## TODO: totally untested code
+        if isinstance(attendee_line, str):
+            attendee_line = [ attendee_line ]
         for attendee_line in ical_obj['attendee']:
             if str(attendee_line).replace('mailto:','') == str(attendee).replace('mailto:',''):
                    attendee_line.params.update(kwargs)

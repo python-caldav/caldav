@@ -1,3 +1,13 @@
+# Changelog v0.8 -> v0.8.1
+
+## Documentation
+
+## Various bugfixes
+
+Commits: ca12e15fadfd49dffcf01119e1b227f568fadf70, 5196ee7d64eae6c70d3cd602d40b55525400380e
+
+Github issues: https://github.com/python-caldav/caldav/issues/146
+
 # Changelog v0.7.1 -> v0.8
 
 This is a replacement of the old ChangeLog file, admittedly in a non-standard format.  I believe it's more essential to group the changes by purpose than by date/file modified, and I think it's important to have references to the issues in the issue tracker and commit IDs.  Author is changed to "credits", emails are left out (though it's probably moot since those are publically available in the git repository anyway), and I'm skipping crediting myself.
