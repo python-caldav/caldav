@@ -1411,13 +1411,12 @@ class CalendarObjectResource(DAVObject):
             return
 
         ical_obj = self._icalendar_object()
-        ## TODO: totally untested code
         attendee_lines = ical_obj['attendee']
         if isinstance(attendee_lines, str):
-            attendee_lines = [attendee_line]
-        for attendee_line in attendee_lines
+            attendee_lines = [attendee_lines]
+        for attendee_line in attendee_lines:
             if (str(attendee_line).replace('mailto:','').lower ==
-                str(attendee).replace('mailto:','').lower):
+                    str(attendee).replace('mailto:','').lower):
                    attendee_line.params.update(kwargs)
                    cnt += 1
         if not cnt:
