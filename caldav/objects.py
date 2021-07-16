@@ -643,7 +643,7 @@ class Calendar(DAVObject):
         prop = dav.Prop() + cdav.CalendarData()
         root = cdav.CalendarMultiGet() + prop + [dav.Href(value=u.path) for u in event_urls]
         response = self._query(root, 1, 'report')
-        results = self._handle_prop_response(response=response, props=[cdav.CalendarData()])
+        results = response.expand_simple_props([cdav.CalendarData()])
         for r in results:
             rv.append(
                 Event(self.client, url=self.url.join(r), data=results[r][cdav.CalendarData.tag], parent=self))
