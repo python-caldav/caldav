@@ -4,11 +4,11 @@
 
 ## Various bugfixes
 
-Commits: ca12e15fadfd49dffcf01119e1b227f568fadf70, 5196ee7d64eae6c70d3cd602d40b55525400380e, 7b81cbc54237e2c1c33072329bc2359d0ef61e5f, 87510930a89fe9f8098346b356b4412ce35610f5
+Commits: ca12e15fadfd49dffcf01119e1b227f568fadf70, 5196ee7d64eae6c70d3cd602d40b55525400380e, 7b81cbc54237e2c1c33072329bc2359d0ef61e5f, 87510930a89fe9f8098346b356b4412ce35610f5, 4db75faf67b7355c89ada1119865b6dfc1d783c4
 
-Github issues: https://github.com/python-caldav/caldav/issues/146
+Github issues: https://github.com/python-caldav/caldav/issues/146, https://github.com/python-caldav/caldav/issues/148
 
-Credits: Paul Waite
+Credits: Paul Waite, @brainsky
 
 # Changelog v0.7.1 -> v0.8
 
