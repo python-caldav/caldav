@@ -87,7 +87,7 @@ class NotFoundError(DAVError):
 class ConsistencyError(DAVError):
     pass
 
-class ReponseError(DAVError):
+class ResponseError(DAVError):
     pass
 
 exception_by_method = defaultdict(lambda: DAVError)
