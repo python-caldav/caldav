@@ -24,7 +24,10 @@ def _to_utc_date_string(ts):
             ## naive timestamps, but we'd like to assume they are
             ## localtime
             import tzlocal
-            ts = tzlocal.get_localzone().localize(ts).astimezone(utc_tz)
+            ## apparently it's not safe to assume all timezones has the localize method
+            #ts = tzlocal.get_localzone().localize(ts).astimezone(utc_tz)
+            ts = ts.replace(tzinfo=tzlocal.get_localzone())
+
     return ts.strftime("%Y%m%dT%H%M%SZ")
 
 
