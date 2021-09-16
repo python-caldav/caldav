@@ -39,6 +39,12 @@ def fix(event):
     3) iCloud apparently duplicates the DTSTAMP property sometimes -
     keep the first DTSTAMP encountered (arguably the DTSTAMP with earliest value
     should be kept).
+
+    4) ref https://github.com/python-caldav/caldav/issues/37,
+    X-APPLE-STRUCTURED-EVENT attribute sometimes comes with trailing
+    white space.  I've decided to remove all trailing spaces, since
+    they seem to cause a traceback with vobject and those lines are
+    simply ignored by icalendar.
     """
     ## TODO: add ^ before COMPLETED and CREATED?
     ## 1) Add a random time if completed is given as date
@@ -51,10 +57,13 @@ def fix(event):
                    'CREATED:19700101T000000Z', fixed)
     fixed = re.sub(r"\\+('\")", r"\1", fixed)
 
-    fixed2 = ""
+    ## 4) trailing whitespace probably never makes sense
+    fixed = re.sub(' *$', '', fixed)
 
+    ## 3 fix duplicated DTSTAMP
     ## OPTIMIZATION TODO: use list and join rather than concatination
     ## remove duplication of DTSTAMP
+    fixed2 = ""
     for line in fixed.strip().split('\n'):
         if line.startswith('BEGIN:V'):
             cnt = 0
