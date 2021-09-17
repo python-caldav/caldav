@@ -47,5 +47,5 @@ if __name__ == '__main__':
         include_package_data=True,
         zip_safe=False,
         install_requires=['vobject', 'lxml', 'requests', 'six'] + extra_packages,
-        tests_require=['icalendar', 'nose', 'coverage', 'tzlocal', 'pytz', 'xandikos', 'radicale'] + extra_test_packages
+        tests_require=['icalendar', 'nose', 'coverage', 'tzlocal', 'pytz', 'xandikos<2.0.4', 'radicale'] + extra_test_packages
     )
