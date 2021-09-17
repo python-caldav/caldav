@@ -1378,7 +1378,10 @@ class CalendarObjectResource(DAVObject):
                     obj.uid.value = id
                     break
         if path is None:
-            path = quote(id) + ".ics"
+            ## See https://github.com/python-caldav/caldav/issues/143 for the rationale behind double-quoting slashes
+            ## TODO: should try to wrap my head around issues that arises when id contains weird characters.  maybe it's
+            ## better to generate a new uuid here, particularly if id is in some unexpected format.
+            path = quote(id.replace('/', '%2F')) + ".ics"
         path = self.parent.url.join(path)
         r = self.client.put(path, data,
                             {"Content-Type": 'text/calendar; charset="utf-8"'})
