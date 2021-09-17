@@ -37,11 +37,11 @@ class DAVResponse:
         log.debug("response headers: " + str(self.headers))
         log.debug("response status: " + str(self.status))
 
-        ## OPTIMIZE TODO: if content-type is text/xml, we could eventually do
-        ## streaming into the etree library rather than first read the whole
-        ## content into a string.  (the line below just needs to be moved to
-        ## the relevant if-pronges below)
         self._raw = response.content
+        
+        ## TODO: this if/else/elif could possibly be refactored, or we should
+        ## consider to do streaming into the xmltree library as originally
+        ## intended.  It only makes sense for really huge payloads though.
         if (self.headers.get('Content-Type', '').startswith('text/xml') or
             self.headers.get('Content-Type', '').startswith('application/xml')):
             try:
@@ -67,9 +67,12 @@ class DAVResponse:
             ## Logic here was moved when refactoring
             pass
         else:
-            ## probably content-type was not given, i.e. iCloud does not seem to include those
-            if 'Content-Type' in self.headers:
-                log.error("unexpected content type from server: %s. %s" % (self.headers['Content-Type'], error.ERR_FRAGMENT))
+            ## Probably no content type given (iCloud).  Some servers
+            ## give text/html as the default when no content is
+            ## delivered or on errors (ref
+            ## https://github.com/python-caldav/caldav/issues/142).
+            ## TODO: maybe just remove all of the code above in this if/else and let all
+            ## data be parsed through this code.
             try:
                 self.tree = etree.XML(self._raw, parser=etree.XMLParser(remove_blank_text=True))
             except:
