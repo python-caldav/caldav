@@ -1383,6 +1383,7 @@ class CalendarObjectResource(DAVObject):
             ## better to generate a new uuid here, particularly if id is in some unexpected format.
             path = quote(id.replace('/', '%2F')) + ".ics"
         path = self.parent.url.join(path)
+        ## SECURITY TODO: we should probably have a check here to verify that no such object exists already
         r = self.client.put(path, data,
                             {"Content-Type": 'text/calendar; charset="utf-8"'})
 
@@ -1449,6 +1450,15 @@ class CalendarObjectResource(DAVObject):
         path = self.url.path if self.url else None
 
         if no_overwrite or no_create:
+            ## SECURITY TODO: path names on the server does not
+            ## necessarily map cleanly to UUIDs.  We need to do quite
+            ## some refactoring here to ensure all corner cases are
+            ## covered.  Doing a GET first to check if the resource is
+            ## found and then a PUT also gives a potential race
+            ## condition.  (Possibly the API gives no safe way to ensure
+            ## a unique new calendar item is created to the server without
+            ## overwriting old stuff or vice versa - it seems silly to me
+            ## to do a PUT instead of POST when creating new data).
             if not self.id:
                 try:
                     self.id = self.vobject_instance.vevent.uid.value
