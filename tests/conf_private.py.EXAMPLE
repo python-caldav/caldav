@@ -24,7 +24,7 @@ caldav_servers = [
         ## skipping (parts) of certain tests.  See
         ## tests/compatibility_issues.py for premade lists
         #incompatibilities = compatibility_issues.icloud
-	incompatibilities = []
+	'incompatibilities': []
     }
 ]
 
