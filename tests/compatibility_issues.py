@@ -26,6 +26,9 @@ incompatibility_description = {
     'no_recurring_todo':
         """Recurring events are supported, but not recurring todos""",
 
+    'no_recurring_todo_expand':
+        """Recurring todos aren't expanded""",
+
     'no_scheduling':
         """RFC6833 is not supported""",
 
@@ -245,4 +248,10 @@ sogo = [
     "time_based_sync_tokens", ## Left a note on https://www.sogo.nu/bugs/view.php?id=5163
     "no_expand", ## https://www.sogo.nu/bugs/view.php?id=3065
     "vtodo_datesearch_nodtstart_task_is_skipped",
+]
+
+nextcloud = [
+    'no_sync_token',
+    'no_recurring_todo',
+    'no_recurring_todo_expand',
 ]

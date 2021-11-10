@@ -1159,7 +1159,8 @@ class RepeatedFunctionalTestsBaseClass(object):
         ## verify that "expand" works
         if (
                 not self.check_compatibility_flag('no_recurring_expandation') and
-                not self.check_compatibility_flag('no_expand')):
+                not self.check_compatibility_flag('no_expand') and
+                not self.check_compatibility_flag('no_recurring_todo_expand')):
             assert_equal(len([x for x in todos if 'DTSTART:20020415T1330' in x.data]), 1)
         ## exercise the default for expand (maybe -> False for open-ended search)
         todos = c.date_search(

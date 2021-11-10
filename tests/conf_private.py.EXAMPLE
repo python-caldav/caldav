@@ -23,7 +23,7 @@ caldav_servers = [
         ## incompatibilities is a list of flags that can be set for
         ## skipping (parts) of certain tests.  See
         ## tests/compatibility_issues.py for premade lists
-        #incompatibilities = compatibility_issues.icloud
+        #'incompatibilities': compatibility_issues.nextcloud
 	'incompatibilities': []
     }
 ]
