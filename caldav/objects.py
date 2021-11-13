@@ -435,7 +435,7 @@ class Principal(DAVObject):
     def calendar_home_set(self):
         if not self._calendar_home_set:
             calendar_home_set_url = self.get_property(cdav.CalendarHomeSet())
-            ## owncloud returns remote.php/dav/calendars/tobixen@e.email/
+            ## owncloud returns /remote.php/dav/calendars/tobixen@e.email/
             ## in that case the @ should be quoted.  Perhaps other
             ## implentations returns already quoted URLs.  Hacky workaround:
             if '@' in calendar_home_set_url and not '://' in calendar_home_set_url:

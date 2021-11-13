@@ -86,6 +86,13 @@ event = events_fetched[0]
 event.vobject_instance.vevent.summary.value = 'Norwegian national day celebrations'
 event.save()
 
+## Please note that the proper way to save new icalendar data
+## to the calendar is calendar.save_event(ics_data),
+## while the proper way to update a calendar event is
+## event.save().  Doing calendar.save_event(event.data)
+## may break.  See https://github.com/python-caldav/caldav/issues/153
+## for details.
+
 ## It's possible to access objects such as calendars without going
 ## through a Principal object if one knows the calendar URL
 the_same_calendar = client.calendar(url=my_new_calendar.url)
@@ -99,7 +106,7 @@ all_objects = the_same_calendar.objects()
 
 ## since we have only added events (and neither todos nor journals), those
 ## should be equal ... except, all_objects is an iterator and not a list.
-assert(len(all_events) == len(list(all_objects))
+assert(len(all_events) == len(list(all_objects)))
 
 ## Let's check that the summary got right
 assert all_events[0].vobject_instance.vevent.summary.value.startswith('Norwegian')

@@ -1043,6 +1043,31 @@ class RepeatedFunctionalTestsBaseClass(object):
         events = c.events()
         assert_equal(len(events), 0)
 
+    def testTodo153(self):
+        """
+        References issue https://github.com/python-caldav/caldav/issues/153
+        If I've understood it correct, an issue is created (through another client)
+        where the uid and the url does not match.  It is then a problem to edit it?
+        """
+        # TODO: should try to add tasks to the default calendar if mkcalendar
+        # does not work
+        self.skip_on_compatibility_flag('no_mkcalendar')
+        # Not all server implementations have support for VTODO
+        self.skip_on_compatibility_flag('no_todo')
+
+        c = self.principal.make_calendar(
+            name="Yep", cal_id=self.testcal_id,
+            supported_calendar_component_set=['VTODO'])
+
+        todo1 = Todo(data=todo, parent=c, url=c.url.join('sometodo.ics'))
+        todo2 = todo.save()
+        assert_equal(todo1.id, todo2.id)
+        assert_equal(todo1.url, todo2.url)
+        todo3 = c.todo_by_uid(todo1.id)
+        assert_equal(todo2.id, todo3.id)
+        todo4 = Todo(url=c.url.join('sometodo.ics')).load()
+        
+        
     def testTodos(self):
         """
         This test will excercise the cal.todos() method,
