@@ -5,6 +5,8 @@ try:
     from datetime import timezone
     utc_tz = timezone.utc
 except:
+    ## pytz is deprecated - but as of 2021-11, the icalendar library is only
+    ## compatible with pytz (see https://github.com/collective/icalendar/issues/333 https://github.com/collective/icalendar/issues/335 https://github.com/collective/icalendar/issues/336)
     import pytz
     utc_tz = pytz.utc
 
@@ -16,20 +18,19 @@ def _to_utc_date_string(ts):
     """coerce datetimes to UTC (assume localtime if nothing is given)"""
     if (isinstance(ts, datetime)):
         try:
+            ## for any python version, this should work for a non-native
+            ## timestamp.
             ## in python 3.6 and higher, ts.astimezone() will assume a
             ## naive timestamp is localtime (and so do we)
             ts = ts.astimezone(utc_tz)
         except:
-            ## in python 2.7 and 3.5, ts.astimezone() will fail on
-            ## naive timestamps, but we'd like to assume they are
-            ## localtime
+            ## native time stamp and the current python version is
+            ## not able to treat it as localtime.
             import tzlocal
-            ## apparently it's not safe to assume all timezones has the localize method
-            #ts = tzlocal.get_localzone().localize(ts).astimezone(utc_tz)
             ts = ts.replace(tzinfo=tzlocal.get_localzone())
+            ts = ts.astimezone(utc_tz)
 
     return ts.strftime("%Y%m%dT%H%M%SZ")
-
 
 # Operations
 class CalendarQuery(BaseElement):

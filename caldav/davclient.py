@@ -324,6 +324,9 @@ class DAVClient:
 
         self.username = username
         self.password = password
+        ## I had problems with passwords with non-ascii letters in it ...
+        if hasattr(self.password, 'encode'):
+            self.password = self.password.encode('utf-8')
         self.auth = auth
         # TODO: it's possible to force through a specific auth method here,
         # but no test code for this.
