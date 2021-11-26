@@ -1,14 +1,51 @@
 # Changelog v0.8 -> v0.8.1
 
+## Various bugfixes and minor enhancements
+
+* urllib.quote on uuids before including it in a new URL on object creation
+* Principal.calendar (and CalendarSet.calendar) now accepts an URL as "cal_id"  (this is a regression fix - it did work back in 0.5.0, but not in 0.8.0).
+* Minor workaround for problem with cloud.global/e.email: urllib.quote the calendar_home_set_url if it's a path and it contains the character '@'
+* Minor fixes to improve support for SOGo
+* Bugfix for non-ascii in the password
+* timezones ... the API of tzlocal was changed for a short while, pytz is deprecated, but icalendar only supports timestamps localized with pytz.  What a mess!
+* Added supported-report-set to the tags (but so far no code for using it)
+* Multiget didn't work
+* Silly spelling mistake in one of the error classes
+* Attempts to resolve broken ical issues with X-APPLE-STRUCTURED-EVENT and X-APPLE-STRUCTURED-LOCATION (#37, ...)
+* Compatibility issue with e.email
+
+Commits: ca12e15fadfd49dffcf01119e1b227f568fadf70, 5196ee7d64eae6c70d3cd602d40b55525400380e, 7b81cbc54237e2c1c33072329bc2359d0ef61e5f, 87510930a89fe9f8098346b356b4412ce35610f5, 4db75faf67b7355c89ada1119865b6dfc1d783c4, 17ce149635c0a4d44015d60a2d5362dec28d521c, b9c33ed9a5be83e94a7824fcfc0185048c397993, c9af8f598150af25cbb1e0716c845ac95c512c89, f30b574d099688760fe4ff6ee7ee13a5f82c5f08 dea36c80e4fc0e6a8be1f38f93ed17efc8733bfe d4991907462a0afe446939dbf64f4bcb11e58368 53ac8dcdd6b611e3448dab0ea101b1f83d66aeb2 57bf87ab123c2f7693ae68c659b68232d6000afd 72e303264d7347a2d9bdf6dddb618eb72b747d56 13a4714432fe0a2aebf4618a2830f66b16462a48
+
+Github issues: https://github.com/python-caldav/caldav/issues/146, https://github.com/python-caldav/caldav/issues/148 https://github.com/python-caldav/caldav/issues/150 https://github.com/python-caldav/caldav/issues/37 https://github.com/python-caldav/caldav/issues/151 https://github.com/python-caldav/caldav/issues/142 https://github.com/python-caldav/caldav/issues/143 https://github.com/python-caldav/caldav/issues/153
+
+Credits: Paul Waite, @brainsky, @TabError, @Friedi1970, Vincent Brillaut, Michael Thies, @l0ga, Raimund Schlüßler
+
 ## Documentation
 
-## Various bugfixes
+* Quite some minor changes in docstrings and comments in the code
+* Some minor tweaks at the documentation
+* Comments in the usage example that updating an event through `calendar.save_event(event.data)` may break.
+* Bugfix in the example code
 
-Commits: ca12e15fadfd49dffcf01119e1b227f568fadf70, 5196ee7d64eae6c70d3cd602d40b55525400380e, 7b81cbc54237e2c1c33072329bc2359d0ef61e5f, 87510930a89fe9f8098346b356b4412ce35610f5, 4db75faf67b7355c89ada1119865b6dfc1d783c4 17ce149635c0a4d44015d60a2d5362dec28d521c
+Commits: 35f72d37e12d6e8e966ee0873d0ba055c961def4 2549c1056ffce60b0c2919c5a13fd600e180b0de f5d3dafcd0b1e324557c50ef984868a15e28c04c 4f560d61ac5365f9794249ca3a71a88f607dcfbc 3451bcc0dae8686bcb95628e22d51aef5da92ef0 92c50898b5e00d963522640fa07c26261437442f 285bda15c8b4f6853c078fba084581096b2e052a b9c33ed9a5be83e94a7824fcfc0185048c397993 7b81cbc54237e2c1c33072329bc2359d0ef61e5f 9232a2d724ce7a4e1117447c62087413de8857d8 b3c13f079851a7ae413a08ee0ea4d08e8a265dac 53ac8dcdd6b611e3448dab0ea101b1f83d66aeb2 8ccf97d13bb6a2b92ffcc7709e249085e387ffc9 5826f5409c140129c2025dc6f4dfa38b06c11f0c afd95f0ac58d80c88ea001586b3dd4576e356e1a
 
-Github issues: https://github.com/python-caldav/caldav/issues/146, https://github.com/python-caldav/caldav/issues/148 https://github.com/python-caldav/caldav/issues/150
+## RFC6638
 
-Credits: Paul Waite, @brainsky, @TabError
+Version 0.8.0 was supposed to support RFC6638 fully, work on it was started for a client. but due to lack of support at the server side the work was halted prior to the release - hence version 0.8.0 contains some poorly tested support for RFC6638.  I tried to do some more work on it after the 0.8.0-release, but ran out of time.  I'm not sure when I will get the time to do more work on this - but at least 0.8.1 fixes some very silly things, like removing an occurrence of `pdb.set_trace()` in the middle of one of the methods ... (should probably add a pre-commit hook to avoid that in the future).
+
+Commits: b9c33ed9a5be83e94a7824fcfc0185048c397993
+
+## Tests
+
+Testing framework accepts even more "compatibility flags".  SOGo and nextcloud have been tested.  Some test code has been added to excersise the scheduling, but it's a bit difficult to test since it's needed with a server supporting RFC6638 and having three test users.  It's needed with a Xandikos version less than 2.0.4 to get the automated tests to run (I should look into that).
+
+Commits: b9c33ed9a5be83e94a7824fcfc0185048c397993, 704a1d6571c3a9b5b2c5d58af948a238620c1019 72e303264d7347a2d9bdf6dddb618eb72b747d56
+
+Credits: @Sigmun, Michael Thies
+
+## I have no idea what I'm doing
+
+Commits: 35f72d37e12d6e8e966ee0873d0ba055c961def4 2549c1056ffce60b0c2919c5a13fd600e180b0de 641959b228288826dbe20ed665057ce1e7a14096 fa91c623009ff6a8d1e35bb2eee1cbbee01c7770 4f560d61ac5365f9794249ca3a71a88f607dcfbc 92c50898b5e00d963522640fa07c26261437442f 2285ab0a204da3f9dce4e896d8ba37a8b75ca053
 
 # Changelog v0.7.1 -> v0.8
 
@@ -16,7 +53,7 @@ This is a replacement of the old ChangeLog file, admittedly in a non-standard fo
 
 ## Support for WebDAV sync-tokens
 
-Github issues: https://github.com/python-caldav/caldav/issues/87, https://github.com/python-caldav/caldav/issues/122 https://github.com/python-caldav/caldav/issues/122
+Github issues: https://github.com/python-caldav/caldav/issues/87, https://github.com/python-caldav/caldav/issues/122 https://github.com/python-caldav/caldav/issues/122, https://github.com/python-caldav/caldav/issues/142
 
 Commits: 35a49ae860df1e8e7c6cec554d34ff6bc4a0c2dd, 11768b9b5aee24278b2a60209d3550933720374d, cec96c51bf2a770bd041e8db3896425f3ab997cd, bc138c55a7e85e4411cc4614f5f7da6f7ae97a36, d5c17b522bef2e62038528f609fe320e91720f87, c838a30f4c5aa343ec27c78571907e6963732403, bc589093a34f0ed0ef489ad5e9cba048750c9837
 
