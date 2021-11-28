@@ -18,7 +18,7 @@ import uuid
 import tempfile
 import random
 from collections import namedtuple
-from datetime import datetime
+from datetime import datetime, date
 from six import PY3
 from nose.tools import assert_equal, assert_not_equal, assert_raises
 from nose.plugins.skip import SkipTest
@@ -685,6 +685,11 @@ class RepeatedFunctionalTestsBaseClass(object):
             events2 = c2.events()
             assert_equal(len(events2), 1)
             assert_equal(events2[0].url, events[0].url)
+            
+        # add another event, it should be doable without having premade ICS
+        ev2 = c.save_event(dtstart=datetime(2015, 10, 10, 8, 7, 6), summary="This is a test event", dtend=datetime(2016, 10, 10, 9, 8, 7))
+        events = c.events()
+        assert_equal(len(events), len(existing_events) + 2)
 
     def testCalendarByFullURL(self):
         """
@@ -991,6 +996,8 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert_equal(len(journals), 1)
         j1_ = c.journal_by_uid(j1.id)
         assert_equal(j1_.data, journals[0].data)
+        j2 = c.save_journal(dtstart=date(2011,11,11), summary="A childbirth in a hospital in Kupchino", description="A quick birth, in the middle of the night")
+        assert_equal(len(c.journals()), 2)
         todos = c.todos()
         events = c.events()
         assert_equal(todos + events, [])
@@ -1033,11 +1040,15 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert_equal(len(todos), 1)
         assert_equal(len(todos2), 1)
 
+        t3 = c.save_todo(summary="mop the floor", categories=["housework"], priority=4)
+        assert_equal(len(c.todos()), 2)
+        
         # adding a todo without an UID, it should also work
         if not self.check_compatibility_flag('uid_required'):
             c.save_todo(todo7)
-            assert_equal(len(c.todos()), 2)
-
+            assert_equal(len(c.todos()), 3)
+        
+            
         logging.info("Fetching the events (should be none)")
         # c.events() should NOT return todo-items
         events = c.events()

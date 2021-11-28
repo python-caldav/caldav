@@ -26,7 +26,7 @@ Objective and scope
 
 The python caldav library should make interactions with calendar servers
 simple and easy.  Simple operations (like find a list of all calendars
-owned, inserting an icalendar object into a calendar, do a simple date
+owned, inserting a new event into a calendar, do a simple date
 search, etc) should be trivial to accomplish even if the end-user of
 the library has no or very little knowledge of the caldav, webdav or
 icalendar standards.  The library should be agile enough to allow
@@ -57,6 +57,8 @@ and save it back to the server - but to do that it's also needed to
 support RFC 5545 (icalendar).  It's outside the scope of this library
 to implement logic for parsing and modifying RFC 5545, instead we
 depend on another library for that.
+
+RFC 5545 describes the icalendar format.  Constructing or parsing icalendar data was considered out of the scope of this library, but we do make exceptions - like, there is a method to complete a task - it involves editing the icalendar data, and now the `save_event`, `save_todo` and `save_journal` methods are able to construct icalendar data if needed.
 
 There exists two libraries supporting RFC 5545, vobject and icalendar.
 The icalendar library seems to be more popular.  Version 0.x depends
@@ -90,7 +92,9 @@ order is available for "power users".
 Quickstart
 ==========
 
-All code examples below are snippets from the basic_usage_examples.py.
+All code examples below was snippets from the basic_usage_examples.py,
+but the documentation and the examples may have drifted apart (TODO:
+does there exist some good system for this?  Just use docstrings and doctests?)
 
 Setting up a caldav client object and a principal object:
 
@@ -111,7 +115,17 @@ Creating a calendar:
 
   my_new_calendar = my_principal.make_calendar(name="Test calendar")
 
-Adding an event to the calendar:
+Adding an event to the calendar, v0.9 adds this interface:
+
+.. code-block:: python
+
+  my_event = my_new_calendar.save_event(
+      dtstart=datetime.datetime(2020,5,17,8),
+      dtend=datetime.datetime(2020,5,18,1),
+      summary="Do the needful",
+      rrule={'FREQ': 'YEARLY'))
+
+Adding an event described through some ical text:
 
 .. code-block:: python
 
@@ -172,24 +186,17 @@ Create a task list:
   my_new_tasklist = my_principal.make_calendar(
               name="Test tasklist", supported_calendar_component_set=['VTODO'])
 
-Adding a task to a task list:
+Adding a task to a task list.  The ics parameter may be some complete ical text string or a fragment.
 
 .. code-block:: python
 
-  my_new_tasklist.add_todo("""BEGIN:VCALENDAR
-  VERSION:2.0
-  PRODID:-//Example Corp.//CalDAV Client//EN
-  BEGIN:VTODO
-  UID:20070313T123432Z-456553@example.com
-  DTSTAMP:20070313T123432Z
-  DTSTART;VALUE=DATE:20200401
-  DUE;VALUE=DATE:20200501
-  RRULE:FREQ=YEARLY
-  SUMMARY:Deliver some data to the Tax authorities
-  CATEGORIES:FAMILY,FINANCE
-  STATUS:NEEDS-ACTION
-  END:VTODO
-  END:VCALENDAR""")
+  my_new_tasklist.save_todo(
+      ics = "RRULE:FREQ=YEARLY",
+      summary="Deliver some data to the Tax authorities",
+      dtstart=date(2020, 4, 1),
+      due=date(2020,5,1),
+      categories=['family', 'finance'],
+      status='NEEDS-ACTION')
 
 Fetching tasks:
 

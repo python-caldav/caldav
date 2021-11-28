@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, date
 import sys
 
 ## We'll try to use the local caldav library, not the system-installed
@@ -57,25 +57,26 @@ except caldav.error.NotFoundError:
     my_new_calendar = my_principal.make_calendar(name="Test calendar")
 
 ## Let's add an event to our newly created calendar
-my_event = my_new_calendar.save_event("""BEGIN:VCALENDAR
-VERSION:2.0
-PRODID:-//Example Corp.//CalDAV Client//EN
-BEGIN:VEVENT
-UID:20200516T060000Z-123401@example.com
-DTSTAMP:20200516T060000Z
-DTSTART:20200517T060000Z
-DTEND:20200517T230000Z
-RRULE:FREQ=YEARLY
-SUMMARY:Do the needful
-END:VEVENT
-END:VCALENDAR
-""")
+## (This usage pattern is new from v0.9.
+## Earlier save_event would only accept some ical data)
+my_event = my_new_calendar.save_event(
+    dtstart=datetime(2020,5,17,8),
+    dtend=datetime(2020,5,18,1),
+    summary="Do the needful",
+    rrule={'FREQ': 'YEARLY'})
 
 ## Let's search for the newly added event.
+## (this may fail if the server doesn't support expand)
 print("Here is some icalendar data:")
-events_fetched = my_new_calendar.date_search(
-    start=datetime(2021, 1, 1), end=datetime(2024, 1, 1), expand=True)
-print(events_fetched[0].data)
+try:
+    events_fetched = my_new_calendar.date_search(
+        start=datetime(2021, 5, 16), end=datetime(2024, 1, 1), expand=True)
+    print(events_fetched[0].data)
+except:
+    print("Your calendar server does apparently not support expanded search")
+    events_fetched = my_new_calendar.date_search(
+        start=datetime(2020, 5, 16), end=datetime(2024, 1, 1), expand=False)
+    print(events_fetched[0].data)
 
 event = events_fetched[0]
 
@@ -83,7 +84,8 @@ event = events_fetched[0]
 ## The caldav library has always been supporting vobject out of the box, but icalendar is more popular.
 ## event.instance will as of version 0.x yield a vobject instance, but this may change in future versions.
 ## Both event.vobject_instance and event.icalendar_instance works from 0.7.
-event.vobject_instance.vevent.summary.value = 'Norwegian national day celebrations'
+event.vobject_instance.vevent.summary.value = 'Norwegian national day celebratiuns'
+event.icalendar_instance.subcomponents[0]['summary'] = event.icalendar_instance.subcomponents[0]['summary'].replace('celebratiuns', 'celebrations')
 event.save()
 
 ## Please note that the proper way to save new icalendar data
@@ -110,6 +112,7 @@ assert(len(all_events) == len(list(all_objects)))
 
 ## Let's check that the summary got right
 assert all_events[0].vobject_instance.vevent.summary.value.startswith('Norwegian')
+assert all_events[0].vobject_instance.vevent.summary.value.endswith('celebrations')
 
 ## This calendar should as a minimum support VEVENTs ... most likely
 ## it also supports VTODOs and maybe even VJOURNALs.  We can query the
@@ -125,24 +128,18 @@ my_new_tasklist = my_principal.make_calendar(
             name="Test tasklist", supported_calendar_component_set=['VTODO'])
 
 ## We'll add a task to the task list
-my_new_tasklist.add_todo("""BEGIN:VCALENDAR
-VERSION:2.0
-PRODID:-//Example Corp.//CalDAV Client//EN
-BEGIN:VTODO
-UID:20070313T123432Z-456553@example.com
-DTSTAMP:20070313T123432Z
-DTSTART;VALUE=DATE:20200401
-DUE;VALUE=DATE:20200501
-RRULE:FREQ=YEARLY
-SUMMARY:Deliver some data to the Tax authorities
-CATEGORIES:FAMILY,FINANCE
-STATUS:NEEDS-ACTION
-END:VTODO
-END:VCALENDAR""")
+my_new_tasklist.add_todo(
+    ics = "RRULE:FREQ=YEARLY",
+    summary="Deliver some data to the Tax authorities",
+    dtstart=date(2020, 4, 1),
+    due=date(2020,5,1),
+    categories=['family', 'finance'],
+    status='NEEDS-ACTION')
 
 ## Fetch the tasks
 todos = my_new_tasklist.todos()
 assert(len(todos) == 1)
+assert('FREQ=YEARLY' in todos[0].data)
 
 print("Here is some more icalendar data:")
 print(todos[0].data)
