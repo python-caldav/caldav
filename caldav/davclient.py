@@ -486,35 +486,104 @@ class DAVClient:
     def options(self, url):
         return self.request(url, "OPTIONS")
 
-    def request(self, url, method="GET", body="", headers={}):
+    def _pre_request(self, url, body, headers):
         """
-        Actually sends the request
+        refacored out some stuff from requests, to be reused in verify_login
         """
-
-        # objectify the url
-        url = URL.objectify(url)
+        combined_headers = self.headers.copy()
+        combined_headers.update(headers)
+        if (body is None or body == "") and "Content-Type" in combined_headers:
+            del combined_headers["Content-Type"]
 
         proxies = None
         if self.proxy is not None:
             proxies = {url.scheme: self.proxy}
             log.debug("using proxy - %s" % (proxies))
 
+        return (combined_headers, proxies)
+
+    def verify_login(self, url=None, method="PROPFIND", body="", headers={}):
+        """
+        Will do the following:
+        * run a test request without auth towards the server.
+        * assert it returns 401
+        * read the WWW-Authenticate header and decide what kind of auth object to create
+        * run a test query with auth
+        * assert it returns 2xx or 3xx
+        In 0.9, it should return True or raise an exception
+        In 0.8.2, it may log an error and return False
+        """
+        if not url:
+            url=self.url
+
+        (combined_headers, proxies) = self._pre_request(url, body, headers)
+
+        if not self.auth:
+            ## Try a test request w/o auth
+            resp = self.session.request(
+                method, url, data=to_wire(body),
+                headers=combined_headers, proxies=proxies,
+                verify=self.ssl_verify_cert, cert=self.ssl_cert)
+
+            if resp.status_code > 399 and not self.password and not self.username:
+                return True
+
+            ## I'd like to raise an AuthorizationError here, but "assert_" and
+            ## return is safer for a minor release.
+            error.assert_(resp.status_code == 401)
+            error.assert_('WWW-Authenticate' in resp.headers)
+            if resp.status_code != 401:
+                return True
+            if not 'WWW-Authenticate' in resp.headers:
+                return False
+
+            auth_type = resp.headers['WWW-Authenticate']
+            auth_type = auth_type[0:auth_type.find(" ")]
+
+            error.assert_(auth_type in ('Basic', 'Digest'))
+
+            if auth_type == 'Basic':
+                self.auth = requests.auth.HTTPBasicAuth(self.username, self.password)
+            elif auth_type == 'Digest':
+                self.auth = requests.auth.HTTPDigestAuth(self.username, self.password)
+            else:
+                ## I'm a bit concerned ... don't want to raise new exceptions in a minor release
+                #raise NotImplementedError(f"Auth method {auth_type} not supported yet")
+                return False
+
+        resp = self.session.request(
+            method, url, data=to_wire(body),
+            headers=combined_headers, proxies=proxies, auth=self.auth,
+            verify=self.ssl_verify_cert, cert=self.ssl_cert)
+
+        if resp.status_code > 399:
+            raise error.AuthorizationError(url=url, reason=resp.reason)
+
+    def request(self, url, method="GET", body="", headers={}):
+        """
+        Actually sends the request
+        """
+        (combined_headers, proxies) = self._pre_request(url, body, headers)
+
+        # objectify the url
+        url = URL.objectify(url)
+
         # ensure that url is a normal string
         url = str(url)
 
-        combined_headers = dict(self.headers)
-        combined_headers.update(headers)
-        if body is None or body == "" and "Content-Type" in combined_headers:
-            del combined_headers["Content-Type"]
-
-        log.debug(
-            "sending request - method={0}, url={1}, headers={2}\nbody:\n{3}"
-            .format(method, url, combined_headers, to_normal_str(body)))
         auth = None
+
+        if self.auth is None:
+            self.verify_login()
+
         if self.auth is None and self.username is not None:
             auth = requests.auth.HTTPDigestAuth(self.username, self.password)
         else:
             auth = self.auth
+
+        log.debug(
+            "sending request - method={0}, url={1}, headers={2}\nbody:\n{3}"
+            .format(method, url, combined_headers, to_normal_str(body)))
 
         r = self.session.request(
             method, url, data=to_wire(body),

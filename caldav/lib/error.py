@@ -34,23 +34,27 @@ def assert_(condition):
 
 ERR_FRAGMENT="Please raise an issue at https://github.com/python-caldav/caldav/issues or reach out to t-caldav@tobixen.no, include this error and the traceback and tell what server you are using"
 
-class AuthorizationError(Exception):
-    """
-    The client encountered an HTTP 403 error and is passing it on
-    to the user. The url property will contain the url in question,
-    the reason property will contain the excuse the server sent.
-    """
+class DAVError(Exception):
     url = None
-    reason = "PHP at work[tm]"
+    reason = "no reason"
+
+    def __init__(self, url=None, reason=None):
+        if url:
+            self.url = url
+        if reason:
+            self.reason = reason
 
     def __str__(self):
         return "AuthorizationError at '%s', reason '%s'" % \
             (self.url, self.reason)
 
-
-class DAVError(Exception):
+class AuthorizationError(DAVError):
+    """
+    The client encountered an HTTP 403 error and is passing it on
+    to the user. The url property will contain the url in question,
+    the reason property will contain the excuse the server sent.
+    """
     pass
-
 
 class PropsetError(DAVError):
     pass
