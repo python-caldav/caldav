@@ -1,3 +1,17 @@
+# Changelov v0.8.1 -> v0.8.2
+
+## Bugfix/feature
+
+* New method DAVClient.verify_login - will verify that the username/password is correct.
+* It will also ensure that the auth method is set correctly (basic auth vs digest auth)
+* Method will be applied when initializing the auth object.  This solved issues on some servers that disbehaves when the incorrect auth method is used.
+
+Commits: 1c2577cf3a177cc2ec2a0b703ffdd9052b17c1d9
+
+Github issues: https://github.com/python-caldav/caldav/issues/158
+
+Credits: @Sigmun
+
 # Changelog v0.8 -> v0.8.1
 
 ## Various bugfixes and minor enhancements
