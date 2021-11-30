@@ -73,6 +73,15 @@ END:VEVENT
 END:VCALENDAR
 """
 
+broken_ev1 = """BEGIN:VEVENT
+UID:20010712T182145Z-123401@example.com
+DTSTAMP:20060712T182145Z
+DTSTART:20060714T170000Z
+DTEND:20060715T040000Z
+SUMMARY:Bastille Day Party
+END:VEVENT
+"""
+
 ev2 = """BEGIN:VCALENDAR
 VERSION:2.0
 PRODID:-//Example Corp.//CalDAV Client//EN
@@ -666,7 +675,7 @@ class RepeatedFunctionalTestsBaseClass(object):
             assert_equal(len(existing_events), 0)
 
         # add event
-        c.save_event(ev1)
+        c.save_event(broken_ev1)
 
         # c.events() should give a full list of events
         events = c.events()

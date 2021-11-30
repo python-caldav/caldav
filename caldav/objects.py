@@ -594,7 +594,7 @@ class Calendar(DAVObject):
         obj.save()
 
     def _use_or_create_ics(self, ical, objtype, **ical_data):
-        if ical_data or ((isinstance(ical, str) or isinstance(ical, bytes)) and not b'BEGIN:V' in to_wire(ical)):
+        if ical_data or ((isinstance(ical, str) or isinstance(ical, bytes)) and not b'BEGIN:VCALENDAR' in to_wire(ical)):
             return vcal.create_ical(ical_fragment=ical, objtype=objtype, **ical_data)
         return ical
 
