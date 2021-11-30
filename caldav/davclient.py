@@ -525,31 +525,29 @@ class DAVClient:
                 headers=combined_headers, proxies=proxies,
                 verify=self.ssl_verify_cert, cert=self.ssl_cert)
 
-            if resp.status_code > 399 and not self.password and not self.username:
+            if resp.status_code < 399 and not self.password and not self.username:
                 return True
 
-            ## I'd like to raise an AuthorizationError here, but "assert_" and
-            ## return is safer for a minor release.
-            error.assert_(resp.status_code == 401)
-            error.assert_('WWW-Authenticate' in resp.headers)
+            if resp.status_code == 401 and not self.password and not self.username:
+                raise error.AuthorizationError(url=url, reason="No username/password given, but server requires it")
+
             if resp.status_code != 401:
+                ## Raising an AuthorizedError here caused radicale test to break.
+                ## https://github.com/Kozea/Radicale/issues/1195
+                logging.error("a resource %s that should be password protected is publically available" % url)
                 return True
             if not 'WWW-Authenticate' in resp.headers:
-                return False
+                raise error.AuthorizationError(url=url, reason="Server won't let us authenticate - missing WWW-Authenticate header in the response")
 
             auth_type = resp.headers['WWW-Authenticate']
             auth_type = auth_type[0:auth_type.find(" ")]
-
-            error.assert_(auth_type in ('Basic', 'Digest'))
 
             if auth_type == 'Basic':
                 self.auth = requests.auth.HTTPBasicAuth(self.username, self.password)
             elif auth_type == 'Digest':
                 self.auth = requests.auth.HTTPDigestAuth(self.username, self.password)
             else:
-                ## I'm a bit concerned ... don't want to raise new exceptions in a minor release
-                #raise NotImplementedError(f"Auth method {auth_type} not supported yet")
-                return False
+                raise NotImplementedError("Auth method %s not supported yet" % auth_type)
 
         resp = self.session.request(
             method, url, data=to_wire(body),
@@ -558,6 +556,13 @@ class DAVClient:
 
         if resp.status_code > 399:
             raise error.AuthorizationError(url=url, reason=resp.reason)
+
+        # let's save the auth object and remove the user/pass information
+        if self.auth:
+            del self.username
+            del self.password
+
+        return True
 
     def request(self, url, method="GET", body="", headers={}):
         """
@@ -576,10 +581,10 @@ class DAVClient:
         if self.auth is None:
             self.verify_login()
 
-        if self.auth is None and self.username is not None:
-            auth = requests.auth.HTTPDigestAuth(self.username, self.password)
-        else:
-            auth = self.auth
+        ## Compatibility workaround for radicale.
+        ## See https://github.com/Kozea/Radicale/issues/1195 for details.
+        if self.auth is None and self.password and body:
+            self.verify_login(url, method, body, headers)
 
         log.debug(
             "sending request - method={0}, url={1}, headers={2}\nbody:\n{3}"
@@ -587,40 +592,18 @@ class DAVClient:
 
         r = self.session.request(
             method, url, data=to_wire(body),
-            headers=combined_headers, proxies=proxies, auth=auth,
-            verify=self.ssl_verify_cert, cert=self.ssl_cert, stream=False) ## TODO: optimize with stream=True maybe
+            headers=combined_headers, proxies=proxies, auth=self.auth,
+            verify=self.ssl_verify_cert, cert=self.ssl_cert)
         log.debug("server responded with %i %s" % (r.status_code, r.reason))
         response = DAVResponse(r)
 
-
-        # If server supports BasicAuth and not DigestAuth, let's try again:
-        if response.status == 401 and self.auth is None and auth is not None:
-            auth = requests.auth.HTTPBasicAuth(self.username, self.password)
-            r = self.session.request(method, url, data=to_wire(body),
-                                 headers=combined_headers, proxies=proxies,
-                                 auth=auth, verify=self.ssl_verify_cert, cert=self.ssl_cert)
-            response = DAVResponse(r)
-
-        self.auth = auth
-
-        # this is an error condition the application wants to know
+        # this is an error condition that should be raised to the application
         if response.status == requests.codes.forbidden or \
                 response.status == requests.codes.unauthorized:
-            ex = error.AuthorizationError()
-            ex.url = url
-            ## ref https://github.com/python-caldav/caldav/issues/81,
-            ## incidents with a response without a reason has been
-            ## observed
             try:
-                ex.reason = response.reason
+                reason = response.reason
             except AttributeError:
-                ex.reason = "None given"
-            raise ex
-
-        # let's save the auth object and remove the user/pass information
-        if not self.auth and auth:
-            self.auth = auth
-            del self.username
-            del self.password
+                reason = "None given"
+            raise error.AuthorizationError(url=url, reason = reason)
 
         return response
