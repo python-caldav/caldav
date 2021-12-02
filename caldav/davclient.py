@@ -532,7 +532,9 @@ class DAVClient:
                 raise error.AuthorizationError(url=url, reason="No username/password given, but server requires it")
 
             if resp.status_code != 401:
-                ## Raising an AuthorizedError here caused radicale test to break.
+                ## Radicale is by default set up with no auth, though
+                ## username/password is needed to fetch current-user-principal
+                ## resource.  Details at
                 ## https://github.com/Kozea/Radicale/issues/1195
                 logging.error("a resource %s that should be password protected is publically available" % url)
                 return True
