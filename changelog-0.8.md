@@ -45,7 +45,11 @@ Credits: @Sigmun, Michael Thies
 
 ## I have no idea what I'm doing
 
+(But don't worry, it's mostly just me arguing with the sfinx documentation and the auto-generated doc at readthedocs.org, no modifications to the code itself)
+
 Commits: 35f72d37e12d6e8e966ee0873d0ba055c961def4 2549c1056ffce60b0c2919c5a13fd600e180b0de 641959b228288826dbe20ed665057ce1e7a14096 fa91c623009ff6a8d1e35bb2eee1cbbee01c7770 4f560d61ac5365f9794249ca3a71a88f607dcfbc 92c50898b5e00d963522640fa07c26261437442f 2285ab0a204da3f9dce4e896d8ba37a8b75ca053
+
+Anti-credits: @tobixen
 
 # Changelog v0.7.1 -> v0.8
 
