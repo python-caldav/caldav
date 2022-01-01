@@ -518,6 +518,7 @@ class DAVClient:
 
         (combined_headers, proxies) = self._pre_request(url, body, headers)
 
+        auth_type = None
         if not self.auth:
             ## Try a test request w/o auth
             resp = self.session.request(
@@ -557,6 +558,22 @@ class DAVClient:
             verify=self.ssl_verify_cert, cert=self.ssl_cert)
 
         if resp.status_code > 399:
+            ## Some (ancient) servers don't like UTF-8 binary auth with Digest authentication.
+            ## An example are old SabreDAV based servers.  Not sure about UTF-8 and Basic Auth,
+            ## but likely the same.  so retry if password is a bytes sequence and not a string
+            ## (see commit 13a4714, which introduced this regression)
+            if auth_type is not None and hasattr(self.password, 'decode'):
+                if auth_type == 'Basic':
+                    self.auth = requests.auth.HTTPBasicAuth(self.username, self.password.decode())
+                elif auth_type == 'Digest':
+                    self.auth = requests.auth.HTTPDigestAuth(self.username, self.password.decode())
+                resp = self.session.request(
+                    method, url, data=to_wire(body),
+                    headers=combined_headers, proxies=proxies, auth=self.auth,
+                    verify=self.ssl_verify_cert, cert=self.ssl_cert)
+
+        if resp.status_code > 399:
+            ## We tried all we can, probably the credentials are _really_ wrong...
             raise error.AuthorizationError(url=url, reason=resp.reason)
 
     def request(self, url, method="GET", body="", headers={}):
