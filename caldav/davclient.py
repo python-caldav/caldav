@@ -536,7 +536,9 @@ class DAVClient:
                 ## username/password is needed to fetch current-user-principal
                 ## resource.  Details at
                 ## https://github.com/Kozea/Radicale/issues/1195
-                logging.error("a resource %s that should be password protected is publically available" % url)
+                ## should probably raise the error below if it's not
+                ## radicale
+                #logging.error("a resource %s that should be password protected is publically available" % url)
                 return True
             if not 'WWW-Authenticate' in resp.headers:
                 raise error.AuthorizationError(url=url, reason="Server won't let us authenticate - missing WWW-Authenticate header in the response")
