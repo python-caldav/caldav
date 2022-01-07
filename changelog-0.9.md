@@ -22,7 +22,12 @@ Commits: 1366e4e503180e10696f99ede6c2526451c7acab b3bde1c0e79d850acd5fa0615d3fbf
 
 ## Bugfixes
 
+(all of those also included in the 0.8-stable branch)
+
 * The string representation of any error class was hardcoded as "AuthorizationError".
 * Concatinating an empty unicode string with an empty byte string will cause an exception.  The python_utilities.to_wire method would return an empty unicode string if given an empty unicode string.
+* create_ical function did have some troubles with empty unicode string in ical_fragment
+* the flags no_overwrite and no_create in save_todo and save_journal didn't work
+* tests: make sure to delete the test calendar properly
 
-Commits: eb708a9, 232acdd
+Commits: eb708a9, 232acdd, 509b4f01, 67e47bc, 29e2dd3
