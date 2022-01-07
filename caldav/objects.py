@@ -966,7 +966,7 @@ class Calendar(DAVObject):
         except error.NotFoundError:
             raise
         except Exception as err:
-            raise NotImplementedError("The object_by_uid is not compatible with some server implementations.  work in progress.")
+            raise NotImplementedError(f"Server said {str(err)}. The object_by_uid is not compatible with some server implementations.  work in progress.")
 
         # Ref Lucas Verney, we've actually done a substring search, if the
         # uid given in the query is short (i.e. just "0") we're likely to
@@ -1465,17 +1465,20 @@ class CalendarObjectResource(DAVObject):
             ## a unique new calendar item is created to the server without
             ## overwriting old stuff or vice versa - it seems silly to me
             ## to do a PUT instead of POST when creating new data).
+            ## TODO: the "find id"-logic is duplicated in _create,
+            ## should be refactored
             if not self.id:
-                try:
-                    self.id = self.vobject_instance.vevent.uid.value
-                except AttributeError:
-                    pass
+                for component in self.vobject_instance.getChildren():
+                    if hasattr(component, 'uid'):
+                        self.id = component.uid.value
             if not self.id and no_create:
                 raise error.ConsistencyError("no_create flag was set, but no ID given")
             existing = None
             ## some servers require one to explicitly search for the right kind of object.
             ## todo: would arguably be nicer to verify the type of the object and take it from there
-            if obj_type:
+            if not self.id:
+                methods = []
+            elif obj_type:
                 methods = (getattr(self.parent, "%s_by_uid" % obj_type),)
             else:
                 methods = (self.parent.object_by_uid, self.parent.event_by_uid, self.parent.todo_by_uid, self.parent.journal_by_uid)

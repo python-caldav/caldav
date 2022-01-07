@@ -1025,6 +1025,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         # add todo-item
         logging.info("Adding todo item to calendar Yep")
         t1 = c.save_todo(todo)
+        assert_equal(t1.id, '20070313T123432Z-456553@example.com')
 
         # c.todos() should give a full list of todo items
         logging.info("Fetching the full list of todo items (should be one)")
@@ -1378,7 +1379,10 @@ class RepeatedFunctionalTestsBaseClass(object):
 
         # add event
         e1 = c.save_event(ev1)
+        if not self.check_compatibility_flag('no_todo'):
+            t1 = c.save_todo(todo)
         assert_not_equal(e1.url, None)
+        assert_not_equal(t1.url, None)
         if not self.check_compatibility_flag('event_by_url_is_broken'):
             assert_equal(c.event_by_url(e1.url).url, e1.url)
         assert_equal(c.event_by_uid(e1.id).url, e1.url)
@@ -1387,14 +1391,22 @@ class RepeatedFunctionalTestsBaseClass(object):
         ## (but some calendars may throw a "409 Conflict")
         if not self.check_compatibility_flag('no_overwrite'):
             e2 = c.save_event(ev1)
+            if not self.check_compatibility_flag('no_todo'):
+                t2 = c.save_todo(todo)
 
             ## add same event with "no_create".  Should work like a charm.
             e2 = c.save_event(ev1, no_create=True)
-
-            e2.instance.vevent.summary.value = e2.instance.vevent.summary.value + '!'
+            if not self.check_compatibility_flag('no_todo'):
+                t2 = c.save_todo(todo, no_create=True)
 
             ## this should also work.
+            e2.instance.vevent.summary.value = e2.instance.vevent.summary.value + '!'
             e2.save(no_create=True)
+
+            if not self.check_compatibility_flag('no_todo'):
+                t2.instance.vtodo.summary.value = t2.instance.vtodo.summary.value + '!'
+                t2.save(no_create=True)
+
 
             if not self.check_compatibility_flag('event_by_url_is_broken'):
                 e3 = c.event_by_url(e1.url)
@@ -1402,10 +1414,13 @@ class RepeatedFunctionalTestsBaseClass(object):
 
         ## "no_overwrite" should throw a ConsistencyError
         assert_raises(error.ConsistencyError, c.save_event, ev1, no_overwrite=True)
+        if not self.check_compatibility_flag('no_todo'):
+            assert_raises(error.ConsistencyError, c.save_todo, todo, no_overwrite=True)
 
         # delete event
         e1.delete()
-
+        if not self.check_compatibility_flag('no_todo'):
+            t1.delete
 
         # Verify that we can't look it up, both by URL and by ID
         assert_raises(error.NotFoundError, c.event_by_url, e1.url)
