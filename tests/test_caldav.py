@@ -380,7 +380,6 @@ class TestScheduling(object):
         assert(new_inbox_items[0].is_invite_request())
 
         ## Approving the invite
-        import pdb; pdb.set_trace()
         new_inbox_items[0].accept_invite(calendar=attendee_calendar)
         ## (now, this item should probably appear on a calendar somewhere ...
         ## TODO: make asserts on that)
@@ -486,19 +485,12 @@ class RepeatedFunctionalTestsBaseClass(object):
                 except:
                     logging.error("Something went kaboom while deleting event", exc_info=True)
             return
-        for combo in (('Yep', self.testcal_id),
-                       ('Yep', self.testcal_id2),
-                       ('Yapp', self.testcal_id2),
-                       ('Yølp', self.testcal_id),
-                       ('Yep', 'Yep'),
-                       ('Yølp', 'Yølp'),
-                       ('Yep', None),
-                       ('Yapp', None),
-                       ('Yølp', None)):
+        for name in ('Yep', 'Yapp', 'Yølp', self.testcal_id, self.testcal_id2):
             try:
-                ## TODO: why do we need a name here?  id is supposed to be unique, isn't it?
-                cal = self.principal.calendar(name=combo[0],
-                                              cal_id=combo[1])
+                cal = self.principal.calendar(name=name)
+            except:
+                cal = self.principal.calendar(cal_id=name)
+            try:
                 if self.check_compatibility_flag('sticky_events'):
                     try:
                         for goo in cal.objects():
