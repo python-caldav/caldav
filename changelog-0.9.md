@@ -23,5 +23,6 @@ Commits: 1366e4e503180e10696f99ede6c2526451c7acab b3bde1c0e79d850acd5fa0615d3fbf
 ## Bugfixes
 
 * The string representation of any error class was hardcoded as "AuthorizationError".
+* Concatinating an empty unicode string with an empty byte string will cause an exception.  The python_utilities.to_wire method would return an empty unicode string if given an empty unicode string.
 
-Commits: eb708a9
+Commits: eb708a9, 232acdd
