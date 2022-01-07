@@ -14,11 +14,11 @@ Credits: @Sigmun
 
 ## Refactoring
 
-The digest vs basic auth is solved a bit differently in 0.8.2 and 0.9.  The code should basically do the same thing, but I feel the code in 0.9 is cleaner, but possibly a little bit bigger risk of breaking anything.
+The digest vs basic auth is solved a bit differently in 0.8.2 and 0.9.  It has been fixed very carefully but inelegantly in 0.8.2, 0.9 contains a complete rewrite.
 
 Github issues: https://github.com/python-caldav/caldav/issues/158
 
-Commits: 1366e4e503180e10696f99ede6c2526451c7acab b3bde1c0e79d850acd5fa0615d3fbf6a3289c148 6be182800bbf7367a8da1005dad4b3e0b43967ca
+Commits: 1366e4e503180e10696f99ede6c2526451c7acab b3bde1c0e79d850acd5fa0615d3fbf6a3289c148 6be182800bbf7367a8da1005dad4b3e0b43967ca 164f88d
 
 ## Bugfixes
 
