@@ -86,8 +86,7 @@ def create_ical(ical_fragment=None, objtype=None, language='en_DK', **attributes
     ## late import, icalendar is not an explicit requirement for v0.x of the caldav library.
     ## (perhaps I should change my position on that soon)
     import icalendar
-    if ical_fragment:
-        ical_fragment = to_wire(ical_fragment)
+    ical_fragment = to_wire(ical_fragment)
     if not ical_fragment or not re.search(b'^BEGIN:V', ical_fragment, re.MULTILINE):
         my_instance = icalendar.Calendar()
         my_instance.add('prodid', f'-//python-caldav//caldav//{language}')
@@ -108,6 +107,6 @@ def create_ical(ical_fragment=None, objtype=None, language='en_DK', **attributes
         if attributes[attribute] is not None:
             component.add(attribute, attributes[attribute])
     ret = my_instance.to_ical()
-    if ical_fragment is not None:
+    if ical_fragment and ical_fragment.strip():
         ret = re.sub(b"^END:V", ical_fragment.strip() + b"\nEND:V", ret, flags=re.MULTILINE)
     return ret
