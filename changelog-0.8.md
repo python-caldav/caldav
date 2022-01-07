@@ -1,4 +1,16 @@
-# Changelov v0.8.1 -> v0.8.2
+# Changelog v0.8.2 -> v0.8-stable (to be released as v0.8.3 soonish)
+
+## Bugfixes
+
+* The string representation of any error class was hardcoded as "AuthorizationError".
+* Concatinating an empty unicode string with an empty byte string will cause an exception.  The python_utilities.to_wire method would return an empty unicode string if given an empty unicode string.
+* create_ical function did have some troubles with empty unicode string in ical_fragment
+* the flags no_overwrite and no_create in save_todo and save_journal didn't work
+* tests: make sure to delete the test calendar properly
+
+Commits: b40dacb334ef5de236cf1048fddba2a5cf4df5be, f1c234e86f4c866b10b00e7440084cc542838414, c7df6959164748baa641f93a45b15d9dcba13500, 92888f3ebee4d23f9fea9c656c2f5924363a8f94, 2e9262de5f9e4c42926669b0f3e1b849d6829b1a
+
+# Changelog v0.8.1 -> v0.8.2
 
 ## Bugfix/feature
 
