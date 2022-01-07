@@ -45,8 +45,7 @@ class DAVError(Exception):
             self.reason = reason
 
     def __str__(self):
-        return "AuthorizationError at '%s', reason '%s'" % \
-            (self.url, self.reason)
+        return "%s at '%s', reason '%s'" % (self.__class__.__name__, self.url, self.reason)
 
 class AuthorizationError(DAVError):
     """
