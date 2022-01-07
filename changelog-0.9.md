@@ -20,3 +20,8 @@ Github issues: https://github.com/python-caldav/caldav/issues/158
 
 Commits: 1366e4e503180e10696f99ede6c2526451c7acab b3bde1c0e79d850acd5fa0615d3fbf6a3289c148 6be182800bbf7367a8da1005dad4b3e0b43967ca
 
+## Bugfixes
+
+* The string representation of any error class was hardcoded as "AuthorizationError".
+
+Commits: eb708a9

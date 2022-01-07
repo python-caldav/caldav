@@ -7,7 +7,7 @@ def isPython3():
 
 
 def to_wire(text):
-    if text and isinstance(text, string_types) and PY3:
+    if text is not None and isinstance(text, string_types) and PY3:
         text = bytes(text, 'utf-8')
     elif not PY3:
         text = to_unicode(text).encode('utf-8')
