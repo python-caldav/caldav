@@ -545,6 +545,28 @@ class DAVClient:
                 self.auth = requests.auth.HTTPDigestAuth(self.username, self.password)
             else:
                 raise NotImplementedError("Auth method %s not supported yet" % auth_type)
+            return self.request(url, method, body, headers)
+
+        elif (r.status_code == 401 and
+            'WWW-Authenticate' in r.headers and
+            self.password and
+            self.username and
+            self.auth):
+
+            ## Some (ancient) servers don't like UTF-8 binary auth with Digest authentication.
+            ## An example are old SabreDAV based servers.  Not sure about UTF-8 and Basic Auth,
+            ## but likely the same.  so retry if password is a bytes sequence and not a string
+            ## (see commit 13a4714, which introduced this regression)
+
+            auth_type = r.headers['WWW-Authenticate']
+            auth_type = auth_type[0:auth_type.find(" ")]
+
+            if hasattr(self.password, 'decode'):
+                if auth_type == 'Basic':
+                    self.auth = requests.auth.HTTPBasicAuth(self.username, self.password.decode())
+                elif auth_type == 'Digest':
+                    self.auth = requests.auth.HTTPDigestAuth(self.username, self.password.decode())
+
             self.username = None
             self.password = None
             return self.request(url, method, body, headers)
