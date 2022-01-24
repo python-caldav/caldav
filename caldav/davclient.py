@@ -545,8 +545,8 @@ class DAVClient:
                 self.auth = requests.auth.HTTPDigestAuth(self.username, self.password)
             else:
                 raise NotImplementedError("Auth method %s not supported yet" % auth_type)
-            del self.username
-            del self.password
+            self.username = None
+            self.password = None
             return self.request(url, method, body, headers)
 
         # this is an error condition that should be raised to the application
