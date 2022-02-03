@@ -229,8 +229,12 @@ class DAVObject(object):
         elif self.url in properties:
             rc = properties[self.url]
         elif '/principal/' in properties and path.endswith('/principal/'):
-            log.error("Bypassing a known iCloud bug - path expected in response: %s, path found: /principal/ ... %s" % (path, error.ERR_FRAGMENT))
-            ## The strange thing is that we apparently didn't encounter this problem in bc589093a34f0ed0ef489ad5e9cba048750c9837 or 3ee4e42e2fa8f78b71e5ffd1ef322e4007df7a60 - TODO: check this up
+            ## Workaround for a known iCloud bug.
+            ## The properties key is expected to be the same as the path.
+            ## path is on the format /123456/principal/ but properties key is /principal/
+            ## tests apparently passed post bc589093a34f0ed0ef489ad5e9cba048750c9837 and 3ee4e42e2fa8f78b71e5ffd1ef322e4007df7a60, even without this workaround
+            ## TODO: should probably be investigated more.
+            ## (observed also by others, ref https://github.com/python-caldav/caldav/issues/168)
             rc = properties['/principal/']
         else:
             log.error("Possibly the server has a path handling problem.  Path expected: %s, path found: %s %s" % (path, str(list(properties.keys())), error.ERR_FRAGMENT))
@@ -971,10 +975,22 @@ class Calendar(DAVObject):
 
         try:
             items_found = self.search(root)
-        except error.NotFoundError:
-            raise
+            if not items_found:
+                raise error.NotFoundError("%s not found on server" % uid)
         except Exception as err:
-            raise NotImplementedError(f"Server said {str(err)}. The object_by_uid is not compatible with some server implementations.  work in progress.")
+            if comp_filter is not None:
+                raise
+            logging.warning(f"Error {str(err)} from server when doing an object_by_uid({uid}).  search without compfilter set is not compatible with all server implementations, trying object_by_event + object_by_todo + object_by_journal instead")
+            items_found = []
+            for compfilter in ("VTODO", "VEVENT", "VJOURNAL"):
+                try:
+                    items_found.append(self.object_by_uid(uid, cdav.CompFilter(compfilter)))
+                except error.NotFoundError:
+                    pass
+            if len(items_found) >= 1:
+                if len(items_found) > 1:
+                    logging.error("multiple items found with same UID.  Returning the first one")
+                return items_found[0]
 
         # Ref Lucas Verney, we've actually done a substring search, if the
         # uid given in the query is short (i.e. just "0") we're likely to
@@ -987,6 +1003,7 @@ class Calendar(DAVObject):
             if (not item_uid or
                     re.sub(r'\n[ \t]', '', item_uid.group(1)) != uid):
                 continue
+            ## TODO: we should assert there is only one valid item
             return item
         raise error.NotFoundError("%s not found on server" % uid)
 
