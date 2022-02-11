@@ -1555,6 +1555,19 @@ class RepeatedFunctionalTestsBaseClass(object):
             assert_equal(len(r), 1)
         assert_equal(r[0].data.count("END:VEVENT"), 1)
 
+    def testOffsetURL(self):
+        """
+        pass an URL pointing to a calendar or a user to the DAVClient class,
+        and things should still work
+        """
+        urls = [ self.principal.url, self._fixCalendar().url ]
+        connect_params = self.server_params.copy()
+        connect_params.pop('url')
+        for url in urls:
+            conn = client(**connect_params, url=url)
+            principal = conn.principal()
+            calendars = principal.calendars()
+
     ## TODO: run this test, ref https://github.com/python-caldav/caldav/issues/91
     ## It should be removed prior to a 1.0-release.
     def testBackwardCompatibility(self):
