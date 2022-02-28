@@ -89,6 +89,12 @@ incompatibility_description = {
         """will be returned on a simple sync request.  Possibly a race condition """
         """if the token is timstamp-based?""",
 
+    'sync_breaks_on_delete':
+        """I have observed a calendar server (sabre-based) that returned """
+        """418 I'm a teapot """
+        """when requesting updates on a calendar after some calendar resource """
+        """object was deleted""",
+
     'propfind_allprop_failure':
         """The propfind test fails ... """
         """it asserts DAV:allprop response contains the text 'resourcetype', """

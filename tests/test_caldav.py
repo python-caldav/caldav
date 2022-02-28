@@ -17,6 +17,7 @@ import vobject
 import uuid
 import tempfile
 import random
+import sys
 from collections import namedtuple
 from datetime import datetime, date
 from six import PY3
@@ -43,7 +44,8 @@ from caldav.lib.python_utilities import to_local, to_str
 
 if test_xandikos:
     from xandikos.web import XandikosBackend, XandikosApp
-    from wsgiref.simple_server import make_server
+    import aiohttp
+    import asyncio
 
 if test_radicale:
     import radicale.config
@@ -796,6 +798,7 @@ class RepeatedFunctionalTestsBaseClass(object):
 
         ## DELETING the object ... and it should be reported
         obj.delete()
+        self.skip_on_compatibility_flag('sync_breaks_on_delete')
         if self.check_compatibility_flag('time_based_sync_tokens'): time.sleep(1)
         my_changed_objects = c.objects_by_sync_token(sync_token=my_changed_objects.sync_token, load_objects=True)
         if not self.check_compatibility_flag('fragile_sync_tokens'):
@@ -881,6 +884,8 @@ class RepeatedFunctionalTestsBaseClass(object):
             assert_equal(len(list(updated)), 1)
             assert_equal(len(list(deleted)), 0)
         assert(obj3.url in my_objects.objects_by_url())
+
+        self.skip_on_compatibility_flag('sync_breaks_on_delete')
 
         if self.check_compatibility_flag('time_based_sync_tokens'): time.sleep(1)
 
@@ -1648,6 +1653,8 @@ class RepeatedFunctionalTestsBaseClass(object):
 
 _servernames = set()
 for _caldav_server in caldav_servers:
+    if not _caldav_server.get('enable', True):
+        continue
     # create a unique identifier out of the server domain name
     _parsed_url = urlparse(_caldav_server['url'])
     _servername = (_parsed_url.hostname.replace('.', '_') +
@@ -1714,11 +1721,27 @@ class TestLocalXandikos(RepeatedFunctionalTestsBaseClass):
             raise SkipTest("Skipping Xadikos test due to configuration")
         self.serverdir = tempfile.TemporaryDirectory()
         self.serverdir.__enter__()
+        ## Most of the stuff below is cargo-cult-copied from xandikos.web.main
+        ## (maybe it would be better to just call main() directly
         ## TODO - we should do something with the access logs from Xandikos
         self.backend = XandikosBackend(path=self.serverdir.name)
+        self.backend._mark_as_principal('/sometestuser/') 
         self.backend.create_principal('/sometestuser/', create_defaults=True)
-        self.xandikos_server = make_server(xandikos_host, xandikos_port, XandikosApp(self.backend, '/sometestuser/'))
-        self.xandikos_thread = threading.Thread(target=self.xandikos_server.serve_forever)
+        mainapp = XandikosApp(self.backend, current_user_principal='sometestuser', strict=True)
+        async def xandikos_handler(request):
+            return await mainapp.aiohttp_handler(request, '/')
+        self.xapp = aiohttp.web.Application()
+        self.xapp.router.add_route("*", "/{path_info:.*}", xandikos_handler)
+        ## https://stackoverflow.com/questions/51610074/how-to-run-an-aiohttp-server-in-a-thread
+        self.xapp_loop = asyncio.new_event_loop()
+        self.xapp_runner = aiohttp.web.AppRunner(self.xapp)
+        asyncio.set_event_loop(self.xapp_loop)
+        self.xapp_loop.run_until_complete(self.xapp_runner.setup())
+        self.xapp_site=aiohttp.web.TCPSite(self.xapp_runner, host=xandikos_host, port=xandikos_port)
+        self.xapp_loop.run_until_complete(self.xapp_site.start())
+        def aiohttp_server():
+            self.xapp_loop.run_forever()
+        self.xandikos_thread = threading.Thread(target=aiohttp_server)
         self.xandikos_thread.start()
         self.server_params = {'url': 'http://%s:%i/' % (xandikos_host, xandikos_port)}
         self.server_params['backwards_compatibility_url'] = self.server_params['url']+'sometestuser'
@@ -1728,13 +1751,27 @@ class TestLocalXandikos(RepeatedFunctionalTestsBaseClass):
     def teardown(self):
         if not test_xandikos:
             return
-        self.xandikos_server.shutdown()
-        self.xandikos_server.socket.close()
+        self.xapp_loop.stop()
+
+        ## ... but the thread may be stuck waiting for a request ...
+        def silly_request():
+            try:
+                requests.get(self.server_params['url'])
+            except:
+                pass
+        threading.Thread(target=silly_request).start()
+        i=0
+        while (self.xapp_loop.is_running()):
+            time.sleep(0.05)
+            i+=1
+            assert(i<100)
+        self.xapp_loop.run_until_complete(self.xapp_runner.cleanup())
         i=0
         while (self.xandikos_thread.is_alive()):
             time.sleep(0.05)
             i+=1
             assert(i<100)
+
         self.serverdir.__exit__(None, None, None)
         RepeatedFunctionalTestsBaseClass.teardown(self)
 
