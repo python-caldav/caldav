@@ -128,7 +128,7 @@ def client(idx=None, **kwargs):
         return client(**caldav_servers[idx])
     elif not kwargs:
         return None
-    for bad_param in ('incompatibilities', 'backwards_compatibility_url', 'principal_url'):
+    for bad_param in ('incompatibilities', 'backwards_compatibility_url', 'principal_url', 'enable'):
         if bad_param in kwargs:
             kwargs.pop(bad_param)
     for kw in kwargs:
