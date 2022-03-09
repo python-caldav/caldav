@@ -20,7 +20,7 @@ def test_to_utc_date_string_date():
 
 
 def test_to_utc_date_string_utc():
-    input = datetime.datetime(2019, 5, 14, 21, 10, 23, 23, tzinfo=pytz.utc)
+    input = datetime.datetime(2019, 5, 14, 21, 10, 23, 23, tzinfo=datetime.timezone.utc)
     try:
         res = _to_utc_date_string(input.astimezone())
     except:
@@ -41,14 +41,13 @@ def test_to_utc_date_string_dt_with_local_tz():
         res = _to_utc_date_string(input.astimezone())
     except:
         res = _to_utc_date_string(tzlocal.get_localzone())
-    exp_dt = datetime.datetime(2019, 5, 14, 21, 10, 23, 23, tzinfo=tzlocal.get_localzone()).astimezone(pytz.utc)
+    exp_dt = datetime.datetime(2019, 5, 14, 21, 10, 23, 23, tzinfo=tzlocal.get_localzone()).astimezone(datetime.timezone.utc)
     exp = exp_dt.strftime("%Y%m%dT%H%M%SZ")
     assert res == exp
-
 
 def test_to_utc_date_string_naive_dt():
     input = datetime.datetime(2019, 5, 14, 21, 10, 23, 23)
     res = _to_utc_date_string(input)
-    exp_dt = datetime.datetime(2019, 5, 14, 21, 10, 23, 23, tzinfo=tzlocal.get_localzone()).astimezone(pytz.utc)
+    exp_dt = datetime.datetime(2019, 5, 14, 21, 10, 23, 23, tzinfo=tzlocal.get_localzone()).astimezone(datetime.timezone.utc)
     exp = exp_dt.strftime("%Y%m%dT%H%M%SZ")
     assert res == exp
