@@ -1399,7 +1399,8 @@ class RepeatedFunctionalTestsBaseClass(object):
         if not self.check_compatibility_flag('no_todo'):
             t1 = c.save_todo(todo)
         assert_not_equal(e1.url, None)
-        assert_not_equal(t1.url, None)
+        if not self.check_compatibility_flag('no_todo'):
+            assert_not_equal(t1.url, None)
         if not self.check_compatibility_flag('event_by_url_is_broken'):
             assert_equal(c.event_by_url(e1.url).url, e1.url)
         assert_equal(c.event_by_uid(e1.id).url, e1.url)
@@ -1719,6 +1720,9 @@ class TestLocalXandikos(RepeatedFunctionalTestsBaseClass):
     def setup(self):
         if not test_xandikos:
             raise SkipTest("Skipping Xadikos test due to configuration")
+
+        ## TODO: https://github.com/jelmer/xandikos/issues/131#issuecomment-1054805270 suggests a simpler way to launch the xandikos server
+        
         self.serverdir = tempfile.TemporaryDirectory()
         self.serverdir.__enter__()
         ## Most of the stuff below is cargo-cult-copied from xandikos.web.main
