@@ -1140,12 +1140,16 @@ class ScheduleMailbox(Calendar):
             except:
                 logging.debug("caldav server does not seem to support a sync-token REPORT query on a scheduling mailbox")
                 error.assert_('google' in str(self.url))
-                self._items = self.children()
+                self._items = [CalendarObjectResource(url=x[0], client=self.client) for x in self.children()]
+                for x in self._items:
+                    x.load()
         else:
             try:
                 self._items.sync()
             except:
-                self._items = self.children()
+                self._items = [CalendarObjectResource(url=x[0], client=self.client) for x in self.children()]
+                for x in self._items:
+                    x.load()
         return self._items
 
     ## TODO: work in progress
