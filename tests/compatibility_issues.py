@@ -261,3 +261,10 @@ nextcloud = [
     'no_recurring_todo',
     'no_recurring_todo_expand',
 ]
+
+fastmail = [
+    'duplicates_not_allowed',
+    'duplicate_in_other_calendar_with_same_uid_breaks',
+    'no_todo',
+    'sticky_events'
+]
