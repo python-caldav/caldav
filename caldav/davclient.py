@@ -337,6 +337,12 @@ class DAVClient:
 
         self._principal = None
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.session.close()
+
     def principal(self, *largs, **kwargs):
         """
         Convenience method, it gives a bit more object-oriented feel to
