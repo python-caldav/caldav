@@ -10,7 +10,7 @@ to emulate server communication.
 """
 
 from six import PY3
-from nose.tools import assert_equal, assert_not_equal, assert_raises
+from nose.tools import assert_equal, assert_not_equal, assert_raises, assert_true
 import caldav
 from caldav.davclient import DAVClient, DAVResponse
 from caldav.objects import (Principal, Calendar, Journal, Event, DAVObject,
@@ -843,3 +843,11 @@ END:VCALENDAR"""] ## todo: add more broken ical here
                 assert_equal(
                     calendar._calendar_comp_class_by_data(icalendar.Calendar.from_ical(ical)),
                     class_)
+
+    def testContextManager(self):
+        """
+        ref https://github.com/python-caldav/caldav/pull/175
+        """
+        cal_url = "http://me:hunter2@calendar.example:80/"
+        with DAVClient(url=cal_url) as client_ctx_mgr:
+            assert_true(isinstance(client_ctx_mgr, DAVClient))
