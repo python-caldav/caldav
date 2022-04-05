@@ -543,11 +543,11 @@ class DAVClient:
             self.username and
             not self.auth):
             auth_type = r.headers['WWW-Authenticate']
-            auth_type = auth_type[0:auth_type.find(" ")]
+            auth_type = auth_type[0:auth_type.find(" ")].lower()
 
-            if auth_type == 'Basic':
+            if auth_type == 'basic':
                 self.auth = requests.auth.HTTPBasicAuth(self.username, self.password)
-            elif auth_type == 'Digest':
+            elif auth_type == 'digest':
                 self.auth = requests.auth.HTTPDigestAuth(self.username, self.password)
             else:
                 raise NotImplementedError("Auth method %s not supported yet" % auth_type)
@@ -568,9 +568,9 @@ class DAVClient:
             auth_type = auth_type[0:auth_type.find(" ")]
 
             if hasattr(self.password, 'decode'):
-                if auth_type == 'Basic':
+                if auth_type == 'basic':
                     self.auth = requests.auth.HTTPBasicAuth(self.username, self.password.decode())
-                elif auth_type == 'Digest':
+                elif auth_type == 'digest':
                     self.auth = requests.auth.HTTPDigestAuth(self.username, self.password.decode())
 
             self.username = None
