@@ -565,7 +565,7 @@ class DAVClient:
             ## (see commit 13a4714, which introduced this regression)
 
             auth_type = r.headers['WWW-Authenticate']
-            auth_type = auth_type[0:auth_type.find(" ")]
+            auth_type = auth_type[0:auth_type.find(" ")].lower()
 
             if hasattr(self.password, 'decode'):
                 if auth_type == 'basic':
