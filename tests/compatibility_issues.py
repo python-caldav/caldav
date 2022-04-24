@@ -214,7 +214,10 @@ bedework = [
 baikal = [
     ## date search on todos does not seem to work
     ## (TODO: do some research on this)
-    'no_todo_datesearch',
+    'sync_breaks_on_delete',
+    'no_recurring_todo',
+    'no_recurring_todo_expand',
+    'non_existing_calendar_found',
 
     ## extra features not specified in RFC5545
     "calendar_order",
