@@ -109,6 +109,10 @@ incompatibility_description = {
     'vtodo_datesearch_nodtstart_task_is_skipped':
         """date searches for todo-items will not find tasks without a dtstart""",
 
+    'vtodo_datesearch_notime_task_is_skipped':
+        """date searches for todo-items will (only) find tasks that has either """
+        """a dtstart or due set""",
+
     'vtodo_no_due_infinite_duration':
         """date search will find todo-items without due if dtstart is """
         """before the date search interval.  I didn't find anything explicit """
@@ -187,7 +191,8 @@ zimbra = [
     'uid_required',
     'no_todo_on_standard_calendar',
     'no_sync_token',
-    'no_recurring_todo',
+    #'no_recurring_todo',
+    'vtodo_datesearch_notime_task_is_skipped',
 
     ## extra features not specified in RFC5545
     "calendar_order",

@@ -1147,9 +1147,8 @@ class RepeatedFunctionalTestsBaseClass(object):
         # t2 and t3 has dtstart and due set
         # t4 has neither dtstart nor due set.
         # t5 has dtstart and due set prior to the search window
-        # t6 has dtstart and due set prior to the search window,
-        # but is yearly recurring.
-        # None has duration set.  What will a date search yield?
+        # t6 has dtstart and due set prior to the search window, but is yearly recurring.
+        # What will a date search yield?
         noexpand = self.check_compatibility_flag('no_expand')
         todos = c.date_search(
             start=datetime(1997, 4, 14), end=datetime(2015, 5, 14),
@@ -1173,6 +1172,8 @@ class RepeatedFunctionalTestsBaseClass(object):
             foo -= 1 ## t6 will not be returned
         if self.check_compatibility_flag('vtodo_datesearch_nodtstart_task_is_skipped'):
             foo -= 2 ## t1 and t4 not returned
+        elif self.check_compatibility_flag('vtodo_datesearch_notime_task_is_skipped'):
+            foo -= 1 ## t4 not returned
         assert_equal(len(todos), foo)
 
         ## verify that "expand" works
@@ -1197,7 +1198,8 @@ class RepeatedFunctionalTestsBaseClass(object):
         if not (self.check_compatibility_flag('no_recurring') or
                 self.check_compatibility_flag('no_recurring_todo')):
             urls_found.remove(t6.url)
-        if not self.check_compatibility_flag('vtodo_datesearch_nodtstart_task_is_skipped'):
+        if (not self.check_compatibility_flag('vtodo_datesearch_nodtstart_task_is_skipped')
+            and not self.check_compatibility_flag('vtodo_datesearch_notime_task_is_skipped')):
             urls_found.remove(t4.url)
         if self.check_compatibility_flag('vtodo_no_due_infinite_duration'):
             urls_found.remove(t1.url)
