@@ -45,6 +45,7 @@ from caldav.lib.python_utilities import to_local, to_str
 if test_xandikos:
     from xandikos.web import XandikosBackend, XandikosApp
     import aiohttp
+    import aiohttp.web
     import asyncio
 
 if test_radicale:
