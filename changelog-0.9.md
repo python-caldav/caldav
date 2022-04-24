@@ -1,16 +1,16 @@
 # Changelog v0.8.2 -> v0.9
 
-This time I will try to maintain a v0.8.x-branch in parallell with development on v0.9, so there may also be a v0.8.3-release, maybe even 0.8.4 - you never know.  However, all changes in v0.8.x will be backported into the v0.9-branch, including changelog entries.
-
 ## API changes
 
 `save_todo`, `save_event` and `save_journal` now takes extra parameters, assumed to be equivalent with ical attributes as defined in the icalendar library, and may build icalendar data from scratch or enhance on the given icalendar data.
 
-Github issues: https://github.com/python-caldav/caldav/issues/156 https://github.com/python-caldav/caldav/issues/155
+Added a context manager, so one can do `with DAVClient(foo) as client: ...`
 
-Commits: eb8b7f877f4c5ca6181a177431b4a57f0a8c2039 b32f3ef3e15cd5edacca0ddaa9240c3814bc88ad
+Github issues: https://github.com/python-caldav/caldav/issues/156 https://github.com/python-caldav/caldav/issues/155 https://github.com/python-caldav/caldav/issues/175
 
-Credits: @Sigmun
+Commits: eb8b7f877f4c5ca6181a177431b4a57f0a8c2039 b32f3ef3e15cd5edacca0ddaa9240c3814bc88ad fe108599167a517c56411d0bac9abb3abae8e825
+
+Credits: @Sigmun @neonfighter28
 
 ## Refactoring
 
@@ -20,14 +20,22 @@ Github issues: https://github.com/python-caldav/caldav/issues/158
 
 Commits: 1366e4e503180e10696f99ede6c2526451c7acab b3bde1c0e79d850acd5fa0615d3fbf6a3289c148 6be182800bbf7367a8da1005dad4b3e0b43967ca 164f88d
 
-## Bugfixes
+## Bugfixes and test framework
 
-(all of those except the bugfix on the create_ical function is also included in the 0.8-stable branch)
-
+* Quite some problems fixed with the authentication code
 * The string representation of any error class was hardcoded as "AuthorizationError".
 * Concatinating an empty unicode string with an empty byte string will cause an exception.  The python_utilities.to_wire method would return an empty unicode string if given an empty unicode string.
 * create_ical function did have some troubles with empty unicode string in ical_fragment
 * the flags no_overwrite and no_create in save_todo and save_journal didn't work
+* scheduling still doesn't work very well, but one bug has been fixed
+* tests and compatibility lists: some tweaks to let tests pass on the test servers (including fastmail)
 * tests: make sure to delete the test calendar properly
+* tests: test that non-base-urls still work
+* tests: working around some issues on xandrikos startup, allows newer xandrikos version to be used
+* tests: added flag "enable" in the test server config file
 
-Commits: eb708a9, 232acdd, 509b4f01, 67e47bc, 29e2dd3, 29e2dd3
+Github issues: https://github.com/python-caldav/caldav/issues/163 https://github.com/python-caldav/caldav/issues/164 https://github.com/python-caldav/caldav/issues/165 https://github.com/python-caldav/caldav/issues/166 https://github.com/python-caldav/caldav/issues/168 https://github.com/python-caldav/caldav/issues/169 https://github.com/python-caldav/caldav/issues/171 https://github.com/home-assistant/core/issues/65941 https://github.com/home-assistant/core/issues/65588 and many other issues on the home-assistant project
+
+Commits: eb708a9 232acdd 509b4f01 67e47bc 29e2dd3 bafa810 dd26017 1de95ce1f ce89561bf 9aa31802 872232 52870b10
+
+Credits: Bjoern Kahl
