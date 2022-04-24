@@ -509,16 +509,13 @@ class DAVClient:
         # objectify the url
         url = URL.objectify(url)
 
-        # ensure that url is a normal string
-        url = str(url)
-
         log.debug(
             "sending request - method={0}, url={1}, headers={2}\nbody:\n{3}"
-            .format(method, url, combined_headers, to_normal_str(body)))
+            .format(method, str(url), combined_headers, to_normal_str(body)))
 
         try:
             r = self.session.request(
-                method, url, data=to_wire(body),
+                method, str(url), data=to_wire(body),
                 headers=combined_headers, proxies=proxies, auth=self.auth,
                 verify=self.ssl_verify_cert, cert=self.ssl_cert)
             log.debug("server responded with %i %s" % (r.status_code, r.reason))
@@ -531,7 +528,7 @@ class DAVClient:
             if self.auth or not self.password:
                 raise
             r = self.session.request(
-                method='GET', url=url, headers=combined_headers,
+                method='GET', url=str(url), headers=combined_headers,
                 proxies=proxies, verify=self.ssl_verify_cert,
                 cert=self.ssl_cert)
             if not r.status_code == 401:
@@ -584,6 +581,6 @@ class DAVClient:
                 reason = response.reason
             except AttributeError:
                 reason = "None given"
-            raise error.AuthorizationError(url=url, reason = reason)
+            raise error.AuthorizationError(url=str(url), reason = reason)
 
         return response
