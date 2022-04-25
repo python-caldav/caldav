@@ -341,6 +341,12 @@ class DAVClient:
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
+        self.close()
+
+    def close(self):
+        """
+        Closes the DAVClient's session object
+        """
         self.session.close()
 
     def principal(self, *largs, **kwargs):
