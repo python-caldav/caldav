@@ -25,7 +25,6 @@ Commits: 1366e4e503180e10696f99ede6c2526451c7acab b3bde1c0e79d850acd5fa0615d3fbf
 * Quite some problems fixed with the authentication code
 * The string representation of any error class was hardcoded as "AuthorizationError".
 * Concatinating an empty unicode string with an empty byte string will cause an exception.  The python_utilities.to_wire method would return an empty unicode string if given an empty unicode string.
-* create_ical function did have some troubles with empty unicode string in ical_fragment
 * the flags no_overwrite and no_create in save_todo and save_journal didn't work
 * scheduling still doesn't work very well, but one bug has been fixed
 * tests and compatibility lists: some tweaks to let tests pass on the test servers (including fastmail)

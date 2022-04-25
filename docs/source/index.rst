@@ -338,6 +338,8 @@ CalDAV URLs can be quite confusing, some software requires the URL to the calend
 
 * Zimbra: The caldav URL is typically on the format ``https://mail.example.com/dav/``, calendar URLs can be on the format ``https://mail.example.com/dav/donald@example.com/My%20Golfing%20Calendar``.  Display name always matches the last part of the URL.
 
+* Fastmail: ``https://caldav.fastmail.com/dav/`` - note that the trailing dash is significant (ref https://github.com/home-assistant/core/issues/66599)
+
 
 Unit testing
 ============
