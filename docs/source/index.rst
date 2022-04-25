@@ -100,8 +100,9 @@ Setting up a caldav client object and a principal object:
 
 .. code-block:: python
 
-  client = caldav.DAVClient(url=url, username=username, password=password)
-  my_principal = client.principal()
+  with caldav.DAVClient(url=url, username=username, password=password) as client:
+      my_principal = client.principal()
+      ...
 
 Fetching calendars:
   
