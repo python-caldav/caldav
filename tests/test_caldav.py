@@ -1170,7 +1170,8 @@ class RepeatedFunctionalTestsBaseClass(object):
         if (self.check_compatibility_flag('no_recurring') or
             self.check_compatibility_flag('no_recurring_todo')):
             foo -= 1 ## t6 will not be returned
-        if self.check_compatibility_flag('vtodo_datesearch_nodtstart_task_is_skipped'):
+        if (self.check_compatibility_flag('vtodo_datesearch_nodtstart_task_is_skipped') or
+            self.check_compatibility_flag('vtodo_datesearch_nodtstart_task_is_skipped_in_closed_date_range')):
             foo -= 2 ## t1 and t4 not returned
         elif self.check_compatibility_flag('vtodo_datesearch_notime_task_is_skipped'):
             foo -= 1 ## t4 not returned

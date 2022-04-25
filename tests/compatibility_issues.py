@@ -109,6 +109,9 @@ incompatibility_description = {
     'vtodo_datesearch_nodtstart_task_is_skipped':
         """date searches for todo-items will not find tasks without a dtstart""",
 
+    'vtodo_datesearch_nodtstart_task_is_skipped_in_closed_date_range':
+        """only open-ended date searches for todo-items will find tasks without a dtstart""",
+
     'vtodo_datesearch_notime_task_is_skipped':
         """date searches for todo-items will (only) find tasks that has either """
         """a dtstart or due set""",
@@ -244,9 +247,9 @@ icloud = [
 
 davical = [
     #'nofreebusy', ## for old versions 
-    'vtodo_datesearch_nodtstart_task_is_skipped',
     'fragile_sync_tokens',
-    'no_journal' ## it threw a 500 internal server error!
+    'no_journal', ## it threw a 500 internal server error!
+    'vtodo_datesearch_nodtstart_task_is_skipped_in_closed_date_range',
 ]
 
 google = [
@@ -261,7 +264,6 @@ sogo = [
     'no_freebusy_rfc4791', ## https://www.sogo.nu/bugs/view.php?id=5282
     "time_based_sync_tokens", ## Left a note on https://www.sogo.nu/bugs/view.php?id=5163
     "no_expand", ## https://www.sogo.nu/bugs/view.php?id=3065
-    "vtodo_datesearch_nodtstart_task_is_skipped",
 ]
 
 nextcloud = [
