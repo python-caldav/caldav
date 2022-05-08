@@ -1,3 +1,9 @@
+# Changelog v0.9.0 -> v0.9.1
+
+## Bugfixes
+
+v0.9.0 broke on elder python versions due to an f"string".  The f-format was introduced in python 3.6.  Anything below is actually End of Life versions, but still ... it's a very small effort here to preserve compatibility with elder python versions.
+
 # Changelog v0.8.2 -> v0.9
 
 ## API changes

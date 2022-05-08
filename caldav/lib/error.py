@@ -12,7 +12,7 @@ except:
     ## The default debugmode should be PRODUCTION in official releases,
     ## and DEVELOPMENT when doing beta testing.
     ## TODO: find some way to automate this.
-    debugmode = 'PRODUCTION'
+    debugmode = 'DEVELOPMENT'
 
 log = logging.getLogger('caldav')
 if debugmode.startswith('DEBUG'):
@@ -45,7 +45,7 @@ class DAVError(Exception):
             self.reason = reason
 
     def __str__(self):
-        return f"{self.__class__.__name__} at '{self.url}', reason '{self.reason}'"
+        return "%s at '%s', reason %s" % (self.__class__.__name__, self.url, self.reason)
 
 class AuthorizationError(DAVError):
     """
