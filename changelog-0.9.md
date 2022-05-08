@@ -5,7 +5,7 @@
 * Quite some users are complaining because recurring events aren't supported - which is intentional, because the server is supposed to take care of that.  Unfortunately quite some servers doesn't.  Thanks to cos, at least we now have some code in place to give an error (or optionally raising an error) when recurrences aren't taken care of (though, it only works if the server is returning non-expanded recurring events - if searching for a recurrence and the server doesn't find it, then ... no error logged).  The error message is referring to https://github.com/python-caldav/caldav/issues/157
 * New method `.close` on the DAVClient object
 
-Credits: cos, neonfighter28
+Credits: |cos|, neonfighter28
 
 commits: 53c74737fd83b32e016a954b7b5f57bb028e0f24 c20ed6a65acae6c4e1cdd0fa2b9dc73244932681 ddcd11508290b0dbc580dde0f2aa712d95d1e6f7
 
@@ -22,7 +22,7 @@ credits: Martin Eberhardt
 
 * v0.9.0 broke on elder python versions due to an f"string".  The f-format was introduced in python 3.6.  Anything below is actually End of Life versions, but still ... it's a very small effort here to preserve compatibility with elder python versions.
 
-Credits: cos
+Credits: |cos|
 
 commits: a82cb81d02fe207106951cdecd49fefc8146155a 1ab5b9926c372af8f5644908d523e3b47fa3f9c1 2aae381f2cb499f203a994d217ce989a8d97071e
 
@@ -30,7 +30,7 @@ commits: a82cb81d02fe207106951cdecd49fefc8146155a 1ab5b9926c372af8f5644908d523e3
 
 Removal of some extra white space
 
-Credits: cos
+Credits: |cos|
 
 commits: 783e233cf8c86fb87fef0245841edd86e392efb3
 
