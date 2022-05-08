@@ -754,7 +754,7 @@ class Calendar(DAVObject):
                     if i.name == 'VEVENT':
                         recurrance_properties = ['exdate', 'exrule', 'rdate', 'rrule']
                         if any(key in recurrance_properties for key in i.contents):
-                            if verify_expansion:
+                            if verify_expand:
                                 raise error.ReportError('CalDAV server did not expand recurring vevents as requested. See https://github.com/python-caldav/caldav/issues/157')
                             else:
                                 logging.error('CalDAV server does not support recurring events properly.  See https://github.com/python-caldav/caldav/issues/157')
