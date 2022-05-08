@@ -734,7 +734,24 @@ class Calendar(DAVObject):
         ## avoid sending expand=True to xandikos, but perhaps we
         ## should run a try-except-retry here with expand=False in the
         ## retry, and warnings logged ... or perhaps not.
-        return self.search(root, comp_class)
+        ##
+        ## Perhaps not? Detect and raise an Exception. Since the library
+        ## does not perform client side expansion, it should probably be
+        ## left as a concious desicion for the API consumer to retry with
+        ## expansion set to False.
+        ##
+        ## RFC4791, section 9.6.5 states that recurrence properties MUST NOT be
+        ## returned.
+        objects = self.search(root, comp_class)
+        if expand:
+            for o in objects:
+                components = o.instance.components()
+                for i in components:
+                    if i.name == 'VEVENT':
+                        recurrance_properties = ['exdate', 'exrule', 'rdate', 'rrule']
+                        if any(key in recurrance_properties for key in i.contents):
+                            raise error.ReportError('CalDAV server did not expand vevents as requested.')
+        return objects
 
     def _request_report_build_resultlist(self, xml, comp_class=None, props=None, no_calendardata=False):
         """
