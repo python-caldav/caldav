@@ -26,6 +26,14 @@ Credits: cos
 
 commits: a82cb81d02fe207106951cdecd49fefc8146155a 1ab5b9926c372af8f5644908d523e3b47fa3f9c1 2aae381f2cb499f203a994d217ce989a8d97071e
 
+## Linting
+
+Removal of some extra white space
+
+Credits: cos
+
+commits: 783e233cf8c86fb87fef0245841edd86e392efb3
+
 ## Testing framework and incompatibility matrix
 
 * The testTodoDatesearch is pesky - because every server has different visions on how (or weather) to support recurring tasks
