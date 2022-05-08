@@ -23,10 +23,10 @@ import uuid
 ## generating broken data.  Compatibility issues should also be collected
 ## in the documentation. somewhere.
 def fix(event):
-    """This function receives some ical as it's given from the server, checks for 
+    """This function receives some ical as it's given from the server, checks for
     breakages with the standard, and attempts to fix up known issues:
 
-    1) COMPLETED MUST be a datetime in UTC according to the RFC, but sometimes 
+    1) COMPLETED MUST be a datetime in UTC according to the RFC, but sometimes
     a date is given. (Google Calendar?)
 
     2) The RFC does not specify any range restrictions on the dates,

@@ -38,7 +38,7 @@ class DAVResponse:
         log.debug("response status: " + str(self.status))
 
         self._raw = response.content
-        
+
         ## TODO: this if/else/elif could possibly be refactored, or we should
         ## consider to do streaming into the xmltree library as originally
         ## intended.  It only makes sense for really huge payloads though.
@@ -186,7 +186,7 @@ class DAVResponse:
 
         if 'Schedule-Tag' in self.headers:
             self.schedule_tag = self.headers['Schedule-Tag']
-        
+
         responses = self._strip_to_multistatus()
         for r in responses:
             if r.tag == dav.SyncToken.tag:
@@ -494,7 +494,7 @@ class DAVClient:
         Send a delete request.
         """
         return self.request(url, "DELETE")
- 
+
     def options(self, url):
         return self.request(url, "OPTIONS")
 

@@ -121,7 +121,7 @@ class DAVObject(object):
                         self.url.join(path).strip_trailing_slash()):
                     c.append((self.url.join(path), resource_types,
                               resource_name))
-                    
+
         ## TODO: return objects rather than just URLs, and include
         ## the properties we've already fetched
         return c
@@ -175,7 +175,7 @@ class DAVObject(object):
         return foo.get(prop.tag, None)
 
     def get_properties(self, props=None, depth=0, parse_response_xml=True, parse_props=True):
-        """Get properties (PROPFIND) for this object.  
+        """Get properties (PROPFIND) for this object.
 
         With parse_response_xml and parse_props set to True a
         best-attempt will be done on decoding the XML we get from the
@@ -185,7 +185,7 @@ class DAVObject(object):
         to decode.  With parse_props set to false but
         parse_response_xml set to true, xml elements will be returned
         rather than values.
-        
+
         Parameters:
          * props = [dav.ResourceType(), dav.DisplayName(), ...]
 
@@ -202,7 +202,7 @@ class DAVObject(object):
             properties = response.find_objects_and_props()
         else:
             properties = response.expand_simple_props(props)
-            
+
         error.assert_(properties)
 
         path = unquote(self.url.path)
@@ -1056,7 +1056,7 @@ class Calendar(DAVObject):
         vcalendar = cdav.CompFilter("VCALENDAR") + vevent
         filter = cdav.Filter() + vcalendar
         root = cdav.CalendarQuery() + [prop, filter]
-        
+
         return self.search(root, comp_class=Event)
 
     def objects_by_sync_token(self, sync_token=None, load_objects=False):
@@ -1459,7 +1459,7 @@ class CalendarObjectResource(DAVObject):
             attendee = self.client.principal()
 
         cnt=0
-            
+
         if isinstance(attendee, Principal):
             for addr in attendee.calendar_user_address_set():
                 try:
@@ -1636,7 +1636,7 @@ class CalendarObjectResource(DAVObject):
 
 class Event(CalendarObjectResource):
     """
-    The `Event` object is used to represent an event (VEVENT).  
+    The `Event` object is used to represent an event (VEVENT).
 
     As of 2020-12 it adds nothing to the inheritated class.  (I have
     frequently asked myself if we need those subclasses ... perhaps
