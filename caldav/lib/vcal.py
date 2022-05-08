@@ -89,7 +89,7 @@ def create_ical(ical_fragment=None, objtype=None, language='en_DK', **attributes
     ical_fragment = to_wire(ical_fragment)
     if not ical_fragment or not re.search(b'^BEGIN:V', ical_fragment, re.MULTILINE):
         my_instance = icalendar.Calendar()
-        my_instance.add('prodid', f'-//python-caldav//caldav//{language}')
+        my_instance.add('prodid', '-//python-caldav//caldav//' + language)
         my_instance.add('version', '2.0')
         if objtype is None:
             objtype='VEVENT'
