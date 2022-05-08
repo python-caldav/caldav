@@ -702,10 +702,9 @@ class Calendar(DAVObject):
         root = cdav.CalendarQuery() + [prop, filter]
         return root
 
-    def date_search(self, start, end=None, compfilter="VEVENT", expand="maybe"):
+    def date_search(self, start, end=None, compfilter="VEVENT", expand="maybe", verify_expand=False):
         # type (TimeStamp, TimeStamp, str, str) -> CalendarObjectResource
-        """
-        Search events by date in the calendar. Recurring events are
+        """Search events by date in the calendar. Recurring events are
         expanded if they are occuring during the specified time frame
         and if an end timestamp is given.
 
@@ -717,6 +716,11 @@ class Calendar(DAVObject):
          * expand - should recurrent events be expanded?  (to preserve
            backward-compatibility the default "maybe" will be changed into True
            unless the date_search is open-ended)
+         * verify_expand - quite some servers does not support
+           expansion.  If verify_expand is set to True, an error will
+           be raised if expansion is requested but the server does not
+           support expansion.  Defaults to False for
+           backward-compatibility.
 
         Returns:
          * [CalendarObjectResource(), ...]
@@ -745,12 +749,15 @@ class Calendar(DAVObject):
         objects = self.search(root, comp_class)
         if expand:
             for o in objects:
-                components = o.instance.components()
+                components = o.vobject_instance.components()
                 for i in components:
                     if i.name == 'VEVENT':
                         recurrance_properties = ['exdate', 'exrule', 'rdate', 'rrule']
                         if any(key in recurrance_properties for key in i.contents):
-                            raise error.ReportError('CalDAV server did not expand vevents as requested.')
+                            if verify_expansion:
+                                raise error.ReportError('CalDAV server did not expand recurring vevents as requested. See https://github.com/python-caldav/caldav/issues/157')
+                            else:
+                                logging.error('CalDAV server does not support recurring events properly.  See https://github.com/python-caldav/caldav/issues/157')
         return objects
 
     def _request_report_build_resultlist(self, xml, comp_class=None, props=None, no_calendardata=False):

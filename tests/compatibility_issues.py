@@ -267,7 +267,7 @@ sogo = [
 ]
 
 nextcloud = [
-    'no_sync_token',
+    'sync_breaks_on_delete',
     'no_recurring_todo',
     'no_recurring_todo_expand',
 ]
