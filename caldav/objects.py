@@ -980,7 +980,7 @@ class Calendar(DAVObject):
         except Exception as err:
             if comp_filter is not None:
                 raise
-            logging.warning(f"Error {str(err)} from server when doing an object_by_uid({uid}).  search without compfilter set is not compatible with all server implementations, trying object_by_event + object_by_todo + object_by_journal instead")
+            logging.warning("Error %s from server when doing an object_by_uid(%s).  search without compfilter set is not compatible with all server implementations, trying object_by_event + object_by_todo + object_by_journal instead" % (str(err), uid))
             items_found = []
             for compfilter in ("VTODO", "VEVENT", "VJOURNAL"):
                 try:
