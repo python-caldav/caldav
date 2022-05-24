@@ -442,7 +442,7 @@ class Principal(DAVObject):
             ## owncloud returns /remote.php/dav/calendars/tobixen@e.email/
             ## in that case the @ should be quoted.  Perhaps other
             ## implentations returns already quoted URLs.  Hacky workaround:
-            if '@' in calendar_home_set_url and not '://' in calendar_home_set_url:
+            if calendar_home_set_url is not None and '@' in calendar_home_set_url and not '://' in calendar_home_set_url:
                 calendar_home_set_url = quote(calendar_home_set_url)
             self.calendar_home_set = calendar_home_set_url
         return self._calendar_home_set
