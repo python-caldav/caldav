@@ -769,6 +769,9 @@ END:VCALENDAR
         assert_equal(URL('http://www.example.com:8080/bar/').strip_trailing_slash(), URL('http://www.example.com:8080/bar'))
         assert_equal(URL('http://www.example.com:8080/bar/').strip_trailing_slash(), URL('http://www.example.com:8080/bar').strip_trailing_slash())
 
+        # 9) canonical
+        assert_equal(URL('https://www.example.com:443/b%61r/').canonical(), URL('//www.example.com/bar/').canonical())
+
     def testFilters(self):
         filter = \
             cdav.Filter().append(

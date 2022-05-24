@@ -4,10 +4,11 @@
 from six import PY3
 from caldav.lib.python_utilities import to_unicode, to_normal_str
 if PY3:
-    from urllib.parse import ParseResult, SplitResult, urlparse
+    from urllib.parse import ParseResult, SplitResult, urlparse, unquote, quote, urlunparse
 else:
     from urlparse import ParseResult, SplitResult
-    from urlparse import urlparse
+    from urlparse import urlparse, urlunparse
+    from urllib import unquote, quote
 
 
 def uc2utf8(input):
@@ -133,7 +134,7 @@ class URL:
         """
         a canonical URL ... remove authentication details, make sure there
         are no double slashes, and to make sure the URL is always the same,
-        run it through the urlparser
+        run it through the urlparser, and make sure path is properly quoted
         """
         url = self.unauth()
 
@@ -141,13 +142,24 @@ class URL:
         if '//' in url.path:
             raise NotImplementedError("remove the double slashes")
 
-        # This looks like a noop - but it may have the side effect
-        # that urlparser be run (actually not - unauth ensures we
-        # have an urlParseResult object)
-        url.scheme
+        arr = list(self.url_parsed)
+        ## quoting path
+        arr[2] = quote(unquote(url.path))
+        ## sensible defaults
+        if not arr[0]:
+            arr[0] = 'https'
+        if arr[1] and not ':' in arr[1]:
+            if arr[0] == 'https':
+                portpart = ':443'
+            elif arr[0] == 'http':
+                portpart = ':80'
+            else:
+                portpart = ''
+            arr[1] += portpart
 
         # make sure to delete the string version
-        url.url_raw = None
+        url.url_raw = urlunparse(arr)
+        url.url_parsed = None
 
         return url
 
