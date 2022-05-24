@@ -85,7 +85,7 @@ class DAVObject(object):
 
     @property
     def canonical_url(self):
-        return str(self.url.unauth())
+        return str(self.url.canonical())
 
     def children(self, type=None):
         """
@@ -749,6 +749,8 @@ class Calendar(DAVObject):
         objects = self.search(root, comp_class)
         if expand:
             for o in objects:
+                if not o.data:
+                    continue
                 components = o.vobject_instance.components()
                 for i in components:
                     if i.name == 'VEVENT':
@@ -1605,6 +1607,8 @@ class CalendarObjectResource(DAVObject):
 
     def _get_vobject_instance(self):
         if not self._vobject_instance:
+            if self._get_data() is None:
+                return None
             try:
                 self._set_vobject_instance(vobject.readOne(to_unicode(self._get_data())))
             except:
@@ -1624,6 +1628,8 @@ class CalendarObjectResource(DAVObject):
     def _get_icalendar_instance(self):
         import icalendar
         if not self._icalendar_instance:
+            if not self.data:
+                return None
             self.icalendar_instance = icalendar.Calendar.from_ical(to_unicode(self.data))
         return self._icalendar_instance
 
