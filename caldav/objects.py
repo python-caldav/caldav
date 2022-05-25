@@ -117,8 +117,9 @@ class DAVObject(object):
                 # And why is the strip_trailing_slash-method needed?
                 # The collection URL should always end with a slash according
                 # to RFC 2518, section 5.2.
-                if (self.url.canonical().strip_trailing_slash() !=
-                        self.url.join(path).canonical().strip_trailing_slash()):
+                if ((isinstance(self, CalendarSet) and type == cdav.Calendar.tag)
+                    or (self.url.canonical().strip_trailing_slash() !=
+                        self.url.join(path).canonical().strip_trailing_slash())):
                     c.append((self.url.join(path), resource_types,
                               resource_name))
 
