@@ -14,7 +14,7 @@ commits: 53c74737fd83b32e016a954b7b5f57bb028e0f24 c20ed6a65acae6c4e1cdd0fa2b9dc7
 * Added the fastmail caldav URL to the documentation - including note that they are picky on the trailing slash - ref https://github.com/home-assistant/core/issues/66599
 * Keeping the changelog up-to-date
 
-commits: ec29395beb27dfa734078195b29685563c284cbc ea4fb0845343436fd5f4cb65852ee1437505ae58 fcb616d7f6016d65bc79dbae7f131d049fa1522d d43fbdde507a642dd5a55facc6bbea4b372e786b
+commits: ec29395beb27dfa734078195b29685563c284cbc ea4fb0845343436fd5f4cb65852ee1437505ae58 fcb616d7f6016d65bc79dbae7f131d049fa1522d d43fbdde507a642dd5a55facc6bbea4b372e786b 71ddf6ae0e4ad4802b9315356a46fd116b7cb682
 
 credits: Martin Eberhardt
 
@@ -40,9 +40,10 @@ commits: 783e233cf8c86fb87fef0245841edd86e392efb3
 
 ## Testing framework and incompatibility matrix
 
-* The testTodoDatesearch is pesky - because every server has different visions on how (or weather) to support recurring tasks
+* The testTodoDatesearch is pesky - because every server has different visions on how (or weather) to support recurring tasks.  Added yet more complexity to allow the test code to pass on different servers.
+* Removed some silly test code in testSetCalendarProperties - seems to be just recreating a calendar, which we do in the setup of any test unless the `unique_calendar_ids`-flag is given.
 
-commits 7bdb32498582477a8b8bd45a871d441711356903
+commits 7bdb32498582477a8b8bd45a871d441711356903 a82b3b42a62a5e8972bdb41d64748695dc95ff85 9f67d5b349796a131d37da266eb6b7b305402087
 
 # Changelog v0.8.2 -> v0.9
 
