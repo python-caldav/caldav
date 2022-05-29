@@ -138,13 +138,9 @@ class URL:
         """
         url = self.unauth()
 
-        # this is actually already done in the unauth method ...
-        if '//' in url.path:
-            raise NotImplementedError("remove the double slashes")
-
         arr = list(self.url_parsed)
-        ## quoting path
-        arr[2] = quote(unquote(url.path))
+        ## quoting path and removing double slashes
+        arr[2] = quote(unquote(url.path.replace('//', '/')))
         ## sensible defaults
         if not arr[0]:
             arr[0] = 'https'
