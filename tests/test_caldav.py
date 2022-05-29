@@ -702,10 +702,10 @@ class RepeatedFunctionalTestsBaseClass(object):
         """
         mycal = self._fixCalendar()
         samecal = self.caldav.principal().calendar(cal_id=str(mycal.url))
-        assert_equal(mycal.url, samecal.url)
+        assert_equal(mycal.url.canonical(), samecal.url.canonical())
         ## passing cal_id as an URL object should also work.
         samecal = self.caldav.principal().calendar(cal_id=mycal.url)
-        assert_equal(mycal.url, samecal.url)
+        assert_equal(mycal.url.canonical(), samecal.url.canonical())
 
 
     def testObjectBySyncToken(self):

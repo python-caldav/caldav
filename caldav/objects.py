@@ -361,7 +361,7 @@ class CalendarSet(DAVObject):
         if not cal_id and not name:
             return self.calendars()[0]
 
-        if str(cal_id).startswith(str(self.client.url)):
+        if str(URL.objectify(cal_id).canonical()).startswith(str(self.client.url.canonical())):
             url = self.client.url.join(cal_id)
         elif isinstance(cal_id, URL):
             url = self.url.join(cal_id)
