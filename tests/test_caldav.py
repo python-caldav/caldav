@@ -1307,15 +1307,15 @@ class RepeatedFunctionalTestsBaseClass(object):
         c = self._fixCalendar()
         assert_not_equal(c.url, None)
 
-        props = c.get_properties([dav.DisplayName(), ])
-        
         ## TODO: there are more things in this test that
         ## should be run even if mkcalendar is not available.
         self.skip_on_compatibility_flag('no_mkcalendar')
 
+        props = c.get_properties([dav.DisplayName(), ])
         assert_equal("Yep", props[dav.DisplayName.tag])
 
         # Creating a new calendar with different ID but with existing name
+        # TODO: why do we do this?
         cc = self.principal.make_calendar("Yep", self.testcal_id2)
         cc.delete()
         
