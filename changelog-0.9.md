@@ -2,29 +2,33 @@
 
 ## Minor changes
 
-* Quite some users are complaining because recurring events aren't supported - which is intentional, because the server is supposed to take care of that.  Unfortunately quite some servers doesn't.  Thanks to cos, at least we now have some code in place to give an error (or optionally raising an error) when recurrences aren't taken care of (though, it only works if the server is returning non-expanded recurring events - if searching for a recurrence and the server doesn't find it, then ... no error logged).  The error message is referring to https://github.com/python-caldav/caldav/issues/157
+* Quite some users are complaining because recurring events aren't supported - which is intentional, because the server is supposed to take care of that.  Unfortunately quite some servers doesn't.  Thanks to cos, at least we now have some code in place to log an error (or optionally raising an error) when recurrences aren't taken care of (though, it only works if the server is returning non-expanded recurring events - if searching for a recurrence and the server doesn't find it, then ... no error logged).  The error message is referring to https://github.com/python-caldav/caldav/issues/157
 * New method `.close` on the DAVClient object
 
 Credits: |cos|, neonfighter28
 
-commits: 53c74737fd83b32e016a954b7b5f57bb028e0f24 c20ed6a65acae6c4e1cdd0fa2b9dc73244932681 ddcd11508290b0dbc580dde0f2aa712d95d1e6f7
+commits: 53c74737fd83b32e016a954b7b5f57bb028e0f24 c20ed6a65acae6c4e1cdd0fa2b9dc73244932681 ddcd11508290b0dbc580dde0f2aa712d95d1e6f7 99494d160e5363dd3e29cbbea9889521665b64a4 0ce851d0baedea70069df780e525a7aafda5aa5c
 
 ## Documentation fixes
 
 * Added the fastmail caldav URL to the documentation - including note that they are picky on the trailing slash - ref https://github.com/home-assistant/core/issues/66599
 * Keeping the changelog up-to-date
 
-commits: ec29395beb27dfa734078195b29685563c284cbc ea4fb0845343436fd5f4cb65852ee1437505ae58 
+commits: ec29395beb27dfa734078195b29685563c284cbc ea4fb0845343436fd5f4cb65852ee1437505ae58 fcb616d7f6016d65bc79dbae7f131d049fa1522d d43fbdde507a642dd5a55facc6bbea4b372e786b
 
 credits: Martin Eberhardt
 
 ## Bugfixes
 
 * v0.9.0 broke on elder python versions due to an f"string".  The f-format was introduced in python 3.6.  Anything below is actually End of Life versions, but still ... it's a very small effort here to preserve compatibility with elder python versions.
+* The library had some difficulties with the DAVMail server - at one point it does not return a calendar home set property, and at another point the calendar home set URL is the same as the calendar URL.
+* The `URL.canonical()` method should rewrite variants of the same URL into something that will be equal - some work has been put making it more robust.
 
-Credits: |cos|
+Credits: |cos|, Jonathan Neuhauser <jonathan.neuhauser@kit.edu>
 
-commits: a82cb81d02fe207106951cdecd49fefc8146155a 1ab5b9926c372af8f5644908d523e3b47fa3f9c1 2aae381f2cb499f203a994d217ce989a8d97071e
+Commits: a82cb81d02fe207106951cdecd49fefc8146155a 1ab5b9926c372af8f5644908d523e3b47fa3f9c1 2aae381f2cb499f203a994d217ce989a8d97071e 0e224be5818b2392402d6e5cc593d94655eb06d0 e5b5fa2c829d0d79f42adb45c5f2ce4aba7d9496 e5b5fa2c829d0d79f42adb45c5f2ce4aba7d9496 9f8786acd6cce506235da80b9d8438c6354e91bc 8dd2094471bac3cd17f3f9fb5570afd1ffdf1729 49f70bcb245aac8411e5c8942e91145342257fa3
+
+Issues: https://github.com/python-caldav/caldav/issues/189.  f-strings discussed outside github.
 
 ## Linting
 
