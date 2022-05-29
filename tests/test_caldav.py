@@ -1323,16 +1323,6 @@ class RepeatedFunctionalTestsBaseClass(object):
         props = c.get_properties([dav.DisplayName(), ])
         assert_equal(props[dav.DisplayName.tag], "hooray")
 
-        # Creating a new calendar with different ID and old name, this should
-        # work, shouldn't it?  (does not work entirely at iCloud, possibly due
-        # to some 'stickyness' or race condition problems.  make_calendar
-        # triggers an obscure assert, and all access to the calendar raises 404)
-        if not self.check_compatibility_flag('sticky_events'):
-            cc = self.principal.make_calendar(
-                name="Yep", cal_id=self.testcal_id2).save()
-            assert_not_equal(cc.url, None)
-            cc.delete()
-
         ## calendar color and calendar order are extra properties not
         ## described by RFC5545, but anyway supported by quite some
         ## server implementations
