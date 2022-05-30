@@ -1,5 +1,10 @@
 # Changelog v0.9.0 -> v0.9.1
 
+## Quick summary
+
+* Tweaks to support the DAVMail server implementation
+* v0.9.0 broke for python 3.5 and lower, due to usage of fstrings.  v0.9.1 has been tested with python 3.5.
+
 ## Minor changes
 
 * Quite some users are complaining because recurring events aren't supported - which is intentional, because the server is supposed to take care of that.  Unfortunately quite some servers doesn't.  Thanks to cos, at least we now have some code in place to log an error (or optionally raising an error) when recurrences aren't taken care of (though, it only works if the server is returning non-expanded recurring events - if searching for a recurrence and the server doesn't find it, then ... no error logged).  The error message is referring to https://github.com/python-caldav/caldav/issues/157
