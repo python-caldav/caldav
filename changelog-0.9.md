@@ -4,6 +4,8 @@
 
 * Tweaks to support the DAVMail server implementation
 * v0.9.0 broke for python 3.5 and lower, due to usage of fstrings.  v0.9.1 has been tested with python 3.5.
+* Discovery of some cases of broken support of recurring events on the server side, and logging of errors (optionally raising of errors)
+* New method .close on the DAVClient object.
 
 ## Minor changes
 
