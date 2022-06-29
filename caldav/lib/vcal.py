@@ -50,7 +50,7 @@ def fix(event):
     """
     ## TODO: add ^ before COMPLETED and CREATED?
     ## 1) Add a random time if completed is given as date
-    fixed = re.sub('COMPLETED:(\d+)\s', 'COMPLETED:\g<1>T120000Z',
+    fixed = re.sub(r'COMPLETED:(\d+)\s', r'COMPLETED:\g<1>T120000Z',
                    to_local(event))
 
     ## 2) CREATED timestamps prior to epoch does not make sense,
