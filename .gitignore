@@ -24,3 +24,6 @@ tests/.noseids
 #*#
 caldav.egg-info/
 tests/conf_private.py
+.tox
+.eggs
+.venv
