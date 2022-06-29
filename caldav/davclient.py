@@ -498,6 +498,12 @@ class DAVClient:
     def options(self, url):
         return self.request(url, "OPTIONS")
 
+    def extract_auth_types(self, header):
+        auth_types = header.lower().split(",")
+        auth_types = map(lambda auth_type: auth_type.strip(), auth_types)
+        auth_types = map(lambda auth_type: auth_type[:auth_type.find(" ")], auth_types)
+        return list(filter(lambda auth_type: auth_type, auth_types))
+
     def request(self, url, method="GET", body="", headers={}):
         """
         Actually sends the request
@@ -545,15 +551,18 @@ class DAVClient:
             self.password and
             self.username and
             not self.auth):
-            auth_type = r.headers['WWW-Authenticate']
-            auth_type = auth_type[0:auth_type.find(" ")].lower()
+            auth_types = self.extract_auth_types(r.headers['WWW-Authenticate'])
 
-            if auth_type == 'basic':
+            if 'basic' in auth_types:
                 self.auth = requests.auth.HTTPBasicAuth(self.username, self.password)
-            elif auth_type == 'digest':
+            elif 'digest' in auth_types:
                 self.auth = requests.auth.HTTPDigestAuth(self.username, self.password)
             else:
-                raise NotImplementedError("Auth method %s not supported yet" % auth_type)
+                raise NotImplementedError(
+                    "The server does not provide any of the currently "
+                    "supported authentication methods: basic, digest"
+                )
+
             return self.request(url, method, body, headers)
 
         elif (r.status_code == 401 and
@@ -567,13 +576,12 @@ class DAVClient:
             ## but likely the same.  so retry if password is a bytes sequence and not a string
             ## (see commit 13a4714, which introduced this regression)
 
-            auth_type = r.headers['WWW-Authenticate']
-            auth_type = auth_type[0:auth_type.find(" ")].lower()
+            auth_types = self.extract_auth_types(r.headers['WWW-Authenticate'])
 
             if hasattr(self.password, 'decode'):
-                if auth_type == 'basic':
+                if 'basic' in auth_types:
                     self.auth = requests.auth.HTTPBasicAuth(self.username, self.password.decode())
-                elif auth_type == 'digest':
+                elif 'digest' in auth_types:
                     self.auth = requests.auth.HTTPDigestAuth(self.username, self.password.decode())
 
             self.username = None
