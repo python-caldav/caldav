@@ -10,8 +10,8 @@ to emulate server communication.
 """
 
 from six import PY3
-from nose.tools import assert_equal, assert_not_equal, assert_raises, assert_true
 import caldav
+import pytest
 from caldav.davclient import DAVClient, DAVResponse
 from caldav.objects import (Principal, Calendar, Journal, Event, DAVObject,
                             CalendarSet, FreeBusy, Todo, CalendarObjectResource)
@@ -67,7 +67,7 @@ UID:19970901T130000Z-123405@example.com
 DTSTAMP:19970901T130000Z
 DTSTART;VALUE=DATE:19970317
 SUMMARY:Staff meeting minutes
-DESCRIPTION:1. Staff meeting: Participants include Joe\, Lisa
+DESCRIPTION:1. Staff meeting: Participants include Joe\\, Lisa
   and Bob. Aurora project plans were reviewed. There is currently
   no budget reserves for this project. Lisa will escalate to
   management. Next meeting on Tuesday.\n
@@ -113,14 +113,14 @@ class TestCalDAV:
         cal_url = "http://me:hunter2@calendar.møøh.example:80/"
         client = DAVClient(url=cal_url)
         response = client.put('/foo/møøh/bar', 'bringebærsyltetøy 北京 пиво', {})
-        assert_equal(response.status, 200)
+        assert response.status == 200
         assert(response.tree is None)
 
         if PY3:
             response = client.put('/foo/møøh/bar'.encode('utf-8'), 'bringebærsyltetøy 北京 пиво'.encode('utf-8'), {})
         else:
             response = client.put(u'/foo/møøh/bar', u'bringebærsyltetøy 北京 пиво', {})
-        assert_equal(response.status, 200)
+        assert response.status == 200
         assert(response.tree is None)
 
     def testPathWithEscapedCharacters(self):
@@ -138,7 +138,7 @@ class TestCalDAV:
   </D:response>
 </D:multistatus>"""
         client = MockedDAVClient(xml)
-        assert_equal(client.calendar(url="https://somwhere.in.the.universe.example/some/caldav/root/133bahgr6ohlo9ungq0it45vf8%40group.calendar.google.com/events/").get_supported_components(), ['VEVENT'])
+        assert client.calendar(url="https://somwhere.in.the.universe.example/some/caldav/root/133bahgr6ohlo9ungq0it45vf8%40group.calendar.google.com/events/").get_supported_components() == ['VEVENT']
 
     def testAbsoluteURL(self):
         """Version 0.7.0 does not handle responses with absolute URLs very well, ref https://github.com/python-caldav/caldav/pull/103"""
@@ -169,7 +169,7 @@ class TestCalDAV:
         mocked_davresponse = DAVResponse(mocked_response)
         client.propfind = mock.MagicMock(return_value=mocked_davresponse)
         bernards_calendars = principal.calendar_home_set
-        assert_equal(bernards_calendars.url, URL('http://cal.example.com/home/bernard/calendars/'))
+        assert bernards_calendars.url == URL('http://cal.example.com/home/bernard/calendars/')
 
     def testDateSearch(self):
         """
@@ -223,7 +223,7 @@ class TestCalDAV:
         client = MockedDAVClient(xml)
         calendar = Calendar(client, url='/principals/calendar/home@petroski.example.com/963/')
         results = calendar.date_search(datetime(2021, 2, 1),datetime(2021, 2,7))
-        assert_equal(len(results), 3)
+        assert len(results) == 3
 
     def testCalendar(self):
         """
@@ -246,23 +246,22 @@ class TestCalDAV:
         calendar2 = principal.calendar_home_set.calendar(
             name="foo", cal_id="bar")
         calendar3 = principal.calendar(cal_id="bar")
-        assert_equal(calendar1.url, calendar2.url)
-        assert_equal(calendar1.url, calendar3.url)
-        assert_equal(
-            calendar1.url, "http://calendar.example:80/me/calendars/bar/")
+        assert calendar1.url == calendar2.url
+        assert calendar1.url == calendar3.url
+        assert calendar1.url == "http://calendar.example:80/me/calendars/bar/"
 
         # principal.calendar_home_set can also be set to an object
         # This should be noop
         principal.calendar_home_set = principal.calendar_home_set
         calendar1 = principal.calendar(name="foo", cal_id="bar")
-        assert_equal(calendar1.url, calendar2.url)
+        assert calendar1.url == calendar2.url
 
         # When building a calendar from a relative URL and a client,
         # the relative URL should be appended to the base URL in the client
         calendar1 = Calendar(client, 'someoneelse/calendars/main_calendar')
         calendar2 = Calendar(client,
             'http://me:hunter2@calendar.example:80/someoneelse/calendars/main_calendar')
-        assert_equal(calendar1.url, calendar2.url)
+        assert calendar1.url == calendar2.url
 
     def test_get_events_icloud(self):
         """
@@ -287,7 +286,7 @@ class TestCalDAV:
         """
         client = MockedDAVClient(xml)
         calendar = Calendar(client, url='/17149682/calendars/testcalendar-485d002e-31b9-4147-a334-1d71503a4e2c/')
-        assert_equal(len(calendar.events()), 0)
+        assert len(calendar.events()) == 0
 
     def test_get_calendars(self):
         xml="""
@@ -357,7 +356,7 @@ class TestCalDAV:
 """
         client=MockedDAVClient(xml)
         calendar_home_set = CalendarSet(client, url='/dav/tobias%40redpill-linpro.com/')
-        assert_equal(len(calendar_home_set.calendars()), 1)
+        assert len(calendar_home_set.calendars()) == 1
 
         def test_supported_components(self):
             xml="""
@@ -375,7 +374,7 @@ class TestCalDAV:
   </response>
 </multistatus>"""
             client = MockedDAVClient(xml)
-            assert_equal(Calendar(client=client, url="/17149682/calendars/testcalendar-0da571c7-139c-479a-9407-8ce9ed20146d/").get_supported_components(), ['VEVENT']);
+            assert Calendar(client=client, url="/17149682/calendars/testcalendar-0da571c7-139c-479a-9407-8ce9ed20146d/").get_supported_components() == ['VEVENT']
 
     def test_xml_parsing(self):
         """
@@ -402,8 +401,7 @@ class TestCalDAV:
         expected_result = {'/':
                             {'{DAV:}current-user-principal': '/17149682/principal/'}}
         
-        assert_equal(MockedDAVResponse(xml).expand_simple_props(props=[dav.CurrentUserPrincipal()]),
-                     expected_result)
+        assert MockedDAVResponse(xml).expand_simple_props(props=[dav.CurrentUserPrincipal()]) == expected_result
 
         ## This duplicated response is observed in the real world -
         ## see https://github.com/python-caldav/caldav/issues/136
@@ -435,8 +433,7 @@ class TestCalDAV:
 </multistatus>
 """
         expected_result = {'/principals/users/frank/': {'{DAV:}current-user-principal': '/principals/users/frank/'}}
-        assert_equal(MockedDAVResponse(xml).expand_simple_props(props=[dav.CurrentUserPrincipal()]),
-                     expected_result)
+        assert MockedDAVResponse(xml).expand_simple_props(props=[dav.CurrentUserPrincipal()]) == expected_result
 
         xml = """
 <multistatus xmlns="DAV:">
@@ -454,8 +451,7 @@ class TestCalDAV:
 </multistatus>"""
         expected_result = {'/17149682/principal/':
                            {'{urn:ietf:params:xml:ns:caldav}calendar-home-set': 'https://p62-caldav.icloud.com:443/17149682/calendars/'}}
-        assert_equal(MockedDAVResponse(xml).expand_simple_props(props=[cdav.CalendarHomeSet()]),
-                     expected_result)
+        assert MockedDAVResponse(xml).expand_simple_props(props=[cdav.CalendarHomeSet()]) == expected_result
 
         xml = """
 <multistatus xmlns="DAV:">
@@ -472,8 +468,7 @@ class TestCalDAV:
   </response>
 </multistatus>"""
         expected_result = {'/': {'{DAV:}current-user-principal': '/17149682/principal/'}}
-        assert_equal(MockedDAVResponse(xml).expand_simple_props(props=[dav.CurrentUserPrincipal()]),
-                     expected_result)
+        assert MockedDAVResponse(xml).expand_simple_props(props=[dav.CurrentUserPrincipal()]) == expected_result
 
         xml = """
 <multistatus xmlns="DAV:">
@@ -514,8 +509,7 @@ END:VCALENDAR
 </multistatus>
 """
         expected_result = {'/17149682/calendars/testcalendar-84439d0b-ce46-4416-b978-7b4009122c64/': {'{urn:ietf:params:xml:ns:caldav}calendar-data': None}, '/17149682/calendars/testcalendar-84439d0b-ce46-4416-b978-7b4009122c64/20010712T182145Z-123401@example.com.ics': {'{urn:ietf:params:xml:ns:caldav}calendar-data': 'BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Example Corp.//CalDAV Client//EN\nBEGIN:VEVENT\nUID:20010712T182145Z-123401@example.com\nDTSTAMP:20060712T182145Z\nDTSTART:20060714T170000Z\nDTEND:20060715T040000Z\nSUMMARY:Bastille Day Party\nEND:VEVENT\nEND:VCALENDAR\n'}}
-        assert_equal(MockedDAVResponse(xml).expand_simple_props(props=[cdav.CalendarData()]),
-                     expected_result)
+        assert MockedDAVResponse(xml).expand_simple_props(props=[cdav.CalendarData()]) == expected_result
 
         xml = """
 <multistatus xmlns="DAV:">
@@ -590,8 +584,7 @@ END:VCALENDAR
             '/17149682/calendars/testcalendar-e2910e0a-feab-4b51-b3a8-55828acaa912/': {
                 '{DAV:}resourcetype': ['{DAV:}collection', '{urn:ietf:params:xml:ns:caldav}calendar'],
                 '{DAV:}displayname': 'Yep'}}
-        assert_equal(MockedDAVResponse(xml).expand_simple_props(props=[dav.DisplayName()], multi_value_props=[dav.ResourceType()]),
-                     expected_result)
+        assert MockedDAVResponse(xml).expand_simple_props(props=[dav.DisplayName()], multi_value_props=[dav.ResourceType()]) == expected_result
     
         xml = """
 <multistatus xmlns="DAV:">
@@ -658,7 +651,8 @@ END:VCALENDAR
         calhome.client.unknown_method = lambda url, body, depth: failedresp
 
         ## call it.
-        assert_raises(error.DAVError, calhome._query, query_method='unknown_method')
+        with pytest.raises(error.DAVError):
+            calhome._query(query_method='unknown_method')
 
     def testDefaultClient(self):
         """When no client is given to a DAVObject, but the parent is given,
@@ -667,7 +661,7 @@ END:VCALENDAR
         client = DAVClient(url=cal_url)
         calhome = CalendarSet(client, cal_url + "me/")
         calendar = Calendar(parent=calhome)
-        assert_equal(calendar.client, calhome.client)
+        assert calendar.client == calhome.client
 
     def testInstance(self):
         cal_url = "http://me:hunter2@calendar.example:80/"
@@ -677,13 +671,13 @@ END:VCALENDAR
         assert('new summary' in my_event.data)
         icalobj = my_event.icalendar_instance
         icalobj.subcomponents[0]['SUMMARY']='yet another summary'
-        assert_equal(my_event.vobject_instance.vevent.summary.value, 'yet another summary')
+        assert my_event.vobject_instance.vevent.summary.value == 'yet another summary'
         ## Now the data has been converted from string to vobject to string to icalendar to string to vobject and ... will the string still match the original?
         lines_now = my_event.data.split('\r\n')
         lines_orig = ev1.replace('Bastille Day Party', 'yet another summary').split('\n')
         lines_now.sort()
         lines_orig.sort()
-        assert_equal(lines_now, lines_orig)
+        assert lines_now == lines_orig
 
     def testURL(self):
         """Exercising the URL class"""
@@ -700,15 +694,15 @@ END:VCALENDAR
         url5 = URL.objectify(urlparse("/bar"))
 
         # 2) __eq__ works well
-        assert_equal(url1, url2)
-        assert_equal(url1, url4)
-        assert_equal(url3, url5)
+        assert url1 == url2
+        assert url1 == url4
+        assert url3 == url5
 
         # 3) str will always return the URL
-        assert_equal(str(url1), long_url)
-        assert_equal(str(url3), "/bar")
-        assert_equal(str(url4), long_url)
-        assert_equal(str(url5), "/bar")
+        assert str(url1) == long_url
+        assert str(url3) == "/bar"
+        assert str(url4) == long_url
+        assert str(url5) == "/bar"
 
         ## 3b) repr should also be exercised.  Returns URL(/bar) now.
         assert("/bar" in repr(url5))
@@ -722,13 +716,14 @@ END:VCALENDAR
         url9 = url1.join(url5)
         urlA = url1.join("someuser/calendar")
         urlB = url5.join(url1)
-        assert_equal(url6, url1)
-        assert_equal(url7, "http://foo:bar@www.example.com:8080/bar")
-        assert_equal(url8, url1)
-        assert_equal(url9, url7)
-        assert_equal(urlA, "http://foo:bar@www.example.com:8080/caldav.php/someuser/calendar")
-        assert_equal(urlB, url1)
-        assert_raises(ValueError, url1.join, "http://www.google.com")
+        assert url6 == url1
+        assert url7 == "http://foo:bar@www.example.com:8080/bar"
+        assert url8 == url1
+        assert url9 == url7
+        assert urlA == "http://foo:bar@www.example.com:8080/caldav.php/someuser/calendar"
+        assert urlB == url1
+        with pytest.raises(ValueError):
+            url1.join("http://www.google.com")
 
         # 4b) join method, with URL as input parameter
         url6 = url1.join(URL.objectify(url2))
@@ -741,36 +736,37 @@ END:VCALENDAR
         url6c= url6.join(url0b)
         url6d= url6.join(None)
         for url6alt in (url6b, url6c, url6d):
-            assert_equal(url6, url6alt)
-        assert_equal(url6, url1)
-        assert_equal(url7, "http://foo:bar@www.example.com:8080/bar")
-        assert_equal(url8, url1)
-        assert_equal(url9, url7)
-        assert_equal(urlA, "http://foo:bar@www.example.com:8080/caldav.php/someuser/calendar")
-        assert_equal(urlB, url1)
-        assert_raises(ValueError, url1.join, "http://www.google.com")
+            assert url6 == url6alt
+        assert url6 == url1
+        assert url7 == "http://foo:bar@www.example.com:8080/bar"
+        assert url8 == url1
+        assert url9 == url7
+        assert urlA == "http://foo:bar@www.example.com:8080/caldav.php/someuser/calendar"
+        assert urlB == url1
+        with pytest.raises(ValueError):
+            url1.join("http://www.google.com")
 
         # 5) all urlparse methods will work.  always.
-        assert_equal(url1.scheme, 'http')
-        assert_equal(url2.path, '/caldav.php/')
-        assert_equal(url7.username, 'foo')
-        assert_equal(url5.path, '/bar')
+        assert url1.scheme == 'http'
+        assert url2.path == '/caldav.php/'
+        assert url7.username == 'foo'
+        assert url5.path == '/bar'
         urlC = URL.objectify("https://www.example.com:443/foo")
-        assert_equal(urlC.port, 443)
+        assert urlC.port == 443
 
         # 6) is_auth returns True if the URL contains a username.
-        assert_equal(urlC.is_auth(), False)
-        assert_equal(url7.is_auth(), True)
+        assert not urlC.is_auth()
+        assert url7.is_auth()
 
         # 7) unauth() strips username/password
-        assert_equal(url7.unauth(), 'http://www.example.com:8080/bar')
+        assert url7.unauth() == 'http://www.example.com:8080/bar'
 
         # 8) strip_trailing_slash
-        assert_equal(URL('http://www.example.com:8080/bar/').strip_trailing_slash(), URL('http://www.example.com:8080/bar'))
-        assert_equal(URL('http://www.example.com:8080/bar/').strip_trailing_slash(), URL('http://www.example.com:8080/bar').strip_trailing_slash())
+        assert URL('http://www.example.com:8080/bar/').strip_trailing_slash() == URL('http://www.example.com:8080/bar')
+        assert URL('http://www.example.com:8080/bar/').strip_trailing_slash() == URL('http://www.example.com:8080/bar').strip_trailing_slash()
 
         # 9) canonical
-        assert_equal(URL('https://www.example.com:443/b%61r/').canonical(), URL('//www.example.com/bar/').canonical())
+        assert URL('https://www.example.com:443/b%61r/').canonical() == URL('//www.example.com/bar/').canonical()
 
     def testFilters(self):
         filter = \
@@ -832,20 +828,17 @@ END:VCALENDAR"""] ## todo: add more broken ical here
 
         for ical in broken_ical:
             ## This should raise error
-            assert_raises(vobject.base.ValidateError, vobject.readOne(ical).serialize)
+            with pytest.raises(vobject.base.ValidateError):
+                vobject.readOne(ical).serialize()
             ## This should not raise error
             vobject.readOne(vcal.fix(ical)).serialize()
 
     def test_calendar_comp_class_by_data(self):
         calendar=Calendar()
         for (ical,class_) in ((ev1, Event), (todo, Todo), (journal, Journal), (None, CalendarObjectResource), ("random rantings", CalendarObjectResource)): ## TODO: freebusy, time zone
-            assert_equal(
-                calendar._calendar_comp_class_by_data(ical),
-                class_)
+            assert calendar._calendar_comp_class_by_data(ical) == class_
             if (ical != "random rantings" and ical):
-                assert_equal(
-                    calendar._calendar_comp_class_by_data(icalendar.Calendar.from_ical(ical)),
-                    class_)
+                assert calendar._calendar_comp_class_by_data(icalendar.Calendar.from_ical(ical)) == class_
 
     def testContextManager(self):
         """
@@ -853,4 +846,4 @@ END:VCALENDAR"""] ## todo: add more broken ical here
         """
         cal_url = "http://me:hunter2@calendar.example:80/"
         with DAVClient(url=cal_url) as client_ctx_mgr:
-            assert_true(isinstance(client_ctx_mgr, DAVClient))
+            assert isinstance(client_ctx_mgr, DAVClient)

@@ -24,6 +24,18 @@ if __name__ == '__main__':
     except:
         extra_test_packages = ['mock']
 
+    test_packages = [
+        "pytest",
+        "pytest-coverage",
+        "icalendar",
+        "coverage",
+        "nose",
+        "tzlocal",
+        "pytz",
+        "xandikos<0.2.4",
+        "radicale",
+    ]
+
     setup(
         name='caldav',
         version=version,
@@ -49,5 +61,8 @@ if __name__ == '__main__':
         include_package_data=True,
         zip_safe=False,
         install_requires=['vobject', 'lxml', 'requests', 'six'] + extra_packages,
-        tests_require=['icalendar', 'nose', 'coverage', 'tzlocal', 'pytz', 'xandikos<0.2.4', 'radicale'] + extra_test_packages
+        tests_require=test_packages + extra_test_packages,
+        extras_require={
+            "test": test_packages,
+        },
     )
