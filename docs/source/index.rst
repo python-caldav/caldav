@@ -348,7 +348,7 @@ To start the tests code, install everything from the setup.tests_requires list a
 
 .. code-block:: bash
 
-  $ python setup.py nosetests
+  $ python setup.py test
 
 (tox should also work, but it may be needed to look more into it)
 
