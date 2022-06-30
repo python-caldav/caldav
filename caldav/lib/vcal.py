@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 # -*- encoding: utf-8 -*-
-
-
-import re
-from caldav.lib.python_utilities import to_local, to_wire
 import datetime
+import re
 import uuid
+
+from caldav.lib.python_utilities import to_local
+from caldav.lib.python_utilities import to_wire
 
 ## Fixups to the icalendar data to work around compatbility issues.
 
@@ -50,26 +50,24 @@ def fix(event):
     """
     ## TODO: add ^ before COMPLETED and CREATED?
     ## 1) Add a random time if completed is given as date
-    fixed = re.sub(r'COMPLETED:(\d+)\s', r'COMPLETED:\g<1>T120000Z',
-                   to_local(event))
+    fixed = re.sub(r"COMPLETED:(\d+)\s", r"COMPLETED:\g<1>T120000Z", to_local(event))
 
     ## 2) CREATED timestamps prior to epoch does not make sense,
     ## change from year 0001 to epoch.
-    fixed = re.sub('CREATED:00001231T000000Z',
-                   'CREATED:19700101T000000Z', fixed)
+    fixed = re.sub("CREATED:00001231T000000Z", "CREATED:19700101T000000Z", fixed)
     fixed = re.sub(r"\\+('\")", r"\1", fixed)
 
     ## 4) trailing whitespace probably never makes sense
-    fixed = re.sub(' *$', '', fixed)
+    fixed = re.sub(" *$", "", fixed)
 
     ## 3 fix duplicated DTSTAMP
     ## OPTIMIZATION TODO: use list and join rather than concatination
     ## remove duplication of DTSTAMP
     fixed2 = ""
-    for line in fixed.strip().split('\n'):
-        if line.startswith('BEGIN:V'):
+    for line in fixed.strip().split("\n"):
+        if line.startswith("BEGIN:V"):
             cnt = 0
-        if line.startswith('DTSTAMP:'):
+        if line.startswith("DTSTAMP:"):
             if not cnt:
                 fixed2 += line + "\n"
             cnt += 1
@@ -78,28 +76,34 @@ def fix(event):
 
     return fixed2
 
+
 ## sorry for being english-language-euro-centric ... fits rather perfectly as default language for me :-)
-def create_ical(ical_fragment=None, objtype=None, language='en_DK', **attributes):
+def create_ical(ical_fragment=None, objtype=None, language="en_DK", **attributes):
     """
     I somehow feel this fits more into the icalendar library than here
     """
     ## late import, icalendar is not an explicit requirement for v0.x of the caldav library.
     ## (perhaps I should change my position on that soon)
     import icalendar
+
     ical_fragment = to_wire(ical_fragment)
-    if not ical_fragment or not re.search(b'^BEGIN:V', ical_fragment, re.MULTILINE):
+    if not ical_fragment or not re.search(b"^BEGIN:V", ical_fragment, re.MULTILINE):
         my_instance = icalendar.Calendar()
-        my_instance.add('prodid', '-//python-caldav//caldav//' + language)
-        my_instance.add('version', '2.0')
+        my_instance.add("prodid", "-//python-caldav//caldav//" + language)
+        my_instance.add("version", "2.0")
         if objtype is None:
-            objtype='VEVENT'
+            objtype = "VEVENT"
         component = icalendar.cal.component_factory[objtype]()
-        component.add('dtstamp', datetime.datetime.now())
-        component.add('uid', uuid.uuid1())
+        component.add("dtstamp", datetime.datetime.now())
+        component.add("uid", uuid.uuid1())
         my_instance.add_component(component)
     else:
-        if not ical_fragment.startswith(b'BEGIN:VCALENDAR'):
-            ical_fragment = b"BEGIN:VCALENDAR\n"+to_wire(ical_fragment.strip())+b"\nEND:VCALENDAR\n"
+        if not ical_fragment.startswith(b"BEGIN:VCALENDAR"):
+            ical_fragment = (
+                b"BEGIN:VCALENDAR\n"
+                + to_wire(ical_fragment.strip())
+                + b"\nEND:VCALENDAR\n"
+            )
         my_instance = icalendar.Calendar.from_ical(ical_fragment)
         component = my_instance.subcomponents[0]
         ical_fragment = None
@@ -108,5 +112,7 @@ def create_ical(ical_fragment=None, objtype=None, language='en_DK', **attributes
             component.add(attribute, attributes[attribute])
     ret = my_instance.to_ical()
     if ical_fragment and ical_fragment.strip():
-        ret = re.sub(b"^END:V", ical_fragment.strip() + b"\nEND:V", ret, flags=re.MULTILINE)
+        ret = re.sub(
+            b"^END:V", ical_fragment.strip() + b"\nEND:V", ret, flags=re.MULTILINE
+        )
     return ret

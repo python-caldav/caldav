@@ -3,7 +3,6 @@
 ## similar code in the tests/test_caldav.py file.  Raise a github
 ## issue or reach out by email or write a pull request or send a patch
 ## if there are mistakes in this code) ...
-
 ## USE CASE #1: we'll have a local copy of all calendar contents in a
 ## running python process, and later we'd like to synchronize the
 ## local contents.  (In case of a reboot, all contents will be
@@ -13,7 +12,7 @@ my_events = my_calendar.objects(load_objects=True)
 # (... some time later ...)
 my_events.sync()
 for event in my_events:
-    print(event.icalendar.subcomponents[0]['SUMMARY'])
+    print(event.icalendar.subcomponents[0]["SUMMARY"])
 
 ## USE CASE #2, approach #1: We want to load all objects from the
 ## remote caldav server and insert them into a database.  Later we
@@ -21,7 +20,7 @@ for event in my_events:
 ## database.
 my_events = my_calendar.objects(load_objects=True)
 for event in my_events:
-     save_event_to_database(event)
+    save_event_to_database(event)
 save_sync_token_to_database(my_events.sync_token)
 
 # (... some time later ...)
@@ -41,7 +40,7 @@ for event in my_updated_events:
 ## tokens.
 my_events = my_calendar.objects(load_objects=True)
 for event in my_events:
-     save_event_to_database(event)
+    save_event_to_database(event)
 save_sync_token_to_database(my_events.sync_token)
 
 # (... some time later ...)
