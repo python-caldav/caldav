@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 # -*- encoding: utf-8 -*-
-
 from caldav.lib.namespace import ns
-from .base import BaseElement, ValuedBaseElement
+
+from .base import BaseElement
+from .base import ValuedBaseElement
 
 
 # Operations
@@ -17,8 +18,10 @@ class PropertyUpdate(BaseElement):
 class Mkcol(BaseElement):
     tag = ns("D", "mkcol")
 
+
 class SyncCollection(BaseElement):
     tag = ns("D", "sync-collection")
+
 
 # Filters
 
@@ -26,8 +29,10 @@ class SyncCollection(BaseElement):
 class SyncToken(BaseElement):
     tag = ns("D", "sync-token")
 
+
 class SyncLevel(BaseElement):
     tag = ns("D", "sync-level")
+
 
 # Components / Data
 
@@ -56,11 +61,14 @@ class DisplayName(ValuedBaseElement):
 class GetEtag(ValuedBaseElement):
     tag = ns("D", "getetag")
 
+
 class Href(BaseElement):
     tag = ns("D", "href")
 
+
 class SupportedReportSet(BaseElement):
     tag = ns("D", "supported-report-set")
+
 
 class Response(BaseElement):
     tag = ns("D", "response")
@@ -69,17 +77,22 @@ class Response(BaseElement):
 class Status(BaseElement):
     tag = ns("D", "status")
 
+
 class PropStat(BaseElement):
     tag = ns("D", "propstat")
+
 
 class MultiStatus(BaseElement):
     tag = ns("D", "multistatus")
 
+
 class CurrentUserPrincipal(BaseElement):
     tag = ns("D", "current-user-principal")
 
+
 class PrincipalCollectionSet(BaseElement):
     tag = ns("D", "principal-collection-set")
+
 
 class Allprop(BaseElement):
     tag = ns("D", "allprop")

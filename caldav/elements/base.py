@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 # -*- encoding: utf-8 -*-
-
-from lxml import etree
-from six import PY3
 from caldav.lib.namespace import nsmap
 from caldav.lib.python_utilities import to_unicode
+from lxml import etree
+from six import PY3
+
 
 class BaseElement(object):
     children = None
@@ -19,7 +19,7 @@ class BaseElement(object):
         value = to_unicode(value)
         self.value = None
         if name is not None:
-            self.attributes['name'] = name
+            self.attributes["name"] = name
         if value is not None:
             self.value = value
 
@@ -27,10 +27,11 @@ class BaseElement(object):
         return self.append(other)
 
     def __str__(self):
-        utf8 = etree.tostring(self.xmlelement(), encoding="utf-8",
-                              xml_declaration=True, pretty_print=True)
+        utf8 = etree.tostring(
+            self.xmlelement(), encoding="utf-8", xml_declaration=True, pretty_print=True
+        )
         if PY3:
-            return str(utf8, 'utf-8')
+            return str(utf8, "utf-8")
         return utf8
 
     def xmlelement(self):
@@ -61,7 +62,7 @@ class NamedBaseElement(BaseElement):
         super(NamedBaseElement, self).__init__(name=name)
 
     def xmlelement(self):
-        if self.attributes.get('name') is None:
+        if self.attributes.get("name") is None:
             raise Exception("name attribute must be defined")
         return super(NamedBaseElement, self).xmlelement()
 

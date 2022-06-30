@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 # -*- encoding: utf-8 -*-
-
 """
 A "DAV object" is anything we get from the caldav server or push into the
 caldav server, notably principal, calendars and calendar events.
@@ -9,11 +8,12 @@ caldav server, notably principal, calendars and calendar events.
 release.  I think it makes sense moving the CalendarObjectResource
 class hierarchy into a separate file)
 """
+import re
+import uuid
+from datetime import date
+from datetime import datetime
 
 import vobject
-import uuid
-import re
-from datetime import datetime, date
 from lxml import etree
 
 try:
@@ -24,7 +24,8 @@ except ImportError:
 
 try:
     from typing import Union, Optional
-    TimeStamp = Optional[Union[date,datetime]]
+
+    TimeStamp = Optional[Union[date, datetime]]
 except:
     pass
 
@@ -34,11 +35,14 @@ from caldav.elements import dav, cdav, ical
 from caldav.lib.python_utilities import to_unicode, to_wire
 
 import logging
-log = logging.getLogger('caldav')
+
+log = logging.getLogger("caldav")
+
 
 def errmsg(r):
     """Utility for formatting a response xml tree to an error string"""
     return "%s %s\n\n%s" % (r.status, r.reason, r.raw)
+
 
 class DAVObject(object):
 
@@ -46,14 +50,23 @@ class DAVObject(object):
     Base class for all DAV objects.  Can be instantiated by a client
     and an absolute or relative URL, or from the parent object.
     """
+
     id = None
     url = None
     client = None
     parent = None
     name = None
 
-    def __init__(self, client=None, url=None, parent=None, name=None, id=None, props=None,
-                 **extra):
+    def __init__(
+        self,
+        client=None,
+        url=None,
+        parent=None,
+        name=None,
+        id=None,
+        props=None,
+        **extra
+    ):
         """
         Default constructor.
 
@@ -97,10 +110,12 @@ class DAVObject(object):
         depth = 1
         properties = {}
 
-        props = [ dav.DisplayName()]
-        multiprops = [ dav.ResourceType() ]
-        response = self._query_properties(props+multiprops, depth)
-        properties = response.expand_simple_props(props=props, multi_value_props=multiprops)
+        props = [dav.DisplayName()]
+        multiprops = [dav.ResourceType()]
+        response = self._query_properties(props + multiprops, depth)
+        properties = response.expand_simple_props(
+            props=props, multi_value_props=multiprops
+        )
 
         for path in list(properties.keys()):
             resource_types = properties[path][dav.ResourceType.tag]
@@ -117,11 +132,11 @@ class DAVObject(object):
                 # And why is the strip_trailing_slash-method needed?
                 # The collection URL should always end with a slash according
                 # to RFC 2518, section 5.2.
-                if ((isinstance(self, CalendarSet) and type == cdav.Calendar.tag)
-                    or (self.url.canonical().strip_trailing_slash() !=
-                        self.url.join(path).canonical().strip_trailing_slash())):
-                    c.append((self.url.join(path), resource_types,
-                              resource_name))
+                if (isinstance(self, CalendarSet) and type == cdav.Calendar.tag) or (
+                    self.url.canonical().strip_trailing_slash()
+                    != self.url.join(path).canonical().strip_trailing_slash()
+                ):
+                    c.append((self.url.join(path), resource_types, resource_name))
 
         ## TODO: return objects rather than just URLs, and include
         ## the properties we've already fetched
@@ -141,8 +156,14 @@ class DAVObject(object):
 
         return self._query(root, depth)
 
-    def _query(self, root=None, depth=0, query_method='propfind', url=None,
-               expected_return_value=None):
+    def _query(
+        self,
+        root=None,
+        depth=0,
+        query_method="propfind",
+        url=None,
+        expected_return_value=None,
+    ):
         """
         This is an internal method for doing a query.  It's a
         result of code-refactoring work, attempting to consolidate
@@ -150,20 +171,20 @@ class DAVObject(object):
         """
         body = ""
         if root:
-            if hasattr(root, 'xmlelement'):
-                body = etree.tostring(root.xmlelement(), encoding="utf-8",
-                                      xml_declaration=True)
+            if hasattr(root, "xmlelement"):
+                body = etree.tostring(
+                    root.xmlelement(), encoding="utf-8", xml_declaration=True
+                )
             else:
                 body = root
         if url is None:
             url = self.url
-        ret = getattr(self.client, query_method)(
-            url, body, depth)
+        ret = getattr(self.client, query_method)(url, body, depth)
         if ret.status == 404:
             raise error.NotFoundError(errmsg(ret))
-        if ((expected_return_value is not None and
-             ret.status != expected_return_value) or
-            ret.status >= 400):
+        if (
+            expected_return_value is not None and ret.status != expected_return_value
+        ) or ret.status >= 400:
             raise error.exception_by_method[query_method](errmsg(ret))
         return ret
 
@@ -175,7 +196,9 @@ class DAVObject(object):
         foo = self.get_properties([prop], **passthrough)
         return foo.get(prop.tag, None)
 
-    def get_properties(self, props=None, depth=0, parse_response_xml=True, parse_props=True):
+    def get_properties(
+        self, props=None, depth=0, parse_response_xml=True, parse_props=True
+    ):
         """Get properties (PROPFIND) for this object.
 
         With parse_response_xml and parse_props set to True a
@@ -207,10 +230,10 @@ class DAVObject(object):
         error.assert_(properties)
 
         path = unquote(self.url.path)
-        if path.endswith('/'):
+        if path.endswith("/"):
             exchange_path = path[:-1]
         else:
-            exchange_path = path + '/'
+            exchange_path = path + "/"
 
         if path in properties:
             rc = properties[path]
@@ -224,21 +247,27 @@ class DAVObject(object):
                 ## ... but it gets worse ... when doing a propfind on the
                 ## principal, the href returned may be without the slash.
                 ## Such inconsistency is clearly a bug.
-                log.error("potential path handling problem with ending slashes.  Path given: %s, path found: %s.  %s" % (path, exchange_path, error.ERR_FRAGMENT))
+                log.error(
+                    "potential path handling problem with ending slashes.  Path given: %s, path found: %s.  %s"
+                    % (path, exchange_path, error.ERR_FRAGMENT)
+                )
                 error._assert(False)
             rc = properties[exchange_path]
         elif self.url in properties:
             rc = properties[self.url]
-        elif '/principal/' in properties and path.endswith('/principal/'):
+        elif "/principal/" in properties and path.endswith("/principal/"):
             ## Workaround for a known iCloud bug.
             ## The properties key is expected to be the same as the path.
             ## path is on the format /123456/principal/ but properties key is /principal/
             ## tests apparently passed post bc589093a34f0ed0ef489ad5e9cba048750c9837 and 3ee4e42e2fa8f78b71e5ffd1ef322e4007df7a60, even without this workaround
             ## TODO: should probably be investigated more.
             ## (observed also by others, ref https://github.com/python-caldav/caldav/issues/168)
-            rc = properties['/principal/']
+            rc = properties["/principal/"]
         else:
-            log.error("Possibly the server has a path handling problem.  Path expected: %s, path found: %s %s" % (path, str(list(properties.keys())), error.ERR_FRAGMENT))
+            log.error(
+                "Possibly the server has a path handling problem.  Path expected: %s, path found: %s %s"
+                % (path, str(list(properties.keys())), error.ERR_FRAGMENT)
+            )
             error.assert_(False)
 
         if parse_props:
@@ -259,11 +288,11 @@ class DAVObject(object):
         set = dav.Set() + prop
         root = dav.PropertyUpdate() + set
 
-        r = self._query(root, query_method='proppatch')
+        r = self._query(root, query_method="proppatch")
 
         statuses = r.tree.findall(".//" + dav.Status.tag)
         for s in statuses:
-            if ' 200 ' not in s.text:
+            if " 200 " not in s.text:
                 raise error.PropsetError(s.text)
 
         return self
@@ -303,6 +332,7 @@ class CalendarSet(DAVObject):
     """
     A CalendarSet is a set of calendars.
     """
+
     def calendars(self):
         """
         List all calendar collections in this set.
@@ -318,8 +348,9 @@ class CalendarSet(DAVObject):
 
         return cals
 
-    def make_calendar(self, name=None, cal_id=None,
-                      supported_calendar_component_set=None):
+    def make_calendar(
+        self, name=None, cal_id=None, supported_calendar_component_set=None
+    ):
         """
         Utility method for creating a new calendar.
 
@@ -335,8 +366,11 @@ class CalendarSet(DAVObject):
          * Calendar(...)-object
         """
         return Calendar(
-            self.client, name=name, parent=self, id=cal_id,
-            supported_calendar_component_set=supported_calendar_component_set
+            self.client,
+            name=name,
+            parent=self,
+            id=cal_id,
+            supported_calendar_component_set=supported_calendar_component_set,
         ).save()
 
     def calendar(self, name=None, cal_id=None):
@@ -357,19 +391,23 @@ class CalendarSet(DAVObject):
                 if display_name == name:
                     return calendar
         if name and not cal_id:
-            raise error.NotFoundError("No calendar with name %s found under %s" % (name, self.url))
+            raise error.NotFoundError(
+                "No calendar with name %s found under %s" % (name, self.url)
+            )
         if not cal_id and not name:
             return self.calendars()[0]
 
-        if str(URL.objectify(cal_id).canonical()).startswith(str(self.client.url.canonical())):
+        if str(URL.objectify(cal_id).canonical()).startswith(
+            str(self.client.url.canonical())
+        ):
             url = self.client.url.join(cal_id)
         elif isinstance(cal_id, URL):
             url = self.url.join(cal_id)
         else:
-            url = self.url.join(quote(cal_id) + '/')
+            url = self.url.join(quote(cal_id) + "/")
 
-        return Calendar(self.client, name=name, parent=self,
-                        url=url, id=cal_id)
+        return Calendar(self.client, name=name, parent=self, url=url, id=cal_id)
+
 
 class Principal(DAVObject):
     """
@@ -382,9 +420,10 @@ class Principal(DAVObject):
     Additionally, a principal MUST report the DAV:principal XML element
     in the value of the DAV:resourcetype property.
 
-    (TODO: the resourcetype is actually never checked, and the DisplayName 
+    (TODO: the resourcetype is actually never checked, and the DisplayName
     is not stored anywhere)
     """
+
     def __init__(self, client=None, url=None):
         """
         Returns a Principal.
@@ -402,18 +441,20 @@ class Principal(DAVObject):
         if url is None:
             self.url = self.client.url
             cup = self.get_property(dav.CurrentUserPrincipal())
-            self.url = self.client.url.join(
-                URL.objectify(cup))
+            self.url = self.client.url.join(URL.objectify(cup))
 
-    def make_calendar(self, name=None, cal_id=None,
-                      supported_calendar_component_set=None):
+    def make_calendar(
+        self, name=None, cal_id=None, supported_calendar_component_set=None
+    ):
         """
         Convenience method, bypasses the self.calendar_home_set object.
         See CalendarSet.make_calendar for details.
         """
         return self.calendar_home_set.make_calendar(
-            name, cal_id,
-            supported_calendar_component_set=supported_calendar_component_set)
+            name,
+            cal_id,
+            supported_calendar_component_set=supported_calendar_component_set,
+        )
 
     def calendar(self, name=None, cal_id=None):
         """
@@ -428,12 +469,13 @@ class Principal(DAVObject):
         """
         ## Late import.  Prior to 1.0, icalendar is only an optional dependency.
         from icalendar import vCalAddress, vText
+
         cn = self.get_property(dav.DisplayName())
         ids = self.calendar_user_address_set()
         cutype = self.get_property(cdav.CalendarUserType())
         ret = vCalAddress(ids[0])
-        ret.params['cn'] = vText(cn)
-        ret.params['cutype'] = vText(cutype)
+        ret.params["cn"] = vText(cn)
+        ret.params["cutype"] = vText(cutype)
         return ret
 
     @property
@@ -443,7 +485,11 @@ class Principal(DAVObject):
             ## owncloud returns /remote.php/dav/calendars/tobixen@e.email/
             ## in that case the @ should be quoted.  Perhaps other
             ## implentations returns already quoted URLs.  Hacky workaround:
-            if calendar_home_set_url is not None and '@' in calendar_home_set_url and not '://' in calendar_home_set_url:
+            if (
+                calendar_home_set_url is not None
+                and "@" in calendar_home_set_url
+                and not "://" in calendar_home_set_url
+            ):
                 calendar_home_set_url = quote(calendar_home_set_url)
             self.calendar_home_set = calendar_home_set_url
         return self._calendar_home_set
@@ -458,8 +504,10 @@ class Principal(DAVObject):
         ## research.  added here as it solves real-world issues, ref
         ## https://github.com/python-caldav/caldav/pull/56
         if sanitized_url is not None:
-            if (sanitized_url.hostname and
-                sanitized_url.hostname != self.client.url.hostname):
+            if (
+                sanitized_url.hostname
+                and sanitized_url.hostname != self.client.url.hostname
+            ):
                 # icloud (and others?) having a load balanced system,
                 # where each principal resides on one named host
                 ## TODO:
@@ -470,7 +518,8 @@ class Principal(DAVObject):
                 ## incompatibilities with icloud.  Do more research!
                 self.client.url = sanitized_url
         self._calendar_home_set = CalendarSet(
-            self.client, self.client.url.join(sanitized_url))
+            self.client, self.client.url.join(sanitized_url)
+        )
 
     def calendars(self):
         """
@@ -480,16 +529,17 @@ class Principal(DAVObject):
 
     def freebusy_request(self, dtstart, dtend, attendees):
         import icalendar
+
         freebusy_ical = icalendar.Calendar()
-        freebusy_ical.add('prodid', '-//tobixen/python-caldav//EN')
-        freebusy_ical.add('version', '2.0')
-        freebusy_ical.add('method', 'REQUEST')
+        freebusy_ical.add("prodid", "-//tobixen/python-caldav//EN")
+        freebusy_ical.add("version", "2.0")
+        freebusy_ical.add("method", "REQUEST")
         uid = uuid.uuid1()
         freebusy_comp = icalendar.FreeBusy()
-        freebusy_comp.add('uid', uid)
-        freebusy_comp.add('dtstamp', datetime.now())
-        freebusy_comp.add('dtstart', dtstart)
-        freebusy_comp.add('dtend', dtend)
+        freebusy_comp.add("uid", uid)
+        freebusy_comp.add("dtstamp", datetime.now())
+        freebusy_comp.add("dtstart", dtstart)
+        freebusy_comp.add("dtend", dtend)
         freebusy_ical.add_component(freebusy_comp)
         outbox = self.schedule_outbox()
         caldavobj = FreeBusy(data=freebusy_ical, parent=outbox)
@@ -497,7 +547,11 @@ class Principal(DAVObject):
         for attendee in attendees:
             caldavobj.add_attendee(attendee, no_default_parameters=True)
 
-        response = self.client.post(outbox.url, caldavobj.data, headers={'Content-Type': 'text/calendar; charset=utf-8'})
+        response = self.client.post(
+            outbox.url,
+            caldavobj.data,
+            headers={"Content-Type": "text/calendar; charset=utf-8"},
+        )
         return response.find_objects_and_props()
 
     def calendar_user_address_set(self):
@@ -509,7 +563,7 @@ class Principal(DAVObject):
         addresses = list(addresses)
         ## possibly the preferred attribute is iCloud-specific.
         ## TODO: do more research on that
-        addresses.sort(key=lambda x: -int(x.get('preferred', 0)))
+        addresses.sort(key=lambda x: -int(x.get("preferred", 0)))
         return [x.text for x in addresses]
 
     def schedule_inbox(self):
@@ -518,12 +572,14 @@ class Principal(DAVObject):
     def schedule_outbox(self):
         return ScheduleOutbox(principal=self)
 
+
 class Calendar(DAVObject):
     """
     The `Calendar` object is used to represent a calendar collection.
     Refer to the RFC for details:
     https://tools.ietf.org/html/rfc4791#section-5.3.1
     """
+
     def _create(self, name=None, id=None, supported_calendar_component_set=None):
         """
         Create a new calendar with display name `name` in `parent`.
@@ -532,7 +588,7 @@ class Calendar(DAVObject):
             id = str(uuid.uuid1())
         self.id = id
 
-        path = self.parent.url.join(id + '/')
+        path = self.parent.url.join(id + "/")
         self.url = path
 
         # TODO: mkcalendar seems to ignore the body on most servers?
@@ -542,7 +598,9 @@ class Calendar(DAVObject):
         prop = dav.Prop()
         if name:
             display_name = dav.DisplayName(name)
-            prop += [display_name, ]
+            prop += [
+                display_name,
+            ]
         if supported_calendar_component_set:
             sccs = cdav.SupportedCalendarComponentSet()
             for scc in supported_calendar_component_set:
@@ -552,8 +610,9 @@ class Calendar(DAVObject):
 
         mkcol = cdav.Mkcalendar() + set
 
-        r = self._query(root=mkcol, query_method='mkcalendar', url=path,
-                        expected_return_value=201)
+        r = self._query(
+            root=mkcol, query_method="mkcalendar", url=path, expected_return_value=201
+        )
 
         # COMPATIBILITY ISSUE
         # name should already be set, but we've seen caldav servers failing
@@ -570,7 +629,10 @@ class Calendar(DAVObject):
                     current_display_name = self.get_property(dav.DisplayName())
                     error.assert_(current_display_name == name)
                 except:
-                    log.warning("calendar server does not support display name on calendar?  Ignoring", exc_info=True)
+                    log.warning(
+                        "calendar server does not support display name on calendar?  Ignoring",
+                        exc_info=True,
+                    )
                     error.assert_(False)
 
     def get_supported_components(self):
@@ -581,8 +643,10 @@ class Calendar(DAVObject):
         props = [cdav.SupportedCalendarComponentSet()]
         response = self.get_properties(props, parse_response_xml=False)
         response_list = response.find_objects_and_props()
-        prop = response_list[unquote(self.url.path)][cdav.SupportedCalendarComponentSet().tag]
-        return [supported.get('name') for supported in prop]
+        prop = response_list[unquote(self.url.path)][
+            cdav.SupportedCalendarComponentSet().tag
+        ]
+        return [supported.get("name") for supported in prop]
 
     def save_with_invites(self, ical, attendees, **attendeeoptions):
         """
@@ -595,11 +659,14 @@ class Calendar(DAVObject):
         obj.add_organizer()
         for attendee in attendees:
             obj.add_attendee(attendee, **attendeeoptions)
-        obj.id = obj.icalendar_instance.walk('vevent')[0]['uid']
+        obj.id = obj.icalendar_instance.walk("vevent")[0]["uid"]
         obj.save()
 
     def _use_or_create_ics(self, ical, objtype, **ical_data):
-        if ical_data or ((isinstance(ical, str) or isinstance(ical, bytes)) and not b'BEGIN:VCALENDAR' in to_wire(ical)):
+        if ical_data or (
+            (isinstance(ical, str) or isinstance(ical, bytes))
+            and not b"BEGIN:VCALENDAR" in to_wire(ical)
+        ):
             return vcal.create_ical(ical_fragment=ical, objtype=objtype, **ical_data)
         return ical
 
@@ -613,8 +680,12 @@ class Calendar(DAVObject):
          * no_create - don't create a new object, existing calendar objects should be updated
          * ical_data - passed to lib.vcal.create_ical
         """
-        e = Event(self.client, data=self._use_or_create_ics(ical, objtype='VEVENT', **ical_data), parent=self)
-        e.save(no_overwrite=no_overwrite, no_create=no_create, obj_type='event')
+        e = Event(
+            self.client,
+            data=self._use_or_create_ics(ical, objtype="VEVENT", **ical_data),
+            parent=self,
+        )
+        e.save(no_overwrite=no_overwrite, no_create=no_create, obj_type="event")
         return e
 
     def save_todo(self, ical=None, no_overwrite=False, no_create=False, **ical_data):
@@ -624,7 +695,11 @@ class Calendar(DAVObject):
         Parameters:
          * ical - ical object (text)
         """
-        return Todo(self.client, data=self._use_or_create_ics(ical, objtype='VTODO', **ical_data), parent=self).save(no_overwrite=no_overwrite, no_create=no_create, obj_type='todo')
+        return Todo(
+            self.client,
+            data=self._use_or_create_ics(ical, objtype="VTODO", **ical_data),
+            parent=self,
+        ).save(no_overwrite=no_overwrite, no_create=no_create, obj_type="todo")
 
     def save_journal(self, ical=None, no_overwrite=False, no_create=False, **ical_data):
         """
@@ -633,7 +708,11 @@ class Calendar(DAVObject):
         Parameters:
          * ical - ical object (text)
         """
-        return Journal(self.client, data=self._use_or_create_ics(ical, objtype='VJOURNAL', **ical_data), parent=self).save(no_overwrite=no_overwrite, no_create=no_create, obj_type='journal')
+        return Journal(
+            self.client,
+            data=self._use_or_create_ics(ical, objtype="VJOURNAL", **ical_data),
+            parent=self,
+        ).save(no_overwrite=no_overwrite, no_create=no_create, obj_type="journal")
 
     ## legacy aliases
     add_event = save_event
@@ -658,19 +737,30 @@ class Calendar(DAVObject):
         @author mtorange@gmail.com
         @type events list of Event
         """
-        rv=[]
+        rv = []
         prop = dav.Prop() + cdav.CalendarData()
-        root = cdav.CalendarMultiGet() + prop + [dav.Href(value=u.path) for u in event_urls]
-        response = self._query(root, 1, 'report')
+        root = (
+            cdav.CalendarMultiGet()
+            + prop
+            + [dav.Href(value=u.path) for u in event_urls]
+        )
+        response = self._query(root, 1, "report")
         results = response.expand_simple_props([cdav.CalendarData()])
         for r in results:
             rv.append(
-                Event(self.client, url=self.url.join(r), data=results[r][cdav.CalendarData.tag], parent=self))
+                Event(
+                    self.client,
+                    url=self.url.join(r),
+                    data=results[r][cdav.CalendarData.tag],
+                    parent=self,
+                )
+            )
 
         return rv
 
-
-    def build_date_search_query(self, start, end=None, compfilter="VEVENT", expand="maybe"):
+    def build_date_search_query(
+        self, start, end=None, compfilter="VEVENT", expand="maybe"
+    ):
         """
         Split out from the date_search-method below.  The idea is that
         maybe the generated query can be amended, i.e. to filter out
@@ -679,7 +769,7 @@ class Calendar(DAVObject):
         """
         ## for backward compatibility - expand should be false
         ## in an open-ended date search, otherwise true
-        if expand == 'maybe':
+        if expand == "maybe":
             expand = end
 
         # Some servers will raise an error if we send the expand flag
@@ -703,7 +793,9 @@ class Calendar(DAVObject):
         root = cdav.CalendarQuery() + [prop, filter]
         return root
 
-    def date_search(self, start, end=None, compfilter="VEVENT", expand="maybe", verify_expand=False):
+    def date_search(
+        self, start, end=None, compfilter="VEVENT", expand="maybe", verify_expand=False
+    ):
         # type (TimeStamp, TimeStamp, str, str) -> CalendarObjectResource
         """Search events by date in the calendar. Recurring events are
         expanded if they are occuring during the specified time frame
@@ -730,8 +822,10 @@ class Calendar(DAVObject):
         # build the query
         root = self.build_date_search_query(start, end, compfilter, expand)
 
-        if compfilter == 'VEVENT': comp_class=Event
-        else: comp_class = None
+        if compfilter == "VEVENT":
+            comp_class = Event
+        else:
+            comp_class = None
 
         ## xandikos now yields a 5xx-error when trying to pass
         ## expand=True, after I prodded the developer that it doesn't
@@ -754,16 +848,22 @@ class Calendar(DAVObject):
                     continue
                 components = o.vobject_instance.components()
                 for i in components:
-                    if i.name == 'VEVENT':
-                        recurrance_properties = ['exdate', 'exrule', 'rdate', 'rrule']
+                    if i.name == "VEVENT":
+                        recurrance_properties = ["exdate", "exrule", "rdate", "rrule"]
                         if any(key in recurrance_properties for key in i.contents):
                             if verify_expand:
-                                raise error.ReportError('CalDAV server did not expand recurring vevents as requested. See https://github.com/python-caldav/caldav/issues/157')
+                                raise error.ReportError(
+                                    "CalDAV server did not expand recurring vevents as requested. See https://github.com/python-caldav/caldav/issues/157"
+                                )
                             else:
-                                logging.error('CalDAV server does not support recurring events properly.  See https://github.com/python-caldav/caldav/issues/157')
+                                logging.error(
+                                    "CalDAV server does not support recurring events properly.  See https://github.com/python-caldav/caldav/issues/157"
+                                )
         return objects
 
-    def _request_report_build_resultlist(self, xml, comp_class=None, props=None, no_calendardata=False):
+    def _request_report_build_resultlist(
+        self, xml, comp_class=None, props=None, no_calendardata=False
+    ):
         """
         Takes some input XML, does a report query on a calendar object
         and returns the resource objects found.
@@ -776,7 +876,7 @@ class Calendar(DAVObject):
             props_ = [cdav.CalendarData()]
         else:
             props_ = [cdav.CalendarData()] + props
-        response = self._query(xml, 1, 'report')
+        response = self._query(xml, 1, "report")
         results = response.expand_simple_props(props_)
         for r in results:
             pdata = results[r]
@@ -797,8 +897,14 @@ class Calendar(DAVObject):
             if self.url.join(url) == self.url:
                 continue
             matches.append(
-                comp_class(self.client, url=self.url.join(url),
-                           data=cdata, parent=self, props=pdata))
+                comp_class(
+                    self.client,
+                    url=self.url.join(url),
+                    data=cdata,
+                    parent=self,
+                    props=pdata,
+                )
+            )
 
         return (response, matches)
 
@@ -826,7 +932,7 @@ class Calendar(DAVObject):
         """
 
         root = cdav.FreeBusyQuery() + [cdav.TimeRange(start, end)]
-        response = self._query(root, 1, 'report')
+        response = self._query(root, 1, "report")
         return FreeBusy(self, response.raw)
 
     def _fetch_todos(self, filters):
@@ -844,8 +950,9 @@ class Calendar(DAVObject):
 
         return self.search(root, comp_class=Todo)
 
-    def todos(self, sort_keys=('due', 'priority'), include_completed=False,
-              sort_key=None):
+    def todos(
+        self, sort_keys=("due", "priority"), include_completed=False, sort_key=None
+    ):
         """
         fetches a list of todo events.
 
@@ -860,14 +967,18 @@ class Calendar(DAVObject):
             sort_keys = (sort_key,)
 
         if not include_completed:
-            vnotcompleted = cdav.TextMatch('COMPLETED', negate=True)
-            vnotcancelled = cdav.TextMatch('CANCELLED', negate=True)
-            vstatusNotCompleted = cdav.PropFilter('STATUS') + vnotcompleted
-            vstatusNotCancelled = cdav.PropFilter('STATUS') + vnotcancelled
-            vstatusNotDefined = cdav.PropFilter('STATUS') + cdav.NotDefined()
-            vnocompletedate = cdav.PropFilter('COMPLETED') + cdav.NotDefined()
-            filters1 = (cdav.CompFilter("VTODO") + vnocompletedate +
-                        vstatusNotCompleted + vstatusNotCancelled)
+            vnotcompleted = cdav.TextMatch("COMPLETED", negate=True)
+            vnotcancelled = cdav.TextMatch("CANCELLED", negate=True)
+            vstatusNotCompleted = cdav.PropFilter("STATUS") + vnotcompleted
+            vstatusNotCancelled = cdav.PropFilter("STATUS") + vnotcancelled
+            vstatusNotDefined = cdav.PropFilter("STATUS") + cdav.NotDefined()
+            vnocompletedate = cdav.PropFilter("COMPLETED") + cdav.NotDefined()
+            filters1 = (
+                cdav.CompFilter("VTODO")
+                + vnocompletedate
+                + vstatusNotCompleted
+                + vstatusNotCancelled
+            )
             ## This query is quite much in line with https://tools.ietf.org/html/rfc4791#section-7.8.9
             matches1 = self._fetch_todos(filters1)
             ## However ... some server implementations (i.e. NextCloud
@@ -877,8 +988,7 @@ class Calendar(DAVObject):
             ## ... do you have any VTODOs for us where the STATUS
             ## field is not defined? (ref
             ## https://github.com/python-caldav/caldav/issues/14)
-            filters2 = (cdav.CompFilter("VTODO") + vnocompletedate +
-                        vstatusNotDefined)
+            filters2 = cdav.CompFilter("VTODO") + vnocompletedate + vstatusNotDefined
             matches2 = self._fetch_todos(filters2)
 
             ## For most caldav servers, everything in matches2 already exists
@@ -891,9 +1001,11 @@ class Calendar(DAVObject):
                     ## and still, Zimbra seems to deliver too many TODOs on the
                     ## filter2 ... let's do some post-filtering in case the
                     ## server fails in filtering things the right way
-                    if (not '\nCOMPLETED:' in todo.data and
-                        not '\nSTATUS:COMPLETED' in todo.data and
-                        not '\nSTATUS:CANCELLED' in todo.data):
+                    if (
+                        not "\nCOMPLETED:" in todo.data
+                        and not "\nSTATUS:COMPLETED" in todo.data
+                        and not "\nSTATUS:CANCELLED" in todo.data
+                    ):
                         matches.append(todo)
 
         else:
@@ -904,37 +1016,38 @@ class Calendar(DAVObject):
             ret = []
             vtodo = x.instance.vtodo
             defaults = {
-                'due': '2050-01-01',
-                'dtstart': '1970-01-01',
-                'priority': '0',
+                "due": "2050-01-01",
+                "dtstart": "1970-01-01",
+                "priority": "0",
                 # JA: why compare datetime.strftime('%F%H%M%S')
                 # JA: and not simply datetime?
-
                 # tobixen: probably it was made like this because we can get
                 # both dates and timestamps from the objects.
                 # Python will yield an exception if trying to compare
                 # a timestamp with a date.
-
-                'isnt_overdue':
-                    not (hasattr(vtodo, 'due') and
-                         vtodo.due.value.strftime('%F%H%M%S') <
-                         datetime.now().strftime('%F%H%M%S')),
-                'hasnt_started':
-                    (hasattr(vtodo, 'dtstart') and
-                     vtodo.dtstart.value.strftime('%F%H%M%S') >
-                     datetime.now().strftime('%F%H%M%S'))
+                "isnt_overdue": not (
+                    hasattr(vtodo, "due")
+                    and vtodo.due.value.strftime("%F%H%M%S")
+                    < datetime.now().strftime("%F%H%M%S")
+                ),
+                "hasnt_started": (
+                    hasattr(vtodo, "dtstart")
+                    and vtodo.dtstart.value.strftime("%F%H%M%S")
+                    > datetime.now().strftime("%F%H%M%S")
+                ),
             }
             for sort_key in sort_keys:
                 val = getattr(vtodo, sort_key, None)
                 if val is None:
-                    ret.append(defaults.get(sort_key, '0'))
+                    ret.append(defaults.get(sort_key, "0"))
                     continue
                 val = val.value
-                if hasattr(val, 'strftime'):
-                    ret.append(val.strftime('%F%H%M%S'))
+                if hasattr(val, "strftime"):
+                    ret.append(val.strftime("%F%H%M%S"))
                 else:
                     ret.append(val)
             return ret
+
         if sort_keys:
             matches.sort(key=sort_key_func)
         return matches
@@ -949,24 +1062,30 @@ class Calendar(DAVObject):
             ## no data received - we'd need to load it before we can know what
             ## class it really is.  Assign the base class as for now.
             return CalendarObjectResource
-        if hasattr(data, 'split'):
-            for line in data.split('\n'):
+        if hasattr(data, "split"):
+            for line in data.split("\n"):
                 line = line.strip()
-                if line == 'BEGIN:VEVENT':
+                if line == "BEGIN:VEVENT":
                     return Event
-                if line == 'BEGIN:VTODO':
+                if line == "BEGIN:VTODO":
                     return Todo
-                if line == 'BEGIN:VJOURNAL':
+                if line == "BEGIN:VJOURNAL":
                     return Journal
-                if line == 'BEGIN:VFREEBUSY':
+                if line == "BEGIN:VFREEBUSY":
                     return FreeBusy
-        elif hasattr(data, 'subcomponents'):
+        elif hasattr(data, "subcomponents"):
             if not len(data.subcomponents):
                 return CalendarObjectResource
 
             ## Late import, as icalendar is not yet on the official dependency list
             import icalendar
-            ical2caldav = {icalendar.Event: Event, icalendar.Todo: Todo, icalendar.Journal: Journal, icalendar.FreeBusy: FreeBusy}
+
+            ical2caldav = {
+                icalendar.Event: Event,
+                icalendar.Todo: Todo,
+                icalendar.Journal: Journal,
+                icalendar.FreeBusy: FreeBusy,
+            }
             for sc in data.subcomponents:
                 if sc.__class__ in ical2caldav:
                     return ical2caldav[sc.__class__]
@@ -1007,16 +1126,23 @@ class Calendar(DAVObject):
         except Exception as err:
             if comp_filter is not None:
                 raise
-            logging.warning("Error %s from server when doing an object_by_uid(%s).  search without compfilter set is not compatible with all server implementations, trying object_by_event + object_by_todo + object_by_journal instead" % (str(err), uid))
+            logging.warning(
+                "Error %s from server when doing an object_by_uid(%s).  search without compfilter set is not compatible with all server implementations, trying object_by_event + object_by_todo + object_by_journal instead"
+                % (str(err), uid)
+            )
             items_found = []
             for compfilter in ("VTODO", "VEVENT", "VJOURNAL"):
                 try:
-                    items_found.append(self.object_by_uid(uid, cdav.CompFilter(compfilter)))
+                    items_found.append(
+                        self.object_by_uid(uid, cdav.CompFilter(compfilter))
+                    )
                 except error.NotFoundError:
                     pass
             if len(items_found) >= 1:
                 if len(items_found) > 1:
-                    logging.error("multiple items found with same UID.  Returning the first one")
+                    logging.error(
+                        "multiple items found with same UID.  Returning the first one"
+                    )
                 return items_found[0]
 
         # Ref Lucas Verney, we've actually done a substring search, if the
@@ -1026,9 +1152,8 @@ class Calendar(DAVObject):
         for item in items_found:
             # Long uids are folded, so splice the lines together here before
             # attempting a match.
-            item_uid = re.search(r'\nUID:((.|\n[ \t])*)\n', item.data)
-            if (not item_uid or
-                    re.sub(r'\n[ \t]', '', item_uid.group(1)) != uid):
+            item_uid = re.search(r"\nUID:((.|\n[ \t])*)\n", item.data)
+            if not item_uid or re.sub(r"\n[ \t]", "", item_uid.group(1)) != uid:
                 continue
             ## TODO: we should assert there is only one valid item
             return item
@@ -1083,15 +1208,17 @@ class Calendar(DAVObject):
         """
         cmd = dav.SyncCollection()
         token = dav.SyncToken(value=sync_token)
-        level = dav.SyncLevel(value='1')
+        level = dav.SyncLevel(value="1")
         props = dav.Prop() + dav.GetEtag()
         root = cmd + [level, token, props]
-        (response, objects) = self._request_report_build_resultlist(root, props=[dav.GetEtag()], no_calendardata=True)
+        (response, objects) = self._request_report_build_resultlist(
+            root, props=[dav.GetEtag()], no_calendardata=True
+        )
         ## TODO: look more into this, I think sync_token should be directly available through response object
         try:
             sync_token = response.sync_token
         except:
-            sync_token = response.tree.findall('.//' + dav.SyncToken.tag)[0].text
+            sync_token = response.tree.findall(".//" + dav.SyncToken.tag)[0].text
 
         ## this is not quite right - the etag we've fetched can already be outdated
         if load_objects:
@@ -1101,7 +1228,9 @@ class Calendar(DAVObject):
                 except error.NotFoundError:
                     ## The object was deleted
                     pass
-        return SynchronizableCalendarObjectCollection(calendar=self, objects=objects, sync_token=sync_token)
+        return SynchronizableCalendarObjectCollection(
+            calendar=self, objects=objects, sync_token=sync_token
+        )
 
     objects = objects_by_sync_token
 
@@ -1124,6 +1253,7 @@ class Calendar(DAVObject):
 
         return self.search(root, comp_class=Journal)
 
+
 class ScheduleMailbox(Calendar):
     """
     RFC6638 defines an inbox and an outbox for handling event scheduling.
@@ -1134,6 +1264,7 @@ class ScheduleMailbox(Calendar):
     should create a common base class for ScheduleMailbox and Calendar
     eventually.
     """
+
     def __init__(self, client=None, principal=None, url=None):
         """
         Will locate the mbox if no url is given
@@ -1154,7 +1285,10 @@ class ScheduleMailbox(Calendar):
                 logging.error("something bad happened", exc_info=True)
                 error.assert_(self.client.check_scheduling_support())
                 self.url = None
-                raise error.NotFoundError("principal has no %s.  %s" % (str(self.findprop()), error.ERR_FRAGMENT))
+                raise error.NotFoundError(
+                    "principal has no %s.  %s"
+                    % (str(self.findprop()), error.ERR_FRAGMENT)
+                )
 
     def get_items(self):
         """
@@ -1165,30 +1299,43 @@ class ScheduleMailbox(Calendar):
             try:
                 self._items = self.objects(load_objects=True)
             except:
-                logging.debug("caldav server does not seem to support a sync-token REPORT query on a scheduling mailbox")
-                error.assert_('google' in str(self.url))
-                self._items = [CalendarObjectResource(url=x[0], client=self.client) for x in self.children()]
+                logging.debug(
+                    "caldav server does not seem to support a sync-token REPORT query on a scheduling mailbox"
+                )
+                error.assert_("google" in str(self.url))
+                self._items = [
+                    CalendarObjectResource(url=x[0], client=self.client)
+                    for x in self.children()
+                ]
                 for x in self._items:
                     x.load()
         else:
             try:
                 self._items.sync()
             except:
-                self._items = [CalendarObjectResource(url=x[0], client=self.client) for x in self.children()]
+                self._items = [
+                    CalendarObjectResource(url=x[0], client=self.client)
+                    for x in self.children()
+                ]
                 for x in self._items:
                     x.load()
         return self._items
 
     ## TODO: work in progress
+
+
 #    def get_invites():
 #        for item in self.get_items():
 #            if item.vobject_instance.vevent.
 
+
 class ScheduleInbox(ScheduleMailbox):
     findprop = cdav.ScheduleInboxURL
 
+
 class ScheduleOutbox(ScheduleMailbox):
     findprop = cdav.ScheduleOutboxURL
+
 
 class SynchronizableCalendarObjectCollection(object):
     """
@@ -1198,6 +1345,7 @@ class SynchronizableCalendarObjectCollection(object):
     To create a SynchronizableCalendarObjectCollection object, use
     calendar.objects(load_objects=True)
     """
+
     def __init__(self, calendar, objects, sync_token):
         self.calendar = calendar
         self.sync_token = sync_token
@@ -1224,10 +1372,16 @@ class SynchronizableCalendarObjectCollection(object):
         """
         updated_objs = []
         deleted_objs = []
-        updates = self.calendar.objects_by_sync_token(self.sync_token, load_objects=False)
+        updates = self.calendar.objects_by_sync_token(
+            self.sync_token, load_objects=False
+        )
         obu = self.objects_by_url()
         for obj in updates:
-            if obj.url in obu and dav.GetEtag.tag in obu[obj.url].props and dav.GetEtag.tag in obj.props:
+            if (
+                obj.url in obu
+                and dav.GetEtag.tag in obu[obj.url].props
+                and dav.GetEtag.tag in obj.props
+            ):
                 if obu[obj.url].props[dav.GetEtag.tag] == obj.props[dav.GetEtag.tag]:
                     continue
             obu[obj.url] = obj
@@ -1242,22 +1396,27 @@ class SynchronizableCalendarObjectCollection(object):
         self.sync_token = updates.sync_token
         return (updated_objs, deleted_objs)
 
+
 class CalendarObjectResource(DAVObject):
     """
     Ref RFC 4791, section 4.1, a "Calendar Object Resource" can be an
     event, a todo-item, a journal entry, or a free/busy entry
     """
+
     _vobject_instance = None
     _icalendar_instance = None
     _data = None
 
-    def __init__(self, client=None, url=None, data=None, parent=None, id=None, props=None):
+    def __init__(
+        self, client=None, url=None, data=None, parent=None, id=None, props=None
+    ):
         """
         CalendarObjectResource has an additional parameter for its constructor:
          * data = "...", vCal data for the event
         """
         super(CalendarObjectResource, self).__init__(
-            client=client, url=url, parent=parent, id=id, props=props)
+            client=client, url=url, parent=parent, id=id, props=props
+        )
         if data is not None:
             self.data = data
 
@@ -1269,12 +1428,18 @@ class CalendarObjectResource(DAVObject):
         principal = self.client.principal()
         ## TODO: remove Organizer-field, if exists
         ## TODO: what if walk returns more than one vevent?
-        self._icalendar_object().add('organizer', principal.get_vcal_address())
+        self._icalendar_object().add("organizer", principal.get_vcal_address())
 
     def _icalendar_object(self):
         import icalendar
+
         for x in self.icalendar_instance.subcomponents:
-            for cl in (icalendar.Event, icalendar.Journal, icalendar.Todo, icalendar.FreeBusy):
+            for cl in (
+                icalendar.Event,
+                icalendar.Journal,
+                icalendar.Todo,
+                icalendar.FreeBusy,
+            ):
                 if isinstance(x, cl):
                     return x
 
@@ -1305,18 +1470,20 @@ class CalendarObjectResource(DAVObject):
         elif isinstance(attendee, vCalAddress):
             attendee_obj = attendee
         elif isinstance(attendee, tuple):
-            if attendee[1].startswith('mailto:'):
+            if attendee[1].startswith("mailto:"):
                 attendee_obj = vCalAddress(attendee[1])
             else:
-                attendee_obj = vCalAddress('mailto:' + attendee[1])
-            attendee_obj.params['cn'] = vText(attendee[0])
+                attendee_obj = vCalAddress("mailto:" + attendee[1])
+            attendee_obj.params["cn"] = vText(attendee[0])
         elif isinstance(attendee, str):
-            if attendee.startswith('ATTENDEE'):
-                raise NotImplementedError("do we need to support this anyway?  Should be trivial, but can't figure out how to do it with the icalendar.Event/vCalAddress objects right now")
-            elif attendee.startswith('mailto:'):
+            if attendee.startswith("ATTENDEE"):
+                raise NotImplementedError(
+                    "do we need to support this anyway?  Should be trivial, but can't figure out how to do it with the icalendar.Event/vCalAddress objects right now"
+                )
+            elif attendee.startswith("mailto:"):
                 attendee_obj = vCalAddress(attendee)
-            elif '@' in attendee and not ':' in attendee and not ';' in attendee:
-                attendee_obj = vCalAddress('mailto:' + attendee)
+            elif "@" in attendee and not ":" in attendee and not ";" in attendee:
+                attendee_obj = vCalAddress("mailto:" + attendee)
         else:
             error.assert_(False)
             attendee_obj = vCalAddress()
@@ -1325,35 +1492,35 @@ class CalendarObjectResource(DAVObject):
         ## TODO: check that the attendee will not be duplicated in the event.
         if not no_default_parameters:
             ## Sensible defaults:
-            attendee_obj.params['partstat']='NEEDS-ACTION'
-            if not 'cutype' in attendee_obj.params:
-                attendee_obj.params['cutype']='UNKNOWN'
-            attendee_obj.params['rsvp']='TRUE'
-            attendee_obj.params['role']='REQ-PARTICIPANT'
+            attendee_obj.params["partstat"] = "NEEDS-ACTION"
+            if not "cutype" in attendee_obj.params:
+                attendee_obj.params["cutype"] = "UNKNOWN"
+            attendee_obj.params["rsvp"] = "TRUE"
+            attendee_obj.params["role"] = "REQ-PARTICIPANT"
         params = {}
         for key in parameters:
-            new_key = key.replace('_', '-')
+            new_key = key.replace("_", "-")
             if parameters[key] == True:
-                params[new_key] = 'TRUE'
+                params[new_key] = "TRUE"
             else:
                 params[new_key] = parameters[key]
         attendee_obj.params.update(params)
         ievent = self._icalendar_object()
-        ievent.add('attendee', attendee_obj)
+        ievent.add("attendee", attendee_obj)
 
     def is_invite_request(self):
         if not self.data:
             self.load()
-        return self.icalendar_instance.get('method', None) == 'REQUEST'
+        return self.icalendar_instance.get("method", None) == "REQUEST"
 
     def accept_invite(self, calendar=None):
-        self._reply_to_invite_request('ACCEPTED', calendar)
+        self._reply_to_invite_request("ACCEPTED", calendar)
 
     def decline_invite(self, calendar=None):
-        self._reply_to_invite_request('DECLINED', calendar)
+        self._reply_to_invite_request("DECLINED", calendar)
 
     def tentatively_accept_invite(self, calendar=None):
-        self._reply_to_invite_request('TENTATIVE', calendar)
+        self._reply_to_invite_request("TENTATIVE", calendar)
 
     ## TODO: DELEGATED is also a valid option, and for vtodos the
     ## partstat can also be set to COMPLETED and IN-PROGRESS.
@@ -1363,7 +1530,7 @@ class CalendarObjectResource(DAVObject):
         if not calendar:
             calendar = self.client.principal().calendars()[0]
         ## we need to modify the icalendar code, update our own participant status
-        self.icalendar_instance.pop('METHOD')
+        self.icalendar_instance.pop("METHOD")
         self.change_attendee_status(partstat=partstat)
         self.get_property(cdav.ScheduleTag(), use_cached=True)
         try:
@@ -1391,7 +1558,8 @@ class CalendarObjectResource(DAVObject):
         return self.__class__(
             parent=new_parent or self.parent,
             data=self.data,
-            id=self.id if keep_uid else str(uuid.uuid1()))
+            id=self.id if keep_uid else str(uuid.uuid1()),
+        )
 
     def load(self):
         """
@@ -1401,19 +1569,19 @@ class CalendarObjectResource(DAVObject):
         if r.status == 404:
             raise error.NotFoundError(errmsg(r))
         self.data = vcal.fix(r.raw)
-        if 'Etag' in r.headers:
-            self.props[dav.GetEtag.tag] = r.headers['Etag']
-        if 'Schedule-Tag' in r.headers:
-            self.props[cdav.ScheduleTag.tag] = r.headers['Schedule-Tag']
+        if "Etag" in r.headers:
+            self.props[dav.GetEtag.tag] = r.headers["Etag"]
+        if "Schedule-Tag" in r.headers:
+            self.props[cdav.ScheduleTag.tag] = r.headers["Schedule-Tag"]
         return self
 
     ## TODO: this method should be simplified and renamed, and probably
     ## some of the logic should be moved elsewhere
     def _create(self, data, id=None, path=None):
-        if id is None and path is not None and str(path).endswith('.ics'):
-            id = re.search('(/|^)([^/]*).ics', str(path)).group(2)
+        if id is None and path is not None and str(path).endswith(".ics"):
+            id = re.search("(/|^)([^/]*).ics", str(path)).group(2)
         elif id is None:
-            for obj_type in ('vevent', 'vtodo', 'vjournal', 'vfreebusy'):
+            for obj_type in ("vevent", "vtodo", "vjournal", "vfreebusy"):
                 obj = None
                 if hasattr(self.vobject_instance, obj_type):
                     obj = getattr(self.vobject_instance, obj_type)
@@ -1424,33 +1592,34 @@ class CalendarObjectResource(DAVObject):
                         id = obj.uid.value
                     except AttributeError:
                         id = str(uuid.uuid1())
-                        obj.add('uid')
+                        obj.add("uid")
                         obj.uid.value = id
                     break
         else:
-            for obj_type in ('vevent', 'vtodo', 'vjournal', 'vfreebusy'):
+            for obj_type in ("vevent", "vtodo", "vjournal", "vfreebusy"):
                 obj = None
                 if hasattr(self.vobject_instance, obj_type):
                     obj = getattr(self.vobject_instance, obj_type)
                 elif self.vobject_instance.name.lower() == obj_type:
                     obj = self.vobject_instance
                 if obj is not None:
-                    if not hasattr(obj, 'uid'):
-                        obj.add('uid')
+                    if not hasattr(obj, "uid"):
+                        obj.add("uid")
                     obj.uid.value = id
                     break
         if path is None:
             ## See https://github.com/python-caldav/caldav/issues/143 for the rationale behind double-quoting slashes
             ## TODO: should try to wrap my head around issues that arises when id contains weird characters.  maybe it's
             ## better to generate a new uuid here, particularly if id is in some unexpected format.
-            path = quote(id.replace('/', '%2F')) + ".ics"
+            path = quote(id.replace("/", "%2F")) + ".ics"
         path = self.parent.url.join(path)
         ## SECURITY TODO: we should probably have a check here to verify that no such object exists already
-        r = self.client.put(path, data,
-                            {"Content-Type": 'text/calendar; charset="utf-8"'})
+        r = self.client.put(
+            path, data, {"Content-Type": 'text/calendar; charset="utf-8"'}
+        )
 
         if r.status == 302:
-            path = [x[1] for x in r.headers if x[0] == 'location'][0]
+            path = [x[1] for x in r.headers if x[0] == "location"][0]
         elif not (r.status in (204, 201)):
             raise error.PutError(errmsg(r))
 
@@ -1461,7 +1630,7 @@ class CalendarObjectResource(DAVObject):
         if not attendee:
             attendee = self.client.principal()
 
-        cnt=0
+        cnt = 0
 
         if isinstance(attendee, Principal):
             for addr in attendee.calendar_user_address_set():
@@ -1472,24 +1641,32 @@ class CalendarObjectResource(DAVObject):
                 except error.NotFoundError:
                     pass
             if not cnt:
-                raise error.NotFoundError("Principal %s is not invited to event" % str(attendee))
+                raise error.NotFoundError(
+                    "Principal %s is not invited to event" % str(attendee)
+                )
             error.assert_(cnt == 1)
             return
 
         ical_obj = self._icalendar_object()
-        attendee_lines = ical_obj['attendee']
+        attendee_lines = ical_obj["attendee"]
         if isinstance(attendee_lines, str):
             attendee_lines = [attendee_lines]
-        strip_mailto = lambda x: str(x).replace('mailto:','').lower()
+        strip_mailto = lambda x: str(x).replace("mailto:", "").lower()
         for attendee_line in attendee_lines:
             if strip_mailto(attendee_line) == strip_mailto(attendee):
-                   attendee_line.params.update(kwargs)
-                   cnt += 1
+                attendee_line.params.update(kwargs)
+                cnt += 1
         if not cnt:
             raise error.NotFoundError("Participant %s not found in attendee list")
         error.assert_(cnt == 1)
 
-    def save(self, no_overwrite=False, no_create=False, obj_type=None, if_schedule_tag_match=False):
+    def save(
+        self,
+        no_overwrite=False,
+        no_create=False,
+        obj_type=None,
+        if_schedule_tag_match=False,
+    ):
         """
         Save the object, can be used for creation and update.
 
@@ -1504,9 +1681,11 @@ class CalendarObjectResource(DAVObject):
          * self
 
         """
-        if (self._vobject_instance is None and
-            self._data is None and
-            self._icalendar_instance is None):
+        if (
+            self._vobject_instance is None
+            and self._data is None
+            and self._icalendar_instance is None
+        ):
             return self
 
         path = self.url.path if self.url else None
@@ -1525,7 +1704,7 @@ class CalendarObjectResource(DAVObject):
             ## should be refactored
             if not self.id:
                 for component in self.vobject_instance.getChildren():
-                    if hasattr(component, 'uid'):
+                    if hasattr(component, "uid"):
                         self.id = component.uid.value
             if not self.id and no_create:
                 raise error.ConsistencyError("no_create flag was set, but no ID given")
@@ -1537,19 +1716,27 @@ class CalendarObjectResource(DAVObject):
             elif obj_type:
                 methods = (getattr(self.parent, "%s_by_uid" % obj_type),)
             else:
-                methods = (self.parent.object_by_uid, self.parent.event_by_uid, self.parent.todo_by_uid, self.parent.journal_by_uid)
+                methods = (
+                    self.parent.object_by_uid,
+                    self.parent.event_by_uid,
+                    self.parent.todo_by_uid,
+                    self.parent.journal_by_uid,
+                )
             for method in methods:
                 try:
                     existing = method(self.id)
                     if no_overwrite:
-                        raise error.ConsistencyError("no_overwrite flag was set, but object already exists")
+                        raise error.ConsistencyError(
+                            "no_overwrite flag was set, but object already exists"
+                        )
                     break
                 except error.NotFoundError:
                     pass
 
             if no_create and not existing:
-                raise error.ConsistencyError("no_create flag was set, but object does not exists")
-
+                raise error.ConsistencyError(
+                    "no_create flag was set, but object does not exists"
+                )
 
         ## ref https://github.com/python-caldav/caldav/issues/43
         ## we don't want to use vobject unless needed, but
@@ -1597,8 +1784,7 @@ class CalendarObjectResource(DAVObject):
             return self._icalendar_instance.to_ical()
         return None
 
-    data = property(_get_data, _set_data,
-                    doc="vCal representation of the object")
+    data = property(_get_data, _set_data, doc="vCal representation of the object")
 
     def _set_vobject_instance(self, inst):
         self._vobject_instance = inst
@@ -1611,14 +1797,22 @@ class CalendarObjectResource(DAVObject):
             if self._get_data() is None:
                 return None
             try:
-                self._set_vobject_instance(vobject.readOne(to_unicode(self._get_data())))
+                self._set_vobject_instance(
+                    vobject.readOne(to_unicode(self._get_data()))
+                )
             except:
-                log.critical("Something went wrong while loading icalendar data into the vobject class.  ical url: " + str(self.url))
+                log.critical(
+                    "Something went wrong while loading icalendar data into the vobject class.  ical url: "
+                    + str(self.url)
+                )
                 raise
         return self._vobject_instance
 
-    vobject_instance = property(_get_vobject_instance, _set_vobject_instance,
-                        doc="vobject instance of the object")
+    vobject_instance = property(
+        _get_vobject_instance,
+        _set_vobject_instance,
+        doc="vobject instance of the object",
+    )
 
     def _set_icalendar_instance(self, inst):
         self._icalendar_instance = inst
@@ -1628,18 +1822,25 @@ class CalendarObjectResource(DAVObject):
 
     def _get_icalendar_instance(self):
         import icalendar
+
         if not self._icalendar_instance:
             if not self.data:
                 return None
-            self.icalendar_instance = icalendar.Calendar.from_ical(to_unicode(self.data))
+            self.icalendar_instance = icalendar.Calendar.from_ical(
+                to_unicode(self.data)
+            )
         return self._icalendar_instance
 
-    icalendar_instance = property(_get_icalendar_instance, _set_icalendar_instance,
-                        doc="icalendar instance of the object")
+    icalendar_instance = property(
+        _get_icalendar_instance,
+        _set_icalendar_instance,
+        doc="icalendar instance of the object",
+    )
 
     ## for backward-compatibility - may be changed to
     ## icalendar_instance in version 1.0
     instance = vobject_instance
+
 
 class Event(CalendarObjectResource):
     """
@@ -1649,6 +1850,7 @@ class Event(CalendarObjectResource):
     frequently asked myself if we need those subclasses ... perhaps
     not)
     """
+
     pass
 
 
@@ -1660,6 +1862,7 @@ class Journal(CalendarObjectResource):
     frequently asked myself if we need those subclasses ... perhaps
     not)
     """
+
     pass
 
 
@@ -1673,15 +1876,19 @@ class FreeBusy(CalendarObjectResource):
 
     Update: With RFC6638 a freebusy object can have an URL and an ID.
     """
+
     def __init__(self, parent, data, url=None, id=None):
-        CalendarObjectResource.__init__(self, client=parent.client, url=url,
-                                        data=data, parent=parent, id=id)
+        CalendarObjectResource.__init__(
+            self, client=parent.client, url=url, data=data, parent=parent, id=id
+        )
+
 
 class Todo(CalendarObjectResource):
     """
     The `Todo` object is used to represent a todo item (VTODO).
     A Todo-object can be completed.
     """
+
     def complete(self, completion_timestamp=None):
         """Marks the task as completed.
 
@@ -1697,8 +1904,8 @@ class Todo(CalendarObjectResource):
         """
         if not completion_timestamp:
             completion_timestamp = datetime.now()
-        if not hasattr(self.vobject_instance.vtodo, 'status'):
-            self.vobject_instance.vtodo.add('status')
-        self.vobject_instance.vtodo.status.value = 'COMPLETED'
-        self.vobject_instance.vtodo.add('completed').value = completion_timestamp
+        if not hasattr(self.vobject_instance.vtodo, "status"):
+            self.vobject_instance.vtodo.add("status")
+        self.vobject_instance.vtodo.status.value = "COMPLETED"
+        self.vobject_instance.vtodo.add("completed").value = completion_timestamp
         self.save()

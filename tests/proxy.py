@@ -1,5 +1,4 @@
 #!/usr/bin/python
-
 """Tiny HTTP Proxy.
 
 This module implements GET, HEAD, POST, PUT and DELETE methods
@@ -14,10 +13,8 @@ Any help will be greatly appreciated.       SUZUKI Hisao
              * Added custom logging methods
              * Added code to make this a standalone application
 """
-
 import ftplib
 import getopt
-import logging
 import logging.handlers
 import os
 import select
@@ -25,11 +22,13 @@ import signal
 import socket
 import sys
 import threading
-from six import PY3
-from types import FrameType, CodeType
 from time import sleep
+from types import CodeType
+from types import FrameType
 
-from caldav.lib.python_utilities import to_wire, to_local
+from caldav.lib.python_utilities import to_local
+from caldav.lib.python_utilities import to_wire
+from six import PY3
 
 if PY3:
     from urllib import parse
@@ -47,17 +46,17 @@ __version__ = "0.3.1"
 DEFAULT_LOG_FILENAME = "proxy.log"
 
 
-class ProxyHandler (BaseHTTPRequestHandler):
+class ProxyHandler(BaseHTTPRequestHandler):
     __base = BaseHTTPRequestHandler
     __base_handle = __base.handle
 
     server_version = "TinyHTTPProxy/" + __version__
-    rbufsize = 0                        # self.rfile Be unbuffered
+    rbufsize = 0  # self.rfile Be unbuffered
 
     def handle(self):
         (ip, port) = self.client_address
         self.server.logger.log(logging.INFO, "Request from '%s'", ip)
-        if hasattr(self, 'allowed_clients') and ip not in self.allowed_clients:
+        if hasattr(self, "allowed_clients") and ip not in self.allowed_clients:
             self.raw_requestline = self.rfile.readline()
             if self.parse_request():
                 self.send_error(403)
@@ -65,13 +64,14 @@ class ProxyHandler (BaseHTTPRequestHandler):
             self.__base_handle()
 
     def _connect_to(self, netloc, soc):
-        i = netloc.find(':')
+        i = netloc.find(":")
         if i >= 0:
-            host_port = netloc[:i], int(netloc[i + 1:])
+            host_port = netloc[:i], int(netloc[i + 1 :])
         else:
             host_port = netloc, 80
         self.server.logger.log(
-            logging.INFO, "connect to %s:%d", host_port[0], host_port[1])
+            logging.INFO, "connect to %s:%d", host_port[0], host_port[1]
+        )
         try:
             soc.connect(host_port)
         except socket.error as arg:
@@ -88,8 +88,9 @@ class ProxyHandler (BaseHTTPRequestHandler):
         try:
             if self._connect_to(self.path, soc):
                 self.log_request(200)
-                self.wfile.write(self.protocol_version +
-                                 " 200 Connection established\r\n")
+                self.wfile.write(
+                    self.protocol_version + " 200 Connection established\r\n"
+                )
                 self.wfile.write("Proxy-agent: %s\r\n" % self.version_string())
                 self.wfile.write("\r\n")
                 self._read_write(soc, 300)
@@ -98,33 +99,38 @@ class ProxyHandler (BaseHTTPRequestHandler):
             self.connection.close()
 
     def do_GET(self):
-        (scm, netloc, path, params, query, fragment) = urlparse(
-            self.path, 'http')
-        if scm not in ('http', 'ftp') or fragment or not netloc:
+        (scm, netloc, path, params, query, fragment) = urlparse(self.path, "http")
+        if scm not in ("http", "ftp") or fragment or not netloc:
             self.send_error(400, "bad url %s" % self.path)
             return
         soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
-            if scm == 'http':
+            if scm == "http":
                 if self._connect_to(netloc, soc):
                     self.log_request()
-                    soc.send(to_wire("%s %s %s\r\n" % (
-                        self.command,
-                        urlunparse(('', '', path, params, query, '')),
-                        self.request_version)))
-                    self.headers['Connection'] = 'close'
-                    del self.headers['Proxy-Connection']
+                    soc.send(
+                        to_wire(
+                            "%s %s %s\r\n"
+                            % (
+                                self.command,
+                                urlunparse(("", "", path, params, query, "")),
+                                self.request_version,
+                            )
+                        )
+                    )
+                    self.headers["Connection"] = "close"
+                    del self.headers["Proxy-Connection"]
                     for key_val in list(self.headers.items()):
                         soc.send(to_wire("%s: %s\r\n" % key_val))
                     soc.send(to_wire("\r\n"))
                     self._read_write(soc)
-            elif scm == 'ftp':
+            elif scm == "ftp":
                 # fish out user and password information
-                i = netloc.find('@')
+                i = netloc.find("@")
                 if i >= 0:
-                    login_info, netloc = netloc[:i], netloc[i + 1:]
+                    login_info, netloc = netloc[:i], netloc[i + 1 :]
                     try:
-                        user, passwd = login_info.split(':', 1)
+                        user, passwd = login_info.split(":", 1)
                     except ValueError:
                         user, passwd = "anonymous", None
                 else:
@@ -137,8 +143,7 @@ class ProxyHandler (BaseHTTPRequestHandler):
                         ftp.retrbinary("RETR %s" % path, self.connection.send)
                     ftp.quit()
                 except Exception as e:
-                    self.server.logger.log(
-                        logging.WARNING, "FTP Exception: %s", e)
+                    self.server.logger.log(logging.WARNING, "FTP Exception: %s", e)
         finally:
             soc.close()
             self.connection.close()
@@ -180,11 +185,13 @@ class ProxyHandler (BaseHTTPRequestHandler):
 
     def log_message(self, format, *args):
         self.server.logger.log(
-            logging.INFO, "%s %s", self.address_string(), format % args)
+            logging.INFO, "%s %s", self.address_string(), format % args
+        )
 
     def log_error(self, format, *args):
         self.server.logger.log(
-            logging.ERROR, "%s %s", self.address_string(), format % args)
+            logging.ERROR, "%s %s", self.address_string(), format % args
+        )
 
 
 class ThreadingHTTPServer(ThreadingMixIn, HTTPServer):
@@ -208,15 +215,18 @@ def logSetup(filename, log_size, daemon):
             handler = logging.StreamHandler()
         else:
             handler = logging.handlers.RotatingFileHandler(
-                DEFAULT_LOG_FILENAME, maxBytes=(log_size * (1 << 20)),
-                backupCount=5)
+                DEFAULT_LOG_FILENAME, maxBytes=(log_size * (1 << 20)), backupCount=5
+            )
     else:
         handler = logging.handlers.RotatingFileHandler(
-            filename, maxBytes=(log_size * (1 << 20)), backupCount=5)
-    fmt = logging.Formatter("[%(asctime)-12s.%(msecs)03d] "
-                            "%(levelname)-8s {%(name)s %(threadName)s}"
-                            " %(message)s",
-                            "%Y-%m-%d %H:%M:%S")
+            filename, maxBytes=(log_size * (1 << 20)), backupCount=5
+        )
+    fmt = logging.Formatter(
+        "[%(asctime)-12s.%(msecs)03d] "
+        "%(levelname)-8s {%(name)s %(threadName)s}"
+        " %(message)s",
+        "%Y-%m-%d %H:%M:%S",
+    )
     handler.setFormatter(fmt)
 
     logger.addHandler(handler)
@@ -226,8 +236,7 @@ def logSetup(filename, log_size, daemon):
 def usage(msg=None):
     if msg:
         print(msg)
-    print(sys.argv[0],
-          "[-p port] [-l logfile] [-dh] [allowed_client_name ...]]")
+    print(sys.argv[0], "[-p port] [-l logfile] [-dh] [allowed_client_name ...]]")
     print()
     print("   -p       - Port to bind to")
     print("   -l       - Path to logfile. If not specified, STDOUT is used")
@@ -246,16 +255,33 @@ def handler(signo, frame):
 
 def daemonize(logger):
     class DevNull(object):
-        def __init__(self): self.fd = os.open("/dev/null", os.O_WRONLY)
-        def write(self, *args, **kwargs): return 0
-        def read(self, *args, **kwargs): return 0
-        def fileno(self): return self.fd
-        def close(self): os.close(self.fd)
+        def __init__(self):
+            self.fd = os.open("/dev/null", os.O_WRONLY)
+
+        def write(self, *args, **kwargs):
+            return 0
+
+        def read(self, *args, **kwargs):
+            return 0
+
+        def fileno(self):
+            return self.fd
+
+        def close(self):
+            os.close(self.fd)
+
     class ErrorLog:
-        def __init__(self, obj): self.obj = obj
-        def write(self, string): self.obj.log(logging.ERROR, string)
-        def read(self, *args, **kwargs): return 0
-        def close(self): pass
+        def __init__(self, obj):
+            self.obj = obj
+
+        def write(self, string):
+            self.obj.log(logging.ERROR, string)
+
+        def read(self, *args, **kwargs):
+            return 0
+
+        def close(self):
+            pass
 
     if os.fork() != 0:
         # allow the child pid to instanciate the server
@@ -263,7 +289,7 @@ def daemonize(logger):
         sleep(1)
         sys.exit(0)
     os.setsid()
-    fd = os.open('/dev/null', os.O_RDONLY)
+    fd = os.open("/dev/null", os.O_RDONLY)
     if fd != 0:
         os.dup2(fd, 0)
         os.close(fd)
@@ -272,7 +298,7 @@ def daemonize(logger):
     sys.stdout = null
     sys.stderr = log
     sys.stdin = null
-    fd = os.open('/dev/null', os.O_WRONLY)
+    fd = os.open("/dev/null", os.O_WRONLY)
     # if fd != 1: os.dup2(fd, 1)
     os.dup2(sys.stdout.fileno(), 1)
     if fd != 2:
@@ -297,9 +323,12 @@ def main():
         return 1
 
     for opt, value in opts:
-        if opt == "-p": port = int(value)
-        if opt == "-l": logfile = value
-        if opt == "-d": daemon = not daemon
+        if opt == "-p":
+            port = int(value)
+        if opt == "-l":
+            logfile = value
+        if opt == "-d":
+            daemon = not daemon
         if opt == "-h":
             usage()
             return 0
@@ -332,8 +361,11 @@ def main():
             httpd.handle_request()
             req_count += 1
             if req_count == 1000:
-                logger.log(logging.INFO, "Number of active threads: %s",
-                           threading.activeCount())
+                logger.log(
+                    logging.INFO,
+                    "Number of active threads: %s",
+                    threading.activeCount(),
+                )
                 req_count = 0
         except select.error as e:
             if e[0] == 4 and run_event.isSet():
@@ -343,5 +375,6 @@ def main():
     logger.log(logging.INFO, "Server shutdown")
     return 0
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     sys.exit(main())
