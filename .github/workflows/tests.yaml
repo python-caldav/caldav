@@ -43,3 +43,12 @@ jobs:
           key: pip|${{ hashFiles('setup.py') }}|${{ hashFiles('tox.ini') }}
       - run: pip install tox
       - run: tox -e docs
+  style:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/cache@v1
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit|${{ hashFiles('.pre-commit-config.yaml') }}
+      - run: pip install tox
+      - run: tox -e style
