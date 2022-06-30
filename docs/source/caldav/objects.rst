@@ -3,4 +3,4 @@
 
 .. automodule:: caldav.objects
    :synopsis: Base DAVObject class
-   :members: 
+   :members:

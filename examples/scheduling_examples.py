@@ -1,9 +1,13 @@
-from caldav import DAVClient, error
-from icalendar import Calendar, Event
-from datetime import datetime, timedelta
-import pytz
-import uuid
 import sys
+import uuid
+from datetime import datetime
+from datetime import timedelta
+
+import pytz
+from caldav import DAVClient
+from caldav import error
+from icalendar import Calendar
+from icalendar import Event
 
 ###############
 ### SETUP START
@@ -19,18 +23,24 @@ except:
 ## corresponding principal objects and calendars.
 class TestUser:
     def __init__(self, i):
-        if rfc6638_users and len(rfc6638_users)>i-1:
-            conndata = rfc6638_users[i-1].copy()
-            if 'incompatibilities' in conndata:
-                conndata.pop('incompatibilities')
+        if rfc6638_users and len(rfc6638_users) > i - 1:
+            conndata = rfc6638_users[i - 1].copy()
+            if "incompatibilities" in conndata:
+                conndata.pop("incompatibilities")
             self.client = DAVClient(**conndata)
         else:
-            self.client = DAVClient(username = "testuser%i" % i, password = "testpass%i" %i, url = "http://calendar.tobixen.no/caldav.php/")
+            self.client = DAVClient(
+                username="testuser%i" % i,
+                password="testpass%i" % i,
+                url="http://calendar.tobixen.no/caldav.php/",
+            )
         self.principal = self.client.principal()
         calendar_id = "schedulingtestcalendar%i" % i
         calendar_name = "calendar #%i for scheduling demo" % i
         self.cleanup(calendar_name)
-        self.calendar = self.principal.make_calendar(name=calendar_name, cal_id=calendar_id)
+        self.calendar = self.principal.make_calendar(
+            name=calendar_name, cal_id=calendar_id
+        )
 
     def cleanup(self, calendar_name):
         ## Cleanup from earlier runs
@@ -41,8 +51,9 @@ class TestUser:
             pass
 
         ## Hmm ... perhaps we shouldn't delete inbox items
-        #for inbox_item in self.principal.schedule_inbox().get_items():
-            #inbox_item.delete()
+        # for inbox_item in self.principal.schedule_inbox().get_items():
+        # inbox_item.delete()
+
 
 organizer = TestUser(1)
 attendee1 = TestUser(2)
@@ -60,29 +71,29 @@ for test_user in organizer, attendee1, attendee2:
 ## We'll be using the icalendar library to set up a mock meeting,
 ## at some far point in the future.
 caldata = Calendar()
-caldata.add('prodid', '-//tobixen//python-icalendar//en_DK')
-caldata.add('version', '2.0')
+caldata.add("prodid", "-//tobixen//python-icalendar//en_DK")
+caldata.add("version", "2.0")
 
 uid = uuid.uuid1()
-event=Event()
-event.add('dtstamp', datetime.now())
-event.add('dtstart', datetime.now() + timedelta(days=4000))
-event.add('dtend', datetime.now() + timedelta(days=4000, hours=1))
-event.add('uid', uid)
-event.add('summary', 'Some test event made to test scheduling in the caldav library')
+event = Event()
+event.add("dtstamp", datetime.now())
+event.add("dtstart", datetime.now() + timedelta(days=4000))
+event.add("dtend", datetime.now() + timedelta(days=4000, hours=1))
+event.add("uid", uid)
+event.add("summary", "Some test event made to test scheduling in the caldav library")
 caldata.add_component(event)
 
 caldata2 = Calendar()
-caldata2.add('prodid', '-//tobixen//python-icalendar//en_DK')
-caldata2.add('version', '2.0')
+caldata2.add("prodid", "-//tobixen//python-icalendar//en_DK")
+caldata2.add("version", "2.0")
 
 uid = uuid.uuid1()
-event=Event()
-event.add('dtstamp', datetime.now())
-event.add('dtstart', datetime.now() + timedelta(days=4000))
-event.add('dtend', datetime.now() + timedelta(days=4000, hours=1))
-event.add('uid', uid)
-event.add('summary', 'Test event with participants but without invites')
+event = Event()
+event.add("dtstamp", datetime.now())
+event.add("dtstart", datetime.now() + timedelta(days=4000))
+event.add("dtend", datetime.now() + timedelta(days=4000, hours=1))
+event.add("uid", uid)
+event.add("summary", "Test event with participants but without invites")
 caldata2.add_component(event)
 
 
@@ -114,19 +125,22 @@ attendees.append(organizer.principal.get_vcal_address())
 ## the principal-collection-set prop to get a list.
 attendees.append(attendee1.principal)
 attendees.append(attendee2.principal)
-    
+
 ## An attendee can also be added by email address
-attendees.append('some-random-guy@example.com')
+attendees.append("some-random-guy@example.com")
 
 ## Or by a (common_name, email) tuple
-attendees.append(
-    ('Some Other Random Guy', 'some-other-random-guy@example.com'))
+attendees.append(("Some Other Random Guy", "some-other-random-guy@example.com"))
 
 print("Sending a calendar invite")
 organizer.calendar.save_with_invites(caldata, attendees=attendees)
 
-print("Storing another calendar event with the same participants, but without sending out emails")
-organizer.calendar.save_with_invites(caldata2, attendees=attendees, schedule_agent='NONE')
+print(
+    "Storing another calendar event with the same participants, but without sending out emails"
+)
+organizer.calendar.save_with_invites(
+    caldata2, attendees=attendees, schedule_agent="NONE"
+)
 
 ## There are some attendee parameters that may be set (TODO: add
 ## example code), the convenience method above will use sensible
@@ -144,11 +158,11 @@ for inbox_item in attendee1.principal.schedule_inbox().get_items():
     ## for invite messages.
     print("Inbox item found for attendee1.  Here is the ical:")
     print(inbox_item.data)
-    
+
     if inbox_item.is_invite_request():
         print("Inbox item is an invite request")
-        invite_req_cnt += 1 ## TODO: assert(invite_req_cnt == 1) after loop
-        
+        invite_req_cnt += 1  ## TODO: assert(invite_req_cnt == 1) after loop
+
         ## Ref RFC6638, example B.3 ... to respond to an invite, it's
         ## needed to edit the ical data, find the correct
         ## "attendee"-field, change the attendee "partstat", put the
@@ -200,11 +214,14 @@ for inbox_item in organizer.principal.schedule_inbox().get_items():
 ## However, I will probably make a convenience method for doing the
 ## query, and leaving the parsing of the returned icalendar data to
 ## the user of the library:
-import pdb; pdb.set_trace()
+import pdb
+
+pdb.set_trace()
 some_data_returned = organizer.principal.freebusy_request(
     dtstart=datetime.now().astimezone(pytz.utc) + timedelta(days=399),
     dtend=datetime.now().astimezone(pytz.utc) + timedelta(days=399, hours=1),
-    attendees=[attendee1.principal, attendee2.principal])
+    attendees=[attendee1.principal, attendee2.principal],
+)
 
 ## Examples in RFC6638 goes on to describing how to accept and decline
 ## particular instances of a recurring events, and RFC5546 has a lot

@@ -1,10 +1,18 @@
 #!/usr/bin/env python
 # -*- encoding: utf-8 -*-
-
+from caldav.lib.python_utilities import to_normal_str
+from caldav.lib.python_utilities import to_unicode
 from six import PY3
-from caldav.lib.python_utilities import to_unicode, to_normal_str
+
 if PY3:
-    from urllib.parse import ParseResult, SplitResult, urlparse, unquote, quote, urlunparse
+    from urllib.parse import (
+        ParseResult,
+        SplitResult,
+        urlparse,
+        unquote,
+        quote,
+        urlunparse,
+    )
 else:
     from urlparse import ParseResult, SplitResult
     from urlparse import urlparse, urlunparse
@@ -14,7 +22,7 @@ else:
 def uc2utf8(input):
     # argh!  this feels wrong, but seems to be needed.
     if not PY3 and type(input) == unicode:
-        return input.encode('utf-8')
+        return input.encode("utf-8")
     else:
         return input
 
@@ -48,6 +56,7 @@ class URL:
     accept any kind of URL.
 
     """
+
     def __init__(self, url):
         if isinstance(url, ParseResult) or isinstance(url, SplitResult):
             self.url_parsed = url
@@ -70,7 +79,7 @@ class URL:
             return True
         # The URLs could have insignificant differences
         me = self.canonical()
-        if hasattr(other, 'canonical'):
+        if hasattr(other, "canonical"):
             other = other.canonical()
         return str(me) == str(other)
 
@@ -112,7 +121,7 @@ class URL:
         return "URL(%s)" % str(self)
 
     def strip_trailing_slash(self):
-        if str(self)[-1] == '/':
+        if str(self)[-1] == "/":
             return URL.objectify(str(self)[:-1])
         else:
             return self
@@ -123,12 +132,17 @@ class URL:
     def unauth(self):
         if not self.is_auth():
             return self
-        return URL.objectify(ParseResult(
-            self.scheme,
-            '%s:%s' % (self.hostname,
-                       self.port or {'https': 443, 'http': 80}[self.scheme]),
-            self.path.replace('//', '/'), self.params, self.query,
-            self.fragment))
+        return URL.objectify(
+            ParseResult(
+                self.scheme,
+                "%s:%s"
+                % (self.hostname, self.port or {"https": 443, "http": 80}[self.scheme]),
+                self.path.replace("//", "/"),
+                self.params,
+                self.query,
+                self.fragment,
+            )
+        )
 
     def canonical(self):
         """
@@ -140,17 +154,17 @@ class URL:
 
         arr = list(self.url_parsed)
         ## quoting path and removing double slashes
-        arr[2] = quote(unquote(url.path.replace('//', '/')))
+        arr[2] = quote(unquote(url.path.replace("//", "/")))
         ## sensible defaults
         if not arr[0]:
-            arr[0] = 'https'
-        if arr[1] and not ':' in arr[1]:
-            if arr[0] == 'https':
-                portpart = ':443'
-            elif arr[0] == 'http':
-                portpart = ':80'
+            arr[0] = "https"
+        if arr[1] and not ":" in arr[1]:
+            if arr[0] == "https":
+                portpart = ":443"
+            elif arr[0] == "http":
+                portpart = ":80"
             else:
-                portpart = ''
+                portpart = ""
             arr[1] += portpart
 
         # make sure to delete the string version
@@ -172,23 +186,29 @@ class URL:
             return self
         path = URL.objectify(path)
         if (
-            (path.scheme and self.scheme and path.scheme != self.scheme) or
-            (path.hostname and self.hostname and
-             path.hostname != self.hostname) or
-            (path.port and self.port and path.port != self.port)
+            (path.scheme and self.scheme and path.scheme != self.scheme)
+            or (path.hostname and self.hostname and path.hostname != self.hostname)
+            or (path.port and self.port and path.port != self.port)
         ):
             raise ValueError("%s can't be joined with %s" % (self, path))
 
-        if path.path[0] == '/':
+        if path.path[0] == "/":
             ret_path = uc2utf8(path.path)
         else:
             sep = "/"
             if self.path.endswith("/"):
                 sep = ""
             ret_path = "%s%s%s" % (self.path, sep, uc2utf8(path.path))
-        return URL(ParseResult(
-            self.scheme or path.scheme, self.netloc or path.netloc, ret_path,
-            path.params, path.query, path.fragment))
+        return URL(
+            ParseResult(
+                self.scheme or path.scheme,
+                self.netloc or path.netloc,
+                ret_path,
+                path.params,
+                path.query,
+                path.fragment,
+            )
+        )
 
 
 def make(url):

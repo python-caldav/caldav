@@ -105,7 +105,7 @@ Setting up a caldav client object and a principal object:
       ...
 
 Fetching calendars:
-  
+
 .. code-block:: python
 
   calendars = my_principal.calendars()
@@ -238,7 +238,7 @@ Notable classes and workflow
 
 * From the principal object one can fetch / generate
   :class:`caldav.objects.Calendar` objects.
-  
+
 * From the calendar object one can fetch / generate
   :class:`caldav.objects.Event` objects and
   :class:`caldav.objects.Todo` objects (as well as :class:`caldav.objects.Journal` objects - does anyone use Journal objects?).  Eventually the library may also spew out objects of the base class (:class:`caldav.objects.CalendarObjectResource`) if the object type is unknown when the object is instantiated.
@@ -322,7 +322,7 @@ CalDAV URLs can be quite confusing, some software requires the URL to the calend
   recommended practice the caldav library will find those URLs.  A
   typical icloud calendar URL looks like
   ``https://p12-caldav.icloud.com/12345/calendars/CALNAME``.
-  
+
 * Google: ``https://www.google.com/calendar/dav/`` - but this is a
   legacy URL, before using the officially supported URL
   https://github.com/python-caldav/caldav/issues/119 has to be
@@ -377,4 +377,3 @@ Caldav is dual-licensed under the GNU GENERAL PUBLIC LICENSE Version 3 and the A
 * :ref:`genindex`
 * :ref:`modindex`
 * :ref:`search`
-

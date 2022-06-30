@@ -1,39 +1,46 @@
 #!/usr/bin/env python
 # -*- encoding: utf-8 -*-
-
-from collections import defaultdict
 import logging
+from collections import defaultdict
 
 try:
     import os
+
     ## one of DEBUG_PDB, DEBUG, DEVELOPMENT, PRODUCTION
-    debugmode = os.environ['PYTHON_CALDAV_DEBUGMODE']
+    debugmode = os.environ["PYTHON_CALDAV_DEBUGMODE"]
 except:
     ## The default debugmode should be PRODUCTION in official releases,
     ## and DEVELOPMENT when doing beta testing.
     ## TODO: find some way to automate this.
-    #debugmode = 'DEVELOPMENT'
-    debugmode = 'PRODUCTION'
+    # debugmode = 'DEVELOPMENT'
+    debugmode = "PRODUCTION"
 
-log = logging.getLogger('caldav')
-if debugmode.startswith('DEBUG'):
+log = logging.getLogger("caldav")
+if debugmode.startswith("DEBUG"):
     log.setLevel(logging.DEBUG)
 else:
     log.setLevel(logging.WARNING)
 
+
 def assert_(condition):
     try:
-        assert(condition)
+        assert condition
     except AssertionError:
-        if debugmode == 'PRODUCTION':
-            log.error("Deviation from expectations found.  %s" % ERR_FRAGMENT, exc_info=True)
-        elif debugmode == 'DEBUG_PDB':
+        if debugmode == "PRODUCTION":
+            log.error(
+                "Deviation from expectations found.  %s" % ERR_FRAGMENT, exc_info=True
+            )
+        elif debugmode == "DEBUG_PDB":
             log.error("Deviation from expectations found.  Dropping into debugger")
-            import pdb; pdb.set_trace()
+            import pdb
+
+            pdb.set_trace()
         else:
             raise
 
-ERR_FRAGMENT="Please raise an issue at https://github.com/python-caldav/caldav/issues or reach out to t-caldav@tobixen.no, include this error and the traceback and tell what server you are using"
+
+ERR_FRAGMENT = "Please raise an issue at https://github.com/python-caldav/caldav/issues or reach out to t-caldav@tobixen.no, include this error and the traceback and tell what server you are using"
+
 
 class DAVError(Exception):
     url = None
@@ -46,7 +53,12 @@ class DAVError(Exception):
             self.reason = reason
 
     def __str__(self):
-        return "%s at '%s', reason %s" % (self.__class__.__name__, self.url, self.reason)
+        return "%s at '%s', reason %s" % (
+            self.__class__.__name__,
+            self.url,
+            self.reason,
+        )
+
 
 class AuthorizationError(DAVError):
     """
@@ -54,10 +66,13 @@ class AuthorizationError(DAVError):
     to the user. The url property will contain the url in question,
     the reason property will contain the excuse the server sent.
     """
+
     pass
+
 
 class PropsetError(DAVError):
     pass
+
 
 class ProppatchError(DAVError):
     pass
@@ -90,14 +105,24 @@ class DeleteError(DAVError):
 class NotFoundError(DAVError):
     pass
 
+
 class ConsistencyError(DAVError):
     pass
+
 
 class ResponseError(DAVError):
     pass
 
+
 exception_by_method = defaultdict(lambda: DAVError)
-for method in ('delete', 'put', 'mkcalendar', 'mkcol', 'report', 'propset',
-               'propfind', 'proppatch'):
-    exception_by_method[method] = \
-        locals()[method[0].upper() + method[1:] + 'Error']
+for method in (
+    "delete",
+    "put",
+    "mkcalendar",
+    "mkcol",
+    "report",
+    "propset",
+    "propfind",
+    "proppatch",
+):
+    exception_by_method[method] = locals()[method[0].upper() + method[1:] + "Error"]

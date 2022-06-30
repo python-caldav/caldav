@@ -79,7 +79,7 @@ Credits: Nylas
 
 Convenience-methods for finding CalDAV inbox and outbox, for accepting calendar invites, for adding invitations to an icalendar object, doing freebusy-requests towards email addresses and misc.  Should be ready for use, but it's relatively untested.
 
-Commits: 1e8ee44e9b11051fdba7414a325956338f543a6b, 2238d093aea6c04b0cdb2c877c6fde45ef0118a7, 0f4cdb8bec113212b4901e367a79542c35572991, 32722bf3b8337a4839396f21406f441199a6b02c, 
+Commits: 1e8ee44e9b11051fdba7414a325956338f543a6b, 2238d093aea6c04b0cdb2c877c6fde45ef0118a7, 0f4cdb8bec113212b4901e367a79542c35572991, 32722bf3b8337a4839396f21406f441199a6b02c,
 
 Github issues: https://github.com/python-caldav/caldav/issues/125
 
@@ -132,7 +132,7 @@ Credits: Herve Commowick (@vr), Jelmer Vernooĳ (@jelmer), Stephan (@kiffie)
 
 Github issues: https://github.com/python-caldav/caldav/issues/112 https://github.com/python-caldav/caldav/issues/133
 
-Commits: ed89a5911e1e9ba38302fef5febc5f03906f84bd, 3d0666d332d6505761488a04324c11257b7ed532, 576fd176c3ef64db973f059000976b7cc8c97d8c, 
+Commits: ed89a5911e1e9ba38302fef5febc5f03906f84bd, 3d0666d332d6505761488a04324c11257b7ed532, 576fd176c3ef64db973f059000976b7cc8c97d8c,
 
 Credits: Mincheol Song (@mtorange), @pleasedonotwatch, @frank-pet
 
