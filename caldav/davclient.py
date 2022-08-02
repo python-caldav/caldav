@@ -314,6 +314,7 @@ class DAVClient:
         username=None,
         password=None,
         auth=None,
+        timeout=None,
         ssl_verify_cert=True,
         ssl_cert=None,
     ):
@@ -323,7 +324,7 @@ class DAVClient:
          * url: A fully qualified url: `scheme://user:pass@hostname:port`
          * proxy: A string defining a proxy server: `hostname:port`
          * username and password should be passed as arguments or in the URL
-         * auth and ssl_verify_cert is passed to requests.request.
+         * auth, timeout and ssl_verify_cert are passed to requests.request.
          ** ssl_verify_cert can be the path of a CA-bundle or False.
         """
 
@@ -365,6 +366,7 @@ class DAVClient:
         self.auth = auth
         # TODO: it's possible to force through a specific auth method here,
         # but no test code for this.
+        self.timeout = timeout
         self.ssl_verify_cert = ssl_verify_cert
         self.ssl_cert = ssl_cert
         self.url = self.url.unauth()
@@ -572,6 +574,7 @@ class DAVClient:
                 headers=combined_headers,
                 proxies=proxies,
                 auth=self.auth,
+                timeout=self.timeout,
                 verify=self.ssl_verify_cert,
                 cert=self.ssl_cert,
             )
@@ -589,6 +592,7 @@ class DAVClient:
                 url=str(url),
                 headers=combined_headers,
                 proxies=proxies,
+                timeout=self.timeout,
                 verify=self.ssl_verify_cert,
                 cert=self.ssl_cert,
             )
