@@ -326,6 +326,10 @@ class DAVClient:
          * username and password should be passed as arguments or in the URL
          * auth, timeout and ssl_verify_cert are passed to requests.request.
          ** ssl_verify_cert can be the path of a CA-bundle or False.
+
+        The requests library will honor a .netrc-file, if such a file exists
+        username and password may be omitted.  Known bug: .netrc is honored
+        even if a username/password is given, ref https://github.com/python-caldav/caldav/issues/206
         """
 
         self.session = requests.Session()

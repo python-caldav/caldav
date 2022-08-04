@@ -104,6 +104,11 @@ Setting up a caldav client object and a principal object:
       my_principal = client.principal()
       ...
 
+Note that if a .netrc file exists, it will be honored and the username
+and password may be omitted.  (Known bug: .netrc will be honoed even
+if username and password is given - ref
+https://github.com/python-caldav/caldav/issues/206)
+
 Fetching calendars:
 
 .. code-block:: python
