@@ -369,10 +369,10 @@ class TestScheduling(object):
     def teardown(self):
         for i in range(0, len(self.principals)):
             calendar_name = "caldav scheduling test %i" % i
-        try:
-            self.principals[i].calendar(name=calendar_name).delete()
-        except error.NotFoundError:
-            pass
+            try:
+                self.principals[i].calendar(name=calendar_name).delete()
+            except error.NotFoundError:
+                pass
 
     ## TODO
     # def testFreeBusy(self):
