@@ -8,6 +8,7 @@ to emulate server communication.
 
 """
 from datetime import datetime
+import pickle
 
 import caldav
 import icalendar
@@ -873,6 +874,13 @@ END:VCALENDAR
             URL("https://www.example.com:443/b%61r/").canonical()
             == URL("//www.example.com/bar/").canonical()
         )
+
+        # 10) pickle
+        assert (
+            pickle.loads(pickle.dumps(url1))
+            == url1
+        )
+
 
     def testFilters(self):
         filter = cdav.Filter().append(
