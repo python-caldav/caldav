@@ -412,7 +412,7 @@ class CalendarSet(DAVObject):
             str(self.client.url.canonical())
         ):
             url = self.client.url.join(cal_id)
-        elif isinstance(cal_id, URL):
+        elif isinstance(cal_id, URL) or cal_id.startswith('https://') or cal_id.startswith('http://'):
             url = self.url.join(cal_id)
         else:
             url = self.url.join(quote(cal_id) + "/")
