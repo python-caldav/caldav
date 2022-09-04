@@ -190,3 +190,9 @@ fastmail = [
     "no_todo",
     "sticky_events",
 ]
+
+synlogy = [
+    "fragile_sync_tokens",
+    "vtodo_datesearch_notime_task_is_skipped",
+    "no_recurring_todo"
+]
