@@ -877,8 +877,7 @@ END:VCALENDAR
 
         # 10) pickle
         assert (
-            pickle.loads(pickle.dumps(url1))
-            == url1
+            pickle.loads(pickle.dumps(url1)) == url1
         )
 
 
