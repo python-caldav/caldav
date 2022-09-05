@@ -876,10 +876,7 @@ END:VCALENDAR
         )
 
         # 10) pickle
-        assert (
-            pickle.loads(pickle.dumps(url1)) == url1
-        )
-
+        assert pickle.loads(pickle.dumps(url1)) == url1
 
     def testFilters(self):
         filter = cdav.Filter().append(
