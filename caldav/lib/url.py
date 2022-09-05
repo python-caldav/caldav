@@ -100,7 +100,7 @@ class URL:
     # To deal with all kind of methods/properties in the ParseResult
     # class
     def __getattr__(self, attr):
-        if 'url_parsed' not in vars(self):
+        if "url_parsed" not in vars(self):
             raise AttributeError
         if self.url_parsed is None:
             self.url_parsed = urlparse(self.url_raw)

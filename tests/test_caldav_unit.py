@@ -7,8 +7,8 @@ server for the tests in this file.  We use the Mock class when needed
 to emulate server communication.
 
 """
-from datetime import datetime
 import pickle
+from datetime import datetime
 
 import caldav
 import icalendar
