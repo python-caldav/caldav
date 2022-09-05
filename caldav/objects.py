@@ -263,7 +263,7 @@ class DAVObject(object):
             ## TODO: should probably be investigated more.
             ## (observed also by others, ref https://github.com/python-caldav/caldav/issues/168)
             rc = properties["/principal/"]
-        elif len(properties)==1:
+        elif len(properties) == 1:
             ## Ref https://github.com/python-caldav/caldav/issues/191 ...
             ## let's be pragmatic and just accept whatever the server is
             ## throwing at us.  But we'll log an error anyway.
@@ -412,7 +412,11 @@ class CalendarSet(DAVObject):
             str(self.client.url.canonical())
         ):
             url = self.client.url.join(cal_id)
-        elif isinstance(cal_id, URL) or cal_id.startswith('https://') or cal_id.startswith('http://'):
+        elif (
+            isinstance(cal_id, URL)
+            or cal_id.startswith("https://")
+            or cal_id.startswith("http://")
+        ):
             url = self.url.join(cal_id)
         else:
             url = self.url.join(quote(cal_id) + "/")

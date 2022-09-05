@@ -7,8 +7,8 @@ server for the tests in this file.  We use the Mock class when needed
 to emulate server communication.
 
 """
-from datetime import datetime
 import pickle
+from datetime import datetime
 
 import caldav
 import icalendar
@@ -876,11 +876,7 @@ END:VCALENDAR
         )
 
         # 10) pickle
-        assert (
-            pickle.loads(pickle.dumps(url1))
-            == url1
-        )
-
+        assert pickle.loads(pickle.dumps(url1)) == url1
 
     def testFilters(self):
         filter = cdav.Filter().append(
