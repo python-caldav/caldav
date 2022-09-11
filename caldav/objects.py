@@ -1267,13 +1267,12 @@ class Calendar(DAVObject):
         root = cdav.CalendarQuery() + [prop, filter]
 
         return self.search(root, comp_class=Journal)
-    
+
     def get_display_name(self):
         """
         Get calendar display name
         """
         return calendar.get_property(dav.DisplayName())
-
 
 
 class ScheduleMailbox(Calendar):
