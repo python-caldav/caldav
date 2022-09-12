@@ -398,7 +398,7 @@ class CalendarSet(DAVObject):
         """
         if name and not cal_id:
             for calendar in self.calendars():
-                display_name = self.get_display_name()
+                display_name = calendar.get_display_name()
                 if display_name == name:
                     return calendar
         if name and not cal_id:
