@@ -1272,7 +1272,7 @@ class Calendar(DAVObject):
         """
         Get calendar display name
         """
-        return calendar.get_property(dav.DisplayName())
+        return self.get_property(dav.DisplayName())
 
 
 class ScheduleMailbox(Calendar):
