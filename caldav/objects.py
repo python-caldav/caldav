@@ -398,7 +398,7 @@ class CalendarSet(DAVObject):
         """
         if name and not cal_id:
             for calendar in self.calendars():
-                display_name = calendar.get_property(dav.DisplayName())
+                display_name = calendar.get_display_name()
                 if display_name == name:
                     return calendar
         if name and not cal_id:
@@ -485,7 +485,7 @@ class Principal(DAVObject):
         ## Late import.  Prior to 1.0, icalendar is only an optional dependency.
         from icalendar import vCalAddress, vText
 
-        cn = self.get_property(dav.DisplayName())
+        cn = self.get_display_name()
         ids = self.calendar_user_address_set()
         cutype = self.get_property(cdav.CalendarUserType())
         ret = vCalAddress(ids[0])
@@ -641,7 +641,7 @@ class Calendar(DAVObject):
                 ## TODO: investigate.  Those asserts break.
                 error.assert_(False)
                 try:
-                    current_display_name = self.get_property(dav.DisplayName())
+                    current_display_name = self.get_display_name()
                     error.assert_(current_display_name == name)
                 except:
                     log.warning(
@@ -1267,6 +1267,12 @@ class Calendar(DAVObject):
         root = cdav.CalendarQuery() + [prop, filter]
 
         return self.search(root, comp_class=Journal)
+
+    def get_display_name(self):
+        """
+        Get calendar display name
+        """
+        return self.get_property(dav.DisplayName())
 
 
 class ScheduleMailbox(Calendar):
