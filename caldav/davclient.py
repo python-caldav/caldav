@@ -58,7 +58,7 @@ class DAVResponse:
                 content_length = int(self.headers["Content-Length"])
             except:
                 content_length = -1
-            if content_length == 0:
+            if content_length == 0 or not self._raw:
                 self._raw = ""
                 self.tree = None
                 log.debug("No content delivered")
