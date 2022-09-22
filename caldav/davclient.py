@@ -67,9 +67,13 @@ class DAVResponse:
                 ## the stream often is compressed.  We could add uncompression on the fly, but not
                 ## considered worth the effort as for now.
                 # self.tree = etree.parse(response.raw, parser=etree.XMLParser(remove_blank_text=True))
-                self.tree = etree.XML(
-                    self._raw, parser=etree.XMLParser(remove_blank_text=True)
-                )
+                try:
+                    self.tree = etree.XML(
+                        self._raw, parser=etree.XMLParser(remove_blank_text=True)
+                    )
+                except:
+                    logging.critical("Expected some valid XML from the server, but got this: \n"+self._raw, exc_info=True)
+                    raise
                 if log.level <= logging.DEBUG:
                     log.debug(etree.tostring(self.tree, pretty_print=True))
         elif self.headers.get("Content-Type", "").startswith(
