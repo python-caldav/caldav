@@ -58,7 +58,7 @@ class DAVResponse:
                 content_length = int(self.headers["Content-Length"])
             except:
                 content_length = -1
-            if content_length == 0:
+            if content_length == 0 or not self._raw:
                 self._raw = ""
                 self.tree = None
                 log.debug("No content delivered")
@@ -67,9 +67,17 @@ class DAVResponse:
                 ## the stream often is compressed.  We could add uncompression on the fly, but not
                 ## considered worth the effort as for now.
                 # self.tree = etree.parse(response.raw, parser=etree.XMLParser(remove_blank_text=True))
-                self.tree = etree.XML(
-                    self._raw, parser=etree.XMLParser(remove_blank_text=True)
-                )
+                try:
+                    self.tree = etree.XML(
+                        self._raw, parser=etree.XMLParser(remove_blank_text=True)
+                    )
+                except:
+                    logging.critical(
+                        "Expected some valid XML from the server, but got this: \n"
+                        + self._raw,
+                        exc_info=True,
+                    )
+                    raise
                 if log.level <= logging.DEBUG:
                     log.debug(etree.tostring(self.tree, pretty_print=True))
         elif self.headers.get("Content-Type", "").startswith(
