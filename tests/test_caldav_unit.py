@@ -14,6 +14,7 @@ import caldav
 import icalendar
 import pytest
 import vobject
+import lxml.etree
 from caldav.davclient import DAVClient
 from caldav.davclient import DAVResponse
 from caldav.elements import cdav
@@ -139,10 +140,32 @@ class TestCalDAV:
                 {},
             )
         else:
-            response = client.put("/foo/møøh/bar", "bringebærsyltetøy 北京 пиво", {})
+            response = client.put(u"/foo/møøh/bar", "bringebærsyltetøy 北京 пиво", {})
         assert response.status == 200
         assert response.tree is None
 
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def testEmptyXMLNoContentLength(self, mocked):
+        """
+        ref https://github.com/python-caldav/caldav/issues/213
+        """
+        mocked().status_code = 200
+        mocked().headers = {'Content-Type': 'text/xml'}
+        mocked().content = ""
+        client = DAVClient(url="AsdfasDF").request('/')
+
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def testNonValidXMLNoContentLength(self, mocked):
+        """
+        If XML is expected but nonvalid XML is given, an error should be raised
+        """
+        mocked().status_code = 200
+        mocked().headers = {'Content-Type': 'text/xml'}
+        mocked().content = "this is not XML"
+        client = DAVClient(url="AsdfasDF")
+        with pytest.raises(lxml.etree.XMLSyntaxError):
+            client.request('/')
+        
     def testPathWithEscapedCharacters(self):
         xml = b"""<D:multistatus xmlns:D="DAV:" xmlns:caldav="urn:ietf:params:xml:ns:caldav" xmlns:cs="http://calendarserver.org/ns/" xmlns:ical="http://apple.com/ns/ical/">
   <D:response xmlns:carddav="urn:ietf:params:xml:ns:carddav" xmlns:cm="http://cal.me.com/_namespace/" xmlns:md="urn:mobileme:davservices">
