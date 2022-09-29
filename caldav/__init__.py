@@ -1,15 +1,16 @@
 #!/usr/bin/env python
 import logging
 
-from vobject import icalendar
+import vobject.icalendar
 
 from .davclient import DAVClient
 from .objects import *
 
-## TODO: I don't think I like the practice of "import *" here.  Should be revisited prior to launching 1.0 at least.
-# possibly a bug in the tBaxter fork of vobject, this one has to be
-# imported explicitly to make sure the attribute behaviour gets
-# correctly loaded:
+
+## Notes:
+##
+## * The vobject.icalendar has (or had?) to be explicitly imported due to some bug in the tBaxter fork of vobject.
+## * The "import *" looks quite ugly, should be revisited prior to launching 1.0.
 
 # Silence notification of no default logging handler
 log = logging.getLogger("caldav")
