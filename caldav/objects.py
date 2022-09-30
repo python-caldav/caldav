@@ -800,26 +800,16 @@ class Calendar(DAVObject):
         # in this case.
         if not end and expand:
             raise error.ReportError("an open-ended date search cannot be expanded")
-        elif expand:
-            data = cdav.CalendarData() + cdav.Expand(start, end)
-        else:
-            data = cdav.CalendarData()
-        prop = dav.Prop() + data
-
-        query = cdav.TimeRange(start, end)
-        if compfilter:
-            query = cdav.CompFilter(compfilter) + query
-        vcalendar = cdav.CompFilter("VCALENDAR") + query
-        filter = cdav.Filter() + vcalendar
-        root = cdav.CalendarQuery() + [prop, filter]
 
         if compfilter == "VEVENT":
             comp_class = Event
+        elif compfilter == 'VTODO':
+            comp_class = Todo
         else:
             comp_class = None
 
-        return root, comp_class
-
+        return self.build_search_xml_query(comp_class=comp_class, expand=expand, start=start, end=end)
+    
     def date_search(
         self, start, end=None, compfilter="VEVENT", expand="maybe", verify_expand=False
     ):
@@ -949,22 +939,32 @@ class Calendar(DAVObject):
         return objects
 
     def build_search_xml_query(
-        self, comp_class=None, todo=None, categories=None, filters=None
+            self, comp_class=None, todo=None, event=None, categories=None, filters=None, expand=None, start=None, end=None
     ):
         """
         TODO: some doc here
         """
         # those xml elements are weird.  (a+b)+c != a+(b+c).  First makes b and c as list members of a, second makes c an element in b which is an element of a.
-        # First objective is to build simple todo-queries and see that the current tests pass.
+        # First objective is to let this take over all xml search query building and see that the current tests pass.
         # ref https://www.ietf.org/rfc/rfc4791.txt, section 7.8.9 for how to build a todo-query
         # We'll play with it and don't mind it's getting ugly and don't mind that the test coverage is lacking.
-        # we'll refactor and create tests later.
+        # we'll refactor and create some unit tests later, as well as ftests for complicated queries.
 
         # build the request
         data = cdav.CalendarData()
+        if (expand):
+            if not start or not end:
+                raise error.ReportError("can't expand without a date range")
+            data += cdav.Expand(start, end)
         prop = dav.Prop() + data
+        
         vcalendar = cdav.CompFilter("VCALENDAR")
-        comp_filter = None
+
+        if start or end:
+            if not filters:
+                filters = []
+            filters.append(cdav.TimeRange(start, end))
+            
 
         if todo is not None:
             if not todo:
@@ -977,6 +977,17 @@ class Calendar(DAVObject):
                     )
                 comp_filter = cdav.CompFilter("VTODO")
                 comp_class = Todo
+        if event is not None:
+            if not event:
+                raise NotImplementedError()
+            if event:
+                if comp_class is not None and comp_class is not Event:
+                    raise error.ConsistencyError(
+                        "inconsistent search parameters - comp_class = %s, event=%s"
+                        % (comp_class, event)
+                    )
+                comp_filter = cdav.CompFilter("VEVENT")
+                comp_class = Event
         elif comp_class:
             if comp_class is Todo:
                 comp_filter = cdav.CompFilter("VTODO")
