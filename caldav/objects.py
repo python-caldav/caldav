@@ -929,15 +929,72 @@ class Calendar(DAVObject):
 
         return (response, matches)
 
-    def search(self, xml, comp_class=None):
+    def search(self, xml=None, comp_class=None, **kwargs):
         """
         This method was partly written to approach
         https://github.com/python-caldav/caldav/issues/16 This is a
         result of some code refactoring, and after the next round of
         refactoring we've ended up with this:
         """
+        if not xml:
+            (xml, comp_class) = self.build_search_xml_query(comp_class=comp_class, **kwargs)
+        elif kwargs:
+            raise error.ConsistencyError("Inconsistent usage parameters: xml together with other search options")
         (response, objects) = self._request_report_build_resultlist(xml, comp_class)
         return objects
+
+    def build_search_xml_query(self, comp_class=None, todo=None, categories=None, filters=None):
+        """
+        TODO: some doc here
+        """
+        # those xml elements are weird.  (a+b)+c != a+(b+c).  First makes b and c as list members of a, second makes c an element in b which is an element of a.
+        # First objective is to build simple todo-queries and see that the current tests pass.
+        # ref https://www.ietf.org/rfc/rfc4791.txt, section 7.8.9 for how to build a todo-query
+        # We'll play with it and don't mind it's getting ugly and don't mind that the test coverage is lacking.
+        # we'll refactor and create tests later.
+
+        # build the request
+        data = cdav.CalendarData()
+        prop = dav.Prop() + data
+        vcalendar = cdav.CompFilter("VCALENDAR")
+        comp_filter = None
+
+        if todo is not None:
+            if not todo:
+                raise NotImplementedError()
+            if todo:
+                if comp_class is not None and comp_class is not Todo:
+                    raise error.ConsistencyError("inconsistent search parameters - comp_class = %s, todo=%s" % (comp_class, todo))
+                comp_filter = cdav.CompFilter("VTODO")
+                comp_class = Todo
+        elif comp_class:
+            if comp_class is Todo:
+                comp_filter = cdav.CompFilter("VTODO")
+            elif comp_class is Event:
+                comp_filter = cdav.CompFilter("VEVENT")
+            elif comp_class is Journal:
+                comp_filter = cdav.CompFilter("VJOURNAL")
+            else:
+                raise error.ConsistencyError("unsupported comp class %s for search" % comp_class)
+
+        if comp_filter and filters:
+            for f in filters:
+                comp_filter += f
+            vcalendar += comp_filter
+        elif comp_filter:
+            vcalendar += comp_filter
+        elif filters:
+            for f in filters:
+                vcalendar += f
+
+        if categories is not None:
+            raise NotImplementedError()
+
+        filter = cdav.Filter() + vcalendar
+
+        root = cdav.CalendarQuery() + [prop, filter]
+
+        return (root, comp_class)
 
     def freebusy_request(self, start, end):
         """
@@ -956,20 +1013,8 @@ class Calendar(DAVObject):
         response = self._query(root, 1, "report")
         return FreeBusy(self, response.raw)
 
-    def _fetch_todos(self, filters):
-        # ref https://www.ietf.org/rfc/rfc4791.txt, section 7.8.9
-        matches = []
-
-        # build the request
-        data = cdav.CalendarData()
-        prop = dav.Prop() + data
-
-        vcalendar = cdav.CompFilter("VCALENDAR") + filters
-        filter = cdav.Filter() + vcalendar
-
-        root = cdav.CalendarQuery() + [prop, filter]
-
-        return self.search(root, comp_class=Todo)
+    def _fetch_todos(self, filters=None):
+        return self.search(todo=True, filters=filters)
 
     def todos(
         self, sort_keys=("due", "priority"), include_completed=False, sort_key=None
@@ -984,6 +1029,7 @@ class Calendar(DAVObject):
            by default, only pending tasks are listed
          * sort_key: DEPRECATED, for backwards compatibility with version 0.4.
         """
+        ## TODO: consolidate everything to new search method
         if sort_key:
             sort_keys = (sort_key,)
 
@@ -994,12 +1040,8 @@ class Calendar(DAVObject):
             vstatusNotCancelled = cdav.PropFilter("STATUS") + vnotcancelled
             vstatusNotDefined = cdav.PropFilter("STATUS") + cdav.NotDefined()
             vnocompletedate = cdav.PropFilter("COMPLETED") + cdav.NotDefined()
-            filters1 = (
-                cdav.CompFilter("VTODO")
-                + vnocompletedate
-                + vstatusNotCompleted
-                + vstatusNotCancelled
-            )
+            filters1 = [ vnocompletedate, vstatusNotCompleted, vstatusNotCancelled ]
+
             ## This query is quite much in line with https://tools.ietf.org/html/rfc4791#section-7.8.9
             matches1 = self._fetch_todos(filters1)
             ## However ... some server implementations (i.e. NextCloud
@@ -1009,7 +1051,7 @@ class Calendar(DAVObject):
             ## ... do you have any VTODOs for us where the STATUS
             ## field is not defined? (ref
             ## https://github.com/python-caldav/caldav/issues/14)
-            filters2 = cdav.CompFilter("VTODO") + vnocompletedate + vstatusNotDefined
+            filters2 = [ vnocompletedate, vstatusNotDefined ]
             matches2 = self._fetch_todos(filters2)
 
             ## For most caldav servers, everything in matches2 already exists
@@ -1030,8 +1072,7 @@ class Calendar(DAVObject):
                         matches.append(todo)
 
         else:
-            filters = cdav.CompFilter("VTODO")
-            matches = self._fetch_todos(filters)
+            matches = self._fetch_todos()
 
         def sort_key_func(x):
             ret = []
