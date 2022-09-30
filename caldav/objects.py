@@ -812,7 +812,13 @@ class Calendar(DAVObject):
         vcalendar = cdav.CompFilter("VCALENDAR") + query
         filter = cdav.Filter() + vcalendar
         root = cdav.CalendarQuery() + [prop, filter]
-        return root
+
+        if compfilter == "VEVENT":
+            comp_class = Event
+        else:
+            comp_class = None
+
+        return root, comp_class
 
     def date_search(
         self, start, end=None, compfilter="VEVENT", expand="maybe", verify_expand=False
@@ -841,12 +847,7 @@ class Calendar(DAVObject):
 
         """
         # build the query
-        root = self.build_date_search_query(start, end, compfilter, expand)
-
-        if compfilter == "VEVENT":
-            comp_class = Event
-        else:
-            comp_class = None
+        root, comp_class = self.build_date_search_query(start, end, compfilter, expand)
 
         ## xandikos now yields a 5xx-error when trying to pass
         ## expand=True, after I prodded the developer that it doesn't
