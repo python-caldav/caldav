@@ -937,13 +937,19 @@ class Calendar(DAVObject):
         refactoring we've ended up with this:
         """
         if not xml:
-            (xml, comp_class) = self.build_search_xml_query(comp_class=comp_class, **kwargs)
+            (xml, comp_class) = self.build_search_xml_query(
+                comp_class=comp_class, **kwargs
+            )
         elif kwargs:
-            raise error.ConsistencyError("Inconsistent usage parameters: xml together with other search options")
+            raise error.ConsistencyError(
+                "Inconsistent usage parameters: xml together with other search options"
+            )
         (response, objects) = self._request_report_build_resultlist(xml, comp_class)
         return objects
 
-    def build_search_xml_query(self, comp_class=None, todo=None, categories=None, filters=None):
+    def build_search_xml_query(
+        self, comp_class=None, todo=None, categories=None, filters=None
+    ):
         """
         TODO: some doc here
         """
@@ -964,7 +970,10 @@ class Calendar(DAVObject):
                 raise NotImplementedError()
             if todo:
                 if comp_class is not None and comp_class is not Todo:
-                    raise error.ConsistencyError("inconsistent search parameters - comp_class = %s, todo=%s" % (comp_class, todo))
+                    raise error.ConsistencyError(
+                        "inconsistent search parameters - comp_class = %s, todo=%s"
+                        % (comp_class, todo)
+                    )
                 comp_filter = cdav.CompFilter("VTODO")
                 comp_class = Todo
         elif comp_class:
@@ -975,17 +984,17 @@ class Calendar(DAVObject):
             elif comp_class is Journal:
                 comp_filter = cdav.CompFilter("VJOURNAL")
             else:
-                raise error.ConsistencyError("unsupported comp class %s for search" % comp_class)
+                raise error.ConsistencyError(
+                    "unsupported comp class %s for search" % comp_class
+                )
 
         if comp_filter and filters:
-            for f in filters:
-                comp_filter += f
+            comp_filter += filters
             vcalendar += comp_filter
         elif comp_filter:
             vcalendar += comp_filter
         elif filters:
-            for f in filters:
-                vcalendar += f
+            vcalendar += filters
 
         if categories is not None:
             raise NotImplementedError()
@@ -1040,7 +1049,7 @@ class Calendar(DAVObject):
             vstatusNotCancelled = cdav.PropFilter("STATUS") + vnotcancelled
             vstatusNotDefined = cdav.PropFilter("STATUS") + cdav.NotDefined()
             vnocompletedate = cdav.PropFilter("COMPLETED") + cdav.NotDefined()
-            filters1 = [ vnocompletedate, vstatusNotCompleted, vstatusNotCancelled ]
+            filters1 = [vnocompletedate, vstatusNotCompleted, vstatusNotCancelled]
 
             ## This query is quite much in line with https://tools.ietf.org/html/rfc4791#section-7.8.9
             matches1 = self._fetch_todos(filters1)
@@ -1051,7 +1060,7 @@ class Calendar(DAVObject):
             ## ... do you have any VTODOs for us where the STATUS
             ## field is not defined? (ref
             ## https://github.com/python-caldav/caldav/issues/14)
-            filters2 = [ vnocompletedate, vstatusNotDefined ]
+            filters2 = [vnocompletedate, vstatusNotDefined]
             matches2 = self._fetch_todos(filters2)
 
             ## For most caldav servers, everything in matches2 already exists
