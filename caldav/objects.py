@@ -1337,17 +1337,7 @@ class Calendar(DAVObject):
         Returns:
          * [Journal(), ...]
         """
-        # TODO: this is basically a copy of events() - can we do more
-        # refactoring and consolidation here?  Maybe it's wrong to do
-        # separate methods for journals, todos and events?
-        data = cdav.CalendarData()
-        prop = dav.Prop() + data
-        vevent = cdav.CompFilter("VJOURNAL")
-        vcalendar = cdav.CompFilter("VCALENDAR") + vevent
-        filter = cdav.Filter() + vcalendar
-        root = cdav.CalendarQuery() + [prop, filter]
-
-        return self.search(root, comp_class=Journal)
+        return self.search(comp_class=Journal)
 
 
 class ScheduleMailbox(Calendar):
