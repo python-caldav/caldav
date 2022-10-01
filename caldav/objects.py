@@ -1281,14 +1281,7 @@ class Calendar(DAVObject):
         Returns:
          * [Event(), ...]
         """
-        data = cdav.CalendarData()
-        prop = dav.Prop() + data
-        vevent = cdav.CompFilter("VEVENT")
-        vcalendar = cdav.CompFilter("VCALENDAR") + vevent
-        filter = cdav.Filter() + vcalendar
-        root = cdav.CalendarQuery() + [prop, filter]
-
-        return self.search(root, comp_class=Event)
+        return self.search(comp_class=Event)
 
     def objects_by_sync_token(self, sync_token=None, load_objects=False):
         """objects_by_sync_token aka objects
