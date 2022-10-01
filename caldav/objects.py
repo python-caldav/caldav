@@ -922,7 +922,7 @@ class Calendar(DAVObject):
 
         return (response, matches)
 
-    def search(self, xml=None, comp_class=None, todo=None, include_completed=False, **kwargs):
+    def search(self, xml=None, comp_class=None, todo=None, include_completed=False, **kwargs, sort_keys=None):
         """
         This method was partly written to approach
         https://github.com/python-caldav/caldav/issues/16 This is a
@@ -958,6 +958,7 @@ class Calendar(DAVObject):
                 "Inconsistent usage parameters: xml together with other search options"
             )
         (response, objects) = self._request_report_build_resultlist(xml, comp_class)
+
         return objects
 
     def build_search_xml_query(
