@@ -923,7 +923,13 @@ class Calendar(DAVObject):
         return (response, matches)
 
     def search(
-        self, xml=None, comp_class=None, todo=None, include_completed=False, **kwargs
+        self,
+        xml=None,
+        comp_class=None,
+        todo=None,
+        include_completed=False,
+        sort_keys=(),
+        **kwargs
     ):
         """
         This method was partly written to approach
@@ -947,7 +953,7 @@ class Calendar(DAVObject):
                 include_completed=True,
                 **kwargs
             )
-            matches = []
+            objects = []
             match_set = set()
             for item in matches1 + matches2:
                 if not item.url in match_set:
@@ -960,18 +966,53 @@ class Calendar(DAVObject):
                         and not "\nSTATUS:COMPLETED" in item.data
                         and not "\nSTATUS:CANCELLED" in item.data
                     ):
-                        matches.append(item)
-            return matches
+                        objects.append(item)
+        else:
 
-        if not xml:
-            (xml, comp_class) = self.build_search_xml_query(
-                comp_class=comp_class, todo=todo, **kwargs
-            )
-        elif kwargs:
-            raise error.ConsistencyError(
-                "Inconsistent usage parameters: xml together with other search options"
-            )
-        (response, objects) = self._request_report_build_resultlist(xml, comp_class)
+            if not xml:
+                (xml, comp_class) = self.build_search_xml_query(
+                    comp_class=comp_class, todo=todo, **kwargs
+                )
+            elif kwargs:
+                raise error.ConsistencyError(
+                    "Inconsistent usage parameters: xml together with other search options"
+                )
+            (response, objects) = self._request_report_build_resultlist(xml, comp_class)
+
+        def sort_key_func(x):
+            ret = []
+            vobj = x.instance.vtodo or x.instance.vevent or x.instance.vjournal
+            defaults = {
+                "due": "2050-01-01",
+                "dtstart": "1970-01-01",
+                "priority": "0",
+                ## Usage of strftime is a simple way to ensure there won't be
+                ## problems if comparing dates with timestamps
+                "isnt_overdue": not (
+                    hasattr(vobj, "due")
+                    and vobj.due.value.strftime("%F%H%M%S")
+                    < datetime.now().strftime("%F%H%M%S")
+                ),
+                "hasnt_started": (
+                    hasattr(vobj, "dtstart")
+                    and vobj.dtstart.value.strftime("%F%H%M%S")
+                    > datetime.now().strftime("%F%H%M%S")
+                ),
+            }
+            for sort_key in sort_keys:
+                val = getattr(vobj, sort_key, None)
+                if val is None:
+                    ret.append(defaults.get(sort_key, "0"))
+                    continue
+                val = val.value
+                if hasattr(val, "strftime"):
+                    ret.append(val.strftime("%F%H%M%S"))
+                else:
+                    ret.append(val)
+            return ret
+
+        if sort_keys:
+            objects.sort(key=sort_key_func)
 
         return objects
 
@@ -1119,46 +1160,10 @@ class Calendar(DAVObject):
         if sort_key:
             sort_keys = (sort_key,)
 
-        matches = self.search(todo=True, include_completed=include_completed)
+        matches = self.search(
+            todo=True, include_completed=include_completed, sort_keys=sort_keys
+        )
 
-        def sort_key_func(x):
-            ret = []
-            vtodo = x.instance.vtodo
-            defaults = {
-                "due": "2050-01-01",
-                "dtstart": "1970-01-01",
-                "priority": "0",
-                # JA: why compare datetime.strftime('%F%H%M%S')
-                # JA: and not simply datetime?
-                # tobixen: probably it was made like this because we can get
-                # both dates and timestamps from the objects.
-                # Python will yield an exception if trying to compare
-                # a timestamp with a date.
-                "isnt_overdue": not (
-                    hasattr(vtodo, "due")
-                    and vtodo.due.value.strftime("%F%H%M%S")
-                    < datetime.now().strftime("%F%H%M%S")
-                ),
-                "hasnt_started": (
-                    hasattr(vtodo, "dtstart")
-                    and vtodo.dtstart.value.strftime("%F%H%M%S")
-                    > datetime.now().strftime("%F%H%M%S")
-                ),
-            }
-            for sort_key in sort_keys:
-                val = getattr(vtodo, sort_key, None)
-                if val is None:
-                    ret.append(defaults.get(sort_key, "0"))
-                    continue
-                val = val.value
-                if hasattr(val, "strftime"):
-                    ret.append(val.strftime("%F%H%M%S"))
-                else:
-                    ret.append(val)
-            return ret
-
-        if sort_keys:
-            matches.sort(key=sort_key_func)
         return matches
 
     def _calendar_comp_class_by_data(self, data):
