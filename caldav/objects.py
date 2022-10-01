@@ -803,13 +803,15 @@ class Calendar(DAVObject):
 
         if compfilter == "VEVENT":
             comp_class = Event
-        elif compfilter == 'VTODO':
+        elif compfilter == "VTODO":
             comp_class = Todo
         else:
             comp_class = None
 
-        return self.build_search_xml_query(comp_class=comp_class, expand=expand, start=start, end=end)
-    
+        return self.build_search_xml_query(
+            comp_class=comp_class, expand=expand, start=start, end=end
+        )
+
     def date_search(
         self, start, end=None, compfilter="VEVENT", expand="maybe", verify_expand=False
     ):
@@ -939,7 +941,15 @@ class Calendar(DAVObject):
         return objects
 
     def build_search_xml_query(
-            self, comp_class=None, todo=None, event=None, categories=None, filters=None, expand=None, start=None, end=None
+        self,
+        comp_class=None,
+        todo=None,
+        event=None,
+        categories=None,
+        filters=None,
+        expand=None,
+        start=None,
+        end=None,
     ):
         """
         TODO: some doc here
@@ -952,19 +962,20 @@ class Calendar(DAVObject):
 
         # build the request
         data = cdav.CalendarData()
-        if (expand):
+        if expand:
             if not start or not end:
                 raise error.ReportError("can't expand without a date range")
             data += cdav.Expand(start, end)
         prop = dav.Prop() + data
-        
+
         vcalendar = cdav.CompFilter("VCALENDAR")
+
+        comp_filter = None
 
         if start or end:
             if not filters:
                 filters = []
             filters.append(cdav.TimeRange(start, end))
-            
 
         if todo is not None:
             if not todo:
@@ -1180,27 +1191,36 @@ class Calendar(DAVObject):
         """
         return Event(url=href, data=data, parent=self).load()
 
-    def object_by_uid(self, uid, comp_filter=None):
+    def object_by_uid(self, uid, comp_filter=None, comp_class=None):
         """
         Get one event from the calendar.
 
         Parameters:
          * uid: the event uid
+         * comp_class: filter by component type (Event, Todo, Journal)
+         * comp_filter: for backward compatibility
 
         Returns:
          * Event() or None
         """
-        data = cdav.CalendarData()
-        prop = dav.Prop() + data
+        if comp_filter:
+            assert not comp_class
+            comp_filter = comp_filter.attributes["name"]
+            if comp_filter == "VTODO":
+                comp_class = Todo
+            elif comp_filter == "VJOURNAL":
+                comp_class = Journal
+            elif comp_filter == "VEVENT":
+                comp_class = Event
+            else:
+                raise error.ConsistencyError("Wrong compfilter")
 
         query = cdav.TextMatch(uid)
         query = cdav.PropFilter("UID") + query
-        if comp_filter:
-            query = comp_filter + query
-        vcalendar = cdav.CompFilter("VCALENDAR") + query
-        filter = cdav.Filter() + vcalendar
 
-        root = cdav.CalendarQuery() + [prop, filter]
+        root, comp_class = self.build_search_xml_query(
+            comp_class=comp_class, filters=[query]
+        )
 
         try:
             items_found = self.search(root)
