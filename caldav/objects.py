@@ -1087,13 +1087,6 @@ class Calendar(DAVObject):
         response = self._query(root, 1, "report")
         return FreeBusy(self, response.raw)
 
-    def _fetch_todos(self, ignore_completed1=None, ignore_completed2=None):
-        return self.search(
-            todo=True,
-            ignore_completed1=ignore_completed1,
-            ignore_completed2=ignore_completed2,
-        )
-
     def todos(
         self, sort_keys=("due", "priority"), include_completed=False, sort_key=None
     ):
