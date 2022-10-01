@@ -922,7 +922,7 @@ class Calendar(DAVObject):
 
         return (response, matches)
 
-    def search(self, xml=None, comp_class=None, todo=None, include_completed=False, **kwargs, sort_keys=None):
+    def search(self, xml=None, comp_class=None, todo=None, include_completed=False, **kwargs):
         """
         This method was partly written to approach
         https://github.com/python-caldav/caldav/issues/16 This is a
