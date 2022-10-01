@@ -922,16 +922,36 @@ class Calendar(DAVObject):
 
         return (response, matches)
 
-    def search(self, xml=None, comp_class=None, **kwargs):
+    def search(self, xml=None, comp_class=None, todo=None, include_completed=False, **kwargs):
         """
         This method was partly written to approach
         https://github.com/python-caldav/caldav/issues/16 This is a
         result of some code refactoring, and after the next round of
         refactoring we've ended up with this:
         """
+        ## special compatibility-case when searching for pending todos
+        if todo and not include_completed:
+            matches1 = self.search(todo=True, comp_class=comp_class, ignore_completed1=True, include_completed=True, **kwargs)
+            matches2 = self.search(todo=True, comp_class=comp_class, ignore_completed2=True, include_completed=True, **kwargs)
+            matches = []
+            match_set = set()
+            for item in matches1 + matches2:
+                if not item.url in match_set:
+                    match_set.add(item.url)
+                    ## and still, Zimbra seems to deliver too many TODOs in the
+                    ## matches2 ... let's do some post-filtering in case the
+                    ## server fails in filtering things the right way
+                    if (
+                        not "\nCOMPLETED:" in item.data
+                        and not "\nSTATUS:COMPLETED" in item.data
+                        and not "\nSTATUS:CANCELLED" in item.data
+                    ):
+                        matches.append(item)
+            return matches
+
         if not xml:
             (xml, comp_class) = self.build_search_xml_query(
-                comp_class=comp_class, **kwargs
+                comp_class=comp_class, todo=todo, **kwargs
             )
         elif kwargs:
             raise error.ConsistencyError(
@@ -944,6 +964,8 @@ class Calendar(DAVObject):
         self,
         comp_class=None,
         todo=None,
+        ignore_completed1=None,
+        ignore_completed2=None,
         event=None,
         categories=None,
         filters=None,
@@ -972,9 +994,29 @@ class Calendar(DAVObject):
 
         comp_filter = None
 
+        if not filters:
+            filters = []
+
+        vNotCompleted = cdav.TextMatch("COMPLETED", negate=True)
+        vNotCancelled = cdav.TextMatch("CANCELLED", negate=True)
+        vStatusNotCompleted = cdav.PropFilter("STATUS") + vNotCompleted
+        vStatusNotCancelled = cdav.PropFilter("STATUS") + vNotCancelled
+        vStatusNotDefined = cdav.PropFilter("STATUS") + cdav.NotDefined()
+        vNoCompleteDate = cdav.PropFilter("COMPLETED") + cdav.NotDefined()
+        if ignore_completed1:
+            ## This query is quite much in line with https://tools.ietf.org/html/rfc4791#section-7.8.9
+            filters.extend([vNoCompleteDate, vStatusNotCompleted, vStatusNotCancelled])
+        elif ignore_completed2:
+            ## some server implementations (i.e. NextCloud
+            ## and Baikal) will yield "false" on a negated TextMatch
+            ## if the field is not defined.  Hence, for those
+            ## implementations we need to turn back and ask again
+            ## ... do you have any VTODOs for us where the STATUS
+            ## field is not defined? (ref
+            ## https://github.com/python-caldav/caldav/issues/14)
+            filters.extend([vNoCompleteDate, vStatusNotDefined])
+
         if start or end:
-            if not filters:
-                filters = []
             filters.append(cdav.TimeRange(start, end))
 
         if todo is not None:
@@ -1045,8 +1087,12 @@ class Calendar(DAVObject):
         response = self._query(root, 1, "report")
         return FreeBusy(self, response.raw)
 
-    def _fetch_todos(self, filters=None):
-        return self.search(todo=True, filters=filters)
+    def _fetch_todos(self, ignore_completed1=None, ignore_completed2=None):
+        return self.search(
+            todo=True,
+            ignore_completed1=ignore_completed1,
+            ignore_completed2=ignore_completed2,
+        )
 
     def todos(
         self, sort_keys=("due", "priority"), include_completed=False, sort_key=None
@@ -1065,46 +1111,7 @@ class Calendar(DAVObject):
         if sort_key:
             sort_keys = (sort_key,)
 
-        if not include_completed:
-            vNotCompleted = cdav.TextMatch("COMPLETED", negate=True)
-            vNotCancelled = cdav.TextMatch("CANCELLED", negate=True)
-            vStatusNotCompleted = cdav.PropFilter("STATUS") + vNotCompleted
-            vStatusNotCancelled = cdav.PropFilter("STATUS") + vNotCancelled
-            vStatusNotDefined = cdav.PropFilter("STATUS") + cdav.NotDefined()
-            vNoCompleteDate = cdav.PropFilter("COMPLETED") + cdav.NotDefined()
-            filters1 = [vNoCompleteDate, vStatusNotCompleted, vStatusNotCancelled]
-
-            ## This query is quite much in line with https://tools.ietf.org/html/rfc4791#section-7.8.9
-            matches1 = self._fetch_todos(filters1)
-            ## However ... some server implementations (i.e. NextCloud
-            ## and Baikal) will yield "false" on a negated TextMatch
-            ## if the field is not defined.  Hence, for those
-            ## implementations we need to turn back and ask again
-            ## ... do you have any VTODOs for us where the STATUS
-            ## field is not defined? (ref
-            ## https://github.com/python-caldav/caldav/issues/14)
-            filters2 = [vNoCompleteDate, vStatusNotDefined]
-            matches2 = self._fetch_todos(filters2)
-
-            ## For most caldav servers, everything in matches2 already exists
-            ## in matches1.  We need to make a union ...
-            match_set = set()
-            matches = []
-            for todo in matches1 + matches2:
-                if not todo.url in match_set:
-                    match_set.add(todo.url)
-                    ## and still, Zimbra seems to deliver too many TODOs on the
-                    ## filter2 ... let's do some post-filtering in case the
-                    ## server fails in filtering things the right way
-                    if (
-                        not "\nCOMPLETED:" in todo.data
-                        and not "\nSTATUS:COMPLETED" in todo.data
-                        and not "\nSTATUS:CANCELLED" in todo.data
-                    ):
-                        matches.append(todo)
-
-        else:
-            matches = self._fetch_todos()
+        matches = self.search(todo=True, include_completed=include_completed)
 
         def sort_key_func(x):
             ret = []
