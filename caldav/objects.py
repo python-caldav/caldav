@@ -1066,13 +1066,13 @@ class Calendar(DAVObject):
             sort_keys = (sort_key,)
 
         if not include_completed:
-            vnotcompleted = cdav.TextMatch("COMPLETED", negate=True)
-            vnotcancelled = cdav.TextMatch("CANCELLED", negate=True)
-            vstatusNotCompleted = cdav.PropFilter("STATUS") + vnotcompleted
-            vstatusNotCancelled = cdav.PropFilter("STATUS") + vnotcancelled
-            vstatusNotDefined = cdav.PropFilter("STATUS") + cdav.NotDefined()
-            vnocompletedate = cdav.PropFilter("COMPLETED") + cdav.NotDefined()
-            filters1 = [vnocompletedate, vstatusNotCompleted, vstatusNotCancelled]
+            vNotCompleted = cdav.TextMatch("COMPLETED", negate=True)
+            vNotCancelled = cdav.TextMatch("CANCELLED", negate=True)
+            vStatusNotCompleted = cdav.PropFilter("STATUS") + vNotCompleted
+            vStatusNotCancelled = cdav.PropFilter("STATUS") + vNotCancelled
+            vStatusNotDefined = cdav.PropFilter("STATUS") + cdav.NotDefined()
+            vNoCompleteDate = cdav.PropFilter("COMPLETED") + cdav.NotDefined()
+            filters1 = [vNoCompleteDate, vStatusNotCompleted, vStatusNotCancelled]
 
             ## This query is quite much in line with https://tools.ietf.org/html/rfc4791#section-7.8.9
             matches1 = self._fetch_todos(filters1)
@@ -1083,7 +1083,7 @@ class Calendar(DAVObject):
             ## ... do you have any VTODOs for us where the STATUS
             ## field is not defined? (ref
             ## https://github.com/python-caldav/caldav/issues/14)
-            filters2 = [vnocompletedate, vstatusNotDefined]
+            filters2 = [vNoCompleteDate, vStatusNotDefined]
             matches2 = self._fetch_todos(filters2)
 
             ## For most caldav servers, everything in matches2 already exists
