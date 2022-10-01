@@ -922,7 +922,9 @@ class Calendar(DAVObject):
 
         return (response, matches)
 
-    def search(self, xml=None, comp_class=None, todo=None, include_completed=False, **kwargs):
+    def search(
+        self, xml=None, comp_class=None, todo=None, include_completed=False, **kwargs
+    ):
         """
         This method was partly written to approach
         https://github.com/python-caldav/caldav/issues/16 This is a
@@ -931,8 +933,20 @@ class Calendar(DAVObject):
         """
         ## special compatibility-case when searching for pending todos
         if todo and not include_completed:
-            matches1 = self.search(todo=True, comp_class=comp_class, ignore_completed1=True, include_completed=True, **kwargs)
-            matches2 = self.search(todo=True, comp_class=comp_class, ignore_completed2=True, include_completed=True, **kwargs)
+            matches1 = self.search(
+                todo=True,
+                comp_class=comp_class,
+                ignore_completed1=True,
+                include_completed=True,
+                **kwargs
+            )
+            matches2 = self.search(
+                todo=True,
+                comp_class=comp_class,
+                ignore_completed2=True,
+                include_completed=True,
+                **kwargs
+            )
             matches = []
             match_set = set()
             for item in matches1 + matches2:
