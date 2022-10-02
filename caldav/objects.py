@@ -1023,7 +1023,7 @@ class Calendar(DAVObject):
         ignore_completed1=None,
         ignore_completed2=None,
         event=None,
-        categories=None,
+        category=None,
         filters=None,
         expand=None,
         start=None,
@@ -1109,6 +1109,12 @@ class Calendar(DAVObject):
                     "unsupported comp class %s for search" % comp_class
                 )
 
+        if category is not None:
+            filters.append(cdav.PropFilter("CATEGORIES") + cdav.TextMatch(category))
+            ## TODO: we probably need to do client side filtering.  I would
+            ## expect --category='e' to fetch anything having the category e,
+            ## but not including all other categories containing the letter e.
+
         if comp_filter and filters:
             comp_filter += filters
             vcalendar += comp_filter
@@ -1116,9 +1122,6 @@ class Calendar(DAVObject):
             vcalendar += comp_filter
         elif filters:
             vcalendar += filters
-
-        if categories is not None:
-            raise NotImplementedError()
 
         filter = cdav.Filter() + vcalendar
 
@@ -1147,7 +1150,7 @@ class Calendar(DAVObject):
         self, sort_keys=("due", "priority"), include_completed=False, sort_key=None
     ):
         """
-        fetches a list of todo events.
+        fetches a list of todo events (refactored to a wrapper around search)
 
         Parameters:
          * sort_keys: use this field in the VTODO for sorting (iterable of
@@ -1156,15 +1159,12 @@ class Calendar(DAVObject):
            by default, only pending tasks are listed
          * sort_key: DEPRECATED, for backwards compatibility with version 0.4.
         """
-        ## TODO: consolidate everything to new search method
         if sort_key:
             sort_keys = (sort_key,)
 
-        matches = self.search(
+        return self.search(
             todo=True, include_completed=include_completed, sort_keys=sort_keys
         )
-
-        return matches
 
     def _calendar_comp_class_by_data(self, data):
         """
