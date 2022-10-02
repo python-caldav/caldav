@@ -1274,6 +1274,7 @@ class Calendar(DAVObject):
 
         return self.search(root, comp_class=Journal)
 
+
 class ScheduleMailbox(Calendar):
     """
     RFC6638 defines an inbox and an outbox for handling event scheduling.
