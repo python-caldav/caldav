@@ -329,6 +329,12 @@ class DAVObject(object):
             if r.status not in (200, 204, 404):
                 raise error.DeleteError(errmsg(r))
 
+    def get_display_name(self):
+        """
+        Get calendar display name
+        """
+        return self.get_property(dav.DisplayName())
+
     def __str__(self):
         if dav.DisplayName.tag in self.props:
             return self.props[dav.DisplayName.tag]
@@ -1267,13 +1273,6 @@ class Calendar(DAVObject):
         root = cdav.CalendarQuery() + [prop, filter]
 
         return self.search(root, comp_class=Journal)
-
-    def get_display_name(self):
-        """
-        Get calendar display name
-        """
-        return self.get_property(dav.DisplayName())
-
 
 class ScheduleMailbox(Calendar):
     """
