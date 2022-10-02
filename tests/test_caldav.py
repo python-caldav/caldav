@@ -381,7 +381,7 @@ class TestScheduling(object):
     def testInviteAndRespond(self):
         ## Look through inboxes of principals[0] and principals[1] so we can sort
         ## out existing stuff from new stuff
-        if len(self.principals)<2:
+        if len(self.principals) < 2:
             raise SkipTest("need 2 principals to do the invite and respond test")
         inbox_items = set(
             [x.url for x in self.principals[0].schedule_inbox().get_items()]
