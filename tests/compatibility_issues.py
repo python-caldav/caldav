@@ -141,6 +141,12 @@ incompatibility_description = {
 
     'no_overwrite':
         """events cannot be edited""",
+
+    'dav_not_supported':
+        """when asked, the server may claim it doesn't support the DAV protocol""",
+
+    'cdav_not_supported':
+        """when asked, the server may claim it doesn't support the CalDAV protocol"""
 }
 
 xandikos = [

@@ -568,8 +568,10 @@ class RepeatedFunctionalTestsBaseClass(object):
         """
         Test the check_*_support methods
         """
-        assert self.caldav.check_dav_support()
-        assert self.caldav.check_cdav_support()
+        if not self.check_compatibility_flag("dav_not_supported"):
+            assert self.caldav.check_dav_support()
+        if not self.check_compatibility_flag("cdav_not_supported"):
+            assert self.caldav.check_cdav_support()
         if self.check_compatibility_flag("no_scheduling"):
             assert not self.caldav.check_scheduling_support()
         else:
