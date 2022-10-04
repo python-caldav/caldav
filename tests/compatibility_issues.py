@@ -146,7 +146,22 @@ incompatibility_description = {
         """when asked, the server may claim it doesn't support the DAV protocol""",
 
     'cdav_not_supported':
-        """when asked, the server may claim it doesn't support the CalDAV protocol"""
+        """when asked, the server may claim it doesn't support the CalDAV protocol""",
+
+    'category_search_yields_nothing':
+        """When querying for a text match report over fields like the category field, server returns nothing""",
+
+    'text_search_is_case_insensitive':
+        """Probably not supporting the collation used by the caldav library""",
+
+   'combined_search_not_working':
+        """When querying for a text match and a date range in the same report, weird things happen""",
+
+    'radicale_breaks_on_category_search':
+        """See https://github.com/Kozea/Radicale/issues/1125""",
+
+    'fastmail_buggy_noexpand_date_search':
+        """The 'blissful anniversary' recurrent example event is returned when asked for a no-expand date search for some timestamps covering a completely different date""",
 }
 
 xandikos = [
@@ -154,9 +169,11 @@ xandikos = [
     ## (perhaps my xandikos version is too old?)
     "no_expand", "no_recurring",
 
+    ## https://github.com/jelmer/xandikos/issues/191
+    "category_search_yields_nothing",
+
     ## scheduling is not supported
     "no_scheduling",
-
 ]
 
 radicale = [
@@ -168,11 +185,16 @@ radicale = [
     ## freebusy is not supported yet, but on the long-term road map
     "no_freebusy_rfc4791",
 
+    ## TODO: raise an issue on this one
+    "radicale_breaks_on_category_search",
+
     ## Expanding recurrent events is not yet supported
     ## ref https://github.com/Kozea/Radicale/issues/662
     "no_recurring_expandation",
 
     'no_scheduling',
+
+    'text_search_is_case_insensitive',
 
     ## extra features not specified in RFC5545
     "calendar_order",
@@ -202,6 +224,7 @@ zimbra = [
     'no_sync_token',
     #'no_recurring_todo',
     'vtodo_datesearch_notime_task_is_skipped',
+    'category_search_yields_nothing',
 
     ## extra features not specified in RFC5545
     "calendar_order",
@@ -232,6 +255,7 @@ baikal = [
     'no_recurring_todo',
     'no_recurring_todo_expand',
     'non_existing_calendar_found',
+    'combined_search_not_working',
 
     ## extra features not specified in RFC5545
     "calendar_order",
@@ -276,13 +300,16 @@ nextcloud = [
     'sync_breaks_on_delete',
     'no_recurring_todo',
     'no_recurring_todo_expand',
+    'combined_search_not_working'
 ]
 
 fastmail = [
     'duplicates_not_allowed',
     'duplicate_in_other_calendar_with_same_uid_breaks',
     'no_todo',
-    'sticky_events'
+    'sticky_events',
+    'fastmail_buggy_noexpand_date_search',
+    'combined_search_not_working',
 ]
 
 synlogy = [

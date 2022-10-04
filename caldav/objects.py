@@ -800,19 +800,17 @@ class Calendar(DAVObject):
         # in this case.
         if not end and expand:
             raise error.ReportError("an open-ended date search cannot be expanded")
-        elif expand:
-            data = cdav.CalendarData() + cdav.Expand(start, end)
-        else:
-            data = cdav.CalendarData()
-        prop = dav.Prop() + data
 
-        query = cdav.TimeRange(start, end)
-        if compfilter:
-            query = cdav.CompFilter(compfilter) + query
-        vcalendar = cdav.CompFilter("VCALENDAR") + query
-        filter = cdav.Filter() + vcalendar
-        root = cdav.CalendarQuery() + [prop, filter]
-        return root
+        if compfilter == "VEVENT":
+            comp_class = Event
+        elif compfilter == "VTODO":
+            comp_class = Todo
+        else:
+            comp_class = None
+
+        return self.build_search_xml_query(
+            comp_class=comp_class, expand=expand, start=start, end=end
+        )
 
     def date_search(
         self, start, end=None, compfilter="VEVENT", expand="maybe", verify_expand=False
@@ -841,12 +839,7 @@ class Calendar(DAVObject):
 
         """
         # build the query
-        root = self.build_date_search_query(start, end, compfilter, expand)
-
-        if compfilter == "VEVENT":
-            comp_class = Event
-        else:
-            comp_class = None
+        root, comp_class = self.build_date_search_query(start, end, compfilter, expand)
 
         ## xandikos now yields a 5xx-error when trying to pass
         ## expand=True, after I prodded the developer that it doesn't
@@ -929,15 +922,220 @@ class Calendar(DAVObject):
 
         return (response, matches)
 
-    def search(self, xml, comp_class=None):
+    def search(
+        self,
+        xml=None,
+        comp_class=None,
+        todo=None,
+        include_completed=False,
+        sort_keys=(),
+        **kwargs
+    ):
         """
-        This method was partly written to approach
-        https://github.com/python-caldav/caldav/issues/16 This is a
-        result of some code refactoring, and after the next round of
-        refactoring we've ended up with this:
+        TODO: Doc!
         """
-        (response, objects) = self._request_report_build_resultlist(xml, comp_class)
+        ## special compatibility-case when searching for pending todos
+        if todo and not include_completed:
+            matches1 = self.search(
+                todo=True,
+                comp_class=comp_class,
+                ignore_completed1=True,
+                include_completed=True,
+                **kwargs
+            )
+            matches2 = self.search(
+                todo=True,
+                comp_class=comp_class,
+                ignore_completed2=True,
+                include_completed=True,
+                **kwargs
+            )
+            objects = []
+            match_set = set()
+            for item in matches1 + matches2:
+                if not item.url in match_set:
+                    match_set.add(item.url)
+                    ## and still, Zimbra seems to deliver too many TODOs in the
+                    ## matches2 ... let's do some post-filtering in case the
+                    ## server fails in filtering things the right way
+                    if (
+                        not "\nCOMPLETED:" in item.data
+                        and not "\nSTATUS:COMPLETED" in item.data
+                        and not "\nSTATUS:CANCELLED" in item.data
+                    ):
+                        objects.append(item)
+        else:
+
+            if not xml:
+                (xml, comp_class) = self.build_search_xml_query(
+                    comp_class=comp_class, todo=todo, **kwargs
+                )
+            elif kwargs:
+                raise error.ConsistencyError(
+                    "Inconsistent usage parameters: xml together with other search options"
+                )
+            (response, objects) = self._request_report_build_resultlist(xml, comp_class)
+
+        def sort_key_func(x):
+            ret = []
+            for objtype in ("vtodo", "vevent", "vjournal"):
+                if hasattr(x.instance, objtype):
+                    vobj = getattr(x.instance, objtype)
+                    break
+            defaults = {
+                "due": "2050-01-01",
+                "dtstart": "1970-01-01",
+                "priority": "0",
+                ## Usage of strftime is a simple way to ensure there won't be
+                ## problems if comparing dates with timestamps
+                "isnt_overdue": not (
+                    hasattr(vobj, "due")
+                    and vobj.due.value.strftime("%F%H%M%S")
+                    < datetime.now().strftime("%F%H%M%S")
+                ),
+                "hasnt_started": (
+                    hasattr(vobj, "dtstart")
+                    and vobj.dtstart.value.strftime("%F%H%M%S")
+                    > datetime.now().strftime("%F%H%M%S")
+                ),
+            }
+            for sort_key in sort_keys:
+                val = getattr(vobj, sort_key, None)
+                if val is None:
+                    ret.append(defaults.get(sort_key, "0"))
+                    continue
+                val = val.value
+                if hasattr(val, "strftime"):
+                    ret.append(val.strftime("%F%H%M%S"))
+                else:
+                    ret.append(val)
+            return ret
+
+        if sort_keys:
+            objects.sort(key=sort_key_func)
+
         return objects
+
+    def build_search_xml_query(
+        self,
+        comp_class=None,
+        todo=None,
+        ignore_completed1=None,
+        ignore_completed2=None,
+        event=None,
+        category=None,
+        uid=None,
+        class_=None,
+        filters=None,
+        expand=None,
+        start=None,
+        end=None,
+    ):
+        """
+        TODO: some doc here
+        """
+        # those xml elements are weird.  (a+b)+c != a+(b+c).  First makes b and c as list members of a, second makes c an element in b which is an element of a.
+        # First objective is to let this take over all xml search query building and see that the current tests pass.
+        # ref https://www.ietf.org/rfc/rfc4791.txt, section 7.8.9 for how to build a todo-query
+        # We'll play with it and don't mind it's getting ugly and don't mind that the test coverage is lacking.
+        # we'll refactor and create some unit tests later, as well as ftests for complicated queries.
+
+        # build the request
+        data = cdav.CalendarData()
+        if expand:
+            if not start or not end:
+                raise error.ReportError("can't expand without a date range")
+            data += cdav.Expand(start, end)
+        prop = dav.Prop() + data
+
+        vcalendar = cdav.CompFilter("VCALENDAR")
+
+        comp_filter = None
+
+        if not filters:
+            filters = []
+
+        vNotCompleted = cdav.TextMatch("COMPLETED", negate=True)
+        vNotCancelled = cdav.TextMatch("CANCELLED", negate=True)
+        vStatusNotCompleted = cdav.PropFilter("STATUS") + vNotCompleted
+        vStatusNotCancelled = cdav.PropFilter("STATUS") + vNotCancelled
+        vStatusNotDefined = cdav.PropFilter("STATUS") + cdav.NotDefined()
+        vNoCompleteDate = cdav.PropFilter("COMPLETED") + cdav.NotDefined()
+        if ignore_completed1:
+            ## This query is quite much in line with https://tools.ietf.org/html/rfc4791#section-7.8.9
+            filters.extend([vNoCompleteDate, vStatusNotCompleted, vStatusNotCancelled])
+        elif ignore_completed2:
+            ## some server implementations (i.e. NextCloud
+            ## and Baikal) will yield "false" on a negated TextMatch
+            ## if the field is not defined.  Hence, for those
+            ## implementations we need to turn back and ask again
+            ## ... do you have any VTODOs for us where the STATUS
+            ## field is not defined? (ref
+            ## https://github.com/python-caldav/caldav/issues/14)
+            filters.extend([vNoCompleteDate, vStatusNotDefined])
+
+        if start or end:
+            filters.append(cdav.TimeRange(start, end))
+
+        if todo is not None:
+            if not todo:
+                raise NotImplementedError()
+            if todo:
+                if comp_class is not None and comp_class is not Todo:
+                    raise error.ConsistencyError(
+                        "inconsistent search parameters - comp_class = %s, todo=%s"
+                        % (comp_class, todo)
+                    )
+                comp_filter = cdav.CompFilter("VTODO")
+                comp_class = Todo
+        if event is not None:
+            if not event:
+                raise NotImplementedError()
+            if event:
+                if comp_class is not None and comp_class is not Event:
+                    raise error.ConsistencyError(
+                        "inconsistent search parameters - comp_class = %s, event=%s"
+                        % (comp_class, event)
+                    )
+                comp_filter = cdav.CompFilter("VEVENT")
+                comp_class = Event
+        elif comp_class:
+            if comp_class is Todo:
+                comp_filter = cdav.CompFilter("VTODO")
+            elif comp_class is Event:
+                comp_filter = cdav.CompFilter("VEVENT")
+            elif comp_class is Journal:
+                comp_filter = cdav.CompFilter("VJOURNAL")
+            else:
+                raise error.ConsistencyError(
+                    "unsupported comp class %s for search" % comp_class
+                )
+
+        if category is not None:
+            filters.append(cdav.PropFilter("CATEGORIES") + cdav.TextMatch(category))
+            ## TODO: we probably need to do client side filtering.  I would
+            ## expect --category='e' to fetch anything having the category e,
+            ## but not including all other categories containing the letter e.
+
+        if uid is not None:
+            filters.append(cdav.PropFilter("UID") + cdav.TextMatch(uid))
+
+        if class_ is not None:
+            filters.append(cdav.PropFilter("CLASS") + cdav.TextMatch(class_))
+
+        if comp_filter and filters:
+            comp_filter += filters
+            vcalendar += comp_filter
+        elif comp_filter:
+            vcalendar += comp_filter
+        elif filters:
+            vcalendar += filters
+
+        filter = cdav.Filter() + vcalendar
+
+        root = cdav.CalendarQuery() + [prop, filter]
+
+        return (root, comp_class)
 
     def freebusy_request(self, start, end):
         """
@@ -956,26 +1154,11 @@ class Calendar(DAVObject):
         response = self._query(root, 1, "report")
         return FreeBusy(self, response.raw)
 
-    def _fetch_todos(self, filters):
-        # ref https://www.ietf.org/rfc/rfc4791.txt, section 7.8.9
-        matches = []
-
-        # build the request
-        data = cdav.CalendarData()
-        prop = dav.Prop() + data
-
-        vcalendar = cdav.CompFilter("VCALENDAR") + filters
-        filter = cdav.Filter() + vcalendar
-
-        root = cdav.CalendarQuery() + [prop, filter]
-
-        return self.search(root, comp_class=Todo)
-
     def todos(
         self, sort_keys=("due", "priority"), include_completed=False, sort_key=None
     ):
         """
-        fetches a list of todo events.
+        fetches a list of todo events (refactored to a wrapper around search)
 
         Parameters:
          * sort_keys: use this field in the VTODO for sorting (iterable of
@@ -987,91 +1170,9 @@ class Calendar(DAVObject):
         if sort_key:
             sort_keys = (sort_key,)
 
-        if not include_completed:
-            vnotcompleted = cdav.TextMatch("COMPLETED", negate=True)
-            vnotcancelled = cdav.TextMatch("CANCELLED", negate=True)
-            vstatusNotCompleted = cdav.PropFilter("STATUS") + vnotcompleted
-            vstatusNotCancelled = cdav.PropFilter("STATUS") + vnotcancelled
-            vstatusNotDefined = cdav.PropFilter("STATUS") + cdav.NotDefined()
-            vnocompletedate = cdav.PropFilter("COMPLETED") + cdav.NotDefined()
-            filters1 = (
-                cdav.CompFilter("VTODO")
-                + vnocompletedate
-                + vstatusNotCompleted
-                + vstatusNotCancelled
-            )
-            ## This query is quite much in line with https://tools.ietf.org/html/rfc4791#section-7.8.9
-            matches1 = self._fetch_todos(filters1)
-            ## However ... some server implementations (i.e. NextCloud
-            ## and Baikal) will yield "false" on a negated TextMatch
-            ## if the field is not defined.  Hence, for those
-            ## implementations we need to turn back and ask again
-            ## ... do you have any VTODOs for us where the STATUS
-            ## field is not defined? (ref
-            ## https://github.com/python-caldav/caldav/issues/14)
-            filters2 = cdav.CompFilter("VTODO") + vnocompletedate + vstatusNotDefined
-            matches2 = self._fetch_todos(filters2)
-
-            ## For most caldav servers, everything in matches2 already exists
-            ## in matches1.  We need to make a union ...
-            match_set = set()
-            matches = []
-            for todo in matches1 + matches2:
-                if not todo.url in match_set:
-                    match_set.add(todo.url)
-                    ## and still, Zimbra seems to deliver too many TODOs on the
-                    ## filter2 ... let's do some post-filtering in case the
-                    ## server fails in filtering things the right way
-                    if (
-                        not "\nCOMPLETED:" in todo.data
-                        and not "\nSTATUS:COMPLETED" in todo.data
-                        and not "\nSTATUS:CANCELLED" in todo.data
-                    ):
-                        matches.append(todo)
-
-        else:
-            filters = cdav.CompFilter("VTODO")
-            matches = self._fetch_todos(filters)
-
-        def sort_key_func(x):
-            ret = []
-            vtodo = x.instance.vtodo
-            defaults = {
-                "due": "2050-01-01",
-                "dtstart": "1970-01-01",
-                "priority": "0",
-                # JA: why compare datetime.strftime('%F%H%M%S')
-                # JA: and not simply datetime?
-                # tobixen: probably it was made like this because we can get
-                # both dates and timestamps from the objects.
-                # Python will yield an exception if trying to compare
-                # a timestamp with a date.
-                "isnt_overdue": not (
-                    hasattr(vtodo, "due")
-                    and vtodo.due.value.strftime("%F%H%M%S")
-                    < datetime.now().strftime("%F%H%M%S")
-                ),
-                "hasnt_started": (
-                    hasattr(vtodo, "dtstart")
-                    and vtodo.dtstart.value.strftime("%F%H%M%S")
-                    > datetime.now().strftime("%F%H%M%S")
-                ),
-            }
-            for sort_key in sort_keys:
-                val = getattr(vtodo, sort_key, None)
-                if val is None:
-                    ret.append(defaults.get(sort_key, "0"))
-                    continue
-                val = val.value
-                if hasattr(val, "strftime"):
-                    ret.append(val.strftime("%F%H%M%S"))
-                else:
-                    ret.append(val)
-            return ret
-
-        if sort_keys:
-            matches.sort(key=sort_key_func)
-        return matches
+        return self.search(
+            todo=True, include_completed=include_completed, sort_keys=sort_keys
+        )
 
     def _calendar_comp_class_by_data(self, data):
         """
@@ -1118,27 +1219,36 @@ class Calendar(DAVObject):
         """
         return Event(url=href, data=data, parent=self).load()
 
-    def object_by_uid(self, uid, comp_filter=None):
+    def object_by_uid(self, uid, comp_filter=None, comp_class=None):
         """
         Get one event from the calendar.
 
         Parameters:
          * uid: the event uid
+         * comp_class: filter by component type (Event, Todo, Journal)
+         * comp_filter: for backward compatibility
 
         Returns:
          * Event() or None
         """
-        data = cdav.CalendarData()
-        prop = dav.Prop() + data
+        if comp_filter:
+            assert not comp_class
+            comp_filter = comp_filter.attributes["name"]
+            if comp_filter == "VTODO":
+                comp_class = Todo
+            elif comp_filter == "VJOURNAL":
+                comp_class = Journal
+            elif comp_filter == "VEVENT":
+                comp_class = Event
+            else:
+                raise error.ConsistencyError("Wrong compfilter")
 
         query = cdav.TextMatch(uid)
         query = cdav.PropFilter("UID") + query
-        if comp_filter:
-            query = comp_filter + query
-        vcalendar = cdav.CompFilter("VCALENDAR") + query
-        filter = cdav.Filter() + vcalendar
 
-        root = cdav.CalendarQuery() + [prop, filter]
+        root, comp_class = self.build_search_xml_query(
+            comp_class=comp_class, filters=[query]
+        )
 
         try:
             items_found = self.search(root)
@@ -1199,14 +1309,7 @@ class Calendar(DAVObject):
         Returns:
          * [Event(), ...]
         """
-        data = cdav.CalendarData()
-        prop = dav.Prop() + data
-        vevent = cdav.CompFilter("VEVENT")
-        vcalendar = cdav.CompFilter("VCALENDAR") + vevent
-        filter = cdav.Filter() + vcalendar
-        root = cdav.CalendarQuery() + [prop, filter]
-
-        return self.search(root, comp_class=Event)
+        return self.search(comp_class=Event)
 
     def objects_by_sync_token(self, sync_token=None, load_objects=False):
         """objects_by_sync_token aka objects
@@ -1262,17 +1365,7 @@ class Calendar(DAVObject):
         Returns:
          * [Journal(), ...]
         """
-        # TODO: this is basically a copy of events() - can we do more
-        # refactoring and consolidation here?  Maybe it's wrong to do
-        # separate methods for journals, todos and events?
-        data = cdav.CalendarData()
-        prop = dav.Prop() + data
-        vevent = cdav.CompFilter("VJOURNAL")
-        vcalendar = cdav.CompFilter("VCALENDAR") + vevent
-        filter = cdav.Filter() + vcalendar
-        root = cdav.CalendarQuery() + [prop, filter]
-
-        return self.search(root, comp_class=Journal)
+        return self.search(comp_class=Journal)
 
 
 class ScheduleMailbox(Calendar):
