@@ -167,7 +167,7 @@ xandikos = [
     "no_expand", "no_recurring",
 
     ## TODO: raise an issue on this one
-    "category_search_yields_nothing",
+    #"category_search_yields_nothing",
 
     ## scheduling is not supported
     "no_scheduling",
