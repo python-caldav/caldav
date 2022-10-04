@@ -167,7 +167,7 @@ xandikos = [
     "no_expand", "no_recurring",
 
     ## https://github.com/jelmer/xandikos/issues/191
-    "category_search_yields_nothing", 
+    "category_search_yields_nothing",
 
     ## scheduling is not supported
     "no_scheduling",
