@@ -151,6 +151,9 @@ incompatibility_description = {
     'text_search_yields_nothing':
         """When querying for a text match report over fields like the category field, server returns nothing""",
 
+    'text_search_is_case_insensitive':
+        """Probably not supporting the collation used by the caldav library""",
+
    'combined_search_not_working':
         """When querying for a text match and a date range in the same report, weird things happen""",
 
@@ -187,6 +190,8 @@ radicale = [
     "no_recurring_expandation",
 
     'no_scheduling',
+
+    'text_search_is_case_insensitive',
 
     ## extra features not specified in RFC5545
     "calendar_order",

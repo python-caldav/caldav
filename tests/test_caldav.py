@@ -1122,14 +1122,18 @@ class RepeatedFunctionalTestsBaseClass(object):
             assert len(some_events) == 1
         some_events = c.search(comp_class=Event, category="personal")
         if not self.check_compatibility_flag("text_search_yields_nothing"):
-            assert len(some_events) == 0
-        ## Sort of a bug - not a very useful search.
+            if self.check_compatibility_flag("text_search_is_case_insensitive"):
+                assert len(some_events) == 1
+            else:
+                assert len(some_events) == 0
+
+        ## This is not a very useful search, and it's sort of a client side bug that we allow it at all.
         ## It will not match if categories field is set to "PERSONAL,ANNIVERSARY,SPECIAL OCCATION"
+        ## It may not match since the above is to be considered equivalent to the raw data entered.
         some_events = c.search(
             comp_class=Event, category="ANNIVERSARY,PERSONAL,SPECIAL OCCASION"
         )
-        if not self.check_compatibility_flag("text_search_yields_nothing"):
-            assert len(some_events) == 1
+        assert len(some_events) in (0, 1)
         ## TODO: This is actually a bug. We need to do client side filtering
         some_events = c.search(comp_class=Event, category="PERSON")
         if not self.check_compatibility_flag("text_search_yields_nothing"):
@@ -1155,7 +1159,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         if not self.check_compatibility_flag(
             "text_search_yields_nothing"
         ) and not self.check_compatibility_flag("combined_search_not_working"):
-            assert len(no_events) == 1
+            assert len(some_events) == 1
 
         ## Even sorting should work out
         all_events = c.search(sort_keys=("summary", "dtstamp"))
