@@ -1,3 +1,54 @@
+# Changelog v0.9.1 -> v0.9.2
+
+## Quick summary
+
+Some compatibility-fixes and other minor bugfixes have been cherry-picked from the master branch to make a v0.9.2-release.  Work in progress on a v0.10-release featuring a search method.  v0.9.2 particularly includes fixes and workarounds supporting the server implementations Synology and Robur.
+
+Éloi Rivard has done a lot of work rewamping the test framework, those changes have also been backported to the 0.9.2-branch.  He also introduced the black code style, that changeset also had to be backported to allow other changesets to be cherry-picked without problems.
+
+Commits included from master branch:
+
+c19abb303dc915cd8471628ef0a4f034204d1b5b - changelog updates
+633d028c6cb26c1bea8ae0f3c275ead5e98a32c9 - changes to test framework (Éloi Rivard)
+f147e821cd5facb1baf8e94f9cb3920e07411552 - changes to test framework (Éloi Rivard)
+77093494d81445847b7c64606f4a4647572a0350 - support for multiple authentication methods server headers (compatibility fix)  (Éloi Rivard)
+6b791de7ccae48901ada8318158ae824f8f36982 - running test framework from github (Éloi Rivard)
+31b1618f3672633a69ee81b991a8c80063fd76a6 - changes to test framework (Éloi Rivard)
+73675ffdba833ecfa3d093beb306c72e4076abff - build documentation with tox (Éloi Rivard)
+5d697243230d1a27c774bb82f8c4030cb0dd7cd1 - tox style (Éloi Rivard)
+958afe546fbe2c8857ae9043d5cbc4de544fa3dc - enforcing black style (Éloi Rivard)
+425c99a64693c39722d13b47bb35dc4e40162517 - documenting a gotcha
+661785b875522f7e51f7a339f797bea8df7c88f7 - fixing a problem with the tests
+63f07378a36ab11b1e14fb97ef4fd0576e15a2b9 - fixing a problem with the tests (Jelmer Vernooij)
+7a77c1e6ce323702cf51595785970dc91bde8c70 - workaround for Synology compatbility
+00c9195c83989b6337be34be0f229f62600dd3d3 - fix for Synology compatbility
+7adf7a4cfeb36ecf35bc7f3ebc473032f4ca0811 - more Synology compatibility fixing
+9766b8989617ded545e6e13310597da2a3bc166f - fix for robur calendar server
+48a389357a76f2a2e2809c548788b1ca0c914d96 - test code for the latter
+5fbc73ceb997203e001ca321c997fd5ed9d5e3f5 - reverting some automated style
+25e9efae98746374e4e5753db2eb957b3f2a8f82 - fix for the test code
+dea8eb50e86a9c36dcd1ca8b46b71eebec036437 - black style (fixup ^)
+2ed9b993a4fdcfaf8199a8a1301b2a4fb5b6fa03 - fix for the test code
+
+github issues and pull requests:
+
+https://github.com/python-caldav/caldav/issues/191
+https://github.com/python-caldav/caldav/issues/196
+https://github.com/python-caldav/caldav/pull/199
+https://github.com/python-caldav/caldav/pull/198
+https://github.com/python-caldav/caldav/pull/197
+https://github.com/python-caldav/caldav/pull/195
+https://github.com/python-caldav/caldav/pull/194
+https://github.com/python-caldav/caldav/pull/193
+https://github.com/python-caldav/caldav/issues/200
+https://github.com/python-caldav/caldav/issues/205
+https://github.com/python-caldav/caldav/pull/210
+https://github.com/python-caldav/caldav/pull/211
+https://github.com/python-caldav/caldav/issues/213
+https://github.com/python-caldav/caldav/pull/214
+
+Credits: Éloi Rivard, Jelmer Vernooij, Rick Jeanes, Andreas Dominik Preikschat, @devmount
+
 # Changelog v0.9.0 -> v0.9.1
 
 ## Quick summary
