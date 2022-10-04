@@ -146,7 +146,13 @@ incompatibility_description = {
         """when asked, the server may claim it doesn't support the DAV protocol""",
 
     'cdav_not_supported':
-        """when asked, the server may claim it doesn't support the CalDAV protocol"""
+        """when asked, the server may claim it doesn't support the CalDAV protocol""",
+
+    'text_search_yields_nothing':
+        """When querying for a text match report over fields like the category field, server returns nothing""",
+
+   'combined_search_not_working':
+        """When querying for a text match and a date range in the same report, weird things happen""",
 }
 
 xandikos = [
@@ -154,9 +160,11 @@ xandikos = [
     ## (perhaps my xandikos version is too old?)
     "no_expand", "no_recurring",
 
+    ## TODO: raise an issue on this one
+    "text_search_yields_nothing",
+
     ## scheduling is not supported
     "no_scheduling",
-
 ]
 
 radicale = [
@@ -167,6 +175,9 @@ radicale = [
 
     ## freebusy is not supported yet, but on the long-term road map
     "no_freebusy_rfc4791",
+
+    ## TODO: raise an issue on this one
+    "text_search_yields_nothing",
 
     ## Expanding recurrent events is not yet supported
     ## ref https://github.com/Kozea/Radicale/issues/662
@@ -232,6 +243,7 @@ baikal = [
     'no_recurring_todo',
     'no_recurring_todo_expand',
     'non_existing_calendar_found',
+    'combined_search_not_working',
 
     ## extra features not specified in RFC5545
     "calendar_order",

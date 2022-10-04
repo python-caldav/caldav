@@ -932,10 +932,7 @@ class Calendar(DAVObject):
         **kwargs
     ):
         """
-        This method was partly written to approach
-        https://github.com/python-caldav/caldav/issues/16 This is a
-        result of some code refactoring, and after the next round of
-        refactoring we've ended up with this:
+        TODO: Doc!
         """
         ## special compatibility-case when searching for pending todos
         if todo and not include_completed:
@@ -981,7 +978,10 @@ class Calendar(DAVObject):
 
         def sort_key_func(x):
             ret = []
-            vobj = x.instance.vtodo or x.instance.vevent or x.instance.vjournal
+            for objtype in ("vtodo", "vevent", "vjournal"):
+                if hasattr(x.instance, objtype):
+                    vobj = getattr(x.instance, objtype)
+                    break
             defaults = {
                 "due": "2050-01-01",
                 "dtstart": "1970-01-01",
@@ -1024,6 +1024,8 @@ class Calendar(DAVObject):
         ignore_completed2=None,
         event=None,
         category=None,
+        uid=None,
+        class_=None,
         filters=None,
         expand=None,
         start=None,
@@ -1114,6 +1116,12 @@ class Calendar(DAVObject):
             ## TODO: we probably need to do client side filtering.  I would
             ## expect --category='e' to fetch anything having the category e,
             ## but not including all other categories containing the letter e.
+
+        if uid is not None:
+            filters.append(cdav.PropFilter("UID") + cdav.TextMatch(uid))
+
+        if class_ is not None:
+            filters.append(cdav.PropFilter("CLASS") + cdav.TextMatch(class_))
 
         if comp_filter and filters:
             comp_filter += filters
