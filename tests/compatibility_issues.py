@@ -148,7 +148,7 @@ incompatibility_description = {
     'cdav_not_supported':
         """when asked, the server may claim it doesn't support the CalDAV protocol""",
 
-    'text_search_yields_nothing':
+    'category_search_yields_nothing':
         """When querying for a text match report over fields like the category field, server returns nothing""",
 
     'text_search_is_case_insensitive':
@@ -167,7 +167,7 @@ xandikos = [
     "no_expand", "no_recurring",
 
     ## TODO: raise an issue on this one
-    "text_search_yields_nothing",
+    "category_search_yields_nothing",
 
     ## scheduling is not supported
     "no_scheduling",

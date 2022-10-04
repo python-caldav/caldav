@@ -1102,7 +1102,6 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert len(some_events) == 1
 
         ## Search for misc text fields
-        # import pdb; pdb.set_trace()
         ## UID is a special case, supported by almost all servers
         some_events = c.search(
             comp_class=Event, uid="19970901T130000Z-123403@example.com"
@@ -1111,17 +1110,16 @@ class RepeatedFunctionalTestsBaseClass(object):
 
         ## class
         some_events = c.search(comp_class=Event, class_="CONFIDENTIAL")
-        if not self.check_compatibility_flag("text_search_yields_nothing"):
-            assert len(some_events) == 1
+        assert len(some_events) == 1
 
         ## category
         self.skip_on_compatibility_flag("radicale_breaks_on_category_search")
 
         some_events = c.search(comp_class=Event, category="PERSONAL")
-        if not self.check_compatibility_flag("text_search_yields_nothing"):
+        if not self.check_compatibility_flag("category_search_yields_nothing"):
             assert len(some_events) == 1
         some_events = c.search(comp_class=Event, category="personal")
-        if not self.check_compatibility_flag("text_search_yields_nothing"):
+        if not self.check_compatibility_flag("category_search_yields_nothing"):
             if self.check_compatibility_flag("text_search_is_case_insensitive"):
                 assert len(some_events) == 1
             else:
@@ -1136,7 +1134,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert len(some_events) in (0, 1)
         ## TODO: This is actually a bug. We need to do client side filtering
         some_events = c.search(comp_class=Event, category="PERSON")
-        if not self.check_compatibility_flag("text_search_yields_nothing"):
+        if not self.check_compatibility_flag("category_search_yields_nothing"):
             assert len(some_events) == 1
 
         ## I expect logical and when combining category with a date range
@@ -1147,7 +1145,7 @@ class RepeatedFunctionalTestsBaseClass(object):
             end=datetime(2006, 7, 15, 13, 0),
         )
         if not self.check_compatibility_flag(
-            "text_search_yields_nothing"
+            "category_search_yields_nothing"
         ) and not self.check_compatibility_flag("combined_search_not_working"):
             assert len(no_events) == 0
         some_events = c.search(
@@ -1157,7 +1155,7 @@ class RepeatedFunctionalTestsBaseClass(object):
             end=datetime(1997, 11, 3, 13, 0),
         )
         if not self.check_compatibility_flag(
-            "text_search_yields_nothing"
+            "category_search_yields_nothing"
         ) and not self.check_compatibility_flag("combined_search_not_working"):
             assert len(some_events) == 1
 
