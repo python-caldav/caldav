@@ -1099,7 +1099,8 @@ class RepeatedFunctionalTestsBaseClass(object):
             start=datetime(2006, 7, 13, 13, 0),
             end=datetime(2006, 7, 15, 13, 0),
         )
-        assert len(some_events) == 1
+        if not self.check_compatibility_flag("fastmail_buggy_noexpand_date_search"):
+            assert len(some_events) == 1
 
         ## Search for misc text fields
         ## UID is a special case, supported by almost all servers

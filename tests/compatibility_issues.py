@@ -158,7 +158,10 @@ incompatibility_description = {
         """When querying for a text match and a date range in the same report, weird things happen""",
 
     'radicale_breaks_on_category_search':
-        """See https://github.com/Kozea/Radicale/issues/1125"""
+        """See https://github.com/Kozea/Radicale/issues/1125""",
+
+    'fastmail_buggy_noexpand_date_search':
+        """The 'blissful anniversary' recurrent example event is returned when asked for a no-expand date search for some timestamps covering a completely different date""",
 }
 
 xandikos = [
@@ -221,6 +224,7 @@ zimbra = [
     'no_sync_token',
     #'no_recurring_todo',
     'vtodo_datesearch_notime_task_is_skipped',
+    'category_search_yields_nothing',
 
     ## extra features not specified in RFC5545
     "calendar_order",
@@ -296,13 +300,16 @@ nextcloud = [
     'sync_breaks_on_delete',
     'no_recurring_todo',
     'no_recurring_todo_expand',
+    'combined_search_not_working'
 ]
 
 fastmail = [
     'duplicates_not_allowed',
     'duplicate_in_other_calendar_with_same_uid_breaks',
     'no_todo',
-    'sticky_events'
+    'sticky_events',
+    'fastmail_buggy_noexpand_date_search',
+    'combined_search_not_working',
 ]
 
 synlogy = [
