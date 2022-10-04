@@ -3,9 +3,9 @@
 ## YOU SHOULD MOST LIKELY NOT EDIT THIS FILE!
 ## Make a conf_private.py for personal configuration.
 ## Check conf_private.py.EXAMPLE
-from caldav.davclient import DAVClient
-
 import logging
+
+from caldav.davclient import DAVClient
 
 # from .compability_issues import bedework, xandikos
 
