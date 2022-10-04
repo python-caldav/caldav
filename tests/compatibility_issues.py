@@ -153,6 +153,9 @@ incompatibility_description = {
 
    'combined_search_not_working':
         """When querying for a text match and a date range in the same report, weird things happen""",
+
+    'radicale_breaks_on_category_search':
+        """See https://github.com/Kozea/Radicale/issues/1125"""
 }
 
 xandikos = [
@@ -177,7 +180,7 @@ radicale = [
     "no_freebusy_rfc4791",
 
     ## TODO: raise an issue on this one
-    "text_search_yields_nothing",
+    "radicale_breaks_on_category_search",
 
     ## Expanding recurrent events is not yet supported
     ## ref https://github.com/Kozea/Radicale/issues/662
