@@ -684,6 +684,12 @@ class RepeatedFunctionalTestsBaseClass(object):
                 time.sleep(0.05)
             assert not threadobj.is_alive()
 
+    def _notFound(self):
+        if self.check_compatibility_flag("non_existing_raises_other"):
+            return error.DAVError
+        else:
+            return error.NotFoundError
+
     def testPrincipal(self):
         collections = self.principal.calendars()
         if "principal_url" in self.server_params:
@@ -701,15 +707,9 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert len(events) == 0
         c.delete()
 
-        # verify that calendar does not exist
-        if self.check_compatibility_flag("non_existing_calendar_raises_other"):
-            expected_error = error.DAVError
-        else:
-            expected_error = error.NotFoundError
-
         # this breaks with zimbra and radicale
         if not self.check_compatibility_flag("non_existing_calendar_found"):
-            with pytest.raises(expected_error):
+            with pytest.raises(self._notFound()):
                 self.principal.calendar(name="Yep", cal_id=self.testcal_id).events()
 
     def testCreateEvent(self):
@@ -1073,6 +1073,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert len(c.events()) == cnt
 
     def testGetSupportedComponents(self):
+        self.skip_on_compatibility_flag("no_supported_components_support")
         c = self._fixCalendar()
         components = c.get_supported_components()
         assert components
@@ -1719,11 +1720,16 @@ class RepeatedFunctionalTestsBaseClass(object):
         ) and not self.check_compatibility_flag("no_todo_on_standard_calendar"):
             t1.delete
 
+        if self.check_compatibility_flag("non_existing_raises_other"):
+            expected_error = error.DAVError
+        else:
+            expected_error = error.NotFoundError
+
         # Verify that we can't look it up, both by URL and by ID
-        with pytest.raises(error.NotFoundError):
+        with pytest.raises(self._notFound()):
             c.event_by_url(e1.url)
         if not self.check_compatibility_flag("no_overwrite"):
-            with pytest.raises(error.NotFoundError):
+            with pytest.raises(self._notFound()):
                 c.event_by_url(e2.url)
         if not self.check_compatibility_flag("event_by_url_is_broken"):
             with pytest.raises(error.NotFoundError):
