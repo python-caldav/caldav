@@ -143,10 +143,7 @@ incompatibility_description = {
         """events cannot be edited""",
 
     'dav_not_supported':
-        """when asked, the server may claim it doesn't support the DAV protocol""",
-
-    'cdav_not_supported':
-        """when asked, the server may claim it doesn't support the CalDAV protocol""",
+        """when asked, the server may claim it doesn't support the DAV protocol.  Observed by one baikal server, should be investigated more (TODO)""",
 
     'category_search_yields_nothing':
         """When querying for a text match report over fields like the category field, server returns nothing""",
@@ -157,11 +154,17 @@ incompatibility_description = {
    'combined_search_not_working':
         """When querying for a text match and a date range in the same report, weird things happen""",
 
-    'radicale_breaks_on_category_search':
+   'text_search_not_working':
+        """Text search is generally broken""",
+
+   'radicale_breaks_on_category_search':
         """See https://github.com/Kozea/Radicale/issues/1125""",
 
-    'fastmail_buggy_noexpand_date_search':
+   'fastmail_buggy_noexpand_date_search':
         """The 'blissful anniversary' recurrent example event is returned when asked for a no-expand date search for some timestamps covering a completely different date""",
+
+    'non_existing_calendar_raises_other':
+        """Robur raises AuthorizationError when trying to access a non-existing calendar (while 404 is expected)"""
 }
 
 xandikos = [
@@ -317,5 +320,11 @@ synlogy = [
     "vtodo_datesearch_notime_task_is_skipped",
     "no_recurring_todo",
 ]
+
+robur = [
+    'text_search_not_working', ## even uid search returns all elements
+    'non_existing_calendar_raises_other', ## AuthorizationError instead of NotFoundError
+]
+
 
 # fmt: on
