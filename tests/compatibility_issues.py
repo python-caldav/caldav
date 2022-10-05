@@ -332,9 +332,8 @@ robur = [
     'no_journal',
     'no_freebusy_rfc4791',
     'dav_not_supported',
-    'no_freebusy_rfc4791',
     'no_todo_datesearch', ## returns nothing
-#    'no_recurring', ## TODO: report this upstream.  Recurring actually works, but the server seems to confuse "yearly" with "monthly" ...
+    'no_recurring', ## See https://github.com/roburio/caldav/issues/28
 ]
 
 
