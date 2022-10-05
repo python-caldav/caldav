@@ -436,11 +436,11 @@ class DAVClient:
 
     def check_cdav_support(self):
         support_list = self.check_dav_support()
-        return "calendar-access" in support_list
+        return support_list and "calendar-access" in support_list
 
     def check_scheduling_support(self):
         support_list = self.check_dav_support()
-        return "calendar-auto-schedule" in support_list
+        return support_list and "calendar-auto-schedule" in support_list
 
     def propfind(self, url=None, props="", depth=0):
         """

@@ -143,10 +143,10 @@ incompatibility_description = {
         """events cannot be edited""",
 
     'dav_not_supported':
-        """when asked, the server may claim it doesn't support the DAV protocol""",
+        """when asked, the server may claim it doesn't support the DAV protocol.  Observed by one baikal server, should be investigated more (TODO)""",
 
-    'cdav_not_supported':
-        """when asked, the server may claim it doesn't support the CalDAV protocol"""
+    'non_existing_calendar_raises_other':
+        """Robur raises AuthorizationError when trying to access a non-existing calendar (while 404 is expected)"""
 }
 
 xandikos = [
@@ -290,5 +290,11 @@ synlogy = [
     "vtodo_datesearch_notime_task_is_skipped",
     "no_recurring_todo"
 ]
+
+robur = [
+    'text_search_not_working', ## even uid search returns all elements
+    'non_existing_calendar_raises_other', ## AuthorizationError instead of NotFoundError
+]
+
 
 # fmt: on

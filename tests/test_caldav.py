@@ -568,10 +568,9 @@ class RepeatedFunctionalTestsBaseClass(object):
         """
         Test the check_*_support methods
         """
-        if not self.check_compatibility_flag("dav_not_supported"):
-            assert self.caldav.check_dav_support()
-        if not self.check_compatibility_flag("cdav_not_supported"):
-            assert self.caldav.check_cdav_support()
+        self.skip_on_compatibility_flag("dav_not_supported")
+        assert self.caldav.check_dav_support()
+        assert self.caldav.check_cdav_support()
         if self.check_compatibility_flag("no_scheduling"):
             assert not self.caldav.check_scheduling_support()
         else:
@@ -703,9 +702,14 @@ class RepeatedFunctionalTestsBaseClass(object):
         c.delete()
 
         # verify that calendar does not exist
+        if self.check_compatibility_flag("non_existing_calendar_raises_other"):
+            expected_error = error.DAVError
+        else:
+            expected_error = error.NotFoundError
+
         # this breaks with zimbra and radicale
         if not self.check_compatibility_flag("non_existing_calendar_found"):
-            with pytest.raises(error.NotFoundError):
+            with pytest.raises(expected_error):
                 self.principal.calendar(name="Yep", cal_id=self.testcal_id).events()
 
     def testCreateEvent(self):
