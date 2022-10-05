@@ -29,6 +29,8 @@ f147e821cd5facb1baf8e94f9cb3920e07411552 - changes to test framework (Éloi Riva
 25e9efae98746374e4e5753db2eb957b3f2a8f82 - fix for the test code
 dea8eb50e86a9c36dcd1ca8b46b71eebec036437 - black style (fixup ^)
 2ed9b993a4fdcfaf8199a8a1301b2a4fb5b6fa03 - fix for the test code
+62531ead3ad95a95c0b944f4fcfae9700d843b42 - changelog
+485561d1f46d1de9460fb9262294ea48b7b3f0e0 - fix for the test code (particularly robur.  Only parts of the commit backported)
 
 github issues and pull requests:
 
