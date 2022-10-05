@@ -322,7 +322,6 @@ synlogy = [
 ]
 
 robur = [
-    'text_search_not_working', ## even uid search returns all elements
     'non_existing_calendar_raises_other', ## AuthorizationError instead of NotFoundError
 ]
 
