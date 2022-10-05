@@ -143,10 +143,13 @@ incompatibility_description = {
         """events cannot be edited""",
 
     'dav_not_supported':
-        """when asked, the server may claim it doesn't support the DAV protocol.  Observed by one baikal server, should be investigated more (TODO)""",
+        """when asked, the server may claim it doesn't support the DAV protocol.  Observed by one baikal server, should be investigated more (TODO) and robur""",
 
-    'non_existing_calendar_raises_other':
-        """Robur raises AuthorizationError when trying to access a non-existing calendar (while 404 is expected)"""
+    'non_existing_raises_other':
+        """Robur raises AuthorizationError when trying to access a non-existing resource (while 404 is expected).  Probably so one shouldn't probe a public name space?""",
+
+    'no_supported_components_support':
+        """The supported components prop query does not work""",
 }
 
 xandikos = [
@@ -285,14 +288,23 @@ fastmail = [
     'sticky_events'
 ]
 
-synlogy = [
+synology = [
     "fragile_sync_tokens",
     "vtodo_datesearch_notime_task_is_skipped",
     "no_recurring_todo"
 ]
 
 robur = [
-    'non_existing_calendar_raises_other', ## AuthorizationError instead of NotFoundError
+    'non_existing_raises_other', ## AuthorizationError instead of NotFoundError
+    'no_scheduling',
+    'no_sync_token',
+    'no_supported_components_support',
+    'no_journal',
+    'no_freebusy_rfc4791',
+    'dav_not_supported',
+    'no_freebusy_rfc4791',
+    'no_todo_datesearch', ## returns nothing
+#    'no_recurring', ## TODO: report this upstream.  Recurring actually works, but the server seems to confuse "yearly" with "monthly" ...
 ]
 
 
