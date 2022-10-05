@@ -31,6 +31,8 @@ dea8eb50e86a9c36dcd1ca8b46b71eebec036437 - black style (fixup ^)
 2ed9b993a4fdcfaf8199a8a1301b2a4fb5b6fa03 - fix for the test code
 62531ead3ad95a95c0b944f4fcfae9700d843b42 - changelog
 485561d1f46d1de9460fb9262294ea48b7b3f0e0 - fix for the test code (particularly robur.  Only parts of the commit backported)
+f0f8bf1417efa7a69d6e2fbc6122fd240a231fcd - fix for test code for robur
+52dbf48756f4fb7969c0d81e38ba8c9092ea7145 - fix for test code for robur
 
 github issues and pull requests:
 
@@ -48,6 +50,7 @@ https://github.com/python-caldav/caldav/pull/210
 https://github.com/python-caldav/caldav/pull/211
 https://github.com/python-caldav/caldav/issues/213
 https://github.com/python-caldav/caldav/pull/214
+https://github.com/python-caldav/caldav/issues/215
 
 Credits: Éloi Rivard, Jelmer Vernooij, Rick Jeanes, Andreas Dominik Preikschat, @devmount
 
