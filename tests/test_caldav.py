@@ -539,12 +539,13 @@ class RepeatedFunctionalTestsBaseClass(object):
             except:
                 pass
 
-    def _fixCalendar(self):
+    def _fixCalendar(self, **kwargs):
         """
         Should ideally return a new calendar, if that's not possible it
         should see if there exists a test calendar, if that's not
         possible, give up and return the primary calendar.
         """
+        kwargs = {}
         if self.check_compatibility_flag("no_mkcalendar"):
             if not self._default_calendar:
                 calendars = self.principal.calendars()
@@ -562,7 +563,9 @@ class RepeatedFunctionalTestsBaseClass(object):
                 self._default_calendar = calendars[0]
             return self._default_calendar
         else:
-            return self.principal.make_calendar(name="Yep", cal_id=self.testcal_id)
+            return self.principal.make_calendar(
+                name="Yep", cal_id=self.testcal_id, **kwargs
+            )
 
     def testSupport(self):
         """
@@ -1147,7 +1150,9 @@ class RepeatedFunctionalTestsBaseClass(object):
             assert len(some_events) in (0, 1)
         ## TODO: This is actually a bug. We need to do client side filtering
         some_events = c.search(comp_class=Event, category="PERSON")
-        if not self.check_compatibility_flag(
+        if self.check_compatibility_flag("text_search_is_exact_match_only"):
+            assert len(some_events) == 0
+        elif not self.check_compatibility_flag(
             "category_search_yields_nothing"
         ) and not self.check_compatibility_flag("text_search_not_working"):
             assert len(some_events) == 1
@@ -1183,6 +1188,86 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert len(all_events) == 3
         assert all_events[0].instance.vevent.summary.value == "Bastille Day Jitsi Party"
 
+    def testSearchTodos(self):
+        self.skip_on_compatibility_flag("no_todo")
+        c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
+
+        t1 = c.save_todo(todo)
+        t2 = c.save_todo(todo2)
+        t3 = c.save_todo(todo3)
+        t4 = c.save_todo(todo4)
+        t5 = c.save_todo(todo5)
+        t6 = c.save_todo(todo6)
+
+        ## Search without any parameters should yield everything on calendar
+        all_todos = c.search()
+        assert len(all_todos) == 6
+
+        ## Search with comp_class set to Event should yield all events on calendar
+        all_todos = c.search(comp_class=Event)
+        assert len(all_todos) == 0
+
+        ## Search with todo flag set should yield all 6 events
+        all_todos = c.search(todo=True)
+        assert len(all_todos) == 6
+
+        ## Search for misc text fields
+        ## UID is a special case, supported by almost all servers
+        some_todos = c.search(comp_class=Todo, uid="19970901T130000Z-123404@host.com")
+        if not self.check_compatibility_flag("text_search_not_working"):
+            assert len(some_todos) == 1
+
+        ## class ... hm, all 6 example todos are 'CONFIDENTIAL' ...
+        some_todos = c.search(comp_class=Todo, class_="CONFIDENTIAL")
+        if not self.check_compatibility_flag("text_search_not_working"):
+            assert len(some_todos) == 6
+
+        ## category
+        self.skip_on_compatibility_flag("radicale_breaks_on_category_search")
+
+        ## Too much copying of the examples ...
+        some_todos = c.search(comp_class=Todo, category="FINANCE")
+        if not self.check_compatibility_flag(
+            "category_search_yields_nothing"
+        ) and not self.check_compatibility_flag("text_search_not_working"):
+            assert len(some_todos) == 6
+        some_todos = c.search(comp_class=Todo, category="finance")
+        if not self.check_compatibility_flag(
+            "category_search_yields_nothing"
+        ) and not self.check_compatibility_flag("text_search_not_working"):
+            if self.check_compatibility_flag("text_search_is_case_insensitive"):
+                assert len(some_todos) == 6
+            else:
+                assert len(some_todos) == 0
+
+        ## This is not a very useful search, and it's sort of a client side bug that we allow it at all.
+        ## It will not match if categories field is set to "PERSONAL,ANNIVERSARY,SPECIAL OCCATION"
+        ## It may not match since the above is to be considered equivalent to the raw data entered.
+        some_todos = c.search(comp_class=Event, category="FAMILY,FINANCE")
+        if not self.check_compatibility_flag("text_search_not_working"):
+            assert len(some_todos) in (0, 1)
+        ## TODO: This is actually a bug. We need to do client side filtering
+        some_todos = c.search(comp_class=Todo, category="MIL")
+        if self.check_compatibility_flag("text_search_is_exact_match_only"):
+            assert len(some_todos) == 0
+        elif not self.check_compatibility_flag(
+            "category_search_yields_nothing"
+        ) and not self.check_compatibility_flag("text_search_not_working"):
+            assert len(some_todos) == 1
+
+        ## completing an event, and it should not show up anymore
+        t1.complete()
+        t2.complete()
+        t3.complete()
+        t4.complete()
+
+        some_todos = c.search(todo=True)
+        assert len(some_todos) == 2
+
+        ## unless we specifically ask for completed tasks
+        all_todos = c.search(todo=True, include_completed=True)
+        assert len(all_todos) == 6
+
     def testCreateJournalListAndJournalEntry(self):
         """
         This test demonstrates the support for journals.
@@ -1190,13 +1275,8 @@ class RepeatedFunctionalTestsBaseClass(object):
         * It will add some journal entries to it
         * It will list out all journal entries
         """
-        self.skip_on_compatibility_flag("no_mkcalendar")
         self.skip_on_compatibility_flag("no_journal")
-        c = self.principal.make_calendar(
-            name="Yep",
-            cal_id=self.testcal_id,
-            supported_calendar_component_set=["VJOURNAL"],
-        )
+        c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
         j1 = c.save_journal(journal)
         journals = c.journals()
         assert len(journals) == 1
@@ -1220,10 +1300,6 @@ class RepeatedFunctionalTestsBaseClass(object):
         * Verify the cal.todos() method
         * Verify that cal.events() method returns nothing
         """
-        # TODO: should try to add tasks to the default calendar if mkcalendar
-        # does not work
-        self.skip_on_compatibility_flag("no_mkcalendar")
-
         # bedeworks and google calendar and some others does not support VTODO
         self.skip_on_compatibility_flag("no_todo")
 
@@ -1235,11 +1311,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         # is done though the supported_calendar_compontent_set
         # property - hence the extra parameter here:
         logging.info("Creating calendar Yep for tasks")
-        c = self.principal.make_calendar(
-            name="Yep",
-            cal_id=self.testcal_id,
-            supported_calendar_component_set=["VTODO"],
-        )
+        c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
 
         # add todo-item
         logging.info("Adding todo item to calendar Yep")
@@ -1273,17 +1345,9 @@ class RepeatedFunctionalTestsBaseClass(object):
         * It will list out all pending tasks, sorted by due date
         * It will list out all pending tasks, sorted by priority
         """
-        # TODO: should try to add tasks to the default calendar if mkcalendar
-        # does not work
-        self.skip_on_compatibility_flag("no_mkcalendar")
         # Not all server implementations have support for VTODO
         self.skip_on_compatibility_flag("no_todo")
-
-        c = self.principal.make_calendar(
-            name="Yep",
-            cal_id=self.testcal_id,
-            supported_calendar_component_set=["VTODO"],
-        )
+        c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
 
         # add todo-item
         t1 = c.save_todo(todo)
@@ -1333,17 +1397,10 @@ class RepeatedFunctionalTestsBaseClass(object):
         """
         Let's see how the date search method works for todo events
         """
-        # TODO: should try to add tasks to the default calendar if mkcalendar
-        # does not work
-        self.skip_on_compatibility_flag("no_mkcalendar")
         # bedeworks does not support VTODO
         self.skip_on_compatibility_flag("no_todo")
         self.skip_on_compatibility_flag("no_todo_datesearch")
-        c = self.principal.make_calendar(
-            name="Yep",
-            cal_id=self.testcal_id,
-            supported_calendar_component_set=["VTODO"],
-        )
+        c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
 
         # add todo-item
         t1 = c.save_todo(todo)
@@ -1445,16 +1502,9 @@ class RepeatedFunctionalTestsBaseClass(object):
         """
         Will check that todo-items can be completed and deleted
         """
-        # TODO: should try to add tasks to the default calendar if mkcalendar
-        # does not work
-        self.skip_on_compatibility_flag("no_mkcalendar")
         # not all caldav servers support VTODO
         self.skip_on_compatibility_flag("no_todo")
-        c = self.principal.make_calendar(
-            name="Yep",
-            cal_id=self.testcal_id,
-            supported_calendar_component_set=["VTODO"],
-        )
+        c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
 
         # add todo-items
         t1 = c.save_todo(todo)

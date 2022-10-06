@@ -151,6 +151,9 @@ incompatibility_description = {
     'text_search_is_case_insensitive':
         """Probably not supporting the collation used by the caldav library""",
 
+    'text_search_is_exact_match_only':
+        """Searching for 'CONF' i.e. in the class field will not yield CONFIDENTIAL.  Which generally makes sense, but is against the RFC if I've understood it correctly""",
+
    'combined_search_not_working':
         """When querying for a text match and a date range in the same report, weird things happen""",
 
@@ -175,8 +178,8 @@ xandikos = [
     ## (perhaps my xandikos version is too old?)
     "no_expand", "no_recurring",
 
-    ## https://github.com/jelmer/xandikos/issues/191
-    "category_search_yields_nothing",
+    'text_search_is_exact_match_only',
+    'category_search_yields_nothing', ## https://github.com/jelmer/xandikos/pull/194
 
     ## scheduling is not supported
     "no_scheduling",
