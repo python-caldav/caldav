@@ -1157,38 +1157,38 @@ class RepeatedFunctionalTestsBaseClass(object):
             ) and not self.check_compatibility_flag("text_search_not_working"):
                 assert len(some_events) == 1
 
+            ## I expect logical and when combining category with a date range
+            no_events = c.search(
+                comp_class=Event,
+                category="PERSONAL",
+                start=datetime(2006, 7, 13, 13, 0),
+                end=datetime(2006, 7, 15, 13, 0),
+            )
+            if (
+                not self.check_compatibility_flag("category_search_yields_nothing")
+                and not self.check_compatibility_flag("combined_search_not_working")
+                and not self.check_compatibility_flag("text_search_not_working")
+            ):
+                assert len(no_events) == 0
+            some_events = c.search(
+                comp_class=Event,
+                category="PERSONAL",
+                start=datetime(1997, 11, 1, 13, 0),
+                end=datetime(1997, 11, 3, 13, 0),
+            )
+            if (
+                not self.check_compatibility_flag("category_search_yields_nothing")
+                and not self.check_compatibility_flag("combined_search_not_working")
+                and not self.check_compatibility_flag("text_search_not_working")
+            ):
+                assert len(some_events) == 1
+
         some_events = c.search(comp_class=Event, summary="Bastille Day Party")
         if not self.check_compatibility_flag("text_search_not_working"):
             if self.check_compatibility_flag("text_search_is_exact_match_only"):
                 assert len(some_events) == 1
             else:
                 assert len(some_events) == 2
-
-        ## I expect logical and when combining category with a date range
-        no_events = c.search(
-            comp_class=Event,
-            category="PERSONAL",
-            start=datetime(2006, 7, 13, 13, 0),
-            end=datetime(2006, 7, 15, 13, 0),
-        )
-        if (
-            not self.check_compatibility_flag("category_search_yields_nothing")
-            and not self.check_compatibility_flag("combined_search_not_working")
-            and not self.check_compatibility_flag("text_search_not_working")
-        ):
-            assert len(no_events) == 0
-        some_events = c.search(
-            comp_class=Event,
-            category="PERSONAL",
-            start=datetime(1997, 11, 1, 13, 0),
-            end=datetime(1997, 11, 3, 13, 0),
-        )
-        if (
-            not self.check_compatibility_flag("category_search_yields_nothing")
-            and not self.check_compatibility_flag("combined_search_not_working")
-            and not self.check_compatibility_flag("text_search_not_working")
-        ):
-            assert len(some_events) == 1
 
         ## Even sorting should work out
         all_events = c.search(sort_keys=("summary", "dtstamp"))
