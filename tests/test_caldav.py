@@ -545,7 +545,6 @@ class RepeatedFunctionalTestsBaseClass(object):
         should see if there exists a test calendar, if that's not
         possible, give up and return the primary calendar.
         """
-        kwargs = {}
         if self.check_compatibility_flag("no_mkcalendar"):
             if not self._default_calendar:
                 calendars = self.principal.calendars()
