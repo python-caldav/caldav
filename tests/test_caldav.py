@@ -1283,7 +1283,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         * It will list out all journal entries
         """
         self.skip_on_compatibility_flag("no_journal")
-        c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
+        c = self._fixCalendar(supported_calendar_component_set=["VJOURNAL"])
         j1 = c.save_journal(journal)
         journals = c.journals()
         assert len(journals) == 1
