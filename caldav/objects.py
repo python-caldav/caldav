@@ -1024,12 +1024,12 @@ class Calendar(DAVObject):
         ignore_completed2=None,
         event=None,
         category=None,
-        uid=None,
         class_=None,
         filters=None,
         expand=None,
         start=None,
         end=None,
+        **kwargs
     ):
         """
         TODO: some doc here
@@ -1117,11 +1117,23 @@ class Calendar(DAVObject):
             ## expect --category='e' to fetch anything having the category e,
             ## but not including all other categories containing the letter e.
 
-        if uid is not None:
-            filters.append(cdav.PropFilter("UID") + cdav.TextMatch(uid))
-
         if class_ is not None:
             filters.append(cdav.PropFilter("CLASS") + cdav.TextMatch(class_))
+
+        for other in kwargs:
+            if other in (
+                "uid",
+                "summary",
+                "comment",
+                "description",
+                "location",
+                "status",
+            ):
+                filters.append(
+                    cdav.PropFilter(other.upper()) + cdav.TextMatch(kwargs[other])
+                )
+            else:
+                raise NotImplementedError("searching for %s not supported yet" % other)
 
         if comp_filter and filters:
             comp_filter += filters

@@ -205,6 +205,8 @@ radicale = [
 
     'text_search_is_case_insensitive',
 
+    'text_search_is_exact_match_only',
+
     ## extra features not specified in RFC5545
     "calendar_order",
     "calendar_color"

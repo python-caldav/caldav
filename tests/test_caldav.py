@@ -1124,38 +1124,45 @@ class RepeatedFunctionalTestsBaseClass(object):
             assert len(some_events) == 1
 
         ## category
-        self.skip_on_compatibility_flag("radicale_breaks_on_category_search")
+        if not self.check_compatibility_flag("radicale_breaks_on_category_search"):
 
-        some_events = c.search(comp_class=Event, category="PERSONAL")
-        if not self.check_compatibility_flag(
-            "category_search_yields_nothing"
-        ) and not self.check_compatibility_flag("text_search_not_working"):
-            assert len(some_events) == 1
-        some_events = c.search(comp_class=Event, category="personal")
-        if not self.check_compatibility_flag(
-            "category_search_yields_nothing"
-        ) and not self.check_compatibility_flag("text_search_not_working"):
-            if self.check_compatibility_flag("text_search_is_case_insensitive"):
+            some_events = c.search(comp_class=Event, category="PERSONAL")
+            if not self.check_compatibility_flag(
+                "category_search_yields_nothing"
+            ) and not self.check_compatibility_flag("text_search_not_working"):
+                assert len(some_events) == 1
+            some_events = c.search(comp_class=Event, category="personal")
+            if not self.check_compatibility_flag(
+                "category_search_yields_nothing"
+            ) and not self.check_compatibility_flag("text_search_not_working"):
+                if self.check_compatibility_flag("text_search_is_case_insensitive"):
+                   assert len(some_events) == 1
+                else:
+                    assert len(some_events) == 0
+
+            ## This is not a very useful search, and it's sort of a client side bug that we allow it at all.
+            ## It will not match if categories field is set to "PERSONAL,ANNIVERSARY,SPECIAL OCCATION"
+            ## It may not match since the above is to be considered equivalent to the raw data entered.
+            some_events = c.search(
+                comp_class=Event, category="ANNIVERSARY,PERSONAL,SPECIAL OCCASION"
+            )
+            if not self.check_compatibility_flag("text_search_not_working"):
+                assert len(some_events) in (0, 1)
+            ## TODO: This is actually a bug. We need to do client side filtering
+            some_events = c.search(comp_class=Event, category="PERSON")
+            if self.check_compatibility_flag("text_search_is_exact_match_only"):
+                assert len(some_events) == 0
+            elif not self.check_compatibility_flag(
+                "category_search_yields_nothing"
+            ) and not self.check_compatibility_flag("text_search_not_working"):
+                assert len(some_events) == 1
+
+        some_events = c.search(comp_class=Event, summary="Bastille Day Party")
+        if not self.check_compatibility_flag("text_search_not_working"):
+            if self.check_compatibility_flag("text_search_is_exact_match_only"):
                 assert len(some_events) == 1
             else:
-                assert len(some_events) == 0
-
-        ## This is not a very useful search, and it's sort of a client side bug that we allow it at all.
-        ## It will not match if categories field is set to "PERSONAL,ANNIVERSARY,SPECIAL OCCATION"
-        ## It may not match since the above is to be considered equivalent to the raw data entered.
-        some_events = c.search(
-            comp_class=Event, category="ANNIVERSARY,PERSONAL,SPECIAL OCCASION"
-        )
-        if not self.check_compatibility_flag("text_search_not_working"):
-            assert len(some_events) in (0, 1)
-        ## TODO: This is actually a bug. We need to do client side filtering
-        some_events = c.search(comp_class=Event, category="PERSON")
-        if self.check_compatibility_flag("text_search_is_exact_match_only"):
-            assert len(some_events) == 0
-        elif not self.check_compatibility_flag(
-            "category_search_yields_nothing"
-        ) and not self.check_compatibility_flag("text_search_not_working"):
-            assert len(some_events) == 1
+                assert len(some_events) == 2
 
         ## I expect logical and when combining category with a date range
         no_events = c.search(
