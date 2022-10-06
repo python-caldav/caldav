@@ -372,7 +372,7 @@ class CalendarSet(DAVObject):
         Utility method for creating a new calendar.
 
         Parameters:
-         * name: the name of the new calendar
+         * name: the display name of the new calendar
          * cal_id: the uuid of the new calendar
          * supported_calendar_component_set: what kind of objects
            (EVENT, VTODO, VFREEBUSY, VJOURNAL) the calendar should handle.
@@ -396,7 +396,7 @@ class CalendarSet(DAVObject):
         but no name, it will not initiate any communication with the server
 
         Parameters:
-         * name: return the calendar with this name
+         * name: return the calendar with this display name
          * cal_id: return the calendar with this calendar id or URL
 
         Returns:
@@ -749,7 +749,7 @@ class Calendar(DAVObject):
          * self
         """
         if self.url is None:
-            self._create(name=self.name, id=self.id, **self.extra_init_options)
+            self._create(id=self.id, name=self.name, **self.extra_init_options)
         return self
 
     def calendar_multiget(self, event_urls):
@@ -1245,7 +1245,8 @@ class Calendar(DAVObject):
         """
         if comp_filter:
             assert not comp_class
-            comp_filter = comp_filter.attributes["name"]
+            if hasattr(comp_filter, "attributes"):
+                comp_filter = comp_filter.attributes["name"]
             if comp_filter == "VTODO":
                 comp_class = Todo
             elif comp_filter == "VJOURNAL":

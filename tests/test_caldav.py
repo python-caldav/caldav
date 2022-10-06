@@ -1136,7 +1136,7 @@ class RepeatedFunctionalTestsBaseClass(object):
                 "category_search_yields_nothing"
             ) and not self.check_compatibility_flag("text_search_not_working"):
                 if self.check_compatibility_flag("text_search_is_case_insensitive"):
-                   assert len(some_events) == 1
+                    assert len(some_events) == 1
                 else:
                     assert len(some_events) == 0
 
