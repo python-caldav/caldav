@@ -152,10 +152,10 @@ incompatibility_description = {
         """Probably not supporting the collation used by the caldav library""",
 
     'text_search_is_exact_match_only':
-        """Searching for 'CONF' i.e. in the class field will not yield CONFIDENTIAL.  Which generally makes sense, but is against the RFC if I've understood it correctly""",
+        """Searching for 'CONF' i.e. in the class field will not yield CONFIDENTIAL.  Which generally makes sense, but the RFC specifies substring match""",
     
     'text_search_is_exact_match_sometimes':
-        """Baikal seems to do exact match on summary field but substring match on category.  Hnng...""",
+        """Some servers are doing an exact match on summary field but substring match on category""",
 
    'combined_search_not_working':
         """When querying for a text match and a date range in the same report, weird things happen""",
@@ -239,6 +239,7 @@ zimbra = [
     #'no_recurring_todo',
     'vtodo_datesearch_notime_task_is_skipped',
     'category_search_yields_nothing',
+    'text_search_is_exact_match_only',
 
     ## extra features not specified in RFC5545
     "calendar_order",
@@ -315,7 +316,8 @@ nextcloud = [
     'sync_breaks_on_delete',
     'no_recurring_todo',
     'no_recurring_todo_expand',
-    'combined_search_not_working'
+    'combined_search_not_working',
+    'text_search_is_exact_match_sometimes',
 ]
 
 fastmail = [
