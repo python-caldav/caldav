@@ -153,6 +153,9 @@ incompatibility_description = {
 
     'text_search_is_exact_match_only':
         """Searching for 'CONF' i.e. in the class field will not yield CONFIDENTIAL.  Which generally makes sense, but is against the RFC if I've understood it correctly""",
+    
+    'text_search_is_exact_match_sometimes':
+        """Baikal seems to do exact match on summary field but substring match on category.  Hnng...""",
 
    'combined_search_not_working':
         """When querying for a text match and a date range in the same report, weird things happen""",
@@ -267,6 +270,7 @@ baikal = [
     'no_recurring_todo_expand',
     'non_existing_calendar_found',
     'combined_search_not_working',
+    'text_search_is_exact_match_sometimes',
 
     ## extra features not specified in RFC5545
     "calendar_order",
@@ -321,6 +325,7 @@ fastmail = [
     'sticky_events',
     'fastmail_buggy_noexpand_date_search',
     'combined_search_not_working',
+    'text_search_is_exact_match_sometimes',
 ]
 
 synology = [
@@ -339,6 +344,7 @@ robur = [
     'dav_not_supported',
     'no_todo_datesearch', ## returns nothing
     'no_recurring', ## See https://github.com/roburio/caldav/issues/28
+    'text_search_not_working',
 ]
 
 
