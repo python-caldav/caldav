@@ -1185,7 +1185,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         some_events = c.search(comp_class=Event, summary="Bastille Day Party")
         if not self.check_compatibility_flag("text_search_not_working"):
             if self.check_compatibility_flag("text_search_is_exact_match_sometimes"):
-                assert len(some_events) in (1,2)
+                assert len(some_events) in (1, 2)
             elif self.check_compatibility_flag("text_search_is_exact_match_only"):
                 assert len(some_events) == 1
             else:
@@ -1257,7 +1257,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         ## TODO: This is actually a bug. We need to do client side filtering
         some_todos = c.search(comp_class=Todo, category="MIL")
         if self.check_compatibility_flag("text_search_is_exact_match_sometimes"):
-            assert len(some_todos) in (0,6)
+            assert len(some_todos) in (0, 6)
         elif self.check_compatibility_flag("text_search_is_exact_match_only"):
             assert len(some_todos) == 0
         elif not self.check_compatibility_flag(

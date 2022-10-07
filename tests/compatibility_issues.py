@@ -153,7 +153,7 @@ incompatibility_description = {
 
     'text_search_is_exact_match_only':
         """Searching for 'CONF' i.e. in the class field will not yield CONFIDENTIAL.  Which generally makes sense, but the RFC specifies substring match""",
-    
+
     'text_search_is_exact_match_sometimes':
         """Some servers are doing an exact match on summary field but substring match on category""",
 
