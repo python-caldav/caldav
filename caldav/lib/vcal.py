@@ -78,7 +78,7 @@ def fix(event):
 
 
 ## sorry for being english-language-euro-centric ... fits rather perfectly as default language for me :-)
-def create_ical(ical_fragment=None, objtype=None, language="en_DK", **attributes):
+def create_ical(ical_fragment=None, objtype=None, language="en_DK", **props):
     """
     I somehow feel this fits more into the icalendar library than here
     """
@@ -107,9 +107,13 @@ def create_ical(ical_fragment=None, objtype=None, language="en_DK", **attributes
         my_instance = icalendar.Calendar.from_ical(ical_fragment)
         component = my_instance.subcomponents[0]
         ical_fragment = None
-    for attribute in attributes:
-        if attributes[attribute] is not None:
-            component.add(attribute, attributes[attribute])
+    for prop in props:
+        if props[prop] is not None:
+            if prop in ('child', 'parent'):
+                for value in props[prop]:
+                    component.add('related-to', props[prop], parameters={'rel-type': prop.upper()})
+            else:
+                component.add(prop, props[prop])
     ret = my_instance.to_ical()
     if ical_fragment and ical_fragment.strip():
         ret = re.sub(

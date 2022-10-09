@@ -674,7 +674,7 @@ class Calendar(DAVObject):
         sends a schedule request to the server.  Equivalent with save_event, save_todo, etc,
         but the attendees will be added to the ical object before sending it to the server.
         """
-        ## TODO: method supports raw strings, probably not icalendar nor vobject.
+        ## TODO: consolidate together with save_*
         obj = self._calendar_comp_class_by_data(ical)(data=ical, client=self.client)
         obj.parent = self
         obj.add_organizer()
@@ -682,6 +682,7 @@ class Calendar(DAVObject):
             obj.add_attendee(attendee, **attendeeoptions)
         obj.id = obj.icalendar_instance.walk("vevent")[0]["uid"]
         obj.save()
+        return obj
 
     def _use_or_create_ics(self, ical, objtype, **ical_data):
         if ical_data or (
@@ -691,6 +692,7 @@ class Calendar(DAVObject):
             return vcal.create_ical(ical_fragment=ical, objtype=objtype, **ical_data)
         return ical
 
+    ## TODO: consolidate save_* - too much code duplication here
     def save_event(self, ical=None, no_overwrite=False, no_create=False, **ical_data):
         """
         Add a new event to the calendar, with the given ical.
@@ -704,9 +706,9 @@ class Calendar(DAVObject):
         e = Event(
             self.client,
             data=self._use_or_create_ics(ical, objtype="VEVENT", **ical_data),
-            parent=self,
-        )
+            parent=self)
         e.save(no_overwrite=no_overwrite, no_create=no_create, obj_type="event")
+        self._handle_relations(e.id, ical_data)
         return e
 
     def save_todo(self, ical=None, no_overwrite=False, no_create=False, **ical_data):
@@ -716,11 +718,14 @@ class Calendar(DAVObject):
         Parameters:
          * ical - ical object (text)
         """
-        return Todo(
+        t=Todo(
             self.client,
             data=self._use_or_create_ics(ical, objtype="VTODO", **ical_data),
             parent=self,
-        ).save(no_overwrite=no_overwrite, no_create=no_create, obj_type="todo")
+        )
+        t.save(no_overwrite=no_overwrite, no_create=no_create, obj_type="todo")
+        self._handle_relations(t.id, ical_data)
+        return t
 
     def save_journal(self, ical=None, no_overwrite=False, no_create=False, **ical_data):
         """
@@ -729,11 +734,21 @@ class Calendar(DAVObject):
         Parameters:
          * ical - ical object (text)
         """
-        return Journal(
+        j =  Journal(
             self.client,
             data=self._use_or_create_ics(ical, objtype="VJOURNAL", **ical_data),
             parent=self,
-        ).save(no_overwrite=no_overwrite, no_create=no_create, obj_type="journal")
+        )
+        j.save(no_overwrite=no_overwrite, no_create=no_create, obj_type="journal")
+        self._handle_relations(j.id, ical_data)
+        return j
+
+    def _handle_relations(self, uid, ical_data):
+        for reverse_reltype, other_uid in [
+            ('parent', x) for x in ical_data.get('child', ())] + [
+            ('child', x) for x in ical_data.get('parent', ())]:
+            other = self.object_by_uid(other_uid)
+            other.set_relation(other=uid, reltype=reverse_reltype, set_reverse=False)
 
     ## legacy aliases
     add_event = save_event
@@ -1271,7 +1286,7 @@ class Calendar(DAVObject):
             if comp_filter is not None:
                 raise
             logging.warning(
-                "Error %s from server when doing an object_by_uid(%s).  search without compfilter set is not compatible with all server implementations, trying object_by_event + object_by_todo + object_by_journal instead"
+                "Error %s from server when doing an object_by_uid(%s).  search without compfilter set is not compatible with all server implementations, trying event_by_uid + todo_by_uid + journal_by_uid instead"
                 % (str(err), uid)
             )
             items_found = []
@@ -1556,6 +1571,33 @@ class CalendarObjectResource(DAVObject):
         ## TODO: remove Organizer-field, if exists
         ## TODO: what if walk returns more than one vevent?
         self._icalendar_object().add("organizer", principal.get_vcal_address())
+
+    def set_relation(self, other, reltype=None, set_reverse=True):  ## TODO: logic to find and set siblings?
+        """
+        Sets a relation between this object and another object (given by uid or object).
+        """
+        ##TODO: test coverage
+        reltype = reltype.upper()
+        reltype_reverse = {'CHILD': 'PARENT', 'PARENT': 'CHILD', 'SIBLING': 'SIBLING'}[reltype]
+        if isinstance(other, CalendarObjectResource):
+            if other.id:
+                uid = other.id
+            else:
+                uid = other.icalendar_instance.subcomponents[0]['uid']
+        else:
+            uid = other
+            if set_reverse:
+                other = self.parent.object_by_uid(uid)
+        if set_reverse:
+            other.set_relation(other=self, reltype=reltype_reverse, set_reverse=False)
+
+        existing_relation = self.icalendar_instance.subcomponents[0].get('related-to', None)
+        existing_relations = existing_relation if isinstance(existing_relation, list) else [ existing_relation ]
+        for rel in existing_relations:
+            if rel == uid:
+                return
+
+        self.icalendar_instance.subcomponents[0].add('related-to', uid, parameters={'rel-type': reltype})
 
     def _icalendar_object(self):
         import icalendar
