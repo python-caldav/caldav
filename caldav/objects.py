@@ -2015,6 +2015,7 @@ class Todo(CalendarObjectResource):
     The `Todo` object is used to represent a todo item (VTODO).
     A Todo-object can be completed.
     """
+
     def complete(self, completion_timestamp=None):
         """Marks the task as completed.
 
@@ -2044,7 +2045,5 @@ class Todo(CalendarObjectResource):
             self.vobject_instance.vtodo.add("status")
         self.vobject_instance.vtodo.status.value = "NEEDS-ACTION"
         if hasattr(self.vobject_instance.vtodo, "completed"):
-            self.vobject_instance.vtodo.remove(
-                self.vobject_instance.vtodo.completed)
+            self.vobject_instance.vtodo.remove(self.vobject_instance.vtodo.completed)
         self.save()
-
