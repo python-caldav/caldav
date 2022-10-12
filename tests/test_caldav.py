@@ -272,6 +272,22 @@ PRIORITY:1
 END:VTODO
 END:VCALENDAR"""
 
+todo8 = """
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Example Corp.//CalDAV Client//EN
+BEGIN:VTODO
+UID:takeoutthethrash
+DTSTAMP:20221013T151313Z
+DTSTART:20221017T065500Z
+DUE:19920516T070000Z
+SUMMARY:Take out the thrash before the collectors come.
+RRULE:FREQ=WEEKLY;BYDAY=MO;BYHOUR=6;BYMINUTE=55;COUNT=3
+CATEGORIES:CHORE
+PRIORITY:3
+END:VTODO
+END:VCALENDAR"""
+
 # example from http://www.kanzaki.com/docs/ical/vjournal.html
 journal = """
 BEGIN:VCALENDAR
@@ -1553,6 +1569,45 @@ class RepeatedFunctionalTestsBaseClass(object):
         #     start=datetime(1990, 4, 14), end=datetime(2015,5,14),
         #     compfilter='VTODO', hide_completed_todos=True)
         # assert len(todos) == 1
+
+    def testTodoRecurringCompleteSafe(self):
+        c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
+        t6 = c.save_todo(todo6)
+        t8 = c.save_todo(todo8)
+        assert len(c.todos()) == 2
+        t6.complete(handle_rrule=True, rrule_mode="safe")
+        assert len(c.todos()) == 2
+        assert len(c.todos(include_completed=True)) == 3
+        t8.complete(handle_rrule=True, rrule_mode="safe")
+        assert len(c.todos()) == 2
+        t8.complete(handle_rrule=True, rrule_mode="safe")
+        t8.complete(handle_rrule=True, rrule_mode="safe")
+        assert len(c.todos()) == 1
+
+    def testTodoRecurringCompleteThisandfuture(self):
+        c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
+        t6 = c.save_todo(todo6)
+        t8 = c.save_todo(todo8)
+        assert len(c.todos()) == 2
+        t6.complete(handle_rrule=True, rrule_mode="thisandfuture")
+        if not self.check_compatibility_flag(
+            "search_for_recurring_noncompleted_task_fails"
+        ):
+            assert len(c.todos()) == 2
+        all_todos = c.todos(include_completed=True)
+        assert len(all_todos) == 2
+        # assert sum([len(x.icalendar_instance.subcomponents) for x in all_todos]) == 5
+        t8.complete(handle_rrule=True, rrule_mode="thisandfuture")
+        if not self.check_compatibility_flag(
+            "search_for_recurring_noncompleted_task_fails"
+        ):
+            assert len(c.todos()) == 2
+        t8.complete(handle_rrule=True, rrule_mode="thisandfuture")
+        t8.complete(handle_rrule=True, rrule_mode="thisandfuture")
+        if not self.check_compatibility_flag(
+            "search_for_recurring_noncompleted_task_fails"
+        ):
+            assert len(c.todos()) == 1
 
     def testUtf8Event(self):
         # TODO: what's the difference between this and testUnicodeEvent?

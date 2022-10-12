@@ -8,7 +8,9 @@ to emulate server communication.
 
 """
 import pickle
+from datetime import date
 from datetime import datetime
+from datetime import timedelta
 
 import caldav
 import icalendar
@@ -66,6 +68,36 @@ BEGIN:VTODO
 UID:20070313T123432Z-456553@example.com
 DTSTAMP:20070313T123432Z
 DUE;VALUE=DATE:20070501
+SUMMARY:Submit Quebec Income Tax Return for 2006
+CLASS:CONFIDENTIAL
+CATEGORIES:FAMILY,FINANCE
+STATUS:NEEDS-ACTION
+END:VTODO
+END:VCALENDAR"""
+
+todo_implicit_duration = """BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Example Corp.//CalDAV Client//EN
+BEGIN:VTODO
+UID:20070313T123432Z-456553@example.com
+DTSTAMP:20070313T123432Z
+DTSTART;VALUE=DATE:20070425
+DUE;VALUE=DATE:20070501
+SUMMARY:Submit Quebec Income Tax Return for 2006
+CLASS:CONFIDENTIAL
+CATEGORIES:FAMILY,FINANCE
+STATUS:NEEDS-ACTION
+END:VTODO
+END:VCALENDAR"""
+
+todo_explicit_duration = """BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Example Corp.//CalDAV Client//EN
+BEGIN:VTODO
+UID:20070313T123432Z-456553@example.com
+DTSTAMP:20070313T123432Z
+DTSTART:20070425T160000Z
+DURATION:P5D
 SUMMARY:Submit Quebec Income Tax Return for 2006
 CLASS:CONFIDENTIAL
 CATEGORIES:FAMILY,FINANCE
@@ -796,6 +828,60 @@ END:VCALENDAR
         lines_now.sort()
         lines_orig.sort()
         assert lines_now == lines_orig
+
+    def testTodoDuration(self):
+        cal_url = "http://me:hunter2@calendar.example:80/"
+        client = DAVClient(url=cal_url)
+        my_todo1 = Todo(client, data=todo)
+        my_todo2 = Todo(client, data=todo_implicit_duration)
+        my_todo3 = Todo(client, data=todo_explicit_duration)
+        assert my_todo1.get_duration() == timedelta(0)
+        assert my_todo1.get_due() == date(2007, 5, 1)
+        assert my_todo2.get_duration() == timedelta(days=6)
+        assert my_todo2.get_due() == date(2007, 5, 1)
+        assert my_todo3.get_duration() == timedelta(days=5)
+        foo6 = my_todo3.get_due().strftime("%s") == "1177945200"
+        some_date = date(2011, 1, 1)
+
+        my_todo1.set_due(some_date)
+        assert my_todo1.get_due() == some_date
+
+        ## set_due has "only" one if, so two code paths, one where dtstart is actually moved and one where it isn't
+        my_todo2.set_due(some_date, move_dtstart=True)
+        assert my_todo2.icalendar_instance.subcomponents[0][
+            "DTSTART"
+        ].dt == some_date - timedelta(days=6)
+
+        ## set_duration at the other hand has 5 code paths ...
+        ## 1) DUE and DTSTART set, DTSTART as the movable component
+        my_todo1.set_duration(timedelta(1))
+        assert my_todo1.get_due() == some_date
+        assert my_todo1.icalendar_instance.subcomponents[0][
+            "DTSTART"
+        ].dt == some_date - timedelta(1)
+
+        ## 2) DUE and DTSTART set, DUE as the movable component
+        my_todo1.set_duration(timedelta(2), movable_attr="DUE")
+        assert my_todo1.get_due() == some_date + timedelta(days=1)
+        assert my_todo1.icalendar_instance.subcomponents[0][
+            "DTSTART"
+        ].dt == some_date - timedelta(1)
+
+        ## 3) DUE set, DTSTART not set
+        dtstart = my_todo1.icalendar_instance.subcomponents[0].pop("DTSTART").dt
+        my_todo1.set_duration(timedelta(2))
+        assert my_todo1.icalendar_instance.subcomponents[0]["DTSTART"].dt == dtstart
+
+        ## 4) DTSTART set, DUE not set
+        my_todo1.icalendar_instance.subcomponents[0].pop("DUE")
+        my_todo1.set_duration(timedelta(1))
+        assert my_todo1.get_due() == some_date
+
+        ## 5) Neither DUE nor DTSTART set
+        my_todo1.icalendar_instance.subcomponents[0].pop("DUE")
+        my_todo1.icalendar_instance.subcomponents[0].pop("DTSTART")
+        my_todo1.set_duration(timedelta(days=3))
+        assert my_todo1.get_duration() == timedelta(days=3)
 
     def testURL(self):
         """Exercising the URL class"""

@@ -174,6 +174,9 @@ incompatibility_description = {
 
     'no_supported_components_support':
         """The supported components prop query does not work""",
+
+    'search_for_recurring_noncompleted_task_fails':
+        """If a task has a recurrence-id that is completed, the whole task will be hidden as completed in search for uncompleted tasks.  TODO: investigate more on this one, perhaps this is how the RFC should work."""
 }
 
 xandikos = [
@@ -186,6 +189,9 @@ xandikos = [
 
     ## scheduling is not supported
     "no_scheduling",
+
+    'search_for_recurring_noncompleted_task_fails',
+
 ]
 
 radicale = [
@@ -207,6 +213,8 @@ radicale = [
     'no_scheduling',
 
     'text_search_is_case_insensitive',
+
+    'search_for_recurring_noncompleted_task_fails',
 
     'text_search_is_exact_match_only',
 

@@ -10,10 +10,13 @@ class hierarchy into a separate file)
 """
 import re
 import uuid
+import zoneinfo
 from datetime import date
 from datetime import datetime
+from datetime import timedelta
 
 import vobject
+from dateutil.rrule import rrulestr
 from lxml import etree
 
 try:
@@ -706,7 +709,8 @@ class Calendar(DAVObject):
         e = Event(
             self.client,
             data=self._use_or_create_ics(ical, objtype="VEVENT", **ical_data),
-            parent=self)
+            parent=self,
+        )
         e.save(no_overwrite=no_overwrite, no_create=no_create, obj_type="event")
         self._handle_relations(e.id, ical_data)
         return e
@@ -718,7 +722,7 @@ class Calendar(DAVObject):
         Parameters:
          * ical - ical object (text)
         """
-        t=Todo(
+        t = Todo(
             self.client,
             data=self._use_or_create_ics(ical, objtype="VTODO", **ical_data),
             parent=self,
@@ -734,7 +738,7 @@ class Calendar(DAVObject):
         Parameters:
          * ical - ical object (text)
         """
-        j =  Journal(
+        j = Journal(
             self.client,
             data=self._use_or_create_ics(ical, objtype="VJOURNAL", **ical_data),
             parent=self,
@@ -745,8 +749,8 @@ class Calendar(DAVObject):
 
     def _handle_relations(self, uid, ical_data):
         for reverse_reltype, other_uid in [
-            ('parent', x) for x in ical_data.get('child', ())] + [
-            ('child', x) for x in ical_data.get('parent', ())]:
+            ("parent", x) for x in ical_data.get("child", ())
+        ] + [("child", x) for x in ical_data.get("parent", ())]:
             other = self.object_by_uid(other_uid)
             other.set_relation(other=uid, reltype=reverse_reltype, set_reverse=False)
 
@@ -1561,6 +1565,9 @@ class CalendarObjectResource(DAVObject):
         )
         if data is not None:
             self.data = data
+            if id:
+                old_id = self.icalendar_instance.subcomponents[0].pop("UID", None)
+                self.icalendar_instance.subcomponents[0].add("UID", id)
 
     def add_organizer(self):
         """
@@ -1572,18 +1579,22 @@ class CalendarObjectResource(DAVObject):
         ## TODO: what if walk returns more than one vevent?
         self._icalendar_object().add("organizer", principal.get_vcal_address())
 
-    def set_relation(self, other, reltype=None, set_reverse=True):  ## TODO: logic to find and set siblings?
+    def set_relation(
+        self, other, reltype=None, set_reverse=True
+    ):  ## TODO: logic to find and set siblings?
         """
         Sets a relation between this object and another object (given by uid or object).
         """
         ##TODO: test coverage
         reltype = reltype.upper()
-        reltype_reverse = {'CHILD': 'PARENT', 'PARENT': 'CHILD', 'SIBLING': 'SIBLING'}[reltype]
+        reltype_reverse = {"CHILD": "PARENT", "PARENT": "CHILD", "SIBLING": "SIBLING"}[
+            reltype
+        ]
         if isinstance(other, CalendarObjectResource):
             if other.id:
                 uid = other.id
             else:
-                uid = other.icalendar_instance.subcomponents[0]['uid']
+                uid = other.icalendar_instance.subcomponents[0]["uid"]
         else:
             uid = other
             if set_reverse:
@@ -1591,13 +1602,21 @@ class CalendarObjectResource(DAVObject):
         if set_reverse:
             other.set_relation(other=self, reltype=reltype_reverse, set_reverse=False)
 
-        existing_relation = self.icalendar_instance.subcomponents[0].get('related-to', None)
-        existing_relations = existing_relation if isinstance(existing_relation, list) else [ existing_relation ]
+        existing_relation = self.icalendar_instance.subcomponents[0].get(
+            "related-to", None
+        )
+        existing_relations = (
+            existing_relation
+            if isinstance(existing_relation, list)
+            else [existing_relation]
+        )
         for rel in existing_relations:
             if rel == uid:
                 return
 
-        self.icalendar_instance.subcomponents[0].add('related-to', uid, parameters={'rel-type': reltype})
+        self.icalendar_instance.subcomponents[0].add(
+            "related-to", uid, parameters={"rel-type": reltype}
+        )
 
     def _icalendar_object(self):
         import icalendar
@@ -1834,6 +1853,7 @@ class CalendarObjectResource(DAVObject):
         no_overwrite=False,
         no_create=False,
         obj_type=None,
+        increase_seqno=False,
         if_schedule_tag_match=False,
     ):
         """
@@ -2053,31 +2073,288 @@ class FreeBusy(CalendarObjectResource):
 
 
 class Todo(CalendarObjectResource):
-    """
-    The `Todo` object is used to represent a todo item (VTODO).
-    A Todo-object can be completed.
+    """The `Todo` object is used to represent a todo item (VTODO).  A
+    Todo-object can be completed.  Extra logic for different ways to
+    complete one recurrence of a recurrent todo.  Extra logic to
+    handle due vs duration.
     """
 
-    def complete(self, completion_timestamp=None):
+    def _next(self, ts=None, i=None, dtstart=None, rrule=None, by=None, no_count=True):
+        """Special logic to fint the next DTSTART of a recurring
+        just-completed task.
+
+        If any BY*-parameters are present, assume the task should have
+        fixed deadlines and preserve information from the previous
+        dtstart.  If no BY*-parametes are present, assume the
+        frequency is meant to be the interval between the tasks.
+
+        Examples:
+
+        1) Garbage collection happens every week on a Tuesday, but
+        never earlier than 09 in the morning.  Hence, it may be
+        important to take out the thrash Monday evenings or Tuesday
+        morning.  DTSTART of the original task is set to Tuesday
+        2022-11-01T08:50, DUE to 09:00.
+
+        1A) Task is completed 07:50 on the 1st of November.  Next
+        DTSTART should be Tuesday the 7th of November at 08:50.
+
+        1B) Task is completed 09:15 on the 1st of November (which is
+        probably OK, since they usually don't come before 09:30).
+        Next DTSTART should be Tuesday the 7th of November at 08:50.
+
+        1C) Task is completed at the 5th of November.  We've lost the
+        DUE, but the calendar has no idea weather the DUE was a very
+        hard due or not - and anyway, probably we'd like to do it
+        again on Tuesday, so next DTSTART should be Tuesday the 7th of
+        November at 08:50.
+
+        1D) Task is completed at the 7th of November at 07:50.  Next
+        DTSTART should be one hour later.  Now, this is very silly,
+        but an algorithm cannot do guesswork on weather it's silly or
+        not.  If DTSTART would be set to the earliest possible time
+        one could start thinking on this task (like, Monday evening),
+        then we would get TUe the 14th of November, which does make
+        sense.  Unfortunately the icalendar standard does not specify
+        what should be used for DTSTART and DURATION/DUE.
+
+        1E) Task is completed on the 7th of November at 08:55.  This
+        efficiently means we've lost the 1st of November recurrence
+        but have done the 7th of November recurrence instead, so next
+        timestamp will be the 14th of November.
+
+        2) Floors at home should be cleaned like once a week, but
+        there is no fixed deadline for it.  For some people it may
+        make sense to have a routine doing it i.e. every Tuesday, but
+        this is not a strict requirement.  If it wasn't done one
+        Tuesday, it's probably even more important to do it Wednesday.
+        If the floor was cleaned on a Saturday, it probably doesn't
+        make sense cleaning it again on Tuesday, but it probably
+        shouldn't wait until next Tuesday.  Rrule is set to
+        FREQ=WEEKLY, but without any BYDAY.  The original VTODO is set
+        up with DTSTART 16:00 on Tuesday the 1st of November and DUE
+        17:00.  After 17:00 there will be dinner, so best to get it
+        done before that.
+
+        2A) Floor cleaning was finished 14:30.  The next recurrence
+        has DTSTART set to 13:30 (and DUE set to 14:30).  The idea
+        here is that since the floor starts accumulating dirt right
+        after 14:30, obviously it is overdue at 16:00 Tuesday the 7th.
+
+        2B) Floor cleaning was procrastinated with one day and
+        finished Wednesday at 14:30.  Next instance will be Wednesday
+        in a week, at 14:30.
+
+        2C) Floor cleaning was procrastinated with two weeks and
+        finished Tuesday the 14th at 14:30. Next instance will be
+        Tuesday the 21st at 14:30.
+
+        While scenario 2 is the most trivial to implement, it may not
+        be the correct understanding of the RFC, and it may be tricky
+        to get the RECURRENCE-ID set correctly.
+
+        """
+        if not i:
+            i = self.icalendar_instance.subcomponents[0]
+        if not rrule:
+            rrule = i["RRULE"]
+        if not dtstart:
+            if by is True or (
+                by is None and any((x for x in rrule if x.startswith("BY")))
+            ):
+                dtstart = i["DTSTART"].dt
+            else:
+                if not ts:
+                    ts = datetime.utcnow().astimezone(zoneinfo.ZoneInfo("UTC"))
+                dtstart = ts - self.get_duration()
+        if not ts:
+            ts = dtstart
+        ## Counting is taken care of other places
+        if no_count and "COUNT" in rrule:
+            rrule = rrule.copy()
+            rrule.pop("COUNT")
+        rrule = rrulestr(rrule.to_ical().decode("utf-8"), dtstart=dtstart)
+        return rrule.after(ts)
+
+    def _reduce_count(self, i=None):
+        if not i:
+            i = self.icalendar_instance.subcomponents[0]
+        if "COUNT" in i["RRULE"]:
+            if i["RRULE"]["COUNT"][0] == 1:
+                return False
+            i["RRULE"]["COUNT"][0] -= 1
+        return True
+
+    def _complete_recurring_safe(self, completion_timestamp):
+        """This mode will create a new independent task which is
+        marked as completed, and modify the existing recurring task.
+        It is probably the most safe way to handle the completion of a
+        recurrence of a recurring task, though the link between the
+        completed task and the original task is lost.
+        """
+        ## If count is one, then it is not really recurring
+        if not self._reduce_count():
+            return self.complete(handle_rrule=False)
+        next_dtstart = self._next(completion_timestamp)
+        if not next_dtstart:
+            return self.complete(handle_rrule=False)
+
+        completed = self.copy()
+        completed.url = self.parent.url.join(completed.id + ".ics")
+        completed.icalendar_instance.subcomponents[0].pop("RRULE")
+        completed.save()
+        completed.complete()
+
+        duration = self.get_duration()
+        i = self.icalendar_instance.subcomponents[0]
+        i.pop("DTSTART", None)
+        i.add("DTSTART", next_dtstart)
+        self.set_duration(duration, movable_attr="DUE")
+
+        self.save()
+
+    def _complete_recurring_thisandfuture(self, completion_timestamp):
+        """The RFC is not much helpful, a lot of guesswork is needed
+        to consider what the "right thing" to do wrg of a completion of
+        recurring tasks is ... but this is my shot at it.
+
+        1) The original, with rrule, will be kept as it is.  The rrule
+        string is fetched from the first subcomponent of the
+        icalendar.
+
+        2) If there are multiple recurrence instances in subcomponents
+        and the last one is marked with RANGE=THISANDFUTURE, then
+        select this one.  If it has the rrule property set, use this
+        rrule rather than the original one.  Drop the RANGE parameter.
+        Calculate the next RECURRENCE-ID from the DTSTART of this
+        object.  Mark task as completed.  Increase SEQUENCE.
+
+        3) Create a new recurrence instance with RANGE=THISANDFUTURE,
+        without RRULE set (Ref
+        https://github.com/Kozea/Radicale/issues/1264).  Set the
+        RECURRENCE-ID to the one calculated in #2.  Calculate the
+        DTSTART based on rrule and completion timestamp/date.
+
+        TODO: This is very untested as for now.
+        """
+        recurrences = self.icalendar_instance.subcomponents
+        orig = recurrences[0]
+
+        if len(recurrences) == 1:
+            ## We copy the original one
+            just_completed = orig.copy()
+            just_completed.pop("RRULE")
+            just_completed.add(
+                "RECURRENCE-ID", orig.get("DTSTART", completion_timestamp)
+            )
+            seqno = just_completed.pop("SEQUENCE", 0)
+            just_completed.add("SEQUENCE", seqno + 1)
+            recurrences.append(just_completed)
+
+        prev = recurrences[-1]
+        rrule = prev.get("RRULE", orig["RRULE"])
+        thisandfuture = prev.copy()
+        seqno = thisandfuture.pop("SEQUENCE", 0)
+        thisandfuture.add("SEQUENCE", seqno + 1)
+
+        ## If we have multiple recurrences, assume the last one is a THISANDFUTURE.
+        ## (Otherwise, the data is coming from another client ...)
+        ## The RANGE parameter needs to be removed
+        if len(recurrences) > 2:
+            if prev["RECURRENCE-ID"].params.get("RANGE", None) == "THISANDFUTURE":
+                prev["RECURRENCE-ID"].params.pop("RANGE")
+            else:
+                raise NotImplementedError(
+                    "multiple instances found, but last one is not of type THISANDFUTURE, possibly this has been created by some incompatible client, but we should deal with it"
+                )
+        self._complete_ical(prev, completion_timestamp)
+
+        thisandfuture.pop("RECURRENCE-ID", None)
+        thisandfuture.add("RECURRENCE-ID", self._next(i=prev, rrule=rrule))
+        thisandfuture["RECURRENCE-ID"].params["RANGE"] = "THISANDFUTURE"
+        rrule2 = thisandfuture.pop("RRULE", None)
+
+        ## Counting logic
+        if rrule2 is not None:
+            count = rrule2.get("COUNT", [None])
+            if count is not None and count[0] in (0, 1):
+                for i in recurrences:
+                    self._complete_ical(i, completion_timestamp=completion_timestamp)
+            thisandfuture.add("RRULE", rrule2)
+        else:
+            count = rrule.params.get("COUNT")
+            if count is not None and count <= len(
+                [x for x in recurrences if not self.is_pending(x)]
+            ):
+                self._complete_ical(recurrences[0])
+                self.save(increase_seqno=False)
+                return
+
+        rrule = rrule2 or rrule
+
+        duration = self._get_duration(i=prev)
+        thisandfuture.pop("DTSTART", None)
+        thisandfuture.pop("DUE", None)
+        next_dtstart = self._next(i=prev, rrule=rrule, ts=completion_timestamp)
+        thisandfuture.add("DTSTART", next_dtstart)
+        self._set_duration(i=thisandfuture, duration=duration, movable_attr="DUE")
+        self.icalendar_instance.subcomponents.append(thisandfuture)
+        self.save(increase_seqno=False)
+
+    def complete(
+        self, completion_timestamp=None, handle_rrule=False, rrule_mode="safe"
+    ):
         """Marks the task as completed.
-
-        This method probably will do the wrong thing if the task is a
-        recurring task, in version 1.0 this will likely be changed -
-        see https://github.com/python-caldav/caldav/issues/127 for
-        details.
 
         Parameters:
          * completion_timestamp - datetime object.  Defaults to
            datetime.now().
-
+         * handle_rrule - if set to True, the library will try to be smart if the task is recurring.
+         * rrule_mode -   The RFC leaves a lot of room for intepretation on how to handle recurring tasks, and what works on one server may break at another.  The following modes are accepted:
+            * this_and_future - see doc for _complete_recurring_thisandfuture for details
+            * safe - see doc for _complete_recurring_safe for details
         """
+        ## TODO: after 1.0 release, call on self._complete_ical instead
         if not completion_timestamp:
-            completion_timestamp = datetime.now()
+            completion_timestamp = datetime.utcnow().astimezone(
+                zoneinfo.ZoneInfo("UTC")
+            )
+
+        if hasattr(self.instance.vtodo, "rrule") and handle_rrule:
+            return getattr(self, "_complete_recurring_%s" % rrule_mode)(
+                completion_timestamp
+            )
         if not hasattr(self.vobject_instance.vtodo, "status"):
             self.vobject_instance.vtodo.add("status")
         self.vobject_instance.vtodo.status.value = "COMPLETED"
         self.vobject_instance.vtodo.add("completed").value = completion_timestamp
         self.save()
+
+    def _complete_ical(self, i=None, completion_timestamp=None):
+        ## my idea was to let self.complete call this one ... but self.complete
+        ## should use vobject and not icalendar library due to backward compatibility.
+        if i is None:
+            i = self.icalendar_instance.subcomponents[0]
+        assert self._is_pending(i)
+        if completion_timestamp is None:
+            completion_timestamp = datetime.now()
+        status = i.pop("STATUS", None)
+        i.add("STATUS", "COMPLETED")
+        i.add("COMPLETED", completion_timestamp)
+
+    def _is_pending(self, i=None):
+        if i is None:
+            i = self.icalendar_instance.subcomponents[0]
+        if i.get("COMPLETED", None) is not None:
+            return False
+        if i.get("STATUS", None) in ("NEEDS-ACTION", "IN-PROCESS"):
+            return True
+        if i.get("STATUS", None) in ("CANCELLED", "COMPLETED"):
+            return False
+        if not "STATUS" in i:
+            return True
+        ## input data does not conform to the RFC
+        assert False
 
     def uncomplete(self):
         """Undo completion - marks a completed task as not completed"""
@@ -2089,3 +2366,88 @@ class Todo(CalendarObjectResource):
         if hasattr(self.vobject_instance.vtodo, "completed"):
             self.vobject_instance.vtodo.remove(self.vobject_instance.vtodo.completed)
         self.save()
+
+    def get_duration(self):
+        """According to the RFC, either DURATION or DUE should be set
+        for a task, but never both - implicitly meaning that DURATION
+        is the difference between DTSTART and DUE (personally I
+        believe that's stupid.  If a task takes five minutes to
+        complete - say, fill in some simple form that should be
+        delivered before midnight at new years eve, then it feels
+        natural for me to define "duration" as five minutes, DTSTART
+        to "some days before new years eve" and DUE to 20xx-01-01
+        00:00:00 - but I digress.
+
+        This method will return DURATION if set, otherwise the
+        difference between DUE and DTSTART (if both of them are set).
+
+        Arguably, this logic belongs to the icalendar/vobject layer as
+        it has nothing to do with the caldav protocol.
+
+        TODO: should be fixed for Event class as well (only difference
+        is that DTEND is used rather than DUE) and possibly also for
+        Journal (defaults to one day, probably?)
+        """
+        i = self.icalendar_instance.subcomponents[0]
+        return self._get_duration(i)
+
+    def _get_duration(self, i):
+        if "DURATION" in i:
+            return i["DURATION"].dt
+        elif "DTSTART" in i and "DUE" in i:
+            return i["DUE"].dt - i["DTSTART"].dt
+        else:
+            return timedelta(0)
+
+    def set_duration(self, duration, movable_attr="DTSTART"):
+        """
+        If DTSTART and DUE is already set, one of them should be moved.  Which one?  I believe that for EVENTS, the DTSTART should remain constant and DTEND should be moved, but for a task, I think the due date may be a hard deadline, hence by default we'll move DTSTART.
+
+        TODO: can this be written in a better/shorter way?
+        """
+        i = self.icalendar_instance.subcomponents[0]
+        return self._set_duration(i, duration, movable_attr)
+
+    def _set_duration(self, i, duration, movable_attr="DTSTART"):
+        if "DUE" in i and "DTSTART" in i:
+            i.pop(movable_attr)
+            if movable_attr == "DTSTART":
+                i.add("DTSTART", i["DUE"].dt - duration)
+            elif movable_attr == "DUE":
+                i.add("DUE", i["DTSTART"].dt + duration)
+        elif "DUE" in i:
+            i.add("DTSTART", i["DUE"].dt - duration)
+        elif "DTSTART" in i:
+            i.add("DUE", i["DTSTART"].dt + duration)
+        else:
+            if "DURATION" in i:
+                i.pop("DURATION")
+            i.add("DURATION", duration)
+
+    def get_due(self):
+        """
+        A VTODO may have due or duration set.  Return or calculate due.
+        """
+        i = self.icalendar_instance.subcomponents[0]
+        if "DUE" in i:
+            return i["DUE"].dt
+        elif "DURATION" in i and "DTSTART" in i:
+            return i["DTSTART"].dt + i["DURATION"].dt
+        else:
+            return None
+
+    def set_due(self, due, move_dtstart=False):
+        """The RFC specifies that a VTODO cannot have both due and
+        duration, so when setting due, the duration field must be
+        evicted
+        """
+        i = self.icalendar_instance.subcomponents[0]
+        duration = self.get_duration()
+        i.pop("DURATION", None)
+        i.pop("DUE", None)
+
+        if move_dtstart and duration and "DTSTART" in i:
+            i.pop("DTSTART")
+            i.add("DTSTART", due - duration)
+
+        i.add("DUE", due)
