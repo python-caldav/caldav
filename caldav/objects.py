@@ -10,10 +10,10 @@ class hierarchy into a separate file)
 """
 import re
 import uuid
-import zoneinfo
 from datetime import date
 from datetime import datetime
 from datetime import timedelta
+from datetime import timezone
 
 import vobject
 from dateutil.rrule import rrulestr
@@ -1050,8 +1050,10 @@ class Calendar(DAVObject):
         end=None,
         **kwargs
     ):
-        """
-        TODO: some doc here
+        """This method will produce a caldav search query as an etree object.
+
+        It is primarily to be used from the search method.  See the
+        documentation for the search method for more information.
         """
         # those xml elements are weird.  (a+b)+c != a+(b+c).  First makes b and c as list members of a, second makes c an element in b which is an element of a.
         # First objective is to let this take over all xml search query building and see that the current tests pass.
@@ -2162,10 +2164,11 @@ class Todo(CalendarObjectResource):
             if by is True or (
                 by is None and any((x for x in rrule if x.startswith("BY")))
             ):
-                dtstart = i["DTSTART"].dt
+                if 'DTSTART' in i:
+                    dtstart = i["DTSTART"].dt
+                else:
+                    dtstart = ts or datetime.now()
             else:
-                if not ts:
-                    ts = datetime.utcnow().astimezone(zoneinfo.ZoneInfo("UTC"))
                 dtstart = ts - self.get_duration()
         if not ts:
             ts = dtstart
@@ -2317,7 +2320,7 @@ class Todo(CalendarObjectResource):
         ## TODO: after 1.0 release, call on self._complete_ical instead
         if not completion_timestamp:
             completion_timestamp = datetime.utcnow().astimezone(
-                zoneinfo.ZoneInfo("UTC")
+                timezone.utc
             )
 
         if hasattr(self.instance.vtodo, "rrule") and handle_rrule:

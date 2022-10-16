@@ -176,7 +176,7 @@ incompatibility_description = {
         """The supported components prop query does not work""",
 
     'search_for_recurring_noncompleted_task_fails':
-        """If a task has a recurrence-id that is completed, the whole task will be hidden as completed in search for uncompleted tasks.  TODO: investigate more on this one, perhaps this is how the RFC should work."""
+        """If a task has a recurrence-id that is completed, the whole task will be hidden as completed in search for uncompleted tasks.  TODO: investigate more on this one, perhaps this is how the RFC should work.  Or perhaps the problem is on the client side, I do some client side filtering as well ..."""
 }
 
 xandikos = [
