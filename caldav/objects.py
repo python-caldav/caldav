@@ -2164,12 +2164,12 @@ class Todo(CalendarObjectResource):
             if by is True or (
                 by is None and any((x for x in rrule if x.startswith("BY")))
             ):
-                if 'DTSTART' in i:
+                if "DTSTART" in i:
                     dtstart = i["DTSTART"].dt
                 else:
                     dtstart = ts or datetime.now()
             else:
-                dtstart = (ts or datetime.now() - self.get_duration())
+                dtstart = ts or datetime.now() - self.get_duration()
         if not ts:
             ts = dtstart
         ## Counting is taken care of other places
@@ -2319,9 +2319,7 @@ class Todo(CalendarObjectResource):
         """
         ## TODO: after 1.0 release, call on self._complete_ical instead
         if not completion_timestamp:
-            completion_timestamp = datetime.utcnow().astimezone(
-                vobject.icalendar.utc
-            )
+            completion_timestamp = datetime.utcnow().astimezone(vobject.icalendar.utc)
 
         if hasattr(self.instance.vtodo, "rrule") and handle_rrule:
             return getattr(self, "_complete_recurring_%s" % rrule_mode)(
