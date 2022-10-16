@@ -2169,7 +2169,7 @@ class Todo(CalendarObjectResource):
                 else:
                     dtstart = ts or datetime.now()
             else:
-                dtstart = ts - self.get_duration()
+                dtstart = (ts or datetime.now() - self.get_duration())
         if not ts:
             ts = dtstart
         ## Counting is taken care of other places
@@ -2320,7 +2320,7 @@ class Todo(CalendarObjectResource):
         ## TODO: after 1.0 release, call on self._complete_ical instead
         if not completion_timestamp:
             completion_timestamp = datetime.utcnow().astimezone(
-                timezone.utc
+                vobject.icalendar.utc
             )
 
         if hasattr(self.instance.vtodo, "rrule") and handle_rrule:
