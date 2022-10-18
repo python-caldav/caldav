@@ -2410,13 +2410,15 @@ class Todo(CalendarObjectResource):
         return self._set_duration(i, duration, movable_attr)
 
     def _set_duration(self, i, duration, movable_attr="DTSTART"):
-        if "DUE" in i and "DTSTART" in i:
-            i.pop(movable_attr)
+        if ("DUE" in i or "DURATION" in i) and "DTSTART" in i:
+            i.pop(movable_attr, None)
+            if movable_attr == 'DUE':
+                i.pop('DURATION', None)
             if movable_attr == "DTSTART":
                 i.add("DTSTART", i["DUE"].dt - duration)
             elif movable_attr == "DUE":
                 i.add("DUE", i["DTSTART"].dt + duration)
-        elif "DUE" in i:
+        elif ("DUE" in i):
             i.add("DTSTART", i["DUE"].dt - duration)
         elif "DTSTART" in i:
             i.add("DUE", i["DTSTART"].dt + duration)
