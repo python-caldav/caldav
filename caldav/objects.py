@@ -984,7 +984,7 @@ class Calendar(DAVObject):
                     ## and still, Zimbra seems to deliver too many TODOs in the
                     ## matches2 ... let's do some post-filtering in case the
                     ## server fails in filtering things the right way
-                    if 'STATUS:NEEDS-ACTION' in item.data or (
+                    if "STATUS:NEEDS-ACTION" in item.data or (
                         not "\nCOMPLETED:" in item.data
                         and not "\nSTATUS:COMPLETED" in item.data
                         and not "\nSTATUS:CANCELLED" in item.data
@@ -2258,8 +2258,8 @@ class Todo(CalendarObjectResource):
         """
         recurrences = self.icalendar_instance.subcomponents
         orig = recurrences[0]
-        if not 'STATUS' in orig:
-            orig['STATUS'] = 'NEEDS-ACTION'
+        if not "STATUS" in orig:
+            orig["STATUS"] = "NEEDS-ACTION"
 
         if len(recurrences) == 1:
             ## We copy the original one
