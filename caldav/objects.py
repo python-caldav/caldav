@@ -969,15 +969,22 @@ class Calendar(DAVObject):
                 include_completed=True,
                 **kwargs
             )
+            matches3 = self.search(
+                todo=True,
+                comp_class=comp_class,
+                ignore_completed3=True,
+                include_completed=True,
+                **kwargs
+            )
             objects = []
             match_set = set()
-            for item in matches1 + matches2:
+            for item in matches1 + matches2 + matches3:
                 if not item.url in match_set:
                     match_set.add(item.url)
                     ## and still, Zimbra seems to deliver too many TODOs in the
                     ## matches2 ... let's do some post-filtering in case the
                     ## server fails in filtering things the right way
-                    if (
+                    if 'STATUS:NEEDS-ACTION' in item.data or (
                         not "\nCOMPLETED:" in item.data
                         and not "\nSTATUS:COMPLETED" in item.data
                         and not "\nSTATUS:CANCELLED" in item.data
@@ -1041,6 +1048,7 @@ class Calendar(DAVObject):
         todo=None,
         ignore_completed1=None,
         ignore_completed2=None,
+        ignore_completed3=None,
         event=None,
         category=None,
         class_=None,
@@ -1078,8 +1086,10 @@ class Calendar(DAVObject):
 
         vNotCompleted = cdav.TextMatch("COMPLETED", negate=True)
         vNotCancelled = cdav.TextMatch("CANCELLED", negate=True)
+        vNeedsAction = cdav.TextMatch("NEEDS-ACTION")
         vStatusNotCompleted = cdav.PropFilter("STATUS") + vNotCompleted
         vStatusNotCancelled = cdav.PropFilter("STATUS") + vNotCancelled
+        vStatusNeedsAction = cdav.PropFilter("STATUS") + vNeedsAction
         vStatusNotDefined = cdav.PropFilter("STATUS") + cdav.NotDefined()
         vNoCompleteDate = cdav.PropFilter("COMPLETED") + cdav.NotDefined()
         if ignore_completed1:
@@ -1094,6 +1104,12 @@ class Calendar(DAVObject):
             ## field is not defined? (ref
             ## https://github.com/python-caldav/caldav/issues/14)
             filters.extend([vNoCompleteDate, vStatusNotDefined])
+        elif ignore_completed3:
+            ## ... and considering recurring tasks we really need to
+            ## look a third time as well, this time for any task with
+            ## the NEEDS-ACTION status set (do we need the first go?
+            ## NEEDS-ACTION or no status set should cover them all?)
+            filters.extend([vStatusNeedsAction])
 
         if start or end:
             filters.append(cdav.TimeRange(start, end))
@@ -2242,6 +2258,8 @@ class Todo(CalendarObjectResource):
         """
         recurrences = self.icalendar_instance.subcomponents
         orig = recurrences[0]
+        if not 'STATUS' in orig:
+            orig['STATUS'] = 'NEEDS-ACTION'
 
         if len(recurrences) == 1:
             ## We copy the original one
@@ -2279,15 +2297,15 @@ class Todo(CalendarObjectResource):
 
         ## Counting logic
         if rrule2 is not None:
-            count = rrule2.get("COUNT", [None])
+            count = rrule2.get("COUNT", None)
             if count is not None and count[0] in (0, 1):
                 for i in recurrences:
                     self._complete_ical(i, completion_timestamp=completion_timestamp)
             thisandfuture.add("RRULE", rrule2)
         else:
-            count = rrule.params.get("COUNT")
-            if count is not None and count <= len(
-                [x for x in recurrences if not self.is_pending(x)]
+            count = rrule.get("COUNT", None)
+            if count is not None and count[0] <= len(
+                [x for x in recurrences if not self._is_pending(x)]
             ):
                 self._complete_ical(recurrences[0])
                 self.save(increase_seqno=False)

@@ -1590,24 +1590,16 @@ class RepeatedFunctionalTestsBaseClass(object):
         t8 = c.save_todo(todo8)
         assert len(c.todos()) == 2
         t6.complete(handle_rrule=True, rrule_mode="thisandfuture")
-        if not self.check_compatibility_flag(
-            "search_for_recurring_noncompleted_task_fails"
-        ):
-            assert len(c.todos()) == 2
+        assert len(c.todos()) == 2
+        assert len(c.todos()) == 2
         all_todos = c.todos(include_completed=True)
         assert len(all_todos) == 2
         # assert sum([len(x.icalendar_instance.subcomponents) for x in all_todos]) == 5
         t8.complete(handle_rrule=True, rrule_mode="thisandfuture")
-        if not self.check_compatibility_flag(
-            "search_for_recurring_noncompleted_task_fails"
-        ):
-            assert len(c.todos()) == 2
+        assert len(c.todos()) == 2
         t8.complete(handle_rrule=True, rrule_mode="thisandfuture")
         t8.complete(handle_rrule=True, rrule_mode="thisandfuture")
-        if not self.check_compatibility_flag(
-            "search_for_recurring_noncompleted_task_fails"
-        ):
-            assert len(c.todos()) == 1
+        assert len(c.todos()) == 1
 
     def testUtf8Event(self):
         # TODO: what's the difference between this and testUnicodeEvent?
