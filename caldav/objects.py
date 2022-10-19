@@ -1871,7 +1871,7 @@ class CalendarObjectResource(DAVObject):
         no_overwrite=False,
         no_create=False,
         obj_type=None,
-        increase_seqno=False,
+        increase_seqno=True,
         if_schedule_tag_match=False,
     ):
         """
@@ -1944,6 +1944,11 @@ class CalendarObjectResource(DAVObject):
                 raise error.ConsistencyError(
                     "no_create flag was set, but object does not exists"
                 )
+
+        if increase_seqno and b'SEQUENCE' in to_wire(self.data):
+            seqno = self.icalendar_instance.subcomponents[0].pop('SEQUENCE', None)
+            if seqno is not None:
+                self.icalendar_instance.subcomponents[0].add('SEQUENCE', seqno + 1)
 
         ## ref https://github.com/python-caldav/caldav/issues/43
         ## we don't want to use vobject unless needed, but
