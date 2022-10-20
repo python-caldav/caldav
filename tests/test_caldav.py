@@ -1354,10 +1354,9 @@ class RepeatedFunctionalTestsBaseClass(object):
         t3 = c.save_todo(summary="mop the floor", categories=["housework"], priority=4)
         assert len(c.todos()) == 2
 
-        # adding a todo without an UID, it should also work
-        if not self.check_compatibility_flag("uid_required"):
-            c.save_todo(todo7)
-            assert len(c.todos()) == 3
+        # adding a todo without an UID, it should also work (library will add the missing UID)
+        c.save_todo(todo7)
+        assert len(c.todos()) == 3
 
         logging.info("Fetching the events (should be none)")
         # c.events() should NOT return todo-items
@@ -1573,9 +1572,17 @@ class RepeatedFunctionalTestsBaseClass(object):
     def testTodoRecurringCompleteSafe(self):
         c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
         t6 = c.save_todo(todo6)
-        t8 = c.save_todo(todo8)
-        assert len(c.todos()) == 2
+        if not self.check_compatibility_flag("rrule_takes_no_count"):
+            t8 = c.save_todo(todo8)
+        if not self.check_compatibility_flag("rrule_takes_no_count"):
+            assert len(c.todos()) == 2
+        else:
+            assert len(c.todos()) == 1
         t6.complete(handle_rrule=True, rrule_mode="safe")
+        if self.check_compatibility_flag("rrule_takes_no_count"):
+            assert len(c.todos()) == 1
+            assert len(c.todos(include_completed=True)) == 2
+        self.skip_on_compatibility_flag("rrule_takes_no_count")
         assert len(c.todos()) == 2
         assert len(c.todos(include_completed=True)) == 3
         t8.complete(handle_rrule=True, rrule_mode="safe")
@@ -1587,12 +1594,19 @@ class RepeatedFunctionalTestsBaseClass(object):
     def testTodoRecurringCompleteThisandfuture(self):
         c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
         t6 = c.save_todo(todo6)
-        t8 = c.save_todo(todo8)
-        assert len(c.todos()) == 2
+        if not self.check_compatibility_flag("rrule_takes_no_count"):
+            t8 = c.save_todo(todo8)
+        if not self.check_compatibility_flag("rrule_takes_no_count"):
+            assert len(c.todos()) == 2
+        else:
+            assert len(c.todos()) == 1
         t6.complete(handle_rrule=True, rrule_mode="thisandfuture")
-        assert len(c.todos()) == 2
-        assert len(c.todos()) == 2
         all_todos = c.todos(include_completed=True)
+        if self.check_compatibility_flag("rrule_takes_no_count"):
+            assert len(c.todos()) == 1
+            assert len(all_todos) == 1
+        self.skip_on_compatibility_flag("rrule_takes_no_count")
+        assert len(c.todos()) == 2
         assert len(all_todos) == 2
         # assert sum([len(x.icalendar_instance.subcomponents) for x in all_todos]) == 5
         t8.complete(handle_rrule=True, rrule_mode="thisandfuture")

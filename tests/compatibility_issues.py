@@ -74,9 +74,6 @@ incompatibility_description = {
     'event_by_url_is_broken':
         """A GET towards a valid calendar object resource URL will yield 404 (wtf?)""",
 
-    'uid_required':
-        """Server will not accept calendar object resources without an UID""",
-
     'no_sync_token':
         """RFC6578 is not supported, things will break if we try to do a sync-token report""",
 
@@ -174,14 +171,18 @@ incompatibility_description = {
 
     'no_supported_components_support':
         """The supported components prop query does not work""",
+
+    'rrule_takes_no_count':
+        """Fastmail consistently yields a "502 bad gateway" when presented with a rrule containing COUNT""",
 }
 
 xandikos = [
-    ## TEMP TEMP TEMP - TODO - should be investigated
-    ## (perhaps my xandikos version is too old?)
+    ## https://github.com/jelmer/xandikos/issues/8
     "no_expand", "no_recurring",
 
     'text_search_is_exact_match_only',
+
+    ## This one is fixed in master branch
     'category_search_yields_nothing', ## https://github.com/jelmer/xandikos/pull/194
 
     ## scheduling is not supported
@@ -233,10 +234,8 @@ zimbra = [
     'no_displayname',
     'duplicate_in_other_calendar_with_same_uid_is_lost',
     'event_by_url_is_broken',
-    'uid_required',
     'no_todo_on_standard_calendar',
     'no_sync_token',
-    #'no_recurring_todo',
     'vtodo_datesearch_notime_task_is_skipped',
     'category_search_yields_nothing',
     'text_search_is_exact_match_only',
@@ -328,6 +327,7 @@ fastmail = [
     'fastmail_buggy_noexpand_date_search',
     'combined_search_not_working',
     'text_search_is_exact_match_sometimes',
+    'rrule_takes_no_count'
 ]
 
 synology = [
