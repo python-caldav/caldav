@@ -66,7 +66,8 @@ if __name__ == "__main__":
         packages=find_packages(exclude=["tests"]),
         include_package_data=True,
         zip_safe=False,
-        install_requires=["vobject", "lxml", "requests", "six", "icalendar"] + extra_packages,
+        install_requires=["vobject", "lxml", "requests", "six", "icalendar"]
+        + extra_packages,
         tests_require=test_packages + extra_test_packages,
         extras_require={
             "test": test_packages,

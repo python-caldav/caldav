@@ -2312,7 +2312,9 @@ class Todo(CalendarObjectResource):
             if count is not None and count[0] <= len(
                 [x for x in recurrences if not self._is_pending(x)]
             ):
-                self._complete_ical(recurrences[0], completion_timestamp=completion_timestamp)
+                self._complete_ical(
+                    recurrences[0], completion_timestamp=completion_timestamp
+                )
                 self.save(increase_seqno=False)
                 return
 
