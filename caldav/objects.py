@@ -950,8 +950,35 @@ class Calendar(DAVObject):
         sort_keys=(),
         **kwargs
     ):
-        """
-        TODO: Doc!
+        """Creates an XML query, does a REPORT request towards the
+        server and returns objects found, eventually sorting them
+        before delivery.
+
+        This method contains some special logics to ensure that it can
+        consistently return a list of pending tasks on any server
+        implementation.  In the future it may also include workarounds
+        and client side filtering to make sure other search results
+        are consistent on different server implementations.
+
+        Parameters supported:
+
+        * xml - use this search query, and ignore other filter parameters
+        * comp_class - set to event, todo or journal to restrict search to this
+          resource type.  Some server implementations require this to be set.
+        * todo - sets comp_class to Todo, and restricts search to pending tasks,
+          unless the next parameter is set ...
+        * include_completed - include completed tasks
+        * event - sets comp_class to event
+        * text attribute search parameters: category, uid, summary, omment,
+          description, location, status
+        * expand - do server side expanding of recurring events/tasks
+        * start, stop: do a time range search
+        * filters - other kind of filters (in lxml tree format)
+        * sort_keys - list of attributes to use when sorting
+
+        not supported yet:
+        * negated text match
+        * attribute not set
         """
         ## special compatibility-case when searching for pending todos
         if todo and not include_completed:
@@ -2258,8 +2285,6 @@ class Todo(CalendarObjectResource):
         https://github.com/Kozea/Radicale/issues/1264).  Set the
         RECURRENCE-ID to the one calculated in #2.  Calculate the
         DTSTART based on rrule and completion timestamp/date.
-
-        TODO: This is very untested as for now.
         """
         recurrences = self.icalendar_instance.subcomponents
         orig = recurrences[0]
@@ -2337,8 +2362,12 @@ class Todo(CalendarObjectResource):
         Parameters:
          * completion_timestamp - datetime object.  Defaults to
            datetime.now().
-         * handle_rrule - if set to True, the library will try to be smart if the task is recurring.
-         * rrule_mode -   The RFC leaves a lot of room for intepretation on how to handle recurring tasks, and what works on one server may break at another.  The following modes are accepted:
+         * handle_rrule - if set to True, the library will try to be smart if
+           the task is recurring.  The default is False, for backward
+           compatibility.  I may consider making this one mandatory.
+         * rrule_mode -   The RFC leaves a lot of room for intepretation on how
+           to handle recurring tasks, and what works on one server may break at
+           another.  The following modes are accepted:
             * this_and_future - see doc for _complete_recurring_thisandfuture for details
             * safe - see doc for _complete_recurring_safe for details
         """
