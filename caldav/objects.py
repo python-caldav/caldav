@@ -2312,7 +2312,7 @@ class Todo(CalendarObjectResource):
             if count is not None and count[0] <= len(
                 [x for x in recurrences if not self._is_pending(x)]
             ):
-                self._complete_ical(recurrences[0])
+                self._complete_ical(recurrences[0], completion_timestamp=completion_timestamp)
                 self.save(increase_seqno=False)
                 return
 
@@ -2340,7 +2340,6 @@ class Todo(CalendarObjectResource):
             * this_and_future - see doc for _complete_recurring_thisandfuture for details
             * safe - see doc for _complete_recurring_safe for details
         """
-        ## TODO: after 1.0 release, call on self._complete_ical instead
         if not completion_timestamp:
             completion_timestamp = datetime.utcnow().astimezone(vobject.icalendar.utc)
 
@@ -2348,10 +2347,7 @@ class Todo(CalendarObjectResource):
             return getattr(self, "_complete_recurring_%s" % rrule_mode)(
                 completion_timestamp
             )
-        if not hasattr(self.vobject_instance.vtodo, "status"):
-            self.vobject_instance.vtodo.add("status")
-        self.vobject_instance.vtodo.status.value = "COMPLETED"
-        self.vobject_instance.vtodo.add("completed").value = completion_timestamp
+        self._complete_ical(completion_timestamp=completion_timestamp)
         self.save()
 
     def _complete_ical(self, i=None, completion_timestamp=None):
@@ -2360,8 +2356,6 @@ class Todo(CalendarObjectResource):
         if i is None:
             i = self.icalendar_instance.subcomponents[0]
         assert self._is_pending(i)
-        if completion_timestamp is None:
-            completion_timestamp = datetime.now()
         status = i.pop("STATUS", None)
         i.add("STATUS", "COMPLETED")
         i.add("COMPLETED", completion_timestamp)
