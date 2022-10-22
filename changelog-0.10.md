@@ -79,3 +79,4 @@ e9c45819a74c6fa3a775f8fcb6e797b0a4839711 - sequence number to be increased
 d51c5f9c51a04a6872ebc5c15cffbd7018d7393b - icalendar is now an official dependency
 b5bd38e944f563a547b693c676b8800734b3ec7a - style fixup (or breakdown)
 7232e69972950d092f1fdda4779234ce206d5da0 - docfix
+ca8da73ce4691ff095ce8a7a974ca1c64f3d2380 - changelog
