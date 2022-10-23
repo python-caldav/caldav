@@ -503,7 +503,9 @@ class RepeatedFunctionalTestsBaseClass(object):
         self.caldav = client(**self.server_params)
 
         if False and self.check_compatibility_flag("no-current-user-principal"):
-            self.principal = Principal(client=self.caldav, url=self.server_params['principal_url'])
+            self.principal = Principal(
+                client=self.caldav, url=self.server_params["principal_url"]
+            )
         else:
             self.principal = self.caldav.principal()
 

@@ -1830,19 +1830,19 @@ class CalendarObjectResource(DAVObject):
         4) if no path is given, generate the URL from the ID
         """
         i = self.icalendar_instance.subcomponents[0]
-        if not id and getattr(self, 'id', None):
+        if not id and getattr(self, "id", None):
             id = self.id
         if not id:
-            id = i.pop('UID', None)
-        if not path and getattr(self, 'path', None):
+            id = i.pop("UID", None)
+        if not path and getattr(self, "path", None):
             path = self.path
         if id is None and path is not None and str(path).endswith(".ics"):
             id = re.search("(/|^)([^/]*).ics", str(path)).group(2)
         if id is None:
             id = str(uuid.uuid1())
-        i.pop('UID', None)
-        i.add('UID', id)
-        
+        i.pop("UID", None)
+        i.add("UID", id)
+
         self.id = id
 
         if path is None:
@@ -1869,7 +1869,6 @@ class CalendarObjectResource(DAVObject):
         ## TODO: should try to wrap my head around issues that arises when id contains weird characters.  maybe it's
         ## better to generate a new uuid here, particularly if id is in some unexpected format.
         return self.parent.url.join(quote(self.id.replace("/", "%2F")) + ".ics")
-        
 
     def change_attendee_status(self, attendee=None, **kwargs):
         if not attendee:
