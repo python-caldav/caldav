@@ -501,7 +501,11 @@ class RepeatedFunctionalTestsBaseClass(object):
             self.testcal_id2 = "pythoncaldav-test2"
 
         self.caldav = client(**self.server_params)
-        self.principal = self.caldav.principal()
+
+        if False and self.check_compatibility_flag("no-current-user-principal"):
+            self.principal = Principal(client=self.caldav, url=self.server_params['principal_url'])
+        else:
+            self.principal = self.caldav.principal()
 
         logging.debug(
             "## going to tear down old test calendars, "

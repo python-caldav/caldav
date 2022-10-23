@@ -1788,11 +1788,14 @@ class CalendarObjectResource(DAVObject):
         Events, todos etc can be copied within the same calendar, to another
         calendar or even to another caldav server
         """
-        return self.__class__(
+        obj = self.__class__(
             parent=new_parent or self.parent,
             data=self.data,
             id=self.id if keep_uid else str(uuid.uuid1()),
         )
+        if not keep_uid:
+            obj.url = obj.generate_url()
+        return obj
 
     def load(self):
         """
@@ -1810,54 +1813,63 @@ class CalendarObjectResource(DAVObject):
 
     ## TODO: this method should be simplified and renamed, and probably
     ## some of the logic should be moved elsewhere
-    def _create(self, data, id=None, path=None):
+    def _find_id_path(self, id=None, path=None):
+        """
+        With CalDAV, every object has an URL.  With icalendar, every object
+        should have a UID.  This UID may or may not be copied into self.id.
+
+        This method will:
+
+        0) if ID is given, assume that as the UID, and set it in the object
+        1) if UID is given in the object, assume that as the ID
+        2) if ID is not given, but the path is given, generate the ID from the
+           path
+        3) If neither ID nor path is given, use the uuid method to generate an
+           ID (TODO: recommendation is to concat some timestamp, serial or
+           random number and a domain)
+        4) if no path is given, generate the URL from the ID
+        """
+        i = self.icalendar_instance.subcomponents[0]
+        if not id and getattr(self, 'id', None):
+            id = self.id
+        if not id:
+            id = i.pop('UID', None)
+        if not path and getattr(self, 'path', None):
+            path = self.path
         if id is None and path is not None and str(path).endswith(".ics"):
             id = re.search("(/|^)([^/]*).ics", str(path)).group(2)
-        elif id is None:
-            for obj_type in ("vevent", "vtodo", "vjournal", "vfreebusy"):
-                obj = None
-                if hasattr(self.vobject_instance, obj_type):
-                    obj = getattr(self.vobject_instance, obj_type)
-                elif self.vobject_instance.name.lower() == obj_type:
-                    obj = self.vobject_instance
-                if obj is not None:
-                    try:
-                        id = obj.uid.value
-                    except AttributeError:
-                        id = str(uuid.uuid1())
-                        obj.add("uid")
-                        obj.uid.value = id
-                    break
-        else:
-            for obj_type in ("vevent", "vtodo", "vjournal", "vfreebusy"):
-                obj = None
-                if hasattr(self.vobject_instance, obj_type):
-                    obj = getattr(self.vobject_instance, obj_type)
-                elif self.vobject_instance.name.lower() == obj_type:
-                    obj = self.vobject_instance
-                if obj is not None:
-                    if not hasattr(obj, "uid"):
-                        obj.add("uid")
-                    obj.uid.value = id
-                    break
+        if id is None:
+            id = str(uuid.uuid1())
+        i.pop('UID', None)
+        i.add('UID', id)
+        
+        self.id = id
+
         if path is None:
-            ## See https://github.com/python-caldav/caldav/issues/143 for the rationale behind double-quoting slashes
-            ## TODO: should try to wrap my head around issues that arises when id contains weird characters.  maybe it's
-            ## better to generate a new uuid here, particularly if id is in some unexpected format.
-            path = quote(id.replace("/", "%2F")) + ".ics"
-        path = self.parent.url.join(path)
+            path = self.generate_url()
+        else:
+            path = self.parent.url.join(path)
+
+        self.url = URL.objectify(path)
+
+    ## TODO: still some refactoring to be done here
+    def _create(self, data, id=None, path=None):
+        self._find_id_path(id=id, path=path)
         ## SECURITY TODO: we should probably have a check here to verify that no such object exists already
         r = self.client.put(
-            path, data, {"Content-Type": 'text/calendar; charset="utf-8"'}
+            self.url, data, {"Content-Type": 'text/calendar; charset="utf-8"'}
         )
-
         if r.status == 302:
             path = [x[1] for x in r.headers if x[0] == "location"][0]
         elif not (r.status in (204, 201)):
             raise error.PutError(errmsg(r))
 
-        self.url = URL.objectify(path)
-        self.id = id
+    def generate_url(self):
+        ## See https://github.com/python-caldav/caldav/issues/143 for the rationale behind double-quoting slashes
+        ## TODO: should try to wrap my head around issues that arises when id contains weird characters.  maybe it's
+        ## better to generate a new uuid here, particularly if id is in some unexpected format.
+        return self.parent.url.join(quote(self.id.replace("/", "%2F")) + ".ics")
+        
 
     def change_attendee_status(self, attendee=None, **kwargs):
         if not attendee:
@@ -1983,9 +1995,9 @@ class CalendarObjectResource(DAVObject):
         ## non-conforming icalendar data.  We'll just throw in a
         ## try-send-data-except-wash-through-vobject-logic here.
         try:
-            self._create(self.data, self.id, path)
+            self._create(data=self.data, id=self.id, path=path)
         except error.PutError:
-            self._create(self.vobject_instance.serialize(), self.id, path)
+            self._create(data=self.vobject_instance.serialize(), id=self.id, path=path)
         return self
 
     def __str__(self):

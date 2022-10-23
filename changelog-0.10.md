@@ -31,12 +31,14 @@ The "thisandfuture"-mode will establish the completed task as a separate recurre
 
 ## Github issues and pull requests
 
+https://github.com/python-caldav/caldav/issues/16
+https://github.com/python-caldav/caldav/issues/127
+https://github.com/python-caldav/caldav/issues/145
 https://github.com/python-caldav/caldav/pull/204
 https://github.com/python-caldav/caldav/pull/208
 https://github.com/python-caldav/caldav/pull/212
 https://github.com/python-caldav/caldav/pull/216
 https://github.com/python-caldav/caldav/issues/219
-https://github.com/python-caldav/caldav/issues/16
 
 ## Commits
 

@@ -174,6 +174,9 @@ incompatibility_description = {
 
     'rrule_takes_no_count':
         """Fastmail consistently yields a "502 bad gateway" when presented with a rrule containing COUNT""",
+
+    'no-current-user-principal':
+        """when querying for the current user principal property, server doesn't report anything useful""",
 }
 
 xandikos = [
