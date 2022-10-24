@@ -983,6 +983,17 @@ class RepeatedFunctionalTestsBaseClass:
         assert len(events) == len(existing_events) + 2
         ev2.delete()
 
+    def testCreateAlarm(self):
+        c = self._fixCalendar()
+        ev = c.save_event(
+            dtstart=datetime(2015, 10, 10, 8, 7, 6),
+            summary="This is a test event",
+            dtend=datetime(2016, 10, 10, 9, 8, 7),
+            alarm_trigger=timedelta(minutes=-15),
+            alarm_action="AUDIO",
+        )
+        pass
+
     def testCalendarByFullURL(self):
         """
         ref private email, passing a full URL as cal_id works in 0.5.0 but
