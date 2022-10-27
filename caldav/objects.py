@@ -1852,9 +1852,7 @@ class CalendarObjectResource(DAVObject):
 
         self.url = URL.objectify(path)
 
-    ## TODO: still some refactoring to be done here
-    def _create(self, id=None, path=None):
-        self._find_id_path(id=id, path=path)
+    def _put(self, retry_on_failure=True):
         ## SECURITY TODO: we should probably have a check here to verify that no such object exists already
         r = self.client.put(
             self.url, self.data, {"Content-Type": 'text/calendar; charset="utf-8"'}
@@ -1862,7 +1860,20 @@ class CalendarObjectResource(DAVObject):
         if r.status == 302:
             path = [x[1] for x in r.headers if x[0] == "location"][0]
         elif not (r.status in (204, 201)):
-            raise error.PutError(errmsg(r))
+            if retry_on_failure:
+                ## This looks like a noop, but the object may be "cleaned".
+                ## See https://github.com/python-caldav/caldav/issues/43
+                self.vobject_instance
+                return self._put(False)
+            else:
+                raise error.PutError(errmsg(r))
+
+    def _create(self, id=None, path=None, retry_on_failure=True):
+        ## We're efficiently running the icalendar code through the icalendar
+        ## library.  This may cause data modifications and may "unfix"
+        ## https://github.com/python-caldav/caldav/issues/43
+        self._find_id_path(id=id, path=path)
+        self._put()
 
     def generate_url(self):
         ## See https://github.com/python-caldav/caldav/issues/143 for the rationale behind double-quoting slashes
