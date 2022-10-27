@@ -1853,11 +1853,11 @@ class CalendarObjectResource(DAVObject):
         self.url = URL.objectify(path)
 
     ## TODO: still some refactoring to be done here
-    def _create(self, data, id=None, path=None):
+    def _create(self, id=None, path=None):
         self._find_id_path(id=id, path=path)
         ## SECURITY TODO: we should probably have a check here to verify that no such object exists already
         r = self.client.put(
-            self.url, data, {"Content-Type": 'text/calendar; charset="utf-8"'}
+            self.url, self.data, {"Content-Type": 'text/calendar; charset="utf-8"'}
         )
         if r.status == 302:
             path = [x[1] for x in r.headers if x[0] == "location"][0]
@@ -1988,15 +1988,7 @@ class CalendarObjectResource(DAVObject):
             if seqno is not None:
                 self.icalendar_instance.subcomponents[0].add("SEQUENCE", seqno + 1)
 
-        ## ref https://github.com/python-caldav/caldav/issues/43
-        ## we don't want to use vobject unless needed, but
-        ## sometimes the caldav server may balk on slightly
-        ## non-conforming icalendar data.  We'll just throw in a
-        ## try-send-data-except-wash-through-vobject-logic here.
-        try:
-            self._create(data=self.data, id=self.id, path=path)
-        except error.PutError:
-            self._create(data=self.vobject_instance.serialize(), id=self.id, path=path)
+        self._create(id=self.id, path=path)
         return self
 
     def __str__(self):
