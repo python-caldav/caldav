@@ -346,7 +346,6 @@ robur = [
     'no_supported_components_support',
     'no_journal',
     'no_freebusy_rfc4791',
-    'dav_not_supported',
     'no_todo_datesearch', ## returns nothing
     'no_recurring', ## See https://github.com/roburio/caldav/issues/28
     'text_search_not_working',
