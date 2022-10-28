@@ -876,23 +876,27 @@ class Calendar(DAVObject):
         ## returned.
         objects = self.search(root, comp_class, split_expanded=False)
         if expand:
+            # TODO refactor: since we are not split-expanding here, a "map" approach should suffice
+            expanded_objects = []
             for o in objects:
+                has_expanded = False
                 if not o.data:
+                    expanded_objects.append(o)
                     continue
                 components = o.vobject_instance.components()
                 for i in components:
                     if i.name == "VEVENT":
                         recurrance_properties = ["exdate", "exrule", "rdate", "rrule"]
                         if any(key in recurrance_properties for key in i.contents):
-                            if verify_expand:
-                                raise error.ReportError(
-                                    "CalDAV server did not expand recurring vevents as requested. See https://github.com/python-caldav/caldav/issues/157"
-                                )
-                            else:
-                                logging.error(
-                                    "CalDAV server does not support recurring events properly.  See https://github.com/python-caldav/caldav/issues/157"
-                                )
-        return objects
+                            expanded_event = o.expand_rrule(start, end)
+                            expanded_objects.append(expanded_event)
+                            has_expanded = True
+                if not has_expanded:
+                    expanded_objects.append(o)
+        else:
+            expanded_objects = objects
+
+        return expanded_objects
 
     def _request_report_build_resultlist(
         self, xml, comp_class=None, props=None, no_calendardata=False
@@ -973,7 +977,7 @@ class Calendar(DAVObject):
         * text attribute search parameters: category, uid, summary, omment,
           description, location, status
         * expand - do server side expanding of recurring events/tasks
-        * start, stop: do a time range search
+        * start, end: do a time range search
         * filters - other kind of filters (in lxml tree format)
         * sort_keys - list of attributes to use when sorting
 
@@ -1029,6 +1033,40 @@ class Calendar(DAVObject):
                     "Inconsistent usage parameters: xml together with other search options"
                 )
             (response, objects) = self._request_report_build_resultlist(xml, comp_class)
+
+        if "expand" in kwargs and kwargs["expand"]:
+            if "start" in kwargs:
+                start = kwargs["start"]
+            else:
+                # TODO get from xml
+                raise NotImplementedError("Getting start from xml is not supported")
+            if "end" in kwargs:
+                end = kwargs["end"]
+            else:
+                # TODO get from xml
+                raise NotImplementedError("Getting start from xml is not supported")
+
+            # TODO refactor
+            expanded_objects = []
+            for o in objects:
+                has_expanded = False
+                if not o.data:
+                    expanded_objects.append(o)
+                    continue
+                components = o.vobject_instance.components()
+                for i in components:
+                    if i.name == "VEVENT":
+                        recurrance_properties = ["exdate", "exrule", "rdate", "rrule"]
+                        if any(key in recurrance_properties for key in i.contents):
+                            expanded_event = o.expand_rrule(start, end)
+                            if split_expanded:
+                                expanded_objects.extend(expanded_event.split_expanded())
+                            else:
+                                expanded_objects.append(expanded_event)
+                            has_expanded = True
+                if not has_expanded:
+                    expanded_objects.append(o)
+            objects = expanded_objects
 
         def sort_key_func(x):
             ret = []
@@ -1643,6 +1681,41 @@ class CalendarObjectResource(DAVObject):
             obj.icalendar_instance.subcomponents.append(ical_obj)
             ret.append(obj)
         return ret
+
+    def expand_rrule(
+        self, start, end
+    ):
+        """
+        :param event: Event
+        :param start: datetime.datetime
+        :param end: datetime.datetime
+        """
+        import recurring_ical_events
+        logging.info("Expanding event %s @ %s (rule: %s)",
+                     self.instance.vevent.summary.value,
+                     self.instance.vevent.dtstart.value.isoformat(),
+                     self.instance.vevent.rrule.value)
+        recurrings = recurring_ical_events.of(icalendar.Calendar.from_ical(self.data)).between(start, end)
+        recurrance_properties = ["exdate", "exrule", "rdate", "rrule"]
+        # FIXME too much copying
+        stripped_event = self.copy(keep_uid=True)
+        # remove all recurrance properties
+        for component in stripped_event.vobject_instance.components():
+            if component.name == 'VEVENT':
+                for key in recurrance_properties:
+                    try:
+                        del component.contents[key]
+                    except KeyError:
+                        pass
+
+        calendar = icalendar.Calendar()
+        for occurance in recurrings:
+            calendar.add_component(occurance)
+        # add other components (except for the VEVENT itself and VTIMEZONE which is not allowed on occurance events)
+        for component in stripped_event.icalendar_instance.subcomponents:
+            if component.name not in ('VEVENT', 'VTIMEZONE'):
+                calendar.add_component(component)
+        return Event(id=self.id, data=calendar.to_ical())
 
     def set_relation(
         self, other, reltype=None, set_reverse=True
