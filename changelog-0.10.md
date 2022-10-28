@@ -1,5 +1,9 @@
 # Changelog v0.9.2 -> v0.10
 
+## Warning
+
+v0.10 does introduce some "bugfixes" and refactorings which are supposed to be harmless and which haven't caused any breakages in tests - but I cannot vouch for that it will not have unintended side effects in your environment.  If you're using the caldav library for production-critical tasks, you may want to hang on for a while before upgrading, or wait for v0.10.1.
+
 ## Quick summary
 
 * Work on a universal search method
@@ -17,7 +21,28 @@
 
 ## Search method
 
+Calendar now has a method search.  Here is some information from the docstring:
 
+Parameters supported:
+
+* xml - use this search query, and ignore other filter parameters
+* comp_class - set to event, todo or journal to restrict search to this
+  resource type.  Some server implementations require this to be set.
+* todo - sets comp_class to Todo, and restricts search to pending tasks,
+  unless the next parameter is set ...
+* include_completed - include completed tasks
+* event - sets comp_class to event
+* text attribute search parameters: category, uid, summary, omment,
+  description, location, status
+* expand - do server side expanding of recurring events/tasks
+* start, stop: do a time range search
+* filters - other kind of filters (in lxml tree format)
+* sort_keys - list of attributes to use when sorting
+
+not supported yet:
+
+* negated text match
+* attribute not set
 
 ## Completed tasks
 
@@ -32,8 +57,10 @@ The "thisandfuture"-mode will establish the completed task as a separate recurre
 ## Github issues and pull requests
 
 https://github.com/python-caldav/caldav/issues/16
+https://github.com/python-caldav/caldav/issues/43
 https://github.com/python-caldav/caldav/issues/127
 https://github.com/python-caldav/caldav/issues/145
+https://github.com/python-caldav/caldav/issues/160
 https://github.com/python-caldav/caldav/pull/204
 https://github.com/python-caldav/caldav/pull/208
 https://github.com/python-caldav/caldav/pull/212
@@ -82,3 +109,8 @@ d51c5f9c51a04a6872ebc5c15cffbd7018d7393b - icalendar is now an official dependen
 b5bd38e944f563a547b693c676b8800734b3ec7a - style fixup (or breakdown)
 7232e69972950d092f1fdda4779234ce206d5da0 - docfix
 ca8da73ce4691ff095ce8a7a974ca1c64f3d2380 - changelog
+94a39c3d2871b105b291025af80548f876b4ee4c - changelog
+81e7fcdce03239cbb7505b062d5274f56d97763a - bugfixes and refactorings
+86e85f9f470f78098e00ed7fc9e479cab3856cb3 - style fixup
+6360f30405bcfaecf5fc256c91dcdf317bcaa0d0 - bugfixes and refactorings
+6711a2904b9fe57585455246709799925ea0cde5 - test code
