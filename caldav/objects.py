@@ -50,6 +50,29 @@ def errmsg(r):
     return "%s %s\n\n%s" % (r.status, r.reason, r.raw)
 
 
+def _expand_event(event, start, end):
+    """
+    :param event: Event
+    """
+    import icalendar
+    import recurring_ical_events
+    logging.info("Expanding event %s @ %s", event.instance.vevent.summary.value, event.instance.vevent.dtstart.value.isoformat())
+    recurrings = recurring_ical_events.of(icalendar.Calendar.from_ical(event.data)).between(start, end)
+    calendars = []
+    for occurance in recurrings:
+        cal = icalendar.Calendar()
+        cal.add_component(occurance)
+        calendars.append(cal)
+        # add other components
+        for component in event.icalendar_instance.subcomponents:
+            if component.name != 'VEVENT':
+                cal.add_component(component)
+    # TODO should we inherit these properties from the recurring event?
+    # return [Event(url=event.url, parent=event.parent, id=event.id, client=event.client, data=occurance.to_ical())
+    #         for occurance in calendars]
+    return [Event(data=occurance.to_ical()) for occurance in calendars]
+
+
 class DAVObject(object):
 
     """
@@ -876,23 +899,28 @@ class Calendar(DAVObject):
         ## returned.
         objects = self.search(root, comp_class, split_expanded=False)
         if expand:
+            expanded_objects = []
             for o in objects:
+                has_expanded = False
                 if not o.data:
+                    expanded_objects.append(o)
                     continue
                 components = o.vobject_instance.components()
                 for i in components:
                     if i.name == "VEVENT":
                         recurrance_properties = ["exdate", "exrule", "rdate", "rrule"]
                         if any(key in recurrance_properties for key in i.contents):
-                            if verify_expand:
-                                raise error.ReportError(
-                                    "CalDAV server did not expand recurring vevents as requested. See https://github.com/python-caldav/caldav/issues/157"
-                                )
-                            else:
-                                logging.error(
-                                    "CalDAV server does not support recurring events properly.  See https://github.com/python-caldav/caldav/issues/157"
-                                )
-        return objects
+                            # fall back to next 24 hours if open-ended search
+                            end_date = end if end is not None else start + timedelta(days=1)
+                            expanded = _expand_event(o, start, end_date)
+                            expanded_objects.extend(expanded)
+                            has_expanded = True
+                if not has_expanded:
+                    expanded_objects.append(o)
+        else:
+            expanded_objects = objects
+
+        return expanded_objects
 
     def _request_report_build_resultlist(
         self, xml, comp_class=None, props=None, no_calendardata=False
