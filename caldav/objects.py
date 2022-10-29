@@ -60,8 +60,11 @@ def _expand_event(event, start, end):
     logging.info("Expanding event %s @ %s", event.instance.vevent.summary.value, event.instance.vevent.dtstart.value.isoformat())
     recurrings = rrulestr(event.instance.vevent.rrule.value).between(start, end, True)
     calendar = icalendar.Calendar()
-    start_time = event.vobject_instance.vevent.dtstart.value.astimezone(ZoneInfo("UTC")).replace(tzinfo=None)
-    end_time = event.vobject_instance.vevent.dtend.value.astimezone(ZoneInfo("UTC")).replace(tzinfo=None)
+    # FIXME maybe there is a better way to check for this?
+    all_day = not isinstance(event.vobject_instance.vevent.dtstart.value, datetime)
+    if not all_day:
+        start_time = event.vobject_instance.vevent.dtstart.value.astimezone(ZoneInfo("UTC")).replace(tzinfo=None)
+        end_time = event.vobject_instance.vevent.dtend.value.astimezone(ZoneInfo("UTC")).replace(tzinfo=None)
     recurrance_properties = ["exdate", "exrule", "rdate", "rrule"]
     # FIXME too much copying
     stripped_event = event.copy(keep_uid=True)
@@ -76,8 +79,12 @@ def _expand_event(event, start, end):
 
     for occurance in recurrings:
         ev = stripped_event.copy().icalendar_instance.walk('vevent')[0]
-        ev['dtstart'] = icalendar.vDatetime(occurance.replace(hour=start_time.hour, minute=start_time.minute, second=start_time.second)).to_ical()
-        ev['dtend'] = icalendar.vDatetime(occurance.replace(hour=end_time.hour, minute=end_time.minute, second=end_time.second)).to_ical()
+        if all_day:
+            ev['dtstart'] = icalendar.vDatetime(occurance).to_ical()
+            ev['dtend'] = icalendar.vDatetime(occurance).to_ical()
+        else:
+            ev['dtstart'] = icalendar.vDatetime(occurance.replace(hour=start_time.hour, minute=start_time.minute, second=start_time.second)).to_ical()
+            ev['dtend'] = icalendar.vDatetime(occurance.replace(hour=end_time.hour, minute=end_time.minute, second=end_time.second)).to_ical()
         ev['recurrence-id'] = ev['dtstart'].decode('utf-8')
         calendar.add_component(ev)
     # add other components (except for the VEVENT itself and VTIMEZONE which is not allowed on occurance events)
