@@ -12,8 +12,8 @@ except:
     ## The default debugmode should be PRODUCTION in official releases,
     ## and DEVELOPMENT when doing beta testing.
     ## TODO: find some way to automate this.
-    # debugmode = "DEVELOPMENT"
-    debugmode = "PRODUCTION"
+    debugmode = "DEVELOPMENT"
+    # debugmode = "PRODUCTION"
 
 log = logging.getLogger("caldav")
 if debugmode.startswith("DEBUG"):

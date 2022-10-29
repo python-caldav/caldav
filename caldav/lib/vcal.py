@@ -5,7 +5,6 @@ import re
 import uuid
 
 from caldav.lib.python_utilities import to_local
-from caldav.lib.python_utilities import to_wire
 
 ## Fixups to the icalendar data to work around compatbility issues.
 
@@ -86,8 +85,8 @@ def create_ical(ical_fragment=None, objtype=None, language="en_DK", **props):
     ## (perhaps I should change my position on that soon)
     import icalendar
 
-    ical_fragment = to_wire(ical_fragment)
-    if not ical_fragment or not re.search(b"^BEGIN:V", ical_fragment, re.MULTILINE):
+    ical_fragment = to_local(ical_fragment)
+    if not ical_fragment or not re.search("^BEGIN:V", ical_fragment, re.MULTILINE):
         my_instance = icalendar.Calendar()
         my_instance.add("prodid", "-//python-caldav//caldav//" + language)
         my_instance.add("version", "2.0")
@@ -98,11 +97,11 @@ def create_ical(ical_fragment=None, objtype=None, language="en_DK", **props):
         component.add("uid", uuid.uuid1())
         my_instance.add_component(component)
     else:
-        if not ical_fragment.startswith(b"BEGIN:VCALENDAR"):
+        if not ical_fragment.startswith("BEGIN:VCALENDAR"):
             ical_fragment = (
-                b"BEGIN:VCALENDAR\n"
-                + to_wire(ical_fragment.strip())
-                + b"\nEND:VCALENDAR\n"
+                "BEGIN:VCALENDAR\n"
+                + to_local(ical_fragment.strip())
+                + "\nEND:VCALENDAR\n"
             )
         my_instance = icalendar.Calendar.from_ical(ical_fragment)
         component = my_instance.subcomponents[0]
@@ -119,6 +118,6 @@ def create_ical(ical_fragment=None, objtype=None, language="en_DK", **props):
     ret = my_instance.to_ical()
     if ical_fragment and ical_fragment.strip():
         ret = re.sub(
-            b"^END:V", ical_fragment.strip() + b"\nEND:V", ret, flags=re.MULTILINE
+            "^END:V", ical_fragment.strip() + "\nEND:V", ret, flags=re.MULTILINE
         )
     return ret
