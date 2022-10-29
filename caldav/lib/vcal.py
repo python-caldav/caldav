@@ -115,7 +115,7 @@ def create_ical(ical_fragment=None, objtype=None, language="en_DK", **props):
                     )
             else:
                 component.add(prop, props[prop])
-    ret = my_instance.to_ical()
+    ret = to_local(my_instance.to_ical())
     if ical_fragment and ical_fragment.strip():
         ret = re.sub(
             "^END:V", ical_fragment.strip() + "\nEND:V", ret, flags=re.MULTILINE
