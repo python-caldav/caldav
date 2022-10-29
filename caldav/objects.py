@@ -53,24 +53,38 @@ def errmsg(r):
 def _expand_event(event, start, end):
     """
     :param event: Event
+    :param start: datetime.datetime
+    :param end: datetime.datetime
     """
-    import icalendar
-    import recurring_ical_events
+    from zoneinfo import ZoneInfo
     logging.info("Expanding event %s @ %s", event.instance.vevent.summary.value, event.instance.vevent.dtstart.value.isoformat())
-    recurrings = recurring_ical_events.of(icalendar.Calendar.from_ical(event.data)).between(start, end)
-    calendars = []
+    recurrings = rrulestr(event.instance.vevent.rrule.value).between(start, end, True)
+    calendar = icalendar.Calendar()
+    start_time = event.vobject_instance.vevent.dtstart.value.astimezone(ZoneInfo("UTC")).replace(tzinfo=None)
+    end_time = event.vobject_instance.vevent.dtend.value.astimezone(ZoneInfo("UTC")).replace(tzinfo=None)
+    recurrance_properties = ["exdate", "exrule", "rdate", "rrule"]
+    # FIXME too much copying
+    stripped_event = event.copy(keep_uid=True)
+    # remove all recurrance properties
+    for component in stripped_event.vobject_instance.components():
+        if component.name == 'VEVENT':
+            for key in recurrance_properties:
+                try:
+                    del component.contents[key]
+                except KeyError:
+                    pass
+
     for occurance in recurrings:
-        cal = icalendar.Calendar()
-        cal.add_component(occurance)
-        calendars.append(cal)
-        # add other components
-        for component in event.icalendar_instance.subcomponents:
-            if component.name != 'VEVENT':
-                cal.add_component(component)
-    # TODO should we inherit these properties from the recurring event?
-    # return [Event(url=event.url, parent=event.parent, id=event.id, client=event.client, data=occurance.to_ical())
-    #         for occurance in calendars]
-    return [Event(data=occurance.to_ical()) for occurance in calendars]
+        ev = stripped_event.copy().icalendar_instance.walk('vevent')[0]
+        ev['dtstart'] = icalendar.vDatetime(occurance.replace(hour=start_time.hour, minute=start_time.minute, second=start_time.second)).to_ical()
+        ev['dtend'] = icalendar.vDatetime(occurance.replace(hour=end_time.hour, minute=end_time.minute, second=end_time.second)).to_ical()
+        ev['recurrence-id'] = ev['dtstart'].decode('utf-8')
+        calendar.add_component(ev)
+    # add other components (except for the VEVENT itself and VTIMEZONE which is not allowed on occurance events)
+    for component in stripped_event.icalendar_instance.subcomponents:
+        if component.name not in ('VEVENT', 'VTIMEZONE'):
+            calendar.add_component(component)
+    return Event(id=event.id, data=calendar.to_ical())
 
 
 class DAVObject(object):
@@ -880,6 +894,9 @@ class Calendar(DAVObject):
          * [CalendarObjectResource(), ...]
 
         """
+        if not end and expand:
+            raise error.ReportError("an open-ended date search cannot be expanded")
+
         # build the query
         root, comp_class = self.build_date_search_query(start, end, compfilter, expand)
 
@@ -910,10 +927,7 @@ class Calendar(DAVObject):
                     if i.name == "VEVENT":
                         recurrance_properties = ["exdate", "exrule", "rdate", "rrule"]
                         if any(key in recurrance_properties for key in i.contents):
-                            # fall back to next 24 hours if open-ended search
-                            end_date = end if end is not None else start + timedelta(days=1)
-                            expanded = _expand_event(o, start, end_date)
-                            expanded_objects.extend(expanded)
+                            expanded_objects.append(_expand_event(o, start, end))
                             has_expanded = True
                 if not has_expanded:
                     expanded_objects.append(o)
