@@ -15,10 +15,9 @@ from datetime import datetime
 from datetime import timedelta
 from datetime import timezone
 
-from caldav.lib.python_utilities import to_local
-
-import vobject
 import icalendar
+import vobject
+from caldav.lib.python_utilities import to_local
 from dateutil.rrule import rrulestr
 from lxml import etree
 
@@ -1360,12 +1359,12 @@ class Calendar(DAVObject):
             ## but at one point it broke due to an extra CR in the data.
             ## Usage of the icalendar library increases readability and
             ## reliability
-            item_uid = item.icalendar_object().get('UID', None)
+            item_uid = item.icalendar_object().get("UID", None)
             if item_uid and item_uid == uid:
                 items_found2.append(item)
         if not items_found2:
             raise error.NotFoundError("%s not found on server" % uid)
-        error.assert_(len(items_found2)==1)
+        error.assert_(len(items_found2) == 1)
         return items_found2[0]
 
     def todo_by_uid(self, uid):
@@ -1648,9 +1647,7 @@ class CalendarObjectResource(DAVObject):
         if set_reverse:
             other.set_relation(other=self, reltype=reltype_reverse, set_reverse=False)
 
-        existing_relation = self.icalendar_object().get(
-            "related-to", None
-        )
+        existing_relation = self.icalendar_object().get("related-to", None)
         existing_relations = (
             existing_relation
             if isinstance(existing_relation, list)
@@ -1660,24 +1657,24 @@ class CalendarObjectResource(DAVObject):
             if rel == uid:
                 return
 
-        self.icalendar_object().add(
-            "related-to", uid, parameters={"rel-type": reltype}
-        )
-
+        self.icalendar_object().add("related-to", uid, parameters={"rel-type": reltype})
 
     def icalendar_object(self, assert_one=True):
         """Returns the icalendar subcomponent - which should be an
         Event, Journal, Todo or FreeBusy from the icalendar class
         """
-        ret = [x for x in self.icalendar_instance.subcomponents
-               if not isinstance(x, icalendar.Timezone)]
+        ret = [
+            x
+            for x in self.icalendar_instance.subcomponents
+            if not isinstance(x, icalendar.Timezone)
+        ]
         error.assert_(len(ret) == 1 or not assert_one)
         for x in ret:
             for cl in (
-                    icalendar.Event,
-                    icalendar.Journal,
-                    icalendar.Todo,
-                    icalendar.FreeBusy,
+                icalendar.Event,
+                icalendar.Journal,
+                icalendar.Todo,
+                icalendar.FreeBusy,
             ):
                 if isinstance(x, cl):
                     return x
@@ -1855,7 +1852,7 @@ class CalendarObjectResource(DAVObject):
 
         for x in self.icalendar_instance.subcomponents:
             if not isinstance(x, icalendar.Timezone):
-                error.assert_(x.get('UID', None) == self.id)
+                error.assert_(x.get("UID", None) == self.id)
 
         if path is None:
             path = self.generate_url()
@@ -1892,7 +1889,7 @@ class CalendarObjectResource(DAVObject):
         ## TODO: should try to wrap my head around issues that arises when id contains weird characters.  maybe it's
         ## better to generate a new uuid here, particularly if id is in some unexpected format.
         if not self.id:
-            self.id = self.icalendar_object(assert_one=False)['UID']
+            self.id = self.icalendar_object(assert_one=False)["UID"]
         return self.parent.url.join(quote(self.id.replace("/", "%2F")) + ".ics")
 
     def change_attendee_status(self, attendee=None, **kwargs):
