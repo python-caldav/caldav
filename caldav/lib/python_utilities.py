@@ -8,16 +8,23 @@ def isPython3():
 
 
 def to_wire(text):
-    if text is not None and isinstance(text, string_types) and PY3:
+    if text is None:
+        return None
+    if isinstance(text, string_types) and PY3:
         text = bytes(text, "utf-8")
     elif not PY3:
         text = to_unicode(text).encode("utf-8")
+    text = text.replace(b'\n', b'\r\n')
+    text = text.replace(b'\r\r\n', b'\r\n')
     return text
 
 
 def to_local(text):
-    if text is not None and not isinstance(text, string_types):
+    if text is None:
+        return None
+    if not isinstance(text, string_types):
         text = text.decode("utf-8")
+    text = text.replace('\r\n', '\n')
     return text
 
 

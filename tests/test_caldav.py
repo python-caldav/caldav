@@ -1613,7 +1613,7 @@ class RepeatedFunctionalTestsBaseClass(object):
             assert len(all_todos) == 1
         self.skip_on_compatibility_flag("rrule_takes_no_count")
         assert len(c.todos()) == 2
-        assert len(all_todos) == 4
+        assert len(all_todos) == 2
         # assert sum([len(x.icalendar_instance.subcomponents) for x in all_todos]) == 5
         t8.complete(handle_rrule=True, rrule_mode="thisandfuture")
         assert len(c.todos()) == 2
