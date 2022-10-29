@@ -63,8 +63,8 @@ def _expand_event(event, start, end):
     # FIXME maybe there is a better way to check for this?
     all_day = not isinstance(event.vobject_instance.vevent.dtstart.value, datetime)
     if not all_day:
-        start_time = event.vobject_instance.vevent.dtstart.value.astimezone(ZoneInfo("UTC")).replace(tzinfo=None)
-        end_time = event.vobject_instance.vevent.dtend.value.astimezone(ZoneInfo("UTC")).replace(tzinfo=None)
+        start_time = event.vobject_instance.vevent.dtstart.value
+        end_time = event.vobject_instance.vevent.dtend.value
     recurrance_properties = ["exdate", "exrule", "rdate", "rrule"]
     # FIXME too much copying
     stripped_event = event.copy(keep_uid=True)
