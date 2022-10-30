@@ -50,40 +50,6 @@ def errmsg(r):
     return "%s %s\n\n%s" % (r.status, r.reason, r.raw)
 
 
-def _expand_event(event, start, end):
-    """
-    :param event: Event
-    :param start: datetime.datetime
-    :param end: datetime.datetime
-    """
-    import recurring_ical_events
-    logging.info("Expanding event %s @ %s (rule: %s)",
-                 event.instance.vevent.summary.value,
-                 event.instance.vevent.dtstart.value.isoformat(),
-                 event.instance.vevent.rrule.value)
-    recurrings = recurring_ical_events.of(icalendar.Calendar.from_ical(event.data)).between(start, end)
-    recurrance_properties = ["exdate", "exrule", "rdate", "rrule"]
-    # FIXME too much copying
-    stripped_event = event.copy(keep_uid=True)
-    # remove all recurrance properties
-    for component in stripped_event.vobject_instance.components():
-        if component.name == 'VEVENT':
-            for key in recurrance_properties:
-                try:
-                    del component.contents[key]
-                except KeyError:
-                    pass
-
-    calendar = icalendar.Calendar()
-    for occurance in recurrings:
-        calendar.add_component(occurance)
-    # add other components (except for the VEVENT itself and VTIMEZONE which is not allowed on occurance events)
-    for component in stripped_event.icalendar_instance.subcomponents:
-        if component.name not in ('VEVENT', 'VTIMEZONE'):
-            calendar.add_component(component)
-    return Event(id=event.id, data=calendar.to_ical())
-
-
 class DAVObject(object):
 
     """
@@ -924,7 +890,7 @@ class Calendar(DAVObject):
                     if i.name == "VEVENT":
                         recurrance_properties = ["exdate", "exrule", "rdate", "rrule"]
                         if any(key in recurrance_properties for key in i.contents):
-                            expanded_event = _expand_event(o, start, end)
+                            expanded_event = o.expand_rrule(start, end)
                             if split_expanded:
                                 expanded_objects.extend(expanded_event.split_expanded())
                             else:
@@ -1686,6 +1652,41 @@ class CalendarObjectResource(DAVObject):
             obj.icalendar_instance.subcomponents.append(ical_obj)
             ret.append(obj)
         return ret
+
+    def expand_rrule(
+        self, start, end
+    ):
+        """
+        :param event: Event
+        :param start: datetime.datetime
+        :param end: datetime.datetime
+        """
+        import recurring_ical_events
+        logging.info("Expanding event %s @ %s (rule: %s)",
+                     self.instance.vevent.summary.value,
+                     self.instance.vevent.dtstart.value.isoformat(),
+                     self.instance.vevent.rrule.value)
+        recurrings = recurring_ical_events.of(icalendar.Calendar.from_ical(self.data)).between(start, end)
+        recurrance_properties = ["exdate", "exrule", "rdate", "rrule"]
+        # FIXME too much copying
+        stripped_event = self.copy(keep_uid=True)
+        # remove all recurrance properties
+        for component in stripped_event.vobject_instance.components():
+            if component.name == 'VEVENT':
+                for key in recurrance_properties:
+                    try:
+                        del component.contents[key]
+                    except KeyError:
+                        pass
+
+        calendar = icalendar.Calendar()
+        for occurance in recurrings:
+            calendar.add_component(occurance)
+        # add other components (except for the VEVENT itself and VTIMEZONE which is not allowed on occurance events)
+        for component in stripped_event.icalendar_instance.subcomponents:
+            if component.name not in ('VEVENT', 'VTIMEZONE'):
+                calendar.add_component(component)
+        return Event(id=self.id, data=calendar.to_ical())
 
     def set_relation(
         self, other, reltype=None, set_reverse=True
