@@ -857,9 +857,6 @@ class Calendar(DAVObject):
          * [CalendarObjectResource(), ...]
 
         """
-        if not end and expand:
-            raise error.ReportError("an open-ended date search cannot be expanded")
-
         # build the query
         root, comp_class = self.build_date_search_query(start, end, compfilter, expand)
 
