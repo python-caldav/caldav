@@ -876,6 +876,7 @@ class Calendar(DAVObject):
         ## returned.
         objects = self.search(root, comp_class, split_expanded=False)
         if expand:
+            # TODO refactor: since we are not split-expanding here, a "map" approach should suffice
             expanded_objects = []
             for o in objects:
                 has_expanded = False
