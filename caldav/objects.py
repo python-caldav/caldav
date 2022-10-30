@@ -56,15 +56,12 @@ def _expand_event(event, start, end):
     :param start: datetime.datetime
     :param end: datetime.datetime
     """
-    from zoneinfo import ZoneInfo
-    logging.info("Expanding event %s @ %s", event.instance.vevent.summary.value, event.instance.vevent.dtstart.value.isoformat())
-    recurrings = rrulestr(event.instance.vevent.rrule.value).between(start, end, True)
-    calendar = icalendar.Calendar()
-    # FIXME maybe there is a better way to check for this?
-    all_day = not isinstance(event.vobject_instance.vevent.dtstart.value, datetime)
-    if not all_day:
-        start_time = event.vobject_instance.vevent.dtstart.value
-        end_time = event.vobject_instance.vevent.dtend.value
+    import recurring_ical_events
+    logging.info("Expanding event %s @ %s (rule: %s)",
+                 event.instance.vevent.summary.value,
+                 event.instance.vevent.dtstart.value.isoformat(),
+                 event.instance.vevent.rrule.value)
+    recurrings = recurring_ical_events.of(icalendar.Calendar.from_ical(event.data)).between(start, end)
     recurrance_properties = ["exdate", "exrule", "rdate", "rrule"]
     # FIXME too much copying
     stripped_event = event.copy(keep_uid=True)
@@ -77,16 +74,9 @@ def _expand_event(event, start, end):
                 except KeyError:
                     pass
 
+    calendar = icalendar.Calendar()
     for occurance in recurrings:
-        ev = stripped_event.copy().icalendar_instance.walk('vevent')[0]
-        if all_day:
-            ev['dtstart'] = icalendar.vDatetime(occurance).to_ical()
-            ev['dtend'] = icalendar.vDatetime(occurance).to_ical()
-        else:
-            ev['dtstart'] = icalendar.vDatetime(occurance.replace(hour=start_time.hour, minute=start_time.minute, second=start_time.second)).to_ical()
-            ev['dtend'] = icalendar.vDatetime(occurance.replace(hour=end_time.hour, minute=end_time.minute, second=end_time.second)).to_ical()
-        ev['recurrence-id'] = ev['dtstart'].decode('utf-8')
-        calendar.add_component(ev)
+        calendar.add_component(occurance)
     # add other components (except for the VEVENT itself and VTIMEZONE which is not allowed on occurance events)
     for component in stripped_event.icalendar_instance.subcomponents:
         if component.name not in ('VEVENT', 'VTIMEZONE'):
@@ -934,7 +924,11 @@ class Calendar(DAVObject):
                     if i.name == "VEVENT":
                         recurrance_properties = ["exdate", "exrule", "rdate", "rrule"]
                         if any(key in recurrance_properties for key in i.contents):
-                            expanded_objects.append(_expand_event(o, start, end))
+                            expanded_event = _expand_event(o, start, end)
+                            if split_expanded:
+                                expanded_objects.extend(expanded_event.split_expanded())
+                            else:
+                                expanded_objects.append(expanded_event)
                             has_expanded = True
                 if not has_expanded:
                     expanded_objects.append(o)
