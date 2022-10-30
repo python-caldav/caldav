@@ -888,10 +888,7 @@ class Calendar(DAVObject):
                         recurrance_properties = ["exdate", "exrule", "rdate", "rrule"]
                         if any(key in recurrance_properties for key in i.contents):
                             expanded_event = o.expand_rrule(start, end)
-                            if split_expanded:
-                                expanded_objects.extend(expanded_event.split_expanded())
-                            else:
-                                expanded_objects.append(expanded_event)
+                            expanded_objects.append(expanded_event)
                             has_expanded = True
                 if not has_expanded:
                     expanded_objects.append(o)
@@ -1035,6 +1032,40 @@ class Calendar(DAVObject):
                     "Inconsistent usage parameters: xml together with other search options"
                 )
             (response, objects) = self._request_report_build_resultlist(xml, comp_class)
+
+        if "expand" in kwargs and kwargs["expand"]:
+            if "start" in kwargs:
+                start = kwargs["start"]
+            else:
+                # TODO get from xml
+                raise NotImplementedError("Getting start from xml is not supported")
+            if "end" in kwargs:
+                end = kwargs["end"]
+            else:
+                # TODO get from xml
+                raise NotImplementedError("Getting start from xml is not supported")
+
+            # TODO refactor
+            expanded_objects = []
+            for o in objects:
+                has_expanded = False
+                if not o.data:
+                    expanded_objects.append(o)
+                    continue
+                components = o.vobject_instance.components()
+                for i in components:
+                    if i.name == "VEVENT":
+                        recurrance_properties = ["exdate", "exrule", "rdate", "rrule"]
+                        if any(key in recurrance_properties for key in i.contents):
+                            expanded_event = o.expand_rrule(start, end)
+                            if split_expanded:
+                                expanded_objects.extend(expanded_event.split_expanded())
+                            else:
+                                expanded_objects.append(expanded_event)
+                            has_expanded = True
+                if not has_expanded:
+                    expanded_objects.append(o)
+            objects = expanded_objects
 
         def sort_key_func(x):
             ret = []
