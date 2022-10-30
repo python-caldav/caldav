@@ -28,10 +28,7 @@ def to_local(text):
     return text
 
 
-def to_str(text):
-    if text and not isinstance(text, string_types):
-        text = text.decode("utf-8")
-    return text
+to_str = to_local
 
 
 def to_normal_str(text):
@@ -40,10 +37,13 @@ def to_normal_str(text):
     Make sure we return a normal string, no matter what version of
     python ...
     """
-    if PY3 and text and not isinstance(text, str):
+    if text is None:
+        return text
+    if PY3 and not isinstance(text, str):
         text = text.decode("utf-8")
-    elif not PY3 and text and not isinstance(text, str):
+    elif not PY3 and not isinstance(text, str):
         text = text.encode("utf-8")
+    text = text.replace("\r\n", "\n")
     return text
 
 

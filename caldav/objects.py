@@ -17,7 +17,9 @@ from datetime import timezone
 
 import icalendar
 import vobject
-from caldav.lib.python_utilities import to_local
+from caldav.lib.python_utilities import to_normal_str
+from caldav.lib.python_utilities import to_unicode
+from caldav.lib.python_utilities import to_wire
 from dateutil.rrule import rrulestr
 from lxml import etree
 
@@ -37,7 +39,6 @@ except:
 from caldav.lib import error, vcal
 from caldav.lib.url import URL
 from caldav.elements import dav, cdav, ical
-from caldav.lib.python_utilities import to_unicode, to_wire
 
 import logging
 
@@ -2041,14 +2042,30 @@ class CalendarObjectResource(DAVObject):
 
     def _get_data(self):
         if self._data:
-            return self._data
+            return to_normal_str(self._data)
         elif self._vobject_instance:
-            return self._vobject_instance.serialize()
+            return to_normal_str(self._vobject_instance.serialize())
         elif self._icalendar_instance:
-            return to_local(self._icalendar_instance.to_ical())
+            return to_normal_str(self._icalendar_instance.to_ical())
         return None
 
-    data = property(_get_data, _set_data, doc="vCal representation of the object")
+    def _get_wire_data(self):
+        if self._data:
+            return to_wire(self._data)
+        elif self._vobject_instance:
+            return to_wire(self._vobject_instance.serialize())
+        elif self._icalendar_instance:
+            return to_wire(self._icalendar_instance.to_ical())
+        return None
+
+    data = property(
+        _get_data, _set_data, doc="vCal representation of the object as normal string"
+    )
+    wire_data = property(
+        _get_wire_data,
+        _set_data,
+        doc="vCal representation of the object in wire format (UTF-8, CRLN)",
+    )
 
     def _set_vobject_instance(self, inst):
         self._vobject_instance = inst

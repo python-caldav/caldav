@@ -25,8 +25,8 @@ from caldav.elements import ical
 from caldav.lib import error
 from caldav.lib import url
 from caldav.lib import vcal
-from caldav.lib.python_utilities import to_local
-from caldav.lib.python_utilities import to_str
+from caldav.lib.python_utilities import to_normal_str
+from caldav.lib.python_utilities import to_wire
 from caldav.lib.url import URL
 from caldav.objects import Calendar
 from caldav.objects import CalendarObjectResource
@@ -811,6 +811,33 @@ END:VCALENDAR
         calendar = Calendar(parent=calhome)
         assert calendar.client == calhome.client
 
+    def testData(self):
+        """
+        Event.data should always return a unicode string, without \r
+        Event.wire_data should always return a byte string, with \r\n
+        """
+        cal_url = "http://me:hunter2@calendar.example:80/"
+        client = DAVClient(url=cal_url)
+        my_event = Event(client, data=ev1)
+        ## bytes on py3, normal string on py2 (but nobody uses python2, I hope?)
+        bytestr = b"".__class__
+        assert isinstance(my_event.data, str)
+        assert isinstance(my_event.wire_data, bytestr)
+        ## this may have side effects, as it converts the internal storage
+        my_event.icalendar_instance
+        assert isinstance(my_event.data, str)
+        assert isinstance(my_event.wire_data, bytestr)
+        ## this may have side effects, as it converts the internal storage
+        my_event.vobject_instance
+        assert isinstance(my_event.data, str)
+        assert isinstance(my_event.wire_data, bytestr)
+        my_event.wire_data = to_wire(ev1)
+        assert isinstance(my_event.data, str)
+        assert isinstance(my_event.wire_data, bytestr)
+        my_event.data = to_normal_str(ev1)
+        assert isinstance(my_event.data, str)
+        assert isinstance(my_event.wire_data, bytestr)
+
     def testInstance(self):
         cal_url = "http://me:hunter2@calendar.example:80/"
         client = DAVClient(url=cal_url)
@@ -821,9 +848,9 @@ END:VCALENDAR
         icalobj.subcomponents[0]["SUMMARY"] = "yet another summary"
         assert my_event.vobject_instance.vevent.summary.value == "yet another summary"
         ## Now the data has been converted from string to vobject to string to icalendar to string to vobject and ... will the string still match the original?
-        lines_now = my_event.data.split("\r\n")
-        lines_orig = ev1.replace("Bastille Day Party", "yet another summary").split(
-            "\n"
+        lines_now = my_event.data.strip().split("\n")
+        lines_orig = (
+            ev1.replace("Bastille Day Party", "yet another summary").strip().split("\n")
         )
         lines_now.sort()
         lines_orig.sort()

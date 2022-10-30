@@ -4,7 +4,7 @@ import datetime
 import re
 import uuid
 
-from caldav.lib.python_utilities import to_local
+from caldav.lib.python_utilities import to_normal_str
 
 ## Fixups to the icalendar data to work around compatbility issues.
 
@@ -49,7 +49,9 @@ def fix(event):
     """
     ## TODO: add ^ before COMPLETED and CREATED?
     ## 1) Add a random time if completed is given as date
-    fixed = re.sub(r"COMPLETED:(\d+)\s", r"COMPLETED:\g<1>T120000Z", to_local(event))
+    fixed = re.sub(
+        r"COMPLETED:(\d+)\s", r"COMPLETED:\g<1>T120000Z", to_normal_str(event)
+    )
 
     ## 2) CREATED timestamps prior to epoch does not make sense,
     ## change from year 0001 to epoch.
@@ -85,7 +87,7 @@ def create_ical(ical_fragment=None, objtype=None, language="en_DK", **props):
     ## (perhaps I should change my position on that soon)
     import icalendar
 
-    ical_fragment = to_local(ical_fragment)
+    ical_fragment = to_normal_str(ical_fragment)
     if not ical_fragment or not re.search("^BEGIN:V", ical_fragment, re.MULTILINE):
         my_instance = icalendar.Calendar()
         my_instance.add("prodid", "-//python-caldav//caldav//" + language)
@@ -100,7 +102,7 @@ def create_ical(ical_fragment=None, objtype=None, language="en_DK", **props):
         if not ical_fragment.startswith("BEGIN:VCALENDAR"):
             ical_fragment = (
                 "BEGIN:VCALENDAR\n"
-                + to_local(ical_fragment.strip())
+                + to_normal_str(ical_fragment.strip())
                 + "\nEND:VCALENDAR\n"
             )
         my_instance = icalendar.Calendar.from_ical(ical_fragment)
@@ -115,7 +117,7 @@ def create_ical(ical_fragment=None, objtype=None, language="en_DK", **props):
                     )
             else:
                 component.add(prop, props[prop])
-    ret = to_local(my_instance.to_ical())
+    ret = to_normal_str(my_instance.to_ical())
     if ical_fragment and ical_fragment.strip():
         ret = re.sub(
             "^END:V", ical_fragment.strip() + "\nEND:V", ret, flags=re.MULTILINE
