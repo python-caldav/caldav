@@ -979,7 +979,7 @@ class Calendar(DAVObject):
         * text attribute search parameters: category, uid, summary, omment,
           description, location, status
         * expand - do server side expanding of recurring events/tasks
-        * start, stop: do a time range search
+        * start, end: do a time range search
         * filters - other kind of filters (in lxml tree format)
         * sort_keys - list of attributes to use when sorting
 
