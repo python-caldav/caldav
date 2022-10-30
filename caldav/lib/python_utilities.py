@@ -14,8 +14,8 @@ def to_wire(text):
         text = bytes(text, "utf-8")
     elif not PY3:
         text = to_unicode(text).encode("utf-8")
-    text = text.replace(b'\n', b'\r\n')
-    text = text.replace(b'\r\r\n', b'\r\n')
+    text = text.replace(b"\n", b"\r\n")
+    text = text.replace(b"\r\r\n", b"\r\n")
     return text
 
 
@@ -24,7 +24,7 @@ def to_local(text):
         return None
     if not isinstance(text, string_types):
         text = text.decode("utf-8")
-    text = text.replace('\r\n', '\n')
+    text = text.replace("\r\n", "\n")
     return text
 
 
