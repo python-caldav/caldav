@@ -7,7 +7,7 @@ from setuptools import setup
 
 ## ATTENTION! when doing releases, the default debugmode in lib/error.py should be set to PRODUCTION.
 ## (TODO: any nicer ways than doing this manually?  Make a "releases" branch, maybe?)
-version = "0.10.0"
+version = "0.10.1.dev0"
 
 if __name__ == "__main__":
     ## For python 2.7 and 3.5 we depend on pytz and tzlocal.  For 3.6 and up, batteries are included.  Same with mock. (But unfortunately the icalendar library only support pytz timezones, so we'll keep pytz around for a bit longer).

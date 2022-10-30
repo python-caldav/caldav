@@ -1313,6 +1313,8 @@ class RepeatedFunctionalTestsBaseClass(object):
         journals = c.journals()
         assert len(journals) == 1
         j1_ = c.journal_by_uid(j1.id)
+        j1_.icalendar_instance
+        journals[0].icalendar_instance
         assert j1_.data == journals[0].data
         j2 = c.save_journal(
             dtstart=date(2011, 11, 11),

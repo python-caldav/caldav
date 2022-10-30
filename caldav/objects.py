@@ -15,7 +15,11 @@ from datetime import datetime
 from datetime import timedelta
 from datetime import timezone
 
+import icalendar
 import vobject
+from caldav.lib.python_utilities import to_normal_str
+from caldav.lib.python_utilities import to_unicode
+from caldav.lib.python_utilities import to_wire
 from dateutil.rrule import rrulestr
 from lxml import etree
 
@@ -35,7 +39,6 @@ except:
 from caldav.lib import error, vcal
 from caldav.lib.url import URL
 from caldav.elements import dav, cdav, ical
-from caldav.lib.python_utilities import to_unicode, to_wire
 
 import logging
 
@@ -491,7 +494,6 @@ class Principal(DAVObject):
         """
         Returns the principal, as an icalendar.vCalAddress object
         """
-        ## Late import.  Prior to 1.0, icalendar is only an optional dependency.
         from icalendar import vCalAddress, vText
 
         cn = self.get_display_name()
@@ -552,8 +554,6 @@ class Principal(DAVObject):
         return self.calendar_home_set.calendars()
 
     def freebusy_request(self, dtstart, dtend, attendees):
-        import icalendar
-
         freebusy_ical = icalendar.Calendar()
         freebusy_ical.add("prodid", "-//tobixen/python-caldav//EN")
         freebusy_ical.add("version", "2.0")
@@ -1275,9 +1275,6 @@ class Calendar(DAVObject):
             if not len(data.subcomponents):
                 return CalendarObjectResource
 
-            ## Late import, as icalendar is not yet on the official dependency list
-            import icalendar
-
             ical2caldav = {
                 icalendar.Event: Event,
                 icalendar.Todo: Todo,
@@ -1357,15 +1354,19 @@ class Calendar(DAVObject):
         # uid given in the query is short (i.e. just "0") we're likely to
         # get false positives back from the server, we need to do an extra
         # check that the uid is correct
+        items_found2 = []
         for item in items_found:
-            # Long uids are folded, so splice the lines together here before
-            # attempting a match.
-            item_uid = re.search(r"\nUID:((.|\n[ \t])*)\n", item.data)
-            if not item_uid or re.sub(r"\n[ \t]", "", item_uid.group(1)) != uid:
-                continue
-            ## TODO: we should assert there is only one valid item
-            return item
-        raise error.NotFoundError("%s not found on server" % uid)
+            ## In v0.10.0 we used regexps here - it's probably more optimized,
+            ## but at one point it broke due to an extra CR in the data.
+            ## Usage of the icalendar library increases readability and
+            ## reliability
+            item_uid = item.icalendar_object().get("UID", None)
+            if item_uid and item_uid == uid:
+                items_found2.append(item)
+        if not items_found2:
+            raise error.NotFoundError("%s not found on server" % uid)
+        error.assert_(len(items_found2) == 1)
+        return items_found2[0]
 
     def todo_by_uid(self, uid):
         return self.object_by_uid(uid, comp_filter=cdav.CompFilter("VTODO"))
@@ -1611,8 +1612,8 @@ class CalendarObjectResource(DAVObject):
         if data is not None:
             self.data = data
             if id:
-                old_id = self.icalendar_instance.subcomponents[0].pop("UID", None)
-                self.icalendar_instance.subcomponents[0].add("UID", id)
+                old_id = self.icalendar_object().pop("UID", None)
+                self.icalendar_object().add("UID", id)
 
     def add_organizer(self):
         """
@@ -1622,7 +1623,7 @@ class CalendarObjectResource(DAVObject):
         principal = self.client.principal()
         ## TODO: remove Organizer-field, if exists
         ## TODO: what if walk returns more than one vevent?
-        self._icalendar_object().add("organizer", principal.get_vcal_address())
+        self.icalendar_object().add("organizer", principal.get_vcal_address())
 
     def set_relation(
         self, other, reltype=None, set_reverse=True
@@ -1639,7 +1640,7 @@ class CalendarObjectResource(DAVObject):
             if other.id:
                 uid = other.id
             else:
-                uid = other.icalendar_instance.subcomponents[0]["uid"]
+                uid = other.icalendar_object()["uid"]
         else:
             uid = other
             if set_reverse:
@@ -1647,9 +1648,7 @@ class CalendarObjectResource(DAVObject):
         if set_reverse:
             other.set_relation(other=self, reltype=reltype_reverse, set_reverse=False)
 
-        existing_relation = self.icalendar_instance.subcomponents[0].get(
-            "related-to", None
-        )
+        existing_relation = self.icalendar_object().get("related-to", None)
         existing_relations = (
             existing_relation
             if isinstance(existing_relation, list)
@@ -1659,14 +1658,19 @@ class CalendarObjectResource(DAVObject):
             if rel == uid:
                 return
 
-        self.icalendar_instance.subcomponents[0].add(
-            "related-to", uid, parameters={"rel-type": reltype}
-        )
+        self.icalendar_object().add("related-to", uid, parameters={"rel-type": reltype})
 
-    def _icalendar_object(self):
-        import icalendar
-
-        for x in self.icalendar_instance.subcomponents:
+    def icalendar_object(self, assert_one=True):
+        """Returns the icalendar subcomponent - which should be an
+        Event, Journal, Todo or FreeBusy from the icalendar class
+        """
+        ret = [
+            x
+            for x in self.icalendar_instance.subcomponents
+            if not isinstance(x, icalendar.Timezone)
+        ]
+        error.assert_(len(ret) == 1 or not assert_one)
+        for x in ret:
             for cl in (
                 icalendar.Event,
                 icalendar.Journal,
@@ -1675,6 +1679,7 @@ class CalendarObjectResource(DAVObject):
             ):
                 if isinstance(x, cl):
                     return x
+        error.assert_(False)
 
     def add_attendee(self, attendee, no_default_parameters=False, **parameters):
         """
@@ -1738,7 +1743,7 @@ class CalendarObjectResource(DAVObject):
             else:
                 params[new_key] = parameters[key]
         attendee_obj.params.update(params)
-        ievent = self._icalendar_object()
+        ievent = self.icalendar_object()
         ievent.add("attendee", attendee_obj)
 
     def is_invite_request(self):
@@ -1793,8 +1798,10 @@ class CalendarObjectResource(DAVObject):
             data=self.data,
             id=self.id if keep_uid else str(uuid.uuid1()),
         )
-        if not keep_uid:
+        if new_parent or not keep_uid:
             obj.url = obj.generate_url()
+        else:
+            obj.url = self.url
         return obj
 
     def load(self):
@@ -1811,8 +1818,7 @@ class CalendarObjectResource(DAVObject):
             self.props[cdav.ScheduleTag.tag] = r.headers["Schedule-Tag"]
         return self
 
-    ## TODO: this method should be simplified and renamed, and probably
-    ## some of the logic should be moved elsewhere
+    ## TODO: self.id should either always be available or never
     def _find_id_path(self, id=None, path=None):
         """
         With CalDAV, every object has an URL.  With icalendar, every object
@@ -1829,7 +1835,7 @@ class CalendarObjectResource(DAVObject):
            random number and a domain)
         4) if no path is given, generate the URL from the ID
         """
-        i = self.icalendar_instance.subcomponents[0]
+        i = self.icalendar_object(assert_one=False)
         if not id and getattr(self, "id", None):
             id = self.id
         if not id:
@@ -1844,6 +1850,10 @@ class CalendarObjectResource(DAVObject):
         i.add("UID", id)
 
         self.id = id
+
+        for x in self.icalendar_instance.subcomponents:
+            if not isinstance(x, icalendar.Timezone):
+                error.assert_(x.get("UID", None) == self.id)
 
         if path is None:
             path = self.generate_url()
@@ -1879,6 +1889,8 @@ class CalendarObjectResource(DAVObject):
         ## See https://github.com/python-caldav/caldav/issues/143 for the rationale behind double-quoting slashes
         ## TODO: should try to wrap my head around issues that arises when id contains weird characters.  maybe it's
         ## better to generate a new uuid here, particularly if id is in some unexpected format.
+        if not self.id:
+            self.id = self.icalendar_object(assert_one=False)["UID"]
         return self.parent.url.join(quote(self.id.replace("/", "%2F")) + ".ics")
 
     def change_attendee_status(self, attendee=None, **kwargs):
@@ -1902,7 +1914,7 @@ class CalendarObjectResource(DAVObject):
             error.assert_(cnt == 1)
             return
 
-        ical_obj = self._icalendar_object()
+        ical_obj = self.icalendar_object()
         attendee_lines = ical_obj["attendee"]
         if isinstance(attendee_lines, str):
             attendee_lines = [attendee_lines]
@@ -1995,9 +2007,9 @@ class CalendarObjectResource(DAVObject):
                 )
 
         if increase_seqno and b"SEQUENCE" in to_wire(self.data):
-            seqno = self.icalendar_instance.subcomponents[0].pop("SEQUENCE", None)
+            seqno = self.icalendar_object().pop("SEQUENCE", None)
             if seqno is not None:
-                self.icalendar_instance.subcomponents[0].add("SEQUENCE", seqno + 1)
+                self.icalendar_object().add("SEQUENCE", seqno + 1)
 
         self._create(id=self.id, path=path)
         return self
@@ -2030,14 +2042,30 @@ class CalendarObjectResource(DAVObject):
 
     def _get_data(self):
         if self._data:
-            return self._data
+            return to_normal_str(self._data)
         elif self._vobject_instance:
-            return self._vobject_instance.serialize()
+            return to_normal_str(self._vobject_instance.serialize())
         elif self._icalendar_instance:
-            return self._icalendar_instance.to_ical()
+            return to_normal_str(self._icalendar_instance.to_ical())
         return None
 
-    data = property(_get_data, _set_data, doc="vCal representation of the object")
+    def _get_wire_data(self):
+        if self._data:
+            return to_wire(self._data)
+        elif self._vobject_instance:
+            return to_wire(self._vobject_instance.serialize())
+        elif self._icalendar_instance:
+            return to_wire(self._icalendar_instance.to_ical())
+        return None
+
+    data = property(
+        _get_data, _set_data, doc="vCal representation of the object as normal string"
+    )
+    wire_data = property(
+        _get_wire_data,
+        _set_data,
+        doc="vCal representation of the object in wire format (UTF-8, CRLN)",
+    )
 
     def _set_vobject_instance(self, inst):
         self._vobject_instance = inst
@@ -2074,8 +2102,6 @@ class CalendarObjectResource(DAVObject):
         return self
 
     def _get_icalendar_instance(self):
-        import icalendar
-
         if not self._icalendar_instance:
             if not self.data:
                 return None
@@ -2219,7 +2245,7 @@ class Todo(CalendarObjectResource):
 
         """
         if not i:
-            i = self.icalendar_instance.subcomponents[0]
+            i = self.icalendar_object()
         if not rrule:
             rrule = i["RRULE"]
         if not dtstart:
@@ -2231,7 +2257,7 @@ class Todo(CalendarObjectResource):
                 else:
                     dtstart = ts or datetime.now()
             else:
-                dtstart = ts or datetime.now() - self.get_duration()
+                dtstart = ts or datetime.now() - self._get_duration(i)
         if not ts:
             ts = dtstart
         ## Counting is taken care of other places
@@ -2243,7 +2269,7 @@ class Todo(CalendarObjectResource):
 
     def _reduce_count(self, i=None):
         if not i:
-            i = self.icalendar_instance.subcomponents[0]
+            i = self.icalendar_object()
         if "COUNT" in i["RRULE"]:
             if i["RRULE"]["COUNT"][0] == 1:
                 return False
@@ -2266,12 +2292,12 @@ class Todo(CalendarObjectResource):
 
         completed = self.copy()
         completed.url = self.parent.url.join(completed.id + ".ics")
-        completed.icalendar_instance.subcomponents[0].pop("RRULE")
+        completed.icalendar_object().pop("RRULE")
         completed.save()
         completed.complete()
 
         duration = self.get_duration()
-        i = self.icalendar_instance.subcomponents[0]
+        i = self.icalendar_object()
         i.pop("DTSTART", None)
         i.add("DTSTART", next_dtstart)
         self.set_duration(duration, movable_attr="DUE")
@@ -2399,7 +2425,7 @@ class Todo(CalendarObjectResource):
         ## my idea was to let self.complete call this one ... but self.complete
         ## should use vobject and not icalendar library due to backward compatibility.
         if i is None:
-            i = self.icalendar_instance.subcomponents[0]
+            i = self.icalendar_object()
         assert self._is_pending(i)
         status = i.pop("STATUS", None)
         i.add("STATUS", "COMPLETED")
@@ -2407,7 +2433,7 @@ class Todo(CalendarObjectResource):
 
     def _is_pending(self, i=None):
         if i is None:
-            i = self.icalendar_instance.subcomponents[0]
+            i = self.icalendar_object()
         if i.get("COMPLETED", None) is not None:
             return False
         if i.get("STATUS", None) in ("NEEDS-ACTION", "IN-PROCESS"):
@@ -2451,7 +2477,7 @@ class Todo(CalendarObjectResource):
         is that DTEND is used rather than DUE) and possibly also for
         Journal (defaults to one day, probably?)
         """
-        i = self.icalendar_instance.subcomponents[0]
+        i = self.icalendar_object()
         return self._get_duration(i)
 
     def _get_duration(self, i):
@@ -2468,7 +2494,7 @@ class Todo(CalendarObjectResource):
 
         TODO: can this be written in a better/shorter way?
         """
-        i = self.icalendar_instance.subcomponents[0]
+        i = self.icalendar_object()
         return self._set_duration(i, duration, movable_attr)
 
     def _set_duration(self, i, duration, movable_attr="DTSTART"):
@@ -2493,7 +2519,7 @@ class Todo(CalendarObjectResource):
         """
         A VTODO may have due or duration set.  Return or calculate due.
         """
-        i = self.icalendar_instance.subcomponents[0]
+        i = self.icalendar_object()
         if "DUE" in i:
             return i["DUE"].dt
         elif "DURATION" in i and "DTSTART" in i:
@@ -2506,7 +2532,7 @@ class Todo(CalendarObjectResource):
         duration, so when setting due, the duration field must be
         evicted
         """
-        i = self.icalendar_instance.subcomponents[0]
+        i = self.icalendar_object()
         duration = self.get_duration()
         i.pop("DURATION", None)
         i.pop("DUE", None)

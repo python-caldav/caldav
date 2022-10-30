@@ -75,6 +75,8 @@ try:
     events_fetched = my_new_calendar.date_search(
         start=datetime(2021, 5, 16), end=datetime(2024, 1, 1), expand=True
     )
+    ## Note: obj.data will always return a normal string, with normal line breaks
+    ## obj.wire_data will return a byte string with CRLN
     print(events_fetched[0].data)
 except:
     print("Your calendar server does apparently not support expanded search")
