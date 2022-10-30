@@ -874,7 +874,7 @@ class Calendar(DAVObject):
         ##
         ## RFC4791, section 9.6.5 states that recurrence properties MUST NOT be
         ## returned.
-        objects = self.search(root, comp_class)
+        objects = self.search(root, comp_class, split_expanded=False)
         if expand:
             for o in objects:
                 if not o.data:
@@ -948,6 +948,7 @@ class Calendar(DAVObject):
         todo=None,
         include_completed=False,
         sort_keys=(),
+        split_expanded=True,
         **kwargs
     ):
         """Creates an XML query, does a REPORT request towards the
@@ -1624,6 +1625,24 @@ class CalendarObjectResource(DAVObject):
         ## TODO: remove Organizer-field, if exists
         ## TODO: what if walk returns more than one vevent?
         self.icalendar_object().add("organizer", principal.get_vcal_address())
+
+    def split_expanded(self):
+        i = self.icalendar_instance.subcomponents
+        tz_ = [x for x in i if isinstance(x, icalendar.Timezone)]
+        ntz = [x for x in i if not isinstance(x, icalendar.Timezone)]
+        if len(ntz) == 1:
+            return [self]
+        if tz_:
+            error.assert_(len(tz_) == 1)
+        ret = []
+        for ical_obj in ntz:
+            obj = self.copy(keep_uid=True)
+            obj.icalendar_instance.subcomponents = []
+            if tz_:
+                obj.icalendar_instance.subcomponents.append(tz_[0])
+            obj.icalendar_instance.subcomponents.append(ical_obj)
+            ret.append(obj)
+        return ret
 
     def set_relation(
         self, other, reltype=None, set_reverse=True
