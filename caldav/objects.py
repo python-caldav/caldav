@@ -2025,7 +2025,7 @@ class CalendarObjectResource(DAVObject):
                     "no_create flag was set, but object does not exists"
                 )
 
-        if increase_seqno and b"SEQUENCE" in to_wire(self.data):
+        if increase_seqno and b"SEQUENCE" in self.wire_data:
             seqno = self.icalendar_object().pop("SEQUENCE", None)
             if seqno is not None:
                 self.icalendar_object().add("SEQUENCE", seqno + 1)

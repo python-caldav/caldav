@@ -1,8 +1,12 @@
-# Changelog v0.9.2 -> v0.10
+# Changelog v0.9.2 -> v0.10.1
 
 ## Warning
 
-v0.10 does introduce some "bugfixes" and refactorings which are supposed to be harmless and which haven't caused any breakages in tests - but I cannot vouch for that it will not have unintended side effects in your environment.  If you're using the caldav library for production-critical tasks, you may want to hang on for a while before upgrading, or wait for v0.10.1.
+v0.10 does introduce some "bugfixes" and refactorings which may be be breaking your production evironment.  In particular:
+
+* The `obj.data` property has always been inconsistent - sometimes a string would be returned, other times a bytestring, sometimes with ordinary linebreaks, other times with CRLN.  However,it has at least been deterministic dependent on the usage pattern.  Now `obj.data` will always return a string with ordinary linebreaks, while `obj.wire_data` always will return a bytestring including the carriage return character in the linebreaks.  Please have a look through your application and ensure you use `obj.wire_data` if "wire data" is required, and `obj.data` if ordinary strings is required.  (if this breaks too much, I'm considering to create `obj.data` as a legacy thing, and replace it with `obj.string_data`)
+* The icalendar library is now used even for ensuring that the uid is correctly set when saving an object to the calendar. This should be a noop, but may have negligible side effects i.e. reordering of the properties before sending the data to the server (if I get reports that this actually is a problem for anyone, I will change it to using regexps instead).
+* The sequence number was not increased before, now the sequence number is increased on every save to the server if there exists a sequence number.  It's possible to bypass this logic by doing `obj.save(increase_seqno=False)`
 
 ## Quick summary
 
@@ -17,7 +21,8 @@ v0.10 does introduce some "bugfixes" and refactorings which are supposed to be h
   * picklable URLs
   * display_name convenience method
   * possible to set child/parent relationships
-* Potential bugfix: sequence number may need to be increased when saving something to the calendar (not backported, this may have side effects)
+* Potential bugfix: sequence number may need to be increased when saving something to the calendar
+* `obj.data` (which could return bytes or strings depending on usage patterns of the library) has now been changed into `obj.data` and `obj.wire_data`.
 
 ## Search method
 
@@ -47,7 +52,6 @@ not supported yet:
 ## Completed tasks
 
 While the RFCs do support recurring tasks, they are not very clear on the details.  In v0.10 there are three different ways to complete a task.  The first one is to ignore the RRULE property and mark the task as completed.  This is the backwards-compatibility mode - though, according to my understanding of a "recurring task" this is the wrong way to do it.
-
 The two other modes considers the task to be "interval based" is no BY-rules are specified in the RRULE - meaning that if a task is supposed to be done weekly, then a week should pass from it was completed and until one needs to start with it again - no matter the DTSTART of the original instance - but the standards may also be interpreted so that if the original task was to be started at a Tuesday 10:00, then all recurrences should be started at a Tuesday 10:00.
 
 Both the modes stores a copy of the completed task, for the record.  The "safe" mode stores the copy as a completely independent task, and modifies the DTSTART/DUE of the original task - so the completed task is not linked up to the recurring task.  (One may eventually try to make a link by establishing a "parent task").
