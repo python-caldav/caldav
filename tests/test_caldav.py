@@ -1456,12 +1456,11 @@ class RepeatedFunctionalTestsBaseClass(object):
         # t5 has dtstart and due set prior to the search window
         # t6 has dtstart and due set prior to the search window, but is yearly recurring.
         # What will a date search yield?
-        noexpand = self.check_compatibility_flag("no_expand")
         todos = c.date_search(
             start=datetime(1997, 4, 14),
             end=datetime(2015, 5, 14),
             compfilter="VTODO",
-            expand=not noexpand,
+            expand=True,
         )
         # The RFCs are pretty clear on this.  rfc5545 states:
 
@@ -1492,12 +1491,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert len(todos) == foo
 
         ## verify that "expand" works
-        if (
-            not self.check_compatibility_flag("no_recurring_expandation")
-            and not self.check_compatibility_flag("no_expand")
-            and not self.check_compatibility_flag("no_recurring_todo_expand")
-        ):
-            assert len([x for x in todos if "DTSTART:20020415T1330" in x.data]) == 1
+        assert len([x for x in todos if "DTSTART:20020415T1330" in x.data]) == 1
         ## exercise the default for expand (maybe -> False for open-ended search)
         todos = c.date_search(start=datetime(2025, 4, 14), compfilter="VTODO")
 
@@ -1951,39 +1945,31 @@ class RepeatedFunctionalTestsBaseClass(object):
         # if not self.check_compatibility_flag('no_mkcalendar'):
         # assert len(r) == 0
 
-        if not self.check_compatibility_flag("no_expand"):
-            ## With expand=True, we should find one occurrence
-            r = c.date_search(
-                datetime(2008, 11, 1, 17, 00, 00),
-                datetime(2008, 11, 3, 17, 00, 00),
-                expand=True,
-            )
-            assert len(r) == 1
-            assert r[0].data.count("END:VEVENT") == 1
-            ## due to expandation, the DTSTART should be in 2008
-            if not self.check_compatibility_flag("no_recurring_expandation"):
-                assert r[0].data.count("DTSTART;VALUE=DATE:2008") == 1
+        ## With expand=True, we should find one occurrence
+        r = c.date_search(
+            datetime(2008, 11, 1, 17, 00, 00),
+            datetime(2008, 11, 3, 17, 00, 00),
+            expand=True,
+        )
+        assert len(r) == 1
+        assert r[0].data.count("END:VEVENT") == 1
+        ## due to expandation, the DTSTART should be in 2008
+        assert r[0].data.count("DTSTART;VALUE=DATE:2008") == 1
 
-            ## With expand=True and searching over two recurrences ...
-            r = c.date_search(
-                datetime(2008, 11, 1, 17, 00, 00),
-                datetime(2009, 11, 3, 17, 00, 00),
-                expand=True,
-            )
+        ## With expand=True and searching over two recurrences ...
+        r = c.date_search(
+            datetime(2008, 11, 1, 17, 00, 00),
+            datetime(2009, 11, 3, 17, 00, 00),
+            expand=True,
+        )
 
-            ## According to https://tools.ietf.org/html/rfc4791#section-7.8.3, the
-            ## resultset should be one vcalendar with two events.
-            assert len(r) == 1
+        ## According to https://tools.ietf.org/html/rfc4791#section-7.8.3, the
+        ## resultset should be one vcalendar with two events.
+        assert len(r) == 1
 
-            ## not all servers supports expandation
-            if self.check_compatibility_flag("no_recurring_expandation"):
-                ## without expandation, we'll get the original ics,
-                ## with RRULE set
-                assert "RRULE" in r[0].data
-                assert r[0].data.count("END:VEVENT") == 1
-            else:
-                assert "RRULE" not in r[0].data
-                assert r[0].data.count("END:VEVENT") == 2
+        ## not all servers supports expandation
+        assert "RRULE" not in r[0].data
+        assert r[0].data.count("END:VEVENT") == 2
 
         # The recurring events should not be expanded when using the
         # events() method
