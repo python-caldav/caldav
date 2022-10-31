@@ -1034,7 +1034,7 @@ class Calendar(DAVObject):
                 )
             (response, objects) = self._request_report_build_resultlist(xml, comp_class)
 
-        if "expand" in kwargs and kwargs["expand"]:
+        if kwargs.get("expand", False):
             if "start" in kwargs:
                 start = kwargs["start"]
             else:
@@ -1047,7 +1047,6 @@ class Calendar(DAVObject):
                 raise NotImplementedError("Getting start from xml is not supported")
 
             # TODO refactor
-            expanded_objects = []
             for o in objects:
                 has_expanded = False
                 if not o.data:
@@ -1055,18 +1054,18 @@ class Calendar(DAVObject):
                     continue
                 components = o.vobject_instance.components()
                 for i in components:
-                    if i.name == "VEVENT":
+                    if i.name in ("VEVENT", "VTODO"):
+                        ## Those recurrance properties should not be in the returns from the server,
+                        ## if they are present it indicates that server expand didn't work and we'll
+                        ## have to do it on the client side
                         recurrance_properties = ["exdate", "exrule", "rdate", "rrule"]
                         if any(key in recurrance_properties for key in i.contents):
-                            expanded_event = o.expand_rrule(start, end)
-                            if split_expanded:
-                                expanded_objects.extend(expanded_event.split_expanded())
-                            else:
-                                expanded_objects.append(expanded_event)
-                            has_expanded = True
-                if not has_expanded:
-                    expanded_objects.append(o)
-            objects = expanded_objects
+                            o.expand_rrule(start, end)
+            if split_expanded:
+                objects_ = objects
+                objects = []
+                for o in objects_:
+                    objects.extend(o.split_expanded())
 
         def sort_key_func(x):
             ret = []
@@ -1683,10 +1682,21 @@ class CalendarObjectResource(DAVObject):
         return ret
 
     def expand_rrule(self, start, end):
-        """
+        """This method will transform the calendar content of the
+        event and expand the calendar data from a "master copy" with
+        RRULE set and into a "recurrence set" with RECURRENCE-ID set
+        and no RRULE set.  The main usage is for client-side expansion
+        in case the calendar server does not support server-side
+        expansion.  It should be safe to save back to the server, the
+        server should recognize it as recurrences and should not edit
+        the "master copy".  If doing a `self.load`, the calendar
+        content will be replaced with the "master copy".  However, as
+        of 2022-10 there is no test code verifying this.
+
         :param event: Event
         :param start: datetime.datetime
         :param end: datetime.datetime
+
         """
         import recurring_ical_events
 
