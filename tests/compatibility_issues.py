@@ -13,7 +13,7 @@
 ## * Consider how to get this into the documentation
 incompatibility_description = {
     'no_expand':
-        """Server may throw errors when asked to do a expanded date search""",
+        """Server may throw errors when asked to do a expanded date search (this is ignored by the tests now, as we're doing client-side expansion)""",
 
     'no_recurring':
         """Server is having issues with recurring events and/or todos. """
@@ -21,13 +21,13 @@ incompatibility_description = {
         """and events/todos may not be expanded with recurrances""",
 
     'no_recurring_expandation':
-        """Server will not expand recurring events""",
+        """Server will not expand recurring events (this is ignored by the tests now, as we're doing client-side expansion)""",
 
     'no_recurring_todo':
         """Recurring events are supported, but not recurring todos""",
 
     'no_recurring_todo_expand':
-        """Recurring todos aren't expanded""",
+        """Recurring todos aren't expanded (this is ignored by the tests now, as we're doing client-side expansion)""",
 
     'no_scheduling':
         """RFC6833 is not supported""",

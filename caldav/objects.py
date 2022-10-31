@@ -1682,40 +1682,43 @@ class CalendarObjectResource(DAVObject):
             ret.append(obj)
         return ret
 
-    def expand_rrule(
-        self, start, end
-    ):
+    def expand_rrule(self, start, end):
         """
         :param event: Event
         :param start: datetime.datetime
         :param end: datetime.datetime
         """
         import recurring_ical_events
-        logging.info("Expanding event %s @ %s (rule: %s)",
-                     self.instance.vevent.summary.value,
-                     self.instance.vevent.dtstart.value.isoformat(),
-                     self.instance.vevent.rrule.value)
-        recurrings = recurring_ical_events.of(icalendar.Calendar.from_ical(self.data)).between(start, end)
+
+        logging.info(
+            "Expanding event %s @ %s (rule: %s)",
+            self.instance.vevent.summary.value,
+            self.instance.vevent.dtstart.value.isoformat(),
+            self.instance.vevent.rrule.value,
+        )
+        recurrings = recurring_ical_events.of(self.icalendar_instance).between(
+            start, end
+        )
         recurrance_properties = ["exdate", "exrule", "rdate", "rrule"]
         # FIXME too much copying
         stripped_event = self.copy(keep_uid=True)
         # remove all recurrance properties
         for component in stripped_event.vobject_instance.components():
-            if component.name == 'VEVENT':
+            if component.name in ("VEVENT", "VTODO"):
                 for key in recurrance_properties:
                     try:
                         del component.contents[key]
                     except KeyError:
                         pass
 
-        calendar = icalendar.Calendar()
+        calendar = self.icalendar_instance
+        calendar.subcomponents = []
         for occurance in recurrings:
             calendar.add_component(occurance)
         # add other components (except for the VEVENT itself and VTIMEZONE which is not allowed on occurance events)
         for component in stripped_event.icalendar_instance.subcomponents:
-            if component.name not in ('VEVENT', 'VTIMEZONE'):
+            if component.name not in ("VEVENT", "VTODO", "VTIMEZONE"):
                 calendar.add_component(component)
-        return Event(id=self.id, data=calendar.to_ical())
 
     def set_relation(
         self, other, reltype=None, set_reverse=True
