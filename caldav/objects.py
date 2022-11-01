@@ -1712,6 +1712,7 @@ class CalendarObjectResource(DAVObject):
         calendar = self.icalendar_instance
         calendar.subcomponents = []
         for occurance in recurrings:
+            occurance.add("RECURRENCE-ID", occurance.get("DTSTART"))
             calendar.add_component(occurance)
         # add other components (except for the VEVENT itself and VTIMEZONE which is not allowed on occurance events)
         for component in stripped_event.icalendar_instance.subcomponents:
