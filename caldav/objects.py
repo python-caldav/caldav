@@ -881,7 +881,7 @@ class Calendar(DAVObject):
                     continue
                 components = o.vobject_instance.components()
                 for i in components:
-                    if i.name == "VEVENT":
+                    if i.name in ("VEVENT", "VTODO"):
                         recurrance_properties = ["exdate", "exrule", "rdate", "rrule"]
                         if any(key in recurrance_properties for key in i.contents):
                             o.expand_rrule(start, end)
@@ -1690,9 +1690,9 @@ class CalendarObjectResource(DAVObject):
         # TODO remove or downgrade to debug
         logging.info(
             "Expanding event %s @ %s (rule: %s)",
-            self.instance.vevent.summary.value,
-            self.instance.vevent.dtstart.value.isoformat(),
-            self.instance.vevent.rrule.value,
+            self.icalendar_object().get('SUMMARY', ''),
+            self.icalendar_object().get('DTSTART', '').dt.strftime("%F %H:%M:%S"),
+            self.icalendar_object()['RRULE'],
         )
         recurrings = recurring_ical_events.of(self.icalendar_instance).between(
             start, end
