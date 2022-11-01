@@ -138,6 +138,23 @@ RRULE:FREQ=YEARLY
 END:VEVENT
 END:VCALENDAR"""
 
+todo6 = """
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Example Corp.//CalDAV Client//EN
+BEGIN:VTODO
+UID:19920901T130000Z-123408@host.com
+DTSTAMP:19920901T130000Z
+DTSTART:19920415T133000Z
+DUE:19920516T045959Z
+SUMMARY:Yearly Income Tax Preparation
+RRULE:FREQ=YEARLY
+CLASS:CONFIDENTIAL
+CATEGORIES:FAMILY,FINANCE
+PRIORITY:1
+END:VTODO
+END:VCALENDAR"""
+
 def MockedDAVResponse(text):
     """
     For unit testing - a mocked DAVResponse with some specific content
@@ -167,6 +184,7 @@ class TestExpandRRule:
         cal_url = "http://me:hunter2@calendar.example:80/"
         client = DAVClient(url=cal_url)
         self.yearly = Event(client, data=evr)
+        self.todo = Todo(client, data=todo6)
         
     def testZero(self):
         ## evr has rrule yearly and dtstart DTSTART 1997-11-02
@@ -186,6 +204,13 @@ class TestExpandRRule:
         assert len(self.yearly.icalendar_instance.subcomponents) == 3
         data1 = self.yearly.icalendar_instance.subcomponents[0].to_ical()
         data2 = self.yearly.icalendar_instance.subcomponents[1].to_ical()
+        assert data1.replace(b'199711', b'199811') == data2
+
+    def testThreeTodo(self):
+        self.todo.expand_rrule(start=datetime(1996,10,10), end=datetime(1999,12,12))
+        assert len(self.todo.icalendar_instance.subcomponents) == 3
+        data1 = self.todo.icalendar_instance.subcomponents[0].to_ical()
+        data2 = self.todo.icalendar_instance.subcomponents[1].to_ical()
         assert data1.replace(b'199711', b'199811') == data2
 
     def testSplit(self):
