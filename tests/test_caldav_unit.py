@@ -180,6 +180,14 @@ class TestExpandRRule:
         assert not 'RRULE' in self.yearly.icalendar_object()
         assert 'RECURRENCE-ID' in self.yearly.icalendar_object()
 
+    def testThree(self):
+        self.yearly.expand_rrule(start=datetime(1996,10,10), end=datetime(1999,12,12))
+        assert len(self.yearly.icalendar_instance.subcomponents) == 3
+        data1 = self.yearly.icalendar_instance.subcomponents[0].to_ical()
+        data2 = self.yearly.icalendar_instance.subcomponents[1].to_ical()
+        assert data1.replace(b'199711', b'199811') == data2
+        
+        
 class TestCalDAV:
     """
     Test class for "pure" unit tests (small internal tests, testing that
