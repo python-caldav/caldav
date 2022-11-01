@@ -876,27 +876,17 @@ class Calendar(DAVObject):
         ## returned.
         objects = self.search(root, comp_class, split_expanded=False)
         if expand:
-            # TODO refactor: since we are not split-expanding here, a "map" approach should suffice
-            expanded_objects = []
             for o in objects:
-                has_expanded = False
                 if not o.data:
-                    expanded_objects.append(o)
                     continue
                 components = o.vobject_instance.components()
                 for i in components:
                     if i.name == "VEVENT":
                         recurrance_properties = ["exdate", "exrule", "rdate", "rrule"]
                         if any(key in recurrance_properties for key in i.contents):
-                            expanded_event = o.expand_rrule(start, end)
-                            expanded_objects.append(expanded_event)
-                            has_expanded = True
-                if not has_expanded:
-                    expanded_objects.append(o)
-        else:
-            expanded_objects = objects
+                            o.expand_rrule(start, end)
 
-        return expanded_objects
+        return objects
 
     def _request_report_build_resultlist(
         self, xml, comp_class=None, props=None, no_calendardata=False
