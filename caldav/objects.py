@@ -1036,11 +1036,8 @@ class Calendar(DAVObject):
                 # TODO get from xml
                 raise NotImplementedError("Getting start from xml is not supported")
 
-            # TODO refactor
             for o in objects:
-                has_expanded = False
                 if not o.data:
-                    expanded_objects.append(o)
                     continue
                 components = o.vobject_instance.components()
                 for i in components:
@@ -1690,6 +1687,7 @@ class CalendarObjectResource(DAVObject):
         """
         import recurring_ical_events
 
+        # TODO remove or downgrade to debug
         logging.info(
             "Expanding event %s @ %s (rule: %s)",
             self.instance.vevent.summary.value,
