@@ -122,6 +122,21 @@ END:VJOURNAL
 END:VCALENDAR
 """
 
+# example from http://www.rfc-editor.org/rfc/rfc5545.txt
+evr = """BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Example Corp.//CalDAV Client//EN
+BEGIN:VEVENT
+UID:19970901T130000Z-123403@example.com
+DTSTAMP:19970901T130000Z
+DTSTART;VALUE=DATE:19971102
+SUMMARY:Our Blissful Anniversary
+TRANSP:TRANSPARENT
+CLASS:CONFIDENTIAL
+CATEGORIES:ANNIVERSARY,PERSONAL,SPECIAL OCCASION
+RRULE:FREQ=YEARLY
+END:VEVENT
+END:VCALENDAR"""
 
 def MockedDAVResponse(text):
     """
@@ -144,6 +159,26 @@ def MockedDAVClient(xml_returned):
     client.request = mock.MagicMock(return_value=MockedDAVResponse(xml_returned))
     return client
 
+class TestExpandRRule:
+    """
+    Tests the expand_rrule method
+    """
+    def setup(self):
+        cal_url = "http://me:hunter2@calendar.example:80/"
+        client = DAVClient(url=cal_url)
+        self.yearly = Event(client, data=evr)
+        
+    def testZero(self):
+        ## evr has rrule yearly and dtstart DTSTART 1997-11-02
+        ## This should cause 0 recurrences:
+        self.yearly.expand_rrule(start=datetime(1998,4,4), end=datetime(1998,10,10))
+        assert len(self.yearly.icalendar_instance.subcomponents) == 0
+
+    def testOne(self):
+        self.yearly.expand_rrule(start=datetime(1998,10,10), end=datetime(1998,12,12))
+        assert len(self.yearly.icalendar_instance.subcomponents) == 1
+        assert not 'RRULE' in self.yearly.icalendar_object()
+        assert 'RECURRENCE-ID' in self.yearly.icalendar_object()
 
 class TestCalDAV:
     """
