@@ -193,6 +193,7 @@ class TestExpandRRule:
         events = self.yearly.split_expanded()
         assert len(events) == 3
         assert len(events[0].icalendar_instance.subcomponents) == 1
+        assert events[1].icalendar_object()['UID'] == '19970901T130000Z-123403@example.com'
 
         
 class TestCalDAV:
