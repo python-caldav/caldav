@@ -1687,13 +1687,6 @@ class CalendarObjectResource(DAVObject):
         """
         import recurring_ical_events
 
-        # TODO remove or downgrade to debug
-        logging.info(
-            "Expanding event %s @ %s (rule: %s)",
-            self.icalendar_object().get('SUMMARY', ''),
-            self.icalendar_object().get('DTSTART', '').dt.strftime("%F %H:%M:%S"),
-            self.icalendar_object()['RRULE'],
-        )
         recurrings = recurring_ical_events.of(self.icalendar_instance).between(
             start, end
         )
