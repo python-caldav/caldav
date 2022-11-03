@@ -39,7 +39,6 @@ from caldav.objects import Event
 from caldav.objects import FreeBusy
 from caldav.objects import Principal
 from caldav.objects import Todo
-from nose.plugins.skip import SkipTest
 from requests.packages import urllib3
 from six import PY3
 
@@ -398,7 +397,7 @@ class TestScheduling(object):
         ## Look through inboxes of principals[0] and principals[1] so we can sort
         ## out existing stuff from new stuff
         if len(self.principals) < 2:
-            raise SkipTest("need 2 principals to do the invite and respond test")
+            pytest.skip("need 2 principals to do the invite and respond test")
         inbox_items = set(
             [x.url for x in self.principals[0].schedule_inbox().get_items()]
         )
@@ -483,7 +482,7 @@ class RepeatedFunctionalTestsBaseClass(object):
     def skip_on_compatibility_flag(self, flag):
         if self.check_compatibility_flag(flag):
             msg = compatibility_issues.incompatibility_description[flag]
-            raise SkipTest("Test skipped due to server incompatibility issue: " + msg)
+            pytest.skip("Test skipped due to server incompatibility issue: " + msg)
 
     def setup(self):
         logging.debug("############## test setup")
@@ -661,7 +660,7 @@ class RepeatedFunctionalTestsBaseClass(object):
 
     def testProxy(self):
         if self.caldav.url.scheme == "https":
-            raise SkipTest(
+            pytest.skip(
                 "Skipping %s.testProxy as the TinyHTTPProxy "
                 "implementation doesn't support https"
             )
@@ -673,7 +672,7 @@ class RepeatedFunctionalTestsBaseClass(object):
                 server_address, ProxyHandler, logging.getLogger("TinyHTTPProxy")
             )
         except:
-            raise SkipTest("Unable to set up proxy server")
+            pytest.skip("Unable to set up proxy server")
 
         threadobj = threading.Thread(target=proxy_httpd.serve_forever)
         try:
@@ -2014,7 +2013,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         still be backward compatible.
         """
         if "backwards_compatibility_url" not in self.server_params:
-            raise SkipTest(
+            pytest.skip(
                 "backward compatibility check skipped - needs an URL like it was supposed to be in 2013"
             )
         caldav = DAVClient(self.server_params["backwards_compatibility_url"])
@@ -2136,7 +2135,7 @@ class TestLocalRadicale(RepeatedFunctionalTestsBaseClass):
 
     def setup(self):
         if not test_radicale:
-            raise SkipTest("Skipping Radicale test due to configuration")
+            pytest.skip("Skipping Radicale test due to configuration")
         self.serverdir = tempfile.TemporaryDirectory()
         self.serverdir.__enter__()
         self.configuration = radicale.config.load("")
@@ -2190,7 +2189,7 @@ class TestLocalXandikos(RepeatedFunctionalTestsBaseClass):
 
     def setup(self):
         if not test_xandikos:
-            raise SkipTest("Skipping Xadikos test due to configuration")
+            pytest.skip("Skipping Xadikos test due to configuration")
 
         ## TODO: https://github.com/jelmer/xandikos/issues/131#issuecomment-1054805270 suggests a simpler way to launch the xandikos server
 
