@@ -28,18 +28,11 @@ from types import FrameType
 
 from caldav.lib.python_utilities import to_local
 from caldav.lib.python_utilities import to_wire
-from six import PY3
 
-if PY3:
-    from urllib import parse
-    from urllib.parse import urlparse, urlunparse
-    from http.server import BaseHTTPRequestHandler, HTTPServer
-    from socketserver import ThreadingMixIn
-else:
-    from urlparse import urlparse as parse
-    from urlparse import urlparse, urlunparse
-    from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer
-    from SocketServer import ThreadingMixIn
+from urllib import parse
+from urllib.parse import urlparse, urlunparse
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from socketserver import ThreadingMixIn
 
 __version__ = "0.3.1"
 

@@ -35,15 +35,10 @@ from caldav.objects import FreeBusy
 from caldav.objects import Journal
 from caldav.objects import Principal
 from caldav.objects import Todo
-from six import PY3
 
 
-if PY3:
-    from urllib.parse import urlparse
-    from unittest import mock
-else:
-    from urlparse import urlparse
-    import mock
+from urllib.parse import urlparse
+from unittest import mock
 
 ## Some example icalendar data partly copied from test_caldav.py
 ev1 = """BEGIN:VCALENDAR
@@ -263,14 +258,11 @@ class TestCalDAV:
         assert response.status == 200
         assert response.tree is None
 
-        if PY3:
-            response = client.put(
-                "/foo/møøh/bar".encode("utf-8"),
-                "bringebærsyltetøy 北京 пиво".encode("utf-8"),
-                {},
-            )
-        else:
-            response = client.put(u"/foo/møøh/bar", "bringebærsyltetøy 北京 пиво", {})  # fmt: skip
+        response = client.put(
+            "/foo/møøh/bar".encode("utf-8"),
+            "bringebærsyltetøy 北京 пиво".encode("utf-8"),
+            {},
+        )
         assert response.status == 200
         assert response.tree is None
 

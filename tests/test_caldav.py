@@ -41,7 +41,6 @@ from caldav.objects import FreeBusy
 from caldav.objects import Principal
 from caldav.objects import Todo
 from requests.packages import urllib3
-from six import PY3
 
 from . import compatibility_issues
 from .conf import caldav_servers
@@ -70,10 +69,7 @@ if test_radicale:
     import radicale.server
     import socket
 
-if PY3:
-    from urllib.parse import urlparse
-else:
-    from urlparse import urlparse
+from urllib.parse import urlparse
 
 log = logging.getLogger("caldav")
 

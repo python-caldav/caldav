@@ -2,29 +2,15 @@
 # -*- encoding: utf-8 -*-
 from caldav.lib.python_utilities import to_normal_str
 from caldav.lib.python_utilities import to_unicode
-from six import PY3
 
-if PY3:
-    from urllib.parse import (
-        ParseResult,
-        SplitResult,
-        urlparse,
-        unquote,
-        quote,
-        urlunparse,
-    )
-else:
-    from urlparse import ParseResult, SplitResult
-    from urlparse import urlparse, urlunparse
-    from urllib import unquote, quote
-
-
-def uc2utf8(input):
-    # argh!  this feels wrong, but seems to be needed.
-    if not PY3 and type(input) == unicode:
-        return input.encode("utf-8")
-    else:
-        return input
+from urllib.parse import (
+    ParseResult,
+    SplitResult,
+    urlparse,
+    unquote,
+    quote,
+    urlunparse,
+)
 
 
 class URL:
@@ -195,12 +181,12 @@ class URL:
             raise ValueError("%s can't be joined with %s" % (self, path))
 
         if path.path[0] == "/":
-            ret_path = uc2utf8(path.path)
+            ret_path = path.path
         else:
             sep = "/"
             if self.path.endswith("/"):
                 sep = ""
-            ret_path = "%s%s%s" % (self.path, sep, uc2utf8(path.path))
+            ret_path = "%s%s%s" % (self.path, sep, path.path)
         return URL(
             ParseResult(
                 self.scheme or path.scheme,

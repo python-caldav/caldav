@@ -4,7 +4,6 @@ import logging
 import re
 
 import requests
-import six
 from caldav.elements import cdav
 from caldav.elements import dav
 from caldav.elements import ical
@@ -22,10 +21,7 @@ from caldav.objects import ScheduleOutbox
 from caldav.requests import HTTPBearerAuth
 from lxml import etree
 
-if six.PY3:
-    from urllib.parse import unquote
-else:
-    from urlparse import unquote
+from urllib.parse import unquote
 
 
 class DAVResponse:
