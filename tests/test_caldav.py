@@ -373,7 +373,7 @@ class TestScheduling(object):
             pass
         return self.principals[i].make_calendar(name=calendar_name, cal_id=calendar_id)
 
-    def setup(self):
+    def setup_method(self):
         self.clients = []
         self.principals = []
         for foo in rfc6638_users:
@@ -381,7 +381,7 @@ class TestScheduling(object):
             self.clients.append(c)
             self.principals.append(c.principal())
 
-    def teardown(self):
+    def teardown_method(self):
         for i in range(0, len(self.principals)):
             calendar_name = "caldav scheduling test %i" % i
             try:
@@ -484,7 +484,7 @@ class RepeatedFunctionalTestsBaseClass(object):
             msg = compatibility_issues.incompatibility_description[flag]
             pytest.skip("Test skipped due to server incompatibility issue: " + msg)
 
-    def setup(self):
+    def setup_method(self):
         logging.debug("############## test setup")
         self.incompatibilities = set()
 
@@ -510,10 +510,10 @@ class RepeatedFunctionalTestsBaseClass(object):
 
         logging.debug(
             "## going to tear down old test calendars, "
-            "in case teardown wasn't properly executed "
+            "in case teardown_method wasn't properly executed "
             "last time tests were run"
         )
-        self._teardown()
+        self._teardown_method()
 
         if self.check_compatibility_flag("object_by_uid_is_broken"):
             import caldav.objects
@@ -524,14 +524,14 @@ class RepeatedFunctionalTestsBaseClass(object):
         logging.debug("############## test setup done")
         logging.debug("##############################")
 
-    def teardown(self):
+    def teardown_method(self):
         logging.debug("############################")
-        logging.debug("############## test teardown")
+        logging.debug("############## test teardown_method")
         logging.debug("############################")
-        self._teardown()
-        logging.debug("############## test teardown done")
+        self._teardown_method()
+        logging.debug("############## test teardown_method done")
 
-    def _teardown(self):
+    def _teardown_method(self):
         if self.check_compatibility_flag("no_mkcalendar"):
             for uid in uids_used:
                 try:
@@ -2133,7 +2133,7 @@ class TestLocalRadicale(RepeatedFunctionalTestsBaseClass):
     Sets up a local Radicale server and runs the functional tests towards it
     """
 
-    def setup(self):
+    def setup_method(self):
         if not test_radicale:
             pytest.skip("Skipping Radicale test due to configuration")
         self.serverdir = tempfile.TemporaryDirectory()
@@ -2168,18 +2168,18 @@ class TestLocalRadicale(RepeatedFunctionalTestsBaseClass):
                 i += 1
                 assert i < 100
         try:
-            RepeatedFunctionalTestsBaseClass.setup(self)
+            RepeatedFunctionalTestsBaseClass.setup_method(self)
         except:
             logging.critical("something bad happened in setup", exc_info=True)
-            self.teardown()
+            self.teardown_method()
 
-    def teardown(self):
+    def teardown_method(self):
         if not test_radicale:
             return
         self.shutdown_socket.close()
         i = 0
         self.serverdir.__exit__(None, None, None)
-        RepeatedFunctionalTestsBaseClass.teardown(self)
+        RepeatedFunctionalTestsBaseClass.teardown_method(self)
 
 
 class TestLocalXandikos(RepeatedFunctionalTestsBaseClass):
@@ -2187,7 +2187,7 @@ class TestLocalXandikos(RepeatedFunctionalTestsBaseClass):
     Sets up a local Xandikos server and runs the functional tests towards it
     """
 
-    def setup(self):
+    def setup_method(self):
         if not test_xandikos:
             pytest.skip("Skipping Xadikos test due to configuration")
 
@@ -2230,9 +2230,9 @@ class TestLocalXandikos(RepeatedFunctionalTestsBaseClass):
             self.server_params["url"] + "sometestuser"
         )
         self.server_params["incompatibilities"] = compatibility_issues.xandikos
-        RepeatedFunctionalTestsBaseClass.setup(self)
+        RepeatedFunctionalTestsBaseClass.setup_method(self)
 
-    def teardown(self):
+    def teardown_method(self):
         if not test_xandikos:
             return
         self.xapp_loop.stop()
@@ -2258,4 +2258,4 @@ class TestLocalXandikos(RepeatedFunctionalTestsBaseClass):
             assert i < 100
 
         self.serverdir.__exit__(None, None, None)
-        RepeatedFunctionalTestsBaseClass.teardown(self)
+        RepeatedFunctionalTestsBaseClass.teardown_method(self)
