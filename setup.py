@@ -33,7 +33,6 @@ if __name__ == "__main__":
         "pytest-coverage",
         "icalendar",
         "coverage",
-        "nose",
         "tzlocal",
         "pytz",
         "xandikos<0.2.4",
