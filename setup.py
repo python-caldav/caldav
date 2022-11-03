@@ -83,7 +83,6 @@ if __name__ == "__main__":
             "vobject",
             "lxml",
             "requests",
-            "six",
             "icalendar",
             "recurring-ical-events>=2.0.0",
         ]
