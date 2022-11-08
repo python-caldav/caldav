@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import re
 import uuid
 from datetime import datetime
 from datetime import timedelta
@@ -98,7 +99,7 @@ class TestVcal(TestCase):
             dtstart=datetime(2032, 10, 10, 10, 10, 10, tzinfo=utc),
             duration=timedelta(hours=5),
         )
-        self.assertTrue(b"DTSTART;VALUE=DATE-TIME:20321010T101010Z" in some_ical0)
+        assert re.search(b"DTSTART(;VALUE=DATE-TIME)?:20321010T101010Z", some_ical0)
         self.assertSameICal(some_ical0, some_ical1, ignore_uid=True)
 
         ## Verify that ical_fragment works as intended
@@ -108,7 +109,7 @@ class TestVcal(TestCase):
             dtstart=datetime(2032, 10, 10, 10, 10, 10, tzinfo=utc),
             duration=timedelta(hours=5),
         )
-        self.assertTrue(b"DTSTART;VALUE=DATE-TIME:20321010T101010Z" in some_ical)
+        assert re.search(b"DTSTART(;VALUE=DATE-TIME)?:20321010T101010Z", some_ical)
 
         some_ical = create_and_validate(
             summary="gobledok",
@@ -116,7 +117,7 @@ class TestVcal(TestCase):
             dtstart=datetime(2032, 10, 10, 10, 10, 10, tzinfo=utc),
             duration=timedelta(hours=5),
         )
-        self.assertTrue(b"DTSTART;VALUE=DATE-TIME:20321010T101010Z" in some_ical)
+        assert re.search(b"DTSTART(;VALUE=DATE-TIME)?:20321010T101010Z", some_ical)
 
         some_ical = create_and_validate(
             summary=b"gobledok",
@@ -124,4 +125,4 @@ class TestVcal(TestCase):
             dtstart=datetime(2032, 10, 10, 10, 10, 10, tzinfo=utc),
             duration=timedelta(hours=5),
         )
-        self.assertTrue(b"DTSTART;VALUE=DATE-TIME:20321010T101010Z" in some_ical)
+        assert re.search(b"DTSTART(;VALUE=DATE-TIME)?:20321010T101010Z", some_ical)
