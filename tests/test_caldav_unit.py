@@ -214,7 +214,9 @@ class TestExpandRRule:
         assert data1.replace(b"199711", b"199811") == data2
 
     ## TODO: unskip this one
-    @pytest.mark.skip("waiting for https://github.com/niccokunzmann/python-recurring-ical-events/issues/97")
+    @pytest.mark.skip(
+        "waiting for https://github.com/niccokunzmann/python-recurring-ical-events/issues/97"
+    )
     def testThreeTodo(self):
         self.todo.expand_rrule(start=datetime(1996, 10, 10), end=datetime(1999, 12, 12))
         assert len(self.todo.icalendar_instance.subcomponents) == 3
