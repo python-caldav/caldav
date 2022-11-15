@@ -799,7 +799,7 @@ class Calendar(DAVObject):
         return rv
 
     def build_date_search_query(
-        self, start, end=None, compfilter="VEVENT", expand="maybe"
+        self, start, end=None, compfilter="VEVENT", expand=False
     ):
         """
         Split out from the date_search-method below.  The idea is that
@@ -807,11 +807,6 @@ class Calendar(DAVObject):
         by category etc.  To be followed up in
         https://github.com/python-caldav/caldav/issues/16
         """
-        ## for backward compatibility - expand should be false
-        ## in an open-ended date search, otherwise true
-        if expand == "maybe":
-            expand = end
-
         # Some servers will raise an error if we send the expand flag
         # but don't set any end-date - expand doesn't make much sense
         # if we have one recurring event describing an indefinite
@@ -857,6 +852,11 @@ class Calendar(DAVObject):
          * [CalendarObjectResource(), ...]
 
         """
+        ## for backward compatibility - expand should be false
+        ## in an open-ended date search, otherwise true
+        if expand == "maybe":
+            expand = end
+
         # build the query
         root, comp_class = self.build_date_search_query(start, end, compfilter, expand)
 
@@ -1687,13 +1687,6 @@ class CalendarObjectResource(DAVObject):
         """
         import recurring_ical_events
 
-        # TODO remove or downgrade to debug
-        logging.info(
-            "Expanding event %s @ %s (rule: %s)",
-            self.icalendar_object().get('SUMMARY', ''),
-            self.icalendar_object().get('DTSTART', '').dt.strftime("%F %H:%M:%S"),
-            self.icalendar_object()['RRULE'],
-        )
         recurrings = recurring_ical_events.of(self.icalendar_instance).between(
             start, end
         )

@@ -1491,7 +1491,16 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert len(todos) == foo
 
         ## verify that "expand" works
-        assert len([x for x in todos if "DTSTART:20020415T1330" in x.data]) == 1
+        ## TODO: the conditions can be removed once
+        ## https://github.com/niccokunzmann/python-recurring-ical-events/issues/97
+        ## has been properly fixed
+        if (
+            not self.check_compatibility_flag("no_recurring_expandation")
+            and not self.check_compatibility_flag("no_expand")
+            and not self.check_compatibility_flag("no_recurring_todo_expand")
+        ):
+            assert len([x for x in todos if "DTSTART:20020415T1330" in x.data]) == 1
+            
         ## exercise the default for expand (maybe -> False for open-ended search)
         todos = c.date_search(start=datetime(2025, 4, 14), compfilter="VTODO")
 
