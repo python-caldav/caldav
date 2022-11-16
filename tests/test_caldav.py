@@ -1456,11 +1456,12 @@ class RepeatedFunctionalTestsBaseClass(object):
         # t5 has dtstart and due set prior to the search window
         # t6 has dtstart and due set prior to the search window, but is yearly recurring.
         # What will a date search yield?
+        noexpand = self.check_compatibility_flag("no_expand")
         todos = c.date_search(
             start=datetime(1997, 4, 14),
             end=datetime(2015, 5, 14),
             compfilter="VTODO",
-            expand=True,
+            expand=not noexpand,
         )
         # The RFCs are pretty clear on this.  rfc5545 states:
 
