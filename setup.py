@@ -35,7 +35,7 @@ if __name__ == "__main__":
         "coverage",
         "tzlocal",
         "pytz",
-        "xandikos<0.2.4",
+        "xandikos",
         "radicale",
     ]
 
@@ -71,7 +71,7 @@ if __name__ == "__main__":
             "requests",
             "six",
             "icalendar",
-            "recurring-ical-events",
+            "recurring-ical-events>=1.1.0b",
         ]
         + extra_packages,
         tests_require=test_packages + extra_test_packages,

@@ -1495,11 +1495,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         ## TODO: the conditions can be removed once
         ## https://github.com/niccokunzmann/python-recurring-ical-events/issues/97
         ## has been properly fixed
-        if (
-            not self.check_compatibility_flag("no_recurring_expandation")
-            and not self.check_compatibility_flag("no_expand")
-            and not self.check_compatibility_flag("no_recurring_todo_expand")
-        ):
+        if not self.check_compatibility_flag("no_expand"):
             assert len([x for x in todos if "DTSTART:20020415T1330" in x.data]) == 1
 
         ## exercise the default for expand (maybe -> False for open-ended search)
@@ -1976,8 +1972,6 @@ class RepeatedFunctionalTestsBaseClass(object):
         ## According to https://tools.ietf.org/html/rfc4791#section-7.8.3, the
         ## resultset should be one vcalendar with two events.
         assert len(r) == 1
-
-        ## not all servers supports expandation
         assert "RRULE" not in r[0].data
         assert r[0].data.count("END:VEVENT") == 2
 
