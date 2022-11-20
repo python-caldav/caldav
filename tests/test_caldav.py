@@ -1492,10 +1492,9 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert len(todos) == foo
 
         ## verify that "expand" works
-        ## TODO: the conditions can be removed once
-        ## https://github.com/niccokunzmann/python-recurring-ical-events/issues/97
-        ## has been properly fixed
-        if not self.check_compatibility_flag("no_expand"):
+        if (not self.check_compatibility_flag("no_expand")
+            and not self.check_compatibility_flag("no_recurring")
+            and not self.check_compatibility_flag("no_recurring_todo")):
             assert len([x for x in todos if "DTSTART:20020415T1330" in x.data]) == 1
 
         ## exercise the default for expand (maybe -> False for open-ended search)
@@ -2186,9 +2185,10 @@ class TestLocalXandikos(RepeatedFunctionalTestsBaseClass):
         self.serverdir = tempfile.TemporaryDirectory()
         self.serverdir.__enter__()
         ## Most of the stuff below is cargo-cult-copied from xandikos.web.main
-        ## (maybe it would be better to just call main() directly
-        ## TODO - we should do something with the access logs from Xandikos
-        self.backend = XandikosBackend(path=self.serverdir.name)
+        ## Later jelmer created some API that could be used for this
+        ## Threshold put high due to https://github.com/jelmer/xandikos/issues/235
+        #self.backend = XandikosBackend(path=self.serverdir.name, index_threshold=0, paranoid=True)
+        self.backend = XandikosBackend(path=self.serverdir.name, index_threshold=9999, paranoid=True)
         self.backend._mark_as_principal("/sometestuser/")
         self.backend.create_principal("/sometestuser/", create_defaults=True)
         mainapp = XandikosApp(
