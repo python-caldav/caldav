@@ -200,9 +200,9 @@ class TestExpandRRule:
             start=datetime(1998, 10, 10), end=datetime(1998, 12, 12)
         )
         assert len(self.yearly.icalendar_instance.subcomponents) == 1
-        assert not "RRULE" in self.yearly.icalendar_object()
-        assert "UID" in self.yearly.icalendar_object()
-        assert "RECURRENCE-ID" in self.yearly.icalendar_object()
+        assert not "RRULE" in self.yearly.icalendar_component
+        assert "UID" in self.yearly.icalendar_component
+        assert "RECURRENCE-ID" in self.yearly.icalendar_component
 
     def testThree(self):
         self.yearly.expand_rrule(
@@ -232,7 +232,8 @@ class TestExpandRRule:
         assert len(events) == 3
         assert len(events[0].icalendar_instance.subcomponents) == 1
         assert (
-            events[1].icalendar_object()["UID"] == "19970901T130000Z-123403@example.com"
+            events[1].icalendar_component["UID"]
+            == "19970901T130000Z-123403@example.com"
         )
 
 
@@ -946,6 +947,29 @@ END:VCALENDAR
         lines_now.sort()
         lines_orig.sort()
         assert lines_now == lines_orig
+
+    def testComponent(self):
+        cal_url = "http://me:hunter2@calendar.example:80/"
+        client = DAVClient(url=cal_url)
+        my_event = Event(client, data=ev1)
+        icalcomp = my_event.icalendar_component
+        icalcomp["SUMMARY"] = "yet another summary"
+        assert my_event.vobject_instance.vevent.summary.value == "yet another summary"
+        ## will the string still match the original?
+        lines_now = my_event.data.strip().split("\n")
+        lines_orig = (
+            ev1.replace("Bastille Day Party", "yet another summary").strip().split("\n")
+        )
+        lines_now.sort()
+        lines_orig.sort()
+        assert lines_now == lines_orig
+        ## Can we replace the component?  (One shouldn't do things like this in normal circumstances though ... both because the uid changes and because the component type changes - we're putting a vtodo into an Event class ...)
+        icalendar_component = icalendar.Todo.from_ical(todo).subcomponents[0]
+        my_event.icalendar_component = icalendar_component
+        assert (
+            my_event.vobject_instance.vtodo.summary.value
+            == "Submit Quebec Income Tax Return for 2006"
+        )
 
     def testTodoDuration(self):
         cal_url = "http://me:hunter2@calendar.example:80/"
