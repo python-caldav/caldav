@@ -211,8 +211,8 @@ radicale = [
     'no_scheduling',
 
     'text_search_is_case_insensitive',
-
     'text_search_is_exact_match_only',
+    'combined_search_not_working',
 
     ## extra features not specified in RFC5545
     "calendar_order",

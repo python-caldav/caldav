@@ -1457,11 +1457,19 @@ class RepeatedFunctionalTestsBaseClass(object):
         # t6 has dtstart and due set prior to the search window, but is yearly recurring.
         # What will a date search yield?
         noexpand = self.check_compatibility_flag("no_expand")
-        todos = c.date_search(
+        todos1 = c.date_search(
             start=datetime(1997, 4, 14),
             end=datetime(2015, 5, 14),
             compfilter="VTODO",
             expand=not noexpand,
+        )
+        todos2 = c.search(
+            start=datetime(1997, 4, 14),
+            end=datetime(2015, 5, 14),
+            todo=True,
+            expand=not noexpand,
+            split_expanded=False,
+            include_completed=True,
         )
         # The RFCs are pretty clear on this.  rfc5545 states:
 
@@ -1489,7 +1497,8 @@ class RepeatedFunctionalTestsBaseClass(object):
             foo -= 2  ## t1 and t4 not returned
         elif self.check_compatibility_flag("vtodo_datesearch_notime_task_is_skipped"):
             foo -= 1  ## t4 not returned
-        assert len(todos) == foo
+        assert len(todos1) == foo
+        assert len(todos2) == foo
 
         ## verify that "expand" works
         if (
@@ -1497,19 +1506,28 @@ class RepeatedFunctionalTestsBaseClass(object):
             and not self.check_compatibility_flag("no_recurring")
             and not self.check_compatibility_flag("no_recurring_todo")
         ):
-            assert len([x for x in todos if "DTSTART:20020415T1330" in x.data]) == 1
+            assert len([x for x in todos1 if "DTSTART:20020415T1330" in x.data]) == 1
 
         ## exercise the default for expand (maybe -> False for open-ended search)
-        todos = c.date_search(start=datetime(2025, 4, 14), compfilter="VTODO")
+        todos1 = c.date_search(start=datetime(2025, 4, 14), compfilter="VTODO")
+        todos2 = c.search(
+            start=datetime(2025, 4, 14), todo=True, include_completed=True
+        )
+        todos3 = c.search(start=datetime(2025, 4, 14), todo=True)
 
-        assert isinstance(todos[0], Todo)
+        assert isinstance(todos1[0], Todo)
+        assert isinstance(todos2[0], Todo)
+        if not self.check_compatibility_flag("combined_search_not_working"):
+            assert isinstance(todos3[0], Todo)
 
         ## * t6 should be returned, as it's a yearly task spanning over 2025
         ## * t1 should probably be returned, as it has no due date set and hence
         ## has an infinite duration.
         ## * t4 should probably be returned, as it has no dtstart nor due and
         ##  hence is also considered to span over infinite time
-        urls_found = [x.url for x in todos]
+        urls_found = [x.url for x in todos1]
+        urls_found2 = [x.url for x in todos1]
+        assert urls_found == urls_found2
         if not (
             self.check_compatibility_flag("no_recurring")
             or self.check_compatibility_flag("no_recurring_todo")
@@ -1526,7 +1544,8 @@ class RepeatedFunctionalTestsBaseClass(object):
         ## everything should be popped from urls_found by now
         assert len(urls_found) == 0
 
-        assert len([x for x in todos if "DTSTART:20270415T1330" in x.data]) == 0
+        assert len([x for x in todos1 if "DTSTART:20270415T1330" in x.data]) == 0
+        assert len([x for x in todos2 if "DTSTART:20270415T1330" in x.data]) == 0
 
         # TODO: prod the caldav server implementators about the RFC
         # breakages.
@@ -1882,14 +1901,22 @@ class RepeatedFunctionalTestsBaseClass(object):
             c.date_search(datetime(2006, 7, 13, 17, 00, 00), expand=True)
 
         # .. and search for it.
-        r = c.date_search(
+        r1 = c.date_search(
             datetime(2006, 7, 13, 17, 00, 00),
             datetime(2006, 7, 15, 17, 00, 00),
             expand=False,
         )
+        r2 = c.search(
+            event=True,
+            start=datetime(2006, 7, 13, 17, 00, 00),
+            end=datetime(2006, 7, 15, 17, 00, 00),
+            expand=False,
+        )
 
-        assert e.instance.vevent.uid == r[0].instance.vevent.uid
-        assert len(r) == 1
+        assert e.instance.vevent.uid == r1[0].instance.vevent.uid
+        assert e.instance.vevent.uid == r2[0].instance.vevent.uid
+        assert len(r1) == 1
+        assert len(r2) == 1
 
         ## The rest of the test code here depends on us changing an event.
         ## Apparently, in google calendar, events are immutable.
@@ -1903,18 +1930,25 @@ class RepeatedFunctionalTestsBaseClass(object):
         # The timestamp should change.
         e.data = ev2
         e.save()
-        r = c.date_search(
+        r1 = c.date_search(
             datetime(2006, 7, 13, 17, 00, 00),
             datetime(2006, 7, 15, 17, 00, 00),
             expand=False,
         )
-        assert len(r) == 0
-        r = c.date_search(
+        r2 = c.search(
+            event=True,
+            start=datetime(2006, 7, 13, 17, 00, 00),
+            end=datetime(2006, 7, 15, 17, 00, 00),
+            expand=False,
+        )
+        assert len(r1) == 0
+        assert len(r2) == 0
+        r1 = c.date_search(
             datetime(2007, 7, 13, 17, 00, 00),
             datetime(2007, 7, 15, 17, 00, 00),
             expand=False,
         )
-        assert len(r) == 1
+        assert len(r1) == 1
 
         # date search without closing date should also find it
         r = c.date_search(datetime(2007, 7, 13, 17, 00, 00), expand=False)
@@ -1942,39 +1976,66 @@ class RepeatedFunctionalTestsBaseClass(object):
         # evr is a yearly event starting at 1997-02-11
         e = c.save_event(evr)
 
-        ## Without "expand", we should not find it when searching over 2008 ...
-        ## or ... should we? TODO
+        ## Without "expand", we should still find it when searching over 2008 ...
         r = c.date_search(
             datetime(2008, 11, 1, 17, 00, 00),
             datetime(2008, 11, 3, 17, 00, 00),
             expand=False,
         )
-        # if not self.check_compatibility_flag('no_mkcalendar'):
-        # assert len(r) == 0
+        r2 = c.search(
+            event=True,
+            start=datetime(2008, 11, 1, 17, 00, 00),
+            end=datetime(2008, 11, 3, 17, 00, 00),
+            expand=False,
+        )
+        assert len(r) == 1
+        assert len(r2) == 1
 
         ## With expand=True, we should find one occurrence
-        r = c.date_search(
+        r1 = c.date_search(
             datetime(2008, 11, 1, 17, 00, 00),
             datetime(2008, 11, 3, 17, 00, 00),
             expand=True,
         )
-        assert len(r) == 1
-        assert r[0].data.count("END:VEVENT") == 1
+        r2 = c.search(
+            event=True,
+            start=datetime(2008, 11, 1, 17, 00, 00),
+            end=datetime(2008, 11, 3, 17, 00, 00),
+            expand=True,
+        )
+        assert len(r1) == 1
+        assert len(r2) == 1
+        assert r1[0].data.count("END:VEVENT") == 1
+        assert r2[0].data.count("END:VEVENT") == 1
         ## due to expandation, the DTSTART should be in 2008
-        assert r[0].data.count("DTSTART;VALUE=DATE:2008") == 1
+        assert r1[0].data.count("DTSTART;VALUE=DATE:2008") == 1
+        assert r2[0].data.count("DTSTART;VALUE=DATE:2008") == 1
 
         ## With expand=True and searching over two recurrences ...
-        r = c.date_search(
+        r1 = c.date_search(
             datetime(2008, 11, 1, 17, 00, 00),
             datetime(2009, 11, 3, 17, 00, 00),
+            expand=True,
+        )
+        r2 = c.search(
+            event=True,
+            start=datetime(2008, 11, 1, 17, 00, 00),
+            end=datetime(2009, 11, 3, 17, 00, 00),
             expand=True,
         )
 
         ## According to https://tools.ietf.org/html/rfc4791#section-7.8.3, the
         ## resultset should be one vcalendar with two events.
-        assert len(r) == 1
-        assert "RRULE" not in r[0].data
-        assert r[0].data.count("END:VEVENT") == 2
+        assert len(r1) == 1
+        assert "RRULE" not in r1[0].data
+        assert r1[0].data.count("END:VEVENT") == 2
+        ## However, the new search method will by default split it into
+        ## two events
+        assert len(r2) == 2
+        assert "RRULE" not in r2[0].data
+        assert "RRULE" not in r2[1].data
+        assert r2[0].data.count("END:VEVENT") == 1
+        assert r2[1].data.count("END:VEVENT") == 1
 
         # The recurring events should not be expanded when using the
         # events() method
