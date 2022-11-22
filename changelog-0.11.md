@@ -10,7 +10,7 @@ v0.10 and v0.11 does introduce some "bugfixes" and refactorings which are suppos
 
 * Daniele Ricci has made support for client-side expanding, intended for the calendar servers that supports recurrences but not server-side expanding.
 * For expanded recurrences, the `search`-method will (by default) deliver each recurrence as a separate object (i.e. caldav.Event).  **This is slightly backward incompatible with v0.10**.
-* Now `obj.data` will always return an ordinary string with ordinary line breaks, while `obj.wire_data` will always return a byte string with CRLN line endings.  **This may break thinsg if the client expects a binary return, or depends on carriage returns in the output**.  While the return type of `obj.data` has been slightly unpredictable, it may still have been deterministic dependent on usage pattern - so the caller may have gotten some expectations which may now be broken.
+* Now `obj.data` will always return an ordinary string with ordinary line breaks, while `obj.wire_data` will always return a byte string with CRLN line endings.  **This may break things if the client expects a binary return, or depends on carriage returns in the output**.  While the return type of `obj.data` has been slightly unpredictable, it may still have been deterministic dependent on usage pattern - so the caller may have gotten some expectations which may now be broken.
 * Bugfixes, some of the new code in v0.10 didn't handle icalendar data containing a timezone.  Some other minor bugfixes.
 
 ## Client-side expanding, and splitting of recurrence sets
