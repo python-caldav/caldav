@@ -1,20 +1,21 @@
 # Changelog v0.10 -> v0.11
 
+Version 0.10 and below are considered to be "end of life".  There will not be a maintenance branch for v0.10.
+
 ## Warning
 
-v0.10 and v0.11 does introduce some "bugfixes" and refactorings which are supposed to be harmless and which haven't caused any breakages in tests - but I cannot vouch for that it will not have unintended side effects in your environment.  If you're using the caldav library for production-critical tasks, you may want to hang on for a while before upgrading, or wait for v0.11.1.
+v0.10 and v0.11 does introduce some "bugfixes" and refactorings which are supposed to be harmless and which haven't caused any breakages in tests - but I cannot vouch for that it will not have unintended side effects in your environment.  If you're using the caldav library for production-critical tasks, you may want to hang on for a while before upgrading, or wait for v0.11.1.  Version 0.11 contains minor changes that may break backward compatibility (according to the SemVer specification backward incompatible changes are allowed when doing 0.x-releases.  Anyway, according to my knowledge this is the first time a release contained things breaking backward-compatibility.  The return from the search method has changed a bit, I think I can do this because v0.10 hasn't been out for long, hence most likely most users will be using `calendar.date_search()` rather than `calendar.search()` for doing timerange searches, and because the change is relatively harmless and unlikely to break things.  The return from the data property is now enforced to be a normal string with unix linebreaks, this is more likely to cause problems, but the previous behaviour was unpredictable and would anyway sooner or later cause problems for people depending on the return type to be a binary or being with carriage returns).
 
 ## Summary
 
-* Daniele Ricci has made support for client-side expanding.  Some calendar servers support recurrences and searching for recurrences, but does not support server-side expanding, the fix is mostly intended for those cases.
-* When doing date searches with expand, rather than delivering a list of `caldav.Event` objects, the library would yield one `caldav.Event` with "subcomponents" in the icalendar data.  This may be a bit confusing and causing extra work when using the library.  A new method has been added for splitting one Event with subcomponents into several Events.
-* The `search`-method will now by default use the method above and split an expanded event with subcomponents into multiple Event objects.  **This is slightly backward incompatible with v0.10**.  (According to the SemVer specification backward incompatible changes are allowed when doing 0.x-releases.  Anyway, according to my knowledge this is the first time a release contained things breaking backward-compatibility.  The rationale is that v0.10 hasn't been out for long, hence most likely most users will be using `calendar.date_search()` rather than `calendar.search()` for doing timerange searches.)
-* **Another possibly breaking change**: Now `obj.data` will always return an ordinary string with ordinary line breaks, while `obj.wire_data` will always return a byte string with CRLN line endings.  While the return type of `obj.data` has been slightly unpredictable, it may still have been deterministic dependent on usage pattern - so the caller may have gotten some expectations which may now be broken.
+* Daniele Ricci has made support for client-side expanding, intended for the calendar servers that supports recurrences but not server-side expanding.
+* For expanded recurrences, the `search`-method will (by default) deliver each recurrence as a separate object (i.e. caldav.Event).  **This is slightly backward incompatible with v0.10**.  
+* Now `obj.data` will always return an ordinary string with ordinary line breaks, while `obj.wire_data` will always return a byte string with CRLN line endings.  **This may break thinsg if the client expects a binary return, or depends on carriage returns in the output**.  While the return type of `obj.data` has been slightly unpredictable, it may still have been deterministic dependent on usage pattern - so the caller may have gotten some expectations which may now be broken.
 * Bugfixes, some of the new code in v0.10 didn't handle icalendar data containing a timezone.  Some other minor bugfixes.
 
 ## Client-side expanding, and splitting of recurrence sets
 
-I will use the word "event" below.  All code also works for todos and journals, but it's mainly events that are relevant to expand.
+I will use the word "event" below.  All code also works for tasks, but it's mainly events that are relevant to expand.
 
 * The CalendarObjectResource class now has a method expand_rrule which will convert it from a recurring event to a recurrence set.
 * There is also a new split_expanded method.  For a recurrence set, it will return a list of Event objects.  For an ordinary event, it will return a list object containing self (and only self).
@@ -24,11 +25,11 @@ I will use the word "event" below.  All code also works for todos and journals, 
 
 ## Other
 
-self._calendar_object() has been made into a public method self.calendar_object() - but it may be deprecated again already in v0.12, ref https://github.com/python-caldav/caldav/issues/233
+CalendarObjectResource._calendar_object() has been made into a public property self.calendar_component.  This may be a very useful helper - event.icalendar_instance is a calendar object which may hold a lot of components, typically it contains only one component, to find the component noe would have to dig through event.icalendar_instance.subcomponents - which may also contain timezone components.
 
 ## Deprecations
 
-* There is a method build_date_search_query which was used internally.  I don't expect anyone is using it, and it will be removed in some future version.
+* There is a method build_date_search_query which was used internally, but unfortunately without the underscore prefix.  I don't expect anyone is using it, and it will be removed in some future version.
 * The date_search method is widely used and won't be removed any time soon - but it's redundant, consider using search instead.  Though, procrastinating dealing with doc and examples ... https://github.com/python-caldav/caldav/issues/233
 * The date_search has a verify_expand attribute (because some Swede thought it was a great idea to throw an assert if the server didn't support expand).  By now it's moot, as we're doing client side expandation instead.  The attribute does nothing, but is kept there for backward compatibility.
 
