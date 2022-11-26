@@ -1618,6 +1618,8 @@ class CalendarObjectResource(DAVObject):
     event, a todo-item, a journal entry, or a free/busy entry
     """
 
+    _ENDPARAM = None
+
     _vobject_instance = None
     _icalendar_instance = None
     _data = None
@@ -2223,6 +2225,40 @@ class CalendarObjectResource(DAVObject):
         doc="icalendar instance of the object",
     )
 
+    def get_duration(self):
+        """According to the RFC, either DURATION or DUE should be set
+        for a task, but never both - implicitly meaning that DURATION
+        is the difference between DTSTART and DUE (personally I
+        believe that's stupid.  If a task takes five minutes to
+        complete - say, fill in some simple form that should be
+        delivered before midnight at new years eve, then it feels
+        natural for me to define "duration" as five minutes, DTSTART
+        to "some days before new years eve" and DUE to 20xx-01-01
+        00:00:00 - but I digress.
+
+        This method will return DURATION if set, otherwise the
+        difference between DUE and DTSTART (if both of them are set).
+
+        Arguably, this logic belongs to the icalendar/vobject layer as
+        it has nothing to do with the caldav protocol.
+
+        TODO: should be fixed for Event class as well (only difference
+        is that DTEND is used rather than DUE) and possibly also for
+        Journal (defaults to one day, probably?)
+        """
+        i = self.icalendar_component
+        return self._get_duration(i)
+
+    def _get_duration(self, i):
+        if "DURATION" in i:
+            return i["DURATION"].dt
+        elif "DTSTART" in i and self._ENDPARAM in i:
+            return i[self._ENDPARAM].dt - i["DTSTART"].dt
+        elif "DTSTART" in i and not isinstance(i[DTSTART], datetime.datetime):
+            return timedelta(days=1)
+        else:
+            return timedelta(0)
+
     ## for backward-compatibility - may be changed to
     ## icalendar_instance in version 1.0
     instance = vobject_instance
@@ -2237,6 +2273,7 @@ class Event(CalendarObjectResource):
     not)
     """
 
+    _ENDPARAM = "DTEND"
     pass
 
 
@@ -2275,6 +2312,8 @@ class Todo(CalendarObjectResource):
     complete one recurrence of a recurrent todo.  Extra logic to
     handle due vs duration.
     """
+
+    _ENDPARAM = "DUE"
 
     def _next(self, ts=None, i=None, dtstart=None, rrule=None, by=None, no_count=True):
         """Special logic to fint the next DTSTART of a recurring
@@ -2563,41 +2602,10 @@ class Todo(CalendarObjectResource):
             self.vobject_instance.vtodo.remove(self.vobject_instance.vtodo.completed)
         self.save()
 
-    def get_duration(self):
-        """According to the RFC, either DURATION or DUE should be set
-        for a task, but never both - implicitly meaning that DURATION
-        is the difference between DTSTART and DUE (personally I
-        believe that's stupid.  If a task takes five minutes to
-        complete - say, fill in some simple form that should be
-        delivered before midnight at new years eve, then it feels
-        natural for me to define "duration" as five minutes, DTSTART
-        to "some days before new years eve" and DUE to 20xx-01-01
-        00:00:00 - but I digress.
-
-        This method will return DURATION if set, otherwise the
-        difference between DUE and DTSTART (if both of them are set).
-
-        Arguably, this logic belongs to the icalendar/vobject layer as
-        it has nothing to do with the caldav protocol.
-
-        TODO: should be fixed for Event class as well (only difference
-        is that DTEND is used rather than DUE) and possibly also for
-        Journal (defaults to one day, probably?)
-        """
-        i = self.icalendar_component
-        return self._get_duration(i)
-
-    def _get_duration(self, i):
-        if "DURATION" in i:
-            return i["DURATION"].dt
-        elif "DTSTART" in i and "DUE" in i:
-            return i["DUE"].dt - i["DTSTART"].dt
-        else:
-            return timedelta(0)
-
+    ## TODO: should be moved up to the base class
     def set_duration(self, duration, movable_attr="DTSTART"):
         """
-        If DTSTART and DUE is already set, one of them should be moved.  Which one?  I believe that for EVENTS, the DTSTART should remain constant and DTEND should be moved, but for a task, I think the due date may be a hard deadline, hence by default we'll move DTSTART.
+        If DTSTART and DUE/DTEND is already set, one of them should be moved.  Which one?  I believe that for EVENTS, the DTSTART should remain constant and DTEND should be moved, but for a task, I think the due date may be a hard deadline, hence by default we'll move DTSTART.
 
         TODO: can this be written in a better/shorter way?
         """
