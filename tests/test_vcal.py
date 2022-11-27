@@ -6,8 +6,10 @@ from datetime import timedelta
 from unittest import TestCase
 
 import icalendar
+import pytest
 import pytz
 import vobject
+from caldav.lib import vcal
 from caldav.lib.python_utilities import to_normal_str
 from caldav.lib.python_utilities import to_wire
 from caldav.lib.vcal import create_ical
@@ -126,3 +128,107 @@ class TestVcal(TestCase):
             duration=timedelta(hours=5),
         )
         assert re.search(b"DTSTART(;VALUE=DATE-TIME)?:20321010T101010Z", some_ical)
+
+    def test_vcal_fixups(self):
+        """
+        There is an obscure function lib.vcal that attempts to fix up
+        known ical standard breaches from various calendar servers.
+        """
+        broken_ical = [
+            ## This first one contains duplicated DTSTAMP in the event data
+            """BEGIN:VCALENDAR
+X-EXPANDED:True
+X-MASTER-DTSTART:20200517T060000Z
+X-MASTER-RRULE:FREQ=YEARLY
+BEGIN:VEVENT
+DTSTAMP:20210205T101751Z
+UID:20200516T060000Z-123401@example.com
+DTSTAMP:20200516T060000Z
+SUMMARY:Do the needful
+DTSTART:20210517T060000Z
+DTEND:20210517T230000Z
+RECURRENCE-ID:20210517T060000Z
+END:VEVENT
+BEGIN:VEVENT
+DTSTAMP:20210205T101751Z
+UID:20200516T060000Z-123401@example.com
+DTSTAMP:20200516T060000Z
+SUMMARY:Do the needful
+DTSTART:20220517T060000Z
+DTEND:20220517T230000Z
+RECURRENCE-ID:20220517T060000Z
+END:VEVENT
+BEGIN:VEVENT
+DTSTAMP:20210205T101751Z
+UID:20200516T060000Z-123401@example.com
+DTSTAMP:20200516T060000Z
+SUMMARY:Do the needful
+DTSTART:20230517T060000Z
+DTEND:20230517T230000Z
+RECURRENCE-ID:20230517T060000Z
+END:VEVENT
+END:VCALENDAR""",  ## Next one contains DTEND and DURATION.
+            """BEGIN:VCALENDAR
+BEGIN:VEVENT
+DTSTAMP:20210205T101751Z
+UID:20200516T060000Z-123401@example.com
+SUMMARY:Do the needful
+DTSTART:20210517T060000Z
+DURATION:PT15M
+DTEND:20210517T230000Z
+END:VEVENT
+END:VCALENDAR""",  ## Same, but real example:
+            """BEGIN:VCALENDAR
+PRODID:Zimbra-Calendar-Provider
+VERSION:2.0
+BEGIN:VTIMEZONE
+TZID:Europe/Brussels
+BEGIN:STANDARD
+DTSTART:16010101T030000
+TZOFFSETTO:+0100
+TZOFFSETFROM:+0200
+RRULE:FREQ=YEARLY;WKST=MO;INTERVAL=1;BYMONTH=10;BYDAY=-1SU
+TZNAME:CET
+END:STANDARD
+BEGIN:DAYLIGHT
+DTSTART:16010101T020000
+TZOFFSETTO:+0200
+TZOFFSETFROM:+0100
+RRULE:FREQ=YEARLY;WKST=MO;INTERVAL=1;BYMONTH=3;BYDAY=-1SU
+TZNAME:CEST
+END:DAYLIGHT
+END:VTIMEZONE
+BEGIN:VEVENT
+UID:e42481ad-aabf-43c1-bbc0-04754373678d
+RRULE:FREQ=WEEKLY;UNTIL=20221222T225959Z;BYDAY=WE
+SUMMARY:Competence Lunch
+DESCRIPTION: *removed*
+ATTENDEE;CN=Tobias Brox;PARTSTAT=TENTATIVE:mailto:tobias@redpill-linpro.com
+PRIORITY:9
+ORGANIZER;CN=Someone:mailto:noreply@redpill-linpro.com
+DTSTART;TZID="Europe/Brussels":20220817T110000
+DTEND;TZID="Europe/Brussels":20220817T113000
+DURATION:PT30M
+STATUS:CONFIRMED
+CLASS:PUBLIC
+TRANSP:OPAQUE
+LAST-MODIFIED:20220916T120601Z
+DTSTAMP:20220906T125002Z
+SEQUENCE:1
+EXDATE;TZID="Europe/Brussels":20221005T110000
+EXDATE;TZID="Europe/Brussels":20221116T110000
+BEGIN:VALARM
+ACTION:DISPLAY
+TRIGGER;RELATED=START:-PT15M
+DESCRIPTION:Reminder
+END:VALARM
+END:VEVENT
+END:VCALENDAR""",
+        ]  ## todo: add more broken ical here
+
+        for ical in broken_ical:
+            ## This should raise error
+            with pytest.raises(vobject.base.ValidateError):
+                vobject.readOne(ical).serialize()
+            ## This should not raise error
+            vobject.readOne(vcal.fix(ical)).serialize()
