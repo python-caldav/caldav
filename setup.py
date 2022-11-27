@@ -1,13 +1,27 @@
 #!/usr/bin/python
 # -*- encoding: utf-8 -*-
+import ast
+import re
 import sys
 
 from setuptools import find_packages
 from setuptools import setup
 
-## ATTENTION! when doing releases, the default debugmode in lib/error.py should be set to PRODUCTION.
-## (TODO: any nicer ways than doing this manually?  Make a "releases" branch, maybe?)
-version = "0.11.0"
+## I believe it's good practice to keep the version number
+## available as package.__version__
+
+## It is defitively good practice not to have to maintain the
+## version number several places.
+
+# However, there seems to be no "best current practice" on how
+## to set up version number in the setup.py file?
+
+## I've copied the following from the icalendar library:
+_version_re = re.compile(r"__version__\s+=\s+(.*)")
+with open("caldav/__init__.py", "rb") as f:
+    version = str(
+        ast.literal_eval(_version_re.search(f.read().decode("utf-8")).group(1))
+    )
 
 if __name__ == "__main__":
     ## For python 2.7 and 3.5 we depend on pytz and tzlocal.  For 3.6 and up, batteries are included.  Same with mock. (But unfortunately the icalendar library only support pytz timezones, so we'll keep pytz around for a bit longer).

@@ -3,17 +3,18 @@
 import logging
 from collections import defaultdict
 
+from caldav import __version__
+
 try:
     import os
 
     ## one of DEBUG_PDB, DEBUG, DEVELOPMENT, PRODUCTION
     debugmode = os.environ["PYTHON_CALDAV_DEBUGMODE"]
 except:
-    ## The default debugmode should be PRODUCTION in official releases,
-    ## and DEVELOPMENT when doing beta testing.
-    ## TODO: find some way to automate this.
-    # debugmode = "DEVELOPMENT"
-    debugmode = "PRODUCTION"
+    if "dev" in __version__:
+        debugmode = "DEVELOPMENT"
+    else:
+        debugmode = "PRODUCTION"
 
 log = logging.getLogger("caldav")
 if debugmode.startswith("DEBUG"):
