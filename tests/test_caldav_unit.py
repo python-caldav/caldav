@@ -23,7 +23,6 @@ from caldav.elements import dav
 from caldav.elements import ical
 from caldav.lib import error
 from caldav.lib import url
-from caldav.lib import vcal
 from caldav.lib.python_utilities import to_normal_str
 from caldav.lib.python_utilities import to_wire
 from caldav.lib.url import URL
@@ -46,7 +45,7 @@ else:
     from urlparse import urlparse
     import mock
 
-## Some example icalendar data copied from test_caldav.py
+## Some example icalendar data partly copied from test_caldav.py
 ev1 = """BEGIN:VCALENDAR
 VERSION:2.0
 PRODID:-//Example Corp.//CalDAV Client//EN
@@ -1156,54 +1155,6 @@ END:VCALENDAR
             pass
         if value is not None:
             raise Exception("This should have crashed")
-
-    def test_vcal_fixups(self):
-        """
-        There is an obscure function lib.vcal that attempts to fix up
-        known ical standard breaches from various calendar servers.
-        """
-        broken_ical = [
-            ## This first one contains duplicated DTSTART in the event data
-            """BEGIN:VCALENDAR
-X-EXPANDED:True
-X-MASTER-DTSTART:20200517T060000Z
-X-MASTER-RRULE:FREQ=YEARLY
-BEGIN:VEVENT
-DTSTAMP:20210205T101751Z
-UID:20200516T060000Z-123401@example.com
-DTSTAMP:20200516T060000Z
-SUMMARY:Do the needful
-DTSTART:20210517T060000Z
-DTEND:20210517T230000Z
-RECURRENCE-ID:20210517T060000Z
-END:VEVENT
-BEGIN:VEVENT
-DTSTAMP:20210205T101751Z
-UID:20200516T060000Z-123401@example.com
-DTSTAMP:20200516T060000Z
-SUMMARY:Do the needful
-DTSTART:20220517T060000Z
-DTEND:20220517T230000Z
-RECURRENCE-ID:20220517T060000Z
-END:VEVENT
-BEGIN:VEVENT
-DTSTAMP:20210205T101751Z
-UID:20200516T060000Z-123401@example.com
-DTSTAMP:20200516T060000Z
-SUMMARY:Do the needful
-DTSTART:20230517T060000Z
-DTEND:20230517T230000Z
-RECURRENCE-ID:20230517T060000Z
-END:VEVENT
-END:VCALENDAR"""
-        ]  ## todo: add more broken ical here
-
-        for ical in broken_ical:
-            ## This should raise error
-            with pytest.raises(vobject.base.ValidateError):
-                vobject.readOne(ical).serialize()
-            ## This should not raise error
-            vobject.readOne(vcal.fix(ical)).serialize()
 
     def test_calendar_comp_class_by_data(self):
         calendar = Calendar()

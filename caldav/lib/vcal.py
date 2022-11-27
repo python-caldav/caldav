@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- encoding: utf-8 -*-
 import datetime
+import logging
 import re
 import uuid
 
@@ -47,12 +48,19 @@ def fix(event):
     white space.  I've decided to remove all trailing spaces, since
     they seem to cause a traceback with vobject and those lines are
     simply ignored by icalendar.
+
+    5) Zimbra can apparently create events with both dtstart, dtend
+    and duration set - which is forbidden according to the RFC.  We
+    should probably verify that the data is consistent.  As for now,
+    we'll just drop DURATION or DTEND (whatever comes last).
     """
+    event = to_normal_str(event)
+    if not event.endswith("\n"):
+        event = event + "\n"
+
     ## TODO: add ^ before COMPLETED and CREATED?
-    ## 1) Add a random time if completed is given as date
-    fixed = re.sub(
-        r"COMPLETED:(\d+)\s", r"COMPLETED:\g<1>T120000Z", to_normal_str(event)
-    )
+    ## 1) Add an arbitrary time if completed is given as date
+    fixed = re.sub(r"COMPLETED:(\d+)\s", r"COMPLETED:\g<1>T120000Z", event)
 
     ## 2) CREATED timestamps prior to epoch does not make sense,
     ## change from year 0001 to epoch.
@@ -62,19 +70,46 @@ def fix(event):
     ## 4) trailing whitespace probably never makes sense
     fixed = re.sub(" *$", "", fixed)
 
-    ## 3 fix duplicated DTSTAMP
+    ## 3 fix duplicated DTSTAMP ... and ...
+    ## 5 prepare to remove DURATION or DTEND/DUE if both DURATION and
+    ## DTEND/DUE is set.
     ## OPTIMIZATION TODO: use list and join rather than concatination
     ## remove duplication of DTSTAMP
     fixed2 = ""
     for line in fixed.strip().split("\n"):
         if line.startswith("BEGIN:V"):
-            cnt = 0
-        if line.startswith("DTSTAMP:"):
-            if not cnt:
-                fixed2 += line + "\n"
-            cnt += 1
-        else:
-            fixed2 += line + "\n"
+            stamped = 0
+            ended = 0
+
+        elif re.search("^(DURATION|DTEND|DUE)[:;]", line):
+            if ended:
+                continue
+            ended += 1
+
+        elif line.startswith("DTSTAMP") and line[7] in (";", ":"):
+            if stamped:
+                continue
+            stamped += 1
+
+        fixed2 += line + "\n"
+
+    if fixed2 != event:
+        logging.error(
+            "Ical data was modified to avoid compatibility issues", exc_info=True
+        )
+        try:
+            import difflib
+
+            logging.error(
+                "\n".join(
+                    difflib.unified_diff(
+                        event.split("\n"), fixed2.split("\n"), lineterm=""
+                    )
+                )
+            )
+        except:
+            logging.error("Original: \n" + event)
+            logging.error("Modified: \n" + fixed2)
 
     return fixed2
 
