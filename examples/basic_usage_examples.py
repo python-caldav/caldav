@@ -72,16 +72,16 @@ my_event = my_new_calendar.save_event(
 ## (this may fail if the server doesn't support expand)
 print("Here is some icalendar data:")
 try:
-    events_fetched = my_new_calendar.date_search(
-        start=datetime(2021, 5, 16), end=datetime(2024, 1, 1), expand=True
+    events_fetched = my_new_calendar.search(
+        start=datetime(2021, 5, 16), end=datetime(2024, 1, 1),event= True, expand=True
     )
     ## Note: obj.data will always return a normal string, with normal line breaks
     ## obj.wire_data will return a byte string with CRLN
     print(events_fetched[0].data)
 except:
     print("Your calendar server does apparently not support expanded search")
-    events_fetched = my_new_calendar.date_search(
-        start=datetime(2020, 5, 16), end=datetime(2024, 1, 1), expand=False
+    events_fetched = my_new_calendar.search(
+        start=datetime(2020, 5, 16), end=datetime(2024, 1, 1),event=True, expand=False
     )
     print(events_fetched[0].data)
 
@@ -158,10 +158,11 @@ print("Here is some more icalendar data:")
 print(todos[0].data)
 
 ## date_search also works on task lists, but one has to be explicit to get them
-todos_found = my_new_tasklist.date_search(
+todos_found = my_new_tasklist.search(
     start=datetime(2021, 1, 1),
     end=datetime(2024, 1, 1),
     compfilter="VTODO",
+    event=True,
     expand=True,
 )
 if not todos_found:

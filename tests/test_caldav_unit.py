@@ -395,7 +395,7 @@ class TestCalDAV:
         calendar = Calendar(
             client, url="/principals/calendar/home@petroski.example.com/963/"
         )
-        results = calendar.date_search(datetime(2021, 2, 1), datetime(2021, 2, 7))
+        results = calendar.search(datetime(2021, 2, 1), datetime(2021, 2, 7), event=True, expand=True)
         assert len(results) == 3
 
     def testCalendar(self):

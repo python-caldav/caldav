@@ -1444,8 +1444,8 @@ class RepeatedFunctionalTestsBaseClass(object):
         todos = c.todos()
         assert len(todos) == 6
 
-        notodos = c.date_search(  # default compfilter is events
-            start=datetime(1997, 4, 14), end=datetime(2015, 5, 14), expand=False
+        notodos = c.search(  # default compfilter is events
+            start=datetime(1997, 4, 14), end=datetime(2015, 5, 14),event=True, expand=False
         )
         assert not notodos
 
@@ -1457,10 +1457,11 @@ class RepeatedFunctionalTestsBaseClass(object):
         # t6 has dtstart and due set prior to the search window, but is yearly recurring.
         # What will a date search yield?
         noexpand = self.check_compatibility_flag("no_expand")
-        todos1 = c.date_search(
+        todos1 = c.search(
             start=datetime(1997, 4, 14),
             end=datetime(2015, 5, 14),
             compfilter="VTODO",
+            event=True,
             expand=not noexpand,
         )
         todos2 = c.search(
@@ -1591,9 +1592,9 @@ class RepeatedFunctionalTestsBaseClass(object):
 
         # date search should not include completed events ... hum.
         # TODO, fixme.
-        # todos = c.date_search(
+        # todos = c.search(
         #     start=datetime(1990, 4, 14), end=datetime(2015,5,14),
-        #     compfilter='VTODO', hide_completed_todos=True)
+        #     compfilter='VTODO', hide_completed_todos=True,event=True, expand=True)
         # assert len(todos) == 1
 
     def testTodoRecurringCompleteSafe(self):
@@ -1898,12 +1899,13 @@ class RepeatedFunctionalTestsBaseClass(object):
         ## https://github.com/python-caldav/caldav/issues/93) -
         ## expand=False and no end date given is no-no
         with pytest.raises(error.DAVError):
-            c.date_search(datetime(2006, 7, 13, 17, 00, 00), expand=True)
+            c.search(datetime(2006, 7, 13, 17, 00, 00),event=True, expand=True)
 
         # .. and search for it.
-        r1 = c.date_search(
+        r1 = c.search(
             datetime(2006, 7, 13, 17, 00, 00),
             datetime(2006, 7, 15, 17, 00, 00),
+            event=True,
             expand=False,
         )
         r2 = c.search(
@@ -1930,9 +1932,10 @@ class RepeatedFunctionalTestsBaseClass(object):
         # The timestamp should change.
         e.data = ev2
         e.save()
-        r1 = c.date_search(
+        r1 = c.search(
             datetime(2006, 7, 13, 17, 00, 00),
             datetime(2006, 7, 15, 17, 00, 00),
+            event=True,
             expand=False,
         )
         r2 = c.search(
@@ -1943,15 +1946,16 @@ class RepeatedFunctionalTestsBaseClass(object):
         )
         assert len(r1) == 0
         assert len(r2) == 0
-        r1 = c.date_search(
+        r1 = c.search(
             datetime(2007, 7, 13, 17, 00, 00),
             datetime(2007, 7, 15, 17, 00, 00),
+            event=True,
             expand=False,
         )
         assert len(r1) == 1
 
         # date search without closing date should also find it
-        r = c.date_search(datetime(2007, 7, 13, 17, 00, 00), expand=False)
+        r = c.search(datetime(2007, 7, 13, 17, 00, 00), event=True,expand=False)
         assert len(r) == 1
 
         # Lets try a freebusy request as well
@@ -1977,9 +1981,10 @@ class RepeatedFunctionalTestsBaseClass(object):
         e = c.save_event(evr)
 
         ## Without "expand", we should still find it when searching over 2008 ...
-        r = c.date_search(
+        r = c.search(
             datetime(2008, 11, 1, 17, 00, 00),
             datetime(2008, 11, 3, 17, 00, 00),
+            event=True,
             expand=False,
         )
         r2 = c.search(
@@ -1992,9 +1997,10 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert len(r2) == 1
 
         ## With expand=True, we should find one occurrence
-        r1 = c.date_search(
+        r1 = c.search(
             datetime(2008, 11, 1, 17, 00, 00),
             datetime(2008, 11, 3, 17, 00, 00),
+            event=True,
             expand=True,
         )
         r2 = c.search(
@@ -2012,9 +2018,10 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert r2[0].data.count("DTSTART;VALUE=DATE:2008") == 1
 
         ## With expand=True and searching over two recurrences ...
-        r1 = c.date_search(
+        r1 = c.search(
             datetime(2008, 11, 1, 17, 00, 00),
             datetime(2009, 11, 3, 17, 00, 00),
+            event=True,
             expand=True,
         )
         r2 = c.search(
@@ -2095,9 +2102,10 @@ class RepeatedFunctionalTestsBaseClass(object):
         ee.load()
         assert e.instance.vevent.uid == ee.instance.vevent.uid
 
-        r = c.date_search(
+        r = c.search(
             datetime(2006, 7, 13, 17, 00, 00),
             datetime(2006, 7, 15, 17, 00, 00),
+            event=True,
             expand=False,
         )
         assert e.instance.vevent.uid == r[0].instance.vevent.uid
@@ -2112,9 +2120,10 @@ class RepeatedFunctionalTestsBaseClass(object):
         tmp = c.event("20010712T182145Z-123401@example.com")
         assert e2.instance.vevent.uid == tmp.instance.vevent.uid
 
-        r = c.date_search(
+        r = c.search(
             datetime(2007, 7, 13, 17, 00, 00),
             datetime(2007, 7, 15, 17, 00, 00),
+            event=True,
             expand=False,
         )
         assert len(r) == 1
@@ -2122,9 +2131,10 @@ class RepeatedFunctionalTestsBaseClass(object):
         e.data = ev2
         e.save()
 
-        r = c.date_search(
+        r = c.search(
             datetime(2007, 7, 13, 17, 00, 00),
             datetime(2007, 7, 15, 17, 00, 00),
+            event=True,
             expand=False,
         )
         # for e in r: print(e.data)
@@ -2133,9 +2143,10 @@ class RepeatedFunctionalTestsBaseClass(object):
         e.instance = e2.instance
         e.save()
 
-        r = c.date_search(
+        r = c.search(
             datetime(2007, 7, 13, 17, 00, 00),
             datetime(2007, 7, 15, 17, 00, 00),
+            event=True,
             expand=False,
         )
         # for e in r: print(e.data)
