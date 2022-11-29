@@ -5,7 +5,6 @@ Rule: None of the tests in this file should initiate any internet
 communication, and there should be no dependencies on a working caldav
 server for the tests in this file.  We use the Mock class when needed
 to emulate server communication.
-
 """
 import pickle
 from datetime import date

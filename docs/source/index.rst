@@ -153,8 +153,8 @@ Do a date search in a calendar:
 
 .. code-block:: python
 
-  events_fetched = my_new_calendar.date_search(
-      start=datetime(2021, 1, 1), end=datetime(2024, 1, 1), expand=True)
+  events_fetched = my_new_calendar.search(
+      start=datetime(2021, 1, 1), end=datetime(2024, 1, 1),event=True, expand=True)
 
 To modify an event:
 
@@ -214,9 +214,9 @@ Date_search also works on task lists, but one has to be explicit to get the task
 
 .. code-block:: python
 
-  todos = my_new_calendar.date_search(
+  todos = my_new_calendar.search(
       start=datetime(2021, 1, 1), end=datetime(2024, 1, 1),
-      compfilter='VTODO', expand=True)
+      compfilter='VTODO',event=True, expand=True)
 
 Mark a task as completed:
 

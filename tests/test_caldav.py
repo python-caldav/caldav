@@ -4,7 +4,6 @@
 Tests here communicate with third party servers and/or
 internal ad-hoc instances of Xandikos and Radicale, dependent on the
 configuration in conf_private.py.
-
 Tests that do not require communication with a working caldav server
 belong in test_caldav_unit.py
 """
@@ -338,9 +337,7 @@ sched = sched_template % (
 )
 class TestScheduling(object):
     """Testing support of RFC6638.
-
     TODO: work in progress.  Stalled a bit due to lack of proper testing accounts.  I haven't managed to get this test to pass at any systems yet, but I believe the problem is not on the library side.
-
     * icloud: cannot really test much with only one test account
       available.  I did some testing forth and back with emails sent
       to an account on another service through the
@@ -350,14 +347,12 @@ class TestScheduling(object):
       the external party having accepted the calendar invite.
       FreeBusy doesn't work.  I don't have capacity following up more
       right now.
-
     * DAViCal: I have only an old version to test with at the moment,
       should look into that.  I did manage to send and receive a
       calendar invite, but apparently I did not manage to accept the
       calendar invite.  It should be looked more into.  FreeBusy
       doesn't work in the old version, probably it works in a newer
       version.
-
     * SOGo: Sending a calendar invite, but receiving nothing in the
       CalDAV inbox.  FreeBusy works somehow, but returns pure
       iCalendar data and not XML, I believe that's not according to
@@ -457,17 +452,13 @@ class RepeatedFunctionalTestsBaseClass(object):
     """This is a class with functional tests (tests that goes through
     basic functionality and actively communicates with third parties)
     that we want to repeat for all configured caldav_servers.
-
     (what a truely ugly name for this class - any better ideas?)
-
     NOTE: this tests relies heavily on the assumption that we can create
     calendars on the remote caldav server, but the RFC says ...
-
        Support for MKCALENDAR on the server is only RECOMMENDED and not
        REQUIRED because some calendar stores only support one calendar per
        user (or principal), and those are typically pre-created for each
        account.
-
     We've had some problems with iCloud and Radicale earlier.  Google
     still does not support mkcalendar.
     """
@@ -790,7 +781,6 @@ class RepeatedFunctionalTestsBaseClass(object):
     def testObjectBySyncToken(self):
         """
         Support for sync-collection reports, ref https://github.com/python-caldav/caldav/issues/87.
-
         This test is using explicit calls to objects_by_sync_token
         """
         self.skip_on_compatibility_flag("no_sync_token")
@@ -919,7 +909,6 @@ class RepeatedFunctionalTestsBaseClass(object):
     def testSync(self):
         """
         Support for sync-collection reports, ref https://github.com/python-caldav/caldav/issues/87.
-
         Same test pattern as testObjectBySyncToken, but exercises the .sync() method
         """
         self.skip_on_compatibility_flag("no_sync_token")
