@@ -5,7 +5,6 @@ Rule: None of the tests in this file should initiate any internet
 communication, and there should be no dependencies on a working caldav
 server for the tests in this file.  We use the Mock class when needed
 to emulate server communication.
-
 """
 import pickle
 from datetime import date
@@ -395,7 +394,7 @@ class TestCalDAV:
         calendar = Calendar(
             client, url="/principals/calendar/home@petroski.example.com/963/"
         )
-        results = calendar.search(datetime(2021, 2, 1), datetime(2021, 2, 7), event=True, expand=True)
+        results = calendar.date_search(datetime(2021, 2, 1), datetime(2021, 2, 7))
         assert len(results) == 3
 
     def testCalendar(self):

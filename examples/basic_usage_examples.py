@@ -73,7 +73,7 @@ my_event = my_new_calendar.save_event(
 print("Here is some icalendar data:")
 try:
     events_fetched = my_new_calendar.search(
-        start=datetime(2021, 5, 16), end=datetime(2024, 1, 1),event= True, expand=True
+        start=datetime(2021, 5, 16), end=datetime(2024, 1, 1), event=True, expand=True
     )
     ## Note: obj.data will always return a normal string, with normal line breaks
     ## obj.wire_data will return a byte string with CRLN
@@ -81,7 +81,7 @@ try:
 except:
     print("Your calendar server does apparently not support expanded search")
     events_fetched = my_new_calendar.search(
-        start=datetime(2020, 5, 16), end=datetime(2024, 1, 1),event=True, expand=False
+        start=datetime(2020, 5, 16), end=datetime(2024, 1, 1), event=True, expand=False
     )
     print(events_fetched[0].data)
 

@@ -4,7 +4,6 @@
 Tests here communicate with third party servers and/or
 internal ad-hoc instances of Xandikos and Radicale, dependent on the
 configuration in conf_private.py.
-
 Tests that do not require communication with a working caldav server
 belong in test_caldav_unit.py
 """
@@ -338,9 +337,7 @@ sched = sched_template % (
 )
 class TestScheduling(object):
     """Testing support of RFC6638.
-
     TODO: work in progress.  Stalled a bit due to lack of proper testing accounts.  I haven't managed to get this test to pass at any systems yet, but I believe the problem is not on the library side.
-
     * icloud: cannot really test much with only one test account
       available.  I did some testing forth and back with emails sent
       to an account on another service through the
@@ -350,14 +347,12 @@ class TestScheduling(object):
       the external party having accepted the calendar invite.
       FreeBusy doesn't work.  I don't have capacity following up more
       right now.
-
     * DAViCal: I have only an old version to test with at the moment,
       should look into that.  I did manage to send and receive a
       calendar invite, but apparently I did not manage to accept the
       calendar invite.  It should be looked more into.  FreeBusy
       doesn't work in the old version, probably it works in a newer
       version.
-
     * SOGo: Sending a calendar invite, but receiving nothing in the
       CalDAV inbox.  FreeBusy works somehow, but returns pure
       iCalendar data and not XML, I believe that's not according to
@@ -457,17 +452,13 @@ class RepeatedFunctionalTestsBaseClass(object):
     """This is a class with functional tests (tests that goes through
     basic functionality and actively communicates with third parties)
     that we want to repeat for all configured caldav_servers.
-
     (what a truely ugly name for this class - any better ideas?)
-
     NOTE: this tests relies heavily on the assumption that we can create
     calendars on the remote caldav server, but the RFC says ...
-
        Support for MKCALENDAR on the server is only RECOMMENDED and not
        REQUIRED because some calendar stores only support one calendar per
        user (or principal), and those are typically pre-created for each
        account.
-
     We've had some problems with iCloud and Radicale earlier.  Google
     still does not support mkcalendar.
     """
@@ -790,7 +781,6 @@ class RepeatedFunctionalTestsBaseClass(object):
     def testObjectBySyncToken(self):
         """
         Support for sync-collection reports, ref https://github.com/python-caldav/caldav/issues/87.
-
         This test is using explicit calls to objects_by_sync_token
         """
         self.skip_on_compatibility_flag("no_sync_token")
@@ -919,7 +909,6 @@ class RepeatedFunctionalTestsBaseClass(object):
     def testSync(self):
         """
         Support for sync-collection reports, ref https://github.com/python-caldav/caldav/issues/87.
-
         Same test pattern as testObjectBySyncToken, but exercises the .sync() method
         """
         self.skip_on_compatibility_flag("no_sync_token")
@@ -1444,8 +1433,8 @@ class RepeatedFunctionalTestsBaseClass(object):
         todos = c.todos()
         assert len(todos) == 6
 
-        notodos = c.search(  # default compfilter is events
-            start=datetime(1997, 4, 14), end=datetime(2015, 5, 14),event=True, expand=False
+        notodos = c.date_search(  # default compfilter is events
+            start=datetime(1997, 4, 14), end=datetime(2015, 5, 14), expand=False
         )
         assert not notodos
 
@@ -1457,11 +1446,10 @@ class RepeatedFunctionalTestsBaseClass(object):
         # t6 has dtstart and due set prior to the search window, but is yearly recurring.
         # What will a date search yield?
         noexpand = self.check_compatibility_flag("no_expand")
-        todos1 = c.search(
+        todos1 = c.date_search(
             start=datetime(1997, 4, 14),
             end=datetime(2015, 5, 14),
             compfilter="VTODO",
-            event=True,
             expand=not noexpand,
         )
         todos2 = c.search(
@@ -1592,9 +1580,9 @@ class RepeatedFunctionalTestsBaseClass(object):
 
         # date search should not include completed events ... hum.
         # TODO, fixme.
-        # todos = c.search(
+        # todos = c.date_search(
         #     start=datetime(1990, 4, 14), end=datetime(2015,5,14),
-        #     compfilter='VTODO', hide_completed_todos=True,event=True, expand=True)
+        #     compfilter='VTODO', hide_completed_todos=True)
         # assert len(todos) == 1
 
     def testTodoRecurringCompleteSafe(self):
@@ -1899,13 +1887,12 @@ class RepeatedFunctionalTestsBaseClass(object):
         ## https://github.com/python-caldav/caldav/issues/93) -
         ## expand=False and no end date given is no-no
         with pytest.raises(error.DAVError):
-            c.search(datetime(2006, 7, 13, 17, 00, 00),event=True, expand=True)
+            c.date_search(datetime(2006, 7, 13, 17, 00, 00), expand=True)
 
         # .. and search for it.
-        r1 = c.search(
+        r1 = c.date_search(
             datetime(2006, 7, 13, 17, 00, 00),
             datetime(2006, 7, 15, 17, 00, 00),
-            event=True,
             expand=False,
         )
         r2 = c.search(
@@ -1932,10 +1919,9 @@ class RepeatedFunctionalTestsBaseClass(object):
         # The timestamp should change.
         e.data = ev2
         e.save()
-        r1 = c.search(
+        r1 = c.date_search(
             datetime(2006, 7, 13, 17, 00, 00),
             datetime(2006, 7, 15, 17, 00, 00),
-            event=True,
             expand=False,
         )
         r2 = c.search(
@@ -1946,16 +1932,15 @@ class RepeatedFunctionalTestsBaseClass(object):
         )
         assert len(r1) == 0
         assert len(r2) == 0
-        r1 = c.search(
+        r1 = c.date_search(
             datetime(2007, 7, 13, 17, 00, 00),
             datetime(2007, 7, 15, 17, 00, 00),
-            event=True,
             expand=False,
         )
         assert len(r1) == 1
 
         # date search without closing date should also find it
-        r = c.search(datetime(2007, 7, 13, 17, 00, 00), event=True,expand=False)
+        r = c.date_search(datetime(2007, 7, 13, 17, 00, 00), expand=False)
         assert len(r) == 1
 
         # Lets try a freebusy request as well
@@ -1981,10 +1966,9 @@ class RepeatedFunctionalTestsBaseClass(object):
         e = c.save_event(evr)
 
         ## Without "expand", we should still find it when searching over 2008 ...
-        r = c.search(
+        r = c.date_search(
             datetime(2008, 11, 1, 17, 00, 00),
             datetime(2008, 11, 3, 17, 00, 00),
-            event=True,
             expand=False,
         )
         r2 = c.search(
@@ -1997,10 +1981,9 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert len(r2) == 1
 
         ## With expand=True, we should find one occurrence
-        r1 = c.search(
+        r1 = c.date_search(
             datetime(2008, 11, 1, 17, 00, 00),
             datetime(2008, 11, 3, 17, 00, 00),
-            event=True,
             expand=True,
         )
         r2 = c.search(
@@ -2018,10 +2001,9 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert r2[0].data.count("DTSTART;VALUE=DATE:2008") == 1
 
         ## With expand=True and searching over two recurrences ...
-        r1 = c.search(
+        r1 = c.date_search(
             datetime(2008, 11, 1, 17, 00, 00),
             datetime(2009, 11, 3, 17, 00, 00),
-            event=True,
             expand=True,
         )
         r2 = c.search(
@@ -2102,10 +2084,9 @@ class RepeatedFunctionalTestsBaseClass(object):
         ee.load()
         assert e.instance.vevent.uid == ee.instance.vevent.uid
 
-        r = c.search(
+        r = c.date_search(
             datetime(2006, 7, 13, 17, 00, 00),
             datetime(2006, 7, 15, 17, 00, 00),
-            event=True,
             expand=False,
         )
         assert e.instance.vevent.uid == r[0].instance.vevent.uid
@@ -2120,10 +2101,9 @@ class RepeatedFunctionalTestsBaseClass(object):
         tmp = c.event("20010712T182145Z-123401@example.com")
         assert e2.instance.vevent.uid == tmp.instance.vevent.uid
 
-        r = c.search(
+        r = c.date_search(
             datetime(2007, 7, 13, 17, 00, 00),
             datetime(2007, 7, 15, 17, 00, 00),
-            event=True,
             expand=False,
         )
         assert len(r) == 1
@@ -2131,10 +2111,9 @@ class RepeatedFunctionalTestsBaseClass(object):
         e.data = ev2
         e.save()
 
-        r = c.search(
+        r = c.date_search(
             datetime(2007, 7, 13, 17, 00, 00),
             datetime(2007, 7, 15, 17, 00, 00),
-            event=True,
             expand=False,
         )
         # for e in r: print(e.data)
@@ -2143,10 +2122,9 @@ class RepeatedFunctionalTestsBaseClass(object):
         e.instance = e2.instance
         e.save()
 
-        r = c.search(
+        r = c.date_search(
             datetime(2007, 7, 13, 17, 00, 00),
             datetime(2007, 7, 15, 17, 00, 00),
-            event=True,
             expand=False,
         )
         # for e in r: print(e.data)
