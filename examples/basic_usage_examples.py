@@ -161,8 +161,8 @@ print(todos[0].data)
 todos_found = my_new_tasklist.search(
     start=datetime(2021, 1, 1),
     end=datetime(2024, 1, 1),
-    compfilter="VTODO",
-    event=True,
+    todo=True,
+    journal=True,
     expand=True,
 )
 if not todos_found:
