@@ -21,6 +21,51 @@ https://github.com/python-caldav/caldav - if you have problems using
 the library (including problems understanding the documentation),
 please feel free to report it on the issue tracker there.
 
+Backward compatibility support
+==============================
+
+As of writing, we're still using 0.x-version numbers, which indicates
+that the product is not ready for usage in a production environment.
+The caldav library is production-ready, but there will be some
+API-changes in 1.x.  If you have any suggestions on things that should
+be cleaned up in 1.x, please comment on
+https://github.com/python-caldav/caldav/issues/92
+
+Even if we are in the 0.x-series, we're doing the uttermost to
+preserve backward-compatibility - and the 0.x-interface will continue
+working at least until the release of 2.x, and at least for five years
+after the 1.0-release.
+
+Notices will be logged when using legacy interface.  (See also
+https://github.com/python-caldav/caldav/issues/240)
+
+
+Python compatibility notice
+===========================
+
+Most of the code is regularly tested towards all officially supported
+versions of Python with the latest releases of the libraries required.
+
+There are still a lot of installations of "end-of-life"-versions of
+python in the wild, particularly some OS-distributions that are
+officially supported are using python versions that are not supported
+(meaning, that at least in theory the OS distributors takes
+responsibility of back-porting critical security fixes).  This
+currently includes Python2.
+
+The policy is to be as pragmatic as possible, however as unsupported
+versions of Python aren't regularly tested, there is kind of
+Schrödingers support for old versions - it may or may not work, all
+until it's tested (this particularly applies to Python2 - we do have
+quite some code in the library still for dual support of Python2 and
+Python3).  Please report issues if you have problems running the
+caldav library with old python versions.  If it's easy to find a
+work-around I will do so (like I did reverting new-style `f"{foo}"`
+strings into old-style `"%s" % foo` strings).  If it's non-trivial to
+fix things, we will officially abandon legacy support.
+
+See also https://github.com/python-caldav/caldav/pull/228
+
 Objective and scope
 ===================
 
