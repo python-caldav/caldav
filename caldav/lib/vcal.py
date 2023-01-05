@@ -110,7 +110,10 @@ def create_ical(ical_fragment=None, objtype=None, language="en_DK", **props):
             if prop in ("child", "parent"):
                 for value in props[prop]:
                     component.add(
-                        "related-to", props[prop], parameters={"rel-type": prop.upper()}
+                        "related-to",
+                        props[prop],
+                        parameters={"reltype": prop.upper()},
+                        encode=True,
                     )
             else:
                 component.add(prop, props[prop])

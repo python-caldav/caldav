@@ -1769,8 +1769,10 @@ class CalendarObjectResource(DAVObject):
                 return
 
         self.icalendar_component.add(
-            "related-to", uid, parameters={"rel-type": reltype}
+            "related-to", uid, parameters={"RELTYPE": reltype}, encode=True
         )
+
+        self.save()
 
     def _get_icalendar_component(self, assert_one=True):
         """Returns the icalendar subcomponent - which should be an
@@ -1972,6 +1974,8 @@ class CalendarObjectResource(DAVObject):
             id = self.id
         if not id:
             id = i.pop("UID", None)
+            if id:
+                id = str(id)
         if not path and getattr(self, "path", None):
             path = self.path
         if id is None and path is not None and str(path).endswith(".ics"):
