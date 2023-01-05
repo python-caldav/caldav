@@ -1288,6 +1288,46 @@ class RepeatedFunctionalTestsBaseClass(object):
         all_todos = c.search(todo=True, include_completed=True)
         assert len(all_todos) == 6
 
+    def testCreateChildParent(self):
+        c = self._fixCalendar(supported_calendar_component_set=["VJOURNAL"])
+        parent = c.save_event(
+            dtstart=datetime(2022, 12, 26, 19, 15),
+            summary="this is a parent event test",
+        )
+        child = c.save_event(
+            dtstart=datetime(2022, 12, 26, 19, 17),
+            summary="this is a child event test",
+            parent=[parent.id],
+        )
+        grandparent = c.save_event(
+            dtstart=datetime(2022, 12, 26, 19, 00),
+            summary="this is a grandparent event test",
+            child=[parent.id],
+        )
+
+        parent_ = c.event_by_uid(parent.id)
+        child_ = c.event_by_uid(child.id)
+        grandparent_ = c.event_by_uid(grandparent.id)
+
+        rt = grandparent_.icalendar_component["RELATED-TO"]
+        if isinstance(rt, list):
+            assert len(rt) == 1
+            rt = rt[0]
+        assert rt == parent.id
+        assert rt.params["RELTYPE"] == "CHILD"
+        rt = parent_.icalendar_component["RELATED-TO"]
+        assert len(rt) == 2
+        assert set([str(rt[0]), str(rt[1])]) == set([grandparent.id, child.id])
+        assert set([rt[0].params["RELTYPE"], rt[1].params["RELTYPE"]]) == set(
+            ["CHILD", "PARENT"]
+        )
+        rt = child_.icalendar_component["RELATED-TO"]
+        if isinstance(rt, list):
+            assert len(rt) == 1
+            rt = rt[0]
+        assert rt == parent.id
+        assert rt.params["RELTYPE"] == "PARENT"
+
     def testCreateJournalListAndJournalEntry(self):
         """
         This test demonstrates the support for journals.
