@@ -967,6 +967,8 @@ class Calendar(DAVObject):
         * event - sets comp_class to event
         * text attribute search parameters: category, uid, summary, omment,
           description, location, status
+        * no-category, no-summary, etc ... search for objects that does not
+          have those attributes.  TODO: WRITE TEST CODE!
         * expand - do server side expanding of recurring events/tasks
         * start, end: do a time range search
         * filters - other kind of filters (in lxml tree format)
@@ -1100,8 +1102,6 @@ class Calendar(DAVObject):
         ignore_completed2=None,
         ignore_completed3=None,
         event=None,
-        category=None,
-        class_=None,
         filters=None,
         expand=None,
         start=None,
@@ -1198,27 +1198,50 @@ class Calendar(DAVObject):
                     "unsupported comp class %s for search" % comp_class
                 )
 
-        if category is not None:
-            filters.append(cdav.PropFilter("CATEGORIES") + cdav.TextMatch(category))
-            ## TODO: we probably need to do client side filtering.  I would
-            ## expect --category='e' to fetch anything having the category e,
-            ## but not including all other categories containing the letter e.
-
-        if class_ is not None:
-            filters.append(cdav.PropFilter("CLASS") + cdav.TextMatch(class_))
-
         for other in kwargs:
+            find_not_defined = other.startswith("no_")
+            find_defined = other.startswith("has_")
+            if find_not_defined:
+                other = other[3:]
+            if find_defined:
+                other = other[4:]
             if other in (
                 "uid",
                 "summary",
                 "comment",
+                "class_",
+                "category",
                 "description",
                 "location",
                 "status",
+                "due",
+                "dtstamp",
+                "dtstart",
+                "dtend",
+                "duration",
+                "priority",
             ):
-                filters.append(
-                    cdav.PropFilter(other.upper()) + cdav.TextMatch(kwargs[other])
-                )
+                ## category and class_ is special
+                if other.endswith("category"):
+                    ## TODO: we probably need to do client side filtering.  I would
+                    ## expect --category='e' to fetch anything having the category e,
+                    ## but not including all other categories containing the letter e.
+                    ## As I read the caldav standard, the latter will be yielded.
+                    target = other.replace("category", "categories")
+                elif other == "class_":
+                    target = "class"
+                else:
+                    target = other
+
+                if find_not_defined:
+                    match = cdav.NotDefined()
+                elif find_defined:
+                    raise NotImplemented(
+                        "Seems not to be supported by the CalDAV protocol?  or we can negate?  not supported yet, in any case"
+                    )
+                else:
+                    match = cdav.TextMatch(kwargs[other])
+                filters.append(cdav.PropFilter(target.upper()) + match)
             else:
                 raise NotImplementedError("searching for %s not supported yet" % other)
 
