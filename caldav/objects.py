@@ -1092,6 +1092,11 @@ class Calendar(DAVObject):
         if sort_keys:
             objects.sort(key=sort_key_func)
 
+        ## workaround for https://github.com/python-caldav/caldav/issues/201
+        for obj in objects:
+            if not obj.data:
+                obj.load()
+
         return objects
 
     def build_search_xml_query(
