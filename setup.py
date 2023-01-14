@@ -85,7 +85,7 @@ if __name__ == "__main__":
             "requests",
             "six",
             "icalendar",
-            "recurring-ical-events>=1.1.0b",
+            "recurring-ical-events>=2.0.0",
         ]
         + extra_packages,
         tests_require=test_packages + extra_test_packages,
