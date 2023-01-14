@@ -1536,6 +1536,7 @@ class RepeatedFunctionalTestsBaseClass(object):
             and not self.check_compatibility_flag("no_recurring_todo")
         ):
             assert len([x for x in todos1 if "DTSTART:20020415T1330" in x.data]) == 1
+            assert len([x for x in todos2 if "DTSTART:20020415T1330" in x.data]) == 1
 
         ## exercise the default for expand (maybe -> False for open-ended search)
         todos1 = c.date_search(start=datetime(2025, 4, 14), compfilter="VTODO")
