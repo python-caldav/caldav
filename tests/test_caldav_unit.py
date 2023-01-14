@@ -212,16 +212,12 @@ class TestExpandRRule:
         data2 = self.yearly.icalendar_instance.subcomponents[1].to_ical()
         assert data1.replace(b"199711", b"199811") == data2
 
-    ## TODO: unskip this one
-    @pytest.mark.skip(
-        "waiting for https://github.com/niccokunzmann/python-recurring-ical-events/issues/97"
-    )
     def testThreeTodo(self):
         self.todo.expand_rrule(start=datetime(1996, 10, 10), end=datetime(1999, 12, 12))
         assert len(self.todo.icalendar_instance.subcomponents) == 3
         data1 = self.todo.icalendar_instance.subcomponents[0].to_ical()
         data2 = self.todo.icalendar_instance.subcomponents[1].to_ical()
-        assert data1.replace(b"199711", b"199811") == data2
+        assert data1.replace(b"19970", b"19980") == data2
 
     def testSplit(self):
         self.yearly.expand_rrule(
@@ -234,6 +230,7 @@ class TestExpandRRule:
             events[1].icalendar_component["UID"]
             == "19970901T130000Z-123403@example.com"
         )
+
 
 
 class TestCalDAV:
