@@ -231,6 +231,17 @@ class TestExpandRRule:
             == "19970901T130000Z-123403@example.com"
         )
 
+    def test241(self):
+        """
+        Ref https://github.com/python-caldav/caldav/issues/241
+
+        This seems like sort of a duplicate of testThreeTodo, but the ftests actually started failing
+        """
+        assert len(self.todo.data) > 128
+        self.todo.expand_rrule(
+            start=datetime(1997, 4, 14, 0, 0), end=datetime(2015, 5, 14, 0, 0)
+        )
+        assert len(self.todo.data) > 128
 
 
 class TestCalDAV:
