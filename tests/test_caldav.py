@@ -499,12 +499,13 @@ class RepeatedFunctionalTestsBaseClass(object):
         else:
             self.principal = self.caldav.principal()
 
-        logging.debug(
-            "## going to tear down old test calendars, "
-            "in case teardown_method wasn't properly executed "
-            "last time tests were run"
-        )
-        self._teardown_method()
+        if not self.check_compatibility_flag("read_only"):
+            logging.debug(
+                "## going to tear down old test calendars, "
+                "in case teardown_method wasn't properly executed "
+                "last time tests were run"
+            )
+            self._teardown_method()
 
         if self.check_compatibility_flag("object_by_uid_is_broken"):
             import caldav.objects
@@ -523,6 +524,8 @@ class RepeatedFunctionalTestsBaseClass(object):
         logging.debug("############## test teardown_method done")
 
     def _teardown_method(self):
+        if self.check_compatibility_flag("read_only"):
+            return  ## no cleanup needed
         if self.check_compatibility_flag("no_mkcalendar"):
             for uid in uids_used:
                 try:
@@ -557,7 +560,9 @@ class RepeatedFunctionalTestsBaseClass(object):
         should see if there exists a test calendar, if that's not
         possible, give up and return the primary calendar.
         """
-        if self.check_compatibility_flag("no_mkcalendar"):
+        if self.check_compatibility_flag(
+            "no_mkcalendar"
+        ) or self.check_compatibility_flag("read_only"):
             if not self._default_calendar:
                 calendars = self.principal.calendars()
                 for c in calendars:
@@ -633,6 +638,22 @@ class RepeatedFunctionalTestsBaseClass(object):
     def testGetDefaultCalendar(self):
         self.skip_on_compatibility_flag("no_default_calendar")
         assert len(self.principal.calendars()) != 0
+
+    def testSearchShouldYieldData(self):
+        """
+        ref https://github.com/python-caldav/caldav/issues/201
+        """
+        c = self._fixCalendar()
+        if not self.check_compatibility_flag("read_only"):
+            ## populate the calendar with an event or two or three
+            c.save_event(ev1)
+            c.save_event(ev2)
+            c.save_event(ev3)
+        objects = c.search(event=True)
+        ## This will break if served a read-only calendar without any events
+        assert objects
+        ## This was observed to be broken for @dreimer1986
+        assert objects[0].data
 
     def testGetCalendar(self):
         # Create calendar
@@ -713,6 +734,7 @@ class RepeatedFunctionalTestsBaseClass(object):
 
     def testCreateDeleteCalendar(self):
         self.skip_on_compatibility_flag("no_mkcalendar")
+        self.skip_on_compatibility_flag("read_only")
         c = self.principal.make_calendar(name="Yep", cal_id=self.testcal_id)
         assert c.url is not None
         events = c.events()
@@ -727,6 +749,7 @@ class RepeatedFunctionalTestsBaseClass(object):
                 self.principal.calendar(name="Yep", cal_id=self.testcal_id).events()
 
     def testCreateEvent(self):
+        self.skip_on_compatibility_flag("read_only")
         c = self._fixCalendar()
 
         existing_events = c.events()
@@ -783,6 +806,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         Support for sync-collection reports, ref https://github.com/python-caldav/caldav/issues/87.
         This test is using explicit calls to objects_by_sync_token
         """
+        self.skip_on_compatibility_flag("read_only")
         self.skip_on_compatibility_flag("no_sync_token")
 
         ## Boiler plate ... make a calendar and add some content
@@ -912,6 +936,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         Same test pattern as testObjectBySyncToken, but exercises the .sync() method
         """
         self.skip_on_compatibility_flag("no_sync_token")
+        self.skip_on_compatibility_flag("read_only")
 
         ## Boiler plate ... make a calendar and add some content
         c = self._fixCalendar()
@@ -1009,6 +1034,7 @@ class RepeatedFunctionalTestsBaseClass(object):
             assert len(list(deleted)) == 0
 
     def testLoadEvent(self):
+        self.skip_on_compatibility_flag("read_only")
         self.skip_on_compatibility_flag("no_mkcalendar")
         c1 = self.principal.make_calendar(name="Yep", cal_id=self.testcal_id)
         c2 = self.principal.make_calendar(name="Yapp", cal_id=self.testcal_id2)
@@ -1021,6 +1047,7 @@ class RepeatedFunctionalTestsBaseClass(object):
             e1.load()
 
     def testCopyEvent(self):
+        self.skip_on_compatibility_flag("read_only")
         self.skip_on_compatibility_flag("no_mkcalendar")
         ## Let's create two calendars, and populate one event on the first calendar
         c1 = self.principal.make_calendar(name="Yep", cal_id=self.testcal_id)
@@ -1066,6 +1093,7 @@ class RepeatedFunctionalTestsBaseClass(object):
             assert len(c1.events()) == 2
 
     def testCreateCalendarAndEventFromVobject(self):
+        self.skip_on_compatibility_flag("read_only")
         c = self._fixCalendar()
         ## in case the calendar is reused
         cnt = len(c.events())
@@ -1092,6 +1120,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert "VEVENT" in components
 
     def testSearchEvent(self):
+        self.skip_on_compatibility_flag("read_only")
         c = self._fixCalendar()
         c.save_event(ev1)
         c.save_event(ev3)
@@ -1207,6 +1236,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert all_events[0].instance.vevent.summary.value == "Bastille Day Jitsi Party"
 
     def testSearchTodos(self):
+        self.skip_on_compatibility_flag("read_only")
         self.skip_on_compatibility_flag("no_todo")
         c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
 
@@ -1289,6 +1319,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert len(all_todos) == 6
 
     def testCreateChildParent(self):
+        self.skip_on_compatibility_flag("read_only")
         c = self._fixCalendar(supported_calendar_component_set=["VJOURNAL"])
         parent = c.save_event(
             dtstart=datetime(2022, 12, 26, 19, 15),
@@ -1335,6 +1366,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         * It will add some journal entries to it
         * It will list out all journal entries
         """
+        self.skip_on_compatibility_flag("read_only")
         self.skip_on_compatibility_flag("no_journal")
         c = self._fixCalendar(supported_calendar_component_set=["VJOURNAL"])
         j1 = c.save_journal(journal)
@@ -1362,6 +1394,8 @@ class RepeatedFunctionalTestsBaseClass(object):
         * Verify the cal.todos() method
         * Verify that cal.events() method returns nothing
         """
+        self.skip_on_compatibility_flag("read_only")
+
         # bedeworks and google calendar and some others does not support VTODO
         self.skip_on_compatibility_flag("no_todo")
 
@@ -1406,6 +1440,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         * It will list out all pending tasks, sorted by due date
         * It will list out all pending tasks, sorted by priority
         """
+        self.skip_on_compatibility_flag("read_only")
         # Not all server implementations have support for VTODO
         self.skip_on_compatibility_flag("no_todo")
         c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
@@ -1458,6 +1493,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         """
         Let's see how the date search method works for todo events
         """
+        self.skip_on_compatibility_flag("read_only")
         # bedeworks does not support VTODO
         self.skip_on_compatibility_flag("no_todo")
         self.skip_on_compatibility_flag("no_todo_datesearch")
@@ -1584,6 +1620,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         """
         Will check that todo-items can be completed and deleted
         """
+        self.skip_on_compatibility_flag("read_only")
         # not all caldav servers support VTODO
         self.skip_on_compatibility_flag("no_todo")
         c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
@@ -1627,6 +1664,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         # assert len(todos) == 1
 
     def testTodoRecurringCompleteSafe(self):
+        self.skip_on_compatibility_flag("read_only")
         c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
         t6 = c.save_todo(todo6)
         if not self.check_compatibility_flag("rrule_takes_no_count"):
@@ -1649,6 +1687,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert len(c.todos()) == 1
 
     def testTodoRecurringCompleteThisandfuture(self):
+        self.skip_on_compatibility_flag("read_only")
         c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
         t6 = c.save_todo(todo6)
         if not self.check_compatibility_flag("rrule_takes_no_count"):
@@ -1673,6 +1712,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert len(c.todos()) == 1
 
     def testUtf8Event(self):
+        self.skip_on_compatibility_flag("read_only")
         # TODO: what's the difference between this and testUnicodeEvent?
         # TODO: split up in creating a calendar with non-ascii name
         # and an event with non-ascii description
@@ -1697,6 +1737,7 @@ class RepeatedFunctionalTestsBaseClass(object):
             assert len(events) == 1
 
     def testUnicodeEvent(self):
+        self.skip_on_compatibility_flag("read_only")
         self.skip_on_compatibility_flag("no_mkcalendar")
         c = self.principal.make_calendar(name="Yølp", cal_id=self.testcal_id)
 
@@ -1713,6 +1754,7 @@ class RepeatedFunctionalTestsBaseClass(object):
             assert len(events) == 1
 
     def testSetCalendarProperties(self):
+        self.skip_on_compatibility_flag("read_only")
         self.skip_on_compatibility_flag("no_displayname")
 
         c = self._fixCalendar()
@@ -1790,6 +1832,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         """
         Makes sure we can add events and look them up by URL and ID
         """
+        self.skip_on_compatibility_flag("read_only")
         # Create calendar
         c = self._fixCalendar()
         assert c.url is not None
@@ -1824,6 +1867,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         """
         Makes sure we can add events and delete them
         """
+        self.skip_on_compatibility_flag("read_only")
         # Create calendar
         c = self._fixCalendar()
         assert c.url is not None
@@ -1919,6 +1963,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         Also verifies that it's possible to change a date of a
         non-recurring event
         """
+        self.skip_on_compatibility_flag("read_only")
         # Create calendar, add event ...
         c = self._fixCalendar()
         assert c.url is not None
@@ -2000,6 +2045,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         library per se.  How will it behave if we serve it a recurring
         event?
         """
+        self.skip_on_compatibility_flag("read_only")
         self.skip_on_compatibility_flag("no_recurring")
         c = self._fixCalendar()
 
@@ -2094,6 +2140,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         Tobias Brox has done some API changes - but this thing should
         still be backward compatible.
         """
+        self.skip_on_compatibility_flag("read_only")
         if "backwards_compatibility_url" not in self.server_params:
             pytest.skip(
                 "backward compatibility check skipped - needs an URL like it was supposed to be in 2013"

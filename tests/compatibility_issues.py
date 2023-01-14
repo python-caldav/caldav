@@ -177,6 +177,9 @@ incompatibility_description = {
 
     'no-current-user-principal':
         """when querying for the current user principal property, server doesn't report anything useful""",
+
+    'read_only':
+        """The calendar server does not support PUT, POST, DELETE, PROPSET, MKCALENDAR, etc"""
 }
 
 xandikos = [
