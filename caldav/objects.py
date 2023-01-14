@@ -1685,9 +1685,9 @@ class CalendarObjectResource(DAVObject):
         """
         import recurring_ical_events
 
-        recurrings = recurring_ical_events.of(self.icalendar_instance).between(
-            start, end
-        )
+        recurrings = recurring_ical_events.of(
+            self.icalendar_instance, components=["VJOURNAL", "VTODO", "VEVENT"]
+        ).between(start, end)
         recurrance_properties = ["exdate", "exrule", "rdate", "rrule"]
         # FIXME too much copying
         stripped_event = self.copy(keep_uid=True)
