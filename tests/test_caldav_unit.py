@@ -243,7 +243,6 @@ class TestExpandRRule:
         assert len(self.todo.data) > 128
 
 
-
 class TestCalDAV:
     """
     Test class for "pure" unit tests (small internal tests, testing that
