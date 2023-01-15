@@ -1,6 +1,7 @@
 from six import PY3
 from six import string_types
 
+assert PY3 ## Still using python2?  Write an issue on the github issue tracker, and I will consider to offer some limited python2-support for the 1.x-series of caldav - otherwise I will start cleaning away code for supporting python2 in the 1.1-release
 
 def isPython3():
     """Deprecated. Use six.PY3"""
