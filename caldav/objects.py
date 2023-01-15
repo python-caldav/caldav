@@ -766,6 +766,12 @@ class Calendar(DAVObject):
             other.set_relation(other=uid, reltype=reverse_reltype, set_reverse=False)
 
     ## legacy aliases
+    ## TODO: should be deprecated
+
+    ## TODO: think more through this - is `save_foo` better than `add_foo`?
+    ## `save_foo` should not be used for updating existing content on the
+    ## calendar!
+
     add_event = save_event
     add_todo = save_todo
     add_journal = save_journal
