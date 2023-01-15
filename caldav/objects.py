@@ -107,9 +107,17 @@ class DAVObject(object):
         return str(self.url.canonical())
 
     def children(self, type=None):
-        """
-        List children, using a propfind (resourcetype) on the parent object,
+        """List children, using a propfind (resourcetype) on the parent object,
         at depth = 1.
+
+        TODO: This is old code, it's querying for DisplayName and
+        ResourceTypes prop and returning a tuple of those.  Those two
+        are relatively arbitrary.  I think it's mostly only calendars
+        having DisplayName, but it may make sense to ask for the
+        children of a calendar also as an alternative way to get all
+        events?  It should be redone into a more generic method, and
+        it should probably return a dict rather than a tuple.  We
+        should also look over to see if there is any code duplication.
         """
         c = []
 
