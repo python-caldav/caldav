@@ -24,14 +24,15 @@ please feel free to report it on the issue tracker there.
 Backward compatibility support
 ==============================
 
-The 1.x version series is supposed to be fully backwards-compatible with version
-0.x, and is intended to be maintained at least until 2026.
+The 1.x version series is supposed to be fully backwards-compatible
+with version 0.x, and is intended to be maintained at least
+until 2026.
 
 API-changes will be slowly introduced in 1.x.  API marked as
-deprecated in 0.x will most likely be removed in version 2.0, API
-marked with deprecating-warnings in 1.x will most likely be removed in
-3.0.  If you have any suggestions on API-changes, please comment on
-https://github.com/python-caldav/caldav/issues/92
+deprecated in 0.x or 1.0 will most likely be removed in version 2.0,
+API marked with deprecating-warnings in 1.x or 2.0 will most likely be
+removed in 3.0.  If you have any suggestions on API-changes, please
+comment on https://github.com/python-caldav/caldav/issues/92
 
 Notices will be logged when using legacy interface.  (See also
 https://github.com/python-caldav/caldav/issues/240)
@@ -80,6 +81,12 @@ search, etc) should be trivial to accomplish even if the end-user of
 the library has no or very little knowledge of the caldav, webdav or
 icalendar standards.  The library should be agile enough to allow
 "power users" to do more advanced stuff.
+
+The library aims to take a pragmatic approach towards compatibility -
+it should work as well as possible for as many as possible.  This also
+means the library will modify icalendar data to get around known
+compatibility issues - so no guarantee is given on the immutability of
+icalendar data.
 
 RFC 4791, 2518, 5545, 6638 et al
 --------------------------------

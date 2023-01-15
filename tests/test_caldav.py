@@ -2235,8 +2235,6 @@ class RepeatedFunctionalTestsBaseClass(object):
 
 _servernames = set()
 for _caldav_server in caldav_servers:
-    if not _caldav_server.get("enable", True):
-        continue
     # create a unique identifier out of the server domain name
     _parsed_url = urlparse(_caldav_server["url"])
     _servername = _parsed_url.hostname.replace(".", "_").replace("-", "_") + str(
