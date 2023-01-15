@@ -155,6 +155,10 @@ def create_ical(ical_fragment=None, objtype=None, language="en_DK", **props):
     ret = to_normal_str(my_instance.to_ical())
     if ical_fragment and ical_fragment.strip():
         ret = re.sub(
-            "^END:V", ical_fragment.strip() + "\nEND:V", ret, flags=re.MULTILINE
+            "^END:V",
+            ical_fragment.strip() + "\nEND:V",
+            ret,
+            flags=re.MULTILINE,
+            count=1,
         )
     return ret

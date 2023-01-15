@@ -112,6 +112,7 @@ class TestVcal(TestCase):
             duration=timedelta(hours=5),
         )
         assert re.search(b"DTSTART(;VALUE=DATE-TIME)?:20321010T101010Z", some_ical)
+        assert some_ical.count(b"PRIORITY") == 1
 
         some_ical = create_and_validate(
             summary="gobledok",
