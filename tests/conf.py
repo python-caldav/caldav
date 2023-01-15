@@ -134,6 +134,8 @@ if False:
         }
     )
 
+caldav_servers = [x for x in caldav_servers if x.get("enable", True)]
+
 ###################################################################
 # Convenience - get a DAVClient object from the caldav_servers list
 ###################################################################

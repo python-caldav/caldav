@@ -692,7 +692,10 @@ class Calendar(DAVObject):
             (isinstance(ical, str) or isinstance(ical, bytes))
             and not b"BEGIN:VCALENDAR" in to_wire(ical)
         ):
-            return vcal.create_ical(ical_fragment=ical, objtype=objtype, **ical_data)
+            ## TODO: the ical_fragment code is not much tested
+            if ical and not "ical_fragment" in ical_data:
+                ical_data["ical_fragment"] = ical
+            return vcal.create_ical(objtype=objtype, **ical_data)
         return ical
 
     ## TODO: consolidate save_* - too much code duplication here
@@ -1600,6 +1603,9 @@ class SynchronizableCalendarObjectCollection(object):
 
     def __iter__(self):
         return self.objects.__iter__()
+
+    def __len__(self):
+        return len(self.objects)
 
     def objects_by_url(self):
         """
