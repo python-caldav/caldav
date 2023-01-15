@@ -1615,6 +1615,9 @@ class SynchronizableCalendarObjectCollection(object):
     def __iter__(self):
         return self.objects.__iter__()
 
+    def __len__(self):
+        return len(self.objects)
+
     def objects_by_url(self):
         """
         returns a dict of the contents of the SynchronizableCalendarObjectCollection, URLs -> objects.
