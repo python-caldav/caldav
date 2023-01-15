@@ -803,6 +803,9 @@ class Calendar(DAVObject):
     def build_date_search_query(
         self, start, end=None, compfilter="VEVENT", expand="maybe"
     ):
+        """
+        WARNING: DEPRECATED
+        """
         ## This is dead code.  It has no tests.  It was made for usage
         ## by the date_search method, but I've decided not to use it
         ## there anymore.  Most likely nobody is using this, as it's
@@ -853,7 +856,7 @@ class Calendar(DAVObject):
         """
         ## TODO: upgrade to warning and error before removing this method
         logging.info(
-            "DEPRECATION NOTICE: The calendar.date_search method may be removed in some far future release of the caldav library.  Use calendar.search instead"
+            "DEPRECATION NOTICE: The calendar.date_search method may be removed in release 2.0 of the caldav library.  Use calendar.search instead"
         )
 
         if verify_expand:
@@ -2274,12 +2277,13 @@ class CalendarObjectResource(DAVObject):
         This method will return DURATION if set, otherwise the
         difference between DUE and DTSTART (if both of them are set).
 
-        Arguably, this logic belongs to the icalendar/vobject layer as
-        it has nothing to do with the caldav protocol.
-
         TODO: should be fixed for Event class as well (only difference
         is that DTEND is used rather than DUE) and possibly also for
         Journal (defaults to one day, probably?)
+
+        WARNING: this method is likely to be deprecated and moved to
+        the icalendar library.  If you decide to use it, please put
+        caldav<2.0 in the requirements.
         """
         i = self.icalendar_component
         return self._get_duration(i)
@@ -2643,6 +2647,10 @@ class Todo(CalendarObjectResource):
         If DTSTART and DUE/DTEND is already set, one of them should be moved.  Which one?  I believe that for EVENTS, the DTSTART should remain constant and DTEND should be moved, but for a task, I think the due date may be a hard deadline, hence by default we'll move DTSTART.
 
         TODO: can this be written in a better/shorter way?
+
+        WARNING: this method is likely to be deprecated and moved to
+        the icalendar library.  If you decide to use it, please put
+        caldav<2.0 in the requirements.
         """
         i = self.icalendar_component
         return self._set_duration(i, duration, movable_attr)
@@ -2668,6 +2676,10 @@ class Todo(CalendarObjectResource):
     def get_due(self):
         """
         A VTODO may have due or duration set.  Return or calculate due.
+
+        WARNING: this method is likely to be deprecated and moved to
+        the icalendar library.  If you decide to use it, please put
+        caldav<2.0 in the requirements.
         """
         i = self.icalendar_component
         if "DUE" in i:
@@ -2681,6 +2693,10 @@ class Todo(CalendarObjectResource):
         """The RFC specifies that a VTODO cannot have both due and
         duration, so when setting due, the duration field must be
         evicted
+
+        WARNING: this method is likely to be deprecated and moved to
+        the icalendar library.  If you decide to use it, please put
+        caldav<2.0 in the requirements.
         """
         i = self.icalendar_component
         duration = self.get_duration()

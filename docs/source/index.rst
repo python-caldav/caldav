@@ -24,17 +24,14 @@ please feel free to report it on the issue tracker there.
 Backward compatibility support
 ==============================
 
-As of writing, we're still using 0.x-version numbers, which indicates
-that the product is not ready for usage in a production environment.
-The caldav library is production-ready, but there will be some
-API-changes in 1.x.  If you have any suggestions on things that should
-be cleaned up in 1.x, please comment on
-https://github.com/python-caldav/caldav/issues/92
+The 1.x version series is supposed to be fully backwards-compatible with version
+0.x, and is intended to be maintained at least until 2026.
 
-Even if we are in the 0.x-series, we're doing the uttermost to
-preserve backward-compatibility - and the 0.x-interface will continue
-working at least until the release of 2.x, and at least for five years
-after the 1.0-release.
+API-changes will be slowly introduced in 1.x.  API marked as
+deprecated in 0.x will most likely be removed in version 2.0, API
+marked with deprecating-warnings in 1.x will most likely be removed in
+3.0.  If you have any suggestions on API-changes, please comment on
+https://github.com/python-caldav/caldav/issues/92
 
 Notices will be logged when using legacy interface.  (See also
 https://github.com/python-caldav/caldav/issues/240)
@@ -56,13 +53,20 @@ currently includes Python2.
 The policy is to be as pragmatic as possible, however as unsupported
 versions of Python aren't regularly tested, there is kind of
 Schrödingers support for old versions - it may or may not work, all
-until it's tested (this particularly applies to Python2 - we do have
-quite some code in the library still for dual support of Python2 and
-Python3).  Please report issues if you have problems running the
-caldav library with old python versions.  If it's easy to find a
-work-around I will do so (like I did reverting new-style `f"{foo}"`
-strings into old-style `"%s" % foo` strings).  If it's non-trivial to
-fix things, we will officially abandon legacy support.
+until it's tested.
+
+Python2 has been unlikely to work for some time due to lack of testing
+and due to dependencies on other libraries that doesn't support
+python2.  Pyhton2 is officially not supported starting from version
+1.0 - however, code for supporting python2 will only be cleaned
+properly away in version 1.1 (and may be postponed if anyone
+protests).
+
+Please report issues if you have problems running the caldav library
+with old python versions.  If it's easy to find a work-around I will
+do so (like I did reverting new-style `f"{foo}"` strings into
+old-style `"%s" % foo` strings).  If it's non-trivial to fix things,
+we will officially abandon legacy support.
 
 See also https://github.com/python-caldav/caldav/pull/228
 
@@ -103,14 +107,16 @@ support RFC 5545 (icalendar).  It's outside the scope of this library
 to implement logic for parsing and modifying RFC 5545, instead we
 depend on another library for that.
 
-RFC 5545 describes the icalendar format.  Constructing or parsing icalendar data was considered out of the scope of this library, but we do make exceptions - like, there is a method to complete a task - it involves editing the icalendar data, and now the `save_event`, `save_todo` and `save_journal` methods are able to construct icalendar data if needed.
+RFC 5545 describes the icalendar format.  Constructing or parsing
+icalendar data was considered out of the scope of this library, but we
+do make exceptions - like, there is a method to complete a task - it
+involves editing the icalendar data, and now the `save_event`,
+`save_todo` and `save_journal` methods are able to construct icalendar
+data if needed.
 
 There exists two libraries supporting RFC 5545, vobject and icalendar.
-The icalendar library seems to be more popular.  Version 0.x depends
-on vobject, version 1.x will depend on icalendar.  Version 0.7 and
-higher supports both, but the "alternative" library will only be
-loaded when/if needed, and the vobject support may be deprecated in
-the future.
+The icalendar library seems to be more popular.  Version 1.0 depends
+on both, but we're slowly moving towards using icalendar internally.
 
 Misbehaving server implementations
 ----------------------------------
