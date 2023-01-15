@@ -7,9 +7,11 @@ from typing import Optional
 
 from caldav import __version__
 
+debug_dump_communication = False
 try:
     import os
 
+    debug_dump_communication = os.environ.get("PYTHON_CALDAV_COMMDUMP", False)
     ## one of DEBUG_PDB, DEBUG, DEVELOPMENT, PRODUCTION
     debugmode = os.environ["PYTHON_CALDAV_DEBUGMODE"]
 except:

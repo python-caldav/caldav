@@ -10,11 +10,26 @@ The format of this file should adhere to [Keep a Changelog](https://keepachangel
 
 This project should more or less adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [x.x.x] - unreleased
+## [1.4.0] - unreleased
+
+* Georges Toth did a lot of efforts lifting up the project to more modern standards.
+* A hook for collecting debug information has been in the pull request for ages.  I've decided to include it in 1.4.0.
+
+### Added
 
 * Initial work at integrating typing information. Details in https://github.com/python-caldav/caldav/pull/358
 * Remove dependency on pytz. Details in https://github.com/python-caldav/caldav/issues/231
 * Use setuptools-scm / pyproject.toml (modern packaging). Details in https://github.com/python-caldav/caldav/pull/364
+* Debugging tool - an environment variable can be set, causing the library to spew out server communications into files under /tmp.  Details in https://github.com/python-caldav/caldav/pull/249 and https://github.com/python-caldav/caldav/issues/248
+
+### Security
+
+The debug information gathering hook has been in the limbo for a long time, due to security concerns:
+
+* An attacker that has access to alter the environment the application is running under may cause a DoS-attack, filling up available disk space with debug logging.
+* An attacker that has access to alter the environment the application is running under, and access to read files under /tmp (files being 0600 and owned by the uid the application is running under), will be able to read the communication between the server and the client, communication that may be private and confidential.
+
+Thinking it through three times, I'm not too concerned - if someone has access to alter the environment the process is running under and access to read files run by the uid of the application, then this someone should already be trusted and will probably have the possibility to gather this communication through other means.
 
 ## [1.3.9] - 2023-12-12
 

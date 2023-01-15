@@ -744,4 +744,38 @@ class DAVClient:
                 reason = "None given"
             raise error.AuthorizationError(url=str(url_obj), reason=reason)
 
+        if error.debug_dump_communication:
+            from tempfile import NamedTemporaryFile
+            import datetime
+
+            with NamedTemporaryFile(prefix="caldavcomm", delete=False) as commlog:
+                commlog.write(b"=" * 80 + b"\n")
+                commlog.write(f"{datetime.datetime.now():%FT%H:%M:%S}".encode("utf-8"))
+                commlog.write(b"\n====>\n")
+                commlog.write(f"{method} {url}\n".encode("utf-8"))
+                commlog.write(
+                    b"\n".join([to_wire(f"{x}: {headers[x]}") for x in headers])
+                )
+                commlog.write(b"\n\n")
+                commlog.write(to_wire(body))
+                commlog.write(b"<====\n")
+                commlog.write(f"{response.status} {response.reason}".encode("utf-8"))
+                commlog.write(
+                    b"\n".join(
+                        [
+                            to_wire(f"{x}: {response.headers[x]}")
+                            for x in response.headers
+                        ]
+                    )
+                )
+                commlog.write(b"\n\n")
+                ct = response.headers.get("Content-Type", "")
+                if response.tree is not None:
+                    commlog.write(
+                        to_wire(etree.tostring(response.tree, pretty_print=True))
+                    )
+                else:
+                    commlog.write(to_wire(response._raw))
+                commlog.write(b"\n")
+
         return response
