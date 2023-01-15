@@ -19,6 +19,7 @@ from caldav.objects import log
 from caldav.objects import Principal
 from caldav.objects import ScheduleInbox
 from caldav.objects import ScheduleOutbox
+from caldav.requests import HTTPBearerAuth
 from lxml import etree
 
 if six.PY3:
@@ -611,19 +612,15 @@ class DAVClient:
             if not r.status_code == 401:
                 raise
 
-        if (
-            r.status_code == 401
-            and "WWW-Authenticate" in r.headers
-            and self.password
-            and self.username
-            and not self.auth
-        ):
+        if r.status_code == 401 and "WWW-Authenticate" in r.headers and not self.auth:
             auth_types = self.extract_auth_types(r.headers["WWW-Authenticate"])
 
-            if "basic" in auth_types:
+            if self.password and self.username and "basic" in auth_types:
                 self.auth = requests.auth.HTTPBasicAuth(self.username, self.password)
-            elif "digest" in auth_types:
+            elif self.password and self.username and "digest" in auth_types:
                 self.auth = requests.auth.HTTPDigestAuth(self.username, self.password)
+            elif self.password and "bearer" in auth_types:
+                self.auth = HTTPBearerAuth(self.password)
             else:
                 raise NotImplementedError(
                     "The server does not provide any of the currently "
@@ -632,13 +629,7 @@ class DAVClient:
 
             return self.request(url, method, body, headers)
 
-        elif (
-            r.status_code == 401
-            and "WWW-Authenticate" in r.headers
-            and self.password
-            and self.username
-            and self.auth
-        ):
+        elif r.status_code == 401 and "WWW-Authenticate" in r.headers and self.auth:
 
             ## Some (ancient) servers don't like UTF-8 binary auth with Digest authentication.
             ## An example are old SabreDAV based servers.  Not sure about UTF-8 and Basic Auth,
@@ -647,15 +638,17 @@ class DAVClient:
 
             auth_types = self.extract_auth_types(r.headers["WWW-Authenticate"])
 
-            if hasattr(self.password, "decode"):
-                if "basic" in auth_types:
+            if self.password and hasattr(self.password, "decode"):
+                if self.username and "basic" in auth_types:
                     self.auth = requests.auth.HTTPBasicAuth(
                         self.username, self.password.decode()
                     )
-                elif "digest" in auth_types:
+                elif self.username and "digest" in auth_types:
                     self.auth = requests.auth.HTTPDigestAuth(
                         self.username, self.password.decode()
                     )
+                elif "bearer" in auth_types:
+                    self.auth = HTTPBearerAuth(self.password.decode())
 
             self.username = None
             self.password = None
