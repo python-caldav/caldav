@@ -127,7 +127,7 @@ def create_ical(ical_fragment=None, objtype=None, language="en_DK", **props):
         if objtype is None:
             objtype = "VEVENT"
         component = icalendar.cal.component_factory[objtype]()
-        component.add("dtstamp", datetime.datetime.now())
+        component.add("dtstamp", datetime.datetime.now(tz=datetime.timezone.utc))
         component.add("uid", uuid.uuid1())
         my_instance.add_component(component)
     else:
@@ -142,6 +142,9 @@ def create_ical(ical_fragment=None, objtype=None, language="en_DK", **props):
         ical_fragment = None
     for prop in props:
         if props[prop] is not None:
+            if isinstance(props[prop], datetime.datetime) and not props[prop].tzinfo:
+                ## We need to have a timezone!  Assume UTC.
+                props[prop] = props[prop].astimezone(datetime.timezone.utc)
             if prop in ("child", "parent"):
                 for value in props[prop]:
                     component.add(
