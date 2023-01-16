@@ -37,7 +37,8 @@ This may have the unfortunate side effect that some clients that aren't aware of
 * expansion of recurring todos broke when the recurring_ical_event was upgraded from 1.x to 2.x
 * `len(calendar.objects())` did not work
 * Some hacks that hopefully will allow to fetch information from DOCUframe
-* We should 
+* The breaking timezone change
+* Observed broken icalendar data from Zimbra containing both DTEND and DURATION.  Made a workaround throwing some excss data.
 
 ### Documentation
 
