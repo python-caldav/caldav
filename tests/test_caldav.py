@@ -1320,7 +1320,7 @@ class RepeatedFunctionalTestsBaseClass(object):
 
     def testCreateChildParent(self):
         self.skip_on_compatibility_flag("read_only")
-        c = self._fixCalendar(supported_calendar_component_set=["VJOURNAL"])
+        c = self._fixCalendar(supported_calendar_component_set=["VEVENT"])
         parent = c.save_event(
             dtstart=datetime(2022, 12, 26, 19, 15),
             dtend=datetime(2022, 12, 26, 20, 00),
