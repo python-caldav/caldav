@@ -179,7 +179,10 @@ incompatibility_description = {
         """when querying for the current user principal property, server doesn't report anything useful""",
 
     'read_only':
-        """The calendar server does not support PUT, POST, DELETE, PROPSET, MKCALENDAR, etc"""
+        """The calendar server does not support PUT, POST, DELETE, PROPSET, MKCALENDAR, etc""",
+
+    'no_relships':
+        """The calendar server does not support child/parent relationships between calendar components""",
 }
 
 xandikos = [
@@ -245,6 +248,7 @@ zimbra = [
     'vtodo_datesearch_notime_task_is_skipped',
     'category_search_yields_nothing',
     'text_search_is_exact_match_only',
+    'no_relships','
 
     ## extra features not specified in RFC5545
     "calendar_order",
