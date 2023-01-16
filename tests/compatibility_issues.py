@@ -355,6 +355,7 @@ robur = [
     'no_freebusy_rfc4791',
     'no_todo_datesearch', ## returns nothing
     'text_search_not_working',
+    'no_relships'
 ]
 
 
