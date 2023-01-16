@@ -1323,15 +1323,18 @@ class RepeatedFunctionalTestsBaseClass(object):
         c = self._fixCalendar(supported_calendar_component_set=["VJOURNAL"])
         parent = c.save_event(
             dtstart=datetime(2022, 12, 26, 19, 15),
+            dtend=datetime(2022, 12, 26, 20, 00),
             summary="this is a parent event test",
         )
         child = c.save_event(
             dtstart=datetime(2022, 12, 26, 19, 17),
+            dtend=datetime(2022, 12, 26, 20, 00),
             summary="this is a child event test",
             parent=[parent.id],
         )
         grandparent = c.save_event(
             dtstart=datetime(2022, 12, 26, 19, 00),
+            dtend=datetime(2022, 12, 26, 20, 00),
             summary="this is a grandparent event test",
             child=[parent.id],
         )
