@@ -1,6 +1,6 @@
 ## Version 1.0 at a glance
 
-Version 1.0 is no big gamechanger compared to version 0.x.  The biggest change is the commitment that there shouldn't be any breaking changes in any subsequent 1.x-releases.
+Version 1.0.1 is no big gamechanger compared to version 0.x.  The biggest change is the commitment that there shouldn't be any breaking changes in any subsequent 1.x-releases.
 
 I had some thoughts in https://github.com/python-caldav/caldav/issues/92 to introduce new API in version 1.0, but have reconsidered.  For one thing SEMVER states:
 
@@ -73,4 +73,4 @@ I used to have a list of github issues that were touched by a release, and I als
 
 * @yeshwantthota made their first contribution in https://github.com/python-caldav/caldav/pull/236
 
-**Full Changelog**: https://github.com/python-caldav/caldav/compare/v0.11.0...v1.0.0
+**Full Changelog**: https://github.com/python-caldav/caldav/compare/v0.11.0...v1.0.1
