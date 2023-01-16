@@ -248,7 +248,7 @@ zimbra = [
     'vtodo_datesearch_notime_task_is_skipped',
     'category_search_yields_nothing',
     'text_search_is_exact_match_only',
-    'no_relships','
+    'no_relships',
 
     ## extra features not specified in RFC5545
     "calendar_order",
