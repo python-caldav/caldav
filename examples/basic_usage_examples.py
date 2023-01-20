@@ -103,7 +103,7 @@ def find_delete_calendar_demo(my_principal, calendar_name):
     ## Let's try to find or create a calendar ...
     try:
         ## This will raise a NotFoundError if calendar does not exist
-        demo_calendar = my_principal.calendar(name="Test calendar from caldav examples")
+        demo_calendar = my_principal.calendar(name=calendar_name)
         assert demo_calendar
         print(
             f"We found an existing calendar with name {calendar_name}, now deleting it"
