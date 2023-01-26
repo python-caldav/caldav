@@ -152,7 +152,7 @@ incompatibility_description = {
         """Searching for 'CONF' i.e. in the class field will not yield CONFIDENTIAL.  Which generally makes sense, but the RFC specifies substring match""",
 
     'text_search_is_exact_match_sometimes':
-        """Some servers are doing an exact match on summary field but substring match on category""",
+        """Some servers are doing an exact match on summary field but substring match on category or vice versa""",
 
    'combined_search_not_working':
         """When querying for a text match and a date range in the same report, weird things happen""",
@@ -183,6 +183,9 @@ incompatibility_description = {
 
     'no_relships':
         """The calendar server does not support child/parent relationships between calendar components""",
+
+    'isnotdefined_not_working':
+        """The is-not-defined in a calenar-query not working as it should - see https://gitlab.com/davical-project/davical/-/issues/281""",
 }
 
 xandikos = [
@@ -217,7 +220,7 @@ radicale = [
     'no_scheduling',
 
     'text_search_is_case_insensitive',
-    'text_search_is_exact_match_only',
+    'text_search_is_exact_match_sometimes',
     'combined_search_not_working',
 
     ## extra features not specified in RFC5545
@@ -301,10 +304,12 @@ icloud = [
 ]
 
 davical = [
+    #'no_journal', ## it threw a 500 internal server error! ## for old versions
     #'nofreebusy', ## for old versions
-    'fragile_sync_tokens',
-    'no_journal', ## it threw a 500 internal server error!
-    'vtodo_datesearch_nodtstart_task_is_skipped_in_closed_date_range',
+    'fragile_sync_tokens', ## no issue raised yet
+    'vtodo_datesearch_nodtstart_task_is_skipped_in_closed_date_range', ## no issue raised yet
+    'isnotdefined_not_working', ## https://gitlab.com/davical-project/davical/-/issues/281
+    'fastmail_buggy_noexpand_date_search', ## https://gitlab.com/davical-project/davical/-/issues/280
 ]
 
 google = [

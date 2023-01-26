@@ -263,6 +263,7 @@ BEGIN:VTODO
 DTSTAMP:19980101T130000Z
 DTSTART:19980415T133000Z
 DUE:19980516T045959Z
+STATUS:NEEDS-ACTION
 SUMMARY:Get stuck with Netfix and forget about the tax income declaration
 CLASS:CONFIDENTIAL
 CATEGORIES:FAMILY
@@ -1195,7 +1196,7 @@ class RepeatedFunctionalTestsBaseClass(object):
             ) and not self.check_compatibility_flag("text_search_not_working"):
                 assert len(some_events) == 1
 
-            ## I expect logical and when combining category with a date range
+            ## I expect "logical and" when combining category with a date range
             no_events = c.search(
                 comp_class=Event,
                 category="PERSONAL",
@@ -1207,7 +1208,12 @@ class RepeatedFunctionalTestsBaseClass(object):
                 and not self.check_compatibility_flag("combined_search_not_working")
                 and not self.check_compatibility_flag("text_search_not_working")
             ):
-                assert len(no_events) == 0
+                if self.check_compatibility_flag("fastmail_buggy_noexpand_date_search"):
+                    ## fastmail and davical delivers too many recurring events on a date search
+                    ## (but fastmail anyway won't get here, as combined search is not working with fastmail)
+                    assert len(no_events) == 1
+                else:
+                    assert len(no_events) == 1
             some_events = c.search(
                 comp_class=Event,
                 category="PERSONAL",
@@ -1223,12 +1229,14 @@ class RepeatedFunctionalTestsBaseClass(object):
 
         some_events = c.search(comp_class=Event, summary="Bastille Day Party")
         if not self.check_compatibility_flag("text_search_not_working"):
-            if self.check_compatibility_flag("text_search_is_exact_match_sometimes"):
-                assert len(some_events) in (1, 2)
-            elif self.check_compatibility_flag("text_search_is_exact_match_only"):
-                assert len(some_events) == 1
-            else:
-                assert len(some_events) == 2
+            assert len(some_events) == 1
+        some_events = c.search(comp_class=Event, summary="Bastille Day")
+        if self.check_compatibility_flag("text_search_is_exact_match_sometimes"):
+            assert len(some_events) in (0, 2)
+        elif self.check_compatibility_flag("text_search_is_exact_match_only"):
+            assert len(some_events) == 0
+        else:
+            assert len(some_events) == 2
 
         ## Even sorting should work out
         all_events = c.search(sort_keys=("summary", "dtstamp"))
@@ -1255,9 +1263,15 @@ class RepeatedFunctionalTestsBaseClass(object):
         all_todos = c.search(comp_class=Event)
         assert len(all_todos) == 0
 
-        ## Search with todo flag set should yield all 6 events
+        ## Search with todo flag set should yield all 6 tasks
+        ## (Except, if the calendar server does not support is-not-defined very
+        ## well, perhaps only 3 will be returned - see
+        ## https://gitlab.com/davical-project/davical/-/issues/281 )
         all_todos = c.search(todo=True)
-        assert len(all_todos) == 6
+        if self.check_compatibility_flag("isnotdefined_not_working"):
+            assert len(all_todos) == 3
+        else:
+            assert len(all_todos) == 6
 
         ## Search for misc text fields
         ## UID is a special case, supported by almost all servers
@@ -1291,10 +1305,11 @@ class RepeatedFunctionalTestsBaseClass(object):
         ## This is not a very useful search, and it's sort of a client side bug that we allow it at all.
         ## It will not match if categories field is set to "PERSONAL,ANNIVERSARY,SPECIAL OCCATION"
         ## It may not match since the above is to be considered equivalent to the raw data entered.
-        some_todos = c.search(comp_class=Event, category="FAMILY,FINANCE")
+        some_todos = c.search(comp_class=Todo, category="FAMILY,FINANCE")
         if not self.check_compatibility_flag("text_search_not_working"):
-            assert len(some_todos) in (0, 1)
-        ## TODO: This is actually a bug. We need to do client side filtering
+            assert len(some_todos) in (0, 6)
+        ## TODO: We should consider to do client side filtering to ensure exact
+        ## match only on components having MIL as a category (and not FAMILY)
         some_todos = c.search(comp_class=Todo, category="MIL")
         if self.check_compatibility_flag("text_search_is_exact_match_sometimes"):
             assert len(some_todos) in (0, 6)
@@ -1303,16 +1318,16 @@ class RepeatedFunctionalTestsBaseClass(object):
         elif not self.check_compatibility_flag(
             "category_search_yields_nothing"
         ) and not self.check_compatibility_flag("text_search_not_working"):
-            assert len(some_todos) == 1
+            ## This is the correct thing, according to the letter of the RFC
+            assert len(some_todos) == 6
 
-        ## completing an event, and it should not show up anymore
-        t1.complete()
-        t2.complete()
+        ## completing events, and it should not show up anymore
         t3.complete()
-        t4.complete()
+        t5.complete()
+        t6.complete()
 
         some_todos = c.search(todo=True)
-        assert len(some_todos) == 2
+        assert len(some_todos) == 3
 
         ## unless we specifically ask for completed tasks
         all_todos = c.search(todo=True, include_completed=True)
@@ -1452,7 +1467,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         # add todo-item
         t1 = c.save_todo(todo)
         t2 = c.save_todo(todo2)
-        t3 = c.save_todo(todo3)
+        t4 = c.save_todo(todo4)
 
         todos = c.todos()
         assert len(todos) == 3
@@ -1460,7 +1475,8 @@ class RepeatedFunctionalTestsBaseClass(object):
         def uids(lst):
             return [x.instance.vtodo.uid for x in lst]
 
-        assert uids(todos) == uids([t2, t3, t1])
+        ## Default sort order is (due, priority).
+        assert uids(todos) == uids([t2, t1, t4])
 
         todos = c.todos(sort_keys=("priority",))
         ## sort_key is considered to be a legacy parameter,
@@ -1474,8 +1490,8 @@ class RepeatedFunctionalTestsBaseClass(object):
                 if hasattr(x.instance.vtodo, "priority")
             ]
 
-        assert pri(todos) == pri([t3, t2])
-        assert pri(todos2) == pri([t3, t2])
+        assert pri(todos) == pri([t4, t2])
+        assert pri(todos2) == pri([t4, t2])
 
         todos = c.todos(
             sort_keys=(
@@ -1483,7 +1499,7 @@ class RepeatedFunctionalTestsBaseClass(object):
                 "priority",
             )
         )
-        assert uids(todos) == uids([t3, t2, t1])
+        assert uids(todos) == uids([t4, t2, t1])
 
         ## str of CalendarObjectResource is slightly inconsistent compared to
         ## the str of Calendar objects, as the class name is included.  Perhaps
@@ -1511,7 +1527,10 @@ class RepeatedFunctionalTestsBaseClass(object):
         t5 = c.save_todo(todo5)
         t6 = c.save_todo(todo6)
         todos = c.todos()
-        assert len(todos) == 6
+        if self.check_compatibility_flag("isnotdefined_not_working"):
+            assert len(todos) == 3
+        else:
+            assert len(todos) == 6
 
         notodos = c.date_search(  # default compfilter is events
             start=datetime(1997, 4, 14), end=datetime(2015, 5, 14), expand=False
@@ -1632,7 +1651,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         # add todo-items
         t1 = c.save_todo(todo)
         t2 = c.save_todo(todo2)
-        t3 = c.save_todo(todo3)
+        t3 = c.save_todo(todo3, status="NEEDS-ACTION")
 
         # There are now three todo-items at the calendar
         todos = c.todos()
@@ -1670,9 +1689,9 @@ class RepeatedFunctionalTestsBaseClass(object):
     def testTodoRecurringCompleteSafe(self):
         self.skip_on_compatibility_flag("read_only")
         c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
-        t6 = c.save_todo(todo6)
+        t6 = c.save_todo(todo6, status="NEEDS-ACTION")
         if not self.check_compatibility_flag("rrule_takes_no_count"):
-            t8 = c.save_todo(todo8)
+            t8 = c.save_todo(todo8, status="NEEDS-ACTION")
         if not self.check_compatibility_flag("rrule_takes_no_count"):
             assert len(c.todos()) == 2
         else:
@@ -1693,9 +1712,9 @@ class RepeatedFunctionalTestsBaseClass(object):
     def testTodoRecurringCompleteThisandfuture(self):
         self.skip_on_compatibility_flag("read_only")
         c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
-        t6 = c.save_todo(todo6)
+        t6 = c.save_todo(todo6, status="NEEDS-ACTION")
         if not self.check_compatibility_flag("rrule_takes_no_count"):
-            t8 = c.save_todo(todo8)
+            t8 = c.save_todo(todo8, status="NEEDS-ACTION")
         if not self.check_compatibility_flag("rrule_takes_no_count"):
             assert len(c.todos()) == 2
         else:
