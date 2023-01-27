@@ -2313,7 +2313,7 @@ class CalendarObjectResource(DAVObject):
             return i["DURATION"].dt
         elif "DTSTART" in i and self._ENDPARAM in i:
             return i[self._ENDPARAM].dt - i["DTSTART"].dt
-        elif "DTSTART" in i and not isinstance(i[DTSTART], datetime.datetime):
+        elif "DTSTART" in i and not isinstance(i["DTSTART"], datetime):
             return timedelta(days=1)
         else:
             return timedelta(0)
