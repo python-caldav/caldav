@@ -1238,6 +1238,7 @@ class Calendar(DAVObject):
                 "summary",
                 "comment",
                 "class_",
+                "class",
                 "category",
                 "description",
                 "location",
