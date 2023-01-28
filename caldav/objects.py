@@ -1806,7 +1806,7 @@ class CalendarObjectResource(DAVObject):
 
         self.save()
 
-    def _get_icalendar_component(self, assert_one=True):
+    def _get_icalendar_component(self, assert_one=False):
         """Returns the icalendar subcomponent - which should be an
         Event, Journal, Todo or FreeBusy from the icalendar class
 
@@ -1844,7 +1844,7 @@ class CalendarObjectResource(DAVObject):
     icalendar_component = property(
         _get_icalendar_component,
         _set_icalendar_component,
-        doc="icalendar component - cannot be used with recurrence sets",
+        doc="icalendar component - should not be used with recurrence sets",
     )
 
     def add_attendee(self, attendee, no_default_parameters=False, **parameters):
