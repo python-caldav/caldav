@@ -17,6 +17,8 @@ import uuid
 from collections import namedtuple
 from datetime import date
 from datetime import datetime
+from datetime import timedelta
+from datetime import timezone
 
 import pytest
 import requests
@@ -1363,6 +1365,113 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert rt == parent.id
         assert rt.params["RELTYPE"] == "PARENT"
 
+    def testSetDue(self):
+        self.skip_on_compatibility_flag("read_only")
+
+        c = self._fixCalendar(supported_calendar_component_set=["VEVENT"])
+
+        utc = timezone.utc
+
+        some_todo = c.save_todo(
+            dtstart=datetime(2022, 12, 26, 19, 15, tzinfo=utc),
+            due=datetime(2022, 12, 26, 20, 00, tzinfo=utc),
+            summary="Some task",
+            uid="ctuid1",
+        )
+
+        ## setting the due should ... set the due (surprise, surprise)
+        some_todo.set_due(datetime(2022, 12, 26, 20, 10, tzinfo=utc))
+        assert some_todo.icalendar_component["DUE"].dt == datetime(
+            2022, 12, 26, 20, 10, tzinfo=utc
+        )
+        assert some_todo.icalendar_component["DTSTART"].dt == datetime(
+            2022, 12, 26, 19, 15, tzinfo=utc
+        )
+
+        ## move_dtstart causes the duration to be unchanged
+        some_todo.set_due(datetime(2022, 12, 26, 20, 20, tzinfo=utc), move_dtstart=True)
+        assert some_todo.icalendar_component["DUE"].dt == datetime(
+            2022, 12, 26, 20, 20, tzinfo=utc
+        )
+        assert some_todo.icalendar_component["DTSTART"].dt == datetime(
+            2022, 12, 26, 19, 25, tzinfo=utc
+        )
+
+        ## This task has duration set rather than due.  Due should be implied to be 19:30.
+        some_other_todo = c.save_todo(
+            dtstart=datetime(2022, 12, 26, 19, 15, tzinfo=utc),
+            duration=timedelta(minutes=15),
+            summary="Some other task",
+            uid="ctuid2",
+        )
+        some_other_todo.set_due(
+            datetime(2022, 12, 26, 19, 45, tzinfo=utc), move_dtstart=True
+        )
+        assert some_other_todo.icalendar_component["DUE"].dt == datetime(
+            2022, 12, 26, 19, 45, tzinfo=utc
+        )
+        assert some_other_todo.icalendar_component["DTSTART"].dt == datetime(
+            2022, 12, 26, 19, 30, tzinfo=utc
+        )
+
+        some_todo.save()
+
+        self.skip_on_compatibility_flag("no_relships")
+        parent = c.save_todo(
+            dtstart=datetime(2022, 12, 26, 19, 00, tzinfo=utc),
+            dtend=datetime(2022, 12, 26, 21, 00, tzinfo=utc),
+            summary="this is a parent test task",
+            uid="ctuid3",
+            child=[some_todo.id],
+        )
+
+        ## The above updates the some_todo object on the server side, but the local object is not
+        ## updated ... until we reload it
+        some_todo.load()
+
+        ## This should work out (set the childs due to some time before the parents due)
+        some_todo.set_due(
+            datetime(2022, 12, 26, 20, 30, tzinfo=utc),
+            move_dtstart=True,
+            check_dependent=True,
+        )
+        assert some_todo.icalendar_component["DUE"].dt == datetime(
+            2022, 12, 26, 20, 30, tzinfo=utc
+        )
+        assert some_todo.icalendar_component["DTSTART"].dt == datetime(
+            2022, 12, 26, 19, 35, tzinfo=utc
+        )
+
+        ## This should not work out (set the childs due to some time before the parents due)
+        with pytest.raises(error.ConsistencyError):
+            some_todo.set_due(
+                datetime(2022, 12, 26, 21, 30, tzinfo=utc),
+                move_dtstart=True,
+                check_dependent=True,
+            )
+
+        child = c.save_todo(
+            dtstart=datetime(2022, 12, 26, 19, 45),
+            due=datetime(2022, 12, 26, 19, 55),
+            summary="this is a test child task",
+            uid="ctuid4",
+            parent=[some_todo.id],
+        )
+
+        ## This should still work out (set the childs due to some time before the parents due)
+        ## (The fact that we now have a child does not affect it anyhow)
+        some_todo.set_due(
+            datetime(2022, 12, 26, 20, 31, tzinfo=utc),
+            move_dtstart=True,
+            check_dependent=True,
+        )
+        assert some_todo.icalendar_component["DUE"].dt == datetime(
+            2022, 12, 26, 20, 31, tzinfo=utc
+        )
+        assert some_todo.icalendar_component["DTSTART"].dt == datetime(
+            2022, 12, 26, 19, 36, tzinfo=utc
+        )
+
     def testCreateJournalListAndJournalEntry(self):
         """
         This test demonstrates the support for journals.
@@ -2136,91 +2245,6 @@ class RepeatedFunctionalTestsBaseClass(object):
             conn = client(**connect_params, url=url)
             principal = conn.principal()
             calendars = principal.calendars()
-
-    ## TODO: run this test, ref https://github.com/python-caldav/caldav/issues/91
-    ## It should be removed prior to a 1.0-release.
-    def testBackwardCompatibility(self):
-        """
-        Tobias Brox has done some API changes - but this thing should
-        still be backward compatible.
-        """
-        self.skip_on_compatibility_flag("read_only")
-        if "backwards_compatibility_url" not in self.server_params:
-            pytest.skip(
-                "backward compatibility check skipped - needs an URL like it was supposed to be in 2013"
-            )
-        caldav = DAVClient(self.server_params["backwards_compatibility_url"])
-        principal = Principal(caldav, self.server_params["backwards_compatibility_url"])
-        c = Calendar(caldav, name="Yep", parent=principal, id=self.testcal_id).save()
-        assert c.url is not None
-
-        c.set_properties(
-            [
-                dav.DisplayName("hooray"),
-            ]
-        )
-        props = c.get_properties(
-            [
-                dav.DisplayName(),
-            ]
-        )
-        assert props[dav.DisplayName.tag] == "hooray"
-
-        cc = Calendar(caldav, name="Yep", parent=principal).save()
-        assert cc.url is not None
-        cc.delete()
-
-        e = Event(caldav, data=ev1, parent=c).save()
-        assert e.url is not None
-        ee = Event(caldav, url=url.make(e.url), parent=c)
-        ee.load()
-        assert e.instance.vevent.uid == ee.instance.vevent.uid
-
-        r = c.date_search(
-            datetime(2006, 7, 13, 17, 00, 00),
-            datetime(2006, 7, 15, 17, 00, 00),
-            expand=False,
-        )
-        assert e.instance.vevent.uid == r[0].instance.vevent.uid
-        assert len(r) == 1
-
-        all = c.events()
-        assert len(all) == 1
-
-        e2 = Event(caldav, data=ev2, parent=c).save()
-        assert e.url is not None
-
-        tmp = c.event("20010712T182145Z-123401@example.com")
-        assert e2.instance.vevent.uid == tmp.instance.vevent.uid
-
-        r = c.date_search(
-            datetime(2007, 7, 13, 17, 00, 00),
-            datetime(2007, 7, 15, 17, 00, 00),
-            expand=False,
-        )
-        assert len(r) == 1
-
-        e.data = ev2
-        e.save()
-
-        r = c.date_search(
-            datetime(2007, 7, 13, 17, 00, 00),
-            datetime(2007, 7, 15, 17, 00, 00),
-            expand=False,
-        )
-        # for e in r: print(e.data)
-        assert len(r) == 1
-
-        e.instance = e2.instance
-        e.save()
-
-        r = c.date_search(
-            datetime(2007, 7, 13, 17, 00, 00),
-            datetime(2007, 7, 15, 17, 00, 00),
-            expand=False,
-        )
-        # for e in r: print(e.data)
-        assert len(r) == 1
 
     def testObjects(self):
         # TODO: description ... what are we trying to test for here?
