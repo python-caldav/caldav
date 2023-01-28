@@ -491,12 +491,15 @@ class Principal(DAVObject):
             supported_calendar_component_set=supported_calendar_component_set,
         )
 
-    def calendar(self, name=None, cal_id=None):
+    def calendar(self, name=None, cal_id=None, cal_url=None):
         """
         The calendar method will return a calendar object.
         It will not initiate any communication with the server.
         """
-        return self.calendar_home_set.calendar(name, cal_id)
+        if not cal_url:
+            return self.calendar_home_set.calendar(name, cal_id)
+        else:
+            return Calendar(self.client, url=self.client.url.join(cal_url))
 
     def get_vcal_address(self):
         """
