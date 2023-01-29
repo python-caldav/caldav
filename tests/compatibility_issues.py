@@ -213,10 +213,6 @@ radicale = [
     ## TODO: raise an issue on this one
     "radicale_breaks_on_category_search",
 
-    ## Expanding recurrent events is not yet supported
-    ## ref https://github.com/Kozea/Radicale/issues/662
-    "no_recurring_expandation",
-
     'no_scheduling',
 
     'text_search_is_case_insensitive',
