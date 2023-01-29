@@ -1208,6 +1208,8 @@ class RepeatedFunctionalTestsBaseClass(object):
                 assert len(some_events) in (0, 1)
             ## TODO: This is actually a bug. We need to do client side filtering
             some_events = c.search(comp_class=Event, category="PERSON")
+            if self.check_compatibility_flag("text_search_is_exact_match_sometimes"):
+                assert len(some_events) in (0,1)
             if self.check_compatibility_flag("text_search_is_exact_match_only"):
                 assert len(some_events) == 0
             elif not self.check_compatibility_flag(
