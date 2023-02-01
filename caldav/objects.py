@@ -1114,11 +1114,10 @@ class Calendar(DAVObject):
 
         ## partial workaround for https://github.com/python-caldav/caldav/issues/201
         for obj in objects:
-            if not obj.data:
-                try:
-                    obj.load()
-                except:
-                    pass
+            try:
+                obj.load(only_if_unloaded=True)
+            except:
+                pass
 
         return objects
 
@@ -1812,6 +1811,8 @@ class CalendarObjectResource(DAVObject):
 
         See also https://github.com/python-caldav/caldav/issues/232
         """
+        if not self.is_loaded():
+            self.load()
         ret = [
             x
             for x in self.icalendar_instance.subcomponents
@@ -1970,10 +1971,12 @@ class CalendarObjectResource(DAVObject):
             obj.url = self.url
         return obj
 
-    def load(self):
+    def load(self, only_if_unloaded=False):
         """
-        Load the object from the caldav server.
+        (Re)load the object from the caldav server.
         """
+        if only_if_unloaded and self.is_loaded():
+            return
         r = self.client.request(self.url)
         if r.status == 404:
             raise error.NotFoundError(errmsg(r))
@@ -2181,6 +2184,9 @@ class CalendarObjectResource(DAVObject):
 
         self._create(id=self.id, path=path)
         return self
+
+    def is_loaded(self):
+        return self._data or self._vobject_instance or self._icalendar_instance
 
     def __str__(self):
         return "%s: %s" % (self.__class__.__name__, self.url)
