@@ -1058,16 +1058,13 @@ class Calendar(DAVObject):
 
             for o in objects:
                 if not o.data:
+                    ## TODO: all objects here should have data, unless the calendar server is breaking the caldav standard.
+                    ## Perhaps we should load missing data?
                     continue
-                components = o.vobject_instance.components()
-                for i in components:
-                    if i.name in ("VEVENT", "VTODO"):
-                        ## Those recurrance properties should not be in the returns from the server,
-                        ## if they are present it indicates that server expand didn't work and we'll
-                        ## have to do it on the client side
-                        recurrance_properties = ["exdate", "exrule", "rdate", "rrule"]
-                        if any(key in recurrance_properties for key in i.contents):
-                            o.expand_rrule(start, end)
+                component = o.icalendar_component
+                recurrance_properties = ["exdate", "exrule", "rdate", "rrule"]
+                if any(key in component for key in recurrance_properties):
+                    o.expand_rrule(start, end)
             if split_expanded:
                 objects_ = objects
                 objects = []
