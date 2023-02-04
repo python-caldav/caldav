@@ -100,9 +100,13 @@ def calendar_by_url_demo(client, url):
 
 
 def read_modify_event_demo(event):
-    """
-    This demonstrates how to edit properties in the ical object and
-    save it back to the calendar
+    """This demonstrates how to edit properties in the ical object
+    and save it back to the calendar.  It takes an event -
+    caldav.Event - as input.  This event is found through the
+    `search_calendar_demo`.  The event needs some editing, which will
+    be done below.  Keep in mind that the differences between an
+    Event, a Todo and a Journal is small, everything that is done to
+    he event here could as well be done towards a task.
     """
     ## The objects (events, journals and tasks) comes with some properties that
     ## can be used for inspecting the data and modifying it.
@@ -169,7 +173,7 @@ def read_modify_event_demo(event):
 
     ## NOTE: always use event.save() for updating events and
     ## calendar.save_event(data) for creating a new event.
-    ## This may not break:
+    ## This may break:
     # event.save(event.data)
     ## ref https://github.com/python-caldav/caldav/issues/153
 
