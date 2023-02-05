@@ -1,6 +1,7 @@
 import sys
 from datetime import date
 from datetime import datetime
+from datetime import timedelta
 
 ## We'll try to use the local caldav library, not the system-installed
 sys.path.insert(0, "..")
@@ -134,6 +135,21 @@ def read_modify_event_demo(event):
     event.icalendar_component["summary"] = event.icalendar_component["summary"].replace(
         "celebratiuns", "celebrations"
     )
+
+    ## timestamps (DTSTAMP, DTSTART, DTEND for events, DUE for tasks,
+    ## etc) can be fetched using the icalendar library like this:
+    dtstart = event.icalendar_component.get("dtstart")
+
+    ## but, dtstart is not a python datetime - it's a vDatetime from
+    ## the icalendar package.  If you want it as a python datetime,
+    ## use the .dt property.  (In this case dtstart is set - and it's
+    ## pretty much mandatory for events - but the code here is robust
+    ## enough to handle cases where it's undefined):
+    dtstart_dt = dtstart and dtstart.dt
+
+    ## We can modify it:
+    if dtstart:
+        event.icalendar_component["dtstart"].dt = dtstart.dt + timedelta(seconds=3600)
 
     ## And finally, get the casing correct
     event.data = event.data.replace("norwegian", "Norwegian")
