@@ -1168,18 +1168,21 @@ class RepeatedFunctionalTestsBaseClass(object):
         ## not defined
         some_events = c.search(comp_class=Event, no_class=True)
         ## ev1, ev3 should be returned
+        ## or perhaps not,
+        ## ref https://gitlab.com/davical-project/davical/-/issues/281#note_1265743591
+        ## PUBLIC is default, so maybe no events should be returned?
         if not self.check_compatibility_flag("isnotdefined_not_working"):
-            assert(len(some_events) == 2)
-            
+            assert len(some_events) == 2
+
         some_events = c.search(comp_class=Event, no_category=True)
         ## ev1, ev3 should be returned
         if not self.check_compatibility_flag("isnotdefined_not_working"):
-            assert(len(some_events) == 2)
+            assert len(some_events) == 2
 
         some_events = c.search(comp_class=Event, no_dtend=True)
         ## evr should be returned
         if not self.check_compatibility_flag("isnotdefined_not_working"):
-            assert(len(some_events) == 1)
+            assert len(some_events) == 1
 
         ## category
         if not self.check_compatibility_flag("radicale_breaks_on_category_search"):
@@ -1209,7 +1212,7 @@ class RepeatedFunctionalTestsBaseClass(object):
             ## TODO: This is actually a bug. We need to do client side filtering
             some_events = c.search(comp_class=Event, category="PERSON")
             if self.check_compatibility_flag("text_search_is_exact_match_sometimes"):
-                assert len(some_events) in (0,1)
+                assert len(some_events) in (0, 1)
             if self.check_compatibility_flag("text_search_is_exact_match_only"):
                 assert len(some_events) == 0
             elif not self.check_compatibility_flag(
@@ -1819,7 +1822,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
         t6 = c.save_todo(todo6, status="NEEDS-ACTION")
         if not self.check_compatibility_flag("rrule_takes_no_count"):
-            t8 = c.save_todo(todo8, status="NEEDS-ACTION")
+            t8 = c.save_todo(todo8)
         if not self.check_compatibility_flag("rrule_takes_no_count"):
             assert len(c.todos()) == 2
         else:
@@ -1842,7 +1845,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
         t6 = c.save_todo(todo6, status="NEEDS-ACTION")
         if not self.check_compatibility_flag("rrule_takes_no_count"):
-            t8 = c.save_todo(todo8, status="NEEDS-ACTION")
+            t8 = c.save_todo(todo8)
         if not self.check_compatibility_flag("rrule_takes_no_count"):
             assert len(c.todos()) == 2
         else:
