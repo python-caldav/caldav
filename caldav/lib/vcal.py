@@ -9,7 +9,7 @@ import icalendar
 from caldav.lib.python_utilities import to_normal_str
 
 ## Global counter.  We don't want to be too verbose on the users, ref https://github.com/home-assistant/core/issues/86938
-fixup_error_loggings=0
+fixup_error_loggings = 0
 
 ## Fixups to the icalendar data to work around compatbility issues.
 
@@ -99,13 +99,14 @@ def fix(event):
     if fixed2 != event:
         global fixup_error_loggings
         fixup_error_loggings += 1
-        remove_bit = lambda n: n & (n-1)
+        remove_bit = lambda n: n & (n - 1)
         if not remove_bit(fixup_error_loggings):
             log = logging.error
         else:
             log = logging.debug
         log(
-            "Ical data was modified to avoid compatibility issues.  (error count: %i - this error is ratelimited)", exc_info=True
+            "Ical data was modified to avoid compatibility issues.  (error count: %i - this error is ratelimited)",
+            exc_info=True,
         )
         try:
             import difflib
