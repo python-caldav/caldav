@@ -78,8 +78,11 @@ incompatibility_description = {
         """RFC6578 is not supported, things will break if we try to do a sync-token report""",
 
     'time_based_sync_tokens':
-        """The sync token is typically a time stamp, and we need to sleep a """
-        """second in the test code to get things right""",
+        """A sync-token report depends on the unix timestamp, """
+        """several syncs on the same second may cause problems, """
+        """so we need to sleep a bit. """
+        """(this is a neligible problem if sync returns too much, but may be """
+        """disasterously if it returns too little). """,
 
     'fragile_sync_tokens':
         """Every now and then (or perhaps always), more content than expected """
@@ -185,7 +188,10 @@ incompatibility_description = {
         """The calendar server does not support child/parent relationships between calendar components""",
 
     'isnotdefined_not_working':
-        """The is-not-defined in a calenar-query not working as it should - see https://gitlab.com/davical-project/davical/-/issues/281""",
+        """The is-not-defined in a calendar-query not working as it should - see https://gitlab.com/davical-project/davical/-/issues/281""",
+
+    'search_needs_comptype':
+        """The server may not always come up with anything useful when searching for objects and ommitting to specify weather one wants to see tasks or events""",
 }
 
 xandikos = [
@@ -315,11 +321,19 @@ google = [
     'no_recurring_expandation'
 ]
 
-sogo = [
+## https://www.sogo.nu/bugs/view.php?id=3065
+## left a note about time-based sync tokens on https://www.sogo.nu/bugs/view.php?id=5163
+## https://www.sogo.nu/bugs/view.php?id=5282
+## https://bugs.sogo.nu/view.php?id=5693
+## https://bugs.sogo.nu/view.php?id=5694
+sogo = [ ## and in addition ... the requests are efficiently rate limited, as it spawns lots of postgresql connections all until it hits a limit, after that it's 501 errors ...
+    "time_based_sync_tokens",
+    "search_needs_comptype",
+    "fastmail_buggy_noexpand_date_search",
+    "text_search_not_working",
+    "isnotdefined_not_working",
     'no_journal',
-    'no_freebusy_rfc4791', ## https://www.sogo.nu/bugs/view.php?id=5282
-    "time_based_sync_tokens", ## Left a note on https://www.sogo.nu/bugs/view.php?id=5163
-    "no_expand", ## https://www.sogo.nu/bugs/view.php?id=3065
+    'no_freebusy_rfc4791'
 ]
 
 nextcloud = [
