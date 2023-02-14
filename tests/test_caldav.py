@@ -138,6 +138,16 @@ uids_used = (
     "20010712T182145Z-123401@example.com",
     "20070313T123432Z-456553@example.com",
     "20080712T182145Z-123401@example.com",
+    "19970901T130000Z-123403@example.com",
+    "20010712T182145Z-123401@example.com",
+    "20080712T182145Z-123401@example.com",
+    "takeoutthethrash",
+    "ctuid1",
+    "ctuid2",
+    "ctuid3",
+    "ctuid4",
+    "ctuid5",
+    "ctuid6",
 )
 ## TODO: todo7 is an item without uid.  Should be taken care of somehow.
 
@@ -480,6 +490,8 @@ class RepeatedFunctionalTestsBaseClass(object):
     def setup_method(self):
         logging.debug("############## test setup")
         self.incompatibilities = set()
+        self.cleanup_regime = self.server_params.get("cleanup", "light")
+        self.calendars_used = []
 
         for flag in self.server_params.get("incompatibilities", []):
             assert flag in compatibility_issues.incompatibility_description
@@ -501,13 +513,16 @@ class RepeatedFunctionalTestsBaseClass(object):
         else:
             self.principal = self.caldav.principal()
 
-        if not self.check_compatibility_flag("read_only"):
+        if (
+            not self.check_compatibility_flag("read_only")
+            and self.cleanup_regime == "thorough"
+        ):
             logging.debug(
                 "## going to tear down old test calendars, "
                 "in case teardown_method wasn't properly executed "
                 "last time tests were run"
             )
-            self._teardown_method()
+            self._cleanup("pre")
 
         if self.check_compatibility_flag("object_by_uid_is_broken"):
             import caldav.objects
@@ -522,13 +537,20 @@ class RepeatedFunctionalTestsBaseClass(object):
         logging.debug("############################")
         logging.debug("############## test teardown_method")
         logging.debug("############################")
-        self._teardown_method()
+        self._cleanup("post")
         logging.debug("############## test teardown_method done")
 
-    def _teardown_method(self):
+    def _cleanup(self, mode=None):
+        if self.cleanup_regime in ("pre", "post") and self.cleanup_regime != mode:
+            return
+        for cal in self.calendars_used:
+            cal.delete()
         if self.check_compatibility_flag("read_only"):
             return  ## no cleanup needed
-        if self.check_compatibility_flag("no_mkcalendar"):
+        if (
+            self.check_compatibility_flag("no_mkcalendar")
+            or self.cleanup_regime == "thorough"
+        ):
             for uid in uids_used:
                 try:
                     obj = self._fixCalendar().object_by_uid(uid)
@@ -540,21 +562,23 @@ class RepeatedFunctionalTestsBaseClass(object):
                         "Something went kaboom while deleting event", exc_info=True
                     )
             return
-        for name in ("Yep", "Yapp", "Yølp", self.testcal_id, self.testcal_id2):
-            try:
-                cal = self.principal.calendar(name=name)
-            except:
-                cal = self.principal.calendar(cal_id=name)
-            try:
-                if self.check_compatibility_flag("sticky_events"):
-                    try:
-                        for goo in cal.objects():
-                            goo.delete()
-                    except:
-                        pass
-                cal.delete()
-            except:
-                pass
+        if self.cleanup_regime in ("normal", "thorough"):
+            for name in ("Yep", "Yapp", "Yølp", self.testcal_id, self.testcal_id2):
+                self._teardownCalendar(name=name)
+                self._teardownCalendar(cal_id=name)
+
+    def _teardownCalendar(self, name=None, cal_id=None):
+        try:
+            cal = self.principal.calendar(name=name, cal_id=cal_id)
+            if self.check_compatibility_flag("sticky_events"):
+                try:
+                    for goo in cal.objects():
+                        goo.delete()
+                except:
+                    pass
+            cal.delete()
+        except:
+            pass
 
     def _fixCalendar(self, **kwargs):
         """
@@ -581,9 +605,22 @@ class RepeatedFunctionalTestsBaseClass(object):
                 self._default_calendar = calendars[0]
             return self._default_calendar
         else:
-            return self.principal.make_calendar(
-                name="Yep", cal_id=self.testcal_id, **kwargs
+            if not self.check_compatibility_flag(
+                "unique_calendar_ids"
+            ) and self.cleanup_regime in ("light", "pre"):
+                self._teardownCalendar(cal_id=self.testcal_id)
+            if self.check_compatibility_flag("no_displayname"):
+                name = None
+            else:
+                name = "Yep"
+            ret = self.principal.make_calendar(
+                name=name, cal_id=self.testcal_id, **kwargs
             )
+            ## TEMP - checking that the calendar works
+            ret.events()
+            if self.cleanup_regime == "post":
+                self.calendars_used.append(ret)
+            return ret
 
     def testSupport(self):
         """
@@ -665,9 +702,10 @@ class RepeatedFunctionalTestsBaseClass(object):
 
         ## Not sure if those asserts make much sense, the main point here is to exercise
         ## the __str__ and __repr__ methods on the Calendar object.
-        name = c.get_property(dav.DisplayName(), use_cached=True)
-        if not name:
-            name = c.url
+        if not self.check_compatibility_flag("no_displayname"):
+            name = c.get_property(dav.DisplayName(), use_cached=True)
+            if not name:
+                name = c.url
         assert str(name) == str(c)
         assert str(name) in repr(c)
         assert "Calendar" in repr(c)
@@ -737,6 +775,10 @@ class RepeatedFunctionalTestsBaseClass(object):
     def testCreateDeleteCalendar(self):
         self.skip_on_compatibility_flag("no_mkcalendar")
         self.skip_on_compatibility_flag("read_only")
+        if not self.check_compatibility_flag(
+            "unique_calendar_ids"
+        ) and self.cleanup_regime in ("light", "pre"):
+            self._teardownCalendar(cal_id=self.testcal_id)
         c = self.principal.make_calendar(name="Yep", cal_id=self.testcal_id)
         assert c.url is not None
         events = c.events()
@@ -787,9 +829,11 @@ class RepeatedFunctionalTestsBaseClass(object):
             dtstart=datetime(2015, 10, 10, 8, 7, 6),
             summary="This is a test event",
             dtend=datetime(2016, 10, 10, 9, 8, 7),
+            uid="ctuid1",
         )
         events = c.events()
         assert len(events) == len(existing_events) + 2
+        ev2.delete()
 
     def testCalendarByFullURL(self):
         """
@@ -882,6 +926,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         my_changed_objects = c.objects_by_sync_token(
             sync_token=my_changed_objects.sync_token
         )
+
         if not self.check_compatibility_flag("fragile_sync_tokens"):
             assert len(list(my_changed_objects)) == 0
 
@@ -1038,6 +1083,11 @@ class RepeatedFunctionalTestsBaseClass(object):
     def testLoadEvent(self):
         self.skip_on_compatibility_flag("read_only")
         self.skip_on_compatibility_flag("no_mkcalendar")
+        if not self.check_compatibility_flag(
+            "unique_calendar_ids"
+        ) and self.cleanup_regime in ("light", "pre"):
+            self._teardownCalendar(cal_id=self.testcal_id)
+            self._teardownCalendar(cal_id=self.testcal_id2)
         c1 = self.principal.make_calendar(name="Yep", cal_id=self.testcal_id)
         c2 = self.principal.make_calendar(name="Yapp", cal_id=self.testcal_id2)
         e1_ = c1.save_event(ev1)
@@ -1047,10 +1097,22 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert e1.url == e1_.url
         if not self.check_compatibility_flag("event_by_url_is_broken"):
             e1.load()
+        if (
+            not self.check_compatibility_flag("unique_calendar_ids")
+            and self.cleanup_regime == "post"
+        ):
+            self._teardownCalendar(cal_id=self.testcal_id)
+            self._teardownCalendar(cal_id=self.testcal_id2)
 
     def testCopyEvent(self):
         self.skip_on_compatibility_flag("read_only")
         self.skip_on_compatibility_flag("no_mkcalendar")
+        if not self.check_compatibility_flag(
+            "unique_calendar_ids"
+        ) and self.cleanup_regime in ("light", "pre"):
+            self._teardownCalendar(cal_id=self.testcal_id)
+            self._teardownCalendar(cal_id=self.testcal_id2)
+
         ## Let's create two calendars, and populate one event on the first calendar
         c1 = self.principal.make_calendar(name="Yep", cal_id=self.testcal_id)
         c2 = self.principal.make_calendar(name="Yapp", cal_id=self.testcal_id2)
@@ -1094,6 +1156,13 @@ class RepeatedFunctionalTestsBaseClass(object):
         else:
             assert len(c1.events()) == 2
 
+        if (
+            not self.check_compatibility_flag("unique_calendar_ids")
+            and self.cleanup_regime == "post"
+        ):
+            self._teardownCalendar(cal_id=self.testcal_id)
+            self._teardownCalendar(cal_id=self.testcal_id2)
+
     def testCreateCalendarAndEventFromVobject(self):
         self.skip_on_compatibility_flag("read_only")
         c = self._fixCalendar()
@@ -1130,7 +1199,10 @@ class RepeatedFunctionalTestsBaseClass(object):
 
         ## Search without any parameters should yield everything on calendar
         all_events = c.search()
-        assert len(all_events) == 3
+        if self.check_compatibility_flag("search_needs_comptype"):
+            assert len(all_events) <= 3
+        else:
+            assert len(all_events) == 3
 
         ## Search with comp_class set to Event should yield all events on calendar
         all_events = c.search(comp_class=Event)
@@ -1182,18 +1254,16 @@ class RepeatedFunctionalTestsBaseClass(object):
         if not self.check_compatibility_flag("isnotdefined_not_working"):
             assert len(some_events) == 1
 
+        self.skip_on_compatibility_flag("text_search_not_working")
+
         ## category
         if not self.check_compatibility_flag("radicale_breaks_on_category_search"):
 
             some_events = c.search(comp_class=Event, category="PERSONAL")
-            if not self.check_compatibility_flag(
-                "category_search_yields_nothing"
-            ) and not self.check_compatibility_flag("text_search_not_working"):
+            if not self.check_compatibility_flag("category_search_yields_nothing"):
                 assert len(some_events) == 1
             some_events = c.search(comp_class=Event, category="personal")
-            if not self.check_compatibility_flag(
-                "category_search_yields_nothing"
-            ) and not self.check_compatibility_flag("text_search_not_working"):
+            if not self.check_compatibility_flag("category_search_yields_nothing"):
                 if self.check_compatibility_flag("text_search_is_case_insensitive"):
                     assert len(some_events) == 1
                 else:
@@ -1205,17 +1275,14 @@ class RepeatedFunctionalTestsBaseClass(object):
             some_events = c.search(
                 comp_class=Event, category="ANNIVERSARY,PERSONAL,SPECIAL OCCASION"
             )
-            if not self.check_compatibility_flag("text_search_not_working"):
-                assert len(some_events) in (0, 1)
+            assert len(some_events) in (0, 1)
             ## TODO: This is actually a bug. We need to do client side filtering
             some_events = c.search(comp_class=Event, category="PERSON")
             if self.check_compatibility_flag("text_search_is_exact_match_sometimes"):
                 assert len(some_events) in (0, 1)
             if self.check_compatibility_flag("text_search_is_exact_match_only"):
                 assert len(some_events) == 0
-            elif not self.check_compatibility_flag(
-                "category_search_yields_nothing"
-            ) and not self.check_compatibility_flag("text_search_not_working"):
+            elif not self.check_compatibility_flag("category_search_yields_nothing"):
                 assert len(some_events) == 1
 
             ## I expect "logical and" when combining category with a date range
@@ -1225,11 +1292,9 @@ class RepeatedFunctionalTestsBaseClass(object):
                 start=datetime(2006, 7, 13, 13, 0),
                 end=datetime(2006, 7, 15, 13, 0),
             )
-            if (
-                not self.check_compatibility_flag("category_search_yields_nothing")
-                and not self.check_compatibility_flag("combined_search_not_working")
-                and not self.check_compatibility_flag("text_search_not_working")
-            ):
+            if not self.check_compatibility_flag(
+                "category_search_yields_nothing"
+            ) and not self.check_compatibility_flag("combined_search_not_working"):
                 if self.check_compatibility_flag("fastmail_buggy_noexpand_date_search"):
                     ## fastmail and davical delivers too many recurring events on a date search
                     ## (but fastmail anyway won't get here, as combined search is not working with fastmail)
@@ -1242,16 +1307,13 @@ class RepeatedFunctionalTestsBaseClass(object):
                 start=datetime(1997, 11, 1, 13, 0),
                 end=datetime(1997, 11, 3, 13, 0),
             )
-            if (
-                not self.check_compatibility_flag("category_search_yields_nothing")
-                and not self.check_compatibility_flag("combined_search_not_working")
-                and not self.check_compatibility_flag("text_search_not_working")
-            ):
+            if not self.check_compatibility_flag(
+                "category_search_yields_nothing"
+            ) and not self.check_compatibility_flag("combined_search_not_working"):
                 assert len(some_events) == 1
 
         some_events = c.search(comp_class=Event, summary="Bastille Day Party")
-        if not self.check_compatibility_flag("text_search_not_working"):
-            assert len(some_events) == 1
+        assert len(some_events) == 1
         some_events = c.search(comp_class=Event, summary="Bastille Day")
         if self.check_compatibility_flag("text_search_is_exact_match_sometimes"):
             assert len(some_events) in (0, 2)
@@ -1279,7 +1341,10 @@ class RepeatedFunctionalTestsBaseClass(object):
 
         ## Search without any parameters should yield everything on calendar
         all_todos = c.search()
-        assert len(all_todos) == 6
+        if self.check_compatibility_flag("search_needs_comptype"):
+            assert len(all_todos) <= 6
+        else:
+            assert len(all_todos) == 6
 
         ## Search with comp_class set to Event should yield all events on calendar
         all_todos = c.search(comp_class=Event)
@@ -1291,7 +1356,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         ## https://gitlab.com/davical-project/davical/-/issues/281 )
         all_todos = c.search(todo=True)
         if self.check_compatibility_flag("isnotdefined_not_working"):
-            assert len(all_todos) == 3
+            assert len(all_todos) in (3, 6)
         else:
             assert len(all_todos) == 6
 
@@ -1363,18 +1428,21 @@ class RepeatedFunctionalTestsBaseClass(object):
             dtstart=datetime(2022, 12, 26, 19, 15),
             dtend=datetime(2022, 12, 26, 20, 00),
             summary="this is a parent event test",
+            uid="ctuid1",
         )
         child = c.save_event(
             dtstart=datetime(2022, 12, 26, 19, 17),
             dtend=datetime(2022, 12, 26, 20, 00),
             summary="this is a child event test",
             parent=[parent.id],
+            uid="ctuid2",
         )
         grandparent = c.save_event(
             dtstart=datetime(2022, 12, 26, 19, 00),
             dtend=datetime(2022, 12, 26, 20, 00),
             summary="this is a grandparent event test",
             child=[parent.id],
+            uid="ctuid3",
         )
 
         parent_ = c.event_by_uid(parent.id)
@@ -1421,6 +1489,7 @@ class RepeatedFunctionalTestsBaseClass(object):
             dtstart=date(2011, 11, 11),
             summary="A childbirth in a hospital in Kupchino",
             description="A quick birth, in the middle of the night",
+            uid="ctuid1",
         )
         assert len(c.journals()) == 2
         todos = c.todos()
@@ -1462,17 +1531,20 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert len(todos) == 1
         assert len(todos2) == 1
 
-        t3 = c.save_todo(summary="mop the floor", categories=["housework"], priority=4)
+        t3 = c.save_todo(
+            summary="mop the floor", categories=["housework"], priority=4, uid="ctuid1"
+        )
         assert len(c.todos()) == 2
 
         # adding a todo without an UID, it should also work (library will add the missing UID)
-        c.save_todo(todo7)
+        t7 = c.save_todo(todo7)
         assert len(c.todos()) == 3
 
         logging.info("Fetching the events (should be none)")
         # c.events() should NOT return todo-items
         events = c.events()
         assert len(events) == 0
+        t7.delete()
 
     def testTodos(self):
         """
@@ -1550,7 +1622,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         t6 = c.save_todo(todo6)
         todos = c.todos()
         if self.check_compatibility_flag("isnotdefined_not_working"):
-            assert len(todos) == 3
+            assert len(todos) in (3, 6)
         else:
             assert len(todos) == 6
 
@@ -1722,14 +1794,18 @@ class RepeatedFunctionalTestsBaseClass(object):
         if self.check_compatibility_flag("rrule_takes_no_count"):
             assert len(c.todos()) == 1
             assert len(c.todos(include_completed=True)) == 2
+            c.todos()[0].delete()
         self.skip_on_compatibility_flag("rrule_takes_no_count")
         assert len(c.todos()) == 2
         assert len(c.todos(include_completed=True)) == 3
         t8.complete(handle_rrule=True, rrule_mode="safe")
-        assert len(c.todos()) == 2
+        todos = c.todos()
+        assert len(todos) == 2
         t8.complete(handle_rrule=True, rrule_mode="safe")
         t8.complete(handle_rrule=True, rrule_mode="safe")
         assert len(c.todos()) == 1
+        assert len(c.todos(include_completed=True)) == 5
+        [x.delete() for x in c.todos(include_completed=True)]
 
     def testTodoRecurringCompleteThisandfuture(self):
         self.skip_on_compatibility_flag("read_only")
@@ -1762,6 +1838,11 @@ class RepeatedFunctionalTestsBaseClass(object):
         # TODO: split up in creating a calendar with non-ascii name
         # and an event with non-ascii description
         self.skip_on_compatibility_flag("no_mkcalendar")
+        if not self.check_compatibility_flag(
+            "unique_calendar_ids"
+        ) and self.cleanup_regime in ("light", "pre"):
+            self._teardownCalendar(cal_id=self.testcal_id)
+
         c = self.principal.make_calendar(name="Yølp", cal_id=self.testcal_id)
 
         # add event
@@ -1781,9 +1862,19 @@ class RepeatedFunctionalTestsBaseClass(object):
         if "zimbra" not in str(c.url):
             assert len(events) == 1
 
+        if (
+            not self.check_compatibility_flag("unique_calendar_ids")
+            and self.cleanup_regime == "post"
+        ):
+            self._teardownCalendar(cal_id=self.testcal_id)
+
     def testUnicodeEvent(self):
         self.skip_on_compatibility_flag("read_only")
         self.skip_on_compatibility_flag("no_mkcalendar")
+        if not self.check_compatibility_flag(
+            "unique_calendar_ids"
+        ) and self.cleanup_regime in ("light", "pre"):
+            self._teardownCalendar(cal_id=self.testcal_id)
         c = self.principal.make_calendar(name="Yølp", cal_id=self.testcal_id)
 
         # add event
@@ -1818,6 +1909,10 @@ class RepeatedFunctionalTestsBaseClass(object):
 
         # Creating a new calendar with different ID but with existing name
         # TODO: why do we do this?
+        if not self.check_compatibility_flag(
+            "unique_calendar_ids"
+        ) and self.cleanup_regime in ("light", "pre"):
+            self._teardownCalendar(cal_id=self.testcal_id2)
         cc = self.principal.make_calendar("Yep", self.testcal_id2)
         cc.delete()
 
