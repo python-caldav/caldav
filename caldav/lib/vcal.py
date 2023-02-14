@@ -128,7 +128,8 @@ def create_ical(ical_fragment=None, objtype=None, language="en_DK", **props):
             objtype = "VEVENT"
         component = icalendar.cal.component_factory[objtype]()
         component.add("dtstamp", datetime.datetime.now(tz=datetime.timezone.utc))
-        component.add("uid", uuid.uuid1())
+        if not props.get("uid") and not "\nUID:" in (ical_fragment or ""):
+            component.add("uid", uuid.uuid1())
         my_instance.add_component(component)
     else:
         if not ical_fragment.strip().startswith("BEGIN:VCALENDAR"):
