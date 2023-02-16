@@ -1060,10 +1060,8 @@ class Calendar(DAVObject):
             end = kwargs["end"]
 
             for o in objects:
-                if not o.data:
-                    ## TODO: all objects here should have data, unless the calendar server is breaking the caldav standard.
-                    ## Perhaps we should load missing data?
-                    continue
+                ## This should not be needed
+                o.load(only_if_unloaded=True)
                 component = o.icalendar_component
                 recurrance_properties = ["exdate", "exrule", "rdate", "rrule"]
                 if any(key in component for key in recurrance_properties):
@@ -1812,8 +1810,7 @@ class CalendarObjectResource(DAVObject):
 
         See also https://github.com/python-caldav/caldav/issues/232
         """
-        if not self.is_loaded():
-            self.load()
+        self.load(only_if_unloaded=True)
         ret = [
             x
             for x in self.icalendar_instance.subcomponents
@@ -1915,8 +1912,7 @@ class CalendarObjectResource(DAVObject):
         ievent.add("attendee", attendee_obj)
 
     def is_invite_request(self):
-        if not self.data:
-            self.load()
+        self.load(only_if_unloaded=True)
         return self.icalendar_instance.get("method", None) == "REQUEST"
 
     def accept_invite(self, calendar=None):
@@ -2187,7 +2183,7 @@ class CalendarObjectResource(DAVObject):
         return self
 
     def is_loaded(self):
-        return self._data or self._vobject_instance or self._icalendar_instance
+        return (self._data or self._vobject_instance or self._icalendar_instance) and self.data.count('BEGIN:')>1
 
     def __str__(self):
         return "%s: %s" % (self.__class__.__name__, self.url)

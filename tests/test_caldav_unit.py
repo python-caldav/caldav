@@ -348,10 +348,12 @@ class TestCalDAV:
             "http://cal.example.com/home/bernard/calendars/"
         )
 
-    def testDateSearch(self):
+    @mock.patch("caldav.CalendarObjectResource.is_loaded")
+    def testDateSearch(self, mocked):
         """
         ## ref https://github.com/python-caldav/caldav/issues/133
         """
+        mocked.__bool__ = lambda self: True
         xml = """<xml><multistatus xmlns="DAV:">
 <response>
     <href>/principals/calendar/home@petroski.example.com/963/43B060B3-A023-48ED-B9E7-6FFD38D5073E.ics</href>
@@ -401,7 +403,7 @@ class TestCalDAV:
         calendar = Calendar(
             client, url="/principals/calendar/home@petroski.example.com/963/"
         )
-        results = calendar.date_search(datetime(2021, 2, 1), datetime(2021, 2, 7))
+        results = calendar.date_search(datetime(2021, 2, 1), datetime(2021, 2, 7), expand=False)
         assert len(results) == 3
 
     def testCalendar(self):
