@@ -515,16 +515,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         else:
             self.principal = self.caldav.principal()
 
-        if (
-            not self.check_compatibility_flag("read_only")
-            and self.cleanup_regime == "thorough"
-        ):
-            logging.debug(
-                "## going to tear down old test calendars, "
-                "in case teardown_method wasn't properly executed "
-                "last time tests were run"
-            )
-            self._cleanup("pre")
+        self._cleanup("pre")
 
         if self.check_compatibility_flag("object_by_uid_is_broken"):
             import caldav.objects
@@ -545,8 +536,6 @@ class RepeatedFunctionalTestsBaseClass(object):
     def _cleanup(self, mode=None):
         if self.cleanup_regime in ("pre", "post") and self.cleanup_regime != mode:
             return
-        for cal in self.calendars_used:
-            cal.delete()
         if self.check_compatibility_flag("read_only"):
             return  ## no cleanup needed
         if (
@@ -564,7 +553,14 @@ class RepeatedFunctionalTestsBaseClass(object):
                         "Something went kaboom while deleting event", exc_info=True
                     )
             return
-        if self.cleanup_regime in ("normal", "thorough"):
+        for cal in self.calendars_used:
+            cal.delete()
+        if self.check_compatibility_flag("unique_calendar_ids") and mode == 'pre':
+            a = self._teardownCalendar(name='Yep')
+        if mode == 'post':
+            for calid in (self.testcal_id, self.testcal_id2):
+                self._teardownCalendar(cal_id=calid)
+        if self.cleanup_regime == "thorough":
             for name in ("Yep", "Yapp", "Yølp", self.testcal_id, self.testcal_id2):
                 self._teardownCalendar(name=name)
                 self._teardownCalendar(cal_id=name)
@@ -825,6 +821,8 @@ class RepeatedFunctionalTestsBaseClass(object):
         ) and not self.check_compatibility_flag("no_displayname"):
             # We should be able to access the calender through the name
             c2 = self.principal.calendar(name="Yep")
+            ## may break if we have multiple calendars with the same name
+            assert c2.url == c.url
             events2 = c2.events()
             assert len(events2) == 1
             assert events2[0].url == events[0].url
@@ -1476,7 +1474,7 @@ class RepeatedFunctionalTestsBaseClass(object):
     def testSetDue(self):
         self.skip_on_compatibility_flag("read_only")
 
-        c = self._fixCalendar(supported_calendar_component_set=["VEVENT"])
+        c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
 
         utc = timezone.utc
 
