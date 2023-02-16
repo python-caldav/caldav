@@ -702,15 +702,18 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert c.url is not None
         assert len(self.principal.calendars()) != 0
 
+        str_ = str(c)
+        repr_ = repr(c)
+
         ## Not sure if those asserts make much sense, the main point here is to exercise
         ## the __str__ and __repr__ methods on the Calendar object.
         if not self.check_compatibility_flag("no_displayname"):
             name = c.get_property(dav.DisplayName(), use_cached=True)
             if not name:
                 name = c.url
-        assert str(name) == str(c)
-        assert str(name) in repr(c)
+            assert str(name) == str_
         assert "Calendar" in repr(c)
+        assert str(c.url) in repr(c)
 
     def testProxy(self):
         if self.caldav.url.scheme == "https":
