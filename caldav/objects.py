@@ -1631,7 +1631,7 @@ class SynchronizableCalendarObjectCollection(object):
         if self._objects_by_url is None:
             self._objects_by_url = {}
             for obj in self:
-                self._objects_by_url[obj.url] = obj
+                self._objects_by_url[obj.url.canonical()] = obj
         return self._objects_by_url
 
     def sync(self):
@@ -1646,6 +1646,7 @@ class SynchronizableCalendarObjectCollection(object):
         )
         obu = self.objects_by_url()
         for obj in updates:
+            obj.url = obj.url.canonical()
             if (
                 obj.url in obu
                 and dav.GetEtag.tag in obu[obj.url].props
