@@ -350,13 +350,13 @@ class DAVObject(object):
         return self.get_property(dav.DisplayName())
 
     def __str__(self):
-        if dav.DisplayName.tag in self.props:
-            return self.props[dav.DisplayName.tag]
-        else:
+        try:
+            return str(self.get_property(dav.DisplayName(), use_cached=True)) or self.url
+        except:
             return str(self.url)
 
     def __repr__(self):
-        return "%s(%s)" % (self.__class__.__name__, str(self))
+        return "%s(%s)" % (self.__class__.__name__, self.url)
 
 
 class CalendarSet(DAVObject):
