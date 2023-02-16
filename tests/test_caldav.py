@@ -555,9 +555,9 @@ class RepeatedFunctionalTestsBaseClass(object):
             return
         for cal in self.calendars_used:
             cal.delete()
-        if self.check_compatibility_flag("unique_calendar_ids") and mode == 'pre':
-            a = self._teardownCalendar(name='Yep')
-        if mode == 'post':
+        if self.check_compatibility_flag("unique_calendar_ids") and mode == "pre":
+            a = self._teardownCalendar(name="Yep")
+        if mode == "post":
             for calid in (self.testcal_id, self.testcal_id2):
                 self._teardownCalendar(cal_id=calid)
         if self.cleanup_regime == "thorough":

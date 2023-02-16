@@ -403,7 +403,9 @@ class TestCalDAV:
         calendar = Calendar(
             client, url="/principals/calendar/home@petroski.example.com/963/"
         )
-        results = calendar.date_search(datetime(2021, 2, 1), datetime(2021, 2, 7), expand=False)
+        results = calendar.date_search(
+            datetime(2021, 2, 1), datetime(2021, 2, 7), expand=False
+        )
         assert len(results) == 3
 
     def testCalendar(self):

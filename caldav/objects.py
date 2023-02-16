@@ -351,7 +351,9 @@ class DAVObject(object):
 
     def __str__(self):
         try:
-            return str(self.get_property(dav.DisplayName(), use_cached=True)) or self.url
+            return (
+                str(self.get_property(dav.DisplayName(), use_cached=True)) or self.url
+            )
         except:
             return str(self.url)
 
@@ -2183,7 +2185,9 @@ class CalendarObjectResource(DAVObject):
         return self
 
     def is_loaded(self):
-        return (self._data or self._vobject_instance or self._icalendar_instance) and self.data.count('BEGIN:')>1
+        return (
+            self._data or self._vobject_instance or self._icalendar_instance
+        ) and self.data.count("BEGIN:") > 1
 
     def __str__(self):
         return "%s: %s" % (self.__class__.__name__, self.url)
