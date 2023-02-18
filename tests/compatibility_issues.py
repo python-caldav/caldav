@@ -254,6 +254,7 @@ zimbra = [
     'category_search_yields_nothing',
     'text_search_is_exact_match_only',
     'no_relships',
+    'isnotdefined_not_working',
 
     ## extra features not specified in RFC5545
     "calendar_order",
@@ -312,6 +313,7 @@ davical = [
     'vtodo_datesearch_nodtstart_task_is_skipped_in_closed_date_range', ## no issue raised yet
     'isnotdefined_not_working', ## https://gitlab.com/davical-project/davical/-/issues/281
     'fastmail_buggy_noexpand_date_search', ## https://gitlab.com/davical-project/davical/-/issues/280
+    "isnotdefined_not_working",
 ]
 
 google = [
@@ -352,7 +354,8 @@ fastmail = [
     'fastmail_buggy_noexpand_date_search',
     'combined_search_not_working',
     'text_search_is_exact_match_sometimes',
-    'rrule_takes_no_count'
+    'rrule_takes_no_count',
+    'isnotdefined_not_working',
 ]
 
 synology = [
@@ -370,7 +373,8 @@ robur = [
     'no_freebusy_rfc4791',
     'no_todo_datesearch', ## returns nothing
     'text_search_not_working',
-    'no_relships'
+    'no_relships',
+    'isnotdefined_not_working',
 ]
 
 
