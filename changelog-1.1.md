@@ -26,6 +26,7 @@ I consider this to be a very minor breakage of my promise not to do changes to t
 * allow conditional load by @tobixen in https://github.com/python-caldav/caldav/pull/276
 
 ### Other
-Lots of work on the test suite, by @tobixen in https://github.com/python-caldav/caldav/pull/264 and https://github.com/python-caldav/caldav/pull/281
+* Lots of work on the test suite, by @tobixen in https://github.com/python-caldav/caldav/pull/264 and https://github.com/python-caldav/caldav/pull/281
+* Last minute fixes in https://github.com/python-caldav/caldav/pull/282 https://github.com/python-caldav/caldav/pull/283 https://github.com/python-caldav/caldav/pull/284 - code style, changelog, version number, compatibility flags in the test suite.
 
-**Full Changelog**: https://github.com/python-caldav/caldav/compare/v1.0.1...v1.1.0
+**Full Changelog**: https://github.com/python-caldav/caldav/compare/v1.0.1...v1.1.1
