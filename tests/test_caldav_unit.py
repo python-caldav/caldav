@@ -10,6 +10,8 @@ import pickle
 from datetime import date
 from datetime import datetime
 from datetime import timedelta
+from unittest import mock
+from urllib.parse import urlparse
 
 import caldav
 import icalendar
@@ -35,10 +37,6 @@ from caldav.objects import FreeBusy
 from caldav.objects import Journal
 from caldav.objects import Principal
 from caldav.objects import Todo
-
-
-from urllib.parse import urlparse
-from unittest import mock
 
 ## Some example icalendar data partly copied from test_caldav.py
 ev1 = """BEGIN:VCALENDAR

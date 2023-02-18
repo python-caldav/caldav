@@ -22,17 +22,18 @@ import signal
 import socket
 import sys
 import threading
+from http.server import BaseHTTPRequestHandler
+from http.server import HTTPServer
+from socketserver import ThreadingMixIn
 from time import sleep
 from types import CodeType
 from types import FrameType
+from urllib import parse
+from urllib.parse import urlparse
+from urllib.parse import urlunparse
 
 from caldav.lib.python_utilities import to_local
 from caldav.lib.python_utilities import to_wire
-
-from urllib import parse
-from urllib.parse import urlparse, urlunparse
-from http.server import BaseHTTPRequestHandler, HTTPServer
-from socketserver import ThreadingMixIn
 
 __version__ = "0.3.1"
 
