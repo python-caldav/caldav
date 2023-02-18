@@ -2,6 +2,7 @@
 # -*- encoding: utf-8 -*-
 import logging
 import re
+from urllib.parse import unquote
 
 import requests
 from caldav.elements import cdav
@@ -20,8 +21,6 @@ from caldav.objects import ScheduleInbox
 from caldav.objects import ScheduleOutbox
 from caldav.requests import HTTPBearerAuth
 from lxml import etree
-
-from urllib.parse import unquote
 
 
 class DAVResponse:
