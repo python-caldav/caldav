@@ -321,6 +321,7 @@ class DAVClient:
         timeout=None,
         ssl_verify_cert=True,
         ssl_cert=None,
+        headers={},
     ):
         """
         Sets up a HTTPConnection object towards the server in the url.
@@ -357,11 +358,12 @@ class DAVClient:
             log.debug("init - proxy: %s" % (self.proxy))
 
         # Build global headers
-        self.headers = {
+        self.headers = headers
+        self.headers.update({
             "User-Agent": "Mozilla/5.0",
             "Content-Type": "text/xml",
             "Accept": "text/xml, text/calendar",
-        }
+        })
         if self.url.username is not None:
             username = unquote(self.url.username)
             password = unquote(self.url.password)
