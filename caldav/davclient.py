@@ -550,7 +550,7 @@ class DAVClient:
     def extract_auth_types(self, header):
         auth_types = header.lower().split(",")
         auth_types = map(lambda auth_type: auth_type.strip(), auth_types)
-        auth_types = map(lambda auth_type: auth_type[: auth_type.find(" ")], auth_types)
+        auth_types = map(lambda auth_type: auth_type.split(" ")[0], auth_types)
         return list(filter(lambda auth_type: auth_type, auth_types))
 
     def request(self, url, method="GET", body="", headers={}):
