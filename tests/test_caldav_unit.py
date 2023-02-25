@@ -1175,3 +1175,19 @@ END:VCALENDAR
         cal_url = "http://me:hunter2@calendar.example:80/"
         with DAVClient(url=cal_url) as client_ctx_mgr:
             assert isinstance(client_ctx_mgr, DAVClient)
+
+    def testExtractAuth(self):
+        """
+        ref https://github.com/python-caldav/caldav/issues/289
+        """
+        cal_url = "http://me:hunter2@calendar.example:80/"
+        with DAVClient(url=cal_url) as client:
+            assert client.extract_auth_types("Basic\n") == ["basic"]
+            assert client.extract_auth_types("Basic") == ["basic"]
+            assert client.extract_auth_types('Basic Realm=foo;charset="UTF-8"') == [
+                "basic"
+            ]
+            assert client.extract_auth_types("Basic,dIGEST Realm=foo") == [
+                "basic",
+                "digest",
+            ]

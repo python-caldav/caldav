@@ -105,7 +105,8 @@ def fix(event):
         else:
             log = logging.debug
         log(
-            "Ical data was modified to avoid compatibility issues.  (error count: %i - this error is ratelimited)" % fixup_error_loggings,
+            "Ical data was modified to avoid compatibility issues.  (error count: %i - this error is ratelimited)"
+            % fixup_error_loggings,
             exc_info=True,
         )
         try:
