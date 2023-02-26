@@ -16,6 +16,7 @@ I consider this to be a very minor breakage of my promise not to do changes to t
 * cal_obj.__str__ and cal_obj.__repr__ should be deterministic by @tobixen in https://github.com/python-caldav/caldav/pull/278
 * keep canonical URLs in synchronization objects by @tobixen in https://github.com/python-caldav/caldav/pull/279
 * compatibility fix: objects returned by search should always be loaded by @tobixen in https://github.com/python-caldav/caldav/pull/280
+* Minor bugfix in error logging by @tobixen in https://github.com/python-caldav/caldav/pull/286 (released as 1.1.3)
 
 ### Documentation
 * Tweaking the examples by @tobixen in https://github.com/python-caldav/caldav/pull/271
