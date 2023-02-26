@@ -2,6 +2,8 @@
 
 Not much, but one bugfix, again the caldav library was not working for everyone despite lots of functional testing  ...
 
+**Full Changelog**: https://github.com/python-caldav/caldav/compare/v1.1.3...v1.2.0
+
 ### Cleaned out some python2-specific stuff
 
 Pull request by @danigm in https://github.com/python-caldav/caldav/pull/228
