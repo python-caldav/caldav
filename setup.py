@@ -45,12 +45,8 @@ if __name__ == "__main__":
     test_packages = [
         "pytest",
         "pytest-coverage",
-        "icalendar",
         "coverage",
-        "tzlocal",
-        "pytz",
         "xandikos",
-        "radicale",
         "sphinx",
     ]
 
@@ -88,7 +84,6 @@ if __name__ == "__main__":
             "recurring-ical-events>=2.0.0",
         ]
         + extra_packages,
-        tests_require=test_packages + extra_test_packages,
         extras_require={
             "test": test_packages,
         },

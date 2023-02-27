@@ -10,6 +10,7 @@ class hierarchy into a separate file)
 """
 import re
 import uuid
+from collections import defaultdict
 from datetime import date
 from datetime import datetime
 from datetime import timedelta
@@ -1077,8 +1078,13 @@ class Calendar(DAVObject):
             end = kwargs["end"]
 
             for o in objects:
-                ## This should not be needed
+                ## This would not be needed if the servers would follow the standard ...
                 o.load(only_if_unloaded=True)
+
+            ## Google sometimes returns empty objects
+            objects = [o for o in objects if o.icalendar_component]
+
+            for o in objects:
                 component = o.icalendar_component
                 if component is None:
                     continue
@@ -1826,6 +1832,49 @@ class CalendarObjectResource(DAVObject):
         )
 
         self.save()
+
+    ## TODO: this method is undertested in the caldav library.
+    ## However, as this consolidated and eliminated quite some duplicated code in the
+    ## plann project, it is extensively tested in plann.
+    def get_relatives(
+        self, reltypes=None, relfilter=None, fetch_objects=True, ignore_missing=True
+    ):
+        """
+        By default, loads all objects pointed to by the RELATED-TO
+        property and loads the related objects.
+
+        It's possible to filter, either by passing a set or a list of
+        acceptable relation types in reltypes, or by passing a lambda
+        function in relfilter.
+
+        TODO: Make it possible to  also check up reverse relationships
+
+        TODO: this is partially overlapped by plann.lib._relships_by_type
+        in the plann tool.  Should consolidate the code.
+        """
+        ret = defaultdict(set)
+        relations = self.icalendar_component.get("RELATED-TO", [])
+        if not isinstance(relations, list):
+            relations = [relations]
+        for rel in relations:
+            if relfilter and not relfilter(rel):
+                continue
+            reltype = rel.params.get("RELTYPE", "PARENT")
+            if reltypes and not reltype in reltypes:
+                continue
+            ret[reltype].add(str(rel))
+
+        if fetch_objects:
+            for reltype in ret:
+                uids = ret[reltype]
+                ret[reltype] = []
+                for obj in uids:
+                    try:
+                        ret[reltype].append(self.parent.object_by_uid(obj))
+                    except error.NotFoundError:
+                        if not ignore_missing:
+                            raise
+        return ret
 
     def _get_icalendar_component(self, assert_one=False):
         """Returns the icalendar subcomponent - which should be an
@@ -2763,9 +2812,13 @@ class Todo(CalendarObjectResource):
                 rels = []
             if not isinstance(rels, list):
                 rels = [rels]
+            ## TODO: refactor, use https://www.theguardian.com/environment/2023/jul/17/boat-wrecking-orcas-are-sadly-no-socialists
             for rel in rels:
                 if rel.params.get("RELTYPE") == "PARENT":
-                    parent = self.parent.object_by_uid(rel)
+                    try:
+                        parent = self.parent.object_by_uid(rel)
+                    except error.NotFoundError:
+                        continue
                     pend = parent.icalendar_component.get("DTEND")
                     if pend:
                         pend = pend.dt

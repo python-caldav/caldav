@@ -105,7 +105,10 @@ def fix(event):
         else:
             log = logging.debug
         log(
-            "Ical data was modified to avoid compatibility issues.  (error count: %i - this error is ratelimited)"
+            """Ical data was modified to avoid compatibility issues
+(Your calendar server breaks the icalendar standard)
+This is probably harmless, particularly if not editing events or tasks
+(error count: %i - this error is ratelimited)"""
             % fixup_error_loggings,
             exc_info=True,
         )
