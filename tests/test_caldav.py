@@ -1484,6 +1484,20 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert rt == parent.id
         assert rt.params["RELTYPE"] == "PARENT"
 
+        foo = parent_.get_relatives(reltypes={"PARENT"})
+        assert len(foo) == 1
+        assert len(foo["PARENT"]) == 1
+        assert [foo["PARENT"][0].icalendar_component["UID"] == grandparent.id]
+        foo = parent_.get_relatives(reltypes={"CHILD"})
+        assert len(foo) == 1
+        assert len(foo["CHILD"]) == 1
+        assert [foo["CHILD"][0].icalendar_component["UID"] == child.id]
+        foo = parent_.get_relatives(reltypes={"CHILD", "PARENT"})
+        assert len(foo) == 2
+        assert len(foo["CHILD"]) == 1
+        assert len(foo["PARENT"]) == 1
+        foo = parent_.get_relatives(relfilter=lambda x: x.params.get("GAP"))
+
     def testSetDue(self):
         self.skip_on_compatibility_flag("read_only")
 
