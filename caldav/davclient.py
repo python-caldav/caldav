@@ -557,7 +557,7 @@ class DAVClient:
 
     def request(self, url, method="GET", body="", headers={}):
         """
-        Actually sends the request
+        Actually sends the request, and does the authentication
         """
         combined_headers = self.headers.copy()
         combined_headers.update(headers)
@@ -611,7 +611,12 @@ class DAVClient:
             if not r.status_code == 401:
                 raise
 
-        if r.status_code == 401 and "WWW-Authenticate" in r.headers and not self.auth:
+        if (
+            r.status_code == 401
+            and "WWW-Authenticate" in r.headers
+            and not self.auth
+            and self.username
+        ):
             auth_types = self.extract_auth_types(r.headers["WWW-Authenticate"])
 
             if self.password and self.username and "digest" in auth_types:
@@ -623,31 +628,39 @@ class DAVClient:
             else:
                 raise NotImplementedError(
                     "The server does not provide any of the currently "
-                    "supported authentication methods: basic, digest"
+                    "supported authentication methods: basic, digest, bearer"
                 )
 
             return self.request(url, method, body, headers)
 
-        elif r.status_code == 401 and "WWW-Authenticate" in r.headers and self.auth:
-
-            ## Some (ancient) servers don't like UTF-8 binary auth with Digest authentication.
-            ## An example are old SabreDAV based servers.  Not sure about UTF-8 and Basic Auth,
-            ## but likely the same.  so retry if password is a bytes sequence and not a string
-            ## (see commit 13a4714, which introduced this regression)
+        elif (
+            r.status_code == 401
+            and "WWW-Authenticate" in r.headers
+            and self.auth
+            and self.password
+            and hasattr(self.password, "decode")
+        ):
+            ## Most likely we're here due to wrong username/password
+            ## combo, but it could also be charset problems.  Some
+            ## (ancient) servers don't like UTF-8 binary auth with
+            ## Digest authentication.  An example are old SabreDAV
+            ## based servers.  Not sure about UTF-8 and Basic Auth,
+            ## but likely the same.  so retry if password is a bytes
+            ## sequence and not a string (see commit 13a4714, which
+            ## introduced this regression)
 
             auth_types = self.extract_auth_types(r.headers["WWW-Authenticate"])
 
-            if self.password and hasattr(self.password, "decode"):
-                if self.username and "digest" in auth_types:
-                    self.auth = requests.auth.HTTPDigestAuth(
-                        self.username, self.password.decode()
-                    )
-                elif self.username and "basic" in auth_types:
-                    self.auth = requests.auth.HTTPBasicAuth(
-                        self.username, self.password.decode()
-                    )
-                elif "bearer" in auth_types:
-                    self.auth = HTTPBearerAuth(self.password.decode())
+            if "digest" in auth_types:
+                self.auth = requests.auth.HTTPDigestAuth(
+                    self.username, self.password.decode()
+                )
+            elif "basic" in auth_types:
+                self.auth = requests.auth.HTTPBasicAuth(
+                    self.username, self.password.decode()
+                )
+            elif "bearer" in auth_types:
+                self.auth = HTTPBearerAuth(self.password.decode())
 
             self.username = None
             self.password = None

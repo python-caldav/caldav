@@ -7,6 +7,7 @@ configuration in conf_private.py.
 Tests that do not require communication with a working caldav server
 belong in test_caldav_unit.py
 """
+import codecs
 import logging
 import random
 import sys
@@ -1419,6 +1420,22 @@ class RepeatedFunctionalTestsBaseClass(object):
         all_todos = c.search(todo=True, include_completed=True)
         assert len(all_todos) == 6
 
+    def testWrongPassword(self):
+        if (
+            not "password" in self.server_params
+            or not self.server_params["password"]
+            or self.server_params["password"] == "any-password-seems-to-work"
+        ):
+            pytest.skip(
+                "Testing with wrong password skipped as calendar server does not require a password"
+            )
+        server_params = self.server_params.copy()
+        server_params["password"] = (
+            codecs.encode(server_params["password"], "rot13") + "!"
+        )
+        with pytest.raises(error.AuthorizationError):
+            client(**server_params).principal()
+
     def testCreateChildParent(self):
         self.skip_on_compatibility_flag("read_only")
         self.skip_on_compatibility_flag("no_relships")
@@ -2434,7 +2451,7 @@ class TestLocalRadicale(RepeatedFunctionalTestsBaseClass):
         self.server_params = {
             "url": "http://%s:%i/" % (radicale_host, radicale_port),
             "username": "user1",
-            "password": "password1",
+            "password": "any-password-seems-to-work",
         }
         self.server_params["backwards_compatibility_url"] = (
             self.server_params["url"] + "user1"
