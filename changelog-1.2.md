@@ -27,6 +27,6 @@ https://github.com/python-caldav/caldav/issues/289 - https://github.com/python-c
 
 ### Bugfix - invalid password caused infinite recursion
 
-Thanks to @bvanjeelharia for reporting (actually the traceback was reported already by @robinmayol in https://github.com/python-caldav/caldav/issues/270 but we failed to connect the dots).
+Thanks to @bvanjeelharia for reporting and investigating (actually the traceback was reported already by @robinmayol in https://github.com/python-caldav/caldav/issues/270 but we failed to connect the dots).
 
 https://github.com/python-caldav/caldav/issues/295 - https://github.com/python-caldav/caldav/pull/296

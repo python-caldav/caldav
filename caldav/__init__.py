@@ -21,4 +21,5 @@ class NullHandler(logging.Handler):
     def emit(self, record):
         pass
 
+
 log.addHandler(NullHandler())
