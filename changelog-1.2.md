@@ -1,6 +1,6 @@
 ## What's Changed from 1.1 to 1.2
 
-Not much, but one bugfix, again the caldav library was not working for everyone despite lots of functional testing  ...
+Bugfixing is the most important thing in the 1.2.x-series.  Again, touching the authentication code (this time the bearer authentication support introduced in 1.0) caused breakages for some people, despite lots of functional tests.
 
 **Full Changelog**: https://github.com/python-caldav/caldav/compare/v1.1.3...v1.2.0
 
@@ -25,3 +25,9 @@ A bug was introduced in version 1.0, via https://github.com/python-caldav/caldav
 Thanks to @jdrozdnovak for debugging and reporting.
 
 https://github.com/python-caldav/caldav/issues/289 - https://github.com/python-caldav/caldav/pull/290
+
+### Bugfix - invalid password caused infinite recursion
+
+Thanks to @bvanjeelharia for reporting (actually the traceback was reported already by @robinmayol in https://github.com/python-caldav/caldav/issues/270 but we failed to connect the dots).
+
+https://github.com/python-caldav/caldav/issues/295 - https://github.com/python-caldav/caldav/pull/296
