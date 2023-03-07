@@ -1,10 +1,7 @@
 ## What's Changed from 1.1 to 1.2
 
 Bugfixing is the most important thing in the 1.2.x-series.  Again, touching the authentication code (this time the bearer authentication support introduced in 1.0) caused breakages for some people, despite lots of functional tests.
-
-**Full Changelog**: https://github.com/python-caldav/caldav/compare/v1.1.3...v1.2.0
-
-**Full Changelog**: https://github.com/python-caldav/caldav/compare/v1.1.3...v1.2.0
+**Full Changelog**: https://github.com/python-caldav/caldav/compare/v1.1.3...v1.2.1
 
 ### Cleaned out some python2-specific stuff
 
