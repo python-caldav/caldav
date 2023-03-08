@@ -70,7 +70,7 @@ class DAVResponse:
                 except:
                     logging.critical(
                         "Expected some valid XML from the server, but got this: \n"
-                        + self._raw,
+                        + str(self._raw),
                         exc_info=True,
                     )
                     raise
