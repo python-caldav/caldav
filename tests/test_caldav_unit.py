@@ -147,7 +147,7 @@ END:VTODO
 END:VCALENDAR"""
 
 
-def MockedDAVResponse(text):
+def MockedDAVResponse(text, davclient=None):
     """
     For unit testing - a mocked DAVResponse with some specific content
     """
@@ -156,7 +156,7 @@ def MockedDAVResponse(text):
     resp.reason = "multistatus"
     resp.headers = {}
     resp.content = text
-    return DAVResponse(resp)
+    return DAVResponse(resp, davclient)
 
 
 def MockedDAVClient(xml_returned):
@@ -869,6 +869,87 @@ END:VCALENDAR
                 "{urn:ietf:params:xml:ns:caldav}calendar-data": None,
             },
         }
+
+    def testHugeTreeParam(self):
+        """
+        With dealing with a huge XML response, such as event containing attachments, XMLParser will throw an exception
+        huge_tree parameters allows to handle this kind of events.
+        """
+
+        xml = """
+<multistatus xmlns="DAV:">
+  <response>
+    <href>/17149682/calendars/testcalendar-84439d0b-ce46-4416-b978-7b4009122c64/</href>
+    <propstat>
+      <prop>
+                </prop>
+      <status>HTTP/1.1 200 OK</status>
+    </propstat>
+    <propstat>
+      <prop>
+        <calendar-data xmlns="urn:ietf:params:xml:ns:caldav"/>
+      </prop>
+      <status>HTTP/1.1 404 Not Found</status>
+    </propstat>
+  </response>
+  <response>
+    <href>/17149682/calendars/testcalendar-84439d0b-ce46-4416-b978-7b4009122c64/20010712T182145Z-123401%40example.com.ics</href>
+    <propstat>
+      <prop>
+        <calendar-data xmlns="urn:ietf:params:xml:ns:caldav">
+
+BEGIN:VCALENDAR
+PRODID:-//MDaemon Technologies Ltd//MDaemon 21.5.2
+VERSION:2.0
+METHOD:PUBLISH
+BEGIN:VEVENT
+UID:
+ 040000008200E0007000B7101A82E0080000000050BF99B19D31
+SEQUENCE:0
+DTSTAMP:20230213T142930Z
+SUMMARY:This a summary of a very bug event
+DESCRIPTION:Description of this very big event
+LOCATION:Somewhere
+ORGANIZER:MAILTO:noreply@test.com
+PRIORITY:5
+ATTACH;VALUE=BINARY;ENCODING=BASE64;FMTTYPE=image/jpeg;
+ X-FILENAME=image001.jpg;X-ORACLE-FILENAME=image001.jpg:
+"""
+        xml += (
+            "gIyIoLTkwKCo2KyIjM4444449QEBAJjBGS0U+Sjk/QD3/2wBDAQsLCw8NDx0QEB09KSMpPT09\n"
+            * 153490
+        )
+        xml += """
+ /Z
+DTSTART;TZID="Europe/Paris":20230310T140000
+DTEND;TZID="Europe/Paris":20230310T150000
+END:VEVENT
+END:VCALENDAR
+</calendar-data>
+      </prop>
+      <status>HTTP/1.1 200 OK</status>
+    </propstat>
+  </response>
+</multistatus>
+"""
+        davclient = MockedDAVClient(xml)
+        resp = mock.MagicMock()
+        resp.headers = {"Content-Type": "text/xml"}
+        resp.content = xml
+
+        davclient.huge_tree = False
+        try:
+            DAVResponse(resp, davclient=davclient)
+            assert False
+        except Exception as e:
+            assert type(e) == lxml.etree.XMLSyntaxError
+
+        davclient.huge_tree = True
+        try:
+            DAVResponse(resp, davclient=davclient)
+            assert True
+        except:
+            assert False
 
     def testFailedQuery(self):
         """
