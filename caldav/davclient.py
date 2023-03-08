@@ -36,13 +36,17 @@ class DAVResponse:
     tree = None
     headers = {}
     status = 0
+    davclient = None
+    huge_tree = False
 
-    def __init__(self, response):
+    def __init__(self, response, davclient=None):
         self.headers = response.headers
         log.debug("response headers: " + str(self.headers))
         log.debug("response status: " + str(self.status))
 
         self._raw = response.content
+        if davclient:
+            self.huge_tree = davclient.huge_tree
 
         ## TODO: this if/else/elif could possibly be refactored, or we should
         ## consider to do streaming into the xmltree library as originally
@@ -65,7 +69,10 @@ class DAVResponse:
                 # self.tree = etree.parse(response.raw, parser=etree.XMLParser(remove_blank_text=True))
                 try:
                     self.tree = etree.XML(
-                        self._raw, parser=etree.XMLParser(remove_blank_text=True)
+                        self._raw,
+                        parser=etree.XMLParser(
+                            remove_blank_text=True, huge_tree=self.huge_tree
+                        ),
                     )
                 except:
                     logging.critical(
@@ -92,7 +99,10 @@ class DAVResponse:
             ## data be parsed through this code.
             try:
                 self.tree = etree.XML(
-                    self._raw, parser=etree.XMLParser(remove_blank_text=True)
+                    self._raw,
+                    parser=etree.XMLParser(
+                        remove_blank_text=True, huge_tree=self.huge_tree
+                    ),
                 )
             except:
                 pass
@@ -310,6 +320,7 @@ class DAVClient:
 
     proxy = None
     url = None
+    huge_tree = False
 
     def __init__(
         self,
@@ -322,6 +333,7 @@ class DAVClient:
         ssl_verify_cert=True,
         ssl_cert=None,
         headers={},
+        huge_tree=False,
     ):
         """
         Sets up a HTTPConnection object towards the server in the url.
@@ -330,7 +342,9 @@ class DAVClient:
          * proxy: A string defining a proxy server: `hostname:port`
          * username and password should be passed as arguments or in the URL
          * auth, timeout and ssl_verify_cert are passed to requests.request.
-         ** ssl_verify_cert can be the path of a CA-bundle or False.
+         * ssl_verify_cert can be the path of a CA-bundle or False.
+         * huge_tree: boolean, enable XMLParser huge_tree to handle big events, beware
+           of security issues, see : https://lxml.de/api/lxml.etree.XMLParser-class.html
 
         The requests library will honor a .netrc-file, if such a file exists
         username and password may be omitted.  Known bug: .netrc is honored
@@ -341,7 +355,7 @@ class DAVClient:
 
         log.debug("url: " + str(url))
         self.url = URL.objectify(url)
-
+        self.huge_tree = huge_tree
         # Prepare proxy info
         if proxy is not None:
             self.proxy = proxy
@@ -591,7 +605,7 @@ class DAVClient:
                 cert=self.ssl_cert,
             )
             log.debug("server responded with %i %s" % (r.status_code, r.reason))
-            response = DAVResponse(r)
+            response = DAVResponse(r, self)
         except:
             ## this is a workaround needed due to some weird server
             ## that would just abort the connection rather than send a
