@@ -277,6 +277,11 @@ class DAVObject(object):
             ## TODO: should probably be investigated more.
             ## (observed also by others, ref https://github.com/python-caldav/caldav/issues/168)
             rc = properties["/principal/"]
+        elif '//' in path and path.replace('//', '/') in properties:
+            ## ref https://github.com/python-caldav/caldav/issues/302
+            ## though, it would be nice to find the root cause,
+            ## self.url should not contain double slashes in the first place
+            rc = properties[path.replace('//', '/')]
         elif len(properties) == 1:
             ## Ref https://github.com/python-caldav/caldav/issues/191 ...
             ## let's be pragmatic and just accept whatever the server is
