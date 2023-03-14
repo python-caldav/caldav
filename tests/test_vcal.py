@@ -135,6 +135,21 @@ class TestVcal(TestCase):
         There is an obscure function lib.vcal that attempts to fix up
         known ical standard breaches from various calendar servers.
         """
+        non_broken_ical = [
+            """BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//python-caldav//caldav//en_DK
+BEGIN:VEVENT
+SUMMARY:Foo bar blah
+ blub
+DTSTART:20230313T084500Z
+DURATION:PT30M
+DTSTAMP:20230312T215907Z
+UID:1c9bba3e-c121-11ed-bf96-982cbcdd642c
+CATEGORIES:oslo
+END:VEVENT
+END:VCALENDAR
+""" ]
         broken_ical = [
             ## This first one contains duplicated DTSTAMP in the event data
             """BEGIN:VCALENDAR
@@ -233,3 +248,6 @@ END:VCALENDAR""",
                 vobject.readOne(ical).serialize()
             ## This should not raise error
             vobject.readOne(vcal.fix(ical)).serialize()
+
+        for ical in non_broken_ical:
+            assert vcal.fix(ical) == ical
