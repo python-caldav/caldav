@@ -2621,13 +2621,13 @@ class Todo(CalendarObjectResource):
          * rrule_mode -   The RFC leaves a lot of room for intepretation on how
            to handle recurring tasks, and what works on one server may break at
            another.  The following modes are accepted:
-            * this_and_future - see doc for _complete_recurring_thisandfuture for details
-            * safe - see doc for _complete_recurring_safe for details
+           * this_and_future - see doc for _complete_recurring_thisandfuture for details
+           * safe - see doc for _complete_recurring_safe for details
         """
         if not completion_timestamp:
             completion_timestamp = datetime.utcnow().astimezone(timezone.utc)
 
-        if hasattr(self.instance.vtodo, "rrule") and handle_rrule:
+        if "RRULE" in self.icalendar_component and handle_rrule:
             return getattr(self, "_complete_recurring_%s" % rrule_mode)(
                 completion_timestamp
             )

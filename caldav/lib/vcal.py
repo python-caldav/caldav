@@ -173,7 +173,7 @@ def create_ical(ical_fragment=None, objtype=None, language="en_DK", **props):
                 for value in props[prop]:
                     component.add(
                         "related-to",
-                        props[prop],
+                        str(value),
                         parameters={"reltype": prop.upper()},
                         encode=True,
                     )
