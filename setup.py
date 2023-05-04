@@ -51,6 +51,7 @@ if __name__ == "__main__":
         "pytz",
         "xandikos",
         "radicale",
+        "sphinx",
     ]
 
     setup(
