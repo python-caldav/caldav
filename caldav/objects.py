@@ -203,8 +203,12 @@ class DAVObject(object):
             ## COMPATIBILITY HACK - see https://github.com/python-caldav/caldav/issues/309
             body = to_wire(body)
             if ret.status == 500 and not b"getetag" in body:
-                body = body.replace(b'<C:calendar-data/>', b'<D:getetag/><C:calendar-data/>')
-                return self._query(body, depth, query_method, url, expected_return_value)
+                body = body.replace(
+                    b"<C:calendar-data/>", b"<D:getetag/><C:calendar-data/>"
+                )
+                return self._query(
+                    body, depth, query_method, url, expected_return_value
+                )
             raise error.exception_by_method[query_method](errmsg(ret))
         return ret
 
@@ -1923,6 +1927,26 @@ class CalendarObjectResource(DAVObject):
         doc="icalendar component - should not be used with recurrence sets",
     )
 
+    def get_due(self):
+        """
+        A VTODO may have due or duration set.  Return or calculate due.
+
+        WARNING: this method is likely to be deprecated and moved to
+        the icalendar library.  If you decide to use it, please put
+        caldav<2.0 in the requirements.
+        """
+        i = self.icalendar_component
+        if "DUE" in i:
+            return i["DUE"].dt
+        elif "DTEND" in i:
+            return i["DTEND"].dt
+        elif "DURATION" in i and "DTSTART" in i:
+            return i["DTSTART"].dt + i["DURATION"].dt
+        else:
+            return None
+
+    get_dtend = get_due
+
     def add_attendee(self, attendee, no_default_parameters=False, **parameters):
         """
         For the current (event/todo/journal), add an attendee.
@@ -2775,22 +2799,6 @@ class Todo(CalendarObjectResource):
             if "DURATION" in i:
                 i.pop("DURATION")
             i.add("DURATION", duration)
-
-    def get_due(self):
-        """
-        A VTODO may have due or duration set.  Return or calculate due.
-
-        WARNING: this method is likely to be deprecated and moved to
-        the icalendar library.  If you decide to use it, please put
-        caldav<2.0 in the requirements.
-        """
-        i = self.icalendar_component
-        if "DUE" in i:
-            return i["DUE"].dt
-        elif "DURATION" in i and "DTSTART" in i:
-            return i["DTSTART"].dt + i["DURATION"].dt
-        else:
-            return None
 
     def set_due(self, due, move_dtstart=False, check_dependent=False):
         """The RFC specifies that a VTODO cannot have both due and
