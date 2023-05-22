@@ -265,6 +265,18 @@ class TestCalDAV:
         assert response.tree is None
 
     @mock.patch("caldav.davclient.requests.Session.request")
+    def testRequestCustomHeaders(self, mocked):
+        """
+        ref https://github.com/python-caldav/caldav/issues/285
+        """
+        mocked().status_code = 200
+        mocked().headers = {}
+        cal_url = "http://me:hunter2@calendar.møøh.example:80/"
+        client = DAVClient(url=cal_url, headers={"X-NC-CalDAV-Webcal-Caching": "On"})
+        assert client.headers["Content-Type"] == "text/xml"
+        assert client.headers["X-NC-CalDAV-Webcal-Caching"] == "On"
+
+    @mock.patch("caldav.davclient.requests.Session.request")
     def testEmptyXMLNoContentLength(self, mocked):
         """
         ref https://github.com/python-caldav/caldav/issues/213
