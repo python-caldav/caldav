@@ -18,7 +18,7 @@ import caldav
 caldav_url = "https://calendar.example.com/dav"
 username = "somebody"
 password = "hunter2"
-headers = {"X-MY-CUSTOMER-HEADER" : "123"}
+headers = {"X-MY-CUSTOMER-HEADER": "123"}
 
 
 def run_examples():
@@ -32,9 +32,9 @@ def run_examples():
     ## The client object can be used as a context manager, like this:
     with caldav.DAVClient(
         url=caldav_url,
-        username=username, 
+        username=username,
         password=password,
-        headers = headers # Optional parameter to set HTTP headers on each request if needed
+        headers=headers,  # Optional parameter to set HTTP headers on each request if needed
     ) as client:
 
         ## Typically the next step is to fetch a principal object.
