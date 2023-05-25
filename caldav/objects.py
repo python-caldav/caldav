@@ -200,6 +200,11 @@ class DAVObject(object):
         if (
             expected_return_value is not None and ret.status != expected_return_value
         ) or ret.status >= 400:
+            ## COMPATIBILITY HACK - see https://github.com/python-caldav/caldav/issues/309
+            body = to_wire(body)
+            if ret.status == 500 and not b"getetag" in body:
+                body = body.replace(b'<C:calendar-data/>', b'<D:getetag/><C:calendar-data/>')
+                return self._query(body, depth, query_method, url, expected_return_value)
             raise error.exception_by_method[query_method](errmsg(ret))
         return ret
 
