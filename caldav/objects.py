@@ -1070,6 +1070,8 @@ class Calendar(DAVObject):
                 ## This should not be needed
                 o.load(only_if_unloaded=True)
                 component = o.icalendar_component
+                if component is None:
+                    continue
                 recurrance_properties = ["exdate", "exrule", "rdate", "rrule"]
                 if any(key in component for key in recurrance_properties):
                     o.expand_rrule(start, end)
