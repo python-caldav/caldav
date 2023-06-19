@@ -382,7 +382,14 @@ class CalendarSet(DAVObject):
 
         data = self.children(cdav.Calendar.tag)
         for c_url, c_type, c_name in data:
-            cals.append(Calendar(self.client, c_url, parent=self, name=c_name))
+            try:
+                cal_id = c_url.split("/")[-2]
+            except:
+                log.error(f"Calendar {c_name} has unexpected url {c_url}")
+                cal_id = None
+            cals.append(
+                Calendar(self.client, id=cal_id, url=c_url, parent=self, name=c_name)
+            )
 
         return cals
 
