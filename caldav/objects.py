@@ -974,6 +974,7 @@ class Calendar(DAVObject):
         include_completed=False,
         sort_keys=(),
         split_expanded=True,
+        props = None,
         **kwargs
     ):
         """Creates an XML query, does a REPORT request towards the
@@ -1049,13 +1050,13 @@ class Calendar(DAVObject):
 
             if not xml:
                 (xml, comp_class) = self.build_search_xml_query(
-                    comp_class=comp_class, todo=todo, **kwargs
+                    comp_class=comp_class, todo=todo, props=props, **kwargs
                 )
             elif kwargs:
                 raise error.ConsistencyError(
                     "Inconsistent usage parameters: xml together with other search options"
                 )
-            (response, objects) = self._request_report_build_resultlist(xml, comp_class)
+            (response, objects) = self._request_report_build_resultlist(xml, comp_class, props=props)
 
         if kwargs.get("expand", False):
             ## expand can only be used together with start and end.
@@ -1140,6 +1141,7 @@ class Calendar(DAVObject):
         expand=None,
         start=None,
         end=None,
+        props=None,
         **kwargs
     ):
         """This method will produce a caldav search query as an etree object.
@@ -1159,8 +1161,11 @@ class Calendar(DAVObject):
             if not start or not end:
                 raise error.ReportError("can't expand without a date range")
             data += cdav.Expand(start, end)
-        prop = dav.Prop() + data
-
+        if props is None:
+            props_ = [data]
+        else:
+            props_ = [data] + props
+        prop = dav.Prop() + props_
         vcalendar = cdav.CompFilter("VCALENDAR")
 
         comp_filter = None
