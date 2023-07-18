@@ -71,7 +71,7 @@ class DAVObject(object):
         name=None,
         id=None,
         props=None,
-        **extra
+        **extra,
     ):
         """
         Default constructor.
@@ -981,8 +981,8 @@ class Calendar(DAVObject):
         include_completed=False,
         sort_keys=(),
         split_expanded=True,
-        props = None,
-        **kwargs
+        props=None,
+        **kwargs,
     ):
         """Creates an XML query, does a REPORT request towards the
         server and returns objects found, eventually sorting them
@@ -1023,21 +1023,21 @@ class Calendar(DAVObject):
                 comp_class=comp_class,
                 ignore_completed1=True,
                 include_completed=True,
-                **kwargs
+                **kwargs,
             )
             matches2 = self.search(
                 todo=True,
                 comp_class=comp_class,
                 ignore_completed2=True,
                 include_completed=True,
-                **kwargs
+                **kwargs,
             )
             matches3 = self.search(
                 todo=True,
                 comp_class=comp_class,
                 ignore_completed3=True,
                 include_completed=True,
-                **kwargs
+                **kwargs,
             )
             objects = []
             match_set = set()
@@ -1063,7 +1063,9 @@ class Calendar(DAVObject):
                 raise error.ConsistencyError(
                     "Inconsistent usage parameters: xml together with other search options"
                 )
-            (response, objects) = self._request_report_build_resultlist(xml, comp_class, props=props)
+            (response, objects) = self._request_report_build_resultlist(
+                xml, comp_class, props=props
+            )
 
         if kwargs.get("expand", False):
             ## expand can only be used together with start and end.
@@ -1149,7 +1151,7 @@ class Calendar(DAVObject):
         start=None,
         end=None,
         props=None,
-        **kwargs
+        **kwargs,
     ):
         """This method will produce a caldav search query as an etree object.
 

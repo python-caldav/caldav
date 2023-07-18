@@ -149,7 +149,8 @@ UID:1c9bba3e-c121-11ed-bf96-982cbcdd642c
 CATEGORIES:oslo
 END:VEVENT
 END:VCALENDAR
-""" ]
+"""
+        ]
         broken_ical = [
             ## This first one contains duplicated DTSTAMP in the event data
             """BEGIN:VCALENDAR
