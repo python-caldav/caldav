@@ -58,7 +58,7 @@ until it's tested.
 
 Python2 has been unlikely to work for some time due to lack of testing
 and due to dependencies on other libraries that doesn't support
-python2.  Pyhton2 is officially not supported starting from version
+python2.  Python2 is officially not supported starting from version
 1.0 - however, code for supporting python2 will only be cleaned
 properly away in version 1.1 (and may be postponed if anyone
 protests).
@@ -139,7 +139,7 @@ provider, and continue using the library without noticing any
 differences.  To get there, it may be needed to add tweaks in the
 library covering the things the servers are doing wrong.
 
-There exists an extention to the standard covering calendar color and
+There exists an extension to the standard covering calendar color and
 calendar order, allegedly with an xml namespace
 ``http://apple.com/ns/ical/``. That URL gives (301 https and
 then) 404.  I've so far found no documentation at all
@@ -187,7 +187,7 @@ Adding an event to the calendar, v0.9 adds this interface:
       dtstart=datetime.datetime(2020,5,17,8),
       dtend=datetime.datetime(2020,5,18,1),
       summary="Do the needful",
-      rrule={'FREQ': 'YEARLY'))
+      rrule={'FREQ': 'YEARLY'})
 
 Adding an event described through some ical text:
 
