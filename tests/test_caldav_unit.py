@@ -952,12 +952,12 @@ END:VCALENDAR
         ## It seems like the huge_tree flag is not necessary in all
         ## environments as of 2023-07.  Perhaps versioning issues with
         ## the lxml library.
-        #davclient.huge_tree = False
-        #try:
+        # davclient.huge_tree = False
+        # try:
         #    import pdb; pdb.set_trace()
         #    DAVResponse(resp, davclient=davclient)
         #    assert False
-        #except Exception as e:
+        # except Exception as e:
         #    assert type(e) == lxml.etree.XMLSyntaxError
 
         davclient.huge_tree = True

@@ -11,11 +11,17 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 This project should more or less adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.3.4] - 2023-07-19
+## [1.3.5] - 2023-07-19
+
+Very minor test fix
 
 ### Fixed
 
-Very minor test fix, ref https://github.com/python-caldav/caldav/issues/300 , https://github.com/python-caldav/caldav/issues/320 and  https://github.com/python-caldav/caldav/pull/321
+One of the tests has been partially disabled, ref https://github.com/python-caldav/caldav/issues/300 , https://github.com/python-caldav/caldav/issues/320 and  https://github.com/python-caldav/caldav/pull/321
+
+## [1.3.4] - 2023-07-19 [YANKED]
+
+... Github has some features that it will merge pull requests only when all tests passes ... but somehow I can't get it to work, so 1.3.4 broke the style test again ...
 
 ## [1.3.3] - 2023-07-19
 
