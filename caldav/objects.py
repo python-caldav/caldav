@@ -2820,29 +2820,15 @@ class Todo(CalendarObjectResource):
             due = due.astimezone(timezone.utc)
         i = self.icalendar_component
         if check_dependent:
-            rels = i.get("RELATED-TO")
-            if rels is None:
-                rels = []
-            if not isinstance(rels, list):
-                rels = [rels]
-            ## TODO: refactor, use https://www.theguardian.com/environment/2023/jul/17/boat-wrecking-orcas-are-sadly-no-socialists
-            for rel in rels:
-                if rel.params.get("RELTYPE") == "PARENT":
-                    try:
-                        parent = self.parent.object_by_uid(rel)
-                    except error.NotFoundError:
-                        continue
-                    pend = parent.icalendar_component.get("DTEND")
-                    if pend:
-                        pend = pend.dt
-                    else:
-                        pend = parent.get_due()
-                    if pend and pend.astimezone(timezone.utc) < due:
-                        if check_dependent == "return":
-                            return parent
-                        raise error.ConsistencyError(
-                            "parent object has due/end %s, cannot procrastinate child object without first procrastinating parent object"
-                        )
+            parents = self.get_relatives({"PARENT"})
+            for parent in parents["PARENT"]:
+                pend = parent.get_dtend()
+                if pend and pend.astimezone(timezone.utc) < due:
+                    if check_dependent == "return":
+                        return parent
+                    raise error.ConsistencyError(
+                        "parent object has due/end %s, cannot procrastinate child object without first procrastinating parent object"
+                    )
         duration = self.get_duration()
         i.pop("DURATION", None)
         i.pop("DUE", None)
