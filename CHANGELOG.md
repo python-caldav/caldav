@@ -11,6 +11,12 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 This project should more or less adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.4] - 2023-07-19
+
+### Fixed
+
+Very minor test fix, ref https://github.com/python-caldav/caldav/issues/300 , https://github.com/python-caldav/caldav/issues/320 and  https://github.com/python-caldav/caldav/pull/321
+
 ## [1.3.3] - 2023-07-19
 
 Summary: Some few workarounds to support yet more differenct calendar servers and cloud providers, some few minor enhancements needed by various contributors, and some minor bugfixes.
