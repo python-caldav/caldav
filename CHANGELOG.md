@@ -11,7 +11,7 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 This project should more or less adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.3.1] - 2023-07-19
+## [1.3.2] - 2023-07-19
 
 Summary: Some few workarounds to support yet more differenct calendar servers and cloud providers, some few minor enhancements needed by various contributors, and some minor bugfixes.
 
@@ -34,6 +34,10 @@ Summary: Some few workarounds to support yet more differenct calendar servers an
 
 ### Changes
 * Refactored relation handling in `set_due`
+
+## [1.3.1] - 2023-07-19 [YANKED]
+
+I forgot bumping the version number from 1.3.0 to 1.3.1 prior to tagging
 
 ## [1.3.0] - 2023-07-19 [YANKED]
 
