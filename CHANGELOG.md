@@ -42,4 +42,3 @@ I forgot bumping the version number from 1.3.0 to 1.3.1 prior to tagging
 ## [1.3.0] - 2023-07-19 [YANKED]
 
 I accidentally tagged the wrong stuff in the git repo
-
