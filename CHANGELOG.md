@@ -11,7 +11,15 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 This project should more or less adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.3.6] - 2023-07-19
+## [unreleased]
+
+Very minor bugfix
+
+### Fixes
+
+`DAVResponse.davclient` was always set to None, now it may be set to the `DAVClient` instance.  Credits to github user @sobolevn in https://github.com/python-caldav/caldav/pull/323
+
+## [1.3.6] - 2023-07-20
 
 Very minor test fix
 
