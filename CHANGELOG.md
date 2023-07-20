@@ -11,13 +11,17 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 This project should more or less adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.3.5] - 2023-07-19
+## [1.3.6] - 2023-07-19
 
 Very minor test fix
 
 ### Fixed
 
 One of the tests has been partially disabled, ref https://github.com/python-caldav/caldav/issues/300 , https://github.com/python-caldav/caldav/issues/320 and  https://github.com/python-caldav/caldav/pull/321
+
+## [1.3.5] - 2023-07-19 [YANKED]
+
+Seems like I've been using the wrong procedure all the time for doing pypi-releases
 
 ## [1.3.4] - 2023-07-19 [YANKED]
 
