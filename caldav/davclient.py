@@ -45,6 +45,7 @@ class DAVResponse:
         log.debug("response status: " + str(self.status))
 
         self._raw = response.content
+        self.davclient = davclient
         if davclient:
             self.huge_tree = davclient.huge_tree
 
