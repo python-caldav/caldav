@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # -*- encoding: utf-8 -*-
+import logging
 from datetime import datetime
 
 try:
@@ -33,7 +34,17 @@ def _to_utc_date_string(ts):
             import tzlocal
 
             ts = ts.replace(tzinfo=tzlocal.get_localzone())
-            ts = ts.astimezone(utc_tz)
+
+            mindate = datetime.min.replace(tzinfo=utc_tz)
+            maxdate = datetime.max.replace(tzinfo=utc_tz)
+            if mindate + ts.tzinfo.utcoffset(ts) > ts:
+                logging.error("Cannot coerce datetime %s to UTC. Changed to min-date.", ts)
+                ts = mindate
+            elif ts > maxdate - ts.tzinfo.utcoffset(ts):
+                logging.error("Cannot coerce datetime %s to UTC. Changed to max-date.", ts)
+                ts = maxdate
+            else:
+                ts = ts.astimezone(utc_tz)
 
     return ts.strftime("%Y%m%dT%H%M%SZ")
 
