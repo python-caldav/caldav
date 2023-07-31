@@ -13,11 +13,12 @@ This project should more or less adhere to [Semantic Versioning](https://semver.
 
 ## [unreleased]
 
-Very minor bugfix
+Very minor bugfixes
 
 ### Fixes
 
-`DAVResponse.davclient` was always set to None, now it may be set to the `DAVClient` instance.  Credits to github user @sobolevn in https://github.com/python-caldav/caldav/pull/323
+* Some parts of the library would throw OverflowError on very weird dates/timestamps.  Now those are converted to the minimum or maximum accepted date/timestamp.  Credits to github user @tamarinvs19 in https://github.com/python-caldav/caldav/pull/327
+* `DAVResponse.davclient` was always set to None, now it may be set to the `DAVClient` instance.  Credits to github user @sobolevn in https://github.com/python-caldav/caldav/pull/323
 
 ## [1.3.6] - 2023-07-20
 
