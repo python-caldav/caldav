@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 # -*- encoding: utf-8 -*-
 import logging
-from datetime import datetime
+from datetime import datetime, date
+from typing import Union
 
 try:
     from datetime import timezone
@@ -18,7 +19,7 @@ from caldav.lib.namespace import ns
 from .base import BaseElement, NamedBaseElement, ValuedBaseElement
 
 
-def _to_utc_date_string(ts):
+def _to_utc_date_string(ts: Union(datetime, date, None)) -> str:
     # type (Union[date,datetime]]) -> str
     """coerce datetimes to UTC (assume localtime if nothing is given)"""
     if isinstance(ts, datetime):
@@ -59,47 +60,52 @@ class CalendarQuery(BaseElement):
 
 
 class FreeBusyQuery(BaseElement):
-    tag = ns("C", "free-busy-query")
+    tag: str = ns("C", "free-busy-query")
 
 
 class Mkcalendar(BaseElement):
-    tag = ns("C", "mkcalendar")
+    tag: str = ns("C", "mkcalendar")
 
 
 class CalendarMultiGet(BaseElement):
-    tag = ns("C", "calendar-multiget")
+    tag: str = ns("C", "calendar-multiget")
 
 
 class ScheduleInboxURL(BaseElement):
-    tag = ns("C", "schedule-inbox-URL")
+    tag: str = ns("C", "schedule-inbox-URL")
 
 
 class ScheduleOutboxURL(BaseElement):
-    tag = ns("C", "schedule-outbox-URL")
+    tag: str = ns("C", "schedule-outbox-URL")
 
 
 # Filters
 class Filter(BaseElement):
-    tag = ns("C", "filter")
+    tag: str = ns("C", "filter")
 
 
 class CompFilter(NamedBaseElement):
-    tag = ns("C", "comp-filter")
+    tag: str = ns("C", "comp-filter")
 
 
 class PropFilter(NamedBaseElement):
-    tag = ns("C", "prop-filter")
+    tag: str = ns("C", "prop-filter")
 
 
 class ParamFilter(NamedBaseElement):
-    tag = ns("C", "param-filter")
+    tag: str = ns("C", "param-filter")
 
 
 # Conditions
 class TextMatch(ValuedBaseElement):
     tag = ns("C", "text-match")
 
-    def __init__(self, value, collation="i;octet", negate=False):
+    def __init__(
+            self,
+            value: str,
+            collation: str = "i;octet", 
+            negate: bool = False
+        ):
         super(TextMatch, self).__init__(value=value)
         self.attributes["collation"] = collation
         if negate:
@@ -109,7 +115,11 @@ class TextMatch(ValuedBaseElement):
 class TimeRange(BaseElement):
     tag = ns("C", "time-range")
 
-    def __init__(self, start=None, end=None):
+    def __init__(
+            self,
+            start: Union(datetime, None) = None,
+            end: Union(datetime, None) = None
+        ) -> None:
         ## start and end should be an icalendar "date with UTC time",
         ## ref https://tools.ietf.org/html/rfc4791#section-9.9
         super(TimeRange, self).__init__()
@@ -131,7 +141,11 @@ class CalendarData(BaseElement):
 class Expand(BaseElement):
     tag = ns("C", "expand")
 
-    def __init__(self, start, end=None):
+    def __init__(
+            self,
+            start: Union(datetime, None),
+            end: Union(datetime, None) = None
+        ):
         super(Expand, self).__init__()
         if start is not None:
             self.attributes["start"] = _to_utc_date_string(start)
