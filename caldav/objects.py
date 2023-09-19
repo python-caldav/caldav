@@ -1817,7 +1817,6 @@ class CalendarObjectResource(DAVObject):
         """
         ##TODO: test coverage
         reltype = reltype.upper()
-        reltype_reverse = self.RELTYPE_REVERSER[reltype]
         if isinstance(other, CalendarObjectResource):
             if other.id:
                 uid = other.id
@@ -1828,6 +1827,7 @@ class CalendarObjectResource(DAVObject):
             if set_reverse:
                 other = self.parent.object_by_uid(uid)
         if set_reverse:
+            reltype_reverse = self.RELTYPE_REVERSER[reltype]
             other.set_relation(other=self, reltype=reltype_reverse, set_reverse=False)
 
         existing_relation = self.icalendar_component.get("related-to", None)
