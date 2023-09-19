@@ -31,7 +31,7 @@ except ImportError:
     from urllib import unquote, quote
 
 try:
-    from typing import Union, Optional
+    from typing import ClassVar, Union, Optional
 
     TimeStamp = Optional[Union[date, datetime]]
 except:
@@ -1709,6 +1709,12 @@ class CalendarObjectResource(DAVObject):
     event, a todo-item, a journal entry, or a free/busy entry
     """
 
+    RELTYPE_REVERSER: ClassVar = {
+        "PARENT": "CHILD",
+        "CHILD": "PARENT",
+        "SIBLING": "SIBLING",
+    }
+
     _ENDPARAM = None
 
     _vobject_instance = None
@@ -1811,9 +1817,7 @@ class CalendarObjectResource(DAVObject):
         """
         ##TODO: test coverage
         reltype = reltype.upper()
-        reltype_reverse = {"CHILD": "PARENT", "PARENT": "CHILD", "SIBLING": "SIBLING"}[
-            reltype
-        ]
+        reltype_reverse = self.RELTYPE_REVERSER[reltype]
         if isinstance(other, CalendarObjectResource):
             if other.id:
                 uid = other.id
