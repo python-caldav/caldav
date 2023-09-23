@@ -3,6 +3,7 @@
 from caldav.lib.namespace import nsmap
 from caldav.lib.python_utilities import to_unicode
 from lxml import etree
+from typing import List, Dict, Union
 
 
 class BaseElement(object):
@@ -12,26 +13,26 @@ class BaseElement(object):
     attributes = None
     caldav_class = None
 
-    def __init__(self, name=None, value=None):
-        self.children = []
-        self.attributes = {}
+    def __init__(self, name: str = None, value: str = None) -> None:
+        self.children: List[BaseElement] = []
+        self.attributes: Dict[str,str] = {}
         value = to_unicode(value)
-        self.value = None
+        self.value: Union[str,None] = None
         if name is not None:
             self.attributes["name"] = name
         if value is not None:
             self.value = value
 
-    def __add__(self, other):
+    def __add__(self, other: "BaseElement") -> "BaseElement":
         return self.append(other)
 
-    def __str__(self):
+    def __str__(self) -> str:
         utf8 = etree.tostring(
             self.xmlelement(), encoding="utf-8", xml_declaration=True, pretty_print=True
         )
         return str(utf8, "utf-8")
 
-    def xmlelement(self):
+    def xmlelement(self) -> etree.Element:
         root = etree.Element(self.tag, nsmap=nsmap)
         if self.value is not None:
             root.text = self.value
@@ -41,11 +42,11 @@ class BaseElement(object):
         self.xmlchildren(root)
         return root
 
-    def xmlchildren(self, root):
+    def xmlchildren(self, root: etree.Element) -> None:
         for c in self.children:
             root.append(c.xmlelement())
 
-    def append(self, element):
+    def append(self, element: "BaseElement") -> "BaseElement":
         try:
             iter(element)
             self.children.extend(element)
@@ -55,15 +56,15 @@ class BaseElement(object):
 
 
 class NamedBaseElement(BaseElement):
-    def __init__(self, name=None):
+    def __init__(self, name: str = None) -> None:
         super(NamedBaseElement, self).__init__(name=name)
 
-    def xmlelement(self):
+    def xmlelement(self) -> etree.Element:
         if self.attributes.get("name") is None:
             raise Exception("name attribute must be defined")
         return super(NamedBaseElement, self).xmlelement()
 
 
 class ValuedBaseElement(BaseElement):
-    def __init__(self, value=None):
+    def __init__(self, value: str = None) -> None:
         super(ValuedBaseElement, self).__init__(value=value)
