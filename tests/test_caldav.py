@@ -1764,13 +1764,13 @@ class RepeatedFunctionalTestsBaseClass:
         assert grandparent_.check_reverse_relations() == []
 
         ## My grandchild is also my child ... that sounds fishy
-        grandparent_.set_relation(child, reltype='CHILD', set_reverse=False)
+        grandparent_.set_relation(child, reltype="CHILD", set_reverse=False)
 
         ## The check_reverse should tell that something is amiss
         missing_parent = grandparent_.check_reverse_relations()
         assert len(missing_parent) == 1
-        assert missing_parent[0][0].icalendar_component['uid'] == 'ctuid2'
-        assert missing_parent[0][1] == 'PARENT'
+        assert missing_parent[0][0].icalendar_component["uid"] == "ctuid2"
+        assert missing_parent[0][1] == "PARENT"
         ## But only when run on the grandparent.  The child is blissfully
         ## unaware who the second parent is (even if reloading it).
         child_.load()
