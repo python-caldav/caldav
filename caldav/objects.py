@@ -1937,13 +1937,19 @@ class CalendarObjectResource(DAVObject):
     event, a todo-item, a journal entry, or a free/busy entry
     """
 
-    ## There is also STARTTOFINISH in RFC9253, it does not have any reverse
+    ## There is also STARTTOFINISH, STARTTOSTART and FINISHTOFINISH in RFC9253,
+    ## those do not seem to have any reverse
+    ## (FINISHTOSTART and STARTTOFINISH may seem like reverse relations, but
+    ## as I read the RFC, FINISHTOSTART seems like the reverse of DEPENDS-ON)
+    ## (STARTTOSTART and FINISHTOFINISH may also seem like symmetric relations,
+    ## meaning they are their own reverse, but as I read the RFC they are
+    ## asymmetric)
     RELTYPE_REVERSER: ClassVar = {
         "PARENT": "CHILD",
         "CHILD": "PARENT",
         "SIBLING": "SIBLING",
         ## this is how Tobias Brox inteprets RFC9253:
-        "DEPENDENT": "FINISHTOSTART",
+        "DEPENDS-ON": "FINISHTOSTART",
         "FINISHTOSTART": "DEPENDENT",
         ## next/first is a special case, linked list
         ## it needs special handling when length of list<>2
