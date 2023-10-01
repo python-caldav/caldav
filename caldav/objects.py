@@ -2580,6 +2580,13 @@ class Todo(CalendarObjectResource):
                     dtstart = ts or datetime.now()
             else:
                 dtstart = ts or datetime.now() - self._get_duration(i)
+        ## dtstart should be compared to the completion timestamp, which
+        ## is set in UTC in the complete() method.  However, dtstart
+        ## may be a naïve or a floating timestamp
+        ## (TODO: what if it's a date?)
+        ## (TODO: we need test code for those corner cases!)
+        if hasattr(dtstart, "astimezone"):
+            dtstart = dtstart.astimezone(timezone.utc)
         if not ts:
             ts = dtstart
         ## Counting is taken care of other places

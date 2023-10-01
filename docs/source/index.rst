@@ -59,9 +59,7 @@ until it's tested.
 Python2 has been unlikely to work for some time due to lack of testing
 and due to dependencies on other libraries that doesn't support
 python2.  Python2 is officially not supported starting from version
-1.0 - however, code for supporting python2 will only be cleaned
-properly away in version 1.1 (and may be postponed if anyone
-protests).
+1.0.
 
 Please report issues if you have problems running the caldav library
 with old python versions.  If it's easy to find a work-around I will
@@ -374,7 +372,7 @@ Here are some known issues:
 
 * radicale will auto-create a calendar if one tries to access a calendar that does not exist.  The normal method of accessing a list of the calendars owned by the user seems to fail.
 
-Some notes on Caldav URLs
+Some notes on CalDAV URLs
 =========================
 
 CalDAV URLs can be quite confusing, some software requires the URL to the calendar, other requires the URL to the principal.  The Python CalDAV library does support accessing calendars and principals using such URLs, but the recommended practice is to configure up the CalDAV root URL and tell the library to find the principal and calendars from that.  Typical examples of CalDAV URLs:

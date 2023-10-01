@@ -13,12 +13,19 @@ This project should more or less adhere to [Semantic Versioning](https://semver.
 
 ## [unreleased]
 
-Very minor bugfixes
+Some bugfixes.
+
+I've temporarily disabled testing for python 3.7 and python 3.8.  This will be tracked in https://github.com/python-caldav/caldav/issues/332
 
 ### Fixes
 
 * Some parts of the library would throw OverflowError on very weird dates/timestamps.  Now those are converted to the minimum or maximum accepted date/timestamp.  Credits to github user @tamarinvs19 in https://github.com/python-caldav/caldav/pull/327
 * `DAVResponse.davclient` was always set to None, now it may be set to the `DAVClient` instance.  Credits to github user @sobolevn in https://github.com/python-caldav/caldav/pull/323
+* `DAVResponse.davclient` was always set to None, now it may be set to the `DAVClient` instance.  Credits to github user @sobolevn in https://github.com/python-caldav/caldav/pull/323
+* `examples/sync_examples.py`, the sync token needs to be saved to the database (credits to Savvas Giannoukas)
+* bugfixes in `set_relations`, credits to github user @Zocker1999NET in https://github.com/python-caldav/caldav/pull/335 and https://github.com/python-caldav/caldav/pull/333
+* dates that are off the scale are converted to `min_date` and `max_date` (and logging en error) rather than throwing OverflowError, credits to github user @tamarinvs19 in https://github.com/python-caldav/caldav/pull/327
+* completing a recurring task with a naïve or floating `DTSTART` would cause a runtime error
 
 ## [1.3.6] - 2023-07-20
 
