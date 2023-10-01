@@ -1758,6 +1758,24 @@ class RepeatedFunctionalTestsBaseClass:
         assert len(foo["PARENT"]) == 1
         foo = parent_.get_relatives(relfilter=lambda x: x.params.get("GAP"))
 
+        ## verify the check_reverse_relations method (TODO: move to a separate test)
+        assert parent_.check_reverse_relations() == []
+        assert child_.check_reverse_relations() == []
+        assert grandparent_.check_reverse_relations() == []
+
+        ## My grandchild is also my child ... that sounds fishy
+        grandparent_.set_relation(child, reltype='CHILD', set_reverse=False)
+
+        ## The check_reverse should tell that something is amiss
+        missing_parent = grandparent_.check_reverse_relations()
+        assert len(missing_parent) == 1
+        assert missing_parent[0][0].icalendar_component['uid'] == 'ctuid2'
+        assert missing_parent[0][1] == 'PARENT'
+        ## But only when run on the grandparent.  The child is blissfully
+        ## unaware who the second parent is (even if reloading it).
+        child_.load()
+        assert child_.check_reverse_relations() == []
+
     def testSetDue(self):
         self.skip_on_compatibility_flag("read_only")
         self.skip_on_compatibility_flag("no_todo")

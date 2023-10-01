@@ -932,7 +932,6 @@ class Calendar(DAVObject):
     ## TODO: think more through this - is `save_foo` better than `add_foo`?
     ## `save_foo` should not be used for updating existing content on the
     ## calendar!
-
     add_event = save_event
     add_todo = save_todo
     add_journal = save_journal
@@ -1938,10 +1937,18 @@ class CalendarObjectResource(DAVObject):
     event, a todo-item, a journal entry, or a free/busy entry
     """
 
+    ## There is also STARTTOFINISH in RFC9253, it does not have any reverse
     RELTYPE_REVERSER: ClassVar = {
         "PARENT": "CHILD",
         "CHILD": "PARENT",
         "SIBLING": "SIBLING",
+        ## this is how Tobias Brox inteprets RFC9253:
+        "DEPENDENT": "FINISHTOSTART",
+        "FINISHTOSTART": "DEPENDENT",
+        ## next/first is a special case, linked list
+        ## it needs special handling when length of list<>2
+        "NEXT": "FIRST",
+        "FIRST": "NEXT",
     }
 
     _ENDPARAM = None
@@ -2072,6 +2079,8 @@ class CalendarObjectResource(DAVObject):
             if set_reverse:
                 other = self.parent.object_by_uid(uid)
         if set_reverse:
+            ## TODO: special handling of NEXT/FIRST.
+            ## STARTTOFINISH does not have any equivalent "reverse".
             reltype_reverse = self.RELTYPE_REVERSER[reltype]
             other.set_relation(other=self, reltype=reltype_reverse, set_reverse=False)
 
@@ -2119,6 +2128,10 @@ class CalendarObjectResource(DAVObject):
 
         TODO: this is partially overlapped by plann.lib._relships_by_type
         in the plann tool.  Should consolidate the code.
+
+        TODO: should probably return some kind of object instead of a weird dict structure.
+        (but due to backward compatibility requirement, such an object should behave like
+        the current dict)
         """
         ret = defaultdict(set)
         relations = self.icalendar_component.get("RELATED-TO", [])
@@ -2155,6 +2168,37 @@ class CalendarObjectResource(DAVObject):
                 ret[reltype] = reltype_set
 
         return ret
+
+
+    def check_reverse_relations(self, pdb: bool = False) -> list:
+        """
+        Goes through all relations and verifies that the return relation is set
+        Returns a list of objects missing a reverse (or an empty list if everything is OK)
+        """
+        ret = []
+        relations = self.get_relatives()
+        for reltype in relations:
+            for other in relations[reltype]:
+                revreltype = self.RELTYPE_REVERSER[reltype]
+                ## TODO: special case FIRST/NEXT needs special handling
+                other_relations = other.get_relatives(
+                    fetch_objects=False, reltypes={revreltype}
+                )
+                if (
+                    not str(self.icalendar_component["uid"])
+                    in other_relations[revreltype]
+                ):
+                    if pdb:
+                        import pdb
+
+                        pdb.set_trace()
+                    ret.append((other, revreltype))
+        return ret
+
+    ## TODO: fix this (and consolidate with _handle_relations / set_relation?)
+    # def ensure_reverse_relations(self):
+    #     missing_relations = self.check_reverse_relations()
+    #     ...
 
     def _get_icalendar_component(self, assert_one=False):
         """Returns the icalendar subcomponent - which should be an
