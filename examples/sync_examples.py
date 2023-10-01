@@ -32,6 +32,7 @@ for event in my_updated_events:
         delete_event_from_database(event)
     else:
         update_event_in_database(event)
+save_sync_token_to_database(my_updated_events.sync_token)
 
 ## USE CASE #2, approach #2, using my_events.sync().  Ref
 ## https://github.com/python-caldav/caldav/issues/122 this may be
@@ -50,6 +51,7 @@ for event in updated:
     update_event_in_database(event)
 for event in deleted:
     delete_event_in_database(event)
+save_sync_token_to_database(my_events.sync_token)
 
 ## ... but the approach above gets a bit tricky when the server is
 ## rebooted/restarted.  It may be possible to save the etags in the
