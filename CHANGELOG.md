@@ -45,7 +45,7 @@ Seems like I've been using the wrong procedure all the time for doing pypi-relea
 
 ## [1.3.3] - 2023-07-19
 
-Summary: Some few workarounds to support yet more differenct calendar servers and cloud providers, some few minor enhancements needed by various contributors, and some minor bugfixes.
+Summary: Some few workarounds to support yet more different calendar servers and cloud providers, some few minor enhancements needed by various contributors, and some minor bugfixes.
 
 ### Added
 * Support for very big events, credits to github user @aaujon in https://github.com/python-caldav/caldav/pull/301

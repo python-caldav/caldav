@@ -16,7 +16,7 @@ class URL:
     This class is for wrapping URLs into objects.  It's used
     internally in the library, end users should not need to know
     anything about this class.  All methods that accept URLs can be
-    fed either with an URL object, a string or an urlparse.ParsedURL
+    fed either with a URL object, a string or a urlparse.ParsedURL
     object.
 
     Addresses may be one out of three:
@@ -70,7 +70,7 @@ class URL:
     def __hash__(self):
         return hash(str(self))
 
-    # TODO: better naming?  Will return url if url is already an URL
+    # TODO: better naming?  Will return url if url is already a URL
     # object, else will instantiate a new URL object
     @classmethod
     def objectify(self, url):

@@ -19,7 +19,7 @@ try:
 except:
     rfc6638_users = None
 
-## Some inital setup.  We'll need three caldav client objects, with
+## Some initial setup.  We'll need three caldav client objects, with
 ## corresponding principal objects and calendars.
 class TestUser:
     def __init__(self, i):
