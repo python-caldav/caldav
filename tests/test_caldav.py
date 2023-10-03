@@ -463,7 +463,7 @@ class RepeatedFunctionalTestsBaseClass(object):
     """This is a class with functional tests (tests that goes through
     basic functionality and actively communicates with third parties)
     that we want to repeat for all configured caldav_servers.
-    (what a truely ugly name for this class - any better ideas?)
+    (what a truly ugly name for this class - any better ideas?)
     NOTE: this tests relies heavily on the assumption that we can create
     calendars on the remote caldav server, but the RFC says ...
        Support for MKCALENDAR on the server is only RECOMMENDED and not
@@ -843,7 +843,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         mycal = self._fixCalendar()
         samecal = self.caldav.principal().calendar(cal_id=str(mycal.url))
         assert mycal.url.canonical() == samecal.url.canonical()
-        ## passing cal_id as an URL object should also work.
+        ## passing cal_id as a URL object should also work.
         samecal = self.caldav.principal().calendar(cal_id=mycal.url)
         assert mycal.url.canonical() == samecal.url.canonical()
 
@@ -1270,7 +1270,7 @@ class RepeatedFunctionalTestsBaseClass(object):
                     assert len(some_events) == 0
 
             ## This is not a very useful search, and it's sort of a client side bug that we allow it at all.
-            ## It will not match if categories field is set to "PERSONAL,ANNIVERSARY,SPECIAL OCCATION"
+            ## It will not match if categories field is set to "PERSONAL,ANNIVERSARY,SPECIAL OCCASION"
             ## It may not match since the above is to be considered equivalent to the raw data entered.
             some_events = c.search(
                 comp_class=Event, category="ANNIVERSARY,PERSONAL,SPECIAL OCCASION"
@@ -1390,7 +1390,7 @@ class RepeatedFunctionalTestsBaseClass(object):
                 assert len(some_todos) == 0
 
         ## This is not a very useful search, and it's sort of a client side bug that we allow it at all.
-        ## It will not match if categories field is set to "PERSONAL,ANNIVERSARY,SPECIAL OCCATION"
+        ## It will not match if categories field is set to "PERSONAL,ANNIVERSARY,SPECIAL OCCASION"
         ## It may not match since the above is to be considered equivalent to the raw data entered.
         some_todos = c.search(comp_class=Todo, category="FAMILY,FINANCE")
         if not self.check_compatibility_flag("text_search_not_working"):
@@ -1562,7 +1562,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         ## updated ... until we reload it
         some_todo.load()
 
-        ## This should work out (set the childs due to some time before the parents due)
+        ## This should work out (set the children due to some time before the parents due)
         some_todo.set_due(
             datetime(2022, 12, 26, 20, 30, tzinfo=utc),
             move_dtstart=True,
@@ -1575,7 +1575,7 @@ class RepeatedFunctionalTestsBaseClass(object):
             2022, 12, 26, 19, 35, tzinfo=utc
         )
 
-        ## This should not work out (set the childs due to some time before the parents due)
+        ## This should not work out (set the children due to some time before the parents due)
         with pytest.raises(error.ConsistencyError):
             some_todo.set_due(
                 datetime(2022, 12, 26, 21, 30, tzinfo=utc),
@@ -1591,7 +1591,7 @@ class RepeatedFunctionalTestsBaseClass(object):
             parent=[some_todo.id],
         )
 
-        ## This should still work out (set the childs due to some time before the parents due)
+        ## This should still work out (set the children due to some time before the parents due)
         ## (The fact that we now have a child does not affect it anyhow)
         some_todo.set_due(
             datetime(2022, 12, 26, 20, 31, tzinfo=utc),
@@ -1651,7 +1651,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         # Zimbra has separate calendars and task lists, and it's not
         # allowed to put TODO-tasks into the calendar.  We need to
         # tell Zimbra that the new "calendar" is a task list.  This
-        # is done though the supported_calendar_compontent_set
+        # is done though the supported_calendar_component_set
         # property - hence the extra parameter here:
         logging.info("Creating calendar Yep for tasks")
         c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
@@ -1673,7 +1673,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         )
         assert len(c.todos()) == 2
 
-        # adding a todo without an UID, it should also work (library will add the missing UID)
+        # adding a todo without a UID, it should also work (library will add the missing UID)
         t7 = c.save_todo(todo7)
         assert len(c.todos()) == 3
 
@@ -1685,7 +1685,7 @@ class RepeatedFunctionalTestsBaseClass(object):
 
     def testTodos(self):
         """
-        This test will excercise the cal.todos() method,
+        This test will exercise the cal.todos() method,
         and in particular the sort_keys attribute.
         * It will list out all pending tasks, sorted by due date
         * It will list out all pending tasks, sorted by priority
@@ -1867,7 +1867,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert len([x for x in todos1 if "DTSTART:20270415T1330" in x.data]) == 0
         assert len([x for x in todos2 if "DTSTART:20270415T1330" in x.data]) == 0
 
-        # TODO: prod the caldav server implementators about the RFC
+        # TODO: prod the caldav server implementers about the RFC
         # breakages.
 
     def testTodoCompletion(self):
@@ -2399,7 +2399,7 @@ class RepeatedFunctionalTestsBaseClass(object):
 
     def testOffsetURL(self):
         """
-        pass an URL pointing to a calendar or a user to the DAVClient class,
+        pass a URL pointing to a calendar or a user to the DAVClient class,
         and things should still work
         """
         urls = [self.principal.url, self._fixCalendar().url]

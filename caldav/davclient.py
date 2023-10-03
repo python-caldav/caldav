@@ -429,7 +429,7 @@ class DAVClient:
     def calendar(self, **kwargs):
         """Returns a calendar object.
 
-        Typically, an URL should be given as a named parameter (url)
+        Typically, a URL should be given as a named parameter (url)
 
         No network traffic will be initiated by this method.
 

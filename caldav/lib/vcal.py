@@ -11,7 +11,7 @@ from caldav.lib.python_utilities import to_normal_str
 ## Global counter.  We don't want to be too verbose on the users, ref https://github.com/home-assistant/core/issues/86938
 fixup_error_loggings = 0
 
-## Fixups to the icalendar data to work around compatbility issues.
+## Fixups to the icalendar data to work around compatibility issues.
 
 ## TODO:
 
@@ -76,7 +76,7 @@ def fix(event):
     ## 3 fix duplicated DTSTAMP ... and ...
     ## 5 prepare to remove DURATION or DTEND/DUE if both DURATION and
     ## DTEND/DUE is set.
-    ## OPTIMIZATION TODO: use list and join rather than concatination
+    ## OPTIMIZATION TODO: use list and join rather than concatenation
     ## remove duplication of DTSTAMP
     fixed2 = ""
     for line in fixed.strip().split("\n"):

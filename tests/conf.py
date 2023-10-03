@@ -7,7 +7,7 @@ import logging
 
 from caldav.davclient import DAVClient
 
-# from .compability_issues import bedework, xandikos
+# from .compatibility_issues import bedework, xandikos
 
 ####################################
 # Import personal test server config

@@ -13,7 +13,7 @@
 ## * Consider how to get this into the documentation
 incompatibility_description = {
     'no_expand':
-        """Server may throw errors when asked to do a expanded date search (this is ignored by the tests now, as we're doing client-side expansion)""",
+        """Server may throw errors when asked to do an expanded date search (this is ignored by the tests now, as we're doing client-side expansion)""",
 
     'no_recurring':
         """Server is having issues with recurring events and/or todos. """
@@ -191,7 +191,7 @@ incompatibility_description = {
         """The is-not-defined in a calendar-query not working as it should - see https://gitlab.com/davical-project/davical/-/issues/281""",
 
     'search_needs_comptype':
-        """The server may not always come up with anything useful when searching for objects and ommitting to specify weather one wants to see tasks or events""",
+        """The server may not always come up with anything useful when searching for objects and omitting to specify weather one wants to see tasks or events""",
 }
 
 xandikos = [

@@ -93,7 +93,7 @@ def calendar_by_url_demo(client, url):
     event_url = events[0].url
 
     ## there is no similar method for fetching an event through
-    ## an URL.  One may construct the object like this though:
+    ## a URL.  One may construct the object like this though:
     same_event = caldav.Event(client=client, parent=calendar, url=event_url)
 
     ## That was also done without any network traffic.  To get the same_event

@@ -278,7 +278,7 @@ def daemonize(logger):
             pass
 
     if os.fork() != 0:
-        # allow the child pid to instanciate the server
+        # allow the child pid to instantiate the server
         # class
         sleep(1)
         sys.exit(0)

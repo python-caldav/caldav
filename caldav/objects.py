@@ -488,7 +488,7 @@ class Principal(DAVObject):
         Returns a Principal.
 
         Parameters:
-         * client: a DAVClient() oject
+         * client: a DAVClient() object
          * url: Deprecated - for backwards compatibility purposes only.
 
         If url is not given, deduct principal path as well as calendar home set
@@ -545,7 +545,7 @@ class Principal(DAVObject):
             calendar_home_set_url = self.get_property(cdav.CalendarHomeSet())
             ## owncloud returns /remote.php/dav/calendars/tobixen@e.email/
             ## in that case the @ should be quoted.  Perhaps other
-            ## implentations returns already quoted URLs.  Hacky workaround:
+            ## implementations return already quoted URLs.  Hacky workaround:
             if (
                 calendar_home_set_url is not None
                 and "@" in calendar_home_set_url
@@ -881,7 +881,7 @@ class Calendar(DAVObject):
         """Deprecated.  Use self.search() instead.
 
         Search events by date in the calendar. Recurring events are
-        expanded if they are occuring during the specified time frame
+        expanded if they are occurring during the specified time frame
         and if an end timestamp is given.
 
         Parameters:
@@ -1097,8 +1097,8 @@ class Calendar(DAVObject):
                 component = o.icalendar_component
                 if component is None:
                     continue
-                recurrance_properties = ["exdate", "exrule", "rdate", "rrule"]
-                if any(key in component for key in recurrance_properties):
+                recurrence_properties = ["exdate", "exrule", "rdate", "rrule"]
+                if any(key in component for key in recurrence_properties):
                     o.expand_rrule(start, end)
             if split_expanded:
                 objects_ = objects
@@ -1787,13 +1787,13 @@ class CalendarObjectResource(DAVObject):
         recurrings = recurring_ical_events.of(
             self.icalendar_instance, components=["VJOURNAL", "VTODO", "VEVENT"]
         ).between(start, end)
-        recurrance_properties = ["exdate", "exrule", "rdate", "rrule"]
+        recurrence_properties = ["exdate", "exrule", "rdate", "rrule"]
         # FIXME too much copying
         stripped_event = self.copy(keep_uid=True)
-        # remove all recurrance properties
+        # remove all recurrence properties
         for component in stripped_event.vobject_instance.components():
             if component.name in ("VEVENT", "VTODO"):
-                for key in recurrance_properties:
+                for key in recurrence_properties:
                     try:
                         del component.contents[key]
                     except KeyError:
@@ -1801,10 +1801,10 @@ class CalendarObjectResource(DAVObject):
 
         calendar = self.icalendar_instance
         calendar.subcomponents = []
-        for occurance in recurrings:
-            occurance.add("RECURRENCE-ID", occurance.get("DTSTART"))
-            calendar.add_component(occurance)
-        # add other components (except for the VEVENT itself and VTIMEZONE which is not allowed on occurance events)
+        for occurrence in recurrings:
+            occurrence.add("RECURRENCE-ID", occurrence.get("DTSTART"))
+            calendar.add_component(occurrence)
+        # add other components (except for the VEVENT itself and VTIMEZONE which is not allowed on occurrence events)
         for component in stripped_event.icalendar_instance.subcomponents:
             if component.name not in ("VEVENT", "VTODO", "VTIMEZONE"):
                 calendar.add_component(component)
@@ -2098,7 +2098,7 @@ class CalendarObjectResource(DAVObject):
     ## TODO: self.id should either always be available or never
     def _find_id_path(self, id=None, path=None):
         """
-        With CalDAV, every object has an URL.  With icalendar, every object
+        With CalDAV, every object has a URL.  With icalendar, every object
         should have a UID.  This UID may or may not be copied into self.id.
 
         This method will:
@@ -2308,7 +2308,7 @@ class CalendarObjectResource(DAVObject):
     ## and any modification to those instances should apply
     def _set_data(self, data):
         ## The __init__ takes a data attribute, and it should be allowable to
-        ## set it to an vobject object or an icalendar object, hence we should
+        ## set it to a vobject object or an icalendar object, hence we should
         ## do type checking on the data (TODO: but should probably use
         ## isinstance rather than this kind of logic
         if type(data).__module__.startswith("vobject"):
@@ -2473,7 +2473,7 @@ class FreeBusy(CalendarObjectResource):
     will probably throw errors (perhaps the class hierarchy should be
     rethought, to prevent the FreeBusy from inheritating moot methods)
 
-    Update: With RFC6638 a freebusy object can have an URL and an ID.
+    Update: With RFC6638 a freebusy object can have a URL and an ID.
     """
 
     def __init__(self, parent, data, url=None, id=None):
@@ -2497,7 +2497,7 @@ class Todo(CalendarObjectResource):
 
         If any BY*-parameters are present, assume the task should have
         fixed deadlines and preserve information from the previous
-        dtstart.  If no BY*-parametes are present, assume the
+        dtstart.  If no BY*-parameters are present, assume the
         frequency is meant to be the interval between the tasks.
 
         Examples:
@@ -2526,7 +2526,7 @@ class Todo(CalendarObjectResource):
         but an algorithm cannot do guesswork on weather it's silly or
         not.  If DTSTART would be set to the earliest possible time
         one could start thinking on this task (like, Monday evening),
-        then we would get TUe the 14th of November, which does make
+        then we would get Tue the 14th of November, which does make
         sense.  Unfortunately the icalendar standard does not specify
         what should be used for DTSTART and DURATION/DUE.
 
@@ -2734,7 +2734,7 @@ class Todo(CalendarObjectResource):
          * handle_rrule - if set to True, the library will try to be smart if
            the task is recurring.  The default is False, for backward
            compatibility.  I may consider making this one mandatory.
-         * rrule_mode -   The RFC leaves a lot of room for intepretation on how
+         * rrule_mode -   The RFC leaves a lot of room for interpretation on how
            to handle recurring tasks, and what works on one server may break at
            another.  The following modes are accepted:
            * this_and_future - see doc for _complete_recurring_thisandfuture for details
