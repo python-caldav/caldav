@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 # -*- encoding: utf-8 -*-
 import logging
-import re
 from urllib.parse import unquote
 
 import requests
@@ -361,7 +360,7 @@ class DAVClient:
         if proxy is not None:
             self.proxy = proxy
             # requests library expects the proxy url to have a scheme
-            if re.match("^.*://", proxy) is None:
+            if "://" not in proxy:
                 self.proxy = self.url.scheme + "://" + proxy
 
             # add a port is one is not specified
