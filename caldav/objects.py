@@ -1470,9 +1470,10 @@ class Calendar(DAVObject):
             ## but at one point it broke due to an extra CR in the data.
             ## Usage of the icalendar library increases readability and
             ## reliability
-            item_uid = item.icalendar_component.get("UID", None)
-            if item_uid and item_uid == uid:
-                items_found2.append(item)
+            if item.icalendar_component:
+                item_uid = item.icalendar_component.get("UID", None)
+                if item_uid and item_uid == uid:
+                    items_found2.append(item)
         if not items_found2:
             raise error.NotFoundError("%s not found on server" % uid)
         error.assert_(len(items_found2) == 1)
