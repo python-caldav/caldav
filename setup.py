@@ -42,13 +42,20 @@ if __name__ == "__main__":
     except:
         extra_test_packages = ["mock"]
 
+    ## TODO: consider if automated testing with radicale in addition to
+    ## xandikos would yield any benefits.
     test_packages = [
         "pytest",
         "pytest-coverage",
         "coverage",
-        "xandikos",
         "sphinx",
     ]
+
+    if sys.version_info.major == 3 and sys.version_info.minor < 9:
+        test_packages.append("xandikos==0.2.8")
+        test_packages.append("dulwich==0.20.50")
+    else:
+        test_packages.append("xandikos")
 
     setup(
         name="caldav",
