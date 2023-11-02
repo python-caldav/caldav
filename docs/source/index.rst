@@ -106,7 +106,7 @@ though for convenience this library may contain methods like accept()
 on a calendar invite (which involves fetching the invite from the
 server, editing the calendar data and putting it to the server).
 
-This library should make it trivial to fetch an event, modify the date
+This library should make it trivial to fetch an event, modify the data
 and save it back to the server - but to do that it's also needed to
 support RFC 5545 (icalendar).  It's outside the scope of this library
 to implement logic for parsing and modifying RFC 5545, instead we
