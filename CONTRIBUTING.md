@@ -1,6 +1,6 @@
 # Contributing
 
-Contributions are mostly welcome, and this document should be kept short not to scare away contributors - and if the length of this text scares you, then I'd rather want you to skip reading and just produce a pull-request in GitHub.
+Contributions are mostly welcome.  If the length of this text scares you, then I'd rather want you to skip reading and just produce a pull-request in GitHub.
 
 ## Considerations
 
