@@ -202,7 +202,11 @@ class DAVObject(object):
         ) or ret.status >= 400:
             ## COMPATIBILITY HACK - see https://github.com/python-caldav/caldav/issues/309
             body = to_wire(body)
-            if ret.status == 500 and not b"getetag" in body and b"<C:calendar-data/>" in body:
+            if (
+                ret.status == 500
+                and not b"getetag" in body
+                and b"<C:calendar-data/>" in body
+            ):
                 body = body.replace(
                     b"<C:calendar-data/>", b"<D:getetag/><C:calendar-data/>"
                 )
@@ -1064,7 +1068,6 @@ class Calendar(DAVObject):
                     ):
                         objects.append(item)
         else:
-
             if not xml:
                 (xml, comp_class) = self.build_search_xml_query(
                     comp_class=comp_class, todo=todo, props=props, **kwargs
