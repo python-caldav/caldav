@@ -9,16 +9,15 @@ from tests import compatibility_issues
 
 ## Define your primary caldav server here
 caldav_servers = [
-    {
-	## Set enable to False if you don't want to use a server
-        'enable': True
+  {
+	      ## Set enable to False if you don't want to use a server
+        'enable': True,
 
         ## This is all that is really needed - url, username and
         ## password.  (the URL may even include username and password)
         'url': 'https://some.server.example.com',
         'username': 'testuser',
         'password': 'hunter2',
-
         ## skip ssl cert verification, for self-signed certificates
         ## (sort of moot nowadays with letsencrypt freely available)
         #'ssl_cert_verify': False
@@ -27,8 +26,8 @@ caldav_servers = [
         ## skipping (parts) of certain tests.  See
         ## tests/compatibility_issues.py for premade lists
         #'incompatibilities': compatibility_issues.nextcloud
-	'incompatibilities': [],
-    }
+      	'incompatibilities': [],
+  }
 ]
 
 
