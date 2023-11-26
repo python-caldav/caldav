@@ -131,12 +131,12 @@ class LineFilterDiscardingDuplicates:
             self.stamped = 0
             self.ended = 0
 
-        elif re.search("^(DURATION|DTEND|DUE)[:;]", line):
+        elif re.match("(DURATION|DTEND|DUE)[:;]", line):
             if self.ended:
                 return False
             self.ended += 1
 
-        elif line.startswith("DTSTAMP") and line[7] in (";", ":"):
+        elif re.match("DTSTAMP[:;]", line):
             if self.stamped:
                 return False
             self.stamped += 1
