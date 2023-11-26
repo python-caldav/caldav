@@ -121,6 +121,11 @@ class LineFilterDiscardingDuplicates:
     This must be called line by line in order on the complete text, at
     least comprising the complete vobject.
     """
+
+    def __init__(self):
+        self.stamped = 0
+        self.ended = 0
+
     def __call__(self, line):
         if line.startswith("BEGIN:V"):
             self.stamped = 0
