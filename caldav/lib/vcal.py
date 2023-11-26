@@ -76,25 +76,11 @@ def fix(event):
     ## 3 fix duplicated DTSTAMP ... and ...
     ## 5 prepare to remove DURATION or DTEND/DUE if both DURATION and
     ## DTEND/DUE is set.
-    ## OPTIMIZATION TODO: use list and join rather than concatenation
     ## remove duplication of DTSTAMP
-    fixed2 = ""
-    for line in fixed.strip().split("\n"):
-        if line.startswith("BEGIN:V"):
-            stamped = 0
-            ended = 0
-
-        elif re.search("^(DURATION|DTEND|DUE)[:;]", line):
-            if ended:
-                continue
-            ended += 1
-
-        elif line.startswith("DTSTAMP") and line[7] in (";", ":"):
-            if stamped:
-                continue
-            stamped += 1
-
-        fixed2 += line + "\n"
+    fixed2 = (
+        "\n".join(filter(LineFilterDiscardingDuplicates(), fixed.strip().split("\n")))
+        + "\n"
+    )
 
     if fixed2 != event:
         global fixup_error_loggings
@@ -127,6 +113,30 @@ This is probably harmless, particularly if not editing events or tasks
             log("Modified: \n" + fixed2)
 
     return fixed2
+
+
+class LineFilterDiscardingDuplicates:
+    """Needs to be a class because it keeps track of whether a certain
+    group of date line was already encountered within a vobject.
+    This must be called line by line in order on the complete text, at
+    least comprising the complete vobject.
+    """
+    def __call__(self, line):
+        if line.startswith("BEGIN:V"):
+            self.stamped = 0
+            self.ended = 0
+
+        elif re.search("^(DURATION|DTEND|DUE)[:;]", line):
+            if self.ended:
+                return False
+            self.ended += 1
+
+        elif line.startswith("DTSTAMP") and line[7] in (";", ":"):
+            if self.stamped:
+                return False
+            self.stamped += 1
+
+        return True
 
 
 ## sorry for being english-language-euro-centric ... fits rather perfectly as default language for me :-)
