@@ -149,7 +149,17 @@ UID:1c9bba3e-c121-11ed-bf96-982cbcdd642c
 CATEGORIES:oslo
 END:VEVENT
 END:VCALENDAR
-"""
+""",
+            ## Next one contains a DTSTAMP before BEGIN:VEVENT
+            ## Doesn’t make sense, but valid, and more importantly,
+            ## not failing during the `fix` call.
+            """DTSTAMP:20210205T101751Z
+BEGIN:VEVENT
+UID:20200516T060000Z-123401@example.com
+SUMMARY:Do the needful
+DTSTART:20210517T060000Z
+END:VEVENT
+""",
         ]
         broken_ical = [
             ## This first one contains duplicated DTSTAMP in the event data
