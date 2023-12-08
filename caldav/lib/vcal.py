@@ -165,11 +165,11 @@ def create_ical(ical_fragment=None, objtype=None, language="en_DK", **props):
         ## (otherwise we cannot easily add a task to a davical calendar and
         ## then find it again - ref https://gitlab.com/davical-project/davical/-/issues/281
         if (
-            not props.get("STATUS")
+            not props.get("status")
             and not "\nSTATUS:" in (ical_fragment or "")
             and objtype == "VTODO"
         ):
-            props["STATUS"] = "NEEDS-ACTION"
+            props["status"] = "NEEDS-ACTION"
 
     else:
         if not ical_fragment.strip().startswith("BEGIN:VCALENDAR"):

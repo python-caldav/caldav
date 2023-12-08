@@ -1111,33 +1111,40 @@ class Calendar(DAVObject):
 
         def sort_key_func(x):
             ret = []
-            for objtype in ("vtodo", "vevent", "vjournal"):
-                if hasattr(x.instance, objtype):
-                    vobj = getattr(x.instance, objtype)
-                    break
+            comp = x.icalendar_component
             defaults = {
+                ## TODO: all possible non-string sort attributes needs to be listed here, otherwise we will get type errors when comparing objects with the property defined vs undefined (or maybe we should make an "undefined" object that always will compare below any other type?  Perhaps there exists such an object already?)
                 "due": "2050-01-01",
                 "dtstart": "1970-01-01",
-                "priority": "0",
+                "priority": 0,
+                "status": {
+                    "VTODO": "NEEDS-ACTION",
+                    "VJOURNAL": "FINAL",
+                    "VEVENT": "TENTATIVE",
+                }[comp.name],
+                "category": "",
                 ## Usage of strftime is a simple way to ensure there won't be
                 ## problems if comparing dates with timestamps
                 "isnt_overdue": not (
-                    hasattr(vobj, "due")
-                    and vobj.due.value.strftime("%F%H%M%S")
+                    "due" in comp
+                    and comp["due"].dt.strftime("%F%H%M%S")
                     < datetime.now().strftime("%F%H%M%S")
                 ),
                 "hasnt_started": (
-                    hasattr(vobj, "dtstart")
-                    and vobj.dtstart.value.strftime("%F%H%M%S")
+                    "dtstart" in comp
+                    and comp["dtstart"].dt.strftime("%F%H%M%S")
                     > datetime.now().strftime("%F%H%M%S")
                 ),
             }
             for sort_key in sort_keys:
-                val = getattr(vobj, sort_key, None)
+                val = comp.get(sort_key, None)
                 if val is None:
-                    ret.append(defaults.get(sort_key, "0"))
+                    ret.append(defaults.get(sort_key.lower(), ""))
                     continue
-                val = val.value
+                if hasattr(val, "dt"):
+                    val = val.dt
+                elif hasattr(val, "cats"):
+                    val = ",".join(val.cats)
                 if hasattr(val, "strftime"):
                     ret.append(val.strftime("%F%H%M%S"))
                 else:

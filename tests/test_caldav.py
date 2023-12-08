@@ -1327,6 +1327,61 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert len(all_events) == 3
         assert all_events[0].instance.vevent.summary.value == "Bastille Day Jitsi Party"
 
+        ## Sorting by upper case should also wor
+        all_events = c.search(sort_keys=("SUMMARY", "DTSTAMP"))
+        assert len(all_events) == 3
+        assert all_events[0].instance.vevent.summary.value == "Bastille Day Jitsi Party"
+
+    def testSearchSortTodo(self):
+        self.skip_on_compatibility_flag("read_only")
+        self.skip_on_compatibility_flag("no_todo")
+        c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
+        t1 = c.save_todo(
+            summary="1 task overdue",
+            due=date(2022, 12, 12),
+            dtstart=date(2022, 10, 11),
+            uid="1",
+        )
+        t2 = c.save_todo(
+            summary="2 task future",
+            due=datetime.now() + timedelta(hours=15),
+            dtstart=datetime.now() + timedelta(minutes=15),
+            uid="2",
+        )
+        t3 = c.save_todo(
+            summary="3 task future due",
+            due=datetime.now() + timedelta(hours=15),
+            dtstart=datetime(2022, 12, 11, 10, 9, 8),
+            uid="3",
+        )
+        t4 = c.save_todo(summary="4 task priority low", priority=9, uid="4")
+        t5 = c.save_todo(summary="5 task status completed", status="COMPLETED", uid="5")
+        t6 = c.save_todo(
+            summary="6 task has categories", categories="home,garden,sunshine", uid="6"
+        )
+
+        def check_order(tasks, order):
+            assert [str(x.icalendar_component["uid"]) for x in tasks] == [
+                str(x) for x in order
+            ]
+
+        all_tasks = c.search(todo=True, sort_keys=("uid",))
+        check_order(all_tasks, (1, 2, 3, 4, 6))
+
+        all_tasks = c.search(sort_keys=("summary",))
+        check_order(all_tasks, (1, 2, 3, 4, 5, 6))
+
+        all_tasks = c.search(
+            sort_keys=("isnt_overdue", "categories", "dtstart", "priority", "status")
+        )
+        ## This is difficult ...
+        ## * 1 is the only one that is overdue, and False sorts before True, so 1 comes first
+        ## * categories, empty string sorts before a non-empty string, so 6 is at the end of the list
+        ## So we have 2-5 still to worry about ...
+        ## * dtstart - default is "long ago", so 4,5 or 5,4 should be first, followed by 3,2
+        ## * priority - default is 0, so 5 comes before 4
+        check_order(all_tasks, (1, 5, 4, 3, 2, 6))
+
     def testSearchTodos(self):
         self.skip_on_compatibility_flag("read_only")
         self.skip_on_compatibility_flag("no_todo")
