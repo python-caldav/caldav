@@ -1,6 +1,6 @@
 # Changelog
 
-All notable to this project starting from v1.2 will be documented in this file.
+All notable changes to this project starting from v1.2 will be documented in this file.
 
 Changelogs prior to v1.2 has been removed, but are available in the
 v1.2-release.  The project started with a GNU ChangeLog, but it was
@@ -11,7 +11,7 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 This project should more or less adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [unreleased]
+## [1.3.7] - 2023-07-21
 
 Some bugfixes.
 
