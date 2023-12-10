@@ -11,7 +11,7 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 This project should more or less adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.3.7] - 2023-07-21
+## [1.3.8] - 2023-07-21
 
 Some bugfixes.
 
@@ -33,6 +33,10 @@ Some bugfixes.
 * The sorting algorithm was dependent on vobject library - refactored to use icalendar library instead
 * Lots more test code on the sorting, and fixed some corner cases
 * Creating a task with a status didn't work
+
+## [1.3.7] - 2023-07-21 [YANKED]
+
+I managed to tag the wrong commit
 
 ## [1.3.6] - 2023-07-20
 
