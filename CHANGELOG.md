@@ -11,7 +11,7 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 This project should more or less adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.3.8] - 2023-07-21
+## [1.3.9] - 2023-12-12
 
 Some bugfixes.
 
@@ -34,7 +34,11 @@ Some bugfixes.
 * Lots more test code on the sorting, and fixed some corner cases
 * Creating a task with a status didn't work
 
-## [1.3.7] - 2023-07-21 [YANKED]
+## [1.3.8] - 2023-12-10 [YANKED]
+
+Why do I never manage to do releases right ..
+
+## [1.3.7] - 2023-12-10 [YANKED]
 
 I managed to tag the wrong commit
 
