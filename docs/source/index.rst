@@ -41,33 +41,17 @@ https://github.com/python-caldav/caldav/issues/240)
 Python compatibility notice
 ===========================
 
-Most of the code is regularly tested towards all officially supported
-versions of Python with the latest releases of the libraries required.
+Most of the code is regularly tested towards different versions of
+Python, the oldest being Python 3.7.
 
-There are still a lot of installations of "end-of-life"-versions of
-python in the wild, particularly some OS-distributions that are
-officially supported are using python versions that are not supported
-(meaning, that at least in theory the OS distributors takes
-responsibility of back-porting critical security fixes).  This
-currently includes Python2.
-
-The policy is to be as pragmatic as possible, however as unsupported
-versions of Python aren't regularly tested, there is kind of
-Schrödingers support for old versions - it may or may not work, all
-until it's tested.
-
-Python2 has been unlikely to work for some time due to lack of testing
-and due to dependencies on other libraries that doesn't support
-python2.  Python2 is officially not supported starting from version
-1.0.
+Support for Python2 was officially not supported starting from caldav
+version 1.0.
 
 Please report issues if you have problems running the caldav library
 with old python versions.  If it's easy to find a work-around I will
 do so (like I did reverting new-style `f"{foo}"` strings into
 old-style `"%s" % foo` strings).  If it's non-trivial to fix things,
 we will officially abandon legacy support.
-
-See also https://github.com/python-caldav/caldav/pull/228
 
 Objective and scope
 ===================
