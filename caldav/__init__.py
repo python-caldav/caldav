@@ -18,7 +18,7 @@ log = logging.getLogger("caldav")
 
 
 class NullHandler(logging.Handler):
-    def emit(self, record):
+    def emit(self, record) -> None:
         pass
 
 

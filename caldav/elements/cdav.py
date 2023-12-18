@@ -2,6 +2,12 @@
 # -*- encoding: utf-8 -*-
 import logging
 from datetime import datetime
+from typing import ClassVar
+from typing import Optional
+
+from .base import BaseElement
+from .base import NamedBaseElement
+from .base import ValuedBaseElement
 
 try:
     from datetime import timezone
@@ -55,64 +61,74 @@ def _to_utc_date_string(ts):
 
 # Operations
 class CalendarQuery(BaseElement):
-    tag = ns("C", "calendar-query")
+    tag: ClassVar[str] = ns("C", "calendar-query")
 
 
 class FreeBusyQuery(BaseElement):
-    tag = ns("C", "free-busy-query")
+    tag: ClassVar[str] = ns("C", "free-busy-query")
 
 
 class Mkcalendar(BaseElement):
-    tag = ns("C", "mkcalendar")
+    tag: ClassVar[str] = ns("C", "mkcalendar")
 
 
 class CalendarMultiGet(BaseElement):
-    tag = ns("C", "calendar-multiget")
+    tag: ClassVar[str] = ns("C", "calendar-multiget")
 
 
 class ScheduleInboxURL(BaseElement):
-    tag = ns("C", "schedule-inbox-URL")
+    tag: ClassVar[str] = ns("C", "schedule-inbox-URL")
 
 
 class ScheduleOutboxURL(BaseElement):
-    tag = ns("C", "schedule-outbox-URL")
+    tag: ClassVar[str] = ns("C", "schedule-outbox-URL")
 
 
 # Filters
 class Filter(BaseElement):
-    tag = ns("C", "filter")
+    tag: ClassVar[str] = ns("C", "filter")
 
 
 class CompFilter(NamedBaseElement):
-    tag = ns("C", "comp-filter")
+    tag: ClassVar[str] = ns("C", "comp-filter")
 
 
 class PropFilter(NamedBaseElement):
-    tag = ns("C", "prop-filter")
+    tag: ClassVar[str] = ns("C", "prop-filter")
 
 
 class ParamFilter(NamedBaseElement):
-    tag = ns("C", "param-filter")
+    tag: ClassVar[str] = ns("C", "param-filter")
 
 
 # Conditions
 class TextMatch(ValuedBaseElement):
-    tag = ns("C", "text-match")
+    tag: ClassVar[str] = ns("C", "text-match")
 
-    def __init__(self, value, collation="i;octet", negate=False):
+    def __init__(self, value, collation: str = "i;octet", negate: bool = False) -> None:
         super(TextMatch, self).__init__(value=value)
+
+        if self.attributes is None:
+            raise ValueError("Unexpected value None for self.attributes")
+
         self.attributes["collation"] = collation
         if negate:
             self.attributes["negate-condition"] = "yes"
 
 
 class TimeRange(BaseElement):
-    tag = ns("C", "time-range")
+    tag: ClassVar[str] = ns("C", "time-range")
 
-    def __init__(self, start=None, end=None):
+    def __init__(
+        self, start: Optional[datetime] = None, end: Optional[datetime] = None
+    ) -> None:
         ## start and end should be an icalendar "date with UTC time",
         ## ref https://tools.ietf.org/html/rfc4791#section-9.9
         super(TimeRange, self).__init__()
+
+        if self.attributes is None:
+            raise ValueError("Unexpected value None for self.attributes")
+
         if start is not None:
             self.attributes["start"] = _to_utc_date_string(start)
         if end is not None:
@@ -120,19 +136,25 @@ class TimeRange(BaseElement):
 
 
 class NotDefined(BaseElement):
-    tag = ns("C", "is-not-defined")
+    tag: ClassVar[str] = ns("C", "is-not-defined")
 
 
 # Components / Data
 class CalendarData(BaseElement):
-    tag = ns("C", "calendar-data")
+    tag: ClassVar[str] = ns("C", "calendar-data")
 
 
 class Expand(BaseElement):
-    tag = ns("C", "expand")
+    tag: ClassVar[str] = ns("C", "expand")
 
-    def __init__(self, start, end=None):
+    def __init__(
+        self, start: Optional[datetime], end: Optional[datetime] = None
+    ) -> None:
         super(Expand, self).__init__()
+
+        if self.attributes is None:
+            raise ValueError("Unexpected value None for self.attributes")
+
         if start is not None:
             self.attributes["start"] = _to_utc_date_string(start)
         if end is not None:
@@ -140,7 +162,7 @@ class Expand(BaseElement):
 
 
 class Comp(NamedBaseElement):
-    tag = ns("C", "comp")
+    tag: ClassVar[str] = ns("C", "comp")
 
 
 # Uhhm ... can't find any references to calendar-collection in rfc4791.txt
@@ -152,61 +174,61 @@ class Comp(NamedBaseElement):
 
 # Properties
 class CalendarUserAddressSet(BaseElement):
-    tag = ns("C", "calendar-user-address-set")
+    tag: ClassVar[str] = ns("C", "calendar-user-address-set")
 
 
 class CalendarUserType(BaseElement):
-    tag = ns("C", "calendar-user-type")
+    tag: ClassVar[str] = ns("C", "calendar-user-type")
 
 
 class CalendarHomeSet(BaseElement):
-    tag = ns("C", "calendar-home-set")
+    tag: ClassVar[str] = ns("C", "calendar-home-set")
 
 
 # calendar resource type, see rfc4791, sec. 4.2
 class Calendar(BaseElement):
-    tag = ns("C", "calendar")
+    tag: ClassVar[str] = ns("C", "calendar")
 
 
 class CalendarDescription(ValuedBaseElement):
-    tag = ns("C", "calendar-description")
+    tag: ClassVar[str] = ns("C", "calendar-description")
 
 
 class CalendarTimeZone(ValuedBaseElement):
-    tag = ns("C", "calendar-timezone")
+    tag: ClassVar[str] = ns("C", "calendar-timezone")
 
 
 class SupportedCalendarComponentSet(ValuedBaseElement):
-    tag = ns("C", "supported-calendar-component-set")
+    tag: ClassVar[str] = ns("C", "supported-calendar-component-set")
 
 
 class SupportedCalendarData(ValuedBaseElement):
-    tag = ns("C", "supported-calendar-data")
+    tag: ClassVar[str] = ns("C", "supported-calendar-data")
 
 
 class MaxResourceSize(ValuedBaseElement):
-    tag = ns("C", "max-resource-size")
+    tag: ClassVar[str] = ns("C", "max-resource-size")
 
 
 class MinDateTime(ValuedBaseElement):
-    tag = ns("C", "min-date-time")
+    tag: ClassVar[str] = ns("C", "min-date-time")
 
 
 class MaxDateTime(ValuedBaseElement):
-    tag = ns("C", "max-date-time")
+    tag: ClassVar[str] = ns("C", "max-date-time")
 
 
 class MaxInstances(ValuedBaseElement):
-    tag = ns("C", "max-instances")
+    tag: ClassVar[str] = ns("C", "max-instances")
 
 
 class MaxAttendeesPerInstance(ValuedBaseElement):
-    tag = ns("C", "max-attendees-per-instance")
+    tag: ClassVar[str] = ns("C", "max-attendees-per-instance")
 
 
 class Allprop(BaseElement):
-    tag = ns("C", "allprop")
+    tag: ClassVar[str] = ns("C", "allprop")
 
 
 class ScheduleTag(BaseElement):
-    tag = ns("C", "schedule-tag")
+    tag: ClassVar[str] = ns("C", "schedule-tag")

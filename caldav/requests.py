@@ -2,13 +2,13 @@ from requests.auth import AuthBase
 
 
 class HTTPBearerAuth(AuthBase):
-    def __init__(self, password):
+    def __init__(self, password: str) -> None:
         self.password = password
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         return self.password == getattr(other, "password", None)
 
-    def __ne__(self, other):
+    def __ne__(self, other: object) -> bool:
         return not self == other
 
     def __call__(self, r):

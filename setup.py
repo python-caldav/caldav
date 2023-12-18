@@ -89,6 +89,7 @@ if __name__ == "__main__":
             "requests",
             "icalendar",
             "recurring-ical-events>=2.0.0",
+            "typing_extensions",
         ]
         + extra_packages,
         extras_require={
