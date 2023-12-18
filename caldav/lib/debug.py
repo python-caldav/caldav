@@ -7,5 +7,5 @@ def xmlstring(root):
     return etree.tostring(root, pretty_print=True).decode("utf-8")
 
 
-def printxml(root):
+def printxml(root) -> None:
     print(xmlstring(root))

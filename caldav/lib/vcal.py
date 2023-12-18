@@ -122,7 +122,7 @@ class LineFilterDiscardingDuplicates:
     least comprising the complete vobject.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.stamped = 0
         self.ended = 0
 

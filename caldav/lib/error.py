@@ -1,7 +1,9 @@
 #!/usr/bin/env python
 # -*- encoding: utf-8 -*-
 import logging
+import typing
 from collections import defaultdict
+from typing import Optional
 
 from caldav import __version__
 
@@ -23,7 +25,7 @@ else:
     log.setLevel(logging.WARNING)
 
 
-def assert_(condition):
+def assert_(condition: object) -> None:
     try:
         assert condition
     except AssertionError:
@@ -40,20 +42,20 @@ def assert_(condition):
             raise
 
 
-ERR_FRAGMENT = "Please raise an issue at https://github.com/python-caldav/caldav/issues or reach out to t-caldav@tobixen.no, include this error and the traceback and tell what server you are using"
+ERR_FRAGMENT: str = "Please raise an issue at https://github.com/python-caldav/caldav/issues or reach out to t-caldav@tobixen.no, include this error and the traceback and tell what server you are using"
 
 
 class DAVError(Exception):
-    url = None
-    reason = "no reason"
+    url: Optional[str] = None
+    reason: str = "no reason"
 
-    def __init__(self, url=None, reason=None):
+    def __init__(self, url: Optional[str] = None, reason: Optional[str] = None) -> None:
         if url:
             self.url = url
         if reason:
             self.reason = reason
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "%s at '%s', reason %s" % (
             self.__class__.__name__,
             self.url,
@@ -115,7 +117,9 @@ class ResponseError(DAVError):
     pass
 
 
-exception_by_method = defaultdict(lambda: DAVError)
+exception_by_method: typing.Dict[str, typing.Type[DAVError]] = defaultdict(
+    lambda: DAVError
+)
 for method in (
     "delete",
     "put",

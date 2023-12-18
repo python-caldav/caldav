@@ -1,25 +1,39 @@
 #!/usr/bin/env python
 # -*- encoding: utf-8 -*-
 import logging
+import sys
+import typing
+from types import TracebackType
+from typing import Optional
+from typing import Union
 from urllib.parse import unquote
 
 import requests
-from caldav.elements import cdav
+import typing_extensions
 from caldav.elements import dav
-from caldav.elements import ical
 from caldav.lib import error
 from caldav.lib.python_utilities import to_normal_str
-from caldav.lib.python_utilities import to_unicode
 from caldav.lib.python_utilities import to_wire
 from caldav.lib.url import URL
 from caldav.objects import Calendar
-from caldav.objects import errmsg
 from caldav.objects import log
 from caldav.objects import Principal
-from caldav.objects import ScheduleInbox
-from caldav.objects import ScheduleOutbox
 from caldav.requests import HTTPBearerAuth
 from lxml import etree
+from lxml.etree import _Element
+from requests.auth import AuthBase
+from requests.models import Response
+from requests.structures import CaseInsensitiveDict
+
+from .elements.base import BaseElement
+
+if typing.TYPE_CHECKING:
+    pass
+
+if sys.version_info < (3, 9):
+    from typing import Iterable, Mapping
+else:
+    from collections.abc import Iterable, Mapping
 
 
 class DAVResponse:
@@ -31,14 +45,16 @@ class DAVResponse:
     """
 
     raw = ""
-    reason = ""
-    tree = None
-    headers = {}
-    status = 0
+    reason: str = ""
+    tree: Optional[_Element] = None
+    headers: CaseInsensitiveDict = {}
+    status: int = 0
     davclient = None
-    huge_tree = False
+    huge_tree: bool = False
 
-    def __init__(self, response, davclient=None):
+    def __init__(
+        self, response: Response, davclient: typing.Optional["DAVClient"] = None
+    ) -> None:
         self.headers = response.headers
         log.debug("response headers: " + str(self.headers))
         log.debug("response status: " + str(self.status))
@@ -111,9 +127,9 @@ class DAVResponse:
         if hasattr(self, "_raw"):
             log.debug(self._raw)
             # ref https://github.com/python-caldav/caldav/issues/112 stray CRs may cause problems
-            if type(self._raw) == bytes:
+            if isinstance(self._raw, bytes):
                 self._raw = self._raw.replace(b"\r\n", b"\n")
-            elif type(self._raw) == str:
+            elif isinstance(self._raw, str):
                 self._raw = self._raw.replace("\r\n", "\n")
         self.status = response.status_code
         ## ref https://github.com/python-caldav/caldav/issues/81,
@@ -125,11 +141,13 @@ class DAVResponse:
             self.reason = ""
 
     @property
-    def raw(self):
+    def raw(self) -> str:
         ## TODO: this should not really be needed?
         if not hasattr(self, "_raw"):
-            self._raw = etree.tostring(self.tree, pretty_print=True)
-        return self._raw
+            self._raw = etree.tostring(
+                typing.cast(_Element, self.tree), pretty_print=True
+            )
+        return self._raw.decode()
 
     def _strip_to_multistatus(self):
         """
@@ -160,7 +178,7 @@ class DAVResponse:
             return self.tree
         return [self.tree]
 
-    def validate_status(self, status):
+    def validate_status(self, status: str) -> None:
         """
         status is a string like "HTTP/1.1 404 Not Found".  200, 207 and
         404 are considered good statuses.  The SOGo caldav server even
@@ -177,15 +195,17 @@ class DAVResponse:
         ):
             raise error.ResponseError(status)
 
-    def _parse_response(self, response):
+    def _parse_response(
+        self, response
+    ) -> typing.Tuple[str, typing.List[_Element], typing.Optional[typing.Any]]:
         """
         One response should contain one or zero status children, one
         href tag and zero or more propstats.  Find them, assert there
         isn't more in the response and return those three fields
         """
         status = None
-        href = None
-        propstats = []
+        href: typing.Optional[str] = None
+        propstats: typing.List[_Element] = []
         error.assert_(response.tag == dav.Response.tag)
         for elem in response:
             if elem.tag == dav.Status.tag:
@@ -201,9 +221,9 @@ class DAVResponse:
             else:
                 error.assert_(False)
         error.assert_(href)
-        return (href, propstats, status)
+        return (typing.cast(str, href), propstats, status)
 
-    def find_objects_and_props(self):
+    def find_objects_and_props(self) -> typing.Dict[str, typing.Dict[str, _Element]]:
         """Check the response from the server, check that it is on an expected format,
         find hrefs and props from it and check statuses delivered.
 
@@ -213,7 +233,7 @@ class DAVResponse:
 
         self.sync_token will be populated if found, self.objects will be populated.
         """
-        self.objects = {}
+        self.objects: typing.Dict[str, typing.Dict[str, _Element]] = {}
 
         if "Schedule-Tag" in self.headers:
             self.schedule_tag = self.headers["Schedule-Tag"]
@@ -239,7 +259,7 @@ class DAVResponse:
                 cnt = 0
                 status = propstat.find(dav.Status.tag)
                 error.assert_(status is not None)
-                if status is not None:
+                if status is not None and status.text is not None:
                     error.assert_(len(status) == 0)
                     cnt += 1
                     self.validate_status(status.text)
@@ -285,7 +305,12 @@ class DAVResponse:
             return values[0]
 
     ## TODO: "expand" does not feel quite right.
-    def expand_simple_props(self, props=[], multi_value_props=[], xpath=None):
+    def expand_simple_props(
+        self,
+        props: Iterable[BaseElement] = [],
+        multi_value_props: Iterable[typing.Any] = [],
+        xpath: Optional[str] = None,
+    ) -> typing.Dict[str, typing.Dict[str, str]]:
         """
         The find_objects_and_props() will stop at the xml element
         below the prop tag.  This method will expand those props into
@@ -299,14 +324,21 @@ class DAVResponse:
         for href in self.objects:
             props_found = self.objects[href]
             for prop in props:
+                if prop.tag is None:
+                    continue
+
                 props_found[prop.tag] = self._expand_simple_prop(
                     prop.tag, props_found, xpath=xpath
                 )
             for prop in multi_value_props:
+                if prop.tag is None:
+                    continue
+
                 props_found[prop.tag] = self._expand_simple_prop(
                     prop.tag, props_found, xpath=xpath, multi_value_allowed=True
                 )
-        return self.objects
+        # _Element objects in self.objects are parsed to str, thus the need to cast the return
+        return typing.cast(typing.Dict[str, typing.Dict[str, str]], self.objects)
 
 
 class DAVClient:
@@ -318,23 +350,23 @@ class DAVClient:
     the constructor (__init__), the principal method and the calendar method.
     """
 
-    proxy = None
-    url = None
-    huge_tree = False
+    proxy: Optional[str] = None
+    url: URL = None
+    huge_tree: bool = False
 
     def __init__(
         self,
-        url,
-        proxy=None,
-        username=None,
-        password=None,
-        auth=None,
-        timeout=None,
-        ssl_verify_cert=True,
-        ssl_cert=None,
-        headers={},
-        huge_tree=False,
-    ):
+        url: str,
+        proxy: Optional[str] = None,
+        username: Optional[str] = None,
+        password: Optional[str] = None,
+        auth: Optional[AuthBase] = None,
+        timeout: Optional[int] = None,
+        ssl_verify_cert: Union[bool, str] = True,
+        ssl_cert: Union[str, typing.Tuple[str, str], None] = None,
+        headers: typing.Dict[str, str] = {},
+        huge_tree: bool = False,
+    ) -> None:
         """
         Sets up a HTTPConnection object towards the server in the url.
         Parameters:
@@ -358,18 +390,20 @@ class DAVClient:
         self.huge_tree = huge_tree
         # Prepare proxy info
         if proxy is not None:
-            self.proxy = proxy
+            _proxy = proxy
             # requests library expects the proxy url to have a scheme
             if "://" not in proxy:
-                self.proxy = self.url.scheme + "://" + proxy
+                _proxy = self.url.scheme + "://" + proxy
 
             # add a port is one is not specified
             # TODO: this will break if using basic auth and embedding
             # username:password in the proxy URL
-            p = self.proxy.split(":")
+            p = _proxy.split(":")
             if len(p) == 2:
-                self.proxy += ":8080"
-            log.debug("init - proxy: %s" % (self.proxy))
+                _proxy += ":8080"
+            log.debug("init - proxy: %s" % (_proxy))
+
+            self.proxy = _proxy
 
         # Build global headers
         self.headers = headers
@@ -387,7 +421,7 @@ class DAVClient:
         self.username = username
         self.password = password
         ## I had problems with passwords with non-ascii letters in it ...
-        if hasattr(self.password, "encode"):
+        if isinstance(self.password, str):
             self.password = self.password.encode("utf-8")
         self.auth = auth
         # TODO: it's possible to force through a specific auth method here,
@@ -400,13 +434,18 @@ class DAVClient:
 
         self._principal = None
 
-    def __enter__(self):
+    def __enter__(self) -> typing_extensions.Self:
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback):
+    def __exit__(
+        self,
+        exc_type: Optional[typing.Type[BaseException]],
+        exc_value: Optional[BaseException],
+        traceback: Optional[TracebackType],
+    ) -> None:
         self.close()
 
-    def close(self):
+    def close(self) -> None:
         """
         Closes the DAVClient's session object
         """
@@ -438,7 +477,7 @@ class DAVClient:
         """
         return Calendar(client=self, **kwargs)
 
-    def check_dav_support(self):
+    def check_dav_support(self) -> Optional[str]:
         try:
             ## SOGo does not return the full capability list on the caldav
             ## root URL, and that's OK according to the RFC ... so apparently
@@ -447,18 +486,20 @@ class DAVClient:
             ## Anyway, packing this into a try-except in case it fails.
             response = self.options(self.principal().url)
         except:
-            response = self.options(self.url)
+            response = self.options(str(self.url))
         return response.headers.get("DAV", None)
 
-    def check_cdav_support(self):
+    def check_cdav_support(self) -> bool:
         support_list = self.check_dav_support()
-        return support_list and "calendar-access" in support_list
+        return support_list is not None and "calendar-access" in support_list
 
-    def check_scheduling_support(self):
+    def check_scheduling_support(self) -> bool:
         support_list = self.check_dav_support()
-        return support_list and "calendar-auto-schedule" in support_list
+        return support_list is not None and "calendar-auto-schedule" in support_list
 
-    def propfind(self, url=None, props="", depth=0):
+    def propfind(
+        self, url: Optional[str] = None, props: str = "", depth: int = 0
+    ) -> DAVResponse:
         """
         Send a propfind request.
 
@@ -470,9 +511,11 @@ class DAVClient:
         Returns
          * DAVResponse
         """
-        return self.request(url or self.url, "PROPFIND", props, {"Depth": str(depth)})
+        return self.request(
+            url or str(self.url), "PROPFIND", props, {"Depth": str(depth)}
+        )
 
-    def proppatch(self, url, body, dummy=None):
+    def proppatch(self, url: str, body: str, dummy: None = None) -> DAVResponse:
         """
         Send a proppatch request.
 
@@ -486,7 +529,7 @@ class DAVClient:
         """
         return self.request(url, "PROPPATCH", body)
 
-    def report(self, url, query="", depth=0):
+    def report(self, url: str, query: str = "", depth: int = 0) -> DAVResponse:
         """
         Send a report request.
 
@@ -505,7 +548,7 @@ class DAVClient:
             {"Depth": str(depth), "Content-Type": 'application/xml; charset="utf-8"'},
         )
 
-    def mkcol(self, url, body, dummy=None):
+    def mkcol(self, url: str, body: str, dummy: None = None) -> DAVResponse:
         """
         Send a MKCOL request.
 
@@ -528,7 +571,7 @@ class DAVClient:
         """
         return self.request(url, "MKCOL", body)
 
-    def mkcalendar(self, url, body="", dummy=None):
+    def mkcalendar(self, url: str, body: str = "", dummy: None = None) -> DAVResponse:
         """
         Send a mkcalendar request.
 
@@ -542,25 +585,25 @@ class DAVClient:
         """
         return self.request(url, "MKCALENDAR", body)
 
-    def put(self, url, body, headers={}):
+    def put(self, url: str, body: str, headers: Mapping[str, str] = {}) -> DAVResponse:
         """
         Send a put request.
         """
         return self.request(url, "PUT", body, headers)
 
-    def post(self, url, body, headers={}):
+    def post(self, url: str, body: str, headers: Mapping[str, str] = {}) -> DAVResponse:
         """
         Send a POST request.
         """
         return self.request(url, "POST", body, headers)
 
-    def delete(self, url):
+    def delete(self, url: str) -> DAVResponse:
         """
         Send a delete request.
         """
         return self.request(url, "DELETE")
 
-    def options(self, url):
+    def options(self, url: str) -> DAVResponse:
         return self.request(url, "OPTIONS")
 
     def extract_auth_types(self, header):
@@ -569,7 +612,13 @@ class DAVClient:
         auth_types = map(lambda auth_type: auth_type.split(" ")[0], auth_types)
         return list(filter(lambda auth_type: auth_type, auth_types))
 
-    def request(self, url, method="GET", body="", headers={}):
+    def request(
+        self,
+        url: str,
+        method: str = "GET",
+        body: str = "",
+        headers: Mapping[str, str] = {},
+    ) -> DAVResponse:
         """
         Actually sends the request, and does the authentication
         """
@@ -578,24 +627,24 @@ class DAVClient:
         if (body is None or body == "") and "Content-Type" in combined_headers:
             del combined_headers["Content-Type"]
 
+        # objectify the url
+        url_obj = URL.objectify(url)
+
         proxies = None
         if self.proxy is not None:
-            proxies = {url.scheme: self.proxy}
+            proxies = {url_obj.scheme: self.proxy}
             log.debug("using proxy - %s" % (proxies))
-
-        # objectify the url
-        url = URL.objectify(url)
 
         log.debug(
             "sending request - method={0}, url={1}, headers={2}\nbody:\n{3}".format(
-                method, str(url), combined_headers, to_normal_str(body)
+                method, str(url_obj), combined_headers, to_normal_str(body)
             )
         )
 
         try:
             r = self.session.request(
                 method,
-                str(url),
+                str(url_obj),
                 data=to_wire(body),
                 headers=combined_headers,
                 proxies=proxies,
@@ -615,7 +664,7 @@ class DAVClient:
                 raise
             r = self.session.request(
                 method="GET",
-                url=str(url),
+                url=str(url_obj),
                 headers=combined_headers,
                 proxies=proxies,
                 timeout=self.timeout,
@@ -652,7 +701,7 @@ class DAVClient:
             and "WWW-Authenticate" in r.headers
             and self.auth
             and self.password
-            and hasattr(self.password, "decode")
+            and isinstance(self.password, bytes)
         ):
             ## Most likely we're here due to wrong username/password
             ## combo, but it could also be charset problems.  Some
@@ -665,20 +714,20 @@ class DAVClient:
 
             auth_types = self.extract_auth_types(r.headers["WWW-Authenticate"])
 
-            if "digest" in auth_types:
+            if self.password and self.username and "digest" in auth_types:
                 self.auth = requests.auth.HTTPDigestAuth(
                     self.username, self.password.decode()
                 )
-            elif "basic" in auth_types:
+            elif self.password and self.username and "basic" in auth_types:
                 self.auth = requests.auth.HTTPBasicAuth(
                     self.username, self.password.decode()
                 )
-            elif "bearer" in auth_types:
+            elif self.password and "bearer" in auth_types:
                 self.auth = HTTPBearerAuth(self.password.decode())
 
             self.username = None
             self.password = None
-            return self.request(url, method, body, headers)
+            return self.request(str(url_obj), method, body, headers)
 
         # this is an error condition that should be raised to the application
         if (
@@ -689,6 +738,6 @@ class DAVClient:
                 reason = response.reason
             except AttributeError:
                 reason = "None given"
-            raise error.AuthorizationError(url=str(url), reason=reason)
+            raise error.AuthorizationError(url=str(url_obj), reason=reason)
 
         return response

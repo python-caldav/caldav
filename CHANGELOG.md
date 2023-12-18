@@ -11,6 +11,10 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 This project should more or less adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [x.x.x] - unreleased
+
+* Initial work at integrating typing information. Details in https://github.com/python-caldav/caldav/pull/358
+
 ## [1.3.9] - 2023-12-12
 
 Some bugfixes.
