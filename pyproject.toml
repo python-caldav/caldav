@@ -1,0 +1,55 @@
+[build-system]
+requires = ["setuptools>=64", "setuptools-scm[toml]>=7.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "caldav"
+authors = [{ name = "Cyril Robert", email = "cyril@hippie.io" }]
+license = { text = "GPL" }
+description = "CalDAV (RFC4791) client library"
+keywords = []
+readme = "README.md"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: GNU General Public License (GPL)",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Topic :: Office/Business :: Scheduling",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+urls = { Homepage = "https://github.com/python-caldav/caldav" }
+dependencies = [
+    "vobject",
+    "lxml",
+    "requests",
+    "icalendar",
+    "recurring-ical-events>=2.0.0",
+    "typing_extensions;python_version<'3.11'",
+]
+dynamic = ["version"]
+
+[project.optional-dependencies]
+test = [
+    "pytest",
+    "pytest-coverage",
+    "coverage",
+    "sphinx",
+    "backports.zoneinfo;python_version<'3.9'",
+    "tzlocal",
+    "xandikos==0.2.8;python_version<'3.9'",
+    "dulwich==0.20.50;python_version<'3.9'",
+    "xandikos;python_version>='3.9'",
+]
+
+[tool.setuptools_scm]
+write_to = "caldav/_version.py"
+
+[tool.setuptools]
+py-modules = ["caldav"]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+exclude = ["tests"]
+namespaces = false

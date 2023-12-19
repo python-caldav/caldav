@@ -9,7 +9,6 @@ from typing import Union
 from urllib.parse import unquote
 
 import requests
-import typing_extensions
 from caldav.elements import dav
 from caldav.lib import error
 from caldav.lib.python_utilities import to_normal_str
@@ -34,6 +33,11 @@ if sys.version_info < (3, 9):
     from typing import Iterable, Mapping
 else:
     from collections.abc import Iterable, Mapping
+
+if sys.version_info < (3, 11):
+    from typing_extensions import Self
+else:
+    from typing import Self
 
 
 class DAVResponse:
@@ -434,7 +438,7 @@ class DAVClient:
 
         self._principal = None
 
-    def __enter__(self) -> typing_extensions.Self:
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(

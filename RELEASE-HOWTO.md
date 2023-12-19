@@ -15,12 +15,18 @@ I have no clue on the proper procedures for doing releases, and I keep on doing 
 * For minor and major releases, look through the github issues, anything urgent there that should be fixed prior to doing a new release?
 * Write up some release notes.  (I typically keep a short summary of the changes in the CHANGELOG, and use that as the release notes).
 * Verify that we're on the right branch - `git checkout master`.  (`master` may not always be right - sometimes we may want to use a dedicated branch connected to the release-series, i.e. `v1.3`)
-* Change the version number in `caldav/__init__.py`.
 * Commit the changes (typically `CHANGELOG.md`, `__init__.py`, documentation): `git commit -am "preparing for releasing v${VERSION}`
 * Create a tag: `git tag -as v${VERSION}` - use the release notes in the tag message.
 * Make a clone: `git clone caldav/ caldav-release ; cd caldav-release ; git checkout v${VERSION}`
 * Run tests (particularly the style check): `pytest` and `tox -e style`.
-* Double-verify that the version-number in `__init__.py` is correct: `grep version caldav/__init__.py`
 * Push the code to github: `cd ~/caldav ; git push ; git push --tags`
 * Some people relies on the github release system for finding releases - go to https://github.com/python-caldav/caldav/releases/new, choose the new tag, copy the version number and the release notes in.
-* The most important part - push to pypi: `cd ~/caldav-release ; python setup.py sdist bdist_wheel ; python -m twine upload dist/*`
+* The most important part - push to pypi:
+  ```
+  cd ~/caldav-release
+  python3 -m venv venv
+  . venv/bin/activate
+  pip install -U pip build twine
+  python -m build
+  python -m twine upload dist/*
+  ```

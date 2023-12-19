@@ -11,13 +11,17 @@ from caldav.lib.namespace import nsmap
 from caldav.lib.python_utilities import to_unicode
 from lxml import etree
 from lxml.etree import _Element
-from typing_extensions import Self
-from typing_extensions import TypeAlias
+
 
 if sys.version_info < (3, 9):
     from typing import Iterable
 else:
     from collections.abc import Iterable
+
+if sys.version_info < (3, 11):
+    from typing_extensions import Self
+else:
+    from typing import Self
 
 
 class BaseElement:
