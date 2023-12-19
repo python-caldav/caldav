@@ -2,12 +2,13 @@ import sys
 import uuid
 from datetime import datetime
 from datetime import timedelta
+from datetime import timezone
 
-import pytz
 from caldav import DAVClient
 from caldav import error
 from icalendar import Calendar
 from icalendar import Event
+
 
 ###############
 ### SETUP START
@@ -218,8 +219,8 @@ import pdb
 
 pdb.set_trace()
 some_data_returned = organizer.principal.freebusy_request(
-    dtstart=datetime.now().astimezone(pytz.utc) + timedelta(days=399),
-    dtend=datetime.now().astimezone(pytz.utc) + timedelta(days=399, hours=1),
+    dtstart=datetime.now().astimezone(timezone.utc) + timedelta(days=399),
+    dtend=datetime.now().astimezone(timezone.utc) + timedelta(days=399, hours=1),
     attendees=[attendee1.principal, attendee2.principal],
 )
 

@@ -2,26 +2,17 @@
 # -*- encoding: utf-8 -*-
 import logging
 from datetime import datetime
+from datetime import timezone
 from typing import ClassVar
 from typing import Optional
+
+from caldav.lib.namespace import ns
 
 from .base import BaseElement
 from .base import NamedBaseElement
 from .base import ValuedBaseElement
 
-try:
-    from datetime import timezone
-
-    utc_tz = timezone.utc
-except:
-    ## pytz is deprecated - but as of 2021-11, the icalendar library is only
-    ## compatible with pytz (see https://github.com/collective/icalendar/issues/333 https://github.com/collective/icalendar/issues/335 https://github.com/collective/icalendar/issues/336)
-    import pytz
-
-    utc_tz = pytz.utc
-
-from caldav.lib.namespace import ns
-from .base import BaseElement, NamedBaseElement, ValuedBaseElement
+utc_tz = timezone.utc
 
 
 def _to_utc_date_string(ts):

@@ -1,11 +1,15 @@
 import datetime
 
-import pytz
 import tzlocal
 from caldav.elements.cdav import _to_utc_date_string
 from caldav.elements.cdav import CalendarQuery
 
-SOMEWHERE_REMOTE = pytz.timezone("Brazil/DeNoronha")  # UTC-2 and no DST
+try:
+    import zoneinfo
+except ImportError:
+    from backports import zoneinfo
+
+SOMEWHERE_REMOTE = zoneinfo.ZoneInfo("Brazil/DeNoronha")  # UTC-2 and no DST
 
 
 def test_element():
@@ -32,9 +36,9 @@ def test_to_utc_date_string_utc():
     assert res == "20190514T211023Z"
 
 
-def test_to_utc_date_string_dt_with_pytz_tzinfo():
-    input = datetime.datetime(2019, 5, 14, 21, 10, 23, 23)
-    res = _to_utc_date_string(SOMEWHERE_REMOTE.localize(input))
+def test_to_utc_date_string_dt_with_zoneinfo_tzinfo():
+    input = datetime.datetime(2019, 5, 14, 21, 10, 23, 23, tzinfo=SOMEWHERE_REMOTE)
+    res = _to_utc_date_string(input)
     assert res == "20190514T231023Z"
 
 

@@ -3,11 +3,11 @@ import re
 import uuid
 from datetime import datetime
 from datetime import timedelta
+from datetime import timezone
 from unittest import TestCase
 
 import icalendar
 import pytest
-import pytz
 import vobject
 from caldav.lib import vcal
 from caldav.lib.python_utilities import to_normal_str
@@ -15,9 +15,7 @@ from caldav.lib.python_utilities import to_wire
 from caldav.lib.vcal import create_ical
 from caldav.lib.vcal import fix
 
-# from datetime import timezone
-# utc = timezone.utc
-utc = pytz.utc
+utc = timezone.utc
 
 # example from http://www.rfc-editor.org/rfc/rfc5545.txt
 ev = """BEGIN:VCALENDAR
