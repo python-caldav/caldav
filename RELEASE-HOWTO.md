@@ -30,3 +30,17 @@ I have no clue on the proper procedures for doing releases, and I keep on doing 
   python -m build
   python -m twine upload dist/*
   ```
+* Remove the release dir: `rm -r caldav-release`
+
+## List of mistakes to be avoided
+
+This is most likely not complete, but should explain some of the "silly" steps above ...
+
+* Forgetting to set a release git tag
+* Forgetting to update the version number (or setting it wrongly) - but now `setuptools-scm` is supposed to take care of that)
+* Doing last-minute changes in i.e. `CHANGELOG.md` causing the style test to break
+* Forgetting to add new files to the git repo
+* Having checked out a branch or tag or something, and tagging that as the new release rather than the latest HEAD.
+* Forgetting to push to pypi, or pushing something else than the tagged revision to pypi
+* Pushing out junk files in the pypi-release (i.e. .pyc-files, log files, temp files, `tests/conf_private.py`, etc
+* Not adding the release to the "github releases" (I don't care much about this feature, but apparently some people check there to find the latest release version)
