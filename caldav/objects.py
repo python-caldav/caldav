@@ -35,8 +35,6 @@ from caldav.lib.python_utilities import to_wire
 from dateutil.rrule import rrulestr
 from lxml import etree
 from lxml.etree import _Element
-from typing_extensions import Literal
-from typing_extensions import Self
 from vobject.base import VBase
 
 from .elements.base import BaseElement
@@ -66,6 +64,7 @@ if sys.version_info < (3, 9):
     from typing import Callable, Container, Iterator, Sequence
     from typing import Iterable
     from typing_extensions import DefaultDict
+    from typing_extensions import Literal
 else:
     from collections.abc import Callable
     from collections.abc import Container
@@ -73,6 +72,12 @@ else:
     from collections.abc import Iterator
     from collections.abc import Sequence
     from collections import defaultdict as DefaultDict
+    from typing import Literal
+
+if sys.version_info < (3, 11):
+    from typing_extensions import Self
+else:
+    from typing import Self
 
 _CC = TypeVar("_CC", bound="CalendarObjectResource")
 log = logging.getLogger("caldav")

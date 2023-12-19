@@ -27,3 +27,4 @@ tests/conf_private.py
 .tox
 .eggs
 .venv
+caldav/_version.py

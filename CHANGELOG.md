@@ -15,6 +15,7 @@ This project should more or less adhere to [Semantic Versioning](https://semver.
 
 * Initial work at integrating typing information. Details in https://github.com/python-caldav/caldav/pull/358
 * Remove dependency on pytz. Details in https://github.com/python-caldav/caldav/issues/231
+* Use setuptools-scm / pyproject.toml (modern packaging). Details in https://github.com/python-caldav/caldav/pull/364
 
 ## [1.3.9] - 2023-12-12
 

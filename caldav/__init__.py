@@ -3,8 +3,7 @@ import logging
 
 import vobject.icalendar
 
-__version__ = "1.3.9"
-
+from ._version import __version__
 from .davclient import DAVClient
 from .objects import *
 

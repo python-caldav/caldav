@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # -*- encoding: utf-8 -*-
+import sys
 import typing
 import urllib.parse
 from typing import Union
@@ -12,7 +13,11 @@ from urllib.parse import urlunparse
 
 from caldav.lib.python_utilities import to_normal_str
 from caldav.lib.python_utilities import to_unicode
-from typing_extensions import Self
+
+if sys.version_info < (3, 11):
+    from typing_extensions import Self
+else:
+    from typing import Self
 
 
 class URL:
