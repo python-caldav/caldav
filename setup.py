@@ -24,24 +24,6 @@ with open("caldav/__init__.py", "rb") as f:
     )
 
 if __name__ == "__main__":
-    ## For python 2.7 and 3.5 we depend on pytz and tzlocal.  For 3.6 and up, batteries are included.  Same with mock. (But unfortunately the icalendar library only support pytz timezones, so we'll keep pytz around for a bit longer).
-    try:
-        import datetime
-        from datetime import timezone
-
-        datetime.datetime.now().astimezone(timezone.utc)
-        extra_packages = []
-        ## line below can be removed when https://github.com/collective/icalendar/issues/333 is fixed
-        extra_packages = ["pytz", "tzlocal"]
-    except:
-        extra_packages = ["pytz", "tzlocal"]
-    try:
-        from unittest.mock import MagicMock
-
-        extra_test_packages = []
-    except:
-        extra_test_packages = ["mock"]
-
     ## TODO: consider if automated testing with radicale in addition to
     ## xandikos would yield any benefits.
     test_packages = [
@@ -49,13 +31,12 @@ if __name__ == "__main__":
         "pytest-coverage",
         "coverage",
         "sphinx",
+        "backports.zoneinfo;python_version<'3.9'",
+        "tzlocal",
+        "xandikos==0.2.8;python_version<'3.9'",
+        "dulwich==0.20.50;python_version<'3.9'",
+        "xandikos;python_version>='3.9'",
     ]
-
-    if sys.version_info.major == 3 and sys.version_info.minor < 9:
-        test_packages.append("xandikos==0.2.8")
-        test_packages.append("dulwich==0.20.50")
-    else:
-        test_packages.append("xandikos")
 
     setup(
         name="caldav",
@@ -90,8 +71,7 @@ if __name__ == "__main__":
             "icalendar",
             "recurring-ical-events>=2.0.0",
             "typing_extensions",
-        ]
-        + extra_packages,
+        ],
         extras_require={
             "test": test_packages,
         },

@@ -14,6 +14,7 @@ This project should more or less adhere to [Semantic Versioning](https://semver.
 ## [x.x.x] - unreleased
 
 * Initial work at integrating typing information. Details in https://github.com/python-caldav/caldav/pull/358
+* Remove dependency on pytz. Details in https://github.com/python-caldav/caldav/issues/231
 
 ## [1.3.9] - 2023-12-12
 
