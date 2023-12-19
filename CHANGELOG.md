@@ -3,11 +3,10 @@
 All notable changes to this project starting from v1.2 will be documented in this file.
 
 Changelogs prior to v1.2 has been removed, but are available in the
-v1.2-release.  The project started with a GNU ChangeLog, but it was
-useless and horrible to maintain.  Then I made up my own kind of
-changelogs for a while, until someone pointed me towards
-https://keepachangelog.com.  The format of this file is more or less
-based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+v1.2-release.  (The project started with a GNU ChangeLog, but it was
+useless and horrible to maintain.  Then an improvised changelog format
+was used, until the maintainer was pointed towards https://keepachangelog.com.
+The format of this file should adhere to [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 This project should more or less adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
