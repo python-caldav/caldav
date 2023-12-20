@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- encoding: utf-8 -*-
 from typing import ClassVar
 
 from caldav.lib.namespace import ns
@@ -26,6 +25,7 @@ class SyncCollection(BaseElement):
 
 
 # Filters
+
 
 # Conditions
 class SyncToken(BaseElement):

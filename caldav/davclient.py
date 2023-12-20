@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- encoding: utf-8 -*-
 import logging
 import sys
 import typing
@@ -253,7 +252,7 @@ class DAVResponse:
             ## I would like to do this assert here ...
             # error.assert_(not href in self.objects)
             ## but then there was https://github.com/python-caldav/caldav/issues/136
-            if not href in self.objects:
+            if href not in self.objects:
                 self.objects[href] = {}
 
             ## The properties may be delivered either in one
@@ -745,8 +744,8 @@ class DAVClient:
             raise error.AuthorizationError(url=str(url_obj), reason=reason)
 
         if error.debug_dump_communication:
-            from tempfile import NamedTemporaryFile
             import datetime
+            from tempfile import NamedTemporaryFile
 
             with NamedTemporaryFile(prefix="caldavcomm", delete=False) as commlog:
                 commlog.write(b"=" * 80 + b"\n")

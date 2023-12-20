@@ -20,6 +20,7 @@ try:
 except:
     rfc6638_users = None
 
+
 ## Some initial setup.  We'll need three caldav client objects, with
 ## corresponding principal objects and calendars.
 class TestUser:

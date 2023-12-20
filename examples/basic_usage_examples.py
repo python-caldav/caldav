@@ -36,7 +36,6 @@ def run_examples():
         password=password,
         headers=headers,  # Optional parameter to set HTTP headers on each request if needed
     ) as client:
-
         ## Typically the next step is to fetch a principal object.
         ## This will cause communication with the server.
         my_principal = client.principal()

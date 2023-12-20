@@ -5,7 +5,6 @@ import caldav
 
 
 class TestRadicale(object):
-
     SUMMARIES = set(
         (
             "Godspeed You! Black Emperor at " "Cirque Royal / Koninklijk Circus",

@@ -350,7 +350,7 @@ class TestCalDAV:
             "http://cal.example.com/home/bernard/calendars/"
         )
 
-    @mock.patch("caldav.CalendarObjectResource.is_loaded")
+    @mock.patch("caldav.objects.CalendarObjectResource.is_loaded")
     def testDateSearch(self, mocked):
         """
         ## ref https://github.com/python-caldav/caldav/issues/133
@@ -1249,7 +1249,7 @@ END:VCALENDAR
 
     def test_calendar_comp_class_by_data(self):
         calendar = Calendar()
-        for (ical, class_) in (
+        for ical, class_ in (
             (ev1, Event),
             (todo, Todo),
             (journal, Journal),

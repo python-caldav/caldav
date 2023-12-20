@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- encoding: utf-8 -*-
 import sys
 import typing
 from typing import ClassVar
@@ -11,7 +10,6 @@ from caldav.lib.namespace import nsmap
 from caldav.lib.python_utilities import to_unicode
 from lxml import etree
 from lxml.etree import _Element
-
 
 if sys.version_info < (3, 9):
     from typing import Iterable

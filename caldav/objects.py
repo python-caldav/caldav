@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- encoding: utf-8 -*-
 """
 A "DAV object" is anything we get from the caldav server or push into the
 caldav server, notably principal, calendars and calendar events.
@@ -42,36 +41,30 @@ from .elements.cdav import CalendarData
 from .elements.cdav import CompFilter
 
 try:
-    from typing import ClassVar, Union, Optional
+    from typing import ClassVar, Optional, Union
 
     TimeStamp = Optional[Union[date, datetime]]
 except:
     pass
 
-from caldav.lib import error, vcal
-from caldav.lib.url import URL
-from caldav.elements import dav, cdav
-
-
 import logging
 
+from caldav.elements import cdav, dav
+from caldav.lib import error, vcal
+from caldav.lib.url import URL
 
 if typing.TYPE_CHECKING:
-    from .davclient import DAVClient
     from icalendar import vCalAddress
 
+    from .davclient import DAVClient
+
 if sys.version_info < (3, 9):
-    from typing import Callable, Container, Iterator, Sequence
-    from typing import Iterable
-    from typing_extensions import DefaultDict
-    from typing_extensions import Literal
+    from typing import Callable, Container, Iterable, Iterator, Sequence
+
+    from typing_extensions import DefaultDict, Literal
 else:
-    from collections.abc import Callable
-    from collections.abc import Container
-    from collections.abc import Iterable
-    from collections.abc import Iterator
-    from collections.abc import Sequence
     from collections import defaultdict as DefaultDict
+    from collections.abc import Callable, Container, Iterable, Iterator, Sequence
     from typing import Literal
 
 if sys.version_info < (3, 11):
@@ -254,7 +247,7 @@ class DAVObject:
             body = to_wire(body)
             if (
                 ret.status == 500
-                and not b"getetag" in body
+                and b"getetag" not in body
                 and b"<C:calendar-data/>" in body
             ):
                 body = body.replace(
@@ -659,7 +652,7 @@ class Principal(DAVObject):
             if (
                 calendar_home_set_url is not None
                 and "@" in calendar_home_set_url
-                and not "://" in calendar_home_set_url
+                and "://" not in calendar_home_set_url
             ):
                 calendar_home_set_url = quote(calendar_home_set_url)
             self.calendar_home_set = calendar_home_set_url
@@ -846,10 +839,10 @@ class Calendar(DAVObject):
     def _use_or_create_ics(self, ical, objtype, **ical_data):
         if ical_data or (
             (isinstance(ical, str) or isinstance(ical, bytes))
-            and not b"BEGIN:VCALENDAR" in to_wire(ical)
+            and b"BEGIN:VCALENDAR" not in to_wire(ical)
         ):
             ## TODO: the ical_fragment code is not much tested
-            if ical and not "ical_fragment" in ical_data:
+            if ical and "ical_fragment" not in ical_data:
                 ical_data["ical_fragment"] = ical
             return vcal.create_ical(objtype=objtype, **ical_data)
         return ical
@@ -1203,15 +1196,15 @@ class Calendar(DAVObject):
             objects = []
             match_set = set()
             for item in matches1 + matches2 + matches3:
-                if not item.url in match_set:
+                if item.url not in match_set:
                     match_set.add(item.url)
                     ## and still, Zimbra seems to deliver too many TODOs in the
                     ## matches2 ... let's do some post-filtering in case the
                     ## server fails in filtering things the right way
                     if "STATUS:NEEDS-ACTION" in item.data or (
-                        not "\nCOMPLETED:" in item.data
-                        and not "\nSTATUS:COMPLETED" in item.data
-                        and not "\nSTATUS:CANCELLED" in item.data
+                        "\nCOMPLETED:" not in item.data
+                        and "\nSTATUS:COMPLETED" not in item.data
+                        and "\nSTATUS:CANCELLED" not in item.data
                     ):
                         objects.append(item)
         else:
@@ -1457,7 +1450,7 @@ class Calendar(DAVObject):
                 if find_not_defined:
                     match = cdav.NotDefined()
                 elif find_defined:
-                    raise NotImplemented(
+                    raise NotImplementedError(
                         "Seems not to be supported by the CalDAV protocol?  or we can negate?  not supported yet, in any case"
                     )
                 else:
@@ -2091,7 +2084,7 @@ class CalendarObjectResource(DAVObject):
             if relfilter and not relfilter(rel):
                 continue
             reltype = rel.params.get("RELTYPE", "PARENT")
-            if reltypes and not reltype in reltypes:
+            if reltypes and reltype not in reltypes:
                 continue
             ret[reltype].add(str(rel))
 
@@ -2222,7 +2215,7 @@ class CalendarObjectResource(DAVObject):
                 )
             elif attendee.startswith("mailto:"):
                 attendee_obj = vCalAddress(attendee)
-            elif "@" in attendee and not ":" in attendee and not ";" in attendee:
+            elif "@" in attendee and ":" not in attendee and ";" not in attendee:
                 attendee_obj = vCalAddress("mailto:" + attendee)
         else:
             error.assert_(False)
@@ -2233,14 +2226,14 @@ class CalendarObjectResource(DAVObject):
         if not no_default_parameters:
             ## Sensible defaults:
             attendee_obj.params["partstat"] = "NEEDS-ACTION"
-            if not "cutype" in attendee_obj.params:
+            if "cutype" not in attendee_obj.params:
                 attendee_obj.params["cutype"] = "UNKNOWN"
             attendee_obj.params["rsvp"] = "TRUE"
             attendee_obj.params["role"] = "REQ-PARTICIPANT"
         params = {}
         for key in parameters:
             new_key = key.replace("_", "-")
-            if parameters[key] == True:
+            if parameters[key] is True:
                 params[new_key] = "TRUE"
             else:
                 params[new_key] = parameters[key]
@@ -2274,7 +2267,7 @@ class CalendarObjectResource(DAVObject):
         self.get_property(cdav.ScheduleTag(), use_cached=True)
         try:
             calendar.save_event(self.data)
-        except Exception as some_exception:
+        except Exception:
             ## TODO - TODO - TODO
             ## RFC6638 does not seem to be very clear (or
             ## perhaps I should read it more thoroughly) neither on
@@ -2381,7 +2374,7 @@ class CalendarObjectResource(DAVObject):
         )
         if r.status == 302:
             path = [x[1] for x in r.headers if x[0] == "location"][0]
-        elif not (r.status in (204, 201)):
+        elif r.status not in (204, 201):
             if retry_on_failure:
                 ## This looks like a noop, but the object may be "cleaned".
                 ## See https://github.com/python-caldav/caldav/issues/43
@@ -2899,7 +2892,7 @@ class Todo(CalendarObjectResource):
         """
         recurrences = self.icalendar_instance.subcomponents
         orig = recurrences[0]
-        if not "STATUS" in orig:
+        if "STATUS" not in orig:
             orig["STATUS"] = "NEEDS-ACTION"
 
         if len(recurrences) == 1:
@@ -3014,7 +3007,7 @@ class Todo(CalendarObjectResource):
             return True
         if i.get("STATUS", None) in ("CANCELLED", "COMPLETED"):
             return False
-        if not "STATUS" in i:
+        if "STATUS" not in i:
             return True
         ## input data does not conform to the RFC
         assert False
