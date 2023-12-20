@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- encoding: utf-8 -*-
 import datetime
 import logging
 import re
@@ -22,6 +21,7 @@ fixup_error_loggings = 0
 ## 2) arguably, this is outside the scope of the caldav library.
 ## check if this can be done in vobject or icalendar libraries instead
 ## of here
+
 
 ## TODO: would be nice with proper documentation on what systems are
 ## generating broken data.  Compatibility issues should also be collected
@@ -158,7 +158,7 @@ def create_ical(ical_fragment=None, objtype=None, language="en_DK", **props):
             objtype = "VEVENT"
         component = icalendar.cal.component_factory[objtype]()
         component.add("dtstamp", datetime.datetime.now(tz=datetime.timezone.utc))
-        if not props.get("uid") and not "\nUID:" in (ical_fragment or ""):
+        if not props.get("uid") and "\nUID:" not in (ical_fragment or ""):
             component.add("uid", uuid.uuid1())
         my_instance.add_component(component)
         ## STATUS should default to NEEDS-ACTION for tasks, if it's not set
@@ -166,7 +166,7 @@ def create_ical(ical_fragment=None, objtype=None, language="en_DK", **props):
         ## then find it again - ref https://gitlab.com/davical-project/davical/-/issues/281
         if (
             not props.get("status")
-            and not "\nSTATUS:" in (ical_fragment or "")
+            and "\nSTATUS:" not in (ical_fragment or "")
             and objtype == "VTODO"
         ):
             props["status"] = "NEEDS-ACTION"

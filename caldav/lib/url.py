@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- encoding: utf-8 -*-
 import sys
 import typing
 import urllib.parse
@@ -158,7 +157,7 @@ class URL:
         ## sensible defaults
         if not arr[0]:
             arr[0] = "https"
-        if arr[1] and not ":" in arr[1]:
+        if arr[1] and ":" not in arr[1]:
             if arr[0] == "https":
                 portpart = ":443"
             elif arr[0] == "http":

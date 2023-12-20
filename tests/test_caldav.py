@@ -1258,7 +1258,6 @@ class RepeatedFunctionalTestsBaseClass(object):
 
         ## category
         if not self.check_compatibility_flag("radicale_breaks_on_category_search"):
-
             some_events = c.search(comp_class=Event, category="PERSONAL")
             if not self.check_compatibility_flag("category_search_yields_nothing"):
                 assert len(some_events) == 1

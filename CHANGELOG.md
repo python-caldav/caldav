@@ -12,8 +12,9 @@ This project should more or less adhere to [Semantic Versioning](https://semver.
 
 ## [1.4.0] - unreleased
 
-* Georges Toth did a lot of efforts lifting up the project to more modern standards.
+* Georges Toth (@sim0nx) did a lot of efforts lifting up the project to more modern standards.
 * A hook for collecting debug information has been in the pull request for ages.  I've decided to include it in 1.4.0.
+* Code formatting / style fixes.
 
 ### Added
 
