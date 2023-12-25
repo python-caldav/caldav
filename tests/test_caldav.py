@@ -147,6 +147,12 @@ uids_used = (
     "ctuid4",
     "ctuid5",
     "ctuid6",
+    "tsst1",
+    "tsst2",
+    "tsst3",
+    "tsst4",
+    "tsst5",
+    "tsst6",
 )
 ## TODO: todo7 is an item without uid.  Should be taken care of somehow.
 
@@ -1339,29 +1345,33 @@ class RepeatedFunctionalTestsBaseClass(object):
             summary="1 task overdue",
             due=date(2022, 12, 12),
             dtstart=date(2022, 10, 11),
-            uid="1",
+            uid="tsst1",
         )
         t2 = c.save_todo(
             summary="2 task future",
             due=datetime.now() + timedelta(hours=15),
             dtstart=datetime.now() + timedelta(minutes=15),
-            uid="2",
+            uid="tsst2",
         )
         t3 = c.save_todo(
             summary="3 task future due",
             due=datetime.now() + timedelta(hours=15),
             dtstart=datetime(2022, 12, 11, 10, 9, 8),
-            uid="3",
+            uid="tsst3",
         )
-        t4 = c.save_todo(summary="4 task priority low", priority=9, uid="4")
-        t5 = c.save_todo(summary="5 task status completed", status="COMPLETED", uid="5")
+        t4 = c.save_todo(summary="4 task priority low", priority=9, uid="tsst4")
+        t5 = c.save_todo(
+            summary="5 task status completed", status="COMPLETED", uid="tsst5"
+        )
         t6 = c.save_todo(
-            summary="6 task has categories", categories="home,garden,sunshine", uid="6"
+            summary="6 task has categories",
+            categories="home,garden,sunshine",
+            uid="tsst6",
         )
 
         def check_order(tasks, order):
             assert [str(x.icalendar_component["uid"]) for x in tasks] == [
-                str(x) for x in order
+                "tsst" + str(x) for x in order
             ]
 
         all_tasks = c.search(todo=True, sort_keys=("uid",))
