@@ -377,5 +377,13 @@ robur = [
     'isnotdefined_not_working',
 ]
 
+posteo = [
+    'no_scheduling',
+    'no_mkcalendar',
+    'no_journal',
+    'no_recurring_todo',
+    'no_sync_token',
+]
+
 
 # fmt: on
