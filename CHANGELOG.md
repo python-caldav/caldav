@@ -30,7 +30,7 @@ This project should more or less adhere to [Semantic Versioning](https://semver.
 
 * Initial work at integrating typing information. Details in https://github.com/python-caldav/caldav/pull/358
 * Remove dependency on pytz. Details in https://github.com/python-caldav/caldav/issues/231
-* Use setuptools-scm / pyproject.toml (modern packaging). Details in https://github.com/python-caldav/caldav/pull/364
+* Use setuptools-scm / pyproject.toml (modern packaging). Details in https://github.com/python-caldav/caldav/pull/364 and https://github.com/python-caldav/caldav/pull/367
 * Debugging tool - an environment variable can be set, causing the library to spew out server communications into files under /tmp.  Details in https://github.com/python-caldav/caldav/pull/249 and https://github.com/python-caldav/caldav/issues/248
 
 ### Security
