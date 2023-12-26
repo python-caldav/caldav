@@ -1,7 +1,15 @@
 #!/usr/bin/env python
 import logging
 
-from ._version import __version__
+try:
+    from ._version import __version__
+except ModuleNotFoundError:
+    __version__ = "(unknown)"
+    import warnings
+
+    warnings.warn(
+        "You need to install the `build` package and do a `python -m build` to get caldav.__version__ set correctly"
+    )
 from .davclient import DAVClient
 
 # Silence notification of no default logging handler
