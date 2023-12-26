@@ -350,12 +350,14 @@ class TestCalDAV:
             "http://cal.example.com/home/bernard/calendars/"
         )
 
-    @mock.patch("caldav.objects.CalendarObjectResource.is_loaded")
-    def testDateSearch(self, mocked):
+    def _load(self, only_if_unloaded=True):
+        self.data = todo6
+
+    @mock.patch("caldav.objects.CalendarObjectResource.load", new=_load)
+    def testDateSearch(self):
         """
         ## ref https://github.com/python-caldav/caldav/issues/133
         """
-        mocked.__bool__ = lambda self: True
         xml = """<xml><multistatus xmlns="DAV:">
 <response>
     <href>/principals/calendar/home@petroski.example.com/963/43B060B3-A023-48ED-B9E7-6FFD38D5073E.ics</href>
