@@ -15,6 +15,16 @@ This project should more or less adhere to [Semantic Versioning](https://semver.
 * Georges Toth (@sim0nx) did a lot of efforts lifting up the project to more modern standards.
 * A hook for collecting debug information has been in the pull request for ages.  I've decided to include it in 1.4.0.
 * Code formatting / style fixes.
+* Search method did some logic handling non-conformant servers (loading data from the server if the search response didn't include the icalendar data, ignoring trash from the Google server when it returns data without a VTODO/VEVENT/VJOURNAL component.
+
+### Fixed
+
+* Revisited a problem that Google sometimes delivers junk when doing searches - credits to github user @zhwei in https://github.com/python-caldav/caldav/pull/366
+* There were some compatibility-logic loading objects if the server does not deliver icalendar data (as it's suppsoed to do according to the RFC), but only if passing the `expand`-flag to the `search`-method.  Fixed that it loads regardless of weather `expand` is set or not.  Also in https://github.com/python-caldav/caldav/pull/366
+
+### Changed
+
+* In https://github.com/python-caldav/caldav/pull/366, I optimized the logic in `search` a bit, now all data from the server not containing a VEVENT, VTODO or VJOURNAL will be thrown away.  I believe this won't cause any problems for anyone, as the server should only deliver such components, but I may be wrong.
 
 ### Added
 

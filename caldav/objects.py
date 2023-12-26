@@ -1220,6 +1220,13 @@ class Calendar(DAVObject):
                 xml, comp_class, props=props
             )
 
+        for o in objects:
+            ## This would not be needed if the servers would follow the standard ...
+            o.load(only_if_unloaded=True)
+
+        ## Google sometimes returns empty objects
+        objects = [o for o in objects if o.has_component()]
+
         if kwargs.get("expand", False):
             ## expand can only be used together with start and end.
             ## Error checking is done in build_search_xml_query.  If
@@ -1228,13 +1235,6 @@ class Calendar(DAVObject):
             ## raised above.
             start = kwargs["start"]
             end = kwargs["end"]
-
-            for o in objects:
-                ## This would not be needed if the servers would follow the standard ...
-                o.load(only_if_unloaded=True)
-
-            ## Google sometimes returns empty objects
-            objects = [o for o in objects if o.icalendar_component]
 
             for o in objects:
                 component = o.icalendar_component
@@ -1248,9 +1248,6 @@ class Calendar(DAVObject):
                 objects = []
                 for o in objects_:
                     objects.extend(o.split_expanded())
-        else:
-            ## Google sometimes returns empty objects
-            objects = [o for o in objects if o.icalendar_component]
 
         def sort_key_func(x):
             ret = []
@@ -2122,6 +2119,8 @@ class CalendarObjectResource(DAVObject):
         See also https://github.com/python-caldav/caldav/issues/232
         """
         self.load(only_if_unloaded=True)
+        if not self.icalendar_instance:
+            return None
         ret = [
             x
             for x in self.icalendar_instance.subcomponents
@@ -2529,6 +2528,17 @@ class CalendarObjectResource(DAVObject):
         return (
             self._data or self._vobject_instance or self._icalendar_instance
         ) and self.data.count("BEGIN:") > 1
+
+    def has_component(self):
+        return (
+            self._data
+            or self._vobject_instance
+            or (self._icalendar_instance and self.icalendar_component)
+        ) and self.data.count("BEGIN:VEVENT") + self.data.count(
+            "BEGIN:VTODO"
+        ) + self.data.count(
+            "BEGIN:VJOURNAL"
+        ) > 0
 
     def __str__(self) -> str:
         return "%s: %s" % (self.__class__.__name__, self.url)
