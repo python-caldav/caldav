@@ -1248,6 +1248,9 @@ class Calendar(DAVObject):
                 objects = []
                 for o in objects_:
                     objects.extend(o.split_expanded())
+        else:
+            ## Google sometimes returns empty objects
+            objects = [o for o in objects if o.icalendar_component]
 
         def sort_key_func(x):
             ret = []
