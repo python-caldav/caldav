@@ -15,14 +15,11 @@ This project should more or less adhere to [Semantic Versioning](https://semver.
 * Georges Toth (@sim0nx) did a lot of efforts lifting up the project to more modern standards.
 * A hook for collecting debug information has been in the pull request queue for ages.  I've decided to include it in 1.4.0.
 
-### Fixes
+### Fixed
 
 * Code formatting / style fixes.
 * Search method did some logic handling non-conformant servers (loading data from the server if the search response didn't include the icalendar data, ignoring trash from the Google server when it returns data without a VTODO/VEVENT/VJOURNAL component.
 * Tests - a breakage was introduced for servers not supporting MKCALENDAR - details in https://github.com/python-caldav/caldav/pull/368
-
-### Fixed
-
 * Revisited a problem that Google sometimes delivers junk when doing searches - credits to github user @zhwei in https://github.com/python-caldav/caldav/pull/366
 * There were some compatibility-logic loading objects if the server does not deliver icalendar data (as it's suppsoed to do according to the RFC), but only if passing the `expand`-flag to the `search`-method.  Fixed that it loads regardless of weather `expand` is set or not.  Also in https://github.com/python-caldav/caldav/pull/366
 
@@ -51,7 +48,7 @@ Thinking it through three times, I'm not too concerned - if someone has access t
 
 Some bugfixes.
 
-### Fixes
+### Fixed
 
 * Some parts of the library would throw OverflowError on very weird dates/timestamps.  Now those are converted to the minimum or maximum accepted date/timestamp.  Credits to github user @tamarinvs19 in https://github.com/python-caldav/caldav/pull/327
 * `DAVResponse.davclient` was always set to None, now it may be set to the `DAVClient` instance.  Credits to github user @sobolevn in https://github.com/python-caldav/caldav/pull/323

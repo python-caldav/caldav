@@ -1359,9 +1359,15 @@ class RepeatedFunctionalTestsBaseClass(object):
             dtstart=datetime(2022, 12, 11, 10, 9, 8),
             uid="tsst3",
         )
-        t4 = c.save_todo(summary="4 task priority low", priority=9, uid="tsst4")
+        t4 = c.save_todo(
+            summary="4 task priority is set to nine which is the lowest",
+            priority=9,
+            uid="tsst4",
+        )
         t5 = c.save_todo(
-            summary="5 task status completed", status="COMPLETED", uid="tsst5"
+            summary="5 task status is set to COMPLETED and this will disappear from the ordinary todo search",
+            status="COMPLETED",
+            uid="tsst5",
         )
         t6 = c.save_todo(
             summary="6 task has categories",
