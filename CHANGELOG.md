@@ -19,9 +19,10 @@ This project should more or less adhere to [Semantic Versioning](https://semver.
 
 * Code formatting / style fixes.
 * Search method did some logic handling non-conformant servers (loading data from the server if the search response didn't include the icalendar data, ignoring trash from the Google server when it returns data without a VTODO/VEVENT/VJOURNAL component.
-* Tests - a breakage was introduced for servers not supporting MKCALENDAR - details in https://github.com/python-caldav/caldav/pull/368
 * Revisited a problem that Google sometimes delivers junk when doing searches - credits to github user @zhwei in https://github.com/python-caldav/caldav/pull/366
 * There were some compatibility-logic loading objects if the server does not deliver icalendar data (as it's suppsoed to do according to the RFC), but only if passing the `expand`-flag to the `search`-method.  Fixed that it loads regardless of weather `expand` is set or not.  Also in https://github.com/python-caldav/caldav/pull/366
+* Tests - a breakage was introduced for servers not supporting MKCALENDAR - details in https://github.com/python-caldav/caldav/pull/368
+* Tests - all tests passes for python 3.12 as well - as expected.
 
 ### Changed
 
