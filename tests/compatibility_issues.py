@@ -192,6 +192,9 @@ incompatibility_description = {
 
     'search_needs_comptype':
         """The server may not always come up with anything useful when searching for objects and omitting to specify weather one wants to see tasks or events""",
+
+    'robur_rrule_freq_yearly_expands_monthly':
+        """Robur expands a yearly event into a monthly event.  I believe I've reported this one upstream at some point, but can't find back to it"""
 }
 
 xandikos = [
@@ -375,6 +378,7 @@ robur = [
     'text_search_not_working',
     'no_relships',
     'isnotdefined_not_working',
+    'robur_rrule_freq_yearly_expands_monthly'
 ]
 
 posteo = [

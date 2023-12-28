@@ -2451,10 +2451,16 @@ class RepeatedFunctionalTestsBaseClass(object):
         ## resultset should be one vcalendar with two events.
         assert len(r1) == 1
         assert "RRULE" not in r1[0].data
-        assert r1[0].data.count("END:VEVENT") == 2
+        if self.check_compatibility_flag("robur_rrule_freq_yearly_expands_monthly"):
+            assert r1[0].data.count("END:VEVENT") == 13
+        else:
+            assert r1[0].data.count("END:VEVENT") == 2
         ## However, the new search method will by default split it into
-        ## two events
-        assert len(r2) == 2
+        ## two events.  Or 13, in the case of robur
+        if self.check_compatibility_flag("robur_rrule_freq_yearly_expands_monthly"):
+            assert len(r2) == 13
+        else:
+            assert len(r2) == 2
         assert "RRULE" not in r2[0].data
         assert "RRULE" not in r2[1].data
         assert r2[0].data.count("END:VEVENT") == 1
