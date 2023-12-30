@@ -313,10 +313,7 @@ davical = [
     #'no_journal', ## it threw a 500 internal server error! ## for old versions
     #'nofreebusy', ## for old versions
     'fragile_sync_tokens', ## no issue raised yet
-    'vtodo_datesearch_nodtstart_task_is_skipped_in_closed_date_range', ## no issue raised yet
-    'isnotdefined_not_working', ## https://gitlab.com/davical-project/davical/-/issues/281
-    'fastmail_buggy_noexpand_date_search', ## https://gitlab.com/davical-project/davical/-/issues/280
-    "isnotdefined_not_working",
+    'vtodo_datesearch_nodtstart_task_is_skipped', ## no issue raised yet
 ]
 
 google = [
@@ -387,6 +384,7 @@ posteo = [
     'no_journal',
     'no_recurring_todo',
     'no_sync_token',
+    'combined_search_not_working'
 ]
 
 
