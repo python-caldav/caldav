@@ -1300,12 +1300,7 @@ class RepeatedFunctionalTestsBaseClass(object):
             if not self.check_compatibility_flag(
                 "category_search_yields_nothing"
             ) and not self.check_compatibility_flag("combined_search_not_working"):
-                if self.check_compatibility_flag("fastmail_buggy_noexpand_date_search"):
-                    ## fastmail and davical delivers too many recurring events on a date search
-                    ## (but fastmail anyway won't get here, as combined search is not working with fastmail)
-                    assert len(no_events) == 1
-                else:
-                    assert len(no_events) == 1
+                assert len(no_events) == 0
             some_events = c.search(
                 comp_class=Event,
                 category="PERSONAL",
