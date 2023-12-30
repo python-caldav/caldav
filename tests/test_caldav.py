@@ -1297,9 +1297,9 @@ class RepeatedFunctionalTestsBaseClass(object):
                 start=datetime(2006, 7, 13, 13, 0),
                 end=datetime(2006, 7, 15, 13, 0),
             )
-            if (not self.check_compatibility_flag(
+            if not self.check_compatibility_flag(
                 "category_search_yields_nothing"
-            ) and not self.check_compatibility_flag("combined_search_not_working")):
+            ) and not self.check_compatibility_flag("combined_search_not_working"):
                 assert len(no_events) == 0
             some_events = c.search(
                 comp_class=Event,
