@@ -384,7 +384,6 @@ posteo = [
     'no_journal',
     'no_recurring_todo',
     'no_sync_token',
-    'combined_search_not_working'
 ]
 
 
