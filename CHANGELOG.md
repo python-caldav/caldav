@@ -22,7 +22,7 @@ This project should more or less adhere to [Semantic Versioning](https://semver.
 * Revisited a problem that Google sometimes delivers junk when doing searches - credits to github user @zhwei in https://github.com/python-caldav/caldav/pull/366
 * There were some compatibility-logic loading objects if the server does not deliver icalendar data (as it's suppsoed to do according to the RFC), but only if passing the `expand`-flag to the `search`-method.  Fixed that it loads regardless of weather `expand` is set or not.  Also in https://github.com/python-caldav/caldav/pull/366
 * Tests - a breakage was introduced for servers not supporting MKCALENDAR - details in https://github.com/python-caldav/caldav/pull/368
-* Tests - all tests passes for python 3.12 as well - as expected.
+* Tests - all tests passes for python 3.12 as well - as expected.  Fixed a minor bug in the ftests and tweaked the compatibility matrixes a bit.  Commits outside pull requests + https://github.com/python-caldav/caldav/pull/370
 
 ### Changed
 
