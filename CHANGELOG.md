@@ -12,6 +12,10 @@ This project should more or less adhere to [Semantic Versioning](https://semver.
 
 ## [Unreleased]
 
+## TODO - is this relevant?
+* Tests - a breakage was introduced for servers not supporting MKCALENDAR - details in https://github.com/python-caldav/caldav/pull/368
+* Tests - all tests passes for python 3.12 as well - as expected.  Fixed a minor bug in the ftests and tweaked the compatibility matrixes a bit.  Commits outside pull requests + https://github.com/python-caldav/caldav/pull/370
+
 ### Changed
 
 #### Test framework
