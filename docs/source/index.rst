@@ -19,7 +19,8 @@ Project home
 The project currently lives on github,
 https://github.com/python-caldav/caldav - if you have problems using
 the library (including problems understanding the documentation),
-please feel free to report it on the issue tracker there.
+please feel free to report it on the issue tracker there or to
+python-caldav@tobixen.no
 
 Backward compatibility support
 ==============================
