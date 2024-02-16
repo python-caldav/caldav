@@ -12,6 +12,10 @@ except ModuleNotFoundError:
     )
 from .davclient import DAVClient
 
+## TODO: this should go away in some future version of the library.
+## How to make deprecation notices?
+from .objects import *
+
 # Silence notification of no default logging handler
 log = logging.getLogger("caldav")
 
