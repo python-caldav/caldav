@@ -2671,6 +2671,10 @@ class CalendarObjectResource(DAVObject):
         if "DURATION" in i:
             return i["DURATION"].dt
         elif "DTSTART" in i and self._ENDPARAM in i:
+            ## if we get an exception here it may be that one of the
+            ## timestamps is a date and the other is a datetime.
+            ## This is a breach of the standard.
+            ## We may want to implement a workaround in lib.vcal.fix
             return i[self._ENDPARAM].dt - i["DTSTART"].dt
         elif "DTSTART" in i and not isinstance(i["DTSTART"], datetime):
             return timedelta(days=1)
@@ -3084,14 +3088,18 @@ class Todo(CalendarObjectResource):
         WARNING: the check_dependent-logic may be rewritten to support
         RFC9253 in 1.x already
         """
+        i = self.icalendar_component
         if hasattr(due, "tzinfo") and not due.tzinfo:
             due = due.astimezone(timezone.utc)
-        i = self.icalendar_component
         if check_dependent:
             parents = self.get_relatives({"PARENT"})
             for parent in parents["PARENT"]:
                 pend = parent.get_dtend()
-                if pend and pend.astimezone(timezone.utc) < due:
+                ## Make sure both timestamps aren't "naive":
+                if hasattr(pend, "tzinfo") and not pend.tzinfo:
+                    pend = pend.astimezone(timezone.utc)
+                ## pend and due may be date and datetime, then they cannot be compared directly
+                if pend and pend.strftime("%s") < due.strftime("%s"):
                     if check_dependent == "return":
                         return parent
                     raise error.ConsistencyError(
