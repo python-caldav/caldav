@@ -272,9 +272,14 @@ class TestCalDAV:
         mocked().status_code = 200
         mocked().headers = {}
         cal_url = "http://me:hunter2@calendar.møøh.example:80/"
-        client = DAVClient(url=cal_url, headers={"X-NC-CalDAV-Webcal-Caching": "On"})
+        client = DAVClient(
+            url=cal_url,
+            headers={"X-NC-CalDAV-Webcal-Caching": "On", "User-Agent": "MyCaldavApp"},
+        )
         assert client.headers["Content-Type"] == "text/xml"
         assert client.headers["X-NC-CalDAV-Webcal-Caching"] == "On"
+        ## User-Agent would be overwritten by some boring default in earlier versions
+        assert client.headers["User-Agent"] == "MyCaldavApp"
 
     @mock.patch("caldav.davclient.requests.Session.request")
     def testEmptyXMLNoContentLength(self, mocked):
