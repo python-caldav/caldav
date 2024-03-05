@@ -56,6 +56,9 @@ def fix(event):
     and duration set - which is forbidden according to the RFC.  We
     should probably verify that the data is consistent.  As for now,
     we'll just drop DURATION or DTEND (whatever comes last).
+
+    6) Pre-release versions of plann (mea culpa) sometimes created
+    tasks with due and dtstart of different time types (datetime vs date)
     """
     event = to_normal_str(event)
     if not event.endswith("\n"):

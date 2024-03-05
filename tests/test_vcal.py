@@ -249,14 +249,35 @@ DESCRIPTION:Reminder
 END:VALARM
 END:VEVENT
 END:VCALENDAR""",
+            """BEGIN:VCALENDAR
+BEGIN:VTODO
+DTSTAMP:20210205T101751Z
+UID:20200516T060000Z-123401@example.com
+SUMMARY:Do the needful
+DTSTART;VALUE=DATE:20210517
+DUE:20210517T230000Z
+END:VTODO
+END:VCALENDAR""",  ## Same, but real example:
         ]  ## todo: add more broken ical here
+
+        def validate_ical(ical):
+            ## This will catch quite some problems
+            vobject.readOne(ical).serialize()
+            
+            ## One thing the vobject validator doesn't catch - if the
+            ## DTEND/DUE and DTSTART has incompatible types
+            ical_obj = icalendar.Calendar.from_ical(ical).subcomponents[0]
+            end = ical_obj.get('DTEND') or ical_obj.get('DUE')
+            start = ical_obj.get('DTSTART')
+            if end and type(end.dt) != type(start.dt):
+                raise vobject.base.ValidateError("incompatible time types")
 
         for ical in broken_ical:
             ## This should raise error
             with pytest.raises(vobject.base.ValidateError):
-                vobject.readOne(ical).serialize()
+                validate_ical(ical)
             ## This should not raise error
-            vobject.readOne(vcal.fix(ical)).serialize()
+            validate_ical(vcal.fix(ical))
 
         for ical in non_broken_ical:
             assert vcal.fix(ical) == ical
