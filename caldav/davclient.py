@@ -409,14 +409,12 @@ class DAVClient:
             self.proxy = _proxy
 
         # Build global headers
-        self.headers = headers
-        self.headers.update(
-            {
-                "User-Agent": "Mozilla/5.0",
-                "Content-Type": "text/xml",
-                "Accept": "text/xml, text/calendar",
-            }
-        )
+        self.headers = {
+            "User-Agent": "Mozilla/5.0",
+            "Content-Type": "text/xml",
+            "Accept": "text/xml, text/calendar",
+        }
+        self.headers.update(headers)
         if self.url.username is not None:
             username = unquote(self.url.username)
             password = unquote(self.url.password)
