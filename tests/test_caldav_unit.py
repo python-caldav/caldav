@@ -18,6 +18,15 @@ import icalendar
 import lxml.etree
 import pytest
 import vobject
+from caldav import Calendar
+from caldav import CalendarObjectResource
+from caldav import CalendarSet
+from caldav import DAVObject
+from caldav import Event
+from caldav import FreeBusy
+from caldav import Journal
+from caldav import Principal
+from caldav import Todo
 from caldav.davclient import DAVClient
 from caldav.davclient import DAVResponse
 from caldav.elements import cdav
@@ -28,15 +37,13 @@ from caldav.lib import url
 from caldav.lib.python_utilities import to_normal_str
 from caldav.lib.python_utilities import to_wire
 from caldav.lib.url import URL
-from caldav.objects import Calendar
-from caldav.objects import CalendarObjectResource
-from caldav.objects import CalendarSet
-from caldav.objects import DAVObject
-from caldav.objects import Event
-from caldav.objects import FreeBusy
-from caldav.objects import Journal
-from caldav.objects import Principal
-from caldav.objects import Todo
+
+## Note on the imports - those two lines are equivalent:
+# from caldav.objects import foo
+# from caldav import foo
+## This is due to a line like this in __init__.py:
+# from .objects import *
+## Said line should be deprecated at some point
 
 ## Some example icalendar data partly copied from test_caldav.py
 ev1 = """BEGIN:VCALENDAR

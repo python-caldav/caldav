@@ -2662,7 +2662,7 @@ class CalendarObjectResource(DAVObject):
 
         WARNING: this method is likely to be deprecated and moved to
         the icalendar library.  If you decide to use it, please put
-        caldav<2.0 in the requirements.
+        caldav<3.0 in the requirements.
         """
         i = self.icalendar_component
         return self._get_duration(i)
@@ -2671,7 +2671,15 @@ class CalendarObjectResource(DAVObject):
         if "DURATION" in i:
             return i["DURATION"].dt
         elif "DTSTART" in i and self._ENDPARAM in i:
-            return i[self._ENDPARAM].dt - i["DTSTART"].dt
+            end = i[self._ENDPARAM].dt
+            start = i["DTSTART"].dt
+            ## We do have a problem here if one is a date and the other is a
+            ## datetime.  This is NOT explicitly defined as a technical
+            ## breach in the RFC, so we need to work around it.
+            if isinstance(end, datetime) != isinstance(start, datetime):
+                start = datetime(start.year, start.month, start.day)
+                end = datetime(end.year, end.month, end.day)
+            return end - start
         elif "DTSTART" in i and not isinstance(i["DTSTART"], datetime):
             return timedelta(days=1)
         else:
@@ -3084,14 +3092,18 @@ class Todo(CalendarObjectResource):
         WARNING: the check_dependent-logic may be rewritten to support
         RFC9253 in 1.x already
         """
+        i = self.icalendar_component
         if hasattr(due, "tzinfo") and not due.tzinfo:
             due = due.astimezone(timezone.utc)
-        i = self.icalendar_component
         if check_dependent:
             parents = self.get_relatives({"PARENT"})
             for parent in parents["PARENT"]:
                 pend = parent.get_dtend()
-                if pend and pend.astimezone(timezone.utc) < due:
+                ## Make sure both timestamps aren't "naive":
+                if hasattr(pend, "tzinfo") and not pend.tzinfo:
+                    pend = pend.astimezone(timezone.utc)
+                ## pend and due may be date and datetime, then they cannot be compared directly
+                if pend and pend.strftime("%s") < due.strftime("%s"):
                     if check_dependent == "return":
                         return parent
                     raise error.ConsistencyError(
