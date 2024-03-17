@@ -17,6 +17,7 @@ This project should more or less adhere to [Semantic Versioning](https://semver.
 
 ### Fixed
 
+* `get_duration`: make sure the algorithm doesn't raise an exception comparing dates with timestamps
 * `set_due`: make sure the algorithm doesn't raise an exception comparing naive timestamps with timezone timestamps
 * Code formatting / style fixes.
 * Search method did some logic handling non-conformant servers (loading data from the server if the search response didn't include the icalendar data, ignoring trash from the Google server when it returns data without a VTODO/VEVENT/VJOURNAL component.
