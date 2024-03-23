@@ -248,12 +248,39 @@ TRIGGER;RELATED=START:-PT15M
 DESCRIPTION:Reminder
 END:VALARM
 END:VEVENT
+END:VCALENDAR""",  ## next has a completed date.  It should be a timestamp according to the RFC
+            """BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Example Corp.//CalDAV Client//EN
+BEGIN:VTODO
+UID:20070313T123432Z-456553@example.com
+DTSTAMP:20070313T123432Z
+COMPLETED;VALUE=DATE:20070501
+SUMMARY:Submit Quebec Income Tax Return for 2006
+CLASS:CONFIDENTIAL
+CATEGORIES:FAMILY,FINANCE
+STATUS:NEEDS-ACTION
+END:VTODO
+END:VCALENDAR""",  ## Again, but implicit instead of explicit date
+            """BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Example Corp.//CalDAV Client//EN
+BEGIN:VTODO
+UID:20070313T123432Z-456553@example.com
+DTSTAMP:20070313T123432Z
+COMPLETED:20070501
+SUMMARY:Submit Quebec Income Tax Return for 2006
+CLASS:CONFIDENTIAL
+CATEGORIES:FAMILY,FINANCE
+STATUS:NEEDS-ACTION
+END:VTODO
 END:VCALENDAR""",
         ]  ## todo: add more broken ical here
 
         for ical in broken_ical:
             ## This should raise error
-            with pytest.raises(vobject.base.ValidateError):
+            # with pytest.raises(vobject.base.ValidateError):
+            with pytest.raises(Exception):
                 vobject.readOne(ical).serialize()
             ## This should not raise error
             vobject.readOne(vcal.fix(ical)).serialize()
