@@ -23,6 +23,7 @@ This project should more or less adhere to [Semantic Versioning](https://semver.
 * There were some compatibility-logic loading objects if the server does not deliver icalendar data (as it's suppsoed to do according to the RFC), but only if passing the `expand`-flag to the `search`-method.  Fixed that it loads regardless of weather `expand` is set or not.  Also in https://github.com/python-caldav/caldav/pull/366
 * Tests - a breakage was introduced for servers not supporting MKCALENDAR - details in https://github.com/python-caldav/caldav/pull/368
 * Tests - all tests passes for python 3.12 as well - as expected.
+* The vcal fixup method was converting implicit dates into timestamps in the COMPLETED property, as it should be a timestamp according to the RFC - however, the regexp failed on explicit dates.  Now it will take explicit dates too.
 
 ### Changed
 

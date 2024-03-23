@@ -31,7 +31,8 @@ def fix(event):
     breakages with the standard, and attempts to fix up known issues:
 
     1) COMPLETED MUST be a datetime in UTC according to the RFC, but sometimes
-    a date is given. (Google Calendar?)
+    a date is given. (Google Calendar?) SOGo!  Ref https://github.com/home-assistant/core/issues/106671
+
 
     2) The RFC does not specify any range restrictions on the dates,
     but clearly it doesn't make sense with a CREATED-timestamp that is
@@ -63,7 +64,9 @@ def fix(event):
 
     ## TODO: add ^ before COMPLETED and CREATED?
     ## 1) Add an arbitrary time if completed is given as date
-    fixed = re.sub(r"COMPLETED:(\d+)\s", r"COMPLETED:\g<1>T120000Z", event)
+    fixed = re.sub(
+        r"COMPLETED(?:;VALUE=DATE)?:(\d+)\s", r"COMPLETED:\g<1>T120000Z", event
+    )
 
     ## 2) CREATED timestamps prior to epoch does not make sense,
     ## change from year 0001 to epoch.
