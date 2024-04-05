@@ -645,17 +645,23 @@ class DAVClient:
         )
 
         try:
-            r = self.session.request(
-                method,
-                str(url_obj),
-                data=to_wire(body),
-                headers=combined_headers,
-                proxies=proxies,
-                auth=self.auth,
-                timeout=self.timeout,
-                verify=self.ssl_verify_cert,
-                cert=self.ssl_cert,
-            )
+            def do_request(url):
+                return self.session.request(
+                    method,
+                    url,
+                    data=to_wire(body),
+                    headers=combined_headers,
+                    proxies=proxies,
+                    auth=self.auth,
+                    timeout=self.timeout,
+                    verify=self.ssl_verify_cert,
+                    cert=self.ssl_cert,
+                    allow_redirects=False,
+                )
+            r = do_request(str(url_obj))
+            while r.status_code == 301:
+                redirected_url = r.headers['Location']
+                r = do_request(redirected_url)
             log.debug("server responded with %i %s" % (r.status_code, r.reason))
             response = DAVResponse(r, self)
         except:
