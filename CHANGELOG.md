@@ -31,6 +31,7 @@ This project should more or less adhere to [Semantic Versioning](https://semver.
 ### Changed
 
 * In https://github.com/python-caldav/caldav/pull/366, I optimized the logic in `search` a bit, now all data from the server not containing a VEVENT, VTODO or VJOURNAL will be thrown away.  I believe this won't cause any problems for anyone, as the server should only deliver such components, but I may be wrong.
+* Default User-Agent changed from `Mozilla/5` to `python-caldav/{__version__}`
 
 ### Added
 

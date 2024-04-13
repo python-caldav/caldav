@@ -20,6 +20,7 @@ from requests.models import Response
 from requests.structures import CaseInsensitiveDict
 
 from .elements.base import BaseElement
+from caldav import __version__
 from caldav.elements import dav
 from caldav.lib import error
 from caldav.lib.python_utilities import to_normal_str
@@ -421,7 +422,7 @@ class DAVClient:
 
         # Build global headers
         self.headers = {
-            "User-Agent": "Mozilla/5.0",
+            "User-Agent": "python-caldav/" + __version__,
             "Content-Type": "text/xml",
             "Accept": "text/xml, text/calendar",
         }
