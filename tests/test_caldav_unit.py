@@ -276,6 +276,7 @@ class TestCalDAV:
     def testRequestCustomHeaders(self, mocked):
         """
         ref https://github.com/python-caldav/caldav/issues/285
+        also ref https://github.com/python-caldav/caldav/issues/385
         """
         mocked().status_code = 200
         mocked().headers = {}
@@ -288,6 +289,20 @@ class TestCalDAV:
         assert client.headers["X-NC-CalDAV-Webcal-Caching"] == "On"
         ## User-Agent would be overwritten by some boring default in earlier versions
         assert client.headers["User-Agent"] == "MyCaldavApp"
+
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def testRequestUserAgent(self, mocked):
+        """
+        ref https://github.com/python-caldav/caldav/issues/391
+        """
+        mocked().status_code = 200
+        mocked().headers = {}
+        cal_url = "http://me:hunter2@calendar.møøh.example:80/"
+        client = DAVClient(
+            url=cal_url,
+        )
+        assert client.headers["Content-Type"] == "text/xml"
+        assert client.headers["User-Agent"].startswith("python-caldav/")
 
     @mock.patch("caldav.davclient.requests.Session.request")
     def testEmptyXMLNoContentLength(self, mocked):
