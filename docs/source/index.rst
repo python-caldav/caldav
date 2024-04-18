@@ -367,6 +367,8 @@ CalDAV URLs can be quite confusing, some software requires the URL to the calend
   recommended practice the caldav library will find those URLs.  A
   typical icloud calendar URL looks like
   ``https://p12-caldav.icloud.com/12345/calendars/CALNAME``.
+  If you encounter troubles with iCloud, try toggling
+  between IPv4 and IPv6 (see [issue 393](https://github.com/python-caldav/caldav/issues/393))
 
 * Google: ``https://www.google.com/calendar/dav/`` - but this is a
   legacy URL, before using the officially supported URL

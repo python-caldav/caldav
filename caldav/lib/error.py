@@ -43,7 +43,7 @@ def assert_(condition: object) -> None:
             raise
 
 
-ERR_FRAGMENT: str = "Please raise an issue at https://github.com/python-caldav/caldav/issues or reach out to t-caldav@tobixen.no, include this error and the traceback and tell what server you are using"
+ERR_FRAGMENT: str = "Please consider raising an issue at https://github.com/python-caldav/caldav/issues or reach out to t-caldav@tobixen.no, include this error and the traceback and tell what server you are using"
 
 
 class DAVError(Exception):
