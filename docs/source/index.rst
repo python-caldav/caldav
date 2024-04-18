@@ -370,16 +370,14 @@ CalDAV URLs can be quite confusing, some software requires the URL to the calend
   If you encounter troubles with iCloud, try toggling
   between IPv4 and IPv6 (see [issue 393](https://github.com/python-caldav/caldav/issues/393))
 
-* Google: ``https://www.google.com/calendar/dav/`` - but this is a
-  legacy URL, before using the officially supported URL
-  https://github.com/python-caldav/caldav/issues/119 has to be
-  resolved.  There are some details on the new CalDAV endpoints at
-  https://developers.google.com/calendar/caldav/v2/guide.  The legacy
-  calendar URL for the primary personal calendar seems to be of the
-  format
-  ``https://www.google.com/calendar/dav/donald%40gmail.com/events``. When
+* Google - legacy:  ``https://www.google.com/calendar/dav/``,
+  The calendar URL for the primary personal calendar seems to be of the
+  format ``https://www.google.com/calendar/dav/donald%40gmail.com/events``. When
   creating new calendars, they seem to end up under a global
   namespace.
+
+* Google - new api: see https://developers.google.com/calendar/caldav/v2/guide.
+  Please comment in https://github.com/python-caldav/caldav/issues/119 if you manage to connect to Google calendar.
 
 * DAViCal: The caldav URL typically seems to be on the format ``https://your.server.example.com/caldav.php/``, though it depends on how the web server is configured.  The primary calendars have URLs like ``https://your.server.example.com/caldav.php/donald/calendar`` and other calendars have names like ``https://your.server.example.com/caldav.php/donald/golfing_calendar``.
 
