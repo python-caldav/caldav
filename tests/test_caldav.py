@@ -21,6 +21,7 @@ from datetime import datetime
 from datetime import timedelta
 from datetime import timezone
 
+import icalendar
 import pytest
 import requests
 import vobject
@@ -171,6 +172,35 @@ TRANSP:TRANSPARENT
 CLASS:CONFIDENTIAL
 CATEGORIES:ANNIVERSARY,PERSONAL,SPECIAL OCCASION
 RRULE:FREQ=YEARLY
+END:VEVENT
+END:VCALENDAR"""
+
+# example created by editing a specific occurrence of a recurrent event via Thunderbird
+evr2 = """BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Mozilla.org/NONSGML Mozilla Calendar V1.1//EN
+BEGIN:VEVENT
+UID:c26921f4-0653-11ef-b756-58ce2a14e2e5
+DTSTART;VALUE=DATE:20240411
+DTEND;VALUE=DATE:20240412
+DTSTAMP:20240429T181103Z
+LAST-MODIFIED:20240429T181103Z
+RRULE:FREQ=WEEKLY;INTERVAL=2
+SEQUENCE:1
+SUMMARY:Test
+X-MOZ-GENERATION:1
+END:VEVENT
+BEGIN:VEVENT
+UID:c26921f4-0653-11ef-b756-58ce2a14e2e5
+RECURRENCE-ID;VALUE=DATE:20240425
+DTSTART;VALUE=DATE:20240425
+DTEND;VALUE=DATE:20240426
+CREATED:20240429T181031Z
+DTSTAMP:20240429T181103Z
+LAST-MODIFIED:20240429T181103Z
+SEQUENCE:1
+SUMMARY:Test (edited)
+X-MOZ-GENERATION:1
 END:VEVENT
 END:VCALENDAR"""
 
@@ -2505,7 +2535,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         self.skip_on_compatibility_flag("no_search")
         c = self._fixCalendar()
 
-        # evr is a yearly event starting at 1997-02-11
+        # evr is a yearly event starting at 1997-11-02
         e = c.save_event(evr)
 
         ## Without "expand", we should still find it when searching over 2008 ...
@@ -2582,6 +2612,30 @@ class RepeatedFunctionalTestsBaseClass(object):
         if not self.check_compatibility_flag("no_mkcalendar"):
             assert len(r) == 1
         assert r[0].data.count("END:VEVENT") == 1
+
+    def testRecurringDateWithExceptionSearch(self):
+        c = self._fixCalendar()
+
+        # evr2 is a bi-weekly event starting 2024-04-11
+        e = c.save_event(evr2)
+
+        r = c.search(
+            start=datetime(2024, 3, 31, 0, 0),
+            end=datetime(2024, 5, 4, 0, 0, 0),
+            event=True,
+            expand=True,
+        )
+
+        assert len(r) == 2
+
+        assert 'RRULE' not in r[0].data
+        assert 'RRULE' not in r[1].data
+
+        assert isinstance(r[0].icalendar_component['RECURRENCE-ID'], icalendar.vDDDTypes)
+        assert r[0].icalendar_component['RECURRENCE-ID'].dt == date(2024, 4, 11)
+
+        assert isinstance(r[1].icalendar_component['RECURRENCE-ID'], icalendar.vDDDTypes)
+        assert r[1].icalendar_component['RECURRENCE-ID'].dt == date(2024, 4, 25)
 
     def testOffsetURL(self):
         """
