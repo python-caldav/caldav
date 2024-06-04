@@ -592,8 +592,7 @@ class Principal(DAVObject):
             if cup is None:
                 log.warning("calendar server lacking a feature:")
                 log.warning("current-user-principal property not found")
-                log.warning("assuming %s is the principal URL" %
-                            self.client.url)
+                log.warning("assuming %s is the principal URL" % self.client.url)
 
             self.url = self.client.url.join(URL.objectify(cup))
 
