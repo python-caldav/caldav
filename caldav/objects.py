@@ -724,7 +724,7 @@ class Principal(DAVObject):
         )
 
         if _addresses is None:
-            raise ValueError("Unexpected value None for _addresses")
+            raise error.NotFoundError("No calendar user addresses given from server")
 
         assert not [x for x in _addresses if x.tag != dav.Href().tag]
         addresses = list(_addresses)
@@ -1216,9 +1216,23 @@ class Calendar(DAVObject):
                 raise error.ConsistencyError(
                     "Inconsistent usage parameters: xml together with other search options"
                 )
-            (response, objects) = self._request_report_build_resultlist(
-                xml, comp_class, props=props
-            )
+            try:
+                (response, objects) = self._request_report_build_resultlist(
+                    xml, comp_class, props=props
+                )
+            except error.ReportError as err:
+                ## Hack for some calendar servers
+                ## yielding 400 if the search does not include compclass.
+                ## Partial fix for https://github.com/python-caldav/caldav/issues/401
+                ## This assumes the client actually wants events and not tasks
+                ## The calendar server in question did not support tasks
+                ## However the most correct would probably be to join
+                ## events, tasks and journals.
+                ## TODO: we need server compatibility hints!
+                ## https://github.com/python-caldav/caldav/issues/402
+                if not comp_class and not '400' in err.reason:
+                    return self.search(event=True, include_completed=include_completed, sort_keys=sort_keys, split_expanded=split_expanded, props=props, **kwargs)
+                raise
 
         for o in objects:
             ## This would not be needed if the servers would follow the standard ...
@@ -2408,12 +2422,13 @@ class CalendarObjectResource(DAVObject):
             if self.client is None:
                 raise ValueError("Unexpected value None for self.client")
 
-            attendee = self.client.principal()
+            attendee = self.client.principal_address or self.client.principal()
 
         cnt = 0
 
         if isinstance(attendee, Principal):
-            for addr in attendee.calendar_user_address_set():
+            attendee_emails = attendee.calendar_user_address_set()
+            for addr in attendee_emails:
                 try:
                     self.change_attendee_status(addr, **kwargs)
                     ## TODO: can probably just return now
