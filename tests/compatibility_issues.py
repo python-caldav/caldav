@@ -35,6 +35,9 @@ incompatibility_description = {
     'no_scheduling':
         """RFC6833 is not supported""",
 
+    'no_scheduling_mailbox':
+        """Parts of RFC6833 is supported, but not the existence of inbox/mailbox""",
+
     'no_default_calendar':
         """The given user starts without an assigned default calendar """
         """(or without pre-defined calendars at all)""",
@@ -399,8 +402,11 @@ calendar_mail_ru = [
     'no_journal',
     'search_always_needs_comptype',
     'no_sync_token', ## don't know if sync tokens are supported or not - the sync-token-code needs some workarounds ref https://github.com/python-caldav/caldav/issues/401
-    #'no_scheduling', # ... at least schedule inbox not supported.  But some of the RFC is supported, so should split this up and create new tags
-    ## tasks seems not to be supported (or at least creation of task calendar).  search seems not to work (that is a huge issue).
+    'text_search_not_working',
+    'isnotdefined_not_working',
+    'no_scheduling_mailbox',
+    'no_freebusy_rfc4791',
+    'no_relships', ## mail.ru recreates the icalendar content, and strips everything it doesn't know anyhting about, including relationship info
 ]
 
 

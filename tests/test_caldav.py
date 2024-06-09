@@ -637,10 +637,14 @@ class RepeatedFunctionalTestsBaseClass(object):
 
     def testSchedulingInfo(self):
         self.skip_on_compatibility_flag("no_scheduling")
-        inbox = self.principal.schedule_inbox()
-        outbox = self.principal.schedule_outbox()
         calendar_user_address_set = self.principal.calendar_user_address_set()
         me_a_participant = self.principal.get_vcal_address()
+        
+    def testSchedulingMailboxes(self):
+        self.skip_on_compatibility_flag("no_scheduling")
+        self.skip_on_compatibility_flag("no_scheduling_mailbox")
+        inbox = self.principal.schedule_inbox()
+        outbox = self.principal.schedule_outbox()
 
     def testPropfind(self):
         """
