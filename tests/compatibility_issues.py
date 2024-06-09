@@ -12,6 +12,9 @@
 ## * Perhaps some more readable format should be considered (yaml?).
 ## * Consider how to get this into the documentation
 incompatibility_description = {
+    'no_current-user-principal':
+        """Current user principal not supported by the server (flag is ignored by the tests as for now - pass the principal URL as the testing URL and it will work, albeit with one warning""",
+    
     'no_expand':
         """Server may throw errors when asked to do an expanded date search (this is ignored by the tests now, as we're doing client-side expansion)""",
 
@@ -31,6 +34,9 @@ incompatibility_description = {
 
     'no_scheduling':
         """RFC6833 is not supported""",
+
+    'no_scheduling_mailbox':
+        """Parts of RFC6833 is supported, but not the existence of inbox/mailbox""",
 
     'no_default_calendar':
         """The given user starts without an assigned default calendar """
@@ -191,7 +197,10 @@ incompatibility_description = {
         """The is-not-defined in a calendar-query not working as it should - see https://gitlab.com/davical-project/davical/-/issues/281""",
 
     'search_needs_comptype':
-        """The server may not always come up with anything useful when searching for objects and omitting to specify weather one wants to see tasks or events""",
+        """The server may not always come up with anything useful when searching for objects and omitting to specify weather one wants to see tasks or events.  https://github.com/python-caldav/caldav/issues/401""",
+
+    'search_always_needs_comptype':
+        """calendar.mail.ru: the server throws 400 when searching for objects and omitting to specify weather one wants to see tasks or events.  `calendar.objects()` throws 404, even if there are events.  https://github.com/python-caldav/caldav/issues/401""",
 
     'robur_rrule_freq_yearly_expands_monthly':
         """Robur expands a yearly event into a monthly event.  I believe I've reported this one upstream at some point, but can't find back to it"""
@@ -385,6 +394,20 @@ posteo = [
     'no_recurring_todo',
     'no_sync_token',
     'combined_search_not_working'
+]
+
+calendar_mail_ru = [
+    'no_mkcalendar', ## weird.  It was working in early June 2024, then it stopped working in mid-June 2024.
+    'no_current-user-principal',
+    'no_todo',
+    'no_journal',
+    'search_always_needs_comptype',
+    'no_sync_token', ## don't know if sync tokens are supported or not - the sync-token-code needs some workarounds ref https://github.com/python-caldav/caldav/issues/401
+    'text_search_not_working',
+    'isnotdefined_not_working',
+    'no_scheduling_mailbox',
+    'no_freebusy_rfc4791',
+    'no_relships', ## mail.ru recreates the icalendar content, and strips everything it doesn't know anyhting about, including relationship info
 ]
 
 
