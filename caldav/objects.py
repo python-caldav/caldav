@@ -170,7 +170,7 @@ class DAVObject:
             props=props, multi_value_props=multiprops
         )
 
-        for path in list(properties.keys()):
+        for path in properties:
             resource_types = properties[path][dav.ResourceType.tag]
             resource_name = properties[path][dav.DisplayName.tag]
 
