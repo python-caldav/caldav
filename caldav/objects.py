@@ -16,13 +16,13 @@ from datetime import datetime
 from datetime import timedelta
 from datetime import timezone
 from typing import Any
+from typing import List
 from typing import Optional
+from typing import Set
+from typing import Tuple
+from typing import TYPE_CHECKING
 from typing import TypeVar
 from typing import Union
-from typing import TYPE_CHECKING
-from typing import List
-from typing import Tuple
-from typing import Set
 from urllib.parse import ParseResult
 from urllib.parse import quote
 from urllib.parse import SplitResult

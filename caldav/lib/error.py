@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 import logging
 from collections import defaultdict
-from typing import Optional
 from typing import Dict
+from typing import Optional
 
 from caldav import __version__
 
@@ -43,9 +43,7 @@ def assert_(condition: object) -> None:
             raise
 
 
-ERR_FRAGMENT: str = (
-    "Please consider raising an issue at https://github.com/python-caldav/caldav/issues or reach out to t-caldav@tobixen.no, include this error and the traceback and tell what server you are using"
-)
+ERR_FRAGMENT: str = "Please consider raising an issue at https://github.com/python-caldav/caldav/issues or reach out to t-caldav@tobixen.no, include this error and the traceback and tell what server you are using"
 
 
 class DAVError(Exception):

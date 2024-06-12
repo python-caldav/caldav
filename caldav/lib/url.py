@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 import sys
 import urllib.parse
-from typing import Union
-from typing import Optional
-from typing import cast
 from typing import Any
+from typing import cast
+from typing import Optional
+from typing import Union
 from urllib.parse import ParseResult
 from urllib.parse import quote
 from urllib.parse import SplitResult
