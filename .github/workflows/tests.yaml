@@ -14,16 +14,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python:
-          - '3.12'
-          - '3.11'
-          - '3.10'
-          - '3.9'
-          - '3.8'
-          - '3.7'
+        python: ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-python@v2
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
       - uses: actions/cache@v1
@@ -35,11 +29,11 @@ jobs:
   docs:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-python@v2
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - uses: actions/cache@v1
+      - uses: actions/cache@v4
         with:
           path: ~/.cache/pip
           key: pip|${{ hashFiles('setup.py') }}|${{ hashFiles('tox.ini') }}
@@ -48,15 +42,15 @@ jobs:
   style:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-python@v2
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - uses: actions/cache@v1
+      - uses: actions/cache@v4
         with:
           path: ~/.cache/pip
           key: pip|${{ hashFiles('setup.py') }}|${{ hashFiles('tox.ini') }}
-      - uses: actions/cache@v1
+      - uses: actions/cache@v4
         with:
           path: ~/.cache/pre-commit
           key: pre-commit|${{ hashFiles('.pre-commit-config.yaml') }}
