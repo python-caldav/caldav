@@ -1,9 +1,14 @@
 #!/usr/bin/env python
 import logging
 import sys
-import typing
 from types import TracebackType
+from typing import Any
+from typing import cast
+from typing import Dict
+from typing import List
 from typing import Optional
+from typing import Tuple
+from typing import TYPE_CHECKING
 from typing import Union
 from urllib.parse import unquote
 
@@ -25,7 +30,7 @@ from requests.structures import CaseInsensitiveDict
 
 from .elements.base import BaseElement
 
-if typing.TYPE_CHECKING:
+if TYPE_CHECKING:
     pass
 
 if sys.version_info < (3, 9):
@@ -56,7 +61,7 @@ class DAVResponse:
     huge_tree: bool = False
 
     def __init__(
-        self, response: Response, davclient: typing.Optional["DAVClient"] = None
+        self, response: Response, davclient: Optional["DAVClient"] = None
     ) -> None:
         self.headers = response.headers
         log.debug("response headers: " + str(self.headers))
@@ -147,9 +152,7 @@ class DAVResponse:
     def raw(self) -> str:
         ## TODO: this should not really be needed?
         if not hasattr(self, "_raw"):
-            self._raw = etree.tostring(
-                typing.cast(_Element, self.tree), pretty_print=True
-            )
+            self._raw = etree.tostring(cast(_Element, self.tree), pretty_print=True)
         return self._raw.decode()
 
     def _strip_to_multistatus(self):
@@ -198,17 +201,15 @@ class DAVResponse:
         ):
             raise error.ResponseError(status)
 
-    def _parse_response(
-        self, response
-    ) -> typing.Tuple[str, typing.List[_Element], typing.Optional[typing.Any]]:
+    def _parse_response(self, response) -> Tuple[str, List[_Element], Optional[Any]]:
         """
         One response should contain one or zero status children, one
         href tag and zero or more propstats.  Find them, assert there
         isn't more in the response and return those three fields
         """
         status = None
-        href: typing.Optional[str] = None
-        propstats: typing.List[_Element] = []
+        href: Optional[str] = None
+        propstats: List[_Element] = []
         error.assert_(response.tag == dav.Response.tag)
         for elem in response:
             if elem.tag == dav.Status.tag:
@@ -224,9 +225,9 @@ class DAVResponse:
             else:
                 error.assert_(False)
         error.assert_(href)
-        return (typing.cast(str, href), propstats, status)
+        return (cast(str, href), propstats, status)
 
-    def find_objects_and_props(self) -> typing.Dict[str, typing.Dict[str, _Element]]:
+    def find_objects_and_props(self) -> Dict[str, Dict[str, _Element]]:
         """Check the response from the server, check that it is on an expected format,
         find hrefs and props from it and check statuses delivered.
 
@@ -236,7 +237,7 @@ class DAVResponse:
 
         self.sync_token will be populated if found, self.objects will be populated.
         """
-        self.objects: typing.Dict[str, typing.Dict[str, _Element]] = {}
+        self.objects: Dict[str, Dict[str, _Element]] = {}
 
         if "Schedule-Tag" in self.headers:
             self.schedule_tag = self.headers["Schedule-Tag"]
@@ -311,9 +312,9 @@ class DAVResponse:
     def expand_simple_props(
         self,
         props: Iterable[BaseElement] = None,
-        multi_value_props: Iterable[typing.Any] = None,
+        multi_value_props: Iterable[Any] = None,
         xpath: Optional[str] = None,
-    ) -> typing.Dict[str, typing.Dict[str, str]]:
+    ) -> Dict[str, Dict[str, str]]:
         """
         The find_objects_and_props() will stop at the xml element
         below the prop tag.  This method will expand those props into
@@ -344,7 +345,7 @@ class DAVResponse:
                     prop.tag, props_found, xpath=xpath, multi_value_allowed=True
                 )
         # _Element objects in self.objects are parsed to str, thus the need to cast the return
-        return typing.cast(typing.Dict[str, typing.Dict[str, str]], self.objects)
+        return cast(Dict[str, Dict[str, str]], self.objects)
 
 
 class DAVClient:
@@ -369,8 +370,8 @@ class DAVClient:
         auth: Optional[AuthBase] = None,
         timeout: Optional[int] = None,
         ssl_verify_cert: Union[bool, str] = True,
-        ssl_cert: Union[str, typing.Tuple[str, str], None] = None,
-        headers: typing.Dict[str, str] = None,
+        ssl_cert: Union[str, Tuple[str, str], None] = None,
+        headers: Dict[str, str] = None,
         huge_tree: bool = False,
     ) -> None:
         """
@@ -444,7 +445,7 @@ class DAVClient:
 
     def __exit__(
         self,
-        exc_type: Optional[typing.Type[BaseException]],
+        exc_type: Optional[BaseException],
         exc_value: Optional[BaseException],
         traceback: Optional[TracebackType],
     ) -> None:

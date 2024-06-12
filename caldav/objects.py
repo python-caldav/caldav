@@ -9,7 +9,6 @@ class hierarchy into a separate file)
 """
 import re
 import sys
-import typing
 import uuid
 from collections import defaultdict
 from datetime import date
@@ -17,8 +16,11 @@ from datetime import datetime
 from datetime import timedelta
 from datetime import timezone
 from typing import Any
+from typing import List
 from typing import Optional
-from typing import Type
+from typing import Set
+from typing import Tuple
+from typing import TYPE_CHECKING
 from typing import TypeVar
 from typing import Union
 from urllib.parse import ParseResult
@@ -53,7 +55,7 @@ from caldav.elements import cdav, dav
 from caldav.lib import error, vcal
 from caldav.lib.url import URL
 
-if typing.TYPE_CHECKING:
+if TYPE_CHECKING:
     from icalendar import vCalAddress
 
     from .davclient import DAVClient
@@ -137,9 +139,7 @@ class DAVObject:
             raise ValueError("Unexpected value None for self.url")
         return str(self.url.canonical())
 
-    def children(
-        self, type: Optional[str] = None
-    ) -> typing.List[typing.Tuple[URL, Any, Any]]:
+    def children(self, type: Optional[str] = None) -> List[Tuple[URL, Any, Any]]:
         """List children, using a propfind (resourcetype) on the parent object,
         at depth = 1.
 
@@ -193,7 +193,7 @@ class DAVObject:
         return c
 
     def _query_properties(
-        self, props: Optional[typing.Sequence[BaseElement]] = None, depth: int = 0
+        self, props: Optional[Sequence[BaseElement]] = None, depth: int = 0
     ):
         """
         This is an internal method for doing a propfind query.  It's a
@@ -268,7 +268,7 @@ class DAVObject:
 
     def get_properties(
         self,
-        props: Optional[typing.Sequence[BaseElement]] = None,
+        props: Optional[Sequence[BaseElement]] = None,
         depth: int = 0,
         parse_response_xml: bool = True,
         parse_props: bool = True,
@@ -440,7 +440,7 @@ class CalendarSet(DAVObject):
     A CalendarSet is a set of calendars.
     """
 
-    def calendars(self) -> typing.List["Calendar"]:
+    def calendars(self) -> List["Calendar"]:
         """
         List all calendar collections in this set.
 
@@ -684,7 +684,7 @@ class Principal(DAVObject):
             self.client, self.client.url.join(sanitized_url)
         )
 
-    def calendars(self) -> typing.List["Calendar"]:
+    def calendars(self) -> List["Calendar"]:
         """
         Return the principials calendars
         """
@@ -715,11 +715,11 @@ class Principal(DAVObject):
         )
         return response.find_objects_and_props()
 
-    def calendar_user_address_set(self) -> typing.List[typing.Optional[str]]:
+    def calendar_user_address_set(self) -> List[Optional[str]]:
         """
         defined in RFC6638
         """
-        _addresses: typing.Optional[_Element] = self.get_property(
+        _addresses: Optional[_Element] = self.get_property(
             cdav.CalendarUserAddressSet(), parse_props=False
         )
 
@@ -804,7 +804,7 @@ class Calendar(DAVObject):
                     )
                     error.assert_(False)
 
-    def get_supported_components(self) -> typing.List[Any]:
+    def get_supported_components(self) -> List[Any]:
         """
         returns a list of component types supported by the calendar, in
         string format (typically ['VJOURNAL', 'VTODO', 'VEVENT'])
@@ -946,7 +946,7 @@ class Calendar(DAVObject):
             self._create(id=self.id, name=self.name, **self.extra_init_options)
         return self
 
-    def calendar_multiget(self, event_urls: Iterable[URL]) -> typing.List["Event"]:
+    def calendar_multiget(self, event_urls: Iterable[URL]) -> List["Event"]:
         """
         get multiple events' data
         @author mtorange@gmail.com
@@ -1128,14 +1128,14 @@ class Calendar(DAVObject):
     def search(
         self,
         xml=None,
-        comp_class: Optional[Type[_CC]] = None,
+        comp_class: Optional[_CC] = None,
         todo: Optional[bool] = None,
         include_completed: bool = False,
         sort_keys: Sequence[str] = (),
         split_expanded: bool = True,
-        props: Optional[typing.List[CalendarData]] = None,
+        props: Optional[List[CalendarData]] = None,
         **kwargs,
-    ) -> typing.List[_CC]:
+    ) -> List[_CC]:
         """Creates an XML query, does a REPORT request towards the
         server and returns objects found, eventually sorting them
         before delivery.
@@ -1493,7 +1493,7 @@ class Calendar(DAVObject):
         sort_keys: Sequence[str] = ("due", "priority"),
         include_completed: bool = False,
         sort_key: Optional[str] = None,
-    ) -> typing.List["Todo"]:
+    ) -> List["Todo"]:
         """
         fetches a list of todo events (refactored to a wrapper around search)
 
@@ -1557,7 +1557,7 @@ class Calendar(DAVObject):
         self,
         uid: str,
         comp_filter: Optional[CompFilter] = None,
-        comp_class: typing.Optional["CalendarObjectResource"] = None,
+        comp_class: Optional["CalendarObjectResource"] = None,
     ) -> "Event":
         """
         Get one event from the calendar.
@@ -1595,7 +1595,7 @@ class Calendar(DAVObject):
         )
 
         try:
-            items_found: typing.List[Event] = self.search(root)
+            items_found: List[Event] = self.search(root)
             if not items_found:
                 raise error.NotFoundError("%s not found on server" % uid)
         except Exception as err:
@@ -1651,7 +1651,7 @@ class Calendar(DAVObject):
     # alias for backward compatibility
     event = event_by_uid
 
-    def events(self) -> typing.List["Event"]:
+    def events(self) -> List["Event"]:
         """
         List all events from the calendar.
 
@@ -1709,7 +1709,7 @@ class Calendar(DAVObject):
 
     objects = objects_by_sync_token
 
-    def journals(self) -> typing.List["Journal"]:
+    def journals(self) -> List["Journal"]:
         """
         List all journals from the calendar.
 
@@ -1854,7 +1854,7 @@ class SynchronizableCalendarObjectCollection:
                 self._objects_by_url[obj.url.canonical()] = obj
         return self._objects_by_url
 
-    def sync(self) -> typing.Tuple[Any, Any]:
+    def sync(self) -> Tuple[Any, Any]:
         """
         This method will contact the caldav server,
         request all changes from it, and sync up the collection
@@ -1940,7 +1940,7 @@ class CalendarObjectResource(DAVObject):
         ## TODO: what if walk returns more than one vevent?
         self.icalendar_component.add("organizer", principal.get_vcal_address())
 
-    def split_expanded(self) -> typing.List[Self]:
+    def split_expanded(self) -> List[Self]:
         i = self.icalendar_instance.subcomponents
         tz_ = [x for x in i if isinstance(x, icalendar.Timezone)]
         ntz = [x for x in i if not isinstance(x, icalendar.Timezone)]
@@ -2061,7 +2061,7 @@ class CalendarObjectResource(DAVObject):
         relfilter: Optional[Callable[[Any], bool]] = None,
         fetch_objects: bool = True,
         ignore_missing: bool = True,
-    ) -> DefaultDict[str, typing.Set[str]]:
+    ) -> DefaultDict[str, Set[str]]:
         """
         By default, loads all objects pointed to by the RELATED-TO
         property and loads the related objects.
@@ -2598,7 +2598,7 @@ class CalendarObjectResource(DAVObject):
         self._icalendar_instance = None
         return self
 
-    def _get_vobject_instance(self) -> typing.Optional[vobject.base.Component]:
+    def _get_vobject_instance(self) -> Optional[vobject.base.Component]:
         if not self._vobject_instance:
             if self._get_data() is None:
                 return None

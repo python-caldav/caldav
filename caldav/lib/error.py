@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 import logging
-import typing
 from collections import defaultdict
+from typing import Dict
 from typing import Optional
 
 from caldav import __version__
@@ -118,9 +118,7 @@ class ResponseError(DAVError):
     pass
 
 
-exception_by_method: typing.Dict[str, typing.Type[DAVError]] = defaultdict(
-    lambda: DAVError
-)
+exception_by_method: Dict[str, DAVError] = defaultdict(lambda: DAVError)
 for method in (
     "delete",
     "put",
