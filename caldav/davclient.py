@@ -618,11 +618,14 @@ class DAVClient:
         url: str,
         method: str = "GET",
         body: str = "",
-        headers: Mapping[str, str] = {},
+        headers: Mapping[str, str] = None,
     ) -> DAVResponse:
         """
         Actually sends the request, and does the authentication
         """
+        if headers is None:
+            headers = {}
+
         combined_headers = self.headers.copy()
         combined_headers.update(headers)
         if (body is None or body == "") and "Content-Type" in combined_headers:
