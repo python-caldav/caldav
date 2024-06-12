@@ -121,10 +121,7 @@ class DAVObject:
         self.parent = parent
         self.name = name
         self.id = id
-        if props is None:
-            self.props = {}
-        else:
-            self.props = props
+        self.props = props or {}
         self.extra_init_options = extra
         # url may be a path relative to the caldav root
         if client and url:

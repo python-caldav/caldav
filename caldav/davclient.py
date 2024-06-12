@@ -50,7 +50,7 @@ class DAVResponse:
     raw = ""
     reason: str = ""
     tree: Optional[_Element] = None
-    headers: CaseInsensitiveDict = {}
+    headers: CaseInsensitiveDict = None
     status: int = 0
     davclient = None
     huge_tree: bool = False
@@ -310,8 +310,8 @@ class DAVResponse:
     ## TODO: "expand" does not feel quite right.
     def expand_simple_props(
         self,
-        props: Iterable[BaseElement] = [],
-        multi_value_props: Iterable[typing.Any] = [],
+        props: Iterable[BaseElement] = None,
+        multi_value_props: Iterable[typing.Any] = None,
         xpath: Optional[str] = None,
     ) -> typing.Dict[str, typing.Dict[str, str]]:
         """
@@ -322,6 +322,9 @@ class DAVResponse:
         Executes find_objects_and_props if not run already, then
         modifies and returns self.objects.
         """
+        props = props or []
+        multi_value_props = multi_value_props or []
+
         if not hasattr(self, "objects"):
             self.find_objects_and_props()
         for href in self.objects:
@@ -367,7 +370,7 @@ class DAVClient:
         timeout: Optional[int] = None,
         ssl_verify_cert: Union[bool, str] = True,
         ssl_cert: Union[str, typing.Tuple[str, str], None] = None,
-        headers: typing.Dict[str, str] = {},
+        headers: typing.Dict[str, str] = None,
         huge_tree: bool = False,
     ) -> None:
         """
@@ -385,6 +388,7 @@ class DAVClient:
         username and password may be omitted.  Known bug: .netrc is honored
         even if a username/password is given, ref https://github.com/python-caldav/caldav/issues/206
         """
+        headers = headers or {}
 
         self.session = requests.Session()
 
@@ -586,17 +590,21 @@ class DAVClient:
         """
         return self.request(url, "MKCALENDAR", body)
 
-    def put(self, url: str, body: str, headers: Mapping[str, str] = {}) -> DAVResponse:
+    def put(
+        self, url: str, body: str, headers: Mapping[str, str] = None
+    ) -> DAVResponse:
         """
         Send a put request.
         """
-        return self.request(url, "PUT", body, headers)
+        return self.request(url, "PUT", body, headers or {})
 
-    def post(self, url: str, body: str, headers: Mapping[str, str] = {}) -> DAVResponse:
+    def post(
+        self, url: str, body: str, headers: Mapping[str, str] = None
+    ) -> DAVResponse:
         """
         Send a POST request.
         """
-        return self.request(url, "POST", body, headers)
+        return self.request(url, "POST", body, headers or {})
 
     def delete(self, url: str) -> DAVResponse:
         """
@@ -623,8 +631,7 @@ class DAVClient:
         """
         Actually sends the request, and does the authentication
         """
-        if headers is None:
-            headers = {}
+        headers = headers or {}
 
         combined_headers = self.headers.copy()
         combined_headers.update(headers)
