@@ -1,7 +1,7 @@
 #!/usr/bin/env python
-import typing
 from typing import Dict
 from typing import Optional
+from typing import Any
 
 nsmap: Dict[str, str] = {
     "D": "DAV:",
@@ -13,7 +13,7 @@ nsmap: Dict[str, str] = {
 ## calendar-color and calendar-order properties.  However, those
 ## attributes aren't described anywhere, and the I-URL even gives a
 ## 404!  I don't want to ship it in the namespace list of every request.
-nsmap2: Dict[str, typing.Any] = nsmap.copy()
+nsmap2: Dict[str, Any] = nsmap.copy()
 nsmap2["I"] = ("http://apple.com/ns/ical/",)
 
 

@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 import sys
-import typing
 from typing import ClassVar
 from typing import List
 from typing import Optional
@@ -26,7 +25,7 @@ class BaseElement:
     children: Optional[List[Self]] = None
     tag: ClassVar[Optional[str]] = None
     value: Optional[str] = None
-    attributes: typing.Optional[dict] = None
+    attributes: Optional[dict] = None
     caldav_class = None
 
     def __init__(

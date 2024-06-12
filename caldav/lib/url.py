@@ -1,8 +1,10 @@
 #!/usr/bin/env python
 import sys
-import typing
 import urllib.parse
 from typing import Union
+from typing import Optional
+from typing import cast
+from typing import Any
 from urllib.parse import ParseResult
 from urllib.parse import quote
 from urllib.parse import SplitResult
@@ -51,7 +53,7 @@ class URL:
 
     def __init__(self, url: Union[str, ParseResult, SplitResult]) -> None:
         if isinstance(url, ParseResult) or isinstance(url, SplitResult):
-            self.url_parsed: typing.Optional[Union[ParseResult, SplitResult]] = url
+            self.url_parsed: Optional[Union[ParseResult, SplitResult]] = url
             self.url_raw = None
         else:
             self.url_raw = url
@@ -95,9 +97,7 @@ class URL:
         if "url_parsed" not in vars(self):
             raise AttributeError
         if self.url_parsed is None:
-            self.url_parsed = typing.cast(
-                urllib.parse.ParseResult, urlparse(self.url_raw)
-            )
+            self.url_parsed = cast(urllib.parse.ParseResult, urlparse(self.url_raw))
         if hasattr(self.url_parsed, attr):
             return getattr(self.url_parsed, attr)
         else:
@@ -151,7 +151,7 @@ class URL:
         """
         url = self.unauth()
 
-        arr = list(typing.cast(urllib.parse.ParseResult, self.url_parsed))
+        arr = list(cast(urllib.parse.ParseResult, self.url_parsed))
         ## quoting path and removing double slashes
         arr[2] = quote(unquote(url.path.replace("//", "/")))
         ## sensible defaults
@@ -172,7 +172,7 @@ class URL:
 
         return url
 
-    def join(self, path: typing.Any) -> "URL":
+    def join(self, path: Any) -> "URL":
         """
         assumes this object is the base URL or base path.  If the path
         is relative, it should be appended to the base.  If the path
