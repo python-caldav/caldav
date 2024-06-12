@@ -967,16 +967,15 @@ class Calendar(DAVObject):
         )
         response = self._query(root, 1, "report")
         results = response.expand_simple_props([cdav.CalendarData()])
-        for r in results:
-            rv.append(
-                Event(
-                    self.client,
-                    url=self.url.join(r),
-                    data=results[r][cdav.CalendarData.tag],
-                    parent=self,
-                )
+        rv = [
+            Event(
+                self.client,
+                url=self.url.join(r),
+                data=results[r][cdav.CalendarData.tag],
+                parent=self,
             )
-
+            for r in results
+        ]
         return rv
 
     ## TODO: Upgrade the warning to an error (and perhaps critical) in future
