@@ -590,13 +590,17 @@ class DAVClient:
         """
         return self.request(url, "MKCALENDAR", body)
 
-    def put(self, url: str, body: str, headers: Mapping[str, str] = None) -> DAVResponse:
+    def put(
+        self, url: str, body: str, headers: Mapping[str, str] = None
+    ) -> DAVResponse:
         """
         Send a put request.
         """
         return self.request(url, "PUT", body, headers or {})
 
-    def post(self, url: str, body: str, headers: Mapping[str, str] = None) -> DAVResponse:
+    def post(
+        self, url: str, body: str, headers: Mapping[str, str] = None
+    ) -> DAVResponse:
         """
         Send a POST request.
         """
