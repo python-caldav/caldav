@@ -758,7 +758,9 @@ class DAVClient:
                 commlog.write(b"<====\n")
                 commlog.write(f"{response.status} {response.reason}".encode("utf-8"))
                 commlog.write(
-                    b"\n".join(to_wire(f"{x}: {response.headers[x]}") for x in response.headers)
+                    b"\n".join(
+                        to_wire(f"{x}: {response.headers[x]}") for x in response.headers
+                    )
                 )
                 commlog.write(b"\n\n")
                 ct = response.headers.get("Content-Type", "")
