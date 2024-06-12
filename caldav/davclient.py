@@ -751,7 +751,7 @@ class DAVClient:
                 commlog.write(b"\n====>\n")
                 commlog.write(f"{method} {url}\n".encode("utf-8"))
                 commlog.write(
-                    b"\n".join([to_wire(f"{x}: {headers[x]}") for x in headers])
+                    b"\n".join(to_wire(f"{x}: {headers[x]}") for x in headers)
                 )
                 commlog.write(b"\n\n")
                 commlog.write(to_wire(body))
@@ -759,10 +759,7 @@ class DAVClient:
                 commlog.write(f"{response.status} {response.reason}".encode("utf-8"))
                 commlog.write(
                     b"\n".join(
-                        [
-                            to_wire(f"{x}: {response.headers[x]}")
-                            for x in response.headers
-                        ]
+                        to_wire(f"{x}: {response.headers[x]}") for x in response.headers
                     )
                 )
                 commlog.write(b"\n\n")
