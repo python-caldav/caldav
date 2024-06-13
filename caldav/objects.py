@@ -353,13 +353,13 @@ class DAVObject:
                 "Possibly the server has a path handling problem, possibly the URL configured is wrong.\n"
                 "Path expected: %s, path found: %s %s.\n"
                 "Continuing, probably everything will be fine"
-                % (path, str(list(properties.keys())), error.ERR_FRAGMENT)
+                % (path, str(list(properties)), error.ERR_FRAGMENT)
             )
             rc = list(properties.values())[0]
         else:
             log.error(
                 "Possibly the server has a path handling problem.  Path expected: %s, paths found: %s %s"
-                % (path, str(list(properties.keys())), error.ERR_FRAGMENT)
+                % (path, str(list(properties)), error.ERR_FRAGMENT)
             )
             error.assert_(False)
 
