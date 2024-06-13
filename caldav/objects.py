@@ -1342,8 +1342,7 @@ class Calendar(DAVObject):
 
         comp_filter = None
 
-        if not filters:
-            filters = []
+        filters = filters or []
 
         vNotCompleted = cdav.TextMatch("COMPLETED", negate=True)
         vNotCancelled = cdav.TextMatch("CANCELLED", negate=True)
