@@ -618,7 +618,7 @@ class DAVClient:
 
     def extract_auth_types(self, header: str):
         # https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/WWW-Authenticate#syntax
-        return {h.split(" ")[0] for h in header.lower().split(",")}
+        return {h.split()[0] for h in header.lower().split(",")}
 
     def request(
         self,
