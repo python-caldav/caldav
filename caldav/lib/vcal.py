@@ -65,9 +65,7 @@ def fix(event):
 
     ## TODO: add ^ before COMPLETED and CREATED?
     ## 1) Add an arbitrary time if completed is given as date
-    fixed = re.sub(
-        r"COMPLETED(?:;VALUE=DATE)?:(\d+)\s", r"COMPLETED:\g<1>T120000Z", event
-    )
+    fixed = re.sub(r"COMPLETED(?:;VALUE=DATE)?:(\d+)\s", r"COMPLETED:\g<1>T120000Z", event)
 
     ## 2) CREATED timestamps prior to epoch does not make sense,
     ## change from year 0001 to epoch.
@@ -81,10 +79,7 @@ def fix(event):
     ## 5 prepare to remove DURATION or DTEND/DUE if both DURATION and
     ## DTEND/DUE is set.
     ## remove duplication of DTSTAMP
-    fixed2 = (
-        "\n".join(filter(LineFilterDiscardingDuplicates(), fixed.strip().split("\n")))
-        + "\n"
-    )
+    fixed2 = "\n".join(filter(LineFilterDiscardingDuplicates(), fixed.strip().split("\n"))) + "\n"
 
     if fixed2 != event:
         global fixup_error_loggings
@@ -105,13 +100,7 @@ This is probably harmless, particularly if not editing events or tasks
         try:
             import difflib
 
-            log(
-                "\n".join(
-                    difflib.unified_diff(
-                        event.split("\n"), fixed2.split("\n"), lineterm=""
-                    )
-                )
-            )
+            log("\n".join(difflib.unified_diff(event.split("\n"), fixed2.split("\n"), lineterm="")))
         except:
             log("Original: \n" + event)
             log("Modified: \n" + fixed2)
@@ -168,20 +157,12 @@ def create_ical(ical_fragment=None, objtype=None, language="en_DK", **props):
         ## STATUS should default to NEEDS-ACTION for tasks, if it's not set
         ## (otherwise we cannot easily add a task to a davical calendar and
         ## then find it again - ref https://gitlab.com/davical-project/davical/-/issues/281
-        if (
-            not props.get("status")
-            and "\nSTATUS:" not in (ical_fragment or "")
-            and objtype == "VTODO"
-        ):
+        if not props.get("status") and "\nSTATUS:" not in (ical_fragment or "") and objtype == "VTODO":
             props["status"] = "NEEDS-ACTION"
 
     else:
         if not ical_fragment.strip().startswith("BEGIN:VCALENDAR"):
-            ical_fragment = (
-                "BEGIN:VCALENDAR\n"
-                + to_normal_str(ical_fragment.strip())
-                + "\nEND:VCALENDAR\n"
-            )
+            ical_fragment = "BEGIN:VCALENDAR\n" + to_normal_str(ical_fragment.strip()) + "\nEND:VCALENDAR\n"
         my_instance = icalendar.Calendar.from_ical(ical_fragment)
         component = my_instance.subcomponents[0]
         ical_fragment = None

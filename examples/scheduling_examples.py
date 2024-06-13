@@ -41,9 +41,7 @@ class TestUser:
         calendar_id = "schedulingtestcalendar%i" % i
         calendar_name = "calendar #%i for scheduling demo" % i
         self.cleanup(calendar_name)
-        self.calendar = self.principal.make_calendar(
-            name=calendar_name, cal_id=calendar_id
-        )
+        self.calendar = self.principal.make_calendar(name=calendar_name, cal_id=calendar_id)
 
     def cleanup(self, calendar_name):
         ## Cleanup from earlier runs
@@ -138,12 +136,8 @@ attendees.append(("Some Other Random Guy", "some-other-random-guy@example.com"))
 print("Sending a calendar invite")
 organizer.calendar.save_with_invites(caldata, attendees=attendees)
 
-print(
-    "Storing another calendar event with the same participants, but without sending out emails"
-)
-organizer.calendar.save_with_invites(
-    caldata2, attendees=attendees, schedule_agent="NONE"
-)
+print("Storing another calendar event with the same participants, but without sending out emails")
+organizer.calendar.save_with_invites(caldata2, attendees=attendees, schedule_agent="NONE")
 
 ## There are some attendee parameters that may be set (TODO: add
 ## example code), the convenience method above will use sensible

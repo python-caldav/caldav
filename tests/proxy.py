@@ -63,9 +63,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
             host_port = netloc[:i], int(netloc[i + 1 :])
         else:
             host_port = netloc, 80
-        self.server.logger.log(
-            logging.INFO, "connect to %s:%d", host_port[0], host_port[1]
-        )
+        self.server.logger.log(logging.INFO, "connect to %s:%d", host_port[0], host_port[1])
         try:
             soc.connect(host_port)
         except socket.error as arg:
@@ -82,9 +80,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
         try:
             if self._connect_to(self.path, soc):
                 self.log_request(200)
-                self.wfile.write(
-                    self.protocol_version + " 200 Connection established\r\n"
-                )
+                self.wfile.write(self.protocol_version + " 200 Connection established\r\n")
                 self.wfile.write("Proxy-agent: %s\r\n" % self.version_string())
                 self.wfile.write("\r\n")
                 self._read_write(soc, 300)
@@ -178,14 +174,10 @@ class ProxyHandler(BaseHTTPRequestHandler):
     do_PROPFIND = do_GET
 
     def log_message(self, format, *args):
-        self.server.logger.log(
-            logging.INFO, "%s %s", self.address_string(), format % args
-        )
+        self.server.logger.log(logging.INFO, "%s %s", self.address_string(), format % args)
 
     def log_error(self, format, *args):
-        self.server.logger.log(
-            logging.ERROR, "%s %s", self.address_string(), format % args
-        )
+        self.server.logger.log(logging.ERROR, "%s %s", self.address_string(), format % args)
 
 
 class ThreadingHTTPServer(ThreadingMixIn, HTTPServer):
@@ -212,13 +204,9 @@ def logSetup(filename, log_size, daemon):
                 DEFAULT_LOG_FILENAME, maxBytes=(log_size * (1 << 20)), backupCount=5
             )
     else:
-        handler = logging.handlers.RotatingFileHandler(
-            filename, maxBytes=(log_size * (1 << 20)), backupCount=5
-        )
+        handler = logging.handlers.RotatingFileHandler(filename, maxBytes=(log_size * (1 << 20)), backupCount=5)
     fmt = logging.Formatter(
-        "[%(asctime)-12s.%(msecs)03d] "
-        "%(levelname)-8s {%(name)s %(threadName)s}"
-        " %(message)s",
+        "[%(asctime)-12s.%(msecs)03d] " "%(levelname)-8s {%(name)s %(threadName)s}" " %(message)s",
         "%Y-%m-%d %H:%M:%S",
     )
     handler.setFormatter(fmt)

@@ -31,9 +31,7 @@ def assert_(condition: object) -> None:
         assert condition
     except AssertionError:
         if debugmode == "PRODUCTION":
-            log.error(
-                "Deviation from expectations found.  %s" % ERR_FRAGMENT, exc_info=True
-            )
+            log.error("Deviation from expectations found.  %s" % ERR_FRAGMENT, exc_info=True)
         elif debugmode == "DEBUG_PDB":
             log.error("Deviation from expectations found.  Dropping into debugger")
             import pdb

@@ -53,3 +53,6 @@ include-package-data = true
 [tool.setuptools.packages.find]
 exclude = ["tests"]
 namespaces = false
+
+[tool.black]
+line-length = 120

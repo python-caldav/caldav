@@ -60,9 +60,7 @@ class DAVResponse:
     davclient = None
     huge_tree: bool = False
 
-    def __init__(
-        self, response: Response, davclient: Optional["DAVClient"] = None
-    ) -> None:
+    def __init__(self, response: Response, davclient: Optional["DAVClient"] = None) -> None:
         self.headers = response.headers
         log.debug("response headers: " + str(self.headers))
         log.debug("response status: " + str(self.status))
@@ -75,9 +73,9 @@ class DAVResponse:
         ## TODO: this if/else/elif could possibly be refactored, or we should
         ## consider to do streaming into the xmltree library as originally
         ## intended.  It only makes sense for really huge payloads though.
-        if self.headers.get("Content-Type", "").startswith(
-            "text/xml"
-        ) or self.headers.get("Content-Type", "").startswith("application/xml"):
+        if self.headers.get("Content-Type", "").startswith("text/xml") or self.headers.get(
+            "Content-Type", ""
+        ).startswith("application/xml"):
             try:
                 content_length = int(self.headers["Content-Length"])
             except:
@@ -94,22 +92,19 @@ class DAVResponse:
                 try:
                     self.tree = etree.XML(
                         self._raw,
-                        parser=etree.XMLParser(
-                            remove_blank_text=True, huge_tree=self.huge_tree
-                        ),
+                        parser=etree.XMLParser(remove_blank_text=True, huge_tree=self.huge_tree),
                     )
                 except:
                     logging.critical(
-                        "Expected some valid XML from the server, but got this: \n"
-                        + str(self._raw),
+                        "Expected some valid XML from the server, but got this: \n" + str(self._raw),
                         exc_info=True,
                     )
                     raise
                 if log.level <= logging.DEBUG:
                     log.debug(etree.tostring(self.tree, pretty_print=True))
-        elif self.headers.get("Content-Type", "").startswith(
-            "text/calendar"
-        ) or self.headers.get("Content-Type", "").startswith("text/plain"):
+        elif self.headers.get("Content-Type", "").startswith("text/calendar") or self.headers.get(
+            "Content-Type", ""
+        ).startswith("text/plain"):
             ## text/plain is typically for errors, we shouldn't see it on 200/207 responses.
             ## TODO: may want to log an error if it's text/plain and 200/207.
             ## Logic here was moved when refactoring
@@ -124,9 +119,7 @@ class DAVResponse:
             try:
                 self.tree = etree.XML(
                     self._raw,
-                    parser=etree.XMLParser(
-                        remove_blank_text=True, huge_tree=self.huge_tree
-                    ),
+                    parser=etree.XMLParser(remove_blank_text=True, huge_tree=self.huge_tree),
                 )
             except:
                 pass
@@ -193,12 +186,7 @@ class DAVResponse:
         makes sense to me, but I've only seen it from SOGo, and it's
         not in accordance with the examples in rfc6578.
         """
-        if (
-            " 200 " not in status
-            and " 201 " not in status
-            and " 207 " not in status
-            and " 404 " not in status
-        ):
+        if " 200 " not in status and " 201 " not in status and " 207 " not in status and " 404 " not in status:
             raise error.ResponseError(status)
 
     def _parse_response(self, response) -> Tuple[str, List[_Element], Optional[Any]]:
@@ -280,9 +268,7 @@ class DAVResponse:
 
         return self.objects
 
-    def _expand_simple_prop(
-        self, proptag, props_found, multi_value_allowed=False, xpath=None
-    ):
+    def _expand_simple_prop(self, proptag, props_found, multi_value_allowed=False, xpath=None):
         values = []
         if proptag in props_found:
             prop_xml = props_found[proptag]
@@ -334,9 +320,7 @@ class DAVResponse:
                 if prop.tag is None:
                     continue
 
-                props_found[prop.tag] = self._expand_simple_prop(
-                    prop.tag, props_found, xpath=xpath
-                )
+                props_found[prop.tag] = self._expand_simple_prop(prop.tag, props_found, xpath=xpath)
             for prop in multi_value_props:
                 if prop.tag is None:
                     continue
@@ -503,9 +487,7 @@ class DAVClient:
         support_list = self.check_dav_support()
         return support_list is not None and "calendar-auto-schedule" in support_list
 
-    def propfind(
-        self, url: Optional[str] = None, props: str = "", depth: int = 0
-    ) -> DAVResponse:
+    def propfind(self, url: Optional[str] = None, props: str = "", depth: int = 0) -> DAVResponse:
         """
         Send a propfind request.
 
@@ -517,9 +499,7 @@ class DAVClient:
         Returns
          * DAVResponse
         """
-        return self.request(
-            url or str(self.url), "PROPFIND", props, {"Depth": str(depth)}
-        )
+        return self.request(url or str(self.url), "PROPFIND", props, {"Depth": str(depth)})
 
     def proppatch(self, url: str, body: str, dummy: None = None) -> DAVResponse:
         """
@@ -591,17 +571,13 @@ class DAVClient:
         """
         return self.request(url, "MKCALENDAR", body)
 
-    def put(
-        self, url: str, body: str, headers: Mapping[str, str] = None
-    ) -> DAVResponse:
+    def put(self, url: str, body: str, headers: Mapping[str, str] = None) -> DAVResponse:
         """
         Send a put request.
         """
         return self.request(url, "PUT", body, headers or {})
 
-    def post(
-        self, url: str, body: str, headers: Mapping[str, str] = None
-    ) -> DAVResponse:
+    def post(self, url: str, body: str, headers: Mapping[str, str] = None) -> DAVResponse:
         """
         Send a POST request.
         """
@@ -684,12 +660,7 @@ class DAVClient:
             if not r.status_code == 401:
                 raise
 
-        if (
-            r.status_code == 401
-            and "WWW-Authenticate" in r.headers
-            and not self.auth
-            and self.username
-        ):
+        if r.status_code == 401 and "WWW-Authenticate" in r.headers and not self.auth and self.username:
             auth_types = self.extract_auth_types(r.headers["WWW-Authenticate"])
 
             if self.password and self.username and "digest" in auth_types:
@@ -725,13 +696,9 @@ class DAVClient:
             auth_types = self.extract_auth_types(r.headers["WWW-Authenticate"])
 
             if self.password and self.username and "digest" in auth_types:
-                self.auth = requests.auth.HTTPDigestAuth(
-                    self.username, self.password.decode()
-                )
+                self.auth = requests.auth.HTTPDigestAuth(self.username, self.password.decode())
             elif self.password and self.username and "basic" in auth_types:
-                self.auth = requests.auth.HTTPBasicAuth(
-                    self.username, self.password.decode()
-                )
+                self.auth = requests.auth.HTTPBasicAuth(self.username, self.password.decode())
             elif self.password and "bearer" in auth_types:
                 self.auth = HTTPBearerAuth(self.password.decode())
 
@@ -740,10 +707,7 @@ class DAVClient:
             return self.request(str(url_obj), method, body, headers)
 
         # this is an error condition that should be raised to the application
-        if (
-            response.status == requests.codes.forbidden
-            or response.status == requests.codes.unauthorized
-        ):
+        if response.status == requests.codes.forbidden or response.status == requests.codes.unauthorized:
             try:
                 reason = response.reason
             except AttributeError:
@@ -759,24 +723,16 @@ class DAVClient:
                 commlog.write(f"{datetime.datetime.now():%FT%H:%M:%S}".encode("utf-8"))
                 commlog.write(b"\n====>\n")
                 commlog.write(f"{method} {url}\n".encode("utf-8"))
-                commlog.write(
-                    b"\n".join(to_wire(f"{x}: {headers[x]}") for x in headers)
-                )
+                commlog.write(b"\n".join(to_wire(f"{x}: {headers[x]}") for x in headers))
                 commlog.write(b"\n\n")
                 commlog.write(to_wire(body))
                 commlog.write(b"<====\n")
                 commlog.write(f"{response.status} {response.reason}".encode("utf-8"))
-                commlog.write(
-                    b"\n".join(
-                        to_wire(f"{x}: {response.headers[x]}") for x in response.headers
-                    )
-                )
+                commlog.write(b"\n".join(to_wire(f"{x}: {response.headers[x]}") for x in response.headers))
                 commlog.write(b"\n\n")
                 ct = response.headers.get("Content-Type", "")
                 if response.tree is not None:
-                    commlog.write(
-                        to_wire(etree.tostring(response.tree, pretty_print=True))
-                    )
+                    commlog.write(to_wire(etree.tostring(response.tree, pretty_print=True)))
                 else:
                     commlog.write(to_wire(response._raw))
                 commlog.write(b"\n")

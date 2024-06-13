@@ -195,18 +195,14 @@ class TestExpandRRule:
         assert len(self.yearly.icalendar_instance.subcomponents) == 0
 
     def testOne(self):
-        self.yearly.expand_rrule(
-            start=datetime(1998, 10, 10), end=datetime(1998, 12, 12)
-        )
+        self.yearly.expand_rrule(start=datetime(1998, 10, 10), end=datetime(1998, 12, 12))
         assert len(self.yearly.icalendar_instance.subcomponents) == 1
         assert not "RRULE" in self.yearly.icalendar_component
         assert "UID" in self.yearly.icalendar_component
         assert "RECURRENCE-ID" in self.yearly.icalendar_component
 
     def testThree(self):
-        self.yearly.expand_rrule(
-            start=datetime(1996, 10, 10), end=datetime(1999, 12, 12)
-        )
+        self.yearly.expand_rrule(start=datetime(1996, 10, 10), end=datetime(1999, 12, 12))
         assert len(self.yearly.icalendar_instance.subcomponents) == 3
         data1 = self.yearly.icalendar_instance.subcomponents[0].to_ical()
         data2 = self.yearly.icalendar_instance.subcomponents[1].to_ical()
@@ -220,16 +216,11 @@ class TestExpandRRule:
         assert data1.replace(b"19970", b"19980") == data2
 
     def testSplit(self):
-        self.yearly.expand_rrule(
-            start=datetime(1996, 10, 10), end=datetime(1999, 12, 12)
-        )
+        self.yearly.expand_rrule(start=datetime(1996, 10, 10), end=datetime(1999, 12, 12))
         events = self.yearly.split_expanded()
         assert len(events) == 3
         assert len(events[0].icalendar_instance.subcomponents) == 1
-        assert (
-            events[1].icalendar_component["UID"]
-            == "19970901T130000Z-123403@example.com"
-        )
+        assert events[1].icalendar_component["UID"] == "19970901T130000Z-123403@example.com"
 
     def test241(self):
         """
@@ -238,9 +229,7 @@ class TestExpandRRule:
         This seems like sort of a duplicate of testThreeTodo, but the ftests actually started failing
         """
         assert len(self.todo.data) > 128
-        self.todo.expand_rrule(
-            start=datetime(1997, 4, 14, 0, 0), end=datetime(2015, 5, 14, 0, 0)
-        )
+        self.todo.expand_rrule(start=datetime(1997, 4, 14, 0, 0), end=datetime(2015, 5, 14, 0, 0))
         assert len(self.todo.data) > 128
 
 
@@ -359,9 +348,7 @@ class TestCalDAV:
         mocked_davresponse = DAVResponse(mocked_response)
         client.propfind = mock.MagicMock(return_value=mocked_davresponse)
         bernards_calendars = principal.calendar_home_set
-        assert bernards_calendars.url == URL(
-            "http://cal.example.com/home/bernard/calendars/"
-        )
+        assert bernards_calendars.url == URL("http://cal.example.com/home/bernard/calendars/")
 
     def _load(self, only_if_unloaded=True):
         self.data = todo6
@@ -417,12 +404,8 @@ class TestCalDAV:
 </multistatus></xml>
 """
         client = MockedDAVClient(xml)
-        calendar = Calendar(
-            client, url="/principals/calendar/home@petroski.example.com/963/"
-        )
-        results = calendar.date_search(
-            datetime(2021, 2, 1), datetime(2021, 2, 7), expand=False
-        )
+        calendar = Calendar(client, url="/principals/calendar/home@petroski.example.com/963/")
+        results = calendar.date_search(datetime(2021, 2, 1), datetime(2021, 2, 7), expand=False)
         assert len(results) == 3
 
     def testCalendar(self):
@@ -605,16 +588,9 @@ class TestCalDAV:
   </response>
 </multistatus>
 """
-        expected_result = {
-            "/": {"{DAV:}current-user-principal": "/17149682/principal/"}
-        }
+        expected_result = {"/": {"{DAV:}current-user-principal": "/17149682/principal/"}}
 
-        assert (
-            MockedDAVResponse(xml).expand_simple_props(
-                props=[dav.CurrentUserPrincipal()]
-            )
-            == expected_result
-        )
+        assert MockedDAVResponse(xml).expand_simple_props(props=[dav.CurrentUserPrincipal()]) == expected_result
 
         ## This duplicated response is observed in the real world -
         ## see https://github.com/python-caldav/caldav/issues/136
@@ -645,17 +621,8 @@ class TestCalDAV:
   </response>
 </multistatus>
 """
-        expected_result = {
-            "/principals/users/frank/": {
-                "{DAV:}current-user-principal": "/principals/users/frank/"
-            }
-        }
-        assert (
-            MockedDAVResponse(xml).expand_simple_props(
-                props=[dav.CurrentUserPrincipal()]
-            )
-            == expected_result
-        )
+        expected_result = {"/principals/users/frank/": {"{DAV:}current-user-principal": "/principals/users/frank/"}}
+        assert MockedDAVResponse(xml).expand_simple_props(props=[dav.CurrentUserPrincipal()]) == expected_result
 
         xml = """
 <multistatus xmlns="DAV:">
@@ -676,10 +643,7 @@ class TestCalDAV:
                 "{urn:ietf:params:xml:ns:caldav}calendar-home-set": "https://p62-caldav.icloud.com:443/17149682/calendars/"
             }
         }
-        assert (
-            MockedDAVResponse(xml).expand_simple_props(props=[cdav.CalendarHomeSet()])
-            == expected_result
-        )
+        assert MockedDAVResponse(xml).expand_simple_props(props=[cdav.CalendarHomeSet()]) == expected_result
 
         xml = """
 <multistatus xmlns="DAV:">
@@ -695,15 +659,8 @@ class TestCalDAV:
     </propstat>
   </response>
 </multistatus>"""
-        expected_result = {
-            "/": {"{DAV:}current-user-principal": "/17149682/principal/"}
-        }
-        assert (
-            MockedDAVResponse(xml).expand_simple_props(
-                props=[dav.CurrentUserPrincipal()]
-            )
-            == expected_result
-        )
+        expected_result = {"/": {"{DAV:}current-user-principal": "/17149682/principal/"}}
+        assert MockedDAVResponse(xml).expand_simple_props(props=[dav.CurrentUserPrincipal()]) == expected_result
 
         xml = """
 <multistatus xmlns="DAV:">
@@ -751,10 +708,7 @@ END:VCALENDAR
                 "{urn:ietf:params:xml:ns:caldav}calendar-data": "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Example Corp.//CalDAV Client//EN\nBEGIN:VEVENT\nUID:20010712T182145Z-123401@example.com\nDTSTAMP:20060712T182145Z\nDTSTART:20060714T170000Z\nDTEND:20060715T040000Z\nSUMMARY:Bastille Day Party\nEND:VEVENT\nEND:VCALENDAR\n"
             },
         }
-        assert (
-            MockedDAVResponse(xml).expand_simple_props(props=[cdav.CalendarData()])
-            == expected_result
-        )
+        assert MockedDAVResponse(xml).expand_simple_props(props=[cdav.CalendarData()]) == expected_result
 
         xml = """
 <multistatus xmlns="DAV:">
@@ -942,10 +896,7 @@ PRIORITY:5
 ATTACH;VALUE=BINARY;ENCODING=BASE64;FMTTYPE=image/jpeg;
  X-FILENAME=image001.jpg;X-ORACLE-FILENAME=image001.jpg:
 """
-        xml += (
-            "gIyIoLTkwKCo2KyIjM4444449QEBAJjBGS0U+Sjk/QD3/2wBDAQsLCw8NDx0QEB09KSMpPT09\n"
-            * 153490
-        )
+        xml += "gIyIoLTkwKCo2KyIjM4444449QEBAJjBGS0U+Sjk/QD3/2wBDAQsLCw8NDx0QEB09KSMpPT09\n" * 153490
         xml += """
  /Z
 DTSTART;TZID="Europe/Paris":20230310T140000
@@ -1053,9 +1004,7 @@ END:VCALENDAR
         assert my_event.vobject_instance.vevent.summary.value == "yet another summary"
         ## Now the data has been converted from string to vobject to string to icalendar to string to vobject and ... will the string still match the original?
         lines_now = my_event.data.strip().split("\n")
-        lines_orig = (
-            ev1.replace("Bastille Day Party", "yet another summary").strip().split("\n")
-        )
+        lines_orig = ev1.replace("Bastille Day Party", "yet another summary").strip().split("\n")
         lines_now.sort()
         lines_orig.sort()
         assert lines_now == lines_orig
@@ -1069,19 +1018,14 @@ END:VCALENDAR
         assert my_event.vobject_instance.vevent.summary.value == "yet another summary"
         ## will the string still match the original?
         lines_now = my_event.data.strip().split("\n")
-        lines_orig = (
-            ev1.replace("Bastille Day Party", "yet another summary").strip().split("\n")
-        )
+        lines_orig = ev1.replace("Bastille Day Party", "yet another summary").strip().split("\n")
         lines_now.sort()
         lines_orig.sort()
         assert lines_now == lines_orig
         ## Can we replace the component?  (One shouldn't do things like this in normal circumstances though ... both because the uid changes and because the component type changes - we're putting a vtodo into an Event class ...)
         icalendar_component = icalendar.Todo.from_ical(todo).subcomponents[0]
         my_event.icalendar_component = icalendar_component
-        assert (
-            my_event.vobject_instance.vtodo.summary.value
-            == "Submit Quebec Income Tax Return for 2006"
-        )
+        assert my_event.vobject_instance.vtodo.summary.value == "Submit Quebec Income Tax Return for 2006"
 
     def testTodoDuration(self):
         cal_url = "http://me:hunter2@calendar.example:80/"
@@ -1102,24 +1046,18 @@ END:VCALENDAR
 
         ## set_due has "only" one if, so two code paths, one where dtstart is actually moved and one where it isn't
         my_todo2.set_due(some_date, move_dtstart=True)
-        assert my_todo2.icalendar_instance.subcomponents[0][
-            "DTSTART"
-        ].dt == some_date - timedelta(days=6)
+        assert my_todo2.icalendar_instance.subcomponents[0]["DTSTART"].dt == some_date - timedelta(days=6)
 
         ## set_duration at the other hand has 5 code paths ...
         ## 1) DUE and DTSTART set, DTSTART as the movable component
         my_todo1.set_duration(timedelta(1))
         assert my_todo1.get_due() == some_date
-        assert my_todo1.icalendar_instance.subcomponents[0][
-            "DTSTART"
-        ].dt == some_date - timedelta(1)
+        assert my_todo1.icalendar_instance.subcomponents[0]["DTSTART"].dt == some_date - timedelta(1)
 
         ## 2) DUE and DTSTART set, DUE as the movable component
         my_todo1.set_duration(timedelta(2), movable_attr="DUE")
         assert my_todo1.get_due() == some_date + timedelta(days=1)
-        assert my_todo1.icalendar_instance.subcomponents[0][
-            "DTSTART"
-        ].dt == some_date - timedelta(1)
+        assert my_todo1.icalendar_instance.subcomponents[0]["DTSTART"].dt == some_date - timedelta(1)
 
         ## 3) DUE set, DTSTART not set
         dtstart = my_todo1.icalendar_instance.subcomponents[0].pop("DTSTART").dt
@@ -1178,9 +1116,7 @@ END:VCALENDAR
         assert url7 == "http://foo:bar@www.example.com:8080/bar"
         assert url8 == url1
         assert url9 == url7
-        assert (
-            urlA == "http://foo:bar@www.example.com:8080/caldav.php/someuser/calendar"
-        )
+        assert urlA == "http://foo:bar@www.example.com:8080/caldav.php/someuser/calendar"
         assert urlB == url1
         with pytest.raises(ValueError):
             url1.join("http://www.google.com")
@@ -1201,9 +1137,7 @@ END:VCALENDAR
         assert url7 == "http://foo:bar@www.example.com:8080/bar"
         assert url8 == url1
         assert url9 == url7
-        assert (
-            urlA == "http://foo:bar@www.example.com:8080/caldav.php/someuser/calendar"
-        )
+        assert urlA == "http://foo:bar@www.example.com:8080/caldav.php/someuser/calendar"
         assert urlB == url1
         with pytest.raises(ValueError):
             url1.join("http://www.google.com")
@@ -1224,19 +1158,14 @@ END:VCALENDAR
         assert url7.unauth() == "http://www.example.com:8080/bar"
 
         # 8) strip_trailing_slash
-        assert URL("http://www.example.com:8080/bar/").strip_trailing_slash() == URL(
-            "http://www.example.com:8080/bar"
-        )
+        assert URL("http://www.example.com:8080/bar/").strip_trailing_slash() == URL("http://www.example.com:8080/bar")
         assert (
             URL("http://www.example.com:8080/bar/").strip_trailing_slash()
             == URL("http://www.example.com:8080/bar").strip_trailing_slash()
         )
 
         # 9) canonical
-        assert (
-            URL("https://www.example.com:443/b%61r/").canonical()
-            == URL("//www.example.com/bar/").canonical()
-        )
+        assert URL("https://www.example.com:443/b%61r/").canonical() == URL("//www.example.com/bar/").canonical()
 
         # 10) pickle
         assert pickle.loads(pickle.dumps(url1)) == url1
@@ -1244,11 +1173,7 @@ END:VCALENDAR
     def testFilters(self):
         filter = cdav.Filter().append(
             cdav.CompFilter("VCALENDAR").append(
-                cdav.CompFilter("VEVENT").append(
-                    cdav.PropFilter("UID").append(
-                        [cdav.TextMatch("pouet", negate=True)]
-                    )
-                )
+                cdav.CompFilter("VEVENT").append(cdav.PropFilter("UID").append([cdav.TextMatch("pouet", negate=True)]))
             )
         )
         # print(filter)
@@ -1273,12 +1198,7 @@ END:VCALENDAR
         ):  ## TODO: freebusy, time zone
             assert calendar._calendar_comp_class_by_data(ical) == class_
             if ical != "random rantings" and ical:
-                assert (
-                    calendar._calendar_comp_class_by_data(
-                        icalendar.Calendar.from_ical(ical)
-                    )
-                    == class_
-                )
+                assert calendar._calendar_comp_class_by_data(icalendar.Calendar.from_ical(ical)) == class_
 
     def testContextManager(self):
         """
@@ -1296,9 +1216,7 @@ END:VCALENDAR
         with DAVClient(url=cal_url) as client:
             assert client.extract_auth_types("Basic\n") == {"basic"}
             assert client.extract_auth_types("Basic") == {"basic"}
-            assert client.extract_auth_types('Basic Realm=foo;charset="UTF-8"') == {
-                "basic"
-            }
+            assert client.extract_auth_types('Basic Realm=foo;charset="UTF-8"') == {"basic"}
             assert client.extract_auth_types("Basic,dIGEST Realm=foo") == {
                 "basic",
                 "digest",

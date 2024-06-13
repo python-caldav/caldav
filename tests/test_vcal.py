@@ -75,9 +75,7 @@ class TestVcal(TestCase):
         self.assertSameICal(create_and_validate(ical_fragment=ev), ev)
 
         ## One may add stuff to a fully valid ical_fragment
-        self.assertSameICal(
-            create_and_validate(ical_fragment=ev, priority=3), ev + "\nPRIORITY:3\n"
-        )
+        self.assertSameICal(create_and_validate(ical_fragment=ev, priority=3), ev + "\nPRIORITY:3\n")
 
         ## binary string or unicode string ... shouldn't matter
         self.assertSameICal(

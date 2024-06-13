@@ -11,9 +11,7 @@ class TestRadicale(object):
             "Standard - GBA",
         )
     )
-    DTSTART = set(
-        (datetime.datetime(2011, 3, 4, 20, 0), datetime.datetime(2011, 1, 15, 20, 0))
-    )
+    DTSTART = set((datetime.datetime(2011, 3, 4, 20, 0), datetime.datetime(2011, 1, 15, 20, 0)))
 
     def setup(self):
         URL = "http://localhost:8080/nicoe/perso/"

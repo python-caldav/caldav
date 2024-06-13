@@ -54,9 +54,7 @@ def run_examples():
         ## * server may not support it (it's not mandatory in the CalDAV RFC)
         ## * principal may not have the permission to create calendars
         ## * some cloud providers have a global namespace
-        my_new_calendar = my_principal.make_calendar(
-            name="Test calendar from caldav examples"
-        )
+        my_new_calendar = my_principal.make_calendar(name="Test calendar from caldav examples")
 
         ## Let's add some events to our newly created calendar
         add_stuff_to_calendar_demo(my_new_calendar)
@@ -139,9 +137,7 @@ def read_modify_event_demo(event):
     uid = event.icalendar_component["uid"]
 
     ## Let's correct that typo using the icalendar library.
-    event.icalendar_component["summary"] = event.icalendar_component["summary"].replace(
-        "celebratiuns", "celebrations"
-    )
+    event.icalendar_component["summary"] = event.icalendar_component["summary"].replace("celebratiuns", "celebrations")
 
     ## timestamps (DTSTAMP, DTSTART, DTEND for events, DUE for tasks,
     ## etc) can be fetched using the icalendar library like this:
@@ -183,10 +179,7 @@ def read_modify_event_demo(event):
     ## Finally, let's verify that the correct data was saved
     calendar = event.parent
     same_event = calendar.event_by_uid(uid)
-    assert (
-        same_event.icalendar_component["summary"]
-        == "Norwegian national day celebrations"
-    )
+    assert same_event.icalendar_component["summary"] == "Norwegian national day celebrations"
 
 
 def search_calendar_demo(calendar):
@@ -279,9 +272,7 @@ def find_delete_calendar_demo(my_principal, calendar_name):
         ## This will raise a NotFoundError if calendar does not exist
         demo_calendar = my_principal.calendar(name="Test calendar from caldav examples")
         assert demo_calendar
-        print(
-            f"We found an existing calendar with name {calendar_name}, now deleting it"
-        )
+        print(f"We found an existing calendar with name {calendar_name}, now deleting it")
         demo_calendar.delete()
     except caldav.error.NotFoundError:
         ## Calendar was not found

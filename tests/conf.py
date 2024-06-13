@@ -139,9 +139,7 @@ caldav_servers = [x for x in caldav_servers if x.get("enable", True)]
 ###################################################################
 # Convenience - get a DAVClient object from the caldav_servers list
 ###################################################################
-CONNKEYS = set(
-    ("url", "proxy", "username", "password", "ssl_verify_cert", "ssl_cert", "auth")
-)
+CONNKEYS = set(("url", "proxy", "username", "password", "ssl_verify_cert", "ssl_cert", "auth"))
 
 
 def client(idx=None, **kwargs):

@@ -29,9 +29,7 @@ class BaseElement:
     attributes: Optional[dict] = None
     caldav_class = None
 
-    def __init__(
-        self, name: Optional[str] = None, value: Union[str, bytes, None] = None
-    ) -> None:
+    def __init__(self, name: Optional[str] = None, value: Union[str, bytes, None] = None) -> None:
         self.children = []
         self.attributes = {}
         value = to_unicode(value)
@@ -41,15 +39,11 @@ class BaseElement:
         if value is not None:
             self.value = value
 
-    def __add__(
-        self, other: Union["BaseElement", Iterable["BaseElement"]]
-    ) -> "BaseElement":
+    def __add__(self, other: Union["BaseElement", Iterable["BaseElement"]]) -> "BaseElement":
         return self.append(other)
 
     def __str__(self) -> str:
-        utf8 = etree.tostring(
-            self.xmlelement(), encoding="utf-8", xml_declaration=True, pretty_print=True
-        )
+        utf8 = etree.tostring(self.xmlelement(), encoding="utf-8", xml_declaration=True, pretty_print=True)
         return str(utf8, "utf-8")
 
     def xmlelement(self) -> _Element:

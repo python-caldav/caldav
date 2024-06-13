@@ -132,8 +132,7 @@ class URL:
         return URL.objectify(
             ParseResult(
                 self.scheme,
-                "%s:%s"
-                % (self.hostname, self.port or {"https": 443, "http": 80}[self.scheme]),
+                "%s:%s" % (self.hostname, self.port or {"https": 443, "http": 80}[self.scheme]),
                 self.path.replace("//", "/"),
                 self.params,
                 self.query,
