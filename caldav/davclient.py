@@ -616,11 +616,9 @@ class DAVClient:
     def options(self, url: str) -> DAVResponse:
         return self.request(url, "OPTIONS")
 
-    def extract_auth_types(self, header):
-        auth_types = header.lower().split(",")
-        auth_types = map(lambda auth_type: auth_type.strip(), auth_types)
-        auth_types = map(lambda auth_type: auth_type.split(" ")[0], auth_types)
-        return list(filter(lambda auth_type: auth_type, auth_types))
+    def extract_auth_types(self, header: str):
+        # https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/WWW-Authenticate#syntax
+        return {h.split()[0] for h in header.lower().split(",")}
 
     def request(
         self,
