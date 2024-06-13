@@ -84,9 +84,7 @@ class URL:
     # object, else will instantiate a new URL object
     @classmethod
     def objectify(self, url: Union[Self, str, ParseResult, SplitResult]) -> "URL":
-        if url is None:
-            return None
-        if isinstance(url, URL):
+        if url is None or isinstance(url, URL):
             return url
         else:
             return URL(url)
