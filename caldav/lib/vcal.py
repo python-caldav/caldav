@@ -88,7 +88,10 @@ def fix(event):
     if fixed2 != event:
         global fixup_error_loggings
         fixup_error_loggings += 1
-        def remove_bit(n: int): return n & (n - 1)
+
+        def remove_bit(n: int):
+            return n & (n - 1)
+
         if not remove_bit(fixup_error_loggings):
             log = logging.error
         else:
