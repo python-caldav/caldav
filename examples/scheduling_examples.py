@@ -4,10 +4,11 @@ from datetime import datetime
 from datetime import timedelta
 from datetime import timezone
 
-from caldav import DAVClient
-from caldav import error
 from icalendar import Calendar
 from icalendar import Event
+
+from caldav import DAVClient
+from caldav import error
 
 
 ###############

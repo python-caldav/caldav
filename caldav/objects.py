@@ -30,9 +30,6 @@ from urllib.parse import unquote
 
 import icalendar
 import vobject
-from caldav.lib.python_utilities import to_normal_str
-from caldav.lib.python_utilities import to_unicode
-from caldav.lib.python_utilities import to_wire
 from dateutil.rrule import rrulestr
 from lxml import etree
 from lxml.etree import _Element
@@ -41,6 +38,9 @@ from vobject.base import VBase
 from .elements.base import BaseElement
 from .elements.cdav import CalendarData
 from .elements.cdav import CompFilter
+from caldav.lib.python_utilities import to_normal_str
+from caldav.lib.python_utilities import to_unicode
+from caldav.lib.python_utilities import to_wire
 
 try:
     from typing import ClassVar, Optional, Union

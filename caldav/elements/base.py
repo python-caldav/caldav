@@ -5,10 +5,11 @@ from typing import List
 from typing import Optional
 from typing import Union
 
-from caldav.lib.namespace import nsmap
-from caldav.lib.python_utilities import to_unicode
 from lxml import etree
 from lxml.etree import _Element
+
+from caldav.lib.namespace import nsmap
+from caldav.lib.python_utilities import to_unicode
 
 if sys.version_info < (3, 9):
     from typing import Iterable
