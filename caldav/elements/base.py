@@ -61,9 +61,10 @@ class BaseElement:
         root = etree.Element(self.tag, nsmap=nsmap)
         if self.value is not None:
             root.text = self.value
-        if len(self.attributes) > 0:
-            for k in list(self.attributes.keys()):
-                root.set(k, self.attributes[k])
+
+        for k in self.attributes:
+            root.set(k, self.attributes[k])
+
         self.xmlchildren(root)
         return root
 
