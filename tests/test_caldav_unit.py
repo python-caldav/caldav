@@ -13,11 +13,12 @@ from datetime import timedelta
 from unittest import mock
 from urllib.parse import urlparse
 
-import caldav
 import icalendar
 import lxml.etree
 import pytest
 import vobject
+
+import caldav
 from caldav import Calendar
 from caldav import CalendarObjectResource
 from caldav import CalendarSet

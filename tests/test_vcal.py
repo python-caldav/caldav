@@ -9,6 +9,7 @@ from unittest import TestCase
 import icalendar
 import pytest
 import vobject
+
 from caldav.lib import vcal
 from caldav.lib.python_utilities import to_normal_str
 from caldav.lib.python_utilities import to_wire

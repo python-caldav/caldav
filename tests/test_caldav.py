@@ -24,6 +24,22 @@ from datetime import timezone
 import pytest
 import requests
 import vobject
+from requests.packages import urllib3
+
+from . import compatibility_issues
+from .conf import caldav_servers
+from .conf import client
+from .conf import proxy
+from .conf import proxy_noport
+from .conf import radicale_host
+from .conf import radicale_port
+from .conf import rfc6638_users
+from .conf import test_radicale
+from .conf import test_xandikos
+from .conf import xandikos_host
+from .conf import xandikos_port
+from .proxy import NonThreadingHTTPServer
+from .proxy import ProxyHandler
 from caldav.davclient import DAVClient
 from caldav.davclient import DAVResponse
 from caldav.elements import cdav
@@ -41,22 +57,6 @@ from caldav.objects import Event
 from caldav.objects import FreeBusy
 from caldav.objects import Principal
 from caldav.objects import Todo
-from requests.packages import urllib3
-
-from . import compatibility_issues
-from .conf import caldav_servers
-from .conf import client
-from .conf import proxy
-from .conf import proxy_noport
-from .conf import radicale_host
-from .conf import radicale_port
-from .conf import rfc6638_users
-from .conf import test_radicale
-from .conf import test_xandikos
-from .conf import xandikos_host
-from .conf import xandikos_port
-from .proxy import NonThreadingHTTPServer
-from .proxy import ProxyHandler
 
 if test_xandikos:
     from xandikos.web import XandikosBackend, XandikosApp
