@@ -1,6 +1,7 @@
 import datetime
 
 import tzlocal
+
 from caldav.elements.cdav import _to_utc_date_string
 from caldav.elements.cdav import CalendarQuery
 

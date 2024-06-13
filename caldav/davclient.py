@@ -13,6 +13,13 @@ from typing import Union
 from urllib.parse import unquote
 
 import requests
+from lxml import etree
+from lxml.etree import _Element
+from requests.auth import AuthBase
+from requests.models import Response
+from requests.structures import CaseInsensitiveDict
+
+from .elements.base import BaseElement
 from caldav.elements import dav
 from caldav.lib import error
 from caldav.lib.python_utilities import to_normal_str
@@ -22,13 +29,6 @@ from caldav.objects import Calendar
 from caldav.objects import log
 from caldav.objects import Principal
 from caldav.requests import HTTPBearerAuth
-from lxml import etree
-from lxml.etree import _Element
-from requests.auth import AuthBase
-from requests.models import Response
-from requests.structures import CaseInsensitiveDict
-
-from .elements.base import BaseElement
 
 if TYPE_CHECKING:
     pass
