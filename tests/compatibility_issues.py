@@ -397,6 +397,7 @@ posteo = [
 ]
 
 calendar_mail_ru = [
+    'no_mkcalendar', ## weird.  It was working in early June 2024, then it stopped working in mid-June 2024.
     'no_current-user-principal',
     'no_todo',
     'no_journal',

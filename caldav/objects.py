@@ -727,7 +727,7 @@ class Principal(DAVObject):
         )
 
         if _addresses is None:
-            raise ValueError("Unexpected value None for _addresses")
+            raise error.NotFoundError("No calendar user addresses given from server")
 
         assert not [x for x in _addresses if x.tag != dav.Href().tag]
         addresses = list(_addresses)
@@ -2421,12 +2421,13 @@ class CalendarObjectResource(DAVObject):
             if self.client is None:
                 raise ValueError("Unexpected value None for self.client")
 
-            attendee = self.client.principal()
+            attendee = self.client.principal_address or self.client.principal()
 
         cnt = 0
 
         if isinstance(attendee, Principal):
-            for addr in attendee.calendar_user_address_set():
+            attendee_emails = attendee.calendar_user_address_set()
+            for addr in attendee_emails:
                 try:
                     self.change_attendee_status(addr, **kwargs)
                     ## TODO: can probably just return now
