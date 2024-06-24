@@ -87,6 +87,9 @@ def fix(event):
     )
 
     if fixed2 != event:
+        ## This obscure code will ensure efficient rate-limiting of the error
+        ## logging. The "remove_bit" lambda will return 0 only for powers of
+        ## two (2, 4, 8, 16, 32, 64, etc).
         global fixup_error_loggings
         fixup_error_loggings += 1
         remove_bit = lambda n: n & (n - 1)
@@ -94,6 +97,7 @@ def fix(event):
             log = logging.error
         else:
             log = logging.debug
+
         log(
             """Ical data was modified to avoid compatibility issues
 (Your calendar server breaks the icalendar standard)
