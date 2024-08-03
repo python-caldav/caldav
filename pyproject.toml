@@ -33,7 +33,6 @@ dynamic = ["version"]
 [project.optional-dependencies]
 test = [
     "pytest",
-    "pytest-coverage",
     "coverage",
     "sphinx",
     "backports.zoneinfo;python_version<'3.9'",
