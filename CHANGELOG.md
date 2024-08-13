@@ -39,6 +39,7 @@ This project should more or less adhere to [Semantic Versioning](https://semver.
 * Use setuptools-scm / pyproject.toml (modern packaging). Details in https://github.com/python-caldav/caldav/pull/364 and https://github.com/python-caldav/caldav/pull/367
 * Debugging tool - an environment variable can be set, causing the library to spew out server communications into files under /tmp.  Details in https://github.com/python-caldav/caldav/pull/249 and https://github.com/python-caldav/caldav/issues/248
 * Comaptibility matrix for posteo.de servers in `tests/compatibility_issues.py`
+* Added sort_reverse option to the search function to reverse the sorting order of the found objects.
 
 ### Security
 

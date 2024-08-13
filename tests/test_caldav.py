@@ -59,10 +59,11 @@ from caldav.objects import Principal
 from caldav.objects import Todo
 
 if test_xandikos:
-    from xandikos.web import XandikosBackend, XandikosApp
+    import asyncio
+
     import aiohttp
     import aiohttp.web
-    import asyncio
+    from xandikos.web import XandikosApp, XandikosBackend
 
 if test_radicale:
     import radicale.config
@@ -1331,6 +1332,11 @@ class RepeatedFunctionalTestsBaseClass(object):
         all_events = c.search(sort_keys=("SUMMARY", "DTSTAMP"))
         assert len(all_events) == 3
         assert all_events[0].instance.vevent.summary.value == "Bastille Day Jitsi Party"
+
+        ## Sorting in reverse order should work also
+        all_events = c.search(sort_keys=("SUMMARY", "DTSTAMP"), sort_reverse=True)
+        assert len(all_events) == 3
+        assert all_events[0].instance.vevent.summary.value == "Our Blissful Anniversary"
 
     def testSearchSortTodo(self):
         self.skip_on_compatibility_flag("read_only")
