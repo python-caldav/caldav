@@ -11,22 +11,9 @@ import re
 import sys
 import uuid
 from collections import defaultdict
-from datetime import date
-from datetime import datetime
-from datetime import timedelta
-from datetime import timezone
-from typing import Any
-from typing import List
-from typing import Optional
-from typing import Set
-from typing import Tuple
-from typing import TYPE_CHECKING
-from typing import TypeVar
-from typing import Union
-from urllib.parse import ParseResult
-from urllib.parse import quote
-from urllib.parse import SplitResult
-from urllib.parse import unquote
+from datetime import date, datetime, timedelta, timezone
+from typing import TYPE_CHECKING, Any, List, Optional, Set, Tuple, TypeVar, Union
+from urllib.parse import ParseResult, SplitResult, quote, unquote
 
 import icalendar
 import vobject
@@ -35,12 +22,10 @@ from lxml import etree
 from lxml.etree import _Element
 from vobject.base import VBase
 
+from caldav.lib.python_utilities import to_normal_str, to_unicode, to_wire
+
 from .elements.base import BaseElement
-from .elements.cdav import CalendarData
-from .elements.cdav import CompFilter
-from caldav.lib.python_utilities import to_normal_str
-from caldav.lib.python_utilities import to_unicode
-from caldav.lib.python_utilities import to_wire
+from .elements.cdav import CalendarData, CompFilter
 
 try:
     from typing import ClassVar, Optional, Union
@@ -1132,6 +1117,7 @@ class Calendar(DAVObject):
         todo: Optional[bool] = None,
         include_completed: bool = False,
         sort_keys: Sequence[str] = (),
+        sort_reverse: bool = False,
         split_expanded: bool = True,
         props: Optional[List[CalendarData]] = None,
         **kwargs,
@@ -1163,6 +1149,7 @@ class Calendar(DAVObject):
         * start, end: do a time range search
         * filters - other kind of filters (in lxml tree format)
         * sort_keys - list of attributes to use when sorting
+        * sort_reverse - reverse the sorting order
 
         not supported yet:
         * negated text match
@@ -1290,7 +1277,7 @@ class Calendar(DAVObject):
             return ret
 
         if sort_keys:
-            objects.sort(key=sort_key_func)
+            objects.sort(key=sort_key_func, reverse=sort_reverse)
 
         ## partial workaround for https://github.com/python-caldav/caldav/issues/201
         for obj in objects:
