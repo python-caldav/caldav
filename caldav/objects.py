@@ -11,9 +11,22 @@ import re
 import sys
 import uuid
 from collections import defaultdict
-from datetime import date, datetime, timedelta, timezone
-from typing import TYPE_CHECKING, Any, List, Optional, Set, Tuple, TypeVar, Union
-from urllib.parse import ParseResult, SplitResult, quote, unquote
+from datetime import date
+from datetime import datetime
+from datetime import timedelta
+from datetime import timezone
+from typing import Any
+from typing import List
+from typing import Optional
+from typing import Set
+from typing import Tuple
+from typing import TYPE_CHECKING
+from typing import TypeVar
+from typing import Union
+from urllib.parse import ParseResult
+from urllib.parse import quote
+from urllib.parse import SplitResult
+from urllib.parse import unquote
 
 import icalendar
 import vobject
@@ -22,10 +35,12 @@ from lxml import etree
 from lxml.etree import _Element
 from vobject.base import VBase
 
-from caldav.lib.python_utilities import to_normal_str, to_unicode, to_wire
-
 from .elements.base import BaseElement
-from .elements.cdav import CalendarData, CompFilter
+from .elements.cdav import CalendarData
+from .elements.cdav import CompFilter
+from caldav.lib.python_utilities import to_normal_str
+from caldav.lib.python_utilities import to_unicode
+from caldav.lib.python_utilities import to_wire
 
 try:
     from typing import ClassVar, Optional, Union
