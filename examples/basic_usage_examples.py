@@ -168,7 +168,7 @@ def read_modify_event_demo(event):
     event.data = event.data
     ## So this will not affect the event anymore:
     icalendar_component["summary"] = "do the needful"
-    assert not "do the needful" in event.data
+    assert "do the needful" not in event.data
 
     ## The mofifications are still only saved locally in memory -
     ## let's save it to the server:

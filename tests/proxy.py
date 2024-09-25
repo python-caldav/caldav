@@ -13,6 +13,7 @@ Any help will be greatly appreciated.       SUZUKI Hisao
              * Added custom logging methods
              * Added code to make this a standalone application
 """
+
 import ftplib
 import getopt
 import logging.handlers
@@ -28,7 +29,6 @@ from socketserver import ThreadingMixIn
 from time import sleep
 from types import CodeType
 from types import FrameType
-from urllib import parse
 from urllib.parse import urlparse
 from urllib.parse import urlunparse
 
@@ -68,7 +68,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
         )
         try:
             soc.connect(host_port)
-        except socket.error as arg:
+        except OSError as arg:
             try:
                 msg = arg[1]
             except:
@@ -248,7 +248,7 @@ def handler(signo, frame):
 
 
 def daemonize(logger):
-    class DevNull(object):
+    class DevNull:
         def __init__(self):
             self.fd = os.open("/dev/null", os.O_WRONLY)
 
@@ -361,7 +361,7 @@ def main():
                     threading.activeCount(),
                 )
                 req_count = 0
-        except select.error as e:
+        except OSError as e:
             if e[0] == 4 and run_event.isSet():
                 pass
             else:

@@ -16,7 +16,7 @@ SOMEWHERE_REMOTE = zoneinfo.ZoneInfo("Brazil/DeNoronha")  # UTC-2 and no DST
 def test_element():
     cq = CalendarQuery()
     assert str(cq).startswith("<?xml")
-    assert not "xml" in repr(cq)
+    assert "xml" not in repr(cq)
     assert "CalendarQuery" in repr(cq)
     assert "calendar-query" in str(cq)
 
@@ -29,11 +29,7 @@ def test_to_utc_date_string_date():
 
 def test_to_utc_date_string_utc():
     input = datetime.datetime(2019, 5, 14, 21, 10, 23, 23, tzinfo=datetime.timezone.utc)
-    try:
-        res = _to_utc_date_string(input.astimezone())
-    except:
-        ## old python does not support astimezone() without a parameter given
-        res = _to_utc_date_string(input.astimezone(tzlocal.get_localzone()))
+    res = _to_utc_date_string(input.astimezone())
     assert res == "20190514T211023Z"
 
 
@@ -45,10 +41,7 @@ def test_to_utc_date_string_dt_with_zoneinfo_tzinfo():
 
 def test_to_utc_date_string_dt_with_local_tz():
     input = datetime.datetime(2019, 5, 14, 21, 10, 23, 23)
-    try:
-        res = _to_utc_date_string(input.astimezone())
-    except:
-        res = _to_utc_date_string(tzlocal.get_localzone())
+    res = _to_utc_date_string(input.astimezone())
     exp_dt = datetime.datetime(
         2019, 5, 14, 21, 10, 23, 23, tzinfo=tzlocal.get_localzone()
     ).astimezone(datetime.timezone.utc)

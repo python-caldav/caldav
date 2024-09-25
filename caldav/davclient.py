@@ -653,9 +653,7 @@ class DAVClient:
             log.debug("using proxy - %s" % (proxies))
 
         log.debug(
-            "sending request - method={0}, url={1}, headers={2}\nbody:\n{3}".format(
-                method, str(url_obj), combined_headers, to_normal_str(body)
-            )
+            f"sending request - method={method}, url={str(url_obj)}, headers={combined_headers}\nbody:\n{to_normal_str(body)}"
         )
 
         try:
@@ -763,16 +761,16 @@ class DAVClient:
 
             with NamedTemporaryFile(prefix="caldavcomm", delete=False) as commlog:
                 commlog.write(b"=" * 80 + b"\n")
-                commlog.write(f"{datetime.datetime.now():%FT%H:%M:%S}".encode("utf-8"))
+                commlog.write(f"{datetime.datetime.now():%FT%H:%M:%S}".encode())
                 commlog.write(b"\n====>\n")
-                commlog.write(f"{method} {url}\n".encode("utf-8"))
+                commlog.write(f"{method} {url}\n".encode())
                 commlog.write(
                     b"\n".join(to_wire(f"{x}: {headers[x]}") for x in headers)
                 )
                 commlog.write(b"\n\n")
                 commlog.write(to_wire(body))
                 commlog.write(b"<====\n")
-                commlog.write(f"{response.status} {response.reason}".encode("utf-8"))
+                commlog.write(f"{response.status} {response.reason}".encode())
                 commlog.write(
                     b"\n".join(
                         to_wire(f"{x}: {response.headers[x]}") for x in response.headers

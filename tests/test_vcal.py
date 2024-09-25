@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 import re
-import uuid
 from datetime import datetime
 from datetime import timedelta
 from datetime import timezone
@@ -14,7 +13,6 @@ from caldav.lib import vcal
 from caldav.lib.python_utilities import to_normal_str
 from caldav.lib.python_utilities import to_wire
 from caldav.lib.vcal import create_ical
-from caldav.lib.vcal import fix
 
 utc = timezone.utc
 

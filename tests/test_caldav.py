@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- encoding: utf-8 -*-
 """
 Tests here communicate with third party servers and/or
 internal ad-hoc instances of Xandikos and Radicale, dependent on the
@@ -7,15 +6,14 @@ configuration in conf_private.py.
 Tests that do not require communication with a working caldav server
 belong in test_caldav_unit.py
 """
+
 import codecs
 import logging
 import random
-import sys
 import tempfile
 import threading
 import time
 import uuid
-from collections import namedtuple
 from datetime import date
 from datetime import datetime
 from datetime import timedelta
@@ -41,18 +39,12 @@ from .conf import xandikos_host
 from .conf import xandikos_port
 from .proxy import NonThreadingHTTPServer
 from .proxy import ProxyHandler
-from caldav.davclient import DAVClient
-from caldav.davclient import DAVResponse
 from caldav.elements import cdav
 from caldav.elements import dav
 from caldav.elements import ical
 from caldav.lib import error
-from caldav.lib import url
 from caldav.lib.python_utilities import to_local
 from caldav.lib.python_utilities import to_str
-from caldav.lib.url import URL
-from caldav.objects import Calendar
-from caldav.objects import CalendarSet
 from caldav.objects import DAVObject
 from caldav.objects import Event
 from caldav.objects import FreeBusy
@@ -455,7 +447,7 @@ sched = sched_template % (
     len(rfc6638_users) < 3,
     reason="need at least three users in rfc6638_users to be set in order to run this test",
 )
-class TestScheduling(object):
+class TestScheduling:
     """Testing support of RFC6638.
     TODO: work in progress.  Stalled a bit due to lack of proper testing accounts.  I haven't managed to get this test to pass at any systems yet, but I believe the problem is not on the library side.
     * icloud: cannot really test much with only one test account
@@ -537,7 +529,7 @@ class TestScheduling(object):
         ## principals[1] should have one new inbox item
         new_inbox_items = []
         for item in self.principals[1].schedule_inbox().get_items():
-            if not item.url in inbox_items:
+            if item.url not in inbox_items:
                 new_inbox_items.append(item)
         assert len(new_inbox_items) == 1
         ## ... and the new inbox item should be an invite request
@@ -553,7 +545,7 @@ class TestScheduling(object):
         ## calendar invite was accepted
         new_inbox_items = []
         for item in self.principals[0].schedule_inbox().get_items():
-            if not item.url in inbox_items:
+            if item.url not in inbox_items:
                 new_inbox_items.append(item)
         assert len(new_inbox_items) == 1
         assert new_inbox_items[0].is_invite_reply()
@@ -570,7 +562,7 @@ class TestScheduling(object):
     ## inbox/outbox?
 
 
-class RepeatedFunctionalTestsBaseClass(object):
+class RepeatedFunctionalTestsBaseClass:
     """This is a class with functional tests (tests that goes through
     basic functionality and actively communicates with third parties)
     that we want to repeat for all configured caldav_servers.
@@ -1227,7 +1219,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         if not self.check_compatibility_flag("fragile_sync_tokens"):
             assert len(list(updated)) == 0
             assert len(list(deleted)) == 1
-        assert not obj.url in my_objects.objects_by_url()
+        assert obj.url not in my_objects.objects_by_url()
 
         if self.check_compatibility_flag("time_based_sync_tokens"):
             time.sleep(1)
@@ -1691,7 +1683,7 @@ class RepeatedFunctionalTestsBaseClass(object):
 
     def testWrongPassword(self):
         if (
-            not "password" in self.server_params
+            "password" not in self.server_params
             or not self.server_params["password"]
             or self.server_params["password"] == "any-password-seems-to-work"
         ):

@@ -1,10 +1,9 @@
-# encoding: utf-8
 import datetime
 
 import caldav
 
 
-class TestRadicale(object):
+class TestRadicale:
     SUMMARIES = set(
         (
             "Godspeed You! Black Emperor at " "Cirque Royal / Koninklijk Circus",
@@ -35,7 +34,7 @@ class TestRadicale(object):
         assert dtstart == self.DTSTART
 
 
-class TestTryton(object):
+class TestTryton:
     def setup(self):
         URL = "http://admin:admin@localhost:9080/caldav/Calendars/Test"
         self.client = caldav.DAVClient(URL)

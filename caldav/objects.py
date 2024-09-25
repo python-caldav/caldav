@@ -7,6 +7,7 @@ caldav server, notably principal, calendars and calendar events.
 release.  I think it makes sense moving the CalendarObjectResource
 class hierarchy into a separate file)
 """
+
 import re
 import sys
 import uuid
@@ -63,7 +64,8 @@ if TYPE_CHECKING:
 if sys.version_info < (3, 9):
     from typing import Callable, Container, Iterable, Iterator, Sequence
 
-    from typing_extensions import DefaultDict, Literal
+    from typing_extensions import Literal
+    from typing import DefaultDict
 else:
     from collections import defaultdict as DefaultDict
     from collections.abc import Callable, Container, Iterable, Iterator, Sequence
@@ -2575,9 +2577,7 @@ class CalendarObjectResource(DAVObject):
             or (self._icalendar_instance and self.icalendar_component)
         ) and self.data.count("BEGIN:VEVENT") + self.data.count(
             "BEGIN:VTODO"
-        ) + self.data.count(
-            "BEGIN:VJOURNAL"
-        ) > 0
+        ) + self.data.count("BEGIN:VJOURNAL") > 0
 
     def __str__(self) -> str:
         return "%s: %s" % (self.__class__.__name__, self.url)
@@ -2867,7 +2867,7 @@ class Todo(CalendarObjectResource):
             rrule = i["RRULE"]
         if not dtstart:
             if by is True or (
-                by is None and any((x for x in rrule if x.startswith("BY")))
+                by is None and any(x for x in rrule if x.startswith("BY"))
             ):
                 if "DTSTART" in i:
                     dtstart = i["DTSTART"].dt
