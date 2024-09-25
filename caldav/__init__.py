@@ -11,11 +11,10 @@ except ModuleNotFoundError:
         "You need to install the `build` package and do a `python -m build` to get caldav.__version__ set correctly"
     )
 from .davclient import DAVClient
-from .objects import *  ## This should go away in version 2.0.  TODO: fix some system for deprecation notices
 
 ## TODO: this should go away in some future version of the library.
 ## How to make deprecation notices?
-from .objects import *
+from .objects import *  ## This should go away in version 2.0.  TODO: fix some system for deprecation notices
 
 # Silence notification of no default logging handler
 log = logging.getLogger("caldav")
