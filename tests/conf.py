@@ -46,8 +46,10 @@ try:
     from .conf_private import test_xandikos
 except ImportError:
     try:
+        import xandikos
+
         test_xandikos = True
-    except:
+    except ImportError:
         test_xandikos = False
 
 try:
@@ -61,8 +63,10 @@ try:
     from .conf_private import test_radicale
 except ImportError:
     try:
+        import radicale
+
         test_radicale = True
-    except:
+    except ImportError:
         test_radicale = False
 
 try:
