@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- encoding: utf-8 -*-
 ## YOU SHOULD MOST LIKELY NOT EDIT THIS FILE!
 ## Make a conf_private.py for personal configuration.
 ## Check conf_private.py.EXAMPLE
@@ -46,8 +45,6 @@ try:
     from .conf_private import test_xandikos
 except ImportError:
     try:
-        import xandikos
-
         test_xandikos = True
     except:
         test_xandikos = False
@@ -62,8 +59,6 @@ try:
     from .conf_private import test_radicale
 except ImportError:
     try:
-        import radicale
-
         test_radicale = True
     except:
         test_radicale = False
@@ -160,7 +155,7 @@ def client(idx=None, **kwargs):
         if bad_param in kwargs:
             kwargs.pop(bad_param)
     for kw in kwargs:
-        if not kw in CONNKEYS:
+        if kw not in CONNKEYS:
             logging.critical(
                 "unknown keyword %s in connection parameters.  All compatibility flags should now be sent as a separate list, see conf_private.py.EXAMPLE.  Ignoring."
                 % kw
