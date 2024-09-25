@@ -61,4 +61,5 @@ exclude = ["tests"]
 namespaces = false
 
 [tool.ruff.lint]
-extend-select = ["UP"]
+extend-select = ["UP", "I"]
+isort.force-single-line = true

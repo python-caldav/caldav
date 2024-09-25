@@ -37,7 +37,8 @@ except ImportError:
     pass
 
 try:
-    from .conf_private import xandikos_host, xandikos_port
+    from .conf_private import xandikos_host
+    from .conf_private import xandikos_port
 except ImportError:
     xandikos_host = "localhost"
     xandikos_port = 8993  ## random port above 8000
@@ -50,7 +51,8 @@ except ImportError:
         test_xandikos = False
 
 try:
-    from .conf_private import radicale_host, radicale_port
+    from .conf_private import radicale_host
+    from .conf_private import radicale_port
 except ImportError:
     radicale_host = "localhost"
     radicale_port = 5232  ## default radicale host

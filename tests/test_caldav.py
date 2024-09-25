@@ -25,6 +25,18 @@ import requests
 import vobject
 from requests.packages import urllib3
 
+from caldav.elements import cdav
+from caldav.elements import dav
+from caldav.elements import ical
+from caldav.lib import error
+from caldav.lib.python_utilities import to_local
+from caldav.lib.python_utilities import to_str
+from caldav.objects import DAVObject
+from caldav.objects import Event
+from caldav.objects import FreeBusy
+from caldav.objects import Principal
+from caldav.objects import Todo
+
 from . import compatibility_issues
 from .conf import caldav_servers
 from .conf import client
@@ -39,30 +51,21 @@ from .conf import xandikos_host
 from .conf import xandikos_port
 from .proxy import NonThreadingHTTPServer
 from .proxy import ProxyHandler
-from caldav.elements import cdav
-from caldav.elements import dav
-from caldav.elements import ical
-from caldav.lib import error
-from caldav.lib.python_utilities import to_local
-from caldav.lib.python_utilities import to_str
-from caldav.objects import DAVObject
-from caldav.objects import Event
-from caldav.objects import FreeBusy
-from caldav.objects import Principal
-from caldav.objects import Todo
 
 if test_xandikos:
     import asyncio
 
     import aiohttp
     import aiohttp.web
-    from xandikos.web import XandikosApp, XandikosBackend
+    from xandikos.web import XandikosApp
+    from xandikos.web import XandikosBackend
 
 if test_radicale:
-    import radicale.config
-    import radicale
-    import radicale.server
     import socket
+
+    import radicale
+    import radicale.config
+    import radicale.server
 
 from urllib.parse import urlparse
 

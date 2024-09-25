@@ -2,12 +2,12 @@
 import sys
 import urllib.parse
 from typing import Any
-from typing import cast
 from typing import Optional
 from typing import Union
+from typing import cast
 from urllib.parse import ParseResult
-from urllib.parse import quote
 from urllib.parse import SplitResult
+from urllib.parse import quote
 from urllib.parse import unquote
 from urllib.parse import urlparse
 from urllib.parse import urlunparse

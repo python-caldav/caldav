@@ -2,14 +2,14 @@
 import logging
 import sys
 from types import TracebackType
+from typing import TYPE_CHECKING
 from typing import Any
-from typing import cast
 from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Tuple
-from typing import TYPE_CHECKING
 from typing import Union
+from typing import cast
 from urllib.parse import unquote
 
 import requests
@@ -27,17 +27,21 @@ from caldav.lib.python_utilities import to_normal_str
 from caldav.lib.python_utilities import to_wire
 from caldav.lib.url import URL
 from caldav.objects import Calendar
-from caldav.objects import log
 from caldav.objects import Principal
+from caldav.objects import log
 from caldav.requests import HTTPBearerAuth
+
+from .elements.base import BaseElement
 
 if TYPE_CHECKING:
     pass
 
 if sys.version_info < (3, 9):
-    from typing import Iterable, Mapping
+    from typing import Iterable
+    from typing import Mapping
 else:
-    from collections.abc import Iterable, Mapping
+    from collections.abc import Iterable
+    from collections.abc import Mapping
 
 if sys.version_info < (3, 11):
     from typing_extensions import Self

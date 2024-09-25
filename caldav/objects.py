@@ -16,17 +16,17 @@ from datetime import date
 from datetime import datetime
 from datetime import timedelta
 from datetime import timezone
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import List
 from typing import Optional
 from typing import Set
 from typing import Tuple
-from typing import TYPE_CHECKING
 from typing import TypeVar
 from typing import Union
 from urllib.parse import ParseResult
-from urllib.parse import quote
 from urllib.parse import SplitResult
+from urllib.parse import quote
 from urllib.parse import unquote
 
 import icalendar
@@ -36,15 +36,18 @@ from lxml import etree
 from lxml.etree import _Element
 from vobject.base import VBase
 
-from .elements.base import BaseElement
-from .elements.cdav import CalendarData
-from .elements.cdav import CompFilter
 from caldav.lib.python_utilities import to_normal_str
 from caldav.lib.python_utilities import to_unicode
 from caldav.lib.python_utilities import to_wire
 
+from .elements.base import BaseElement
+from .elements.cdav import CalendarData
+from .elements.cdav import CompFilter
+
 try:
-    from typing import ClassVar, Optional, Union
+    from typing import ClassVar
+    from typing import Optional
+    from typing import Union
 
     TimeStamp = Optional[Union[date, datetime]]
 except:
@@ -52,8 +55,10 @@ except:
 
 import logging
 
-from caldav.elements import cdav, dav
-from caldav.lib import error, vcal
+from caldav.elements import cdav
+from caldav.elements import dav
+from caldav.lib import error
+from caldav.lib import vcal
 from caldav.lib.url import URL
 
 if TYPE_CHECKING:
@@ -62,13 +67,21 @@ if TYPE_CHECKING:
     from .davclient import DAVClient
 
 if sys.version_info < (3, 9):
-    from typing import Callable, Container, Iterable, Iterator, Sequence
+    from typing import Callable
+    from typing import Container
+    from typing import DefaultDict
+    from typing import Iterable
+    from typing import Iterator
+    from typing import Sequence
 
     from typing_extensions import Literal
-    from typing import DefaultDict
 else:
     from collections import defaultdict as DefaultDict
-    from collections.abc import Callable, Container, Iterable, Iterator, Sequence
+    from collections.abc import Callable
+    from collections.abc import Container
+    from collections.abc import Iterable
+    from collections.abc import Iterator
+    from collections.abc import Sequence
     from typing import Literal
 
 if sys.version_info < (3, 11):
@@ -633,7 +646,8 @@ class Principal(DAVObject):
         """
         Returns the principal, as an icalendar.vCalAddress object
         """
-        from icalendar import vCalAddress, vText
+        from icalendar import vCalAddress
+        from icalendar import vText
 
         cn = self.get_display_name()
         ids = self.calendar_user_address_set()
@@ -2238,7 +2252,8 @@ class CalendarObjectResource(DAVObject):
         role=REQ-PARTICIPANT
         schedule-agent is not set
         """
-        from icalendar import vCalAddress, vText
+        from icalendar import vCalAddress
+        from icalendar import vText
 
         if isinstance(attendee, Principal):
             attendee_obj = attendee.get_vcal_address()
