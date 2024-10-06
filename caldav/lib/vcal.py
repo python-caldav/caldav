@@ -89,32 +89,29 @@ def fix(event):
     if fixed2 != event:
         global fixup_error_loggings
         fixup_error_loggings += 1
-        remove_bit = lambda n: n & (n - 1)
-        if not remove_bit(fixup_error_loggings):
+        is_multiple_of_two = lambda n: not (n & (n - 1))
+        if is_multiple_of_two(fixup_error_loggings):
             log = logging.error
         else:
             log = logging.debug
-        log(
-            """Ical data was modified to avoid compatibility issues
-(Your calendar server breaks the icalendar standard)
-This is probably harmless, particularly if not editing events or tasks
-(error count: %i - this error is ratelimited)"""
-            % fixup_error_loggings,
-            exc_info=True,
-        )
+
+        log_message = [
+            "Ical data was modified to avoid compatibility issues",
+            "(Your calendar server breaks the icalendar standard)",
+            "This is probably harmless, particularly if not editing events or tasks",
+            f"(error count: {fixup_error_loggings} - this error is ratelimited)",
+        ]
+
         try:
             import difflib
 
-            log(
-                "\n".join(
-                    difflib.unified_diff(
-                        event.split("\n"), fixed2.split("\n"), lineterm=""
-                    )
-                )
+            diff = list(
+                difflib.unified_diff(event.split("\n"), fixed2.split("\n"), lineterm="")
             )
         except:
-            log("Original: \n" + event)
-            log("Modified: \n" + fixed2)
+            diff = ["Original: ", event, "Modified: ", fixed2]
+
+        log("\n".join(log_message + diff))
 
     return fixed2
 
