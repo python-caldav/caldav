@@ -91,7 +91,7 @@ def fix(event):
         fixup_error_loggings += 1
         is_multiple_of_two = lambda n: not (n & (n - 1))
         if is_multiple_of_two(fixup_error_loggings):
-            log = logging.error
+            log = logging.warning
         else:
             log = logging.debug
 
