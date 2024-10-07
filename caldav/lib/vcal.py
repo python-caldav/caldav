@@ -89,8 +89,8 @@ def fix(event):
     if fixed2 != event:
         global fixup_error_loggings
         fixup_error_loggings += 1
-        is_multiple_of_two = lambda n: not (n & (n - 1))
-        if is_multiple_of_two(fixup_error_loggings):
+        is_power_of_two = lambda n: not (n & (n - 1))
+        if is_power_of_two(fixup_error_loggings):
             log = logging.warning
         else:
             log = logging.debug
