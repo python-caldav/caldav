@@ -2999,7 +2999,7 @@ class Todo(CalendarObjectResource):
            * safe - see doc for _complete_recurring_safe for details
         """
         if not completion_timestamp:
-            completion_timestamp = datetime.utcnow().astimezone(timezone.utc)
+            completion_timestamp = datetime.now(timezone.utc)
 
         if "RRULE" in self.icalendar_component and handle_rrule:
             return getattr(self, "_complete_recurring_%s" % rrule_mode)(

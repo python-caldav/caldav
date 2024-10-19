@@ -2288,7 +2288,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         if not self.check_compatibility_flag(
             "no_todo"
         ) and not self.check_compatibility_flag("no_todo_on_standard_calendar"):
-            t1.delete
+            t1.delete()
 
         if self.check_compatibility_flag("non_existing_raises_other"):
             expected_error = error.DAVError
