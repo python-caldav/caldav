@@ -1848,18 +1848,17 @@ class RepeatedFunctionalTestsBaseClass(object):
         # t5 has dtstart and due set prior to the search window
         # t6 has dtstart and due set prior to the search window, but is yearly recurring.
         # What will a date search yield?
-        noexpand = self.check_compatibility_flag("no_expand")
         todos1 = c.date_search(
             start=datetime(1997, 4, 14),
             end=datetime(2015, 5, 14),
             compfilter="VTODO",
-            expand=not noexpand,
+            expand=True,
         )
         todos2 = c.search(
             start=datetime(1997, 4, 14),
             end=datetime(2015, 5, 14),
             todo=True,
-            expand=not noexpand,
+            expand=True,
             split_expanded=False,
             include_completed=True,
         )
@@ -1893,11 +1892,9 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert len(todos2) == foo
 
         ## verify that "expand" works
-        if (
-            not self.check_compatibility_flag("no_expand")
-            and not self.check_compatibility_flag("no_recurring")
-            and not self.check_compatibility_flag("no_recurring_todo")
-        ):
+        if not self.check_compatibility_flag(
+            "broken_expand"
+        ) and not self.check_compatibility_flag("no_recurring"):
             assert len([x for x in todos1 if "DTSTART:20020415T1330" in x.data]) == 1
             assert len([x for x in todos2 if "DTSTART:20020415T1330" in x.data]) == 1
 
@@ -2444,8 +2441,9 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert r1[0].data.count("END:VEVENT") == 1
         assert r2[0].data.count("END:VEVENT") == 1
         ## due to expandation, the DTSTART should be in 2008
-        assert r1[0].data.count("DTSTART;VALUE=DATE:2008") == 1
-        assert r2[0].data.count("DTSTART;VALUE=DATE:2008") == 1
+        if not self.check_compatibility_flag("broken_expand"):
+            assert r1[0].data.count("DTSTART;VALUE=DATE:2008") == 1
+            assert r2[0].data.count("DTSTART;VALUE=DATE:2008") == 1
 
         ## With expand=True and searching over two recurrences ...
         r1 = c.date_search(
