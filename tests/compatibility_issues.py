@@ -12,16 +12,13 @@
 ## * Perhaps some more readable format should be considered (yaml?).
 ## * Consider how to get this into the documentation
 incompatibility_description = {
-    'no_expand':
-        """Server may throw errors when asked to do an expanded date search (this is ignored by the tests now, as we're doing client-side expansion)""",
+    'broken_expand':
+        """Server-side expand seems to work, but delivers wrong data""",
 
     'no_recurring':
         """Server is having issues with recurring events and/or todos. """
         """date searches covering recurrances may yield no results, """
         """and events/todos may not be expanded with recurrances""",
-
-    'no_recurring_expandation':
-        """Server will not expand recurring events (this is ignored by the tests now, as we're doing client-side expansion)""",
 
     'no_recurring_todo':
         """Recurring events are supported, but not recurring todos""",
@@ -203,7 +200,7 @@ incompatibility_description = {
 
 xandikos = [
     ## https://github.com/jelmer/xandikos/issues/8
-    "no_expand", "no_recurring",
+    "no_recurring",
 
     'text_search_is_exact_match_only',
 
@@ -217,6 +214,7 @@ xandikos = [
 radicale = [
     ## calendar listings and calendar creation works a bit
     ## "weird" on radicale
+    "broken_expand",
     "no_default_calendar",
     "non_existing_calendar_found",
 
@@ -227,6 +225,7 @@ radicale = [
     "radicale_breaks_on_category_search",
 
     'no_scheduling',
+    'no_todo_datesearch',
 
     'text_search_is_case_insensitive',
     'text_search_is_exact_match_sometimes',
@@ -290,7 +289,6 @@ baikal = [
     ## (TODO: do some research on this)
     'sync_breaks_on_delete',
     'no_recurring_todo',
-    'no_recurring_todo_expand',
     'non_existing_calendar_found',
     'combined_search_not_working',
     'text_search_is_exact_match_sometimes',
@@ -324,7 +322,6 @@ google = [
     'no_mkcalendar',
     'no_overwrite',
     'no_todo',
-    'no_recurring_expandation'
 ]
 
 ## https://www.sogo.nu/bugs/view.php?id=3065
@@ -345,7 +342,6 @@ sogo = [ ## and in addition ... the requests are efficiently rate limited, as it
 nextcloud = [
     'sync_breaks_on_delete',
     'no_recurring_todo',
-    'no_recurring_todo_expand',
     'combined_search_not_working',
     'text_search_is_exact_match_sometimes',
 ]

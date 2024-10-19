@@ -1228,14 +1228,13 @@ class Calendar(DAVObject):
         objects = [o for o in objects if o.has_component()]
 
         if kwargs.get("expand", False):
-            ## expand can only be used together with start and end.
-            ## Error checking is done in build_search_xml_query.  If
-            ## search is fed with an XML query together with expand,
-            ## then it's considered a "search option", and an error is
-            ## raised above.
+            ## expand can only be used together with start and end (and not
+            ## with xml).  Error checking has already been done in
+            ## build_search_xml_query above.
             start = kwargs["start"]
             end = kwargs["end"]
 
+            ## Verify that any recurring objects returned are already expanded
             for o in objects:
                 component = o.icalendar_component
                 if component is None:
@@ -1243,6 +1242,11 @@ class Calendar(DAVObject):
                 recurrence_properties = ["exdate", "exrule", "rdate", "rrule"]
                 if any(key in component for key in recurrence_properties):
                     o.expand_rrule(start, end)
+
+            ## An expanded recurring object comes as one Event() with
+            ## icalendar data containing multiple objects.  The caller may
+            ## expect multiple Event()s.  This code splits events into
+            ## separate objects:
             if split_expanded:
                 objects_ = objects
                 objects = []
