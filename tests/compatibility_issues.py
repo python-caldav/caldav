@@ -194,7 +194,11 @@ incompatibility_description = {
         """The server may not always come up with anything useful when searching for objects and omitting to specify weather one wants to see tasks or events""",
 
     'robur_rrule_freq_yearly_expands_monthly':
-        """Robur expands a yearly event into a monthly event.  I believe I've reported this one upstream at some point, but can't find back to it"""
+        """Robur expands a yearly event into a monthly event.  I believe I've reported this one upstream at some point, but can't find back to it""",
+
+    'no_search':
+        """Apparently the calendar server does not support search at all (this often implies that 'object_by_uid_is_broken' has to be set as well)"""
+
 }
 
 xandikos = [
@@ -387,5 +391,26 @@ posteo = [
     'combined_search_not_working'
 ]
 
+calendar_mail_ru = [
+    'no_mkcalendar', ## weird.  It was working in early June 2024, then it stopped working in mid-June 2024.
+    'no_current-user-principal',
+    'no_todo',
+    'no_journal',
+    'search_always_needs_comptype',
+    'no_sync_token', ## don't know if sync tokens are supported or not - the sync-token-code needs some workarounds ref https://github.com/python-caldav/caldav/issues/401
+    'text_search_not_working',
+    'isnotdefined_not_working',
+    'no_scheduling_mailbox',
+    'no_freebusy_rfc4791',
+    'no_relships', ## mail.ru recreates the icalendar content, and strips everything it doesn't know anyhting about, including relationship info
+]
+
+purelymail = [
+    'no_scheduling',
+    'non_existing_calendar_found',
+    'no_supported_components_support',
+    'no_search',
+    'object_by_uid_is_broken',
+]
 
 # fmt: on

@@ -521,11 +521,6 @@ class RepeatedFunctionalTestsBaseClass(object):
 
         self._cleanup("pre")
 
-        if self.check_compatibility_flag("object_by_uid_is_broken"):
-            import caldav.objects
-
-            caldav.objects.NotImplementedError = SkipTest
-
         logging.debug("##############################")
         logging.debug("############## test setup done")
         logging.debug("##############################")
@@ -1199,6 +1194,7 @@ class RepeatedFunctionalTestsBaseClass(object):
 
     def testSearchEvent(self):
         self.skip_on_compatibility_flag("read_only")
+        self.skip_on_compatibility_flag("no_search")
         c = self._fixCalendar()
         c.save_event(ev1)
         c.save_event(ev3)
@@ -1341,6 +1337,7 @@ class RepeatedFunctionalTestsBaseClass(object):
     def testSearchSortTodo(self):
         self.skip_on_compatibility_flag("read_only")
         self.skip_on_compatibility_flag("no_todo")
+        self.skip_on_compatibility_flag("no_search")
         c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
         t1 = c.save_todo(
             summary="1 task overdue",
@@ -1401,6 +1398,7 @@ class RepeatedFunctionalTestsBaseClass(object):
     def testSearchTodos(self):
         self.skip_on_compatibility_flag("read_only")
         self.skip_on_compatibility_flag("no_todo")
+        self.skip_on_compatibility_flag("no_search")
         c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
 
         t1 = c.save_todo(todo)
@@ -1510,6 +1508,7 @@ class RepeatedFunctionalTestsBaseClass(object):
     def testCreateChildParent(self):
         self.skip_on_compatibility_flag("read_only")
         self.skip_on_compatibility_flag("no_relships")
+        self.skip_on_compatibility_flag("object_by_uid_is_broken")
         c = self._fixCalendar(supported_calendar_component_set=["VEVENT"])
         parent = c.save_event(
             dtstart=datetime(2022, 12, 26, 19, 15),
@@ -1621,6 +1620,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         some_todo.save()
 
         self.skip_on_compatibility_flag("no_relships")
+        self.skip_on_compatibility_flag("object_by_uid_is_broken")
         parent = c.save_todo(
             dtstart=datetime(2022, 12, 26, 19, 00, tzinfo=utc),
             dtend=datetime(2022, 12, 26, 21, 00, tzinfo=utc),
@@ -1689,6 +1689,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         j1 = c.save_journal(journal)
         journals = c.journals()
         assert len(journals) == 1
+        self.skip_on_compatibility_flag("object_by_uid_is_broken")
         j1_ = c.journal_by_uid(j1.id)
         j1_.icalendar_instance
         journals[0].icalendar_instance
@@ -1819,6 +1820,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         # bedeworks does not support VTODO
         self.skip_on_compatibility_flag("no_todo")
         self.skip_on_compatibility_flag("no_todo_datesearch")
+        self.skip_on_compatibility_flag("no_search")
         c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
 
         # add todo-item
@@ -1969,10 +1971,11 @@ class RepeatedFunctionalTestsBaseClass(object):
         # The historic todo-item can still be accessed
         todos = c.todos(include_completed=True)
         assert len(todos) == 3
-        t3_ = c.todo_by_uid(t3.id)
-        assert t3_.instance.vtodo.summary == t3.instance.vtodo.summary
-        assert t3_.instance.vtodo.uid == t3.instance.vtodo.uid
-        assert t3_.instance.vtodo.dtstart == t3.instance.vtodo.dtstart
+        if not self.check_compatibility_flag("object_by_uid_is_broken"):
+            t3_ = c.todo_by_uid(t3.id)
+            assert t3_.instance.vtodo.summary == t3.instance.vtodo.summary
+            assert t3_.instance.vtodo.uid == t3.instance.vtodo.uid
+            assert t3_.instance.vtodo.dtstart == t3.instance.vtodo.dtstart
 
         t2.delete()
 
@@ -2194,9 +2197,10 @@ class RepeatedFunctionalTestsBaseClass(object):
             e2 = c.event_by_url(e1.url)
             assert e2.instance.vevent.uid == e1.instance.vevent.uid
             assert e2.url == e1.url
-        e3 = c.event_by_uid("20010712T182145Z-123401@example.com")
-        assert e3.instance.vevent.uid == e1.instance.vevent.uid
-        assert e3.url == e1.url
+        if not self.check_compatibility_flag("object_by_uid_is_broken"):
+            e3 = c.event_by_uid("20010712T182145Z-123401@example.com")
+            assert e3.instance.vevent.uid == e1.instance.vevent.uid
+            assert e3.url == e1.url
 
         # Knowing the URL of an event, we should be able to get to it
         # without going through a calendar object
@@ -2220,9 +2224,10 @@ class RepeatedFunctionalTestsBaseClass(object):
         c = self._fixCalendar()
         assert c.url is not None
 
-        # attempts on updating/overwriting a non-existing event should fail
-        with pytest.raises(error.ConsistencyError):
-            c.save_event(ev1, no_create=True)
+        # attempts on updating/overwriting a non-existing event should fail (unless object_by_uid_is_broken):
+        if not self.check_compatibility_flag("object_by_uid_is_broken"):
+            with pytest.raises(error.ConsistencyError):
+                c.save_event(ev1, no_create=True)
 
         # no_create and no_overwrite is mutually exclusive, this will always
         # raise an error (unless the ical given is blank)
@@ -2242,7 +2247,11 @@ class RepeatedFunctionalTestsBaseClass(object):
             assert t1.url is not None
         if not self.check_compatibility_flag("event_by_url_is_broken"):
             assert c.event_by_url(e1.url).url == e1.url
-        assert c.event_by_uid(e1.id).url == e1.url
+        if not self.check_compatibility_flag("object_by_uid_is_broken"):
+            assert c.event_by_uid(e1.id).url == e1.url
+
+        ## no_create will not work unless object_by_uid works
+        no_create = not self.check_compatibility_flag("object_by_uid_is_broken")
 
         ## add same event again.  As it has same uid, it should be overwritten
         ## (but some calendars may throw a "409 Conflict")
@@ -2254,34 +2263,35 @@ class RepeatedFunctionalTestsBaseClass(object):
                 t2 = c.save_todo(todo)
 
             ## add same event with "no_create".  Should work like a charm.
-            e2 = c.save_event(ev1, no_create=True)
+            e2 = c.save_event(ev1, no_create=no_create)
             if not self.check_compatibility_flag(
                 "no_todo"
             ) and not self.check_compatibility_flag("no_todo_on_standard_calendar"):
-                t2 = c.save_todo(todo, no_create=True)
+                t2 = c.save_todo(todo, no_create=no_create)
 
             ## this should also work.
             e2.instance.vevent.summary.value = e2.instance.vevent.summary.value + "!"
-            e2.save(no_create=True)
+            e2.save(no_create=no_create)
 
             if not self.check_compatibility_flag(
                 "no_todo"
             ) and not self.check_compatibility_flag("no_todo_on_standard_calendar"):
                 t2.instance.vtodo.summary.value = t2.instance.vtodo.summary.value + "!"
-                t2.save(no_create=True)
+                t2.save(no_create=no_create)
 
             if not self.check_compatibility_flag("event_by_url_is_broken"):
                 e3 = c.event_by_url(e1.url)
                 assert e3.instance.vevent.summary.value == "Bastille Day Party!"
 
-        ## "no_overwrite" should throw a ConsistencyError
-        with pytest.raises(error.ConsistencyError):
-            c.save_event(ev1, no_overwrite=True)
-        if not self.check_compatibility_flag(
-            "no_todo"
-        ) and not self.check_compatibility_flag("no_todo_on_standard_calendar"):
+        ## "no_overwrite" should throw a ConsistencyError.  But it depends on object_by_uid.
+        if not self.check_compatibility_flag("object_by_uid_is_broken"):
             with pytest.raises(error.ConsistencyError):
-                c.save_todo(todo, no_overwrite=True)
+                c.save_event(ev1, no_overwrite=True)
+            if not self.check_compatibility_flag(
+                "no_todo"
+            ) and not self.check_compatibility_flag("no_todo_on_standard_calendar"):
+                with pytest.raises(error.ConsistencyError):
+                    c.save_todo(todo, no_overwrite=True)
 
         # delete event
         e1.delete()
@@ -2312,6 +2322,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         non-recurring event
         """
         self.skip_on_compatibility_flag("read_only")
+        self.skip_on_compatibility_flag("no_search")
         # Create calendar, add event ...
         c = self._fixCalendar()
         assert c.url is not None
@@ -2395,6 +2406,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         """
         self.skip_on_compatibility_flag("read_only")
         self.skip_on_compatibility_flag("no_recurring")
+        self.skip_on_compatibility_flag("no_search")
         c = self._fixCalendar()
 
         # evr is a yearly event starting at 1997-02-11
