@@ -181,8 +181,8 @@ VERSION:2.0
 PRODID:-//Mozilla.org/NONSGML Mozilla Calendar V1.1//EN
 BEGIN:VEVENT
 UID:c26921f4-0653-11ef-b756-58ce2a14e2e5
-DTSTART;VALUE=DATE:20240411
-DTEND;VALUE=DATE:20240412
+DTSTART:20240411T123000Z
+DTEND:20240412T123000Z
 DTSTAMP:20240429T181103Z
 LAST-MODIFIED:20240429T181103Z
 RRULE:FREQ=WEEKLY;INTERVAL=2
@@ -192,9 +192,9 @@ X-MOZ-GENERATION:1
 END:VEVENT
 BEGIN:VEVENT
 UID:c26921f4-0653-11ef-b756-58ce2a14e2e5
-RECURRENCE-ID;VALUE=DATE:20240425
-DTSTART;VALUE=DATE:20240425
-DTEND;VALUE=DATE:20240426
+RECURRENCE-ID:20240425T123000Z
+DTSTART:20240425T123000Z
+DTEND:20240426T123000Z
 CREATED:20240429T181031Z
 DTSTAMP:20240429T181103Z
 LAST-MODIFIED:20240429T181103Z
@@ -2628,14 +2628,25 @@ class RepeatedFunctionalTestsBaseClass(object):
 
         assert len(r) == 2
 
-        assert 'RRULE' not in r[0].data
-        assert 'RRULE' not in r[1].data
+        assert "RRULE" not in r[0].data
+        assert "RRULE" not in r[1].data
 
-        assert isinstance(r[0].icalendar_component['RECURRENCE-ID'], icalendar.vDDDTypes)
-        assert r[0].icalendar_component['RECURRENCE-ID'].dt == date(2024, 4, 11)
+        assert isinstance(
+            r[0].icalendar_component["RECURRENCE-ID"], icalendar.vDDDTypes
+        )
 
-        assert isinstance(r[1].icalendar_component['RECURRENCE-ID'], icalendar.vDDDTypes)
-        assert r[1].icalendar_component['RECURRENCE-ID'].dt == date(2024, 4, 25)
+        ## TODO: xandikos returns a datetime without a tzinfo, radicale returns a datetime with tzinfo=UTC, but perhaps other calendar servers returns the timestamp converted to localtime?
+
+        assert r[0].icalendar_component["RECURRENCE-ID"].dt.replace(
+            tzinfo=None
+        ) == datetime(2024, 4, 11, 12, 30, 00)
+
+        assert isinstance(
+            r[1].icalendar_component["RECURRENCE-ID"], icalendar.vDDDTypes
+        )
+        assert r[1].icalendar_component["RECURRENCE-ID"].dt.replace(
+            tzinfo=None
+        ) == datetime(2024, 4, 25, 12, 30, 00)
 
     def testOffsetURL(self):
         """
