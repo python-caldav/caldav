@@ -2529,14 +2529,18 @@ class RepeatedFunctionalTestsBaseClass(object):
 
         assert len(r) == 2
 
-        assert 'RRULE' not in r[0].data
-        assert 'RRULE' not in r[1].data
+        assert "RRULE" not in r[0].data
+        assert "RRULE" not in r[1].data
 
-        assert isinstance(r[0].icalendar_component['RECURRENCE-ID'], icalendar.vDDDTypes)
-        assert r[0].icalendar_component['RECURRENCE-ID'].dt == date(2024, 4, 11)
+        assert isinstance(
+            r[0].icalendar_component["RECURRENCE-ID"], icalendar.vDDDTypes
+        )
+        assert r[0].icalendar_component["RECURRENCE-ID"].dt == date(2024, 4, 11)
 
-        assert isinstance(r[1].icalendar_component['RECURRENCE-ID'], icalendar.vDDDTypes)
-        assert r[1].icalendar_component['RECURRENCE-ID'].dt == date(2024, 4, 25)
+        assert isinstance(
+            r[1].icalendar_component["RECURRENCE-ID"], icalendar.vDDDTypes
+        )
+        assert r[1].icalendar_component["RECURRENCE-ID"].dt == date(2024, 4, 25)
 
     def testOffsetURL(self):
         """
