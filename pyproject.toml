@@ -43,7 +43,7 @@ test = [
     "sphinx",
     "backports.zoneinfo;python_version<'3.9'",
     "tzlocal",
-    "xandikos==0.2.8;python_version<'3.9'",
+    "xandikos==0.2.7;python_version<'3.9'",
     "dulwich==0.20.50;python_version<'3.9'",
     "xandikos;python_version>='3.9'",
 ]
