@@ -1,9 +1,10 @@
 #!/usr/bin/env python
-# -*- encoding: utf-8 -*-
 ## YOU SHOULD MOST LIKELY NOT EDIT THIS FILE!
 ## Make a conf_private.py for personal configuration.
 ## Check conf_private.py.EXAMPLE
 import logging
+from typing import Any
+from typing import Optional
 
 from caldav.davclient import DAVClient
 
@@ -38,7 +39,8 @@ except ImportError:
     pass
 
 try:
-    from .conf_private import xandikos_host, xandikos_port
+    from .conf_private import xandikos_host
+    from .conf_private import xandikos_port
 except ImportError:
     xandikos_host = "localhost"
     xandikos_port = 8993  ## random port above 8000
@@ -49,11 +51,12 @@ except ImportError:
         import xandikos
 
         test_xandikos = True
-    except:
+    except ImportError:
         test_xandikos = False
 
 try:
-    from .conf_private import radicale_host, radicale_port
+    from .conf_private import radicale_host
+    from .conf_private import radicale_port
 except ImportError:
     radicale_host = "localhost"
     radicale_port = 5232  ## default radicale host
@@ -65,7 +68,7 @@ except ImportError:
         import radicale
 
         test_radicale = True
-    except:
+    except ImportError:
         test_radicale = False
 
 try:
@@ -144,7 +147,7 @@ CONNKEYS = set(
 )
 
 
-def client(idx=None, **kwargs):
+def client(idx: Optional[int] = None, **kwargs: Any) -> DAVClient:
     if idx is None and not kwargs:
         return client(0)
     elif idx is not None and not kwargs and caldav_servers:
@@ -160,10 +163,11 @@ def client(idx=None, **kwargs):
         if bad_param in kwargs:
             kwargs.pop(bad_param)
     for kw in kwargs:
-        if not kw in CONNKEYS:
+        if kw not in CONNKEYS:
             logging.critical(
-                "unknown keyword %s in connection parameters.  All compatibility flags should now be sent as a separate list, see conf_private.py.EXAMPLE.  Ignoring."
-                % kw
+                "unknown keyword %s in connection parameters.  "
+                "All compatibility flags should now be sent as a separate list, see conf_private.py.EXAMPLE.  Ignoring.",
+                kw,
             )
             kwargs.pop(kw)
     return DAVClient(**kwargs)

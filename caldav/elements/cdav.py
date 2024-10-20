@@ -5,10 +5,11 @@ from datetime import timezone
 from typing import ClassVar
 from typing import Optional
 
+from caldav.lib.namespace import ns
+
 from .base import BaseElement
 from .base import NamedBaseElement
 from .base import ValuedBaseElement
-from caldav.lib.namespace import ns
 
 utc_tz = timezone.utc
 

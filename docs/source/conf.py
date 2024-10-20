@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #
 # python-caldav documentation build configuration file, created by
 # sphinx-quickstart on Thu Jun  3 10:47:52 2010.
