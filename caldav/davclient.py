@@ -225,6 +225,12 @@ class DAVResponse:
             else:
                 error.assert_(False)
         error.assert_(href)
+        ## TODO: is this safe/sane?
+        ## Ref https://github.com/python-caldav/caldav/issues/435 the paths returned may be absolute URLs,
+        ## but the caller expects them to be paths.  Could we have issues when a server has same path
+        ## but different URLs for different elements?
+        if ":" in href:
+            href = unquote(URL(href).path)
         return (cast(str, href), propstats, status)
 
     def find_objects_and_props(self) -> Dict[str, Dict[str, _Element]]:
