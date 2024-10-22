@@ -30,9 +30,11 @@ dependencies = [
     "vobject",
     "lxml",
     "requests",
-    "icalendar",
     "recurring-ical-events>=2.0.0",
     "typing_extensions;python_version<'3.11'",
+    ## It's a mess - newer versions of xandikos, used for testing, does not support python 3.8 anymore.  icalendar 6.0.0 is not compatible with elder versions of xandikos.  It's no problem with python 3.7, as icalender 6.0.0 does not support python 3.7.
+    "icalendar<6.0.0;python_version=='3.8'",
+    "icalendar;python_version!='3.8'",
 ]
 dynamic = ["version"]
 
@@ -43,7 +45,7 @@ test = [
     "sphinx",
     "backports.zoneinfo;python_version<'3.9'",
     "tzlocal",
-    "xandikos==0.2.8;python_version<'3.9'",
+    "xandikos==0.2.7;python_version<'3.9'",
     "dulwich==0.20.50;python_version<'3.9'",
     "xandikos;python_version>='3.9'",
 ]
