@@ -338,7 +338,7 @@ END:VEVENT
 END:VCALENDAR
 """
 
-attendee1="""
+attendee1 = """
 BEGIN:VCALENDAR
 PRODID:-//Example Corp.//CalDAV Client//EN
 VERSION:2.0
@@ -686,7 +686,7 @@ class RepeatedFunctionalTestsBaseClass(object):
             ret = self.principal.make_calendar(
                 name=name, cal_id=self.testcal_id, **kwargs
             )
-            if self.check_compatibility_flag('search_always_needs_comptype'):
+            if self.check_compatibility_flag("search_always_needs_comptype"):
                 ret.objects = lambda load_objects: ret.events()
             if self.cleanup_regime == "post":
                 self.calendars_used.append(ret)
@@ -708,7 +708,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         self.skip_on_compatibility_flag("no_scheduling")
         calendar_user_address_set = self.principal.calendar_user_address_set()
         me_a_participant = self.principal.get_vcal_address()
-        
+
     def testSchedulingMailboxes(self):
         self.skip_on_compatibility_flag("no_scheduling")
         self.skip_on_compatibility_flag("no_scheduling_mailbox")
@@ -872,11 +872,18 @@ class RepeatedFunctionalTestsBaseClass(object):
     def testChangeAttendeeStatusWithEmailGiven(self):
         self.skip_on_compatibility_flag("read_only")
         c = self._fixCalendar()
-        event = c.save_event(uid='test1', dtstart=datetime(2015, 10, 10, 8, 7, 6),  dtend=datetime(2015, 10, 10, 9, 7, 6),  ical_fragment='ATTENDEE;ROLE=OPT-PARTICIPANT;PARTSTAT=TENTATIVE:MAILTO:testuser@example.com')
-        event.change_attendee_status(attendee='testuser@example.com', PARTSTAT='ACCEPTED')
+        event = c.save_event(
+            uid="test1",
+            dtstart=datetime(2015, 10, 10, 8, 7, 6),
+            dtend=datetime(2015, 10, 10, 9, 7, 6),
+            ical_fragment="ATTENDEE;ROLE=OPT-PARTICIPANT;PARTSTAT=TENTATIVE:MAILTO:testuser@example.com",
+        )
+        event.change_attendee_status(
+            attendee="testuser@example.com", PARTSTAT="ACCEPTED"
+        )
         event.save()
-        event = c.event_by_uid('test1')
-        import pdb; pdb.set_trace()
+        event = c.event_by_uid("test1")
+        ## TODO: work in progress ... see https://github.com/python-caldav/caldav/issues/399
 
     def testCreateEvent(self):
         self.skip_on_compatibility_flag("read_only")

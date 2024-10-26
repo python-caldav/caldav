@@ -17,7 +17,7 @@ incompatibility_description = {
 
     'no_current-user-principal':
         """Current user principal not supported by the server (flag is ignored by the tests as for now - pass the principal URL as the testing URL and it will work, albeit with one warning""",
-    
+
     'no_recurring':
         """Server is having issues with recurring events and/or todos. """
         """date searches covering recurrances may yield no results, """

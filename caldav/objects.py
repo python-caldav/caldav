@@ -1230,8 +1230,15 @@ class Calendar(DAVObject):
                 ## events, tasks and journals.
                 ## TODO: we need server compatibility hints!
                 ## https://github.com/python-caldav/caldav/issues/402
-                if not comp_class and not '400' in err.reason:
-                    return self.search(event=True, include_completed=include_completed, sort_keys=sort_keys, split_expanded=split_expanded, props=props, **kwargs)
+                if not comp_class and not "400" in err.reason:
+                    return self.search(
+                        event=True,
+                        include_completed=include_completed,
+                        sort_keys=sort_keys,
+                        split_expanded=split_expanded,
+                        props=props,
+                        **kwargs,
+                    )
                 raise
 
         for o in objects:
