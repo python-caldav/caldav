@@ -872,7 +872,7 @@ class RepeatedFunctionalTestsBaseClass(object):
     def testChangeAttendeeStatusWithEmailGiven(self):
         self.skip_on_compatibility_flag("read_only")
         c = self._fixCalendar()
-        event = c.save_event(uid='test1', ical_fragment='ATTENDEE;ROLE=OPT-PARTICIPANT;PARTSTAT=TENTATIVE:MAILTO:testuser@example.com')
+        event = c.save_event(uid='test1', dtstart=datetime(2015, 10, 10, 8, 7, 6),  dtend=datetime(2015, 10, 10, 9, 7, 6),  ical_fragment='ATTENDEE;ROLE=OPT-PARTICIPANT;PARTSTAT=TENTATIVE:MAILTO:testuser@example.com')
         event.change_attendee_status(attendee='testuser@example.com', PARTSTAT='ACCEPTED')
         event.save()
         event = c.event_by_uid('test1')

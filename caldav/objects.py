@@ -2446,7 +2446,7 @@ class CalendarObjectResource(DAVObject):
         attendee_lines = ical_obj["attendee"]
         if isinstance(attendee_lines, str):
             attendee_lines = [attendee_lines]
-        strip_mailto = lambda x: str(x).replace("mailto:", "").lower()
+        strip_mailto = lambda x: str(x).lower().replace("mailto:", "")
         for attendee_line in attendee_lines:
             if strip_mailto(attendee_line) == strip_mailto(attendee):
                 attendee_line.params.update(kwargs)
