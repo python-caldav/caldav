@@ -495,7 +495,7 @@ class TestScheduling(object):
         for foo in rfc6638_users:
             c = client(**foo)
             if not c.check_scheduling_support():
-                continue ## ignoring user because server does not support scheduling.
+                continue  ## ignoring user because server does not support scheduling.
             self.clients.append(c)
             self.principals.append(c.principal())
 
