@@ -156,14 +156,9 @@ def create_ical(ical_fragment=None, objtype=None, language="en_DK", **props):
     ical_fragment = to_normal_str(ical_fragment)
     if not ical_fragment or not re.search("^BEGIN:V", ical_fragment, re.MULTILINE):
         my_instance = icalendar.Calendar()
-        my_instance.add("prodid", "-//python-caldav//caldav//" + language)
-        my_instance.add("version", "2.0")
         if objtype is None:
             objtype = "VEVENT"
         component = icalendar.cal.component_factory[objtype]()
-        component.add("dtstamp", datetime.datetime.now(tz=datetime.timezone.utc))
-        if not props.get("uid") and "\nUID:" not in (ical_fragment or ""):
-            component.add("uid", uuid.uuid1())
         my_instance.add_component(component)
         ## STATUS should default to NEEDS-ACTION for tasks, if it's not set
         ## (otherwise we cannot easily add a task to a davical calendar and
@@ -186,6 +181,16 @@ def create_ical(ical_fragment=None, objtype=None, language="en_DK", **props):
         component = my_instance.subcomponents[0]
         ical_fragment = None
 
+    ## Populate with mandatory fields, if missing
+    if not my_instance.get('prodid'):
+        my_instance.add("prodid", "-//python-caldav//caldav//" + language)
+    if not my_instance.get('version'):
+        my_instance.add("version", "2.0")
+    if not component.get('dtstamp') and not props.get('dtstamp'):
+        component.add("dtstamp", datetime.datetime.now(tz=datetime.timezone.utc))
+    if not component.get('uid') and not props.get("uid"):
+        component.add("uid", uuid.uuid1())
+            
     for prop in props:
         if props[prop] is not None:
             if isinstance(props[prop], datetime.datetime) and not props[prop].tzinfo:
