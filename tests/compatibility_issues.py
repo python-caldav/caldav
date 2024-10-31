@@ -12,6 +12,9 @@
 ## * Perhaps some more readable format should be considered (yaml?).
 ## * Consider how to get this into the documentation
 incompatibility_description = {
+    'rate_limited':
+        """Pause a bit between each request""",
+
     'broken_expand':
         """Server-side expand seems to work, but delivers wrong data""",
 
@@ -411,9 +414,20 @@ calendar_mail_ru = [
 ]
 
 purelymail = [
+    ## Known, work in progress
     'no_scheduling',
+
+    ## Not a breach of standard
     'non_existing_calendar_found',
+
+    ## Known, not a breach of standard
     'no_supported_components_support',
+
+    ## Purelymail claims that the search indexes are "lazily" populated,
+    ## so search works some minutes after the event was created/edited.
+    ## I tried adding arbitrary delays in commit 5d052b1 but still didn't
+    ## manage to get search to work.  Should eventually do more research
+    ## into this.  (personal email communication with contact@purelymail.com)
     'no_search',
     'object_by_uid_is_broken',
 ]

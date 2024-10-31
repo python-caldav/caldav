@@ -617,6 +617,14 @@ class RepeatedFunctionalTestsBaseClass(object):
 
         self.caldav = client(**self.server_params)
 
+        if self.check_compatibility_flag('rate_limited'):
+            def delay_decorator(f):
+                def foo(*a, **kwa):
+                    time.sleep(5)
+                    return f(*a, **kwa)
+                return foo
+            self.caldav.request = delay_decorator(self.caldav.request)
+
         if False and self.check_compatibility_flag("no-current-user-principal"):
             self.principal = Principal(
                 client=self.caldav, url=self.server_params["principal_url"]
