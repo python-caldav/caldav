@@ -15,6 +15,9 @@ incompatibility_description = {
     'rate_limited':
         """Pause a bit between each request""",
 
+    'no_delete_calendar':
+        """Not allowed to delete calendars""",
+
     'broken_expand':
         """Server-side expand seems to work, but delivers wrong data""",
 
