@@ -616,12 +616,15 @@ class RepeatedFunctionalTestsBaseClass(object):
 
         self.caldav = client(**self.server_params)
 
-        if self.check_compatibility_flag('rate_limited'):
+        if self.check_compatibility_flag("rate_limited"):
+
             def delay_decorator(f):
                 def foo(*a, **kwa):
                     time.sleep(5)
                     return f(*a, **kwa)
+
                 return foo
+
             self.caldav.request = delay_decorator(self.caldav.request)
 
         if False and self.check_compatibility_flag("no-current-user-principal"):
@@ -679,7 +682,9 @@ class RepeatedFunctionalTestsBaseClass(object):
     def _teardownCalendar(self, name=None, cal_id=None):
         try:
             cal = self.principal.calendar(name=name, cal_id=cal_id)
-            if self.check_compatibility_flag("sticky_events"):
+            if self.check_compatibility_flag(
+                "sticky_events"
+            ) or self.check_compatibility_flag("no_delete_calendar"):
                 try:
                     for goo in cal.objects():
                         goo.delete()
@@ -714,17 +719,23 @@ class RepeatedFunctionalTestsBaseClass(object):
                 self._default_calendar = calendars[0]
             return self._default_calendar
         else:
-            if not self.check_compatibility_flag(
-                "unique_calendar_ids"
-            ) and self.cleanup_regime in ("light", "pre"):
-                self._teardownCalendar(cal_id=self.testcal_id)
-            if self.check_compatibility_flag("no_displayname"):
-                name = None
-            else:
-                name = "Yep"
-            ret = self.principal.make_calendar(
-                name=name, cal_id=self.testcal_id, **kwargs
-            )
+            if not "name" in kwargs:
+                if not self.check_compatibility_flag(
+                    "unique_calendar_ids"
+                ) and self.cleanup_regime in ("light", "pre"):
+                    self._teardownCalendar(cal_id=self.testcal_id)
+                if self.check_compatibility_flag("no_displayname"):
+                    kwargs["name"] = None
+                else:
+                    kwargs["name"] = "Yep"
+            if not "cal_id" in kwargs:
+                kwargs["cal_id"] = self.testcal_id
+            try:
+                ret = self.principal.make_calendar(**kwargs)
+            except error.MkcalendarError:
+                ## "calendar already exists" can be ignored (at least
+                ## if no_delete_calendar flag is set)
+                ret = self.principal.calendar(cal_id=kwargs["cal_id"])
             if self.check_compatibility_flag("search_always_needs_comptype"):
                 ret.objects = lambda load_objects: ret.events()
             if self.cleanup_regime == "post":
@@ -891,6 +902,7 @@ class RepeatedFunctionalTestsBaseClass(object):
     def testCreateDeleteCalendar(self):
         self.skip_on_compatibility_flag("no_mkcalendar")
         self.skip_on_compatibility_flag("read_only")
+        self.skip_on_compatibility_flag("no_delete_calendar")
         if not self.check_compatibility_flag(
             "unique_calendar_ids"
         ) and self.cleanup_regime in ("light", "pre"):
@@ -953,10 +965,11 @@ class RepeatedFunctionalTestsBaseClass(object):
             # We should be able to access the calender through the name
             c2 = self.principal.calendar(name="Yep")
             ## may break if we have multiple calendars with the same name
-            assert c2.url == c.url
-            events2 = c2.events()
-            assert len(events2) == 1
-            assert events2[0].url == events[0].url
+            if not self.check_compatibility_flag("no_delete_calendar"):
+                assert c2.url == c.url
+                events2 = c2.events()
+                assert len(events2) == 1
+                assert events2[0].url == events[0].url
 
         # add another event, it should be doable without having premade ICS
         ev2 = c.save_event(
@@ -1222,8 +1235,8 @@ class RepeatedFunctionalTestsBaseClass(object):
         ) and self.cleanup_regime in ("light", "pre"):
             self._teardownCalendar(cal_id=self.testcal_id)
             self._teardownCalendar(cal_id=self.testcal_id2)
-        c1 = self.principal.make_calendar(name="Yep", cal_id=self.testcal_id)
-        c2 = self.principal.make_calendar(name="Yapp", cal_id=self.testcal_id2)
+        c1 = self._fixCalendar(name="Yep", cal_id=self.testcal_id)
+        c2 = self._fixCalendar(name="Yapp", cal_id=self.testcal_id2)
         e1_ = c1.save_event(ev1)
         if not self.check_compatibility_flag("event_by_url_is_broken"):
             e1_.load()
@@ -1248,8 +1261,10 @@ class RepeatedFunctionalTestsBaseClass(object):
             self._teardownCalendar(cal_id=self.testcal_id2)
 
         ## Let's create two calendars, and populate one event on the first calendar
-        c1 = self.principal.make_calendar(name="Yep", cal_id=self.testcal_id)
-        c2 = self.principal.make_calendar(name="Yapp", cal_id=self.testcal_id2)
+        c1 = self._fixCalendar(name="Yep", cal_id=self.testcal_id)
+        c2 = self._fixCalendar(name="Yapp", cal_id=self.testcal_id2)
+        assert not len(c1.events())
+        assert not len(c2.events())
         e1_ = c1.save_event(ev1)
         e1 = c1.events()[0]
 
@@ -2189,7 +2204,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         ) and self.cleanup_regime in ("light", "pre"):
             self._teardownCalendar(cal_id=self.testcal_id)
 
-        c = self.principal.make_calendar(name="Yølp", cal_id=self.testcal_id)
+        c = self._fixCalendar(name="Yølp", cal_id=self.testcal_id)
 
         # add event
         e1 = c.save_event(
@@ -2221,7 +2236,7 @@ class RepeatedFunctionalTestsBaseClass(object):
             "unique_calendar_ids"
         ) and self.cleanup_regime in ("light", "pre"):
             self._teardownCalendar(cal_id=self.testcal_id)
-        c = self.principal.make_calendar(name="Yølp", cal_id=self.testcal_id)
+        c = self._fixCalendar(name="Yølp", cal_id=self.testcal_id)
 
         # add event
         e1 = c.save_event(
@@ -2238,6 +2253,7 @@ class RepeatedFunctionalTestsBaseClass(object):
     def testSetCalendarProperties(self):
         self.skip_on_compatibility_flag("read_only")
         self.skip_on_compatibility_flag("no_displayname")
+        self.skip_on_compatibility_flag("no_delete_calendar")
 
         c = self._fixCalendar()
         assert c.url is not None
@@ -2259,8 +2275,14 @@ class RepeatedFunctionalTestsBaseClass(object):
             "unique_calendar_ids"
         ) and self.cleanup_regime in ("light", "pre"):
             self._teardownCalendar(cal_id=self.testcal_id2)
-        cc = self.principal.make_calendar("Yep", self.testcal_id2)
-        cc.delete()
+        cc = self._fixCalendar(name="Yep", cal_id=self.testcal_id2)
+        try:
+            cc.delete()
+        except error.DeleteError:
+            if not self.check_compatibility_flag(
+                "no_delete_calendar"
+            ) or self.check_compatibility_flag("unique_calendar_ids"):
+                raise
 
         c.set_properties(
             [
@@ -2640,6 +2662,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert "RRULE" not in r[0].data
         assert "RRULE" not in r[1].data
 
+        self.skip_on_compatibility_flag("broken_expand")
         assert isinstance(
             r[0].icalendar_component["RECURRENCE-ID"], icalendar.vDDDTypes
         )
