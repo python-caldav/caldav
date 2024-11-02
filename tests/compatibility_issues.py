@@ -19,7 +19,13 @@ incompatibility_description = {
         """Not allowed to delete calendars""",
 
     'broken_expand':
-        """Server-side expand seems to work, but delivers wrong data""",
+        """Server-side expand seems to work, but delivers wrong data (typically missing RECURRENCE-ID)""",
+
+    'no_expand':
+        """Server-side expand does not seem to work""",
+
+    'broken_expand_on_exceptions':
+        """The testRecurringDateWithExceptionSearch test breaks as the icalendar_component is missing a RECURRENCE-ID field.  TODO: should be investigated more""",
 
     'no_current-user-principal':
         """Current user principal not supported by the server (flag is ignored by the tests as for now - pass the principal URL as the testing URL and it will work, albeit with one warning""",
@@ -331,6 +337,7 @@ davical = [
     #'nofreebusy', ## for old versions
     'fragile_sync_tokens', ## no issue raised yet
     'vtodo_datesearch_nodtstart_task_is_skipped', ## no issue raised yet
+    'broken_expand_on_exceptions',
 ]
 
 google = [
@@ -399,7 +406,8 @@ posteo = [
     'no_journal',
     'no_recurring_todo',
     'no_sync_token',
-    'combined_search_not_working'
+    'combined_search_not_working',
+    'broken_expand',
 ]
 
 calendar_mail_ru = [
