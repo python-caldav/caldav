@@ -620,7 +620,7 @@ class RepeatedFunctionalTestsBaseClass(object):
 
             def delay_decorator(f):
                 def foo(*a, **kwa):
-                    time.sleep(5)
+                    time.sleep(60)
                     return f(*a, **kwa)
 
                 return foo
@@ -633,6 +633,10 @@ class RepeatedFunctionalTestsBaseClass(object):
             )
         else:
             self.principal = self.caldav.principal()
+
+        # if self.check_compatibility_flag('delete_calendar_on_startup'):
+        # for x in self._fixCalendar().search():
+        # x.delete()
 
         self._cleanup("pre")
 
@@ -685,11 +689,11 @@ class RepeatedFunctionalTestsBaseClass(object):
             if self.check_compatibility_flag(
                 "sticky_events"
             ) or self.check_compatibility_flag("no_delete_calendar"):
-                try:
-                    for goo in cal.objects():
+                for goo in cal.objects():
+                    try:
                         goo.delete()
-                except:
-                    pass
+                    except:
+                        pass
             cal.delete()
         except:
             pass
@@ -740,6 +744,7 @@ class RepeatedFunctionalTestsBaseClass(object):
                 ret.objects = lambda load_objects: ret.events()
             if self.cleanup_regime == "post":
                 self.calendars_used.append(ret)
+
             return ret
 
     def testSupport(self):
@@ -807,6 +812,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         ref https://github.com/python-caldav/caldav/issues/201
         """
         c = self._fixCalendar()
+
         if not self.check_compatibility_flag("read_only"):
             ## populate the calendar with an event or two or three
             c.save_event(ev1)
@@ -908,6 +914,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         ) and self.cleanup_regime in ("light", "pre"):
             self._teardownCalendar(cal_id=self.testcal_id)
         c = self.principal.make_calendar(name="Yep", cal_id=self.testcal_id)
+
         assert c.url is not None
         events = c.events()
         assert len(events) == 0
@@ -923,6 +930,7 @@ class RepeatedFunctionalTestsBaseClass(object):
     def testChangeAttendeeStatusWithEmailGiven(self):
         self.skip_on_compatibility_flag("read_only")
         c = self._fixCalendar()
+
         event = c.save_event(
             uid="test1",
             dtstart=datetime(2015, 10, 10, 8, 7, 6),
@@ -933,6 +941,7 @@ class RepeatedFunctionalTestsBaseClass(object):
             attendee="testuser@example.com", PARTSTAT="ACCEPTED"
         )
         event.save()
+        self.skip_on_compatibility_flag("object_by_uid_is_broken")
         event = c.event_by_uid("test1")
         ## TODO: work in progress ... see https://github.com/python-caldav/caldav/issues/399
 
@@ -988,6 +997,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         is broken in 0.8.0
         """
         mycal = self._fixCalendar()
+
         samecal = self.caldav.principal().calendar(cal_id=str(mycal.url))
         assert mycal.url.canonical() == samecal.url.canonical()
         ## passing cal_id as a URL object should also work.
@@ -1134,6 +1144,7 @@ class RepeatedFunctionalTestsBaseClass(object):
 
         ## Boiler plate ... make a calendar and add some content
         c = self._fixCalendar()
+
         objcnt = 0
         ## in case we need to reuse an existing calendar ...
         if not self.check_compatibility_flag("no_todo"):
@@ -1237,6 +1248,7 @@ class RepeatedFunctionalTestsBaseClass(object):
             self._teardownCalendar(cal_id=self.testcal_id2)
         c1 = self._fixCalendar(name="Yep", cal_id=self.testcal_id)
         c2 = self._fixCalendar(name="Yapp", cal_id=self.testcal_id2)
+
         e1_ = c1.save_event(ev1)
         if not self.check_compatibility_flag("event_by_url_is_broken"):
             e1_.load()
@@ -1263,6 +1275,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         ## Let's create two calendars, and populate one event on the first calendar
         c1 = self._fixCalendar(name="Yep", cal_id=self.testcal_id)
         c2 = self._fixCalendar(name="Yapp", cal_id=self.testcal_id2)
+
         assert not len(c1.events())
         assert not len(c2.events())
         e1_ = c1.save_event(ev1)
@@ -1315,6 +1328,7 @@ class RepeatedFunctionalTestsBaseClass(object):
     def testCreateCalendarAndEventFromVobject(self):
         self.skip_on_compatibility_flag("read_only")
         c = self._fixCalendar()
+
         ## in case the calendar is reused
         cnt = len(c.events())
 
@@ -1335,6 +1349,7 @@ class RepeatedFunctionalTestsBaseClass(object):
     def testGetSupportedComponents(self):
         self.skip_on_compatibility_flag("no_supported_components_support")
         c = self._fixCalendar()
+
         components = c.get_supported_components()
         assert components
         assert "VEVENT" in components
@@ -1343,6 +1358,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         self.skip_on_compatibility_flag("read_only")
         self.skip_on_compatibility_flag("no_search")
         c = self._fixCalendar()
+
         c.save_event(ev1)
         c.save_event(ev3)
         c.save_event(evr)
@@ -1898,13 +1914,21 @@ class RepeatedFunctionalTestsBaseClass(object):
 
         # adding a todo without a UID, it should also work (library will add the missing UID)
         t7 = c.save_todo(todo7)
-        assert len(c.todos()) == 3
+        logging.info("Fetching the todos (should be three)")
+        todos = c.todos()
 
         logging.info("Fetching the events (should be none)")
         # c.events() should NOT return todo-items
         events = c.events()
-        assert len(events) == 0
+
         t7.delete()
+
+        ## Delayed asserts ... this test is fragile, since todo7 is without
+        ## an uid it may not be covered by the automatic cleanup procedures
+        ## in the test framework.
+        assert len(todos) == 3
+        assert len(events) == 0
+        assert len(c.todos()) == 2
 
     def testTodos(self):
         """
@@ -2013,6 +2037,22 @@ class RepeatedFunctionalTestsBaseClass(object):
             split_expanded=False,
             include_completed=True,
         )
+        todos3 = c.search(
+            start=datetime(1997, 4, 14),
+            end=datetime(2015, 5, 14),
+            todo=True,
+            expand="client",
+            split_expanded=False,
+            include_completed=True,
+        )
+        todos4 = c.search(
+            start=datetime(1997, 4, 14),
+            end=datetime(2015, 5, 14),
+            todo=True,
+            expand="client",
+            split_expanded=False,
+            include_completed=True,
+        )
         # The RFCs are pretty clear on this.  rfc5545 states:
 
         # A "VTODO" calendar component without the "DTSTART" and "DUE" (or
@@ -2044,10 +2084,26 @@ class RepeatedFunctionalTestsBaseClass(object):
 
         ## verify that "expand" works
         if not self.check_compatibility_flag(
-            "broken_expand"
-        ) and not self.check_compatibility_flag("no_recurring"):
-            assert len([x for x in todos1 if "DTSTART:20020415T1330" in x.data]) == 1
-            assert len([x for x in todos2 if "DTSTART:20020415T1330" in x.data]) == 1
+            "no_recurring"
+        ) and not self.check_compatibility_flag("no_recurring_todo"):
+            ## todo1 and todo2 should be the same (todo1 using legacy method)
+            ## todo1 and todo2 tries doing server side expand, with fallback
+            ## to client side expand
+            if not self.check_compatibility_flag("broken_expand"):
+                assert (
+                    len([x for x in todos1 if "DTSTART:20020415T1330" in x.data]) == 1
+                )
+                assert (
+                    len([x for x in todos2 if "DTSTART:20020415T1330" in x.data]) == 1
+                )
+                if not self.check_compatibility_flag("no_expand"):
+                    assert (
+                        len([x for x in todos4 if "DTSTART:20020415T1330" in x.data])
+                        == 1
+                    )
+            ## todo3 is client side expand, should always work
+            assert len([x for x in todos3 if "DTSTART:20020415T1330" in x.data]) == 1
+            ## todo4 is server side expand, may work dependent on server
 
         ## exercise the default for expand (maybe -> False for open-ended search)
         todos1 = c.date_search(start=datetime(2025, 4, 14), compfilter="VTODO")
@@ -2585,16 +2641,32 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert len(r2) == 1
 
         ## With expand=True, we should find one occurrence
+        ## legacy method name
         r1 = c.date_search(
             datetime(2008, 11, 1, 17, 00, 00),
             datetime(2008, 11, 3, 17, 00, 00),
             expand=True,
         )
+        ## server expansion, with client side fallback
         r2 = c.search(
             event=True,
             start=datetime(2008, 11, 1, 17, 00, 00),
             end=datetime(2008, 11, 3, 17, 00, 00),
             expand=True,
+        )
+        ## client side expansion
+        r3 = c.search(
+            event=True,
+            start=datetime(2008, 11, 1, 17, 00, 00),
+            end=datetime(2008, 11, 3, 17, 00, 00),
+            expand="client",
+        )
+        ## server side expansion
+        r4 = c.search(
+            event=True,
+            start=datetime(2008, 11, 1, 17, 00, 00),
+            end=datetime(2008, 11, 3, 17, 00, 00),
+            expand="server",
         )
         assert len(r1) == 1
         assert len(r2) == 1
@@ -2604,6 +2676,9 @@ class RepeatedFunctionalTestsBaseClass(object):
         if not self.check_compatibility_flag("broken_expand"):
             assert r1[0].data.count("DTSTART;VALUE=DATE:2008") == 1
             assert r2[0].data.count("DTSTART;VALUE=DATE:2008") == 1
+            if not self.check_compatibility_flag("no_expand"):
+                assert r4[0].data.count("DTSTART;VALUE=DATE:2008") == 1
+        assert r3[0].data.count("DTSTART;VALUE=DATE:2008") == 1
 
         ## With expand=True and searching over two recurrences ...
         r1 = c.date_search(
@@ -2645,6 +2720,7 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert r[0].data.count("END:VEVENT") == 1
 
     def testRecurringDateWithExceptionSearch(self):
+        self.skip_on_compatibility_flag("no_search")
         c = self._fixCalendar()
 
         # evr2 is a bi-weekly event starting 2024-04-11
@@ -2656,29 +2732,53 @@ class RepeatedFunctionalTestsBaseClass(object):
             event=True,
             expand=True,
         )
+        rc = c.search(
+            start=datetime(2024, 3, 31, 0, 0),
+            end=datetime(2024, 5, 4, 0, 0, 0),
+            event=True,
+            expand="client",
+        )
+        rs = c.search(
+            start=datetime(2024, 3, 31, 0, 0),
+            end=datetime(2024, 5, 4, 0, 0, 0),
+            event=True,
+            expand="server",
+        )
 
-        assert len(r) == 2
+        assert len(rc) == 2
+        if not self.check_compatibility_flag("broken_expand"):
+            assert len(r) == 2
+            if not self.check_compatibility_flag("no_expand"):
+                assert len(rs) == 2
 
         assert "RRULE" not in r[0].data
         assert "RRULE" not in r[1].data
 
-        self.skip_on_compatibility_flag("broken_expand")
-        assert isinstance(
-            r[0].icalendar_component["RECURRENCE-ID"], icalendar.vDDDTypes
-        )
+        asserts_on_results = [rc]
+        if not self.check_compatibility_flag(
+            "broken_expand_on_exceptions"
+        ) and not self.check_compatibility_flag("broken_expand"):
+            asserts_on_results.append(r)
+            if not self.check_compatibility_flag("no_expand"):
+                asserts_on_results.append(rs)
 
-        ## TODO: xandikos returns a datetime without a tzinfo, radicale returns a datetime with tzinfo=UTC, but perhaps other calendar servers returns the timestamp converted to localtime?
+        for r in asserts_on_results:
+            assert isinstance(
+                r[0].icalendar_component["RECURRENCE-ID"], icalendar.vDDDTypes
+            )
 
-        assert r[0].icalendar_component["RECURRENCE-ID"].dt.replace(
-            tzinfo=None
-        ) == datetime(2024, 4, 11, 12, 30, 00)
+            ## TODO: xandikos returns a datetime without a tzinfo, radicale returns a datetime with tzinfo=UTC, but perhaps other calendar servers returns the timestamp converted to localtime?
 
-        assert isinstance(
-            r[1].icalendar_component["RECURRENCE-ID"], icalendar.vDDDTypes
-        )
-        assert r[1].icalendar_component["RECURRENCE-ID"].dt.replace(
-            tzinfo=None
-        ) == datetime(2024, 4, 25, 12, 30, 00)
+            assert r[0].icalendar_component["RECURRENCE-ID"].dt.replace(
+                tzinfo=None
+            ) == datetime(2024, 4, 11, 12, 30, 00)
+
+            assert isinstance(
+                r[1].icalendar_component["RECURRENCE-ID"], icalendar.vDDDTypes
+            )
+            assert r[1].icalendar_component["RECURRENCE-ID"].dt.replace(
+                tzinfo=None
+            ) == datetime(2024, 4, 25, 12, 30, 00)
 
     def testOffsetURL(self):
         """

@@ -15,8 +15,11 @@ incompatibility_description = {
     'rate_limited':
         """Pause a bit between each request""",
 
+    'cleanup_calendar':
+        """Remove everything on the calendar for every test""",
+
     'no_delete_calendar':
-        """Not allowed to delete calendars""",
+        """Not allowed to delete calendars - or calendar ends up in a 'trashbin'""",
 
     'broken_expand':
         """Server-side expand seems to work, but delivers wrong data (typically missing RECURRENCE-ID)""",
