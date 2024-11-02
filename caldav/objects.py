@@ -1133,6 +1133,7 @@ class Calendar(DAVObject):
         include_completed: bool = False,
         sort_keys: Sequence[str] = (),
         sort_reverse: bool = False,
+        expand: Union[bool, Literal["server"], Literal["client"]] = False,
         split_expanded: bool = True,
         props: Optional[List[CalendarData]] = None,
         **kwargs,
@@ -1147,6 +1148,12 @@ class Calendar(DAVObject):
         and client side filtering to make sure other search results
         are consistent on different server implementations.
 
+        LEGACY WARNING: the expand attribute currently takes four
+        possible values - True, False, server and client.  The two
+        latter value were hastily added just prior to launching
+        version 1.4, the API may be reconsidered and changed without
+        notice when launching version 2.0
+
         Parameters supported:
 
         * xml - use this search query, and ignore other filter parameters
@@ -1160,7 +1167,7 @@ class Calendar(DAVObject):
           description, location, status
         * no-category, no-summary, etc ... search for objects that does not
           have those attributes.  TODO: WRITE TEST CODE!
-        * expand - do server side expanding of recurring events/tasks
+        * expand - expand recurring objects
         * start, end: do a time range search
         * filters - other kind of filters (in lxml tree format)
         * sort_keys - list of attributes to use when sorting
@@ -1169,6 +1176,7 @@ class Calendar(DAVObject):
         not supported yet:
         * negated text match
         * attribute not set
+
         """
         ## special compatibility-case when searching for pending todos
         if todo and not include_completed:
@@ -1209,6 +1217,8 @@ class Calendar(DAVObject):
                         objects.append(item)
         else:
             if not xml:
+                if expand and expand != "client":
+                    kwargs["expand"] = True
                 (xml, comp_class) = self.build_search_xml_query(
                     comp_class=comp_class, todo=todo, props=props, **kwargs
                 )
@@ -1248,7 +1258,7 @@ class Calendar(DAVObject):
         ## Google sometimes returns empty objects
         objects = [o for o in objects if o.has_component()]
 
-        if kwargs.get("expand", False):
+        if expand and expand != "server":
             ## expand can only be used together with start and end (and not
             ## with xml).  Error checking has already been done in
             ## build_search_xml_query above.
@@ -1268,11 +1278,11 @@ class Calendar(DAVObject):
             ## icalendar data containing multiple objects.  The caller may
             ## expect multiple Event()s.  This code splits events into
             ## separate objects:
-            if split_expanded:
-                objects_ = objects
-                objects = []
-                for o in objects_:
-                    objects.extend(o.split_expanded())
+        if expand and split_expanded:
+            objects_ = objects
+            objects = []
+            for o in objects_:
+                objects.extend(o.split_expanded())
 
         def sort_key_func(x):
             ret = []
