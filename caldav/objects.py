@@ -1311,6 +1311,7 @@ class Calendar(DAVObject):
                     > datetime.now().strftime("%F%H%M%S")
                 ),
             }
+            ## ref https://github.com/python-caldav/caldav/issues/448 - allow strings instead of a sequence here
             for sort_key in sort_keys:
                 val = comp.get(sort_key, None)
                 if val is None:
@@ -1327,6 +1328,8 @@ class Calendar(DAVObject):
             return ret
 
         if sort_keys:
+            if isinstance(sort_keys, str):
+                sort_keys = (sort_keys,)
             objects.sort(key=sort_key_func, reverse=sort_reverse)
 
         ## partial workaround for https://github.com/python-caldav/caldav/issues/201
