@@ -1500,6 +1500,40 @@ class RepeatedFunctionalTestsBaseClass(object):
         assert len(all_events) == 3
         assert all_events[0].instance.vevent.summary.value == "Our Blissful Anniversary"
 
+        ## A more robust check for the sort key
+        all_events = c.search(sort_keys=("DTSTART",))
+        assert len(all_events) == 3
+        assert str(all_events[0].icalendar_component["DTSTART"].dt) < str(
+            all_events[1].icalendar_component["DTSTART"].dt
+        )
+        assert str(all_events[1].icalendar_component["DTSTART"].dt) < str(
+            all_events[2].icalendar_component["DTSTART"].dt
+        )
+        all_events = c.search(sort_keys=("DTSTART",), sort_reverse=True)
+        assert str(all_events[0].icalendar_component["DTSTART"].dt) > str(
+            all_events[1].icalendar_component["DTSTART"].dt
+        )
+        assert str(all_events[1].icalendar_component["DTSTART"].dt) > str(
+            all_events[2].icalendar_component["DTSTART"].dt
+        )
+
+        ## Ref https://github.com/python-caldav/caldav/issues/448
+        all_events = c.search(sort_keys=("DTSTART"))
+        assert len(all_events) == 3
+        assert str(all_events[0].icalendar_component["DTSTART"].dt) < str(
+            all_events[1].icalendar_component["DTSTART"].dt
+        )
+        assert str(all_events[1].icalendar_component["DTSTART"].dt) < str(
+            all_events[2].icalendar_component["DTSTART"].dt
+        )
+        all_events = c.search(sort_keys=("DTSTART"), sort_reverse=True)
+        assert str(all_events[0].icalendar_component["DTSTART"].dt) > str(
+            all_events[1].icalendar_component["DTSTART"].dt
+        )
+        assert str(all_events[1].icalendar_component["DTSTART"].dt) > str(
+            all_events[2].icalendar_component["DTSTART"].dt
+        )
+
     def testSearchSortTodo(self):
         self.skip_on_compatibility_flag("read_only")
         self.skip_on_compatibility_flag("no_todo")
