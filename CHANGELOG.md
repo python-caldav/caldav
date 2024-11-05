@@ -10,7 +10,7 @@ The format of this file should adhere to [Keep a Changelog](https://keepachangel
 
 This project should more or less adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.4.0] - unreleased
+## [1.4.0] - 2024-11-05
 
 * Georges Toth (github @sim0nx) did a lot of efforts lifting up the project to more modern standards, @smurfix and ArtemIsmagilov has also done quite some efforts cleaning up old code
 * A hook for collecting debug information has been in the pull request queue for ages.  I've decided to include it in 1.4.0.
@@ -64,6 +64,18 @@ Thinking it through three times, I'm not too concerned - if someone has access t
 ### Credits
 
 Georges Tooth, Крылов Александр, zhwei, Stefan Ollinger, Matthias Urlichs, ArtemIsmagilov, Tobias Brox has contributed directly with commits and pull requests included in this release.  Many more has contributed through reporting issues and code snippets.
+
+### Test runs
+
+Prior to release (commit 92de2e29276d3da2dcc721cbaef8da5eb344bd11), tests have been run successfully towards:
+
+* radicale (internal tests)
+* xandikos (internal tests)
+* ecloud.global (NextCloud) - with flags `compatibility_issues.nextcloud + ['no_delete_calendar', 'unique_calendar_ids', 'rate_limited', 'broken_expand']` and with frequent manual "empty thrashcan"-operations in webui.
+* Zimbra
+* DAViCal
+* Posteo
+* Purelymail
 
 ## [1.3.9] - 2023-12-12
 
