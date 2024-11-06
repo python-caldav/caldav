@@ -10,7 +10,6 @@ from icalendar import Event
 from caldav import DAVClient
 from caldav import error
 
-
 ###############
 ### SETUP START
 ### rfc6638_users should be a list with three dicts containing credential details.

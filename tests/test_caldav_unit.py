@@ -1,11 +1,11 @@
 #!/usr/bin/env python
-# -*- encoding: utf-8 -*-
 """
 Rule: None of the tests in this file should initiate any internet
 communication, and there should be no dependencies on a working caldav
 server for the tests in this file.  We use the Mock class when needed
 to emulate server communication.
 """
+
 import pickle
 from datetime import date
 from datetime import datetime
@@ -16,15 +16,11 @@ from urllib.parse import urlparse
 import icalendar
 import lxml.etree
 import pytest
-import vobject
 
-import caldav
 from caldav import Calendar
 from caldav import CalendarObjectResource
 from caldav import CalendarSet
-from caldav import DAVObject
 from caldav import Event
-from caldav import FreeBusy
 from caldav import Journal
 from caldav import Principal
 from caldav import Todo
@@ -32,9 +28,7 @@ from caldav.davclient import DAVClient
 from caldav.davclient import DAVResponse
 from caldav.elements import cdav
 from caldav.elements import dav
-from caldav.elements import ical
 from caldav.lib import error
-from caldav.lib import url
 from caldav.lib.python_utilities import to_normal_str
 from caldav.lib.python_utilities import to_wire
 from caldav.lib.url import URL
@@ -199,7 +193,7 @@ class TestExpandRRule:
             start=datetime(1998, 10, 10), end=datetime(1998, 12, 12)
         )
         assert len(self.yearly.icalendar_instance.subcomponents) == 1
-        assert not "RRULE" in self.yearly.icalendar_component
+        assert "RRULE" not in self.yearly.icalendar_component
         assert "UID" in self.yearly.icalendar_component
         assert "RECURRENCE-ID" in self.yearly.icalendar_component
 
@@ -265,8 +259,8 @@ class TestCalDAV:
         assert response.tree is None
 
         response = client.put(
-            "/foo/møøh/bar".encode("utf-8"),
-            "bringebærsyltetøy 北京 пиво".encode("utf-8"),
+            "/foo/møøh/bar".encode(),
+            "bringebærsyltetøy 北京 пиво".encode(),
             {},
         )
         assert response.status == 200
@@ -312,7 +306,8 @@ class TestCalDAV:
         mocked().status_code = 200
         mocked().headers = {"Content-Type": "text/xml"}
         mocked().content = ""
-        client = DAVClient(url="AsdfasDF").request("/")
+        client = DAVClient(url="AsdfasDF")
+        client.request("/")
 
     @mock.patch("caldav.davclient.requests.Session.request")
     def testNonValidXMLNoContentLength(self, mocked):
@@ -991,11 +986,8 @@ END:VCALENDAR
         #    assert type(e) == lxml.etree.XMLSyntaxError
 
         davclient.huge_tree = True
-        try:
-            DAVResponse(resp, davclient=davclient)
-            assert True
-        except:
-            assert False
+
+        DAVResponse(resp, davclient=davclient)
 
     def testFailedQuery(self):
         """
@@ -1266,16 +1258,11 @@ END:VCALENDAR
                 )
             )
         )
-        # print(filter)
+        print(filter)
 
         crash = cdav.CompFilter()
-        value = None
-        try:
-            value = str(crash)
-        except:
-            pass
-        if value is not None:
-            raise Exception("This should have crashed")
+        with pytest.raises(Exception, match="name attribute must be defined"):
+            str(crash)
 
     def test_calendar_comp_class_by_data(self):
         calendar = Calendar()
