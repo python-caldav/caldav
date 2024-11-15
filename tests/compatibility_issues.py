@@ -13,7 +13,7 @@
 ## * Consider how to get this into the documentation
 incompatibility_description = {
     'rate_limited':
-        """Pause a bit between each request""",
+        """It may be needed to pause a bit between each request when doing tests""",
 
     'cleanup_calendar':
         """Remove everything on the calendar for every test""",
@@ -228,8 +228,10 @@ xandikos = [
 
     'text_search_is_exact_match_only',
 
-    ## This one is fixed in master branch
-    'category_search_yields_nothing', ## https://github.com/jelmer/xandikos/pull/194
+    ## This one is fixed - but still breaks our test code for python 3.7
+    ## TODO: remove this when shredding support for python 3.7
+    ## https://github.com/jelmer/xandikos/pull/194
+    'category_search_yields_nothing',
 
     ## scheduling is not supported
     "no_scheduling",
@@ -240,7 +242,6 @@ radicale = [
     ## "weird" on radicale
     "broken_expand",
     "no_default_calendar",
-    "non_existing_calendar_found",
 
     ## freebusy is not supported yet, but on the long-term road map
     "no_freebusy_rfc4791",

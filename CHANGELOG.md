@@ -14,10 +14,13 @@ This project should more or less adhere to [Semantic Versioning](https://semver.
 
 ### Changed
 
-* Test framework has been refactored a bit. Code for setting up and rigging down xandikos/radicale servers have been moved from `tests/test_caldav.py` to `tests/conf.py`.  This allows for:
+#### Test framework
+
+* Functional test framework has been refactored - code for setting up and rigging down xandikos/radicale servers have been moved from `tests/test_caldav.py` to `tests/conf.py`.  This allows for:
     * Adding code (including system calls or remote API calls) for Setting up and tearing down calendar servers in `conf_private.py`
     * Creating a local xandikos or radicale server in the `tests.client`-method, which is also used in the `examples`-section.
     * Allows offline testing of my upcoming `check_server_compatibility`-script
+* Also added the possibility to tag test servers with a name
 
 ### Added
 

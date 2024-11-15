@@ -133,6 +133,7 @@ if test_radicale:
     caldav_servers.append(
         {
             "url": url,
+            "name": "LocalRadicale",
             "username": "user1",
             "password": "any-password-seems-to-work",
             "backwards_compatibility_url": url + "user1",
@@ -218,6 +219,7 @@ if test_xandikos:
     url = "http://%s:%i/" % (xandikos_host, xandikos_port)
     caldav_servers.append(
         {
+            "name": "LocalXandikos",
             "url": url,
             "backwards_compatibility_url": url + "sometestuser",
             "incompatibilities": compatibility_issues.xandikos,
@@ -234,15 +236,24 @@ CONNKEYS = set(
 )
 
 
-def client(idx=None, setup=lambda conn: None, teardown=lambda conn: None, **kwargs):
+def client(
+    idx=None, name=None, setup=lambda conn: None, teardown=lambda conn: None, **kwargs
+):
     ## No parameters given - find the first server in caldav_servers list
-    if idx is None and not kwargs:
+    if idx is None and not kwargs and caldav_servers:
         idx = 0
         while idx < len(caldav_servers) and not caldav_servers[idx].get("enable", True):
             idx += 1
+        if idx == len(caldav_servers):
+            return None
         return client(idx=idx)
     elif idx is not None and not kwargs and caldav_servers:
         return client(**caldav_servers[idx])
+    elif name is not None and not kwargs and caldav_servers:
+        for s in caldav_servers:
+            if caldav_servers["name"] == s:
+                return s
+        return None
     elif not kwargs:
         return None
     for bad_param in (

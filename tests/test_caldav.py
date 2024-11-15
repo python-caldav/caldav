@@ -848,7 +848,7 @@ class RepeatedFunctionalTestsBaseClass(object):
 
         threadobj = threading.Thread(target=proxy_httpd.serve_forever)
         conn_params = self.server_params.copy()
-        for special in ("setup", "teardown"):
+        for special in ("setup", "teardown", "name"):
             if special in conn_params:
                 conn_params.pop(special)
         try:
@@ -1688,7 +1688,7 @@ class RepeatedFunctionalTestsBaseClass(object):
                 "Testing with wrong password skipped as calendar server does not require a password"
             )
         connect_params = self.server_params.copy()
-        for delme in ("url", "setup", "teardown", "name"):
+        for delme in ("setup", "teardown", "name"):
             if delme in connect_params:
                 connect_params.pop(delme)
         connect_params["password"] = (
@@ -2836,23 +2836,26 @@ class RepeatedFunctionalTestsBaseClass(object):
 # (maybe a custom nose test loader really would be the better option?)
 # -- Tobias Brox <t-caldav@tobixen.no>, 2013-10-10
 
-## TODO: can we use @pytest.mark.parametrize to run the collection of tests
-## above on each of the servers defined in caldav_servers?
+## TODO: The better way is probably to use @pytest.mark.parametrize
 ## -- Tobias Brox <t-caldav@tobixen.no>, 2024-11-15
 
 _servernames = set()
 for _caldav_server in caldav_servers:
-    # create a unique identifier out of the server domain name
-    _parsed_url = urlparse(_caldav_server["url"])
-    _servername = _parsed_url.hostname.replace(".", "_").replace("-", "_") + str(
-        _parsed_url.port or ""
-    )
-    while _servername in _servernames:
-        _servername = _servername + "_"
-    _servernames.add(_servername)
+    if "name" in _caldav_server:
+        _servername = _caldav_server["name"]
+    else:
+        # create a unique identifier out of the server domain name
+        _parsed_url = urlparse(_caldav_server["url"])
+        _servername = _parsed_url.hostname.replace(".", "_").replace("-", "_") + str(
+            _parsed_url.port or ""
+        )
+        while _servername in _servernames:
+            _servername = _servername + "_"
+        _servername = _servername.capitalize()
+        _servernames.add(_servername)
 
     # create a classname and a class
-    _classname = "TestForServer_" + _servername
+    _classname = "TestForServer" + _servername
 
     # inject the new class into this namespace
     vars()[_classname] = type(
