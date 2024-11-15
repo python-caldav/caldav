@@ -230,7 +230,7 @@ xandikos = [
 
     ## This one is fixed - but still breaks our test code for python 3.7
     ## TODO: remove this when shredding support for python 3.7
-    ## https://github.com/jelmer/xandikos/pull/194
+    ## https://github.com/jelmer/xandikos/pull/194    
     'category_search_yields_nothing',
 
     ## scheduling is not supported
