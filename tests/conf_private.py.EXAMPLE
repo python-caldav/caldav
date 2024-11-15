@@ -10,6 +10,11 @@ from tests import compatibility_issues
 ## Define your primary caldav server here
 caldav_servers = [
   {
+        ## A friendly identifiter for the server.  Should be a CamelCase name
+	## Not needed, but may be nice if you have several servers to test towards.
+	## Should not affect test runs in any other way than improved verbosity.
+        'name': 'MyExampleServer'
+
         ## Set enable to False if you don't want to use a server
         'enable': True,
 
