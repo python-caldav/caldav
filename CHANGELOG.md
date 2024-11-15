@@ -12,6 +12,13 @@ This project should more or less adhere to [Semantic Versioning](https://semver.
 
 ## [Unreleased]
 
+### Changed
+
+* Test framework has been refactored a bit. Code for setting up and rigging down xandikos/radicale servers have been moved from `tests/test_caldav.py` to `tests/conf.py`.  This allows for:
+    * Adding code (including system calls or remote API calls) for Setting up and tearing down calendar servers in `conf_private.py`
+    * Creating a local xandikos or radicale server in the `tests.client`-method, which is also used in the `examples`-section.
+    * Allows offline testing of my upcoming `check_server_compatibility`-script
+
 ### Added
 
 * By now `calendar.search(..., sort_keys=("DTSTART")` will work.  Sort keys expects a list or a tuple, but it's easy to send an attribute by mistake.

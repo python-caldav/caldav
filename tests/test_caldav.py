@@ -11,7 +11,6 @@ import codecs
 import logging
 import random
 import sys
-import tempfile
 import threading
 import time
 import uuid
@@ -20,10 +19,10 @@ from datetime import date
 from datetime import datetime
 from datetime import timedelta
 from datetime import timezone
+from urllib.parse import urlparse
 
 import icalendar
 import pytest
-import requests
 import vobject
 from requests.packages import urllib3
 
@@ -58,21 +57,6 @@ from caldav.objects import Event
 from caldav.objects import FreeBusy
 from caldav.objects import Principal
 from caldav.objects import Todo
-
-if test_xandikos:
-    import asyncio
-
-    import aiohttp
-    import aiohttp.web
-    from xandikos.web import XandikosApp, XandikosBackend
-
-if test_radicale:
-    import radicale.config
-    import radicale
-    import radicale.server
-    import socket
-
-from urllib.parse import urlparse
 
 log = logging.getLogger("caldav")
 
@@ -505,6 +489,8 @@ class TestScheduling(object):
                 self.principals[i].calendar(name=calendar_name).delete()
             except error.NotFoundError:
                 pass
+        for c in self.clients:
+            c.teardown()
 
     ## TODO
     # def testFreeBusy(self):
@@ -649,7 +635,8 @@ class RepeatedFunctionalTestsBaseClass(object):
         logging.debug("############## test teardown_method")
         logging.debug("############################")
         self._cleanup("post")
-        logging.debug("############## test teardown_method done")
+        logging.debug("############## test teardown_method almost done")
+        self.caldav.teardown(self.caldav)
 
     def _cleanup(self, mode=None):
         if self.cleanup_regime in ("pre", "post") and self.cleanup_regime != mode:
@@ -860,10 +847,13 @@ class RepeatedFunctionalTestsBaseClass(object):
             pytest.skip("Unable to set up proxy server")
 
         threadobj = threading.Thread(target=proxy_httpd.serve_forever)
+        conn_params = self.server_params.copy()
+        for special in ("setup", "teardown"):
+            if special in conn_params:
+                conn_params.pop(special)
         try:
             threadobj.start()
             assert threadobj.is_alive()
-            conn_params = self.server_params.copy()
             conn_params["proxy"] = proxy
             c = client(**conn_params)
             p = c.principal()
@@ -879,7 +869,6 @@ class RepeatedFunctionalTestsBaseClass(object):
         try:
             threadobj.start()
             assert threadobj.is_alive()
-            conn_params = self.server_params.copy()
             conn_params["proxy"] = proxy_noport
             c = client(**conn_params)
             p = c.principal()
@@ -1698,12 +1687,15 @@ class RepeatedFunctionalTestsBaseClass(object):
             pytest.skip(
                 "Testing with wrong password skipped as calendar server does not require a password"
             )
-        server_params = self.server_params.copy()
-        server_params["password"] = (
-            codecs.encode(server_params["password"], "rot13") + "!"
+        connect_params = self.server_params.copy()
+        for delme in ("url", "setup", "teardown", "name"):
+            if delme in connect_params:
+                connect_params.pop(delme)
+        connect_params["password"] = (
+            codecs.encode(connect_params["password"], "rot13") + "!"
         )
         with pytest.raises(error.AuthorizationError):
-            client(**server_params).principal()
+            client(**connect_params).principal()
 
     def testCreateChildParent(self):
         self.skip_on_compatibility_flag("read_only")
@@ -2821,7 +2813,9 @@ class RepeatedFunctionalTestsBaseClass(object):
         """
         urls = [self.principal.url, self._fixCalendar().url]
         connect_params = self.server_params.copy()
-        connect_params.pop("url")
+        for delme in ("url", "setup", "teardown", "name"):
+            if delme in connect_params:
+                connect_params.pop(delme)
         for url in urls:
             conn = client(**connect_params, url=url)
             principal = conn.principal()
@@ -2841,6 +2835,10 @@ class RepeatedFunctionalTestsBaseClass(object):
 # very hacky.  If there are better ways to do it, please let me know.
 # (maybe a custom nose test loader really would be the better option?)
 # -- Tobias Brox <t-caldav@tobixen.no>, 2013-10-10
+
+## TODO: can we use @pytest.mark.parametrize to run the collection of tests
+## above on each of the servers defined in caldav_servers?
+## -- Tobias Brox <t-caldav@tobixen.no>, 2024-11-15
 
 _servernames = set()
 for _caldav_server in caldav_servers:
@@ -2862,139 +2860,3 @@ for _caldav_server in caldav_servers:
         (RepeatedFunctionalTestsBaseClass,),
         {"server_params": _caldav_server},
     )
-
-
-class TestLocalRadicale(RepeatedFunctionalTestsBaseClass):
-    """
-    Sets up a local Radicale server and runs the functional tests towards it
-    """
-
-    def setup_method(self):
-        if not test_radicale:
-            pytest.skip("Skipping Radicale test due to configuration")
-        self.serverdir = tempfile.TemporaryDirectory()
-        self.serverdir.__enter__()
-        self.configuration = radicale.config.load("")
-        self.configuration.update(
-            {"storage": {"filesystem_folder": self.serverdir.name}}
-        )
-        self.server = radicale.server
-        self.server_params = {
-            "url": "http://%s:%i/" % (radicale_host, radicale_port),
-            "username": "user1",
-            "password": "any-password-seems-to-work",
-        }
-        self.server_params["backwards_compatibility_url"] = (
-            self.server_params["url"] + "user1"
-        )
-        self.server_params["incompatibilities"] = compatibility_issues.radicale
-        self.shutdown_socket, self.shutdown_socket_out = socket.socketpair()
-        self.radicale_thread = threading.Thread(
-            target=self.server.serve,
-            args=(self.configuration, self.shutdown_socket_out),
-        )
-        self.radicale_thread.start()
-        i = 0
-        while True:
-            try:
-                requests.get(self.server_params["url"])
-                break
-            except:
-                time.sleep(0.05)
-                i += 1
-                assert i < 100
-        try:
-            RepeatedFunctionalTestsBaseClass.setup_method(self)
-        except:
-            logging.critical("something bad happened in setup", exc_info=True)
-            self.teardown_method()
-
-    def teardown_method(self):
-        if not test_radicale:
-            return
-        self.shutdown_socket.close()
-        i = 0
-        self.serverdir.__exit__(None, None, None)
-        RepeatedFunctionalTestsBaseClass.teardown_method(self)
-
-
-class TestLocalXandikos(RepeatedFunctionalTestsBaseClass):
-    """
-    Sets up a local Xandikos server and runs the functional tests towards it
-    """
-
-    def setup_method(self):
-        if not test_xandikos:
-            pytest.skip("Skipping Xadikos test due to configuration")
-
-        ## TODO: https://github.com/jelmer/xandikos/issues/131#issuecomment-1054805270 suggests a simpler way to launch the xandikos server
-
-        self.serverdir = tempfile.TemporaryDirectory()
-        self.serverdir.__enter__()
-        ## Most of the stuff below is cargo-cult-copied from xandikos.web.main
-        ## Later jelmer created some API that could be used for this
-        ## Threshold put high due to https://github.com/jelmer/xandikos/issues/235
-        ## index_threshold not supported in latest release yet
-        # self.backend = XandikosBackend(path=self.serverdir.name, index_threshold=0, paranoid=True)
-        # self.backend = XandikosBackend(path=self.serverdir.name, index_threshold=9999, paranoid=True)
-        self.backend = XandikosBackend(path=self.serverdir.name)
-        self.backend._mark_as_principal("/sometestuser/")
-        self.backend.create_principal("/sometestuser/", create_defaults=True)
-        mainapp = XandikosApp(
-            self.backend, current_user_principal="sometestuser", strict=True
-        )
-
-        async def xandikos_handler(request):
-            return await mainapp.aiohttp_handler(request, "/")
-
-        self.xapp = aiohttp.web.Application()
-        self.xapp.router.add_route("*", "/{path_info:.*}", xandikos_handler)
-        ## https://stackoverflow.com/questions/51610074/how-to-run-an-aiohttp-server-in-a-thread
-        self.xapp_loop = asyncio.new_event_loop()
-        self.xapp_runner = aiohttp.web.AppRunner(self.xapp)
-        asyncio.set_event_loop(self.xapp_loop)
-        self.xapp_loop.run_until_complete(self.xapp_runner.setup())
-        self.xapp_site = aiohttp.web.TCPSite(
-            self.xapp_runner, host=xandikos_host, port=xandikos_port
-        )
-        self.xapp_loop.run_until_complete(self.xapp_site.start())
-
-        def aiohttp_server():
-            self.xapp_loop.run_forever()
-
-        self.xandikos_thread = threading.Thread(target=aiohttp_server)
-        self.xandikos_thread.start()
-        self.server_params = {"url": "http://%s:%i/" % (xandikos_host, xandikos_port)}
-        self.server_params["backwards_compatibility_url"] = (
-            self.server_params["url"] + "sometestuser"
-        )
-        self.server_params["incompatibilities"] = compatibility_issues.xandikos
-        RepeatedFunctionalTestsBaseClass.setup_method(self)
-
-    def teardown_method(self):
-        if not test_xandikos:
-            return
-        self.xapp_loop.stop()
-
-        ## ... but the thread may be stuck waiting for a request ...
-        def silly_request():
-            try:
-                requests.get(self.server_params["url"])
-            except:
-                pass
-
-        threading.Thread(target=silly_request).start()
-        i = 0
-        while self.xapp_loop.is_running():
-            time.sleep(0.05)
-            i += 1
-            assert i < 100
-        self.xapp_loop.run_until_complete(self.xapp_runner.cleanup())
-        i = 0
-        while self.xandikos_thread.is_alive():
-            time.sleep(0.05)
-            i += 1
-            assert i < 100
-
-        self.serverdir.__exit__(None, None, None)
-        RepeatedFunctionalTestsBaseClass.teardown_method(self)

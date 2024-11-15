@@ -10,7 +10,7 @@ from tests import compatibility_issues
 ## Define your primary caldav server here
 caldav_servers = [
   {
-	      ## Set enable to False if you don't want to use a server
+        ## Set enable to False if you don't want to use a server
         'enable': True,
 
         ## This is all that is really needed - url, username and
@@ -27,6 +27,11 @@ caldav_servers = [
         ## tests/compatibility_issues.py for premade lists
         #'incompatibilities': compatibility_issues.nextcloud
       	'incompatibilities': [],
+
+        ## You may even add setup and teardown methods to set up
+        ## and rig down the calendar server
+        #setup = lambda self: ...
+        #teardown = lambda self: ...
   }
 ]
 
@@ -71,4 +76,5 @@ test_radicale = True
 
 ## For usage by ../examples/scheduling_examples.py.  Should typically
 ## be three different users on the same caldav server.
+## (beware of dragons - there is some half-done work in the caldav_test that is likely to break if this is set)
 #rfc6638_users = [ caldav_servers[0], caldav_servers[1], caldav_servers[2] ]
