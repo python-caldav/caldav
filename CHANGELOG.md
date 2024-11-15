@@ -34,7 +34,7 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 
 ### Added
 
-* By now `calendar.search(..., sort_keys=("DTSTART")` will work.  Sort keys expects a list or a tuple, but it's easy to send an attribute by mistake.  https://github.com/python-caldav/caldav/pull/449
+* By now `calendar.search(..., sort_keys=("DTSTART")` will work.  Sort keys expects a list or a tuple, but it's easy to send an attribute by mistake.  https://github.com/python-caldav/caldav/issues/448 https://github.com/python-caldav/caldav/pull/449
 
 ## [1.4.0] - 2024-11-05
 
