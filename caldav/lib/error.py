@@ -14,7 +14,7 @@ try:
     ## one of DEBUG_PDB, DEBUG, DEVELOPMENT, PRODUCTION
     debugmode = os.environ["PYTHON_CALDAV_DEBUGMODE"]
 except:
-    if "dev" in __version__:
+    if "dev" in __version__ or __version__=='(unknown)':
         debugmode = "DEVELOPMENT"
     else:
         debugmode = "PRODUCTION"

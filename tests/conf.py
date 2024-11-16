@@ -231,30 +231,33 @@ if test_xandikos:
 ###################################################################
 # Convenience - get a DAVClient object from the caldav_servers list
 ###################################################################
-CONNKEYS = set(
-    ("url", "proxy", "username", "password", "ssl_verify_cert", "ssl_cert", "auth")
-)
-
+## TODO: this is already declared in davclient.DAVClient.__init__(...)
+## TODO: is it possible to reuse the declaration here instead of
+## duplicating the list?
+## TODO: If not, it's needed to look through and ensure the list is uptodate
+CONNKEYS = set((
+    "url", "proxy", "username", "password", "timeout", "headers", "huge_tree", "ssl_verify_cert", "ssl_cert", "auth"))
 
 def client(
     idx=None, name=None, setup=lambda conn: None, teardown=lambda conn: None, **kwargs
 ):
-    ## No parameters given - find the first server in caldav_servers list
-    if idx is None and not kwargs and caldav_servers:
+    no_args = not any (x for x in kwargs if kwargs[x] is not None)
+    if idx is None and no_args and caldav_servers:
+        ## No parameters given - find the first server in caldav_servers list
         idx = 0
         while idx < len(caldav_servers) and not caldav_servers[idx].get("enable", True):
             idx += 1
         if idx == len(caldav_servers):
             return None
         return client(idx=idx)
-    elif idx is not None and not kwargs and caldav_servers:
+    elif idx is not None and no_args and caldav_servers:
         return client(**caldav_servers[idx])
-    elif name is not None and not kwargs and caldav_servers:
+    elif name is not None and no_args and caldav_servers:
         for s in caldav_servers:
             if caldav_servers["name"] == s:
                 return s
         return None
-    elif not kwargs:
+    elif noargs:
         return None
     for bad_param in (
         "incompatibilities",
@@ -264,7 +267,7 @@ def client(
     ):
         if bad_param in kwargs:
             kwargs.pop(bad_param)
-    for kw in kwargs:
+    for kw in list(kwargs.keys()):
         if not kw in CONNKEYS:
             logging.critical(
                 "unknown keyword %s in connection parameters.  All compatibility flags should now be sent as a separate list, see conf_private.py.EXAMPLE.  Ignoring."
