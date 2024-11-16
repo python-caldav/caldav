@@ -235,8 +235,21 @@ if test_xandikos:
 ## TODO: is it possible to reuse the declaration here instead of
 ## duplicating the list?
 ## TODO: If not, it's needed to look through and ensure the list is uptodate
-CONNKEYS = set((
-    "url", "proxy", "username", "password", "timeout", "headers", "huge_tree", "ssl_verify_cert", "ssl_cert", "auth"))
+CONNKEYS = set(
+    (
+        "url",
+        "proxy",
+        "username",
+        "password",
+        "timeout",
+        "headers",
+        "huge_tree",
+        "ssl_verify_cert",
+        "ssl_cert",
+        "auth",
+    )
+)
+
 
 def client(
     idx=None, name=None, setup=lambda conn: None, teardown=lambda conn: None, **kwargs
