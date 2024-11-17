@@ -215,11 +215,14 @@ class ServerQuirkChecker():
                 elif len(events)==0:
                     self.flags_checked['text_search_is_exact_match_only'] = 'maybe'
                     ## may also be text_search_is_exact_match_sometimes
-                events = cal.search(category='foo', event=True)
+                try:
+                    events = cal.search(category='foo', event=True)
+                except:
+                    events = []
                 if len(events) == 1:
                     self.flags_checked["category_search_yields_nothing"] = False
                 elif len(events) == 0:
-                    self.flags_checked["category_search_yields_nothing"] = False
+                    self.flags_checked["category_search_yields_nothing"] = True
                 else:
                     ## we should not be here
                     import pdb; pdb.set_trace()
