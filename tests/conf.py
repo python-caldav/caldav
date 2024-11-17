@@ -292,6 +292,7 @@ def client(
     setup(conn)
     conn.teardown = teardown
     conn.incompatibilities = kwargs.get('incompatibilities')
+    conn.server_name = name
     return conn
 
 

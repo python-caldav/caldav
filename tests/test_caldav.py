@@ -1413,54 +1413,53 @@ class RepeatedFunctionalTestsBaseClass:
         self.skip_on_compatibility_flag("text_search_not_working")
 
         ## category
-        if not self.check_compatibility_flag("radicale_breaks_on_category_search"):
-            some_events = c.search(comp_class=Event, category="PERSONAL")
-            if not self.check_compatibility_flag("category_search_yields_nothing"):
+        some_events = c.search(comp_class=Event, category="PERSONAL")
+        if not self.check_compatibility_flag("category_search_yields_nothing"):
+            assert len(some_events) == 1
+        some_events = c.search(comp_class=Event, category="personal")
+        if not self.check_compatibility_flag("category_search_yields_nothing"):
+            if self.check_compatibility_flag("text_search_is_case_insensitive"):
                 assert len(some_events) == 1
-            some_events = c.search(comp_class=Event, category="personal")
-            if not self.check_compatibility_flag("category_search_yields_nothing"):
-                if self.check_compatibility_flag("text_search_is_case_insensitive"):
-                    assert len(some_events) == 1
-                else:
-                    assert len(some_events) == 0
-
-            ## This is not a very useful search, and it's sort of a client side bug that we allow it at all.
-            ## It will not match if categories field is set to "PERSONAL,ANNIVERSARY,SPECIAL OCCASION"
-            ## It may not match since the above is to be considered equivalent to the raw data entered.
-            some_events = c.search(
-                comp_class=Event, category="ANNIVERSARY,PERSONAL,SPECIAL OCCASION"
-            )
-            assert len(some_events) in (0, 1)
-            ## TODO: This is actually a bug. We need to do client side filtering
-            some_events = c.search(comp_class=Event, category="PERSON")
-            if self.check_compatibility_flag("text_search_is_exact_match_sometimes"):
-                assert len(some_events) in (0, 1)
-            if self.check_compatibility_flag("text_search_is_exact_match_only"):
+            else:
                 assert len(some_events) == 0
-            elif not self.check_compatibility_flag("category_search_yields_nothing"):
-                assert len(some_events) == 1
 
-            ## I expect "logical and" when combining category with a date range
-            no_events = c.search(
-                comp_class=Event,
-                category="PERSONAL",
-                start=datetime(2006, 7, 13, 13, 0),
-                end=datetime(2006, 7, 15, 13, 0),
-            )
-            if not self.check_compatibility_flag(
-                "category_search_yields_nothing"
-            ) and not self.check_compatibility_flag("combined_search_not_working"):
-                assert len(no_events) == 0
-            some_events = c.search(
-                comp_class=Event,
-                category="PERSONAL",
-                start=datetime(1997, 11, 1, 13, 0),
-                end=datetime(1997, 11, 3, 13, 0),
-            )
-            if not self.check_compatibility_flag(
-                "category_search_yields_nothing"
-            ) and not self.check_compatibility_flag("combined_search_not_working"):
-                assert len(some_events) == 1
+        ## This is not a very useful search, and it's sort of a client side bug that we allow it at all.
+        ## It will not match if categories field is set to "PERSONAL,ANNIVERSARY,SPECIAL OCCASION"
+        ## It may not match since the above is to be considered equivalent to the raw data entered.
+        some_events = c.search(
+            comp_class=Event, category="ANNIVERSARY,PERSONAL,SPECIAL OCCASION"
+        )
+        assert len(some_events) in (0, 1)
+        ## TODO: This is actually a bug. We need to do client side filtering
+        some_events = c.search(comp_class=Event, category="PERSON")
+        if self.check_compatibility_flag("text_search_is_exact_match_sometimes"):
+            assert len(some_events) in (0, 1)
+        if self.check_compatibility_flag("text_search_is_exact_match_only"):
+            assert len(some_events) == 0
+        elif not self.check_compatibility_flag("category_search_yields_nothing"):
+            assert len(some_events) == 1
+
+        ## I expect "logical and" when combining category with a date range
+        no_events = c.search(
+            comp_class=Event,
+            category="PERSONAL",
+            start=datetime(2006, 7, 13, 13, 0),
+            end=datetime(2006, 7, 15, 13, 0),
+        )
+        if not self.check_compatibility_flag(
+            "category_search_yields_nothing"
+        ) and not self.check_compatibility_flag("combined_search_not_working"):
+            assert len(no_events) == 0
+        some_events = c.search(
+            comp_class=Event,
+            category="PERSONAL",
+            start=datetime(1997, 11, 1, 13, 0),
+            end=datetime(1997, 11, 3, 13, 0),
+        )
+        if not self.check_compatibility_flag(
+            "category_search_yields_nothing"
+        ) and not self.check_compatibility_flag("combined_search_not_working"):
+            assert len(some_events) == 1
 
         some_events = c.search(comp_class=Event, summary="Bastille Day Party")
         assert len(some_events) == 1
@@ -1628,8 +1627,6 @@ class RepeatedFunctionalTestsBaseClass:
             assert len(some_todos) == 6
 
         ## category
-        self.skip_on_compatibility_flag("radicale_breaks_on_category_search")
-
         ## Too much copying of the examples ...
         some_todos = c.search(comp_class=Todo, category="FINANCE")
         if not self.check_compatibility_flag(

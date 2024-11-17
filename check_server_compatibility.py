@@ -21,6 +21,15 @@ class ServerQuirkChecker():
     def _try_make_calendar(self, cal_id, **kwargs):
         calmade = False
 
+        ## Check on "no_default_calendar" flag
+        try:
+            cals = self.principal.calendars()
+            cals[0].events()
+            self.flags_checked["no_default_calendar"] = False
+        except:
+            import pdb; pdb.set_trace()
+            self.flags_checked["no_default_calendar"] = True
+
         ## In case calendar already exists ... wipe it first
         try:
             self.principal.calendar(cal_id=cal_id).delete()
@@ -168,73 +177,63 @@ class ServerQuirkChecker():
             self.flags_checked['propfind_allprop_failure'] = True
 
     def check_event(self):
+        cal = self._default_calendar
+        cal.add_event(dtstart=datetime.datetime.now(), summary="Test event 1", categories=['foo','bar'], uid='check_event_1')
+        cal.add_event(dtstart=datetime.datetime.now(), summary="Test event 2", categories=['zoo','test'], uid='check_event_2')
         try:
-            cal = self._default_calendar
-            cal.add_event(dtstart=datetime.datetime.now(), summary="Test event 1", categories=['foo','bar'], uid='check_event_1')
-            cal.add_event(dtstart=datetime.datetime.now(), summary="Test event 2", categories=['zoo','test'], uid='check_event_2')
-            try:
-                try:
-                    objcnt = len(cal.objects()) == 2
-                except:
-                    objcnt = 0
-                if objcnt != 2:
-                    if len(cal.events()) == 2:
-                        self.flags_checked['search_always_needs_comptype'] = True
-                    else:
-                        import pdb; pdb.set_trace()
-                        ## we should not be here
-                else:
-                    self.flags_checked['search_always_needs_comptype'] = False
-
-                events = cal.search(summary='Test event 1')
-                if len(events) == 0:
-                    events = cal.search(summary='Test event 1', event=True)
-                    if len(events)==1:
-                        self.flags_checked['search_needs_comptype'] = True
-                        self.flags_checked['no_search'] = False
-                        self.flags_checked['text_search_not_working'] = False
-                    else:
-                        import pdb; pdb.set_trace()
-                        ## we should not be here ... unless search is not working?
-                elif len(events) == 1:        
-                    self.flags_checked['no_search'] = False
-                    self.flags_checked['text_search_not_working'] = False
-                    self.flags_checked['search_always_needs_comptype'] = False
-                events = cal.search(summary='test event 1', event=True)
-                if len(events) == 1:
-                    self.flags_checked['text_search_is_case_insensitive'] = True
-                elif  len(events)==0:
-                    self.flags_checked['text_search_is_case_insensitive'] = False
-                else:
-                    ## we should not be here
-                    import pdb; pdb.set_trace()
-                    pass
-                events = cal.search(summary='test event', event=True)
-                if len(events)==2:
-                    self.flags_checked['text_search_is_exact_match_only'] = False
-                elif len(events)==0:
-                    self.flags_checked['text_search_is_exact_match_only'] = 'maybe'
-                    ## may also be text_search_is_exact_match_sometimes
-                try:
-                    events = cal.search(category='foo', event=True)
-                except:
-                    events = []
-                if len(events) == 1:
-                    self.flags_checked["category_search_yields_nothing"] = False
-                elif len(events) == 0:
-                    self.flags_checked["category_search_yields_nothing"] = True
-                else:
-                    ## we should not be here
-                    import pdb; pdb.set_trace()
-                    pass
-                    
-            except:
-                import pdb; pdb.set_trace()
-                ## TODO ...
-                raise
+            objcnt = len(cal.objects())
         except:
+            objcnt = 0
+        if objcnt != 2:
+            if len(cal.events()) == 2:
+                self.flags_checked['search_always_needs_comptype'] = True
+            else:
+                import pdb; pdb.set_trace()
+                ## we should not be here
+        else:
+            self.flags_checked['search_always_needs_comptype'] = False
+
+        events = cal.search(summary='Test event 1')
+        if len(events) == 0:
+            events = cal.search(summary='Test event 1', event=True)
+            if len(events)==1:
+                self.flags_checked['search_needs_comptype'] = True
+                self.flags_checked['no_search'] = False
+                self.flags_checked['text_search_not_working'] = False
+            else:
+                import pdb; pdb.set_trace()
+                ## we should not be here ... unless search is not working?
+        elif len(events) == 1:        
+            self.flags_checked['no_search'] = False
+            self.flags_checked['text_search_not_working'] = False
+            self.flags_checked['search_always_needs_comptype'] = False
+        events = cal.search(summary='test event 1', event=True)
+        if len(events) == 1:
+            self.flags_checked['text_search_is_case_insensitive'] = True
+        elif  len(events)==0:
+            self.flags_checked['text_search_is_case_insensitive'] = False
+        else:
+            ## we should not be here
             import pdb; pdb.set_trace()
-            raise
+            pass
+        events = cal.search(summary='test event', event=True)
+        if len(events)==2:
+            self.flags_checked['text_search_is_exact_match_only'] = False
+        elif len(events)==0:
+            self.flags_checked['text_search_is_exact_match_only'] = 'maybe'
+            ## may also be text_search_is_exact_match_sometimes
+        try:
+            events = cal.search(category='foo', event=True)
+        except:
+            events = []
+        if len(events) == 1:
+            self.flags_checked["category_search_yields_nothing"] = False
+        elif len(events) == 0:
+            self.flags_checked["category_search_yields_nothing"] = True
+        else:
+            ## we should not be here
+            import pdb; pdb.set_trace()
+            pass
 
     def check_all(self):
         try:
@@ -243,11 +242,20 @@ class ServerQuirkChecker():
             self.check_propfind()
             self.check_mkcalendar()
             self.check_event()
+        except:
+            import pdb; pdb.set_trace()
+            raise
         finally:
             if self._default_calendar:
                 self._default_calendar.delete()
 
     def report(self, verbose, json):
+        if verbose:
+            if self.client_obj.server_name:
+                click.echo(f"# {self.client_obj.server_name} - {self.client_obj.url}")
+            else:
+                click.echo(f"# {self.client_obj.url}")
+            click.echo()
         if self.client_obj.incompatibilities is not None:
             flags_found = set([x for x in self.flags_checked if self.flags_checked[x]])
             self.diff1 = set(self.client_obj.incompatibilities) - flags_found
@@ -296,7 +304,7 @@ def _set_conn_options(func):
 @click.command()
 @_set_conn_options
 @click.option("--idx", type=int, help="Choose a server from the test config, by index number")
-@click.option("--verbose/--quiet", help="More output")
+@click.option("--verbose/--quiet", default=None, help="More output")
 @click.option("--json/--text", help="JSON output.  Overrides verbose")
 def check_server_compatibility(verbose, json, **kwargs):
     conn = client(**kwargs)

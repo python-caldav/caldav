@@ -181,9 +181,6 @@ incompatibility_description = {
    'text_search_not_working':
         """Text search is generally broken""",
 
-   'radicale_breaks_on_category_search':
-        """See https://github.com/Kozea/Radicale/issues/1125""",
-
    'fastmail_buggy_noexpand_date_search':
         """The 'blissful anniversary' recurrent example event is returned when asked for a no-expand date search for some timestamps covering a completely different date""",
 
@@ -245,9 +242,6 @@ radicale = [
 
     ## freebusy is not supported yet, but on the long-term road map
     "no_freebusy_rfc4791",
-
-    ## TODO: raise an issue on this one
-    "radicale_breaks_on_category_search",
 
     'no_scheduling',
     'no_todo_datesearch',
