@@ -254,6 +254,7 @@ CONNKEYS = set(
 def client(
     idx=None, name=None, setup=lambda conn: None, teardown=lambda conn: None, **kwargs
 ):
+    kwargs_ = kwargs.copy()
     no_args = not any (x for x in kwargs if kwargs[x] is not None)
     if idx is None and no_args and caldav_servers:
         ## No parameters given - find the first server in caldav_servers list
@@ -270,7 +271,7 @@ def client(
             if caldav_servers["name"] == s:
                 return s
         return None
-    elif noargs:
+    elif no_args:
         return None
     for bad_param in (
         "incompatibilities",
@@ -278,18 +279,19 @@ def client(
         "principal_url",
         "enable",
     ):
-        if bad_param in kwargs:
-            kwargs.pop(bad_param)
-    for kw in list(kwargs.keys()):
+        if bad_param in kwargs_:
+            kwargs_.pop(bad_param)
+    for kw in list(kwargs_.keys()):
         if not kw in CONNKEYS:
             logging.critical(
                 "unknown keyword %s in connection parameters.  All compatibility flags should now be sent as a separate list, see conf_private.py.EXAMPLE.  Ignoring."
                 % kw
             )
-            kwargs.pop(kw)
-    conn = DAVClient(**kwargs)
+            kwargs_.pop(kw)
+    conn = DAVClient(**kwargs_)
     setup(conn)
     conn.teardown = teardown
+    conn.incompatibilities = kwargs.get('incompatibilities')
     return conn
 
 
