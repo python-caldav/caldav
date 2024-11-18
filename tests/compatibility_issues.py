@@ -238,7 +238,7 @@ xandikos = [
 ## https://github.com/jelmer/xandikos/pull/194
 'category_search_yields_nothing',
 try:
-    import xandikos.__version__ as xver
+    from xandikos import __version__ as xver
     goodver = (0,2,12)
     for i in range(0,2):
         if xver[i]<goodver[i]:
