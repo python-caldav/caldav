@@ -243,104 +243,9 @@ class ServerQuirkChecker:
             categories=["zoo", "test"],
             uid="check_event_2",
         )
+
         try:  ## try-finally-block covering testing of obj1 and obj2
-            try:
-                foo = cal.event_by_uid("check_event_2")
-                assert foo
-                self.set_flag("object_by_uid_is_broken", False)
-            except:
-                time.sleep(60)
-                try:
-                    foo = cal.event_by_uid("check_event_2")
-                    assert foo
-                    self.set_flag("search_delay")
-                    self.set_flag("object_by_uid_is_broken", False)
-                except:
-                    self.set_flag("object_by_uid_is_broken", True)
-
-            try:
-                objcnt = len(cal.objects())
-            except:
-                objcnt = 0
-            if objcnt != 2:
-                if len(cal.events()) == 2:
-                    self.set_flag("search_always_needs_comptype", True)
-                else:
-                    import pdb
-
-                    pdb.set_trace()
-                    pass
-                    ## we should not be here
-            else:
-                self.set_flag("search_always_needs_comptype", False)
-
-            ## purelymail writes things to an index as a background thread
-            ## and have delayed search.  Let's test for that first.
-            events = cal.search(summary="Test event 1", event=True)
-            if len(events) == 0:
-                events = cal.search(summary="Test event 1", event=True)
-                if len(events) == 1:
-                    self.set_flag("rate_limited", True)
-            if len(events) == 1:
-                self.set_flag("no_search", False)
-                self.set_flag("text_search_not_working", False)
-            else:
-                self.set_flag("text_search_not_working", True)
-
-            objs = cal.search(summary="Test event 1")
-            if len(objs) == 0 and len(events) == 1:
-                self.set_flag("search_needs_comptype", True)
-            elif len(objs) == 1:
-                self.set_flag("search_always_needs_comptype", False)
-
-            if not self.flags_checked["text_search_not_working"]:
-                events = cal.search(summary="test event 1", event=True)
-                if len(events) == 1:
-                    self.set_flag("text_search_is_case_insensitive", True)
-                elif len(events) == 0:
-                    self.set_flag("text_search_is_case_insensitive", False)
-                else:
-                    ## we should not be here
-                    import pdb
-
-                    pdb.set_trace()
-                    pass
-                events = cal.search(summary="test event", event=True)
-                if len(events) == 2:
-                    self.set_flag("text_search_is_exact_match_only", False)
-                elif len(events) == 0:
-                    self.set_flag("text_search_is_exact_match_only", "maybe")
-                    ## may also be text_search_is_exact_match_sometimes
-                events = cal.search(
-                    summary="Test event 1", class_="CONFIDENTIAL", event=True
-                )
-                if len(events) == 1:
-                    self.set_flag("combined_search_not_working", False)
-                elif len(events) == 0:
-                    import pdb; pdb.set_trace()
-                    self.set_flag("combined_search_not_working", True)
-                else:
-                    import pdb
-
-                    pdb.set_trace()
-                    ## We should not be here
-                    pass
-            try:
-                events = cal.search(category="foo", event=True)
-            except:
-                events = []
-            if len(events) == 1:
-                self.set_flag("category_search_yields_nothing", False)
-            elif len(events) == 0:
-                self.set_flag("category_search_yields_nothing", True)
-            else:
-                ## we should not be here
-                import pdb
-
-                pdb.set_trace()
-                pass
-
-            events = cal.search(summary="test event", class_="CONFIDENTIAL", event=True)
+            self._check_simple_events(obj1, obj2)
         finally:
             obj1.delete()
             obj2.delete()
@@ -366,45 +271,149 @@ class ServerQuirkChecker:
             pdb.set_trace()
             raise
         try:
-            try:
-                events = cal.search(
-                    start=datetime.datetime(2001, 4, 1),
-                    end=datetime.datetime(2002, 2, 2),
-                    event=True,
-                )
-                assert len(events) == 2
-                self.set_flag("no_recurring", False)
-            except:
-                self.set_flag("no_recurring", True)
-
-            if not (self.flags_checked["no_recurring"]):
-                events = cal.search(
-                    start=datetime.datetime(2001, 4, 1),
-                    end=datetime.datetime(2002, 2, 2),
-                    event=True,
-                    expand="server",
-                )
-                assert len(events) == 2
-                if "RRULE" in events[0].data:
-                    assert "RRULE" in events[1].data
-                    assert not "RECURRENCE-ID" in events[0].data
-                    assert not "RECURRENCE-ID" in events[1].data
-                    self.set_flag("no_expand", True)
-                else:
-                    assert not "RRULE" in events[1].data
-                    self.set_flag("no_expand", False)
-                    if (
-                        "RECURRENCE-ID" in events[0].data
-                        and "DTSTART:2001" in events[0].data
-                    ):
-                        assert "RECURRENCE-ID" in events[1].data
-                        self.set_flag("broken_expand", False)
-                    else:
-                        self.set_flag("broken_expand", True)
-
+            self._check_recurring_events(yearly_time, yearly_day)
         finally:
             yearly_time.delete()
             yearly_day.delete()
+
+    def _check_simple_events(self, obj1, obj2):
+        cal = self._default_calendar
+        try:
+            foo = cal.event_by_uid("check_event_2")
+            assert foo
+            self.set_flag("object_by_uid_is_broken", False)
+        except:
+            time.sleep(60)
+            try:
+                foo = cal.event_by_uid("check_event_2")
+                assert foo
+                self.set_flag("search_delay")
+                self.set_flag("object_by_uid_is_broken", False)
+            except:
+                self.set_flag("object_by_uid_is_broken", True)
+
+        try:
+            objcnt = len(cal.objects())
+        except:
+            objcnt = 0
+        if objcnt != 2:
+            if len(cal.events()) == 2:
+                self.set_flag("search_always_needs_comptype", True)
+            else:
+                import pdb
+
+                pdb.set_trace()
+                pass
+                ## we should not be here
+        else:
+            self.set_flag("search_always_needs_comptype", False)
+
+        ## purelymail writes things to an index as a background thread
+        ## and have delayed search.  Let's test for that first.
+        events = cal.search(summary="Test event 1", event=True)
+        if len(events) == 0:
+            events = cal.search(summary="Test event 1", event=True)
+            if len(events) == 1:
+                self.set_flag("rate_limited", True)
+        if len(events) == 1:
+            self.set_flag("no_search", False)
+            self.set_flag("text_search_not_working", False)
+        else:
+            self.set_flag("text_search_not_working", True)
+
+        objs = cal.search(summary="Test event 1")
+        if len(objs) == 0 and len(events) == 1:
+            self.set_flag("search_needs_comptype", True)
+        elif len(objs) == 1:
+            self.set_flag("search_always_needs_comptype", False)
+
+        if not self.flags_checked["text_search_not_working"]:
+            events = cal.search(summary="test event 1", event=True)
+            if len(events) == 1:
+                self.set_flag("text_search_is_case_insensitive", True)
+            elif len(events) == 0:
+                self.set_flag("text_search_is_case_insensitive", False)
+            else:
+                ## we should not be here
+                import pdb
+
+                pdb.set_trace()
+                pass
+            events = cal.search(summary="test event", event=True)
+            if len(events) == 2:
+                self.set_flag("text_search_is_exact_match_only", False)
+            elif len(events) == 0:
+                self.set_flag("text_search_is_exact_match_only", "maybe")
+                ## may also be text_search_is_exact_match_sometimes
+            events = cal.search(
+                summary="Test event 1", class_="CONFIDENTIAL", event=True
+            )
+            if len(events) == 1:
+                self.set_flag("combined_search_not_working", False)
+            elif len(events) == 0:
+                import pdb
+
+                pdb.set_trace()
+                self.set_flag("combined_search_not_working", True)
+            else:
+                import pdb
+
+                pdb.set_trace()
+                ## We should not be here
+                pass
+        try:
+            events = cal.search(category="foo", event=True)
+        except:
+            events = []
+        if len(events) == 1:
+            self.set_flag("category_search_yields_nothing", False)
+        elif len(events) == 0:
+            self.set_flag("category_search_yields_nothing", True)
+        else:
+            ## we should not be here
+            import pdb
+
+            pdb.set_trace()
+            pass
+
+        events = cal.search(summary="test event", class_="CONFIDENTIAL", event=True)
+
+    def _check_recurring_events(self, yearly_time, yearly_day):
+        cal = self._default_calendar
+        try:
+            events = cal.search(
+                start=datetime.datetime(2001, 4, 1),
+                end=datetime.datetime(2002, 2, 2),
+                event=True,
+            )
+            assert len(events) == 2
+            self.set_flag("no_recurring", False)
+        except:
+            self.set_flag("no_recurring", True)
+
+        if self.flags_checked["no_recurring"]:
+            return
+
+        events = cal.search(
+            start=datetime.datetime(2001, 4, 1),
+            end=datetime.datetime(2002, 2, 2),
+            event=True,
+            expand="server",
+        )
+        assert len(events) == 2
+        if "RRULE" in events[0].data:
+            assert "RRULE" in events[1].data
+            assert not "RECURRENCE-ID" in events[0].data
+            assert not "RECURRENCE-ID" in events[1].data
+            self.set_flag("no_expand", True)
+        else:
+            assert not "RRULE" in events[1].data
+            self.set_flag("no_expand", False)
+            if "RECURRENCE-ID" in events[0].data and "DTSTART:2001" in events[0].data:
+                assert "RECURRENCE-ID" in events[1].data
+                self.set_flag("broken_expand", False)
+            else:
+                self.set_flag("broken_expand", True)
 
     def check_todo(self):
         cal = self._default_calendar
@@ -415,10 +424,12 @@ class ServerQuirkChecker:
                 summary="This is a summary",
                 uid="check_todo_1",
             )
-            self.set_flag('no_todo', False)
+            self.set_flag("no_todo", False)
         except:
-            import pdb; pdb.set_trace()
-            self.set_flag('no_todo')
+            import pdb
+
+            pdb.set_trace()
+            self.set_flag("no_todo")
             return
 
     def check_all(self):
