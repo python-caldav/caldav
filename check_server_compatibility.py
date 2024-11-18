@@ -414,9 +414,10 @@ class ServerQuirkChecker:
                 summary="This is a summary",
                 uid="check_todo_1",
             )
+            self.set_flag('no_todo', False)
         except:
-            import pdb; pdb.set_trace()
-            pass
+            self.set_flag('no_todo')
+            return
         
 
     def check_all(self):

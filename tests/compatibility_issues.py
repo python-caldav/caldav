@@ -245,7 +245,7 @@ try:
             xandikos.append('category_search_yields_nothing')
             break
 except Exception:
-    pass
+    raise
 
 radicale = [
     ## calendar listings and calendar creation works a bit
