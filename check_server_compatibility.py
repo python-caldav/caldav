@@ -416,9 +416,9 @@ class ServerQuirkChecker:
             )
             self.set_flag('no_todo', False)
         except:
+            import pdb; pdb.set_trace()
             self.set_flag('no_todo')
             return
-        
 
     def check_all(self):
         try:

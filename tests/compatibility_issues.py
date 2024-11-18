@@ -240,12 +240,12 @@ xandikos = [
 try:
     from xandikos import __version__ as xver
     goodver = (0,2,12)
-    for i in range(0,2):
+    for i in range(0,3):
         if xver[i]<goodver[i]:
             xandikos.append('category_search_yields_nothing')
             break
 except Exception:
-    raise
+    pass
 
 radicale = [
     ## calendar listings and calendar creation works a bit
