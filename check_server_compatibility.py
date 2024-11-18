@@ -142,7 +142,11 @@ class ServerQuirkChecker():
 
         makeret = self._try_make_calendar(name="Yep", cal_id="pythoncaldav-test")
         if makeret[0]:
-            self._default_calendar = self.principal.make_calendar(name="Yep", cal_id="pythoncaldav-test")
+            try:
+                self._default_calendar = self.principal.make_calendar(name="Yep", cal_id="pythoncaldav-test")
+            except:
+                self._default_calendar = self.principal.calendar(cal_id="pythoncaldav-test")
+            self._default_calendar.events()
             return
         makeret = self._try_make_calendar(cal_id="pythoncaldav-test")
         if makeret[0]:

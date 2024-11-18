@@ -228,15 +228,24 @@ xandikos = [
 
     'text_search_is_exact_match_only',
 
-    ## This one is fixed - but still breaks our test code for python 3.7
-    ## TODO: remove this when shredding support for python 3.7
-    ## https://github.com/jelmer/xandikos/pull/194    
-    'category_search_yields_nothing',
     "search_needs_comptype",
 
     ## scheduling is not supported
     "no_scheduling",
 ]
+
+## This can soon be removed (relevant for running tests under python 3.7 and python 3.8)
+## https://github.com/jelmer/xandikos/pull/194    
+'category_search_yields_nothing',
+try:
+    import xandikos.__version__ as xver
+    goodver = (0,2,12)
+    for i in range(0,2):
+        if xver[i]<goodver[i]:
+            xandikos.append('category_search_needs')
+            break
+except Exception:
+    pass
 
 radicale = [
     ## calendar listings and calendar creation works a bit
