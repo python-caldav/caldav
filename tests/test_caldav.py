@@ -558,6 +558,7 @@ def _delay_decorator(f, t=60):
     def foo(*a, **kwa):
         time.sleep(t)
         return f(*a, **kwa)
+
     return foo
     
 class RepeatedFunctionalTestsBaseClass:

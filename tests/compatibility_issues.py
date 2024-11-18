@@ -235,7 +235,7 @@ xandikos = [
 ]
 
 ## This can soon be removed (relevant for running tests under python 3.7 and python 3.8)
-## https://github.com/jelmer/xandikos/pull/194    
+## https://github.com/jelmer/xandikos/pull/194
 'category_search_yields_nothing',
 try:
     import xandikos.__version__ as xver

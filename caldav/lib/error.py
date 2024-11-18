@@ -25,13 +25,18 @@ if debugmode.startswith("DEBUG"):
 else:
     log.setLevel(logging.WARNING)
 
+
 def weirdness(*reasons):
     from caldav.lib.debug import xmlstring
+
     reason = " : ".join([xmlstring(x) for x in reasons])
     log.warning(f"Deviation from expectations found: {reason}")
     if debugmode == "DEBUG_PDB":
         log.error(f"Dropping into debugger due to {reason}")
-        import pdb; pdb.set_trace()
+        import pdb
+
+        pdb.set_trace()
+
 
 def assert_(condition: object) -> None:
     try:
@@ -43,7 +48,9 @@ def assert_(condition: object) -> None:
             )
         elif debugmode == "DEBUG_PDB":
             log.error("Deviation from expectations found.  Dropping into debugger")
-            import pdb; pdb.set_trace()
+            import pdb
+
+            pdb.set_trace()
         else:
             raise
 

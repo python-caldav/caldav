@@ -255,7 +255,7 @@ def client(
     idx=None, name=None, setup=lambda conn: None, teardown=lambda conn: None, **kwargs
 ):
     kwargs_ = kwargs.copy()
-    no_args = not any (x for x in kwargs if kwargs[x] is not None)
+    no_args = not any(x for x in kwargs if kwargs[x] is not None)
     if idx is None and no_args and caldav_servers:
         ## No parameters given - find the first server in caldav_servers list
         return client(idx=0)
@@ -286,7 +286,7 @@ def client(
     conn = DAVClient(**kwargs_)
     setup(conn)
     conn.teardown = teardown
-    conn.incompatibilities = kwargs.get('incompatibilities')
+    conn.incompatibilities = kwargs.get("incompatibilities")
     conn.server_name = name
     return conn
 
