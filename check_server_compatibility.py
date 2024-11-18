@@ -317,6 +317,7 @@ class ServerQuirkChecker:
                 if len(events) == 1:
                     self.set_flag("combined_search_not_working", False)
                 elif len(events) == 0:
+                    import pdb; pdb.set_trace()
                     self.set_flag("combined_search_not_working", True)
                 else:
                     import pdb
