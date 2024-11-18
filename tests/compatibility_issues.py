@@ -242,7 +242,7 @@ try:
     goodver = (0,2,12)
     for i in range(0,2):
         if xver[i]<goodver[i]:
-            xandikos.append('category_search_needs')
+            xandikos.append('category_search_yields_nothing')
             break
 except Exception:
     pass

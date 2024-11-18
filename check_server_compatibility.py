@@ -405,6 +405,20 @@ class ServerQuirkChecker:
             yearly_time.delete()
             yearly_day.delete()
 
+    def check_todo(self):
+        cal = self._default_calendar
+
+        try:
+            ## Add a simplest possible todo
+            todo1 = cal.add_todo(
+                summary="This is a summary",
+                uid="check_todo_1",
+            )
+        except:
+            import pdb; pdb.set_trace()
+            pass
+        
+
     def check_all(self):
         try:
             self.check_principal()
