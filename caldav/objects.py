@@ -791,7 +791,7 @@ class Calendar(DAVObject):
         if name:
             try:
                 self.set_properties([display_name])
-            except:
+            except Exception as e:
                 ## TODO: investigate.  Those asserts break.
                 error.assert_(False)
                 try:

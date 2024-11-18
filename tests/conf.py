@@ -258,12 +258,7 @@ def client(
     no_args = not any (x for x in kwargs if kwargs[x] is not None)
     if idx is None and no_args and caldav_servers:
         ## No parameters given - find the first server in caldav_servers list
-        idx = 0
-        while idx < len(caldav_servers) and not caldav_servers[idx].get("enable", True):
-            idx += 1
-        if idx == len(caldav_servers):
-            return None
-        return client(idx=idx)
+        return client(idx=0)
     elif idx is not None and no_args and caldav_servers:
         return client(**caldav_servers[idx])
     elif name is not None and no_args and caldav_servers:

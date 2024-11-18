@@ -554,6 +554,12 @@ class TestScheduling:
     ## inbox/outbox?
 
 
+def _delay_decorator(f, t=60):
+    def foo(*a, **kwa):
+        time.sleep(t)
+        return f(*a, **kwa)
+    return foo
+    
 class RepeatedFunctionalTestsBaseClass:
     """This is a class with functional tests (tests that goes through
     basic functionality and actively communicates with third parties)
@@ -601,15 +607,10 @@ class RepeatedFunctionalTestsBaseClass:
         self.caldav = client(**self.server_params)
 
         if self.check_compatibility_flag("rate_limited"):
-
-            def delay_decorator(f):
-                def foo(*a, **kwa):
-                    time.sleep(60)
-                    return f(*a, **kwa)
-
-                return foo
-
-            self.caldav.request = delay_decorator(self.caldav.request)
+            self.caldav.request = _delay_decorator(self.caldav.request)
+        if self.check_compatibility_flag("search_delay"):
+            Calendar._search = Calendar.search
+            Calendar.search = _delay_decorator(Calendar.search)
 
         if False and self.check_compatibility_flag("no-current-user-principal"):
             self.principal = Principal(
@@ -629,6 +630,8 @@ class RepeatedFunctionalTestsBaseClass:
         logging.debug("##############################")
 
     def teardown_method(self):
+        if self.check_compatibility_flag("search_delay"):
+            Calendar.search = Calendar._search
         logging.debug("############################")
         logging.debug("############## test teardown_method")
         logging.debug("############################")
