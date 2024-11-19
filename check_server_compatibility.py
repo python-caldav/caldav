@@ -16,6 +16,11 @@ from tests.compatibility_issues import incompatibility_description
 from tests.conf import client
 from tests.conf import CONNKEYS
 
+def _debugger():
+    import pdb
+    ## TODO: check some environmental flags
+    ## only hackers want the debug mode
+    pdb.set_trace()
 
 def _delay_decorator(f, delay=10):
     def foo(*a, **kwa):
@@ -141,9 +146,7 @@ class ServerQuirkChecker:
         except NotFoundError:
             self.set_flag("non_existing_calendar_found", False)
         except Exception as e:
-            import pdb
-
-            pdb.set_trace()
+            debugger()
             pass
         ## Check on "no_default_calendar" flag
         try:
@@ -267,17 +270,48 @@ class ServerQuirkChecker:
         except:
             ## should not be here
             import pdb
-
+            
             pdb.set_trace()
             raise
         try:
-            self._check_recurring_events(yearly_time, yearly_day)
+            self._check_recurring_events(yearly_time, yearly_day, span1, span2)
         finally:
             yearly_time.delete()
             yearly_day.delete()
 
+        ## Finally, a check that searches involving timespans works as intended
+        try:
+            span1 = cal.add_event(
+                dtstart=datetime.datetime(2000, 7, 1, 8),
+                dtend=datetime.datetime(2000, 7, 1, 16),
+                summary="Yearly 8 hour event",
+                uid="eight_hour_event",
+            )
+            span2 = cal.add_event(
+                dtstart=datetime.datetime(2000, 7, 2, 8),
+                duration=datetime.timedelta(hours=8),
+                summary="Yearly 8 hour event",
+                uid="eight_hour_event",
+                rrule={"FREQ": "YEARLY"},
+            )
+        except:
+            ## should not be here
+            import pdb
+            
+            pdb.set_trace()
+            raise
+            
     def _check_simple_events(self, obj1, obj2):
         cal = self._default_calendar
+        try:
+            obj1_ = cal.event_by_url(obj1.url)
+            assert obj1.data == obj1_.data
+        except:
+            self.set_flag("event_by_url_is_broken")
+            import pdb
+
+            pdb.set_trace()
+
         try:
             foo = cal.event_by_uid("check_event_2")
             assert foo
@@ -416,21 +450,60 @@ class ServerQuirkChecker:
                 self.set_flag("broken_expand", True)
 
     def check_todo(self):
-        cal = self._default_calendar
-
         try:
             ## Add a simplest possible todo
-            todo1 = cal.add_todo(
+            todo_simple = cal.add_todo(
                 summary="This is a summary",
                 uid="check_todo_1",
             )
+            todo_with_dtstart = cal.add_todo(
+                summary="This is a summary",
+                dtstart=datetime.datetime(2000,1,1)
+                uid="check_todo_2",
+            )
+            todo_with_due = cal.add_todo(
+                summary="This is a summary",
+                due=datetime.datetime(2000,1,1,1,0,0)
+                uid="check_todo_3",
+            )
+            todo_with_dtstart_due = cal.add_todo(
+                summary="This is a summary",
+                dtstart=datetime.datetime(2000,1,1,2,0,0)
+                due=datetime.datetime(2000,1,1,3,0,0)
+                uid="check_todo_4",
+            )
+            todo_with_dtstart_dur = cal.add_todo(
+                summary="This is a summary",
+                dtstart=datetime.datetime(2000,1,1,4,0,0)
+                duration=datetime.timedelta(hours=1)
+                uid="check_todo_2",
+            )
+            if not self.flags['object_by_uid_is_broken']:
+                assert(len(cal.todo_by_uid('check_todo_1'))==1)
             self.set_flag("no_todo", False)
+        except:
+            self.set_flag("no_todo")
+            return
+        try:
+            self.check_simple_todo(todo1)
+        finally:
+            todo1.delete()
+
+    def check_simple_todo(self, todo):
+        cal = self._default_calendar
+
+        ## search for a simple todo
+        try:
+            sr = cal.search(summary="This is a summary", todo=True)
+            assert(len(sr)==1)
         except:
             import pdb
 
             pdb.set_trace()
-            self.set_flag("no_todo")
-            return
+            ## simple search for a todo won't work.
+            ## I haven't seen that before.
+            ## TODO: add a flag for this
+            raise
 
     def check_all(self):
         try:

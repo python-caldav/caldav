@@ -144,9 +144,6 @@ incompatibility_description = {
         """duration if no dtend is set, and most server implementations seems to """
         """treat VTODOs the same""",
 
-    'no_todo_on_standard_calendar':
-        """Tasklists can be created, but a normal calendar does not support tasks""",
-
     'unique_calendar_ids':
         """For every test, generate a new and unique calendar id""",
 
@@ -284,10 +281,8 @@ zimbra = [
     ## earlier versions of Zimbra display-name could be changed, but
     ## then the calendar would not be available on the old URL
     ## anymore)
-    'no_displayname',
     'duplicate_in_other_calendar_with_same_uid_is_lost',
     'event_by_url_is_broken',
-    'no_todo_on_standard_calendar',
     'no_sync_token',
     'vtodo_datesearch_notime_task_is_skipped',
     'category_search_yields_nothing',
