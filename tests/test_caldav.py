@@ -1015,9 +1015,7 @@ class RepeatedFunctionalTestsBaseClass:
         if not self.check_compatibility_flag("no_recurring"):
             c.save_event(evr)
             objcnt += 1
-        if not self.check_compatibility_flag(
-            "no_todo"
-        ) and not self.check_compatibility_flag("no_todo_on_standard_calendar"):
+        if not self.check_compatibility_flag("no_todo"):
             c.save_todo(todo)
             c.save_todo(todo2)
             c.save_todo(todo3)
@@ -1146,9 +1144,7 @@ class RepeatedFunctionalTestsBaseClass:
         if not self.check_compatibility_flag("no_recurring"):
             c.save_event(evr)
             objcnt += 1
-        if not self.check_compatibility_flag(
-            "no_todo"
-        ) and not self.check_compatibility_flag("no_todo_on_standard_calendar"):
+        if not self.check_compatibility_flag("no_todo"):
             c.save_todo(todo)
             c.save_todo(todo2)
             c.save_todo(todo3)
@@ -2474,14 +2470,10 @@ class RepeatedFunctionalTestsBaseClass:
 
         # add event
         e1 = c.save_event(ev1)
-        if not self.check_compatibility_flag(
-            "no_todo"
-        ) and not self.check_compatibility_flag("no_todo_on_standard_calendar"):
+        if not self.check_compatibility_flag("no_todo"):
             t1 = c.save_todo(todo)
         assert e1.url is not None
-        if not self.check_compatibility_flag(
-            "no_todo"
-        ) and not self.check_compatibility_flag("no_todo_on_standard_calendar"):
+        if not self.check_compatibility_flag("no_todo"):
             assert t1.url is not None
         if not self.check_compatibility_flag("event_by_url_is_broken"):
             assert c.event_by_url(e1.url).url == e1.url
@@ -2495,25 +2487,19 @@ class RepeatedFunctionalTestsBaseClass:
         ## (but some calendars may throw a "409 Conflict")
         if not self.check_compatibility_flag("no_overwrite"):
             e2 = c.save_event(ev1)
-            if not self.check_compatibility_flag(
-                "no_todo"
-            ) and not self.check_compatibility_flag("no_todo_on_standard_calendar"):
+            if not self.check_compatibility_flag("no_todo"):
                 t2 = c.save_todo(todo)
 
             ## add same event with "no_create".  Should work like a charm.
             e2 = c.save_event(ev1, no_create=no_create)
-            if not self.check_compatibility_flag(
-                "no_todo"
-            ) and not self.check_compatibility_flag("no_todo_on_standard_calendar"):
+            if not self.check_compatibility_flag("no_todo"):
                 t2 = c.save_todo(todo, no_create=no_create)
 
             ## this should also work.
             e2.instance.vevent.summary.value = e2.instance.vevent.summary.value + "!"
             e2.save(no_create=no_create)
 
-            if not self.check_compatibility_flag(
-                "no_todo"
-            ) and not self.check_compatibility_flag("no_todo_on_standard_calendar"):
+            if not self.check_compatibility_flag("no_todo"):
                 t2.instance.vtodo.summary.value = t2.instance.vtodo.summary.value + "!"
                 t2.save(no_create=no_create)
 
@@ -2525,17 +2511,13 @@ class RepeatedFunctionalTestsBaseClass:
         if not self.check_compatibility_flag("object_by_uid_is_broken"):
             with pytest.raises(error.ConsistencyError):
                 c.save_event(ev1, no_overwrite=True)
-            if not self.check_compatibility_flag(
-                "no_todo"
-            ) and not self.check_compatibility_flag("no_todo_on_standard_calendar"):
+            if not self.check_compatibility_flag("no_todo"):
                 with pytest.raises(error.ConsistencyError):
                     c.save_todo(todo, no_overwrite=True)
 
         # delete event
         e1.delete()
-        if not self.check_compatibility_flag(
-            "no_todo"
-        ) and not self.check_compatibility_flag("no_todo_on_standard_calendar"):
+        if not self.check_compatibility_flag("no_todo"):
             t1.delete()
 
         if self.check_compatibility_flag("non_existing_raises_other"):

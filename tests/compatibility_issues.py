@@ -258,7 +258,6 @@ radicale = [
 
     'text_search_is_case_insensitive',
     'text_search_is_exact_match_sometimes',
-    'combined_search_not_working',
     "search_needs_comptype",
 
     ## extra features not specified in RFC5545

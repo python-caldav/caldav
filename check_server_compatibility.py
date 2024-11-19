@@ -1,7 +1,9 @@
 #!/usr/bin/env python
-import datetime
 import time
 import uuid
+from datetime import date
+from datetime import datetime
+from datetime import timedelta
 from json import dumps
 
 import click
@@ -16,11 +18,14 @@ from tests.compatibility_issues import incompatibility_description
 from tests.conf import client
 from tests.conf import CONNKEYS
 
+
 def _debugger():
     import pdb
+
     ## TODO: check some environmental flags
     ## only hackers want the debug mode
     pdb.set_trace()
+
 
 def _delay_decorator(f, delay=10):
     def foo(*a, **kwa):
@@ -146,7 +151,7 @@ class ServerQuirkChecker:
         except NotFoundError:
             self.set_flag("non_existing_calendar_found", False)
         except Exception as e:
-            debugger()
+            _debugger()
             pass
         ## Check on "no_default_calendar" flag
         try:
@@ -234,14 +239,14 @@ class ServerQuirkChecker:
 
         ## Two simple events with text fields, dtstart=now and no dtend
         obj1 = cal.add_event(
-            dtstart=datetime.datetime.now(),
+            dtstart=datetime.now(),
             summary="Test event 1",
             categories=["foo", "bar"],
             class_="CONFIDENTIAL",
             uid="check_event_1",
         )
         obj2 = cal.add_event(
-            dtstart=datetime.datetime.now(),
+            dtstart=datetime.now(),
             summary="Test event 2",
             categories=["zoo", "test"],
             uid="check_event_2",
@@ -256,23 +261,23 @@ class ServerQuirkChecker:
         ## Recurring events
         try:
             yearly_time = cal.add_event(
-                dtstart=datetime.datetime(2000, 1, 1, 0, 0),
+                dtstart=datetime(2000, 1, 1, 0, 0),
                 summary="Yearly timed event",
                 uid="firework_event",
                 rrule={"FREQ": "YEARLY"},
             )
             yearly_day = cal.add_event(
-                dtstart=datetime.date(2000, 5, 1),
+                dtstart=date(2000, 5, 1),
                 summary="Yearly day event",
                 uid="full_day_event",
                 rrule={"FREQ": "YEARLY"},
             )
         except:
             ## should not be here
-            debugger()
+            _debugger()
             raise
         try:
-            self._check_recurring_events(yearly_time, yearly_day, span1, span2)
+            self._check_recurring_events(yearly_time, yearly_day)
         finally:
             yearly_time.delete()
             yearly_day.delete()
@@ -280,31 +285,35 @@ class ServerQuirkChecker:
         ## Finally, a check that searches involving timespans works as intended
         try:
             span1 = cal.add_event(
-                dtstart=datetime.datetime(2000, 7, 1, 8),
-                dtend=datetime.datetime(2000, 7, 1, 16),
-                summary="Yearly 8 hour event",
-                uid="eight_hour_event",
+                dtstart=datetime(2000, 7, 1, 8),
+                dtend=datetime(2000, 7, 1, 16),
+                summary="An 8 hour event",
+                uid="eight_hour_event1",
             )
             span2 = cal.add_event(
-                dtstart=datetime.datetime(2000, 7, 2, 8),
-                duration=datetime.timedelta(hours=8),
-                summary="Yearly 8 hour event",
-                uid="eight_hour_event",
-                rrule={"FREQ": "YEARLY"},
+                dtstart=datetime(2000, 7, 2, 8),
+                duration=timedelta(hours=8),
+                summary="Another 8 hour event",
+                uid="eight_hour_event2",
             )
         except:
             ## should not be here
-            debugger()
+            _debugger()
             raise
-            
+        try:
+            self._check_spanning_events(span1, span2)
+        finally:
+            span1.delete()
+            span2.delete()
+
     def _check_simple_events(self, obj1, obj2):
         cal = self._default_calendar
         try:
             obj1_ = cal.event_by_url(obj1.url)
-            assert obj1.data == obj1_.data
+            assert "SUMMARY:Test event 1" in obj1_.data
         except:
             self.set_flag("event_by_url_is_broken")
-            debugger()
+            _debugger()
 
         try:
             foo = cal.event_by_uid("check_event_2")
@@ -328,7 +337,7 @@ class ServerQuirkChecker:
             if len(cal.events()) == 2:
                 self.set_flag("search_always_needs_comptype", True)
             else:
-                debugger()
+                _debugger()
                 pass
                 ## we should not be here
         else:
@@ -361,7 +370,7 @@ class ServerQuirkChecker:
                 self.set_flag("text_search_is_case_insensitive", False)
             else:
                 ## we should not be here
-                debugger()
+                _debugger()
                 pass
             events = cal.search(summary="test event", event=True)
             if len(events) == 2:
@@ -375,10 +384,10 @@ class ServerQuirkChecker:
             if len(events) == 1:
                 self.set_flag("combined_search_not_working", False)
             elif len(events) == 0:
-                debugger()
+                _debugger()
                 self.set_flag("combined_search_not_working", True)
             else:
-                debugger()
+                _debugger()
                 ## We should not be here
                 pass
         try:
@@ -391,17 +400,15 @@ class ServerQuirkChecker:
             self.set_flag("category_search_yields_nothing", True)
         else:
             ## we should not be here
-            debugger()
+            _debugger()
             pass
-
-        events = cal.search(summary="test event", class_="CONFIDENTIAL", event=True)
 
     def _check_recurring_events(self, yearly_time, yearly_day):
         cal = self._default_calendar
         try:
             events = cal.search(
-                start=datetime.datetime(2001, 4, 1),
-                end=datetime.datetime(2002, 2, 2),
+                start=datetime(2001, 4, 1),
+                end=datetime(2002, 2, 2),
                 event=True,
             )
             assert len(events) == 2
@@ -413,8 +420,8 @@ class ServerQuirkChecker:
             return
 
         events = cal.search(
-            start=datetime.datetime(2001, 4, 1),
-            end=datetime.datetime(2002, 2, 2),
+            start=datetime(2001, 4, 1),
+            end=datetime(2002, 2, 2),
             event=True,
             expand="server",
         )
@@ -433,6 +440,64 @@ class ServerQuirkChecker:
             else:
                 self.set_flag("broken_expand", True)
 
+    def _check_spanning_events(self, span1, span2):
+        cal = self._default_calendar
+        one_event_lists = []
+        try:
+            ## Any overlapping of an event timespan and search timespan
+            ## should yield the event, as I remember the RFC
+            one_event_lists.append(cal.search(event=True, end=datetime(2000, 7, 1, 10)))
+            one_event_lists.append(
+                cal.search(
+                    event=True,
+                    start=datetime(2000, 7, 1, 10),
+                    end=datetime(2000, 7, 1, 12),
+                )
+            )
+            one_event_lists.append(
+                cal.search(
+                    event=True,
+                    start=datetime(2000, 7, 1, 4),
+                    end=datetime(2000, 7, 1, 12),
+                )
+            )
+            one_event_lists.append(
+                cal.search(
+                    event=True,
+                    start=datetime(2000, 7, 1, 4),
+                    end=datetime(2000, 7, 1, 22),
+                )
+            )
+            one_event_lists.append(
+                cal.search(event=True, start=datetime(2000, 7, 2, 10))
+            )
+            one_event_lists.append(
+                cal.search(
+                    event=True,
+                    start=datetime(2000, 7, 2, 10),
+                    end=datetime(2000, 7, 2, 12),
+                )
+            )
+            one_event_lists.append(
+                cal.search(
+                    event=True,
+                    start=datetime(2000, 7, 2, 4),
+                    end=datetime(2000, 7, 2, 12),
+                )
+            )
+            one_event_lists.append(
+                cal.search(
+                    event=True,
+                    start=datetime(2000, 7, 2, 4),
+                    end=datetime(2000, 7, 2, 22),
+                )
+            )
+            for one_event in one_event_lists:
+                assert len(one_event) == 1
+        except:
+            _debugger()
+            raise
+
     def check_todo(self):
         try:
             ## Add a simplest possible todo
@@ -442,28 +507,28 @@ class ServerQuirkChecker:
             )
             todo_with_dtstart = cal.add_todo(
                 summary="This is a summary",
-                dtstart=datetime.datetime(2000,1,1)
+                dtstart=datetime(2000, 1, 1),
                 uid="check_todo_2",
             )
             todo_with_due = cal.add_todo(
                 summary="This is a summary",
-                due=datetime.datetime(2000,1,1,1,0,0)
+                due=datetime(2000, 1, 1, 1, 0, 0),
                 uid="check_todo_3",
             )
             todo_with_dtstart_due = cal.add_todo(
                 summary="This is a summary",
-                dtstart=datetime.datetime(2000,1,1,2,0,0)
-                due=datetime.datetime(2000,1,1,3,0,0)
+                dtstart=datetime(2000, 1, 1, 2, 0, 0),
+                due=datetime(2000, 1, 1, 3, 0, 0),
                 uid="check_todo_4",
             )
             todo_with_dtstart_dur = cal.add_todo(
                 summary="This is a summary",
-                dtstart=datetime.datetime(2000,1,1,4,0,0)
-                duration=datetime.timedelta(hours=1)
+                dtstart=datetime(2000, 1, 1, 4, 0, 0),
+                duration=timedelta(hours=1),
                 uid="check_todo_2",
             )
-            if not self.flags['object_by_uid_is_broken']:
-                assert(len(cal.todo_by_uid('check_todo_1'))==1)
+            if not self.flags["object_by_uid_is_broken"]:
+                assert len(cal.todo_by_uid("check_todo_1")) == 1
             self.set_flag("no_todo", False)
         except:
             self.set_flag("no_todo")
@@ -479,9 +544,9 @@ class ServerQuirkChecker:
         ## search for a simple todo
         try:
             sr = cal.search(summary="This is a summary", todo=True)
-            assert(len(sr)==1)
+            assert len(sr) == 1
         except:
-            debugger()
+            _debugger()
             ## simple search for a todo won't work.
             ## I haven't seen that before.
             ## TODO: add a flag for this
@@ -495,7 +560,7 @@ class ServerQuirkChecker:
             self.check_mkcalendar()
             self.check_event()
         except:
-            debugger()
+            _debugger()
             raise
         finally:
             if self._default_calendar and not self.flags_checked["no_mkcalendar"]:
