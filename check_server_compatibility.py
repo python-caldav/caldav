@@ -269,9 +269,7 @@ class ServerQuirkChecker:
             )
         except:
             ## should not be here
-            import pdb
-            
-            pdb.set_trace()
+            debugger()
             raise
         try:
             self._check_recurring_events(yearly_time, yearly_day, span1, span2)
@@ -296,9 +294,7 @@ class ServerQuirkChecker:
             )
         except:
             ## should not be here
-            import pdb
-            
-            pdb.set_trace()
+            debugger()
             raise
             
     def _check_simple_events(self, obj1, obj2):
@@ -308,9 +304,7 @@ class ServerQuirkChecker:
             assert obj1.data == obj1_.data
         except:
             self.set_flag("event_by_url_is_broken")
-            import pdb
-
-            pdb.set_trace()
+            debugger()
 
         try:
             foo = cal.event_by_uid("check_event_2")
@@ -334,9 +328,7 @@ class ServerQuirkChecker:
             if len(cal.events()) == 2:
                 self.set_flag("search_always_needs_comptype", True)
             else:
-                import pdb
-
-                pdb.set_trace()
+                debugger()
                 pass
                 ## we should not be here
         else:
@@ -369,9 +361,7 @@ class ServerQuirkChecker:
                 self.set_flag("text_search_is_case_insensitive", False)
             else:
                 ## we should not be here
-                import pdb
-
-                pdb.set_trace()
+                debugger()
                 pass
             events = cal.search(summary="test event", event=True)
             if len(events) == 2:
@@ -385,14 +375,10 @@ class ServerQuirkChecker:
             if len(events) == 1:
                 self.set_flag("combined_search_not_working", False)
             elif len(events) == 0:
-                import pdb
-
-                pdb.set_trace()
+                debugger()
                 self.set_flag("combined_search_not_working", True)
             else:
-                import pdb
-
-                pdb.set_trace()
+                debugger()
                 ## We should not be here
                 pass
         try:
@@ -405,9 +391,7 @@ class ServerQuirkChecker:
             self.set_flag("category_search_yields_nothing", True)
         else:
             ## we should not be here
-            import pdb
-
-            pdb.set_trace()
+            debugger()
             pass
 
         events = cal.search(summary="test event", class_="CONFIDENTIAL", event=True)
@@ -497,9 +481,7 @@ class ServerQuirkChecker:
             sr = cal.search(summary="This is a summary", todo=True)
             assert(len(sr)==1)
         except:
-            import pdb
-
-            pdb.set_trace()
+            debugger()
             ## simple search for a todo won't work.
             ## I haven't seen that before.
             ## TODO: add a flag for this
@@ -513,9 +495,7 @@ class ServerQuirkChecker:
             self.check_mkcalendar()
             self.check_event()
         except:
-            import pdb
-
-            pdb.set_trace()
+            debugger()
             raise
         finally:
             if self._default_calendar and not self.flags_checked["no_mkcalendar"]:
