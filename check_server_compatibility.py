@@ -40,6 +40,7 @@ class ServerQuirkChecker:
         self.client_obj = client_obj
         self.flags_checked = {}
         self.other_info = {}
+        self._default_calendar = None
 
     def set_flag(self, flag, value=True):
         if flag == "rate_limited":
@@ -141,6 +142,11 @@ class ServerQuirkChecker:
         except AuthorizationError:
             raise
         except DAVError:
+            ## This probably applies to calendar.mail.ru
+            ## TODO: investigate if there are any quick-fixes
+            ## TODO: the workaround is to set a calendar path in the config
+            ## and fix the rest of the check script so that it works even
+            ## without a self.principal object.
             self.set_flag("no-current-user-principal", True)
 
     def check_mkcalendar(self):
@@ -176,16 +182,11 @@ class ServerQuirkChecker:
             return
         makeret = self._try_make_calendar(cal_id="pythoncaldav-test")
         if makeret[0]:
-            self._default_calendar = self.principal.make_calendar(
-                cal_id="pythoncaldav-test"
-            )
             self.set_flag("no_displayname", True)
             return
         unique_id1 = "testcalendar-" + str(uuid.uuid4())
-        unique_id2 = "testcalendar-" + str(uuid.uuid4())
         makeret = self._try_make_calendar(cal_id=unique_id1)
         if makeret[0]:
-            self._default_calendar = self.principal.make_calendar(cal_id=unique_id2)
             self.set_flag("unique_calendar_ids", True)
         unique_id = "testcalendar-" + str(uuid.uuid4())
         makeret = self._try_make_calendar(cal_id=unique_id, name="Yep")
@@ -193,6 +194,23 @@ class ServerQuirkChecker:
             self.flags_checked["no_displayname"] = True
         if not "no_mkcalendar" in self.flags_checked:
             self.set_flag("no_mkcalendar", True)
+        self._fix_cal()
+
+    def _fix_cal():
+        if self._default_calendar:
+            self._default_calendar.delete()
+        if self.flags_checked['unique_calendar_ids']:
+            cal_id = "testcalendar-" + str(uuid.uuid4())
+        else:
+            cal_id = "pythoncaldav-test"
+        if self.flags_checked['no_displayname']:
+            name = None
+        else:
+            name = "CalDAV Server Testing"
+        #cal = self.principal.make_calendar(cal_id=cal_id, name=name)
+        cal = self.principal.make_calendar(cal_id=cal_id, name=None)
+        self._default_calendar = cal
+        return cal
 
     def check_support(self):
         self.set_flag("dav_not_supported", True)
@@ -281,39 +299,48 @@ class ServerQuirkChecker:
         finally:
             yearly_time.delete()
             yearly_day.delete()
+            
+        if cal.events():
+            ## Zimbra.  Probably related to event_by_url_is_broken
+            self.set_flag('no_delete_event')
+            cal = self._fix_cal()
+        else:
+            self.set_flag('no_delete_event', False)
 
         ## Finally, a check that searches involving timespans works as intended
-        try:
-            span1 = cal.add_event(
-                dtstart=datetime(2000, 7, 1, 8),
-                dtend=datetime(2000, 7, 1, 16),
-                summary="An 8 hour event",
-                uid="eight_hour_event1",
-            )
-            span2 = cal.add_event(
-                dtstart=datetime(2000, 7, 2, 8),
-                duration=timedelta(hours=8),
-                summary="Another 8 hour event",
-                uid="eight_hour_event2",
-            )
-        except:
-            ## should not be here
-            _debugger()
+        span = cal.add_event(
+            dtstart=datetime(2000, 7, 1, 8),
+            dtend=datetime(2000, 7, 1, 16),
+            summary="An 8 hour event",
+            uid="eight_hour_event1",
+        )
+
+        foo = self._date_search(span, assert_found=False, event=True)
+        if len(foo) != 0:
+            import pdb; pdb.set_trace()
             raise
-        try:
-            self._check_spanning_events(span1, span2)
-        finally:
-            span1.delete()
-            span2.delete()
+
+        span = cal.add_event(
+            dtstart=datetime(2000, 7, 1, 8),
+            duration=timedelta(hours=8),
+            summary="Another 8 hour event",
+            uid="eight_hour_event2",
+        )
+        ret = self._date_search(span, assert_found=False, event=True)
+        if ret == [4, 6, 7]:
+            self.set_flag('date_search_ignores_duration')
+        else:
+            self.set_flag('date_search_ignores_duration', False)
+            assert len(ret)==0
 
     def _check_simple_events(self, obj1, obj2):
         cal = self._default_calendar
         try:
             obj1_ = cal.event_by_url(obj1.url)
             assert "SUMMARY:Test event 1" in obj1_.data
+            self.set_flag("event_by_url_is_broken", False)
         except:
             self.set_flag("event_by_url_is_broken")
-            _debugger()
 
         try:
             foo = cal.event_by_uid("check_event_2")
@@ -440,105 +467,135 @@ class ServerQuirkChecker:
             else:
                 self.set_flag("broken_expand", True)
 
-    def _check_spanning_events(self, span1, span2):
-        cal = self._default_calendar
-        one_event_lists = []
+    def _date_search(self, obj, has_duration=True, **kwargs):
         try:
-            ## Any overlapping of an event timespan and search timespan
-            ## should yield the event, as I remember the RFC
-            one_event_lists.append(cal.search(event=True, end=datetime(2000, 7, 1, 10)))
-            one_event_lists.append(
-                cal.search(
-                    event=True,
-                    start=datetime(2000, 7, 1, 10),
-                    end=datetime(2000, 7, 1, 12),
-                )
-            )
-            one_event_lists.append(
-                cal.search(
-                    event=True,
-                    start=datetime(2000, 7, 1, 4),
-                    end=datetime(2000, 7, 1, 12),
-                )
-            )
-            one_event_lists.append(
-                cal.search(
-                    event=True,
-                    start=datetime(2000, 7, 1, 4),
-                    end=datetime(2000, 7, 1, 22),
-                )
-            )
-            one_event_lists.append(
-                cal.search(event=True, start=datetime(2000, 7, 2, 10))
-            )
-            one_event_lists.append(
-                cal.search(
-                    event=True,
-                    start=datetime(2000, 7, 2, 10),
-                    end=datetime(2000, 7, 2, 12),
-                )
-            )
-            one_event_lists.append(
-                cal.search(
-                    event=True,
-                    start=datetime(2000, 7, 2, 4),
-                    end=datetime(2000, 7, 2, 12),
-                )
-            )
-            one_event_lists.append(
-                cal.search(
-                    event=True,
-                    start=datetime(2000, 7, 2, 4),
-                    end=datetime(2000, 7, 2, 22),
-                )
-            )
-            for one_event in one_event_lists:
-                assert len(one_event) == 1
-        except:
-            _debugger()
-            raise
+            return self._do_date_search(has_duration=has_duration, **kwargs)
+        finally:
+            obj.delete()
+
+    def _do_date_search(self, assert_found=True, has_duration=True, **kwargs):
+        """
+        returns a "disbehavior list".
+        All those searches should find the event:
+        0: open-ended search with end after event
+        1: open-ended search with start before event
+        2: search interval covers event
+        3: open-ended search with end during event
+        4: open-ended search with start during event
+        5: search with end during event
+        6: search with start and end during event
+        7: search with start during event
+        """
+        cal = self._default_calendar
+        longbefore = datetime(2000, 6, 30, 4)
+        before = datetime(2000, 7, 1, 4)
+        during1 = datetime(2000, 7, 1, 10)
+        during2 = datetime(2000, 7, 1, 12)
+        after = datetime(2000, 7, 1, 22)
+        longafter  = datetime(2000, 7, 2, 10)
+        one_event_lists = [
+            ## open-ended searches, should yield object
+            cal.search(end=after, **kwargs),
+            cal.search(start=before, **kwargs),
+            cal.search(start=before, end=after, **kwargs)
+        ]
+        if has_duration:
+            ## overlapping searches, everything should yield object
+            one_event_lists.extend([
+                cal.search(end=during1, **kwargs),
+                cal.search(start=during1, **kwargs),
+                cal.search(start=before, end=during1, **kwargs),
+                cal.search(start=during1, end=during2, **kwargs),
+                cal.search(start=during1, end=after, **kwargs)
+            ])
+        ret = []
+        for i in range(0, len(one_event_lists)):
+            if not assert_found and len(one_event_lists[i])==0:
+                ret.append(i)
+            else:
+                assert len(one_event_lists[i])==1
+        assert(len(cal.search(start=longbefore, end=before))==0)
+        if kwargs.get('todo'):
+            if len(cal.search(end=before, **kwargs))==0:
+                if not 'vtodo_datesearch_nostart_future_tasks_delivered' in self.flags_checked:
+                    self.set_flag('vtodo_datesearch_nostart_future_tasks_delivered', False)
+            else:
+                self.set_flag('vtodo_datesearch_nostart_future_tasks_delivered', True)
+                assert len(cal.search(end=before, **kwargs))==1
+        else:
+            assert len(cal.search(end=before, **kwargs))==0
+        assert(len(cal.search(start=after, end=longafter))==0)
+        assert(len(cal.search(start=after, **kwargs))==0)
+        return ret
 
     def check_todo(self):
+        cal = self._default_calendar
         try:
             ## Add a simplest possible todo
             todo_simple = cal.add_todo(
                 summary="This is a summary",
                 uid="check_todo_1",
             )
-            todo_with_dtstart = cal.add_todo(
-                summary="This is a summary",
-                dtstart=datetime(2000, 1, 1),
-                uid="check_todo_2",
-            )
-            todo_with_due = cal.add_todo(
-                summary="This is a summary",
-                due=datetime(2000, 1, 1, 1, 0, 0),
-                uid="check_todo_3",
-            )
-            todo_with_dtstart_due = cal.add_todo(
-                summary="This is a summary",
-                dtstart=datetime(2000, 1, 1, 2, 0, 0),
-                due=datetime(2000, 1, 1, 3, 0, 0),
-                uid="check_todo_4",
-            )
-            todo_with_dtstart_dur = cal.add_todo(
-                summary="This is a summary",
-                dtstart=datetime(2000, 1, 1, 4, 0, 0),
-                duration=timedelta(hours=1),
-                uid="check_todo_2",
-            )
-            if not self.flags["object_by_uid_is_broken"]:
-                assert len(cal.todo_by_uid("check_todo_1")) == 1
+            if not self.flags_checked["object_by_uid_is_broken"]:
+                assert str(cal.todo_by_uid("check_todo_1").icalendar_component['UID']) == 'check_todo_1'
             self.set_flag("no_todo", False)
-        except:
+        except Exception as e:
+            import pdb; pdb.set_trace()
             self.set_flag("no_todo")
             return
         try:
-            self.check_simple_todo(todo1)
+            self._check_simple_todo(todo_simple)
         finally:
-            todo1.delete()
+            todo_simple.delete()
 
-    def check_simple_todo(self, todo):
+        ## There are more corner cases to consider
+        ## See RFC 4791, section 9.9
+        ## For tasks missing DTSTART and DUE/DURATION, but having
+        ## CREATED/COMPLETED, those time attributes should be
+        ## considered.  TODO: test that, too.
+        todo = cal.add_todo(
+            summary="This has dtstart",
+            dtstart=datetime(2000, 7, 1, 8),
+            uid="check_todo_2",
+        )
+        foobar1 = self._date_search(todo, assert_found=False, has_duration=False, todo=True)
+
+        todo = cal.add_todo(
+            summary="This has due",
+            due=datetime(2000, 7, 1, 16),
+            uid="check_todo_3",
+        )
+        foobar2 = self._date_search(todo, assert_found=False, has_duration=False, todo=True)
+
+        todo = cal.add_todo(
+            summary="This has dtstart and due",
+            dtstart=datetime(2000, 7, 1, 8),
+            due=datetime(2000, 7, 1, 16),
+            uid="check_todo_4",
+        )
+        
+        foobar3 = self._date_search(todo, assert_found=False, todo=True)
+        
+        todo = cal.add_todo(
+            summary="This has dtstart and dur",
+            dtstart=datetime(2000, 7, 1, 8),
+            duration=timedelta(hours=1),
+            uid="check_todo_5",
+        )
+        foobar4 = self._date_search(todo, assert_found=False, todo=True)
+
+        if len(foobar1 + foobar2 + foobar3 + foobar4) == 22:
+            ## no todos found
+            self.set_flag('no_todo_datesearch')
+        else:
+            self.set_flag('no_todo_datesearch', False)
+            assert len(foobar1 + foobar2 + foobar3) == 0
+            if foobar4 == [4, 6, 7]:
+                self.set_flag('date_todo_search_ignores_duration')
+            else:
+                assert len(foobar4)==0
+
+    def _check_simple_todo(self, todo):
         cal = self._default_calendar
 
         ## search for a simple todo
@@ -551,6 +608,52 @@ class ServerQuirkChecker:
             ## I haven't seen that before.
             ## TODO: add a flag for this
             raise
+        
+        ## RFC says that a todo without dtstart/due is
+        ## supposed to span over "infinite time".  So itshould always appear
+        ## in date searches.
+        try:
+            todos = cal.search(start=datetime(2020,1,1), end=datetime(2020,1,2), todo=True)
+            assert len(todos) in (0,1)
+            self.set_flag("vtodo_datesearch_notime_task_is_skipped", len(todos) == 0)
+        except Exception as e:
+            self.set_flag("no_todo_datesearch", True)
+
+    def _check_todo_date_search(self, todo_with_dtstart, todo_with_due, todo_with_dtstart_due, todo_with_dtstart_dur):
+        if self.flag_checked["no_todo_datesearch"]:
+            return
+        ## Every check below should return one and only one task if
+        ## everything works according to my understanding of the RFC
+        one_task_lists = []
+        for start_end in [
+                ## 0 - todo_with_dtstart
+                ((1999, 12, 31, 22, 22, 22),(2000, 1, 1, 0, 30)),
+                
+                ## 1 - todo_with_due
+                ((2000, 1, 1, 0, 30),(2000, 1, 1, 1, 30)),
+
+                ## 2, 3, 4 - todo_with_dtstart_due
+                ((2000, 1, 1, 1, 30),(2000, 1, 1, 3, 30)),
+                ((2000, 1, 1, 1, 30),(2000, 1, 1, 2, 30)),
+                ((2000, 1, 1, 2, 30),(2000, 1, 1, 3, 30)),
+
+                ## 5, 6, 7 - todo_with_dtstart_dur
+                ((2000, 1, 1, 3, 30),(2000, 1, 1, 5, 30)),
+                ((2000, 1, 1, 3, 30),(2000, 1, 1, 4, 30)),
+                ((2000, 1, 1, 4, 30),(2000, 1, 1, 5, 30)),
+        ]:
+            one_task_lists.append(cal.search(start=datetime(*start_end[0]), end=datetime(*start_end[1])))
+
+        if sum([len(x) for x in one_task_lists]) == 0:
+            self.set_flag('no_todo_datesearch')
+            return
+        else:
+            self.set_flag('no_todo_datesearch', False)
+
+        for idx in range(0,8):
+            if not len(one_task_lists[idx])==1:
+                debugging
+                pass
 
     def check_all(self):
         try:
@@ -559,9 +662,7 @@ class ServerQuirkChecker:
             self.check_propfind()
             self.check_mkcalendar()
             self.check_event()
-        except:
-            _debugger()
-            raise
+            self.check_todo()
         finally:
             if self._default_calendar and not self.flags_checked["no_mkcalendar"]:
                 try:

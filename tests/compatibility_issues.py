@@ -95,6 +95,9 @@ incompatibility_description = {
     'event_by_url_is_broken':
         """A GET towards a valid calendar object resource URL will yield 404 (wtf?)""",
 
+    'no_delete_event':
+        """Zimbra does not support deleting an event, probably because event_by_url is broken""",
+
     'no_sync_token':
         """RFC6578 is not supported, things will break if we try to do a sync-token report""",
 
@@ -136,6 +139,9 @@ incompatibility_description = {
     'vtodo_datesearch_notime_task_is_skipped':
         """date searches for todo-items will (only) find tasks that has either """
         """a dtstart or due set""",
+
+    'vtodo_datesearch_nostart_future_tasks_delivered':
+        """Future tasks are yielded when doing a date search with some end timestamp and without start timestamp and the task contains both dtstart and due, but not duration (xandikos 0.2.12)""",
 
     'vtodo_no_due_infinite_duration':
         """date search will find todo-items without due if dtstart is """
@@ -181,6 +187,12 @@ incompatibility_description = {
    'text_search_not_working':
         """Text search is generally broken""",
 
+    'date_search_ignores_duration':
+        """Date search with search interval overlapping event interval works on events with dtstart and dtend, but not on events with dtstart and due""",
+    
+    'date_todo_search_ignores_duration':
+        """Same as above, but specifically for tasks""",
+
    'fastmail_buggy_noexpand_date_search':
         """The 'blissful anniversary' recurrent example event is returned when asked for a no-expand date search for some timestamps covering a completely different date""",
 
@@ -223,9 +235,10 @@ xandikos = [
     ## https://github.com/jelmer/xandikos/issues/8
     "no_recurring",
 
+    'date_todo_search_ignores_duration',
     'text_search_is_exact_match_only',
-
     "search_needs_comptype",
+    'vtodo_datesearch_nostart_future_tasks_delivered',
 
     ## scheduling is not supported
     "no_scheduling",
@@ -282,6 +295,7 @@ zimbra = [
     ## anymore)
     'duplicate_in_other_calendar_with_same_uid_is_lost',
     'event_by_url_is_broken',
+    'no_delete_event',
     'no_sync_token',
     'vtodo_datesearch_notime_task_is_skipped',
     'category_search_yields_nothing',
@@ -368,6 +382,7 @@ sogo = [ ## and in addition ... the requests are efficiently rate limited, as it
 ]
 
 nextcloud = [
+    'date_search_ignores_duration',
     'sync_breaks_on_delete',
     'no_recurring_todo',
     'combined_search_not_working',
