@@ -6,6 +6,14 @@ Changelogs prior to v1.2 follows other formats and are available in the v1.2-rel
 
 This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html), though some earlier releases may be incompatible with the SemVer standard.
 
+## [2.0.0] - [Unreleased]
+
+### Changed
+
+* Use `niquests` library instead of `requests` library, see https://github.com/python-caldav/caldav/pull/455.  As of 2024-11-21 this seems like the more future-compatible option, however this change will not be released in 1.x for two reasons:
+ * The authorization part is very fragile - several time I've been doing minor changes here, and long time after it has been released as part of HomeAssistant, and people start complaining.  Hopefully, by having it in the master branch for a while before releasing it, some people will test it.
+ * Due to recent supply-chain attacks I'm wary of adding new dependencies.  So far the package is maintained by one maintainer and has gotten relatively few eyeballs.
+
 ## [1.5.0] - [Unreleased]
 
 ### Changed
