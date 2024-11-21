@@ -192,7 +192,7 @@ incompatibility_description = {
 
     'date_search_ignores_duration':
         """Date search with search interval overlapping event interval works on events with dtstart and dtend, but not on events with dtstart and due""",
-    
+
     'date_todo_search_ignores_duration':
         """Same as above, but specifically for tasks""",
 

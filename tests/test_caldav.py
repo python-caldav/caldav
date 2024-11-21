@@ -560,7 +560,8 @@ def _delay_decorator(f, t=60):
         return f(*a, **kwa)
 
     return foo
-    
+
+
 class RepeatedFunctionalTestsBaseClass:
     """This is a class with functional tests (tests that goes through
     basic functionality and actively communicates with third parties)
