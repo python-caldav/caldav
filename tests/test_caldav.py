@@ -437,7 +437,7 @@ sched = sched_template % (
     len(rfc6638_users) < 3,
     reason="need at least three users in rfc6638_users to be set in order to run this test",
 )
-class TestScheduling(object):
+class TestScheduling:
     """Testing support of RFC6638.
     TODO: work in progress.  Stalled a bit due to lack of proper testing accounts.  I haven't managed to get this test to pass at any systems yet, but I believe the problem is not on the library side.
     * icloud: cannot really test much with only one test account
@@ -554,7 +554,7 @@ class TestScheduling(object):
     ## inbox/outbox?
 
 
-class RepeatedFunctionalTestsBaseClass(object):
+class RepeatedFunctionalTestsBaseClass:
     """This is a class with functional tests (tests that goes through
     basic functionality and actively communicates with third parties)
     that we want to repeat for all configured caldav_servers.
