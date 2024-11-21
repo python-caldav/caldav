@@ -248,7 +248,7 @@ def handler(signo, frame):
 
 
 def daemonize(logger):
-    class DevNull(object):
+    class DevNull:
         def __init__(self):
             self.fd = os.open("/dev/null", os.O_WRONLY)
 
