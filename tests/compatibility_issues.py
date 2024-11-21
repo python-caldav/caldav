@@ -127,6 +127,9 @@ incompatibility_description = {
     'no_todo':
         """Support for VTODO (tasks) apparently missing""",
 
+    'no_todo_on_standard_calendar':
+        """Tasklists can be created, but a normal calendar does not support tasks""",
+
     'no_todo_datesearch':
         """Date search on todo items fails""",
 

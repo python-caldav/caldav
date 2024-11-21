@@ -71,6 +71,22 @@ class ServerQuirkChecker:
             calmade = True
             self.set_flag("no_mkcalendar", False)
             self.set_flag("read_only", False)
+            self.principal.calendar(cal_id=cal_id).events()
+            import pdb; pdb.set_trace()
+            if kwargs.get('name'):
+                try:
+                    name = 'A calendar with this name should not exist'
+                    self.principal.calendar(name=name).events()
+                except:
+                    ## This is not the exception, this is the normal
+                    try:
+                        cal2 = self.principal.calendar(name=kwargs['name'])
+                        cal2.events()
+                        assert(cal2.id == cal.id)
+                        self.set_flag("no_displayname", False)
+                    except:
+                        self.set_flag("no_displayname", True)
+
         except Exception as e:
             ## calendar creation created an exception - return exception
             cal = self.principal.calendar(cal_id=cal_id)
@@ -150,6 +166,7 @@ class ServerQuirkChecker:
             self.set_flag("no-current-user-principal", True)
 
     def check_mkcalendar(self):
+        self.set_flag("unique_calendar_ids", False)
         try:
             cal = self.principal.calendar(cal_id="this_should_not_exist")
             cal.events()
@@ -162,53 +179,55 @@ class ServerQuirkChecker:
         ## Check on "no_default_calendar" flag
         try:
             cals = self.principal.calendars()
-            cals[0].events()
+            events = cals[0].events()
+            ## We will not do any testing on a calendar that already contains events
             self.set_flag("no_default_calendar", False)
-            self._default_calendar = cals[0]
         except:
             self.set_flag("no_default_calendar", True)
 
+        import pdb; pdb.set_trace()
         makeret = self._try_make_calendar(name="Yep", cal_id="pythoncaldav-test")
         if makeret[0]:
-            try:
-                self._default_calendar = self.principal.make_calendar(
-                    name="Yep", cal_id="pythoncaldav-test"
-                )
-            except:
-                self._default_calendar = self.principal.calendar(
-                    cal_id="pythoncaldav-test"
-                )
-            self._default_calendar.events()
+            ## calendar created
             return
         makeret = self._try_make_calendar(cal_id="pythoncaldav-test")
         if makeret[0]:
             self.set_flag("no_displayname", True)
             return
         unique_id1 = "testcalendar-" + str(uuid.uuid4())
-        makeret = self._try_make_calendar(cal_id=unique_id1)
+        makeret = self._try_make_calendar(cal_id=unique_id1, name="Yep")
         if makeret[0]:
             self.set_flag("unique_calendar_ids", True)
+            return
         unique_id = "testcalendar-" + str(uuid.uuid4())
-        makeret = self._try_make_calendar(cal_id=unique_id, name="Yep")
-        if not makeret[0] and not self.flags_checked.get("no_mkcalendar", True):
+        makeret = self._try_make_calendar(cal_id=unique_id)
+        if makeret[0]:
             self.flags_checked["no_displayname"] = True
+            return
         if not "no_mkcalendar" in self.flags_checked:
             self.set_flag("no_mkcalendar", True)
-        self._fix_cal()
 
-    def _fix_cal():
+    def _fix_cal_if_needed(self, todo=False):
+        if self.flags_checked['no_delete_event']:
+            return self._fix_cal(todo=todo)
+        else:
+            return self._default_calendar
+
+    def _fix_cal(self, todo=False):
+        kwargs = {}
         if self._default_calendar:
             self._default_calendar.delete()
+        if todo:
+            kwargs['supported_calendar_component_set'] = ["VTODO"]
         if self.flags_checked['unique_calendar_ids']:
-            cal_id = "testcalendar-" + str(uuid.uuid4())
+            kwargs['cal_id'] = "testcalendar-" + str(uuid.uuid4())
         else:
-            cal_id = "pythoncaldav-test"
+            kwargs['cal_id'] = "pythoncaldav-test"
         if self.flags_checked['no_displayname']:
-            name = None
+            kwargs['name'] = None
         else:
-            name = "CalDAV Server Testing"
-        #cal = self.principal.make_calendar(cal_id=cal_id, name=name)
-        cal = self.principal.make_calendar(cal_id=cal_id, name=None)
+            kwargs['name'] = "CalDAV Server Testing"
+        cal = self.principal.make_calendar(**kwargs)
         self._default_calendar = cal
         return cal
 
@@ -530,23 +549,33 @@ class ServerQuirkChecker:
 
     def check_todo(self):
         cal = self._default_calendar
+        simple = {
+            'summary': "This is a summary",
+            'uid': "check_todo_1",
+        }
         try:
             ## Add a simplest possible todo
-            todo_simple = cal.add_todo(
-                summary="This is a summary",
-                uid="check_todo_1",
-            )
+            todo_simple = cal.add_todo(**simple)
             if not self.flags_checked["object_by_uid_is_broken"]:
                 assert str(cal.todo_by_uid("check_todo_1").icalendar_component['UID']) == 'check_todo_1'
             self.set_flag("no_todo", False)
         except Exception as e:
-            import pdb; pdb.set_trace()
-            self.set_flag("no_todo")
-            return
+            cal = self._fix_cal(todo=True)
+            try:
+                ## Add a simplest possible todo
+                todo_simple = cal.add_todo(**simple)
+                if not self.flags_checked["object_by_uid_is_broken"]:
+                    assert str(cal.todo_by_uid("check_todo_1").icalendar_component['UID']) == 'check_todo_1'
+                    self.set_flag("no_todo", False)
+                    self.set_flag("no_todo_on_standard_calendar")
+            except:
+                self.set_flag("no_todo")
+                return
         try:
             self._check_simple_todo(todo_simple)
         finally:
             todo_simple.delete()
+            self._fix_cal_if_needed()
 
         ## There are more corner cases to consider
         ## See RFC 4791, section 9.9
@@ -661,6 +690,7 @@ class ServerQuirkChecker:
             self.check_support()
             self.check_propfind()
             self.check_mkcalendar()
+            self._fix_cal()
             self.check_event()
             self.check_todo()
         finally:
