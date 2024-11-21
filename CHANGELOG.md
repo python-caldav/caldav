@@ -1,30 +1,28 @@
 # Changelog
 
-All notable changes to this project starting from v1.2 will be documented in this file.
-
-Changelogs prior to v1.2 has been removed, but are available in the
-v1.2-release.  (The project started with a GNU ChangeLog, but it was
-useless and horrible to maintain.  Then an improvised changelog format
-was used, until the maintainer was pointed towards https://keepachangelog.com.
 The format of this file should adhere to [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-This project should more or less adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+Changelogs prior to v1.2 follows other formats and are available in the v1.2-release.
 
-## [Unreleased]
+This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html), though some earlier releases may be incompatible with the SemVer standard.
+
+## [1.5.0] - [Unreleased]
 
 ### Changed
 
 #### Test framework
 
-* Functional test framework has been refactored - code for setting up and rigging down xandikos/radicale servers have been moved from `tests/test_caldav.py` to `tests/conf.py`.  This allows for:
+* Python 3.13 is officially supported by github user @ArtemIsmagilov in https://github.com/python-caldav/caldav/pull/454
+* Functional test framework has been refactored in https://github.com/python-caldav/caldav/pull/450
+  * code for setting up and rigging down xandikos/radicale servers have been moved from `tests/test_caldav.py` to `tests/conf.py`.  This allows for:
     * Adding code (including system calls or remote API calls) for Setting up and tearing down calendar servers in `conf_private.py`
     * Creating a local xandikos or radicale server in the `tests.client`-method, which is also used in the `examples`-section.
     * Allows offline testing of my upcoming `check_server_compatibility`-script
-* Also added the possibility to tag test servers with a name
+  * Also added the possibility to tag test servers with a name
 
 ### Added
 
-* By now `calendar.search(..., sort_keys=("DTSTART")` will work.  Sort keys expects a list or a tuple, but it's easy to send an attribute by mistake.
+* By now `calendar.search(..., sort_keys=("DTSTART")` will work.  Sort keys expects a list or a tuple, but it's easy to send an attribute by mistake.  https://github.com/python-caldav/caldav/pull/449
 
 ## [1.4.0] - 2024-11-05
 
@@ -59,7 +57,7 @@ This project should more or less adhere to [Semantic Versioning](https://semver.
 ### Added
 
 * Allow to reverse the sorting order on search function  by @twissell- in https://github.com/python-caldav/caldav/pull/433
-* Work on integrating typing information. Details in https://github.com/python-caldav/caldav/pull/358ppp
+* Work on integrating typing information. Details in https://github.com/python-caldav/caldav/pull/358
 * Remove dependency on pytz. Details in https://github.com/python-caldav/caldav/issues/231 and https://github.com/python-caldav/caldav/pull/363
 * Use setuptools-scm / pyproject.toml (modern packaging). Details in https://github.com/python-caldav/caldav/pull/364 and https://github.com/python-caldav/caldav/pull/367
 * Debugging tool - an environment variable can be set, causing the library to spew out server communications into files under /tmp.  Details in https://github.com/python-caldav/caldav/pull/249 and https://github.com/python-caldav/caldav/issues/248
