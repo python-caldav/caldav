@@ -10,45 +10,44 @@ description = "CalDAV (RFC4791) client library"
 keywords = []
 readme = "README.md"
 classifiers = [
-  "Development Status :: 4 - Beta",
-  "Intended Audience :: Developers",
-  "License :: OSI Approved :: GNU General Public License (GPL)",
-  "License :: OSI Approved :: Apache Software License",
-  "Operating System :: OS Independent",
-  "Programming Language :: Python",
-  "Programming Language :: Python :: 3.7",
-  "Programming Language :: Python :: 3.8",
-  "Programming Language :: Python :: 3.9",
-  "Programming Language :: Python :: 3.10",
-  "Programming Language :: Python :: 3.11",
-  "Programming Language :: Python :: 3.12",
-  "Programming Language :: Python :: 3.13",
-  "Topic :: Office/Business :: Scheduling",
-  "Topic :: Software Development :: Libraries :: Python Modules",
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: GNU General Public License (GPL)",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Office/Business :: Scheduling",
+    "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 urls = { Homepage = "https://github.com/python-caldav/caldav" }
 dependencies = [
-  "vobject",
-  "lxml",
-  "niquests",
-  "recurring-ical-events>=2.0.0",
-  "typing_extensions;python_version<'3.11'",
-  ## It's a mess - newer versions of xandikos, used for testing, does not support python 3.8 anymore.  icalendar 6.0.0 is not compatible with elder versions of xandikos.  It's no problem with python 3.7, as icalender 6.0.0 does not support python 3.7.
-  "icalendar<6.0.0;python_version=='3.8'",
-  "icalendar;python_version!='3.8'",
+    "vobject",
+    "lxml",
+    "requests",
+    "recurring-ical-events>=2.0.0",
+    "typing_extensions;python_version<'3.11'",
+    ## It's a mess - newer versions of xandikos, used for testing, does not support python 3.8 anymore.  icalendar 6.0.0 is not compatible with elder versions of xandikos.  It's no problem with python 3.7, as icalender 6.0.0 does not support python 3.7.
+    "icalendar<6.0.0;python_version=='3.8'",
+    "icalendar;python_version!='3.8'",
 ]
 dynamic = ["version"]
 
 [project.optional-dependencies]
 test = [
-  "pytest",
-  "coverage",
-  "sphinx",
-  "backports.zoneinfo;python_version<'3.9'",
-  "tzlocal",
-  "xandikos==0.2.7;python_version<'3.9'",
-  "dulwich==0.20.50;python_version<'3.9'",
-  "xandikos;python_version>='3.9'",
+    "pytest",
+    "coverage",
+    "sphinx",
+    "backports.zoneinfo;python_version<'3.9'",
+    "tzlocal",
+    "xandikos==0.2.7;python_version<'3.9'",
+    "dulwich==0.20.50;python_version<'3.9'",
+    "xandikos;python_version>='3.9'",
 ]
 
 [tool.setuptools_scm]

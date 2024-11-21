@@ -24,6 +24,7 @@ from urllib.parse import urlparse
 import icalendar
 import pytest
 import vobject
+from requests.packages import urllib3
 
 from . import compatibility_issues
 from .conf import caldav_servers
@@ -59,6 +60,7 @@ from caldav.objects import Todo
 
 log = logging.getLogger("caldav")
 
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 ev1 = """BEGIN:VCALENDAR
 VERSION:2.0

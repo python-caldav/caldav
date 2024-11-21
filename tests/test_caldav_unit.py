@@ -251,7 +251,7 @@ class TestCalDAV:
     dependencies, without accessing any caldav server)
     """
 
-    @mock.patch("caldav.davclient.niquests.Session.request")
+    @mock.patch("caldav.davclient.requests.Session.request")
     def testRequestNonAscii(self, mocked):
         """
         ref https://github.com/python-caldav/caldav/issues/83
@@ -272,7 +272,7 @@ class TestCalDAV:
         assert response.status == 200
         assert response.tree is None
 
-    @mock.patch("caldav.davclient.niquests.Session.request")
+    @mock.patch("caldav.davclient.requests.Session.request")
     def testRequestCustomHeaders(self, mocked):
         """
         ref https://github.com/python-caldav/caldav/issues/285
@@ -290,7 +290,7 @@ class TestCalDAV:
         ## User-Agent would be overwritten by some boring default in earlier versions
         assert client.headers["User-Agent"] == "MyCaldavApp"
 
-    @mock.patch("caldav.davclient.niquests.Session.request")
+    @mock.patch("caldav.davclient.requests.Session.request")
     def testRequestUserAgent(self, mocked):
         """
         ref https://github.com/python-caldav/caldav/issues/391
@@ -304,7 +304,7 @@ class TestCalDAV:
         assert client.headers["Content-Type"] == "text/xml"
         assert client.headers["User-Agent"].startswith("python-caldav/")
 
-    @mock.patch("caldav.davclient.niquests.Session.request")
+    @mock.patch("caldav.davclient.requests.Session.request")
     def testEmptyXMLNoContentLength(self, mocked):
         """
         ref https://github.com/python-caldav/caldav/issues/213
@@ -314,7 +314,7 @@ class TestCalDAV:
         mocked().content = ""
         client = DAVClient(url="AsdfasDF").request("/")
 
-    @mock.patch("caldav.davclient.niquests.Session.request")
+    @mock.patch("caldav.davclient.requests.Session.request")
     def testNonValidXMLNoContentLength(self, mocked):
         """
         If XML is expected but nonvalid XML is given, an error should be raised
