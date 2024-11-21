@@ -10,6 +10,10 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 
 ### Changed
 
+#### Refactoring
+
+* Minor code cleanups by github user @ArtemIsmagilov in https://github.com/python-caldav/caldav/pull/456
+
 #### Test framework
 
 * Python 3.13 is officially supported by github user @ArtemIsmagilov in https://github.com/python-caldav/caldav/pull/454
