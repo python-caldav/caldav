@@ -378,7 +378,7 @@ class DAVClient:
         timeout: Optional[int] = None,
         ssl_verify_cert: Union[bool, str] = True,
         ssl_cert: Union[str, Tuple[str, str], None] = None,
-        headers: Dict[str, str] = None,
+        headers: Mapping[str, str] = None,
         huge_tree: bool = False,
     ) -> None:
         """
@@ -396,8 +396,6 @@ class DAVClient:
         username and password may be omitted.  Known bug: .netrc is honored
         even if a username/password is given, ref https://github.com/python-caldav/caldav/issues/206
         """
-        headers = headers or {}
-
         self.session = niquests.Session(multiplexed=True)
 
         log.debug("url: " + str(url))
@@ -421,12 +419,12 @@ class DAVClient:
             self.proxy = _proxy
 
         # Build global headers
-        self.headers = {
+        self.headers = CaseInsensitiveDict({
             "User-Agent": "python-caldav/" + __version__,
             "Content-Type": "text/xml",
             "Accept": "text/xml, text/calendar",
-        }
-        self.headers.update(headers)
+        })
+        self.headers.update(headers or {})
         if self.url.username is not None:
             username = unquote(self.url.username)
             password = unquote(self.url.password)
@@ -640,7 +638,7 @@ class DAVClient:
         headers = headers or {}
 
         combined_headers = self.headers.copy()
-        combined_headers.update(headers)
+        combined_headers.update(headers or {})
         if (body is None or body == "") and "Content-Type" in combined_headers:
             del combined_headers["Content-Type"]
 
@@ -691,13 +689,15 @@ class DAVClient:
             if not r.status_code == 401:
                 raise
 
+        ## Returned headers
+        r_headers = CaseInsensitiveDict(r.headers)
         if (
             r.status_code == 401
-            and "WWW-Authenticate" in r.headers
+            and "WWW-Authenticate" in r_headers
             and not self.auth
             and self.username
         ):
-            auth_types = self.extract_auth_types(r.headers["WWW-Authenticate"])
+            auth_types = self.extract_auth_types(r_headers["WWW-Authenticate"])
 
             if self.password and self.username and "digest" in auth_types:
                 self.auth = niquests.auth.HTTPDigestAuth(self.username, self.password)
@@ -715,7 +715,7 @@ class DAVClient:
 
         elif (
             r.status_code == 401
-            and "WWW-Authenticate" in r.headers
+            and "WWW-Authenticate" in r_headers
             and self.auth
             and self.password
             and isinstance(self.password, bytes)
@@ -729,7 +729,7 @@ class DAVClient:
             ## sequence and not a string (see commit 13a4714, which
             ## introduced this regression)
 
-            auth_types = self.extract_auth_types(r.headers["WWW-Authenticate"])
+            auth_types = self.extract_auth_types(r_headers["WWW-Authenticate"])
 
             if self.password and self.username and "digest" in auth_types:
                 self.auth = niquests.auth.HTTPDigestAuth(
