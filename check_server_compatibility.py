@@ -72,9 +72,6 @@ class ServerQuirkChecker:
             self.set_flag("no_mkcalendar", False)
             self.set_flag("read_only", False)
             self.principal.calendar(cal_id=cal_id).events()
-            import pdb
-
-            pdb.set_trace()
             if kwargs.get("name"):
                 try:
                     name = "A calendar with this name should not exist"
@@ -147,6 +144,7 @@ class ServerQuirkChecker:
                 self.set_flag("rate_limited", True)
             except Exception as e2:
                 pass
+            return (calmade, None)
 
     def check_principal(self):
         ## TODO
@@ -187,9 +185,6 @@ class ServerQuirkChecker:
         except:
             self.set_flag("no_default_calendar", True)
 
-        import pdb
-
-        pdb.set_trace()
         makeret = self._try_make_calendar(name="Yep", cal_id="pythoncaldav-test")
         if makeret[0]:
             ## calendar created
@@ -219,9 +214,18 @@ class ServerQuirkChecker:
 
     def _fix_cal(self, todo=False):
         kwargs = {}
-        if self._default_calendar:
-            self._default_calendar.delete()
-        if todo:
+        try:
+            if self._default_calendar:
+                self._default_calendar.delete()
+        except:
+            pass
+        if self.flags_checked['no_mkcalendar']:
+            cal = self.principal.calendars()[0]
+            if cal.events() or cal.todos():
+                raise "Refusing to run tests on a calendar with content"
+            self._default_calendar = cal
+            return cal
+        if todo and self.flags_checked.get('no_todo_on_standard_calendar'):
             kwargs["supported_calendar_component_set"] = ["VTODO"]
         if self.flags_checked["unique_calendar_ids"]:
             kwargs["cal_id"] = "testcalendar-" + str(uuid.uuid4())
@@ -318,6 +322,7 @@ class ServerQuirkChecker:
             _debugger()
             raise
         try:
+            self._check_freebusy()
             self._check_recurring_events(yearly_time, yearly_day)
         finally:
             yearly_time.delete()
@@ -357,6 +362,22 @@ class ServerQuirkChecker:
         else:
             self.set_flag("date_search_ignores_duration", False)
             assert len(ret) == 0
+
+    def _check_freebusy(self):
+        cal = self._default_calendar
+        ## TODO:
+        ## Surely we should do more tests on freebusy, how does it work wrg
+        ## of tasks, recurring events, etc, etc.
+        try:
+            freebusy = cal.freebusy_request(
+                datetime(1999, 12, 30, 17, 0, 0), datetime(2000, 1, 1, 12, 30, 0)
+            )
+            # TODO: assert something more complex on the return object
+            assert isinstance(freebusy, FreeBusy)
+            assert freebusy.instance.vfreebusy
+            self.set_flag('no_freebusy_rfc4791', False)
+        except:
+            self.set_flag('no_freebusy_rfc4791')
 
     def _check_simple_events(self, obj1, obj2):
         cal = self._default_calendar
@@ -520,19 +541,19 @@ class ServerQuirkChecker:
         longafter = datetime(2000, 7, 2, 10)
         one_event_lists = [
             ## open-ended searches, should yield object
-            cal.search(end=after, **kwargs),
-            cal.search(start=before, **kwargs),
-            cal.search(start=before, end=after, **kwargs),
+            cal.search(end=after, **kwargs), ## 0
+            cal.search(start=before, **kwargs), ## 1
+            cal.search(start=before, end=after, **kwargs), ## 2
         ]
         if has_duration:
             ## overlapping searches, everything should yield object
             one_event_lists.extend(
                 [
-                    cal.search(end=during1, **kwargs),
-                    cal.search(start=during1, **kwargs),
-                    cal.search(start=before, end=during1, **kwargs),
-                    cal.search(start=during1, end=during2, **kwargs),
-                    cal.search(start=during1, end=after, **kwargs),
+                    cal.search(end=during1, **kwargs), ## 3
+                    cal.search(start=during1, **kwargs), ## 4
+                    cal.search(start=before, end=during1, **kwargs), ## 5
+                    cal.search(start=during1, end=during2, **kwargs), ## 6
+                    cal.search(start=during1, end=after, **kwargs), ## 7
                 ]
             )
         ret = []
@@ -541,7 +562,13 @@ class ServerQuirkChecker:
                 ret.append(i)
             else:
                 assert len(one_event_lists[i]) == 1
-        assert len(cal.search(start=longbefore, end=before)) == 0
+        should_be_empty = cal.search(start=longbefore, end=before)
+        if should_be_empty:
+            assert len(should_be_empty) == 1
+            ical = should_be_empty[0].icalendar_component
+            assert('due' in ical and not 'dtstart' in ical)
+            self.set_flag('vtodo_no_dtstart_infinite_duration')
+                
         if kwargs.get("todo"):
             if len(cal.search(end=before, **kwargs)) == 0:
                 if (
@@ -576,6 +603,7 @@ class ServerQuirkChecker:
                 )
             self.set_flag("no_todo", False)
         except Exception as e:
+            self.set_flag("no_todo_on_standard_calendar")
             cal = self._fix_cal(todo=True)
             try:
                 ## Add a simplest possible todo
@@ -586,8 +614,8 @@ class ServerQuirkChecker:
                         == "check_todo_1"
                     )
                     self.set_flag("no_todo", False)
-                    self.set_flag("no_todo_on_standard_calendar")
             except:
+                self.set_flag("no_todo_on_standard_calendar", False)
                 self.set_flag("no_todo")
                 return
         try:
@@ -619,6 +647,9 @@ class ServerQuirkChecker:
             todo, assert_found=False, has_duration=False, todo=True
         )
 
+        if not 'vtodo_no_dtstart_infinite_duration' in self.flags_checked:
+            self.set_flag('vtodo_no_dtstart_infinite_duration', False)
+
         todo = cal.add_todo(
             summary="This has dtstart and due",
             dtstart=datetime(2000, 7, 1, 8),
@@ -639,13 +670,38 @@ class ServerQuirkChecker:
         if len(foobar1 + foobar2 + foobar3 + foobar4) == 22:
             ## no todos found
             self.set_flag("no_todo_datesearch")
+            assert self.flags_checked.pop("vtodo_datesearch_notime_task_is_skipped") ## redundant
+            return
+
+        self.set_flag("no_todo_datesearch", False)
+        if foobar1 == [1,2]:
+            ## dtstart, but no due.
+            ## open-ended search with end after event: found
+            ## open-ended search with start before event: not found
+            ## search with interval covering due: not found
+            ## Weird!
+            self.set_flag("no_dtstart_search_weirdness")
         else:
-            self.set_flag("no_todo_datesearch", False)
-            assert len(foobar1 + foobar2 + foobar3) == 0
-            if foobar4 == [4, 6, 7]:
-                self.set_flag("date_todo_search_ignores_duration")
-            else:
-                assert len(foobar4) == 0
+            assert not foobar1
+            self.set_flag("vtodo_no_dtstart_search_weirdness", False)
+
+        if len(foobar2) == 3:
+            self.set_flag("vtodo_datesearch_nodtstart_task_is_skipped")
+        else:
+            self.set_flag("vtodo_datesearch_nodtstart_task_is_skipped", False)
+            assert not foobar2
+
+        assert not foobar3
+
+        self.set_flag("vtodo_no_duration_search_weirdness", False)
+        if foobar4 == [4, 6, 7]:
+            self.set_flag("date_todo_search_ignores_duration")
+        elif foobar4 == [1, 2, 4, 5, 6, 7]:
+            ## Zimbra is weird!
+            self.set_flag("vtodo_no_dtstart_search_weirdness")
+        else:
+            self.set_flag("date_todo_search_ignores_duration", False)
+            assert len(foobar4) == 0
 
     def _check_simple_todo(self, todo):
         cal = self._default_calendar
@@ -672,47 +728,6 @@ class ServerQuirkChecker:
             self.set_flag("vtodo_datesearch_notime_task_is_skipped", len(todos) == 0)
         except Exception as e:
             self.set_flag("no_todo_datesearch", True)
-
-    def _check_todo_date_search(
-        self,
-        todo_with_dtstart,
-        todo_with_due,
-        todo_with_dtstart_due,
-        todo_with_dtstart_dur,
-    ):
-        if self.flag_checked["no_todo_datesearch"]:
-            return
-        ## Every check below should return one and only one task if
-        ## everything works according to my understanding of the RFC
-        one_task_lists = []
-        for start_end in [
-            ## 0 - todo_with_dtstart
-            ((1999, 12, 31, 22, 22, 22), (2000, 1, 1, 0, 30)),
-            ## 1 - todo_with_due
-            ((2000, 1, 1, 0, 30), (2000, 1, 1, 1, 30)),
-            ## 2, 3, 4 - todo_with_dtstart_due
-            ((2000, 1, 1, 1, 30), (2000, 1, 1, 3, 30)),
-            ((2000, 1, 1, 1, 30), (2000, 1, 1, 2, 30)),
-            ((2000, 1, 1, 2, 30), (2000, 1, 1, 3, 30)),
-            ## 5, 6, 7 - todo_with_dtstart_dur
-            ((2000, 1, 1, 3, 30), (2000, 1, 1, 5, 30)),
-            ((2000, 1, 1, 3, 30), (2000, 1, 1, 4, 30)),
-            ((2000, 1, 1, 4, 30), (2000, 1, 1, 5, 30)),
-        ]:
-            one_task_lists.append(
-                cal.search(start=datetime(*start_end[0]), end=datetime(*start_end[1]))
-            )
-
-        if sum([len(x) for x in one_task_lists]) == 0:
-            self.set_flag("no_todo_datesearch")
-            return
-        else:
-            self.set_flag("no_todo_datesearch", False)
-
-        for idx in range(0, 8):
-            if not len(one_task_lists[idx]) == 1:
-                debugging
-                pass
 
     def check_all(self):
         try:
@@ -745,6 +760,8 @@ class ServerQuirkChecker:
             click.echo(
                 dumps(
                     {
+                        "caldav_version": caldav.__version__,
+                        "ts": time.time(),
                         "name": self.client_obj.server_name,
                         "url": str(self.client_obj.url),
                         "flags_checked": self.flags_checked,

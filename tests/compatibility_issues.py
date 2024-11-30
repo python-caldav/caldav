@@ -148,10 +148,19 @@ incompatibility_description = {
 
     'vtodo_no_due_infinite_duration':
         """date search will find todo-items without due if dtstart is """
-        """before the date search interval.  I didn't find anything explicit """
-        """in The RFC on this (), but an event should be considered to have 0 """
-        """duration if no dtend is set, and most server implementations seems to """
-        """treat VTODOs the same""",
+        """before the date search interval.  This is in breach of rfc4791"""
+        """section 9.9""",
+
+    'vtodo_no_dtstart_infinite_duration':
+        """date search will find todo-items without dtstart if due is """
+        """after the date search interval.  This is in breach of rfc4791"""
+        """section 9.9""",
+
+    'vtodo_no_dtstart_search_weirdness':
+       """Zimbra is weird""",
+
+    'vtodo_with_due_weirdness':
+       """Zimbra is weird""",
 
     'unique_calendar_ids':
         """For every test, generate a new and unique calendar id""",
@@ -245,6 +254,10 @@ xandikos = [
 
     ## scheduling is not supported
     "no_scheduling",
+
+    ## The test in the tests itself passes, but the test in the
+    ## check_server_compatibility triggers a 500-error
+    "no_freebusy_rfc4791",
 ]
 
 ## This can soon be removed (relevant for running tests under python 3.7 and python 3.8)
@@ -270,10 +283,10 @@ radicale = [
     "no_freebusy_rfc4791",
 
     'no_scheduling',
-    'no_todo_datesearch',
+    "no_todo_datesearch",
 
     'text_search_is_case_insensitive',
-    'text_search_is_exact_match_sometimes',
+    #'text_search_is_exact_match_sometimes',
     "search_needs_comptype",
 
     ## extra features not specified in RFC5545
