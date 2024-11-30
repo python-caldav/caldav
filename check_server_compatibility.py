@@ -14,6 +14,7 @@ from caldav.lib.error import AuthorizationError
 from caldav.lib.error import DAVError
 from caldav.lib.error import NotFoundError
 from caldav.lib.python_utilities import to_local
+from caldav.objects import FreeBusy
 from tests.compatibility_issues import incompatibility_description
 from tests.conf import client
 from tests.conf import CONNKEYS
@@ -345,9 +346,6 @@ class ServerQuirkChecker:
 
         foo = self._date_search(span, assert_found=False, event=True)
         if len(foo) != 0:
-            import pdb
-
-            pdb.set_trace()
             raise
 
         span = cal.add_event(
@@ -376,7 +374,7 @@ class ServerQuirkChecker:
             assert isinstance(freebusy, FreeBusy)
             assert freebusy.instance.vfreebusy
             self.set_flag('no_freebusy_rfc4791', False)
-        except:
+        except Exception as e:
             self.set_flag('no_freebusy_rfc4791')
 
     def _check_simple_events(self, obj1, obj2):
