@@ -443,7 +443,7 @@ class ServerQuirkChecker:
                 ## we should not be here
                 _debugger()
                 pass
-            events = cal.search(summary="test event", event=True)
+            events = cal.search(summary="Test event", event=True)
             if len(events) == 2:
                 self.set_flag("text_search_is_exact_match_only", False)
             elif len(events) == 0:
