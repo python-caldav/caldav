@@ -258,6 +258,13 @@ xandikos = [
     ## The test in the tests itself passes, but the test in the
     ## check_server_compatibility triggers a 500-error
     "no_freebusy_rfc4791",
+
+    ## The test with an rrule and an overridden event passes as
+    ## long as it's with timestamps.  With dates, xandikos gets
+    ## into troubles.  I've chosen to edit the test to use timestamp
+    ## rather than date, just to have the test exercised ... but we
+    ## should report this upstream
+    #'broken_expand_on_exceptions',
 ]
 
 ## This can soon be removed (relevant for running tests under python 3.7 and python 3.8)
@@ -280,7 +287,7 @@ radicale = [
     "no_default_calendar",
 
     ## freebusy is not supported yet, but on the long-term road map
-    "no_freebusy_rfc4791",
+    #"no_freebusy_rfc4791",
 
     'no_scheduling',
     "no_todo_datesearch",

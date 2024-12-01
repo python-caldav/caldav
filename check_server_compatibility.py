@@ -9,7 +9,7 @@ from json import dumps
 import click
 
 import caldav
-from caldav.elements import dav
+from caldav.elements import dav, ical
 from caldav.lib.error import AuthorizationError
 from caldav.lib.error import DAVError
 from caldav.lib.error import NotFoundError
@@ -18,6 +18,62 @@ from caldav.objects import FreeBusy
 from tests.compatibility_issues import incompatibility_description
 from tests.conf import client
 from tests.conf import CONNKEYS
+
+ical_with_exception1="""BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Mozilla.org/NONSGML Mozilla Calendar V1.1//EN
+BEGIN:VEVENT
+UID:c26921f4-0653-11ef-b756-58ce2a14e2e5
+DTSTART:20240411T123000Z
+DTEND:20240412T123000Z
+DTSTAMP:20240429T181103Z
+LAST-MODIFIED:20240429T181103Z
+RRULE:FREQ=WEEKLY;INTERVAL=2
+SEQUENCE:1
+SUMMARY:Test
+X-MOZ-GENERATION:1
+END:VEVENT
+BEGIN:VEVENT
+UID:c26921f4-0653-11ef-b756-58ce2a14e2e5
+RECURRENCE-ID:20240425T123000Z
+DTSTART:20240425T123000Z
+DTEND:20240426T123000Z
+CREATED:20240429T181031Z
+DTSTAMP:20240429T181103Z
+LAST-MODIFIED:20240429T181103Z
+SEQUENCE:1
+SUMMARY:Test (edited)
+X-MOZ-GENERATION:1
+END:VEVENT
+END:VCALENDAR"""
+
+ical_with_exception2="""BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Mozilla.org/NONSGML Mozilla Calendar V1.1//EN
+BEGIN:VEVENT
+UID:c26921f4-0653-11ef-b756-58ce2a14e2e5
+DTSTART;VALUE=DATE:20240411
+DTEND;VALUE=DATE:20240412
+DTSTAMP:20240429T181103Z
+LAST-MODIFIED:20240429T181103Z
+RRULE:FREQ=WEEKLY;INTERVAL=2
+SEQUENCE:1
+SUMMARY:Test
+X-MOZ-GENERATION:1
+END:VEVENT
+BEGIN:VEVENT
+UID:c26921f4-0653-11ef-b756-58ce2a14e2e5
+RECURRENCE-ID;VALUE=DATE:20240425
+DTSTART;VALUE=DATE:20240425
+DTEND;VALUE=DATE:20240426
+CREATED:20240429T181031Z
+DTSTAMP:20240429T181103Z
+LAST-MODIFIED:20240429T181103Z
+SEQUENCE:1
+SUMMARY:Test (edited)
+X-MOZ-GENERATION:1
+END:VEVENT
+END:VCALENDAR"""
 
 
 def _debugger():
@@ -280,6 +336,30 @@ class ServerQuirkChecker:
         except:
             self.set_flag("propfind_allprop_failure", True)
 
+    def check_calendar_color_and_order(self):
+        """
+        Calendar color and order is not a part of the CalDAV standard, but
+        many calendar servers supports it
+        """
+        try:
+            self._check_prop(ical.CalendarColor, 'goldenred', 'blue')
+            self.set_flag('calendar_color', True)
+        except Exception as e:
+            self.set_flag('calendar_color', False)
+        try:
+            self._check_prop(ical.CalendarOrder, '-143', '8')
+            self.set_flag('calendar_order', True)
+        except:
+            self.set_flag('calendar_order', False)
+
+    def _check_prop(self, propclass, silly_value, test_value):
+        cal = self._default_calendar
+        props = cal.get_properties([(propclass())])
+        assert props[propclass.tag] != silly_value
+        cal.set_properties(propclass(test_value))
+        props = cal.get_properties([(propclass())])
+        assert props[propclass.tag] == test_value
+        
     def check_event(self):
         cal = self._default_calendar
 
@@ -360,6 +440,34 @@ class ServerQuirkChecker:
         else:
             self.set_flag("date_search_ignores_duration", False)
             assert len(ret) == 0
+
+    def check_exception(self):
+        if self.flags_checked.get('broken_expand'):
+            return
+        self._check_exception(ical_with_exception1)
+        self._check_exception(ical_with_exception2)
+
+    def _check_exception(self, ical):
+        cal = self._default_calendar
+        obj = cal.add_event(ical)
+        try:
+            results = cal.search(
+                start=datetime(2024, 3, 31, 0, 0),
+                end=datetime(2024, 5, 4, 0, 0, 0),
+                event=True,
+                expand="server",
+            )
+            assert len(results) == 2
+            for r in results:
+                assert "RRULE" not in r.data
+                recurrence_id = r.icalendar_component["RECURRENCE-ID"]
+                assert isinstance(recurrence_id, icalendar.vDDDTypes)
+            if not "broken_expand_on_exceptions" in self.flags_checked:
+                self.set_flag("broken_expand_on_exceptions", False)
+        except Exception as e:
+            self.set_flag("broken_expand_on_exceptions")
+        finally:
+            obj.delete()
 
     def _check_freebusy(self):
         cal = self._default_calendar
@@ -734,7 +842,9 @@ class ServerQuirkChecker:
             self.check_propfind()
             self.check_mkcalendar()
             self._fix_cal()
+            self.check_calendar_color_and_order()
             self.check_event()
+            self.check_exception()
             self.check_todo()
         finally:
             if self._default_calendar and not self.flags_checked["no_mkcalendar"]:
@@ -824,6 +934,7 @@ def _set_conn_options(func):
 @click.option("--verbose/--quiet", default=None, help="More output")
 @click.option("--json/--text", help="JSON output.  Overrides verbose")
 def check_server_compatibility(verbose, json, **kwargs):
+    click.echo("WARNING: this script is not production-ready")
     conn = client(**kwargs)
     obj = ServerQuirkChecker(conn)
     obj.check_all()
