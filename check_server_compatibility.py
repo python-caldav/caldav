@@ -85,6 +85,10 @@ def _debugger():
 
 
 def _delay_decorator(f, delay=10):
+    """
+    Sometimes we need to pause between each request, i.e. due to servers
+    that queues up work, rate-limits requests, etc.
+    """
     def foo(*a, **kwa):
         time.sleep(delay)
         return f(*a, **kwa)
@@ -93,6 +97,12 @@ def _delay_decorator(f, delay=10):
 
 
 class ServerQuirkChecker:
+    """
+    This class will ...
+    * Keep the connection details to the server
+    * Keep the state of what's already checked
+    * 
+    """
     def __init__(self, client_obj):
         self.client_obj = client_obj
         self.flags_checked = {}
@@ -557,13 +567,16 @@ class ServerQuirkChecker:
             elif len(events) == 0:
                 self.set_flag("text_search_is_exact_match_only", "maybe")
                 ## may also be text_search_is_exact_match_sometimes
-            events = cal.search(
+            events1 = cal.search(
                 summary="Test event 1", class_="CONFIDENTIAL", event=True
             )
-            if len(events) == 1:
+            ## I don't expect this program to be in use by 2055.
+            events2 = cal.search(
+                start=datetime(2000,1,1), end=datetime(2055,1,1), class_="CONFIDENTIAL", event=True
+            )
+            if len(events1) == 1 and len(events2) == 1:
                 self.set_flag("combined_search_not_working", False)
-            elif len(events) == 0:
-                _debugger()
+            elif len(events1 + events2) in (0,1,3):
                 self.set_flag("combined_search_not_working", True)
             else:
                 _debugger()

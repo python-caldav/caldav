@@ -380,7 +380,11 @@ davical = [
     #'nofreebusy', ## for old versions
     'fragile_sync_tokens', ## no issue raised yet
     'vtodo_datesearch_nodtstart_task_is_skipped', ## no issue raised yet
-    'broken_expand_on_exceptions',
+    'broken_expand_on_exceptions', ## no issue raised yet
+    'date_todo_search_ignores_duration'
+    'calendar_color',
+    'calendar_order',
+    'vtodo_datesearch_notime_task_is_skipped'
 ]
 
 google = [
@@ -410,6 +414,9 @@ nextcloud = [
     'no_recurring_todo',
     'combined_search_not_working',
     'text_search_is_exact_match_sometimes',
+    'search_needs_comptype',
+    'calendar_color',
+    'calendar_order'
 ]
 
 fastmail = [
