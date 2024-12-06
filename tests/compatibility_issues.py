@@ -411,12 +411,13 @@ sogo = [ ## and in addition ... the requests are efficiently rate limited, as it
 nextcloud = [
     'date_search_ignores_duration',
     'sync_breaks_on_delete',
-    'no_recurring_todo',
     'combined_search_not_working',
     'text_search_is_exact_match_sometimes',
     'search_needs_comptype',
     'calendar_color',
-    'calendar_order'
+    'calendar_order',
+    'date_todo_search_ignores_duration',
+    'broken_expand_on_exceptions'
 ]
 
 fastmail = [

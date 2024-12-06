@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import time
 import uuid
+import os
 from datetime import date
 from datetime import datetime
 from datetime import timedelta
@@ -77,11 +78,9 @@ END:VCALENDAR"""
 
 
 def _debugger():
-    import pdb
-
-    ## TODO: check some environmental flags
-    ## only hackers want the debug mode
-    pdb.set_trace()
+    if os.environ.get('PYTHON_CALDAV_DEBUGMODE') == "DEBUG_PDB":
+        import pdb
+        pdb.set_trace()
 
 
 def _delay_decorator(f, delay=10):
