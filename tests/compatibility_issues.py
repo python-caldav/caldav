@@ -381,7 +381,7 @@ davical = [
     'fragile_sync_tokens', ## no issue raised yet
     'vtodo_datesearch_nodtstart_task_is_skipped', ## no issue raised yet
     'broken_expand_on_exceptions', ## no issue raised yet
-    'date_todo_search_ignores_duration'
+    'date_todo_search_ignores_duration',
     'calendar_color',
     'calendar_order',
     'vtodo_datesearch_notime_task_is_skipped'

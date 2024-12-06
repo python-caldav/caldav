@@ -372,6 +372,8 @@ class ServerQuirkChecker:
     def check_event(self):
         cal = self._default_calendar
 
+        import pdb; pdb.set_trace()
+
         ## Two simple events with text fields, dtstart=now and no dtend
         obj1 = cal.add_event(
             dtstart=datetime.now(),
@@ -700,6 +702,7 @@ class ServerQuirkChecker:
                 self.set_flag("vtodo_datesearch_nostart_future_tasks_delivered", True)
                 assert len(cal.search(end=before, **kwargs)) == 1
         else:
+            import pdb; pdb.set_trace()
             assert len(cal.search(end=before, **kwargs)) == 0
         assert len(cal.search(start=after, end=longafter)) == 0
         assert len(cal.search(start=after, **kwargs)) == 0
