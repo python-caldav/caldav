@@ -33,6 +33,7 @@ In version 2.0, the requests library will be replaced with niquests or httpx.  S
 ### Added
 
 * By now `calendar.search(..., sort_keys=("DTSTART")` will work.  Sort keys expects a list or a tuple, but it's easy to send an attribute by mistake.  https://github.com/python-caldav/caldav/pull/449
+* Compatibility workaround: If `event.load()` fails, it will retry the load by doing a multiget - https://github.com/python-caldav/caldav/pull/475 - https://github.com/python-caldav/caldav/issues/459
 
 ## [1.4.0] - 2024-11-05
 
