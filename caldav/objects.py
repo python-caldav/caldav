@@ -241,6 +241,7 @@ class DAVObject:
             expected_return_value is not None and ret.status != expected_return_value
         ) or ret.status >= 400:
             ## COMPATIBILITY HACK - see https://github.com/python-caldav/caldav/issues/309
+            ## TODO: server quirks!
             body = to_wire(body)
             if (
                 ret.status == 500
@@ -946,7 +947,11 @@ class Calendar(DAVObject):
             self._create(id=self.id, name=self.name, **self.extra_init_options)
         return self
 
-    def calendar_multiget(self, event_urls: Iterable[URL]) -> List["Event"]:
+    ## TODO: this is missing test code.
+    ## TODO: needs refactoring:
+    ## Objects found may be Todo and Journal, not only Event.
+    ## Replace the last lines with _request_report_build_resultlist method
+    def calendar_multiget(self, event_urls: Iterable[URL]) -> List[_CC]:
         """
         get multiple events' data
         @author mtorange@gmail.com
@@ -1078,15 +1083,15 @@ class Calendar(DAVObject):
 
         return objects
 
+    ## TODO: this logic has been partly duplicated in calendar_multiget, but
+    ## the code there is much more readable and condensed than this.
+    ## Can code below be refactored?
     def _request_report_build_resultlist(
         self, xml, comp_class=None, props=None, no_calendardata=False
     ):
         """
         Takes some input XML, does a report query on a calendar object
         and returns the resource objects found.
-
-        TODO: similar code is duplicated many places, we ought to do even more code
-        refactoring
         """
         matches = []
         if props is None:
@@ -1122,7 +1127,6 @@ class Calendar(DAVObject):
                     props=pdata,
                 )
             )
-
         return (response, matches)
 
     def search(
@@ -1163,7 +1167,7 @@ class Calendar(DAVObject):
           unless the next parameter is set ...
         * include_completed - include completed tasks
         * event - sets comp_class to event
-        * text attribute search parameters: category, uid, summary, omment,
+        * text attribute search parameters: category, uid, summary, comment,
           description, location, status
         * no-category, no-summary, etc ... search for objects that does not
           have those attributes.  TODO: WRITE TEST CODE!
@@ -1251,13 +1255,16 @@ class Calendar(DAVObject):
                     )
                 raise
 
+        obj2 = []
         for o in objects:
             ## This would not be needed if the servers would follow the standard ...
             try:
                 o.load(only_if_unloaded=True)
+                obj2.append(o)
             except:
-                logging.critical("Server does not want to reveal details about the calendar object", exc_info=True)
+                logging.error("Server does not want to reveal details about the calendar object", exc_info=True)
                 pass
+        objects = obj2
 
         ## Google sometimes returns empty objects
         objects = [o for o in objects if o.has_component()]
@@ -2342,6 +2349,8 @@ class CalendarObjectResource(DAVObject):
             obj.url = self.url
         return obj
 
+    ## TODO: move get-logics to a load_by_get method.
+    ## The load method should deal with "server quirks".
     def load(self, only_if_unloaded: bool = False) -> Self:
         """
         (Re)load the object from the caldav server.
@@ -2355,7 +2364,10 @@ class CalendarObjectResource(DAVObject):
         if self.client is None:
             raise ValueError("Unexpected value None for self.client")
 
-        r = self.client.request(str(self.url))
+        try:
+            r = self.client.request(str(self.url))
+        except:
+            return self.load_by_multiget()
         if r.status == 404:
             raise error.NotFoundError(errmsg(r))
         self.data = vcal.fix(r.raw)
@@ -2363,6 +2375,23 @@ class CalendarObjectResource(DAVObject):
             self.props[dav.GetEtag.tag] = r.headers["Etag"]
         if "Schedule-Tag" in r.headers:
             self.props[cdav.ScheduleTag.tag] = r.headers["Schedule-Tag"]
+        return self
+
+    def load_by_multiget(self) -> Self:
+        """
+        Some servers do not accept a GET, but we can still do a REPORT
+        with a multiget query
+        """
+        error.assert_(self.url)
+        href = self.url.path
+        prop = dav.Prop() + cdav.CalendarData()
+        root = cdav.CalendarMultiGet() + prop + dav.Href(value=href)
+        response = self.parent._query(root, 1, "report")
+        results = response.expand_simple_props([cdav.CalendarData()])
+        error.assert_(len(results) == 1)
+        data = results[href][cdav.CalendarData.tag]
+        error.assert_(data)
+        self.data = data
         return self
 
     ## TODO: self.id should either always be available or never
