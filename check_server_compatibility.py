@@ -288,6 +288,7 @@ class ServerQuirkChecker:
         if self.flags_checked['no_mkcalendar']:
             cal = self.principal.calendars()[0]
             if cal.events() or cal.todos():
+                import pdb; pdb.set_trace()
                 raise "Refusing to run tests on a calendar with content"
             self._default_calendar = cal
             return cal
@@ -371,8 +372,6 @@ class ServerQuirkChecker:
         
     def check_event(self):
         cal = self._default_calendar
-
-        import pdb; pdb.set_trace()
 
         ## Two simple events with text fields, dtstart=now and no dtend
         obj1 = cal.add_event(
@@ -653,12 +652,15 @@ class ServerQuirkChecker:
         7: search with start during event
         """
         cal = self._default_calendar
-        longbefore = datetime(2000, 6, 30, 4)
+        longbefore = datetime(2000, 5, 30, 4)
         before = datetime(2000, 7, 1, 4)
         during1 = datetime(2000, 7, 1, 10)
         during2 = datetime(2000, 7, 1, 12)
         after = datetime(2000, 7, 1, 22)
-        longafter = datetime(2000, 7, 2, 10)
+        longafter = datetime(2000, 9, 2, 10)
+        if self.flags_checked.get('inaccurate_datesearch'):
+            before = before - timedelta(days=31)
+            after = after + timedelta(days=31)
         one_event_lists = [
             ## open-ended searches, should yield object
             cal.search(end=after, **kwargs), ## 0
@@ -702,9 +704,20 @@ class ServerQuirkChecker:
                 self.set_flag("vtodo_datesearch_nostart_future_tasks_delivered", True)
                 assert len(cal.search(end=before, **kwargs)) == 1
         else:
-            import pdb; pdb.set_trace()
-            assert len(cal.search(end=before, **kwargs)) == 0
+            none = cal.search(end=before, **kwargs)
+            if none:
+                none = cal.search(end=longbefore, **kwargs)
+                assert not none
+                self.set_flag("inaccurate_datesearch")
+                before = before - timedelta(days=31)
+                after = after + timedelta(days=31)
+            else:
+                if not 'inaccurate_Datesearch' in self.flags_checked:
+                    self.set_flag("inaccurate_datesearch", False)
+
         assert len(cal.search(start=after, end=longafter)) == 0
+        if len(cal.search(start=after, **kwargs)):
+            import pdb; pdb.set_trace()
         assert len(cal.search(start=after, **kwargs)) == 0
         return ret
 

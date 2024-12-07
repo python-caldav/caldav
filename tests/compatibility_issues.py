@@ -124,6 +124,9 @@ incompatibility_description = {
         """it asserts DAV:allprop response contains the text 'resourcetype', """
         """possibly this assert is wrong""",
 
+    'inaccurate_datesearch':
+        """Searching by datetime seems to have a one-day resolution, so if searching for events over a timespan of hours, all events for the day is found""",
+
     'no_todo':
         """Support for VTODO (tasks) apparently missing""",
 
