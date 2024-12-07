@@ -463,6 +463,7 @@ posteo = [
     'no_sync_token',
     'combined_search_not_working',
     'broken_expand',
+    'inaccurate_datesearch'
 ]
 
 calendar_mail_ru = [
