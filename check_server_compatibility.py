@@ -96,11 +96,24 @@ def _delay_decorator(f, delay=10):
 
 
 class ServerQuirkChecker:
-    """
-    This class will ...
+    """This class will ...
+    
     * Keep the connection details to the server
     * Keep the state of what's already checked
-    * 
+
+    My idea was to create some clean, nice-looking self-explaining
+    code ... but either I'm not qualified for making such code, or the
+    problem was more complex than what I assumed.  Perhaps the right
+    approach is to just hack on, and then later try to refactor the
+    code.
+
+    Having one test for each "quirk", as well as the ability to check
+    quirks individually rather than running the full package would be
+    nice.  In practice the "quicks" sometimes depend on each other, so
+    they have to be run in order.  It's also significant speed
+    benefits from not having to rig up and down the calendar for each
+    test, and being able to run multiple tests towards the same data
+    set.
     """
     def __init__(self, client_obj):
         self.client_obj = client_obj
@@ -109,6 +122,11 @@ class ServerQuirkChecker:
         self._default_calendar = None
 
     def set_flag(self, flag, value=True):
+        """
+        Basically equivalent to `self._Flags_checked[flag]=value`,
+        with a bit extra logics
+        """
+        assert flag in incompatibility_description
         if flag == "rate_limited":
             self.client_obj.request = _delay_decorator(self.client_obj.request)
         elif flag == "search_delay":
@@ -120,6 +138,10 @@ class ServerQuirkChecker:
         self.flags_checked[flag] = value
 
     def _try_make_calendar(self, cal_id, **kwargs):
+        """
+        Does some attempts on creating and deleting calendars, and sets some
+        flags - while others should be set by the caller.
+        """
         calmade = False
 
         ## In case calendar already exists ... wipe it first
@@ -153,7 +175,8 @@ class ServerQuirkChecker:
                         self.set_flag("no_displayname", True)
 
         except Exception as e:
-            ## calendar creation created an exception - return exception
+            ## calendar creation created an exception.  Maybe the calendar exists?
+            ## in any case, return exception
             cal = self.principal.calendar(cal_id=cal_id)
             try:
                 cal.events()
@@ -524,13 +547,13 @@ class ServerQuirkChecker:
             objcnt = 0
         if objcnt != 2:
             if len(cal.events()) == 2:
-                self.set_flag("search_always_needs_comptype", True)
+                self.set_flag("search_needs_comptype", True)
             else:
                 _debugger()
                 pass
                 ## we should not be here
         else:
-            self.set_flag("search_always_needs_comptype", False)
+            self.set_flag("search_needs_comptype", False)
 
         ## purelymail writes things to an index as a background thread
         ## and have delayed search.  Let's test for that first.
@@ -549,7 +572,7 @@ class ServerQuirkChecker:
         if len(objs) == 0 and len(events) == 1:
             self.set_flag("search_needs_comptype", True)
         elif len(objs) == 1:
-            self.set_flag("search_always_needs_comptype", False)
+            self.set_flag("search_needs_comptype", False)
 
         if not self.flags_checked["text_search_not_working"]:
             events = cal.search(summary="test event 1", event=True)
@@ -892,6 +915,9 @@ class ServerQuirkChecker:
             flags_found = set([x for x in self.flags_checked if self.flags_checked[x]])
             self.diff1 = set(self.client_obj.incompatibilities) - flags_found
             self.diff2 = flags_found - set(self.client_obj.incompatibilities)
+        else:
+            self.diff1 = []
+            self.diff2 = []
         if json:
             click.echo(
                 dumps(

@@ -33,6 +33,9 @@ incompatibility_description = {
     'broken_expand_on_exceptions':
         """The testRecurringDateWithExceptionSearch test breaks as the icalendar_component is missing a RECURRENCE-ID field.  TODO: should be investigated more""",
 
+    'inaccurate_datesearch':
+        """A date search may yield results outside the search interval""",
+
     'no_current-user-principal':
         """Current user principal not supported by the server (flag is ignored by the tests as for now - pass the principal URL as the testing URL and it will work, albeit with one warning""",
 
@@ -124,9 +127,6 @@ incompatibility_description = {
         """it asserts DAV:allprop response contains the text 'resourcetype', """
         """possibly this assert is wrong""",
 
-    'inaccurate_datesearch':
-        """Searching by datetime seems to have a one-day resolution, so if searching for events over a timespan of hours, all events for the day is found""",
-
     'no_todo':
         """Support for VTODO (tasks) apparently missing""",
 
@@ -160,6 +160,9 @@ incompatibility_description = {
         """section 9.9""",
 
     'vtodo_no_dtstart_search_weirdness':
+       """Zimbra is weird""",
+
+    'vtodo_no_duration_search_weirdness':
        """Zimbra is weird""",
 
     'vtodo_with_due_weirdness':
@@ -384,7 +387,7 @@ davical = [
     'fragile_sync_tokens', ## no issue raised yet
     'vtodo_datesearch_nodtstart_task_is_skipped', ## no issue raised yet
     'broken_expand_on_exceptions', ## no issue raised yet
-    'date_todo_search_ignores_duration',
+    'date_todo_search_ignores_duration'
     'calendar_color',
     'calendar_order',
     'vtodo_datesearch_notime_task_is_skipped'
@@ -414,6 +417,7 @@ sogo = [ ## and in addition ... the requests are efficiently rate limited, as it
 nextcloud = [
     'date_search_ignores_duration',
     'sync_breaks_on_delete',
+    'no_recurring_todo',
     'combined_search_not_working',
     'text_search_is_exact_match_sometimes',
     'search_needs_comptype',
@@ -463,7 +467,6 @@ posteo = [
     'no_sync_token',
     'combined_search_not_working',
     'broken_expand',
-    'inaccurate_datesearch'
 ]
 
 calendar_mail_ru = [
