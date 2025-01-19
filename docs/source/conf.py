@@ -39,7 +39,7 @@ master_doc = "index"
 
 # General information about the project.
 project = "caldav"
-copyright = "2010-2021, Cyril Robert, Tobias Brox and other contributors"
+copyright = "2010-2024, Cyril Robert, Tobias Brox and other contributors"
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
