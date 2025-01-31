@@ -15,6 +15,9 @@ incompatibility_description = {
     'rate_limited':
         """It may be needed to pause a bit between each request when doing tests""",
 
+    'search_delay':
+        """Server populates indexes through some background job, so it takes some time from an event is added/edited until it's possible to search for it""",
+
     'cleanup_calendar':
         """Remove everything on the calendar for every test""",
 
@@ -29,6 +32,9 @@ incompatibility_description = {
 
     'broken_expand_on_exceptions':
         """The testRecurringDateWithExceptionSearch test breaks as the icalendar_component is missing a RECURRENCE-ID field.  TODO: should be investigated more""",
+
+    'inaccurate_datesearch':
+        """A date search may yield results outside the search interval""",
 
     'no_current-user-principal':
         """Current user principal not supported by the server (flag is ignored by the tests as for now - pass the principal URL as the testing URL and it will work, albeit with one warning""",
@@ -92,6 +98,9 @@ incompatibility_description = {
     'event_by_url_is_broken':
         """A GET towards a valid calendar object resource URL will yield 404 (wtf?)""",
 
+    'no_delete_event':
+        """Zimbra does not support deleting an event, probably because event_by_url is broken""",
+
     'no_sync_token':
         """RFC6578 is not supported, things will break if we try to do a sync-token report""",
 
@@ -121,6 +130,9 @@ incompatibility_description = {
     'no_todo':
         """Support for VTODO (tasks) apparently missing""",
 
+    'no_todo_on_standard_calendar':
+        """Tasklists can be created, but a normal calendar does not support tasks""",
+
     'no_todo_datesearch':
         """Date search on todo items fails""",
 
@@ -134,15 +146,27 @@ incompatibility_description = {
         """date searches for todo-items will (only) find tasks that has either """
         """a dtstart or due set""",
 
+    'vtodo_datesearch_nostart_future_tasks_delivered':
+        """Future tasks are yielded when doing a date search with some end timestamp and without start timestamp and the task contains both dtstart and due, but not duration (xandikos 0.2.12)""",
+
     'vtodo_no_due_infinite_duration':
         """date search will find todo-items without due if dtstart is """
-        """before the date search interval.  I didn't find anything explicit """
-        """in The RFC on this (), but an event should be considered to have 0 """
-        """duration if no dtend is set, and most server implementations seems to """
-        """treat VTODOs the same""",
+        """before the date search interval.  This is in breach of rfc4791"""
+        """section 9.9""",
 
-    'no_todo_on_standard_calendar':
-        """Tasklists can be created, but a normal calendar does not support tasks""",
+    'vtodo_no_dtstart_infinite_duration':
+        """date search will find todo-items without dtstart if due is """
+        """after the date search interval.  This is in breach of rfc4791"""
+        """section 9.9""",
+
+    'vtodo_no_dtstart_search_weirdness':
+       """Zimbra is weird""",
+
+    'vtodo_no_duration_search_weirdness':
+       """Zimbra is weird""",
+
+    'vtodo_with_due_weirdness':
+       """Zimbra is weird""",
 
     'unique_calendar_ids':
         """For every test, generate a new and unique calendar id""",
@@ -181,8 +205,11 @@ incompatibility_description = {
    'text_search_not_working':
         """Text search is generally broken""",
 
-   'radicale_breaks_on_category_search':
-        """See https://github.com/Kozea/Radicale/issues/1125""",
+    'date_search_ignores_duration':
+        """Date search with search interval overlapping event interval works on events with dtstart and dtend, but not on events with dtstart and due""",
+
+    'date_todo_search_ignores_duration':
+        """Same as above, but specifically for tasks""",
 
    'fastmail_buggy_noexpand_date_search':
         """The 'blissful anniversary' recurrent example event is returned when asked for a no-expand date search for some timestamps covering a completely different date""",
@@ -226,16 +253,38 @@ xandikos = [
     ## https://github.com/jelmer/xandikos/issues/8
     "no_recurring",
 
+    'date_todo_search_ignores_duration',
     'text_search_is_exact_match_only',
-
-    ## This one is fixed - but still breaks our test code for python 3.7
-    ## TODO: remove this when shredding support for python 3.7
-    ## https://github.com/jelmer/xandikos/pull/194
-    'category_search_yields_nothing',
+    "search_needs_comptype",
+    'vtodo_datesearch_nostart_future_tasks_delivered',
 
     ## scheduling is not supported
     "no_scheduling",
+
+    ## The test in the tests itself passes, but the test in the
+    ## check_server_compatibility triggers a 500-error
+    "no_freebusy_rfc4791",
+
+    ## The test with an rrule and an overridden event passes as
+    ## long as it's with timestamps.  With dates, xandikos gets
+    ## into troubles.  I've chosen to edit the test to use timestamp
+    ## rather than date, just to have the test exercised ... but we
+    ## should report this upstream
+    #'broken_expand_on_exceptions',
 ]
+
+## This can soon be removed (relevant for running tests under python 3.7 and python 3.8)
+## https://github.com/jelmer/xandikos/pull/194
+'category_search_yields_nothing',
+try:
+    from xandikos import __version__ as xver
+    goodver = (0,2,12)
+    for i in range(0,3):
+        if xver[i]<goodver[i]:
+            xandikos.append('category_search_yields_nothing')
+            break
+except Exception:
+    pass
 
 radicale = [
     ## calendar listings and calendar creation works a bit
@@ -244,17 +293,14 @@ radicale = [
     "no_default_calendar",
 
     ## freebusy is not supported yet, but on the long-term road map
-    "no_freebusy_rfc4791",
-
-    ## TODO: raise an issue on this one
-    "radicale_breaks_on_category_search",
+    #"no_freebusy_rfc4791",
 
     'no_scheduling',
-    'no_todo_datesearch',
+    "no_todo_datesearch",
 
     'text_search_is_case_insensitive',
-    'text_search_is_exact_match_sometimes',
-    'combined_search_not_working',
+    #'text_search_is_exact_match_sometimes',
+    "search_needs_comptype",
 
     ## extra features not specified in RFC5545
     "calendar_order",
@@ -276,10 +322,9 @@ zimbra = [
     ## earlier versions of Zimbra display-name could be changed, but
     ## then the calendar would not be available on the old URL
     ## anymore)
-    'no_displayname',
     'duplicate_in_other_calendar_with_same_uid_is_lost',
     'event_by_url_is_broken',
-    'no_todo_on_standard_calendar',
+    'no_delete_event',
     'no_sync_token',
     'vtodo_datesearch_notime_task_is_skipped',
     'category_search_yields_nothing',
@@ -341,7 +386,11 @@ davical = [
     #'nofreebusy', ## for old versions
     'fragile_sync_tokens', ## no issue raised yet
     'vtodo_datesearch_nodtstart_task_is_skipped', ## no issue raised yet
-    'broken_expand_on_exceptions',
+    'broken_expand_on_exceptions', ## no issue raised yet
+    'date_todo_search_ignores_duration'
+    'calendar_color',
+    'calendar_order',
+    'vtodo_datesearch_notime_task_is_skipped'
 ]
 
 google = [
@@ -366,10 +415,16 @@ sogo = [ ## and in addition ... the requests are efficiently rate limited, as it
 ]
 
 nextcloud = [
+    'date_search_ignores_duration',
     'sync_breaks_on_delete',
     'no_recurring_todo',
     'combined_search_not_working',
     'text_search_is_exact_match_sometimes',
+    'search_needs_comptype',
+    'calendar_color',
+    'calendar_order',
+    'date_todo_search_ignores_duration',
+    'broken_expand_on_exceptions'
 ]
 
 fastmail = [
@@ -440,11 +495,7 @@ purelymail = [
 
     ## Purelymail claims that the search indexes are "lazily" populated,
     ## so search works some minutes after the event was created/edited.
-    ## I tried adding arbitrary delays in commit 5d052b1 but still didn't
-    ## manage to get search to work.  Should eventually do more research
-    ## into this.  (personal email communication with contact@purelymail.com)
-    'no_search',
-    'object_by_uid_is_broken',
+    'search_delay'
 ]
 
 # fmt: on
