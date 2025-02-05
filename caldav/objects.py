@@ -1262,7 +1262,10 @@ class Calendar(DAVObject):
                 o.load(only_if_unloaded=True)
                 obj2.append(o)
             except:
-                logging.error("Server does not want to reveal details about the calendar object", exc_info=True)
+                logging.error(
+                    "Server does not want to reveal details about the calendar object",
+                    exc_info=True,
+                )
                 pass
         objects = obj2
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
+import os
 import time
 import uuid
-import os
 from datetime import date
 from datetime import datetime
 from datetime import timedelta
@@ -10,7 +10,8 @@ from json import dumps
 import click
 
 import caldav
-from caldav.elements import dav, ical
+from caldav.elements import dav
+from caldav.elements import ical
 from caldav.lib.error import AuthorizationError
 from caldav.lib.error import DAVError
 from caldav.lib.error import NotFoundError
@@ -20,7 +21,7 @@ from tests.compatibility_issues import incompatibility_description
 from tests.conf import client
 from tests.conf import CONNKEYS
 
-ical_with_exception1="""BEGIN:VCALENDAR
+ical_with_exception1 = """BEGIN:VCALENDAR
 VERSION:2.0
 PRODID:-//Mozilla.org/NONSGML Mozilla Calendar V1.1//EN
 BEGIN:VEVENT
@@ -48,7 +49,7 @@ X-MOZ-GENERATION:1
 END:VEVENT
 END:VCALENDAR"""
 
-ical_with_exception2="""BEGIN:VCALENDAR
+ical_with_exception2 = """BEGIN:VCALENDAR
 VERSION:2.0
 PRODID:-//Mozilla.org/NONSGML Mozilla Calendar V1.1//EN
 BEGIN:VEVENT
@@ -78,8 +79,9 @@ END:VCALENDAR"""
 
 
 def _debugger():
-    if os.environ.get('PYTHON_CALDAV_DEBUGMODE') == "DEBUG_PDB":
+    if os.environ.get("PYTHON_CALDAV_DEBUGMODE") == "DEBUG_PDB":
         import pdb
+
         pdb.set_trace()
 
 
@@ -88,6 +90,7 @@ def _delay_decorator(f, delay=10):
     Sometimes we need to pause between each request, i.e. due to servers
     that queues up work, rate-limits requests, etc.
     """
+
     def foo(*a, **kwa):
         time.sleep(delay)
         return f(*a, **kwa)
@@ -97,7 +100,7 @@ def _delay_decorator(f, delay=10):
 
 class ServerQuirkChecker:
     """This class will ...
-    
+
     * Keep the connection details to the server
     * Keep the state of what's already checked
 
@@ -115,6 +118,7 @@ class ServerQuirkChecker:
     test, and being able to run multiple tests towards the same data
     set.
     """
+
     def __init__(self, client_obj):
         self.client_obj = client_obj
         self.flags_checked = {}
@@ -308,14 +312,16 @@ class ServerQuirkChecker:
                 self._default_calendar.delete()
         except:
             pass
-        if self.flags_checked['no_mkcalendar']:
+        if self.flags_checked["no_mkcalendar"]:
             cal = self.principal.calendars()[0]
             if cal.events() or cal.todos():
-                import pdb; pdb.set_trace()
+                import pdb
+
+                pdb.set_trace()
                 raise "Refusing to run tests on a calendar with content"
             self._default_calendar = cal
             return cal
-        if todo and self.flags_checked.get('no_todo_on_standard_calendar'):
+        if todo and self.flags_checked.get("no_todo_on_standard_calendar"):
             kwargs["supported_calendar_component_set"] = ["VTODO"]
         if self.flags_checked["unique_calendar_ids"]:
             kwargs["cal_id"] = "testcalendar-" + str(uuid.uuid4())
@@ -375,15 +381,15 @@ class ServerQuirkChecker:
         many calendar servers supports it
         """
         try:
-            self._check_prop(ical.CalendarColor, 'goldenred', 'blue')
-            self.set_flag('calendar_color', True)
+            self._check_prop(ical.CalendarColor, "goldenred", "blue")
+            self.set_flag("calendar_color", True)
         except Exception as e:
-            self.set_flag('calendar_color', False)
+            self.set_flag("calendar_color", False)
         try:
-            self._check_prop(ical.CalendarOrder, '-143', '8')
-            self.set_flag('calendar_order', True)
+            self._check_prop(ical.CalendarOrder, "-143", "8")
+            self.set_flag("calendar_order", True)
         except:
-            self.set_flag('calendar_order', False)
+            self.set_flag("calendar_order", False)
 
     def _check_prop(self, propclass, silly_value, test_value):
         cal = self._default_calendar
@@ -392,7 +398,7 @@ class ServerQuirkChecker:
         cal.set_properties(propclass(test_value))
         props = cal.get_properties([(propclass())])
         assert props[propclass.tag] == test_value
-        
+
     def check_event(self):
         cal = self._default_calendar
 
@@ -475,7 +481,7 @@ class ServerQuirkChecker:
             assert len(ret) == 0
 
     def check_exception(self):
-        if self.flags_checked.get('broken_expand'):
+        if self.flags_checked.get("broken_expand"):
             return
         self._check_exception(ical_with_exception1)
         self._check_exception(ical_with_exception2)
@@ -514,9 +520,9 @@ class ServerQuirkChecker:
             # TODO: assert something more complex on the return object
             assert isinstance(freebusy, FreeBusy)
             assert freebusy.instance.vfreebusy
-            self.set_flag('no_freebusy_rfc4791', False)
+            self.set_flag("no_freebusy_rfc4791", False)
         except Exception as e:
-            self.set_flag('no_freebusy_rfc4791')
+            self.set_flag("no_freebusy_rfc4791")
 
     def _check_simple_events(self, obj1, obj2):
         cal = self._default_calendar
@@ -595,11 +601,14 @@ class ServerQuirkChecker:
             )
             ## I don't expect this program to be in use by 2055.
             events2 = cal.search(
-                start=datetime(2000,1,1), end=datetime(2055,1,1), class_="CONFIDENTIAL", event=True
+                start=datetime(2000, 1, 1),
+                end=datetime(2055, 1, 1),
+                class_="CONFIDENTIAL",
+                event=True,
             )
             if len(events1) == 1 and len(events2) == 1:
                 self.set_flag("combined_search_not_working", False)
-            elif len(events1 + events2) in (0,1,3):
+            elif len(events1 + events2) in (0, 1, 3):
                 self.set_flag("combined_search_not_working", True)
             else:
                 _debugger()
@@ -681,24 +690,24 @@ class ServerQuirkChecker:
         during2 = datetime(2000, 7, 1, 12)
         after = datetime(2000, 7, 1, 22)
         longafter = datetime(2000, 9, 2, 10)
-        if self.flags_checked.get('inaccurate_datesearch'):
+        if self.flags_checked.get("inaccurate_datesearch"):
             before = before - timedelta(days=31)
             after = after + timedelta(days=31)
         one_event_lists = [
             ## open-ended searches, should yield object
-            cal.search(end=after, **kwargs), ## 0
-            cal.search(start=before, **kwargs), ## 1
-            cal.search(start=before, end=after, **kwargs), ## 2
+            cal.search(end=after, **kwargs),  ## 0
+            cal.search(start=before, **kwargs),  ## 1
+            cal.search(start=before, end=after, **kwargs),  ## 2
         ]
         if has_duration:
             ## overlapping searches, everything should yield object
             one_event_lists.extend(
                 [
-                    cal.search(end=during1, **kwargs), ## 3
-                    cal.search(start=during1, **kwargs), ## 4
-                    cal.search(start=before, end=during1, **kwargs), ## 5
-                    cal.search(start=during1, end=during2, **kwargs), ## 6
-                    cal.search(start=during1, end=after, **kwargs), ## 7
+                    cal.search(end=during1, **kwargs),  ## 3
+                    cal.search(start=during1, **kwargs),  ## 4
+                    cal.search(start=before, end=during1, **kwargs),  ## 5
+                    cal.search(start=during1, end=during2, **kwargs),  ## 6
+                    cal.search(start=during1, end=after, **kwargs),  ## 7
                 ]
             )
         ret = []
@@ -711,9 +720,9 @@ class ServerQuirkChecker:
         if should_be_empty:
             assert len(should_be_empty) == 1
             ical = should_be_empty[0].icalendar_component
-            assert('due' in ical and not 'dtstart' in ical)
-            self.set_flag('vtodo_no_dtstart_infinite_duration')
-                
+            assert "due" in ical and not "dtstart" in ical
+            self.set_flag("vtodo_no_dtstart_infinite_duration")
+
         if kwargs.get("todo"):
             if len(cal.search(end=before, **kwargs)) == 0:
                 if (
@@ -735,12 +744,14 @@ class ServerQuirkChecker:
                 before = before - timedelta(days=31)
                 after = after + timedelta(days=31)
             else:
-                if not 'inaccurate_Datesearch' in self.flags_checked:
+                if not "inaccurate_Datesearch" in self.flags_checked:
                     self.set_flag("inaccurate_datesearch", False)
 
         assert len(cal.search(start=after, end=longafter)) == 0
         if len(cal.search(start=after, **kwargs)):
-            import pdb; pdb.set_trace()
+            import pdb
+
+            pdb.set_trace()
         assert len(cal.search(start=after, **kwargs)) == 0
         return ret
 
@@ -804,8 +815,8 @@ class ServerQuirkChecker:
             todo, assert_found=False, has_duration=False, todo=True
         )
 
-        if not 'vtodo_no_dtstart_infinite_duration' in self.flags_checked:
-            self.set_flag('vtodo_no_dtstart_infinite_duration', False)
+        if not "vtodo_no_dtstart_infinite_duration" in self.flags_checked:
+            self.set_flag("vtodo_no_dtstart_infinite_duration", False)
 
         todo = cal.add_todo(
             summary="This has dtstart and due",
@@ -827,11 +838,13 @@ class ServerQuirkChecker:
         if len(foobar1 + foobar2 + foobar3 + foobar4) == 22:
             ## no todos found
             self.set_flag("no_todo_datesearch")
-            assert self.flags_checked.pop("vtodo_datesearch_notime_task_is_skipped") ## redundant
+            assert self.flags_checked.pop(
+                "vtodo_datesearch_notime_task_is_skipped"
+            )  ## redundant
             return
 
         self.set_flag("no_todo_datesearch", False)
-        if foobar1 == [1,2]:
+        if foobar1 == [1, 2]:
             ## dtstart, but no due.
             ## open-ended search with end after event: found
             ## open-ended search with start before event: not found
