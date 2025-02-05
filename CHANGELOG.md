@@ -36,7 +36,7 @@ Python 3.7 is no longer tested - but it should work.  Please file a bug report i
 
 ### Added
 
-* By now `calendar.search(..., sort_keys=("DTSTART")` will work.  Sort keys expects a list or a tuple, but it's easy to send an attribute by mistake.  https://github.com/python-caldav/caldav/pull/449
+* By now `calendar.search(..., sort_keys=("DTSTART")` will work.  Sort keys expects a list or a tuple, but it's easy to send an attribute by mistake.  https://github.com/python-caldav/caldav/issues/448 https://github.com/python-caldav/caldav/pull/449
 
 ## [1.4.0] - 2024-11-05
 
