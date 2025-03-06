@@ -14,7 +14,7 @@ try:
     ## one of DEBUG_PDB, DEBUG, DEVELOPMENT, PRODUCTION
     debugmode = os.environ["PYTHON_CALDAV_DEBUGMODE"]
 except:
-    if "dev" in __version__:
+    if "dev" in __version__ or __version__ == "(unknown)":
         debugmode = "DEVELOPMENT"
     else:
         debugmode = "PRODUCTION"
@@ -24,6 +24,18 @@ if debugmode.startswith("DEBUG"):
     log.setLevel(logging.DEBUG)
 else:
     log.setLevel(logging.WARNING)
+
+
+def weirdness(*reasons):
+    from caldav.lib.debug import xmlstring
+
+    reason = " : ".join([xmlstring(x) for x in reasons])
+    log.warning(f"Deviation from expectations found: {reason}")
+    if debugmode == "DEBUG_PDB":
+        log.error(f"Dropping into debugger due to {reason}")
+        import pdb
+
+        pdb.set_trace()
 
 
 def assert_(condition: object) -> None:
