@@ -395,7 +395,11 @@ To start the tests code, install everything from the setup.tests_requires list a
 
   $ python setup.py test
 
-(tox should also work, but it may be needed to look more into it)
+tox should also work:
+
+.. code-block:: bash
+
+  $ tox -e py
 
 It will run some unit tests and some functional tests.  You may want to add your own
 private servers into tests/conf_private.py, see tests/conf_private.py.EXAMPLE
