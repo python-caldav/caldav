@@ -77,9 +77,9 @@ class DAVResponse:
         ## consider to do streaming into the xmltree library as originally
         ## intended.  It only makes sense for really huge payloads though.
         content_type = self.headers.get("Content-Type", "")
-        expect_xml = content_type.startswith(
-            "text/xml"
-        ) or content_type.startswith("application/xml")
+        expect_xml = content_type.startswith("text/xml") or content_type.startswith(
+            "application/xml"
+        )
         ## text/plain is typically for errors, we shouldn't see it on 200/207 responses.
         ## TODO: may want to log an error if it's text/plain and 200/207.
         ## Logic here was moved when refactoring
