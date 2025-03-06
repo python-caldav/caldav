@@ -26,7 +26,7 @@ classifiers = [
   "Topic :: Office/Business :: Scheduling",
   "Topic :: Software Development :: Libraries :: Python Modules",
 ]
-urls = { Homepage = "https://github.com/python-caldav/caldav" }
+
 dependencies = [
   "vobject",
   "lxml",
@@ -38,6 +38,12 @@ dependencies = [
   "icalendar;python_version!='3.8'",
 ]
 dynamic = ["version"]
+
+[project.urls]
+Repository = "https://github.com/python-caldav/caldav"
+Issues = "https://github.com/python-caldav/caldav/issues"
+Documentation = "https://caldav.readthedocs.io/"
+Changelog = "https://github.com/python-caldav/caldav/blob/master/CHANGELOG.md"
 
 [project.optional-dependencies]
 test = [
