@@ -76,53 +76,35 @@ class DAVResponse:
         ## TODO: this if/else/elif could possibly be refactored, or we should
         ## consider to do streaming into the xmltree library as originally
         ## intended.  It only makes sense for really huge payloads though.
-        if self.headers.get("Content-Type", "").startswith(
+        content_type = self.headers.get("Content-Type", "")
+        expect_xml = content_type.startswith(
             "text/xml"
-        ) or self.headers.get("Content-Type", "").startswith("application/xml"):
-            try:
-                content_length = int(self.headers["Content-Length"])
-            except:
-                content_length = -1
-            if content_length == 0 or not self._raw:
-                self._raw = ""
-                self.tree = None
-                log.debug("No content delivered")
-            else:
-                ## With response.raw we could be streaming the content, but it does not work because
-                ## the stream often is compressed.  We could add uncompression on the fly, but not
-                ## considered worth the effort as for now.
-                # self.tree = etree.parse(response.raw, parser=etree.XMLParser(remove_blank_text=True))
-                try:
-                    self.tree = etree.XML(
-                        self._raw,
-                        parser=etree.XMLParser(
-                            remove_blank_text=True, huge_tree=self.huge_tree
-                        ),
-                    )
-                except:
-                    logging.critical(
-                        "Expected some valid XML from the server, but got this: \n"
-                        + str(self._raw),
-                        exc_info=True,
-                    )
-                    raise
-                if log.level <= logging.DEBUG:
-                    log.debug(etree.tostring(self.tree, pretty_print=True))
-        elif self.headers.get("Content-Type", "").startswith(
+        ) or content_type.startswith("application/xml")
+        ## text/plain is typically for errors, we shouldn't see it on 200/207 responses.
+        ## TODO: may want to log an error if it's text/plain and 200/207.
+        ## Logic here was moved when refactoring
+        expect_error = content_type.startswith(
             "text/calendar"
-        ) or self.headers.get("Content-Type", "").startswith("text/plain"):
-            ## text/plain is typically for errors, we shouldn't see it on 200/207 responses.
-            ## TODO: may want to log an error if it's text/plain and 200/207.
-            ## Logic here was moved when refactoring
-            pass
+        ) or content_type.startswith("text/plain")
+        try:
+            content_length = int(self.headers["Content-Length"])
+        except:
+            content_length = -1
+        if content_length == 0 or not self._raw:
+            self._raw = ""
+            self.tree = None
+            log.debug("No content delivered")
         else:
-            ## Probably no content type given (iCloud).  Some servers
-            ## give text/html as the default when no content is
-            ## delivered or on errors (ref
-            ## https://github.com/python-caldav/caldav/issues/142).
-            ## TODO: maybe just remove all of the code above in this if/else and let all
-            ## data be parsed through this code.
+            ## With response.raw we could be streaming the content, but it does not work because
+            ## the stream often is compressed.  We could add uncompression on the fly, but not
+            ## considered worth the effort as for now.
+            # self.tree = etree.parse(response.raw, parser=etree.XMLParser(remove_blank_text=True))
             try:
+                ## Sometimes no content type given (iCloud).  Some servers
+                ## give text/html as the default when no content is
+                ## delivered or on errors (ref
+                ## https://github.com/python-caldav/caldav/issues/142).
+                ## DONE: let all data be parsed through this code.
                 self.tree = etree.XML(
                     self._raw,
                     parser=etree.XMLParser(
@@ -130,7 +112,17 @@ class DAVResponse:
                     ),
                 )
             except:
-                pass
+                if not expect_error:
+                    logging.critical(
+                        "Expected some valid XML from the server, but got this: \n"
+                        + str(self._raw),
+                        exc_info=True,
+                    )
+                if expect_xml:
+                    raise
+            else:
+                if log.level <= logging.DEBUG:
+                    log.debug(etree.tostring(self.tree, pretty_print=True))
 
         ## this if will always be true as for now, see other comments on streaming.
         if hasattr(self, "_raw"):
