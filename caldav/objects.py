@@ -2187,8 +2187,8 @@ class CalendarObjectResource(DAVObject):
             self.icalendar_instance.subcomponents[i[0]] = value
         else:
             my_instance = icalendar.Calendar()
-            my_instance.add("prodid", "-//python-caldav//caldav//" + language)
-            my_instance.add("version", "2.0")
+            my_instance.add("prodid", self.icalendar_instance["prodid"])
+            my_instance.add("version", self.icalendar_instance["version"])
             my_instance.add_component(value)
             self.icalendar_instance = my_instance
 
