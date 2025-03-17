@@ -1098,6 +1098,19 @@ END:VCALENDAR
             == "Submit Quebec Income Tax Return for 2006"
         )
 
+    def testComponentSet(self):
+        cal_url = "http://me:hunter2@calendar.example:80/"
+        client = DAVClient(url=cal_url)
+        target = Event(client, data=evr)
+
+        ## Creating some dummy data such that the target has more than one subcomponent
+        target.expand_rrule(start=datetime(1996, 10, 10), end=datetime(1999, 12, 12))
+        assert len(target.icalendar_instance.subcomponents) == 3
+
+        ## The following should not fail within _set_icalendar_component
+        target.icalendar_component = icalendar.Todo.from_ical(todo).subcomponents[0]
+        assert len(target.icalendar_instance.subcomponents) == 1
+
     def testTodoDuration(self):
         cal_url = "http://me:hunter2@calendar.example:80/"
         client = DAVClient(url=cal_url)
