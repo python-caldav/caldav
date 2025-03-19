@@ -454,6 +454,8 @@ class CalendarSet(DAVObject):
         for c_url, c_type, c_name in data:
             try:
                 cal_id = c_url.split("/")[-2]
+                if not cal_id:
+                    continue
             except:
                 log.error(f"Calendar {c_name} has unexpected url {c_url}")
                 cal_id = None
