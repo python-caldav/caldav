@@ -312,6 +312,7 @@ class DAVObject:
             exchange_path = path[:-1]
         else:
             exchange_path = path + "/"
+        properties = {unquote(k): v for k, v in properties.items()}
 
         if path in properties:
             rc = properties[path]
