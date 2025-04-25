@@ -220,6 +220,10 @@ class DAVResponse:
                 self.validate_status(status)
             elif elem.tag == dav.Href.tag:
                 assert not href
+                # Fix for https://github.com/python-caldav/caldav/issues/471
+                # Confluence server quotes the user email twice. We unquote it manually.
+                if '%2540' in elem.text:
+                    elem.text = elem.text.replace('%2540', '%40')
                 href = unquote(elem.text)
             elif elem.tag == dav.PropStat.tag:
                 propstats.append(elem)
