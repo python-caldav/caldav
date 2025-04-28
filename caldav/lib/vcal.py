@@ -154,6 +154,8 @@ def create_ical(ical_fragment=None, objtype=None, language="en_DK", **props):
     I somehow feel this fits more into the icalendar library than here
     """
     ical_fragment = to_normal_str(ical_fragment)
+    if "class_" in props:
+        props["class"] = props.pop("class_")
     if not ical_fragment or not re.search("^BEGIN:V", ical_fragment, re.MULTILINE):
         my_instance = icalendar.Calendar()
         if objtype is None:
