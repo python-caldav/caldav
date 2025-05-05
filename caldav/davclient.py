@@ -425,11 +425,13 @@ class DAVClient:
             self.proxy = _proxy
 
         # Build global headers
-        self.headers = CaseInsensitiveDict({
-            "User-Agent": "python-caldav/" + __version__,
-            "Content-Type": "text/xml",
-            "Accept": "text/xml, text/calendar",
-        })
+        self.headers = CaseInsensitiveDict(
+            {
+                "User-Agent": "python-caldav/" + __version__,
+                "Content-Type": "text/xml",
+                "Accept": "text/xml, text/calendar",
+            }
+        )
         self.headers.update(headers or {})
         if self.url.username is not None:
             username = unquote(self.url.username)
