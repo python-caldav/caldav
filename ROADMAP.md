@@ -15,7 +15,6 @@ Estimated outstanding work:
 * Outstanding issues slated for v3.0 - 12h
 * Maintain and expand the test server list - 8h
 * JMAP project - 40h
-* Other outstanding issues - 83h
 
 I do believe I can manage to contribute somewhere between 5 and 30 hours per month to the caldav project over the upcoming year.  That's between 60 and 360 hours.  In the very best scenario it will be possible to get everything above done.  Most likely something has to go out, most likely many outstanding issues slated for v1.5 will be procrastinated, same with the JMAP project and quite some of the v2.0-issues.
 
