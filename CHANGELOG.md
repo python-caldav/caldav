@@ -14,6 +14,10 @@ In version 2.0, the requests library will be replaced with niquests or httpx.  S
 
 ## [1.5.0] - [Unreleased]
 
+### Fixed
+
+* Readthedocs integration has been repaired (https://github.com/python-caldav/caldav/pull/453 - but eventually the fix was introduced directly in the master branch)
+
 ### Deprecated
 
 Python 3.7 is no longer tested - but it should work.  Please file a bug report if it doesn't work.  (Note that the caldav library pulls in many dependencies, and not all of them supports dead snakes).
