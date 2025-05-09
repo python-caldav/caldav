@@ -11,7 +11,6 @@ Estimated outstanding work:
 * Documentation work - 18h
 * Server checker and server compatibility hints project - 28h
 * Outstanding issues slated for v2.0 - 23h
-* New application interface - 20h
 * New interface + asyncio projects - 50h
 * Outstanding issues slated for v3.0 - 12h
 * Maintain and expand the test server list - 8h
@@ -20,7 +19,7 @@ Estimated outstanding work:
 
 I do believe I can manage to contribute somewhere between 5 and 30 hours per month to the caldav project over the upcoming year.  That's between 60 and 360 hours.  In the very best scenario it will be possible to get everything above done.  Most likely something has to go out, most likely many outstanding issues slated for v1.5 will be procrastinated, same with the JMAP project and quite some of the v2.0-issues.
 
-This being open source, I'm not doing everything alone, there is a steady stream of contributions from other contributors ticking in - but most of those contributions are related to new issues - unknown bugs and features I haven't think about.  Generally community contributions improve the overall quality of the project, but contributes negatively to the roadmap schedule.  Most reported issues comes iwthout pull-requests, even when there are pull-requests it takes some time to do QA on the contributions, add missing test code, documentation and changelog entries.
+This being open source, I'm not doing everything alone, there is a steady stream of contributions from other contributors ticking in - but most of those contributions are related to new issues - unknown bugs and features I haven't think about.  Generally community contributions improve the overall quality of the project, but contributes negatively to the roadmap progress.  Most reported issues comes iwthout pull-requests, even when there are pull-requests it takes some time to do QA on the contributions, add missing test code, documentation and changelog entries.
 
 ## The higher goals
 
