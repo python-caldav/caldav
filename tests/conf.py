@@ -107,7 +107,7 @@ if test_radicale:
         self.configuration.update(
             {
                 "storage": {"filesystem_folder": self.serverdir.name},
-                "auth": {"type": None},
+                "auth": {"type": 'none'},
             }
         )
         self.server = radicale.server
