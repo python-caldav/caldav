@@ -707,12 +707,16 @@ class DAVClient:
         ):
             auth_types = self.extract_auth_types(r_headers["WWW-Authenticate"])
 
-            if self.password and self.username and "digest" in auth_types:
+            if self.username and "digest" in auth_types:
                 self.auth = niquests.auth.HTTPDigestAuth(self.username, self.password)
-            elif self.password and self.username and "basic" in auth_types:
+            elif self.username and "basic" in auth_types:
                 self.auth = niquests.auth.HTTPBasicAuth(self.username, self.password)
             elif self.password and "bearer" in auth_types:
                 self.auth = HTTPBearerAuth(self.password)
+            elif "bearer" in auth_types:
+                raise error.AuthorizationError(
+                    reason="Server provides bearer auth, but no password given.  The bearer token should be configured as password"
+                )
             else:
                 raise NotImplementedError(
                     "The server does not provide any of the currently "

@@ -138,7 +138,7 @@ if test_radicale:
             "url": url,
             "name": "LocalRadicale",
             "username": "user1",
-            "password": "any-password-seems-to-work",
+            "password": "",
             "backwards_compatibility_url": url + "user1",
             "incompatibilities": compatibility_issues.radicale,
             "setup": setup_radicale,
