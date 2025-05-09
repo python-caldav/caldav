@@ -105,8 +105,10 @@ if test_radicale:
         self.serverdir.__enter__()
         self.configuration = radicale.config.load("")
         self.configuration.update(
-            {"storage": {"filesystem_folder": self.serverdir.name},
-             "auth": {"type": None}}
+            {
+                "storage": {"filesystem_folder": self.serverdir.name},
+                "auth": {"type": None},
+            }
         )
         self.server = radicale.server
         self.shutdown_socket, self.shutdown_socket_out = socket.socketpair()
