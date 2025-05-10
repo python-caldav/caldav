@@ -73,19 +73,11 @@ class DAVResponse:
         if davclient:
             self.huge_tree = davclient.huge_tree
 
-        ## TODO: this if/else/elif could possibly be refactored, or we should
-        ## consider to do streaming into the xmltree library as originally
-        ## intended.  It only makes sense for really huge payloads though.
         content_type = self.headers.get("Content-Type", "")
-        expect_xml = content_type.startswith("text/xml") or content_type.startswith(
-            "application/xml"
-        )
-        ## text/plain is typically for errors, we shouldn't see it on 200/207 responses.
-        ## TODO: may want to log an error if it's text/plain and 200/207.
-        ## Logic here was moved when refactoring
-        expect_error = content_type.startswith(
-            "text/calendar"
-        ) or content_type.startswith("text/plain")
+        xml = ["text/xml", "application/xml"]
+        no_xml = ["text/plain", "text/calendar"]
+        expect_xml = any((content_type.startswith(x) for x in xml))
+        expect_no_xml = any((content_type.startswith(x) for x in no_xml))
         try:
             content_length = int(self.headers["Content-Length"])
         except:
@@ -95,16 +87,15 @@ class DAVResponse:
             self.tree = None
             log.debug("No content delivered")
         else:
-            ## With response.raw we could be streaming the content, but it does not work because
-            ## the stream often is compressed.  We could add uncompression on the fly, but not
-            ## considered worth the effort as for now.
+            ## For really huge objects we should pass the object as a stream to the
+            ## XML parser, like this:
             # self.tree = etree.parse(response.raw, parser=etree.XMLParser(remove_blank_text=True))
+            ## However, we would also need to decompress on the fly.  I won't bother now.
             try:
-                ## Sometimes no content type given (iCloud).  Some servers
-                ## give text/html as the default when no content is
-                ## delivered or on errors (ref
-                ## https://github.com/python-caldav/caldav/issues/142).
-                ## DONE: let all data be parsed through this code.
+                ## https://github.com/python-caldav/caldav/issues/142
+                ## We cannot trust the content=type (iCloud, OX and others).
+                ## We'll try to parse the content as XML no matter
+                ## the content type given.
                 self.tree = etree.XML(
                     self._raw,
                     parser=etree.XMLParser(
@@ -112,8 +103,21 @@ class DAVResponse:
                     ),
                 )
             except:
-                if not expect_error:
-                    logging.critical(
+                ## Content wasn't XML.  What does the content-type say?
+                ## expect_no_xml means text/plain or text/calendar
+                ## expect_no_xml -> ok, pass on, with debug logging
+                ## expect_xml means text/xml or application/xml
+                ## expect_xml -> raise an error
+                ## anything else (text/plain, text/html, ''),
+                ## log an error and continue
+                if not expect_no_xml or log.level <= logging.DEBUG:
+                    if not expect_no_xml:
+                        _log = logging.critical
+                    else:
+                        _log = logging.debug
+                        ## The statement below may not be true.
+                        ## We may be expecting something else
+                    _log(
                         "Expected some valid XML from the server, but got this: \n"
                         + str(self._raw),
                         exc_info=True,
