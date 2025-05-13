@@ -1776,6 +1776,11 @@ class RepeatedFunctionalTestsBaseClass:
         child_.load()
         assert child_.check_reverse_relations() == []
 
+        child.delete()
+
+        assert parent.check_reverse_relations()
+        assert not grandparent.check_reverse_relations()
+
     def testSetDue(self):
         self.skip_on_compatibility_flag("read_only")
         self.skip_on_compatibility_flag("no_todo")

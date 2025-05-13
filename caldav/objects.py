@@ -855,7 +855,7 @@ class Calendar(DAVObject):
         ical: Optional[str] = None,
         no_overwrite: bool = False,
         no_create: bool = False,
-        **ical_data
+        **ical_data,
     ) -> "CalendarResourceObject":
         """
         Add a new event to the calendar, with the given ical.
@@ -868,14 +868,16 @@ class Calendar(DAVObject):
         """
         o = objclass(
             self.client,
-            data=self._use_or_create_ics(ical, objtype=f"V{objclass.__name__.upper()}", **ical_data),
+            data=self._use_or_create_ics(
+                ical, objtype=f"V{objclass.__name__.upper()}", **ical_data
+            ),
             parent=self,
         )
         o = o.save(no_overwrite=no_overwrite, no_create=no_create)
         ## TODO: Saving nothing is currently giving an object with None as URL.
         ## This should probably be changed in some future version to raise an error
         ## See also CalendarObjectResource.save()
-        if o.url is not None:  
+        if o.url is not None:
             o._handle_reverse_relations(fix=True)
         return o
 
@@ -898,7 +900,7 @@ class Calendar(DAVObject):
         See save_object
         """
         return self.save_object(Journal, *largs, **kwargs)
-    
+
     ## legacy aliases
     ## TODO: should be deprecated
 
@@ -1067,7 +1069,7 @@ class Calendar(DAVObject):
         """
         Takes some input XML, does a report query on a calendar object
         and returns the resource objects found.
-         """
+        """
         matches = []
         if props is None:
             props_ = [cdav.CalendarData()]
@@ -1927,8 +1929,8 @@ class CalendarObjectResource(DAVObject):
         "FINISHTOSTART": "DEPENDENT",
         ## next/first is a special case, linked list
         ## it needs special handling when length of list<>2
-        #"NEXT": "FIRST",
-        #"FIRST": "NEXT",
+        # "NEXT": "FIRST",
+        # "FIRST": "NEXT",
     }
 
     _ENDPARAM = None
@@ -2153,7 +2155,9 @@ class CalendarObjectResource(DAVObject):
         ## TODO: handle RFC9253 better!  Particularly next/first-lists
         reverse_reltype = self.RELTYPE_REVERSE_MAP.get(reltype)
         if not reverse_reltype:
-            logging.error("Reltype %s not supported in object uid %s" % (reltype, self.id))
+            logging.error(
+                "Reltype %s not supported in object uid %s" % (reltype, self.id)
+            )
             return
         other.set_relation(self, reverse_reltype, other)
 
@@ -2163,17 +2167,16 @@ class CalendarObjectResource(DAVObject):
         other_relations = other.get_relatives(
             fetch_objects=False, reltypes={revreltype}
         )
-        if (
-                not str(self.icalendar_component["uid"])
-                in other_relations[revreltype]
-        ):
+        if not str(self.icalendar_component["uid"]) in other_relations[revreltype]:
             ## I don't remember why we need to return a tuple
             ## but it's propagated through the "public" methods, so we'll
             ## have to leave it like this.
             return (other, revreltype)
         return False
 
-    def _handle_reverse_relations(self, verify: bool = False, fix: bool = False, pdb: bool = False) -> list:
+    def _handle_reverse_relations(
+        self, verify: bool = False, fix: bool = False, pdb: bool = False
+    ) -> list:
         """
         Goes through all relations and verifies that the return relation is set
         if verify is set:
@@ -2203,11 +2206,14 @@ class CalendarObjectResource(DAVObject):
                     self._set_reverse_relation(other, reltype)
         return ret
 
-    def check_reverse_relations(self, pdb: bool = False) -> list:
+    def check_reverse_relations(self, pdb: bool = False) -> List[tuple]:
         """
         Will verify that for all the objects we point at though
         the RELATED-TO property, the other object points back to us as
         well.
+
+        Returns a list of tuples.  Each tuple contains an object that
+        do not point back as expected, and the expected reltype
         """
         return self._handle_reverse_relations(verify=True, fix=False, pdb=pdb)
 
@@ -2216,6 +2222,9 @@ class CalendarObjectResource(DAVObject):
         Will ensure that for all the objects we point at though
         the RELATED-TO property, the other object points back to us as
         well.
+
+        Returns a list of tuples.  Each tuple contains an object that
+        did not point back as expected, and the expected reltype
         """
         return self._handle_reverse_relations(verify=True, fix=True, pdb=pdb)
 
