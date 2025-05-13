@@ -3,9 +3,9 @@
 A "DAV object" is anything we get from the caldav server or push into the
 caldav server, notably principal, calendars and calendar events.
 
-(This file has become huge and will be split up prior to the next
-release.  I think it makes sense moving the CalendarObjectResource
-class hierarchy into a separate file)
+(This file has become huge and will be split up when the list of
+pull requests have been cleared.  I think it makes sense moving the
+CalendarObjectResource class hierarchy into a separate file)
 """
 import re
 import sys
@@ -43,7 +43,7 @@ from caldav.lib.python_utilities import to_unicode
 from caldav.lib.python_utilities import to_wire
 
 try:
-    from typing import ClassVar, Optional, Union
+    from typing import ClassVar, Optional, Union, Type
 
     TimeStamp = Optional[Union[date, datetime]]
 except:
@@ -849,14 +849,14 @@ class Calendar(DAVObject):
             return vcal.create_ical(objtype=objtype, **ical_data)
         return ical
 
-    ## TODO: consolidate save_* - too much code duplication here
-    def save_event(
+    def save_object(
         self,
+        objclass: Type[DAVObject],
         ical: Optional[str] = None,
         no_overwrite: bool = False,
         no_create: bool = False,
-        **ical_data,
-    ) -> "Event":
+        **ical_data
+    ) -> "CalendarResourceObject":
         """
         Add a new event to the calendar, with the given ical.
 
@@ -866,72 +866,46 @@ class Calendar(DAVObject):
          * no_create - don't create a new object, existing calendar objects should be updated
          * ical_data - passed to lib.vcal.create_ical
         """
-        e = Event(
+        o = objclass(
             self.client,
-            data=self._use_or_create_ics(ical, objtype="VEVENT", **ical_data),
+            data=self._use_or_create_ics(ical, objtype=f"V{objclass.__name__.upper()}", **ical_data),
             parent=self,
         )
-        e.save(no_overwrite=no_overwrite, no_create=no_create, obj_type="event")
-        self._handle_relations(e.id, ical_data)
-        return e
+        o = o.save(no_overwrite=no_overwrite, no_create=no_create)
+        ## TODO: Saving nothing is currently giving an object with None as URL.
+        ## This should probably be changed in some future version to raise an error
+        ## See also CalendarObjectResource.save()
+        if o.url is not None:  
+            o._handle_reverse_relations(fix=True)
+        return o
 
-    def save_todo(
-        self,
-        ical: Optional[str] = None,
-        no_overwrite: bool = False,
-        no_create: bool = False,
-        **ical_data,
-    ) -> "Todo":
+    ## It could still be possible to refactor even more, but
+    ## readability would be harder
+    def save_event(self, *largs, **kwargs) -> "Event":
         """
-        Add a new task to the calendar, with the given ical.
-
-        Parameters:
-         * ical - ical object (text)
+        See save_object
         """
-        t = Todo(
-            self.client,
-            data=self._use_or_create_ics(ical, objtype="VTODO", **ical_data),
-            parent=self,
-        )
-        t.save(no_overwrite=no_overwrite, no_create=no_create, obj_type="todo")
-        self._handle_relations(t.id, ical_data)
-        return t
+        return self.save_object(Event, *largs, **kwargs)
 
-    def save_journal(
-        self,
-        ical: Optional[str] = None,
-        no_overwrite: bool = False,
-        no_create: bool = False,
-        **ical_data,
-    ) -> "Journal":
+    def save_todo(self, *largs, **kwargs) -> "Todo":
         """
-        Add a new journal entry to the calendar, with the given ical.
-
-        Parameters:
-         * ical - ical object (text)
+        See save_object
         """
-        j = Journal(
-            self.client,
-            data=self._use_or_create_ics(ical, objtype="VJOURNAL", **ical_data),
-            parent=self,
-        )
-        j.save(no_overwrite=no_overwrite, no_create=no_create, obj_type="journal")
-        self._handle_relations(j.id, ical_data)
-        return j
+        return self.save_object(Todo, *largs, **kwargs)
 
-    def _handle_relations(self, uid, ical_data) -> None:
-        for reverse_reltype, other_uid in [
-            ("parent", x) for x in ical_data.get("child", ())
-        ] + [("child", x) for x in ical_data.get("parent", ())]:
-            other = self.object_by_uid(other_uid)
-            other.set_relation(other=uid, reltype=reverse_reltype, set_reverse=False)
-
+    def save_journal(self, *largs, **kwargs) -> "Journal":
+        """
+        See save_object
+        """
+        return self.save_object(Journal, *largs, **kwargs)
+    
     ## legacy aliases
     ## TODO: should be deprecated
 
     ## TODO: think more through this - is `save_foo` better than `add_foo`?
     ## `save_foo` should not be used for updating existing content on the
     ## calendar!
+    add_object = save_object
     add_event = save_event
     add_todo = save_todo
     add_journal = save_journal
@@ -1093,7 +1067,7 @@ class Calendar(DAVObject):
         """
         Takes some input XML, does a report query on a calendar object
         and returns the resource objects found.
-        """
+         """
         matches = []
         if props is None:
             props_ = [cdav.CalendarData()]
@@ -1944,7 +1918,7 @@ class CalendarObjectResource(DAVObject):
     ## (STARTTOSTART and FINISHTOFINISH may also seem like symmetric relations,
     ## meaning they are their own reverse, but as I read the RFC they are
     ## asymmetric)
-    RELTYPE_REVERSER: ClassVar = {
+    RELTYPE_REVERSE_MAP: ClassVar = {
         "PARENT": "CHILD",
         "CHILD": "PARENT",
         "SIBLING": "SIBLING",
@@ -1953,8 +1927,8 @@ class CalendarObjectResource(DAVObject):
         "FINISHTOSTART": "DEPENDENT",
         ## next/first is a special case, linked list
         ## it needs special handling when length of list<>2
-        "NEXT": "FIRST",
-        "FIRST": "NEXT",
+        #"NEXT": "FIRST",
+        #"FIRST": "NEXT",
     }
 
     _ENDPARAM = None
@@ -2087,7 +2061,7 @@ class CalendarObjectResource(DAVObject):
         if set_reverse:
             ## TODO: special handling of NEXT/FIRST.
             ## STARTTOFINISH does not have any equivalent "reverse".
-            reltype_reverse = self.RELTYPE_REVERSER[reltype]
+            reltype_reverse = self.RELTYPE_REVERSE_MAP[reltype]
             other.set_relation(other=self, reltype=reltype_reverse, set_reverse=False)
 
         existing_relation = self.icalendar_component.get("related-to", None)
@@ -2175,30 +2149,75 @@ class CalendarObjectResource(DAVObject):
 
         return ret
 
-    def check_reverse_relations(self, pdb: bool = False) -> list:
+    def _set_reverse_relation(self, other, reltype):
+        ## TODO: handle RFC9253 better!  Particularly next/first-lists
+        reverse_reltype = self.RELTYPE_REVERSE_MAP.get(reltype)
+        if not reverse_reltype:
+            logging.error("Reltype %s not supported in object uid %s" % (reltype, self.id))
+            return
+        other.set_relation(self, reverse_reltype, other)
+
+    def _verify_reverse_relation(self, other, reltype) -> tuple:
+        revreltype = self.RELTYPE_REVERSE_MAP[reltype]
+        ## TODO: special case FIRST/NEXT needs special handling
+        other_relations = other.get_relatives(
+            fetch_objects=False, reltypes={revreltype}
+        )
+        if (
+                not str(self.icalendar_component["uid"])
+                in other_relations[revreltype]
+        ):
+            ## I don't remember why we need to return a tuple
+            ## but it's propagated through the "public" methods, so we'll
+            ## have to leave it like this.
+            return (other, revreltype)
+        return False
+
+    def _handle_reverse_relations(self, verify: bool = False, fix: bool = False, pdb: bool = False) -> list:
         """
         Goes through all relations and verifies that the return relation is set
-        Returns a list of objects missing a reverse (or an empty list if everything is OK)
+        if verify is set:
+            Returns a list of objects missing a reverse.
+            Use public method check_reverse_relations instead
+        if verify and fix is set:
+            Fixup all objects missing a reverse.
+            Use public method fix_reverse_relations instead.
+        If fix but not verify is set:
+            Assume all reverse relations are missing.
+            Used internally when creating new objects.
         """
         ret = []
+        assert verify or fix
         relations = self.get_relatives()
         for reltype in relations:
             for other in relations[reltype]:
-                revreltype = self.RELTYPE_REVERSER[reltype]
-                ## TODO: special case FIRST/NEXT needs special handling
-                other_relations = other.get_relatives(
-                    fetch_objects=False, reltypes={revreltype}
-                )
-                if (
-                    not str(self.icalendar_component["uid"])
-                    in other_relations[revreltype]
-                ):
-                    if pdb:
-                        import pdb
-
-                        pdb.set_trace()
-                    ret.append((other, revreltype))
+                if verify:
+                    foobar = self._verify_reverse_relation(other, reltype)
+                    if foobar:
+                        ret.append(foobar)
+                        if pdb:
+                            breakpoint()
+                        if fix:
+                            self._set_reverse_relation(other, reltype)
+                elif fix:
+                    self._set_reverse_relation(other, reltype)
         return ret
+
+    def check_reverse_relations(self, pdb: bool = False) -> list:
+        """
+        Will verify that for all the objects we point at though
+        the RELATED-TO property, the other object points back to us as
+        well.
+        """
+        return self._handle_reverse_relations(verify=True, fix=False, pdb=pdb)
+
+    def fix_reverse_relations(self, pdb: bool = False) -> list:
+        """
+        Will ensure that for all the objects we point at though
+        the RELATED-TO property, the other object points back to us as
+        well.
+        """
+        return self._handle_reverse_relations(verify=True, fix=True, pdb=pdb)
 
     ## TODO: fix this (and consolidate with _handle_relations / set_relation?)
     # def ensure_reverse_relations(self):
@@ -2575,11 +2594,15 @@ class CalendarObjectResource(DAVObject):
          * self
 
         """
+        if not obj_type:
+            obj_type = self.__class__.__name__.lower()
         if (
             self._vobject_instance is None
             and self._data is None
             and self._icalendar_instance is None
         ):
+            ## TODO: This makes no sense.  We should probably raise an error.
+            ## But the behaviour should be officially deprecated first.
             return self
 
         path = self.url.path if self.url else None
