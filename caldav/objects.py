@@ -794,7 +794,7 @@ class Calendar(DAVObject):
         if name:
             try:
                 self.set_properties([display_name])
-            except:
+            except Exception as e:
                 ## TODO: investigate.  Those asserts break.
                 error.assert_(False)
                 try:
@@ -1232,9 +1232,19 @@ class Calendar(DAVObject):
                     )
                 raise
 
+        obj2 = []
         for o in objects:
             ## This would not be needed if the servers would follow the standard ...
-            o.load(only_if_unloaded=True)
+            try:
+                o.load(only_if_unloaded=True)
+                obj2.append(o)
+            except:
+                logging.error(
+                    "Server does not want to reveal details about the calendar object",
+                    exc_info=True,
+                )
+                pass
+        objects = obj2
 
         ## Google sometimes returns empty objects
         objects = [o for o in objects if o.has_component()]

@@ -10,19 +10,17 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 
 In version 2.0, the requests library will be replaced with niquests or httpx.  See https://github.com/python-caldav/caldav/issues/457.  Master branch is currently running niquests.
 
-(Also, in version 2.0, support for python 3.7 will be dropped, possibly also python 3.8.  Master branch supports both as for now).
+In version 2.0, support for python 3.7 will be dropped, possibly also python 3.8.  Master branch supports both as for now.
 
 ## [1.5.0] - [Unreleased]
-
-### Fixed
-
-* Readthedocs integration has been repaired (https://github.com/python-caldav/caldav/pull/453 - but eventually the fix was introduced directly in the master branch)
 
 ### Deprecated
 
 Python 3.7 is no longer tested - but it should work.  Please file a bug report if it doesn't work.  (Note that the caldav library pulls in many dependencies, and not all of them supports dead snakes).
 
 ### Changed
+
+* Some exotic servers may return object URLs on search, but it does not work out to fetch the calendar data.  Now it will log an error instead of raising an error in such cases.
 
 #### Refactoring
 
@@ -38,15 +36,19 @@ Python 3.7 is no longer tested - but it should work.  Please file a bug report i
     * Creating a local xandikos or radicale server in the `tests.client`-method, which is also used in the `examples`-section.
     * Allows offline testing of my upcoming `check_server_compatibility`-script
   * Also added the possibility to tag test servers with a name
+* Many changes done to the compatibility flag list (due to work on the server-checker project)
 
 ### Added
 
-* By now `calendar.search(..., sort_keys=("DTSTART")` will work.  Sort keys expects a list or a tuple, but it's easy to send an attribute by mistake.  https://github.com/python-caldav/caldav/pull/449
+* By now `calendar.search(..., sort_keys=("DTSTART")` will work.  Sort keys expects a list or a tuple, but it's easy to send an attribute by mistake.  https://github.com/python-caldav/caldav/issues/448 https://github.com/python-caldav/caldav/pull/449
 * Compatibility workaround: If `event.load()` fails, it will retry the load by doing a multiget - https://github.com/python-caldav/caldav/pull/475 - https://github.com/python-caldav/caldav/issues/459
+* The `class_`-parameter now works when sending data to `save_event()` etc.
 
 ### Fixed
 
 * Bugfix for saving component failing on multi-component recurrence objects - https://github.com/python-caldav/caldav/pull/467
+* Readthedocs integration has been repaired (https://github.com/python-caldav/caldav/pull/453 - but eventually the fix was introduced directly in the master branch)
+
 
 ## [1.4.0] - 2024-11-05
 
