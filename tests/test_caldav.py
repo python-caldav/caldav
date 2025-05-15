@@ -554,6 +554,14 @@ class TestScheduling:
     ## inbox/outbox?
 
 
+def _delay_decorator(f, t=60):
+    def foo(*a, **kwa):
+        time.sleep(t)
+        return f(*a, **kwa)
+
+    return foo
+
+
 class RepeatedFunctionalTestsBaseClass:
     """This is a class with functional tests (tests that goes through
     basic functionality and actively communicates with third parties)
@@ -601,15 +609,10 @@ class RepeatedFunctionalTestsBaseClass:
         self.caldav = client(**self.server_params)
 
         if self.check_compatibility_flag("rate_limited"):
-
-            def delay_decorator(f):
-                def foo(*a, **kwa):
-                    time.sleep(60)
-                    return f(*a, **kwa)
-
-                return foo
-
-            self.caldav.request = delay_decorator(self.caldav.request)
+            self.caldav.request = _delay_decorator(self.caldav.request)
+        if self.check_compatibility_flag("search_delay"):
+            Calendar._search = Calendar.search
+            Calendar.search = _delay_decorator(Calendar.search)
 
         if False and self.check_compatibility_flag("no-current-user-principal"):
             self.principal = Principal(
@@ -629,6 +632,8 @@ class RepeatedFunctionalTestsBaseClass:
         logging.debug("##############################")
 
     def teardown_method(self):
+        if self.check_compatibility_flag("search_delay"):
+            Calendar.search = Calendar._search
         logging.debug("############################")
         logging.debug("############## test teardown_method")
         logging.debug("############################")
@@ -1011,9 +1016,7 @@ class RepeatedFunctionalTestsBaseClass:
         if not self.check_compatibility_flag("no_recurring"):
             c.save_event(evr)
             objcnt += 1
-        if not self.check_compatibility_flag(
-            "no_todo"
-        ) and not self.check_compatibility_flag("no_todo_on_standard_calendar"):
+        if not self.check_compatibility_flag("no_todo"):
             c.save_todo(todo)
             c.save_todo(todo2)
             c.save_todo(todo3)
@@ -1142,9 +1145,7 @@ class RepeatedFunctionalTestsBaseClass:
         if not self.check_compatibility_flag("no_recurring"):
             c.save_event(evr)
             objcnt += 1
-        if not self.check_compatibility_flag(
-            "no_todo"
-        ) and not self.check_compatibility_flag("no_todo_on_standard_calendar"):
+        if not self.check_compatibility_flag("no_todo"):
             c.save_todo(todo)
             c.save_todo(todo2)
             c.save_todo(todo3)
@@ -1413,54 +1414,53 @@ class RepeatedFunctionalTestsBaseClass:
         self.skip_on_compatibility_flag("text_search_not_working")
 
         ## category
-        if not self.check_compatibility_flag("radicale_breaks_on_category_search"):
-            some_events = c.search(comp_class=Event, category="PERSONAL")
-            if not self.check_compatibility_flag("category_search_yields_nothing"):
+        some_events = c.search(comp_class=Event, category="PERSONAL")
+        if not self.check_compatibility_flag("category_search_yields_nothing"):
+            assert len(some_events) == 1
+        some_events = c.search(comp_class=Event, category="personal")
+        if not self.check_compatibility_flag("category_search_yields_nothing"):
+            if self.check_compatibility_flag("text_search_is_case_insensitive"):
                 assert len(some_events) == 1
-            some_events = c.search(comp_class=Event, category="personal")
-            if not self.check_compatibility_flag("category_search_yields_nothing"):
-                if self.check_compatibility_flag("text_search_is_case_insensitive"):
-                    assert len(some_events) == 1
-                else:
-                    assert len(some_events) == 0
-
-            ## This is not a very useful search, and it's sort of a client side bug that we allow it at all.
-            ## It will not match if categories field is set to "PERSONAL,ANNIVERSARY,SPECIAL OCCASION"
-            ## It may not match since the above is to be considered equivalent to the raw data entered.
-            some_events = c.search(
-                comp_class=Event, category="ANNIVERSARY,PERSONAL,SPECIAL OCCASION"
-            )
-            assert len(some_events) in (0, 1)
-            ## TODO: This is actually a bug. We need to do client side filtering
-            some_events = c.search(comp_class=Event, category="PERSON")
-            if self.check_compatibility_flag("text_search_is_exact_match_sometimes"):
-                assert len(some_events) in (0, 1)
-            if self.check_compatibility_flag("text_search_is_exact_match_only"):
+            else:
                 assert len(some_events) == 0
-            elif not self.check_compatibility_flag("category_search_yields_nothing"):
-                assert len(some_events) == 1
 
-            ## I expect "logical and" when combining category with a date range
-            no_events = c.search(
-                comp_class=Event,
-                category="PERSONAL",
-                start=datetime(2006, 7, 13, 13, 0),
-                end=datetime(2006, 7, 15, 13, 0),
-            )
-            if not self.check_compatibility_flag(
-                "category_search_yields_nothing"
-            ) and not self.check_compatibility_flag("combined_search_not_working"):
-                assert len(no_events) == 0
-            some_events = c.search(
-                comp_class=Event,
-                category="PERSONAL",
-                start=datetime(1997, 11, 1, 13, 0),
-                end=datetime(1997, 11, 3, 13, 0),
-            )
-            if not self.check_compatibility_flag(
-                "category_search_yields_nothing"
-            ) and not self.check_compatibility_flag("combined_search_not_working"):
-                assert len(some_events) == 1
+        ## This is not a very useful search, and it's sort of a client side bug that we allow it at all.
+        ## It will not match if categories field is set to "PERSONAL,ANNIVERSARY,SPECIAL OCCASION"
+        ## It may not match since the above is to be considered equivalent to the raw data entered.
+        some_events = c.search(
+            comp_class=Event, category="ANNIVERSARY,PERSONAL,SPECIAL OCCASION"
+        )
+        assert len(some_events) in (0, 1)
+        ## TODO: This is actually a bug. We need to do client side filtering
+        some_events = c.search(comp_class=Event, category="PERSON")
+        if self.check_compatibility_flag("text_search_is_exact_match_sometimes"):
+            assert len(some_events) in (0, 1)
+        if self.check_compatibility_flag("text_search_is_exact_match_only"):
+            assert len(some_events) == 0
+        elif not self.check_compatibility_flag("category_search_yields_nothing"):
+            assert len(some_events) == 1
+
+        ## I expect "logical and" when combining category with a date range
+        no_events = c.search(
+            comp_class=Event,
+            category="PERSONAL",
+            start=datetime(2006, 7, 13, 13, 0),
+            end=datetime(2006, 7, 15, 13, 0),
+        )
+        if not self.check_compatibility_flag(
+            "category_search_yields_nothing"
+        ) and not self.check_compatibility_flag("combined_search_not_working"):
+            assert len(no_events) == 0
+        some_events = c.search(
+            comp_class=Event,
+            category="PERSONAL",
+            start=datetime(1997, 11, 1, 13, 0),
+            end=datetime(1997, 11, 3, 13, 0),
+        )
+        if not self.check_compatibility_flag(
+            "category_search_yields_nothing"
+        ) and not self.check_compatibility_flag("combined_search_not_working"):
+            assert len(some_events) == 1
 
         some_events = c.search(comp_class=Event, summary="Bastille Day Party")
         assert len(some_events) == 1
@@ -1628,8 +1628,6 @@ class RepeatedFunctionalTestsBaseClass:
             assert len(some_todos) == 6
 
         ## category
-        self.skip_on_compatibility_flag("radicale_breaks_on_category_search")
-
         ## Too much copying of the examples ...
         some_todos = c.search(comp_class=Todo, category="FINANCE")
         if not self.check_compatibility_flag(
@@ -2501,14 +2499,10 @@ class RepeatedFunctionalTestsBaseClass:
 
         # add event
         e1 = c.save_event(ev1)
-        if not self.check_compatibility_flag(
-            "no_todo"
-        ) and not self.check_compatibility_flag("no_todo_on_standard_calendar"):
+        if not self.check_compatibility_flag("no_todo"):
             t1 = c.save_todo(todo)
         assert e1.url is not None
-        if not self.check_compatibility_flag(
-            "no_todo"
-        ) and not self.check_compatibility_flag("no_todo_on_standard_calendar"):
+        if not self.check_compatibility_flag("no_todo"):
             assert t1.url is not None
         if not self.check_compatibility_flag("event_by_url_is_broken"):
             assert c.event_by_url(e1.url).url == e1.url
@@ -2522,25 +2516,19 @@ class RepeatedFunctionalTestsBaseClass:
         ## (but some calendars may throw a "409 Conflict")
         if not self.check_compatibility_flag("no_overwrite"):
             e2 = c.save_event(ev1)
-            if not self.check_compatibility_flag(
-                "no_todo"
-            ) and not self.check_compatibility_flag("no_todo_on_standard_calendar"):
+            if not self.check_compatibility_flag("no_todo"):
                 t2 = c.save_todo(todo)
 
             ## add same event with "no_create".  Should work like a charm.
             e2 = c.save_event(ev1, no_create=no_create)
-            if not self.check_compatibility_flag(
-                "no_todo"
-            ) and not self.check_compatibility_flag("no_todo_on_standard_calendar"):
+            if not self.check_compatibility_flag("no_todo"):
                 t2 = c.save_todo(todo, no_create=no_create)
 
             ## this should also work.
             e2.instance.vevent.summary.value = e2.instance.vevent.summary.value + "!"
             e2.save(no_create=no_create)
 
-            if not self.check_compatibility_flag(
-                "no_todo"
-            ) and not self.check_compatibility_flag("no_todo_on_standard_calendar"):
+            if not self.check_compatibility_flag("no_todo"):
                 t2.instance.vtodo.summary.value = t2.instance.vtodo.summary.value + "!"
                 t2.save(no_create=no_create)
 
@@ -2552,17 +2540,13 @@ class RepeatedFunctionalTestsBaseClass:
         if not self.check_compatibility_flag("object_by_uid_is_broken"):
             with pytest.raises(error.ConsistencyError):
                 c.save_event(ev1, no_overwrite=True)
-            if not self.check_compatibility_flag(
-                "no_todo"
-            ) and not self.check_compatibility_flag("no_todo_on_standard_calendar"):
+            if not self.check_compatibility_flag("no_todo"):
                 with pytest.raises(error.ConsistencyError):
                     c.save_todo(todo, no_overwrite=True)
 
         # delete event
         e1.delete()
-        if not self.check_compatibility_flag(
-            "no_todo"
-        ) and not self.check_compatibility_flag("no_todo_on_standard_calendar"):
+        if not self.check_compatibility_flag("no_todo"):
             t1.delete()
 
         if self.check_compatibility_flag("non_existing_raises_other"):

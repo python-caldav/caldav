@@ -207,6 +207,7 @@ class DAVResponse:
         status = None
         href: Optional[str] = None
         propstats: List[_Element] = []
+        check_404 = False  ## special for purelymail
         error.assert_(response.tag == dav.Response.tag)
         for elem in response:
             if elem.tag == dav.Status.tag:
@@ -223,13 +224,29 @@ class DAVResponse:
                 href = unquote(elem.text)
             elif elem.tag == dav.PropStat.tag:
                 propstats.append(elem)
+            elif elem.tag == "{DAV:}error":
+                ## This happens with purelymail on a 404.
+                ## This code is mostly moot, but in debug
+                ## mode I want to be sure we do not toss away any data
+                children = elem.getchildren()
+                error.assert_(len(children) == 1)
+                error.assert_(
+                    children[0].tag == "{https://purelymail.com}does-not-exist"
+                )
+                check_404 = True
             else:
-                error.assert_(False)
+                ## i.e. purelymail may contain one more tag, <error>...</error>
+                ## This is probably not a breach of the standard.  It may
+                ## probably be ignored.  But it's something we may want to
+                ## know.
+                error.weirdness("unexpected element found in response", elem)
         error.assert_(href)
+        if check_404:
+            error.assert_("404" in status)
         ## TODO: is this safe/sane?
         ## Ref https://github.com/python-caldav/caldav/issues/435 the paths returned may be absolute URLs,
         ## but the caller expects them to be paths.  Could we have issues when a server has same path
-        ## but different URLs for different elements?
+        ## but different URLs for different elements?  Perhaps href should always be made into an URL-object?
         if ":" in href:
             href = unquote(URL(href).path)
         return (cast(str, href), propstats, status)
