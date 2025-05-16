@@ -82,6 +82,8 @@ Python 3.7 is no longer tested - but it should work.  Please file a bug report i
 
 ### Added
 
+* Methods for verifying and adding reverse relations - https://github.com/python-caldav/caldav/pull/336
+* Easy creation of events and tasks with alarms, search for alarms - https://github.com/python-caldav/caldav/pull/221
 * Allow to reverse the sorting order on search function  by @twissell- in https://github.com/python-caldav/caldav/pull/433
 * Work on integrating typing information. Details in https://github.com/python-caldav/caldav/pull/358
 * Remove dependency on pytz. Details in https://github.com/python-caldav/caldav/issues/231 and https://github.com/python-caldav/caldav/pull/363
