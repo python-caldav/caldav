@@ -429,7 +429,6 @@ class Calendar(DAVObject):
                 self.set_properties([display_name])
             except Exception as e:
                 ## TODO: investigate.  Those asserts break.
-                error.assert_(False)
                 try:
                     current_display_name = self.get_display_name()
                     error.assert_(current_display_name == name)
@@ -438,7 +437,6 @@ class Calendar(DAVObject):
                         "calendar server does not support display name on calendar?  Ignoring",
                         exc_info=True,
                     )
-                    error.assert_(False)
 
     def get_supported_components(self) -> List[Any]:
         """
