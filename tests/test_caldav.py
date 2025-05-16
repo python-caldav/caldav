@@ -997,7 +997,7 @@ class RepeatedFunctionalTestsBaseClass:
         self.skip_on_compatibility_flag("no_alarmsearch")
 
         ## So we have an alarm that goes off 07:45 for an event starting 08:00
-        
+
         ## Search for alarms after 8 should find nothing
         ## (search for an alarm 07:55 - 08:05 should most likely find nothing).
         assert (
@@ -1010,7 +1010,7 @@ class RepeatedFunctionalTestsBaseClass:
             )
             == 0
         )
-        
+
         ## Search for alarms from 07:40 to 07:55 should definitively find the alarm.
         assert (
             len(

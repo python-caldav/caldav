@@ -1348,7 +1348,7 @@ class Calendar(DAVObject):
         props=None,
         alarm_start=None,
         alarm_end=None,
-        **kwargs
+        **kwargs,
     ):
         """This method will produce a caldav search query as an etree object.
 

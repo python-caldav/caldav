@@ -312,7 +312,10 @@ class DAVResponse:
             prop_xml = props_found[proptag]
             if prop_xml.items():
                 from caldav.lib.debug import xmlstring
-                log.error(f"If you see this, please add a report at https://github.com/python-caldav/caldav/issues/209 - in _expand_simple_prop, dealing with {proptag}, extra items found: {xmlstring(prop_xml)}.")
+
+                log.error(
+                    f"If you see this, please add a report at https://github.com/python-caldav/caldav/issues/209 - in _expand_simple_prop, dealing with {proptag}, extra items found: {xmlstring(prop_xml)}."
+                )
             if not xpath and len(prop_xml) == 0:
                 if prop_xml.text:
                     values.append(prop_xml.text)
