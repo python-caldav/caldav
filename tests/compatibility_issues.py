@@ -248,8 +248,10 @@ incompatibility_description = {
         """Robur expands a yearly event into a monthly event.  I believe I've reported this one upstream at some point, but can't find back to it""",
 
     'no_search':
-        """Apparently the calendar server does not support search at all (this often implies that 'object_by_uid_is_broken' has to be set as well)"""
+        """Apparently the calendar server does not support search at all (this often implies that 'object_by_uid_is_broken' has to be set as well)""",
 
+    'no_events_and_tasks_on_same_calendar':
+        """Zimbra has the concept of task lists ... a calendar must either be a calendar with only events, or it can be a task list, but those must never be mixed"""
 }
 
 xandikos = [
@@ -341,6 +343,8 @@ zimbra = [
     'text_search_is_exact_match_only',
     'no_relships',
     'isnotdefined_not_working',
+    "no_alarmsearch",
+    "no_events_and_tasks_on_same_calendar",
 
     ## extra features not specified in RFC5545
     "calendar_order",

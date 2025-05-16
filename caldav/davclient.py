@@ -150,7 +150,7 @@ class DAVResponse:
         ## TODO: this should not really be needed?
         if not hasattr(self, "_raw"):
             self._raw = etree.tostring(cast(_Element, self.tree), pretty_print=True)
-        return self._raw.decode()
+        return to_normal_str(self._raw)
 
     def _strip_to_multistatus(self):
         """
