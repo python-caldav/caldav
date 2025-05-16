@@ -263,6 +263,7 @@ class DAVObject:
          * {proptag: value, ...}
 
         """
+        from .collection import Principal ## late import to avoid cyclic dependencies
         rc = None
         response = self._query_properties(props, depth)
         if not parse_response_xml:
