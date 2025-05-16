@@ -1,3 +1,6 @@
+## This file was originally made to fascilitate support for both python2 and python3.
+
+
 def to_wire(text):
     if text is None:
         return None
