@@ -26,6 +26,11 @@ else:
     log.setLevel(logging.WARNING)
 
 
+def errmsg(r) -> str:
+    """Utility for formatting a an error response to an error string"""
+    return "%s %s\n\n%s" % (r.status, r.reason, r.raw)
+
+
 def weirdness(*reasons):
     from caldav.lib.debug import xmlstring
 
