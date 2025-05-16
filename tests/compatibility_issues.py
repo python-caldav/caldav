@@ -331,6 +331,7 @@ zimbra = [
     ## earlier versions of Zimbra display-name could be changed, but
     ## then the calendar would not be available on the old URL
     ## anymore)
+    'no_displayname',
     'duplicate_in_other_calendar_with_same_uid_is_lost',
     'event_by_url_is_broken',
     'no_delete_event',
