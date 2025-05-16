@@ -864,7 +864,8 @@ class Calendar(DAVObject):
          * ical - ical object (text)
          * no_overwrite - existing calendar objects should not be overwritten
          * no_create - don't create a new object, existing calendar objects should be updated
-         * ical_data - passed to lib.vcal.create_ical
+         * dt_start, dt_end, summary, etc - properties to be inserted into the icalendar object
+         * alarm_trigger, alarm_action, alarm_attach, etc - when given, one alarm will be added
         """
         o = objclass(
             self.client,
@@ -1345,6 +1346,8 @@ class Calendar(DAVObject):
         start=None,
         end=None,
         props=None,
+        alarm_start=None,
+        alarm_end=None,
         **kwargs,
     ):
         """This method will produce a caldav search query as an etree object.
@@ -1404,6 +1407,11 @@ class Calendar(DAVObject):
 
         if start or end:
             filters.append(cdav.TimeRange(start, end))
+
+        if alarm_start or alarm_end:
+            filters.append(
+                cdav.CompFilter("VALARM") + cdav.TimeRange(alarm_start, alarm_end)
+            )
 
         if todo is not None:
             if not todo:
@@ -2426,7 +2434,7 @@ class CalendarObjectResource(DAVObject):
             id=self.id if keep_uid else str(uuid.uuid1()),
         )
         if new_parent or not keep_uid:
-            obj.url = obj.generate_url()
+            obj.url = obj._generate_url()
         else:
             obj.url = self.url
         return obj
@@ -2516,7 +2524,7 @@ class CalendarObjectResource(DAVObject):
                 error.assert_(x.get("UID", None) == self.id)
 
         if path is None:
-            path = self.generate_url()
+            path = self._generate_url()
         else:
             path = self.parent.url.join(path)
 
@@ -2545,7 +2553,7 @@ class CalendarObjectResource(DAVObject):
         self._find_id_path(id=id, path=path)
         self._put()
 
-    def generate_url(self):
+    def _generate_url(self):
         ## See https://github.com/python-caldav/caldav/issues/143 for the rationale behind double-quoting slashes
         ## TODO: should try to wrap my head around issues that arises when id contains weird characters.  maybe it's
         ## better to generate a new uuid here, particularly if id is in some unexpected format.
