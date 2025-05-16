@@ -274,7 +274,7 @@ xandikos = [
     ## rather than date, just to have the test exercised ... but we
     ## should report this upstream
     #'broken_expand_on_exceptions',
-    
+
     ## No alarm search (500 internal server error)
     "no_alarmsearch",
 ]
