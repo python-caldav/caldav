@@ -44,6 +44,9 @@ incompatibility_description = {
         """date searches covering recurrances may yield no results, """
         """and events/todos may not be expanded with recurrances""",
 
+    'no_alarmsearch':
+        """Searching for alarms may yield too few or too many or even a 500 internal server error""",
+
     'no_recurring_todo':
         """Recurring events are supported, but not recurring todos""",
 
@@ -271,6 +274,9 @@ xandikos = [
     ## rather than date, just to have the test exercised ... but we
     ## should report this upstream
     #'broken_expand_on_exceptions',
+    
+    ## No alarm search (500 internal server error)
+    "no_alarmsearch",
 ]
 
 ## This can soon be removed (relevant for running tests under python 3.7 and python 3.8)
@@ -286,11 +292,14 @@ try:
 except Exception:
     pass
 
+## TODO - there has been quite some development in radicale recently, so this list
+## should probably be gone through
 radicale = [
     ## calendar listings and calendar creation works a bit
     ## "weird" on radicale
     "broken_expand",
     "no_default_calendar",
+    "no_alarmsearch", ## This is fixed and will be released soon
 
     ## freebusy is not supported yet, but on the long-term road map
     #"no_freebusy_rfc4791",

@@ -987,14 +987,19 @@ class RepeatedFunctionalTestsBaseClass:
         ## Ref https://github.com/python-caldav/caldav/issues/132
         c = self._fixCalendar()
         ev = c.save_event(
-            dtstart=datetime(2015, 10, 10, 8, 7, 6),
+            dtstart=datetime(2015, 10, 10, 8, 0, 0),
             summary="This is a test event",
-            dtend=datetime(2016, 10, 10, 9, 8, 7),
+            dtend=datetime(2016, 10, 10, 9, 0, 0),
             alarm_trigger=timedelta(minutes=-15),
             alarm_action="AUDIO",
         )
 
-        ## Search for the alarm (procrastinated - see https://github.com/python-caldav/caldav/issues/132)
+        self.skip_on_compatibility_flag("no_alarmsearch")
+
+        ## So we have an alarm that goes off 07:45 for an event starting 08:00
+        
+        ## Search for alarms after 8 should find nothing
+        ## (search for an alarm 07:55 - 08:05 should most likely find nothing).
         assert (
             len(
                 c.search(
@@ -1005,12 +1010,14 @@ class RepeatedFunctionalTestsBaseClass:
             )
             == 0
         )
+        
+        ## Search for alarms from 07:40 to 07:55 should definitively find the alarm.
         assert (
             len(
                 c.search(
                     event=True,
-                    alarm_start=datetime(2015, 10, 10, 7, 44),
-                    alarm_end=datetime(2015, 10, 10, 8, 7),
+                    alarm_start=datetime(2015, 10, 10, 7, 40),
+                    alarm_end=datetime(2015, 10, 10, 7, 55),
                 )
             )
             == 1
