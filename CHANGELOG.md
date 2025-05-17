@@ -21,10 +21,12 @@ Python 3.7 is no longer tested - but it should work.  Please file a bug report i
 ### Changed
 
 * Some exotic servers may return object URLs on search, but it does not work out to fetch the calendar data.  Now it will log an error instead of raising an error in such cases.
+* The `tests/compatibility_issues.py` has been moved to `caldav/compatibility_hints.py`, this to make it available for a caldav-server-tester-tool that I'm splitting off to a separate project/repository, and also to make https://github.com/python-caldav/caldav/issues/402 possible.
 
 #### Refactoring
 
 * Minor code cleanups by github user @ArtemIsmagilov in https://github.com/python-caldav/caldav/pull/456
+* The very much overgrown `objects.py`-file has been split into three.
 
 #### Test framework
 

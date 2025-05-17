@@ -1,4 +1,4 @@
-from tests import compatibility_issues
+from caldav import compatibility_hints
 
 ## PRIVATE CALDAV SERVER(S) TO RUN TESTS TOWARDS
 ## Make a list of your own servers/accounts that you'd like to run the
@@ -29,8 +29,8 @@ caldav_servers = [
 
         ## incompatibilities is a list of flags that can be set for
         ## skipping (parts) of certain tests.  See
-        ## tests/compatibility_issues.py for premade lists
-        #'incompatibilities': compatibility_issues.nextcloud
+        ## compatibility_hints.py for premade lists
+        #'incompatibilities': compatibility_hints.nextcloud
       	'incompatibilities': [],
 
         ## You may even add setup and teardown methods to set up

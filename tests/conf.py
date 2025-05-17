@@ -10,7 +10,7 @@ import time
 
 import niquests
 
-from . import compatibility_issues
+from caldav import compatibility_hints
 from caldav.davclient import DAVClient
 
 ####################################
@@ -140,7 +140,7 @@ if test_radicale:
             "username": "user1",
             "password": "",
             "backwards_compatibility_url": url + "user1",
-            "incompatibilities": compatibility_issues.radicale,
+            "incompatibilities": compatibility_hints.radicale,
             "setup": setup_radicale,
             "teardown": teardown_radicale,
         }
@@ -225,7 +225,7 @@ if test_xandikos:
             "name": "LocalXandikos",
             "url": url,
             "backwards_compatibility_url": url + "sometestuser",
-            "incompatibilities": compatibility_issues.xandikos,
+            "incompatibilities": compatibility_hints.xandikos,
             "setup": setup_xandikos,
             "teardown": teardown_xandikos,
         }
