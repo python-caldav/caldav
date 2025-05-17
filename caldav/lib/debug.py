@@ -6,7 +6,10 @@ def xmlstring(root):
         return root
     if hasattr(root, "xmlelement"):
         root = root.xmlelement()
-    return etree.tostring(root, pretty_print=True).decode("utf-8")
+    try:
+        return etree.tostring(root, pretty_print=True).decode("utf-8")
+    except:
+        return root
 
 
 def printxml(root) -> None:

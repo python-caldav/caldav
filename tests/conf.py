@@ -11,6 +11,7 @@ import time
 import niquests
 
 from caldav import compatibility_hints
+from caldav.davclient import CONNKEYS
 from caldav.davclient import DAVClient
 
 ####################################
@@ -231,29 +232,10 @@ if test_xandikos:
         }
     )
 
+
 ###################################################################
 # Convenience - get a DAVClient object from the caldav_servers list
 ###################################################################
-## TODO: this is already declared in davclient.DAVClient.__init__(...)
-## TODO: is it possible to reuse the declaration here instead of
-## duplicating the list?
-## TODO: If not, it's needed to look through and ensure the list is uptodate
-CONNKEYS = set(
-    (
-        "url",
-        "proxy",
-        "username",
-        "password",
-        "timeout",
-        "headers",
-        "huge_tree",
-        "ssl_verify_cert",
-        "ssl_cert",
-        "auth",
-    )
-)
-
-
 def client(
     idx=None, name=None, setup=lambda conn: None, teardown=lambda conn: None, **kwargs
 ):
@@ -266,8 +248,8 @@ def client(
         return client(**caldav_servers[idx])
     elif name is not None and no_args and caldav_servers:
         for s in caldav_servers:
-            if caldav_servers["name"] == s:
-                return s
+            if s["name"] == name:
+                return client(**s)
         return None
     elif no_args:
         return None

@@ -10,6 +10,8 @@ debug_dump_communication = False
 try:
     import os
 
+    ## Environmental variables prepended with "PYTHON_CALDAV" are used for debug purposes,
+    ## environmental variables prepended with "CALDAV_" are for connection parameters
     debug_dump_communication = os.environ.get("PYTHON_CALDAV_COMMDUMP", False)
     ## one of DEBUG_PDB, DEBUG, DEVELOPMENT, PRODUCTION
     debugmode = os.environ["PYTHON_CALDAV_DEBUGMODE"]

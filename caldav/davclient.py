@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import logging
+import os
 import sys
 from types import TracebackType
 from typing import Any
@@ -43,6 +44,24 @@ if sys.version_info < (3, 11):
     from typing_extensions import Self
 else:
     from typing import Self
+
+## TODO: this is also declared in davclient.DAVClient.__init__(...)
+## TODO: it should be consolidated, duplication is a bad thing
+## TODO: and it's almost certain that we'll forget to update this list
+CONNKEYS = set(
+    (
+        "url",
+        "proxy",
+        "username",
+        "password",
+        "timeout",
+        "headers",
+        "huge_tree",
+        "ssl_verify_cert",
+        "ssl_cert",
+        "auth",
+    )
+)
 
 
 class DAVResponse:
@@ -819,3 +838,80 @@ class DAVClient:
                 commlog.write(b"\n")
 
         return response
+
+
+def auto_calendars(
+    configfile: str = f"{os.environ.get('HOME')}/.config/calendar.conf",
+    testconfig=False,
+    environment: bool = True,
+    config_data: dict = None,
+    config_name: str = None,
+) -> Iterable["Calendar"]:
+    """
+    This will replace plann.lib.findcalendars()
+    """
+    raise NotImplementedError("auto_calendars not implemented yet")
+
+
+def auto_calendar(*largs, **kwargs) -> Iterable["Calendar"]:
+    """
+    Alternative to auto_calendars - in most use cases, one calendar suffices
+    """
+    return next(auto_calendars(*largs, **kwargs), None)
+
+
+def auto_conn(
+    configfile: str = f"{os.environ.get('HOME')}/.config/calendar.conf",
+    testconfig=False,
+    environment: bool = True,
+    config_data: dict = None,
+    name: str = None,
+) -> "DAVClient":
+    """
+    Normally you would like to look into auto_calendars or
+    auto_calendar instead.  However, in some cases it's needed
+    with a DAVClient object rather than a Calendar object.
+
+    This function will yield a DAVClient object.  It will not try to
+    connect (see auto_calendars for that).  It will read configuration
+    from various sources, dependent on the parameters given, in this
+    order:
+
+    * Data from the given dict
+    * Environment variables prepended with "CALDAV_"
+    * Data from `./tests/conf.py` or `./conf.py` (this includes the possibility to spin up a test server)
+    * Configuration file.  Documented in the plann project as for now.  (TODO - move it)
+
+    """
+    if config_data:
+        return DAVClient(**config_data)
+
+    if testconfig:
+        sys.path.insert(0, "tests")
+        sys.path.insert(1, ".")
+        ## TODO: move the code from client into here
+        try:
+            from conf import client
+
+            try:
+                idx = int(name)
+            except ValueError:
+                idx = None
+            try:
+                conn = client(idx, name, **config_data)
+                if conn:
+                    return conn
+            except:
+                error.weirdness("traceback from client()")
+        except ImportError:
+            pass
+
+    if environment:
+        raise NotImplementedError(
+            "Not possible to configure the caldav server through environmental variables yet"
+        )
+
+    if configfile:
+        raise NotImplementedError(
+            "Support for configuration file not made yet (TODO: copy the code from the plann tool)"
+        )
