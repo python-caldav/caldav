@@ -96,7 +96,7 @@ class DAVResponse:
         xml = ["text/xml", "application/xml"]
         no_xml = ["text/plain", "text/calendar"]
         expect_xml = any((content_type.startswith(x) for x in xml))
-        expect_no_xml = any((content_type.startswith(x) for x in no_xml))
+        expect_no_xml = any((content_type.startswith(x) for x in no_xml)) or response.status_code>399
         try:
             content_length = int(self.headers["Content-Length"])
         except:
