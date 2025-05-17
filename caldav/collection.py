@@ -868,8 +868,10 @@ class Calendar(DAVObject):
                 raise
 
         obj2 = []
+
         for o in objects:
             ## This would not be needed if the servers would follow the standard ...
+            ## TODO: use self.calendar_multiget - see https://github.com/python-caldav/caldav/issues/487
             try:
                 o.load(only_if_unloaded=True)
                 obj2.append(o)

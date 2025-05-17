@@ -937,6 +937,31 @@ class RepeatedFunctionalTestsBaseClass:
         event = c.event_by_uid("test1")
         ## TODO: work in progress ... see https://github.com/python-caldav/caldav/issues/399
 
+    def testMultiGet(self):
+        self.skip_on_compatibility_flag("read_only")
+        c = self._fixCalendar()
+
+        event1 = c.save_event(
+            uid="test1",
+            dtstart=datetime(2015, 10, 10, 8, 7, 6),
+            dtend=datetime(2015, 10, 10, 9, 7, 6),
+            summary="test1",
+        )
+
+        event2 = c.save_event(
+            uid="test2",
+            dtstart=datetime(2015, 10, 10, 8, 7, 6),
+            dtend=datetime(2015, 10, 10, 9, 7, 6),
+            summary="test2",
+        )
+
+        results = c.calendar_multiget([event1.url, event2.url])
+        assert len(results) == 2
+        assert set([x.icalendar_component["uid"] for x in results]) == {
+            "test1",
+            "test2",
+        }
+
     def testCreateEvent(self):
         self.skip_on_compatibility_flag("read_only")
         c = self._fixCalendar()
@@ -1278,12 +1303,10 @@ class RepeatedFunctionalTestsBaseClass:
         c2 = self._fixCalendar(name="Yapp", cal_id=self.testcal_id2)
 
         e1_ = c1.save_event(ev1)
-        if not self.check_compatibility_flag("event_by_url_is_broken"):
-            e1_.load()
+        e1_.load()
         e1 = c1.events()[0]
         assert e1.url == e1_.url
-        if not self.check_compatibility_flag("event_by_url_is_broken"):
-            e1.load()
+        e1.load()
         if (
             not self.check_compatibility_flag("unique_calendar_ids")
             and self.cleanup_regime == "post"
