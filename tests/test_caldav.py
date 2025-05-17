@@ -1958,6 +1958,7 @@ class RepeatedFunctionalTestsBaseClass:
             uid="ctuid1",
         )
         assert len(c.journals()) == 2
+        assert len(c.search(journal=True)) == 2
         todos = c.todos()
         events = c.events()
         assert todos + events == []

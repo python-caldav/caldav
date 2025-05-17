@@ -778,6 +778,7 @@ class Calendar(DAVObject):
           unless the next parameter is set ...
         * include_completed - include completed tasks
         * event - sets comp_class to event
+        * journal - sets comp_class to journal
         * text attribute search parameters: category, uid, summary, comment,
           description, location, status
         * no-category, no-summary, etc ... search for objects that does not
@@ -974,6 +975,7 @@ class Calendar(DAVObject):
         ignore_completed2=None,
         ignore_completed3=None,
         event=None,
+        journal=None,
         filters=None,
         expand=None,
         start=None,
@@ -1046,39 +1048,29 @@ class Calendar(DAVObject):
                 cdav.CompFilter("VALARM") + cdav.TimeRange(alarm_start, alarm_end)
             )
 
-        if todo is not None:
-            if not todo:
-                raise NotImplementedError()
-            if todo:
-                if comp_class is not None and comp_class is not Todo:
-                    raise error.ConsistencyError(
-                        "inconsistent search parameters - comp_class = %s, todo=%s"
-                        % (comp_class, todo)
-                    )
-                comp_filter = cdav.CompFilter("VTODO")
-                comp_class = Todo
-        if event is not None:
-            if not event:
-                raise NotImplementedError()
-            if event:
-                if comp_class is not None and comp_class is not Event:
-                    raise error.ConsistencyError(
-                        "inconsistent search parameters - comp_class = %s, event=%s"
-                        % (comp_class, event)
-                    )
-                comp_filter = cdav.CompFilter("VEVENT")
-                comp_class = Event
-        elif comp_class:
-            if comp_class is Todo:
-                comp_filter = cdav.CompFilter("VTODO")
-            elif comp_class is Event:
-                comp_filter = cdav.CompFilter("VEVENT")
-            elif comp_class is Journal:
-                comp_filter = cdav.CompFilter("VJOURNAL")
-            else:
-                raise error.ConsistencyError(
-                    "unsupported comp class %s for search" % comp_class
-                )
+        ## Deal with event, todo, journal or comp_class
+        for flagged, comp_name, comp_class_ in (
+                (event, 'VEVENT', Event),
+                (todo, 'VTODO', Todo),
+                (journal, 'VJOURNAL', Journal)):
+            if flagged is not None:
+                if not flagged:
+                    raise NotImplementedError(f"Negated search for {comp_name} not supported yet")
+                if flagged:
+                    ## event/journal/todo is set, we adjust comp_class accordingly
+                    if comp_class is not None and comp_class is not comp_class:
+                        raise error.ConsistencyError(
+                            f"inconsistent search parameters - comp_class = {comp_class}, want {comp_class_}"
+                        )
+                    comp_class = comp_class_
+
+            if comp_class == comp_class_:
+                comp_filter = cdav.CompFilter(comp_name)
+
+        if comp_class and not comp_filter:
+            raise error.ConsistencyError(
+                f"unsupported comp class {comp_class} for search"
+            )
 
         for other in kwargs:
             find_not_defined = other.startswith("no_")
