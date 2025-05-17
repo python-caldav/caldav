@@ -1050,12 +1050,15 @@ class Calendar(DAVObject):
 
         ## Deal with event, todo, journal or comp_class
         for flagged, comp_name, comp_class_ in (
-                (event, 'VEVENT', Event),
-                (todo, 'VTODO', Todo),
-                (journal, 'VJOURNAL', Journal)):
+            (event, "VEVENT", Event),
+            (todo, "VTODO", Todo),
+            (journal, "VJOURNAL", Journal),
+        ):
             if flagged is not None:
                 if not flagged:
-                    raise NotImplementedError(f"Negated search for {comp_name} not supported yet")
+                    raise NotImplementedError(
+                        f"Negated search for {comp_name} not supported yet"
+                    )
                 if flagged:
                     ## event/journal/todo is set, we adjust comp_class accordingly
                     if comp_class is not None and comp_class is not comp_class:
