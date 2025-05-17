@@ -554,7 +554,7 @@ class TestScheduling:
     ## inbox/outbox?
 
 
-def _delay_decorator(f, t=60):
+def _delay_decorator(f, t=10):
     def foo(*a, **kwa):
         time.sleep(t)
         return f(*a, **kwa)
