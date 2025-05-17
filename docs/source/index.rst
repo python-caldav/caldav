@@ -307,7 +307,7 @@ Compatibility
 tend to be a moving target, and I rarely recheck if things works in
 newer versions of the software after I find an incompatibility)
 
-The test suite is regularly run against several calendar servers, see https://github.com/python-caldav/caldav/issues/45 for the latest updates.  See ``tests/compatibility_issues.py`` for the most up-to-date list of compatibility issues.  In early versions of this library test breakages was often an indication that the library did not conform well enough to the standards, but as of today it mostly indicates that the servers does not support the standard well enough.  It may be an option to add tweaks to the library code to cover some of the missing functionality.
+The test suite is regularly run against several calendar servers, see https://github.com/python-caldav/caldav/issues/45 for the latest updates.  See ``compatibility_hints.py`` for the most up-to-date list of compatibility issues.  In early versions of this library test breakages was often an indication that the library did not conform well enough to the standards, but as of today it mostly indicates that the servers does not support the standard well enough.  It may be an option to add tweaks to the library code to cover some of the missing functionality.
 
 Here are some known issues:
 

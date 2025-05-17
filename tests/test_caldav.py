@@ -25,7 +25,6 @@ import icalendar
 import pytest
 import vobject
 
-from . import compatibility_issues
 from .conf import caldav_servers
 from .conf import client
 from .conf import proxy
@@ -39,6 +38,7 @@ from .conf import xandikos_host
 from .conf import xandikos_port
 from .proxy import NonThreadingHTTPServer
 from .proxy import ProxyHandler
+from caldav import compatibility_hints
 from caldav.davclient import DAVClient
 from caldav.davclient import DAVResponse
 from caldav.elements import cdav
@@ -581,12 +581,12 @@ class RepeatedFunctionalTestsBaseClass:
 
     def check_compatibility_flag(self, flag):
         ## yield an assertion error if checking for the wrong thig
-        assert flag in compatibility_issues.incompatibility_description
+        assert flag in compatibility_hints.incompatibility_description
         return flag in self.incompatibilities
 
     def skip_on_compatibility_flag(self, flag):
         if self.check_compatibility_flag(flag):
-            msg = compatibility_issues.incompatibility_description[flag]
+            msg = compatibility_hints.incompatibility_description[flag]
             pytest.skip("Test skipped due to server incompatibility issue: " + msg)
 
     def setup_method(self):
@@ -596,7 +596,7 @@ class RepeatedFunctionalTestsBaseClass:
         self.calendars_used = []
 
         for flag in self.server_params.get("incompatibilities", []):
-            assert flag in compatibility_issues.incompatibility_description
+            assert flag in compatibility_hints.incompatibility_description
             self.incompatibilities.add(flag)
 
         if self.check_compatibility_flag("unique_calendar_ids"):

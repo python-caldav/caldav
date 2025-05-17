@@ -1,4 +1,22 @@
 # fmt: off
+"""This text was updated 2025-05-17.  The plan is to reorganize this
+file a lot over the next few months, see
+https://github.com/python-caldav/caldav/issues/402
+
+This file serves as a database of different compatibility issues we've
+encountered while working on the caldav library, and descriptions on
+how the well-known servers behave.
+
+As for now, this is a list of binary "flags" that could be turned on
+or off.  My experience is that there are often neuances, so the
+compatibility matrix will be changed from being a list of flags to a
+key=value store in the near future (at least, that's the plan).
+
+The issues may be grouped together, maybe even organized
+hierarchically.  I did consider organizing the compatibility issues in
+some more advanced way, but I don't want to overcomplicate things - I
+will try out the key-value-approach first.
+"""
 ## The lists below are specifying what tests should be skipped or
 ## modified to accept non-conforming resultsets from the different
 ## calendar servers.  In addition there are some hacks in the library

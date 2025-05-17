@@ -21,10 +21,12 @@ Python 3.7 is no longer tested - but it should work.  Please file a bug report i
 ### Changed
 
 * Some exotic servers may return object URLs on search, but it does not work out to fetch the calendar data.  Now it will log an error instead of raising an error in such cases.
+* The `tests/compatibility_issues.py` has been moved to `caldav/compatibility_hints.py`, this to make it available for a caldav-server-tester-tool that I'm splitting off to a separate project/repository, and also to make https://github.com/python-caldav/caldav/issues/402 possible.
 
 #### Refactoring
 
 * Minor code cleanups by github user @ArtemIsmagilov in https://github.com/python-caldav/caldav/pull/456
+* The very much overgrown `objects.py`-file has been split into three.
 
 #### Test framework
 
@@ -40,6 +42,7 @@ Python 3.7 is no longer tested - but it should work.  Please file a bug report i
 
 ### Added
 
+* Work in progress: `auto_conn`, `auto_calendar` and `auto_calendars` may read caldav connection and calendar configuration from a config file, environmental variables or other sources.  Currently I've made the minimal possible work to be able to test the caldav-server-tester script.
 * By now `calendar.search(..., sort_keys=("DTSTART")` will work.  Sort keys expects a list or a tuple, but it's easy to send an attribute by mistake.  https://github.com/python-caldav/caldav/issues/448 https://github.com/python-caldav/caldav/pull/449
 * Compatibility workaround: If `event.load()` fails, it will retry the load by doing a multiget - https://github.com/python-caldav/caldav/pull/475 - https://github.com/python-caldav/caldav/issues/459
 * The `class_`-parameter now works when sending data to `save_event()` etc.
