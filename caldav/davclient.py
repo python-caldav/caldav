@@ -94,9 +94,11 @@ class DAVResponse:
 
         content_type = self.headers.get("Content-Type", "")
         xml = ["text/xml", "application/xml"]
-        no_xml = ["text/plain", "text/calendar"]
+        no_xml = ["text/plain", "text/calendar", "application/octet-stream"]
         expect_xml = any((content_type.startswith(x) for x in xml))
-        expect_no_xml = any((content_type.startswith(x) for x in no_xml)) or response.status_code>399
+        expect_no_xml = any((content_type.startswith(x) for x in no_xml))
+        if content_type and not expect_xml and not expect_no_xml:
+            error.weirdness(f"Unexpected content type: {content_type}")
         try:
             content_length = int(self.headers["Content-Length"])
         except:
@@ -905,6 +907,8 @@ def auto_conn(
                 error.weirdness("traceback from client()")
         except ImportError:
             pass
+        finally:
+            sys.path = sys.path[2:]
 
     if environment:
         raise NotImplementedError(
