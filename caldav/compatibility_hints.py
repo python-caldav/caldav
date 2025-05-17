@@ -17,7 +17,6 @@ hierarchically.  I did consider organizing the compatibility issues in
 some more advanced way, but I don't want to overcomplicate things - I
 will try out the key-value-approach first.
 """
-
 ## The lists below are specifying what tests should be skipped or
 ## modified to accept non-conforming resultsets from the different
 ## calendar servers.  In addition there are some hacks in the library

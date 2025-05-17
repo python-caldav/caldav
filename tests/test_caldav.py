@@ -25,7 +25,6 @@ import icalendar
 import pytest
 import vobject
 
-from caldav import compatibility_hints
 from .conf import caldav_servers
 from .conf import client
 from .conf import proxy
@@ -39,6 +38,7 @@ from .conf import xandikos_host
 from .conf import xandikos_port
 from .proxy import NonThreadingHTTPServer
 from .proxy import ProxyHandler
+from caldav import compatibility_hints
 from caldav.davclient import DAVClient
 from caldav.davclient import DAVResponse
 from caldav.elements import cdav
