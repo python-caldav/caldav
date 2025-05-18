@@ -283,6 +283,7 @@ class DAVResponse:
         self.sync_token will be populated if found, self.objects will be populated.
         """
         self.objects: Dict[str, Dict[str, _Element]] = {}
+        self.statuses: Dict[str, str] = {}
 
         if "Schedule-Tag" in self.headers:
             self.schedule_tag = self.headers["Schedule-Tag"]
@@ -300,6 +301,7 @@ class DAVResponse:
             ## but then there was https://github.com/python-caldav/caldav/issues/136
             if href not in self.objects:
                 self.objects[href] = {}
+                self.statuses[href] = status
 
             ## The properties may be delivered either in one
             ## propstat with multiple props or in multiple
@@ -358,7 +360,7 @@ class DAVResponse:
             error.assert_(len(values) == 1)
             return values[0]
 
-    ## TODO: "expand" does not feel quite right.
+    ## TODO: word "expand" does not feel quite right.
     def expand_simple_props(
         self,
         props: Iterable[BaseElement] = None,

@@ -625,20 +625,10 @@ class CalendarObjectResource(DAVObject):
         with a multiget query
         """
         error.assert_(self.url)
-        href = self.url.path
-        prop = dav.Prop() + CalendarData()
-        root = cdav.CalendarMultiGet() + prop + dav.Href(value=href)
-        response = self.parent._query(root, 1, "report")
-        results = response.expand_simple_props([CalendarData()])
-        error.assert_(len(results) == 1)
-        if not href in results:
-            href2 = href
-            href = next(iter(results.keys()))
-            error.weirdness(f"{href} != {href2}")
-        data = results[href][CalendarData.tag]
-        breakpoint()
-        error.assert_(data)
-        self.data = data
+        mydata = self.parent._multiget(event_urls=[self.url], raise_notfound=True)
+        self.data = next(mydata)
+        assert_(self.data)
+        assert_(next(mydata, None) is None)
         return self
 
     ## TODO: self.id should either always be available or never

@@ -560,15 +560,12 @@ class Calendar(DAVObject):
             self._create(id=self.id, name=self.name, **self.extra_init_options)
         return self
 
-    ## TODO: this is missing test code.
-    ## TODO: needs refactoring:
-    ## Objects found may be Todo and Journal, not only Event.
-    ## Replace the last lines with _request_report_build_resultlist method
-    def calendar_multiget(self, event_urls: Iterable[URL]) -> List[_CC]:
+    #def data2object_class
+
+    def _multiget(self, event_urls: Iterable[URL], raise_notfound=False) -> Iterable[str]:
         """
         get multiple events' data
         @author mtorange@gmail.com
-        @type events list of Event
         """
         if self.url is None:
             raise ValueError("Unexpected value None for self.url")
@@ -582,16 +579,29 @@ class Calendar(DAVObject):
         )
         response = self._query(root, 1, "report")
         results = response.expand_simple_props([cdav.CalendarData()])
-        rv = [
-            CalendarObjectResource(
+        for href in response.statuses:
+            status = response.statuses[href]
+            if raise_notfound and "404" in status:
+                raise error.NotFoundError(f"Status {status} in {href}")
+        return (results[r][cdav.CalendarData.tag] for r in results)
+
+    ## TODO: this is missing test code.
+    ## TODO: needs refactoring:
+    ## Objects found may be Todo and Journal, not only Event.
+    ## Replace the last lines with _request_report_build_resultlist method
+    def calendar_multiget(self, event_urls: Iterable[URL], raise_notfound: False) -> Iterable[_CC]:
+        """
+        get multiple events' data
+        @author mtorange@gmail.com
+        """
+        results = self._multiget(event_urls, raise_notfound=raise_notfound)
+        for res in results:
+            yield self._calendar_comp_class_by_data(res)(
                 self.client,
                 url=self.url.join(r),
-                data=results[r][cdav.CalendarData.tag],
+                data=res,
                 parent=self,
             )
-            for r in results
-        ]
-        return rv
 
     ## TODO: Upgrade the warning to an error (and perhaps critical) in future
     ## releases, and then finally remove this method completely.
