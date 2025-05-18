@@ -587,17 +587,19 @@ class Calendar(DAVObject):
                 if "404" in status:
                     raise error.NotFoundError(f"Status {status} in {href}")
         for r in results:
-            yield (r,results[r][cdav.CalendarData.tag])
+            yield (r, results[r][cdav.CalendarData.tag])
 
-    ## Replace the last lines with 
-    def multiget(self, event_urls: Iterable[URL], raise_notfound: bool=False) -> Iterable[_CC]:
+    ## Replace the last lines with
+    def multiget(
+        self, event_urls: Iterable[URL], raise_notfound: bool = False
+    ) -> Iterable[_CC]:
         """
         get multiple events' data
         TODO: Does it overlap the _request_report_build_resultlist method?
         @author mtorange@gmail.com (refactored by Tobias)
         """
         results = self._multiget(event_urls, raise_notfound=raise_notfound)
-        for url,data in results:
+        for url, data in results:
             yield self._calendar_comp_class_by_data(data)(
                 self.client,
                 url=self.url.join(url),

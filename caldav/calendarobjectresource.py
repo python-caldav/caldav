@@ -626,7 +626,7 @@ class CalendarObjectResource(DAVObject):
         """
         error.assert_(self.url)
         mydata = self.parent._multiget(event_urls=[self.url], raise_notfound=True)
-        url,self.data = next(mydata)
+        url, self.data = next(mydata)
         assert_(self.data)
         assert_(next(mydata, None) is None)
         return self
