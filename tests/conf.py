@@ -207,7 +207,7 @@ if test_xandikos:
         ## ... but the thread may be stuck waiting for a request ...
         def silly_request():
             try:
-                niquests.get(self.url)
+                niquests.get(str(self.url))
             except:
                 pass
 
