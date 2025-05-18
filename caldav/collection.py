@@ -583,7 +583,7 @@ class Calendar(DAVObject):
         response = self._query(root, 1, "report")
         results = response.expand_simple_props([cdav.CalendarData()])
         rv = [
-            Event(
+            CalendarObjectResource(
                 self.client,
                 url=self.url.join(r),
                 data=results[r][cdav.CalendarData.tag],
