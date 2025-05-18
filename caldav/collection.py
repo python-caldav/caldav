@@ -560,9 +560,11 @@ class Calendar(DAVObject):
             self._create(id=self.id, name=self.name, **self.extra_init_options)
         return self
 
-    #def data2object_class
+    # def data2object_class
 
-    def _multiget(self, event_urls: Iterable[URL], raise_notfound: bool=False) -> Iterable[str]:
+    def _multiget(
+        self, event_urls: Iterable[URL], raise_notfound: bool = False
+    ) -> Iterable[str]:
         """
         get multiple events' data
         @author mtorange@gmail.com
@@ -589,7 +591,9 @@ class Calendar(DAVObject):
     ## TODO: needs refactoring:
     ## Objects found may be Todo and Journal, not only Event.
     ## Replace the last lines with _request_report_build_resultlist method
-    def calendar_multiget(self, event_urls: Iterable[URL], raise_notfound: bool=False) -> Iterable[_CC]:
+    def calendar_multiget(
+        self, event_urls: Iterable[URL], raise_notfound: bool = False
+    ) -> Iterable[_CC]:
         """
         get multiple events' data
         @author mtorange@gmail.com

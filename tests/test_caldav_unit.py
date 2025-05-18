@@ -281,9 +281,7 @@ class TestCalDAV:
   </D:response>
 </D:multistatus>"""
         client = MockedDAVClient(xml)
-        calendar = Calendar(
-            client, url="/calendar/issue491/"
-        )
+        calendar = Calendar(client, url="/calendar/issue491/")
         object = Event(url="/calendar/issue491/notfound.ics", parent=calendar)
         with pytest.raises(error.NotFoundError):
             object.load_by_multiget()
