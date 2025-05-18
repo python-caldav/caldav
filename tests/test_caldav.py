@@ -2551,8 +2551,6 @@ class RepeatedFunctionalTestsBaseClass:
         c = self._fixCalendar()
         assert c.url is not None
         
-        import pdb; pdb.set_trace()
-
         # attempts on updating/overwriting a non-existing event should fail (unless object_by_uid_is_broken):
         if not self.check_compatibility_flag("object_by_uid_is_broken"):
             with pytest.raises(error.ConsistencyError):
