@@ -127,7 +127,7 @@ if test_radicale:
         i = 0
         while True:
             try:
-                niquests.get(self.url)
+                niquests.get(str(self.url))
                 break
             except:
                 time.sleep(0.05)
