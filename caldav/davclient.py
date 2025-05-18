@@ -897,6 +897,7 @@ def auto_conn(
 
             try:
                 idx = int(name)
+                name = None
             except ValueError:
                 idx = None
             try:

@@ -33,7 +33,13 @@ except ImportError:
 try:
     from .conf_private import caldav_servers
 except ImportError:
-    caldav_servers = []
+    try:
+        from conf_private import caldav_servers
+    except ImportError:
+        try:
+            from tests.conf_private import caldav_servers
+        except ImportError:
+            caldav_servers = []
 try:
     from .conf_private import test_private_test_servers
 
@@ -241,7 +247,7 @@ def client(
 ):
     kwargs_ = kwargs.copy()
     no_args = not any(x for x in kwargs if kwargs[x] is not None)
-    if idx is None and no_args and caldav_servers:
+    if idx is None and name is None and no_args and caldav_servers:
         ## No parameters given - find the first server in caldav_servers list
         return client(idx=0)
     elif idx is not None and no_args and caldav_servers:

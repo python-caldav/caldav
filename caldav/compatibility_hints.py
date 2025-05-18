@@ -268,6 +268,9 @@ incompatibility_description = {
     'no_search':
         """Apparently the calendar server does not support search at all (this often implies that 'object_by_uid_is_broken' has to be set as well)""",
 
+    'no_search_openended':
+        """An open-ended search will not work""",
+
     'no_events_and_tasks_on_same_calendar':
         """Zimbra has the concept of task lists ... a calendar must either be a calendar with only events, or it can be a task list, but those must never be mixed"""
 }
@@ -419,10 +422,11 @@ davical = [
     'fragile_sync_tokens', ## no issue raised yet
     'vtodo_datesearch_nodtstart_task_is_skipped', ## no issue raised yet
     'broken_expand_on_exceptions', ## no issue raised yet
-    'date_todo_search_ignores_duration'
+    'date_todo_search_ignores_duration',
     'calendar_color',
     'calendar_order',
-    'vtodo_datesearch_notime_task_is_skipped'
+    'vtodo_datesearch_notime_task_is_skipped',
+    "no_alarmsearch",
 ]
 
 google = [
@@ -448,6 +452,9 @@ sogo = [ ## and in addition ... the requests are efficiently rate limited, as it
 
 nextcloud = [
     'date_search_ignores_duration',
+    'unique_calendar_ids',
+    'broken_expand',
+    'no_delete_calendar',
     'sync_breaks_on_delete',
     'no_recurring_todo',
     'combined_search_not_working',
@@ -488,7 +495,7 @@ robur = [
     'text_search_not_working',
     'no_relships',
     'isnotdefined_not_working',
-    'robur_rrule_freq_yearly_expands_monthly'
+    'no_alarmsearch',
 ]
 
 posteo = [
@@ -528,6 +535,17 @@ purelymail = [
     ## Purelymail claims that the search indexes are "lazily" populated,
     ## so search works some minutes after the event was created/edited.
     'search_delay'
+]
+
+gmx = [
+    "no_scheduling_mailbox",
+    "no_mkcalendar",
+    "search_needs_comptype",
+    "text_search_is_case_insensitive",
+    "no_freebusy_rfc4791",
+    "no_expand",
+    "no_search_openended",
+    #"broken_expand_on_exceptions", ## should be implied by no_expand?
 ]
 
 # fmt: on

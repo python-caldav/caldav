@@ -59,7 +59,9 @@ from .calendarobjectresource import FreeBusy
 from .calendarobjectresource import Journal
 from .calendarobjectresource import Todo
 from .davobject import DAVObject
-from .elements import cdav, dav
+from .elements.cdav import CalendarData
+from .elements import cdav
+from .elements import dav
 from .lib import error
 from .lib import vcal
 from .lib.python_utilities import to_wire

@@ -61,7 +61,9 @@ else:
     from typing import Self
 
 from .davobject import DAVObject
-from .elements import cdav, dav
+from .elements.cdav import CalendarData
+from .elements import cdav
+from .elements import dav
 from .lib import error
 from .lib import vcal
 from .lib.error import errmsg
@@ -629,7 +631,12 @@ class CalendarObjectResource(DAVObject):
         response = self.parent._query(root, 1, "report")
         results = response.expand_simple_props([CalendarData()])
         error.assert_(len(results) == 1)
+        if not href in results:
+            href2 = href
+            href = next(iter(results.keys()))
+            error.weirdness(f"{href} != {href2}")
         data = results[href][CalendarData.tag]
+        breakpoint()
         error.assert_(data)
         self.data = data
         return self
