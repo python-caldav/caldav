@@ -751,6 +751,7 @@ class RepeatedFunctionalTestsBaseClass:
 
     def testSchedulingInfo(self):
         self.skip_on_compatibility_flag("no_scheduling")
+        self.skip_on_compatibility_flag("no_scheduling_calendar_user_address_set")
         calendar_user_address_set = self.principal.calendar_user_address_set()
         me_a_participant = self.principal.get_vcal_address()
 
@@ -2828,6 +2829,7 @@ class RepeatedFunctionalTestsBaseClass:
         c = self._fixCalendar()
 
         # evr2 is a bi-weekly event starting 2024-04-11
+        ## It has an exception, edited summary for recurrence id 20240425T123000Z
         e = c.save_event(evr2)
 
         r = c.search(

@@ -77,6 +77,9 @@ incompatibility_description = {
     'no_scheduling_mailbox':
         """Parts of RFC6833 is supported, but not the existence of inbox/mailbox""",
 
+    'no_scheduling_calendar_user_address_set':
+        """Parts of RFC6833 is supported, but not getting the calendar users addresses""",
+
     'no_default_calendar':
         """The given user starts without an assigned default calendar """
         """(or without pre-defined calendars at all)""",
@@ -496,6 +499,7 @@ robur = [
     'no_relships',
     'isnotdefined_not_working',
     'no_alarmsearch',
+    'broken_expand',
 ]
 
 posteo = [
@@ -545,6 +549,8 @@ gmx = [
     "no_freebusy_rfc4791",
     "no_expand",
     "no_search_openended",
+    "no_sync_token",
+    "no_scheduling_calendar_user_address_set",
     #"broken_expand_on_exceptions", ## should be implied by no_expand?
 ]
 
