@@ -136,6 +136,8 @@ uids_used = (
     "test4",
     "test5",
     "test6",
+    "c26921f4-0653-11ef-b756-58ce2a14e2e5",
+    "e2a2e13e-34f2-11f0-ae12-1c1bb5134174",
 )
 ## TODO: todo7 is an item without uid.  Should be taken care of somehow.
 
@@ -554,7 +556,7 @@ class TestScheduling:
     ## inbox/outbox?
 
 
-def _delay_decorator(f, t=10):
+def _delay_decorator(f, t=20):
     def foo(*a, **kwa):
         time.sleep(t)
         return f(*a, **kwa)
@@ -968,6 +970,8 @@ class RepeatedFunctionalTestsBaseClass:
         c = self._fixCalendar()
 
         existing_events = c.events()
+        existing_urls = {x.url for x in existing_events}
+        cleanse = lambda events: [x for x in events if x.url not in existing_urls]
 
         if not self.check_compatibility_flag("no_mkcalendar"):
             ## we're supposed to be working towards a brand new calendar
@@ -977,13 +981,13 @@ class RepeatedFunctionalTestsBaseClass:
         c.save_event(broken_ev1)
 
         # c.events() should give a full list of events
-        events = c.events()
-        assert len(events) == len(existing_events) + 1
+        events = cleanse(c.events())
+        assert len(events) == 1
 
         # We should be able to access the calender through the URL
         c2 = self.caldav.calendar(url=c.url)
-        events2 = c2.events()
-        assert len(events2) == len(existing_events) + 1
+        events2 = cleanse(c2.events())
+        assert len(events2) == 1
         assert events2[0].url == events[0].url
 
         if not self.check_compatibility_flag(
@@ -994,7 +998,7 @@ class RepeatedFunctionalTestsBaseClass:
             ## may break if we have multiple calendars with the same name
             if not self.check_compatibility_flag("no_delete_calendar"):
                 assert c2.url == c.url
-                events2 = c2.events()
+                events2 = cleanse(c2.events())
                 assert len(events2) == 1
                 assert events2[0].url == events[0].url
 
@@ -1015,6 +1019,7 @@ class RepeatedFunctionalTestsBaseClass:
         ev = c.save_event(
             dtstart=datetime(2015, 10, 10, 8, 0, 0),
             summary="This is a test event",
+            uid="test1",
             dtend=datetime(2016, 10, 10, 9, 0, 0),
             alarm_trigger=timedelta(minutes=-15),
             alarm_action="AUDIO",
@@ -1909,6 +1914,9 @@ class RepeatedFunctionalTestsBaseClass:
             uid="ctuid3",
             child=[some_todo.id],
         )
+
+
+        assert not parent.check_reverse_relations()
 
         ## The above updates the some_todo object on the server side, but the local object is not
         ## updated ... until we reload it

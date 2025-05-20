@@ -398,11 +398,6 @@ class CalendarObjectResource(DAVObject):
         """
         return self._handle_reverse_relations(verify=True, fix=True, pdb=pdb)
 
-    ## TODO: fix this (and consolidate with _handle_relations / set_relation?)
-    # def ensure_reverse_relations(self):
-    #     missing_relations = self.check_reverse_relations()
-    #     ...
-
     def _get_icalendar_component(self, assert_one=False):
         """Returns the icalendar subcomponent - which should be an
         Event, Journal, Todo or FreeBusy from the icalendar class

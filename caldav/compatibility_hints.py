@@ -509,6 +509,7 @@ posteo = [
     'no_recurring_todo',
     'no_sync_token',
     'combined_search_not_working',
+    'no_alarmsearch',
     'broken_expand',
 ]
 
@@ -538,19 +539,23 @@ purelymail = [
 
     ## Purelymail claims that the search indexes are "lazily" populated,
     ## so search works some minutes after the event was created/edited.
-    'search_delay'
+    'search_delay',
+
+    ## I haven't raised this one with them yet
+    'no_alarmsearch',
 ]
 
 gmx = [
     "no_scheduling_mailbox",
     "no_mkcalendar",
     "search_needs_comptype",
-    "text_search_is_case_insensitive",
+    #"text_search_is_case_insensitive",
     "no_freebusy_rfc4791",
     "no_expand",
     "no_search_openended",
     "no_sync_token",
     "no_scheduling_calendar_user_address_set",
+    "rate_limited",
     #"broken_expand_on_exceptions", ## should be implied by no_expand?
 ]
 
