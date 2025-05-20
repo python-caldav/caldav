@@ -621,7 +621,14 @@ class CalendarObjectResource(DAVObject):
         """
         error.assert_(self.url)
         mydata = self.parent._multiget(event_urls=[self.url], raise_notfound=True)
-        url, self.data = next(mydata)
+        try:
+            url, self.data = next(mydata)
+        except StopIteration:
+            ## We shouldn't come here.  Something is wrong.
+            ## TODO: research it
+            ## As of 2025-05-20, this code section is used by
+            ## TestForServerECloud::testCreateOverwriteDeleteEvent 
+            raise error.NotFoundError(self.url)
         assert_(self.data)
         assert_(next(mydata, None) is None)
         return self
