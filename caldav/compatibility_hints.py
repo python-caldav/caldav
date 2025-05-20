@@ -555,8 +555,6 @@ gmx = [
     "no_search_openended",
     "no_sync_token",
     "no_scheduling_calendar_user_address_set",
-    "rate_limited",
-    #"broken_expand_on_exceptions", ## should be implied by no_expand?
 ]
 
 # fmt: on
