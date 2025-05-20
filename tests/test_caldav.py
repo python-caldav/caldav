@@ -1915,7 +1915,6 @@ class RepeatedFunctionalTestsBaseClass:
             child=[some_todo.id],
         )
 
-
         assert not parent.check_reverse_relations()
 
         ## The above updates the some_todo object on the server side, but the local object is not
