@@ -1,0 +1,7 @@
+I hope and believe we'll never need to refer to the Code of Conduct for the Python CalDAV client library, but if the need should arise: The "Contributor Covenant" applies to this project, currently version 2.1 at https://www.contributor-covenant.org/version/2/1/code_of_conduct/ .  This applies to activities on the GitHub platform (issues and pull requests), documentation, code, comments in the code, and other project-related communication.
+
+I would point out the importantance of avoiding toxic negativity.  Some of us contributes to open source projects for the fun of it and not for profit - negativity can ruin the fun.  Kenneth Reiz has a good essay about this at https://kennethreitz.org/essays/2013/be_cordial_or_be_on_your_way .  That said, personally I'm all ears for suggestions on how to improve the CalDAV library - even if that includes blunt criticism of the work I've done.
+
+Unacceptable behavior may be reported to Tobias Brox, the current maintainer of the project.  The email address coc-abuse@plann.no may be used.  If complaining to Tobias doesn't help, you may try reaching out to the original maintainer and owner of the project, Cyril Robert.  If Tobias is the subject of the complaint, you may want to put Cyril on the Cc-list in your complaint.  His email address can be found through http://scr.im/22q7
+
+Tobias Brox, 2025-05-21
