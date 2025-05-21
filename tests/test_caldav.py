@@ -1416,6 +1416,8 @@ class RepeatedFunctionalTestsBaseClass:
         self.skip_on_compatibility_flag("no_search")
         c = self._fixCalendar()
 
+        num_existing = len(c.events())
+
         c.save_event(ev1)
         c.save_event(ev3)
         c.save_event(evr)
@@ -1423,13 +1425,13 @@ class RepeatedFunctionalTestsBaseClass:
         ## Search without any parameters should yield everything on calendar
         all_events = c.search()
         if self.check_compatibility_flag("search_needs_comptype"):
-            assert len(all_events) <= 3
+            assert len(all_events) <= 3 + num_existing
         else:
-            assert len(all_events) == 3
+            assert len(all_events) == 3 + num_existing
 
         ## Search with comp_class set to Event should yield all events on calendar
         all_events = c.search(comp_class=Event)
-        assert len(all_events) == 3
+        assert len(all_events) == 3 + num_existing
 
         ## Search with todo flag set should yield no events
         try:
@@ -1595,6 +1597,9 @@ class RepeatedFunctionalTestsBaseClass:
         self.skip_on_compatibility_flag("no_todo")
         self.skip_on_compatibility_flag("no_search")
         c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
+        pre_todos = c.todos()
+        pre_todo_uid_map = {x.icalendar_component['uid'] for x in pre_todos}
+        cleanse = lambda tasks: [x for x in tasks if x.icalendar_component['uid'] not in pre_todo_uid_map]
         t1 = c.save_todo(
             summary="1 task overdue",
             due=date(2022, 12, 12),
@@ -1634,15 +1639,15 @@ class RepeatedFunctionalTestsBaseClass:
                 "test" + str(x) for x in order
             ]
 
-        all_tasks = c.search(todo=True, sort_keys=("uid",))
+        all_tasks = cleanse(c.search(todo=True, sort_keys=("uid",)))
         check_order(all_tasks, (1, 2, 3, 4, 6))
 
-        all_tasks = c.search(sort_keys=("summary",))
+        all_tasks = cleanse(c.search(sort_keys=("summary",)))
         check_order(all_tasks, (1, 2, 3, 4, 5, 6))
 
-        all_tasks = c.search(
+        all_tasks = cleanse(c.search(
             sort_keys=("isnt_overdue", "categories", "dtstart", "priority", "status")
-        )
+        ))
         ## This is difficult ...
         ## * 1 is the only one that is overdue, and False sorts before True, so 1 comes first
         ## * categories, empty string sorts before a non-empty string, so 6 is at the end of the list
@@ -1657,6 +1662,8 @@ class RepeatedFunctionalTestsBaseClass:
         self.skip_on_compatibility_flag("no_search")
         c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
 
+        pre_cnt = len(c.todos())
+
         t1 = c.save_todo(todo)
         t2 = c.save_todo(todo2)
         t3 = c.save_todo(todo3)
@@ -1667,13 +1674,13 @@ class RepeatedFunctionalTestsBaseClass:
         ## Search without any parameters should yield everything on calendar
         all_todos = c.search()
         if self.check_compatibility_flag("search_needs_comptype"):
-            assert len(all_todos) <= 6
+            assert len(all_todos) <= 6 + pre_cnt
         else:
-            assert len(all_todos) == 6
+            assert len(all_todos) == 6 + pre_cnt
 
         ## Search with comp_class set to Event should yield all events on calendar
         all_todos = c.search(comp_class=Event)
-        assert len(all_todos) == 0
+        assert len(all_todos) == 0 + pre_cnt
 
         ## Search with todo flag set should yield all 6 tasks
         ## (Except, if the calendar server does not support is-not-defined very
@@ -1681,20 +1688,20 @@ class RepeatedFunctionalTestsBaseClass:
         ## https://gitlab.com/davical-project/davical/-/issues/281 )
         all_todos = c.search(todo=True)
         if self.check_compatibility_flag("isnotdefined_not_working"):
-            assert len(all_todos) in (3, 6)
+            assert len(all_todos) - pre_cnt in (3, 6)
         else:
-            assert len(all_todos) == 6
+            assert len(all_todos) == 6 + pre_cnt
 
         ## Search for misc text fields
         ## UID is a special case, supported by almost all servers
         some_todos = c.search(comp_class=Todo, uid="19970901T130000Z-123404@host.com")
         if not self.check_compatibility_flag("text_search_not_working"):
-            assert len(some_todos) == 1
+            assert len(some_todos) == 1 + pre_cnt
 
         ## class ... hm, all 6 example todos are 'CONFIDENTIAL' ...
         some_todos = c.search(comp_class=Todo, class_="CONFIDENTIAL")
         if not self.check_compatibility_flag("text_search_not_working"):
-            assert len(some_todos) == 6
+            assert len(some_todos) == 6 + pre_cnt
 
         ## category
         ## Too much copying of the examples ...
@@ -1702,34 +1709,34 @@ class RepeatedFunctionalTestsBaseClass:
         if not self.check_compatibility_flag(
             "category_search_yields_nothing"
         ) and not self.check_compatibility_flag("text_search_not_working"):
-            assert len(some_todos) == 6
+            assert len(some_todos) == 6 + pre_cnt
         some_todos = c.search(comp_class=Todo, category="finance")
         if not self.check_compatibility_flag(
             "category_search_yields_nothing"
         ) and not self.check_compatibility_flag("text_search_not_working"):
             if self.check_compatibility_flag("text_search_is_case_insensitive"):
-                assert len(some_todos) == 6
+                assert len(some_todos) == 6 + pre_cnt
             else:
-                assert len(some_todos) == 0
+                assert len(some_todos) == 0 + pre_cnt
 
         ## This is not a very useful search, and it's sort of a client side bug that we allow it at all.
         ## It will not match if categories field is set to "PERSONAL,ANNIVERSARY,SPECIAL OCCASION"
         ## It may not match since the above is to be considered equivalent to the raw data entered.
         some_todos = c.search(comp_class=Todo, category="FAMILY,FINANCE")
         if not self.check_compatibility_flag("text_search_not_working"):
-            assert len(some_todos) in (0, 6)
+            assert len(some_todos) - pre_cnt in (0, 6)
         ## TODO: We should consider to do client side filtering to ensure exact
         ## match only on components having MIL as a category (and not FAMILY)
         some_todos = c.search(comp_class=Todo, category="MIL")
         if self.check_compatibility_flag("text_search_is_exact_match_sometimes"):
-            assert len(some_todos) in (0, 6)
+            assert len(some_todos) - pre_cnt in (0, 6)
         elif self.check_compatibility_flag("text_search_is_exact_match_only"):
-            assert len(some_todos) == 0
+            assert len(some_todos) - pre_cnt == 0
         elif not self.check_compatibility_flag(
             "category_search_yields_nothing"
         ) and not self.check_compatibility_flag("text_search_not_working"):
             ## This is the correct thing, according to the letter of the RFC
-            assert len(some_todos) == 6
+            assert len(some_todos) - pre_cnt == 6
 
         ## completing events, and it should not show up anymore
         t3.complete()
@@ -1737,11 +1744,11 @@ class RepeatedFunctionalTestsBaseClass:
         t6.complete()
 
         some_todos = c.search(todo=True)
-        assert len(some_todos) == 3
+        assert len(some_todos) == 3 + pre_cnt
 
         ## unless we specifically ask for completed tasks
         all_todos = c.search(todo=True, include_completed=True)
-        assert len(all_todos) == 6
+        assert len(all_todos) == 6 + pre_cnt
 
     def testWrongPassword(self):
         if (
