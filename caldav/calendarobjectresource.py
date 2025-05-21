@@ -61,7 +61,9 @@ else:
     from typing import Self
 
 from .davobject import DAVObject
-from .elements import cdav, dav
+from .elements.cdav import CalendarData
+from .elements import cdav
+from .elements import dav
 from .lib import error
 from .lib import vcal
 from .lib.error import errmsg
@@ -396,11 +398,6 @@ class CalendarObjectResource(DAVObject):
         """
         return self._handle_reverse_relations(verify=True, fix=True, pdb=pdb)
 
-    ## TODO: fix this (and consolidate with _handle_relations / set_relation?)
-    # def ensure_reverse_relations(self):
-    #     missing_relations = self.check_reverse_relations()
-    #     ...
-
     def _get_icalendar_component(self, assert_one=False):
         """Returns the icalendar subcomponent - which should be an
         Event, Journal, Todo or FreeBusy from the icalendar class
@@ -606,10 +603,10 @@ class CalendarObjectResource(DAVObject):
 
         try:
             r = self.client.request(str(self.url))
+            if r.status == 404:
+                raise error.NotFoundError(errmsg(r))
         except:
-            return self.load_by_multiget()
-        if r.status == 404:
-            raise error.NotFoundError(errmsg(r))
+            self.load_by_multiget()
         self.data = vcal.fix(r.raw)
         if "Etag" in r.headers:
             self.props[dav.GetEtag.tag] = r.headers["Etag"]
@@ -623,15 +620,17 @@ class CalendarObjectResource(DAVObject):
         with a multiget query
         """
         error.assert_(self.url)
-        href = self.url.path
-        prop = dav.Prop() + CalendarData()
-        root = cdav.CalendarMultiGet() + prop + dav.Href(value=href)
-        response = self.parent._query(root, 1, "report")
-        results = response.expand_simple_props([CalendarData()])
-        error.assert_(len(results) == 1)
-        data = results[href][CalendarData.tag]
-        error.assert_(data)
-        self.data = data
+        mydata = self.parent._multiget(event_urls=[self.url], raise_notfound=True)
+        try:
+            url, self.data = next(mydata)
+        except StopIteration:
+            ## We shouldn't come here.  Something is wrong.
+            ## TODO: research it
+            ## As of 2025-05-20, this code section is used by
+            ## TestForServerECloud::testCreateOverwriteDeleteEvent
+            raise error.NotFoundError(self.url)
+        assert_(self.data)
+        assert_(next(mydata, None) is None)
         return self
 
     ## TODO: self.id should either always be available or never

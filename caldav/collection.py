@@ -59,7 +59,9 @@ from .calendarobjectresource import FreeBusy
 from .calendarobjectresource import Journal
 from .calendarobjectresource import Todo
 from .davobject import DAVObject
-from .elements import cdav, dav
+from .elements.cdav import CalendarData
+from .elements import cdav
+from .elements import dav
 from .lib import error
 from .lib import vcal
 from .lib.python_utilities import to_wire
@@ -558,15 +560,14 @@ class Calendar(DAVObject):
             self._create(id=self.id, name=self.name, **self.extra_init_options)
         return self
 
-    ## TODO: this is missing test code.
-    ## TODO: needs refactoring:
-    ## Objects found may be Todo and Journal, not only Event.
-    ## Replace the last lines with _request_report_build_resultlist method
-    def calendar_multiget(self, event_urls: Iterable[URL]) -> List[_CC]:
+    # def data2object_class
+
+    def _multiget(
+        self, event_urls: Iterable[URL], raise_notfound: bool = False
+    ) -> Iterable[str]:
         """
-        get multiple events' data
-        @author mtorange@gmail.com
-        @type events list of Event
+        get multiple events' data.
+        TODO: Does it overlap the _request_report_build_resultlist method
         """
         if self.url is None:
             raise ValueError("Unexpected value None for self.url")
@@ -580,16 +581,40 @@ class Calendar(DAVObject):
         )
         response = self._query(root, 1, "report")
         results = response.expand_simple_props([cdav.CalendarData()])
-        rv = [
-            Event(
+        if raise_notfound:
+            for href in response.statuses:
+                status = response.statuses[href]
+                if "404" in status:
+                    raise error.NotFoundError(f"Status {status} in {href}")
+        for r in results:
+            yield (r, results[r][cdav.CalendarData.tag])
+
+    ## Replace the last lines with
+    def multiget(
+        self, event_urls: Iterable[URL], raise_notfound: bool = False
+    ) -> Iterable[_CC]:
+        """
+        get multiple events' data
+        TODO: Does it overlap the _request_report_build_resultlist method?
+        @author mtorange@gmail.com (refactored by Tobias)
+        """
+        results = self._multiget(event_urls, raise_notfound=raise_notfound)
+        for url, data in results:
+            yield self._calendar_comp_class_by_data(data)(
                 self.client,
-                url=self.url.join(r),
-                data=results[r][cdav.CalendarData.tag],
+                url=self.url.join(url),
+                data=data,
                 parent=self,
             )
-            for r in results
-        ]
-        return rv
+
+    def calendar_multiget(self, *largs, **kwargs):
+        """
+        get multiple events' data
+        @author mtorange@gmail.com
+        (refactored by Tobias)
+        This is for backward compatibility.  It may be removed in 3.0 or later release.
+        """
+        return list(self.multiget(*largs, **kwargs))
 
     ## TODO: Upgrade the warning to an error (and perhaps critical) in future
     ## releases, and then finally remove this method completely.

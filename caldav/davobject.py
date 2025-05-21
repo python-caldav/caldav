@@ -216,11 +216,11 @@ class DAVObject:
             body = to_wire(body)
             if (
                 ret.status == 500
-                and b"getetag" not in body
-                and b"<C:calendar-data/>" in body
+                and b"D:getetag" not in body
+                and b"<C:calendar-data" in body
             ):
                 body = body.replace(
-                    b"<C:calendar-data/>", b"<D:getetag/><C:calendar-data/>"
+                    b"<C:calendar-data", b"<D:getetag/><C:calendar-data"
                 )
                 return self._query(
                     body, depth, query_method, url, expected_return_value
@@ -298,7 +298,7 @@ class DAVObject:
                 ## ... but it gets worse ... when doing a propfind on the
                 ## principal, the href returned may be without the slash.
                 ## Such inconsistency is clearly a bug.
-                log.error(
+                log.warning(
                     "potential path handling problem with ending slashes.  Path given: %s, path found: %s.  %s"
                     % (path, exchange_path, error.ERR_FRAGMENT)
                 )
@@ -323,7 +323,7 @@ class DAVObject:
             ## Ref https://github.com/python-caldav/caldav/issues/191 ...
             ## let's be pragmatic and just accept whatever the server is
             ## throwing at us.  But we'll log an error anyway.
-            log.error(
+            log.warning(
                 "Possibly the server has a path handling problem, possibly the URL configured is wrong.\n"
                 "Path expected: %s, path found: %s %s.\n"
                 "Continuing, probably everything will be fine"
@@ -331,7 +331,7 @@ class DAVObject:
             )
             rc = list(properties.values())[0]
         else:
-            log.error(
+            log.warning(
                 "Possibly the server has a path handling problem.  Path expected: %s, paths found: %s %s"
                 % (path, str(list(properties)), error.ERR_FRAGMENT)
             )

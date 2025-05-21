@@ -136,6 +136,8 @@ uids_used = (
     "test4",
     "test5",
     "test6",
+    "c26921f4-0653-11ef-b756-58ce2a14e2e5",
+    "e2a2e13e-34f2-11f0-ae12-1c1bb5134174",
 )
 ## TODO: todo7 is an item without uid.  Should be taken care of somehow.
 
@@ -554,7 +556,7 @@ class TestScheduling:
     ## inbox/outbox?
 
 
-def _delay_decorator(f, t=60):
+def _delay_decorator(f, t=20):
     def foo(*a, **kwa):
         time.sleep(t)
         return f(*a, **kwa)
@@ -751,6 +753,7 @@ class RepeatedFunctionalTestsBaseClass:
 
     def testSchedulingInfo(self):
         self.skip_on_compatibility_flag("no_scheduling")
+        self.skip_on_compatibility_flag("no_scheduling_calendar_user_address_set")
         calendar_user_address_set = self.principal.calendar_user_address_set()
         me_a_participant = self.principal.get_vcal_address()
 
@@ -967,6 +970,8 @@ class RepeatedFunctionalTestsBaseClass:
         c = self._fixCalendar()
 
         existing_events = c.events()
+        existing_urls = {x.url for x in existing_events}
+        cleanse = lambda events: [x for x in events if x.url not in existing_urls]
 
         if not self.check_compatibility_flag("no_mkcalendar"):
             ## we're supposed to be working towards a brand new calendar
@@ -976,13 +981,13 @@ class RepeatedFunctionalTestsBaseClass:
         c.save_event(broken_ev1)
 
         # c.events() should give a full list of events
-        events = c.events()
-        assert len(events) == len(existing_events) + 1
+        events = cleanse(c.events())
+        assert len(events) == 1
 
         # We should be able to access the calender through the URL
         c2 = self.caldav.calendar(url=c.url)
-        events2 = c2.events()
-        assert len(events2) == len(existing_events) + 1
+        events2 = cleanse(c2.events())
+        assert len(events2) == 1
         assert events2[0].url == events[0].url
 
         if not self.check_compatibility_flag(
@@ -993,7 +998,7 @@ class RepeatedFunctionalTestsBaseClass:
             ## may break if we have multiple calendars with the same name
             if not self.check_compatibility_flag("no_delete_calendar"):
                 assert c2.url == c.url
-                events2 = c2.events()
+                events2 = cleanse(c2.events())
                 assert len(events2) == 1
                 assert events2[0].url == events[0].url
 
@@ -1014,6 +1019,7 @@ class RepeatedFunctionalTestsBaseClass:
         ev = c.save_event(
             dtstart=datetime(2015, 10, 10, 8, 0, 0),
             summary="This is a test event",
+            uid="test1",
             dtend=datetime(2016, 10, 10, 9, 0, 0),
             alarm_trigger=timedelta(minutes=-15),
             alarm_action="AUDIO",
@@ -1410,6 +1416,8 @@ class RepeatedFunctionalTestsBaseClass:
         self.skip_on_compatibility_flag("no_search")
         c = self._fixCalendar()
 
+        num_existing = len(c.events())
+
         c.save_event(ev1)
         c.save_event(ev3)
         c.save_event(evr)
@@ -1417,13 +1425,13 @@ class RepeatedFunctionalTestsBaseClass:
         ## Search without any parameters should yield everything on calendar
         all_events = c.search()
         if self.check_compatibility_flag("search_needs_comptype"):
-            assert len(all_events) <= 3
+            assert len(all_events) <= 3 + num_existing
         else:
-            assert len(all_events) == 3
+            assert len(all_events) == 3 + num_existing
 
         ## Search with comp_class set to Event should yield all events on calendar
         all_events = c.search(comp_class=Event)
-        assert len(all_events) == 3
+        assert len(all_events) == 3 + num_existing
 
         ## Search with todo flag set should yield no events
         try:
@@ -1589,6 +1597,11 @@ class RepeatedFunctionalTestsBaseClass:
         self.skip_on_compatibility_flag("no_todo")
         self.skip_on_compatibility_flag("no_search")
         c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
+        pre_todos = c.todos()
+        pre_todo_uid_map = {x.icalendar_component["uid"] for x in pre_todos}
+        cleanse = lambda tasks: [
+            x for x in tasks if x.icalendar_component["uid"] not in pre_todo_uid_map
+        ]
         t1 = c.save_todo(
             summary="1 task overdue",
             due=date(2022, 12, 12),
@@ -1628,14 +1641,22 @@ class RepeatedFunctionalTestsBaseClass:
                 "test" + str(x) for x in order
             ]
 
-        all_tasks = c.search(todo=True, sort_keys=("uid",))
+        all_tasks = cleanse(c.search(todo=True, sort_keys=("uid",)))
         check_order(all_tasks, (1, 2, 3, 4, 6))
 
-        all_tasks = c.search(sort_keys=("summary",))
+        all_tasks = cleanse(c.search(sort_keys=("summary",)))
         check_order(all_tasks, (1, 2, 3, 4, 5, 6))
 
-        all_tasks = c.search(
-            sort_keys=("isnt_overdue", "categories", "dtstart", "priority", "status")
+        all_tasks = cleanse(
+            c.search(
+                sort_keys=(
+                    "isnt_overdue",
+                    "categories",
+                    "dtstart",
+                    "priority",
+                    "status",
+                )
+            )
         )
         ## This is difficult ...
         ## * 1 is the only one that is overdue, and False sorts before True, so 1 comes first
@@ -1651,6 +1672,8 @@ class RepeatedFunctionalTestsBaseClass:
         self.skip_on_compatibility_flag("no_search")
         c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
 
+        pre_cnt = len(c.todos())
+
         t1 = c.save_todo(todo)
         t2 = c.save_todo(todo2)
         t3 = c.save_todo(todo3)
@@ -1661,13 +1684,13 @@ class RepeatedFunctionalTestsBaseClass:
         ## Search without any parameters should yield everything on calendar
         all_todos = c.search()
         if self.check_compatibility_flag("search_needs_comptype"):
-            assert len(all_todos) <= 6
+            assert len(all_todos) <= 6 + pre_cnt
         else:
-            assert len(all_todos) == 6
+            assert len(all_todos) == 6 + pre_cnt
 
         ## Search with comp_class set to Event should yield all events on calendar
         all_todos = c.search(comp_class=Event)
-        assert len(all_todos) == 0
+        assert len(all_todos) == 0 + pre_cnt
 
         ## Search with todo flag set should yield all 6 tasks
         ## (Except, if the calendar server does not support is-not-defined very
@@ -1675,20 +1698,20 @@ class RepeatedFunctionalTestsBaseClass:
         ## https://gitlab.com/davical-project/davical/-/issues/281 )
         all_todos = c.search(todo=True)
         if self.check_compatibility_flag("isnotdefined_not_working"):
-            assert len(all_todos) in (3, 6)
+            assert len(all_todos) - pre_cnt in (3, 6)
         else:
-            assert len(all_todos) == 6
+            assert len(all_todos) == 6 + pre_cnt
 
         ## Search for misc text fields
         ## UID is a special case, supported by almost all servers
         some_todos = c.search(comp_class=Todo, uid="19970901T130000Z-123404@host.com")
         if not self.check_compatibility_flag("text_search_not_working"):
-            assert len(some_todos) == 1
+            assert len(some_todos) == 1 + pre_cnt
 
         ## class ... hm, all 6 example todos are 'CONFIDENTIAL' ...
         some_todos = c.search(comp_class=Todo, class_="CONFIDENTIAL")
         if not self.check_compatibility_flag("text_search_not_working"):
-            assert len(some_todos) == 6
+            assert len(some_todos) == 6 + pre_cnt
 
         ## category
         ## Too much copying of the examples ...
@@ -1696,34 +1719,34 @@ class RepeatedFunctionalTestsBaseClass:
         if not self.check_compatibility_flag(
             "category_search_yields_nothing"
         ) and not self.check_compatibility_flag("text_search_not_working"):
-            assert len(some_todos) == 6
+            assert len(some_todos) == 6 + pre_cnt
         some_todos = c.search(comp_class=Todo, category="finance")
         if not self.check_compatibility_flag(
             "category_search_yields_nothing"
         ) and not self.check_compatibility_flag("text_search_not_working"):
             if self.check_compatibility_flag("text_search_is_case_insensitive"):
-                assert len(some_todos) == 6
+                assert len(some_todos) == 6 + pre_cnt
             else:
-                assert len(some_todos) == 0
+                assert len(some_todos) == 0 + pre_cnt
 
         ## This is not a very useful search, and it's sort of a client side bug that we allow it at all.
         ## It will not match if categories field is set to "PERSONAL,ANNIVERSARY,SPECIAL OCCASION"
         ## It may not match since the above is to be considered equivalent to the raw data entered.
         some_todos = c.search(comp_class=Todo, category="FAMILY,FINANCE")
         if not self.check_compatibility_flag("text_search_not_working"):
-            assert len(some_todos) in (0, 6)
+            assert len(some_todos) - pre_cnt in (0, 6)
         ## TODO: We should consider to do client side filtering to ensure exact
         ## match only on components having MIL as a category (and not FAMILY)
         some_todos = c.search(comp_class=Todo, category="MIL")
         if self.check_compatibility_flag("text_search_is_exact_match_sometimes"):
-            assert len(some_todos) in (0, 6)
+            assert len(some_todos) - pre_cnt in (0, 6)
         elif self.check_compatibility_flag("text_search_is_exact_match_only"):
-            assert len(some_todos) == 0
+            assert len(some_todos) - pre_cnt == 0
         elif not self.check_compatibility_flag(
             "category_search_yields_nothing"
         ) and not self.check_compatibility_flag("text_search_not_working"):
             ## This is the correct thing, according to the letter of the RFC
-            assert len(some_todos) == 6
+            assert len(some_todos) - pre_cnt == 6
 
         ## completing events, and it should not show up anymore
         t3.complete()
@@ -1731,11 +1754,11 @@ class RepeatedFunctionalTestsBaseClass:
         t6.complete()
 
         some_todos = c.search(todo=True)
-        assert len(some_todos) == 3
+        assert len(some_todos) == 3 + pre_cnt
 
         ## unless we specifically ask for completed tasks
         all_todos = c.search(todo=True, include_completed=True)
-        assert len(all_todos) == 6
+        assert len(all_todos) == 6 + pre_cnt
 
     def testWrongPassword(self):
         if (
@@ -1908,6 +1931,8 @@ class RepeatedFunctionalTestsBaseClass:
             uid="ctuid3",
             child=[some_todo.id],
         )
+
+        assert not parent.check_reverse_relations()
 
         ## The above updates the some_todo object on the server side, but the local object is not
         ## updated ... until we reload it
@@ -2828,6 +2853,7 @@ class RepeatedFunctionalTestsBaseClass:
         c = self._fixCalendar()
 
         # evr2 is a bi-weekly event starting 2024-04-11
+        ## It has an exception, edited summary for recurrence id 20240425T123000Z
         e = c.save_event(evr2)
 
         r = c.search(

@@ -272,6 +272,20 @@ class TestCalDAV:
         assert response.status == 200
         assert response.tree is None
 
+    def testLoadByMultiGet404(self):
+        xml = """
+<D:multistatus xmlns:D="DAV:">
+  <D:response>
+    <D:href>/calendars/pythoncaldav-test/20010712T182145Z-123401%40example.com.ics</D:href>
+    <D:status>HTTP/1.1 404 Not Found</D:status>
+  </D:response>
+</D:multistatus>"""
+        client = MockedDAVClient(xml)
+        calendar = Calendar(client, url="/calendar/issue491/")
+        object = Event(url="/calendar/issue491/notfound.ics", parent=calendar)
+        with pytest.raises(error.NotFoundError):
+            object.load_by_multiget()
+
     @mock.patch("caldav.davclient.niquests.Session.request")
     def testRequestCustomHeaders(self, mocked):
         """
