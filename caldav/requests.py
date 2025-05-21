@@ -1,4 +1,4 @@
-from niquests.auth import AuthBase
+from requests.auth import AuthBase
 
 
 class HTTPBearerAuth(AuthBase):
