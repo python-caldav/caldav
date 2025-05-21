@@ -8,25 +8,41 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 
 ## [2.0.0] - [Unreleased]
 
-In version 2.0, the requests library will be replaced with niquests or httpx.  See https://github.com/python-caldav/caldav/issues/457.  Master branch is currently running niquests.
+In version 2.0, the requests library will be replaced with niquests or httpx.  See https://github.com/python-caldav/caldav/issues/457.  Master branch is currently running niquests.  Work by @ArtemIsmagilov, https://github.com/python-caldav/caldav/pull/455
 
-In version 2.0, support for python 3.7 will be dropped, possibly also python 3.8.  Master branch supports both as for now.
+In version 2.0, support for python 3.7 and python 3.8 will be officially dropped.  Master branch *should* support both as for now, but Python 3.7 is no longer tested.
 
 ## [1.5.0] - [Unreleased]
 
 ### Deprecated
 
-Python 3.7 is no longer tested - but it should work.  Please file a bug report if it doesn't work.  (Note that the caldav library pulls in many dependencies, and not all of them supports dead snakes).
+Python 3.7 is no longer tested (dependency problems) - but it should work.  Please file a bug report if it doesn't work.  (Note that the caldav library pulls in many dependencies, and not all of them supports dead snakes).
+
+### Fixed
+
+* Servers that return a quoted URL in their path will now be parsed correctly by @edel-macias-cubix in https://github.com/python-caldav/caldav/pull/473
+* Compatibility workaround: If `event.load()` fails, it will retry the load by doing a multiget - https://github.com/python-caldav/caldav/pull/460 and  https://github.com/python-caldav/caldav/pull/475 - https://github.com/python-caldav/caldav/issues/459
+* Compatibility workaround: A problem with a wiki calendar fixed by @soundstorm in https://github.com/python-caldav/caldav/pull/469
+* Blank passwords should be acceptable - https://github.com/python-caldav/caldav/pull/481
+* Compatibility workaround: Accept XML content from calendar server even if it's marked up with content-type text/plain by @niccokunzmann in https://github.com/python-caldav/caldav/pull/465
+* Bugfix for saving component failing on multi-component recurrence objects - https://github.com/python-caldav/caldav/pull/467
+* Some exotic servers may return object URLs on search, but it does not work out to fetch the calendar data.  Now it will log an error instead of raising an error in such cases.
 
 ### Changed
 
-* Some exotic servers may return object URLs on search, but it does not work out to fetch the calendar data.  Now it will log an error instead of raising an error in such cases.
 * The `tests/compatibility_issues.py` has been moved to `caldav/compatibility_hints.py`, this to make it available for a caldav-server-tester-tool that I'm splitting off to a separate project/repository, and also to make https://github.com/python-caldav/caldav/issues/402 possible.
 
 #### Refactoring
 
 * Minor code cleanups by github user @ArtemIsmagilov in https://github.com/python-caldav/caldav/pull/456
-* The very much overgrown `objects.py`-file has been split into three.
+* The very much overgrown `objects.py`-file has been split into three - https://github.com/python-caldav/caldav/pull/483
+* Refactor compatibility issues by @tobixen in https://github.com/python-caldav/caldav/pull/484
+
+### Documentation
+
+* Add more project links to PyPI by @niccokunzmann in https://github.com/python-caldav/caldav/pull/464
+* Document how to use tox for testing by @niccokunzmann in https://github.com/python-caldav/caldav/pull/466
+* Readthedocs integration has been repaired (https://github.com/python-caldav/caldav/pull/453 - but eventually the fix was introduced directly in the master branch)
 
 #### Test framework
 
@@ -42,16 +58,13 @@ Python 3.7 is no longer tested - but it should work.  Please file a bug report i
 
 ### Added
 
+* support easy search for journals by @tobixen in https://github.com/python-caldav/caldav/pull/486
+* Methods for verifying and adding reverse relations - https://github.com/python-caldav/caldav/pull/336
+* Easy creation of events and tasks with alarms, search for alarms - https://github.com/python-caldav/caldav/pull/221
 * Work in progress: `auto_conn`, `auto_calendar` and `auto_calendars` may read caldav connection and calendar configuration from a config file, environmental variables or other sources.  Currently I've made the minimal possible work to be able to test the caldav-server-tester script.
 * By now `calendar.search(..., sort_keys=("DTSTART")` will work.  Sort keys expects a list or a tuple, but it's easy to send an attribute by mistake.  https://github.com/python-caldav/caldav/issues/448 https://github.com/python-caldav/caldav/pull/449
-* Compatibility workaround: If `event.load()` fails, it will retry the load by doing a multiget - https://github.com/python-caldav/caldav/pull/475 - https://github.com/python-caldav/caldav/issues/459
 * The `class_`-parameter now works when sending data to `save_event()` etc.
 * Search method now takes parameter `journal=True`.  ref https://github.com/python-caldav/caldav/issues/237 and https://github.com/python-caldav/caldav/pull/486
-
-### Fixed
-
-* Bugfix for saving component failing on multi-component recurrence objects - https://github.com/python-caldav/caldav/pull/467
-* Readthedocs integration has been repaired (https://github.com/python-caldav/caldav/pull/453 - but eventually the fix was introduced directly in the master branch)
 
 
 ## [1.4.0] - 2024-11-05
@@ -86,8 +99,6 @@ Python 3.7 is no longer tested - but it should work.  Please file a bug report i
 
 ### Added
 
-* Methods for verifying and adding reverse relations - https://github.com/python-caldav/caldav/pull/336
-* Easy creation of events and tasks with alarms, search for alarms - https://github.com/python-caldav/caldav/pull/221
 * Allow to reverse the sorting order on search function  by @twissell- in https://github.com/python-caldav/caldav/pull/433
 * Work on integrating typing information. Details in https://github.com/python-caldav/caldav/pull/358
 * Remove dependency on pytz. Details in https://github.com/python-caldav/caldav/issues/231 and https://github.com/python-caldav/caldav/pull/363

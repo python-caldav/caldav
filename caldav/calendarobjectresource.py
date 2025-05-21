@@ -606,7 +606,7 @@ class CalendarObjectResource(DAVObject):
             if r.status == 404:
                 raise error.NotFoundError(errmsg(r))
         except:
-            return self.load_by_multiget()
+            self.load_by_multiget()
         self.data = vcal.fix(r.raw)
         if "Etag" in r.headers:
             self.props[dav.GetEtag.tag] = r.headers["Etag"]
