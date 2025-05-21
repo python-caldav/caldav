@@ -30,7 +30,7 @@ classifiers = [
 dependencies = [
   "vobject",
   "lxml",
-  "niquests",
+  "requests",
   "recurring-ical-events>=2.0.0",
   "typing_extensions;python_version<'3.11'",
   ## It's a mess - newer versions of xandikos, used for testing, does not support python 3.8 anymore.  icalendar 6.0.0 is not compatible with elder versions of xandikos.  It's no problem with python 3.7, as icalender 6.0.0 does not support python 3.7.
