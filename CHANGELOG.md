@@ -55,6 +55,7 @@ Python 3.7 is no longer tested (dependency problems) - but it should work.  Plea
     * Allows offline testing of my upcoming `check_server_compatibility`-script
   * Also added the possibility to tag test servers with a name
 * Many changes done to the compatibility flag list (due to work on the server-checker project)
+* Functional tests for multiget in https://github.com/python-caldav/caldav/pull/489
 
 ### Added
 
