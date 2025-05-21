@@ -603,7 +603,7 @@ class CalendarObjectResource(DAVObject):
 
         try:
             r = self.client.request(str(self.url))
-            if r.status == 404:
+            if r.status and r.status == 404:
                 raise error.NotFoundError(errmsg(r))
         except:
             self.load_by_multiget()

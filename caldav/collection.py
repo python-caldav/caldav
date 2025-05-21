@@ -584,7 +584,7 @@ class Calendar(DAVObject):
         if raise_notfound:
             for href in response.statuses:
                 status = response.statuses[href]
-                if "404" in status:
+                if status and "404" in status:
                     raise error.NotFoundError(f"Status {status} in {href}")
         for r in results:
             yield (r, results[r][cdav.CalendarData.tag])
