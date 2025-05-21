@@ -629,8 +629,8 @@ class CalendarObjectResource(DAVObject):
             ## As of 2025-05-20, this code section is used by
             ## TestForServerECloud::testCreateOverwriteDeleteEvent
             raise error.NotFoundError(self.url)
-        assert_(self.data)
-        assert_(next(mydata, None) is None)
+        error.assert_(self.data)
+        error.assert_(next(mydata, None) is None)
         return self
 
     ## TODO: self.id should either always be available or never
