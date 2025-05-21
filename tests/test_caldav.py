@@ -1598,8 +1598,10 @@ class RepeatedFunctionalTestsBaseClass:
         self.skip_on_compatibility_flag("no_search")
         c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
         pre_todos = c.todos()
-        pre_todo_uid_map = {x.icalendar_component['uid'] for x in pre_todos}
-        cleanse = lambda tasks: [x for x in tasks if x.icalendar_component['uid'] not in pre_todo_uid_map]
+        pre_todo_uid_map = {x.icalendar_component["uid"] for x in pre_todos}
+        cleanse = lambda tasks: [
+            x for x in tasks if x.icalendar_component["uid"] not in pre_todo_uid_map
+        ]
         t1 = c.save_todo(
             summary="1 task overdue",
             due=date(2022, 12, 12),
@@ -1645,9 +1647,17 @@ class RepeatedFunctionalTestsBaseClass:
         all_tasks = cleanse(c.search(sort_keys=("summary",)))
         check_order(all_tasks, (1, 2, 3, 4, 5, 6))
 
-        all_tasks = cleanse(c.search(
-            sort_keys=("isnt_overdue", "categories", "dtstart", "priority", "status")
-        ))
+        all_tasks = cleanse(
+            c.search(
+                sort_keys=(
+                    "isnt_overdue",
+                    "categories",
+                    "dtstart",
+                    "priority",
+                    "status",
+                )
+            )
+        )
         ## This is difficult ...
         ## * 1 is the only one that is overdue, and False sorts before True, so 1 comes first
         ## * categories, empty string sorts before a non-empty string, so 6 is at the end of the list
