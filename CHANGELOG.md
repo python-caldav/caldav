@@ -27,6 +27,7 @@ Python 3.7 is no longer tested (dependency problems) - but it should work.  Plea
 * Compatibility workaround: Accept XML content from calendar server even if it's marked up with content-type text/plain by @niccokunzmann in https://github.com/python-caldav/caldav/pull/465
 * Bugfix for saving component failing on multi-component recurrence objects - https://github.com/python-caldav/caldav/pull/467
 * Some exotic servers may return object URLs on search, but it does not work out to fetch the calendar data.  Now it will log an error instead of raising an error in such cases.
+* Some workarounds and fixes for getting tests passing on all the test servers I had at hand in https://github.com/python-caldav/caldav/pull/492
 
 ### Changed
 
@@ -37,6 +38,7 @@ Python 3.7 is no longer tested (dependency problems) - but it should work.  Plea
 * Minor code cleanups by github user @ArtemIsmagilov in https://github.com/python-caldav/caldav/pull/456
 * The very much overgrown `objects.py`-file has been split into three - https://github.com/python-caldav/caldav/pull/483
 * Refactor compatibility issues by @tobixen in https://github.com/python-caldav/caldav/pull/484
+* Refactoring of `multiget` in https://github.com/python-caldav/caldav/pull/492
 
 ### Documentation
 
