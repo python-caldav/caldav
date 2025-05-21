@@ -386,6 +386,15 @@ CalDAV URLs can be quite confusing, some software requires the URL to the calend
 
 * Fastmail: ``https://caldav.fastmail.com/dav/`` - note that the trailing dash is significant (ref https://github.com/home-assistant/core/issues/66599)
 
+* GMX: `f"https://caldav.gmx.net/begenda/dav/{userid}@gmx.net/calendar`"`
+
+* Purelymail: `https://purelymail.com/webdav/`
+
+* Posteo: `https://posteo.de:8443/`
+
+* all-inkl: `https://webmail.all-inkl.com/calendars/`
+
+* Lark: `https://caldav-jp.larksuite.com` - note that Lark offers a very limited read-only access through the CalDAV protocol.
 
 Unit testing
 ============
