@@ -361,6 +361,13 @@ class TestCalDAV:
             end=datetime(2025, 7, 6),
         )
         assert len(mytasks) == 9
+        mytasks = calendar.search(
+            todo=True,
+            expand="client",
+            start=datetime(2025, 1, 1),
+            end=datetime(2025, 7, 6),
+        )
+        assert len(mytasks) == 9
 
     def testLoadByMultiGet404(self):
         xml = """
