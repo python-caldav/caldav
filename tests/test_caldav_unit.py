@@ -225,6 +225,7 @@ END:VCALENDAR
 </d:multistatus>
 """
 
+
 def MockedDAVResponse(text, davclient=None):
     """
     For unit testing - a mocked DAVResponse with some specific content
@@ -242,9 +243,12 @@ class MockedDAVClient(DAVClient):
     For unit testing - a mocked DAVClient returning some specific content every time
     a request is performed
     """
+
     def __init__(self, xml_returned):
         self.xml_returned = xml_returned
-        DAVClient.__init__(self, url = "https://somwhere.in.the.universe.example/some/caldav/root")
+        DAVClient.__init__(
+            self, url="https://somwhere.in.the.universe.example/some/caldav/root"
+        )
 
     def request(self, *largs, **kwargs):
         return MockedDAVResponse(self.xml_returned)
@@ -349,9 +353,14 @@ class TestCalDAV:
         client = MockedDAVClient(recurring_task_response)
         calendar = Calendar(client, url="/calendar/issue491/")
         mytasks = calendar.search(todo=True, expand=False)
-        assert(len(mytasks) == 1)
-        mytasks = calendar.search(todo=True, expand='client', start=datetime(2025,6,6), end=datetime(2011,7,6))
-        assert(len(mytasks) == 4)
+        assert len(mytasks) == 1
+        mytasks = calendar.search(
+            todo=True,
+            expand="client",
+            start=datetime(2025, 6, 6),
+            end=datetime(2011, 7, 6),
+        )
+        assert len(mytasks) == 4
 
     def testLoadByMultiGet404(self):
         xml = """
