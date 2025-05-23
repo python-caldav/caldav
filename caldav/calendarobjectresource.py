@@ -1329,8 +1329,6 @@ class Todo(CalendarObjectResource):
         self.save()
 
     def _complete_ical(self, i=None, completion_timestamp=None) -> None:
-        ## my idea was to let self.complete call this one ... but self.complete
-        ## should use vobject and not icalendar library due to backward compatibility.
         if i is None:
             i = self.icalendar_component
         assert self._is_pending(i)

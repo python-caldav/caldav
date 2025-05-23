@@ -850,11 +850,7 @@ class Calendar(DAVObject):
                     ## and still, Zimbra seems to deliver too many TODOs in the
                     ## matches2 ... let's do some post-filtering in case the
                     ## server fails in filtering things the right way
-                    if "STATUS:NEEDS-ACTION" in item.data or (
-                        "\nCOMPLETED:" not in item.data
-                        and "\nSTATUS:COMPLETED" not in item.data
-                        and "\nSTATUS:CANCELLED" not in item.data
-                    ):
+                    if any(x.get('STATUS') not in ('COMPLETED', 'CANCELLED') for x in item.icalendar_instance.subcomponents):
                         objects.append(item)
         else:
             if not xml:
