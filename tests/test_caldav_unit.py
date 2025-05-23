@@ -358,9 +358,9 @@ class TestCalDAV:
             todo=True,
             expand="client",
             start=datetime(2025, 6, 6),
-            end=datetime(2011, 7, 6),
+            end=datetime(2025, 7, 6),
         )
-        assert len(mytasks) == 4
+        assert len(mytasks) == 9
 
     def testLoadByMultiGet404(self):
         xml = """
