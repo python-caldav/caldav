@@ -924,7 +924,7 @@ class Calendar(DAVObject):
                     continue
                 recurrence_properties = ["exdate", "exrule", "rdate", "rrule"]
                 if any(key in component for key in recurrence_properties):
-                    o.expand_rrule(start, end)
+                    o.expand_rrule(start, end, include_completed=include_completed)
 
             ## An expanded recurring object comes as one Event() with
             ## icalendar data containing multiple objects.  The caller may
