@@ -28,6 +28,7 @@ Python 3.7 is no longer tested (dependency problems) - but it should work.  Plea
 * Bugfix for saving component failing on multi-component recurrence objects - https://github.com/python-caldav/caldav/pull/467
 * Some exotic servers may return object URLs on search, but it does not work out to fetch the calendar data.  Now it will log an error instead of raising an error in such cases.
 * Some workarounds and fixes for getting tests passing on all the test servers I had at hand in https://github.com/python-caldav/caldav/pull/492
+* Search for todo-items would ignore recurring tasks with COMPLETED recurrence instances, ref https://github.com/python-caldav/caldav/issues/495, fixed in https://github.com/python-caldav/caldav/pull/496
 
 ### Changed
 
