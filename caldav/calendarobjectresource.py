@@ -160,7 +160,9 @@ class CalendarObjectResource(DAVObject):
             ret.append(obj)
         return ret
 
-    def expand_rrule(self, start: datetime, end: datetime) -> None:
+    def expand_rrule(
+        self, start: datetime, end: datetime, include_completed: bool = True
+    ) -> None:
         """This method will transform the calendar content of the
         event and expand the calendar data from a "master copy" with
         RRULE set and into a "recurrence set" with RECURRENCE-ID set
@@ -186,6 +188,7 @@ class CalendarObjectResource(DAVObject):
         # FIXME too much copying
         stripped_event = self.copy(keep_uid=True)
 
+        ## TODO: use icalendar_instance instead
         if stripped_event.vobject_instance is None:
             raise ValueError(
                 "Unexpected value None for stripped_event.vobject_instance"
@@ -203,6 +206,13 @@ class CalendarObjectResource(DAVObject):
         calendar = self.icalendar_instance
         calendar.subcomponents = []
         for occurrence in recurrings:
+            ## Ignore completed task recurrences
+            if (
+                not include_completed
+                and occurrence.name == "VTODO"
+                and occurrence.get("STATUS") in ("COMPLETED", "CANCELLED")
+            ):
+                continue
             if "RECURRENCE-ID" not in occurrence:
                 occurrence.add("RECURRENCE-ID", occurrence.get("DTSTART"))
             calendar.add_component(occurrence)
@@ -1329,8 +1339,6 @@ class Todo(CalendarObjectResource):
         self.save()
 
     def _complete_ical(self, i=None, completion_timestamp=None) -> None:
-        ## my idea was to let self.complete call this one ... but self.complete
-        ## should use vobject and not icalendar library due to backward compatibility.
         if i is None:
             i = self.icalendar_component
         assert self._is_pending(i)

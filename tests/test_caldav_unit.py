@@ -154,6 +154,115 @@ PRIORITY:1
 END:VTODO
 END:VCALENDAR"""
 
+## from https://github.com/python-caldav/caldav/issues/495
+recurring_task_response = """<d:multistatus xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns" xmlns:cal="urn:ietf:params:xml:ns:caldav" xmlns:cs="http://calendarserver.org/ns/" xmlns:oc="http://owncloud.org/ns" xmlns:nc="http://nextcloud.org/ns">
+  <d:response>
+    <d:href>/remote.php/dav/calendars/oxi/personal/A9FFE819-5DDB-4947-A09C-308EEE5DA1F9.ics</d:href>
+    <d:propstat>
+      <d:prop>
+        <cal:calendar-data>BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:+//IDN bitfire.at//ical4android (at.techbee.jtx)
+BEGIN:VTODO
+DTSTAMP:20250522T075151Z
+UID:8a8736b4-bc35-4085-a98b-89c2f52a5c51
+SEQUENCE:23
+CREATED:20250411T233004Z
+LAST-MODIFIED:20250522T075137Z
+SUMMARY:Clean Rosie filter
+DTSTART;VALUE=DATE:20250415
+RRULE:FREQ=WEEKLY;BYDAY=TU,FR
+PRIORITY:0
+END:VTODO
+BEGIN:VTODO
+DTSTAMP:20250522T075151Z
+UID:8a8736b4-bc35-4085-a98b-89c2f52a5c51
+SEQUENCE:1
+CREATED:20250411T234336Z
+LAST-MODIFIED:20250414T082134Z
+SUMMARY:Clean Rosie filter
+STATUS:COMPLETED
+DTSTART;VALUE=DATE:20250415
+RECURRENCE-ID;VALUE=DATE:20250415
+COMPLETED:20250414T082134Z
+PERCENT-COMPLETE:100
+PRIORITY:0
+END:VTODO
+BEGIN:VTODO
+DTSTAMP:20250522T075151Z
+UID:8a8736b4-bc35-4085-a98b-89c2f52a5c51
+SEQUENCE:1
+CREATED:20250411T234336Z
+LAST-MODIFIED:20250414T082134Z
+SUMMARY:Clean Rosie filter
+STATUS:CANCELLED
+DTSTART;VALUE=DATE:20250418
+RECURRENCE-ID;VALUE=DATE:20250418
+PRIORITY:0
+END:VTODO
+BEGIN:VTODO
+DTSTAMP:20250522T075151Z
+UID:8a8736b4-bc35-4085-a98b-89c2f52a5c51
+SEQUENCE:1
+CREATED:20250411T234336Z
+LAST-MODIFIED:20250414T082134Z
+SUMMARY:Clean Rosie filter
+STATUS:CANCELLED
+DTSTART;VALUE=DATE:20250422
+RECURRENCE-ID;VALUE=DATE:20250422
+PRIORITY:0
+END:VTODO
+BEGIN:VTODO
+DTSTAMP:20250522T075151Z
+UID:8a8736b4-bc35-4085-a98b-89c2f52a5c51
+SEQUENCE:1
+CREATED:20250411T234336Z
+LAST-MODIFIED:20250425T124511Z
+SUMMARY:Clean Rosie filter
+STATUS:COMPLETED
+DTSTART;VALUE=DATE:20250425
+RECURRENCE-ID;VALUE=DATE:20250425
+COMPLETED:20250425T124511Z
+PERCENT-COMPLETE:100
+PRIORITY:0
+END:VTODO
+BEGIN:VTODO
+DTSTAMP:20250522T075151Z
+UID:8a8736b4-bc35-4085-a98b-89c2f52a5c51
+SEQUENCE:1
+CREATED:20250411T234336Z
+LAST-MODIFIED:20250425T124511Z
+SUMMARY:Clean Rosie filter
+STATUS:CANCELLED
+DTSTART;VALUE=DATE:20250429
+RECURRENCE-ID;VALUE=DATE:20250429
+COMPLETED:20250425T124511Z
+PERCENT-COMPLETE:100
+PRIORITY:0
+END:VTODO
+BEGIN:VTODO
+DTSTAMP:20250522T075151Z
+UID:8a8736b4-bc35-4085-a98b-89c2f52a5c51
+SEQUENCE:1
+CREATED:20250411T234336Z
+LAST-MODIFIED:20250502T113705Z
+SUMMARY:Clean Rosie filter
+STATUS:COMPLETED
+DTSTART;VALUE=DATE:20250502
+RECURRENCE-ID;VALUE=DATE:20250502
+COMPLETED:20250502T113705Z
+PERCENT-COMPLETE:100
+PRIORITY:0
+END:VTODO
+END:VCALENDAR
+</cal:calendar-data>
+      </d:prop>
+      <d:status>HTTP/1.1 200 OK</d:status>
+    </d:propstat>
+  </d:response>
+</d:multistatus>
+"""
+
 
 def MockedDAVResponse(text, davclient=None):
     """
@@ -167,14 +276,20 @@ def MockedDAVResponse(text, davclient=None):
     return DAVResponse(resp, davclient)
 
 
-def MockedDAVClient(xml_returned):
+class MockedDAVClient(DAVClient):
     """
     For unit testing - a mocked DAVClient returning some specific content every time
     a request is performed
     """
-    client = DAVClient(url="https://somwhere.in.the.universe.example/some/caldav/root")
-    client.request = mock.MagicMock(return_value=MockedDAVResponse(xml_returned))
-    return client
+
+    def __init__(self, xml_returned):
+        self.xml_returned = xml_returned
+        DAVClient.__init__(
+            self, url="https://somwhere.in.the.universe.example/some/caldav/root"
+        )
+
+    def request(self, *largs, **kwargs):
+        return MockedDAVResponse(self.xml_returned)
 
 
 class TestExpandRRule:
@@ -271,6 +386,28 @@ class TestCalDAV:
         )
         assert response.status == 200
         assert response.tree is None
+
+    def testSearchForRecurringTask(self):
+        client = MockedDAVClient(recurring_task_response)
+        calendar = Calendar(client, url="/calendar/issue491/")
+        mytasks = calendar.search(todo=True, expand=False)
+        assert len(mytasks) == 1
+        mytasks = calendar.search(
+            todo=True,
+            expand="client",
+            start=datetime(2025, 5, 5),
+            end=datetime(2025, 6, 5),
+        )
+        assert len(mytasks) == 9
+
+        ## It should not include the COMPLETED recurrences
+        mytasks = calendar.search(
+            todo=True,
+            expand="client",
+            start=datetime(2025, 1, 1),
+            end=datetime(2025, 6, 5),
+        )
+        assert len(mytasks) == 9
 
     def testLoadByMultiGet404(self):
         xml = """

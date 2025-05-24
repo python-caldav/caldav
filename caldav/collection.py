@@ -850,10 +850,9 @@ class Calendar(DAVObject):
                     ## and still, Zimbra seems to deliver too many TODOs in the
                     ## matches2 ... let's do some post-filtering in case the
                     ## server fails in filtering things the right way
-                    if "STATUS:NEEDS-ACTION" in item.data or (
-                        "\nCOMPLETED:" not in item.data
-                        and "\nSTATUS:COMPLETED" not in item.data
-                        and "\nSTATUS:CANCELLED" not in item.data
+                    if any(
+                        x.get("STATUS") not in ("COMPLETED", "CANCELLED")
+                        for x in item.icalendar_instance.subcomponents
                     ):
                         objects.append(item)
         else:
@@ -925,7 +924,7 @@ class Calendar(DAVObject):
                     continue
                 recurrence_properties = ["exdate", "exrule", "rdate", "rrule"]
                 if any(key in component for key in recurrence_properties):
-                    o.expand_rrule(start, end)
+                    o.expand_rrule(start, end, include_completed=include_completed)
 
             ## An expanded recurring object comes as one Event() with
             ## icalendar data containing multiple objects.  The caller may
