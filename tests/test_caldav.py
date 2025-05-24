@@ -24,6 +24,7 @@ from urllib.parse import urlparse
 import icalendar
 import pytest
 import vobject
+from requests.packages import urllib3
 
 from .conf import caldav_servers
 from .conf import client
@@ -59,6 +60,7 @@ from caldav.objects import Todo
 
 log = logging.getLogger("caldav")
 
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 ev1 = """BEGIN:VCALENDAR
 VERSION:2.0
@@ -556,7 +558,7 @@ class TestScheduling:
     ## inbox/outbox?
 
 
-def _delay_decorator(f, t=20):
+def _delay_decorator(f, t=5):
     def foo(*a, **kwa):
         time.sleep(t)
         return f(*a, **kwa)

@@ -14,6 +14,8 @@ In version 2.0, support for python 3.7 and python 3.8 will be officially dropped
 
 ## [1.5.0] - [Unreleased]
 
+Version 1.5 comes with support for alarms (searching for alarms if the server permits and easy interface for adding alamrs when creating events), lots of workarounds and fixes ensuring compatibility with various servers, refactored some code, and done some preparations for the upcoming server compatibility hints project.
+
 ### Deprecated
 
 Python 3.7 is no longer tested (dependency problems) - but it should work.  Please file a bug report if it doesn't work.  (Note that the caldav library pulls in many dependencies, and not all of them supports dead snakes).
@@ -62,7 +64,6 @@ Python 3.7 is no longer tested (dependency problems) - but it should work.  Plea
 
 ### Added
 
-* support easy search for journals by @tobixen in https://github.com/python-caldav/caldav/pull/486
 * Methods for verifying and adding reverse relations - https://github.com/python-caldav/caldav/pull/336
 * Easy creation of events and tasks with alarms, search for alarms - https://github.com/python-caldav/caldav/pull/221
 * Work in progress: `auto_conn`, `auto_calendar` and `auto_calendars` may read caldav connection and calendar configuration from a config file, environmental variables or other sources.  Currently I've made the minimal possible work to be able to test the caldav-server-tester script.
