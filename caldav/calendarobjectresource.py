@@ -543,6 +543,10 @@ class CalendarObjectResource(DAVObject):
         self.load(only_if_unloaded=True)
         return self.icalendar_instance.get("method", None) == "REQUEST"
 
+    def is_invite_reply(self) -> bool:
+        self.load(only_if_unloaded=True)
+        return self.icalendar_instance.get("method", None) == "REPLY"
+
     def accept_invite(self, calendar: Optional["Calendar"] = None) -> None:
         self._reply_to_invite_request("ACCEPTED", calendar)
 
@@ -729,7 +733,7 @@ class CalendarObjectResource(DAVObject):
             if self.client is None:
                 raise ValueError("Unexpected value None for self.client")
 
-            attendee = self.client.principal_address or self.client.principal()
+            attendee = self.client.principal()
 
         cnt = 0
 

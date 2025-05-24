@@ -12,7 +12,13 @@ In version 2.0, the requests library will be replaced with niquests or httpx.  S
 
 In version 2.0, support for python 3.7 and python 3.8 will be officially dropped.  Master branch *should* support both as for now, but Python 3.7 is no longer tested.
 
-## [1.5.0] - [Unreleased]
+## [1.6.0] - [Unreleased]
+
+### Fixed
+
+* Scheduling support.  It was work in progress many years ago, but uncompleted work was eventually committed to the project.  I managed to get a DAViCal test server up and running with three test accounts, ran through the tests, found quite some breakages, but managed to fix up.  https://github.com/python-caldav/caldav/pull/497
+
+## [1.5.0] - 2025-05-24
 
 Version 1.5 comes with support for alarms (searching for alarms if the server permits and easy interface for adding alamrs when creating events), lots of workarounds and fixes ensuring compatibility with various servers, refactored some code, and done some preparations for the upcoming server compatibility hints project.
 
