@@ -490,7 +490,7 @@ class TestScheduling:
             except error.NotFoundError:
                 pass
         for c in self.clients:
-            c.teardown()
+            c.teardown(c)
 
     ## TODO
     # def testFreeBusy(self):
