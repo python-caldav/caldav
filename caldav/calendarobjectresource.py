@@ -129,6 +129,28 @@ class CalendarObjectResource(DAVObject):
                 old_id = self.icalendar_component.pop("UID", None)
                 self.icalendar_component.add("UID", id)
 
+    def set_end(self, end, move_dtstart=False):
+        """The RFC specifies that a VEVENT/VTODO cannot have both
+        dtend/due and duration, so when setting dtend/due, the duration
+        field must be evicted
+
+        WARNING: this method is likely to be deprecated and parts of
+        it moved to the icalendar library.  If you decide to use it,
+        please put caldav<3.0 in the requirements.
+        """
+        i = self.icalendar_component
+        if hasattr(end, "tzinfo") and not end.tzinfo:
+            end = end.astimezone(timezone.utc)
+        duration = self.get_duration()
+        i.pop("DURATION", None)
+        i.pop(self._ENDPARAM, None)
+
+        if move_dtstart and duration and "DTSTART" in i:
+            i.pop("DTSTART")
+            i.add("DTSTART", end - duration)
+
+        i.add(self._ENDPARAM, end)
+
     def add_organizer(self) -> None:
         """
         goes via self.client, finds the principal, figures out the right attendee-format and adds an
@@ -1027,13 +1049,13 @@ class Event(CalendarObjectResource):
     """
     The `Event` object is used to represent an event (VEVENT).
 
-    As of 2020-12 it adds nothing to the inheritated class.  (I have
+    As of 2020-12 it adds very little to the inheritated class.  (I have
     frequently asked myself if we need those subclasses ... perhaps
     not)
     """
 
+    set_dtend = CalendarObjectResource.set_end
     _ENDPARAM = "DTEND"
-    pass
 
 
 class Journal(CalendarObjectResource):
@@ -1073,9 +1095,13 @@ class FreeBusy(CalendarObjectResource):
 
 class Todo(CalendarObjectResource):
     """The `Todo` object is used to represent a todo item (VTODO).  A
-    Todo-object can be completed.  Extra logic for different ways to
-    complete one recurrence of a recurrent todo.  Extra logic to
-    handle due vs duration.
+    Todo-object can be completed.
+
+    There is some extra logic here - arguably none of it belongs to
+    the caldav library, and should be moved either to the icalendar
+    library or to the plann library (plann is a cli-tool, should
+    probably be split up into one library for advanced calendaring
+    operations and the cli-tool as separate packages)
     """
 
     _ENDPARAM = "DUE"
@@ -1421,7 +1447,7 @@ class Todo(CalendarObjectResource):
         please put caldav<2.0 in the requirements.
 
         WARNING: the check_dependent-logic may be rewritten to support
-        RFC9253 in 1.x already
+        RFC9253 in 3.x
         """
         i = self.icalendar_component
         if hasattr(due, "tzinfo") and not due.tzinfo:
@@ -1440,12 +1466,6 @@ class Todo(CalendarObjectResource):
                     raise error.ConsistencyError(
                         "parent object has due/end %s, cannot procrastinate child object without first procrastinating parent object"
                     )
-        duration = self.get_duration()
-        i.pop("DURATION", None)
-        i.pop("DUE", None)
+        CalendarObjectResource.set_end(self, due, move_dtstart)
 
-        if move_dtstart and duration and "DTSTART" in i:
-            i.pop("DTSTART")
-            i.add("DTSTART", due - duration)
-
-        i.add("DUE", due)
+    set_end = set_due
