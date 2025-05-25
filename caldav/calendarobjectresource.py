@@ -151,7 +151,6 @@ class CalendarObjectResource(DAVObject):
 
         i.add(self._ENDPARAM, end)
 
-
     def add_organizer(self) -> None:
         """
         goes via self.client, finds the principal, figures out the right attendee-format and adds an
@@ -1050,6 +1049,7 @@ class Event(CalendarObjectResource):
     frequently asked myself if we need those subclasses ... perhaps
     not)
     """
+
     set_dtend = CalendarObjectResource.set_end
     _ENDPARAM = "DTEND"
 
@@ -1062,6 +1062,7 @@ class Journal(CalendarObjectResource):
     frequently asked myself if we need those subclasses ... perhaps
     not)
     """
+
     pass
 
 
