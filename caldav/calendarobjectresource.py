@@ -225,10 +225,6 @@ class CalendarObjectResource(DAVObject):
             ):
                 continue
             if "RECURRENCE-ID" not in occurrence:
-                ## we should not get here?
-                import pdb
-
-                pdb.set_trace()
                 occurrence.add("RECURRENCE-ID", occurrence.get("DTSTART").dt)
             calendar.add_component(occurrence)
 
@@ -783,7 +779,7 @@ class CalendarObjectResource(DAVObject):
         increase_seqno: bool = True,
         if_schedule_tag_match: bool = False,
         only_this_recurrence: bool = True,
-        all_recurrences: bool = False
+        all_recurrences: bool = False,
     ) -> Self:
         """Save the object, can be used for creation and update.
 
@@ -838,11 +834,11 @@ class CalendarObjectResource(DAVObject):
         path = self.url.path if self.url else None
 
         def get_self():
-            self.id = self.id or self.icalendar_component.get('uid')
+            self.id = self.id or self.icalendar_component.get("uid")
             if self.id:
                 try:
                     if obj_type:
-                        return  getattr(self.parent, "%s_by_uid" % obj_type)(self.id)
+                        return getattr(self.parent, "%s_by_uid" % obj_type)(self.id)
                     else:
                         return self.parent.object_by_uid(self.id)
                 except error.NotFoundError:
@@ -878,22 +874,61 @@ class CalendarObjectResource(DAVObject):
         ## to overwrite the full object, effectively deleting the
         ## RRULE.  I can't find this behaviour specified in the RFC.
         ## That's probably not what the caller intended intended.
-        if (only_this_recurrence or all_recurrences) and 'RECURRENCE-ID' in self.icalendar_component:
-            obj = get_self()
-            ici = obj.icalendar_instance
+        if (
+            only_this_recurrence or all_recurrences
+        ) and "RECURRENCE-ID" in self.icalendar_component:
+            obj = get_self()  ## get the full object, not only the recurrence
+            ici = obj.icalendar_instance  # ical instance
             if all_recurrences:
-                occ = obj.icalendar_component
-                ncc = self.icalendar_component.copy()
+                occ = obj.icalendar_component  ## original calendar component
+                ncc = self.icalendar_component.copy()  ## new calendar component
                 for prop in ["exdate", "exrule", "rdate", "rrule"]:
                     if prop in occ:
                         ncc[prop] = occ[prop]
-                ncc.pop('recurrence-id')
+
+                ## dtstart_diff = how much we've moved the time
+                ## TODO: we may easily have timezone problems here and events shifting some hours ...
+                dtstart_diff = (
+                    ncc.start.astimezone() - ncc["recurrence-id"].dt.astimezone()
+                )
+                new_duration = ncc.duration
+                ncc.pop("dtstart")
+                ncc.add("dtstart", occ.start + dtstart_diff)
+                for ep in ("duration", "dtend"):
+                    if ep in ncc:
+                        ncc.pop(ep)
+                ncc.add("dtend", ncc.start + new_duration)
+                ncc.pop("recurrence-id")
                 s = ici.subcomponents
-                comp_idx = next(i for i in range(0, len(s)) if not isinstance(s[i], icalendar.Timezone))
+
+                ## Replace the "root" subcomponent
+                comp_idxes = (
+                    i
+                    for i in range(0, len(s))
+                    if not isinstance(s[i], icalendar.Timezone)
+                )
+                comp_idx = next(com_idxes)
                 s[comp_idx] = ncc
+
+                ## The recurrence-ids of all objects has to be
+                ## recalculated (this is probably not quite right.  If
+                ## we move the time of a daily meeting from 8 to 10,
+                ## then we need to do this.  If we move the date of
+                ## the first instance, then probably we shouldn't
+                ## ... oh well ... so many complications)
+                if dtstart_diff:
+                    for i in comp_idxes:
+                        rid = s[i].pop("recurrence-id")
+                        s[i].add("recurrence-id", rid + dtstart_diff)
+
                 return obj.save(increase_seqno=increase_seqno)
             if only_this_recurrence:
-                existing_idx = [i for i in range(0,len(ici.subcomponents)) if ici.subcomponents[i].get('recurrence-id') == self.icalendar_component['recurrence-id']]
+                existing_idx = [
+                    i
+                    for i in range(0, len(ici.subcomponents))
+                    if ici.subcomponents[i].get("recurrence-id")
+                    == self.icalendar_component["recurrence-id"]
+                ]
                 error.assert_(len(existing_idx) <= 1)
                 if existing_idx:
                     ici.subcomponents[existing_idx[0]] = self.icalendar_component

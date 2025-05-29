@@ -2924,65 +2924,81 @@ class RepeatedFunctionalTestsBaseClass:
         cal.save_event(
             uid="test1",
             summary="daily test",
-            dtstart=datetime(2015, 10, 10, 8, 7, 6),
-            dtend=datetime(2015, 10, 10, 9, 7, 6),
-            rrule={'FREQ': 'DAILY'})
+            dtstart=datetime(2015, 1, 1, 8, 7, 6),
+            dtend=datetime(2015, 1, 1, 9, 7, 6),
+            rrule={"FREQ": "DAILY"},
+        )
 
-        def search(year):
+        def search(month):
             """
             Internal function to find one recurrence object
             """
             recurrence = cal.search(
                 event=True,
-                start=datetime(year,10,10,6),
-                end=datetime(year,10,11,6), expand='client' ## client will be default from 2.0
-           )
+                start=datetime(2015, month, 1),
+                end=datetime(2015, month, 2),
+                expand="client",  ## client will be default from 2.0
+            )
             assert len(recurrence) == 1
             return recurrence[0]
 
-        def summary_by_year(year):
-            return search(year).icalendar_component["summary"]
-        
+        def summary_by_month(month):
+            return search(month).icalendar_component["summary"]
+
         ## Search for a recurrence
-        recurrence = search(2020)
+        recurrence = search(7)
 
         ## Modify it and save it
-        recurrence.icalendar_component['summary'] = "five years of daily testing"
+        recurrence.icalendar_component["summary"] = "half a year of daily testing"
         recurrence.save()
 
-        ## Only the 10th of october event in 2025 should be affected
-        assert summary_by_year(2019) == "daily test"
-        assert summary_by_year(2020) == "five years of daily testing"
-        assert summary_by_year(2021) == "daily test"
+        ## Only one day should be affected
+        assert summary_by_month(6) == "daily test"
+        assert summary_by_month(7) == "half a year of daily testing"
+        assert summary_by_month(8) == "daily test"
 
         ## let's try to set several recurrence exceptions
-        recurrence = search(2019)
-        recurrence.icalendar_component['summary'] = "four years of daily testing"
+        recurrence = search(2)
+        recurrence.icalendar_component["summary"] = "one month of daily testing"
         recurrence.save()
-        
-        assert summary_by_year(2018) == "daily test"
-        assert summary_by_year(2019) == "four years of daily testing"
-        assert summary_by_year(2020) == "five years of daily testing"
-        assert summary_by_year(2021) == "daily test"
+
+        assert summary_by_month(1) == "daily test"
+        assert summary_by_month(2) == "one month of daily testing"
+        assert summary_by_month(7) == "half a year of daily testing"
 
         ## Changing any of the exceptions should also work
-        recurrence = search(2020)
-        recurrence.icalendar_component["summary"] = "five years of daily testing!"
+        recurrence = search(7)
+        recurrence.icalendar_component["summary"] = "six months of daily testing"
         recurrence.save()
-        assert summary_by_year(2020) == "five years of daily testing!"
-        
+        assert summary_by_month(7) == "six months of daily testing"
+
         ## parameter all_recurrences should change all recurrences -
-        ## except 2019 and 2020
-        recurrence = search(2017)
+        ## except February and July
+        recurrence = search(9)
         recurrence.icalendar_component["summary"] = "daily testing"
-        recurrence.save(all_recurrences = True)
-        
-        assert summary_by_year(2017) == "daily testing"
-        assert summary_by_year(2018) == "daily testing"
-        assert summary_by_year(2019) == "four years of daily testing"
-        assert summary_by_year(2020) == "five years of daily testing!"
-        assert summary_by_year(2021) == "daily testing"
-        
+        recurrence.save(all_recurrences=True)
+        assert summary_by_month(1) == "daily testing"
+        assert summary_by_month(2) == "one month of daily testing"
+        assert summary_by_month(3) == "daily testing"
+        assert summary_by_month(7) == "six months of daily testing"
+
+        ## Last ... let's change the dtend and dtstart of the recurrence
+        recurrence = search(9)
+        recurrence.icalendar_component.pop("dtstart")
+        recurrence.icalendar_component.add("dtstart", datetime(2015, 9, 1, 8, 0, 0))
+        recurrence.icalendar_component.pop("dtend")
+        recurrence.icalendar_component.add("dtend", datetime(2015, 9, 1, 10, 0, 0))
+        recurrence.save(all_recurrences=True)
+
+        recurrence = search(8)
+        assert (
+            recurrence.icalendar_component.start.astimezone()
+            == datetime(2015, 8, 1, 8, 0, 0).astimezone()
+        )
+        assert (
+            recurrence.icalendar_component.end.astimezone()
+            == datetime(2015, 8, 1, 10, 0, 0).astimezone()
+        )
 
     def testOffsetURL(self):
         """

@@ -370,6 +370,10 @@ zimbra = [
     "no_alarmsearch",
     "no_events_and_tasks_on_same_calendar",
 
+    ## TODO: I just discovered that when searching for a date some
+    ## years after a recurring daily event was made, the event does
+    ## not appear.
+
     ## extra features not specified in RFC5545
     "calendar_order",
     "calendar_color"
