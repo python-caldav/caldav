@@ -860,7 +860,7 @@ class CalendarObjectResource(DAVObject):
             existing = get_self()
             if not self.id and no_create:
                 raise error.ConsistencyError("no_create flag was set, but no ID given")
-            if overwrite and existing:
+            if no_overwrite and existing:
                 raise error.ConsistencyError(
                     "no_overwrite flag was set, but object already exists"
                 )
@@ -907,7 +907,7 @@ class CalendarObjectResource(DAVObject):
                     for i in range(0, len(s))
                     if not isinstance(s[i], icalendar.Timezone)
                 )
-                comp_idx = next(com_idxes)
+                comp_idx = next(comp_idxes)
                 s[comp_idx] = ncc
 
                 ## The recurrence-ids of all objects has to be
@@ -919,7 +919,7 @@ class CalendarObjectResource(DAVObject):
                 if dtstart_diff:
                     for i in comp_idxes:
                         rid = s[i].pop("recurrence-id")
-                        s[i].add("recurrence-id", rid + dtstart_diff)
+                        s[i].add("recurrence-id", rid.dt + dtstart_diff)
 
                 return obj.save(increase_seqno=increase_seqno)
             if only_this_recurrence:
