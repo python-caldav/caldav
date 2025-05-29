@@ -2976,7 +2976,7 @@ class RepeatedFunctionalTestsBaseClass:
         ## release 2.0 and shed the 3.8-dependency.  As for now, just skip the rest of the test.
         if sys.version_info < (3, 9):
             return
-        
+
         ## parameter all_recurrences should change all recurrences -
         ## except February and July
         recurrence = search(9)
