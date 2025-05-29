@@ -190,11 +190,8 @@ class CalendarObjectResource(DAVObject):
         RRULE set and into a "recurrence set" with RECURRENCE-ID set
         and no RRULE set.  The main usage is for client-side expansion
         in case the calendar server does not support server-side
-        expansion.  It should be safe to save back to the server, the
-        server should recognize it as recurrences and should not edit
-        the "master copy".  If doing a `self.load`, the calendar
-        content will be replaced with the "master copy".  However, as
-        of 2022-10 there is no test code verifying this.
+        expansion.  If doing a `self.load`, the calendar
+        content will be replaced with the "master copy".
 
         :param event: Event
         :param start: datetime
@@ -206,24 +203,16 @@ class CalendarObjectResource(DAVObject):
         recurrings = recurring_ical_events.of(
             self.icalendar_instance, components=["VJOURNAL", "VTODO", "VEVENT"]
         ).between(start, end)
-        recurrence_properties = ["exdate", "exrule", "rdate", "rrule"]
-        # FIXME too much copying
-        stripped_event = self.copy(keep_uid=True)
 
-        ## TODO: use icalendar_instance instead
-        if stripped_event.vobject_instance is None:
-            raise ValueError(
-                "Unexpected value None for stripped_event.vobject_instance"
-            )
+        recurrence_properties = {"exdate", "exrule", "rdate", "rrule"}
 
-        # remove all recurrence properties
-        for component in stripped_event.vobject_instance.components():  # type: ignore
-            if component.name in ("VEVENT", "VTODO"):
-                for key in recurrence_properties:
-                    try:
-                        del component.contents[key]
-                    except KeyError:
-                        pass
+        if any(
+            x for x in recurrings if not recurrence_properties.isdisjoint(set(x.keys()))
+        ):
+            ## I think we should not end up here.  And if we do, then it's needed to reinsert the code section I just removed ...
+            import pdb
+
+            pdb.set_trace()
 
         calendar = self.icalendar_instance
         calendar.subcomponents = []
@@ -236,12 +225,12 @@ class CalendarObjectResource(DAVObject):
             ):
                 continue
             if "RECURRENCE-ID" not in occurrence:
-                occurrence.add("RECURRENCE-ID", occurrence.get("DTSTART"))
+                ## we should not get here?
+                import pdb
+
+                pdb.set_trace()
+                occurrence.add("RECURRENCE-ID", occurrence.get("DTSTART").dt)
             calendar.add_component(occurrence)
-        # add other components (except for the VEVENT itself and VTIMEZONE which is not allowed on occurrence events)
-        for component in stripped_event.icalendar_instance.subcomponents:
-            if component.name not in ("VEVENT", "VTODO", "VTIMEZONE"):
-                calendar.add_component(component)
 
     def set_relation(
         self, other, reltype=None, set_reverse=True
@@ -1394,11 +1383,11 @@ class Todo(CalendarObjectResource):
         """Undo completion - marks a completed task as not completed"""
         ### TODO: needs test code for code coverage!
         ## (it has been tested through the calendar-cli test code)
-        if not hasattr(self.vobject_instance.vtodo, "status"):
-            self.vobject_instance.vtodo.add("status")
-        self.vobject_instance.vtodo.status.value = "NEEDS-ACTION"
-        if hasattr(self.vobject_instance.vtodo, "completed"):
-            self.vobject_instance.vtodo.remove(self.vobject_instance.vtodo.completed)
+        if "status" in self.icalendar_component:
+            self.icalendar_component.pop("status")
+        self.icalendar_component.add("status", "NEEDS-ACTION")
+        if "completed" in self.icalendar_component:
+            self.icalendar_component.pop("completed")
         self.save()
 
     ## TODO: should be moved up to the base class
