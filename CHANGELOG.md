@@ -14,9 +14,18 @@ In version 2.0, support for python 3.7 and python 3.8 will be officially dropped
 
 ## [1.6.0] - [Unreleased]
 
+### Added
+
+* New option `event.save(all_recurrences=True)` to edit the whole series when saving a modified recurrence.
+
 ### Fixed
 
+* Save single recurrence.  I can't find any information in the RFCs on this, but all servers I've tested does the wrong thing - when saving a single recurrence (with RECURRENCE-ID set but without RRULE), then the original event (or task) will be overwritten (and the RRULE disappear), which is most likely not what one wants.  New logic in place (with good test coverage) to ensure only the single instance is saved. Issue https://github.com/python-caldav/caldav/issues/379, pull request https://github.com/python-caldav/caldav/pull/500
 * Scheduling support.  It was work in progress many years ago, but uncompleted work was eventually committed to the project.  I managed to get a DAViCal test server up and running with three test accounts, ran through the tests, found quite some breakages, but managed to fix up.  https://github.com/python-caldav/caldav/pull/497
+
+### Refactoring
+
+* Still working on tossing out vobject.  While working on it, I found some unuseful code that I removed.  Committed directly to master, 2f61dc7adbe044eaf43d0d2c78ba96df09201542 and ...(TODO)...
 
 ## [1.5.0] - 2025-05-24
 
