@@ -43,7 +43,7 @@ Python compatibility notice
 ===========================
 
 Most of the code is regularly tested towards different versions of
-Python, the oldest being Python 3.7.
+Python, the oldest being Python 3.9.
 
 Support for Python2 was officially not supported starting from caldav
 version 1.0.

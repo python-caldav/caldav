@@ -8,9 +8,23 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 
 ## [2.0.0] - [Unreleased]
 
-In version 2.0, the requests library will be replaced with niquests or httpx.  See https://github.com/python-caldav/caldav/issues/457.  Master branch is currently running niquests.  Work by @ArtemIsmagilov, https://github.com/python-caldav/caldav/pull/455
+### Deprecated
 
-In version 2.0, support for python 3.7 and python 3.8 will be officially dropped.  Master branch *should* support both as for now, but Python 3.7 is no longer tested.
+* The `event.instance` property currently yields a vobject.  For quite many years people have asked for the python vobject library to be replaced with the python icalendar objects, but I haven't been able to do that due to backward compatibility.  In version 2.0 deprecation warnings will be given whenever someone uses the `event.instance` property.  In 3.0, `event.instance` will yield a `icalendar` instance.
+
+### Added
+
+* `event.component` is now an alias for `event.icalendar_component`
+
+### Changed
+
+* The request library has been in a feature freeze for ages and may seem like a dead end.  There exists a fork of the project niquests, we're migrating to that one.  This means nothing except for one additional dependency.  (httpx was also considered, but it's not a drop-in replacement for the requests library, and it's a risk that such a change will break compatibility with various other servers - see https://github.com/python-caldav/caldav/issues/457 for details).  Work by @ArtemIsmagilov, https://github.com/python-caldav/caldav/pull/455.
+
+### Removed
+
+2* Support for python 3.7 and 3.8
+
+* Dependency on the requests library.
 
 ## [1.6.0] - 2025-05-30
 

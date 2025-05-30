@@ -8,7 +8,7 @@ I have no clue on the proper procedures for doing releases, and I keep on doing 
 
 * Go through changes since last release and compare it with the `CHANGELOG.md`.  Any change should be logged.
 * Run tests towards as many servers as possible
-  * On breakages, record an issue, check if the previous release also breaks.  If so, the breakage is most likely due to server changes.  For patch-level releases we don't care about such breakages, for minor-level releases we should try to work around problems
+  * Do research on breakages.  If the test breaks also for the previous release of the caldav library, then it's likely to be due to some regression on the server side.  For patch-level releases we don't care about such breakages, for minor-level releases we should try to work around problems
   * It's proper to document somewhere (TODO: where?  how?) what servers have been tested
 * Does any of the changes require documentation to be rewritten?  The documentation should ideally be in sync with the code upon release time.
 * Look through github pull requests and see if there is anything that ought to be included in the release
@@ -21,7 +21,7 @@ I have no clue on the proper procedures for doing releases, and I keep on doing 
 * Make a clone: `git clone caldav/ caldav-release ; cd caldav-release ; git checkout v${VERSION}`
 * Run tests (particularly the style check): `pytest` and `tox -e style`.
 * Push the code to github: `cd ~/caldav ; git push ; git push --tags`
-* Some people relies on the github release system for finding releases - go to https://github.com/python-caldav/caldav/releases/new, choose the new tag, copy the version number and the release notes in.
+* Some people relies on the github release system for finding releases - go to https://github.com/python-caldav/caldav/releases/new, choose the new tag, copy the version number and the release notes in.  Remember to check the box to make it the latest release.
 * The most important part - push to pypi:
   ```
   cd ~/caldav-release

@@ -10,6 +10,7 @@ Alarms and Time zone objects does not have any class as for now.  Those are typi
 import logging
 import sys
 import uuid
+import warnings
 from collections import defaultdict
 from datetime import datetime
 from datetime import timedelta
@@ -458,6 +459,8 @@ class CalendarObjectResource(DAVObject):
         _set_icalendar_component,
         doc="icalendar component - should not be used with recurrence sets",
     )
+
+    component = icalendar_component
 
     def get_due(self):
         """
@@ -1035,10 +1038,34 @@ class CalendarObjectResource(DAVObject):
                 raise
         return self._vobject_instance
 
+    ## event.instance has always yielded a vobject, but will yield an icalendar_instance
+    ## in version 3.0!
+    def _get_deprecated_vobject_instance(self) -> Optional[vobject.base.Component]:
+        warnings.warn(
+            "use event.vobject_instance rather than event.instance",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._get_vobject_instance()
+
+    def _set_deprecated_vobject_instance(self, inst: vobject.base.Component):
+        warnings.warn(
+            "use event.vobject_instance rather than event.instance",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._get_vobject_instance(inst)
+
     vobject_instance: VBase = property(
         _get_vobject_instance,
         _set_vobject_instance,
         doc="vobject instance of the object",
+    )
+
+    instance: VBase = property(
+        _get_deprecated_vobject_instance,
+        _set_deprecated_vobject_instance,
+        doc="vobject instance of the object (DEPRECATED!  This will yield an icalendar instance in caldav 3.0)",
     )
 
     def _set_icalendar_instance(self, inst):
@@ -1104,10 +1131,6 @@ class CalendarObjectResource(DAVObject):
             return timedelta(days=1)
         else:
             return timedelta(0)
-
-    ## for backward-compatibility - may be changed to
-    ## icalendar_instance in version 1.0
-    instance: VBase = vobject_instance
 
 
 class Event(CalendarObjectResource):

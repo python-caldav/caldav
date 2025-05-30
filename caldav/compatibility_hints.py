@@ -305,19 +305,6 @@ xandikos = [
     "no_alarmsearch",
 ]
 
-## This can soon be removed (relevant for running tests under python 3.7 and python 3.8)
-## https://github.com/jelmer/xandikos/pull/194
-'category_search_yields_nothing',
-try:
-    from xandikos import __version__ as xver
-    goodver = (0,2,12)
-    for i in range(0,3):
-        if xver[i]<goodver[i]:
-            xandikos.append('category_search_yields_nothing')
-            break
-except Exception:
-    pass
-
 ## TODO - there has been quite some development in radicale recently, so this list
 ## should probably be gone through
 radicale = [
