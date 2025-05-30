@@ -12,20 +12,27 @@ In version 2.0, the requests library will be replaced with niquests or httpx.  S
 
 In version 2.0, support for python 3.7 and python 3.8 will be officially dropped.  Master branch *should* support both as for now, but Python 3.7 is no longer tested.
 
-## [1.6.0] - [Unreleased]
+## [1.6.0] - 2025-05-30
 
-### Added
-
-* New option `event.save(all_recurrences=True)` to edit the whole series when saving a modified recurrence.
+This will be the last minor release before 2.0.  The scheduling support has been fixed up a bit, and saving a single recurrence does what it should do, rather than messing up the whole series.
 
 ### Fixed
 
 * Save single recurrence.  I can't find any information in the RFCs on this, but all servers I've tested does the wrong thing - when saving a single recurrence (with RECURRENCE-ID set but without RRULE), then the original event (or task) will be overwritten (and the RRULE disappear), which is most likely not what one wants.  New logic in place (with good test coverage) to ensure only the single instance is saved. Issue https://github.com/python-caldav/caldav/issues/379, pull request https://github.com/python-caldav/caldav/pull/500
 * Scheduling support.  It was work in progress many years ago, but uncompleted work was eventually committed to the project.  I managed to get a DAViCal test server up and running with three test accounts, ran through the tests, found quite some breakages, but managed to fix up.  https://github.com/python-caldav/caldav/pull/497
 
+### Added
+
+* New option `event.save(all_recurrences=True)` to edit the whole series when saving a modified recurrence.  Part of https://github.com/python-caldav/caldav/pull/500
+* New methods `Event.set_dtend` and `CalendarObjectResource.set_end`. by @tobixen in https://github.com/python-caldav/caldav/pull/499
+
 ### Refactoring
 
 * Partially tossed out all internal usage of vobject, https://github.com/python-caldav/caldav/issues/476.  Refactoring and removing unuseful code.  Parts of this work was accidentally committed directly to master, 2f61dc7adbe044eaf43d0d2c78ba96df09201542, the rest was piggybaced in through  https://github.com/python-caldav/caldav/pull/500.
+
+### Time spent and roadmap
+
+Maintainer put down ten hours of effort for the 1.6-release.  The estimate was 12 hours.
 
 ## [1.5.0] - 2025-05-24
 
@@ -85,6 +92,12 @@ Python 3.7 is no longer tested (dependency problems) - but it should work.  Plea
 * By now `calendar.search(..., sort_keys=("DTSTART")` will work.  Sort keys expects a list or a tuple, but it's easy to send an attribute by mistake.  https://github.com/python-caldav/caldav/issues/448 https://github.com/python-caldav/caldav/pull/449
 * The `class_`-parameter now works when sending data to `save_event()` etc.
 * Search method now takes parameter `journal=True`.  ref https://github.com/python-caldav/caldav/issues/237 and https://github.com/python-caldav/caldav/pull/486
+
+### Time spent and roadmap
+
+A roadmap was made in May 2025: https://github.com/python-caldav/caldav/issues/474 - the roadmap includes time estimates.
+
+Since the roadmap was made, the maintainer has spent 39 hours working on the CalDAV project - this includes a bit of documentation, quite some communication, reading on the RFCs, code reviewing, but mostly just coding.  This is above estimate due to new issues coming in.
 
 
 ## [1.4.0] - 2024-11-05
