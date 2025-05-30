@@ -25,7 +25,7 @@ In version 2.0, support for python 3.7 and python 3.8 will be officially dropped
 
 ### Refactoring
 
-* Still working on tossing out vobject.  While working on it, I found some unuseful code that I removed.  Committed directly to master, 2f61dc7adbe044eaf43d0d2c78ba96df09201542 and ...(TODO)...
+* Partially tossed out all internal usage of vobject, https://github.com/python-caldav/caldav/issues/476.  Refactoring and removing unuseful code.  Parts of this work was accidentally committed directly to master, 2f61dc7adbe044eaf43d0d2c78ba96df09201542, the rest was piggybaced in through  https://github.com/python-caldav/caldav/pull/500.
 
 ## [1.5.0] - 2025-05-24
 
