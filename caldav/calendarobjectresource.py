@@ -225,10 +225,6 @@ class CalendarObjectResource(DAVObject):
             ):
                 continue
             if "RECURRENCE-ID" not in occurrence:
-                ## we should not get here?
-                import pdb
-
-                pdb.set_trace()
                 occurrence.add("RECURRENCE-ID", occurrence.get("DTSTART").dt)
             calendar.add_component(occurrence)
 
@@ -723,9 +719,7 @@ class CalendarObjectResource(DAVObject):
                 raise error.PutError(errmsg(r))
 
     def _create(self, id=None, path=None, retry_on_failure=True) -> None:
-        ## We're efficiently running the icalendar code through the icalendar
-        ## library.  This may cause data modifications and may "unfix"
-        ## https://github.com/python-caldav/caldav/issues/43
+        ## TODO: Find a better method name
         self._find_id_path(id=id, path=path)
         self._put()
 
@@ -784,9 +778,10 @@ class CalendarObjectResource(DAVObject):
         obj_type: Optional[str] = None,
         increase_seqno: bool = True,
         if_schedule_tag_match: bool = False,
+        only_this_recurrence: bool = True,
+        all_recurrences: bool = False,
     ) -> Self:
-        """
-        Save the object, can be used for creation and update.
+        """Save the object, can be used for creation and update.
 
         no_overwrite and no_create will check if the object exists.
         Those two are mutually exclusive.  Some servers don't support
@@ -795,10 +790,36 @@ class CalendarObjectResource(DAVObject):
         obj_type is only used in conjunction with no_overwrite and
         no_create.
 
+        is_schedule_tag_match is currently ignored. (TODO - fix or remove)
+
+        The SEQUENCE should be increased when saving a new version of
+        the object.  If this behaviour is unwanted, then
+        increase_seqno should be set to False.  Also, if SEQUENCE is
+        not set, then this will be ignored.
+
+        The behaviour when saving a single recurrence object to the
+        server is as far as I can understand not defined in the RFCs,
+        but all servers I've tested against will overwrite the full
+        event with the recurrence instance (effectively deleting the
+        recurrence rule).  That's almost for sure not what the caller
+        intended.  only_this_recurrence and all_recurrences only
+        applies when trying to save a recurrence object.  They are by
+        nature mutually exclusive, but since only_this_recurrence is
+        True by default, it will be ignored if all_recurrences is set.
+
+        If you want to sent the recurrence as it is to the server,
+        you should set both all_recurrences and only_this_recurrence
+        to False.
+
         Returns:
          * self
 
         """
+        ## Rather than passing the icalendar data verbatimely, we're
+        ## efficiently running the icalendar code through the icalendar
+        ## library.  This may cause data modifications and may "unfix"
+        ## https://github.com/python-caldav/caldav/issues/43
+        ## TODO: think more about this
         if not obj_type:
             obj_type = self.__class__.__name__.lower()
         if (
@@ -812,6 +833,18 @@ class CalendarObjectResource(DAVObject):
 
         path = self.url.path if self.url else None
 
+        def get_self():
+            self.id = self.id or self.icalendar_component.get("uid")
+            if self.id:
+                try:
+                    if obj_type:
+                        return getattr(self.parent, "%s_by_uid" % obj_type)(self.id)
+                    else:
+                        return self.parent.object_by_uid(self.id)
+                except error.NotFoundError:
+                    return None
+            return None
+
         if no_overwrite or no_create:
             ## SECURITY TODO: path names on the server does not
             ## necessarily map cleanly to UUIDs.  We need to do quite
@@ -824,43 +857,86 @@ class CalendarObjectResource(DAVObject):
             ## to do a PUT instead of POST when creating new data).
             ## TODO: the "find id"-logic is duplicated in _create,
             ## should be refactored
-            if not self.id:
-                for component in self.vobject_instance.getChildren():
-                    if hasattr(component, "uid"):
-                        self.id = component.uid.value
+            existing = get_self()
             if not self.id and no_create:
                 raise error.ConsistencyError("no_create flag was set, but no ID given")
-            existing = None
-            ## some servers require one to explicitly search for the right kind of object.
-            ## todo: would arguably be nicer to verify the type of the object and take it from there
-            if not self.id:
-                methods = []
-            elif obj_type:
-                methods = (getattr(self.parent, "%s_by_uid" % obj_type),)
-            else:
-                methods = (
-                    self.parent.object_by_uid,
-                    self.parent.event_by_uid,
-                    self.parent.todo_by_uid,
-                    self.parent.journal_by_uid,
+            if no_overwrite and existing:
+                raise error.ConsistencyError(
+                    "no_overwrite flag was set, but object already exists"
                 )
-            for method in methods:
-                try:
-                    existing = method(self.id)
-                    if no_overwrite:
-                        raise error.ConsistencyError(
-                            "no_overwrite flag was set, but object already exists"
-                        )
-                    break
-                except error.NotFoundError:
-                    pass
 
             if no_create and not existing:
                 raise error.ConsistencyError(
                     "no_create flag was set, but object does not exists"
                 )
 
-        if increase_seqno and b"SEQUENCE" in to_wire(self.data):
+        ## Save a single recurrence-id and all calendars servers seems
+        ## to overwrite the full object, effectively deleting the
+        ## RRULE.  I can't find this behaviour specified in the RFC.
+        ## That's probably not what the caller intended intended.
+        if (
+            only_this_recurrence or all_recurrences
+        ) and "RECURRENCE-ID" in self.icalendar_component:
+            obj = get_self()  ## get the full object, not only the recurrence
+            ici = obj.icalendar_instance  # ical instance
+            if all_recurrences:
+                occ = obj.icalendar_component  ## original calendar component
+                ncc = self.icalendar_component.copy()  ## new calendar component
+                for prop in ["exdate", "exrule", "rdate", "rrule"]:
+                    if prop in occ:
+                        ncc[prop] = occ[prop]
+
+                ## dtstart_diff = how much we've moved the time
+                ## TODO: we may easily have timezone problems here and events shifting some hours ...
+                dtstart_diff = (
+                    ncc.start.astimezone() - ncc["recurrence-id"].dt.astimezone()
+                )
+                new_duration = ncc.duration
+                ncc.pop("dtstart")
+                ncc.add("dtstart", occ.start + dtstart_diff)
+                for ep in ("duration", "dtend"):
+                    if ep in ncc:
+                        ncc.pop(ep)
+                ncc.add("dtend", ncc.start + new_duration)
+                ncc.pop("recurrence-id")
+                s = ici.subcomponents
+
+                ## Replace the "root" subcomponent
+                comp_idxes = (
+                    i
+                    for i in range(0, len(s))
+                    if not isinstance(s[i], icalendar.Timezone)
+                )
+                comp_idx = next(comp_idxes)
+                s[comp_idx] = ncc
+
+                ## The recurrence-ids of all objects has to be
+                ## recalculated (this is probably not quite right.  If
+                ## we move the time of a daily meeting from 8 to 10,
+                ## then we need to do this.  If we move the date of
+                ## the first instance, then probably we shouldn't
+                ## ... oh well ... so many complications)
+                if dtstart_diff:
+                    for i in comp_idxes:
+                        rid = s[i].pop("recurrence-id")
+                        s[i].add("recurrence-id", rid.dt + dtstart_diff)
+
+                return obj.save(increase_seqno=increase_seqno)
+            if only_this_recurrence:
+                existing_idx = [
+                    i
+                    for i in range(0, len(ici.subcomponents))
+                    if ici.subcomponents[i].get("recurrence-id")
+                    == self.icalendar_component["recurrence-id"]
+                ]
+                error.assert_(len(existing_idx) <= 1)
+                if existing_idx:
+                    ici.subcomponents[existing_idx[0]] = self.icalendar_component
+                else:
+                    ici.add_component(self.icalendar_component)
+                return obj.save(increase_seqno=increase_seqno)
+
+        if "SEQUENCE" in self.icalendar_component:
             seqno = self.icalendar_component.pop("SEQUENCE", None)
             if seqno is not None:
                 self.icalendar_component.add("SEQUENCE", seqno + 1)

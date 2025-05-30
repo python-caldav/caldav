@@ -2910,6 +2910,101 @@ class RepeatedFunctionalTestsBaseClass:
                 tzinfo=None
             ) == datetime(2024, 4, 25, 12, 30, 00)
 
+    def testEditSingleRecurrence(self):
+        """
+        It should be possible to fetch a single recurrence from
+        the calendar using search and expand, edit it and save it.
+        Only the recurrence should be edited, not the rest of the
+        event.
+        """
+        self.skip_on_compatibility_flag("no_recurring")
+        cal = self._fixCalendar()
+
+        ## Create a daily recurring event
+        cal.save_event(
+            uid="test1",
+            summary="daily test",
+            dtstart=datetime(2015, 1, 1, 8, 7, 6),
+            dtend=datetime(2015, 1, 1, 9, 7, 6),
+            rrule={"FREQ": "DAILY"},
+        )
+
+        def search(month):
+            """
+            Internal function to find one recurrence object
+            """
+            recurrence = cal.search(
+                event=True,
+                start=datetime(2015, month, 1),
+                end=datetime(2015, month, 2),
+                expand="client",  ## client will be default from 2.0
+            )
+            assert len(recurrence) == 1
+            return recurrence[0]
+
+        def summary_by_month(month):
+            return search(month).icalendar_component["summary"]
+
+        ## Search for a recurrence
+        recurrence = search(7)
+
+        ## Modify it and save it
+        recurrence.icalendar_component["summary"] = "half a year of daily testing"
+        recurrence.save()
+
+        ## Only one day should be affected
+        assert summary_by_month(6) == "daily test"
+        assert summary_by_month(7) == "half a year of daily testing"
+        assert summary_by_month(8) == "daily test"
+
+        ## let's try to set several recurrence exceptions
+        recurrence = search(2)
+        recurrence.icalendar_component["summary"] = "one month of daily testing"
+        recurrence.save()
+
+        assert summary_by_month(1) == "daily test"
+        assert summary_by_month(2) == "one month of daily testing"
+        assert summary_by_month(7) == "half a year of daily testing"
+
+        ## Changing any of the exceptions should also work
+        recurrence = search(7)
+        recurrence.icalendar_component["summary"] = "six months of daily testing"
+        recurrence.save()
+        assert summary_by_month(7) == "six months of daily testing"
+
+        ## this new feature does not workk on python 3.8.  We will soon enough
+        ## release 2.0 and shed the 3.8-dependency.  As for now, just skip the rest of the test.
+        if sys.version_info < (3, 9):
+            return
+
+        ## parameter all_recurrences should change all recurrences -
+        ## except February and July
+        recurrence = search(9)
+        recurrence.icalendar_component["summary"] = "daily testing"
+        recurrence.save(all_recurrences=True)
+        assert summary_by_month(1) == "daily testing"
+        assert summary_by_month(2) == "one month of daily testing"
+        assert summary_by_month(3) == "daily testing"
+        assert summary_by_month(7) == "six months of daily testing"
+
+        ## Last ... let's change the dtend and dtstart of the recurrence
+        recurrence = search(9)
+        recurrence.icalendar_component.pop("dtstart")
+        recurrence.icalendar_component.add("dtstart", datetime(2015, 9, 1, 8, 0, 0))
+        recurrence.icalendar_component.pop("dtend")
+        recurrence.icalendar_component.add("dtend", datetime(2015, 9, 1, 10, 0, 0))
+        recurrence.save(all_recurrences=True)
+
+        recurrence = search(8)
+        assert (
+            recurrence.icalendar_component.start.astimezone()
+            == datetime(2015, 8, 1, 8, 0, 0).astimezone()
+        )
+        assert (
+            recurrence.icalendar_component.end.astimezone()
+            == datetime(2015, 8, 1, 10, 0, 0).astimezone()
+        )
+
     def testOffsetURL(self):
         """
         pass a URL pointing to a calendar or a user to the DAVClient class,
