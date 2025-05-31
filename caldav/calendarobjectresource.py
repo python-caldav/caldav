@@ -468,7 +468,7 @@ class CalendarObjectResource(DAVObject):
 
         WARNING: this method is likely to be deprecated and moved to
         the icalendar library.  If you decide to use it, please put
-        caldav<2.0 in the requirements.
+        caldav<3.0 in the requirements.
         """
         i = self.icalendar_component
         if "DUE" in i:
@@ -1532,7 +1532,7 @@ class Todo(CalendarObjectResource):
 
         WARNING: this method is likely to be deprecated and parts of
         it moved to the icalendar library.  If you decide to use it,
-        please put caldav<2.0 in the requirements.
+        please put caldav<3.0 in the requirements.
 
         WARNING: the check_dependent-logic may be rewritten to support
         RFC9253 in 3.x
