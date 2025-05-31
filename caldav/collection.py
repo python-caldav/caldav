@@ -741,6 +741,7 @@ class Calendar(DAVObject):
         sort_keys: Sequence[str] = (),
         sort_reverse: bool = False,
         expand: Union[bool, Literal["server"], Literal["client"]] = False,
+        server_expand: bool = False,
         split_expanded: bool = True,
         props: Optional[List[cdav.CalendarData]] = None,
         **kwargs,
@@ -755,10 +756,32 @@ class Calendar(DAVObject):
         and client side filtering to make sure other search results
         are consistent on different server implementations.
 
-        LEGACY WARNING: the expand attribute currently takes four
-        possible values - True, False, server and client.  The two
-        latter value were hastily added just prior to launching
-        version 1.4, the API may be reconsidered at some point.
+        expand can only be set to True for closed date searches - but
+        unless you know what you're doing, it's recommended to ask for
+        expanded recurrences.  Without expand, be prepared that you
+        may get back events that apparently has a DTSTART/DTEND that
+        does not match the search interval, and you may also get back
+        objects containing multiple components (and this may break
+        when using `icalendar_component` as recommended, like
+        `event.icalendar_component['summary']) may disregard that the
+        summary has been modified for future events.
+
+        Only True or False should be given to expand.  Client-side
+        expansion is now the default.  Server-side expansion can be
+        set by setting `server_expand=True`.  If both `server_expand`
+        and `expand` is set, there will be a fallback to client-side
+        expansion if needed.
+
+        The CalDAV server usually delivers one VCALENDAR for each
+        component (i.e. event) found, this is again expanded to a
+        list.  The exception is for recurrences (either expanded
+        recurrences or exceptions to the rule) - a VCALENDAR
+        containing all the recurrences are passed.  The caller most
+        likely wants one list item for each recurrence, hence
+        `split_expanded` is set to True by default.  If you set it to
+        False (and expand to True), a recurring event with many
+        recurrences will be delivered as one list item containing a
+        VCALENDAR with many components.
 
         Parameters supported:
 
@@ -775,6 +798,7 @@ class Calendar(DAVObject):
         * no-category, no-summary, etc ... search for objects that does not
           have those attributes.  TODO: WRITE TEST CODE!
         * expand - expand recurring objects
+        * server_expand - ask the server to expand recurring objects
         * start, end: do a time range search
         * filters - other kind of filters (in lxml tree format)
         * sort_keys - list of attributes to use when sorting
@@ -785,6 +809,22 @@ class Calendar(DAVObject):
         * attribute not set
 
         """
+        if expand not in (True, False):
+            warnings.warn(
+                "in cal.search(), expand should be a bool",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            if expand == "client":
+                expand = True
+            if expand == "server":
+                server_expand = True
+                expand = False
+
+        if expand or server_expand:
+            if not kwargs.get("start") or not kwargs.get("end"):
+                raise error.ReportError("can't expand without a date range")
+
         ## special compatibility-case when searching for pending todos
         if todo and not include_completed:
             matches1 = self.search(
@@ -823,7 +863,7 @@ class Calendar(DAVObject):
                         objects.append(item)
         else:
             if not xml:
-                if expand and expand != "client":
+                if server_expand:
                     kwargs["expand"] = True
                 (xml, comp_class) = self.build_search_xml_query(
                     comp_class=comp_class, todo=todo, props=props, **kwargs
@@ -851,6 +891,9 @@ class Calendar(DAVObject):
                         event=True,
                         include_completed=include_completed,
                         sort_keys=sort_keys,
+                        sort_reverse=sort_reverse,
+                        expand=expand,
+                        server_expand=server_expand,
                         split_expanded=split_expanded,
                         props=props,
                         **kwargs,
@@ -876,7 +919,7 @@ class Calendar(DAVObject):
         ## Google sometimes returns empty objects
         objects = [o for o in objects if o.has_component()]
 
-        if expand and expand != "server":
+        if expand:
             ## expand can only be used together with start and end (and not
             ## with xml).  Error checking has already been done in
             ## build_search_xml_query above.
@@ -896,7 +939,7 @@ class Calendar(DAVObject):
             ## icalendar data containing multiple objects.  The caller may
             ## expect multiple Event()s.  This code splits events into
             ## separate objects:
-        if expand and split_expanded:
+        if (expand or server_expand) and split_expanded:
             objects_ = objects
             objects = []
             for o in objects_:

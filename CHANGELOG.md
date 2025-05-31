@@ -15,11 +15,12 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 
 ### Added
 
-* `event.component` is now an alias for `event.icalendar_component`
+* `event.component` is now an alias for `event.icalendar_component`.
 
 ### Changed
 
 * The request library has been in a feature freeze for ages and may seem like a dead end.  There exists a fork of the project niquests, we're migrating to that one.  This means nothing except for one additional dependency.  (httpx was also considered, but it's not a drop-in replacement for the requests library, and it's a risk that such a change will break compatibility with various other servers - see https://github.com/python-caldav/caldav/issues/457 for details).  Work by @ArtemIsmagilov, https://github.com/python-caldav/caldav/pull/455.
+* Search has a new parameter server_expand, which defaults to False.  Earlier it would default to True if expand was set.  This change makes `search(expand=True, ...)` more consistent regardless of which server is in use, but it breaks bug-backward-compatibility with 1.x.
 
 ### Removed
 
