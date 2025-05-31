@@ -105,8 +105,11 @@ involves editing the icalendar data, and now the `save_event`,
 data if needed.
 
 There exists two libraries supporting RFC 5545, vobject and icalendar.
-The icalendar library seems to be more popular.  Version 1.0 depends
-on both, but we're slowly moving towards using icalendar internally.
+vobject was unmaintained for several years, but seems to be actively
+maintained now.  The caldav library originally came with vobject
+support, but as many people requested the vobject dependency to be
+replaced with icalendar, both are now supported, and the icalendar
+library is now consistently used internally
 
 Misbehaving server implementations
 ----------------------------------
