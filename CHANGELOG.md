@@ -10,7 +10,8 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 
 ### Deprecated
 
-* The `event.instance` property currently yields a vobject.  For quite many years people have asked for the python vobject library to be replaced with the python icalendar objects, but I haven't been able to do that due to backward compatibility.  In version 2.0 deprecation warnings will be given whenever someone uses the `event.instance` property.  In 3.0, `event.instance` will yield a `icalendar` instance.
+* The `event.instance` property currently yields a vobject.  For quite many years people have asked for the python vobject library to be replaced with the python icalendar objects, but I haven't been able to do that due to backward compatibility.  In version 2.0 deprecation warnings will be given whenever someone uses the `event.instance` property.  In 3.0, perhaps `event.instance` will yield a `icalendar` instance.
+* `calendar.date_search` - use `calendar.search` instead.  (this one has been deprecated for a while, but only with info-logging)
 
 ### Added
 
@@ -22,9 +23,11 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 
 ### Removed
 
-2* Support for python 3.7 and 3.8
+If you disagree with any of this, please raise an issue and I'll consider if it's possible to revert the change.
 
+* Support for python 3.7 and 3.8
 * Dependency on the requests library.
+* The `calendar.build_date_search_query` was ripped out. (it was deprecated for a while, but only with info-logging - however, this was an obscure internal method, probably not used by anyone?)
 
 ## [1.6.0] - 2025-05-30
 

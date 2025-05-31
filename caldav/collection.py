@@ -12,6 +12,7 @@ A SynchronizableCalendarObjectCollection contains a local copy of objects from a
 import logging
 import sys
 import uuid
+import warnings
 from datetime import datetime
 from typing import Any
 from typing import List
@@ -616,42 +617,6 @@ class Calendar(DAVObject):
         """
         return list(self.multiget(*largs, **kwargs))
 
-    ## TODO: Upgrade the warning to an error (and perhaps critical) in future
-    ## releases, and then finally remove this method completely.
-    def build_date_search_query(
-        self,
-        start,
-        end: Optional[datetime] = None,
-        compfilter: Optional[Literal["VEVENT"]] = "VEVENT",
-        expand: Union[bool, Literal["maybe"]] = "maybe",
-    ):
-        """
-        WARNING: DEPRECATED
-        """
-        ## This is dead code.  It has no tests.  It was made for usage
-        ## by the date_search method, but I've decided not to use it
-        ## there anymore.  Most likely nobody is using this, as it's
-        ## sort of an internal method - but for the sake of backward
-        ## compatibility I will keep it for a while.  I regret naming
-        ## it build_date_search_query rather than
-        ## _build_date_search_query...
-        logging.warning(
-            "DEPRECATION WARNING: The calendar.build_date_search_query method will be removed in caldav library from version 1.0 or perhaps earlier.  Use calendar.build_search_xml_query instead."
-        )
-        if expand == "maybe":
-            expand = end
-
-        if compfilter == "VEVENT":
-            comp_class = Event
-        elif compfilter == "VTODO":
-            comp_class = Todo
-        else:
-            comp_class = None
-
-        return self.build_search_xml_query(
-            comp_class=comp_class, expand=expand, start=start, end=end
-        )
-
     def date_search(
         self,
         start: datetime,
@@ -681,9 +646,11 @@ class Calendar(DAVObject):
          * [CalendarObjectResource(), ...]
 
         """
-        ## TODO: upgrade to warning and error before removing this method
-        logging.info(
-            "DEPRECATION NOTICE: The calendar.date_search method may be removed in release 2.0 of the caldav library.  Use calendar.search instead"
+        ## date_search will probably disappear in 3.0
+        warnings.warn(
+            "use `calendar.search rather than `calendar.date_search`",
+            DeprecationWarning,
+            stacklevel=2,
         )
 
         if verify_expand:
@@ -791,8 +758,7 @@ class Calendar(DAVObject):
         LEGACY WARNING: the expand attribute currently takes four
         possible values - True, False, server and client.  The two
         latter value were hastily added just prior to launching
-        version 1.4, the API may be reconsidered and changed without
-        notice when launching version 2.0
+        version 1.4, the API may be reconsidered at some point.
 
         Parameters supported:
 
