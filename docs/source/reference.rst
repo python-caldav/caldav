@@ -14,4 +14,3 @@ Contents
    caldav/davobject
    caldav/collection
    caldav/calendarobjectresource
-
