@@ -12,10 +12,12 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 
 * The `event.instance` property currently yields a vobject.  For quite many years people have asked for the python vobject library to be replaced with the python icalendar objects, but I haven't been able to do that due to backward compatibility.  In version 2.0 deprecation warnings will be given whenever someone uses the `event.instance` property.  In 3.0, perhaps `event.instance` will yield a `icalendar` instance.
 * `calendar.date_search` - use `calendar.search` instead.  (this one has been deprecated for a while, but only with info-logging)
+* `davclient.auto_conn` that was introduced just some days ago has already been renamed to `davclient.get_davclient`.
 
 ### Added
 
 * `event.component` is now an alias for `event.icalendar_component`.
+* `get_davclient` (earlier called `auto_conn`) is more complete now - it could already read from test config, now it can read from environment (including environment variable for reading from test config and for locating the config file).  While the `auto_conn` itself is tested in the functional tests, the code for reading the config file (and all the corner cases) is not tested.  It's allowable with a yaml config file, but the yaml module is not included in the dependencies yet ... so late imports as for now.  - https://github.com/python-caldav/caldav/pull/502 - https://github.com/python-caldav/caldav/issues/485
 
 ### Changed
 
@@ -41,7 +43,6 @@ This will be the last minor release before 2.0.  The scheduling support has been
 
 ### Added
 
-* `auto_conn` is more complete now - it could already read from test config, now it can read from environment (including environment variable for reading from test config and for locating the config file).  While the `auto_conn` itself is tested in the functional tests, the code for reading the config file (and all the corner cases) is not tested.  It's allowable with a yaml config file, but the yaml module is not included in the dependencies yet ... so late imports as for now.
 * New option `event.save(all_recurrences=True)` to edit the whole series when saving a modified recurrence.  Part of https://github.com/python-caldav/caldav/pull/500
 * New methods `Event.set_dtend` and `CalendarObjectResource.set_end`. https://github.com/python-caldav/caldav/pull/499
 
