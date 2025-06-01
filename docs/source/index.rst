@@ -139,6 +139,8 @@ order is available for "power users".
 Quickstart
 ==========
 
+Work in progress: This is being moved to a tutorial.
+
 All code examples below was snippets from the basic_usage_examples.py,
 but the documentation and the examples may have drifted apart (TODO:
 does there exist some good system for this?  Just use docstrings and doctests?)

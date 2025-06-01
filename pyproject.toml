@@ -51,6 +51,7 @@ Changelog = "https://github.com/python-caldav/caldav/blob/master/CHANGELOG.md"
 test = [
   "pytest",
   "coverage",
+  "manuel",
   "sphinx",
   "backports.zoneinfo;python_version<'3.9'",
   "tzlocal",
