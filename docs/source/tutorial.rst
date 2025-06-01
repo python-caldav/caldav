@@ -6,23 +6,23 @@ The intention with this tutorial is that you should learn basic usage
 of the python CalDAV client library.  You are encouraged to copy the
 code examples into a python shell and play with the objects you get
 returned.  To get it to work towards your own calendar server, it's
-best to set the environment variables `CALDAV_URL`, `CALDAV_USER` and
-`CALDAV_PASSWORD` to point to your personal calendar server.  (Also,
-if you have your username and password in a `.netrc` file, it's
+best to set the environment variables ``CALDAV_URL``, ``CALDAV_USER`` and
+``CALDAV_PASSWORD`` to point to your personal calendar server.  (Also,
+if you have your username and password in a ``.netrc`` file, it's
 sufficient to specify the URL).
 
-The examples here uses the `with`-statement, which is considered best
+The examples here uses the ``with``-statement, which is considered best
 practice (and needed for automated testing), but it may be
 inconvenient with with-blocks when experimenting in the python shell.
-You may skip the with-blocks and just write `client = get_davclient()`.
+You may skip the with-blocks and just write ``client = get_davclient()``.
 
 
 As of 2.0, it's recommended to start initiating a
-:class:`caldav.davclient.DAVClient` object using the `get_davclient`
+:class:`caldav.davclient.DAVClient` object using the ``get_davclient``
 function, go from there to get a
-class:`caldav.collections.Principal`-object, and from there find a
-:class:`caldav.objects.Calendar`-object.  (I'm planning to add a
-`get_calendar` in version 3.0).  This is how to do it:
+:class:`caldav.collection.Principal`-object, and from there find a
+:class:`caldav.collection.Calendar`-object.  (I'm planning to add a
+``get_calendar`` in version 3.0).  This is how to do it:
 
 .. code-block:: python
 
@@ -39,21 +39,21 @@ class:`caldav.collections.Principal`-object, and from there find a
 
 A caveat with the code above - there is no communication with the
 server when initializing the client, the first communication happens
-in `client.principal()` - so that's where you'll get errors if the
+in ``client.principal()`` - so that's where you'll get errors if the
 username/password/url is wrong.
 
-The `get_davclient` function will try to read username/password from
+The ``get_davclient`` function will try to read username/password from
 the environment or from a config file.  You may also specify
 connection parmeters directly to the function, like
-`get_davclient(username='alice', password='hunter2',
-url='https://calendar.example.com/dav/')`.  There are some more
+``get_davclient(username='alice', password='hunter2',
+url='https://calendar.example.com/dav/')``.  There are some more
 connection-related parameters that can be set if needed, see
 :class:`caldav.davclient.DAVClient` for details.
 
-The `calendar`-method above gives one calendar - if you have more
+The ``calendar``-method above gives one calendar - if you have more
 calendars, it will give you the first one it can find - which may not
-be the correct one.  To filter there are parameters `name` and
-`cal_id` - I recommend testing them:
+be the correct one.  To filter there are parameters ``name`` and
+``cal_id`` - I recommend testing them:
 
 .. code-block:: python
 
@@ -79,9 +79,9 @@ to go through the principal object.
 
 Note that in the example above, no communication is done.  If the URL is wrong, you will only know it when trying to save or get objects from the server!
 
-For servers that supports it, it may be useful to create a dedicated test calendar - that way you can test freely without risking to mess up your calendar events.  Let's populate it with some events and tasks while we're at it:
+For servers that supports it, it may be useful to create a dedicated test calendar - that way you can test freely without risking to mess up your calendar events.  Let's populate it with an event while we're at it:
 
-.. code-block: python
+.. code-block:: python
 
     from caldav.davclient import get_davclient
     import datetime
@@ -98,7 +98,7 @@ For servers that supports it, it may be useful to create a dedicated test calend
 
 You have icalendar code and want to put it into the calendar?  Easy!
 
-.. code-block: python
+.. code-block:: python
 
     from caldav.davclient import get_davclient
 
@@ -121,7 +121,7 @@ You have icalendar code and want to put it into the calendar?  Easy!
 
 The best way of getting information out from the calendar is to use the search.  Currently most of the logic is done on the server side - and the different calendar servers tends to give different results given the same data and search query.  In future versions of the CalDAV library the intention is to do more workarounds and logic on the client side, allowing for more consistent results across different servers.
 
-.. code-block: python
+.. code-block:: python
 
     from caldav.davclient import get_davclient
     from datetime import date
@@ -145,15 +145,15 @@ The best way of getting information out from the calendar is to use the search. 
         assert len(my_events) == 1
         print(my_events[0].data)
 
-`expand` causes the search results to be expanded.  Instead of getting returned the original event (with `DTSTART` set in 2020 and an `RRULE` set) it will return a *recurrence*.  Or, rather, a list of recurrences if there are more of them in the search interval.
+``expand`` causes the search results to be expanded.  Instead of getting returned the original event (with ``DTSTART`` set in 2020 and an ``RRULE`` set) it will return a *recurrence*.  Or, rather, a list of recurrences if there are more of them in the search interval.
 
-`event` causes the search to only return events.  There are three kind of objects that can be saved to a calendar (but not all servers support all three) - events, journals and tasks (`VEVENT`, `VJOURNAL` and `VTODO`).  This is called Calendar Object Resources in the RFC (quite a mouthful!).  Without `event=True` explicitly set, in theory all objects should be returned - unfortunately many servers returns nothing.  In future versions of CalDAV there will be workarounds so `event=True` can be safely skipped.
+``event`` causes the search to only return events.  There are three kind of objects that can be saved to a calendar (but not all servers support all three) - events, journals and tasks (``VEVENT``, ``VJOURNAL`` and ``VTODO``).  This is called Calendar Object Resources in the RFC (quite a mouthful!).  Without ``event=True`` explicitly set, in theory all objects should be returned - unfortunately many servers returns nothing.  In future versions of CalDAV there will be workarounds so ``event=True`` can be safely skipped.
 
 The return type is an object of the type :class:`caldav.calendarobjectresource.Event` - for tasks and jornals there are additional classes Todo and Journal.
 
-The `data` property delivers the icalendar data as a string.  It can be modified:
+The ``data`` property delivers the icalendar data as a string.  It can be modified:
 
-.. code-block: python
+.. code-block:: python
 
     from caldav.davclient import get_davclient
     from datetime import date
@@ -177,13 +177,13 @@ The `data` property delivers the icalendar data as a string.  It can be modified
         my_events[0].data = my_events[0].data.replace("Do the needful", "Have fun!")
         my_events[0].save()
 
-As seen above, we can use `save()` to send a modified object back to the server.  In the case above, we've edited a recurrence.  Now that we've saved the object, you're encouraged to test with search with and without expand set and with different years and see what results you'll get.  The `save()`-method also takes a parameter `all_recurrences=True` if you want to edit the full series!
+As seen above, we can use ``save()`` to send a modified object back to the server.  In the case above, we've edited a recurrence.  Now that we've saved the object, you're encouraged to test with search with and without expand set and with different years and see what results you'll get.  The ``save()``-method also takes a parameter ``all_recurrences=True`` if you want to edit the full series!
 
-When I started using the caldav library, I didn't want to get my hands dirty with all the details and complexity of the CalDAV-protocol and iCalendar-protocol (and despite that I ended up with the maintainer hat, yay!).  You can easily get the iCalendar data packed into objects that can be manipulated: `myevent.instance`.  Now there exists two libraries making it easier to handle the iCalendar data, it's vobject and icalendar.  The CalDAV-library originally supported the first, but as the second seems more popular it's the recommended library.  As of 2.0, `myevent.instance` will return a vobject instance, this may be changed in 3.0.  As for now, the recommended practice is to always be explicit and use either `myevent.vobject_instance` or `myevent.icalendar_instance` - preferably the latter.  You're encouraged to test it out in the python shell.
+When I started using the caldav library, I didn't want to get my hands dirty with all the details and complexity of the CalDAV-protocol and iCalendar-protocol (and despite that I ended up with the maintainer hat, yay!).  You can easily get the iCalendar data packed into objects that can be manipulated: ``myevent.instance``.  Now there exists two libraries making it easier to handle the iCalendar data, it's vobject and icalendar.  The CalDAV-library originally supported the first, but as the second seems more popular it's the recommended library.  As of 2.0, ``myevent.instance`` will return a vobject instance, this may be changed in 3.0.  As for now, the recommended practice is to always be explicit and use either ``myevent.vobject_instance`` or ``myevent.icalendar_instance`` - preferably the latter.  You're encouraged to test it out in the python shell.
 
-Most of the time every event one gets out from the search contains one *component* - and it will always be like that when using `expand=True`.  To ease things out for users of the library that wants easy access to the event data there is an `my_events[9].icalendar_component` property.  From 2.0 also accessible simply as my_events[0].component`:
+Most of the time every event one gets out from the search contains one *component* - and it will always be like that when using ``expand=True``.  To ease things out for users of the library that wants easy access to the event data there is an ``my_events[9].icalendar_component`` property.  From 2.0 also accessible simply as ``my_events[0].component``:
 
-.. code-block: python
+.. code-block:: python
 
     from caldav.davclient import get_davclient
     from datetime import date
@@ -210,9 +210,9 @@ Most of the time every event one gets out from the search contains one *componen
 
 How to do operations on components and instances in the vobject and icalendar library is outside the scope of this tutorial - The icalendar library documentaiton can be found [here](https://icalendar.readthedocs.io/) as of 2025-06.
 
-Usually tasks and journals can be applied directly to the same calendar as the events - but some implementations (notably Zimbra) has "task lists" and "calendars" as distinct entities.  To create a task list, there is a parameter `supported_calendar_component_set` that can be set to `['VTODO']`.  Here is a quick example that features a task:
+Usually tasks and journals can be applied directly to the same calendar as the events - but some implementations (notably Zimbra) has "task lists" and "calendars" as distinct entities.  To create a task list, there is a parameter ``supported_calendar_component_set`` that can be set to ``['VTODO']``.  Here is a quick example that features a task:
 
-.. code-block: python
+.. code-block:: python
 
     from caldav.davclient import get_davclient
     from datetime import date
@@ -235,7 +235,7 @@ Usually tasks and journals can be applied directly to the same calendar as the e
             todo=True, include_completed=True)
         assert len(my_tasks) == 1
 
-This concludes this tutorial.
+There are more functionality, but if you've followed the tutorial to this point, you should already know eough to deal with the very most use-cases.
 
 There are some more examples in the examples folder, particularly `basic examples <https://github.com/python-caldav/caldav/blob/master/examples/basic_usage_examples.py>`_. There is also a `scheduling examples <https://github.com/python-caldav/caldav/blob/master/examples/scheduling_examples.py>`_ for sending, receiving and replying to invites, though this is not very well-tested so far.  The example code is currently not tested nor maintained.  Some of it will be moved into the documentation as tutorials or how-tos eventually.
 
