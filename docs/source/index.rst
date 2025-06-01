@@ -10,12 +10,14 @@ Contents
 .. toctree::
    :maxdepth: 1
 
-   tutorial
+   tutorial.rst
    caldav/davclient
    caldav/objects
 
 Project home
 ============
+
+TEST
 
 The project currently lives on github,
 https://github.com/python-caldav/caldav - if you have problems using
