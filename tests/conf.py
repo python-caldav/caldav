@@ -275,7 +275,7 @@ def client(
             )
             kwargs_.pop(kw)
     conn = DAVClient(**kwargs_)
-    setup(conn)
+    conn.setup = setup
     conn.teardown = teardown
     conn.incompatibilities = kwargs.get("incompatibilities")
     conn.server_name = name

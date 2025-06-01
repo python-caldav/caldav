@@ -41,12 +41,14 @@ This will be the last minor release before 2.0.  The scheduling support has been
 
 ### Added
 
+* `auto_conn` is more complete now - it could already read from test config, now it can read from environment (including environment variable for reading from test config and for locating the config file).  While the `auto_conn` itself is tested in the functional tests, the code for reading the config file (and all the corner cases) is not tested.  It's allowable with a yaml config file, but the yaml module is not included in the dependencies yet ... so late imports as for now.
 * New option `event.save(all_recurrences=True)` to edit the whole series when saving a modified recurrence.  Part of https://github.com/python-caldav/caldav/pull/500
-* New methods `Event.set_dtend` and `CalendarObjectResource.set_end`. by @tobixen in https://github.com/python-caldav/caldav/pull/499
+* New methods `Event.set_dtend` and `CalendarObjectResource.set_end`. https://github.com/python-caldav/caldav/pull/499
 
-### Refactoring
+### Refactoring and tests
 
 * Partially tossed out all internal usage of vobject, https://github.com/python-caldav/caldav/issues/476.  Refactoring and removing unuseful code.  Parts of this work was accidentally committed directly to master, 2f61dc7adbe044eaf43d0d2c78ba96df09201542, the rest was piggybaced in through  https://github.com/python-caldav/caldav/pull/500.
+* Server-specific setup- and teardown-methods (used for spinning up test servers in the tests) is now executed through the DAVClient context manager.  This will allow doctests to run easily.
 
 ### Time spent and roadmap
 
@@ -80,7 +82,7 @@ Python 3.7 is no longer tested (dependency problems) - but it should work.  Plea
 
 * Minor code cleanups by github user @ArtemIsmagilov in https://github.com/python-caldav/caldav/pull/456
 * The very much overgrown `objects.py`-file has been split into three - https://github.com/python-caldav/caldav/pull/483
-* Refactor compatibility issues by @tobixen in https://github.com/python-caldav/caldav/pull/484
+* Refactor compatibility issues https://github.com/python-caldav/caldav/pull/484
 * Refactoring of `multiget` in https://github.com/python-caldav/caldav/pull/492
 
 ### Documentation
