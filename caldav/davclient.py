@@ -905,7 +905,7 @@ def get_davclient(
     testconfig=False,
     environment: bool = True,
     name: str = None,
-    **config_data
+    **config_data,
 ) -> "DAVClient":
     """
     This function will yield a DAVClient object.  It will not try to
