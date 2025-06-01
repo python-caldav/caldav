@@ -145,7 +145,7 @@ The best way of getting information out from the calendar is to use the search. 
         assert len(my_events) == 1
         print(my_events[0].data)
 
-``expand`` causes the search results to be expanded.  Instead of getting returned the original event (with ``DTSTART`` set in 2020 and an ``RRULE`` set) it will return a *recurrence*.  Or, rather, a list of recurrences if there are more of them in the search interval.
+``expand`` matters for recurring events and tasks, instead of getting returned the original event (with ``DTSTART`` set in 2020 and an ``RRULE`` set) it will return a *recurrence*.  Or, rather, a list of recurrences if there are more of them in the search interval.
 
 ``event`` causes the search to only return events.  There are three kind of objects that can be saved to a calendar (but not all servers support all three) - events, journals and tasks (``VEVENT``, ``VJOURNAL`` and ``VTODO``).  This is called Calendar Object Resources in the RFC (quite a mouthful!  By now I often write "events" when in reality I mean "CalenderObjectResources objects, such as events or tasks", it's just easier).  Without ``event=True`` explicitly set, in theory all the types should be returned - unfortunately many servers returns nothing.  In future versions of CalDAV there will be workarounds so ``event=True`` can be safely skipped.
 
