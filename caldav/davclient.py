@@ -916,8 +916,8 @@ def get_davclient(
     order:
 
     * Data from the given dict
-    * Environment variables prepended with "CALDAV_"
-    * Environment variables PYTHON_CALDAV_USE_TEST_SERVER and CALDAV_CONFIG_FILE will be honored if environment is set
+    * Environment variables prepended with `CALDAV_`
+    * Environment variables `PYTHON_CALDAV_USE_TEST_SERVER` and `CALDAV_CONFIG_FILE` will be honored if environment is set
     * Data from `./tests/conf.py` or `./conf.py` (this includes the possibility to spin up a test server)
     * Configuration file.  Documented in the plann project as for now.  (TODO - move it)
     """
