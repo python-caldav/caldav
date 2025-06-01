@@ -8,9 +8,12 @@ Tests that do not require communication with a working caldav server
 belong in test_caldav_unit.py
 """
 import codecs
+import json
 import logging
+import os
 import random
 import sys
+import tempfile
 import threading
 import time
 import uuid
@@ -39,6 +42,7 @@ from .conf import xandikos_port
 from .proxy import NonThreadingHTTPServer
 from .proxy import ProxyHandler
 from caldav import compatibility_hints
+from caldav.davclient import auto_conn
 from caldav.davclient import DAVClient
 from caldav.davclient import DAVResponse
 from caldav.elements import cdav
@@ -433,6 +437,56 @@ sched = sched_template % (
 
 
 @pytest.mark.skipif(
+    not caldav_servers,
+    reason="Requirement: at least one working server in conf.py. The tail object of the server list will be chosen, that is typically the LocalRadicale or LocalXandikos server.",
+)
+class TestAutoConn:
+    """
+    Tests for auto_conn and auto_calendars.
+
+    """
+
+    def testTestConfig(self):
+        with auto_conn(
+            testconfig=True, environment=False, name=-1, config_file=False
+        ) as conn:
+            assert conn.principal()
+
+    def testEnvironment(self):
+        os.environ["PYTHON_CALDAV_USE_TEST_SERVER"] = "1"
+        with auto_conn(environment=True, config_file=False, name="-1") as conn:
+            assert conn.principal()
+            for key in ("url", "username", "password", "proxy"):
+                if key in caldav_servers[-1]:
+                    os.environ[f"CALDAV_{key.upper()}"] = caldav_servers[-1][key]
+            with auto_conn(
+                testconfig=False, environment=True, config_file=False
+            ) as conn2:
+                assert conn2.principal()
+
+    def testConfigfile(self):
+        ## start up a server
+        with auto_conn(
+            testconfig=True, environment=False, name=-1, config_file=False
+        ) as conn:
+            config = {}
+            for key in ("url", "username", "password", "proxy"):
+                if key in caldav_servers[-1]:
+                    config[f"caldav_{key}"] = caldav_servers[-1][key]
+
+            with tempfile.NamedTemporaryFile(
+                delete=True, encoding="utf-8", mode="w"
+            ) as tmp:
+                json.dump({"default": config}, tmp)
+                tmp.flush()
+                os.fsync(tmp.fileno())
+                with auto_conn(
+                    config_file=tmp.name, testconfig=False, environment=False
+                ) as conn2:
+                    assert conn2.principal()
+
+
+@pytest.mark.skipif(
     not rfc6638_users, reason="need rfc6638_users to be set in order to run this test"
 )
 @pytest.mark.skipif(
@@ -490,7 +544,7 @@ class TestScheduling:
             except error.NotFoundError:
                 pass
         for c in self.clients:
-            c.teardown(c)
+            c.__exit__()
 
     ## TODO
     # def testFreeBusy(self):
@@ -609,6 +663,7 @@ class RepeatedFunctionalTestsBaseClass:
             self.testcal_id2 = "pythoncaldav-test2"
 
         self.caldav = client(**self.server_params)
+        self.caldav.__enter__()
 
         if self.check_compatibility_flag("rate_limited"):
             self.caldav.request = _delay_decorator(self.caldav.request)

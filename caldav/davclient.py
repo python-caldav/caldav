@@ -443,6 +443,8 @@ class DAVClient:
         """
         headers = headers or {}
 
+        ## Deprecation TODO: use auto_conn or auto_calendar instead
+
         self.session = niquests.Session(multiplexed=True)
 
         log.debug("url: " + str(url))
@@ -495,6 +497,12 @@ class DAVClient:
         self._principal = None
 
     def __enter__(self) -> Self:
+        ## Used for tests, to set up a temporarily test server
+        if hasattr(self, "setup"):
+            try:
+                self.setup()
+            except:
+                self.setup(self)
         return self
 
     def __exit__(
@@ -504,6 +512,12 @@ class DAVClient:
         traceback: Optional[TracebackType],
     ) -> None:
         self.close()
+        ## Used for tests, to tear down a temporarily test server
+        if hasattr(self, "teardown"):
+            try:
+                self.teardown()
+            except:
+                self.teardown(self)
 
     def close(self) -> None:
         """
@@ -845,7 +859,8 @@ class DAVClient:
 
 
 def auto_calendars(
-    configfile: str = f"{os.environ.get('HOME')}/.config/calendar.conf",
+    config_file: str = f"{os.environ.get('HOME')}/.config/calendar.conf",
+    config_section="default",
     testconfig=False,
     environment: bool = True,
     config_data: dict = None,
@@ -864,8 +879,10 @@ def auto_calendar(*largs, **kwargs) -> Iterable["Calendar"]:
     return next(auto_calendars(*largs, **kwargs), None)
 
 
+## TODO: consider other name for it?
 def auto_conn(
-    configfile: str = f"{os.environ.get('HOME')}/.config/calendar.conf",
+    config_file: str = f"{os.environ.get('HOME')}/.config/calendar.conf",
+    config_section="default",
     testconfig=False,
     environment: bool = True,
     config_data: dict = None,
@@ -883,27 +900,29 @@ def auto_conn(
 
     * Data from the given dict
     * Environment variables prepended with "CALDAV_"
+    * Environment variables PYTHON_CALDAV_USE_TEST_SERVER and CALDAV_CONFIG_FILE will be honored if environment is set
     * Data from `./tests/conf.py` or `./conf.py` (this includes the possibility to spin up a test server)
     * Configuration file.  Documented in the plann project as for now.  (TODO - move it)
-
     """
     if config_data:
         return DAVClient(**config_data)
 
-    if testconfig:
+    if testconfig or (environment and os.environ.get("PYTHON_CALDAV_USE_TEST_SERVER")):
         sys.path.insert(0, "tests")
         sys.path.insert(1, ".")
         ## TODO: move the code from client into here
         try:
             from conf import client
 
+            idx = None
+            if name:
+                try:
+                    idx = int(name)
+                    name = None
+                except ValueError:
+                    pass
             try:
-                idx = int(name)
-                name = None
-            except ValueError:
-                idx = None
-            try:
-                conn = client(idx, name, **config_data)
+                conn = client(idx, name, **(config_data or {}))
                 if conn:
                     return conn
             except:
@@ -914,11 +933,28 @@ def auto_conn(
             sys.path = sys.path[2:]
 
     if environment:
-        raise NotImplementedError(
-            "Not possible to configure the caldav server through environmental variables yet"
-        )
+        conf = {}
+        for conf_key in (x for x in os.environ if x.startswith("CALDAV_")):
+            conf[conf_key[7:]] = os.environ[conf_key].lower()
+        if conf:
+            return DAVClient(**conf)
+        config_file = os.environ.get("CALDAV_CONFIG_FILE")
 
-    if configfile:
-        raise NotImplementedError(
-            "Support for configuration file not made yet (TODO: copy the code from the plann tool)"
-        )
+    if config_file:
+        ## late import in 2.0, as the config stuff isn't properly tested
+        from . import config
+
+        cfg = config.read_config(config_file)
+        if cfg:
+            section = config.config_section(cfg, config_section)
+            conn_params = {}
+            for k in section:
+                if k.startswith("caldav_") and section[k]:
+                    key = k[7:]
+                    if key == "pass":
+                        key = "password"
+                    if key == "user":
+                        key = "username"
+                    conn_params[key] = section[k]
+                if conn_params:
+                    return DAVClient(**conn_params)
