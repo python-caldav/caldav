@@ -10,7 +10,7 @@ version-file = "caldav/_version.py"
 
 [project]
 name = "caldav"
-authors = [{ name = "Cyril Robert", email = "cyril@hippie.io" }]
+authors = [{ name = "Cyril Robert", email = "cyril@hippie.io" }, { name = "Tobias Brox", email = "caldav@plann.no" }]
 license = { text = "GPL" }
 description = "CalDAV (RFC4791) client library"
 keywords = []
