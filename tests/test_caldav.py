@@ -42,7 +42,7 @@ from .conf import xandikos_port
 from .proxy import NonThreadingHTTPServer
 from .proxy import ProxyHandler
 from caldav import compatibility_hints
-from caldav.davclient import auto_conn
+from caldav.davclient import get_davclient
 from caldav.davclient import DAVClient
 from caldav.davclient import DAVResponse
 from caldav.elements import cdav
@@ -440,33 +440,33 @@ sched = sched_template % (
     not caldav_servers,
     reason="Requirement: at least one working server in conf.py. The tail object of the server list will be chosen, that is typically the LocalRadicale or LocalXandikos server.",
 )
-class TestAutoConn:
+class TestGetDAVClient:
     """
-    Tests for auto_conn and auto_calendars.
+    Tests for get_davclient and auto_calendars.
 
     """
 
     def testTestConfig(self):
-        with auto_conn(
+        with get_davclient(
             testconfig=True, environment=False, name=-1, config_file=False
         ) as conn:
             assert conn.principal()
 
     def testEnvironment(self):
         os.environ["PYTHON_CALDAV_USE_TEST_SERVER"] = "1"
-        with auto_conn(environment=True, config_file=False, name="-1") as conn:
+        with get_davclient(environment=True, config_file=False, name="-1") as conn:
             assert conn.principal()
             for key in ("url", "username", "password", "proxy"):
                 if key in caldav_servers[-1]:
                     os.environ[f"CALDAV_{key.upper()}"] = caldav_servers[-1][key]
-            with auto_conn(
+            with get_davclient(
                 testconfig=False, environment=True, config_file=False
             ) as conn2:
                 assert conn2.principal()
 
     def testConfigfile(self):
         ## start up a server
-        with auto_conn(
+        with get_davclient(
             testconfig=True, environment=False, name=-1, config_file=False
         ) as conn:
             config = {}
@@ -480,7 +480,7 @@ class TestAutoConn:
                 json.dump({"default": config}, tmp)
                 tmp.flush()
                 os.fsync(tmp.fileno())
-                with auto_conn(
+                with get_davclient(
                     config_file=tmp.name, testconfig=False, environment=False
                 ) as conn2:
                     assert conn2.principal()

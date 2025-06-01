@@ -12,6 +12,7 @@ from typing import Tuple
 from typing import TYPE_CHECKING
 from typing import Union
 from urllib.parse import unquote
+import warnings
 
 import niquests
 from lxml import etree
@@ -443,7 +444,7 @@ class DAVClient:
         """
         headers = headers or {}
 
-        ## Deprecation TODO: use auto_conn or auto_calendar instead
+        ## Deprecation TODO: give a warning, user should use get_davclient or auto_calendar instead
 
         self.session = niquests.Session(multiplexed=True)
 
@@ -878,9 +879,23 @@ def auto_calendar(*largs, **kwargs) -> Iterable["Calendar"]:
     """
     return next(auto_calendars(*largs, **kwargs), None)
 
+def auto_conn(*largs, **kwargs):
+    """A quite stubbed verison of get_davclient was included in the
+    v1.5-release as auto_conn, but renamed a few days later.  Probably
+    nobody except my caldav tester project uses auto_conn, but as a
+    thumb of rule anything released should stay "deprecated" for at
+    least one major release before being removed.
 
-## TODO: consider other name for it?
-def auto_conn(
+    TODO: remove in version 3.0
+    """
+    warnings.warn(
+        "auto_conn was renamed get_davclient",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return get_davclient(*largs, **kwargs)
+
+def get_davclient(
     config_file: str = f"{os.environ.get('HOME')}/.config/calendar.conf",
     config_section="default",
     testconfig=False,
@@ -958,3 +973,4 @@ def auto_conn(
                     conn_params[key] = section[k]
                 if conn_params:
                     return DAVClient(**conn_params)
+
