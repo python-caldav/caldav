@@ -880,7 +880,7 @@ def auto_calendar(*largs, **kwargs) -> Iterable["Calendar"]:
     return next(auto_calendars(*largs, **kwargs), None)
 
 
-def auto_conn(*largs, **kwargs):
+def auto_conn(*largs, config_data: dict = None, **kwargs):
     """A quite stubbed verison of get_davclient was included in the
     v1.5-release as auto_conn, but renamed a few days later.  Probably
     nobody except my caldav tester project uses auto_conn, but as a
@@ -894,6 +894,8 @@ def auto_conn(*largs, **kwargs):
         DeprecationWarning,
         stacklevel=2,
     )
+    if config_data:
+        kwargs.update(config_data)
     return get_davclient(*largs, **kwargs)
 
 
@@ -902,22 +904,18 @@ def get_davclient(
     config_section="default",
     testconfig=False,
     environment: bool = True,
-    config_data: dict = None,
     name: str = None,
+    **config_data,
 ) -> "DAVClient":
     """
-    Normally you would like to look into auto_calendars or
-    auto_calendar instead.  However, in some cases it's needed
-    with a DAVClient object rather than a Calendar object.
-
     This function will yield a DAVClient object.  It will not try to
     connect (see auto_calendars for that).  It will read configuration
     from various sources, dependent on the parameters given, in this
     order:
 
-    * Data from the given dict
-    * Environment variables prepended with "CALDAV_"
-    * Environment variables PYTHON_CALDAV_USE_TEST_SERVER and CALDAV_CONFIG_FILE will be honored if environment is set
+    * Data from the parameters given
+    * Environment variables prepended with `CALDAV_`, like `CALDAV_URL`, `CALDAV_USERNAME`, `CALDAV_PASSWORD`.
+    * Environment variables `PYTHON_CALDAV_USE_TEST_SERVER` and `CALDAV_CONFIG_FILE` will be honored if environment is set
     * Data from `./tests/conf.py` or `./conf.py` (this includes the possibility to spin up a test server)
     * Configuration file.  Documented in the plann project as for now.  (TODO - move it)
     """

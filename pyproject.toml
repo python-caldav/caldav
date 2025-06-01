@@ -1,10 +1,16 @@
 [build-system]
-requires = ["setuptools>=64", "setuptools-scm[toml]>=7.0"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "caldav/_version.py"
 
 [project]
 name = "caldav"
-authors = [{ name = "Cyril Robert", email = "cyril@hippie.io" }]
+authors = [{ name = "Cyril Robert", email = "cyril@hippie.io" }, { name = "Tobias Brox", email = "caldav@plann.no" }]
 license = { text = "GPL" }
 description = "CalDAV (RFC4791) client library"
 keywords = []
@@ -45,6 +51,7 @@ Changelog = "https://github.com/python-caldav/caldav/blob/master/CHANGELOG.md"
 test = [
   "pytest",
   "coverage",
+  "manuel",
   "sphinx",
   "backports.zoneinfo;python_version<'3.9'",
   "tzlocal",
