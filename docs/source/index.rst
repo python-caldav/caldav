@@ -10,6 +10,7 @@ Contents
 .. toctree::
    :maxdepth: 1
 
+   tutorial
    caldav/davclient
    caldav/objects
 
