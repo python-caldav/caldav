@@ -4,6 +4,8 @@
 
 .. module:: caldav
 
+This is the Python CalDAV client library, making communication with calendaring servers easy.
+
 Contents
 ========
 

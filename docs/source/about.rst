@@ -46,8 +46,7 @@ API that is marked as deprecated 2.x will most likely be removed in version 3.0
 If you have any suggestions on API-changes, please
 comment on https://github.com/python-caldav/caldav/issues/92
 
-Notices will be logged when using legacy interface.  (See also
-https://github.com/python-caldav/caldav/issues/240)
+Warnings will be issued when using legacy interface.
 
 
 Python compatibility notice
@@ -89,8 +88,8 @@ depend on another library for that.
 RFC 5545 describes the icalendar format.  Constructing or parsing
 icalendar data was considered out of the scope of this library, but we
 do make exceptions - like, there is a method to complete a task - it
-involves editing the icalendar data, and now the `save_event`,
-`save_todo` and `save_journal` methods are able to construct icalendar
+involves editing the icalendar data, and now the ``save_event``,
+``save_todo`` and ``save_journal`` methods are able to construct icalendar
 data if needed.
 
 There exists two libraries supporting RFC 5545, vobject and icalendar.
@@ -128,18 +127,18 @@ Notable classes and workflow
 
 * You'd always start by initiating a :class:`caldav.davclient.DAVClient`
   object, this object holds the authentication details for the
-  server.
+  server.  In 2.0 there is a function :class:`caldav.davclient.get_davclient` that can be used.
 
 * From the client object one can get hold of a
-  :class:`caldav.objects.Principal` object representing the logged-in
+  :class:`caldav.collection.Principal` object representing the logged-in
   principal.
 
 * From the principal object one can fetch / generate
-  :class:`caldav.objects.Calendar` objects.
+  :class:`caldav.collection.Calendar` objects.
 
 * From the calendar object one can fetch / generate
-  :class:`caldav.objects.Event` objects and
-  :class:`caldav.objects.Todo` objects (as well as :class:`caldav.objects.Journal` objects - does anyone use Journal objects?).  Eventually the library may also spew out objects of the base class (:class:`caldav.objects.CalendarObjectResource`) if the object type is unknown when the object is instantiated.
+  :class:`caldav.calendarobjectresource.Event` objects and
+  :class:`caldav.calendarobjectresource.Todo` objects (as well as :class:`caldav.calendarobjectresource.Journal` objects - does anyone use Journal objects?).  Eventually the library may also spew out objects of the base class (:class:`caldav.calendarobjectresource.CalendarObjectResource`) if the object type is unknown when the object is instantiated.
 
 * If one happens to know the URLs, objects like calendars, principals
   and events can be instantiated without going through the
