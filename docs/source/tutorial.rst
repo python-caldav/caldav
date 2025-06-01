@@ -27,11 +27,15 @@ class:`caldav.collections.Principal`-object, and from there find a
 .. code-block:: python
 
     from caldav.davclient import get_davclient
+    from caldav.lib.error import NotFoundError
 
     with get_davclient() as client:
         my_principal = client.principal()
-        my_calendar = my_principal.calendar()
-        print(f"A calendar was found at URL {my_calendar.url}")
+        try:
+            my_calendar = my_principal.calendar()
+            print(f"A calendar was found at URL {my_calendar.url}")
+        except NotFoundError:
+            print("You don't seem to have any calendars")
 
 A caveat with the code above - there is no communication with the
 server when initializing the client, the first communication happens
@@ -135,7 +139,7 @@ The best way of getting information out from the calendar is to use the search. 
         my_events = my_new_calendar.search(
             event=True,
             start=date(2026,5,1),
-            stop=date(2026,6,1),
+            end=date(2026,6,1),
             expand=True)
 
         assert len(my_events) == 1
@@ -170,7 +174,7 @@ The `data` property delivers the icalendar data as a string.  It can be modified
             expand=True)
 
         assert len(my_events) == 1
-        my_events[0].data = my_events.data.replace("Do the needful", "Have fun!")
+        my_events[0].data = my_events[0].data.replace("Do the needful", "Have fun!")
         my_events[0].save()
 
 As seen above, we can use `save()` to send a modified object back to the server.  In the case above, we've edited a recurrence.  Now that we've saved the object, you're encouraged to test with search with and without expand set and with different years and see what results you'll get.  The `save()`-method also takes a parameter `all_recurrences=True` if you want to edit the full series!
@@ -206,4 +210,35 @@ Most of the time every event one gets out from the search contains one *componen
 
 How to do operations on components and instances in the vobject and icalendar library is outside the scope of this tutorial - The icalendar library documentaiton can be found [here](https://icalendar.readthedocs.io/) as of 2025-06.
 
-Usually tasks and journals can be applied directly to the same calendar as the events - but some implementations (notably Zimbra) has "task lists" and "calendars" as distinct entities.  To create a task list, there is a parameter `supported_calendar_component_set` that can be set to `['VTODO']`.
+Usually tasks and journals can be applied directly to the same calendar as the events - but some implementations (notably Zimbra) has "task lists" and "calendars" as distinct entities.  To create a task list, there is a parameter `supported_calendar_component_set` that can be set to `['VTODO']`.  Here is a quick example that features a task:
+
+.. code-block: python
+
+    from caldav.davclient import get_davclient
+    from datetime import date
+
+    with get_davclient() as client:
+        my_principal = client.principal()
+        my_new_calendar = my_principal.make_calendar(
+            name="Test calendar", supported_calendar_component_set=['VTODO'])
+        my_new_calendar.save_todo(
+            summary="prepare for the Norwegian national day", due=date(2025,5,16))
+
+        my_tasks = my_new_calendar.search(
+            todo=True)
+        assert len(my_tasks) == 1
+        my_tasks[0].complete()
+        my_tasks = my_new_calendar.search(
+            todo=True)
+        assert len(my_tasks) == 0
+        my_tasks = my_new_calendar.search(
+            todo=True, include_completed=True)
+        assert len(my_tasks) == 1
+
+This concludes this tutorial.
+
+There are some more examples in the examples folder, particularly `basic examples <https://github.com/python-caldav/caldav/blob/master/examples/basic_usage_examples.py>`_. There is also a `scheduling examples <https://github.com/python-caldav/caldav/blob/master/examples/scheduling_examples.py>`_ for sending, receiving and replying to invites, though this is not very well-tested so far.  The example code is currently not tested nor maintained.  Some of it will be moved into the documentation as tutorials or how-tos eventually.
+
+The `test code <https://github.com/python-caldav/caldav/blob/master/tests/test_caldav.py>`_ also covers most of the features available, though it's not much optimized for readability (at least not as of 2025-05).
+
+Tobias Brox is also working on a `command line interface <https://github.com/tobixen/plann>`_  built around the caldav library.

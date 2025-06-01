@@ -153,7 +153,10 @@ class CalendarSet(DAVObject):
                 "No calendar with name %s found under %s" % (name, self.url)
             )
         if not cal_id and not name:
-            return self.calendars()[0]
+            cals = self.calendars()
+            if not cals:
+                raise error.NotFoundError("no calendars found")
+            return cals[0]
 
         if self.client is None:
             raise ValueError("Unexpected value None for self.client")
