@@ -147,7 +147,7 @@ The best way of getting information out from the calendar is to use the search. 
 
 ``expand`` causes the search results to be expanded.  Instead of getting returned the original event (with ``DTSTART`` set in 2020 and an ``RRULE`` set) it will return a *recurrence*.  Or, rather, a list of recurrences if there are more of them in the search interval.
 
-``event`` causes the search to only return events.  There are three kind of objects that can be saved to a calendar (but not all servers support all three) - events, journals and tasks (``VEVENT``, ``VJOURNAL`` and ``VTODO``).  This is called Calendar Object Resources in the RFC (quite a mouthful!).  Without ``event=True`` explicitly set, in theory all objects should be returned - unfortunately many servers returns nothing.  In future versions of CalDAV there will be workarounds so ``event=True`` can be safely skipped.
+``event`` causes the search to only return events.  There are three kind of objects that can be saved to a calendar (but not all servers support all three) - events, journals and tasks (``VEVENT``, ``VJOURNAL`` and ``VTODO``).  This is called Calendar Object Resources in the RFC (quite a mouthful!  By now I often write "events" when in reality I mean "CalenderObjectResources objects, such as events or tasks", it's just easier).  Without ``event=True`` explicitly set, in theory all the types should be returned - unfortunately many servers returns nothing.  In future versions of CalDAV there will be workarounds so ``event=True`` can be safely skipped.
 
 The return type is an object of the type :class:`caldav.calendarobjectresource.Event` - for tasks and jornals there are additional classes Todo and Journal.
 
@@ -208,7 +208,7 @@ Most of the time every event one gets out from the search contains one *componen
         my_events[0].component['summary'] = "Norwegian national day celebrations"
         my_events[0].save()
 
-How to do operations on components and instances in the vobject and icalendar library is outside the scope of this tutorial - The icalendar library documentaiton can be found [here](https://icalendar.readthedocs.io/) as of 2025-06.
+How to do operations on components and instances in the vobject and icalendar library is outside the scope of this tutorial - The icalendar library documentaiton can be found `here <https://icalendar.readthedocs.io/>`_ as of 2025-06.
 
 Usually tasks and journals can be applied directly to the same calendar as the events - but some implementations (notably Zimbra) has "task lists" and "calendars" as distinct entities.  To create a task list, there is a parameter ``supported_calendar_component_set`` that can be set to ``['VTODO']``.  Here is a quick example that features a task:
 
