@@ -42,9 +42,9 @@ from .conf import xandikos_port
 from .proxy import NonThreadingHTTPServer
 from .proxy import ProxyHandler
 from caldav import compatibility_hints
-from caldav.davclient import get_davclient
 from caldav.davclient import DAVClient
 from caldav.davclient import DAVResponse
+from caldav.davclient import get_davclient
 from caldav.elements import cdav
 from caldav.elements import dav
 from caldav.elements import ical

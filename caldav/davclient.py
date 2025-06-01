@@ -2,6 +2,7 @@
 import logging
 import os
 import sys
+import warnings
 from types import TracebackType
 from typing import Any
 from typing import cast
@@ -12,7 +13,6 @@ from typing import Tuple
 from typing import TYPE_CHECKING
 from typing import Union
 from urllib.parse import unquote
-import warnings
 
 import niquests
 from lxml import etree
@@ -879,6 +879,7 @@ def auto_calendar(*largs, **kwargs) -> Iterable["Calendar"]:
     """
     return next(auto_calendars(*largs, **kwargs), None)
 
+
 def auto_conn(*largs, **kwargs):
     """A quite stubbed verison of get_davclient was included in the
     v1.5-release as auto_conn, but renamed a few days later.  Probably
@@ -894,6 +895,7 @@ def auto_conn(*largs, **kwargs):
         stacklevel=2,
     )
     return get_davclient(*largs, **kwargs)
+
 
 def get_davclient(
     config_file: str = f"{os.environ.get('HOME')}/.config/calendar.conf",
@@ -973,4 +975,3 @@ def get_davclient(
                     conn_params[key] = section[k]
                 if conn_params:
                     return DAVClient(**conn_params)
-
