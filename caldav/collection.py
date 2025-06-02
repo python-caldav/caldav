@@ -1,5 +1,5 @@
 """
-I'm trying to be consistent with the terminology in the RFCs
+I'm trying to be consistent with the terminology in the RFCs:
 
 CalendarSet is a collection of Calendars
 Calendar is a collection of CalendarObjectResources

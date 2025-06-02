@@ -1,11 +1,13 @@
 """
 Calendar Objects Resources, as defined in the RFC 4791.
 
-There are three subclasses Todo, Journal and Event.  Those mirrors objects stored on the server.
+There are three subclasses Todo, Journal and Event.  Those mirrors objects stored on the server.  The word ``CalendarObjectResource`` is long, complicated and may be hard to understand.  When you read the word "event" in any documentation, issue discussions, etc, then most likely it should be read as "a CalendarObjectResource, like an event, a task or a journal".  Do not make the mistake of going directly to the Event-class if you want to contribute code for handling "events" - consider that the same code probably will be appicable to Joural and Todo events, if so, CalendarObjectResource is the right class!  Clear as mud?
 
-FreeBusy is also defined as a Calendar Object Resource in the RFC, and it is a bit different - I'm considering to create another class between the CalendarObjectResource class and Todo/Event/Journal.
+FreeBusy is also defined as a Calendar Object Resource in the RFC, and it is a bit different .  Perhaps there should be another class layer between CalendarObjectResource and Todo/Event/Journal to indicate that the three latter are closely related, while FreeBusy is something different.
 
 Alarms and Time zone objects does not have any class as for now.  Those are typically subcomponents of an event/task/journal component.
+
+Users of the library should not need to construct any of those objects.  To add new content to the calendar, use ``calendar.save_event``, ``calendar.save_todo`` or ``calendar.save_journal``.  Those methods will return a CalendarObjectResource.
 """
 import logging
 import sys
@@ -1038,11 +1040,11 @@ class CalendarObjectResource(DAVObject):
                 raise
         return self._vobject_instance
 
-    ## event.instance has always yielded a vobject, but will yield an icalendar_instance
+    ## event.instance has always yielded a vobject, but will probably yield an icalendar_instance
     ## in version 3.0!
     def _get_deprecated_vobject_instance(self) -> Optional[vobject.base.Component]:
         warnings.warn(
-            "use event.vobject_instance rather than event.instance",
+            "use event.vobject_instance or event.icalendar_instance",
             DeprecationWarning,
             stacklevel=2,
         )
@@ -1050,7 +1052,7 @@ class CalendarObjectResource(DAVObject):
 
     def _set_deprecated_vobject_instance(self, inst: vobject.base.Component):
         warnings.warn(
-            "use event.vobject_instance rather than event.instance",
+            "use event.vobject_instance or event.icalendar_instance",
             DeprecationWarning,
             stacklevel=2,
         )

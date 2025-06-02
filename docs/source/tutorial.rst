@@ -2,20 +2,28 @@
 Tutorial
 ========
 
-The intention with this tutorial is that you should learn basic usage
-of the python CalDAV client library.  You are encouraged to copy the
-code examples into a python shell and play with the objects you get
-returned.  To get it to work towards your own calendar server, it's
-best to set the environment variables ``CALDAV_URL``, ``CALDAV_USER`` and
-``CALDAV_PASSWORD`` to point to your personal calendar server.  (Also,
-if you have your username and password in a ``.netrc`` file, it's
-sufficient to specify the URL).
+In this tutorial you should learn basic usage of the python CalDAV
+client library.  You are encouraged to copy the code examples into a
+file and add a ``breakpoint()`` inside the with-block so you can
+inspect the return objects you get from the library calls.
 
-The examples here uses the ``with``-statement, which is considered best
-practice (and needed for automated testing), but it may be
-inconvenient with with-blocks when experimenting in the python shell.
-You may skip the with-blocks and just write ``client = get_davclient()``.
+To follow this tutorial as intended, each code block should be run
+towards a clean-slate Radicale server.  To do this, you need:
 
+* The source code of caldav with tests, for instance: ``git clone https://github.com/python-caldav/caldav.git ; cd caldav``
+* The Radicale python package: ``pip install radicale``
+* An environmental variable set: ``export PYTHON_CALDAV_USE_TEST_SERVER=1``
+
+With this setup, the with-blocks in the code sections below will spin
+up a Radicale server.
+
+When you've run the tutorial as intended, I recommend going through the examples again towards your own calendar server:
+
+* Set the environment variables ``CALDAV_URL``, ``CALDAV_USER`` and
+``CALDAV_PASSWORD`` to point to your personal calendar server.
+* Be aware that different calendar servers may behave differently.  For instance, not all of them allows you to create a calendar.  Some are even read-only.
+* You will need to revert all changes done.  The code examples below does not do any cleanup.  If your calendar server supports creating and deleting calendars, then it should be easy enough: ```my_new_calendar.delete()``` inside the with-block.  Events also has a ``.delete()``-method.  Beware that there is no ``undo``.  You're adviced to have a local backup of your calendars.  I'll probably write a HOWTO on that one day.
+* Usage of a context manager is considered best practice, but not really needed - you may skip the with-statement and write just ``client = get_davclient()``.  This will make it easier to test code from the python shell.
 
 As of 2.0, it's recommended to start initiating a
 :class:`caldav.davclient.DAVClient` object using the ``get_davclient``
@@ -37,18 +45,9 @@ function, go from there to get a
         except NotFoundError:
             print("You don't seem to have any calendars")
 
-A caveat with the code above - there is no communication with the
-server when initializing the client, the first communication happens
-in ``client.principal()`` - so that's where you'll get errors if the
-username/password/url is wrong.
-
-The ``get_davclient`` function will try to read username/password from
-the environment or from a config file.  You may also specify
-connection parmeters directly to the function, like
-``get_davclient(username='alice', password='hunter2',
-url='https://calendar.example.com/dav/')``.  There are some more
-connection-related parameters that can be set if needed, see
-:class:`caldav.davclient.DAVClient` for details.
+Caveat: Things will break if password/url/username is wrong, but
+perhaps not where you expect it to.  To test, you may try out
+``get_davclient(username='alice', password='hunter2',url='https://calendar.example.com/dav/')``.
 
 The ``calendar``-method above gives one calendar - if you have more
 calendars, it will give you the first one it can find - which may not
@@ -145,11 +144,13 @@ The best way of getting information out from the calendar is to use the search. 
         assert len(my_events) == 1
         print(my_events[0].data)
 
-``expand`` matters for recurring events and tasks, instead of getting returned the original event (with ``DTSTART`` set in 2020 and an ``RRULE`` set) it will return a *recurrence*.  Or, rather, a list of recurrences if there are more of them in the search interval.
+``expand`` matters for recurring events and tasks, instead of getting returned the original event (with ``DTSTART`` set in 2023 and an ``RRULE`` set) it will return the *recurrence* for year 2026.  Or, rather, a list of recurrences if there are more of them in the search interval.
 
-``event`` causes the search to only return events.  There are three kind of objects that can be saved to a calendar (but not all servers support all three) - events, journals and tasks (``VEVENT``, ``VJOURNAL`` and ``VTODO``).  This is called Calendar Object Resources in the RFC (quite a mouthful!  By now I often write "events" when in reality I mean "CalenderObjectResources objects, such as events or tasks", it's just easier).  Without ``event=True`` explicitly set, in theory all the types should be returned - unfortunately many servers returns nothing.  In future versions of CalDAV there will be workarounds so ``event=True`` can be safely skipped.
+``event`` causes the search to only return events.  There are three kind of objects that can be saved to a calendar (but not all servers support all three) - events, journals and tasks (``VEVENT``, ``VJOURNAL`` and ``VTODO``).  This is called Calendar Object Resources in the RFC.  Now that's quite a mouthful!  To ease things, the word "event" is simply used in documentation and communication.  So when reading "event", be aware that it actually means "a CalenderObjectResource objects such as an event, but it could also be a task or a journal" - and if you contribute code, remember to use ``CalendarObjectResource`` rather than ``Event``.
 
-The return type is an object of the type :class:`caldav.calendarobjectresource.Event` - for tasks and jornals there are additional classes Todo and Journal.
+Without ``event=True`` explicitly set, all kind of objects *should* be returned.  Unfortunately many servers returns nothing - so as of 2.0, it's important to always specify if you want events, tasks or journals.  In future versions of CalDAV there will be workarounds for this so ``event=True`` can be safely skipped, regardless what server is used.
+
+The return type is a list of objects of the type :class:`caldav.calendarobjectresource.Event` - for tasks and jornals there are similar classes Todo and Journal.
 
 The ``data`` property delivers the icalendar data as a string.  It can be modified:
 
@@ -177,11 +178,26 @@ The ``data`` property delivers the icalendar data as a string.  It can be modifi
         my_events[0].data = my_events[0].data.replace("Do the needful", "Have fun!")
         my_events[0].save()
 
-As seen above, we can use ``save()`` to send a modified object back to the server.  In the case above, we've edited a recurrence.  Now that we've saved the object, you're encouraged to test with search with and without expand set and with different years and see what results you'll get.  The ``save()``-method also takes a parameter ``all_recurrences=True`` if you want to edit the full series!
+As seen above, we can use ``save()`` to send a modified object back to
+the server.  In the case above, we've edited a recurrence.  Now that
+we've saved the object, you're encouraged to test with search with and
+without expand set and with different years, print out
+``my_event[0].data`` and see what results you'll get.  The
+``save()``-method also takes a parameter ``all_recurrences=True`` if
+you want to edit the full series!
 
-When I started using the caldav library, I didn't want to get my hands dirty with all the details and complexity of the CalDAV-protocol and iCalendar-protocol (and despite that I ended up with the maintainer hat, yay!).  You can easily get the iCalendar data packed into objects that can be manipulated: ``myevent.instance``.  Now there exists two libraries making it easier to handle the iCalendar data, it's vobject and icalendar.  The CalDAV-library originally supported the first, but as the second seems more popular it's the recommended library.  As of 2.0, ``myevent.instance`` will return a vobject instance, this may be changed in 3.0.  As for now, the recommended practice is to always be explicit and use either ``myevent.vobject_instance`` or ``myevent.icalendar_instance`` - preferably the latter.  You're encouraged to test it out in the python shell.
+The code above is far from "best practice".  You should not try to
+parse or modify ``event.data`` - it will be parsed and thrown into an
+object accessible as ``myevent.icalendar_instance``.  (in 3.0,
+probably ``myevent.instance`` will work out without yielding a
+``DeprecationWarning``).
 
-Most of the time every event one gets out from the search contains one *component* - and it will always be like that when using ``expand=True``.  To ease things out for users of the library that wants easy access to the event data there is an ``my_events[9].icalendar_component`` property.  From 2.0 also accessible simply as ``my_events[0].component``:
+Most of the time every event one gets out from the search contains one
+*component* - and it will always be like that when using
+``expand=True``.  To ease things out for users of the library that
+wants easy access to the event data there is an
+``my_events[9].icalendar_component`` property.  From 2.0 also
+accessible simply as ``my_events[0].component``:
 
 .. code-block:: python
 
@@ -207,6 +223,8 @@ Most of the time every event one gets out from the search contains one *componen
         print(f"Event starts at {my_events[0].component.start}")
         my_events[0].component['summary'] = "Norwegian national day celebrations"
         my_events[0].save()
+
+There is a danger to this - there is one (and only one) exception when an event contains more than one component.  If you've been observant and followed all the steps in this tutorial very carefully, you should have spotted it.
 
 How to do operations on components and instances in the vobject and icalendar library is outside the scope of this tutorial - The icalendar library documentaiton can be found `here <https://icalendar.readthedocs.io/>`_ as of 2025-06.
 
@@ -234,6 +252,7 @@ Usually tasks and journals can be applied directly to the same calendar as the e
         my_tasks = my_new_calendar.search(
             todo=True, include_completed=True)
         assert len(my_tasks) == 1
+
 
 There are more functionality, but if you've followed the tutorial to this point, you should already know eough to deal with the very most use-cases.
 

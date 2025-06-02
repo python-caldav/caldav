@@ -46,6 +46,22 @@ if sys.version_info < (3, 11):
 else:
     from typing import Self
 
+"""
+The ``DAVClient`` class handles the basic communication with a
+CalDAV server.  In 1.x the recommended usage of the library is to
+start constructing a DAVClient object.  In 2.0 the function
+``get_davclient`` was added as the new recommended way to get a
+DAVClient object.  In later versions there may be a ``get_calendar``,
+eliminating the need to deal with DAVClient for most use cases.
+
+The ``DAVResponse`` class handles the data returned from the server.
+In most use-cases library users will not interface with this class
+directly.
+
+``get_davclient`` will return a DAVClient object, based either on
+environmental variables, a configuration file or test configuration.
+"""
+
 ## TODO: this is also declared in davclient.DAVClient.__init__(...)
 ## TODO: it should be consolidated, duplication is a bad thing
 ## TODO: and it's almost certain that we'll forget to update this list

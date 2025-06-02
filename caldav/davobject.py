@@ -51,6 +51,17 @@ _CC = TypeVar("_CC", bound="CalendarObjectResource")
 log = logging.getLogger("caldav")
 
 
+"""
+This file contains one class, the DAVObject which is the base
+class for Calendar, Principal, CalendarObjectResource (Event) and many
+others.  There is some code here for handling some of the DAV-related
+communication, and the class lists some common methods that are shared
+on all kind of objects.  Library users should not need to know a lot
+about the DAVObject class, should never need to initialize one, but
+may encounter inheritated methods coming from this class.
+"""
+
+
 class DAVObject:
     """
     Base class for all DAV objects.  Can be instantiated by a client
