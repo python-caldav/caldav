@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
 import json
 
+from caldav.davclient import get_davclient
+
 ## Code contributed by Крылов Александр.  Minor changes and quite some
 ## comments by Tobias Brox.
-
 ## Set CALDAV_USERNAME, CALDAV_URL and CALDAV_PASSWORD through
 ## environment variables before running this example
 
-from caldav.davclient import get_davclient
 
 def fetch_and_print():
     with get_davclient() as client:
         print_calendars_demo(client.principal().calendars())
+
 
 def print_calendars_demo(calendars):
     if not calendars:
@@ -29,6 +30,7 @@ def print_calendars_demo(calendars):
                 events.append(fill_event(component, calendar))
     print(json.dumps(events, indent=2, ensure_ascii=False))
 
+
 def fill_event(component, calendar) -> dict[str, str]:
     ## quite some data is tossed away here - like, the recurring rule.
     cur = {}
@@ -43,6 +45,7 @@ def fill_event(component, calendar) -> dict[str, str]:
     ## came without dtstamp.  But dtstamp is mandatory according to the RFC
     cur["datestamp"] = component.get("dtstamp").dt.strftime("%m/%d/%Y %H:%M")
     return cur
+
 
 if __name__ == "__main__":
     fetch_and_print()
