@@ -456,6 +456,7 @@ class TestGetDAVClient:
         os.environ["PYTHON_CALDAV_USE_TEST_SERVER"] = "1"
         with get_davclient(environment=True, config_file=False, name="-1") as conn:
             assert conn.principal()
+            del os.environ["PYTHON_CALDAV_USE_TEST_SERVER"]
             for key in ("url", "username", "password", "proxy"):
                 if key in caldav_servers[-1]:
                     os.environ[f"CALDAV_{key.upper()}"] = caldav_servers[-1][key]

@@ -524,9 +524,9 @@ class DAVClient:
 
     def __exit__(
         self,
-        exc_type: Optional[BaseException],
-        exc_value: Optional[BaseException],
-        traceback: Optional[TracebackType],
+        exc_type: Optional[BaseException] = None,
+        exc_value: Optional[BaseException] = None,
+        traceback: Optional[TracebackType] = None,
     ) -> None:
         self.close()
         ## Used for tests, to tear down a temporarily test server
@@ -966,7 +966,7 @@ def get_davclient(
     if environment:
         conf = {}
         for conf_key in (x for x in os.environ if x.startswith("CALDAV_")):
-            conf[conf_key[7:]] = os.environ[conf_key].lower()
+            conf[conf_key[7:].lower()] = os.environ[conf_key]
         if conf:
             return DAVClient(**conf)
         config_file = os.environ.get("CALDAV_CONFIG_FILE")
