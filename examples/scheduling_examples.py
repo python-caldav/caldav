@@ -33,22 +33,24 @@ class TestUser:
             self.client = DAVClient(**conndata)
         else:
             self.client = DAVClient(
-                username="testuser%i" % i,
-                password="testpass%i" % i,
-                url="http://calendar.tobixen.no/caldav.php/",
+                username="testaccount%i" % i,
+                password="hunter2",
+                url="http://davical.bekkenstenveien53c.oslo.no/caldav.php/",
             )
         self.principal = self.client.principal()
         calendar_id = "schedulingtestcalendar%i" % i
         calendar_name = "calendar #%i for scheduling demo" % i
-        self.cleanup(calendar_name)
+        self.cleanup(calendar_name, calendar_id)
         self.calendar = self.principal.make_calendar(
             name=calendar_name, cal_id=calendar_id
         )
 
-    def cleanup(self, calendar_name):
+    def cleanup(self, calendar_name, calendar_id):
         ## Cleanup from earlier runs
         try:
             self.calendar = self.principal.calendar(name=calendar_name)
+            self.calendar.delete()
+            self.calendar = self.principal.calendar(cal_id=calendar_id)
             self.calendar.delete()
         except error.NotFoundError:
             pass
