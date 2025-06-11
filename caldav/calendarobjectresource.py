@@ -631,6 +631,7 @@ class CalendarObjectResource(DAVObject):
             r = self.client.request(str(self.url))
             if r.status and r.status == 404:
                 raise error.NotFoundError(errmsg(r))
+            self.data = r.raw
         except error.NotFoundError:
             raise
         except:
