@@ -448,27 +448,29 @@ class TestGetDAVClient:
 
     def testTestConfig(self):
         with get_davclient(
-            testconfig=True, environment=False, name=-1, config_file=False
+            testconfig=True, environment=False, name=-1, check_config_file=False
         ) as conn:
             assert conn.principal()
 
     def testEnvironment(self):
         os.environ["PYTHON_CALDAV_USE_TEST_SERVER"] = "1"
-        with get_davclient(environment=True, config_file=False, name="-1") as conn:
+        with get_davclient(
+            environment=True, check_config_file=False, name="-1"
+        ) as conn:
             assert conn.principal()
             del os.environ["PYTHON_CALDAV_USE_TEST_SERVER"]
             for key in ("url", "username", "password", "proxy"):
                 if key in caldav_servers[-1]:
                     os.environ[f"CALDAV_{key.upper()}"] = caldav_servers[-1][key]
             with get_davclient(
-                testconfig=False, environment=True, config_file=False
+                testconfig=False, environment=True, check_config_file=False
             ) as conn2:
                 assert conn2.principal()
 
     def testConfigfile(self):
         ## start up a server
         with get_davclient(
-            testconfig=True, environment=False, name=-1, config_file=False
+            testconfig=True, environment=False, name=-1, check_config_file=False
         ) as conn:
             config = {}
             for key in ("url", "username", "password", "proxy"):
@@ -485,6 +487,29 @@ class TestGetDAVClient:
                     config_file=tmp.name, testconfig=False, environment=False
                 ) as conn2:
                     assert conn2.principal()
+
+    def testNoConfigfile(self, fs):
+        """This is actually a unit test, not a functional test.
+        Should move it to another file probably, and make more unit
+        tests covering the config file parsing
+        """
+        assert get_davclient(testconfig=False, environment=False) is None
+        HOME = os.environ["HOME"]
+        fs.create_dir(f"{HOME}/.config/caldav")
+        fs.create_file(
+            f"{HOME}/.config/caldav/calendar.conf",
+            contents=json.dumps(
+                {
+                    "default": {
+                        "caldav_url": "https://caldav.example.com/dav",
+                        "caldav_username": "karl",
+                        "caldav_password": "hunter2",
+                    }
+                }
+            ),
+        )
+        client = get_davclient(testconfig=False, environment=False)
+        assert client.url == "https://caldav.example.com/dav"
 
 
 @pytest.mark.skipif(
@@ -1412,15 +1437,18 @@ class RepeatedFunctionalTestsBaseClass:
 
                 ## what will happen with the event in c1 if we modify the event in c2,
                 ## which shares the id with the event in c1?
-                e1_in_c2.instance.vevent.summary.value = "asdf"
+                e1_in_c2.vobject_instance.vevent.summary.value = "asdf"
                 e1_in_c2.save()
                 e1.load()
                 ## should e1.summary be 'asdf' or 'Bastille Day Party'?  I do
                 ## not know, but all implementations I've tested will treat
                 ## the copy in the other calendar as a distinct entity, even
                 ## if the uid is the same.
-                assert e1.instance.vevent.summary.value == "Bastille Day Party"
-                assert c2.events()[0].instance.vevent.uid == e1.instance.vevent.uid
+                assert e1.vobject_instance.vevent.summary.value == "Bastille Day Party"
+                assert (
+                    c2.events()[0].vobject_instance.vevent.uid
+                    == e1.vobject_instance.vevent.uid
+                )
 
         ## Duplicate the event in the same calendar, with same uid -
         ## this makes no sense, there won't be any duplication
@@ -1602,17 +1630,26 @@ class RepeatedFunctionalTestsBaseClass:
         ## Even sorting should work out
         all_events = c.search(sort_keys=("summary", "dtstamp"))
         assert len(all_events) == 3
-        assert all_events[0].instance.vevent.summary.value == "Bastille Day Jitsi Party"
+        assert (
+            all_events[0].vobject_instance.vevent.summary.value
+            == "Bastille Day Jitsi Party"
+        )
 
         ## Sorting by upper case should also wor
         all_events = c.search(sort_keys=("SUMMARY", "DTSTAMP"))
         assert len(all_events) == 3
-        assert all_events[0].instance.vevent.summary.value == "Bastille Day Jitsi Party"
+        assert (
+            all_events[0].vobject_instance.vevent.summary.value
+            == "Bastille Day Jitsi Party"
+        )
 
         ## Sorting in reverse order should work also
         all_events = c.search(sort_keys=("SUMMARY", "DTSTAMP"), sort_reverse=True)
         assert len(all_events) == 3
-        assert all_events[0].instance.vevent.summary.value == "Our Blissful Anniversary"
+        assert (
+            all_events[0].vobject_instance.vevent.summary.value
+            == "Our Blissful Anniversary"
+        )
 
         ## A more robust check for the sort key
         all_events = c.search(sort_keys=("DTSTART",))
@@ -2146,7 +2183,7 @@ class RepeatedFunctionalTestsBaseClass:
         assert len(todos) == 3
 
         def uids(lst):
-            return [x.instance.vtodo.uid for x in lst]
+            return [x.vobject_instance.vtodo.uid for x in lst]
 
         ## Default sort order is (due, priority).
         assert uids(todos) == uids([t2, t1, t4])
@@ -2158,9 +2195,9 @@ class RepeatedFunctionalTestsBaseClass:
 
         def pri(lst):
             return [
-                x.instance.vtodo.priority.value
+                x.vobject_instance.vtodo.priority.value
                 for x in lst
-                if hasattr(x.instance.vtodo, "priority")
+                if hasattr(x.vobject_instance.vtodo, "priority")
             ]
 
         assert pri(todos) == pri([t4, t2])
@@ -2372,9 +2409,13 @@ class RepeatedFunctionalTestsBaseClass:
         assert len(todos) == 3
         if not self.check_compatibility_flag("object_by_uid_is_broken"):
             t3_ = c.todo_by_uid(t3.id)
-            assert t3_.instance.vtodo.summary == t3.instance.vtodo.summary
-            assert t3_.instance.vtodo.uid == t3.instance.vtodo.uid
-            assert t3_.instance.vtodo.dtstart == t3.instance.vtodo.dtstart
+            assert (
+                t3_.vobject_instance.vtodo.summary == t3.vobject_instance.vtodo.summary
+            )
+            assert t3_.vobject_instance.vtodo.uid == t3.vobject_instance.vtodo.uid
+            assert (
+                t3_.vobject_instance.vtodo.dtstart == t3.vobject_instance.vtodo.dtstart
+            )
 
         t2.delete()
 
@@ -2603,11 +2644,11 @@ class RepeatedFunctionalTestsBaseClass:
         # Verify that we can look it up, both by URL and by ID
         if not self.check_compatibility_flag("event_by_url_is_broken"):
             e2 = c.event_by_url(e1.url)
-            assert e2.instance.vevent.uid == e1.instance.vevent.uid
+            assert e2.vobject_instance.vevent.uid == e1.vobject_instance.vevent.uid
             assert e2.url == e1.url
         if not self.check_compatibility_flag("object_by_uid_is_broken"):
             e3 = c.event_by_uid("20010712T182145Z-123401@example.com")
-            assert e3.instance.vevent.uid == e1.instance.vevent.uid
+            assert e3.vobject_instance.vevent.uid == e1.vobject_instance.vevent.uid
             assert e3.url == e1.url
 
         # Knowing the URL of an event, we should be able to get to it
@@ -2615,7 +2656,7 @@ class RepeatedFunctionalTestsBaseClass:
         if not self.check_compatibility_flag("event_by_url_is_broken"):
             e4 = Event(client=self.caldav, url=e1.url)
             e4.load()
-            assert e4.instance.vevent.uid == e1.instance.vevent.uid
+            assert e4.vobject_instance.vevent.uid == e1.vobject_instance.vevent.uid
 
         with pytest.raises(error.NotFoundError):
             c.event_by_uid("0")
@@ -2674,16 +2715,20 @@ class RepeatedFunctionalTestsBaseClass:
                 t2 = c.save_todo(todo, no_create=no_create)
 
             ## this should also work.
-            e2.instance.vevent.summary.value = e2.instance.vevent.summary.value + "!"
+            e2.vobject_instance.vevent.summary.value = (
+                e2.vobject_instance.vevent.summary.value + "!"
+            )
             e2.save(no_create=no_create)
 
             if todo_ok:
-                t2.instance.vtodo.summary.value = t2.instance.vtodo.summary.value + "!"
+                t2.vobject_instance.vtodo.summary.value = (
+                    t2.vobject_instance.vtodo.summary.value + "!"
+                )
                 t2.save(no_create=no_create)
 
             if not self.check_compatibility_flag("event_by_url_is_broken"):
                 e3 = c.event_by_url(e1.url)
-                assert e3.instance.vevent.summary.value == "Bastille Day Party!"
+                assert e3.vobject_instance.vevent.summary.value == "Bastille Day Party!"
 
         ## "no_overwrite" should throw a ConsistencyError.  But it depends on object_by_uid.
         if not self.check_compatibility_flag("object_by_uid_is_broken"):
@@ -2745,8 +2790,8 @@ class RepeatedFunctionalTestsBaseClass:
             expand=False,
         )
 
-        assert e.instance.vevent.uid == r1[0].instance.vevent.uid
-        assert e.instance.vevent.uid == r2[0].instance.vevent.uid
+        assert e.vobject_instance.vevent.uid == r1[0].vobject_instance.vevent.uid
+        assert e.vobject_instance.vevent.uid == r2[0].vobject_instance.vevent.uid
         assert len(r1) == 1
         assert len(r2) == 1
 
@@ -2794,7 +2839,7 @@ class RepeatedFunctionalTestsBaseClass:
         )
         # TODO: assert something more complex on the return object
         assert isinstance(freebusy, FreeBusy)
-        assert freebusy.instance.vfreebusy
+        assert freebusy.vobject_instance.vfreebusy
 
     def testRecurringDateSearch(self):
         """

@@ -26,3 +26,8 @@ class TestExamples:
             from examples import get_events_example
 
             get_events_example.fetch_and_print()
+
+    def test_basic_usage_examples(self):
+        from examples import basic_usage_examples
+
+        basic_usage_examples.run_examples()

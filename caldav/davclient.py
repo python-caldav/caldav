@@ -888,7 +888,7 @@ class DAVClient:
 
 
 def auto_calendars(
-    config_file: str = f"{os.environ.get('HOME')}/.config/calendar.conf",
+    config_file: str = None,
     config_section="default",
     testconfig=False,
     environment: bool = True,
@@ -928,9 +928,10 @@ def auto_conn(*largs, config_data: dict = None, **kwargs):
 
 
 def get_davclient(
-    config_file: str = f"{os.environ.get('HOME')}/.config/calendar.conf",
-    config_section="default",
-    testconfig=False,
+    check_config_file: bool = True,
+    config_file: str = None,
+    config_section: str = None,
+    testconfig: bool = False,
     environment: bool = True,
     name: str = None,
     **config_data,
@@ -977,15 +978,25 @@ def get_davclient(
 
     if environment:
         conf = {}
-        for conf_key in (x for x in os.environ if x.startswith("CALDAV_")):
+        for conf_key in (
+            x
+            for x in os.environ
+            if x.startswith("CALDAV_") and not x.startswith("CALDAV_CONFIG")
+        ):
             conf[conf_key[7:].lower()] = os.environ[conf_key]
         if conf:
             return DAVClient(**conf)
-        config_file = os.environ.get("CALDAV_CONFIG_FILE")
+        if not config_file:
+            config_file = os.environ.get("CALDAV_CONFIG_FILE")
+        if not config_section:
+            config_section = os.enviorn.get("CALDAV_CONFIG_SECTION")
 
-    if config_file:
+    if check_config_file:
         ## late import in 2.0, as the config stuff isn't properly tested
         from . import config
+
+        if not config_section:
+            config_section = "default"
 
         cfg = config.read_config(config_file)
         if cfg:

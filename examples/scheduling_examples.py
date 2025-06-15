@@ -1,3 +1,7 @@
+## NOTE!  This is currently NOT tested.  It may and may not work.
+## Please reach out if you need help with scheduling ...
+## use https://github.com/python-caldav/caldav/issues
+## or scheduling-help@plann.no
 import sys
 import uuid
 from datetime import datetime

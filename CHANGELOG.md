@@ -10,14 +10,25 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 
 ### Deprecated
 
-* The `event.instance` property currently yields a vobject.  For quite many years people have asked for the python vobject library to be replaced with the python icalendar objects, but I haven't been able to do that due to backward compatibility.  In version 2.0 deprecation warnings will be given whenever someone uses the `event.instance` property.  In 3.0, perhaps `event.instance` will yield a `icalendar` instance.
+* The `event.instance` property currently yields a vobject.  For quite many years people have asked for the python vobject library to be replaced with the python icalendar objects, but I haven't been able to do that due to backward compatibility.  In version 2.0 deprecation warnings will be given whenever someone uses the `event.instance` property.  In 3.0, perhaps `event.instance` will yield a `icalendar` instance.  Old test code has been updated to use `.vobject_instance` instead of `.instance`.
 * `calendar.date_search` - use `calendar.search` instead.  (this one has been deprecated for a while, but only with info-logging)
 * `davclient.auto_conn` that was introduced just some days ago has already been renamed to `davclient.get_davclient`.
 
 ### Added
 
 * `event.component` is now an alias for `event.icalendar_component`.
-* `get_davclient` (earlier called `auto_conn`) is more complete now - it could already read from test config, now it can read from environment (including environment variable for reading from test config and for locating the config file).  While the `auto_conn` itself is tested in the functional tests, the code for reading the config file (and all the corner cases) is not tested.  It's allowable with a yaml config file, but the yaml module is not included in the dependencies yet ... so late imports as for now.  - https://github.com/python-caldav/caldav/pull/502 - https://github.com/python-caldav/caldav/issues/485
+* `get_davclient` (earlier called `auto_conn`) is more complete now - https://github.com/python-caldav/caldav/pull/502 - https://github.com/python-caldav/caldav/issues/485 - https://github.com/python-caldav/caldav/pull/507
+  * It can read from environment (including environment variable for reading from test config and for locating the config file).
+  * It can read from a config file.  New parameter `check_config_file`, defaults to true
+  * It will probe default locations for the config file (`~/.config/caldav/calendar.conf`, `~/.config/caldav/calendar.yaml`, `~/.config/caldav/calendar.json`, `~/.config/calendar.conf`, `/etc/calendar.conf`, `/etc/caldav/calendar.conf` as for now)
+  * Improved tests (but no test for inheritance yet).
+  * Documentation, linked up from the reference section of the doc.
+  * It's allowable with a yaml config file, but the yaml module is not included in the dependencies yet ... so late imports as for now, and the import is wrapped in a try/except-block
+* Looked through and brushed up the examples, two of them are now executed by the unit tests.  Added a doc section on the examples.
+
+### Fixes
+
+* Support for Lark/Feishu got broken in the 1.6-release.  Issue found and fixed by Hongbin Yang (github user @zealseeker) in https://github.com/python-caldav/caldav/issues/505 and https://github.com/python-caldav/caldav/pull/506
 
 ### Changed
 

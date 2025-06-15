@@ -1,4 +1,6 @@
 import json
+import logging
+import os
 
 """
 This configuration parsing code was just copied from my plann library (and will be removed from there at some point in the future).  It's lacking tests, documentation and ... generally just lacking.
@@ -71,23 +73,42 @@ def config_section(config, section="default"):
 
 
 def read_config(fn, interactive_error=False):
+    if not fn:
+        cfgdir = f"{os.environ.get('HOME', '/')}/.config/"
+        for config_file in (
+            f"{cfgdir}/caldav/calendar.conf",
+            f"{cfgdir}/caldav/calendar.yaml"
+            f"{cfgdir}/caldav/calendar.json"
+            f"{cfgdir}/calendar.conf",
+            "/etc/calendar.conf",
+            "/etc/caldav/calendar.conf",
+        ):
+            cfg = read_config(config_file)
+            if cfg:
+                return cfg
+        return None
+
     ## This can probably be refactored into fewer lines ...
     try:
         try:
             with open(fn, "rb") as config_file:
                 return json.load(config_file)
         except json.decoder.JSONDecodeError:
-            ## Late import.  yaml is external module,
+            ## Late import, wrapped in try/except.  yaml is external module,
             ## and not included in the requirements as for now.
-            ## TODO: should wrap it in try: ... except: log readable error
-            import yaml
-
             try:
-                with open(fn, "rb") as config_file:
-                    return yaml.load(config_file, yaml.Loader)
-            except yaml.scanner.ScannerError:
+                import yaml
+
+                try:
+                    with open(fn, "rb") as config_file:
+                        return yaml.load(config_file, yaml.Loader)
+                except yaml.scanner.ScannerError:
+                    logging.error(
+                        f"config file {fn} exists but is neither valid json nor yaml.  Check the syntax."
+                    )
+            except ImportError:
                 logging.error(
-                    "config file exists but is neither valid json nor yaml.  Check the syntax."
+                    f"config file {fn} exists but is not valid json, and pyyaml is not installed."
                 )
 
     except FileNotFoundError:

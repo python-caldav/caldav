@@ -8,6 +8,7 @@ sys.path.insert(0, "..")
 sys.path.insert(0, ".")
 
 import caldav
+from caldav.davclient import get_davclient
 
 ## DO NOT name your file calendar.py or caldav.py!  We've had several
 ## issues filed, things break because the wrong files are imported.
@@ -29,13 +30,10 @@ def run_examples():
     ## The client object stores http session information, username, password, etc.
     ## As of 1.0, Initiating the client object will not cause any server communication,
     ## so the credentials aren't validated.
+    ## get_davclient will try to read credentials and url from environment variables
+    ## and config file.
     ## The client object can be used as a context manager, like this:
-    with caldav.DAVClient(
-        url=caldav_url,
-        username=username,
-        password=password,
-        headers=headers,  # Optional parameter to set HTTP headers on each request if needed
-    ) as client:
+    with get_davclient() as client:
         ## Typically the next step is to fetch a principal object.
         ## This will cause communication with the server.
         my_principal = client.principal()
@@ -132,20 +130,20 @@ def read_modify_event_demo(event):
     ## event.icalendar_instance gives an icalendar instance - which
     ## normally would be one icalendar calendar object containing one
     ## subcomponent.  Quite often the fourth property,
-    ## icalendar_component is preferable - it gives us the component -
-    ## but be aware that if the server returns a recurring events with
-    ## exceptions, event.icalendar_component will ignore all the
-    ## exceptions.
-    uid = event.icalendar_component["uid"]
+    ## icalendar_component (now available just as .component) is
+    ## preferable - it gives us the component - but be aware that if
+    ## the server returns a recurring events with exceptions,
+    ## event.icalendar_component will ignore all the exceptions.
+    uid = event.component["uid"]
 
     ## Let's correct that typo using the icalendar library.
-    event.icalendar_component["summary"] = event.icalendar_component["summary"].replace(
+    event.component["summary"] = event.component["summary"].replace(
         "celebratiuns", "celebrations"
     )
 
     ## timestamps (DTSTAMP, DTSTART, DTEND for events, DUE for tasks,
     ## etc) can be fetched using the icalendar library like this:
-    dtstart = event.icalendar_component.get("dtstart")
+    dtstart = event.component.get("dtstart")
 
     ## but, dtstart is not a python datetime - it's a vDatetime from
     ## the icalendar package.  If you want it as a python datetime,
@@ -156,13 +154,13 @@ def read_modify_event_demo(event):
 
     ## We can modify it:
     if dtstart:
-        event.icalendar_component["dtstart"].dt = dtstart.dt + timedelta(seconds=3600)
+        event.component["dtstart"].dt = dtstart.dt + timedelta(seconds=3600)
 
     ## And finally, get the casing correct
     event.data = event.data.replace("norwegian", "Norwegian")
 
     ## Note that this is not quite thread-safe:
-    icalendar_component = event.icalendar_component
+    icalendar_component = event.component
     ## accessing the data (and setting it) will "disconnect" the
     ## icalendar_component from the event
     event.data = event.data
@@ -183,10 +181,7 @@ def read_modify_event_demo(event):
     ## Finally, let's verify that the correct data was saved
     calendar = event.parent
     same_event = calendar.event_by_uid(uid)
-    assert (
-        same_event.icalendar_component["summary"]
-        == "Norwegian national day celebrations"
-    )
+    assert same_event.component["summary"] == "Norwegian national day celebrations"
 
 
 def search_calendar_demo(calendar):
