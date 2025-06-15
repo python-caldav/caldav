@@ -10,7 +10,7 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 
 ### Deprecated
 
-* The `event.instance` property currently yields a vobject.  For quite many years people have asked for the python vobject library to be replaced with the python icalendar objects, but I haven't been able to do that due to backward compatibility.  In version 2.0 deprecation warnings will be given whenever someone uses the `event.instance` property.  In 3.0, perhaps `event.instance` will yield a `icalendar` instance.
+* The `event.instance` property currently yields a vobject.  For quite many years people have asked for the python vobject library to be replaced with the python icalendar objects, but I haven't been able to do that due to backward compatibility.  In version 2.0 deprecation warnings will be given whenever someone uses the `event.instance` property.  In 3.0, perhaps `event.instance` will yield a `icalendar` instance.  Old test code has been updated to use `.vobject_instance` instead of `.instance`.
 * `calendar.date_search` - use `calendar.search` instead.  (this one has been deprecated for a while, but only with info-logging)
 * `davclient.auto_conn` that was introduced just some days ago has already been renamed to `davclient.get_davclient`.
 
