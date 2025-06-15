@@ -115,7 +115,12 @@ class DAVResponse:
         no_xml = ["text/plain", "text/calendar", "application/octet-stream"]
         expect_xml = any((content_type.startswith(x) for x in xml))
         expect_no_xml = any((content_type.startswith(x) for x in no_xml))
-        if content_type and not expect_xml and not expect_no_xml and response.status_code<400:
+        if (
+            content_type
+            and not expect_xml
+            and not expect_no_xml
+            and response.status_code < 400
+        ):
             error.weirdness(f"Unexpected content type: {content_type}")
         try:
             content_length = int(self.headers["Content-Length"])
@@ -352,10 +357,14 @@ class DAVResponse:
         if proptag in props_found:
             prop_xml = props_found[proptag]
             for item in prop_xml.items():
-                if item[0].lower().endswith('content-type') and item[1].lower() == 'text/calendar':
-                    continue
-                if item[0].lower().endswith('version') and item[1] in ("2", "2.0"):
-                    continue
+                if proptag == "{urn:ietf:params:xml:ns:caldav}calendar-data":
+                    if (
+                        item[0].lower().endswith("content-type")
+                        and item[1].lower() == "text/calendar"
+                    ):
+                        continue
+                    if item[0].lower().endswith("version") and item[1] in ("2", "2.0"):
+                        continue
                 log.error(
                     f"If you see this, please add a report at https://github.com/python-caldav/caldav/issues/209 - in _expand_simple_prop, dealing with {proptag}, extra item found: {'='.join(item)}."
                 )
