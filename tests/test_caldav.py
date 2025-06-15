@@ -448,27 +448,27 @@ class TestGetDAVClient:
 
     def testTestConfig(self):
         with get_davclient(
-            testconfig=True, environment=False, name=-1, config_file=False
+            testconfig=True, environment=False, name=-1, check_config_file=False
         ) as conn:
             assert conn.principal()
 
     def testEnvironment(self):
         os.environ["PYTHON_CALDAV_USE_TEST_SERVER"] = "1"
-        with get_davclient(environment=True, config_file=False, name="-1") as conn:
+        with get_davclient(environment=True, check_config_file=False, name="-1") as conn:
             assert conn.principal()
             del os.environ["PYTHON_CALDAV_USE_TEST_SERVER"]
             for key in ("url", "username", "password", "proxy"):
                 if key in caldav_servers[-1]:
                     os.environ[f"CALDAV_{key.upper()}"] = caldav_servers[-1][key]
             with get_davclient(
-                testconfig=False, environment=True, config_file=False
+                testconfig=False, environment=True, check_config_file=False
             ) as conn2:
                 assert conn2.principal()
 
     def testConfigfile(self):
         ## start up a server
         with get_davclient(
-            testconfig=True, environment=False, name=-1, config_file=False
+            testconfig=True, environment=False, name=-1, check_config_file=False
         ) as conn:
             config = {}
             for key in ("url", "username", "password", "proxy"):
