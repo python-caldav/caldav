@@ -94,18 +94,22 @@ def read_config(fn, interactive_error=False):
             with open(fn, "rb") as config_file:
                 return json.load(config_file)
         except json.decoder.JSONDecodeError:
-            ## Late import.  yaml is external module,
+            ## Late import, wrapped in try/except.  yaml is external module,
             ## and not included in the requirements as for now.
-            ## TODO: should wrap it in try: ... except: log readable error
-            import yaml
-
             try:
-                with open(fn, "rb") as config_file:
-                    return yaml.load(config_file, yaml.Loader)
-            except yaml.scanner.ScannerError:
-                logging.error(
-                    "config file exists but is neither valid json nor yaml.  Check the syntax."
-                )
+                import yaml
+
+                try:
+                    with open(fn, "rb") as config_file:
+                        return yaml.load(config_file, yaml.Loader)
+                except yaml.scanner.ScannerError:
+                    logging.error(
+                        f"config file {fn} exists but is neither valid json nor yaml.  Check the syntax."
+                    )
+            except ImportError::
+                    logging.error(
+                        f"config file {fn} exists but is not valid json, and pyyaml is not installed."
+                    )
 
     except FileNotFoundError:
         ## File not found

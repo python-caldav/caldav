@@ -17,7 +17,14 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 ### Added
 
 * `event.component` is now an alias for `event.icalendar_component`.
-* `get_davclient` (earlier called `auto_conn`) is more complete now - it could already read from test config, now it can read from environment (including environment variable for reading from test config and for locating the config file).  While the `auto_conn` itself is tested in the functional tests, the code for reading the config file (and all the corner cases) is not tested.  It's allowable with a yaml config file, but the yaml module is not included in the dependencies yet ... so late imports as for now.  - https://github.com/python-caldav/caldav/pull/502 - https://github.com/python-caldav/caldav/issues/485
+* `get_davclient` (earlier called `auto_conn`) is more complete now - https://github.com/python-caldav/caldav/pull/502 - https://github.com/python-caldav/caldav/issues/485 - https://github.com/python-caldav/caldav/pull/507
+  * It can read from environment (including environment variable for reading from test config and for locating the config file).
+  * It can read from a config file.  New parameter `check_config_file`, defaults to true
+  * It will probe default locations for the config file (`~/.config/caldav/calendar.conf`, `~/.config/caldav/calendar.yaml`, `~/.config/caldav/calendar.json`, `~/.config/calendar.conf`, `/etc/calendar.conf`, `/etc/caldav/calendar.conf` as for now)
+  * Improved tests (but no test for inheritance yet).
+  * Documentation, linked up from the reference section of the doc.
+  * It's allowable with a yaml config file, but the yaml module is not included in the dependencies yet ... so late imports as for now, and the import is wrapped in a try/except-block
+* Looked through and brushed up the examples, two of them are now executed by the unit tests.  Added a doc section on the examples.
 
 ### Fixes
 
