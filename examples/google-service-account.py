@@ -3,13 +3,14 @@ This code was provided by Bo Lopker in https://github.com/python-caldav/caldav/i
 
 The code has not been tested by the caldav maintainer
 """
+import json
 
-from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 from google.oauth2 import service_account
+from google_auth_oauthlib.flow import InstalledAppFlow
 from requests.auth import AuthBase
+
 import caldav
-import json
 
 
 SERVICE_ACCOUNT_FILE = "service.json"
@@ -48,7 +49,7 @@ for calendar in client.principal().calendars():
         print("==================================")
         print(f"Event:    {eventSummary}")
         print(f"Time:     {eventTime}")
-        
+
 ## The key here is that you get the oauth token (creds.token) by calling refresh on creds before you make the caldav client. You can store the result of the refresh to make the process a bit faster.
 
 ##creds = service_account.Credentials.from_service_account_file(
