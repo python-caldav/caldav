@@ -749,9 +749,6 @@ class DAVClient:
         )
 
         try:
-            logging.error(
-                f"doing {method} towards {str(url_obj)} through {self.session.request}"
-            )
             r = self.session.request(
                 method,
                 str(url_obj),
@@ -763,7 +760,6 @@ class DAVClient:
                 verify=self.ssl_verify_cert,
                 cert=self.ssl_cert,
             )
-            logging.error(f"done with {method} towards {str(url_obj)}")
             log.debug("server responded with %i %s" % (r.status_code, r.reason))
             response = DAVResponse(r, self)
         except:
