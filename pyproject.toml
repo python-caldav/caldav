@@ -59,6 +59,7 @@ test = [
   "dulwich==0.20.50;python_version<'3.9'",
   "xandikos;python_version>='3.9'",
   "radicale",
+  "pyfakefs"
 ]
 
 [tool.setuptools_scm]

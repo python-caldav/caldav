@@ -892,7 +892,7 @@ class DAVClient:
 
 
 def auto_calendars(
-    config_file: str = f"{os.environ.get('HOME')}/.config/calendar.conf",
+    config_file: str = None,
     config_section="default",
     testconfig=False,
     environment: bool = True,
@@ -1002,23 +1002,7 @@ def get_davclient(
         if not config_section:
             config_section = "default"
 
-        if not config_file:
-            cfgdir = f"{os.environ.get('HOME', '/')}/.config/"
-            for config_file in (
-                f"{cfgdir}/caldav/calendar.conf",
-                f"{cfgdir}/caldav/calendar.yaml"
-                f"{cfgdir}/caldav/calendar.json"
-                f"{cfgdir}/calendar.conf",
-                "/etc/calendar.conf",
-                "/etc/caldav/calendar.conf",
-            ):
-                try:
-                    cfg = config.read_config(config_file)
-                    break
-                except FileNotFoundError:
-                    pass
-        else:
-            cfg = config.read_config(config_file)
+        cfg = config.read_config(config_file)
         if cfg:
             section = config.config_section(cfg, config_section)
             conn_params = {}

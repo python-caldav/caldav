@@ -454,7 +454,9 @@ class TestGetDAVClient:
 
     def testEnvironment(self):
         os.environ["PYTHON_CALDAV_USE_TEST_SERVER"] = "1"
-        with get_davclient(environment=True, check_config_file=False, name="-1") as conn:
+        with get_davclient(
+            environment=True, check_config_file=False, name="-1"
+        ) as conn:
             assert conn.principal()
             del os.environ["PYTHON_CALDAV_USE_TEST_SERVER"]
             for key in ("url", "username", "password", "proxy"):
@@ -485,6 +487,29 @@ class TestGetDAVClient:
                     config_file=tmp.name, testconfig=False, environment=False
                 ) as conn2:
                     assert conn2.principal()
+
+    def testNoConfigfile(self, fs):
+        """This is actually a unit test, not a functional test.
+        Should move it to another file probably, and make more unit
+        tests covering the config file parsing
+        """
+        assert get_davclient(testconfig=False, environment=False) is None
+        HOME = os.environ["HOME"]
+        fs.create_dir(f"{HOME}/.config/caldav")
+        fs.create_file(
+            f"{HOME}/.config/caldav/calendar.conf",
+            contents=json.dumps(
+                {
+                    "default": {
+                        "caldav_url": "https://caldav.example.com/dav",
+                        "caldav_username": "karl",
+                        "caldav_password": "hunter2",
+                    }
+                }
+            ),
+        )
+        client = get_davclient(testconfig=False, environment=False)
+        assert client.url == "https://caldav.example.com/dav"
 
 
 @pytest.mark.skipif(
