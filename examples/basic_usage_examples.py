@@ -181,10 +181,7 @@ def read_modify_event_demo(event):
     ## Finally, let's verify that the correct data was saved
     calendar = event.parent
     same_event = calendar.event_by_uid(uid)
-    assert (
-        same_event.component["summary"]
-        == "Norwegian national day celebrations"
-    )
+    assert same_event.component["summary"] == "Norwegian national day celebrations"
 
 
 def search_calendar_demo(calendar):

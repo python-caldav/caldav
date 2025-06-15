@@ -29,5 +29,5 @@ class TestExamples:
 
     def test_basic_usage_examples(self):
         from examples import basic_usage_examples
-        basic_usage_examples.run_examples()
 
+        basic_usage_examples.run_examples()
