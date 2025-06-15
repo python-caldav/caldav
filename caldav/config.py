@@ -107,9 +107,9 @@ def read_config(fn, interactive_error=False):
                         f"config file {fn} exists but is neither valid json nor yaml.  Check the syntax."
                     )
             except ImportError:
-                    logging.error(
-                        f"config file {fn} exists but is not valid json, and pyyaml is not installed."
-                    )
+                logging.error(
+                    f"config file {fn} exists but is not valid json, and pyyaml is not installed."
+                )
 
     except FileNotFoundError:
         ## File not found
