@@ -19,6 +19,10 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 * `event.component` is now an alias for `event.icalendar_component`.
 * `get_davclient` (earlier called `auto_conn`) is more complete now - it could already read from test config, now it can read from environment (including environment variable for reading from test config and for locating the config file).  While the `auto_conn` itself is tested in the functional tests, the code for reading the config file (and all the corner cases) is not tested.  It's allowable with a yaml config file, but the yaml module is not included in the dependencies yet ... so late imports as for now.  - https://github.com/python-caldav/caldav/pull/502 - https://github.com/python-caldav/caldav/issues/485
 
+### Fixes
+
+* Support for Lark/Feishu got broken in the 1.6-release.  Issue found and fixed by Hongbin Yang (github user @zealseeker) in https://github.com/python-caldav/caldav/issues/505 and https://github.com/python-caldav/caldav/pull/506
+
 ### Changed
 
 * The request library has been in a feature freeze for ages and may seem like a dead end.  There exists a fork of the project niquests, we're migrating to that one.  This means nothing except for one additional dependency.  (httpx was also considered, but it's not a drop-in replacement for the requests library, and it's a risk that such a change will break compatibility with various other servers - see https://github.com/python-caldav/caldav/issues/457 for details).  Work by @ArtemIsmagilov, https://github.com/python-caldav/caldav/pull/455.

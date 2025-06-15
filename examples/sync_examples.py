@@ -3,6 +3,7 @@
 ## similar code in the tests/test_caldav.py file.  Raise a github
 ## issue or reach out by email or write a pull request or send a patch
 ## if there are mistakes in this code) ...
+
 ## USE CASE #1: we'll have a local copy of all calendar contents in a
 ## running python process, and later we'd like to synchronize the
 ## local contents.  (In case of a reboot, all contents will be
