@@ -211,6 +211,8 @@ Here are some known issues:
 Some notes on CalDAV URLs
 =========================
 
+TODO: This section should be moved into separate HOWTOs for each calendar server/provider.
+
 CalDAV URLs can be quite confusing, some software requires the URL to the calendar, other requires the URL to the principal.  The Python CalDAV library does support accessing calendars and principals using such URLs, but the recommended practice is to configure up the CalDAV root URL and tell the library to find the principal and calendars from that.  Typical examples of CalDAV URLs:
 
 * iCloud: ``https://caldav.icloud.com/``.  Note that there is no
@@ -229,7 +231,7 @@ CalDAV URLs can be quite confusing, some software requires the URL to the calend
   namespace.
 
 * Google - new api: see https://developers.google.com/calendar/caldav/v2/guide.
-  There is some information in https://github.com/python-caldav/caldav/issues/119 on how to connect to Google, and there are two contributed `examples <examples.rst>`_ on how to obtain a bearer token and use it in the caldav lbirary.
+  There is some information in https://github.com/python-caldav/caldav/issues/119 on how to connect to Google, and there are two contributed `examples <examples.rst>`_ on how to obtain a bearer token and use it in the caldav lbirary.  There is also a `blog post <https://blog.lasall.dev/post/tell-me-why-google-and-caldav/>`_ describing the process.
 
 * DAViCal: The caldav URL typically seems to be on the format ``https://your.server.example.com/caldav.php/``, though it depends on how the web server is configured.  The primary calendars have URLs like ``https://your.server.example.com/caldav.php/donald/calendar`` and other calendars have names like ``https://your.server.example.com/caldav.php/donald/golfing_calendar``.
 
