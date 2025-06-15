@@ -5,7 +5,9 @@ Tutorial
 In this tutorial you should learn basic usage of the python CalDAV
 client library.  You are encouraged to copy the code examples into a
 file and add a ``breakpoint()`` inside the with-block so you can
-inspect the return objects you get from the library calls.
+inspect the return objects you get from the library calls.  Do not
+name your file `caldav.py` or `calendar.py`, this may break some
+imports.
 
 To follow this tutorial as intended, each code block should be run
 towards a clean-slate Radicale server.  To do this, you need:

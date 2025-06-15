@@ -15,6 +15,7 @@ Contents
    about
    tutorial
    reference
+   examples
 
 ====================
  Indices and tables

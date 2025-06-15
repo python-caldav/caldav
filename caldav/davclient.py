@@ -737,6 +737,9 @@ class DAVClient:
         )
 
         try:
+            logging.error(
+                f"doing {method} towards {str(url_obj)} through {self.session.request}"
+            )
             r = self.session.request(
                 method,
                 str(url_obj),
@@ -748,6 +751,7 @@ class DAVClient:
                 verify=self.ssl_verify_cert,
                 cert=self.ssl_cert,
             )
+            logging.error(f"done with {method} towards {str(url_obj)}")
             log.debug("server responded with %i %s" % (r.status_code, r.reason))
             response = DAVResponse(r, self)
         except:
@@ -916,9 +920,10 @@ def auto_conn(*largs, config_data: dict = None, **kwargs):
 
 
 def get_davclient(
-    config_file: str = f"{os.environ.get('HOME')}/.config/calendar.conf",
-    config_section="default",
-    testconfig=False,
+    check_config_file: bool = True,
+    config_file: str = None,
+    config_section: str = None,
+    testconfig: bool = False,
     environment: bool = True,
     name: str = None,
     **config_data,
@@ -965,17 +970,43 @@ def get_davclient(
 
     if environment:
         conf = {}
-        for conf_key in (x for x in os.environ if x.startswith("CALDAV_")):
+        for conf_key in (
+            x
+            for x in os.environ
+            if x.startswith("CALDAV_") and not x.startswith("CALDAV_CONFIG")
+        ):
             conf[conf_key[7:].lower()] = os.environ[conf_key]
         if conf:
             return DAVClient(**conf)
-        config_file = os.environ.get("CALDAV_CONFIG_FILE")
+        if not config_file:
+            config_file = os.environ.get("CALDAV_CONFIG_FILE")
+        if not config_section:
+            config_section = os.enviorn.get("CALDAV_CONFIG_SECTION")
 
-    if config_file:
+    if check_config_file:
         ## late import in 2.0, as the config stuff isn't properly tested
         from . import config
 
-        cfg = config.read_config(config_file)
+        if not config_section:
+            config_section = "default"
+
+        if not config_file:
+            cfgdir = f"{os.environ.get('HOME', '/')}/.config/"
+            for config_file in (
+                f"{cfgdir}/caldav/calendar.conf",
+                f"{cfgdir}/caldav/calendar.yaml"
+                f"{cfgdir}/caldav/calendar.json"
+                f"{cfgdir}/calendar.conf",
+                "/etc/calendar.conf",
+                "/etc/caldav/calendar.conf",
+            ):
+                try:
+                    cfg = config.read_config(config_file)
+                    break
+                except FileNotFoundError:
+                    pass
+        else:
+            cfg = config.read_config(config_file)
         if cfg:
             section = config.config_section(cfg, config_section)
             conn_params = {}
