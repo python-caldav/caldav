@@ -17,6 +17,7 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 ### Added
 
 * Documentation has been through a major overhaul.
+* Added some information on how to connect to Google in the doc and examples.
 * `event.component` is now an alias for `event.icalendar_component`.
 * `get_davclient` (earlier called `auto_conn`) is more complete now - https://github.com/python-caldav/caldav/pull/502 - https://github.com/python-caldav/caldav/issues/485 - https://github.com/python-caldav/caldav/pull/507
   * It can read from environment (including environment variable for reading from test config and for locating the config file).
