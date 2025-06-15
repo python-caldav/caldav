@@ -11,11 +11,13 @@ Contributed by Abe Hanoka in https://github.com/python-caldav/caldav/issues/119#
 
 This code is not tested by the caldav library maintainer.
 """
+from allauth.socialaccount.models import SocialApp
+from allauth.socialaccount.models import SocialToken
+from google.oauth2.credentials import Credentials
 
 from caldav import DAVClient
 from caldav.requests import HTTPBearerAuth
-from allauth.socialaccount.models import SocialToken, SocialApp
-from google.oauth2.credentials import Credentials
+
 
 def get_google_credentials(user):
     """Get Google OAuth2 credentials from django-allauth"""
@@ -23,7 +25,7 @@ def get_google_credentials(user):
         account__user=user,
         account__provider="google",
     ).first()
-    
+
     if not token:
         raise Exception("No Google account connected")
 
@@ -36,21 +38,22 @@ def get_google_credentials(user):
         client_secret=google.secret,
     )
 
+
 def sync_calendar(user, calendar_id):
     """Sync with Google Calendar using CalDAV"""
     # Get credentials from django-allauth
     credentials = get_google_credentials(user)
-    
+
     # Set up CalDAV client with OAuth token
     client = DAVClient(
         url=f"https://apidata.googleusercontent.com/caldav/v2/{calendar_id}/events",
-        auth=HTTPBearerAuth(credentials.token)
+        auth=HTTPBearerAuth(credentials.token),
     )
-    
+
     # Access calendar
     principal = client.principal()
     calendar = principal.calendars()[0]
-    
+
     # Now you can work with events
     events = calendar.events()
     # ...etc

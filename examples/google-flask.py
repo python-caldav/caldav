@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
-
 """
 Code contributed by github user seidnerj in
 https://github.com/python-caldav/caldav/issues/119#issuecomment-2561980368
 
 This code has not been tested by the maintainer of the caldav library.
 """
-
 import os
 
-from flask import Flask, jsonify, Response
+from flask import Flask
+from flask import jsonify
+from flask import Response
 from google.oauth2.credentials import Credentials
+
 from caldav import DAVClient
 from caldav.requests import HTTPBearerAuth
 
