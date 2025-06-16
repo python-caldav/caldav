@@ -808,12 +808,12 @@ class Calendar(DAVObject):
         "properties" in the calendar data: category, uid, summary,
         comment, description, location, status.  According to the RFC,
         a substring search should be done.
-        
+
         You may use no_category, no_summary, etc to search for objects
         that are missing those attributes.
-        
+
         Negated text matches are not supported yet.
-        
+
         For power-users, those parameters are also supported:
 
          * ``xml`` - use this search query, and ignore other filter parameters
