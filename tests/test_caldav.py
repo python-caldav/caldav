@@ -918,6 +918,9 @@ class RepeatedFunctionalTestsBaseClass:
         assert str(c.url) in repr(c)
 
     def testProxy(self):
+        """
+        This test sets up a proxy and tries to connect via the proxy.  No verification is done that the proxy is actually used.
+        """
         if self.caldav.url.scheme == "https":
             pytest.skip(
                 "Skipping %s.testProxy as the TinyHTTPProxy "

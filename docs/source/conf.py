@@ -38,13 +38,15 @@ extensions = [
     "sphinx.ext.todo",
 ]
 
+
 def linkcode_resolve(domain, info):
-    if domain != 'py':
+    if domain != "py":
         return None
-    if not info['module']:
+    if not info["module"]:
         return None
-    filename = info['module'].replace('.', '/')
+    filename = info["module"].replace(".", "/")
     return f"https://github.com/python-caldav/caldav/blob/master/{filename}.py"
+
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ["_templates"]
