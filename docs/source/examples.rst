@@ -14,5 +14,5 @@ Files currently there:
 * ``scheduling_examples.py`` - This is NOT tested, it may or may not work!  (I should look into this soon)
 * ``sync_examples.py`` - this is "pseudo-code", not intended to work, and hence not tested.  I'm also planning on making a HOWTO on how to backup your calendar locally.
 * ``google-flask.py`` some flask application reading content from a Google calendar.  Contributed by @seidnerj, not tested by the caldav maintainer.
-* ``google-django`` - some python code utilizing django allauth library to authenticate towards a Google calendar.   Contributed by Abe Hanoka.
-* ``google-service-account`` - some python code utilizing a Google service account for authentication.  Contributed by Bo Lopker.
+* ``google-django`` - some python code utilizing django allauth library to authenticate towards a Google calendar.   Contributed by Abe Hanoka, not tested by the caldav maintainer.
+* ``google-service-account`` - some python code utilizing a Google service account for authentication.  Contributed by Bo Lopker, not tested by the caldav maintainer.
