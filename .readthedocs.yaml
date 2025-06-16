@@ -35,9 +35,8 @@ sphinx:
 #     - requirements: docs/requirements.txt
 python:
   install:
+    - requirements: docs/requirements.txt
     - method: pip
       path: .
       extra_requirements:
         - doc
-        - sphinx-copybutton
-        - pydata-sphinx-theme
