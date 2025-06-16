@@ -168,6 +168,20 @@ class CalendarObjectResource(DAVObject):
         self.icalendar_component.add("organizer", principal.get_vcal_address())
 
     def split_expanded(self) -> List[Self]:
+        """This is used internally for processing search results.
+        Library users probably don't need to care about this one.
+
+        In the CalDAV protocol, a VCALENDAR object returned from the
+        server may contain only one event/task/journal - but if the object is
+        recurrent, it may contain several recurrences.  This method
+        will split the recurrences into several objects.
+
+        It's meant to be used for expanded data, where each component
+        is a recurrence, and where the recurrence set is complete for
+        some given time range.  However, it will also work on a
+        non-expanded object, containing the "master" component first
+        followed by "special" recurrences.
+        """
         i = self.icalendar_instance.subcomponents
         tz_ = [x for x in i if isinstance(x, icalendar.Timezone)]
         ntz = [x for x in i if not isinstance(x, icalendar.Timezone)]
@@ -552,20 +566,37 @@ class CalendarObjectResource(DAVObject):
         ievent.add("attendee", attendee_obj)
 
     def is_invite_request(self) -> bool:
+        """
+        Returns True if this object is a request, see
+        https://www.rfc-editor.org/rfc/rfc2446.html#section-3.2.2
+        """
         self.load(only_if_unloaded=True)
         return self.icalendar_instance.get("method", None) == "REQUEST"
 
     def is_invite_reply(self) -> bool:
+        """
+        Returns True if the object is a reply, see
+        https://www.rfc-editor.org/rfc/rfc2446.html#section-3.2.3
+        """
         self.load(only_if_unloaded=True)
         return self.icalendar_instance.get("method", None) == "REPLY"
 
     def accept_invite(self, calendar: Optional["Calendar"] = None) -> None:
+        """
+        Accepts an invite - to be used on an invite object.
+        """
         self._reply_to_invite_request("ACCEPTED", calendar)
 
     def decline_invite(self, calendar: Optional["Calendar"] = None) -> None:
+        """
+        Declines an invite - to be used on an invite object.
+        """
         self._reply_to_invite_request("DECLINED", calendar)
 
     def tentatively_accept_invite(self, calendar: Optional[Any] = None) -> None:
+        """
+        Tentatively accept an invite - to be used on an invite object.
+        """
         self._reply_to_invite_request("TENTATIVE", calendar)
 
     ## TODO: DELEGATED is also a valid option, and for vtodos the
@@ -737,6 +768,9 @@ class CalendarObjectResource(DAVObject):
         return self.parent.url.join(quote(self.id.replace("/", "%2F")) + ".ics")
 
     def change_attendee_status(self, attendee: Optional[Any] = None, **kwargs) -> None:
+        """
+        Updates the attendee-line according to the arguments received
+        """
         from .collection import Principal  ## late import to avoid cycling imports
 
         if not attendee:
@@ -950,11 +984,27 @@ class CalendarObjectResource(DAVObject):
         return self
 
     def is_loaded(self):
+        """Returns True if there exists data in the object.  An
+        object is considered not to be loaded if it contains no data
+        but just the URL.
+
+        TOOD: bad side effect, converts the data to a string,
+        potentially breaking couplings
+        """
         return (
             self._data or self._vobject_instance or self._icalendar_instance
         ) and self.data.count("BEGIN:") > 1
 
     def has_component(self):
+        """
+        Returns True if there exists a VEVENT, VTODO or VJOURNAL in the data.
+        Returns False if it's only a VFREEBUSY, VTIMEZONE or unknown components.
+
+        TODO: Bad side-effect: converts to data - any icalendar instances coupled to the object
+        will be decoupled.
+
+        Used internally after search to remove empty search results (sometimes Google return such)
+        """
         return (
             self._data
             or self._vobject_instance

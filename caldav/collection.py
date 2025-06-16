@@ -333,6 +333,10 @@ class Principal(DAVObject):
         return self.calendar_home_set.calendars()
 
     def freebusy_request(self, dtstart, dtend, attendees):
+        """Sends a freebusy-request for some attendee to the server
+        as per RFC6638
+        """
+
         freebusy_ical = icalendar.Calendar()
         freebusy_ical.add("prodid", "-//tobixen/python-caldav//EN")
         freebusy_ical.add("version", "2.0")
@@ -376,9 +380,15 @@ class Principal(DAVObject):
         return [x.text for x in addresses]
 
     def schedule_inbox(self) -> "ScheduleInbox":
+        """
+        Returns the schedule inbox, as defined in RFC6638
+        """
         return ScheduleInbox(principal=self)
 
     def schedule_outbox(self) -> "ScheduleOutbox":
+        """
+        Returns the schedule outbox, as defined in RFC6638
+        """
         return ScheduleOutbox(principal=self)
 
 
@@ -1352,12 +1362,21 @@ class Calendar(DAVObject):
         return items_found2[0]
 
     def todo_by_uid(self, uid: str) -> "CalendarObjectResource":
+        """
+        Returns the task with the given uid (wraps around :class:`object_by_uid`)
+        """
         return self.object_by_uid(uid, comp_filter=cdav.CompFilter("VTODO"))
 
     def event_by_uid(self, uid: str) -> "CalendarObjectResource":
+        """
+        Returns the event with the given uid (wraps around :class:`object_by_uid`)
+        """
         return self.object_by_uid(uid, comp_filter=cdav.CompFilter("VEVENT"))
 
     def journal_by_uid(self, uid: str) -> "CalendarObjectResource":
+        """
+        Returns the journal with the given uid (wraps around :class:`object_by_uid`)
+        """
         return self.object_by_uid(uid, comp_filter=cdav.CompFilter("VJOURNAL"))
 
     # alias for backward compatibility

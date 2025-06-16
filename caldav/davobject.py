@@ -242,6 +242,15 @@ class DAVObject:
     def get_property(
         self, prop: BaseElement, use_cached: bool = False, **passthrough
     ) -> Optional[str]:
+        """
+        Wrapper for the :class:`get_properties`, when only one property is wanted
+
+        Parameters:
+
+        * ``prop`` - the property to search for
+        * ``use_cached`` - don't send anything to the server if we've asked before
+        * Other parameters are sent directly to the :class:`get_properties` method
+        """
         ## TODO: use_cached should probably be true
         if use_cached:
             if prop.tag in self.props:

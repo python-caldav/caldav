@@ -581,6 +581,9 @@ class DAVClient:
         return Calendar(client=self, **kwargs)
 
     def check_dav_support(self) -> Optional[str]:
+        """
+        Does a probe towards the server and returns True if it says it supports RFC4918 / DAV
+        """
         try:
             ## SOGo does not return the full capability list on the caldav
             ## root URL, and that's OK according to the RFC ... so apparently
@@ -593,10 +596,16 @@ class DAVClient:
         return response.headers.get("DAV", None)
 
     def check_cdav_support(self) -> bool:
+        """
+        Does a probe towards the server and returns True if it says it supports RFC4791 / CalDAV
+        """
         support_list = self.check_dav_support()
         return support_list is not None and "calendar-access" in support_list
 
     def check_scheduling_support(self) -> bool:
+        """
+        Does a probe towards the server and returns True if it says it supports RFC6833 / CalDAV Scheduling
+        """
         support_list = self.check_dav_support()
         return support_list is not None and "calendar-auto-schedule" in support_list
 
@@ -711,9 +720,16 @@ class DAVClient:
         return self.request(url, "DELETE")
 
     def options(self, url: str) -> DAVResponse:
+        """
+        Send an options request.
+        """
         return self.request(url, "OPTIONS")
 
     def extract_auth_types(self, header: str):
+        """This is probably meant for internal usage.  It takes the
+        headers it got from the server and figures out what
+        authentication types the server supports
+        """
         # https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/WWW-Authenticate#syntax
         return {h.split()[0] for h in header.lower().split(",")}
 
