@@ -15,6 +15,8 @@ from .davclient import DAVClient
 ## TODO: this should go away in some future version of the library.
 from .objects import *
 
+## We should consider if the NullHandler-logic below is needed or not, and
+## if there are better alternatives?
 # Silence notification of no default logging handler
 log = logging.getLogger("caldav")
 

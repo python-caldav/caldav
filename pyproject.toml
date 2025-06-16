@@ -53,6 +53,8 @@ test = [
   "coverage",
   "manuel",
   "sphinx",
+  "sphinx-copybutton",
+  "pydata-sphinx-theme",
   "backports.zoneinfo;python_version<'3.9'",
   "tzlocal",
   "xandikos==0.2.7;python_version<'3.9'",

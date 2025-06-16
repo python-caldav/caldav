@@ -6,6 +6,10 @@ Reference: caldav
 
 Contents
 ========
+.. currentmodule:: caldav
+
+.. autosummary::
+   :toctree: generated
 
 .. toctree::
    :maxdepth: 1

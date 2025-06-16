@@ -23,7 +23,27 @@ sys.path.insert(0, "../..")  # Adjust as needed
 
 # Add any Sphinx extension module names here, as strings. They can be extensions
 # coming with Sphinx (named 'sphinx.ext.*') or your custom ones.
-extensions = ["sphinx.ext.autodoc", "sphinx.ext.coverage", "sphinx.ext.doctest"]
+extensions = [
+    "sphinx.ext.autodoc",
+    "sphinx.ext.coverage",
+    "sphinx.ext.doctest",
+    "sphinx.ext.viewcode",
+    "sphinx_copybutton",
+    "sphinx.ext.intersphinx",
+    "sphinx.ext.autosectionlabel",
+    "sphinx.ext.autosummary",
+    "sphinx.ext.napoleon",
+    "sphinx.ext.linkcode",
+    "sphinx.ext.todo",
+]
+
+def linkcode_resolve(domain, info):
+    if domain != 'py':
+        return None
+    if not info['module']:
+        return None
+    filename = info['module'].replace('.', '/')
+    return f"https://github.com/python-caldav/caldav/blob/master/{filename}.py"
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ["_templates"]
@@ -91,7 +111,47 @@ pygments_style = "sphinx"
 
 # The theme to use for HTML and HTML Help pages.  Major themes that come with
 # Sphinx are currently 'default' and 'sphinxdoc'.
-html_theme = "default"
+html_theme = "pydata_sphinx_theme"
+html_theme_options = {
+    "icon_links": [
+        {
+            "name": "GitHub",
+            "url": "https://github.com/python-caldav/caldav",
+            "icon": "fa-brands fa-square-github",
+            "type": "fontawesome",
+            "attributes": {
+                "target": "_blank",
+                "rel": "noopener me",
+                "class": "nav-link custom-fancy-css",
+            },
+        },
+        {
+            "name": "PyPI",
+            "url": "https://pypi.org/project/caldav",
+            "icon": "fa-custom fa-pypi",
+            "type": "fontawesome",
+            "attributes": {
+                "target": "_blank",
+                "rel": "noopener me",
+                "class": "nav-link custom-fancy-css",
+            },
+        },
+    ],
+    "navigation_with_keys": True,
+    "search_bar_text": "Search",
+    "show_nav_level": 2,
+    "show_toc_level": 2,
+    "use_edit_page_button": True,
+}
+pygments_style = "sphinx"
+html_context = {
+    #     "github_url": "https://github.com", # or your GitHub Enterprise site
+    "github_user": "python-caldav",
+    "github_repo": "caldav",
+    "github_version": "master",
+    "doc_path": "docs/source",
+}
+htmlhelp_basename = "caldavdoc"
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
@@ -197,3 +257,31 @@ latex_documents = [
 
 # If false, no module index is generated.
 # latex_use_modindex = True
+
+# -- Intersphinx configuration ----------------------------------
+
+# This extension can generate automatic links to the documentation of objects
+# in other projects. Usage is simple: whenever Sphinx encounters a
+# cross-reference that has no matching target in the current documentation set,
+# it looks for targets in the documentation sets configured in
+# intersphinx_mapping. A reference like :py:class:`zipfile.ZipFile` can then
+# linkto the Python documentation for the ZipFile class, without you having to
+# specify where it is located exactly.
+#
+# https://www.sphinx-doc.org/en/master/usage/extensions/intersphinx.html
+intersphinx_mapping = {
+    "python": ("https://docs.python.org/3", None),
+    "icalendar": ("https://icalendar.readthedocs.io/en/latest/", None),
+}
+
+napoleon_google_docstring = True  # Parse Google style docstrings
+napoleon_numpy_docstring = True  # Parse NumPy style docstrings
+napoleon_include_init_with_doc = False
+napoleon_use_param = True
+napoleon_use_rtype = True
+
+autosummary_generate = True  # Automatically generate stub pages
+
+autosectionlabel_prefix_document = True
+
+todo_include_todos = True

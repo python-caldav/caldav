@@ -188,17 +188,19 @@ without expand set and with different years, print out
 you want to edit the full series!
 
 The code above is far from "best practice".  You should not try to
-parse or modify ``event.data`` - it will be parsed and thrown into an
-object accessible as ``myevent.icalendar_instance``.  (in 3.0,
-probably ``myevent.instance`` will work out without yielding a
-``DeprecationWarning``).
+parse or modify ``event.data``.  Best current practice is to use the
+icalendar library for that.  You can access the data thorugh an
+:class:`icalendar.cal.Calendar`-object at ``myevent.icalendar_instance``.
+(in 3.0, probably ``myevent.instance`` will work out without yielding
+a ``DeprecationWarning``).
 
 Most of the time every event one gets out from the search contains one
 *component* - and it will always be like that when using
 ``expand=True``.  To ease things out for users of the library that
-wants easy access to the event data there is an
-``my_events[9].icalendar_component`` property.  From 2.0 also
-accessible simply as ``my_events[0].component``:
+wants easy access to the event data, the
+``my_events[9].icalendar_component`` property will give a
+:class:`icalendar.cal.Event`-object.  From 2.0 also accessible simply as
+``my_events[0].component``:
 
 .. code-block:: python
 
@@ -227,7 +229,7 @@ accessible simply as ``my_events[0].component``:
 
 There is a danger to this - there is one (and only one) exception when an event contains more than one component.  If you've been observant and followed all the steps in this tutorial very carefully, you should have spotted it.
 
-How to do operations on components and instances in the vobject and icalendar library is outside the scope of this tutorial - The icalendar library documentaiton can be found `here <https://icalendar.readthedocs.io/>`_ as of 2025-06.
+How to do operations on components and instances in the vobject and icalendar library is outside the scope of this tutorial.
 
 Usually tasks and journals can be applied directly to the same calendar as the events - but some implementations (notably Zimbra) has "task lists" and "calendars" as distinct entities.  To create a task list, there is a parameter ``supported_calendar_component_set`` that can be set to ``['VTODO']``.  Here is a quick example that features a task:
 
@@ -257,7 +259,7 @@ Usually tasks and journals can be applied directly to the same calendar as the e
 
 There are more functionality, but if you've followed the tutorial to this point, you should already know eough to deal with the very most use-cases.
 
-There are some more examples in the examples folder, particularly `basic examples <https://github.com/python-caldav/caldav/blob/master/examples/basic_usage_examples.py>`_. There is also a `scheduling examples <https://github.com/python-caldav/caldav/blob/master/examples/scheduling_examples.py>`_ for sending, receiving and replying to invites, though this is not very well-tested so far.  The example code is currently not tested nor maintained.  Some of it will be moved into the documentation as tutorials or how-tos eventually.
+There are some more :ref:`examples:examples` in the examples folder, particularly `basic examples <https://github.com/python-caldav/caldav/blob/master/examples/basic_usage_examples.py>`_. There is also a `scheduling examples <https://github.com/python-caldav/caldav/blob/master/examples/scheduling_examples.py>`_ for sending, receiving and replying to invites, though this is not very well-tested so far.  The example code is currently not tested nor maintained.  Some of it will be moved into the documentation as tutorials or how-tos eventually.
 
 The `test code <https://github.com/python-caldav/caldav/blob/master/tests/test_caldav.py>`_ also covers most of the features available, though it's not much optimized for readability (at least not as of 2025-05).
 
