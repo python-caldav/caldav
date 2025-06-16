@@ -10,7 +10,7 @@ Contents
 .. toctree::
    :maxdepth: 1
 
-   configfile.md
+   configfile
    caldav/davclient
    caldav/davobject
    caldav/collection
