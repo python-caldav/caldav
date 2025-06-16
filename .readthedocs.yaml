@@ -39,3 +39,5 @@ python:
       path: .
       extra_requirements:
         - doc
+        - sphinx-copybutton
+        - pydata-sphinx-theme
