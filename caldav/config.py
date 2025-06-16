@@ -77,8 +77,8 @@ def read_config(fn, interactive_error=False):
         cfgdir = f"{os.environ.get('HOME', '/')}/.config/"
         for config_file in (
             f"{cfgdir}/caldav/calendar.conf",
-            f"{cfgdir}/caldav/calendar.yaml"
-            f"{cfgdir}/caldav/calendar.json"
+            f"{cfgdir}/caldav/calendar.yaml",
+            f"{cfgdir}/caldav/calendar.json",
             f"{cfgdir}/calendar.conf",
             "/etc/calendar.conf",
             "/etc/caldav/calendar.conf",
