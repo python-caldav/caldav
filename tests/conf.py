@@ -84,9 +84,6 @@ try:
 except ImportError:
     rfc6638_users = []
 
-proxy = "127.0.0.1:8080"
-proxy_noport = "127.0.0.1"
-
 #####################
 # Public test servers
 #####################

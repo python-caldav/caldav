@@ -10,6 +10,7 @@ belong in test_caldav_unit.py
 import codecs
 import json
 import logging
+from unittest import mock
 import os
 import random
 import sys
@@ -17,6 +18,8 @@ import tempfile
 import threading
 import time
 import uuid
+import proxy
+from proxy.http.proxy import HttpProxyBasePlugin
 from collections import namedtuple
 from datetime import date
 from datetime import datetime
@@ -30,8 +33,6 @@ import vobject
 
 from .conf import caldav_servers
 from .conf import client
-from .conf import proxy
-from .conf import proxy_noport
 from .conf import radicale_host
 from .conf import radicale_port
 from .conf import rfc6638_users
@@ -39,8 +40,6 @@ from .conf import test_radicale
 from .conf import test_xandikos
 from .conf import xandikos_host
 from .conf import xandikos_port
-from .proxy import NonThreadingHTTPServer
-from .proxy import ProxyHandler
 from caldav import compatibility_hints
 from caldav.davclient import DAVClient
 from caldav.davclient import DAVResponse
@@ -916,60 +915,6 @@ class RepeatedFunctionalTestsBaseClass:
             assert str(name) == str_
         assert "Calendar" in repr(c)
         assert str(c.url) in repr(c)
-
-    def testProxy(self):
-        """
-        This test sets up a proxy and tries to connect via the proxy.  No verification is done that the proxy is actually used.
-        """
-        if self.caldav.url.scheme == "https":
-            pytest.skip(
-                "Skipping %s.testProxy as the TinyHTTPProxy "
-                "implementation doesn't support https"
-            )
-        self.skip_on_compatibility_flag("no_default_calendar")
-
-        server_address = ("127.0.0.1", 8080)
-        try:
-            proxy_httpd = NonThreadingHTTPServer(
-                server_address, ProxyHandler, logging.getLogger("TinyHTTPProxy")
-            )
-        except:
-            pytest.skip("Unable to set up proxy server")
-
-        threadobj = threading.Thread(target=proxy_httpd.serve_forever)
-        conn_params = self.server_params.copy()
-        for special in ("setup", "teardown", "name"):
-            if special in conn_params:
-                conn_params.pop(special)
-        try:
-            threadobj.start()
-            assert threadobj.is_alive()
-            conn_params["proxy"] = proxy
-            c = client(**conn_params)
-            p = c.principal()
-            assert len(p.calendars()) != 0
-        finally:
-            proxy_httpd.shutdown()
-            # this should not be necessary, but I've observed some failures
-            if threadobj.is_alive():
-                time.sleep(0.15)
-            assert not threadobj.is_alive()
-
-        threadobj = threading.Thread(target=proxy_httpd.serve_forever)
-        try:
-            threadobj.start()
-            assert threadobj.is_alive()
-            conn_params["proxy"] = proxy_noport
-            c = client(**conn_params)
-            p = c.principal()
-            assert len(p.calendars()) != 0
-            assert threadobj.is_alive()
-        finally:
-            proxy_httpd.shutdown()
-            # this should not be necessary
-            if threadobj.is_alive():
-                time.sleep(0.05)
-            assert not threadobj.is_alive()
 
     def _notFound(self):
         if self.check_compatibility_flag("non_existing_raises_other"):
@@ -3130,6 +3075,55 @@ class RepeatedFunctionalTestsBaseClass:
         with pytest.raises(Exception):
             o.save()
 
+
+class MyProxyPlugin(HttpProxyBasePlugin):
+    """
+    1) injects an extra header into the response from the server, so we can verify the data came trough the browser.
+    2) keeps a count of all requests
+    """
+    proxy_access_logs = []
+    def handle_upstream_chunk(self, chunk):
+        """
+        Injects a new header line (this may break if the content itself contains the trigger string)
+        """
+        return chunk.__class__(chunk.tobytes().replace(b'\r\nContent-Type: ',b'\r\nX-Data-Came-Through-Proxy: True\r\nContent-Type: '))
+
+    def on_access_log(self, context):
+        """
+        Keep a count of requests done through the proxy
+        """
+        ## TODO ... howto?  This may run in a separate process even ... only way is to write things to  a file?
+        return context
+    
+class AssertProxyDAVResponse(DAVResponse):
+    def __init__(self, response, davclient=None):
+        assert response.headers.get('X-Data-Came-Through-Proxy') == 'True'
+        return DAVResponse.__init__(self, response, davclient)
+    
+@mock.patch('caldav.davclient.DAVResponse', new=AssertProxyDAVResponse)
+class TestProxy(proxy.TestCase):
+    PROXY_PY_STARTUP_FLAGS = [
+        '--plugins',  'tests.test_caldav.MyProxyPlugin'
+    ]
+
+    def setup_method(self, *largs, **kwargs):
+        self.proxy = f"http://localhost:{self.PROXY.flags.port}"
+        
+    def testNoProxyRaisesError(self):
+        with client(**caldav_servers[-1]) as conn:
+            with pytest.raises(AssertionError):
+                principal = conn.principal()
+    
+    def testWithProxyParams(self):
+        with client(proxy=self.proxy, **caldav_servers[-1]) as conn:
+            principal = conn.principal()
+
+    @pytest.mark.skipif(True, reason="work in progress ... this doesn't seem to work")
+    def testWithEnvironment(self):
+        os.environ['HTTP_PROXY'] = self.proxy
+        os.environ['HTTPS_PROXY'] = self.proxy
+        with client(**caldav_servers[-1]) as conn:
+            principal = conn.principal()
 
 # We want to run all tests in the above class through all caldav_servers;
 # and I don't really want to create a custom nose test loader.  The

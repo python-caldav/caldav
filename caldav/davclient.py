@@ -905,8 +905,8 @@ class DAVClient:
 
 def auto_calendars(
     config_file: str = None,
-    config_section="default",
-    testconfig=False,
+    config_section: str = "default",
+    testconfig: bool = False,
     environment: bool = True,
     config_data: dict = None,
     config_name: str = None,
@@ -982,7 +982,7 @@ def get_davclient(
                 except ValueError:
                     pass
             try:
-                conn = client(idx, name, **(config_data or {}))
+                conn = client(idx, name)
                 if conn:
                     return conn
             except:
