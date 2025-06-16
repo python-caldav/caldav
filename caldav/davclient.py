@@ -1010,5 +1010,5 @@ def get_davclient(
                     if key == "user":
                         key = "username"
                     conn_params[key] = section[k]
-                if conn_params:
-                    return DAVClient(**conn_params)
+            if conn_params:
+                return DAVClient(**conn_params)
