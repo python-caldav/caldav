@@ -989,7 +989,7 @@ def get_davclient(
         if not config_file:
             config_file = os.environ.get("CALDAV_CONFIG_FILE")
         if not config_section:
-            config_section = os.enviorn.get("CALDAV_CONFIG_SECTION")
+            config_section = os.environ.get("CALDAV_CONFIG_SECTION")
 
     if check_config_file:
         ## late import in 2.0, as the config stuff isn't properly tested
