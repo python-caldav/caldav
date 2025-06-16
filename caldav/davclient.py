@@ -459,7 +459,7 @@ class DAVClient:
         Sets up a HTTPConnection object towards the server in the url.
         Parameters:
          * url: A fully qualified url: `scheme://user:pass@hostname:port`
-         * proxy: A string defining a proxy server: `hostname:port`
+         * proxy: A string defining a proxy server: `scheme://hostname:port`.  Scheme defaults to http, port defaults to 8080.
          * username and password should be passed as arguments or in the URL
          * auth, timeout and ssl_verify_cert are passed to niquests.request.
          * ssl_verify_cert can be the path of a CA-bundle or False.
@@ -467,8 +467,10 @@ class DAVClient:
            of security issues, see : https://lxml.de/api/lxml.etree.XMLParser-class.html
 
         The niquests library will honor a .netrc-file, if such a file exists
-        username and password may be omitted.  Known bug: .netrc is honored
-        even if a username/password is given, ref https://github.com/python-caldav/caldav/issues/206
+        username and password may be omitted.
+
+        THe niquest library will honor standard proxy environmental variables like
+        HTTP_PROXY, HTTPS_PROXY and ALL_PROXY.
         """
         headers = headers or {}
 
