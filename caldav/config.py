@@ -3,7 +3,7 @@ import logging
 import os
 
 """
-This configuration parsing code was just copied from my plann library (and will be removed from there at some point in the future).  It's lacking tests, documentation and ... generally just lacking.
+This configuration parsing code was just copied from my plann library (and will be removed from there at some point in the future).  Test coverage is poor as for now.
 """
 
 ## This is being moved from my plann library.  The code itself will be introduced into caldav 2.0, but proper test code and documentation will come in a later release (2.1?)
