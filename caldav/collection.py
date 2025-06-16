@@ -488,24 +488,26 @@ class Calendar(DAVObject):
 
     def save_object(
         self,
+        ## TODO: this should be made optional.  The class may be given in the ical object.
+        ## TODO: also, accept a string.
         objclass: Type[DAVObject],
+        ## TODO: ical may also be a vobject or icalendar instance
         ical: Optional[str] = None,
         no_overwrite: bool = False,
         no_create: bool = False,
         **ical_data,
     ) -> "CalendarResourceObject":
         """
-                Add a new event to the calendar, with the given ical.
+        Add a new event to the calendar, with the given ical.
 
-                Parameters:
-                 * ical - ical object (text)
-                 * no_overwrite - existing calendar objects should not be overwritten
-                 * no_create - don't create a new object, existing calendar objects should be updated
-                 * dt_start, dt_end, summary, etc - properties to be inserted into the icalendar object
-                 * alarm_trigger, alarm_action, alarm_attach, etc - when given, one alarm will be added
-                 * ical_data - passed to lib.vcal.create_ical
-
-        Event"""
+        Parameters:
+         * ``objclass`` - Event, Journal or Todo
+         * ``ical`` - ical object (text, icalendar or vobject instance)
+         * ``dt_start``, ``dt_end``, ``summary``, etc (``ical_data``) - properties to be inserted into the icalendar object (as an aternative to the ical parameter)
+         * ``no_overwrite`` - existing calendar objects should not be overwritten
+         * ``no_create`` - don't create a new object, existing calendar objects should be updated
+         * ``alarm_trigger``, ``alarm_action``, ``alarm_attach``, etc - when given, one alarm will be added
+        """
         o = objclass(
             self.client,
             data=self._use_or_create_ics(
@@ -521,23 +523,22 @@ class Calendar(DAVObject):
             o._handle_reverse_relations(fix=True)
         return o
 
-    ## It could still be possible to refactor even more, but
-    ## readability would be harder
+    ## TODO: maybe we should deprecate those three
     def save_event(self, *largs, **kwargs) -> "Event":
         """
-        See save_object
+        Returns ``self.save_object(Event, ...)`` - see :class:`save_object`
         """
         return self.save_object(Event, *largs, **kwargs)
 
     def save_todo(self, *largs, **kwargs) -> "Todo":
         """
-        See save_object
+        Returns ``self.save_object(Todo, ...)`` - so see :class:`save_object`
         """
         return self.save_object(Todo, *largs, **kwargs)
 
     def save_journal(self, *largs, **kwargs) -> "Journal":
         """
-        See save_object
+        Returns ``self.save_object(Journal, ...)`` - so see :class:`save_object`
         """
         return self.save_object(Journal, *largs, **kwargs)
 
@@ -743,74 +744,81 @@ class Calendar(DAVObject):
         include_completed: bool = False,
         sort_keys: Sequence[str] = (),
         sort_reverse: bool = False,
-        expand: Union[bool, Literal["server"], Literal["client"]] = False,
+        expand: bool = False,
         server_expand: bool = False,
         split_expanded: bool = True,
         props: Optional[List[cdav.CalendarData]] = None,
         **kwargs,
     ) -> List[_CC]:
-        """Creates an XML query, does a REPORT request towards the
-        server and returns objects found, eventually sorting them
-        before delivery.
+        """Sends a search request towards the server, processes the
+        results if needed and returns the objects found.
 
-        This method contains some special logics to ensure that it can
-        consistently return a list of pending tasks on any server
-        implementation.  In the future it may also include workarounds
-        and client side filtering to make sure other search results
-        are consistent on different server implementations.
+        Caveat: The searching is done on the server side, the RFC is
+        not very crystal clear on many of the corner cases, and
+        servers often behave differently when presented with a search
+        request.  There is planned work to work around server
+        incompatibilities on the client side, but as for now
+        complicated searches will give different results on different
+        servers.
 
-        expand can only be set to True for closed date searches - but
-        unless you know what you're doing, it's recommended to ask for
-        expanded recurrences.  Without expand, be prepared that you
-        may get back events that apparently has a DTSTART/DTEND that
-        does not match the search interval, and you may also get back
-        objects containing multiple components (and this may break
-        when using `icalendar_component` as recommended, like
-        `event.icalendar_component['summary']) may disregard that the
-        summary has been modified for future events.
+        Arguments:
 
-        Only True or False should be given to expand.  Client-side
-        expansion is now the default.  Server-side expansion can be
-        set by setting `server_expand=True`.  If both `server_expand`
-        and `expand` is set, there will be a fallback to client-side
-        expansion if needed.
+        ``todo`` - searches explicitly for todo.  Unless
+        ``include_completed`` is specified, there is some special
+        logic ensuring only pending tasks is returned.
 
-        The CalDAV server usually delivers one VCALENDAR for each
-        component (i.e. event) found, this is again expanded to a
-        list.  The exception is for recurrences (either expanded
-        recurrences or exceptions to the rule) - a VCALENDAR
-        containing all the recurrences are passed.  The caller most
-        likely wants one list item for each recurrence, hence
-        `split_expanded` is set to True by default.  If you set it to
-        False (and expand to True), a recurring event with many
-        recurrences will be delivered as one list item containing a
-        VCALENDAR with many components.
+        There is corresponding ``event`` and ``journal`` bools to
+        specify that the search should be only for events or journals.
+        When neither are set, one should expect to get all objects
+        returned - but quite some calendar servers will return
+        nothing.  This will be solved client-side in the future, as
+        for 2.0 it's recommended to search separately for tasks,
+        events and journals to ensure consistent behaviour across
+        different calendar servers and providers.
 
-        Parameters supported:
+        ``sort_keys`` refers to (case-insensitive) properties in the
+        icalendar object, ``sort_reverse`` can also be given.  The
+        sorting will be done client-side.
 
-        * xml - use this search query, and ignore other filter parameters
-        * comp_class - set to event, todo or journal to restrict search to this
-          resource type.  Some server implementations require this to be set.
-        * todo - sets comp_class to Todo, and restricts search to pending tasks,
-          unless the next parameter is set ...
-        * include_completed - include completed tasks
-        * event - sets comp_class to event
-        * journal - sets comp_class to journal
-        * text attribute search parameters: category, uid, summary, comment,
-          description, location, status
-        * no-category, no-summary, etc ... search for objects that does not
-          have those attributes.  TODO: WRITE TEST CODE!
-        * expand - expand recurring objects
-        * server_expand - ask the server to expand recurring objects
-        * start, end: do a time range search
-        * filters - other kind of filters (in lxml tree format)
-        * sort_keys - list of attributes to use when sorting
-        * sort_reverse - reverse the sorting order
+        Use ``start`` and ``end`` for time-range searches.  Open-ended
+        searches are supported (i.e. "everything in the future"), but
+        it's recommended to use closed ranges (i.e. have an "event
+        horizon" of a year and ask for "everything from now and one
+        year ahead") and get the data expanded.
 
-        not supported yet:
-        * negated text match
-        * attribute not set
+        With the boolean ``expand`` set, you don't have to think too
+        much about recurrences - they will be expanded, and with the
+        (default) ``split_expanded`` set, each recurrence will be
+        returned as a separate list object (otherwise all recurrences
+        will be put into one ``VCALENDAR`` and returned as one
+        ``Event``).  This makes it safe to use the ``event.component``
+        property.  The non-expanded resultset may include events where
+        the timespan doesn't match the date interval you searched for,
+        as well as items with multiple components ("special"
+        recurrences), meaning you may need logic on the client side to
+        handle the recurrences.  *Only time range searches over closed
+        time intervals may be expanded*.
 
+        As for 2.0, the expand-logic is by default done on the
+        client-side, for consistent results across various server
+        incompabilities.  However, you may force server-side expansion
+        by setting ``server_expand=True``
+
+        Text attribute search parameters can be given to query the
+        "properties" in the calendar data: category, uid, summary,
+        comment, description, location, status.  According to the RFC,
+        a substring search should be done.
+
+        You may use no_category, no_summary, etc to search for objects
+        that are missing those attributes.
+
+        Negated text matches are not supported yet.
+
+        For power-users, those parameters are also supported:
+
+         * ``xml`` - use this search query, and ignore other filter parameters
+         * ``comp_class`` - alternative to the ``event``, ``todo`` or ``journal`` booleans described above.
+         * ``filters`` - other kind of filters (in lxml tree format)
         """
         if expand not in (True, False):
             warnings.warn(
