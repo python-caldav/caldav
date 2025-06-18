@@ -984,6 +984,21 @@ class RepeatedFunctionalTestsBaseClass:
         for c in collections:
             assert c.__class__.__name__ == "Calendar"
 
+    def testPrincipals(self):
+        self.skip_on_compatibility_flag("no-principal-search")
+        if not self.check_compatibility_flag("no-principal-search-self"):
+            my_name = self.principal.get_display_name()
+            my_principals = self.caldav.principals(name=my_name)
+            assert isinstance(my_principals, list)
+            assert len(my_principals) == 1
+            assert my_principals[0].url == self.principal.url
+
+        self.skip_on_compatibility_flag("no-principal-search-all")
+        all_principals = self.caldav.principals()
+        assert isinstance(all_principals, list)
+        if all_principals:
+            assert all((isinstance(x, Principal) for x in all_principals))
+
     def testCreateDeleteCalendar(self):
         self.skip_on_compatibility_flag("no_mkcalendar")
         self.skip_on_compatibility_flag("read_only")

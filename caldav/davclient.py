@@ -23,14 +23,16 @@ from niquests.structures import CaseInsensitiveDict
 
 from .elements.base import BaseElement
 from caldav import __version__
+from caldav.collection import Calendar
+from caldav.collection import CalendarSet
+from caldav.collection import Principal
+from caldav.elements import cdav
 from caldav.elements import dav
 from caldav.lib import error
 from caldav.lib.python_utilities import to_normal_str
 from caldav.lib.python_utilities import to_wire
 from caldav.lib.url import URL
-from caldav.objects import Calendar
 from caldav.objects import log
-from caldav.objects import Principal
 from caldav.requests import HTTPBearerAuth
 
 if TYPE_CHECKING:
@@ -553,6 +555,45 @@ class DAVClient:
         Closes the DAVClient's session object
         """
         self.session.close()
+
+    def principals(self, name=None):
+        """
+        Instead of returning the current logged-in principal, it attempts to query for all principals. This may or may not work dependent on the permissions and implementation of the calendar server.
+        """
+        ## TODO: allow server side filtering.  We need a  <D:property-search><D:prop><D:displayname/></D:prop><D:match>{name}</D:match></D:property-search> inside the PrincipalPropertySearch
+
+        if name:
+            name_filter = [ dav.PropertySearch() + [dav.Prop() + [dav.DisplayName()]] + dav.Match(value=name)]
+            import pdb; pdb.set_trace()
+        else:
+            name_filter = []
+
+        query = dav.PrincipalPropertySearch() + name_filter + [
+            dav.Prop() + cdav.CalendarHomeSet() + dav.DisplayName()
+        ]
+        response = self.report(self.url, etree.tostring(query.xmlelement()))
+        principal_dict = response.find_objects_and_props()
+        ret = []
+        for x in principal_dict:
+            p = principal_dict[x]
+            name = p[dav.DisplayName.tag].text
+            error.assert_(not p[dav.DisplayName.tag].getchildren())
+            error.assert_(not p[dav.DisplayName.tag].items())
+            chs = p[cdav.CalendarHomeSet.tag]
+            error.assert_(not chs.items())
+            error.assert_(not chs.text)
+            chs_href = chs.getchildren()
+            error.assert_(len(chs_href) == 1)
+            error.assert_(not chs_href[0].items())
+            error.assert_(not chs_href[0].getchildren())
+            chs_url = chs_href[0].text
+            calendar_home_set = CalendarSet(client=self, url=chs_url)
+            ret.append(
+                Principal(
+                    client=self, url=x, name=name, calendar_home_set=calendar_home_set
+                )
+            )
+        return ret
 
     def principal(self, *largs, **kwargs):
         """

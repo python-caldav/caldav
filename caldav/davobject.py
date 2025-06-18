@@ -91,8 +91,8 @@ class DAVObject:
          * client: A DAVClient instance
          * url: The url for this object.  May be a full URL or a relative URL.
          * parent: The parent object - used when creating objects
-         * name: A displayname - to be removed in 1.0, see https://github.com/python-caldav/caldav/issues/128 for details
-         * props: a dict with known properties for this object (as of 2020-12, only used for etags, and only when fetching CalendarObjectResource using the .objects or .objects_by_sync_token methods).
+         * name: A displayname - to be removed at some point, see https://github.com/python-caldav/caldav/issues/128 for details
+         * props: a dict with known properties for this object
          * id: The resource id (UID for an Event)
         """
 
@@ -413,9 +413,9 @@ class DAVObject:
 
     def get_display_name(self):
         """
-        Get calendar display name
+        Get display name (calendar, principal, ...more?)
         """
-        return self.get_property(dav.DisplayName())
+        return self.get_property(dav.DisplayName(), use_cached=True)
 
     def __str__(self) -> str:
         try:

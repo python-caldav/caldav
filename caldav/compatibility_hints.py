@@ -54,6 +54,15 @@ incompatibility_description = {
     'inaccurate_datesearch':
         """A date search may yield results outside the search interval""",
 
+    'no-principal-search':
+        """Searching for principals gives a 403 error or similar""",
+
+    'no-principal-search-self':
+        """Searching for my own principal by name gives nothing, a 403 error or similar""",
+
+    'no-principal-search-all':
+        """Searching for all principals gives a 403 error or similar""",
+
     'no_current-user-principal':
         """Current user principal not supported by the server (flag is ignored by the tests as for now - pass the principal URL as the testing URL and it will work, albeit with one warning""",
 
@@ -289,6 +298,7 @@ xandikos = [
 
     ## scheduling is not supported
     "no_scheduling",
+    'no-principal-search',
 
     ## The test in the tests itself passes, but the test in the
     ## check_server_compatibility triggers a 500-error
@@ -316,6 +326,8 @@ radicale = [
 
     ## freebusy is not supported yet, but on the long-term road map
     #"no_freebusy_rfc4791",
+
+    "no-principal-search-self", ## this may be because we haven't set up any users or authentication - so the display name of the current user principal is None
 
     'no_scheduling',
     "no_todo_datesearch",
@@ -356,6 +368,7 @@ zimbra = [
     'isnotdefined_not_working',
     "no_alarmsearch",
     "no_events_and_tasks_on_same_calendar",
+    "no-principal-search",
 
     ## TODO: I just discovered that when searching for a date some
     ## years after a recurring daily event was made, the event does
@@ -487,6 +500,7 @@ robur = [
     'no_freebusy_rfc4791',
     'no_todo_datesearch', ## returns nothing
     'text_search_not_working',
+    "no-principal-search",
     'no_relships',
     'isnotdefined_not_working',
     'no_alarmsearch',
@@ -502,6 +516,7 @@ posteo = [
     'combined_search_not_working',
     'no_alarmsearch',
     'broken_expand',
+    "no-principal-search-self",
 ]
 
 calendar_mail_ru = [
@@ -532,6 +547,8 @@ purelymail = [
     ## so search works some minutes after the event was created/edited.
     'search_delay',
 
+    "no-principal-search", ## more research may be needed.  "cant-operate-on-root", indicating that the URL may need adjusting?
+
     ## I haven't raised this one with them yet
     'no_alarmsearch',
 ]
@@ -541,11 +558,14 @@ gmx = [
     "no_mkcalendar",
     "search_needs_comptype",
     #"text_search_is_case_insensitive",
+    "no-principal-search-all",
     "no_freebusy_rfc4791",
     "no_expand",
     "no_search_openended",
     "no_sync_token",
     "no_scheduling_calendar_user_address_set",
+    "no-principal-search-self",
+    #"no-principal-search-all",
 ]
 
 # fmt: on

@@ -23,8 +23,17 @@ class SyncCollection(BaseElement):
     tag: ClassVar[str] = ns("D", "sync-collection")
 
 
+class PrincipalPropertySearch(BaseElement):
+    tag: ClassVar[str] = ns("D", "principal-property-search")
+
+
+class PropertySearch(BaseElement):
+    tag: ClassVar[str] = ns("D", "property-search")
+
 # Filters
 
+class Match(BaseElement):
+    tag: ClassVar[str] = ns("D", "match")
 
 # Conditions
 class SyncToken(BaseElement):

@@ -54,6 +54,9 @@ class BaseElement:
 
     def xmlelement(self) -> _Element:
         if self.tag is None:
+            ## We can do better than this.  tag may be a property that expands
+            ## from the class name.  Another layer of base class to indicate
+            ## if it's the D-namespace, C-namespace or another namespace.
             raise ValueError("Unexpected value None for self.tag")
 
         if self.attributes is None:

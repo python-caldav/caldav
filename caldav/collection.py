@@ -207,20 +207,25 @@ class Principal(DAVObject):
         self,
         client: Optional["DAVClient"] = None,
         url: Union[str, ParseResult, SplitResult, URL, None] = None,
+        calendar_home_set: URL = None,
+        **kwargs,  ## to be passed to super.__init__
     ) -> None:
         """
         Returns a Principal.
 
+        End-users usually shouldn't need to construct Principal-objects directly.  Use davclient.principal() to get the principal object of the logged-in user  and davclient.principals() to get other principals.
+
         Parameters:
          * client: a DAVClient() object
-         * url: Deprecated - for backwards compatibility purposes only.
+         * url: The URL, if known.
+         * calendar_home_set: the calendar home set, if known
 
         If url is not given, deduct principal path as well as calendar home set
         path from doing propfinds.
         """
-        super(Principal, self).__init__(client=client, url=url)
-        self._calendar_home_set = None
+        self._calendar_home_set = calendar_home_set
 
+        super(Principal, self).__init__(client=client, url=url, **kwargs)
         if url is None:
             if self.client is None:
                 raise ValueError("Unexpected value None for self.client")
