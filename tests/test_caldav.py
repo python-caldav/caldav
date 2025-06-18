@@ -843,6 +843,41 @@ class RepeatedFunctionalTestsBaseClass:
         inbox = self.principal.schedule_inbox()
         outbox = self.principal.schedule_outbox()
 
+    def testIssue397(self):
+        cal = self._fixCalendar()
+        cal.save_event("""
+BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+SUMMARY:recurrence with attendee one single item
+DTSTART;TZID=Europe/Zurich:20240101T090000
+DTEND;TZID=Europe/Zurich:20240101T180000
+UID:test1
+DESCRIPTION:this is the recurrent series
+TRANSP:OPAQUE
+RRULE:FREQ=WEEKLY;BYDAY=TU,WE,TH
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:single item
+DTSTART;TZID=Europe/Zurich:20240605T090000
+DTEND;TZID=Europe/Zurich:20240605T170000
+UID:test1
+DESCRIPTION:this is the single item assigning a attendee to just one event
+ATTENDEE:foo.bar@corge.baz
+RECURRENCE-ID:20240605T070000Z
+END:VEVENT
+END:VCALENDAR
+""")
+
+        object_by_id = cal.object_by_uid('test1',comp_class=Event)
+        instance = object_by_id.icalendar_instance
+        events = [event for event in instance.subcomponents if isinstance(event,icalendar.Event)]
+        assert len(events) == 2
+        object_by_id = cal.object_by_uid('test1',comp_class=None)
+        instance = object_by_id.icalendar_instance
+        events = [event for event in instance.subcomponents if isinstance(event,icalendar.Event)]
+        assert len(events) == 2
+
     def testPropfind(self):
         """
         Test of the propfind methods. (This is sort of redundant, since
@@ -3001,7 +3036,7 @@ class RepeatedFunctionalTestsBaseClass:
                 event=True,
                 start=datetime(2015, month, 1),
                 end=datetime(2015, month, 2),
-                expand="client",  ## client will be default from 2.0
+                expand=True,
             )
             assert len(recurrence) == 1
             return recurrence[0]
