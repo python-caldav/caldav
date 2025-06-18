@@ -563,14 +563,22 @@ class DAVClient:
         ## TODO: allow server side filtering.  We need a  <D:property-search><D:prop><D:displayname/></D:prop><D:match>{name}</D:match></D:property-search> inside the PrincipalPropertySearch
 
         if name:
-            name_filter = [ dav.PropertySearch() + [dav.Prop() + [dav.DisplayName()]] + dav.Match(value=name)]
-            import pdb; pdb.set_trace()
+            name_filter = [
+                dav.PropertySearch()
+                + [dav.Prop() + [dav.DisplayName()]]
+                + dav.Match(value=name)
+            ]
+            import pdb
+
+            pdb.set_trace()
         else:
             name_filter = []
 
-        query = dav.PrincipalPropertySearch() + name_filter + [
-            dav.Prop() + cdav.CalendarHomeSet() + dav.DisplayName()
-        ]
+        query = (
+            dav.PrincipalPropertySearch()
+            + name_filter
+            + [dav.Prop() + cdav.CalendarHomeSet() + dav.DisplayName()]
+        )
         response = self.report(self.url, etree.tostring(query.xmlelement()))
         principal_dict = response.find_objects_and_props()
         ret = []

@@ -30,10 +30,13 @@ class PrincipalPropertySearch(BaseElement):
 class PropertySearch(BaseElement):
     tag: ClassVar[str] = ns("D", "property-search")
 
+
 # Filters
+
 
 class Match(BaseElement):
     tag: ClassVar[str] = ns("D", "match")
+
 
 # Conditions
 class SyncToken(BaseElement):
