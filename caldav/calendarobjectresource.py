@@ -79,9 +79,17 @@ log = logging.getLogger("caldav")
 
 
 class CalendarObjectResource(DAVObject):
-    """
-    Ref RFC 4791, section 4.1, a "Calendar Object Resource" can be an
+    """Ref RFC 4791, section 4.1, a "Calendar Object Resource" can be an
     event, a todo-item, a journal entry, or a free/busy entry
+
+    As per the RFC, a CalendarObjectResource can at most contain one
+    calendar component, with the exception of recurrence components.
+    Meaning that event.data typically contains one VCALENDAR with one
+    VEVENT and possibly one VTIMEZONE.
+
+    In the case of expanded calendar date searches, each recurrence
+    will (by default) wrapped in a distinct CalendarObjectResource
+    object.  This is a deviation from the definition given in the RFC.
     """
 
     ## There is also STARTTOFINISH, STARTTOSTART and FINISHTOFINISH in RFC9253,
@@ -473,7 +481,7 @@ class CalendarObjectResource(DAVObject):
     icalendar_component = property(
         _get_icalendar_component,
         _set_icalendar_component,
-        doc="icalendar component - should not be used with recurrence sets",
+        doc="icalendar component - this is the simplest way to access the event/task - it will give you the first component that isn't a timezone component.  For recurrence sets, the master component will be returned.  For any non-recurring event/task/journal, there should be only one calendar component in the object.  For results from an expanded search, there should be only one calendar component in the object",
     )
 
     component = icalendar_component
