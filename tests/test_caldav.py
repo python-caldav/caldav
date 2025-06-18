@@ -845,7 +845,8 @@ class RepeatedFunctionalTestsBaseClass:
 
     def testIssue397(self):
         cal = self._fixCalendar()
-        cal.save_event("""BEGIN:VCALENDAR
+        cal.save_event(
+            """BEGIN:VCALENDAR
 VERSION:2.0
 PRODID:-//PeterB//caldav//en_DK
 BEGIN:VEVENT
