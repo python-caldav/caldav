@@ -845,7 +845,8 @@ class RepeatedFunctionalTestsBaseClass:
 
     def testIssue397(self):
         cal = self._fixCalendar()
-        cal.save_event("""
+        cal.save_event(
+            """
 BEGIN:VCALENDAR
 VERSION:2.0
 BEGIN:VEVENT
@@ -867,15 +868,24 @@ ATTENDEE:foo.bar@corge.baz
 RECURRENCE-ID:20240605T070000Z
 END:VEVENT
 END:VCALENDAR
-""")
+"""
+        )
 
-        object_by_id = cal.object_by_uid('test1',comp_class=Event)
+        object_by_id = cal.object_by_uid("test1", comp_class=Event)
         instance = object_by_id.icalendar_instance
-        events = [event for event in instance.subcomponents if isinstance(event,icalendar.Event)]
+        events = [
+            event
+            for event in instance.subcomponents
+            if isinstance(event, icalendar.Event)
+        ]
         assert len(events) == 2
-        object_by_id = cal.object_by_uid('test1',comp_class=None)
+        object_by_id = cal.object_by_uid("test1", comp_class=None)
         instance = object_by_id.icalendar_instance
-        events = [event for event in instance.subcomponents if isinstance(event,icalendar.Event)]
+        events = [
+            event
+            for event in instance.subcomponents
+            if isinstance(event, icalendar.Event)
+        ]
         assert len(events) == 2
 
     def testPropfind(self):
