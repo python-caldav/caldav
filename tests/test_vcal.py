@@ -40,10 +40,17 @@ class TestVcal(TestCase):
         """helper method"""
 
         def normalize(s, ignore_uid):
+            ## TODO: This may break in case of line wrappings
+            ## We're explicitly not using any libraries for this, as it may skew the test
             s = to_wire(s).replace(b"\r\n", b"\n").strip().split(b"\n")
             s.sort()
             if ignore_uid:
                 s = [x for x in s if not x.startswith(b"UID:")]
+            ## ref https://github.com/python-caldav/caldav/issues/380
+            for i in range(0, len(s)):
+                ## We cut the value itself, just asserting the attribute is present
+                if s[i].startswith(b'DTSTAMP'):
+                    s[i] = s[i][:9]
             return b"\n".join(s)
 
         self.assertEqual(normalize(ical1, ignore_uid), normalize(ical2, ignore_uid))
