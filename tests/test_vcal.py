@@ -49,7 +49,7 @@ class TestVcal(TestCase):
             ## ref https://github.com/python-caldav/caldav/issues/380
             for i in range(0, len(s)):
                 ## We cut the value itself, just asserting the attribute is present
-                if s[i].startswith(b'DTSTAMP'):
+                if s[i].startswith(b"DTSTAMP"):
                     s[i] = s[i][:9]
             return b"\n".join(s)
 
