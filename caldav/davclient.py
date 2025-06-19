@@ -462,15 +462,22 @@ class DAVClient:
         Parameters:
          * url: A fully qualified url: `scheme://user:pass@hostname:port`
          * proxy: A string defining a proxy server: `hostname:port`
+         * auth: A niquests.auth.AuthBase or requests.auth.AuthBase object.
+          Use when the server's auth scheme is known.
+          Otherwise, pass username and password instead.
          * username and password should be passed as arguments or in the URL
          * auth, timeout and ssl_verify_cert are passed to niquests.request.
          * ssl_verify_cert can be the path of a CA-bundle or False.
          * huge_tree: boolean, enable XMLParser huge_tree to handle big events, beware
            of security issues, see : https://lxml.de/api/lxml.etree.XMLParser-class.html
 
-        The niquests library will honor a .netrc-file, if such a file exists
-        username and password may be omitted.  Known bug: .netrc is honored
-        even if a username/password is given, ref https://github.com/python-caldav/caldav/issues/206
+        The requests library will honor a .netrc-file, if such a file exists
+        username and password may be omitted.  Known bugs:
+         - .netrc is honored even if a username/password is given,
+           ref https://github.com/python-caldav/caldav/issues/206
+         - If the caldav server is behind a proxy or replies with html instead of xml
+           when returning 401, warnings will be printed which might be unwanted.
+           Check auth parameter for details.
         """
         headers = headers or {}
 
@@ -826,6 +833,29 @@ class DAVClient:
                 cert=self.ssl_cert,
             )
             log.debug("server responded with %i %s" % (r.status_code, r.reason))
+            if (
+                r.status_code == 401
+                and "text/html" in self.headers.get("Content-Type", "")
+                and not self.auth
+            ):
+                # The server can return HTML on 401 sometimes (ie. it's behind a proxy)
+                # The user can avoid logging errors by setting the authentication type by themselves.
+                msg = (
+                    "No authentication object was provided. "
+                    "HTML was returned when probing the server for supported authentication types. "
+                    "To avoid logging errors, consider setting the authentication type manually via DAVClient(auth=...)"
+                )
+                if r.headers.get("WWW-Authenticate"):
+                    auth_types = [
+                        t
+                        for t in self.extract_auth_types(r.headers["WWW-Authenticate"])
+                        if t in ["basic", "digest", "bearer"]
+                    ]
+                    if auth_types:
+                        msg += "\nSupported authentication types: %s" % (
+                            ", ".join(auth_types)
+                        )
+                log.warning(msg)
             response = DAVResponse(r, self)
         except:
             ## this is a workaround needed due to some weird server
