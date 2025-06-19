@@ -52,11 +52,9 @@ test = [
   "pytest",
   "coverage",
   "manuel",
-  "backports.zoneinfo;python_version<'3.9'",
+  "proxy.py",
   "tzlocal",
-  "xandikos==0.2.7;python_version<'3.9'",
-  "dulwich==0.20.50;python_version<'3.9'",
-  "xandikos;python_version>='3.9'",
+  "xandikos",
   "radicale",
   "pyfakefs"
 ]
