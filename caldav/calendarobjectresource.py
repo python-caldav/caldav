@@ -231,13 +231,13 @@ class CalendarObjectResource(DAVObject):
 
         recurrence_properties = {"exdate", "exrule", "rdate", "rrule"}
 
-        if any(
-            x for x in recurrings if not recurrence_properties.isdisjoint(set(x.keys()))
-        ):
-            ## I think we should not end up here.  And if we do, then it's needed to reinsert the code section I just removed ...
-            import pdb
-
-            pdb.set_trace()
+        error.assert_(
+            not any(
+                x
+                for x in recurrings
+                if not recurrence_properties.isdisjoint(set(x.keys()))
+            )
+        )
 
         calendar = self.icalendar_instance
         calendar.subcomponents = []
