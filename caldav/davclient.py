@@ -570,9 +570,6 @@ class DAVClient:
                 + [dav.Prop() + [dav.DisplayName()]]
                 + dav.Match(value=name)
             ]
-            import pdb
-
-            pdb.set_trace()
         else:
             name_filter = []
 
