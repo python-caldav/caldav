@@ -2878,6 +2878,10 @@ END:VCALENDAR
         assert isinstance(freebusy, FreeBusy)
         assert freebusy.vobject_instance.vfreebusy
 
+        ## Just to improve the code coverage.  This shouldn't raise any errors.
+        ## (TODO: move it to some other test)
+        e.data = icalendar.Calendar.from_ical(ev2)
+
     def testRecurringDateSearch(self):
         """
         This is more sanity testing of the server side than testing of the
