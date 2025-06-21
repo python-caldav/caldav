@@ -104,6 +104,20 @@ STATUS:NEEDS-ACTION
 END:VTODO
 END:VCALENDAR"""
 
+todo_only_duration = """BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Example Corp.//CalDAV Client//EN
+BEGIN:VTODO
+UID:20070313T123432Z-456553@example.com
+DTSTAMP:20070313T123432Z
+DURATION:P5D
+SUMMARY:Submit Quebec Income Tax Return for 2006
+CLASS:CONFIDENTIAL
+CATEGORIES:FAMILY,FINANCE
+STATUS:NEEDS-ACTION
+END:VTODO
+END:VCALENDAR"""
+
 journal = """
 BEGIN:VCALENDAR
 VERSION:2.0
@@ -1268,10 +1282,13 @@ END:VCALENDAR
         my_todo1 = Todo(client, data=todo)
         my_todo2 = Todo(client, data=todo_implicit_duration)
         my_todo3 = Todo(client, data=todo_explicit_duration)
+        my_todo4 = Todo(client, data=todo_only_duration)
+        orig_start = date(2007, 5, 1)
+        ## TODO: Check the RFC.  For events a whole-day event without duration/dtend defaults to lasting for one day.  Probably the same with tasks?
         assert my_todo1.get_duration() == timedelta(0)
-        assert my_todo1.get_due() == date(2007, 5, 1)
+        assert my_todo1.get_due() == orig_start
         assert my_todo2.get_duration() == timedelta(days=6)
-        assert my_todo2.get_due() == date(2007, 5, 1)
+        assert my_todo2.get_due() == orig_start
         assert my_todo3.get_duration() == timedelta(days=5)
         foo6 = my_todo3.get_due().strftime("%s") == "1177945200"
         some_date = date(2011, 1, 1)
@@ -1286,7 +1303,7 @@ END:VCALENDAR
         ].dt == some_date - timedelta(days=6)
 
         ## set_duration at the other hand has 5 code paths ...
-        ## 1) DUE and DTSTART set, DTSTART as the movable component
+        ## 1) DTSTART set, DTSTART as the movable component
         my_todo1.set_duration(timedelta(1))
         assert my_todo1.get_due() == some_date
         assert my_todo1.icalendar_instance.subcomponents[0][
@@ -1315,6 +1332,22 @@ END:VCALENDAR
         my_todo1.icalendar_instance.subcomponents[0].pop("DTSTART")
         my_todo1.set_duration(timedelta(days=3))
         assert my_todo1.get_duration() == timedelta(days=3)
+        
+        ## 6) DUE and DTSTART set, DTSTART as the movable component (default)
+        my_todo2 = Todo(client, data=todo_implicit_duration)
+        orig_end = my_todo2.component.end
+        my_todo2.set_duration(timedelta(2))
+        assert my_todo2.component.start == orig_start - timedelta(2)
+        assert my_todo2.component.end == orig_end
+
+        ## 7) DURATION set, but neither DTSTART nor DTEND
+        assert not 'DTSTART' in my_todo4.component
+        assert not 'DUE' in my_todo4.component
+        assert my_todo4.component.duration == timedelta(5)
+        my_todo2.set_duration(timedelta(2))
+        assert not 'DTSTART' in my_todo4.component
+        assert not 'DUE' in my_todo4.component
+        assert my_todo4.component.duration == timedelta(2)
 
     def testURL(self):
         """Exercising the URL class"""

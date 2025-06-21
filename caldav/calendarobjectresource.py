@@ -1556,9 +1556,8 @@ class Todo(CalendarObjectResource):
 
         TODO: can this be written in a better/shorter way?
 
-        WARNING: this method is likely to be deprecated and moved to
-        the icalendar library.  If you decide to use it, please put
-        caldav<2.0 in the requirements.
+        WARNING: this method may be deprecated and moved to
+        the icalendar library at some point in the future.
         """
         i = self.icalendar_component
         return self._set_duration(i, duration, movable_attr)
@@ -1590,9 +1589,8 @@ class Todo(CalendarObjectResource):
         parent calendar component (through RELATED-TO), and the parents
         due or dtend is before the new dtend).
 
-        WARNING: this method is likely to be deprecated and parts of
-        it moved to the icalendar library.  If you decide to use it,
-        please put caldav<3.0 in the requirements.
+        WARNING: this method may become deprecated and parts of
+        it moved to the icalendar library at some point in the future.
 
         WARNING: the check_dependent-logic may be rewritten to support
         RFC9253 in 3.x
