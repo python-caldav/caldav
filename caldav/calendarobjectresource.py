@@ -1469,7 +1469,7 @@ class Todo(CalendarObjectResource):
         else:
             count = rrule.get("COUNT", None)
             if count is not None and count[0] <= len(
-                [x for x in recurrences if not self._is_pending(x)]
+                [x for x in recurrences if not self.is_pending(x)]
             ):
                 self._complete_ical(
                     recurrences[0], completion_timestamp=completion_timestamp
@@ -1521,22 +1521,20 @@ class Todo(CalendarObjectResource):
     def _complete_ical(self, i=None, completion_timestamp=None) -> None:
         if i is None:
             i = self.icalendar_component
-        assert self._is_pending(i)
+        assert self.is_pending(i)
         status = i.pop("STATUS", None)
         i.add("STATUS", "COMPLETED")
         i.add("COMPLETED", completion_timestamp)
 
-    def _is_pending(self, i=None) -> Optional[bool]:
+    def is_pending(self, i=None) -> Optional[bool]:
         if i is None:
             i = self.icalendar_component
         if i.get("COMPLETED", None) is not None:
             return False
-        if i.get("STATUS", None) in ("NEEDS-ACTION", "IN-PROCESS"):
+        if i.get("STATUS", "NEEDS-ACTION") in ("NEEDS-ACTION", "IN-PROCESS"):
             return True
-        if i.get("STATUS", None) in ("CANCELLED", "COMPLETED"):
+        if i.get("STATUS", "NEEDS-ACTION") in ("CANCELLED", "COMPLETED"):
             return False
-        if "STATUS" not in i:
-            return True
         ## input data does not conform to the RFC
         assert False
 

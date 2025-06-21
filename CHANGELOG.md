@@ -25,6 +25,7 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
   * Documentation, linked up from the reference section of the doc.
   * It's allowable with a yaml config file, but the yaml module is not included in the dependencies yet ... so late imports as for now, and the import is wrapped in a try/except-block
 * New method `davclient.principals()` will return all principals on server - if server permits.  It can also do server-side search for a principal with a given user name - if server permits
+* `todo.is_pending` returns a bool.  This was an internal method, but is now promoted to a public method.  Arguably, it belongs to icalendar library and not here.
 
 ### Documentation and examples
 
