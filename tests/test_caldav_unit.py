@@ -1343,11 +1343,11 @@ END:VCALENDAR
         ## 7) DURATION set, but neither DTSTART nor DTEND
         assert not 'DTSTART' in my_todo4.component
         assert not 'DUE' in my_todo4.component
-        assert my_todo4.component.duration == timedelta(5)
-        my_todo2.set_duration(timedelta(2))
+        assert my_todo4.component['duration'].dt == timedelta(5)
+        my_todo4.set_duration(timedelta(2))
         assert not 'DTSTART' in my_todo4.component
         assert not 'DUE' in my_todo4.component
-        assert my_todo4.component.duration == timedelta(2)
+        assert my_todo4.component['duration'].dt == timedelta(2)
 
     def testURL(self):
         """Exercising the URL class"""
