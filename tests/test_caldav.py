@@ -1905,6 +1905,18 @@ END:VCALENDAR
             child=[parent.id],
             uid="ctuid3",
         )
+        another_child = c.save_event(
+            dtstart=datetime(2022, 12, 27, 19, 00),
+            dtend=datetime(2022, 12, 27, 20, 00),
+            summary="this is yet another child test event",
+            uid="ctuid4",
+        )
+        another_parent = c.save_event(
+            dtstart=datetime(2022, 12, 27, 19, 00),
+            dtend=datetime(2022, 12, 27, 20, 00),
+            summary="this is yet another parent test event",
+            uid="ctuid5",
+        )
 
         parent_ = c.event_by_uid(parent.id)
         child_ = c.event_by_uid(child.id)
@@ -1970,6 +1982,23 @@ END:VCALENDAR
         ## the calendar is not flagged - but perhaps it shouldn't be flagged?
         # child.delete()
         # assert parent_.check_reverse_relations()
+
+        ## Verify the `set_relation` with default `set_reverse=True`
+        foo = another_parent.get_relatives(reltypes={"CHILD", "PARENT"})
+        bar = another_child.get_relatives(reltypes={"CHILD", "PARENT"})
+        assert len(foo) == 0
+        assert len(bar) == 0
+
+        another_parent.set_relation('ctuid4', reltype="CHILD")
+        another_parent.load()
+        another_child.load()
+        assert another_child.check_reverse_relations() == []
+        assert another_parent.check_reverse_relations() == []
+        foo = another_parent.get_relatives(reltypes={"CHILD", "PARENT"})
+        bar = another_child.get_relatives(reltypes={"CHILD", "PARENT"})
+        assert sum([len(x.get('CHILD', set())) + len(x.get('PARENT', set())) for x in [foo, bar]]) == 2
+        assert [str(obj.component['UID']) for obj in foo['CHILD']] == ['ctuid4']
+        assert [str(obj.component['UID']) for obj in bar['PARENT']] == ['ctuid5']
 
     def testSetDue(self):
         self.skip_on_compatibility_flag("read_only")

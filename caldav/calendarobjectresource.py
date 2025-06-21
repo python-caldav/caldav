@@ -249,6 +249,8 @@ class CalendarObjectResource(DAVObject):
                 and occurrence.get("STATUS") in ("COMPLETED", "CANCELLED")
             ):
                 continue
+            error.assert_("RECURRENCE-ID" in occurrence)
+            ## TODO: do we need this?
             if "RECURRENCE-ID" not in occurrence:
                 occurrence.add("RECURRENCE-ID", occurrence.get("DTSTART").dt)
             calendar.add_component(occurrence)
