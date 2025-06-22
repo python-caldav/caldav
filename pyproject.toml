@@ -32,7 +32,6 @@ classifiers = [
 ]
 
 dependencies = [
-  "vobject",
   "lxml",
   "niquests",
   "recurring-ical-events>=2.0.0",
@@ -49,6 +48,7 @@ Changelog = "https://github.com/python-caldav/caldav/blob/master/CHANGELOG.md"
 
 [project.optional-dependencies]
 test = [
+  "vobject",
   "pytest",
   "coverage",
   "manuel",

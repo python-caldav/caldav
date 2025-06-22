@@ -31,11 +31,9 @@ from urllib.parse import SplitResult
 from urllib.parse import unquote
 
 import icalendar
-import vobject
 from dateutil.rrule import rrulestr
 from icalendar import vCalAddress
 from icalendar import vText
-from vobject.base import VBase
 
 try:
     from typing import ClassVar, Optional, Union, Type
@@ -150,6 +148,7 @@ class CalendarObjectResource(DAVObject):
         please put caldav<3.0 in the requirements.
         """
         i = self.icalendar_component
+        ## TODO: are those lines useful for anything?
         if hasattr(end, "tzinfo") and not end.tzinfo:
             end = end.astimezone(timezone.utc)
         duration = self.get_duration()
@@ -249,8 +248,9 @@ class CalendarObjectResource(DAVObject):
                 and occurrence.get("STATUS") in ("COMPLETED", "CANCELLED")
             ):
                 continue
+            ## TODO: If there are no reports of missing RECURRENCE-ID until 2027,
+            ## the if-statement below may be deleted
             error.assert_("RECURRENCE-ID" in occurrence)
-            ## TODO: do we need this?
             if "RECURRENCE-ID" not in occurrence:
                 occurrence.add("RECURRENCE-ID", occurrence.get("DTSTART").dt)
             calendar.add_component(occurrence)
@@ -703,6 +703,7 @@ class CalendarObjectResource(DAVObject):
         return self
 
     ## TODO: self.id should either always be available or never
+    ## TODO: run this logic on load, to ensure `self.id` is set after loading
     def _find_id_path(self, id=None, path=None) -> None:
         """
         With CalDAV, every object has a URL.  With icalendar, every object
@@ -715,7 +716,7 @@ class CalendarObjectResource(DAVObject):
         2) if ID is not given, but the path is given, generate the ID from the
            path
         3) If neither ID nor path is given, use the uuid method to generate an
-           ID (TODO: recommendation is to concat some timestamp, serial or
+           ID (TODO: recommendation in the RFC is to concat some timestamp, serial or
            random number and a domain)
         4) if no path is given, generate the URL from the ID
         """
@@ -732,6 +733,7 @@ class CalendarObjectResource(DAVObject):
             id = re.search("(/|^)([^/]*).ics", str(path)).group(2)
         if id is None:
             id = str(uuid.uuid1())
+
         i.pop("UID", None)
         i.add("UID", id)
 
@@ -756,6 +758,11 @@ class CalendarObjectResource(DAVObject):
         if r.status == 302:
             path = [x[1] for x in r.headers if x[0] == "location"][0]
         elif r.status not in (204, 201):
+            if retry_on_failure:
+                try:
+                    import vobject
+                except ImportError:
+                    retry_on_failure = False
             if retry_on_failure:
                 ## This looks like a noop, but the object may be "cleaned".
                 ## See https://github.com/python-caldav/caldav/issues/43
@@ -1078,13 +1085,20 @@ class CalendarObjectResource(DAVObject):
         doc="vCal representation of the object in wire format (UTF-8, CRLN)",
     )
 
-    def _set_vobject_instance(self, inst: vobject.base.Component):
+    def _set_vobject_instance(self, inst: "vobject.base.Component"):
         self._vobject_instance = inst
         self._data = None
         self._icalendar_instance = None
         return self
 
-    def _get_vobject_instance(self) -> Optional[vobject.base.Component]:
+    def _get_vobject_instance(self) -> Optional["vobject.base.Component"]:
+        try:
+            import vobject
+        except ImportError:
+            logging.critical(
+                "A vobject instance has been requested, but the vobject library is not installed (vobject is no longer an official dependency in 2.0)"
+            )
+            return None
         if not self._vobject_instance:
             if self._get_data() is None:
                 return None
@@ -1102,7 +1116,7 @@ class CalendarObjectResource(DAVObject):
 
     ## event.instance has always yielded a vobject, but will probably yield an icalendar_instance
     ## in version 3.0!
-    def _get_deprecated_vobject_instance(self) -> Optional[vobject.base.Component]:
+    def _get_deprecated_vobject_instance(self) -> Optional["vobject.base.Component"]:
         warnings.warn(
             "use event.vobject_instance or event.icalendar_instance",
             DeprecationWarning,
@@ -1110,7 +1124,7 @@ class CalendarObjectResource(DAVObject):
         )
         return self._get_vobject_instance()
 
-    def _set_deprecated_vobject_instance(self, inst: vobject.base.Component):
+    def _set_deprecated_vobject_instance(self, inst: "vobject.base.Component"):
         warnings.warn(
             "use event.vobject_instance or event.icalendar_instance",
             DeprecationWarning,
@@ -1118,13 +1132,13 @@ class CalendarObjectResource(DAVObject):
         )
         return self._get_vobject_instance(inst)
 
-    vobject_instance: VBase = property(
+    vobject_instance: "vobject.base.VBase" = property(
         _get_vobject_instance,
         _set_vobject_instance,
         doc="vobject instance of the object",
     )
 
-    instance: VBase = property(
+    instance: "vobject.base.VBase" = property(
         _get_deprecated_vobject_instance,
         _set_deprecated_vobject_instance,
         doc="vobject instance of the object (DEPRECATED!  This will yield an icalendar instance in caldav 3.0)",
