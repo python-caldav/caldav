@@ -1872,7 +1872,7 @@ END:VCALENDAR
 
         ## Test that uncomplete works
         ## (except for GMX ... their server is weird)
-        self.skip_on_compatibility_flag('vtodo-cannot-be-uncompleted')
+        self.skip_on_compatibility_flag("vtodo-cannot-be-uncompleted")
         t5.uncomplete()
         some_todos = c.search(todo=True)
         assert len(some_todos) == 4 + pre_cnt
