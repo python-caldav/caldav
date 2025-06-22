@@ -79,6 +79,7 @@ CONNKEYS = set(
         "ssl_verify_cert",
         "ssl_cert",
         "auth",
+        "auth_type",
     )
 )
 
@@ -451,6 +452,7 @@ class DAVClient:
         username: Optional[str] = None,
         password: Optional[str] = None,
         auth: Optional[AuthBase] = None,
+        auth_type: Optional[str] = None,
         timeout: Optional[int] = None,
         ssl_verify_cert: Union[bool, str] = True,
         ssl_cert: Union[str, Tuple[str, str], None] = None,
@@ -464,6 +466,7 @@ class DAVClient:
          * proxy: A string defining a proxy server: `scheme://hostname:port`.  Scheme defaults to http, port defaults to 8080.
          * username and password should be passed as arguments or in the URL
          * auth, timeout and ssl_verify_cert are passed to niquests.request.
+         * if auth_type is given, the auth-object will be auto-created.  Auth_type can be ``bearer``, ``digest`` or ``basic``.  Things are likely to work without ``auth_type`` set, but if nothing else the number of requests to the server will be reduced.
          * ssl_verify_cert can be the path of a CA-bundle or False.
          * huge_tree: boolean, enable XMLParser huge_tree to handle big events, beware
            of security issues, see : https://lxml.de/api/lxml.etree.XMLParser-class.html
@@ -515,10 +518,19 @@ class DAVClient:
 
         self.username = username
         self.password = password
+        self.auth = auth
+        self.auth_type = auth_type
+
         ## I had problems with passwords with non-ascii letters in it ...
         if isinstance(self.password, str):
             self.password = self.password.encode("utf-8")
-        self.auth = auth
+        if auth and self.auth_type:
+            logging.error(
+                "both auth object and auth_type sent to DAVClient.  The latter will be ignored."
+            )
+        elif self.auth_type:
+            self.build_auth_object()
+
         # TODO: it's possible to force through a specific auth method here,
         # but no test code for this.
         self.timeout = timeout
@@ -781,6 +793,44 @@ class DAVClient:
         # https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/WWW-Authenticate#syntax
         return {h.split()[0] for h in header.lower().split(",")}
 
+    def build_auth_object(self, auth_types: Optional[List[str]] = None):
+        """Fixes self.auth.  If ``self.auth_type`` is given, then
+        insist on using this one.  If not, then assume auth_types to
+        be a list of acceptable auth types and choose the most
+        appropriate one (prefer digest or basic if username is given,
+        and bearer if password is given).
+
+        Parameters:
+        * auth_types - A list/tuple of acceptable auth_types
+        """
+        auth_type = self.auth_type
+        if not auth_type and not auth_types:
+            raise error.AuthorizationError(
+                "No auth-type given.  This shouldn't happen.  Raise an issue at https://github.com/python-caldav/caldav/issues/ or by email noauthtype@plann.no"
+            )
+        if auth_types and auth_type and auth_type not in auth_types:
+            raise error.AuthorizationError(
+                reason=f"Configuration specifies to use {auth_type}, but server only accepts {auth_types}"
+            )
+        if not auth_type and auth_types:
+            if self.username and "digest" in auth_types:
+                auth_type = "digest"
+            elif self.username and "basic" in auth_types:
+                auth_type = "basic"
+            elif self.password and "bearer" in auth_types:
+                auth_type = "bearer"
+            elif "bearer" in auth_types:
+                raise error.AuthorizationError(
+                    reason="Server provides bearer auth, but no password given.  The bearer token should be configured as password"
+                )
+
+            if auth_type == "digest":
+                self.auth = niquests.auth.HTTPDigestAuth(self.username, self.password)
+            elif auth_type == "basic":
+                self.auth = niquests.auth.HTTPBasicAuth(self.username, self.password)
+            elif auth_type == "bearer":
+                self.auth = HTTPBearerAuth(self.password)
+
     def request(
         self,
         url: str,
@@ -851,21 +901,12 @@ class DAVClient:
             r.status_code == 401
             and "WWW-Authenticate" in r_headers
             and not self.auth
-            and self.username
+            and (self.username or self.password)
         ):
             auth_types = self.extract_auth_types(r_headers["WWW-Authenticate"])
+            self.build_auth_object(auth_types)
 
-            if self.username and "digest" in auth_types:
-                self.auth = niquests.auth.HTTPDigestAuth(self.username, self.password)
-            elif self.username and "basic" in auth_types:
-                self.auth = niquests.auth.HTTPBasicAuth(self.username, self.password)
-            elif self.password and "bearer" in auth_types:
-                self.auth = HTTPBearerAuth(self.password)
-            elif "bearer" in auth_types:
-                raise error.AuthorizationError(
-                    reason="Server provides bearer auth, but no password given.  The bearer token should be configured as password"
-                )
-            else:
+            if not self.auth:
                 raise NotImplementedError(
                     "The server does not provide any of the currently "
                     "supported authentication methods: basic, digest, bearer"
@@ -890,17 +931,8 @@ class DAVClient:
             ## introduced this regression)
 
             auth_types = self.extract_auth_types(r_headers["WWW-Authenticate"])
-
-            if self.password and self.username and "digest" in auth_types:
-                self.auth = niquests.auth.HTTPDigestAuth(
-                    self.username, self.password.decode()
-                )
-            elif self.password and self.username and "basic" in auth_types:
-                self.auth = niquests.auth.HTTPBasicAuth(
-                    self.username, self.password.decode()
-                )
-            elif self.password and "bearer" in auth_types:
-                self.auth = HTTPBearerAuth(self.password.decode())
+            self.password = self.password.decode()
+            self.build_auth_object(auth_types)
 
             self.username = None
             self.password = None

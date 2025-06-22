@@ -1877,6 +1877,32 @@ END:VCALENDAR
         some_todos = c.search(todo=True)
         assert len(some_todos) == 4 + pre_cnt
 
+    def testWrongAuthType(self):
+        if (
+            not "password" in self.server_params
+            or not self.server_params["password"]
+            or self.server_params["password"] == "any-password-seems-to-work"
+        ):
+            pytest.skip(
+                "Testing with wrong password skipped as calendar server does not require a password"
+            )
+
+        connect_params1 = self.server_params.copy()
+        for delme in ("setup", "teardown", "name"):
+            if delme in connect_params1:
+                connect_params1.pop(delme)
+
+        connect_params2 = connect_params1.copy()
+
+        ## At least one of those two ought to fail
+        ## as they are (or should be) incompatible
+        connect_params1["auth_type"] = "digest"
+        connect_params2["auth_type"] = "bearer"
+
+        with pytest.raises(error.AuthorizationError):
+            client(**connect_params1).principal()
+            client(**connect_params2).principal()
+
     def testWrongPassword(self):
         if (
             not "password" in self.server_params
