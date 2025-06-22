@@ -1085,17 +1085,19 @@ class CalendarObjectResource(DAVObject):
         doc="vCal representation of the object in wire format (UTF-8, CRLN)",
     )
 
-    def _set_vobject_instance(self, inst: 'vobject.base.Component'):
+    def _set_vobject_instance(self, inst: "vobject.base.Component"):
         self._vobject_instance = inst
         self._data = None
         self._icalendar_instance = None
         return self
 
-    def _get_vobject_instance(self) -> Optional['vobject.base.Component']:
+    def _get_vobject_instance(self) -> Optional["vobject.base.Component"]:
         try:
             import vobject
         except ImportError:
-            logging.critical("A vobject instance has been requested, but the vobject library is not installed (vobject is no longer an official dependency in 2.0)")
+            logging.critical(
+                "A vobject instance has been requested, but the vobject library is not installed (vobject is no longer an official dependency in 2.0)"
+            )
             return None
         if not self._vobject_instance:
             if self._get_data() is None:
@@ -1114,7 +1116,7 @@ class CalendarObjectResource(DAVObject):
 
     ## event.instance has always yielded a vobject, but will probably yield an icalendar_instance
     ## in version 3.0!
-    def _get_deprecated_vobject_instance(self) -> Optional['vobject.base.Component']:
+    def _get_deprecated_vobject_instance(self) -> Optional["vobject.base.Component"]:
         warnings.warn(
             "use event.vobject_instance or event.icalendar_instance",
             DeprecationWarning,
@@ -1122,7 +1124,7 @@ class CalendarObjectResource(DAVObject):
         )
         return self._get_vobject_instance()
 
-    def _set_deprecated_vobject_instance(self, inst: 'vobject.base.Component'):
+    def _set_deprecated_vobject_instance(self, inst: "vobject.base.Component"):
         warnings.warn(
             "use event.vobject_instance or event.icalendar_instance",
             DeprecationWarning,
@@ -1130,13 +1132,13 @@ class CalendarObjectResource(DAVObject):
         )
         return self._get_vobject_instance(inst)
 
-    vobject_instance: 'vobject.base.VBase' = property(
+    vobject_instance: "vobject.base.VBase" = property(
         _get_vobject_instance,
         _set_vobject_instance,
         doc="vobject instance of the object",
     )
 
-    instance: 'vobject.base.VBase' = property(
+    instance: "vobject.base.VBase" = property(
         _get_deprecated_vobject_instance,
         _set_deprecated_vobject_instance,
         doc="vobject instance of the object (DEPRECATED!  This will yield an icalendar instance in caldav 3.0)",
