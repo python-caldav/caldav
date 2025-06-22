@@ -201,6 +201,9 @@ incompatibility_description = {
     'vtodo_with_due_weirdness':
        """Zimbra is weird""",
 
+    'vtodo-cannot-be-uncompleted':
+        """If a VTODO object has been set with STATUS:COMPLETE, it's not possible to delete the COMPLTEDED attribute and change back to STATUS:IN-ACTION""",
+
     'unique_calendar_ids':
         """For every test, generate a new and unique calendar id""",
 
@@ -565,6 +568,7 @@ gmx = [
     "no_sync_token",
     "no_scheduling_calendar_user_address_set",
     "no-principal-search-self",
+    "vtodo-cannot-be-uncompleted",
     #"no-principal-search-all",
 ]
 

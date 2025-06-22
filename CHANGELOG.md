@@ -35,20 +35,22 @@ Here are the most important changes in 2.0:
   * Documentation, linked up from the reference section of the doc.
   * It's allowable with a yaml config file, but the yaml module is not included in the dependencies yet ... so late imports as for now, and the import is wrapped in a try/except-block
 * New method `davclient.principals()` will return all principals on server - if server permits.  It can also do server-side search for a principal with a given user name - if server permits - https://github.com/python-caldav/caldav/pull/514 / https://github.com/python-caldav/caldav/issues/131
-* `todo.is_pending` returns a bool.  This was an internal method, but is now promoted to a public method.  Arguably, it belongs to icalendar library and not here.
+* `todo.is_pending` returns a bool.  This was an internal method, but is now promoted to a public method.  Arguably, it belongs to icalendar library and not here.  Piggybacked in through https://github.com/python-caldav/caldav/pull/526
 
 ### Documentation and examples
 
 * Documentation has been through a major overhaul.
 * Added some information on how to connect to Google in the doc and examples.
 * Looked through and brushed up the examples, two of them are now executed by the unit tests.  Added a doc section on the examples.
+* Documentation issues https://github.com/python-caldav/caldav/issues/253 https://github.com/python-caldav/caldav/issues/311 https://github.com/python-caldav/caldav/issues/119 has been closed
 
-### Fixes
+### Fixed
 
 * Support for Lark/Feishu got broken in the 1.6-release.  Issue found and fixed by Hongbin Yang (github user @zealseeker) in https://github.com/python-caldav/caldav/issues/505 and https://github.com/python-caldav/caldav/pull/506
 
 ### Changed
 
+* https://github.com/python-caldav/caldav/issues/477 / https://github.com/python-caldav/caldav/pull/527 - vobject has been removed from the dependency list.  If you are using `event.vobject_instance` then you need to include the vobject dependency explicitly in your project.
 * The request library has been in a feature freeze for ages and may seem like a dead end.  There exists a fork of the project niquests, we're migrating to that one.  This means nothing except for one additional dependency.  (httpx was also considered, but it's not a drop-in replacement for the requests library, and it's a risk that such a change will break compatibility with various other servers - see https://github.com/python-caldav/caldav/issues/457 for details).  Work by @ArtemIsmagilov, https://github.com/python-caldav/caldav/pull/455.
 * Expanded date searches (using either `event.search(..., expand=True)` or the deprecated `event.date_search`) will now by default do a client-side expand.  This gives better consistency and probably improved performance, but makes 2.0 bug-incompatible with 1.x.
 * To force server-side expansion, a new parameter server_expand can be used
@@ -67,6 +69,7 @@ If you disagree with any of this, please raise an issue and I'll consider if it'
 * Some more work done on improving test coverage
 * Fixed a test issue that would break arbitrarily doe to clock changes during the test run - https://github.com/python-caldav/caldav/issues/380 / https://github.com/python-caldav/caldav/pull/520
 * Added test code for some observed problem that I couldn't reproduce - https://github.com/python-caldav/caldav/issues/397 - https://github.com/python-caldav/caldav/pull/521
+* Wrote up some test code to improve code coverage - https://github.com/python-caldav/caldav/issues/93 - https://github.com/python-caldav/caldav/pull/526
 
 ## [1.6.0] - 2025-05-30
 
@@ -86,6 +89,7 @@ This will be the last minor release before 2.0.  The scheduling support has been
 
 * Partially tossed out all internal usage of vobject, https://github.com/python-caldav/caldav/issues/476.  Refactoring and removing unuseful code.  Parts of this work was accidentally committed directly to master, 2f61dc7adbe044eaf43d0d2c78ba96df09201542, the rest was piggybaced in through  https://github.com/python-caldav/caldav/pull/500.
 * Server-specific setup- and teardown-methods (used for spinning up test servers in the tests) is now executed through the DAVClient context manager.  This will allow doctests to run easily.
+* Made exception for new uncomplete check for GMX server - https://github.com/python-caldav/caldav/issues/525
 
 ### Time spent and roadmap
 
@@ -291,7 +295,8 @@ Summary: Some few workarounds to support yet more different calendar servers and
 * Documentation typos, credits to github user @FluxxCode in https://github.com/python-caldav/caldav/pull/317
 * Improved support for cloud provider gmx.de in https://github.com/python-caldav/caldav/pull/318
 
-### Changes
+### Changed
+
 * Refactored relation handling in `set_due`
 
 ## [1.3.2] - 2023-07-19 [YANKED]
