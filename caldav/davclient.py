@@ -465,13 +465,13 @@ class DAVClient:
          * url: A fully qualified url: `scheme://user:pass@hostname:port`
          * proxy: A string defining a proxy server: `scheme://hostname:port`.
            Scheme defaults to http, port defaults to 8080.
-         * auth: A niquests.auth.AuthBase or requests.auth.AuthBase object, 
+         * auth: A niquests.auth.AuthBase or requests.auth.AuthBase object,
            may be passed instead of username/password.
          * username and password should be passed as arguments or in the URL
          * timeout and ssl_verify_cert are passed to niquests.request.
-         * if auth_type is given, the auth-object will be auto-created. 
+         * if auth_type is given, the auth-object will be auto-created.
            Auth_type can be ``bearer``, ``digest`` or ``basic``.
-           Things are likely to work without ``auth_type`` set, but if nothing else the 
+           Things are likely to work without ``auth_type`` set, but if nothing else the
            number of requests to the server will be reduced, and some servers may
            require this to squelch warnings of unexpected HTML delivered from the
            server etc.
@@ -484,10 +484,10 @@ class DAVClient:
 
         THe niquest library will honor standard proxy environmental variables like
         HTTP_PROXY, HTTPS_PROXY and ALL_PROXY.  See https://niquests.readthedocs.io/en/latest/user/advanced.html#proxies
-         
-        If the caldav server is behind a proxy or replies with html instead of xml 
+
+        If the caldav server is behind a proxy or replies with html instead of xml
         when returning 401, warnings will be printed which might be unwanted.
-        Check auth parameter for details. 
+        Check auth parameter for details.
         """
         headers = headers or {}
 
@@ -887,7 +887,11 @@ class DAVClient:
                 cert=self.ssl_cert,
             )
             log.debug("server responded with %i %s" % (r.status_code, r.reason))
-            if r.status_code == 401 and 'text/html' in self.headers.get("Content-Type", "") and not self.auth:
+            if (
+                r.status_code == 401
+                and "text/html" in self.headers.get("Content-Type", "")
+                and not self.auth
+            ):
                 # The server can return HTML on 401 sometimes (ie. it's behind a proxy)
                 # The user can avoid logging errors by setting the authentication type by themselves.
                 msg = (
@@ -895,13 +899,16 @@ class DAVClient:
                     "HTML was returned when probing the server for supported authentication types. "
                     "To avoid logging errors, consider setting the authentication type manually via DAVClient(auth=...)"
                 )
-                if r.headers.get("WWW-Authenticate"):                    
+                if r.headers.get("WWW-Authenticate"):
                     auth_types = [
-                        t for t in self.extract_auth_types(r.headers["WWW-Authenticate"])
-                        if t in ["basic", "digest", "bearer"] 
+                        t
+                        for t in self.extract_auth_types(r.headers["WWW-Authenticate"])
+                        if t in ["basic", "digest", "bearer"]
                     ]
                     if auth_types:
-                        msg += "\nSupported authentication types: %s" % (", ".join(auth_types))
+                        msg += "\nSupported authentication types: %s" % (
+                            ", ".join(auth_types)
+                        )
                 log.warning(msg)
             response = DAVResponse(r, self)
         except:
