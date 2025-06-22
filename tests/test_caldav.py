@@ -1053,6 +1053,7 @@ END:VCALENDAR
             "test1",
             "test2",
         }
+        event1.load_by_multiget()
 
     def testCreateEvent(self):
         self.skip_on_compatibility_flag("read_only")
@@ -1709,6 +1710,7 @@ END:VCALENDAR
             dtstart=date(2022, 10, 11),
             uid="test1",
         )
+        assert t1.is_pending()
         t2 = c.save_todo(
             summary="2 task future",
             due=datetime.now() + timedelta(hours=15),
@@ -1731,6 +1733,7 @@ END:VCALENDAR
             status="COMPLETED",
             uid="test5",
         )
+        assert not t5.is_pending()
         t6 = c.save_todo(
             summary="6 task has categories",
             categories="home,garden,sunshine",
@@ -1850,9 +1853,11 @@ END:VCALENDAR
             assert len(some_todos) - pre_cnt == 6
 
         ## completing events, and it should not show up anymore
+        assert t3.is_pending()
         t3.complete()
         t5.complete()
         t6.complete()
+        assert not t3.is_pending()
 
         some_todos = c.search(todo=True)
         assert len(some_todos) == 3 + pre_cnt
@@ -1860,6 +1865,15 @@ END:VCALENDAR
         ## unless we specifically ask for completed tasks
         all_todos = c.search(todo=True, include_completed=True)
         assert len(all_todos) == 6 + pre_cnt
+
+        ## Just for increasing code coverage
+        t3.component.pop("COMPLETED")
+        assert not t3.is_pending()
+
+        ## Test that uncomplete works
+        t5.uncomplete()
+        some_todos = c.search(todo=True)
+        assert len(some_todos) == 4 + pre_cnt
 
     def testWrongPassword(self):
         if (
@@ -1904,6 +1918,18 @@ END:VCALENDAR
             summary="this is a grandparent event test",
             child=[parent.id],
             uid="ctuid3",
+        )
+        another_child = c.save_event(
+            dtstart=datetime(2022, 12, 27, 19, 00),
+            dtend=datetime(2022, 12, 27, 20, 00),
+            summary="this is yet another child test event",
+            uid="ctuid4",
+        )
+        another_parent = c.save_event(
+            dtstart=datetime(2022, 12, 27, 19, 00),
+            dtend=datetime(2022, 12, 27, 20, 00),
+            summary="this is yet another parent test event",
+            uid="ctuid5",
         )
 
         parent_ = c.event_by_uid(parent.id)
@@ -1970,6 +1996,31 @@ END:VCALENDAR
         ## the calendar is not flagged - but perhaps it shouldn't be flagged?
         # child.delete()
         # assert parent_.check_reverse_relations()
+
+        ## Verify the `set_relation` with default `set_reverse=True`
+        foo = another_parent.get_relatives(reltypes={"CHILD", "PARENT"})
+        bar = another_child.get_relatives(reltypes={"CHILD", "PARENT"})
+        assert len(foo) == 0
+        assert len(bar) == 0
+
+        another_parent.set_relation("ctuid4", reltype="CHILD")
+        another_parent.load()
+        another_child.load()
+        assert another_child.check_reverse_relations() == []
+        assert another_parent.check_reverse_relations() == []
+        foo = another_parent.get_relatives(reltypes={"CHILD", "PARENT"})
+        bar = another_child.get_relatives(reltypes={"CHILD", "PARENT"})
+        assert (
+            sum(
+                [
+                    len(x.get("CHILD", set())) + len(x.get("PARENT", set()))
+                    for x in [foo, bar]
+                ]
+            )
+            == 2
+        )
+        assert [str(obj.component["UID"]) for obj in foo["CHILD"]] == ["ctuid4"]
+        assert [str(obj.component["UID"]) for obj in bar["PARENT"]] == ["ctuid5"]
 
     def testSetDue(self):
         self.skip_on_compatibility_flag("read_only")
@@ -2059,6 +2110,17 @@ END:VCALENDAR
                 move_dtstart=True,
                 check_dependent=True,
             )
+
+        ## `todo.set_due` with `check_dependent='return'`
+        ## should return the parent
+        assert (
+            parent.component["uid"]
+            == some_todo.set_due(
+                datetime(2022, 12, 26, 21, 30, tzinfo=utc),
+                move_dtstart=True,
+                check_dependent="return",
+            ).component["uid"]
+        )
 
         child = c.save_todo(
             dtstart=datetime(2022, 12, 26, 19, 45),
@@ -2848,6 +2910,10 @@ END:VCALENDAR
         # TODO: assert something more complex on the return object
         assert isinstance(freebusy, FreeBusy)
         assert freebusy.vobject_instance.vfreebusy
+
+        ## Just to improve the code coverage.  This shouldn't raise any errors.
+        ## (TODO: move it to some other test)
+        e.data = icalendar.Calendar.from_ical(ev2)
 
     def testRecurringDateSearch(self):
         """

@@ -249,6 +249,8 @@ class CalendarObjectResource(DAVObject):
                 and occurrence.get("STATUS") in ("COMPLETED", "CANCELLED")
             ):
                 continue
+            error.assert_("RECURRENCE-ID" in occurrence)
+            ## TODO: do we need this?
             if "RECURRENCE-ID" not in occurrence:
                 occurrence.add("RECURRENCE-ID", occurrence.get("DTSTART").dt)
             calendar.add_component(occurrence)
@@ -1467,7 +1469,7 @@ class Todo(CalendarObjectResource):
         else:
             count = rrule.get("COUNT", None)
             if count is not None and count[0] <= len(
-                [x for x in recurrences if not self._is_pending(x)]
+                [x for x in recurrences if not self.is_pending(x)]
             ):
                 self._complete_ical(
                     recurrences[0], completion_timestamp=completion_timestamp
@@ -1519,22 +1521,20 @@ class Todo(CalendarObjectResource):
     def _complete_ical(self, i=None, completion_timestamp=None) -> None:
         if i is None:
             i = self.icalendar_component
-        assert self._is_pending(i)
+        assert self.is_pending(i)
         status = i.pop("STATUS", None)
         i.add("STATUS", "COMPLETED")
         i.add("COMPLETED", completion_timestamp)
 
-    def _is_pending(self, i=None) -> Optional[bool]:
+    def is_pending(self, i=None) -> Optional[bool]:
         if i is None:
             i = self.icalendar_component
         if i.get("COMPLETED", None) is not None:
             return False
-        if i.get("STATUS", None) in ("NEEDS-ACTION", "IN-PROCESS"):
+        if i.get("STATUS", "NEEDS-ACTION") in ("NEEDS-ACTION", "IN-PROCESS"):
             return True
-        if i.get("STATUS", None) in ("CANCELLED", "COMPLETED"):
+        if i.get("STATUS", "NEEDS-ACTION") in ("CANCELLED", "COMPLETED"):
             return False
-        if "STATUS" not in i:
-            return True
         ## input data does not conform to the RFC
         assert False
 
@@ -1556,9 +1556,8 @@ class Todo(CalendarObjectResource):
 
         TODO: can this be written in a better/shorter way?
 
-        WARNING: this method is likely to be deprecated and moved to
-        the icalendar library.  If you decide to use it, please put
-        caldav<2.0 in the requirements.
+        WARNING: this method may be deprecated and moved to
+        the icalendar library at some point in the future.
         """
         i = self.icalendar_component
         return self._set_duration(i, duration, movable_attr)
@@ -1590,9 +1589,8 @@ class Todo(CalendarObjectResource):
         parent calendar component (through RELATED-TO), and the parents
         due or dtend is before the new dtend).
 
-        WARNING: this method is likely to be deprecated and parts of
-        it moved to the icalendar library.  If you decide to use it,
-        please put caldav<3.0 in the requirements.
+        WARNING: this method may become deprecated and parts of
+        it moved to the icalendar library at some point in the future.
 
         WARNING: the check_dependent-logic may be rewritten to support
         RFC9253 in 3.x
