@@ -1053,6 +1053,7 @@ END:VCALENDAR
             "test1",
             "test2",
         }
+        event1.load_by_multiget()
 
     def testCreateEvent(self):
         self.skip_on_compatibility_flag("read_only")
