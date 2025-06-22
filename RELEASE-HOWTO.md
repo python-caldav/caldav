@@ -8,6 +8,7 @@ I have no clue on the proper procedures for doing releases, and I keep on doing 
 
 * Go through changes since last release and compare it with the `CHANGELOG.md`.  Any change should be logged.
 * Run tests towards as many servers as possible
+  * Use the `PYTHON_CALDAV_DEBUGMODE=pdb` environment variable!  Should do some research if we hit any "soft asserts" or "weirdness".
   * Do research on breakages.  If the test breaks also for the previous release of the caldav library, then it's likely to be due to some regression on the server side.  For patch-level releases we don't care about such breakages, for minor-level releases we should try to work around problems
   * It's proper to document somewhere (TODO: where?  how?) what servers have been tested
 * Does any of the changes require documentation to be rewritten?  The documentation should ideally be in sync with the code upon release time.

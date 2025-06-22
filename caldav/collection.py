@@ -689,12 +689,6 @@ class Calendar(DAVObject):
         else:
             comp_class = None
 
-        ## xandikos now yields a 5xx-error when trying to pass
-        ## expand=True, after I prodded the developer that it doesn't
-        ## work.  By now there is some workaround in the test code to
-        ## avoid sending expand=True to xandikos, but perhaps we
-        ## should run a try-except-retry here with expand=False in the
-        ## retry, and warnings logged ... or perhaps not.
         objects = self.search(
             start=start,
             end=end,

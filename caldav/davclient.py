@@ -472,7 +472,7 @@ class DAVClient:
         username and password may be omitted.
 
         THe niquest library will honor standard proxy environmental variables like
-        HTTP_PROXY, HTTPS_PROXY and ALL_PROXY.
+        HTTP_PROXY, HTTPS_PROXY and ALL_PROXY.  See https://niquests.readthedocs.io/en/latest/user/advanced.html#proxies
         """
         headers = headers or {}
 

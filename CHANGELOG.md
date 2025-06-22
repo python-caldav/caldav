@@ -8,10 +8,20 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 
 ## [2.0.0] - [Unreleased]
 
+Here are the most important changes in 2.0:
+
+* Version 2.0 drops support for old python versions and replaces requests 2.x with niquests 3.x, a fork of requests.
+* Major overhaul of the documentation
+* Support for reading configuration from a config file or environmental variables - I didn't consider that to be within the scope of the caldav library, but why not - why should every application reinvent some configuration file format, and if an end-user have several applications based on python-caldav, why should he need to configure the caldav credentials explicitly for each of them?
+* New method `davclient.principals()` to search for other principals on the server - and from there it's possible to do calendar searches and probe what calendars one have access to.  If the server will allow it.
+
 ### Deprecated
 
+* `calendar.date_search` - use `calendar.search` instead.  (this one has been deprecated for a while, but only with info-logging).  This is almost a drop-in replacement, except for two caveats:
+  * `date_search` does by default to recurrence-expansion when doing searches on closed time ranges.  The default value is `False` in search (this gives better consistency - no surprise differences when changing between open-ended and closed-ended searches, but it's recommended to use `expand=True` when possible).
+  * In `calendar.search`, `split_expanded` is set to `True`.  This may matter if you have any special code for handling recurrences in your code.  If not, probably the recurrences that used to be hidden will now be visible in your search results.
+* I introduced the possibility to set `expand='server'` and `expand='client'` in 1.x to force through expansion either at the server side or client side (and the default was to try server side with fallback to client side).  The four possible values "`True`/`False`/`client`/`server`" does not look that good in my opinion so the two latter is now deprecated, a new parameter `server_expand=True` will force server-side expansion now (see also the Changes section)
 * The `event.instance` property currently yields a vobject.  For quite many years people have asked for the python vobject library to be replaced with the python icalendar objects, but I haven't been able to do that due to backward compatibility.  In version 2.0 deprecation warnings will be given whenever someone uses the `event.instance` property.  In 3.0, perhaps `event.instance` will yield a `icalendar` instance.  Old test code has been updated to use `.vobject_instance` instead of `.instance`.
-* `calendar.date_search` - use `calendar.search` instead.  (this one has been deprecated for a while, but only with info-logging)
 * `davclient.auto_conn` that was introduced just some days ago has already been renamed to `davclient.get_davclient`.
 
 ### Added
@@ -24,7 +34,7 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
   * Improved tests (but no test for inheritance yet).
   * Documentation, linked up from the reference section of the doc.
   * It's allowable with a yaml config file, but the yaml module is not included in the dependencies yet ... so late imports as for now, and the import is wrapped in a try/except-block
-* New method `davclient.principals()` will return all principals on server - if server permits.  It can also do server-side search for a principal with a given user name - if server permits
+* New method `davclient.principals()` will return all principals on server - if server permits.  It can also do server-side search for a principal with a given user name - if server permits - https://github.com/python-caldav/caldav/pull/514 / https://github.com/python-caldav/caldav/issues/131
 * `todo.is_pending` returns a bool.  This was an internal method, but is now promoted to a public method.  Arguably, it belongs to icalendar library and not here.
 
 ### Documentation and examples
@@ -40,7 +50,8 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 ### Changed
 
 * The request library has been in a feature freeze for ages and may seem like a dead end.  There exists a fork of the project niquests, we're migrating to that one.  This means nothing except for one additional dependency.  (httpx was also considered, but it's not a drop-in replacement for the requests library, and it's a risk that such a change will break compatibility with various other servers - see https://github.com/python-caldav/caldav/issues/457 for details).  Work by @ArtemIsmagilov, https://github.com/python-caldav/caldav/pull/455.
-* Search has a new parameter server_expand, which defaults to False.  Earlier it would default to True if expand was set.  This change makes `search(expand=True, ...)` more consistent regardless of which server is in use, but it breaks bug-backward-compatibility with 1.x.
+* Expanded date searches (using either `event.search(..., expand=True)` or the deprecated `event.date_search`) will now by default do a client-side expand.  This gives better consistency and probably improved performance, but makes 2.0 bug-incompatible with 1.x.
+* To force server-side expansion, a new parameter server_expand can be used
 
 ### Removed
 
@@ -49,6 +60,13 @@ If you disagree with any of this, please raise an issue and I'll consider if it'
 * Support for python 3.7 and 3.8
 * Dependency on the requests library.
 * The `calendar.build_date_search_query` was ripped out. (it was deprecated for a while, but only with info-logging - however, this was an obscure internal method, probably not used by anyone?)
+
+### Changes in test framework
+
+* Proxy test has been rewritten.  https://github.com/python-caldav/caldav/issues/462 / https://github.com/python-caldav/caldav/pull/514
+* Some more work done on improving test coverage
+* Fixed a test issue that would break arbitrarily doe to clock changes during the test run - https://github.com/python-caldav/caldav/issues/380 / https://github.com/python-caldav/caldav/pull/520
+* Added test code for some observed problem that I couldn't reproduce - https://github.com/python-caldav/caldav/issues/397 - https://github.com/python-caldav/caldav/pull/521
 
 ## [1.6.0] - 2025-05-30
 
