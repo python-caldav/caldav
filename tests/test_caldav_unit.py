@@ -1332,7 +1332,7 @@ END:VCALENDAR
         my_todo1.icalendar_instance.subcomponents[0].pop("DTSTART")
         my_todo1.set_duration(timedelta(days=3))
         assert my_todo1.get_duration() == timedelta(days=3)
-        
+
         ## 6) DUE and DTSTART set, DTSTART as the movable component (default)
         my_todo2 = Todo(client, data=todo_implicit_duration)
         orig_end = my_todo2.component.end
@@ -1341,13 +1341,13 @@ END:VCALENDAR
         assert my_todo2.component.end == orig_end
 
         ## 7) DURATION set, but neither DTSTART nor DTEND
-        assert not 'DTSTART' in my_todo4.component
-        assert not 'DUE' in my_todo4.component
-        assert my_todo4.component['duration'].dt == timedelta(5)
+        assert not "DTSTART" in my_todo4.component
+        assert not "DUE" in my_todo4.component
+        assert my_todo4.component["duration"].dt == timedelta(5)
         my_todo4.set_duration(timedelta(2))
-        assert not 'DTSTART' in my_todo4.component
-        assert not 'DUE' in my_todo4.component
-        assert my_todo4.component['duration'].dt == timedelta(2)
+        assert not "DTSTART" in my_todo4.component
+        assert not "DUE" in my_todo4.component
+        assert my_todo4.component["duration"].dt == timedelta(2)
 
     def testURL(self):
         """Exercising the URL class"""
