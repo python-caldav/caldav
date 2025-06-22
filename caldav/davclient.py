@@ -897,7 +897,7 @@ class DAVClient:
                 msg = (
                     "No authentication object was provided. "
                     "HTML was returned when probing the server for supported authentication types. "
-                    "To avoid logging errors, consider setting the authentication type manually via DAVClient(auth=...)"
+                    "To avoid logging errors, consider passing the auth_type connection parameter"
                 )
                 if r.headers.get("WWW-Authenticate"):
                     auth_types = [
