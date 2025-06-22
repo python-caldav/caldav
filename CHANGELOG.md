@@ -36,6 +36,7 @@ Here are the most important changes in 2.0:
   * It's allowable with a yaml config file, but the yaml module is not included in the dependencies yet ... so late imports as for now, and the import is wrapped in a try/except-block
 * New method `davclient.principals()` will return all principals on server - if server permits.  It can also do server-side search for a principal with a given user name - if server permits - https://github.com/python-caldav/caldav/pull/514 / https://github.com/python-caldav/caldav/issues/131
 * `todo.is_pending` returns a bool.  This was an internal method, but is now promoted to a public method.  Arguably, it belongs to icalendar library and not here.  Piggybacked in through https://github.com/python-caldav/caldav/pull/526
+* Support for shipping `auth_type` in the connection parameters.  With this it's possible to avoid an extra 401-request just to probe the authentication types.  https://github.com/python-caldav/caldav/pull/529 / https://github.com/python-caldav/caldav/issues/523
 
 ### Documentation and examples
 
@@ -89,7 +90,7 @@ This will be the last minor release before 2.0.  The scheduling support has been
 
 * Partially tossed out all internal usage of vobject, https://github.com/python-caldav/caldav/issues/476.  Refactoring and removing unuseful code.  Parts of this work was accidentally committed directly to master, 2f61dc7adbe044eaf43d0d2c78ba96df09201542, the rest was piggybaced in through  https://github.com/python-caldav/caldav/pull/500.
 * Server-specific setup- and teardown-methods (used for spinning up test servers in the tests) is now executed through the DAVClient context manager.  This will allow doctests to run easily.
-* Made exception for new uncomplete check for GMX server - https://github.com/python-caldav/caldav/issues/525
+* Made exception for new `task.uncomplete`-check for GMX server - https://github.com/python-caldav/caldav/issues/525
 
 ### Time spent and roadmap
 
@@ -294,6 +295,7 @@ Summary: Some few workarounds to support yet more different calendar servers and
 * Google compatibility workaround, credits to github user @flozz in https://github.com/python-caldav/caldav/pull/312
 * Documentation typos, credits to github user @FluxxCode in https://github.com/python-caldav/caldav/pull/317
 * Improved support for cloud provider gmx.de in https://github.com/python-caldav/caldav/pull/318
+* Don't yield errors on (potentially invalid) XML-parameters that are included in the RFC examples - https://github.com/python-caldav/caldav/issues/209 - https://github.com/python-caldav/caldav/pull/508
 
 ### Changed
 
