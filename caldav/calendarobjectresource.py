@@ -1510,17 +1510,20 @@ class Todo(CalendarObjectResource):
     ) -> None:
         """Marks the task as completed.
 
-        Parameters:
-         * completion_timestamp - datetime object.  Defaults to
-           datetime.now().
-         * handle_rrule - if set to True, the library will try to be smart if
-           the task is recurring.  The default is False, for backward
-           compatibility.  I may consider making this one mandatory.
-         * rrule_mode -   The RFC leaves a lot of room for interpretation on how
-           to handle recurring tasks, and what works on one server may break at
-           another.  The following modes are accepted:
-           * this_and_future - see doc for _complete_recurring_thisandfuture for details
-           * safe - see doc for _complete_recurring_safe for details
+        Parameters
+        ----------
+        completion_timestamp : datetime
+            Defaults to ``datetime.now()``.
+        handle_rrule : Bool
+            If set to True, the library will try to be smart if
+            the task is recurring.  The default is False, for backward
+            compatibility.  I may consider making this one mandatory.
+        rrule_mode : str
+            The RFC leaves a lot of room for interpretation on how
+            to handle recurring tasks, and what works on one server may break at
+            another.  The following modes are accepted:
+               * this_and_future - see doc for _complete_recurring_thisandfuture for details
+               * safe - see doc for _complete_recurring_safe for details
         """
         if not completion_timestamp:
             completion_timestamp = datetime.now(timezone.utc)
