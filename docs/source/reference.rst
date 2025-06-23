@@ -1,5 +1,5 @@
 =================
-Reference: caldav
+Reference: CalDAV
 =================
 
 .. module:: caldav

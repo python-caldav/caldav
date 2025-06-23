@@ -1,6 +1,6 @@
-=======================================
-Objective, RFCs, compatibility and misc
-=======================================
+======================================
+About the Python CalDAV Client Library
+======================================
 
 
 Project home
@@ -211,7 +211,8 @@ Here are some known issues:
 Some notes on CalDAV URLs
 =========================
 
-TODO: This section should be moved into separate HOWTOs for each calendar server/provider.
+.. todo::
+   This section should be moved into separate HOWTOs for each calendar server/provider.
 
 CalDAV URLs can be quite confusing, some software requires the URL to the calendar, other requires the URL to the principal.  The Python CalDAV library does support accessing calendars and principals using such URLs, but the recommended practice is to configure up the CalDAV root URL and tell the library to find the principal and calendars from that.  Typical examples of CalDAV URLs:
 
