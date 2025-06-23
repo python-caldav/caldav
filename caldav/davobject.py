@@ -87,13 +87,13 @@ class DAVObject:
         """
         Default constructor.
 
-        Parameters:
-         * client: A DAVClient instance
-         * url: The url for this object.  May be a full URL or a relative URL.
-         * parent: The parent object - used when creating objects
-         * name: A displayname - to be removed at some point, see https://github.com/python-caldav/caldav/issues/128 for details
-         * props: a dict with known properties for this object
-         * id: The resource id (UID for an Event)
+        Args:
+          client: A DAVClient instance
+          url: The url for this object.  May be a full URL or a relative URL.
+          parent: The parent object - used when creating objects
+          name: A displayname - to be removed at some point, see https://github.com/python-caldav/caldav/issues/128 for details
+          props: a dict with known properties for this object
+          id: The resource id (UID for an Event)
         """
 
         if client is None and parent is not None:
@@ -245,11 +245,12 @@ class DAVObject:
         """
         Wrapper for the :class:`get_properties`, when only one property is wanted
 
-        Parameters:
+        Args:
 
-        * ``prop`` - the property to search for
-        * ``use_cached`` - don't send anything to the server if we've asked before
-        * Other parameters are sent directly to the :class:`get_properties` method
+         prop: the property to search for
+         use_cached: don't send anything to the server if we've asked before
+
+        Other parameters are sent directly to the :class:`get_properties` method
         """
         ## TODO: use_cached should probably be true
         if use_cached:
@@ -276,11 +277,11 @@ class DAVObject:
         parse_response_xml set to true, xml elements will be returned
         rather than values.
 
-        Parameters:
-         * props = [dav.ResourceType(), dav.DisplayName(), ...]
+        Args:
+         props: ``[dav.ResourceType(), dav.DisplayName(), ...]``
 
         Returns:
-         * {proptag: value, ...}
+          ``{proptag: value, ...}``
 
         """
         from .collection import Principal  ## late import to avoid cyclic dependencies

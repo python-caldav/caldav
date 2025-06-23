@@ -110,16 +110,16 @@ class CalendarSet(DAVObject):
         """
         Utility method for creating a new calendar.
 
-        Parameters:
-         * name: the display name of the new calendar
-         * cal_id: the uuid of the new calendar
-         * supported_calendar_component_set: what kind of objects
+        Args:
+          name: the display name of the new calendar
+          cal_id: the uuid of the new calendar
+          supported_calendar_component_set: what kind of objects
            (EVENT, VTODO, VFREEBUSY, VJOURNAL) the calendar should handle.
            Should be set to ['VTODO'] when creating a task list in Zimbra -
            in most other cases the default will be OK.
 
         Returns:
-         * Calendar(...)-object
+          Calendar(...)-object
         """
         return Calendar(
             self.client,
@@ -136,12 +136,12 @@ class CalendarSet(DAVObject):
         The calendar method will return a calendar object.  If it gets a cal_id
         but no name, it will not initiate any communication with the server
 
-        Parameters:
-         * name: return the calendar with this display name
-         * cal_id: return the calendar with this calendar id or URL
+        Args:
+          name: return the calendar with this display name
+          cal_id: return the calendar with this calendar id or URL
 
         Returns:
-         * Calendar(...)-object
+          Calendar(...)-object
         """
         if name and not cal_id:
             for calendar in self.calendars():
@@ -215,10 +215,10 @@ class Principal(DAVObject):
 
         End-users usually shouldn't need to construct Principal-objects directly.  Use davclient.principal() to get the principal object of the logged-in user  and davclient.principals() to get other principals.
 
-        Parameters:
-         * client: a DAVClient() object
-         * url: The URL, if known.
-         * calendar_home_set: the calendar home set, if known
+        Args:
+          client: a DAVClient() object
+          url: The URL, if known.
+          calendar_home_set: the calendar home set, if known
 
         If url is not given, deduct principal path as well as calendar home set
         path from doing propfinds.
@@ -512,16 +512,23 @@ class Calendar(DAVObject):
         no_create: bool = False,
         **ical_data,
     ) -> "CalendarResourceObject":
-        """
-        Add a new event to the calendar, with the given ical.
+        """Add a new event to the calendar, with the given ical.
 
-        Parameters:
-         * ``objclass`` - Event, Journal or Todo
-         * ``ical`` - ical object (text, icalendar or vobject instance)
-         * ``dt_start``, ``dt_end``, ``summary``, etc (``ical_data``) - properties to be inserted into the icalendar object (as an aternative to the ical parameter)
-         * ``no_overwrite`` - existing calendar objects should not be overwritten
-         * ``no_create`` - don't create a new object, existing calendar objects should be updated
-         * ``alarm_trigger``, ``alarm_action``, ``alarm_attach``, etc - when given, one alarm will be added
+        Args:
+          objclass: Event, Journal or Todo
+          ical: ical object (text, icalendar or vobject instance)
+          no_overwrite: existing calendar objects should not be overwritten
+          no_create: don't create a new object, existing calendar objects should be updated
+          dt_start: properties to be inserted into the icalendar object
+        , dt_end: properties to be inserted into the icalendar object
+          summary: properties to be inserted into the icalendar object
+          alarm_trigger: when given, one alarm will be added
+          alarm_action: when given, one alarm will be added
+          alarm_attach: when given, one alarm will be added
+
+        Note that the list of parameters going into the icalendar
+        object and alamrs is not complete.  Refer to the RFC or the
+        icalendar library for a full list of properties.
         """
         o = objclass(
             self.client,
@@ -647,23 +654,26 @@ class Calendar(DAVObject):
         # type (TimeStamp, TimeStamp, str, str) -> CalendarObjectResource
         """Deprecated.  Use self.search() instead.
 
-        Search events by date in the calendar. Recurring events are
-        expanded if they are occurring during the specified time frame
-        and if an end timestamp is given.
+        Search events by date in the calendar.
 
-        Parameters:
-         * start = datetime.today().
-         * end = same as above.
-         * compfilter = defaults to events only.  Set to None to fetch all
-           calendar components.
-         * expand - should recurrent events be expanded?  (to preserve
-           backward-compatibility the default "maybe" will be changed into True
-           unless the date_search is open-ended)
-         * verify_expand - not in use anymore, but kept for backward compatibility
+        Args
+         start : defaults to datetime.today().
+         end : same as above.
+         compfilter : defaults to events only.  Set to None to fetch all calendar components.
+         expand : should recurrent events be expanded?  (to preserve backward-compatibility the default "maybe" will be changed into True unless the date_search is open-ended)
+         verify_expand : not in use anymore, but kept for backward compatibility
 
         Returns:
          * [CalendarObjectResource(), ...]
 
+        Recurring events are expanded if they are occurring during the
+        specified time frame and if an end timestamp is given.
+
+        Note that this is a deprecated method.  The `search` method is
+        nearly equivalent.  Differences: default for ``compfilter`` is
+        to search for all objects, default for ``expand`` is
+        ``False``, and it has a different default
+        ``split_expanded=True``.
         """
         ## date_search will probably disappear in 3.0
         warnings.warn(
@@ -769,8 +779,6 @@ class Calendar(DAVObject):
         incompatibilities on the client side, but as for now
         complicated searches will give different results on different
         servers.
-
-        Arguments:
 
         ``todo`` - searches explicitly for todo.  Unless
         ``include_completed`` is specified, there is some special
@@ -1196,13 +1204,12 @@ class Calendar(DAVObject):
         """
         Search the calendar, but return only the free/busy information.
 
-        Parameters:
-         * start = datetime.today().
-         * end = same as above.
+        Args:
+          start : defaults to datetime.today().
+          end : same as above.
 
         Returns:
-         * [FreeBusy(), ...]
-
+          [FreeBusy(), ...]
         """
 
         root = cdav.FreeBusyQuery() + [cdav.TimeRange(start, end)]
@@ -1216,14 +1223,12 @@ class Calendar(DAVObject):
         sort_key: Optional[str] = None,
     ) -> List["Todo"]:
         """
-        fetches a list of todo events (refactored to a wrapper around search)
+        Fetches a list of todo events (this is a wrapper around search)
 
-        Parameters:
-         * sort_keys: use this field in the VTODO for sorting (iterable of
-           lower case string, i.e. ('priority','due')).
-         * include_completed: boolean -
-           by default, only pending tasks are listed
-         * sort_key: DEPRECATED, for backwards compatibility with version 0.4.
+        Args:
+          sort_keys: use this field in the VTODO for sorting (iterable of lower case string, i.e. ('priority','due')).
+          include_completed: boolean - by default, only pending tasks are listed
+          sort_key: DEPRECATED, for backwards compatibility with version 0.4.
         """
         if sort_key:
             sort_keys = (sort_key,)
@@ -1283,13 +1288,13 @@ class Calendar(DAVObject):
         """
         Get one event from the calendar.
 
-        Parameters:
-         * uid: the event uid
-         * comp_class: filter by component type (Event, Todo, Journal)
-         * comp_filter: for backward compatibility
+        Args:
+         uid: the event uid
+         comp_class: filter by component type (Event, Todo, Journal)
+         comp_filter: for backward compatibility
 
         Returns:
-         * Event() or None
+         Event() or None
         """
         if comp_filter:
             assert not comp_class

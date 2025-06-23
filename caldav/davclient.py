@@ -461,23 +461,16 @@ class DAVClient:
     ) -> None:
         """
         Sets up a HTTPConnection object towards the server in the url.
-        Parameters:
-         * url: A fully qualified url: `scheme://user:pass@hostname:port`
-         * proxy: A string defining a proxy server: `scheme://hostname:port`.
-           Scheme defaults to http, port defaults to 8080.
-         * auth: A niquests.auth.AuthBase or requests.auth.AuthBase object,
-           may be passed instead of username/password.
-         * username and password should be passed as arguments or in the URL
-         * timeout and ssl_verify_cert are passed to niquests.request.
-         * if auth_type is given, the auth-object will be auto-created.
-           Auth_type can be ``bearer``, ``digest`` or ``basic``.
-           Things are likely to work without ``auth_type`` set, but if nothing else the
-           number of requests to the server will be reduced, and some servers may
-           require this to squelch warnings of unexpected HTML delivered from the
+
+        Args:
+          url: A fully qualified url: `scheme://user:pass@hostname:port`
+          proxy: A string defining a proxy server: `scheme://hostname:port`. Scheme defaults to http, port defaults to 8080.
+          auth: A niquests.auth.AuthBase or requests.auth.AuthBase object, may be passed instead of username/password.  username and password should be passed as arguments or in the URL
+          timeout and ssl_verify_cert are passed to niquests.request.
+          if auth_type is given, the auth-object will be auto-created. Auth_type can be ``bearer``, ``digest`` or ``basic``. Things are likely to work without ``auth_type`` set, but if nothing else the number of requests to the server will be reduced, and some servers may require this to squelch warnings of unexpected HTML delivered from the
            server etc.
-         * ssl_verify_cert can be the path of a CA-bundle or False.
-         * huge_tree: boolean, enable XMLParser huge_tree to handle big events, beware
-           of security issues, see : https://lxml.de/api/lxml.etree.XMLParser-class.html
+          ssl_verify_cert can be the path of a CA-bundle or False.
+          huge_tree: boolean, enable XMLParser huge_tree to handle big events, beware of security issues, see : https://lxml.de/api/lxml.etree.XMLParser-class.html
 
         The niquests library will honor a .netrc-file, if such a file exists
         username and password may be omitted.
@@ -764,13 +757,13 @@ class DAVClient:
         """
         Send a mkcalendar request.
 
-        Parameters:
-         * url: url for the root of the mkcalendar
-         * body: XML request
-         * dummy: compatibility parameter
+        Args:
+            url: url for the root of the mkcalendar
+            body: XML request
+            dummy: compatibility parameter
 
-        Returns
-         * DAVResponse
+        Returns:
+            DAVResponse
         """
         return self.request(url, "MKCALENDAR", body)
 
@@ -817,8 +810,8 @@ class DAVClient:
         appropriate one (prefer digest or basic if username is given,
         and bearer if password is given).
 
-        Parameters:
-        * auth_types - A list/tuple of acceptable auth_types
+        Args:
+            auth_types - A list/tuple of acceptable auth_types
         """
         auth_type = self.auth_type
         if not auth_type and not auth_types:
