@@ -687,13 +687,18 @@ class DAVClient:
         """
         Send a propfind request.
 
-        Parameters:
-         * url: url for the root of the propfind.
-         * props = (xml request), properties we want
-         * depth: maximum recursion depth
+        Parameters
+        ----------
+        url : URL
+            url for the root of the propfind.
+        props : xml
+            properties we want
+        depth : int
+            maximum recursion depth
 
         Returns
-         * DAVResponse
+        -------
+        DAVResponse
         """
         return self.request(
             url or str(self.url), "PROPFIND", props, {"Depth": str(depth)}
@@ -703,13 +708,13 @@ class DAVClient:
         """
         Send a proppatch request.
 
-        Parameters:
-         * url: url for the root of the propfind.
-         * body: XML propertyupdate request
-         * dummy: compatibility parameter
+        Args:
+            url: url for the root of the propfind.
+            body: XML propertyupdate request
+            dummy: compatibility parameter
 
-        Returns
-         * DAVResponse
+        Returns:
+            DAVResponse
         """
         return self.request(url, "PROPPATCH", body)
 
@@ -717,13 +722,13 @@ class DAVClient:
         """
         Send a report request.
 
-        Parameters:
-         * url: url for the root of the propfind.
-         * query: XML request
-         * depth: maximum recursion depth
+        Args:
+            url: url for the root of the propfind.
+            query: XML request
+            depth: maximum recursion depth
 
         Returns
-         * DAVResponse
+            DAVResponse
         """
         return self.request(
             url,
@@ -745,13 +750,13 @@ class DAVClient:
         DAVClient class can be used for vCards and other WebDAV
         purposes.
 
-        Parameters:
-         * url: url for the root of the mkcol
-         * body: XML request
-         * dummy: compatibility parameter
+        Args:
+            url: url for the root of the mkcol
+            body: XML request
+            dummy: compatibility parameter
 
-        Returns
-         * DAVResponse
+        Returns:
+            DAVResponse
         """
         return self.request(url, "MKCOL", body)
 

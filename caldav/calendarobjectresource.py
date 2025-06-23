@@ -1522,8 +1522,8 @@ class Todo(CalendarObjectResource):
             The RFC leaves a lot of room for interpretation on how
             to handle recurring tasks, and what works on one server may break at
             another.  The following modes are accepted:
-               * this_and_future - see doc for _complete_recurring_thisandfuture for details
-               * safe - see doc for _complete_recurring_safe for details
+            * this_and_future - see doc for _complete_recurring_thisandfuture for details
+            * safe - see doc for _complete_recurring_safe for details
         """
         if not completion_timestamp:
             completion_timestamp = datetime.now(timezone.utc)
