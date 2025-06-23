@@ -14,6 +14,7 @@ I have no clue on the proper procedures for doing releases, and I keep on doing 
 * Does any of the changes require documentation to be rewritten?  The documentation should ideally be in sync with the code upon release time.
 * Look through github pull requests and see if there is anything that ought to be included in the release
 * For minor and major releases, look through the github issues, anything urgent there that should be fixed prior to doing a new release?
+* Any changes done, go back to the start of this list
 * Write up some release notes.  (I typically keep a short summary of the changes in the CHANGELOG, and use that as the release notes).
 * Verify that we're on the right branch - `git checkout master`.  (`master` may not always be right - sometimes we may want to use a dedicated branch connected to the release-series, i.e. `v1.3`)
 * Set the variable `VERSION=1.4.0`
