@@ -6,6 +6,14 @@ Changelogs prior to v1.2 follows other formats and are available in the v1.2-rel
 
 This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html), though some earlier releases may be incompatible with the SemVer standard.
 
+## [2.0.1] - [2025-06-24]
+
+Due to feedback we've fallen back from niquests to requests again.
+
+## Changes
+
+* I was told in https://github.com/python-caldav/caldav/issues/530 that the niquests dependency makes it impossible to package the library, so I've reverted the requests -> niquests changeset.
+
 ## [2.0.0] - [2025-06-23]
 
 Here are the most important changes in 2.0:
