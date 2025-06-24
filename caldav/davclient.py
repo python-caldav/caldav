@@ -14,12 +14,12 @@ from typing import TYPE_CHECKING
 from typing import Union
 from urllib.parse import unquote
 
-import requests
+import niquests
 from lxml import etree
 from lxml.etree import _Element
-from requests.auth import AuthBase
-from requests.models import Response
-from requests.structures import CaseInsensitiveDict
+from niquests.auth import AuthBase
+from niquests.models import Response
+from niquests.structures import CaseInsensitiveDict
 
 from .elements.base import BaseElement
 from caldav import __version__
@@ -434,7 +434,7 @@ class DAVResponse:
 
 class DAVClient:
     """
-    Basic client for webdav, uses the requests lib; gives access to
+    Basic client for webdav, uses the niquests lib; gives access to
     low-level operations towards the caldav server.
 
     Unless you have special needs, you should probably care most about
@@ -466,7 +466,7 @@ class DAVClient:
           url: A fully qualified url: `scheme://user:pass@hostname:port`
           proxy: A string defining a proxy server: `scheme://hostname:port`. Scheme defaults to http, port defaults to 8080.
           auth: A niquests.auth.AuthBase or requests.auth.AuthBase object, may be passed instead of username/password.  username and password should be passed as arguments or in the URL
-          timeout and ssl_verify_cert are passed to requests.request.
+          timeout and ssl_verify_cert are passed to niquests.request.
           if auth_type is given, the auth-object will be auto-created. Auth_type can be ``bearer``, ``digest`` or ``basic``. Things are likely to work without ``auth_type`` set, but if nothing else the number of requests to the server will be reduced, and some servers may require this to squelch warnings of unexpected HTML delivered from the
            server etc.
           ssl_verify_cert can be the path of a CA-bundle or False.
@@ -481,14 +481,12 @@ class DAVClient:
         If the caldav server is behind a proxy or replies with html instead of xml
         when returning 401, warnings will be printed which might be unwanted.
         Check auth parameter for details.
-
-        TODO: we switched back from niquest to request in 2.0.1 due to https://github.com/python-caldav/caldav/issues/530, the text above may not me correct anymore and there are known bugs with the requests library.
         """
         headers = headers or {}
 
         ## Deprecation TODO: give a warning, user should use get_davclient or auto_calendar instead
 
-        self.session = requests.Session()
+        self.session = niquests.Session(multiplexed=True)
 
         log.debug("url: " + str(url))
         self.url = URL.objectify(url)
@@ -496,7 +494,7 @@ class DAVClient:
         # Prepare proxy info
         if proxy is not None:
             _proxy = proxy
-            # requests library expects the proxy url to have a scheme
+            # niquests library expects the proxy url to have a scheme
             if "://" not in proxy:
                 _proxy = self.url.scheme + "://" + proxy
 
@@ -837,9 +835,9 @@ class DAVClient:
                 )
 
             if auth_type == "digest":
-                self.auth = requests.auth.HTTPDigestAuth(self.username, self.password)
+                self.auth = niquests.auth.HTTPDigestAuth(self.username, self.password)
             elif auth_type == "basic":
-                self.auth = requests.auth.HTTPBasicAuth(self.username, self.password)
+                self.auth = niquests.auth.HTTPBasicAuth(self.username, self.password)
             elif auth_type == "bearer":
                 self.auth = HTTPBearerAuth(self.password)
 
@@ -975,8 +973,8 @@ class DAVClient:
 
         # this is an error condition that should be raised to the application
         if (
-            response.status == requests.codes.forbidden
-            or response.status == requests.codes.unauthorized
+            response.status == niquests.codes.forbidden
+            or response.status == niquests.codes.unauthorized
         ):
             try:
                 reason = response.reason

@@ -30,7 +30,6 @@ import proxy
 import pytest
 import vobject
 from proxy.http.proxy import HttpProxyBasePlugin
-from requests.packages import urllib3
 
 from .conf import caldav_servers
 from .conf import client
@@ -63,7 +62,6 @@ from caldav.objects import Todo
 
 log = logging.getLogger("caldav")
 
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 ev1 = """BEGIN:VCALENDAR
 VERSION:2.0

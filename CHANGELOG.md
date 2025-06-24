@@ -8,7 +8,7 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 
 ## [Unreleased]
 
-The niquests dependency has proven controversial.  See https://github.com/python-caldav/caldav/issues/457 https://github.com/python-caldav/caldav/issues/530 https://github.com/jawah/niquests/issues/267 for details.  While continuing work on the 2.x-series I've decided to always release two versions of caldav, one based on requests and the next one based on niquests - giving package maintainers and other parties the option to choose between niquests (which resolves some of the issues reported to the caldav library) and requests (which is mature and firmly established in the python community, although fading to irrelevance unless 3.0 is shipped soon).
+The niquests dependency has proven controversial.  See https://github.com/python-caldav/caldav/issues/457 https://github.com/python-caldav/caldav/issues/530 https://github.com/jawah/niquests/issues/267 for details.  While continuing work on the 2.x-series I've decided to always release two versions of caldav, one based on requests and the next one based on niquests - giving package maintainers and other parties the option to choose between niquests (which resolves some of the issues reported to the caldav library) and requests (which is mature and firmly established in the python community, although fading to irrelevance unless 3.0 is shipped soon).  Master branch will use niquests, as it's more forward-leaning.  I will make a new decision on this before starting work on 3.0.
 
 ## [2.0.1] - [2025-06-24]
 
