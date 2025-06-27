@@ -10,17 +10,22 @@ sys.path.insert(0, ".")
 import caldav
 from caldav.davclient import get_davclient
 
+## Connection parameters can be set in a configuration file or passed
+## as environmental variables.  The format of the configuration file
+## is described at
+## https://caldav.readthedocs.io/stable/configfile.html
+
+## To run this with environmental variables, you may do like this:
+
+# env CALDAV_USERNAME=xxx@qq.com \
+#       CALDAV_PASSWORD=xxx \
+#       CALDAV_URL=https://dav.qq.com/ \
+#  python ./examples/basic_usage_examples.py
+
+
 ## DO NOT name your file calendar.py or caldav.py!  We've had several
 ## issues filed, things break because the wrong files are imported.
 ## It's not a bug with the caldav library per se.
-
-## CONFIGURATION.  Edit here, or set up something in
-## tests/conf_private.py (see tests/conf_private.py.EXAMPLE).
-caldav_url = "https://calendar.example.com/dav"
-username = "somebody"
-password = "hunter2"
-headers = {"X-MY-CUSTOMER-HEADER": "123"}
-
 
 def run_examples():
     """
@@ -320,24 +325,5 @@ CATEGORIES: outdoor"""
     ## ical parameter -> full ical object
 
 
-def _please_ignore_this_hack():
-    """
-    This hack is to be used for the maintainer (or other people
-    having set up testing servers in tests/private_conf.py) to be able
-    to verify that this example code works, without editing the
-    example code itself.
-    """
-    if password == "hunter2":
-        from tests.conf import client as client_
-
-        client = client_()
-
-        def _wrapper(*args, **kwargs):
-            return client
-
-        caldav.DAVClient = _wrapper
-
-
 if __name__ == "__main__":
-    _please_ignore_this_hack()
     run_examples()
