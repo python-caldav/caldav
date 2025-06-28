@@ -1,6 +1,14 @@
 # Changelog
 
-The format of this file should adhere to [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+## IMPORTANT - "flapping" changeset!
+
+In 2.0.0 I dropped the dependency on the requests library as the project is stagnant and adopted niquests, a fork of the requests library.  It's a small change, and three github issues could be closed just by doing this switch.  In addition niquests supports HTTP/2 and is one possible way forward for implementing async support.  However, the change has proven controversial, shortly after releasing 2.0 I had to revert back to requests and release 2.0.1.  Right after releasing 2.0.1, I reverted again so that the master branch is using niquests.
+
+My plan now is to keep doing dual releases while maintaining the 2.x-series - one with niquests and one with requests.  You are encouraged to make an informed decision on weather you are most comfortable with the stable but stagnant requests, or the niquests fork and choose your version accordingly.  When I'm starting to work on 3.0 (which will support async requests), I will think deeply about this and either choose niquests, httpx, or (it's always possible to hope!) requests 3.0.  **Your opinion is valuable for me**.  Feel free to comment on https://github.com/python-caldav/caldav/issues/457,  https://github.com/python-caldav/caldav/issues/530 or https://github.com/jawah/niquests/issues/267 if you have a github account, and if not you can reach out at python-http@plann.no
+
+## Versioning and the changelog
+
+The format of this file should adhere more or less to [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).  I sometimes throw in some extra sections though for the documentation changes and test framework changes (perhaps I should rather make separate CHANGELOGs in the tests and doc folders?)
 
 Changelogs prior to v1.2 follows other formats and are available in the v1.2-release.
 
@@ -84,6 +92,10 @@ If you disagree with any of this, please raise an issue and I'll consider if it'
 * Fixed a test issue that would break arbitrarily doe to clock changes during the test run - https://github.com/python-caldav/caldav/issues/380 / https://github.com/python-caldav/caldav/pull/520
 * Added test code for some observed problem that I couldn't reproduce - https://github.com/python-caldav/caldav/issues/397 - https://github.com/python-caldav/caldav/pull/521
 * Wrote up some test code to improve code coverage - https://github.com/python-caldav/caldav/issues/93 - https://github.com/python-caldav/caldav/pull/526
+
+### Time spent
+
+The maintainer has spent around 49 hours totally since 1.6.  That is a bit above estimate.  For one thing, the configuration file change was not in the original road map for 2.0.
 
 ## [1.6.0] - 2025-05-30
 

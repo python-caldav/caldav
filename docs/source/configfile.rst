@@ -39,7 +39,7 @@ If a section ``contains`` different other sections, it's efficiently a collectio
 Simple example
 ==============
 
-.. code-block: yaml
+.. code-block:: yaml
 
    ---
    default:
