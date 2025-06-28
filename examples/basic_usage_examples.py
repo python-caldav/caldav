@@ -27,6 +27,7 @@ from caldav.davclient import get_davclient
 ## issues filed, things break because the wrong files are imported.
 ## It's not a bug with the caldav library per se.
 
+
 def run_examples():
     """
     Run through all the examples, one by one
@@ -152,7 +153,6 @@ CATEGORIES: outdoor"""
     )
     print("Saved a task")
 
-
     ## ical_fragment parameter -> just some lines
     ## ical parameter -> full ical object
 
@@ -215,7 +215,9 @@ def search_calendar_demo(calendar):
     print("Getting all todos from the calendar")
     tasks = calendar.todos()
     assert len(events) + len(tasks) == len(all_objects)
-    print(f"Found {len(events)} events and {len(tasks)} tasks which is {len(all_objects)}")
+    print(
+        f"Found {len(events)} events and {len(tasks)} tasks which is {len(all_objects)}"
+    )
     assert len(children) == len(all_objects)
     print(f"Found {len(children)} children which is also {len(all_objects)}")
     ## TODO: Some of those should probably be deprecated.
