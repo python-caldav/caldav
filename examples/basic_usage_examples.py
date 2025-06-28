@@ -80,29 +80,140 @@ def run_examples():
         my_new_calendar.delete()
 
 
-def calendar_by_url_demo(client, url):
-    """Sometimes one may have a calendar URL.  Sometimes maybe one would
-    not want to fetch the principal object from the server (it's not
-    even required to support it by the caldav protocol).
+def print_calendars_demo(calendars):
     """
-    ## No network traffic will be initiated by this:
-    calendar = client.calendar(url=url)
-    ## At the other hand, this will cause network activity:
+    This example prints the name and URL for every calendar on the list
+    """
+    if calendars:
+        ## Some calendar servers will include all calendars you have
+        ## access to in this list, and not only the calendars owned by
+        ## this principal.
+        print("your principal has %i calendars:" % len(calendars))
+        for c in calendars:
+            print("    Name: %-36s  URL: %s" % (c.name, c.url))
+    else:
+        print("your principal has no calendars")
+
+
+def find_delete_calendar_demo(my_principal, calendar_name):
+    """
+    This example takes a calendar name, finds the calendar if it
+    exists, and deletes the calendar if it exists.
+    """
+    ## Let's try to find or create a calendar ...
+    try:
+        ## This will raise a NotFoundError if calendar does not exist
+        demo_calendar = my_principal.calendar(name="Test calendar from caldav examples")
+        assert demo_calendar
+        print(
+            f"We found an existing calendar with name {calendar_name}, now deleting it"
+        )
+        demo_calendar.delete()
+    except caldav.error.NotFoundError:
+        ## Calendar was not found
+        pass
+
+
+def add_stuff_to_calendar_demo(calendar):
+    """
+    This demo adds some stuff to the calendar
+
+    Unfortunately the arguments that it's possible to pass to save_* is poorly documented.
+    https://github.com/python-caldav/caldav/issues/253
+    """
+    ## Add an event with some certain attributes
+    may_event = calendar.save_event(
+        dtstart=datetime(2020, 5, 17, 6),
+        dtend=datetime(2020, 5, 18, 1),
+        summary="Do the needful",
+        rrule={"FREQ": "YEARLY"},
+    )
+
+    ## not all calendars supports tasks ... but if it's supported, it should be
+    ## told here:
+    acceptable_component_types = calendar.get_supported_components()
+    assert "VTODO" in acceptable_component_types
+
+    ## Add a task that should contain some ical lines
+    ## Note that this may break on your server:
+    ## * not all servers accepts tasks and events mixed on the same calendar.
+    ## * not all servers accepts tasks at all
+    dec_task = calendar.save_todo(
+        ical_fragment="""DTSTART;VALUE=DATE:20201213
+DUE;VALUE=DATE:20201220
+SUMMARY:Chop down a tree and drag it into the living room
+RRULE:FREQ=YEARLY
+PRIORITY: 2
+CATEGORIES: outdoor"""
+    )
+
+    ## ical_fragment parameter -> just some lines
+    ## ical parameter -> full ical object
+
+
+def search_calendar_demo(calendar):
+    """
+    some examples on how to fetch objects from the calendar
+    """
+    ## It should theoretically be possible to find both the events and
+    ## tasks in one calendar query, but not all server implementations
+    ## supports it, hence either event, todo or journal should be set
+    ## to True when searching.  Here is a date search for events, with
+    ## expand:
+    events_fetched = calendar.search(
+        start=datetime.now(),
+        end=datetime(date.today().year + 5, 1, 1),
+        event=True,
+        expand=True,
+    )
+
+    ## "expand" causes the recurrences to be expanded.
+    ## The yearly event will give us one object for each year
+    assert len(events_fetched) > 1
+
+    print("here is some ical data:")
+    print(events_fetched[0].data)
+
+    ## We can also do the same thing without expand, then the "master"
+    ## from 2020 will be fetched
+    events_fetched = calendar.search(
+        start=datetime.now(),
+        end=datetime(date.today().year + 5, 1, 1),
+        event=True,
+        expand=False,
+    )
+    assert len(events_fetched) == 1
+
+    ## search can be done by other things, i.e. keyword
+    tasks_fetched = calendar.search(todo=True, category="outdoor")
+    assert len(tasks_fetched) == 1
+
+    ## This those should also work:
+    all_objects = calendar.objects()
+    # updated_objects = calendar.objects_by_sync_token(some_sync_token)
+    # some_object = calendar.object_by_uid(some_uid)
+    # some_event = calendar.event_by_uid(some_uid)
+    children = calendar.children()
     events = calendar.events()
-    ## We should still have only one event in the calendar
-    assert len(events) == 1
+    tasks = calendar.todos()
+    assert len(events) + len(tasks) == len(all_objects)
+    assert len(children) == len(all_objects)
+    ## TODO: Some of those should probably be deprecated.
+    ## children is a good candidate.
 
-    event_url = events[0].url
+    ## Tasks can be completed
+    tasks[0].complete()
 
-    ## there is no similar method for fetching an event through
-    ## a URL.  One may construct the object like this though:
-    same_event = caldav.Event(client=client, parent=calendar, url=event_url)
+    ## They will then disappear from the task list
+    assert not calendar.todos()
 
-    ## That was also done without any network traffic.  To get the same_event
-    ## populated with data it needs to be loaded:
-    same_event.load()
+    ## But they are not deleted
+    assert len(calendar.todos(include_completed=True)) == 1
 
-    assert same_event.data == events[0].data
+    ## Let's delete it completely
+    tasks[0].delete()
+
+    return events_fetched[0]
 
 
 def read_modify_event_demo(event):
@@ -189,140 +300,29 @@ def read_modify_event_demo(event):
     assert same_event.component["summary"] == "Norwegian national day celebrations"
 
 
-def search_calendar_demo(calendar):
+def calendar_by_url_demo(client, url):
+    """Sometimes one may have a calendar URL.  Sometimes maybe one would
+    not want to fetch the principal object from the server (it's not
+    even required to support it by the caldav protocol).
     """
-    some examples on how to fetch objects from the calendar
-    """
-    ## It should theoretically be possible to find both the events and
-    ## tasks in one calendar query, but not all server implementations
-    ## supports it, hence either event, todo or journal should be set
-    ## to True when searching.  Here is a date search for events, with
-    ## expand:
-    events_fetched = calendar.search(
-        start=datetime.now(),
-        end=datetime(date.today().year + 5, 1, 1),
-        event=True,
-        expand=True,
-    )
-
-    ## "expand" causes the recurrences to be expanded.
-    ## The yearly event will give us one object for each year
-    assert len(events_fetched) > 1
-
-    print("here is some ical data:")
-    print(events_fetched[0].data)
-
-    ## We can also do the same thing without expand, then the "master"
-    ## from 2020 will be fetched
-    events_fetched = calendar.search(
-        start=datetime.now(),
-        end=datetime(date.today().year + 5, 1, 1),
-        event=True,
-        expand=False,
-    )
-    assert len(events_fetched) == 1
-
-    ## search can be done by other things, i.e. keyword
-    tasks_fetched = calendar.search(todo=True, category="outdoor")
-    assert len(tasks_fetched) == 1
-
-    ## This those should also work:
-    all_objects = calendar.objects()
-    # updated_objects = calendar.objects_by_sync_token(some_sync_token)
-    # some_object = calendar.object_by_uid(some_uid)
-    # some_event = calendar.event_by_uid(some_uid)
-    children = calendar.children()
+    ## No network traffic will be initiated by this:
+    calendar = client.calendar(url=url)
+    ## At the other hand, this will cause network activity:
     events = calendar.events()
-    tasks = calendar.todos()
-    assert len(events) + len(tasks) == len(all_objects)
-    assert len(children) == len(all_objects)
-    ## TODO: Some of those should probably be deprecated.
-    ## children is a good candidate.
+    ## We should still have only one event in the calendar
+    assert len(events) == 1
 
-    ## Tasks can be completed
-    tasks[0].complete()
+    event_url = events[0].url
 
-    ## They will then disappear from the task list
-    assert not calendar.todos()
+    ## there is no similar method for fetching an event through
+    ## a URL.  One may construct the object like this though:
+    same_event = caldav.Event(client=client, parent=calendar, url=event_url)
 
-    ## But they are not deleted
-    assert len(calendar.todos(include_completed=True)) == 1
+    ## That was also done without any network traffic.  To get the same_event
+    ## populated with data it needs to be loaded:
+    same_event.load()
 
-    ## Let's delete it completely
-    tasks[0].delete()
-
-    return events_fetched[0]
-
-
-def print_calendars_demo(calendars):
-    """
-    This example prints the name and URL for every calendar on the list
-    """
-    if calendars:
-        ## Some calendar servers will include all calendars you have
-        ## access to in this list, and not only the calendars owned by
-        ## this principal.
-        print("your principal has %i calendars:" % len(calendars))
-        for c in calendars:
-            print("    Name: %-36s  URL: %s" % (c.name, c.url))
-    else:
-        print("your principal has no calendars")
-
-
-def find_delete_calendar_demo(my_principal, calendar_name):
-    """
-    This example takes a calendar name, finds the calendar if it
-    exists, and deletes the calendar if it exists.
-    """
-    ## Let's try to find or create a calendar ...
-    try:
-        ## This will raise a NotFoundError if calendar does not exist
-        demo_calendar = my_principal.calendar(name="Test calendar from caldav examples")
-        assert demo_calendar
-        print(
-            f"We found an existing calendar with name {calendar_name}, now deleting it"
-        )
-        demo_calendar.delete()
-    except caldav.error.NotFoundError:
-        ## Calendar was not found
-        pass
-
-
-def add_stuff_to_calendar_demo(calendar):
-    """
-    This demo adds some stuff to the calendar
-
-    Unfortunately the arguments that it's possible to pass to save_* is poorly documented.
-    https://github.com/python-caldav/caldav/issues/253
-    """
-    ## Add an event with some certain attributes
-    may_event = calendar.save_event(
-        dtstart=datetime(2020, 5, 17, 6),
-        dtend=datetime(2020, 5, 18, 1),
-        summary="Do the needful",
-        rrule={"FREQ": "YEARLY"},
-    )
-
-    ## not all calendars supports tasks ... but if it's supported, it should be
-    ## told here:
-    acceptable_component_types = calendar.get_supported_components()
-    assert "VTODO" in acceptable_component_types
-
-    ## Add a task that should contain some ical lines
-    ## Note that this may break on your server:
-    ## * not all servers accepts tasks and events mixed on the same calendar.
-    ## * not all servers accepts tasks at all
-    dec_task = calendar.save_todo(
-        ical_fragment="""DTSTART;VALUE=DATE:20201213
-DUE;VALUE=DATE:20201220
-SUMMARY:Chop down a tree and drag it into the living room
-RRULE:FREQ=YEARLY
-PRIORITY: 2
-CATEGORIES: outdoor"""
-    )
-
-    ## ical_fragment parameter -> just some lines
-    ## ical parameter -> full ical object
+    assert same_event.data == events[0].data
 
 
 if __name__ == "__main__":
