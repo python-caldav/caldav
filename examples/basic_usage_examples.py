@@ -41,6 +41,7 @@ def run_examples():
     with get_davclient() as client:
         ## Typically the next step is to fetch a principal object.
         ## This will cause communication with the server.
+        print("Connecting to the caldav server")
         my_principal = client.principal()
 
         ## The principals calendars can be fetched like this:
@@ -122,17 +123,20 @@ def add_stuff_to_calendar_demo(calendar):
     https://github.com/python-caldav/caldav/issues/253
     """
     ## Add an event with some certain attributes
+    print("Saving an event")
     may_event = calendar.save_event(
         dtstart=datetime(2020, 5, 17, 6),
         dtend=datetime(2020, 5, 18, 1),
         summary="Do the needful",
         rrule={"FREQ": "YEARLY"},
     )
+    print("Saved an event")
 
     ## not all calendars supports tasks ... but if it's supported, it should be
     ## told here:
     acceptable_component_types = calendar.get_supported_components()
     assert "VTODO" in acceptable_component_types
+    print("tasks are supported by your calendar, saving one")
 
     ## Add a task that should contain some ical lines
     ## Note that this may break on your server:
@@ -146,6 +150,8 @@ RRULE:FREQ=YEARLY
 PRIORITY: 2
 CATEGORIES: outdoor"""
     )
+    print("Saved a task")
+
 
     ## ical_fragment parameter -> just some lines
     ## ical parameter -> full ical object
@@ -160,6 +166,7 @@ def search_calendar_demo(calendar):
     ## supports it, hence either event, todo or journal should be set
     ## to True when searching.  Here is a date search for events, with
     ## expand:
+    print("Searching for expanded events")
     events_fetched = calendar.search(
         start=datetime.now(),
         end=datetime(date.today().year + 5, 1, 1),
@@ -170,12 +177,14 @@ def search_calendar_demo(calendar):
     ## "expand" causes the recurrences to be expanded.
     ## The yearly event will give us one object for each year
     assert len(events_fetched) > 1
+    print(f"Found {len(events_fetched)} events")
 
-    print("here is some ical data:")
+    print("here is some ical data from the first one:")
     print(events_fetched[0].data)
 
     ## We can also do the same thing without expand, then the "master"
     ## from 2020 will be fetched
+    print("Searching for un expanded events")
     events_fetched = calendar.search(
         start=datetime.now(),
         end=datetime(date.today().year + 5, 1, 1),
@@ -183,34 +192,49 @@ def search_calendar_demo(calendar):
         expand=False,
     )
     assert len(events_fetched) == 1
+    print(f"Found {len(events_fetched)} event")
 
     ## search can be done by other things, i.e. keyword
+    print("Searching for tasks")
+    # Note that Radicale fails when specifying a category pending
+    # https://github.com/Kozea/Radicale/pull/1277
     tasks_fetched = calendar.search(todo=True, category="outdoor")
     assert len(tasks_fetched) == 1
+    print(f"Found {len(tasks_fetched)} task")
 
     ## This those should also work:
+    print("Getting all objects from the calendar")
     all_objects = calendar.objects()
     # updated_objects = calendar.objects_by_sync_token(some_sync_token)
     # some_object = calendar.object_by_uid(some_uid)
     # some_event = calendar.event_by_uid(some_uid)
+    print("Getting all children from the calendar")
     children = calendar.children()
+    print("Getting all events from the calendar")
     events = calendar.events()
+    print("Getting all todos from the calendar")
     tasks = calendar.todos()
     assert len(events) + len(tasks) == len(all_objects)
+    print(f"Found {len(events)} events and {len(tasks)} tasks which is {len(all_objects)}")
     assert len(children) == len(all_objects)
+    print(f"Found {len(children)} children which is also {len(all_objects)}")
     ## TODO: Some of those should probably be deprecated.
     ## children is a good candidate.
 
     ## Tasks can be completed
+    print("Marking a task completed")
     tasks[0].complete()
 
     ## They will then disappear from the task list
+    print("Getting remaining todos")
     assert not calendar.todos()
+    print("There are no todos")
 
     ## But they are not deleted
     assert len(calendar.todos(include_completed=True)) == 1
 
     ## Let's delete it completely
+    print("Deleting it completely")
     tasks[0].delete()
 
     return events_fetched[0]
