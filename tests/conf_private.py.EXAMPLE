@@ -30,8 +30,8 @@ caldav_servers = [
         ## incompatibilities is a list of flags that can be set for
         ## skipping (parts) of certain tests.  See
         ## compatibility_hints.py for premade lists
-        #'incompatibilities': compatibility_hints.nextcloud
-      	'incompatibilities': [],
+        #'features': compatibility_hints.nextcloud
+      	'features': [],
 
         ## You may even add setup and teardown methods to set up
         ## and rig down the calendar server
