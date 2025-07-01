@@ -144,7 +144,7 @@ if test_radicale:
             "username": "user1",
             "password": "",
             "backwards_compatibility_url": url + "user1",
-            "incompatibilities": compatibility_hints.radicale,
+            "features": compatibility_hints.radicale,
             "setup": setup_radicale,
             "teardown": teardown_radicale,
         }
@@ -229,7 +229,7 @@ if test_xandikos:
             "name": "LocalXandikos",
             "url": url,
             "backwards_compatibility_url": url + "sometestuser",
-            "incompatibilities": compatibility_hints.xandikos,
+            "features": compatibility_hints.xandikos,
             "setup": setup_xandikos,
             "teardown": teardown_xandikos,
         }
@@ -257,6 +257,7 @@ def client(
     elif no_args:
         return None
     for bad_param in (
+        "features",
         "incompatibilities",
         "backwards_compatibility_url",
         "principal_url",
@@ -274,7 +275,7 @@ def client(
     conn = DAVClient(**kwargs_)
     conn.setup = setup
     conn.teardown = teardown
-    conn.incompatibilities = kwargs.get("incompatibilities")
+    conn.features = kwargs.get("features") or kwargs.get("incompatibilities")
     conn.server_name = name
     return conn
 

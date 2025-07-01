@@ -1,22 +1,159 @@
 # fmt: off
-"""This text was updated 2025-05-17.  The plan is to reorganize this
-file a lot over the next few months, see
-https://github.com/python-caldav/caldav/issues/402
-
+"""
 This file serves as a database of different compatibility issues we've
 encountered while working on the caldav library, and descriptions on
 how the well-known servers behave.
-
-As for now, this is a list of binary "flags" that could be turned on
-or off.  My experience is that there are often neuances, so the
-compatibility matrix will be changed from being a list of flags to a
-key=value store in the near future (at least, that's the plan).
-
-The issues may be grouped together, maybe even organized
-hierarchically.  I did consider organizing the compatibility issues in
-some more advanced way, but I don't want to overcomplicate things - I
-will try out the key-value-approach first.
 """
+
+## NEW STYLE
+
+## (we're gradually moving stuff from the good old
+## "incompatibility_description" below over to
+## "compatibility_features")
+
+class FeatureSet:
+    """Work in progress ... TODO: write a better class description.
+
+    This class holds the description of different behaviour observed in
+    a class constant.
+
+    An object of this class describes the feature set of a server.
+
+    TODO: use enums?
+      type -> "client-feature", "server-peculiarity", "server-feature" (last is default)
+      support -> "supported" (default), "unsupported", "fragile", "broken", "ungraceful"
+    """
+    FEATURES = {
+        "rate-limit": {
+            "type": "client-feature",
+            "description": "client (or test code) must not send requests too fast",
+            "extra_keys": {
+                "interval": "Rate limiting window, in seconds",
+                "count": "Max number of requests to send within the interval",
+            }},
+        "search-cache": {
+            "type": "server-peculiarity",
+            "description": "The server delivers search results from a cache which is not immediately updated when an object is changed.  Hence recent changes may not be reflected in search results",
+            "extra_keys": {
+                "delay": "after this number of seconds, we may be reasonably sure that the search results are updated",
+            }
+        },
+        "tests-cleanup-calendar": {
+            "type": "tests-behaviour",
+            "description": "Deleting a calendar does not delete the objects, or perhaps create/delete of calendars does not work at all.  For each test run, every calendar resource object should be deleted for every test run",
+        },
+        "delete-calendar": {
+            "description": "RFC4791 says nothing about deletion of calendars, so the server implementation is free to choose weather this should be supported or not.  Section 3.2.3.2 in RFC 6638 says that if a calendar is deleted, all the calendarobjectresources on the calendar should also be deleted - but it's a bit unclear if this only applies to scheduling objects or not.  Some calendar servers moves the object to a trashcan rather than deleting it"
+        },
+        "recurrences": {
+            "description": "Support for recurring events and tasks",
+            "features": {
+                "save_load": {
+                    "description": "Calendar server should accept ojects with RRULE given, as well as objects with recurrence sets, and should be able to deliver back the same data",
+                    "features": {
+                        "todo": {"description": "works with tasks"},
+                        "todo": {"description": "works with events"},
+                    }
+                },
+                "search_includes_implicit_recurrences": {
+                    "description": "RFC says that the server MUST expand recurring components to determine whether any recurrence instances overlap the specified time range.  Considered supported i.e. if a search for 2005 yields a yearly event happening first time in 2004.",
+                    "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-7.4"],
+                    "features": {
+                        "infinite-scope": {
+                            "description": "Needless to say, search on any future date range, no matter how far out in the future, should yield the recurring object"
+                        }
+                    }
+                },
+                "expanded_search": {
+                    "description": "According to RFC 4791, the server MUST expand recurrence objects if asked for it - but many server doesn't do that.  It doesn't matter much by now, as the client library can do the expandation.  Some servers don't do expand at all, others deliver broken data, typically missing RECURRENCE-ID",
+                    "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-9.6.5"],
+                    "features": {
+                        "recurrence_exception_handling": {
+                            "description": "Server expand should work correctly also if a recurrence set with exceptions is given"
+                        },
+                    },
+                },
+            },
+        },
+    }
+
+    def __init__(self, feature_set):
+        """
+        TODO: describe the feature_set better.
+
+        Should be a dict on the same style as self.FEATURES, but different.
+
+        Shortcuts accepted in the dict, like:
+
+        {
+            "recurrences.search_includes_implicit_recurrences.infinite_scope":
+                "unsupported" }
+
+        is equivalent with
+
+        {
+           "recurrences": {
+               "features": {
+                   "search_includes_inplicit_recurrences": {
+                       "infinite_scope":
+                           "support": "unsupported" }}}}
+
+        (TODO: is this sane?  Am I reinventing a configuration language?)
+        """
+        ## TODO: copy the FEATURES dict, or just the feature_set dict?
+        ## (anyways, that is an internal design decision that may be
+        ## changed ... but we need test code in place)
+        self._server_features = {}
+        self.copyFeatureSet(feature_set)
+
+    def _copyFeature(def_node, server_node, value):
+        if isinstance(value, str) and not 'support' in server_node:
+            server_node['support'] = value
+        elif isinstance(value, dict):
+            if value.get('features'):
+                raise NotImplementedError("todo ... work in progress ... need to recursively process the feature set")
+            server_node.update(value)
+
+    def copyFeatureSet(feature_set):
+        for feature in feature_set:
+            fpath = feature.split('.')
+            def_tree = self.FEATURES
+            server_tree = self._server_features
+            for step in fpath:
+                assert def_tree
+                assert step in def_tree
+                def_node = def_tree[step]
+                if not step in server_tree:
+                    server_tree[step] = {}
+                server_node = server_tree[step]
+                if not 'features' in def_tree:
+                    server_tree = None
+                    def_tree = None
+                else:
+                    if not 'features' in server_node:
+                        server_node['features'] = {}
+                    server_tree = server_node['features']
+                    def_tree = def_node['features']
+            self._copyFeature(def_node, server_node, feature_set[fpath])
+
+    def find_feature(self, feature: str) -> dict:
+        """
+        Feature should be a string like feature.subfeature.subsubfeature.
+        
+        Looks through the FEATURES list and returns the relevant section.
+
+        Will raise an AssertionError if feature is not found
+        """
+        hierarchy = feature.split('.')
+        node = self.FEATURES
+        for x in hierarchy:
+            assert x in node
+            feature = node[x]
+            node = feature.get('features', {})
+        return feature
+
+#### OLD STYLE
+
 ## The lists below are specifying what tests should be skipped or
 ## modified to accept non-conforming resultsets from the different
 ## calendar servers.  In addition there are some hacks in the library
@@ -30,26 +167,6 @@ will try out the key-value-approach first.
 ## * Perhaps some more readable format should be considered (yaml?).
 ## * Consider how to get this into the documentation
 incompatibility_description = {
-    'rate_limited':
-        """It may be needed to pause a bit between each request when doing tests""",
-
-    'search_delay':
-        """Server populates indexes through some background job, so it takes some time from an event is added/edited until it's possible to search for it""",
-
-    'cleanup_calendar':
-        """Remove everything on the calendar for every test""",
-
-    'no_delete_calendar':
-        """Not allowed to delete calendars - or calendar ends up in a 'trashbin'""",
-
-    'broken_expand':
-        """Server-side expand seems to work, but delivers wrong data (typically missing RECURRENCE-ID)""",
-
-    'no_expand':
-        """Server-side expand does not seem to work""",
-
-    'broken_expand_on_exceptions':
-        """The testRecurringDateWithExceptionSearch test breaks as the icalendar_component is missing a RECURRENCE-ID field.  TODO: should be investigated more""",
 
     'inaccurate_datesearch':
         """A date search may yield results outside the search interval""",
@@ -66,19 +183,10 @@ incompatibility_description = {
     'no_current-user-principal':
         """Current user principal not supported by the server (flag is ignored by the tests as for now - pass the principal URL as the testing URL and it will work, albeit with one warning""",
 
-    'no_recurring':
-        """Server is having issues with recurring events and/or todos. """
-        """date searches covering recurrances may yield no results, """
-        """and events/todos may not be expanded with recurrances""",
-
     'no_alarmsearch':
         """Searching for alarms may yield too few or too many or even a 500 internal server error""",
 
-    'no_recurring_todo':
-        """Recurring events are supported, but not recurring todos""",
 
-    'no_recurring_todo_expand':
-        """Recurring todos aren't expanded (this is ignored by the tests now, as we're doing client-side expansion)""",
 
     'no_scheduling':
         """RFC6833 is not supported""",
@@ -290,10 +398,11 @@ incompatibility_description = {
         """Zimbra has the concept of task lists ... a calendar must either be a calendar with only events, or it can be a task list, but those must never be mixed"""
 }
 
-xandikos = [
+xandikos = {
+    "recurrences.expanded_search": {'support': 'ungraceful'},
+    "recurrences.search_includes_implicit_recurrences": {'support': 'unsupported'},
+    "old_flags":  [
     ## https://github.com/jelmer/xandikos/issues/8
-    "no_recurring",
-
     'date_todo_search_ignores_duration',
     'text_search_is_exact_match_only',
     "search_needs_comptype",
@@ -316,14 +425,16 @@ xandikos = [
 
     ## No alarm search (500 internal server error)
     "no_alarmsearch",
-]
+    ]
+}
 
 ## TODO - there has been quite some development in radicale recently, so this list
 ## should probably be gone through
-radicale = [
+radicale = {
+    "recurrences.expanded_search": {'support': 'ungraceful'},
+    'old_flags': [
     ## calendar listings and calendar creation works a bit
     ## "weird" on radicale
-    "broken_expand",
     "no_default_calendar",
     "no_alarmsearch", ## This is fixed and will be released soon
 
@@ -342,7 +453,8 @@ radicale = [
     ## extra features not specified in RFC5545
     "calendar_order",
     "calendar_color"
-]
+    ]
+}
 
 ## ZIMBRA IS THE MOST SILLY, AND THERE ARE REGRESSIONS FOR EVERY RELEASE!
 ## AAARGH!
