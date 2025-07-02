@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling", "hatch-vcs"]
+requires = ["hatchling>=1.27.0", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [tool.hatch.version]
@@ -11,15 +11,14 @@ version-file = "caldav/_version.py"
 [project]
 name = "caldav"
 authors = [{ name = "Cyril Robert", email = "cyril@hippie.io" }, { name = "Tobias Brox", email = "caldav@plann.no" }]
-license = { text = "GPL" }
+license = "GPL-3.0-or-later OR Apache-2.0"
+license-files = ["COPYING.*"]
 description = "CalDAV (RFC4791) client library"
 keywords = []
 readme = "README.md"
 classifiers = [
   "Development Status :: 4 - Beta",
   "Intended Audience :: Developers",
-  "License :: OSI Approved :: GNU General Public License (GPL)",
-  "License :: OSI Approved :: Apache Software License",
   "Operating System :: OS Independent",
   "Programming Language :: Python",
   "Programming Language :: Python :: 3.9",

@@ -18,4 +18,4 @@ Links:
 
 Licences:
 
-Caldav is dual-licensed under the [GNU GENERAL PUBLIC LICENSE Version 3](COPYING.GPL) and the [Apache License 2.0](COPYING.APACHE).
+Caldav is dual-licensed under the [GNU GENERAL PUBLIC LICENSE Version 3](COPYING.GPL) or the [Apache License 2.0](COPYING.APACHE).

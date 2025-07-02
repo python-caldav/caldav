@@ -285,4 +285,4 @@ While I hope we never will need to refer to it, the `Contributor Covenant <https
 License
 =======
 
-Caldav is dual-licensed under the GNU GENERAL PUBLIC LICENSE Version 3 and the Apache License 2.0.
+Caldav is dual-licensed under the GNU GENERAL PUBLIC LICENSE Version 3 or the Apache License 2.0.
