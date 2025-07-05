@@ -77,7 +77,7 @@ class FeatureSet:
         },
     }
 
-    def __init__(self, feature_set):
+    def __init__(self, feature_set_dict):
         """
         TODO: describe the feature_set better.
 
@@ -104,9 +104,9 @@ class FeatureSet:
         ## (anyways, that is an internal design decision that may be
         ## changed ... but we need test code in place)
         self._server_features = {}
-        self.copyFeatureSet(feature_set)
+        self.copyFeatureSet(feature_set_dict)
 
-    def _copyFeature(def_node, server_node, value):
+    def _copyFeature(self, def_node, server_node, value):
         if isinstance(value, str) and not 'support' in server_node:
             server_node['support'] = value
         elif isinstance(value, dict):
@@ -114,8 +114,11 @@ class FeatureSet:
                 raise NotImplementedError("todo ... work in progress ... need to recursively process the feature set")
             server_node.update(value)
 
-    def copyFeatureSet(feature_set):
+    def copyFeatureSet(self, feature_set):
         for feature in feature_set:
+            ## TODO: temp - should be removed
+            if feature == 'old_flags':
+                continue
             fpath = feature.split('.')
             def_tree = self.FEATURES
             server_tree = self._server_features
@@ -126,7 +129,7 @@ class FeatureSet:
                 if not step in server_tree:
                     server_tree[step] = {}
                 server_node = server_tree[step]
-                if not 'features' in def_tree:
+                if not 'features' in def_node:
                     server_tree = None
                     def_tree = None
                 else:
@@ -134,7 +137,25 @@ class FeatureSet:
                         server_node['features'] = {}
                     server_tree = server_node['features']
                     def_tree = def_node['features']
-            self._copyFeature(def_node, server_node, feature_set[fpath])
+            self._copyFeature(def_node, server_node, feature_set[feature])
+
+    def check_support(self, feature, return_type=bool):
+        """
+        Work in progress
+
+        TODO: write a better docstring
+        """
+        feature_info = self.find_feature(feature)
+        support = self._server_features.get(feature, {'support': 'full'})
+        if return_type == str:
+            ## TODO: consider type, be smarter about it
+            return support.get('support', support.get('enable', support.get('behaviour')))
+        elif return_type == dict:
+            return support
+        elif return_type == bool:
+            ## TODO: consider type, be smarter about it
+            return support.get('support', 'full') == 'full' and not support.get('enable') and not support.get('behaviour')
+
 
     def find_feature(self, feature: str) -> dict:
         """

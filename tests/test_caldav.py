@@ -40,7 +40,8 @@ from .conf import test_radicale
 from .conf import test_xandikos
 from .conf import xandikos_host
 from .conf import xandikos_port
-from caldav import compatibility_hints
+from caldav.compatibility_hints import FeatureSet
+from caldav.compatibility_hints import incompatibility_description ## TEMP - should be removed in the future
 from caldav.davclient import DAVClient
 from caldav.davclient import DAVResponse
 from caldav.davclient import get_davclient
@@ -666,49 +667,38 @@ class RepeatedFunctionalTestsBaseClass:
 
         TODO: write a better docstring
         """
-        feature_info = compatibility_hints.FEATURES.find_feature(feature)
-        support = self.features.get(feature, {'support': 'full'})
-        if return_type == str:
-            ## TODO: consider type, be smarter about it
-            return support.get('support', support.get('enable', support.get('behaviour')))
-        elif return_type == dict:
-            return support
-        elif return_type == bool:
-            ## TODO: consider type, be smarter about it
-            return support.get('support', 'full') == 'full' and not support.get('enable') and not support.get('behaviour')
-            
+        return self.features.check_support(feature, return_type)
+
     def check_compatibility_flag(self, flag):
         ## yield an assertion error if checking for the wrong thig
-        assert flag in compatibility_hints.incompatibility_description
-        return flag in self.features['old_flags']
+        assert flag in incompatibility_description
+        return flag in self.old_features
 
     def skip_on_compatibility_flag(self, flag):
         if self.check_compatibility_flag(flag):
-            msg = compatibility_hints.incompatibility_description[flag]
+            msg = incompatibility_description[flag]
             pytest.skip("Test skipped due to server incompatibility issue: " + msg)
 
     def skip_unless_support(self, feature):
         if self.check_support(feature):
-            msg = compatibility_hints.FEATURES.find_feature(feature).get('description', feature)
+            msg = self.features.find_feature(feature).get('description', feature)
             pytest.skip("Test skipped due to server incompatibility issue: " + msg)
 
     def setup_method(self):
         logging.debug("############## test setup")
-        self.features = {}
         self.cleanup_regime = self.server_params.get("cleanup", "light")
         self.calendars_used = []
 
-        self.features = self.server_params.get("features", {})
+        features = self.server_params.get("features", {})
+
+        ## Temp thing
+        self.old_features = features.get('old_flags', [])
+
+        self.features = FeatureSet(self.server_params.get("features", {}))
 
         ## verify that all old flags are valid
-        for flag in self.features.get('old_flags'):
-            assert flag in compatibility_hints.incompatibility_description
-
-        ## verify that all new compatibility info is valid (TODO: should validate better)
-        for feature in self.server_params.get('features', []):
-            if feature == 'old_flags':
-                continue
-            compatibility_hints.FEATURES.find_feature(feature)
+        for flag in self.old_features:
+            assert flag in incompatibility_description
 
         if self.check_compatibility_flag("unique_calendar_ids"):
             self.testcal_id = "testcalendar-" + str(uuid.uuid4())
