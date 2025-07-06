@@ -4,9 +4,7 @@ This file serves as a database of different compatibility issues we've
 encountered while working on the caldav library, and descriptions on
 how the well-known servers behave.
 """
-
 ## NEW STYLE
-
 ## (we're gradually moving stuff from the good old
 ## "incompatibility_description" below over to
 ## "compatibility_features")
@@ -51,8 +49,8 @@ class FeatureSet:
                 "save_load": {
                     "description": "Calendar server should accept ojects with RRULE given, as well as objects with recurrence sets, and should be able to deliver back the same data",
                     "features": {
+                        "event": {"description": "works with events"},
                         "todo": {"description": "works with tasks"},
-                        "todo": {"description": "works with events"},
                     }
                 },
                 "search_includes_implicit_recurrences": {
@@ -61,7 +59,9 @@ class FeatureSet:
                     "features": {
                         "infinite-scope": {
                             "description": "Needless to say, search on any future date range, no matter how far out in the future, should yield the recurring object"
-                        }
+                        },
+                        "event": {"description": "works with events"},
+                        "todo": {"description": "works with tasks"},
                     }
                 },
                 "expanded_search": {
@@ -146,21 +146,32 @@ class FeatureSet:
         TODO: write a better docstring
         """
         feature_info = self.find_feature(feature)
-        support = self._server_features.get(feature, {'support': 'full'})
+        node = self._server_features
+        feature_path = feature.split('.')
+        support = None
+        for x in feature_path:
+            if x in node:
+                support = node[x]
+                node = support.get('features', {})
+            else:
+                if support is None:
+                    ## default is that the server supports everything
+                    ## TODO: consider feature_info['type'], be smarter about this
+                    support = {'support': 'full'}
+                break
         if return_type == str:
             ## TODO: consider type, be smarter about it
             return support.get('support', support.get('enable', support.get('behaviour')))
         elif return_type == dict:
             return support
         elif return_type == bool:
-            ## TODO: consider type, be smarter about it
+            ## TODO: consider feature_info['type'], be smarter about this
             return support.get('support', 'full') == 'full' and not support.get('enable') and not support.get('behaviour')
-
 
     def find_feature(self, feature: str) -> dict:
         """
         Feature should be a string like feature.subfeature.subsubfeature.
-        
+
         Looks through the FEATURES list and returns the relevant section.
 
         Will raise an AssertionError if feature is not found

@@ -41,7 +41,9 @@ from .conf import test_xandikos
 from .conf import xandikos_host
 from .conf import xandikos_port
 from caldav.compatibility_hints import FeatureSet
-from caldav.compatibility_hints import incompatibility_description ## TEMP - should be removed in the future
+from caldav.compatibility_hints import (
+    incompatibility_description,
+)  ## TEMP - should be removed in the future
 from caldav.davclient import DAVClient
 from caldav.davclient import DAVResponse
 from caldav.davclient import get_davclient
@@ -660,6 +662,7 @@ class RepeatedFunctionalTestsBaseClass:
     """
 
     _default_calendar = None
+
     ## TODO: move to davclient or compatibility_hints
     def check_support(self, feature, return_type=bool):
         """
@@ -680,8 +683,8 @@ class RepeatedFunctionalTestsBaseClass:
             pytest.skip("Test skipped due to server incompatibility issue: " + msg)
 
     def skip_unless_support(self, feature):
-        if self.check_support(feature):
-            msg = self.features.find_feature(feature).get('description', feature)
+        if not self.check_support(feature):
+            msg = self.features.find_feature(feature).get("description", feature)
             pytest.skip("Test skipped due to server incompatibility issue: " + msg)
 
     def setup_method(self):
@@ -692,7 +695,7 @@ class RepeatedFunctionalTestsBaseClass:
         features = self.server_params.get("features", {})
 
         ## Temp thing
-        self.old_features = features.get('old_flags', [])
+        self.old_features = features.get("old_flags", [])
 
         self.features = FeatureSet(self.server_params.get("features", {}))
 
@@ -711,13 +714,13 @@ class RepeatedFunctionalTestsBaseClass:
         self.caldav.__enter__()
 
         foo = self.check_support("rate-limit", dict)
-        if foo.get('enable'):
-            rate_delay = foo['interval']/foo['count']
+        if foo.get("enable"):
+            rate_delay = foo["interval"] / foo["count"]
             self.caldav.request = _delay_decorator(self.caldav.request, t=rate_delay)
         foo = self.check_support("search-cache", dict)
-        if foo.get('behaviour') == 'delay':
+        if foo.get("behaviour") == "delay":
             Calendar._search = Calendar.search
-            Calendar.search = _delay_decorator(Calendar.search, t=foo['delay'])
+            Calendar.search = _delay_decorator(Calendar.search, t=foo["delay"])
 
         if False and self.check_compatibility_flag("no-current-user-principal"):
             self.principal = Principal(
@@ -737,7 +740,10 @@ class RepeatedFunctionalTestsBaseClass:
         logging.debug("##############################")
 
     def teardown_method(self):
-        if self.check_support("search-cache", dict).get('behaviour', 'no-cache') != 'no-cache':
+        if (
+            self.check_support("search-cache", dict).get("behaviour", "no-cache")
+            != "no-cache"
+        ):
             Calendar.search = Calendar._search
         logging.debug("############################")
         logging.debug("############## test teardown_method")
@@ -781,9 +787,9 @@ class RepeatedFunctionalTestsBaseClass:
     def _teardownCalendar(self, name=None, cal_id=None):
         try:
             cal = self.principal.calendar(name=name, cal_id=cal_id)
-            if self.check_compatibility_flag(
-                "sticky_events"
-            ) or not self.check_support("delete-calendar"):
+            if self.check_compatibility_flag("sticky_events") or not self.check_support(
+                "delete-calendar"
+            ):
                 for goo in cal.objects():
                     try:
                         goo.delete()
@@ -2420,7 +2426,9 @@ END:VCALENDAR
         # Hence a compliant server should chuck out all the todos except t5.
         # Not all servers perform according to (my interpretation of) the RFC.
         foo = 5
-        if not self.check_support('recurrences.todo'):
+        if not self.check_support(
+            "recurrences.search_includes_implicit_recurrences.todo"
+        ):
             foo -= 1  ## t6 will not be returned
         if self.check_compatibility_flag(
             "vtodo_datesearch_nodtstart_task_is_skipped"
@@ -2434,21 +2442,16 @@ END:VCALENDAR
         assert len(todos2) == foo
 
         ## verify that "expand" works
-        if self.check_support('recurrences.todo'):
+        if self.check_support("recurrences.search_includes_implicit_recurrences.todo"):
             ## todo1 and todo2 should be the same (todo1 using legacy method)
             ## todo1 and todo2 tries doing server side expand, with fallback
             ## to client side expand
-            assert (
-                len([x for x in todos1 if "DTSTART:20020415T1330" in x.data]) == 1
-            )
-            assert (
-                len([x for x in todos2 if "DTSTART:20020415T1330" in x.data]) == 1
-            )
+            assert len([x for x in todos1 if "DTSTART:20020415T1330" in x.data]) == 1
+            assert len([x for x in todos2 if "DTSTART:20020415T1330" in x.data]) == 1
             if self.check_support("recurrences.expanded_search"):
-                    assert (
-                        len([x for x in todos4 if "DTSTART:20020415T1330" in x.data])
-                        == 1
-                    )
+                assert (
+                    len([x for x in todos4 if "DTSTART:20020415T1330" in x.data]) == 1
+                )
             ## todo3 is client side expand, should always work
             assert len([x for x in todos3 if "DTSTART:20020415T1330" in x.data]) == 1
             ## todo4 is server side expand, may work dependent on server
@@ -2471,9 +2474,9 @@ END:VCALENDAR
         ## * t4 should probably be returned, as it has no dtstart nor due and
         ##  hence is also considered to span over infinite time
         urls_found = [x.url for x in todos1]
-        urls_found2 = [x.url for x in todos1]
+        urls_found2 = [x.url for x in todos2]
         assert urls_found == urls_found2
-        if self.check_support('recurrences.todo'):
+        if self.check_support("recurrences.search_includes_implicit_recurrences"):
             urls_found.remove(t6.url)
         if not self.check_compatibility_flag(
             "vtodo_datesearch_nodtstart_task_is_skipped"
@@ -2699,7 +2702,9 @@ END:VCALENDAR
         try:
             cc.delete()
         except error.DeleteError:
-            if not self.check_support("delete-calendar") or self.check_compatibility_flag("unique_calendar_ids"):
+            if not self.check_support(
+                "delete-calendar"
+            ) or self.check_compatibility_flag("unique_calendar_ids"):
                 raise
 
         c.set_properties(
@@ -3101,8 +3106,10 @@ END:VCALENDAR
         assert "RRULE" not in r[1].data
 
         asserts_on_results = [r]
-        if self.check_support("recurrences.expanded_search.recurrence_exception_handling"):
-                asserts_on_results.append(rs)
+        if self.check_support(
+            "recurrences.expanded_search.recurrence_exception_handling"
+        ):
+            asserts_on_results.append(rs)
 
         for r in asserts_on_results:
             assert isinstance(
