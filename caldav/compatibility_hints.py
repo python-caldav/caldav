@@ -22,6 +22,12 @@ class FeatureSet:
       support -> "supported" (default), "unsupported", "fragile", "broken", "ungraceful"
     """
     FEATURES = {
+        "get-current-user-principal": {
+            "description": "Support for RFC5397, current principal extension.  Most CalDAV servers have this, but it is an extension to the standard",
+            "features": {
+                "with-calendars": "Principal has one or more calendars.  Some servers and providers comes with a pre-defined calendar for each user, for other servers a calendar has to be explicitly created (supported means there exists a calendar - it may be because the calendar was already provisioned together with the principal, or it may be because a calendar was created manually, the checks can't see the difference)"
+            }
+        },
         "rate-limit": {
             "type": "client-feature",
             "description": "client (or test code) must not send requests too fast",
@@ -40,20 +46,28 @@ class FeatureSet:
             "type": "tests-behaviour",
             "description": "Deleting a calendar does not delete the objects, or perhaps create/delete of calendars does not work at all.  For each test run, every calendar resource object should be deleted for every test run",
         },
+        "create-calendar": {
+            "description": "RFC4791 says that \"support for MKCALENDAR on the server is only RECOMMENDED and not REQUIRED because some calendar stores only support one calendar per user (or principal), and those are typically pre-created for each account\".  Hence a conformant server may opt to not support creating calendars, this is often seen for cloud services (some services allows extra calendars to be made, but not through the CalDAV protocol).  (RFC4791 also says that the server MAY support MKCOL in section 8.5.2.  I do read it as MKCOL may be used for creating calendars - which is weird, since section 8.5.2 is titled \"external attachments\".  We should consider testing this as well)",
+            "features": {
+                "auto": {
+                    "description": "Accessing a calendar which does not exist automatically creates it",
+                }
+            }
+        },
         "delete-calendar": {
             "description": "RFC4791 says nothing about deletion of calendars, so the server implementation is free to choose weather this should be supported or not.  Section 3.2.3.2 in RFC 6638 says that if a calendar is deleted, all the calendarobjectresources on the calendar should also be deleted - but it's a bit unclear if this only applies to scheduling objects or not.  Some calendar servers moves the object to a trashcan rather than deleting it"
         },
         "recurrences": {
             "description": "Support for recurring events and tasks",
             "features": {
-                "save_load": {
+                "save-load": {
                     "description": "Calendar server should accept ojects with RRULE given, as well as objects with recurrence sets, and should be able to deliver back the same data",
                     "features": {
                         "event": {"description": "works with events"},
                         "todo": {"description": "works with tasks"},
                     }
                 },
-                "search_includes_implicit_recurrences": {
+                "search-includes-implicit-recurrences": {
                     "description": "RFC says that the server MUST expand recurring components to determine whether any recurrence instances overlap the specified time range.  Considered supported i.e. if a search for 2005 yields a yearly event happening first time in 2004.",
                     "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-7.4"],
                     "features": {
@@ -64,11 +78,11 @@ class FeatureSet:
                         "todo": {"description": "works with tasks"},
                     }
                 },
-                "expanded_search": {
+                "expanded-search": {
                     "description": "According to RFC 4791, the server MUST expand recurrence objects if asked for it - but many server doesn't do that.  It doesn't matter much by now, as the client library can do the expandation.  Some servers don't do expand at all, others deliver broken data, typically missing RECURRENCE-ID",
                     "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-9.6.5"],
                     "features": {
-                        "recurrence_exception_handling": {
+                        "recurrence-exception-handling": {
                             "description": "Server expand should work correctly also if a recurrence set with exceptions is given"
                         },
                     },
@@ -77,7 +91,7 @@ class FeatureSet:
         },
     }
 
-    def __init__(self, feature_set_dict):
+    def __init__(self, feature_set_dict=None):
         """
         TODO: describe the feature_set better.
 
@@ -86,7 +100,7 @@ class FeatureSet:
         Shortcuts accepted in the dict, like:
 
         {
-            "recurrences.search_includes_implicit_recurrences.infinite_scope":
+            "recurrences.search-includes-implicit-recurrences.infinite-scope":
                 "unsupported" }
 
         is equivalent with
@@ -94,8 +108,8 @@ class FeatureSet:
         {
            "recurrences": {
                "features": {
-                   "search_includes_inplicit_recurrences": {
-                       "infinite_scope":
+                   "search-includes-inplicit-recurrences": {
+                       "infinite-scope":
                            "support": "unsupported" }}}}
 
         (TODO: is this sane?  Am I reinventing a configuration language?)
@@ -104,7 +118,8 @@ class FeatureSet:
         ## (anyways, that is an internal design decision that may be
         ## changed ... but we need test code in place)
         self._server_features = {}
-        self.copyFeatureSet(feature_set_dict)
+        if feature_set_dict:
+            self.copyFeatureSet(feature_set_dict)
 
     def _copyFeature(self, def_node, server_node, value):
         if isinstance(value, str) and not 'support' in server_node:
@@ -168,6 +183,7 @@ class FeatureSet:
             ## TODO: consider feature_info['type'], be smarter about this
             return support.get('support', 'full') == 'full' and not support.get('enable') and not support.get('behaviour')
 
+    ## TODO: could be a class method?
     def find_feature(self, feature: str) -> dict:
         """
         Feature should be a string like feature.subfeature.subsubfeature.
@@ -183,6 +199,22 @@ class FeatureSet:
             feature = node[x]
             node = feature.get('features', {})
         return feature
+
+    def dotted_feature_set_list(self):
+        return self._dotted_feature_set_list('', self._server_features)
+
+    def _dotted_feature_set_list(self, feature_path, feature_node):
+        ret = {}
+        if feature_path:
+            feature_path = f"{feature_path}."
+        for x in feature_node:
+            feature = feature_node[x].copy()
+            full = f"{feature_path}{x}"
+            ret[full] = feature
+            if 'features' in feature:
+                subnode = feature.pop('features')
+                ret.update(self._dotted_feature_set_list(full, subnode))
+        return ret
 
 #### OLD STYLE
 
@@ -217,8 +249,6 @@ incompatibility_description = {
 
     'no_alarmsearch':
         """Searching for alarms may yield too few or too many or even a 500 internal server error""",
-
-
 
     'no_scheduling':
         """RFC6833 is not supported""",
@@ -431,8 +461,8 @@ incompatibility_description = {
 }
 
 xandikos = {
-    "recurrences.expanded_search": {'support': 'ungraceful'},
-    "recurrences.search_includes_implicit_recurrences": {'support': 'unsupported'},
+    "recurrences.expanded-search": {'support': 'ungraceful'},
+    "recurrences.search-includes-implicit-recurrences": {'support': 'unsupported'},
     "old_flags":  [
     ## https://github.com/jelmer/xandikos/issues/8
     'date_todo_search_ignores_duration',
@@ -463,7 +493,7 @@ xandikos = {
 ## TODO - there has been quite some development in radicale recently, so this list
 ## should probably be gone through
 radicale = {
-    "recurrences.expanded_search": {'support': 'ungraceful'},
+    "recurrences.expanded-search": {'support': 'ungraceful'},
     'old_flags': [
     ## calendar listings and calendar creation works a bit
     ## "weird" on radicale
@@ -491,9 +521,6 @@ radicale = {
 ## ZIMBRA IS THE MOST SILLY, AND THERE ARE REGRESSIONS FOR EVERY RELEASE!
 ## AAARGH!
 zimbra = [
-    ## no idea why this breaks
-    "non_existing_calendar_found",
-
     ## apparently, zimbra has no journal support
     'no_journal',
 
@@ -548,7 +575,6 @@ baikal = [
     ## (TODO: do some research on this)
     'sync_breaks_on_delete',
     'no_recurring_todo',
-    'non_existing_calendar_found',
     'combined_search_not_working',
     'text_search_is_exact_match_sometimes',
 
@@ -683,9 +709,6 @@ calendar_mail_ru = [
 purelymail = [
     ## Known, work in progress
     'no_scheduling',
-
-    ## Not a breach of standard
-    'non_existing_calendar_found',
 
     ## Known, not a breach of standard
     'no_supported_components_support',

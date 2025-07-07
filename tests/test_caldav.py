@@ -62,6 +62,7 @@ from caldav.objects import Event
 from caldav.objects import FreeBusy
 from caldav.objects import Principal
 from caldav.objects import Todo
+from caldav_server_tester import ServerQuirkChecker
 
 log = logging.getLogger("caldav")
 
@@ -848,6 +849,12 @@ class RepeatedFunctionalTestsBaseClass:
 
             return ret
 
+    def testCheckCompatibility(self):
+        checker = ServerQuirkChecker(self.caldav)
+        ## TODO
+        #checker.check_all()
+        checker.check_one('CheckMakeDeleteCalendar')
+    
     def testSupport(self):
         """
         Test the check_*_support methods
@@ -1203,7 +1210,7 @@ END:VCALENDAR
         objcnt += len(c.events())
         obj = c.save_event(ev1)
         objcnt += 1
-        if self.check_support("recurrences.save_load"):
+        if self.check_support("recurrences.save-load"):
             c.save_event(evr)
             objcnt += 1
         if not self.check_compatibility_flag("no_todo"):
@@ -1332,7 +1339,7 @@ END:VCALENDAR
         objcnt += len(c.events())
         obj = c.save_event(ev1)
         objcnt += 1
-        if self.check_support("recurrences.save_load"):
+        if self.check_support("recurrences.save-load"):
             c.save_event(evr)
             objcnt += 1
         if not self.check_compatibility_flag("no_todo"):
@@ -2427,7 +2434,7 @@ END:VCALENDAR
         # Not all servers perform according to (my interpretation of) the RFC.
         foo = 5
         if not self.check_support(
-            "recurrences.search_includes_implicit_recurrences.todo"
+            "recurrences.search-includes-implicit-recurrences.todo"
         ):
             foo -= 1  ## t6 will not be returned
         if self.check_compatibility_flag(
@@ -2442,13 +2449,13 @@ END:VCALENDAR
         assert len(todos2) == foo
 
         ## verify that "expand" works
-        if self.check_support("recurrences.search_includes_implicit_recurrences.todo"):
+        if self.check_support("recurrences.search-includes-implicit-recurrences.todo"):
             ## todo1 and todo2 should be the same (todo1 using legacy method)
             ## todo1 and todo2 tries doing server side expand, with fallback
             ## to client side expand
             assert len([x for x in todos1 if "DTSTART:20020415T1330" in x.data]) == 1
             assert len([x for x in todos2 if "DTSTART:20020415T1330" in x.data]) == 1
-            if self.check_support("recurrences.expanded_search"):
+            if self.check_support("recurrences.expanded-search"):
                 assert (
                     len([x for x in todos4 if "DTSTART:20020415T1330" in x.data]) == 1
                 )
@@ -2476,7 +2483,7 @@ END:VCALENDAR
         urls_found = [x.url for x in todos1]
         urls_found2 = [x.url for x in todos2]
         assert urls_found == urls_found2
-        if self.check_support("recurrences.search_includes_implicit_recurrences"):
+        if self.check_support("recurrences.search-includes-implicit-recurrences"):
             urls_found.remove(t6.url)
         if not self.check_compatibility_flag(
             "vtodo_datesearch_nodtstart_task_is_skipped"
@@ -2983,7 +2990,7 @@ END:VCALENDAR
         event?
         """
         self.skip_on_compatibility_flag("read_only")
-        self.skip_unless_support("recurrences.search_includes_implicit_recurrences")
+        self.skip_unless_support("recurrences.search-includes-implicit-recurrences")
         self.skip_on_compatibility_flag("no_search")
         c = self._fixCalendar()
 
@@ -3034,7 +3041,7 @@ END:VCALENDAR
         ## due to expandation, the DTSTART should be in 2008
         assert r1[0].data.count("DTSTART;VALUE=DATE:2008") == 1
         assert r2[0].data.count("DTSTART;VALUE=DATE:2008") == 1
-        if self.check_support("recurrences.expanded_search"):
+        if self.check_support("recurrences.expanded-search"):
             assert r4[0].data.count("DTSTART;VALUE=DATE:2008") == 1
 
         ## With expand=True and searching over two recurrences ...
@@ -3099,7 +3106,7 @@ END:VCALENDAR
         )
 
         assert len(r) == 2
-        if self.check_support("recurrences.expanded_search"):
+        if self.check_support("recurrences.expanded-search"):
             assert len(rs) == 2
 
         assert "RRULE" not in r[0].data
@@ -3107,7 +3114,7 @@ END:VCALENDAR
 
         asserts_on_results = [r]
         if self.check_support(
-            "recurrences.expanded_search.recurrence_exception_handling"
+            "recurrences.expanded-search.recurrence-exception-handling"
         ):
             asserts_on_results.append(rs)
 
@@ -3136,7 +3143,7 @@ END:VCALENDAR
         Only the recurrence should be edited, not the rest of the
         event.
         """
-        self.skip_unless_support("recurrences.search_includes_implicit_recurrences")
+        self.skip_unless_support("recurrences.search-includes-implicit-recurrences")
         cal = self._fixCalendar()
 
         ## Create a daily recurring event
