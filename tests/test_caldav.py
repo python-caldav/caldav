@@ -851,7 +851,7 @@ class RepeatedFunctionalTestsBaseClass:
     def testCheckCompatibility(self):
         checker = ServerQuirkChecker(self.caldav)
         checker.check_all()
-        assert(checker.features_checked == self.caldav.feature_set)
+        assert(checker.features_checked == self.caldav.features)
     
     def testSupport(self):
         """
