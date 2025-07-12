@@ -25,7 +25,7 @@ class FeatureSet:
         "get-current-user-principal": {
             "description": "Support for RFC5397, current principal extension.  Most CalDAV servers have this, but it is an extension to the standard",
             "features": {
-                "with-calendars": "Principal has one or more calendars.  Some servers and providers comes with a pre-defined calendar for each user, for other servers a calendar has to be explicitly created (supported means there exists a calendar - it may be because the calendar was already provisioned together with the principal, or it may be because a calendar was created manually, the checks can't see the difference)"
+                "has-calendar": "Principal has one or more calendars.  Some servers and providers comes with a pre-defined calendar for each user, for other servers a calendar has to be explicitly created (supported means there exists a calendar - it may be because the calendar was already provisioned together with the principal, or it may be because a calendar was created manually, the checks can't see the difference)"
             }
         },
         "rate-limit": {
@@ -51,6 +51,9 @@ class FeatureSet:
             "features": {
                 "auto": {
                     "description": "Accessing a calendar which does not exist automatically creates it",
+                },
+                "set-displayname": {
+                    "description": "It's possible to set the displayname on a calendar upon creation"
                 }
             }
         },

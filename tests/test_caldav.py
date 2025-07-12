@@ -851,9 +851,7 @@ class RepeatedFunctionalTestsBaseClass:
 
     def testCheckCompatibility(self):
         checker = ServerQuirkChecker(self.caldav)
-        ## TODO
-        #checker.check_all()
-        checker.check_one('CheckMakeDeleteCalendar')
+        checker.check_all()
     
     def testSupport(self):
         """
