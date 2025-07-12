@@ -224,6 +224,10 @@ class FeatureSet:
                 ret.update(self._dotted_feature_set_list(full, subnode))
         return ret
 
+    def __eq__(self, other):
+        ## TODO: this won't work, but it's a start
+        return self.dotted_feature_set_list() == other.dotted_feature_set_list()
+
 #### OLD STYLE
 
 ## The lists below are specifying what tests should be skipped or

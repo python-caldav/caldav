@@ -846,12 +846,12 @@ class RepeatedFunctionalTestsBaseClass:
                 ret.objects = lambda load_objects: ret.events()
             if self.cleanup_regime == "post":
                 self.calendars_used.append(ret)
-
             return ret
 
     def testCheckCompatibility(self):
         checker = ServerQuirkChecker(self.caldav)
         checker.check_all()
+        assert(checker.features_checked == self.caldav.feature_set)
     
     def testSupport(self):
         """

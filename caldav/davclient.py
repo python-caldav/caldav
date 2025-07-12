@@ -26,6 +26,7 @@ from caldav import __version__
 from caldav.collection import Calendar
 from caldav.collection import CalendarSet
 from caldav.collection import Principal
+from caldav.compatibility_hints import FeatureSet
 from caldav.elements import cdav
 from caldav.elements import dav
 from caldav.lib import error
@@ -458,6 +459,7 @@ class DAVClient:
         ssl_cert: Union[str, Tuple[str, str], None] = None,
         headers: Mapping[str, str] = None,
         huge_tree: bool = False,
+        features: FeatureSet = None
     ) -> None:
         """
         Sets up a HTTPConnection object towards the server in the url.
@@ -491,6 +493,7 @@ class DAVClient:
         log.debug("url: " + str(url))
         self.url = URL.objectify(url)
         self.huge_tree = huge_tree
+        self.features = features
         # Prepare proxy info
         if proxy is not None:
             _proxy = proxy
