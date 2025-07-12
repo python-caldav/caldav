@@ -58,7 +58,12 @@ class FeatureSet:
             }
         },
         "delete-calendar": {
-            "description": "RFC4791 says nothing about deletion of calendars, so the server implementation is free to choose weather this should be supported or not.  Section 3.2.3.2 in RFC 6638 says that if a calendar is deleted, all the calendarobjectresources on the calendar should also be deleted - but it's a bit unclear if this only applies to scheduling objects or not.  Some calendar servers moves the object to a trashcan rather than deleting it"
+            "description": "RFC4791 says nothing about deletion of calendars, so the server implementation is free to choose weather this should be supported or not.  Section 3.2.3.2 in RFC 6638 says that if a calendar is deleted, all the calendarobjectresources on the calendar should also be deleted - but it's a bit unclear if this only applies to scheduling objects or not.  Some calendar servers moves the object to a trashcan rather than deleting it",
+            "features": {
+                "free-namespace": {
+                    "description": "The delete operations clears the namespace, so that another calendar with the same ID/name can be created"
+                }
+            }
         },
         "recurrences": {
             "description": "Support for recurring events and tasks",
