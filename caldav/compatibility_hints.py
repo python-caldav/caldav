@@ -4,6 +4,9 @@ This file serves as a database of different compatibility issues we've
 encountered while working on the caldav library, and descriptions on
 how the well-known servers behave.
 """
+
+import copy
+
 ## NEW STYLE
 ## (we're gradually moving stuff from the good old
 ## "incompatibility_description" below over to
@@ -18,14 +21,20 @@ class FeatureSet:
     An object of this class describes the feature set of a server.
 
     TODO: use enums?
-      type -> "client-feature", "server-peculiarity", "server-feature" (last is default)
+      type -> "client-feature", "server-peculiarity", "tests-behaviour", "server-observation", "server-feature" (last is default)
       support -> "supported" (default), "unsupported", "fragile", "broken", "ungraceful"
+
+    types:
+     * client-feature means the client is supposed to do special things (like, rate-limiting).  While the need for rate-limiting may be set by the server, it may not be possible to reliably establish it by probling the server, and the value may differ for different clients.
+    * server-peculiarity - weird behaviour detected at the server side, behaviour that is too odd to be described as "missing support for a feature".  Example: there is some cache working, causing a delay from some object is sent to the server and until it can be retrieved.  The difference between an "unsupported server-feature" and a "server-peculiarity" may be a bit floating - like, arguably "instant updates" may be considered a feature.
     """
     FEATURES = {
         "get-current-user-principal": {
             "description": "Support for RFC5397, current principal extension.  Most CalDAV servers have this, but it is an extension to the standard",
             "features": {
-                "has-calendar": "Principal has one or more calendars.  Some servers and providers comes with a pre-defined calendar for each user, for other servers a calendar has to be explicitly created (supported means there exists a calendar - it may be because the calendar was already provisioned together with the principal, or it may be because a calendar was created manually, the checks can't see the difference)"
+                "has-calendar": {
+                    "type": "server-observation",
+                    "description": "Principal has one or more calendars.  Some servers and providers comes with a pre-defined calendar for each user, for other servers a calendar has to be explicitly created (supported means there exists a calendar - it may be because the calendar was already provisioned together with the principal, or it may be because a calendar was created manually, the checks can't see the difference)"}
             }
         },
         "rate-limit": {
@@ -50,6 +59,7 @@ class FeatureSet:
             "description": "RFC4791 says that \"support for MKCALENDAR on the server is only RECOMMENDED and not REQUIRED because some calendar stores only support one calendar per user (or principal), and those are typically pre-created for each account\".  Hence a conformant server may opt to not support creating calendars, this is often seen for cloud services (some services allows extra calendars to be made, but not through the CalDAV protocol).  (RFC4791 also says that the server MAY support MKCOL in section 8.5.2.  I do read it as MKCOL may be used for creating calendars - which is weird, since section 8.5.2 is titled \"external attachments\".  We should consider testing this as well)",
             "features": {
                 "auto": {
+                    "default": { "support": "unsupported" },
                     "description": "Accessing a calendar which does not exist automatically creates it",
                 },
                 "set-displayname": {
@@ -122,6 +132,9 @@ class FeatureSet:
 
         (TODO: is this sane?  Am I reinventing a configuration language?)
         """
+        if isinstance(feature_set_dict, FeatureSet):
+            self._server_features = copy.deepcopy(feature_set_dict._server_features)
+        
         ## TODO: copy the FEATURES dict, or just the feature_set dict?
         ## (anyways, that is an internal design decision that may be
         ## changed ... but we need test code in place)
@@ -162,6 +175,24 @@ class FeatureSet:
                     def_tree = def_node['features']
             self._copyFeature(def_node, server_node, feature_set[feature])
 
+    def _default(self, feature_info):
+        if isinstance(feature_info, str):
+            feature_info = self.find_feature(feature_info)
+        if 'default' in feature_info:
+            return feature_info['default']
+        feature_type = feature_info.get('type', 'server-feature')
+        ## TODO: move the default values up to some constant dict probably, like self.DEFAULTS = { "server-feature": {...}}
+        if feature_type == 'server-feature':
+            return { "support": "full" }
+        elif feature_type == 'client-feature':
+            return { "enable": False }
+        elif feature_type == 'server-peculiarity':
+            return { "behaviour": "normal" }
+        elif feature_type == 'server-observation':
+            return { "observed": True }
+        else:
+            breakpoint()
+
     def check_support(self, feature, return_type=bool):
         """
         Work in progress
@@ -178,9 +209,7 @@ class FeatureSet:
                 node = support.get('features', {})
             else:
                 if support is None:
-                    ## default is that the server supports everything
-                    ## TODO: consider feature_info['type'], be smarter about this
-                    support = {'support': 'full'}
+                    support = self._default(feature_info)
                 break
         if return_type == str:
             ## TODO: consider type, be smarter about it
@@ -189,7 +218,7 @@ class FeatureSet:
             return support
         elif return_type == bool:
             ## TODO: consider feature_info['type'], be smarter about this
-            return support.get('support', 'full') == 'full' and not support.get('enable') and not support.get('behaviour')
+            return support.get('support', 'full') == 'full' and not support.get('enable') and not support.get('behaviour') and not support.get('observed')
 
     ## TODO: could be a class method?
     def find_feature(self, feature: str) -> dict:
@@ -208,25 +237,27 @@ class FeatureSet:
             node = feature.get('features', {})
         return feature
 
-    def dotted_feature_set_list(self):
-        return self._dotted_feature_set_list('', self._server_features)
+    def dotted_feature_set_list(self, compact=False):
+        return self._dotted_feature_set_list('', self._server_features, compact=compact)
 
-    def _dotted_feature_set_list(self, feature_path, feature_node):
+    def _dotted_feature_set_list(self, feature_path, feature_node, compact):
         ret = {}
         if feature_path:
             feature_path = f"{feature_path}."
         for x in feature_node:
             feature = feature_node[x].copy()
             full = f"{feature_path}{x}"
-            ret[full] = feature
+            feature_info = self.find_feature(full)
+            if compact and feature_info.get('type', 'server-feature') in ('client-feature', 'server-observation'):
+                continue
             if 'features' in feature:
                 subnode = feature.pop('features')
-                ret.update(self._dotted_feature_set_list(full, subnode))
+                ret.update(self._dotted_feature_set_list(full, subnode, compact))
+            if compact and feature == self._default(feature_info):
+                continue
+            if feature:
+                ret[full] = feature
         return ret
-
-    def __eq__(self, other):
-        ## TODO: this won't work, but it's a start
-        return self.dotted_feature_set_list() == other.dotted_feature_set_list()
 
 #### OLD STYLE
 

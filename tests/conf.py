@@ -13,6 +13,7 @@ import niquests
 from caldav import compatibility_hints
 from caldav.davclient import CONNKEYS
 from caldav.davclient import DAVClient
+from caldav.compatibility_hints import FeatureSet
 
 ####################################
 # Import personal test server config
@@ -275,7 +276,7 @@ def client(
     conn = DAVClient(**kwargs_)
     conn.setup = setup
     conn.teardown = teardown
-    conn.features = kwargs.get("features") or kwargs.get("incompatibilities")
+    conn.features = FeatureSet(kwargs.get("features"))
     conn.server_name = name
     return conn
 

@@ -459,7 +459,7 @@ class DAVClient:
         ssl_cert: Union[str, Tuple[str, str], None] = None,
         headers: Mapping[str, str] = None,
         huge_tree: bool = False,
-        features: FeatureSet = None
+        features: Union[FeatureSet, dict] = None
     ) -> None:
         """
         Sets up a HTTPConnection object towards the server in the url.
@@ -493,7 +493,7 @@ class DAVClient:
         log.debug("url: " + str(url))
         self.url = URL.objectify(url)
         self.huge_tree = huge_tree
-        self.features = features
+        self.features = FeatureSet(features)
         # Prepare proxy info
         if proxy is not None:
             _proxy = proxy

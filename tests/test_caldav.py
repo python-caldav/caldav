@@ -742,8 +742,8 @@ class RepeatedFunctionalTestsBaseClass:
 
     def teardown_method(self):
         if (
-            self.check_support("search-cache", dict).get("behaviour", "no-cache")
-            != "no-cache"
+            self.check_support("search-cache", dict).get("behaviour", "normal")
+            != "normal"
         ):
             Calendar.search = Calendar._search
         logging.debug("############################")
@@ -851,6 +851,10 @@ class RepeatedFunctionalTestsBaseClass:
     def testCheckCompatibility(self):
         checker = ServerQuirkChecker(self.caldav)
         checker.check_all()
+        observed = checker.features_checked.dotted_feature_set_list(compact=True)
+        expected = self.caldav.features.dotted_feature_set_list(compact=True)
+        assert(observed == expected)
+            
         assert(checker.features_checked == self.caldav.features)
     
     def testSupport(self):
