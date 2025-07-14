@@ -2360,7 +2360,7 @@ END:VCALENDAR
         self.skip_on_compatibility_flag("read_only")
         # bedeworks does not support VTODO
         self.skip_on_compatibility_flag("no_todo")
-        self.skip_on_compatibility_flag("no_todo_datesearch")
+        self.skip_unless_support("search.time-range.todo")
         self.skip_on_compatibility_flag("no_search")
         c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
 
@@ -3114,7 +3114,7 @@ END:VCALENDAR
 
         asserts_on_results = [r]
         if self.check_support(
-            "recurrences.expanded-search.recurrence-exception-handling"
+            "recurrences.expanded-search.exception"
         ):
             asserts_on_results.append(rs)
 

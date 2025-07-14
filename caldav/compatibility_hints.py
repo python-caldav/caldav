@@ -75,6 +75,18 @@ class FeatureSet:
                 }
             }
         },
+        "save-load": {
+            "description": "it's possible to save and load objects to the calendar",
+            "features": {
+                "event": {"description": "it's possible to save and load events to the calendar"},
+                "todo": {
+                    "description": "it's possible to save and load objects to the calendar",
+                    "features": {
+                        "mixed-calendar": {"description": "The same calendar may contain both events and tasks"},
+                    }
+                },
+            }
+        },
         "search": {
             "description": "calendar MUST support searching for objects using the REPORT method, as specified in RFC4791, section 7",
             "features": {
@@ -90,6 +102,8 @@ class FeatureSet:
                 }
             }
         },
+        ## TODO: perhaps recurrences should not be a root node?  Perhaps it
+        ## should be a sub-node under search and save-load?
         "recurrences": {
             "description": "Support for recurring events and tasks",
             "features": {
@@ -535,8 +549,6 @@ incompatibility_description = {
 }
 
 xandikos = {
-    "recurrences.expanded-search": {'support': 'unsupported'},
-    "recurrences.search-includes-implicit-recurrences": {'support': 'unsupported'},
     "old_flags":  [
     ## https://github.com/jelmer/xandikos/issues/8
     'date_todo_search_ignores_duration',

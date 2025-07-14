@@ -1093,8 +1093,8 @@ def get_davclient(
             idx = os.environ.get("PYTHON_CALDAV_TEST_SERVER_IDX")
             try:
                 idx = int(idx)
-            except ValueError:
-                pass
+            except (ValueError, TypeError):
+                idx = None
             name = name or os.environ.get("PYTHON_CALDAV_TEST_SERVER_NAME")
             if name and not idx:
                 try:
