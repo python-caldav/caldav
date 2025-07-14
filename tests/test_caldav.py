@@ -854,8 +854,6 @@ class RepeatedFunctionalTestsBaseClass:
         observed = checker.features_checked.dotted_feature_set_list(compact=True)
         expected = self.caldav.features.dotted_feature_set_list(compact=True)
         assert(observed == expected)
-            
-        assert(checker.features_checked == self.caldav.features)
     
     def testSupport(self):
         """

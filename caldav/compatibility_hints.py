@@ -75,6 +75,21 @@ class FeatureSet:
                 }
             }
         },
+        "search": {
+            "description": "calendar MUST support searching for objects using the REPORT method, as specified in RFC4791, section 7",
+            "features": {
+                ## TODO - there is still quite a lot of search-related
+                ## stuff that hasn't been moved from the old "quirk list"
+                "time-range": {
+                    "description": "Search for time or date ranges should work.  This is specified in RFC4791, section 7.4 and section 9.9",
+                    "features": {
+                        "todo": {"description": "basic time range searches for tasks works"},
+                        "event": {"description": "basic time range searches for events works"},
+                        "journal": {"description": "basic time range searches for journals works"},
+                    }
+                }
+            }
+        },
         "recurrences": {
             "description": "Support for recurring events and tasks",
             "features": {
@@ -86,7 +101,7 @@ class FeatureSet:
                     }
                 },
                 "search-includes-implicit-recurrences": {
-                    "description": "RFC says that the server MUST expand recurring components to determine whether any recurrence instances overlap the specified time range.  Considered supported i.e. if a search for 2005 yields a yearly event happening first time in 2004.",
+                    "description": "RFC 4791, section 7.4 says that the server MUST expand recurring components to determine whether any recurrence instances overlap the specified time range.  Considered supported i.e. if a search for 2005 yields a yearly event happening first time in 2004.",
                     "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-7.4"],
                     "features": {
                         "infinite-scope": {
@@ -100,9 +115,10 @@ class FeatureSet:
                     "description": "According to RFC 4791, the server MUST expand recurrence objects if asked for it - but many server doesn't do that.  It doesn't matter much by now, as the client library can do the expandation.  Some servers don't do expand at all, others deliver broken data, typically missing RECURRENCE-ID",
                     "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-9.6.5"],
                     "features": {
-                        "recurrence-exception-handling": {
-                            "description": "Server expand should work correctly also if a recurrence set with exceptions is given"
-                        },
+                        "exception": {
+                            "description": "Server expand should work correctly also if a recurrence set with exceptions is given" },
+                        "event": {"description": "works with events"},
+                        "todo": {"description": "works with tasks"},
                     },
                 },
             },
@@ -238,12 +254,21 @@ class FeatureSet:
         return feature
 
     def dotted_feature_set_list(self, compact=False):
-        return self._dotted_feature_set_list('', self._server_features, compact=compact)
+        return self._dotted_feature_set_list('', self._server_features, compact=compact, feature_info=None)
 
-    def _dotted_feature_set_list(self, feature_path, feature_node, compact):
+    def _dotted_feature_set_list(self, feature_path, feature_node, compact, feature_info):
         ret = {}
+        if feature_info:
+            num_expected_subfeatures = len(feature_info.get('features', {}))
+        else:
+            num_expected_subfeatures = 0
+        orig_feature_path = feature_path
         if feature_path:
             feature_path = f"{feature_path}."
+        sub_features = {}
+        all_sub_features_equal = True
+        last_sub_feature = None
+        cnt = 0
         for x in feature_node:
             feature = feature_node[x].copy()
             full = f"{feature_path}{x}"
@@ -252,11 +277,20 @@ class FeatureSet:
                 continue
             if 'features' in feature:
                 subnode = feature.pop('features')
-                ret.update(self._dotted_feature_set_list(full, subnode, compact))
+                ret.update(self._dotted_feature_set_list(full, subnode, compact, feature_info))
             if compact and feature == self._default(feature_info):
+                all_sub_features_equal = False
                 continue
             if feature:
-                ret[full] = feature
+                sub_features[full] = feature
+                if last_sub_feature and last_sub_feature != feature:
+                    all_sub_features_equal = False
+                last_sub_feature = feature
+                cnt += 1
+        if compact and all_sub_features_equal and last_sub_feature and cnt>1 and len(feature_node.keys()) == num_expected_subfeatures:
+            ret[orig_feature_path] = last_sub_feature
+        else:
+            ret.update(sub_features)
         return ret
 
 #### OLD STYLE
@@ -378,9 +412,6 @@ incompatibility_description = {
 
     'no_todo_on_standard_calendar':
         """Tasklists can be created, but a normal calendar does not support tasks""",
-
-    'no_todo_datesearch':
-        """Date search on todo items fails""",
 
     'vtodo_datesearch_nodtstart_task_is_skipped':
         """date searches for todo-items will not find tasks without a dtstart""",
@@ -504,7 +535,7 @@ incompatibility_description = {
 }
 
 xandikos = {
-    "recurrences.expanded-search": {'support': 'ungraceful'},
+    "recurrences.expanded-search": {'support': 'unsupported'},
     "recurrences.search-includes-implicit-recurrences": {'support': 'unsupported'},
     "old_flags":  [
     ## https://github.com/jelmer/xandikos/issues/8
@@ -536,7 +567,7 @@ xandikos = {
 ## TODO - there has been quite some development in radicale recently, so this list
 ## should probably be gone through
 radicale = {
-    "recurrences.expanded-search": {'support': 'ungraceful'},
+    "search.time-range.todo": {"support": "unsupported"},
     'old_flags': [
     ## calendar listings and calendar creation works a bit
     ## "weird" on radicale
@@ -549,7 +580,6 @@ radicale = {
     "no-principal-search-self", ## this may be because we haven't set up any users or authentication - so the display name of the current user principal is None
 
     'no_scheduling',
-    "no_todo_datesearch",
 
     'text_search_is_case_insensitive',
     #'text_search_is_exact_match_sometimes',
