@@ -552,7 +552,6 @@ xandikos = {
     "old_flags":  [
     ## https://github.com/jelmer/xandikos/issues/8
     'date_todo_search_ignores_duration',
-    'text_search_is_exact_match_only',
     "search_needs_comptype",
     'vtodo_datesearch_nostart_future_tasks_delivered',
 
