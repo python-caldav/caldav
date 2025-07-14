@@ -568,6 +568,7 @@ xandikos = {
 ## should probably be gone through
 radicale = {
     "search.time-range.todo": {"support": "unsupported"},
+    "recurrences.expanded-search": {"support": "unsupported"}, ## This was apparently broken in commit 9d591bd5144c97ae3803512b6c22cd5ce1dfd0f9 and 371d5057de6a1f729d198ab738dd6e19c9e55099 - issue has been raised in https://github.com/Kozea/Radicale/issues/1812#issuecomment-3067913171
     'old_flags': [
     ## calendar listings and calendar creation works a bit
     ## "weird" on radicale
