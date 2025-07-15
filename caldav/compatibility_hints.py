@@ -90,6 +90,9 @@ class FeatureSet:
         "search": {
             "description": "calendar MUST support searching for objects using the REPORT method, as specified in RFC4791, section 7",
             "features": {
+                "comp-type-optional": {
+                    "description": "In all the search examples in the RFC, comptype is given during a search, the client specifies if it's event or tasks or journals that is wanted.  However, as I read the RFC this is not required.  If omitted, the server should deliver all objects.  Many servers will not return anything if the COMPTYPE filter is not set.  Other servers will return 404"
+                },
                 ## TODO - there is still quite a lot of search-related
                 ## stuff that hasn't been moved from the old "quirk list"
                 "time-range": {
@@ -126,7 +129,7 @@ class FeatureSet:
                     }
                 },
                 "expanded-search": {
-                    "description": "According to RFC 4791, the server MUST expand recurrence objects if asked for it - but many server doesn't do that.  It doesn't matter much by now, as the client library can do the expandation.  Some servers don't do expand at all, others deliver broken data, typically missing RECURRENCE-ID",
+                    "description": "According to RFC 4791, the server MUST expand recurrence objects if asked for it - but many server doesn't do that.  Some servers don't do expand at all, others deliver broken data, typically missing RECURRENCE-ID.  The python caldav client library (from 2.0) does the expand-operation client-side no matter if it's supported or not",
                     "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-9.6.5"],
                     "features": {
                         "exception": {
@@ -549,6 +552,7 @@ incompatibility_description = {
 }
 
 xandikos = {
+    "search.comp-type-optional": { "supported": "unsupported" },
     "old_flags":  [
     ## https://github.com/jelmer/xandikos/issues/8
     'date_todo_search_ignores_duration',
@@ -579,11 +583,11 @@ xandikos = {
 ## should probably be gone through
 radicale = {
     "search.time-range.todo": {"support": "unsupported"},
+    "search.comp-type-optional": {"support": "unsupported"},
     "recurrences.expanded-search": {"support": "unsupported"}, ## This was apparently broken in commit 9d591bd5144c97ae3803512b6c22cd5ce1dfd0f9 and 371d5057de6a1f729d198ab738dd6e19c9e55099 - issue has been raised in https://github.com/Kozea/Radicale/issues/1812#issuecomment-3067913171
     'old_flags': [
     ## calendar listings and calendar creation works a bit
     ## "weird" on radicale
-    "no_default_calendar",
     "no_alarmsearch", ## This is fixed and will be released soon
 
     ## freebusy is not supported yet, but on the long-term road map
