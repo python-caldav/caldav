@@ -730,13 +730,12 @@ class Calendar(DAVObject):
             pdata = results[r]
             if cdav.CalendarData.tag in pdata:
                 cdata = pdata.pop(cdav.CalendarData.tag)
-                if comp_class is None:
-                    comp_class = self._calendar_comp_class_by_data(cdata)
+                comp_class_ = self._calendar_comp_class_by_data(cdata) if comp_class is None else comp_class
             else:
                 cdata = None
-            if comp_class is None:
+            if comp_class_ is None:
                 ## no CalendarData fetched - which is normal i.e. when doing a sync-token report and only asking for the URLs
-                comp_class = CalendarObjectResource
+                comp_class_ = CalendarObjectResource
             url = URL(r)
             if url.hostname is None:
                 # Quote when result is not a full URL
@@ -745,7 +744,7 @@ class Calendar(DAVObject):
             if self.url.join(url) == self.url:
                 continue
             matches.append(
-                comp_class(
+                comp_class_(
                     self.client,
                     url=self.url.join(url),
                     data=cdata,

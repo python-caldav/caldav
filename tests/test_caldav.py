@@ -2490,7 +2490,7 @@ END:VCALENDAR
         cal.save_event(ev1)
         objects = cal.search()
         assert len(objects) == 2
-        assert set([str(type(x)) for x in objects]) == {"Todo", "Event"}
+        assert set([type(x).__name__ for x in objects]) == {"Todo", "Event"}
 
     def testTodoCompletion(self):
         """
