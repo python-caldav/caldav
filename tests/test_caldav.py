@@ -2477,6 +2477,21 @@ END:VCALENDAR
         # TODO: prod the caldav server implementers about the RFC
         # breakages.
 
+    def testSearchWithoutCompType(self):
+        """
+        Test for https://github.com/python-caldav/caldav/issues/539
+        """
+        self.skip_on_compatibility_flag("search_needs_comptype")
+        self.skip_on_compatibility_flag("search_always_needs_comptype")
+        self.skip_on_compatibility_flag("no_todo")
+        self.skip_on_compatibility_flag("no_events_and_tasks_on_same_calendar")
+        cal = self._fixCalendar()
+        cal.save_todo(todo)
+        cal.save_event(ev1)
+        objects = cal.search()
+        assert len(objects) == 2
+        assert set([type(x).__name__ for x in objects]) == {"Todo", "Event"}
+
     def testTodoCompletion(self):
         """
         Will check that todo-items can be completed and deleted
