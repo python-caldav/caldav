@@ -842,7 +842,7 @@ class RepeatedFunctionalTestsBaseClass:
                 ## "calendar already exists" can be ignored (at least
                 ## if no_delete_calendar flag is set)
                 ret = self.principal.calendar(cal_id=kwargs["cal_id"])
-            if self.check_compatibility_flag("search_always_needs_comptype"):
+            if self.check_support("search.comptype-optional", return_type=str) == "ungraceful":
                 ret.objects = lambda load_objects: ret.events()
             if self.cleanup_regime == "post":
                 self.calendars_used.append(ret)
@@ -1553,7 +1553,7 @@ END:VCALENDAR
 
         ## Search without any parameters should yield everything on calendar
         all_events = c.search()
-        if self.check_compatibility_flag("search_needs_comptype"):
+        if not self.check_support("search.comptype-optional"):
             assert len(all_events) <= 3 + num_existing
         else:
             assert len(all_events) == 3 + num_existing
@@ -1823,7 +1823,7 @@ END:VCALENDAR
 
         ## Search without any parameters should yield everything on calendar
         all_todos = c.search()
-        if self.check_compatibility_flag("search_needs_comptype"):
+        if not self.check_support("search.comptype-optional"):
             assert len(all_todos) <= 6 + pre_cnt
         else:
             assert len(all_todos) == 6 + pre_cnt
@@ -2506,10 +2506,8 @@ END:VCALENDAR
         """
         Test for https://github.com/python-caldav/caldav/issues/539
         """
-        self.skip_on_compatibility_flag("search_needs_comptype")
-        self.skip_on_compatibility_flag("search_always_needs_comptype")
-        self.skip_on_compatibility_flag("no_todo")
-        self.skip_on_compatibility_flag("no_events_and_tasks_on_same_calendar")
+        self.skip_unless_support("search.comptype-optional")
+        self.skip_unless_support("save-load.todo.mixed-calendar")
         cal = self._fixCalendar()
         cal.save_todo(todo)
         cal.save_event(ev1)
