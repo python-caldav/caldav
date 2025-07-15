@@ -82,7 +82,7 @@ class FeatureSet:
                 "todo": {
                     "description": "it's possible to save and load objects to the calendar",
                     "features": {
-                        "mixed-calendar": {"description": "The same calendar may contain both events and tasks"},
+                        "mixed-calendar": {"description": "The same calendar may contain both events and tasks (Zimbra only allows tasks to be placed on special task lists)"},
                     }
                 },
             }
@@ -532,12 +532,6 @@ incompatibility_description = {
     'isnotdefined_not_working':
         """The is-not-defined in a calendar-query not working as it should - see https://gitlab.com/davical-project/davical/-/issues/281""",
 
-    'search_needs_comptype':
-        """The server may not always come up with anything useful when searching for objects and omitting to specify weather one wants to see tasks or events.  https://github.com/python-caldav/caldav/issues/401""",
-
-    'search_always_needs_comptype':
-        """calendar.mail.ru: the server throws 400 when searching for objects and omitting to specify weather one wants to see tasks or events.  `calendar.objects()` throws 404, even if there are events.  https://github.com/python-caldav/caldav/issues/401""",
-
     'robur_rrule_freq_yearly_expands_monthly':
         """Robur expands a yearly event into a monthly event.  I believe I've reported this one upstream at some point, but can't find back to it""",
 
@@ -547,8 +541,6 @@ incompatibility_description = {
     'no_search_openended':
         """An open-ended search will not work""",
 
-    'no_events_and_tasks_on_same_calendar':
-        """Zimbra has the concept of task lists ... a calendar must either be a calendar with only events, or it can be a task list, but those must never be mixed"""
 }
 
 xandikos = {
@@ -556,7 +548,6 @@ xandikos = {
     "old_flags":  [
     ## https://github.com/jelmer/xandikos/issues/8
     'date_todo_search_ignores_duration',
-    "search_needs_comptype",
     'vtodo_datesearch_nostart_future_tasks_delivered',
 
     ## scheduling is not supported
@@ -599,7 +590,6 @@ radicale = {
 
     'text_search_is_case_insensitive',
     #'text_search_is_exact_match_sometimes',
-    "search_needs_comptype",
 
     ## extra features not specified in RFC5545
     "calendar_order",
@@ -609,7 +599,9 @@ radicale = {
 
 ## ZIMBRA IS THE MOST SILLY, AND THERE ARE REGRESSIONS FOR EVERY RELEASE!
 ## AAARGH!
-zimbra = [
+zimbra = {
+    "save-load.todo.mixed-calendar": {"support": "unsupported"},
+    "old_flags": [
     ## apparently, zimbra has no journal support
     'no_journal',
 
@@ -630,7 +622,6 @@ zimbra = [
     'no_relships',
     'isnotdefined_not_working',
     "no_alarmsearch",
-    "no_events_and_tasks_on_same_calendar",
     "no-principal-search",
 
     ## TODO: I just discovered that when searching for a date some
@@ -640,10 +631,10 @@ zimbra = [
     ## extra features not specified in RFC5545
     "calendar_order",
     "calendar_color"
-
-    ## TODO: there is more, it should be organized and moved here.
+    ]
+    ## TODO: there may be more, it should be organized and moved here.
     ## Search for 'zimbra' in the code repository!
-]
+}
 
 bedework = [
     ## quite a lot of things were missing in Bedework last I checked -
@@ -673,17 +664,17 @@ baikal = [
 ]
 
 ## See comments on https://github.com/python-caldav/caldav/issues/3
-icloud = [
-    'unique_calendar_ids',
-    'duplicate_in_other_calendar_with_same_uid_breaks',
-    'sticky_events',
-    'no_journal', ## it threw a 500 internal server error!
-    'no_todo',
-    "no_freebusy_rfc4791",
-    'no_recurring',
-    'propfind_allprop_failure',
-    'object_by_uid_is_broken'
-]
+#icloud = [
+#    'unique_calendar_ids',
+#    'duplicate_in_other_calendar_with_same_uid_breaks',
+#    'sticky_events',
+#    'no_journal', ## it threw a 500 internal server error!
+#    'no_todo',
+#    "no_freebusy_rfc4791",
+#    'no_recurring',
+#    'propfind_allprop_failure',
+#    'object_by_uid_is_broken'
+#]
 
 davical = [
     #'no_journal', ## it threw a 500 internal server error! ## for old versions
@@ -698,26 +689,26 @@ davical = [
     "no_alarmsearch",
 ]
 
-google = [
-    'no_mkcalendar',
-    'no_overwrite',
-    'no_todo',
-]
+#google = [
+#    'no_mkcalendar',
+#    'no_overwrite',
+#    'no_todo',
+#]
 
 ## https://www.sogo.nu/bugs/view.php?id=3065
 ## left a note about time-based sync tokens on https://www.sogo.nu/bugs/view.php?id=5163
 ## https://www.sogo.nu/bugs/view.php?id=5282
 ## https://bugs.sogo.nu/view.php?id=5693
 ## https://bugs.sogo.nu/view.php?id=5694
-sogo = [ ## and in addition ... the requests are efficiently rate limited, as it spawns lots of postgresql connections all until it hits a limit, after that it's 501 errors ...
-    "time_based_sync_tokens",
-    "search_needs_comptype",
-    "fastmail_buggy_noexpand_date_search",
-    "text_search_not_working",
-    "isnotdefined_not_working",
-    'no_journal',
-    'no_freebusy_rfc4791'
-]
+#sogo = [ ## and in addition ... the requests are efficiently rate limited, as it spawns lots of postgresql connections all until it hits a limit, after that it's 501 errors ...
+#    "time_based_sync_tokens",
+#    "search_needs_comptype",
+#    "fastmail_buggy_noexpand_date_search",
+#    "text_search_not_working",
+#    "isnotdefined_not_working",
+#    'no_journal',
+#    'no_freebusy_rfc4791'
+#]
 
 nextcloud = [
     'date_search_ignores_duration',
@@ -735,23 +726,23 @@ nextcloud = [
     'broken_expand_on_exceptions'
 ]
 
-fastmail = [
-    'duplicates_not_allowed',
-    'duplicate_in_other_calendar_with_same_uid_breaks',
-    'no_todo',
-    'sticky_events',
-    'fastmail_buggy_noexpand_date_search',
-    'combined_search_not_working',
-    'text_search_is_exact_match_sometimes',
-    'rrule_takes_no_count',
-    'isnotdefined_not_working',
-]
+#fastmail = [
+#    'duplicates_not_allowed',
+#    'duplicate_in_other_calendar_with_same_uid_breaks',
+#    'no_todo',
+#    'sticky_events',
+#    'fastmail_buggy_noexpand_date_search',
+#    'combined_search_not_working',
+#    'text_search_is_exact_match_sometimes',
+#    'rrule_takes_no_count',
+#    'isnotdefined_not_working',
+#]
 
-synology = [
-    "fragile_sync_tokens",
-    "vtodo_datesearch_notime_task_is_skipped",
-    "no_recurring_todo",
-]
+#synology = [
+#    "fragile_sync_tokens",
+#    "vtodo_datesearch_notime_task_is_skipped",
+#    "no_recurring_todo",
+#]
 
 robur = [
     'non_existing_raises_other', ## AuthorizationError instead of NotFoundError
@@ -781,19 +772,19 @@ posteo = [
     "no-principal-search-self",
 ]
 
-calendar_mail_ru = [
-    'no_mkcalendar', ## weird.  It was working in early June 2024, then it stopped working in mid-June 2024.
-    'no_current-user-principal',
-    'no_todo',
-    'no_journal',
-    'search_always_needs_comptype',
-    'no_sync_token', ## don't know if sync tokens are supported or not - the sync-token-code needs some workarounds ref https://github.com/python-caldav/caldav/issues/401
-    'text_search_not_working',
-    'isnotdefined_not_working',
-    'no_scheduling_mailbox',
-    'no_freebusy_rfc4791',
-    'no_relships', ## mail.ru recreates the icalendar content, and strips everything it doesn't know anyhting about, including relationship info
-]
+#calendar_mail_ru = [
+#    'no_mkcalendar', ## weird.  It was working in early June 2024, then it stopped working in mid-June 2024.
+#    'no_current-user-principal',
+#    'no_todo',
+#    'no_journal',
+#    'search_always_needs_comptype',
+#    'no_sync_token', ## don't know if sync tokens are supported or not - the sync-token-code needs some workarounds ref https://github.com/python-caldav/caldav/issues/401
+#    'text_search_not_working',
+#    'isnotdefined_not_working',
+#    'no_scheduling_mailbox',
+#    'no_freebusy_rfc4791',
+#    'no_relships', ## mail.ru recreates the icalendar content, and strips everything it doesn't know anyhting about, including relationship info
+#]
 
 purelymail = [
     ## Known, work in progress
