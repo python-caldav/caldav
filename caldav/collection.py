@@ -730,7 +730,11 @@ class Calendar(DAVObject):
             pdata = results[r]
             if cdav.CalendarData.tag in pdata:
                 cdata = pdata.pop(cdav.CalendarData.tag)
-                comp_class_ = self._calendar_comp_class_by_data(cdata) if comp_class is None else comp_class
+                comp_class_ = (
+                    self._calendar_comp_class_by_data(cdata)
+                    if comp_class is None
+                    else comp_class
+                )
             else:
                 cdata = None
             if comp_class_ is None:
