@@ -8,6 +8,7 @@ Tests that do not require communication with a working caldav server
 belong in test_caldav_unit.py
 """
 import codecs
+import copy
 import json
 import logging
 import os
@@ -842,8 +843,6 @@ class RepeatedFunctionalTestsBaseClass:
                 ## "calendar already exists" can be ignored (at least
                 ## if no_delete_calendar flag is set)
                 ret = self.principal.calendar(cal_id=kwargs["cal_id"])
-            if self.check_support("search.comptype-optional", return_type=str) == "ungraceful":
-                ret.objects = lambda load_objects: ret.events()
             if self.cleanup_regime == "post":
                 self.calendars_used.append(ret)
             return ret
@@ -851,9 +850,26 @@ class RepeatedFunctionalTestsBaseClass:
     def testCheckCompatibility(self):
         checker = ServerQuirkChecker(self.caldav)
         checker.check_all()
+
+        ## TODO: I think the compact view now strips out some client-side behaviour.
+        ## I think it shouldn't - we should rather do the stripping below
         observed = checker.features_checked.dotted_feature_set_list(compact=True)
         expected = self.caldav.features.dotted_feature_set_list(compact=True)
-        assert(observed == expected)
+
+        ## This is to facilitate easier debugging.  In the end,
+        ## observed_ and expected_ should match eatch other, while
+        ## observed and expected may contain more information.
+        observed_ = copy.deepcopy(observed)
+        expected_ = copy.deepcopy(expected)
+
+        ## Strip all free-text information from both observed and expected
+        for stripdict in observed_, expected_:
+            for x in stripdict:
+                for y in ('behaviour', 'description'):
+                    if y in stripdict[x]:
+                        stripdict[x].pop(y)
+
+        assert(observed_ == expected_)
     
     def testSupport(self):
         """
@@ -1553,7 +1569,7 @@ END:VCALENDAR
 
         ## Search without any parameters should yield everything on calendar
         all_events = c.search()
-        if not self.check_support("search.comptype-optional"):
+        if not self.check_support("search.comp-type-optional"):
             assert len(all_events) <= 3 + num_existing
         else:
             assert len(all_events) == 3 + num_existing
@@ -1615,10 +1631,10 @@ END:VCALENDAR
 
         ## category
         some_events = c.search(comp_class=Event, category="PERSONAL")
-        if not self.check_compatibility_flag("category_search_yields_nothing"):
+        if self.check_support("search.category"):
             assert len(some_events) == 1
         some_events = c.search(comp_class=Event, category="personal")
-        if not self.check_compatibility_flag("category_search_yields_nothing"):
+        if self.check_support("search.category"):
             if self.check_compatibility_flag("text_search_is_case_insensitive"):
                 assert len(some_events) == 1
             else:
@@ -1637,7 +1653,7 @@ END:VCALENDAR
             assert len(some_events) in (0, 1)
         if self.check_compatibility_flag("text_search_is_exact_match_only"):
             assert len(some_events) == 0
-        elif not self.check_compatibility_flag("category_search_yields_nothing"):
+        elif self.check_support("search.category.fullstring"):
             assert len(some_events) == 1
 
         ## I expect "logical and" when combining category with a date range
@@ -1647,8 +1663,7 @@ END:VCALENDAR
             start=datetime(2006, 7, 13, 13, 0),
             end=datetime(2006, 7, 15, 13, 0),
         )
-        if not self.check_compatibility_flag(
-            "category_search_yields_nothing"
+        if (self.check_support('search.category')
         ) and not self.check_compatibility_flag("combined_search_not_working"):
             assert len(no_events) == 0
         some_events = c.search(
@@ -1657,9 +1672,8 @@ END:VCALENDAR
             start=datetime(1997, 11, 1, 13, 0),
             end=datetime(1997, 11, 3, 13, 0),
         )
-        if not self.check_compatibility_flag(
-            "category_search_yields_nothing"
-        ) and not self.check_compatibility_flag("combined_search_not_working"):
+        if (self.check_support('search.category'
+                               )  and not self.check_compatibility_flag("combined_search_not_working")):
             assert len(some_events) == 1
 
         some_events = c.search(comp_class=Event, summary="Bastille Day Party")
@@ -1823,7 +1837,7 @@ END:VCALENDAR
 
         ## Search without any parameters should yield everything on calendar
         all_todos = c.search()
-        if not self.check_support("search.comptype-optional"):
+        if not self.check_support("search.comp-type-optional"):
             assert len(all_todos) <= 6 + pre_cnt
         else:
             assert len(all_todos) == 6 + pre_cnt
@@ -1856,13 +1870,12 @@ END:VCALENDAR
         ## category
         ## Too much copying of the examples ...
         some_todos = c.search(comp_class=Todo, category="FINANCE")
-        if not self.check_compatibility_flag(
-            "category_search_yields_nothing"
+        if (self.check_support('search.category')
         ) and not self.check_compatibility_flag("text_search_not_working"):
             assert len(some_todos) == 6 + pre_cnt
         some_todos = c.search(comp_class=Todo, category="finance")
-        if not self.check_compatibility_flag(
-            "category_search_yields_nothing"
+        if self.check_support(
+            "search.category"
         ) and not self.check_compatibility_flag("text_search_not_working"):
             if self.check_compatibility_flag("text_search_is_case_insensitive"):
                 assert len(some_todos) == 6 + pre_cnt
@@ -1882,8 +1895,8 @@ END:VCALENDAR
             assert len(some_todos) - pre_cnt in (0, 6)
         elif self.check_compatibility_flag("text_search_is_exact_match_only"):
             assert len(some_todos) - pre_cnt == 0
-        elif not self.check_compatibility_flag(
-            "category_search_yields_nothing"
+        elif not self.check_support(
+            "search.category"
         ) and not self.check_compatibility_flag("text_search_not_working"):
             ## This is the correct thing, according to the letter of the RFC
             assert len(some_todos) - pre_cnt == 6
@@ -2506,7 +2519,7 @@ END:VCALENDAR
         """
         Test for https://github.com/python-caldav/caldav/issues/539
         """
-        self.skip_unless_support("search.comptype-optional")
+        self.skip_unless_support("search.comp-type-optional")
         self.skip_unless_support("save-load.todo.mixed-calendar")
         cal = self._fixCalendar()
         cal.save_todo(todo)
@@ -2822,9 +2835,7 @@ END:VCALENDAR
         # add event
         e1 = c.save_event(ev1)
 
-        todo_ok = not self.check_compatibility_flag(
-            "no_todo"
-        ) and not self.check_compatibility_flag("no_events_and_tasks_on_same_calendar")
+        todo_ok = self.check_support('save-load.todo.mixed-calendar')
         if todo_ok:
             t1 = c.save_todo(todo)
         assert e1.url is not None

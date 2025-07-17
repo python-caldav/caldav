@@ -473,6 +473,7 @@ class DAVClient:
            server etc.
           ssl_verify_cert can be the path of a CA-bundle or False.
           huge_tree: boolean, enable XMLParser huge_tree to handle big events, beware of security issues, see : https://lxml.de/api/lxml.etree.XMLParser-class.html
+          features: The default, None, will in version 2.x enable all existing workarounds in the code for backward compability.  Otherwise it will expect a FeatureSet or a dict as defined in `caldav.compatibility_hints` and use that to figure out what workarounds are needed.
 
         The niquests library will honor a .netrc-file, if such a file exists
         username and password may be omitted.

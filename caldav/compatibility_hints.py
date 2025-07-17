@@ -102,6 +102,19 @@ class FeatureSet:
                         "event": {"description": "basic time range searches for events works"},
                         "journal": {"description": "basic time range searches for journals works"},
                     }
+                },
+                "category": {
+                    "description": "Search for category should work.  This is not explicitly specified in RFC4791, but covered in section 9.7.5.  No examples targets categories explicitly, but there are some text match examples in section 7.8.6 and following sections",
+                    "features": {
+                        "fullstring": {
+                            "description": "searches on the full string categories.  Meaning that a search for `category='hands,feet,head'` will match if categories is set so, but it may not necessary match with `CATEGORIES:head,feet,hands`",
+                            "features": {
+                                "smart": {
+                                    "description": "For an event with `CATEGORIES:hands,feet,head` we'll also get a match when searching for \"feet,hands,head\""
+                                }
+                            }
+                        }
+                    }
                 }
             }
         },
@@ -171,6 +184,7 @@ class FeatureSet:
         ## TODO: copy the FEATURES dict, or just the feature_set dict?
         ## (anyways, that is an internal design decision that may be
         ## changed ... but we need test code in place)
+        self.backward_compatibility_mode = feature_set_dict is None
         self._server_features = {}
         if feature_set_dict:
             self.copyFeatureSet(feature_set_dict)
@@ -484,9 +498,6 @@ incompatibility_description = {
     'dav_not_supported':
         """when asked, the server may claim it doesn't support the DAV protocol.  Observed by one baikal server, should be investigated more (TODO) and robur""",
 
-    'category_search_yields_nothing':
-        """When querying for a text match report over fields like the category field, server returns nothing""",
-
     'text_search_is_case_insensitive':
         """Probably not supporting the collation used by the caldav library""",
 
@@ -543,8 +554,14 @@ incompatibility_description = {
 
 }
 
+## This is for Xandikos 0.2.12.
+## Lots of development going on as of summer 2025, so expect the list to become shorter soon!
 xandikos = {
-    "search.comp-type-optional": { "supported": "unsupported" },
+    'recurrences.search-includes-implicit-recurrences': {'support': 'unsupported'},
+    'recurrences.expanded-search': {'support': 'unsupported'},
+    'search.time-range.todo': {'support': 'unsupported'},
+    'search.comp-type-optional': {'support': 'ungraceful'},
+    "search.category.fullstring": {"support": "unsupported"},
     "old_flags":  [
     ## https://github.com/jelmer/xandikos/issues/8
     'date_todo_search_ignores_duration',
@@ -553,6 +570,7 @@ xandikos = {
     ## scheduling is not supported
     "no_scheduling",
     'no-principal-search',
+    'text_search_is_exact_match_only',
 
     ## The test in the tests itself passes, but the test in the
     ## check_server_compatibility triggers a 500-error
@@ -570,11 +588,12 @@ xandikos = {
     ]
 }
 
-## TODO - there has been quite some development in radicale recently, so this list
-## should probably be gone through
+## This seems to work as of version 3.5.4 of Radicale.
+## There is much development going on at Radicale as of summar 2025,
+## so I'm expecting this list to shrink a lot soon.
 radicale = {
-    "search.time-range.todo": {"support": "unsupported"},
-    "search.comp-type-optional": {"support": "unsupported"},
+    "search.comp-type-optional": {"support": "ungraceful"},
+    "search.category.fullstring": {"support": "unsupported"},
     "recurrences.expanded-search": {"support": "unsupported"}, ## This was apparently broken in commit 9d591bd5144c97ae3803512b6c22cd5ce1dfd0f9 and 371d5057de6a1f729d198ab738dd6e19c9e55099 - issue has been raised in https://github.com/Kozea/Radicale/issues/1812#issuecomment-3067913171
     'old_flags': [
     ## calendar listings and calendar creation works a bit
@@ -589,12 +608,32 @@ radicale = {
     'no_scheduling',
 
     'text_search_is_case_insensitive',
+    'combined_search_not_working',
     #'text_search_is_exact_match_sometimes',
 
     ## extra features not specified in RFC5545
     "calendar_order",
     "calendar_color"
     ]
+}
+
+ecloud = {
+    'delete-calendar': {
+        'support': 'fragile',
+        'behaviour': 'Deleting a recently created table fails'},
+    'delete-calendar.free-namespace': {
+        'support': 'unsupported',
+        'behaviour': "deleting a calendar moves it to a trashbin, thrashbin has to be manually 'emptied' from the web-ui before the namespace is freed up"},
+    'search.comp-type-optional': {
+        'support': 'fragile',
+        'behaviour': 'search that does not include comptype does not yield tasks'
+    },
+    'rate-limit': {
+        'enable': True,
+        'interval': 25,
+        'count': 1,
+        'description': "It's needed to manually empty trashbin frequently when running tests.  Since this oepration takes some time and/or there are some caches, it's needed to run tests slowly, even when hammering the 'empty thrashbin' frequently"},
+    'old_flags': ['no-principal-search-all', 'no-principal-search-self', 'unique_calendar_ids'],
 }
 
 ## ZIMBRA IS THE MOST SILLY, AND THERE ARE REGRESSIONS FOR EVERY RELEASE!
