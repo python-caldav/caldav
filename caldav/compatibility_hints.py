@@ -197,7 +197,7 @@ class FeatureSet:
         for parent in parents:
             parent_info = self.find_feature(parent)
 
-            if len(parent_info['subfeatures'])>1:
+            if len(parent_info['subfeatures']):
                 foo = self.check_support(parent, return_type=dict, return_defaults=False)
                 dont_collapse = False
                 for sub in parent_info['subfeatures']:
