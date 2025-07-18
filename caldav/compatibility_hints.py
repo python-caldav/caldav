@@ -630,8 +630,7 @@ ecloud = {
         'support': 'unsupported',
         'behaviour': "deleting a calendar moves it to a trashbin, thrashbin has to be manually 'emptied' from the web-ui before the namespace is freed up"},
     'search.comp-type-optional': {
-        'support': 'fragile',
-        'behaviour': 'search that does not include comptype does not yield tasks'
+        'support': 'ungraceful',
     },
     'rate-limit': {
         'enable': True,
@@ -644,7 +643,10 @@ ecloud = {
 ## ZIMBRA IS THE MOST SILLY, AND THERE ARE REGRESSIONS FOR EVERY RELEASE!
 ## AAARGH!
 zimbra = {
-    "save-load.todo.mixed-calendar": {"support": "unsupported"},
+    'create-calendar.set-displayname': {'support': 'unsupported'},
+    'save-load.todo.mixed-calendar': {'support': 'unsupported'},
+    'search.category': {'support': 'ungraceful'},
+    'search.comp-type-optional': {'support': 'fragile'}, ## TODO: more research on this, looks like a bug in the checker
     "old_flags": [
     ## apparently, zimbra has no journal support
     'no_journal',

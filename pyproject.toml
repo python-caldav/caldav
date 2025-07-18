@@ -55,6 +55,7 @@ test = [
   "tzlocal",
   "xandikos",
   "radicale",
+  "pyfakefs",
   #"caldav_server_tester"
 ]
 [tool.setuptools_scm]
