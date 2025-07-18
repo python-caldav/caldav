@@ -830,7 +830,7 @@ class RepeatedFunctionalTestsBaseClass:
                     "unique_calendar_ids"
                 ) and self.cleanup_regime in ("light", "pre"):
                     self._teardownCalendar(cal_id=self.testcal_id)
-                if self.check_compatibility_flag("no_displayname"):
+                if not self.check_support("create-calendar.set-displayname"):
                     kwargs["name"] = None
                 else:
                     kwargs["name"] = "Yep"
@@ -1018,7 +1018,7 @@ END:VCALENDAR
 
         ## Not sure if those asserts make much sense, the main point here is to exercise
         ## the __str__ and __repr__ methods on the Calendar object.
-        if not self.check_compatibility_flag("no_displayname"):
+        if self.check_support('create-calendar.set-displayname'):
             name = c.get_property(dav.DisplayName(), use_cached=True)
             if not name:
                 name = c.url
@@ -1147,7 +1147,7 @@ END:VCALENDAR
 
         if not self.check_compatibility_flag(
             "no_mkcalendar"
-        ) and not self.check_compatibility_flag("no_displayname"):
+        ) and self.check_support('create-calendar.set-displayname'):
             # We should be able to access the calender through the name
             c2 = self.principal.calendar(name="Yep")
             ## may break if we have multiple calendars with the same name
@@ -2707,7 +2707,7 @@ END:VCALENDAR
 
     def testSetCalendarProperties(self):
         self.skip_on_compatibility_flag("read_only")
-        self.skip_on_compatibility_flag("no_displayname")
+        self.skip_unless_support('create-calendar.set-displayname')
         self.skip_unless_support("delete-calendar")
 
         c = self._fixCalendar()
