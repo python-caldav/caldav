@@ -1018,7 +1018,7 @@ END:VCALENDAR
 
         ## Not sure if those asserts make much sense, the main point here is to exercise
         ## the __str__ and __repr__ methods on the Calendar object.
-        if self.check_support('create-calendar.set-displayname'):
+        if self.check_support("create-calendar.set-displayname"):
             name = c.get_property(dav.DisplayName(), use_cached=True)
             if not name:
                 name = c.url
@@ -1073,7 +1073,7 @@ END:VCALENDAR
 
         if self.check_support("create-calendar.auto"):
             with pytest.raises(self._notFound()):
-                self.principal.calendar(name="Yapp", cal_id='shouldnotexist').events()
+                self.principal.calendar(name="Yapp", cal_id="shouldnotexist").events()
 
     def testChangeAttendeeStatusWithEmailGiven(self):
         self.skip_on_compatibility_flag("read_only")
@@ -1144,9 +1144,9 @@ END:VCALENDAR
         assert len(events2) == 1
         assert events2[0].url == events[0].url
 
-        if not self.check_compatibility_flag(
-            "no_mkcalendar"
-        ) and self.check_support('create-calendar.set-displayname'):
+        if not self.check_compatibility_flag("no_mkcalendar") and self.check_support(
+            "create-calendar.set-displayname"
+        ):
             # We should be able to access the calender through the name
             c2 = self.principal.calendar(name="Yep")
             ## may break if we have multiple calendars with the same name
@@ -2706,7 +2706,7 @@ END:VCALENDAR
 
     def testSetCalendarProperties(self):
         self.skip_on_compatibility_flag("read_only")
-        self.skip_unless_support('create-calendar.set-displayname')
+        self.skip_unless_support("create-calendar.set-displayname")
         self.skip_unless_support("delete-calendar")
 
         c = self._fixCalendar()
