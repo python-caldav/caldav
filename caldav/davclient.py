@@ -459,7 +459,7 @@ class DAVClient:
         ssl_cert: Union[str, Tuple[str, str], None] = None,
         headers: Mapping[str, str] = None,
         huge_tree: bool = False,
-        features: Union[FeatureSet, dict] = None
+        features: Union[FeatureSet, dict] = None,
     ) -> None:
         """
         Sets up a HTTPConnection object towards the server in the url.
@@ -1103,12 +1103,9 @@ def get_davclient(
                     name = None
                 except ValueError:
                     pass
-            try:
-                conn = client(idx, name)
-                if conn:
-                    return conn
-            except:
-                error.weirdness("traceback from client()")
+            conn = client(idx, name)
+            if conn:
+                return conn
         except ImportError:
             pass
         finally:

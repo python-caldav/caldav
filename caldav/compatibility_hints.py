@@ -4,7 +4,6 @@ This file serves as a database of different compatibility issues we've
 encountered while working on the caldav library, and descriptions on
 how the well-known servers behave.
 """
-
 import copy
 
 ## NEW STYLE
@@ -30,13 +29,10 @@ class FeatureSet:
     """
     FEATURES = {
         "get-current-user-principal": {
-            "description": "Support for RFC5397, current principal extension.  Most CalDAV servers have this, but it is an extension to the standard",
-            "features": {
-                "has-calendar": {
-                    "type": "server-observation",
-                    "description": "Principal has one or more calendars.  Some servers and providers comes with a pre-defined calendar for each user, for other servers a calendar has to be explicitly created (supported means there exists a calendar - it may be because the calendar was already provisioned together with the principal, or it may be because a calendar was created manually, the checks can't see the difference)"}
-            }
-        },
+            "description": "Support for RFC5397, current principal extension.  Most CalDAV servers have this, but it is an extension to the standard"},
+        "get-current-user-principal.has-calendar": {
+            "type": "server-observation",
+            "description": "Principal has one or more calendars.  Some servers and providers comes with a pre-defined calendar for each user, for other servers a calendar has to be explicitly created (supported means there exists a calendar - it may be because the calendar was already provisioned together with the principal, or it may be because a calendar was created manually, the checks can't see the difference)"},
         "rate-limit": {
             "type": "client-feature",
             "description": "client (or test code) must not send requests too fast",
@@ -57,101 +53,76 @@ class FeatureSet:
         },
         "create-calendar": {
             "description": "RFC4791 says that \"support for MKCALENDAR on the server is only RECOMMENDED and not REQUIRED because some calendar stores only support one calendar per user (or principal), and those are typically pre-created for each account\".  Hence a conformant server may opt to not support creating calendars, this is often seen for cloud services (some services allows extra calendars to be made, but not through the CalDAV protocol).  (RFC4791 also says that the server MAY support MKCOL in section 8.5.2.  I do read it as MKCOL may be used for creating calendars - which is weird, since section 8.5.2 is titled \"external attachments\".  We should consider testing this as well)",
-            "features": {
-                "auto": {
-                    "default": { "support": "unsupported" },
-                    "description": "Accessing a calendar which does not exist automatically creates it",
-                },
-                "set-displayname": {
-                    "description": "It's possible to set the displayname on a calendar upon creation"
-                }
-            }
+        },
+        "create-calendar.auto": {
+            "default": { "support": "unsupported" },
+            "description": "Accessing a calendar which does not exist automatically creates it",
+        },
+        "create-calendar.set-displayname": {
+            "description": "It's possible to set the displayname on a calendar upon creation"
         },
         "delete-calendar": {
-            "description": "RFC4791 says nothing about deletion of calendars, so the server implementation is free to choose weather this should be supported or not.  Section 3.2.3.2 in RFC 6638 says that if a calendar is deleted, all the calendarobjectresources on the calendar should also be deleted - but it's a bit unclear if this only applies to scheduling objects or not.  Some calendar servers moves the object to a trashcan rather than deleting it",
-            "features": {
-                "free-namespace": {
-                    "description": "The delete operations clears the namespace, so that another calendar with the same ID/name can be created"
-                }
-            }
+            "description": "RFC4791 says nothing about deletion of calendars, so the server implementation is free to choose weather this should be supported or not.  Section 3.2.3.2 in RFC 6638 says that if a calendar is deleted, all the calendarobjectresources on the calendar should also be deleted - but it's a bit unclear if this only applies to scheduling objects or not.  Some calendar servers moves the object to a trashcan rather than deleting it"
+        },
+        "delete-calendar.free-namespace": {
+            "description": "The delete operations clears the namespace, so that another calendar with the same ID/name can be created"
         },
         "save-load": {
-            "description": "it's possible to save and load objects to the calendar",
-            "features": {
-                "event": {"description": "it's possible to save and load events to the calendar"},
-                "todo": {
-                    "description": "it's possible to save and load objects to the calendar",
-                    "features": {
-                        "mixed-calendar": {"description": "The same calendar may contain both events and tasks (Zimbra only allows tasks to be placed on special task lists)"},
-                    }
-                },
-            }
+            "description": "it's possible to save and load objects to the calendar"
         },
+        "save-load.event": {"description": "it's possible to save and load events to the calendar"},
+        "save-load.event.recurrences": {"description": "it's possible to save and load recurring events to the calendar - events with an RRULE property set, including recurrence sets"},
+        "save-load.todo": {"description": "it's possible to save and load tasks to the calendar"},
+        "save-load.todo.recurrences": {"description": "it's possible to save and load recurring tasks to the calendar"},
+        "save-load.todo.mixed-calendar": {"description": "The same calendar may contain both events and tasks (Zimbra only allows tasks to be placed on special task lists)"},
         "search": {
-            "description": "calendar MUST support searching for objects using the REPORT method, as specified in RFC4791, section 7",
-            "features": {
-                "comp-type-optional": {
-                    "description": "In all the search examples in the RFC, comptype is given during a search, the client specifies if it's event or tasks or journals that is wanted.  However, as I read the RFC this is not required.  If omitted, the server should deliver all objects.  Many servers will not return anything if the COMPTYPE filter is not set.  Other servers will return 404"
-                },
-                ## TODO - there is still quite a lot of search-related
-                ## stuff that hasn't been moved from the old "quirk list"
-                "time-range": {
-                    "description": "Search for time or date ranges should work.  This is specified in RFC4791, section 7.4 and section 9.9",
-                    "features": {
-                        "todo": {"description": "basic time range searches for tasks works"},
-                        "event": {"description": "basic time range searches for events works"},
-                        "journal": {"description": "basic time range searches for journals works"},
-                    }
-                },
-                "category": {
-                    "description": "Search for category should work.  This is not explicitly specified in RFC4791, but covered in section 9.7.5.  No examples targets categories explicitly, but there are some text match examples in section 7.8.6 and following sections",
-                    "features": {
-                        "fullstring": {
-                            "description": "searches on the full string categories.  Meaning that a search for `category='hands,feet,head'` will match if categories is set so, but it may not necessary match with `CATEGORIES:head,feet,hands`",
-                            "features": {
-                                "smart": {
-                                    "description": "For an event with `CATEGORIES:hands,feet,head` we'll also get a match when searching for \"feet,hands,head\""
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+            "description": "calendar MUST support searching for objects using the REPORT method, as specified in RFC4791, section 7"
         },
-        ## TODO: perhaps recurrences should not be a root node?  Perhaps it
-        ## should be a sub-node under search and save-load?
-        "recurrences": {
-            "description": "Support for recurring events and tasks",
-            "features": {
-                "save-load": {
-                    "description": "Calendar server should accept ojects with RRULE given, as well as objects with recurrence sets, and should be able to deliver back the same data",
-                    "features": {
-                        "event": {"description": "works with events"},
-                        "todo": {"description": "works with tasks"},
-                    }
-                },
-                "search-includes-implicit-recurrences": {
-                    "description": "RFC 4791, section 7.4 says that the server MUST expand recurring components to determine whether any recurrence instances overlap the specified time range.  Considered supported i.e. if a search for 2005 yields a yearly event happening first time in 2004.",
-                    "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-7.4"],
-                    "features": {
-                        "infinite-scope": {
-                            "description": "Needless to say, search on any future date range, no matter how far out in the future, should yield the recurring object"
-                        },
-                        "event": {"description": "works with events"},
-                        "todo": {"description": "works with tasks"},
-                    }
-                },
-                "expanded-search": {
-                    "description": "According to RFC 4791, the server MUST expand recurrence objects if asked for it - but many server doesn't do that.  Some servers don't do expand at all, others deliver broken data, typically missing RECURRENCE-ID.  The python caldav client library (from 2.0) does the expand-operation client-side no matter if it's supported or not",
-                    "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-9.6.5"],
-                    "features": {
-                        "exception": {
-                            "description": "Server expand should work correctly also if a recurrence set with exceptions is given" },
-                        "event": {"description": "works with events"},
-                        "todo": {"description": "works with tasks"},
-                    },
-                },
-            },
+        "search.comp-type-optional": {
+            "description": "In all the search examples in the RFC, comptype is given during a search, the client specifies if it's event or tasks or journals that is wanted.  However, as I read the RFC this is not required.  If omitted, the server should deliver all objects.  Many servers will not return anything if the COMPTYPE filter is not set.  Other servers will return 404"
+        },
+        ## TODO - there is still quite a lot of search-related
+        ## stuff that hasn't been moved from the old "quirk list"
+        "search.time-range": {
+            "description": "Search for time or date ranges should work.  This is specified in RFC4791, section 7.4 and section 9.9"},
+        "search.time-range.todo": {"description": "basic time range searches for tasks works"},
+        "search.time-range.event": {"description": "basic time range searches for event works"},
+        "search.time-range.journal": {"description": "basic time range searches for journal works"},
+        "search.category": {
+            "description": "Search for category should work.  This is not explicitly specified in RFC4791, but covered in section 9.7.5.  No examples targets categories explicitly, but there are some text match examples in section 7.8.6 and following sections"},
+        "search.category.fullstring": {
+            "description": "searches on the full string categories.  Meaning that a search for `category='hands,feet,head'` will match if categories is set so, but it may not necessary match with `CATEGORIES:head,feet,hands`"},
+        "search.category.fullstring.smart": {
+            "description": "For an event with `CATEGORIES:hands,feet,head` we'll also get a match when searching for \"feet,hands,head\""
+        },
+        "search.recurrences": {
+            "description": "Support for recurrences in search"
+        },
+        "search.recurrences.includes-implicit": {
+            "description": "RFC 4791, section 7.4 says that the server MUST expand recurring components to determine whether any recurrence instances overlap the specified time range.  Considered supported i.e. if a search for 2005 yields a yearly event happening first time in 2004.",
+            "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-7.4"],
+        },
+        "search.recurrences.includes-implicit.todo": {
+            "description": "tasks can also be recurring"
+        },
+        "search.recurrences.includes-implicit.event": {
+            "description": "support for events"
+        },
+        "search.recurrences.includes-implicit.infinite-scope": {
+            "description": "Needless to say, search on any future date range, no matter how far out in the future, should yield the recurring object"
+        },
+        "search.recurrences.expanded": {
+            "description": "According to RFC 4791, the server MUST expand recurrence objects if asked for it - but many server doesn't do that.  Some servers don't do expand at all, others deliver broken data, typically missing RECURRENCE-ID.  The python caldav client library (from 2.0) does the expand-operation client-side no matter if it's supported or not",
+            "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-9.6.5"],
+        },
+        "search.recurrences.expanded.todo": {
+            "description": "examding tasks"
+        },
+        "search.recurrences.expanded.event": {
+            "description": "examding events"
+        },
+        "search.recurrences.expanded.exception": {
+            "description": "Server expand should work correctly also if a recurrence set with exceptions is given"
         },
     }
 
@@ -180,7 +151,7 @@ class FeatureSet:
         """
         if isinstance(feature_set_dict, FeatureSet):
             self._server_features = copy.deepcopy(feature_set_dict._server_features)
-        
+
         ## TODO: copy the FEATURES dict, or just the feature_set dict?
         ## (anyways, that is an internal design decision that may be
         ## changed ... but we need test code in place)
@@ -189,38 +160,62 @@ class FeatureSet:
         if feature_set_dict:
             self.copyFeatureSet(feature_set_dict)
 
-    def _copyFeature(self, def_node, server_node, value):
-        if isinstance(value, str) and not 'support' in server_node:
-            server_node['support'] = value
-        elif isinstance(value, dict):
-            if value.get('features'):
-                raise NotImplementedError("todo ... work in progress ... need to recursively process the feature set")
-            server_node.update(value)
-
-    def copyFeatureSet(self, feature_set):
+    ## TODO: Why is this camelCase while every other method is with under_score?  rename ...
+    def copyFeatureSet(self, feature_set, collapse=True):
         for feature in feature_set:
             ## TODO: temp - should be removed
             if feature == 'old_flags':
                 continue
-            fpath = feature.split('.')
-            def_tree = self.FEATURES
-            server_tree = self._server_features
-            for step in fpath:
-                assert def_tree
-                assert step in def_tree
-                def_node = def_tree[step]
-                if not step in server_tree:
-                    server_tree[step] = {}
-                server_node = server_tree[step]
-                if not 'features' in def_node:
-                    server_tree = None
-                    def_tree = None
-                else:
-                    if not 'features' in server_node:
-                        server_node['features'] = {}
-                    server_tree = server_node['features']
-                    def_tree = def_node['features']
-            self._copyFeature(def_node, server_node, feature_set[feature])
+            feature_info = self.find_feature(feature)
+            value = feature_set[feature]
+            if not feature in self._server_features:
+                self._server_features[feature] = {}
+            server_node = self._server_features[feature]
+            if isinstance(value, bool):
+                server_node['support'] = "full" if value else "unsupported"
+            elif isinstance(value, str) and not 'support' in server_node:
+                server_node['support'] = value
+            elif isinstance(value, dict):
+                server_node.update(value)
+            else:
+                assert False
+        if collapse:
+            self.collapse()
+
+    def collapse(self):
+        """
+        If all subfeatures are the same, it should be collapsed into the parent
+        """
+        features = list(self._server_features.keys())
+        parents = set()
+        for feature in features:
+            if '.' in feature:
+                parents.add(feature[:feature.rfind('.')])
+        parents = list(parents)
+        ## Parents needs to be ordered by the number of dots.  We proceed those with most dots first.
+        parents.sort(key = lambda x: (-x.count('.'), x))
+        for parent in parents:
+            parent_info = self.find_feature(parent)
+
+            if len(parent_info['subfeatures'])>1:
+                foo = self.check_support(parent, return_type=dict, return_defaults=False)
+                dont_collapse = False
+                for sub in parent_info['subfeatures']:
+                    bar = self._server_features.get(f"{parent}.{sub}")
+                    if bar is None:
+                        dont_collapse = True
+                        break
+                    if foo is None:
+                        foo = bar
+                    elif bar != foo:
+                        dont_collapse = True
+                        break
+                if not dont_collapse:
+                    if not parent in self._server_features:
+                        self._server_features[parent] = {}
+                    for sub in parent_info['subfeatures']:
+                        self._server_features.pop(f"{parent}.{sub}")
+                    self.copyFeatureSet({parent: foo})
 
     def _default(self, feature_info):
         if isinstance(feature_info, str):
@@ -240,88 +235,98 @@ class FeatureSet:
         else:
             breakpoint()
 
-    def check_support(self, feature, return_type=bool):
-        """
-        Work in progress
+    def check_support(self, feature, return_type=bool, return_defaults=True):
+        """Work in progress
+
+        TODO: rename.  This method does not do any checking, just a
+        lookup.  "get_support" sounds wrong, but perhaps
+        "lookup_support"?
 
         TODO: write a better docstring
+
         """
         feature_info = self.find_feature(feature)
-        node = self._server_features
-        feature_path = feature.split('.')
-        support = None
-        for x in feature_path:
-            if x in node:
-                support = node[x]
-                node = support.get('features', {})
-            else:
-                if support is None:
-                    support = self._default(feature_info)
-                break
+        feature_ = feature
+        while True:
+            if feature_ in self._server_features:
+                return self._convert_node(self._server_features[feature_], feature_info, return_type)
+            if not '.' in feature_:
+                if not return_defaults:
+                    return None
+                return self._convert_node(self._default(feature_info), feature_info, return_type)
+            feature_ = feature_[:feature_.rfind('.')]
+
+    def _convert_node(self, node, feature_info, return_type):
         if return_type == str:
-            ## TODO: consider type, be smarter about it
-            return support.get('support', support.get('enable', support.get('behaviour')))
+            ## TODO: consider feature_info['type'], be smarter about it
+            return node.get('support', node.get('enable', node.get('behaviour')))
         elif return_type == dict:
-            return support
+            return node
         elif return_type == bool:
             ## TODO: consider feature_info['type'], be smarter about this
-            return support.get('support', 'full') == 'full' and not support.get('enable') and not support.get('behaviour') and not support.get('observed')
+            return node.get('support', 'full') == 'full' and not node.get('enable') and not node.get('behaviour') and not node.get('observed')
+        else:
+            assert False
 
-    ## TODO: could be a class method?
-    def find_feature(self, feature: str) -> dict:
+    @classmethod
+    def find_feature(cls, feature: str) -> dict:
         """
         Feature should be a string like feature.subfeature.subsubfeature.
 
         Looks through the FEATURES list and returns the relevant section.
 
-        Will raise an AssertionError if feature is not found
+        Will raise an Error if feature is not found
+
+        (this is very simple now - used to be a hierarchy dict to be traversed)
         """
-        hierarchy = feature.split('.')
-        node = self.FEATURES
-        for x in hierarchy:
-            assert x in node
-            feature = node[x]
-            node = feature.get('features', {})
-        return feature
+        assert feature in cls.FEATURES ## TODO ... raise a better exception?
+        if not 'name' in cls.FEATURES[feature]:
+            cls.FEATURES[feature]['name'] = feature
+        if '.' in feature and not 'parent' in cls.FEATURES[feature]:
+            cls.FEATURES[feature]['parent'] = cls.find_feature(feature[:feature.rfind('.')])
+        if not 'subfeatures' in cls.FEATURES[feature]:
+            tree = cls.feature_tree()
+            for x in feature.split('.'):
+                tree = tree[x]
+            cls.FEATURES[feature]['subfeatures'] = tree
+        return cls.FEATURES[feature]
+
+    @classmethod
+    def _dots_to_tree(cls, target, source):
+        for feat in source:
+            node = target
+            path = feat.split('.')
+            for part in path:
+                if not part in node:
+                    node[part] = {}
+                node = node[part]
+        return target
+
+    @classmethod
+    def feature_tree(cls) -> dict:
+        """A "path" may have several "subpaths" in self.FEATURES
+        (i.e. feat.subfeat.A, feat.subfeat.B, feat.subfeat.C)
+
+        This method will return `{'feat': { 'subfeat': {'A': {}, ...}}}`
+        making it possible to traverse the feature tree
+        """
+        ## I'm an old fart, grown up in an age where CPU-cycles was considered
+        ## expensive ... so I always cache things when possible ...
+        if hasattr(cls, '_feature_tree'):
+            return cls._feature_tree
+        cls._feature_tree = {}
+        cls._dots_to_tree(cls._feature_tree, cls.FEATURES)
+        return cls._feature_tree
 
     def dotted_feature_set_list(self, compact=False):
-        return self._dotted_feature_set_list('', self._server_features, compact=compact, feature_info=None)
-
-    def _dotted_feature_set_list(self, feature_path, feature_node, compact, feature_info):
         ret = {}
-        if feature_info:
-            num_expected_subfeatures = len(feature_info.get('features', {}))
-        else:
-            num_expected_subfeatures = 0
-        orig_feature_path = feature_path
-        if feature_path:
-            feature_path = f"{feature_path}."
-        sub_features = {}
-        all_sub_features_equal = True
-        last_sub_feature = None
-        cnt = 0
-        for x in feature_node:
-            feature = feature_node[x].copy()
-            full = f"{feature_path}{x}"
-            feature_info = self.find_feature(full)
-            if compact and feature_info.get('type', 'server-feature') in ('client-feature', 'server-observation'):
+        if compact:
+            self.collapse()
+        for x in self._server_features:
+            feature = self._server_features[x]
+            if compact and feature == self._default(x):
                 continue
-            if 'features' in feature:
-                subnode = feature.pop('features')
-                ret.update(self._dotted_feature_set_list(full, subnode, compact, feature_info))
-            if compact and feature == self._default(feature_info):
-                all_sub_features_equal = False
-                continue
-            if feature:
-                sub_features[full] = feature
-                if last_sub_feature and last_sub_feature != feature:
-                    all_sub_features_equal = False
-                last_sub_feature = feature
-                cnt += 1
-        if compact and all_sub_features_equal and last_sub_feature and cnt>1 and len(feature_node.keys()) == num_expected_subfeatures:
-            ret[orig_feature_path] = last_sub_feature
-        else:
-            ret.update(sub_features)
+            ret[x] = feature.copy()
         return ret
 
 #### OLD STYLE
@@ -557,8 +562,8 @@ incompatibility_description = {
 ## This is for Xandikos 0.2.12.
 ## Lots of development going on as of summer 2025, so expect the list to become shorter soon!
 xandikos = {
-    'recurrences.search-includes-implicit-recurrences': {'support': 'unsupported'},
-    'recurrences.expanded-search': {'support': 'unsupported'},
+    'search.recurrences.includes-implicit': {'support': 'unsupported'},
+    'search.recurrences.expanded': {'support': 'unsupported'},
     'search.time-range.todo': {'support': 'unsupported'},
     'search.comp-type-optional': {'support': 'ungraceful'},
     "search.category.fullstring": {"support": "unsupported"},
@@ -594,7 +599,7 @@ xandikos = {
 radicale = {
     "search.comp-type-optional": {"support": "ungraceful"},
     "search.category.fullstring": {"support": "unsupported"},
-    "recurrences.expanded-search": {"support": "unsupported"}, ## This was apparently broken in commit 9d591bd5144c97ae3803512b6c22cd5ce1dfd0f9 and 371d5057de6a1f729d198ab738dd6e19c9e55099 - issue has been raised in https://github.com/Kozea/Radicale/issues/1812#issuecomment-3067913171
+    "search.recurrences.expanded": {"support": "unsupported"}, ## This was apparently broken in commit 9d591bd5144c97ae3803512b6c22cd5ce1dfd0f9 and 371d5057de6a1f729d198ab738dd6e19c9e55099 - issue has been raised in https://github.com/Kozea/Radicale/issues/1812#issuecomment-3067913171
     'old_flags': [
     ## calendar listings and calendar creation works a bit
     ## "weird" on radicale

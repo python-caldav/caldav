@@ -909,13 +909,19 @@ class Calendar(DAVObject):
                 "expand": expand,
                 "server_expand": server_expand,
                 "split_expanded": split_expanded,
-                "props": props
+                "props": props,
             }
-            
-            if not comp_class and not self.client.features.check_support('search.comp-type-optional'):
-                if kwargs2['include_completed'] is None:
-                    kwargs2['include_completed'] = True
-                objects = self.search(event=True, **kwargs2, **kwargs) + self.search(todo=True, **kwargs2, **kwargs) + self.search(journal=True, **kwargs2, **kwargs)
+
+            if not comp_class and not self.client.features.check_support(
+                "search.comp-type-optional"
+            ):
+                if kwargs2["include_completed"] is None:
+                    kwargs2["include_completed"] = True
+                objects = (
+                    self.search(event=True, **kwargs2, **kwargs)
+                    + self.search(todo=True, **kwargs2, **kwargs)
+                    + self.search(journal=True, **kwargs2, **kwargs)
+                )
                 self.sort_objects(objects, sort_keys, sort_reverse)
                 return objects
 
@@ -927,14 +933,18 @@ class Calendar(DAVObject):
             except error.ReportError as err:
                 ## This is only for backward compatibility.  The logic is even flawed.
                 ## But it does partially fix https://github.com/python-caldav/caldav/issues/401
-                if self.client.features.backward_compatibility_mode and not comp_class and not "400" in err.reason:
+                if (
+                    self.client.features.backward_compatibility_mode
+                    and not comp_class
+                    and not "400" in err.reason
+                ):
                     return self.search(
                         sort_keys=sort_keys,
                         sort_reverse=sort_reverse,
                         *kwargs2,
-                        **kwargs)
+                        **kwargs,
+                    )
                 raise
-
 
         obj2 = []
 
@@ -980,7 +990,6 @@ class Calendar(DAVObject):
             objects = []
             for o in objects_:
                 objects.extend(o.split_expanded())
-
 
         ## partial workaround for https://github.com/python-caldav/caldav/issues/201
         for obj in objects:

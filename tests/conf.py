@@ -11,9 +11,9 @@ import time
 import niquests
 
 from caldav import compatibility_hints
+from caldav.compatibility_hints import FeatureSet
 from caldav.davclient import CONNKEYS
 from caldav.davclient import DAVClient
-from caldav.compatibility_hints import FeatureSet
 
 ####################################
 # Import personal test server config
