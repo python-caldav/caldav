@@ -1071,10 +1071,9 @@ END:VCALENDAR
         assert len(events) == 0
         c.delete()
 
-        # this breaks with zimbra and radicale
-        if not self.check_compatibility_flag("non_existing_calendar_found"):
+        if self.check_support("create-calendar.auto"):
             with pytest.raises(self._notFound()):
-                self.principal.calendar(name="Yep", cal_id=self.testcal_id).events()
+                self.principal.calendar(name="Yapp", cal_id='shouldnotexist').events()
 
     def testChangeAttendeeStatusWithEmailGiven(self):
         self.skip_on_compatibility_flag("read_only")

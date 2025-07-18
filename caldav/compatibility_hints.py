@@ -376,10 +376,6 @@ incompatibility_description = {
         """The given user starts without an assigned default calendar """
         """(or without pre-defined calendars at all)""",
 
-    'non_existing_calendar_found':
-        """Server will not yield a 404 when accessing a random calendar URL """
-        """(perhaps the calendar will be automatically created on access)""",
-
     'no_freebusy_rfc4791':
         """Server does not support a freebusy-request as per RFC4791""",
 
