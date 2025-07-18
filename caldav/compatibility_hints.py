@@ -395,10 +395,6 @@ incompatibility_description = {
     'no_journal':
         """Server does not support journal entries""",
 
-    'no_displayname':
-        """The display name of a calendar cannot be set/changed """
-        """(in zimbra, display name is given from the URL)""",
-
     'duplicates_not_allowed':
         """Duplication of an event in the same calendar not allowed """
         """(even with different uid)""",
@@ -657,13 +653,11 @@ zimbra = {
     ## earlier versions of Zimbra display-name could be changed, but
     ## then the calendar would not be available on the old URL
     ## anymore)
-    'no_displayname',
     'duplicate_in_other_calendar_with_same_uid_is_lost',
     'event_by_url_is_broken',
     'no_delete_event',
     'no_sync_token',
     'vtodo_datesearch_notime_task_is_skipped',
-    'category_search_yields_nothing',
     'text_search_is_exact_match_only',
     'no_relships',
     'isnotdefined_not_working',
