@@ -26,6 +26,7 @@ from caldav import __version__
 from caldav.collection import Calendar
 from caldav.collection import CalendarSet
 from caldav.collection import Principal
+from caldav.compatibility_hints import FeatureSet
 from caldav.elements import cdav
 from caldav.elements import dav
 from caldav.lib import error
@@ -458,6 +459,7 @@ class DAVClient:
         ssl_cert: Union[str, Tuple[str, str], None] = None,
         headers: Mapping[str, str] = None,
         huge_tree: bool = False,
+        features: Union[FeatureSet, dict] = None,
     ) -> None:
         """
         Sets up a HTTPConnection object towards the server in the url.
@@ -471,6 +473,7 @@ class DAVClient:
            server etc.
           ssl_verify_cert can be the path of a CA-bundle or False.
           huge_tree: boolean, enable XMLParser huge_tree to handle big events, beware of security issues, see : https://lxml.de/api/lxml.etree.XMLParser-class.html
+          features: The default, None, will in version 2.x enable all existing workarounds in the code for backward compability.  Otherwise it will expect a FeatureSet or a dict as defined in `caldav.compatibility_hints` and use that to figure out what workarounds are needed.
 
         The niquests library will honor a .netrc-file, if such a file exists
         username and password may be omitted.
@@ -491,6 +494,7 @@ class DAVClient:
         log.debug("url: " + str(url))
         self.url = URL.objectify(url)
         self.huge_tree = huge_tree
+        self.features = FeatureSet(features)
         # Prepare proxy info
         if proxy is not None:
             _proxy = proxy
@@ -1087,19 +1091,21 @@ def get_davclient(
         try:
             from conf import client
 
-            idx = None
-            if name:
+            idx = os.environ.get("PYTHON_CALDAV_TEST_SERVER_IDX")
+            try:
+                idx = int(idx)
+            except (ValueError, TypeError):
+                idx = None
+            name = name or os.environ.get("PYTHON_CALDAV_TEST_SERVER_NAME")
+            if name and not idx:
                 try:
                     idx = int(name)
                     name = None
                 except ValueError:
                     pass
-            try:
-                conn = client(idx, name)
-                if conn:
-                    return conn
-            except:
-                error.weirdness("traceback from client()")
+            conn = client(idx, name)
+            if conn:
+                return conn
         except ImportError:
             pass
         finally:

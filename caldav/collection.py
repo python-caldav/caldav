@@ -763,7 +763,7 @@ class Calendar(DAVObject):
         xml=None,
         comp_class: Optional[_CC] = None,
         todo: Optional[bool] = None,
-        include_completed: bool = False,
+        include_completed: bool = None,
         sort_keys: Sequence[str] = (),
         sort_reverse: bool = False,
         expand: bool = False,
@@ -860,21 +860,18 @@ class Calendar(DAVObject):
         if todo and not include_completed:
             matches1 = self.search(
                 todo=True,
-                comp_class=comp_class,
                 ignore_completed1=True,
                 include_completed=True,
                 **kwargs,
             )
             matches2 = self.search(
                 todo=True,
-                comp_class=comp_class,
                 ignore_completed2=True,
                 include_completed=True,
                 **kwargs,
             )
             matches3 = self.search(
                 todo=True,
-                comp_class=comp_class,
                 ignore_completed3=True,
                 include_completed=True,
                 **kwargs,
@@ -903,30 +900,48 @@ class Calendar(DAVObject):
                 raise error.ConsistencyError(
                     "Inconsistent usage parameters: xml together with other search options"
                 )
+
+            ## For some of the workarounds below, we will do a recursive search, with all
+            ## those arguments:
+            kwargs2 = {
+                "include_completed": include_completed,
+                "sort_reverse": sort_reverse,
+                "expand": expand,
+                "server_expand": server_expand,
+                "split_expanded": split_expanded,
+                "props": props,
+            }
+
+            if not comp_class and not self.client.features.check_support(
+                "search.comp-type-optional"
+            ):
+                if kwargs2["include_completed"] is None:
+                    kwargs2["include_completed"] = True
+                objects = (
+                    self.search(event=True, **kwargs2, **kwargs)
+                    + self.search(todo=True, **kwargs2, **kwargs)
+                    + self.search(journal=True, **kwargs2, **kwargs)
+                )
+                self.sort_objects(objects, sort_keys, sort_reverse)
+                return objects
+
             try:
                 (response, objects) = self._request_report_build_resultlist(
                     xml, comp_class, props=props
                 )
+
             except error.ReportError as err:
-                ## Hack for some calendar servers
-                ## yielding 400 if the search does not include compclass.
-                ## Partial fix for https://github.com/python-caldav/caldav/issues/401
-                ## This assumes the client actually wants events and not tasks
-                ## The calendar server in question did not support tasks
-                ## However the most correct would probably be to join
-                ## events, tasks and journals.
-                ## TODO: we need server compatibility hints!
-                ## https://github.com/python-caldav/caldav/issues/402
-                if not comp_class and not "400" in err.reason:
+                ## This is only for backward compatibility.  The logic is even flawed.
+                ## But it does partially fix https://github.com/python-caldav/caldav/issues/401
+                if (
+                    self.client.features.backward_compatibility_mode
+                    and not comp_class
+                    and not "400" in err.reason
+                ):
                     return self.search(
-                        event=True,
-                        include_completed=include_completed,
                         sort_keys=sort_keys,
                         sort_reverse=sort_reverse,
-                        expand=expand,
-                        server_expand=server_expand,
-                        split_expanded=split_expanded,
-                        props=props,
+                        *kwargs2,
                         **kwargs,
                     )
                 raise
@@ -976,6 +991,17 @@ class Calendar(DAVObject):
             for o in objects_:
                 objects.extend(o.split_expanded())
 
+        ## partial workaround for https://github.com/python-caldav/caldav/issues/201
+        for obj in objects:
+            try:
+                obj.load(only_if_unloaded=True)
+            except:
+                pass
+
+        self.sort_objects(objects, sort_keys, sort_reverse)
+        return objects
+
+    def sort_objects(self, objects, sort_keys, sort_reverse):
         def sort_key_func(x):
             ret = []
             comp = x.icalendar_component
@@ -1003,7 +1029,6 @@ class Calendar(DAVObject):
                     > datetime.now().strftime("%F%H%M%S")
                 ),
             }
-            ## ref https://github.com/python-caldav/caldav/issues/448 - allow strings instead of a sequence here
             for sort_key in sort_keys:
                 val = comp.get(sort_key, None)
                 if val is None:
@@ -1020,18 +1045,10 @@ class Calendar(DAVObject):
             return ret
 
         if sort_keys:
+            ## ref https://github.com/python-caldav/caldav/issues/448 - allow strings instead of a sequence here
             if isinstance(sort_keys, str):
                 sort_keys = (sort_keys,)
             objects.sort(key=sort_key_func, reverse=sort_reverse)
-
-        ## partial workaround for https://github.com/python-caldav/caldav/issues/201
-        for obj in objects:
-            try:
-                obj.load(only_if_unloaded=True)
-            except:
-                pass
-
-        return objects
 
     def build_search_xml_query(
         self,

@@ -55,7 +55,8 @@ test = [
   "tzlocal",
   "xandikos",
   "radicale",
-  "pyfakefs"
+  "pyfakefs",
+  #"caldav_server_tester"
 ]
 [tool.setuptools_scm]
 write_to = "caldav/_version.py"
