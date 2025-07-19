@@ -8,13 +8,10 @@ Features:
  * create, update and delete event
  * search events by dates
  * etc.
+ 
+The documentation was freshed up a bit as of version 2.0, and is available at https://caldav.readthedocs.io/
 
-See the file [examples/basic_usage_examples.py](examples/basic_usage_examples.py) to get started.
-
-Links:
-
- * [Pypi](https://pypi.org/project/caldav)
- * [Documentation](docs/source/index.rst) - should be automatically mirrored on https://caldav.readthedocs.io/en/latest/
+The package is published at [Pypi](https://pypi.org/project/caldav)
 
 Licences:
 

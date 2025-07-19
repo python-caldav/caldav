@@ -2,7 +2,7 @@
 
 ## IMPORTANT - "flapping" changeset!
 
-In 2.0.0 I dropped the dependency on the requests library as the project is stagnant and adopted niquests, a fork of the requests library.  It's a small change, and three github issues could be closed just by doing this switch.  In addition niquests supports HTTP/2 and is one possible way forward for implementing async support.  However, the change has proven controversial, shortly after releasing 2.0 I had to revert back to requests and release 2.0.1.  Right after releasing 2.0.1, I reverted again so that the master branch is using niquests.
+The requests library is stagnant, so in 2.0.0 I replaced it with a fork niquests.  It's a very tiny changeset, and three github issues could be closed just by doing this switch.  In addition niquests supports HTTP/2 and is one possible way forward for implementing async support.  However, the change has proven controversial, shortly after releasing 2.0 I had to revert back to requests and release 2.0.1.  Right after releasing 2.0.1, I reverted again so that the master branch is using niquests.
 
 My plan now is to keep doing dual releases while maintaining the 2.x-series - one with niquests and one with requests.  You are encouraged to make an informed decision on weather you are most comfortable with the stable but stagnant requests, or the niquests fork and choose your version accordingly.  When I'm starting to work on 3.0 (which will support async requests), I will think deeply about this and either choose niquests, httpx, or (it's always possible to hope!) requests 3.0.  **Your opinion is valuable for me**.  Feel free to comment on https://github.com/python-caldav/caldav/issues/457,  https://github.com/python-caldav/caldav/issues/530 or https://github.com/jawah/niquests/issues/267 if you have a github account, and if not you can reach out at python-http@plann.no
 
@@ -15,6 +15,10 @@ Changelogs prior to v1.2 follows other formats and are available in the v1.2-rel
 This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html), though some earlier releases may be incompatible with the SemVer standard.
 
 ## [Unreleased]
+
+### Changed
+
+* In 1.5.0, I moved the compability matrix from the tests directory and into the project itself - now I'm doing a major overhaul of it.  This change is not much visible for end users yet - but already now it's possible to configure "compatibility hints" when setting up the davclient, and the idea is that different kind of workarounds may be applied depending on the compatibility-matrix.  Search without comptype is wonky on many servers, now the `search`-method will automatically deliver a union of a search of the three different comptypes if a comptype is not set in the parameters *and* it's declared that the compatibility matrix does not work.  In parallell I'm developing a stand-alone tool caldav-server-tester to check the compatibility of a caldav server.
 
 ### Fixes
 
