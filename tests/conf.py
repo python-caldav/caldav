@@ -8,7 +8,10 @@ import tempfile
 import threading
 import time
 
-import niquests
+try:
+    import niquests as requests
+except ImportError:
+    import requests
 
 from caldav import compatibility_hints
 from caldav.compatibility_hints import FeatureSet
@@ -125,7 +128,7 @@ if test_radicale:
         i = 0
         while True:
             try:
-                niquests.get(str(self.url))
+                requests.get(str(self.url))
                 break
             except:
                 time.sleep(0.05)
@@ -205,7 +208,7 @@ if test_xandikos:
         ## ... but the thread may be stuck waiting for a request ...
         def silly_request():
             try:
-                niquests.get(str(self.url))
+                requests.get(str(self.url))
             except:
                 pass
 

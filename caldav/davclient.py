@@ -14,12 +14,20 @@ from typing import TYPE_CHECKING
 from typing import Union
 from urllib.parse import unquote
 
-import niquests
+
+try:
+    import niquests as requests
+    from niquests.auth import AuthBase
+    from niquests.models import Response
+    from niquests.structures import CaseInsensitiveDict
+except ImportError:
+    import requests
+    from requests.auth import AuthBase
+    from requests.models import Response
+    from requests.structures import CaseInsensitiveDict
+
 from lxml import etree
 from lxml.etree import _Element
-from niquests.auth import AuthBase
-from niquests.models import Response
-from niquests.structures import CaseInsensitiveDict
 
 from .elements.base import BaseElement
 from caldav import __version__
@@ -489,7 +497,10 @@ class DAVClient:
 
         ## Deprecation TODO: give a warning, user should use get_davclient or auto_calendar instead
 
-        self.session = niquests.Session(multiplexed=True)
+        try:
+            self.session = requests.Session(multiplexed=True)
+        except TypeError:
+            self.session = requests.Session()
 
         log.debug("url: " + str(url))
         self.url = URL.objectify(url)
@@ -839,9 +850,9 @@ class DAVClient:
                 )
 
             if auth_type == "digest":
-                self.auth = niquests.auth.HTTPDigestAuth(self.username, self.password)
+                self.auth = requests.auth.HTTPDigestAuth(self.username, self.password)
             elif auth_type == "basic":
-                self.auth = niquests.auth.HTTPBasicAuth(self.username, self.password)
+                self.auth = requests.auth.HTTPBasicAuth(self.username, self.password)
             elif auth_type == "bearer":
                 self.auth = HTTPBearerAuth(self.password)
 
@@ -977,8 +988,8 @@ class DAVClient:
 
         # this is an error condition that should be raised to the application
         if (
-            response.status == niquests.codes.forbidden
-            or response.status == niquests.codes.unauthorized
+            response.status == requests.codes.forbidden
+            or response.status == requests.codes.unauthorized
         ):
             try:
                 reason = response.reason

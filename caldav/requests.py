@@ -1,4 +1,7 @@
-from niquests.auth import AuthBase
+try:
+    from niquests.auth import AuthBase
+except ImportError:
+    from requests.auth import AuthBase
 
 
 class HTTPBearerAuth(AuthBase):
