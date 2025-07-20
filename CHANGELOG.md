@@ -2,7 +2,7 @@
 
 ## IMPORTANT - "flapping" changeset!
 
-The requests library is stagnant, so in 2.0.0 I replaced it with a fork niquests.  It's a very tiny changeset, and three github issues could be closed just by doing this switch.  In addition niquests supports HTTP/2 and is one possible way forward for implementing async support.  However, the change has proven controversial, shortly after releasing 2.0 I had to revert back to requests and release 2.0.1.  Right after releasing 2.0.1, I reverted again so that the master branch is using niquests.
+The requests library is stagnant, so in 2.0.0 I replaced it with a fork niquests (as someone recommended in a pull request).  It's a very tiny changeset, and three github issues could be closed just by doing this switch.  In addition niquests supports HTTP/2 and is one possible way forward for implementing async support.  However, the change has proven controversial.  The niquest author has not been able to cooperate very well with the rest of the python community, so niquests pulls in a lot of other forked libraries as for now.  Shortly after releasing 2.0 I had to revert back to requests and release 2.0.1.  Right after releasing 2.0.1, I reverted again so that the master branch is using niquests.
 
 My plan now is to keep doing dual releases while maintaining the 2.x-series - one with niquests and one with requests.  You are encouraged to make an informed decision on weather you are most comfortable with the stable but stagnant requests, or the niquests fork and choose your version accordingly.  When I'm starting to work on 3.0 (which will support async requests), I will think deeply about this and either choose niquests, httpx, or (it's always possible to hope!) requests 3.0.  **Your opinion is valuable for me**.  Feel free to comment on https://github.com/python-caldav/caldav/issues/457,  https://github.com/python-caldav/caldav/issues/530 or https://github.com/jawah/niquests/issues/267 if you have a github account, and if not you can reach out at python-http@plann.no
 
@@ -18,7 +18,8 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 
 ### Changed
 
-* In 1.5.0, I moved the compability matrix from the tests directory and into the project itself - now I'm doing a major overhaul of it.  This change is not much visible for end users yet - but already now it's possible to configure "compatibility hints" when setting up the davclient, and the idea is that different kind of workarounds may be applied depending on the compatibility-matrix.  Search without comptype is wonky on many servers, now the `search`-method will automatically deliver a union of a search of the three different comptypes if a comptype is not set in the parameters *and* it's declared that the compatibility matrix does not work.  In parallell I'm developing a stand-alone tool caldav-server-tester to check the compatibility of a caldav server.
+* In 1.5.0, I moved the compability matrix from the tests directory and into the project itself - now I'm doing a major overhaul of it.  This change is not much visible for end users yet - but already now it's possible to configure "compatibility hints" when setting up the davclient, and the idea is that different kind of workarounds may be applied depending on the compatibility-matrix.  Search without comp-type is wonky on many servers, now the `search`-method will automatically deliver a union of a search of the three different comp-types if a comp-type is not set in the parameters *and* it's declared that the compatibility matrix does not work.  In parallel I'm developing a stand-alone tool caldav-server-tester to check the compatibility of a caldav server.  https://github.com/python-caldav/caldav/issues/532 / https://github.com/python-caldav/caldav/pull/537
+* Littered the code with `try: import niquests as requests except: import requests`, making it easier to flap between requests and niquests.
 
 ### Fixes
 
@@ -205,7 +206,7 @@ Since the roadmap was made, the maintainer has spent 39 hours working on the Cal
 
 ### Fixed
 
-* Partial workaround for https://github.com/python-caldav/caldav/issues/401 - some servers require comptype in the search query -
+* Partial workaround for https://github.com/python-caldav/caldav/issues/401 - some servers require comp-type in the search query
 * At least one bugfix, possibly fixing #399 - the `accept_invite`-method not working - https://github.com/python-caldav/caldav/pull/403
 * Fix/workaround for servers sending MAILTO in uppercase - https://github.com/python-caldav/caldav/issues/388,  https://github.com/python-caldav/caldav/issues/399 and https://github.com/python-caldav/caldav/pull/403
 * `get_duration`: make sure the algorithm doesn't raise an exception comparing dates with timestamps - https://github.com/python-caldav/caldav/pull/381

@@ -185,6 +185,8 @@ class FeatureSet:
     def collapse(self):
         """
         If all subfeatures are the same, it should be collapsed into the parent
+
+        Messy and complex logic :-(
         """
         features = list(self._server_features.keys())
         parents = set()
@@ -199,23 +201,24 @@ class FeatureSet:
 
             if len(parent_info['subfeatures']):
                 foo = self.check_support(parent, return_type=dict, return_defaults=False)
-                dont_collapse = False
-                for sub in parent_info['subfeatures']:
-                    bar = self._server_features.get(f"{parent}.{sub}")
-                    if bar is None:
-                        dont_collapse = True
-                        break
-                    if foo is None:
-                        foo = bar
-                    elif bar != foo:
-                        dont_collapse = True
-                        break
-                if not dont_collapse:
-                    if not parent in self._server_features:
-                        self._server_features[parent] = {}
+                if len(parent_info['subfeatures']) > 1 or foo is not None:
+                    dont_collapse = False
                     for sub in parent_info['subfeatures']:
-                        self._server_features.pop(f"{parent}.{sub}")
-                    self.copyFeatureSet({parent: foo})
+                        bar = self._server_features.get(f"{parent}.{sub}")
+                        if bar is None:
+                            dont_collapse = True
+                            break
+                        if foo is None:
+                            foo = bar
+                        elif bar != foo:
+                            dont_collapse = True
+                            break
+                    if not dont_collapse:
+                        if not parent in self._server_features:
+                            self._server_features[parent] = {}
+                        for sub in parent_info['subfeatures']:
+                            self._server_features.pop(f"{parent}.{sub}")
+                        self.copyFeatureSet({parent: foo})
 
     def _default(self, feature_info):
         if isinstance(feature_info, str):
@@ -591,7 +594,7 @@ xandikos = {
 radicale = {
     "search.comp-type-optional": {"support": "ungraceful"},
     "search.category.fullstring": {"support": "unsupported"},
-    "search.recurrences.expanded": {"support": "unsupported"}, ## This was apparently broken in commit 9d591bd5144c97ae3803512b6c22cd5ce1dfd0f9 and 371d5057de6a1f729d198ab738dd6e19c9e55099 - issue has been raised in https://github.com/Kozea/Radicale/issues/1812#issuecomment-3067913171
+    "search.recurrences.expanded": {"support": "unsupported"}, ## For events, there is https://github.com/Kozea/Radicale/issues/1827 causing the test code to fail. Unfortunately the compatibility checks pass.  For tasks, the master branch works as of 2025-07-20, but the latest release doesn't.
     'old_flags': [
     ## calendar listings and calendar creation works a bit
     ## "weird" on radicale
