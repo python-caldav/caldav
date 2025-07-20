@@ -22,6 +22,9 @@ try:
     from niquests.structures import CaseInsensitiveDict
 except ImportError:
     import requests
+    from requests.auth import AuthBase
+    from requests.models import Response
+    from requests.structures import CaseInsensitiveDict
 
 from lxml import etree
 from lxml.etree import _Element
