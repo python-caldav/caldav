@@ -93,10 +93,11 @@ def fix(event):
         global fixup_error_loggings
         fixup_error_loggings += 1
         is_power_of_two = lambda n: not (n & (n - 1))
+        logger = logging.getLogger("caldav")
         if is_power_of_two(fixup_error_loggings):
-            log = logging.warning
+            log = logger.warning
         else:
-            log = logging.debug
+            log = logger.debug
 
         log_message = [
             "Ical data was modified to avoid compatibility issues",
