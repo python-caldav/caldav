@@ -949,6 +949,11 @@ class RepeatedFunctionalTestsBaseClass:
         inbox = self.principal.schedule_inbox()
         outbox = self.principal.schedule_outbox()
 
+    def testFindCalendarOwner(self):
+        cal = self._fixCalendar()
+        owner = cal.get_property(dav.Owner())
+        ## TODO: something should probably be asserted about the Owner
+
     def testIssue397(self):
         cal = self._fixCalendar()
         cal.save_event(
