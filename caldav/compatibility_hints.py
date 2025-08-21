@@ -592,7 +592,7 @@ xandikos = {
 ## There is much development going on at Radicale as of summar 2025,
 ## so I'm expecting this list to shrink a lot soon.
 radicale = {
-    "search.comp-type-optional": {"support": "ungraceful"},
+    #"search.comp-type-optional": {"support": "ungraceful"},
     "search.category.fullstring": {"support": "unsupported"},
     "search.recurrences.expanded": {"support": "unsupported"}, ## For events, there is https://github.com/Kozea/Radicale/issues/1827 causing the test code to fail. Unfortunately the compatibility checks pass.  For tasks, the master branch works as of 2025-07-20, but the latest release doesn't.
     'old_flags': [
