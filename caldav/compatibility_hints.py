@@ -811,6 +811,7 @@ nextcloud = [
 #]
 
 robur = {
+    "create-calendar": {  "support": "unsupported" }, ## regression?  I think this worked before?
     "delete-calendar": {  "support": "fragile" },
     "search.time-range.todo": { "support": "unsupported" },
     "search.category": { "support": "unsupported" },
