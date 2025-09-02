@@ -145,6 +145,8 @@ uids_used = (
     "test6",
     "c26921f4-0653-11ef-b756-58ce2a14e2e5",
     "e2a2e13e-34f2-11f0-ae12-1c1bb5134174",
+    "csc_event_with_categories", "csc_monthly_recurring_event", "csc_monthly_recurring_with_exception", "csc_simple_event1", "csc_simple_event2", "csc_simple_event3", "csc_simple_event4"
+
 )
 ## TODO: todo7 is an item without uid.  Should be taken care of somehow.
 
@@ -757,12 +759,12 @@ class RepeatedFunctionalTestsBaseClass:
         self.caldav.teardown(self.caldav)
 
     def _cleanup(self, mode=None):
-        if self.cleanup_regime in ("pre", "post") and self.cleanup_regime not in (mode, "thorough"):
+        if self.cleanup_regime in ("pre", "post") and self.cleanup_regime != mode:
             return
         if self.check_compatibility_flag("read_only"):
             return  ## no cleanup needed
         if (
-            self.check_support("create-calendar")
+            not self.check_support("create-calendar")
             or self.cleanup_regime == "thorough"
         ):
             for uid in uids_used:
