@@ -1576,7 +1576,7 @@ END:VCALENDAR
         c = self._fixCalendar()
 
         num_existing = len(c.events())
-        num_existing_t + len(c.todos())
+        num_existing_t = len(c.todos())
 
         c.save_event(ev1)
         c.save_event(ev3)
