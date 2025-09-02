@@ -757,7 +757,7 @@ class RepeatedFunctionalTestsBaseClass:
         self.caldav.teardown(self.caldav)
 
     def _cleanup(self, mode=None):
-        if self.cleanup_regime in ("pre", "post") and self.cleanup_regime not in (mode, through):
+        if self.cleanup_regime in ("pre", "post") and self.cleanup_regime not in (mode, "thorough"):
             return
         if self.check_compatibility_flag("read_only"):
             return  ## no cleanup needed
