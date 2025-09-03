@@ -840,7 +840,7 @@ posteo = {
         'no_journal',
         #'no_recurring_todo', ## todo
         'no_sync_token',
-        #'combined_search_not_working',
+        'combined_search_not_working',
         'no_alarmsearch',
         #'broken_expand',
         "no-principal-search-self"
