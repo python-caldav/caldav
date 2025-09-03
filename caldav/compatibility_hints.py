@@ -817,6 +817,7 @@ robur = {
     "search.category": { "support": "unsupported" },
     "search.comp-type-optional": { "support": "ungraceful" },
     "search.recurrences.expanded.todo": { "support": "unsupported" },
+    "search.recurrences.expanded.event": { "support": "fragile" },
     "search.recurrences.expanded.exception": { "support": "unsupported" },
     'old_flags': [
         'non_existing_raises_other', ## AuthorizationError instead of NotFoundError
