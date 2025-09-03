@@ -641,7 +641,7 @@ radicale = {
 ecloud = {
     'delete-calendar': {
         'support': 'fragile',
-        'behaviour': 'Deleting a recently created table fails'},
+        'behaviour': 'Deleting a recently created calendar fails'},
     'delete-calendar.free-namespace': {
         'support': 'unsupported',
         'behaviour': "deleting a calendar moves it to a trashbin, thrashbin has to be manually 'emptied' from the web-ui before the namespace is freed up"},
@@ -650,7 +650,7 @@ ecloud = {
     },
     'rate-limit': {
         'enable': True,
-        'interval': 25,
+        'interval': 10,
         'count': 1,
         'description': "It's needed to manually empty trashbin frequently when running tests.  Since this oepration takes some time and/or there are some caches, it's needed to run tests slowly, even when hammering the 'empty thrashbin' frequently"},
     'old_flags': ['no-principal-search-all', 'no-principal-search-self', 'unique_calendar_ids'],
