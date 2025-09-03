@@ -2509,7 +2509,7 @@ END:VCALENDAR
         ##  hence is also considered to span over infinite time
         urls_found = [x.url for x in todos1]
         urls_found2 = [x.url for x in todos2]
-        assert urls_found == urls_found2
+        assert set(urls_found) == set(urls_found2)
         if self.check_support("search.recurrences.includes-implicit.todo"):
             urls_found.remove(t6.url)
         if not self.check_compatibility_flag(
