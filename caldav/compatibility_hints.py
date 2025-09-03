@@ -127,8 +127,8 @@ class FeatureSet:
         ## TODO: as for now, the tests will run towards the first calendar it will find, and most of the tests will assume the calendar is empty.  This is bad.
         "test-calendar": {
             "type": "tests-behaviour",
-            "description": "if the server does not allow creating new calendars, then use the calendar with the given name for running tests.  ## NOT SUPPORTED YET!",
-            "extra_keys": { "name": "calendar name" }
+            "description": "if the server does not allow creating new calendars, then use the calendar with the given name for running tests (NOT SUPPORTED YET!), wipe the calendar between each test run (alternative for calendars not supporting the creation of new calendars is a very expensive delete objects one-by-one by uid)",
+            "extra_keys": { "name": "calendar name", "cleanup-regime": "thorough|pre|post|light|wipe-calendar" }
         },
         "test-calendar.compatibility-tests": {
             "type": "tests-behaviour",
