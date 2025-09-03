@@ -771,7 +771,7 @@ class RepeatedFunctionalTestsBaseClass:
                 x.delete()
         elif (
             not self.check_support("create-calendar") or
-            or self.cleanup_regime == "thorough"
+            self.cleanup_regime == "thorough"
         ):
             for uid in uids_used:
                 try:
