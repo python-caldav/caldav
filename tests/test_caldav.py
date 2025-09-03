@@ -145,8 +145,7 @@ uids_used = (
     "test6",
     "c26921f4-0653-11ef-b756-58ce2a14e2e5",
     "e2a2e13e-34f2-11f0-ae12-1c1bb5134174",
-    "csc_event_with_categories", "csc_monthly_recurring_event", "csc_monthly_recurring_with_exception", "csc_simple_event1", "csc_simple_event2", "csc_simple_event3", "csc_simple_event4"
-
+    "csc_event_with_categories", "csc_monthly_recurring_event", "csc_monthly_recurring_with_exception", "csc_simple_event1", "csc_simple_event2", "csc_simple_event3", "csc_simple_event4", 'csc_simple_task2', 'csc_simple_task3', 'csc_monthly_recurring_task', 'csc_simple_task1'
 )
 ## TODO: todo7 is an item without uid.  Should be taken care of somehow.
 
