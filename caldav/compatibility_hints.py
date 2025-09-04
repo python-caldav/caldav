@@ -836,6 +836,8 @@ robur = {
 
 posteo = {
     "create-calendar": {  "support": "unsupported" },
+    "search.recurrences.expanded.exception": { "support": "unsupported" },
+    "search.recurrences.includes-implicit.todo": { "support": "unsupported" },
     'old_flags': [
         'no_scheduling',
         'no_journal',
@@ -843,7 +845,6 @@ posteo = {
         'no_sync_token',
         'combined_search_not_working',
         'no_alarmsearch',
-        #'broken_expand',
         "no-principal-search-self"
     ]
 }
