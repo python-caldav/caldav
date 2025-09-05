@@ -1156,7 +1156,7 @@ END:VCALENDAR
 
         if self.check_support("create-calendar") and self.check_support(
             "create-calendar.set-displayname"
-        )
+        ):
             ## We should be able to access the calender through the name
              c2 = self.principal.calendar(name="Yep")
              ## (but may break if we have multiple calendars with the same name)
