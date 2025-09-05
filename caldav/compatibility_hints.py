@@ -639,11 +639,15 @@ radicale = {
 }
 
 ecloud = {
+    'search.category.fullstring.smart': {'support': 'unsupported'}, ## TODO: verify
+    'search.comp-type-optional': {'support': 'ungraceful'},
+    'search.recurrences.expanded.todo': {'support': 'unsupported'},
+    'search.recurrences.expanded.exception': {'support': 'unsupported'}, ## TODO: verify
+
     'delete-calendar': {
         'support': 'fragile',
         'behaviour': 'Deleting a recently created calendar fails'},
-    'delete-calendar.free-namespace': {
-        'support': 'unsupported',
+    'delete-calendar.free-namespace': { ## TODO: not caught by server-tester
         'behaviour': "deleting a calendar moves it to a trashbin, thrashbin has to be manually 'emptied' from the web-ui before the namespace is freed up"},
     'search.comp-type-optional': {
         'support': 'ungraceful',
@@ -659,6 +663,7 @@ ecloud = {
 ## ZIMBRA IS THE MOST SILLY, AND THERE ARE REGRESSIONS FOR EVERY RELEASE!
 ## AAARGH!
 zimbra = {
+    'search.recurrences.expanded.exception': {'support': 'unsupported'}, ## TODO: verify
     'create-calendar.set-displayname': {'support': 'unsupported'},
     'save-load.todo.mixed-calendar': {'support': 'unsupported'},
     'search.category': {'support': 'ungraceful'},
@@ -811,13 +816,12 @@ nextcloud = [
 #]
 
 robur = {
-    "create-calendar": {  "support": "unsupported" }, ## regression?  I think this worked before?
     "delete-calendar": {  "support": "fragile" },
     "search.time-range.todo": { "support": "unsupported" },
     "search.category": { "support": "unsupported" },
     "search.comp-type-optional": { "support": "ungraceful" },
     "search.recurrences.expanded.todo": { "support": "unsupported" },
-    "search.recurrences.expanded.event": { "support": "fragile" },
+    #"search.recurrences.expanded.event": { "support": "fragile" },
     "search.recurrences.expanded.exception": { "support": "unsupported" },
     'old_flags': [
         'non_existing_raises_other', ## AuthorizationError instead of NotFoundError
@@ -831,6 +835,7 @@ robur = {
         'no_relships',
         'isnotdefined_not_working',
         'no_alarmsearch',
+        'unique_calendar_ids',
     ]
 }
 

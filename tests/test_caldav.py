@@ -1137,7 +1137,7 @@ END:VCALENDAR
         existing_urls = {x.url for x in existing_events}
         cleanse = lambda events: [x for x in events if x.url not in existing_urls]
 
-        if not not self.check_support("create-calendar"):
+        if self.check_support("create-calendar"):
             ## we're supposed to be working towards a brand new calendar
             assert len(existing_events) == 0
 
@@ -1154,17 +1154,17 @@ END:VCALENDAR
         assert len(events2) == 1
         assert events2[0].url == events[0].url
 
-        if not not self.check_support("create-calendar") and self.check_support(
+        if self.check_support("create-calendar") and self.check_support(
             "create-calendar.set-displayname"
-        ):
-            # We should be able to access the calender through the name
-            c2 = self.principal.calendar(name="Yep")
-            ## may break if we have multiple calendars with the same name
-            if not self.check_support("delete-calendar"):
-                assert c2.url == c.url
-                events2 = cleanse(c2.events())
-                assert len(events2) == 1
-                assert events2[0].url == events[0].url
+        )
+            ## We should be able to access the calender through the name
+             c2 = self.principal.calendar(name="Yep")
+             ## (but may break if we have multiple calendars with the same name)
+             if self.check_support("delete-calendar"):
+                 assert c2.url == c.url
+                 events2 = cleanse(c2.events())
+                 assert len(events2) == 1
+                 assert events2[0].url == events[0].url
 
         # add another event, it should be doable without having premade ICS
         ev2 = c.save_event(
