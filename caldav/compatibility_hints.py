@@ -282,7 +282,7 @@ class FeatureSet:
 
         (this is very simple now - used to be a hierarchy dict to be traversed)
         """
-        assert feature in cls.FEATURES ## TODO ... raise a better exception?
+        assert feature in cls.FEATURES ## A feature in the configured feature-list does not exist.  TODO ... raise a better exception?
         if not 'name' in cls.FEATURES[feature]:
             cls.FEATURES[feature]['name'] = feature
         if '.' in feature and not 'parent' in cls.FEATURES[feature]:
@@ -715,18 +715,23 @@ baikal = [
 #    'object_by_uid_is_broken'
 #]
 
-davical = [
-    #'no_journal', ## it threw a 500 internal server error! ## for old versions
-    #'nofreebusy', ## for old versions
-    'fragile_sync_tokens', ## no issue raised yet
-    'vtodo_datesearch_nodtstart_task_is_skipped', ## no issue raised yet
-    'broken_expand_on_exceptions', ## no issue raised yet
-    'date_todo_search_ignores_duration',
-    'calendar_color',
-    'calendar_order',
-    'vtodo_datesearch_notime_task_is_skipped',
-    "no_alarmsearch",
-]
+davical = {
+    "search.category.fullstring.smart": { "support": "unsupported" },
+    "search.comp-type-optional": { "support": "fragile" },
+    "search.recurrences.expanded.todo": { "support": "unsupported" },
+    "search.recurrences.expanded.exception": { "support": "unsupported" },
+    "old_flags": [
+        #'no_journal', ## it threw a 500 internal server error! ## for old versions
+        #'nofreebusy', ## for old versions
+        'fragile_sync_tokens', ## no issue raised yet
+        'vtodo_datesearch_nodtstart_task_is_skipped', ## no issue raised yet
+        'date_todo_search_ignores_duration',
+        'calendar_color',
+        'calendar_order',
+        'vtodo_datesearch_notime_task_is_skipped',
+        "no_alarmsearch",
+    ]
+}
 
 #google = [
 #    'no_mkcalendar',
@@ -783,21 +788,29 @@ nextcloud = [
 #    "no_recurring_todo",
 #]
 
-robur = [
-    'non_existing_raises_other', ## AuthorizationError instead of NotFoundError
-    'no_scheduling',
-    'no_sync_token',
-    'no_supported_components_support',
-    'no_journal',
-    'no_freebusy_rfc4791',
-    'no_todo_datesearch', ## returns nothing
-    'text_search_not_working',
-    "no-principal-search",
-    'no_relships',
-    'isnotdefined_not_working',
-    'no_alarmsearch',
-    'broken_expand',
-]
+robur = {
+    "delete-calendar": {  "support": "fragile" },
+    "search.time-range.todo": { "support": "unsupported" },
+    "search.category": { "support": "unsupported" },
+    "search.comp-type-optional": { "support": "ungraceful" },
+    "search.recurrences.expanded.todo": { "support": "unsupported" },
+    "search.recurrences.expanded.exception": { "support": "unsupported" },
+    'old_flags': [
+        'non_existing_raises_other', ## AuthorizationError instead of NotFoundError
+        'no_scheduling',
+        'no_sync_token',
+        'no_supported_components_support',
+        'no_journal',
+        'no_freebusy_rfc4791',
+        'no_todo_datesearch', ## returns nothing
+        'text_search_not_working',
+        "no-principal-search",
+        'no_relships',
+        'isnotdefined_not_working',
+        'no_alarmsearch',
+        'broken_expand'
+    ]
+}
 
 posteo = [
     'no_scheduling',
