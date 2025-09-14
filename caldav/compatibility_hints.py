@@ -652,6 +652,7 @@ ecloud = {
     'search.comp-type-optional': {
         'support': 'ungraceful',
     },
+    ## TODO: this applies only to test runs, not to ordinary usage
     'rate-limit': {
         'enable': True,
         'interval': 10,

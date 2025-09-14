@@ -799,9 +799,7 @@ class RepeatedFunctionalTestsBaseClass:
     def _teardownCalendar(self, name=None, cal_id=None):
         try:
             cal = self.principal.calendar(name=name, cal_id=cal_id)
-            if self.check_compatibility_flag("sticky_events") or not self.check_support(
-                "delete-calendar"
-            ):
+            if self.check_compatibility_flag("sticky_events"):
                 for goo in cal.objects():
                     try:
                         goo.delete()
@@ -810,6 +808,22 @@ class RepeatedFunctionalTestsBaseClass:
             cal.delete()
         except:
             pass
+        try:
+            cal.events()
+            if check_support('delete-calendar', str) == 'fragile':
+                ## sometimes it's needed to sleep a bit before deleting a calendar.  TODO: improve the compatibility-description.
+                time.sleep(10)
+                try:
+                    cal.delete()
+                except:
+                    pass
+            remaining = cal.search()
+            for x in remaining:
+                x.delete()
+            cal.delete()
+        except:
+            pass
+
 
     def _fixCalendar(self, **kwargs):
         """
