@@ -1009,7 +1009,9 @@ class CalendarObjectResource(DAVObject):
         potentially breaking couplings
         """
         return (
-            (self._data and self._data.count("BEGIN:") > 1) or self._vobject_instance or self._icalendar_instance
+            (self._data and self._data.count("BEGIN:") > 1)
+            or self._vobject_instance
+            or self._icalendar_instance
         )
 
     def has_component(self):
@@ -1148,7 +1150,7 @@ class CalendarObjectResource(DAVObject):
         if not isinstance(inst, icalendar.Calendar):
             ## assume inst is an Event, Journal or Todo.
             ## TODO: perhaps a bit better sanity checking here?
-            try: ## DEPRECATION TODO: remove this try/except the future
+            try:  ## DEPRECATION TODO: remove this try/except the future
                 ## icalendar 7.x behaviour (not released yet as of 2025-09
                 cal = icalendar.Calendar.new()
             except:

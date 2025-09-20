@@ -1210,7 +1210,7 @@ END:VCALENDAR
     @pytest.mark.parametrize("klass", ["Calendar", "Event"])
     def testCreateEventFromiCal(self, klass):
         c = self._fixCalendar()
-        try: ## TODO: remove this try-except
+        try:  ## TODO: remove this try-except
             icalcal = icalendar.Calendar.new()
         except:
             ## Calendar.new() is supported from icalendar 7, which is yet to be released as of 2025-09
@@ -1223,13 +1223,13 @@ END:VCALENDAR
             summary="This is a test event",
         )
         icalcal.add_component(icalevent)
-        
+
         ## Parametrized test - we should test both with the Calendar object and the Event object
-        obj = { "Calendar": icalcal, "Event": icalevent }[klass]
+        obj = {"Calendar": icalcal, "Event": icalevent}[klass]
         event = c.save_event(obj)
         events = c.events()
-        assert len([x for x in events if x.icalendar_component['uid'] == 'ctuid1']) == 1
-        
+        assert len([x for x in events if x.icalendar_component["uid"] == "ctuid1"]) == 1
+
     def testAlarm(self):
         ## Ref https://github.com/python-caldav/caldav/issues/132
         c = self._fixCalendar()
