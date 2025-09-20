@@ -165,7 +165,10 @@ def create_ical(ical_fragment=None, objtype=None, language="en_DK", **props):
         my_instance = icalendar.Calendar()
         if objtype is None:
             objtype = "VEVENT"
-        component = icalendar.cal.component_factory[objtype]()
+        try:
+            component = icalendar.cal.component_factory[objtype]()
+        except:
+            component = icalendar.cal.component_factory.ComponentFactory()[objtype]()
         my_instance.add_component(component)
         ## STATUS should default to NEEDS-ACTION for tasks, if it's not set
         ## (otherwise we cannot easily add a task to a davical calendar and

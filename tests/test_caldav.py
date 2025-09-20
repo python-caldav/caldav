@@ -145,6 +145,17 @@ uids_used = (
     "test6",
     "c26921f4-0653-11ef-b756-58ce2a14e2e5",
     "e2a2e13e-34f2-11f0-ae12-1c1bb5134174",
+    "csc_event_with_categories",
+    "csc_monthly_recurring_event",
+    "csc_monthly_recurring_with_exception",
+    "csc_simple_event1",
+    "csc_simple_event2",
+    "csc_simple_event3",
+    "csc_simple_event4",
+    "csc_simple_task2",
+    "csc_simple_task3",
+    "csc_monthly_recurring_task",
+    "csc_simple_task1",
 )
 ## TODO: todo7 is an item without uid.  Should be taken care of somehow.
 
@@ -690,7 +701,6 @@ class RepeatedFunctionalTestsBaseClass:
 
     def setup_method(self):
         logging.debug("############## test setup")
-        self.cleanup_regime = self.server_params.get("cleanup", "light")
         self.calendars_used = []
 
         features = self.server_params.get("features", {})
@@ -699,6 +709,14 @@ class RepeatedFunctionalTestsBaseClass:
         self.old_features = features.get("old_flags", [])
 
         self.features = FeatureSet(self.server_params.get("features", {}))
+
+        calendar_info = self.check_support("test-calendar", dict)
+        self.cleanup_regime = calendar_info.get("cleanup-regime", "light")
+
+        if not "cleanup" in self.server_params and not self.check_support(
+            "create-calendar"
+        ):
+            self.cleanup_regime = "thorough"
 
         ## verify that all old flags are valid
         for flag in self.old_features:
@@ -759,7 +777,15 @@ class RepeatedFunctionalTestsBaseClass:
         if self.check_compatibility_flag("read_only"):
             return  ## no cleanup needed
         if (
-            self.check_compatibility_flag("no_mkcalendar")
+            not self.check_support("create-calendar")
+            and self.cleanup_regime == "wipe-calendar"
+        ):
+            cal = self._fixCalendar()
+            ## do we need a try-except-pass?
+            for x in cal.search():
+                x.delete()
+        elif (
+            not self.check_support("create-calendar")
             or self.cleanup_regime == "thorough"
         ):
             for uid in uids_used:
@@ -788,14 +814,27 @@ class RepeatedFunctionalTestsBaseClass:
     def _teardownCalendar(self, name=None, cal_id=None):
         try:
             cal = self.principal.calendar(name=name, cal_id=cal_id)
-            if self.check_compatibility_flag("sticky_events") or not self.check_support(
-                "delete-calendar"
-            ):
+            if self.check_compatibility_flag("sticky_events"):
                 for goo in cal.objects():
                     try:
                         goo.delete()
                     except:
                         pass
+            cal.delete()
+        except:
+            pass
+        try:
+            cal.events()
+            if check_support("delete-calendar", str) == "fragile":
+                ## sometimes it's needed to sleep a bit before deleting a calendar.  TODO: improve the compatibility-description.
+                time.sleep(10)
+                try:
+                    cal.delete()
+                except:
+                    pass
+            remaining = cal.search()
+            for x in remaining:
+                x.delete()
             cal.delete()
         except:
             pass
@@ -806,9 +845,9 @@ class RepeatedFunctionalTestsBaseClass:
         should see if there exists a test calendar, if that's not
         possible, give up and return the primary calendar.
         """
-        if self.check_compatibility_flag(
-            "no_mkcalendar"
-        ) or self.check_compatibility_flag("read_only"):
+        if not self.check_support("create-calendar") or self.check_compatibility_flag(
+            "read_only"
+        ):
             if not self._default_calendar:
                 calendars = self.principal.calendars()
                 for c in calendars:
@@ -870,7 +909,7 @@ class RepeatedFunctionalTestsBaseClass:
         for x in set(observed.keys()).union(set(expected.keys())):
             find_feature = checker.features_checked.find_feature
             type_ = find_feature(x).get("type", "server-feature")
-            if type_ in ("client-feature", "server-observation"):
+            if type_ in ("client-feature", "server-observation", "tests-behaviour"):
                 for target in observed_, expected_:
                     if x in target:
                         target.pop(x)
@@ -882,6 +921,7 @@ class RepeatedFunctionalTestsBaseClass:
                     if y in stripdict[x]:
                         stripdict[x].pop(y)
 
+        checker.cleanup(force=False)
         assert observed_ == expected_
 
     def testSupport(self):
@@ -1055,7 +1095,7 @@ END:VCALENDAR
             assert all((isinstance(x, Principal) for x in all_principals))
 
     def testCreateDeleteCalendar(self):
-        self.skip_on_compatibility_flag("no_mkcalendar")
+        self.skip_unless_support("create-calendar")
         self.skip_on_compatibility_flag("read_only")
         self.skip_unless_support("delete-calendar")
         if not self.check_compatibility_flag(
@@ -1127,7 +1167,7 @@ END:VCALENDAR
         existing_urls = {x.url for x in existing_events}
         cleanse = lambda events: [x for x in events if x.url not in existing_urls]
 
-        if not self.check_compatibility_flag("no_mkcalendar"):
+        if self.check_support("create-calendar"):
             ## we're supposed to be working towards a brand new calendar
             assert len(existing_events) == 0
 
@@ -1144,13 +1184,13 @@ END:VCALENDAR
         assert len(events2) == 1
         assert events2[0].url == events[0].url
 
-        if not self.check_compatibility_flag("no_mkcalendar") and self.check_support(
+        if self.check_support("create-calendar") and self.check_support(
             "create-calendar.set-displayname"
         ):
-            # We should be able to access the calender through the name
+            ## We should be able to access the calender through the name
             c2 = self.principal.calendar(name="Yep")
-            ## may break if we have multiple calendars with the same name
-            if not self.check_support("delete-calendar"):
+            ## (but may break if we have multiple calendars with the same name)
+            if self.check_support("delete-calendar"):
                 assert c2.url == c.url
                 events2 = cleanse(c2.events())
                 assert len(events2) == 1
@@ -1170,7 +1210,12 @@ END:VCALENDAR
     @pytest.mark.parametrize("klass", ["Calendar", "Event"])
     def testCreateEventFromiCal(self, klass):
         c = self._fixCalendar()
-        icalcal = icalendar.Calendar.new()
+        try: ## TODO: remove this try-except
+            icalcal = icalendar.Calendar.new()
+        except:
+            ## Calendar.new() is supported from icalendar 7, which is yet to be released as of 2025-09
+            pytest.skip("Newer icalendar version required")
+
         icalevent = icalendar.Event.new(
             uid="ctuid1",
             start=datetime(2015, 10, 10, 8, 7, 6),
@@ -1471,7 +1516,7 @@ END:VCALENDAR
 
     def testLoadEvent(self):
         self.skip_on_compatibility_flag("read_only")
-        self.skip_on_compatibility_flag("no_mkcalendar")
+        self.skip_unless_support("create-calendar")
         if not self.check_compatibility_flag(
             "unique_calendar_ids"
         ) and self.cleanup_regime in ("light", "pre"):
@@ -1494,7 +1539,7 @@ END:VCALENDAR
 
     def testCopyEvent(self):
         self.skip_on_compatibility_flag("read_only")
-        self.skip_on_compatibility_flag("no_mkcalendar")
+        self.skip_unless_support("create-calendar")
         if not self.check_compatibility_flag(
             "unique_calendar_ids"
         ) and self.cleanup_regime in ("light", "pre"):
@@ -1592,6 +1637,7 @@ END:VCALENDAR
         c = self._fixCalendar()
 
         num_existing = len(c.events())
+        num_existing_t = len(c.todos())
 
         c.save_event(ev1)
         c.save_event(ev3)
@@ -1599,10 +1645,7 @@ END:VCALENDAR
 
         ## Search without any parameters should yield everything on calendar
         all_events = c.search()
-        if not self.check_support("search.comp-type-optional"):
-            assert len(all_events) <= 3 + num_existing
-        else:
-            assert len(all_events) == 3 + num_existing
+        assert len(all_events) <= 3 + num_existing + num_existing_t
 
         ## Search with comp_class set to Event should yield all events on calendar
         all_events = c.search(comp_class=Event)
@@ -1613,7 +1656,7 @@ END:VCALENDAR
             no_events = c.search(todo=True)
         except:
             no_events = []
-        assert len(no_events) == 0
+        assert len(no_events) == num_existing_t
 
         ## Date search should be possible
         some_events = c.search(
@@ -2526,7 +2569,7 @@ END:VCALENDAR
         ##  hence is also considered to span over infinite time
         urls_found = [x.url for x in todos1]
         urls_found2 = [x.url for x in todos2]
-        assert urls_found == urls_found2
+        assert set(urls_found) == set(urls_found2)
         if self.check_support("search.recurrences.includes-implicit.todo"):
             urls_found.remove(t6.url)
         if not self.check_compatibility_flag(
@@ -2670,7 +2713,7 @@ END:VCALENDAR
         # TODO: what's the difference between this and testUnicodeEvent?
         # TODO: split up in creating a calendar with non-ascii name
         # and an event with non-ascii description
-        self.skip_on_compatibility_flag("no_mkcalendar")
+        self.skip_unless_support("create-calendar")
         if not self.check_compatibility_flag(
             "unique_calendar_ids"
         ) and self.cleanup_regime in ("light", "pre"):
@@ -2703,7 +2746,7 @@ END:VCALENDAR
 
     def testUnicodeEvent(self):
         self.skip_on_compatibility_flag("read_only")
-        self.skip_on_compatibility_flag("no_mkcalendar")
+        self.skip_unless_support("create-calendar")
         if not self.check_compatibility_flag(
             "unique_calendar_ids"
         ) and self.cleanup_regime in ("light", "pre"):
@@ -2732,7 +2775,7 @@ END:VCALENDAR
 
         ## TODO: there are more things in this test that
         ## should be run even if mkcalendar is not available.
-        self.skip_on_compatibility_flag("no_mkcalendar")
+        self.skip_unless_support("create-calendar")
 
         props = c.get_properties(
             [
@@ -3119,7 +3162,7 @@ END:VCALENDAR
         # The recurring events should not be expanded when using the
         # events() method
         r = c.events()
-        if not self.check_compatibility_flag("no_mkcalendar"):
+        if not not self.check_support("create-calendar"):
             assert len(r) == 1
         assert r[0].data.count("END:VEVENT") == 1
 

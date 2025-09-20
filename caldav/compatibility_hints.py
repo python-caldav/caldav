@@ -124,6 +124,17 @@ class FeatureSet:
         "search.recurrences.expanded.exception": {
             "description": "Server expand should work correctly also if a recurrence set with exceptions is given"
         },
+        ## TODO: as for now, the tests will run towards the first calendar it will find, and most of the tests will assume the calendar is empty.  This is bad.
+        "test-calendar": {
+            "type": "tests-behaviour",
+            "description": "if the server does not allow creating new calendars, then use the calendar with the given name for running tests (NOT SUPPORTED YET!), wipe the calendar between each test run (alternative for calendars not supporting the creation of new calendars is a very expensive delete objects one-by-one by uid)",
+            "extra_keys": { "name": "calendar name", "cleanup-regime": "thorough|pre|post|light|wipe-calendar" }
+        },
+        "test-calendar.compatibility-tests": {
+            "type": "tests-behaviour",
+            "description": "if the server does not allow creating new calendars, then use the calendar with the given name for running the compatibility tests",
+            "extra_keys": { "name": "calendar name", "cleanup": "Set to True to clean up the calendar after compatibility run" } ## if needed, pad up with cal_id, url, etc
+        } ## if needed we may pad up with test-calendar.compatibility-tests.events, etc, etc
     }
 
     def __init__(self, feature_set_dict=None):
@@ -235,6 +246,8 @@ class FeatureSet:
             return { "behaviour": "normal" }
         elif feature_type == 'server-observation':
             return { "observed": True }
+        elif feature_type == 'tests-behaviour':
+            return { }
         else:
             breakpoint()
 
@@ -247,6 +260,9 @@ class FeatureSet:
 
         TODO: write a better docstring
 
+        The dotted features is essentially a tree.  If feature foo
+        is unsupported it basically means that feature foo.bar is also
+        unsupported.  Hence the extra logic visiting "nodes".
         """
         feature_info = self.find_feature(feature)
         feature_ = feature
@@ -260,6 +276,14 @@ class FeatureSet:
             feature_ = feature_[:feature_.rfind('.')]
 
     def _convert_node(self, node, feature_info, return_type):
+        """
+        Return the information in a "node" given the wished return_type
+
+        (The dotted feature format was an afterthought, the first
+        iteration of this code the feature tree was actually a
+        hierarchical dict, hence the naming of the method.  I
+        considered it too complicated though)
+        """
         if return_type == str:
             ## TODO: consider feature_info['type'], be smarter about it
             return node.get('support', node.get('enable', node.get('behaviour')))
@@ -489,9 +513,6 @@ incompatibility_description = {
     'object_by_uid_is_broken':
         """calendar.object_by_uid(uid) does not work""",
 
-    'no_mkcalendar':
-        """mkcalendar is not supported""",
-
     'no_overwrite':
         """events cannot be edited""",
 
@@ -618,18 +639,23 @@ radicale = {
 }
 
 ecloud = {
+    'search.category.fullstring.smart': {'support': 'unsupported'}, ## TODO: verify
+    'search.comp-type-optional': {'support': 'ungraceful'},
+    'search.recurrences.expanded.todo': {'support': 'unsupported'},
+    'search.recurrences.expanded.exception': {'support': 'unsupported'}, ## TODO: verify
+
     'delete-calendar': {
         'support': 'fragile',
-        'behaviour': 'Deleting a recently created table fails'},
-    'delete-calendar.free-namespace': {
-        'support': 'unsupported',
+        'behaviour': 'Deleting a recently created calendar fails'},
+    'delete-calendar.free-namespace': { ## TODO: not caught by server-tester
         'behaviour': "deleting a calendar moves it to a trashbin, thrashbin has to be manually 'emptied' from the web-ui before the namespace is freed up"},
     'search.comp-type-optional': {
         'support': 'ungraceful',
     },
+    ## TODO: this applies only to test runs, not to ordinary usage
     'rate-limit': {
         'enable': True,
-        'interval': 25,
+        'interval': 10,
         'count': 1,
         'description': "It's needed to manually empty trashbin frequently when running tests.  Since this oepration takes some time and/or there are some caches, it's needed to run tests slowly, even when hammering the 'empty thrashbin' frequently"},
     'old_flags': ['no-principal-search-all', 'no-principal-search-self', 'unique_calendar_ids'],
@@ -638,9 +664,11 @@ ecloud = {
 ## ZIMBRA IS THE MOST SILLY, AND THERE ARE REGRESSIONS FOR EVERY RELEASE!
 ## AAARGH!
 zimbra = {
+    'search.recurrences.expanded.exception': {'support': 'unsupported'}, ## TODO: verify
     'create-calendar.set-displayname': {'support': 'unsupported'},
     'save-load.todo.mixed-calendar': {'support': 'unsupported'},
     'search.category': {'support': 'ungraceful'},
+    'search.recurrences.expanded.todo': { "support": "unsupported" },
     'search.comp-type-optional': {'support': 'fragile'}, ## TODO: more research on this, looks like a bug in the checker
     "old_flags": [
     ## apparently, zimbra has no journal support
@@ -794,6 +822,7 @@ robur = {
     "search.category": { "support": "unsupported" },
     "search.comp-type-optional": { "support": "ungraceful" },
     "search.recurrences.expanded.todo": { "support": "unsupported" },
+    #"search.recurrences.expanded.event": { "support": "fragile" },
     "search.recurrences.expanded.exception": { "support": "unsupported" },
     'old_flags': [
         'non_existing_raises_other', ## AuthorizationError instead of NotFoundError
@@ -802,27 +831,29 @@ robur = {
         'no_supported_components_support',
         'no_journal',
         'no_freebusy_rfc4791',
-        'no_todo_datesearch', ## returns nothing
         'text_search_not_working',
         "no-principal-search",
         'no_relships',
         'isnotdefined_not_working',
         'no_alarmsearch',
-        'broken_expand'
+        'unique_calendar_ids',
     ]
 }
 
-posteo = [
-    'no_scheduling',
-    'no_mkcalendar',
-    'no_journal',
-    'no_recurring_todo',
-    'no_sync_token',
-    'combined_search_not_working',
-    'no_alarmsearch',
-    'broken_expand',
-    "no-principal-search-self",
-]
+posteo = {
+    "create-calendar": {  "support": "unsupported" },
+    "search.recurrences.expanded.exception": { "support": "unsupported" },
+    "search.recurrences.includes-implicit.todo": { "support": "unsupported" },
+    'old_flags': [
+        'no_scheduling',
+        'no_journal',
+        #'no_recurring_todo', ## todo
+        'no_sync_token',
+        'combined_search_not_working',
+        'no_alarmsearch',
+        "no-principal-search-self"
+    ]
+}
 
 #calendar_mail_ru = [
 #    'no_mkcalendar', ## weird.  It was working in early June 2024, then it stopped working in mid-June 2024.
@@ -838,37 +869,46 @@ posteo = [
 #    'no_relships', ## mail.ru recreates the icalendar content, and strips everything it doesn't know anyhting about, including relationship info
 #]
 
-purelymail = [
-    ## Known, work in progress
-    'no_scheduling',
-
-    ## Known, not a breach of standard
-    'no_supported_components_support',
-
+purelymail = {
     ## Purelymail claims that the search indexes are "lazily" populated,
     ## so search works some minutes after the event was created/edited.
-    'search_delay',
+    'search-cache': {'behaviour': 'delay', 'delay': 120},
+    'old_flags': [
+        ## Known, work in progress
+        'no_scheduling',
 
-    "no-principal-search", ## more research may be needed.  "cant-operate-on-root", indicating that the URL may need adjusting?
+        ## Known, not a breach of standard
+        'no_supported_components_support',
 
-    ## I haven't raised this one with them yet
-    'no_alarmsearch',
-]
+        "no-principal-search", ## more research may be needed.  "cant-operate-on-root", indicating that the URL may need adjusting?
 
-gmx = [
-    "no_scheduling_mailbox",
-    "no_mkcalendar",
-    "search_needs_comptype",
-    #"text_search_is_case_insensitive",
-    "no-principal-search-all",
-    "no_freebusy_rfc4791",
-    "no_expand",
-    "no_search_openended",
-    "no_sync_token",
-    "no_scheduling_calendar_user_address_set",
-    "no-principal-search-self",
-    "vtodo-cannot-be-uncompleted",
-    #"no-principal-search-all",
-]
+        ## I haven't raised this one with them yet
+        'no_alarmsearch',
+    ]
+}
+
+gmx = {
+    ## This WILL create some arbitrary objects from year 2000 on your calendar when running
+    ## tests.
+    ## It's fine for me as my gmx calendar is only for testing, but it may not be
+    ## fine for you.
+    "test-calendar.compatibility-tests": { "name": "Mein Kalender", "cleanup": True },
+    'create-calendar': {'support': 'unsupported'},
+    'search.category.fullstring.smart': {'support': 'unsupported'},
+    'search.comp-type-optional': {'support': 'fragile', 'description': 'unexpected results from date-search without comp-type - but only sometimes - TODO: research more'},
+    'search.recurrences.expanded': {'support': 'unsupported'},
+    "old_flags":  [
+        "no_scheduling_mailbox",
+        #"text_search_is_case_insensitive",
+        "no-principal-search-all",
+        "no_freebusy_rfc4791",
+        "no_search_openended",
+        "no_sync_token",
+        "no_scheduling_calendar_user_address_set",
+        "no-principal-search-self",
+        "vtodo-cannot-be-uncompleted",
+        #"no-principal-search-all",
+    ]
+}
 
 # fmt: on
