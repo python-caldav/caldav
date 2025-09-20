@@ -145,7 +145,17 @@ uids_used = (
     "test6",
     "c26921f4-0653-11ef-b756-58ce2a14e2e5",
     "e2a2e13e-34f2-11f0-ae12-1c1bb5134174",
-    "csc_event_with_categories", "csc_monthly_recurring_event", "csc_monthly_recurring_with_exception", "csc_simple_event1", "csc_simple_event2", "csc_simple_event3", "csc_simple_event4", 'csc_simple_task2', 'csc_simple_task3', 'csc_monthly_recurring_task', 'csc_simple_task1'
+    "csc_event_with_categories",
+    "csc_monthly_recurring_event",
+    "csc_monthly_recurring_with_exception",
+    "csc_simple_event1",
+    "csc_simple_event2",
+    "csc_simple_event3",
+    "csc_simple_event4",
+    "csc_simple_task2",
+    "csc_simple_task3",
+    "csc_monthly_recurring_task",
+    "csc_simple_task1",
 )
 ## TODO: todo7 is an item without uid.  Should be taken care of somehow.
 
@@ -701,10 +711,12 @@ class RepeatedFunctionalTestsBaseClass:
         self.features = FeatureSet(self.server_params.get("features", {}))
 
         calendar_info = self.check_support("test-calendar", dict)
-        self.cleanup_regime = calendar_info.get('cleanup-regime', "light")
-        
-        if not 'cleanup' in self.server_params and not self.check_support('create-calendar'):
-            self.cleanup_regime = 'thorough'
+        self.cleanup_regime = calendar_info.get("cleanup-regime", "light")
+
+        if not "cleanup" in self.server_params and not self.check_support(
+            "create-calendar"
+        ):
+            self.cleanup_regime = "thorough"
 
         ## verify that all old flags are valid
         for flag in self.old_features:
@@ -764,14 +776,17 @@ class RepeatedFunctionalTestsBaseClass:
             return
         if self.check_compatibility_flag("read_only"):
             return  ## no cleanup needed
-        if (not self.check_support("create-calendar") and self.cleanup_regime == "wipe-calendar"):
+        if (
+            not self.check_support("create-calendar")
+            and self.cleanup_regime == "wipe-calendar"
+        ):
             cal = self._fixCalendar()
             ## do we need a try-except-pass?
             for x in cal.search():
                 x.delete()
         elif (
-            not self.check_support("create-calendar") or
-            self.cleanup_regime == "thorough"
+            not self.check_support("create-calendar")
+            or self.cleanup_regime == "thorough"
         ):
             for uid in uids_used:
                 try:
@@ -810,7 +825,7 @@ class RepeatedFunctionalTestsBaseClass:
             pass
         try:
             cal.events()
-            if check_support('delete-calendar', str) == 'fragile':
+            if check_support("delete-calendar", str) == "fragile":
                 ## sometimes it's needed to sleep a bit before deleting a calendar.  TODO: improve the compatibility-description.
                 time.sleep(10)
                 try:
@@ -824,14 +839,15 @@ class RepeatedFunctionalTestsBaseClass:
         except:
             pass
 
-
     def _fixCalendar(self, **kwargs):
         """
         Should ideally return a new calendar, if that's not possible it
         should see if there exists a test calendar, if that's not
         possible, give up and return the primary calendar.
         """
-        if not self.check_support("create-calendar") or self.check_compatibility_flag("read_only"):
+        if not self.check_support("create-calendar") or self.check_compatibility_flag(
+            "read_only"
+        ):
             if not self._default_calendar:
                 calendars = self.principal.calendars()
                 for c in calendars:
@@ -1172,13 +1188,13 @@ END:VCALENDAR
             "create-calendar.set-displayname"
         ):
             ## We should be able to access the calender through the name
-             c2 = self.principal.calendar(name="Yep")
-             ## (but may break if we have multiple calendars with the same name)
-             if self.check_support("delete-calendar"):
-                 assert c2.url == c.url
-                 events2 = cleanse(c2.events())
-                 assert len(events2) == 1
-                 assert events2[0].url == events[0].url
+            c2 = self.principal.calendar(name="Yep")
+            ## (but may break if we have multiple calendars with the same name)
+            if self.check_support("delete-calendar"):
+                assert c2.url == c.url
+                events2 = cleanse(c2.events())
+                assert len(events2) == 1
+                assert events2[0].url == events[0].url
 
         # add another event, it should be doable without having premade ICS
         ev2 = c.save_event(

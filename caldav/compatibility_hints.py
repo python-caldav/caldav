@@ -278,7 +278,7 @@ class FeatureSet:
     def _convert_node(self, node, feature_info, return_type):
         """
         Return the information in a "node" given the wished return_type
-        
+
         (The dotted feature format was an afterthought, the first
         iteration of this code the feature tree was actually a
         hierarchical dict, hence the naming of the method.  I
@@ -876,12 +876,12 @@ purelymail = {
     'old_flags': [
         ## Known, work in progress
         'no_scheduling',
-        
+
         ## Known, not a breach of standard
         'no_supported_components_support',
-        
+
         "no-principal-search", ## more research may be needed.  "cant-operate-on-root", indicating that the URL may need adjusting?
-        
+
         ## I haven't raised this one with them yet
         'no_alarmsearch',
     ]
