@@ -14,7 +14,7 @@ Changelogs prior to v1.2 follows other formats and are available in the v1.2-rel
 
 This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html), though some earlier releases may be incompatible with the SemVer standard.
 
-## 2.1.0.dev1 [2025-08-23]
+## [Unreleased]
 
 I'm in the midst of a project building a [caldav compatibility checker](https://github.com/tobixen/caldav-server-tester), this is done in lockstep with some compatibility matrix refactoring that I'm working on.  The compatibility matrix is so far most relevant for the test code, it shouldn't be relevant for end users so far.  While not ready to publish 2.1 yet, I still want the publish 0.1 of the caldav-server-tester project, which depends on 2.1.0.dev1 or later.
 
@@ -27,7 +27,11 @@ I'm in the midst of a project building a [caldav compatibility checker](https://
 
 * A search without filtering on comp-type on a calendar containing a mix of events, journals and tasks should return a mix of such.  (All the examples in the RFC includes the comp-type filter, so many servers does not support this).  There were a bug in the auto-detection of comp-type, so tasks would typically be wrapped as events or vice-versa.  https://github.com/python-caldav/caldav/pull/540
 * Use the "caldav" logger consistently instead of global logging.  https://github.com/python-caldav/caldav/pull/543 - fixed by Thomas Lovden
+* Tweaks to support upcoming version 7 of the icalendar library.
 
+### Added
+
+* Support for creating a `CalendarObjectResource` from an icalendar `Event`, `Todo` etc, and not only `Calendar`.  Arguably a bugfix as it would be silently accepted and throw some arbitrary error, very confusing for end users.  https://github.com/python-caldav/caldav/issues/546
 
 ### Other
 
