@@ -405,7 +405,7 @@ class Calendar(DAVObject):
     """
 
     def _create(
-        self, name=None, id=None, supported_calendar_component_set=None
+          self, name=None, id=None, supported_calendar_component_set=None, method='mkcalendar'
     ) -> None:
         """
         Create a new calendar with display name `name` in `parent`.
@@ -434,10 +434,10 @@ class Calendar(DAVObject):
             prop += sccs
         set = dav.Set() + prop
 
-        mkcol = cdav.Mkcalendar() + set
+        mkcol = (cdav.Mkcalendar() if method=='MKCALENDAR' else dav.Mkcol()) + set
 
         r = self._query(
-            root=mkcol, query_method="mkcalendar", url=path, expected_return_value=201
+            root=mkcol, query_method=method, url=path, expected_return_value=201
         )
 
         # COMPATIBILITY ISSUE
