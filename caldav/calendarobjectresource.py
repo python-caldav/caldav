@@ -10,6 +10,7 @@ Alarms and Time zone objects does not have any class as for now.  Those are typi
 Users of the library should not need to construct any of those objects.  To add new content to the calendar, use ``calendar.save_event``, ``calendar.save_todo`` or ``calendar.save_journal``.  Those methods will return a CalendarObjectResource.
 """
 import logging
+import re
 import sys
 import uuid
 import warnings
