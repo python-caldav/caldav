@@ -32,6 +32,8 @@ Except for that, some minor bugfixes.
 
 * A search without filtering on comp-type on a calendar containing a mix of events, journals and tasks should return a mix of such.  (All the examples in the RFC includes the comp-type filter, so many servers does not support this).  There were a bug in the auto-detection of comp-type, so tasks would typically be wrapped as events or vice-versa.  https://github.com/python-caldav/caldav/pull/540
 * Tweaks to support upcoming version 7 of the icalendar library.
+* Compatibility-tweaks for baikal
+* Bugfix on authentication - things broke on Baikal if authentication method (i.e. digest) was set in the config.  I found a quite obvious bug, I did not investigate why the test code has been passing on all the other servers.  Weird thing.
 
 ### Added
 

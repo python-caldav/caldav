@@ -849,12 +849,12 @@ class DAVClient:
                     reason="Server provides bearer auth, but no password given.  The bearer token should be configured as password"
                 )
 
-            if auth_type == "digest":
-                self.auth = requests.auth.HTTPDigestAuth(self.username, self.password)
-            elif auth_type == "basic":
-                self.auth = requests.auth.HTTPBasicAuth(self.username, self.password)
-            elif auth_type == "bearer":
-                self.auth = HTTPBearerAuth(self.password)
+        if auth_type == "digest":
+            self.auth = requests.auth.HTTPDigestAuth(self.username, self.password)
+        elif auth_type == "basic":
+            self.auth = requests.auth.HTTPBasicAuth(self.username, self.password)
+        elif auth_type == "bearer":
+            self.auth = HTTPBearerAuth(self.password)
 
     def request(
         self,

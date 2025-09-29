@@ -645,6 +645,7 @@ radicale = {
     ]
 }
 
+## TODO: Latest - mismatch between config and test script in delete-calendar.free-namespace ... and create-calendar.set-displayname?
 ecloud = {
     'search.category.fullstring.smart': {'support': 'unsupported'}, ## TODO: verify
     'search.comp-type-optional': {'support': 'ungraceful'},
@@ -739,8 +740,7 @@ baikal =  {
         "calendar_order",
         "calendar_color"
     ]
-}
-
+} ## TODO: testPrincipals, testWrongAuthType, testTodoDatesearch fails
 
 ## See comments on https://github.com/python-caldav/caldav/issues/3
 #icloud = [
