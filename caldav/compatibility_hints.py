@@ -853,9 +853,11 @@ robur = {
 }
 
 posteo = {
-    "create-calendar": {  "support": "unsupported" },
-    "search.recurrences.expanded.exception": { "support": "unsupported" },
-    "search.recurrences.includes-implicit.todo": { "support": "unsupported" },
+    'create-calendar': {'support': 'unsupported'},
+    'search.category.fullstring.smart': {'support': 'unsupported'},
+    'search.comp-type-optional': {'support': 'ungraceful'},
+    'search.recurrences.expanded.todo': {'support': 'unsupported'},
+    'search.recurrences.expanded.exception': {'support': 'unsupported'},
     'old_flags': [
         'no_scheduling',
         'no_journal',
@@ -900,11 +902,6 @@ purelymail = {
 }
 
 gmx = {
-    ## This WILL create some arbitrary objects from year 2000 on your calendar when running
-    ## tests.
-    ## It's fine for me as my gmx calendar is only for testing, but it may not be
-    ## fine for you.
-    "test-calendar.compatibility-tests": { "name": "Mein Kalender", "cleanup": True },
     'create-calendar': {'support': 'unsupported'},
     'search.category.fullstring.smart': {'support': 'unsupported'},
     'search.comp-type-optional': {'support': 'fragile', 'description': 'unexpected results from date-search without comp-type - but only sometimes - TODO: research more'},

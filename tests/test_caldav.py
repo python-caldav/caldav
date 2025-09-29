@@ -914,6 +914,11 @@ class RepeatedFunctionalTestsBaseClass:
                 for target in observed_, expected_:
                     if x in target:
                         target.pop(x)
+            ## Ignore "fragile" things
+            for target in observed_, expected_:
+                if target.get(x, {}).get('support', 'full') == 'fragile':
+                    for target2 in observed_, expected_:
+                        target2.pop(x, None)
 
         ## Strip all free-text information from both observed and expected
         for stripdict in observed_, expected_:
