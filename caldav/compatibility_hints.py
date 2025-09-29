@@ -21,11 +21,15 @@ class FeatureSet:
 
     TODO: use enums?
       type -> "client-feature", "server-peculiarity", "tests-behaviour", "server-observation", "server-feature" (last is default)
-      support -> "supported" (default), "unsupported", "fragile", "broken", "ungraceful"
+      support -> "supported" (default), "unsupported", "fragile", "quirk", "broken", "ungraceful"
 
     types:
      * client-feature means the client is supposed to do special things (like, rate-limiting).  While the need for rate-limiting may be set by the server, it may not be possible to reliably establish it by probling the server, and the value may differ for different clients.
-    * server-peculiarity - weird behaviour detected at the server side, behaviour that is too odd to be described as "missing support for a feature".  Example: there is some cache working, causing a delay from some object is sent to the server and until it can be retrieved.  The difference between an "unsupported server-feature" and a "server-peculiarity" may be a bit floating - like, arguably "instant updates" may be considered a feature.
+     * server-peculiarity - weird behaviour detected at the server side, behaviour that is too odd to be described as "missing support for a feature".  Example: there is some cache working, causing a delay from some object is sent to the server and until it can be retrieved.  The difference between an "unsupported server-feature" and a "server-peculiarity" may be a bit floating - like, arguably "instant updates" may be considered a feature.
+     * tests-behaviour - configuration for the tests.  Like, it's OK to wipe everyhting from the test calendar, location of test calendar, rate-limiting that only should apply to test runs, etc.
+     * server-observation - not features, but other facts found about the server
+     * server-feature - some feature (preferably rooted with a pointer to some specific section of the RFC)
+       * "support" -> "quirk" if we have a server-peculiarity where it's needed with special care to get the request through.
     """
     FEATURES = {
         "get-current-user-principal": {
@@ -291,7 +295,10 @@ class FeatureSet:
             return node
         elif return_type == bool:
             ## TODO: consider feature_info['type'], be smarter about this
-            return node.get('support', 'full') == 'full' and not node.get('enable') and not node.get('behaviour') and not node.get('observed')
+            support = node.get('support', 'full')
+            if support == 'quirk':
+                return True
+            return support == 'full' and not node.get('enable') and not node.get('behaviour') and not node.get('observed')
         else:
             assert False
 
@@ -710,25 +717,30 @@ bedework = [
     'no_todo',
     'propfind_allprop_failure',
     'no_recurring',
-
     ## taking an event, changing the uid, and saving in the same calendar gives a 403.
     ## editing the content slightly and it works.  Weird ...
     'duplicates_not_allowed',
     'duplicate_in_other_calendar_with_same_uid_is_lost'
 ]
 
-baikal = [
-    ## date search on todos does not seem to work
-    ## (TODO: do some research on this)
-    'sync_breaks_on_delete',
-    'no_recurring_todo',
-    'combined_search_not_working',
-    'text_search_is_exact_match_sometimes',
+baikal =  {
+    'create-calendar': {'support': 'quirk', 'behaviour': 'mkcol-required'},
+    'search.category.fullstring.smart': {'support': 'unsupported'},
+    'search.comp-type-optional': {'support': 'ungraceful'},
+    'search.recurrences.expanded.todo': {'support': 'unsupported'},
+    'search.recurrences.expanded.exception': {'support': 'unsupported'},
+    'old_flags': [
+        ## date search on todos does not seem to work
+        ## (TODO: do some research on this)
+        'sync_breaks_on_delete',
+        'combined_search_not_working',
+        'text_search_is_exact_match_sometimes',
+        ## extra features not specified in RFC5545
+        "calendar_order",
+        "calendar_color"
+    ]
+}
 
-    ## extra features not specified in RFC5545
-    "calendar_order",
-    "calendar_color"
-]
 
 ## See comments on https://github.com/python-caldav/caldav/issues/3
 #icloud = [

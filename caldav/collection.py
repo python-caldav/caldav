@@ -106,6 +106,7 @@ class CalendarSet(DAVObject):
         name: Optional[str] = None,
         cal_id: Optional[str] = None,
         supported_calendar_component_set: Optional[Any] = None,
+        method = None
     ) -> "Calendar":
         """
         Utility method for creating a new calendar.
@@ -127,7 +128,7 @@ class CalendarSet(DAVObject):
             parent=self,
             id=cal_id,
             supported_calendar_component_set=supported_calendar_component_set,
-        ).save()
+        ).save(method=method)
 
     def calendar(
         self, name: Optional[str] = None, cal_id: Optional[str] = None
@@ -245,6 +246,7 @@ class Principal(DAVObject):
         name: Optional[str] = None,
         cal_id: Optional[str] = None,
         supported_calendar_component_set: Optional[Any] = None,
+        method = None
     ) -> "Calendar":
         """
         Convenience method, bypasses the self.calendar_home_set object.
@@ -254,6 +256,7 @@ class Principal(DAVObject):
             name,
             cal_id,
             supported_calendar_component_set=supported_calendar_component_set,
+            method=method
         )
 
     def calendar(
@@ -405,7 +408,7 @@ class Calendar(DAVObject):
     """
 
     def _create(
-          self, name=None, id=None, supported_calendar_component_set=None, method='mkcalendar'
+          self, name=None, id=None, supported_calendar_component_set=None, method=None
     ) -> None:
         """
         Create a new calendar with display name `name` in `parent`.
@@ -413,6 +416,18 @@ class Calendar(DAVObject):
         if id is None:
             id = str(uuid.uuid1())
         self.id = id
+
+        if method is None:
+            if self.client:
+                supported = self.client.features.check_support('create-calendar', return_type=dict)
+                if supported['support'] not in ('full', 'fragile', 'quirk'):
+                    raise error.MkcalendarError("Creation of calendars (allegedly) not supported on this server")
+                if supported['support'] == 'quirk' and supported['behaviour'] == 'mkcol-required':
+                    method = 'mkcol'
+                else:
+                    method = 'mkcalendar'
+            else:
+                method = 'mkcalendar'
 
         path = self.parent.url.join(id + "/")
         self.url = path
@@ -432,9 +447,13 @@ class Calendar(DAVObject):
             for scc in supported_calendar_component_set:
                 sccs += cdav.Comp(scc)
             prop += sccs
+        if method == 'mkcol':
+            from caldav.lib.debug import printxml
+            prop += dav.ResourceType() + [dav.Collection(), cdav.Calendar()]
+
         set = dav.Set() + prop
 
-        mkcol = (cdav.Mkcalendar() if method=='MKCALENDAR' else dav.Mkcol()) + set
+        mkcol = (dav.Mkcol() if method=='mkcol' else cdav.Mkcalendar()) + set
 
         r = self._query(
             root=mkcol, query_method=method, url=path, expected_return_value=201
@@ -575,7 +594,7 @@ class Calendar(DAVObject):
     add_todo = save_todo
     add_journal = save_journal
 
-    def save(self):
+    def save(self, method = None):
         """
         The save method for a calendar is only used to create it, for now.
         We know we have to create it when we don't have a url.
@@ -584,7 +603,7 @@ class Calendar(DAVObject):
          * self
         """
         if self.url is None:
-            self._create(id=self.id, name=self.name, **self.extra_init_options)
+            self._create(id=self.id, name=self.name, method=method, **self.extra_init_options)
         return self
 
     # def data2object_class
