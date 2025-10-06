@@ -32,8 +32,11 @@ class FeatureSet:
        * "support" -> "quirk" if we have a server-peculiarity where it's needed with special care to get the request through.
     """
     FEATURES = {
+        "get-all-principals": {
+            "description": "Search for all principals, using a DAV REPORT query, yields at least one principal"
+        },
         "get-current-user-principal": {
-            "description": "Support for RFC5397, current principal extension.  Most CalDAV servers have this, but it is an extension to the standard"},
+            "description": "Support for RFC5397, current principal extension.  Most CalDAV servers have this, but it is an extension to the DAV standard"},
         "get-current-user-principal.has-calendar": {
             "type": "server-observation",
             "description": "Principal has one or more calendars.  Some servers and providers comes with a pre-defined calendar for each user, for other servers a calendar has to be explicitly created (supported means there exists a calendar - it may be because the calendar was already provisioned together with the principal, or it may be because a calendar was created manually, the checks can't see the difference)"},

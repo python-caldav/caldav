@@ -900,7 +900,7 @@ class RepeatedFunctionalTestsBaseClass:
         expected = self.caldav.features.dotted_feature_set_list(compact=True)
 
         ## This is to facilitate easier debugging.  In the end,
-        ## observed_ and expected_ should match eatch other, while
+        ## observed_ and expected_ should match each other, while
         ## observed and expected may contain more information.
         observed_ = copy.deepcopy(observed)
         expected_ = copy.deepcopy(expected)
