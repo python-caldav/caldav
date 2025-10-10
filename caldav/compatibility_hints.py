@@ -123,10 +123,10 @@ class FeatureSet:
             "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-9.6.5"],
         },
         "search.recurrences.expanded.todo": {
-            "description": "examding tasks"
+            "description": "expanding tasks"
         },
         "search.recurrences.expanded.event": {
-            "description": "examding events"
+            "description": "exanding events"
         },
         "search.recurrences.expanded.exception": {
             "description": "Server expand should work correctly also if a recurrence set with exceptions is given"
@@ -625,6 +625,7 @@ xandikos = {
 radicale = {
     "search.category.fullstring": {"support": "unsupported"},
     "search.recurrences.expanded.todo": {"support": "unsupported"},
+    "search.recurrences.includes-implicit.todo": {"support": "unsupported"},
     "search.recurrences.expanded.exception": {"support": "unsupported"},
     'old_flags': [
     ## calendar listings and calendar creation works a bit
@@ -659,10 +660,13 @@ ecloud = {
         'support': 'fragile',
         'behaviour': 'Deleting a recently created calendar fails'},
     'delete-calendar.free-namespace': { ## TODO: not caught by server-tester
-        'behaviour': "deleting a calendar moves it to a trashbin, thrashbin has to be manually 'emptied' from the web-ui before the namespace is freed up"},
+        'behaviour': "deleting a calendar moves it to a trashbin, thrashbin has to be manually 'emptied' from the web-ui before the namespace is freed up",
+        'support': 'fragile',
+    },
     'search.comp-type-optional': {
         'support': 'ungraceful',
     },
+    'search.recurrences.includes-implicit.todo': {'support': 'unsupported'},
     ## TODO: this applies only to test runs, not to ordinary usage
     'rate-limit': {
         'enable': True,
@@ -729,10 +733,12 @@ bedework = [
 
 baikal =  {
     'create-calendar': {'support': 'quirk', 'behaviour': 'mkcol-required'},
+    'create-calendar.auto': {'support': 'unsupported'}, ## this is the default, but the "quirk" from create-calendar overwrites it.  Hm.
     'search.category.fullstring.smart': {'support': 'unsupported'},
     'search.comp-type-optional': {'support': 'ungraceful'},
     'search.recurrences.expanded.todo': {'support': 'unsupported'},
     'search.recurrences.expanded.exception': {'support': 'unsupported'},
+    'search.recurrences.includes-implicit.todo': {'support': 'unsupported'},
     'old_flags': [
         ## date search on todos does not seem to work
         ## (TODO: do some research on this)
@@ -837,8 +843,9 @@ robur = {
     "search.category": { "support": "unsupported" },
     "search.comp-type-optional": { "support": "ungraceful" },
     "search.recurrences.expanded.todo": { "support": "unsupported" },
-    #"search.recurrences.expanded.event": { "support": "fragile" },
+    "search.recurrences.expanded.event": { "support": "fragile" },
     "search.recurrences.expanded.exception": { "support": "unsupported" },
+    'search.recurrences.includes-implicit.todo': {'support': 'unsupported'},
     'old_flags': [
         'non_existing_raises_other', ## AuthorizationError instead of NotFoundError
         'no_scheduling',
@@ -861,6 +868,7 @@ posteo = {
     'search.comp-type-optional': {'support': 'ungraceful'},
     'search.recurrences.expanded.todo': {'support': 'unsupported'},
     'search.recurrences.expanded.exception': {'support': 'unsupported'},
+    'search.recurrences.includes-implicit.todo': {'support': 'unsupported'},
     'old_flags': [
         'no_scheduling',
         'no_journal',
@@ -890,6 +898,7 @@ purelymail = {
     ## Purelymail claims that the search indexes are "lazily" populated,
     ## so search works some minutes after the event was created/edited.
     'search-cache': {'behaviour': 'delay', 'delay': 120},
+    "create-calendar.auto": {"support": "full"},
     'old_flags': [
         ## Known, work in progress
         'no_scheduling',

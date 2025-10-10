@@ -780,11 +780,13 @@ class RepeatedFunctionalTestsBaseClass:
             return
         if self.check_compatibility_flag("read_only"):
             return  ## no cleanup needed
-        if self.cleanup_regime == "wipe-calendar":
-            cal = self._fixCalendar()
-            ## do we need a try-except-pass?
-            for x in cal.search():
-                x.delete()
+        if (
+            self.cleanup_regime == "wipe-calendar"
+        ):
+            for cal in self.calendars_used:
+                ## do we need a try-except-pass?
+                for x in cal.search():
+                    x.delete()
         elif (
             not self.check_support("create-calendar")
             or self.cleanup_regime == "thorough"
@@ -840,7 +842,17 @@ class RepeatedFunctionalTestsBaseClass:
         except:
             pass
 
+    ## TODO: perhaps a decorator is a better pattern than a wrapper?
     def _fixCalendar(self, **kwargs):
+        cal = self._fixCalendar_(**kwargs)
+        if self.cleanup_regime == 'wipe-calendar':
+            ## do we need a try-except-pass?
+            ## (if so, consolidate)
+            for x in cal.search():
+                x.delete()
+        return cal
+
+    def _fixCalendar_(self, **kwargs):
         """
         Should ideally return a new calendar, if that's not possible it
         should see if there exists a test calendar, if that's not
@@ -863,6 +875,7 @@ class RepeatedFunctionalTestsBaseClass:
                         self._default_calendar = c
                         return c
                 self._default_calendar = calendars[0]
+                
             return self._default_calendar
         else:
             if not "name" in kwargs:
@@ -891,7 +904,7 @@ class RepeatedFunctionalTestsBaseClass:
             from caldav_server_tester import ServerQuirkChecker
         except:
             pytest.skip("caldav_server_tester is not installed")
-        checker = ServerQuirkChecker(self.caldav)
+        checker = ServerQuirkChecker(self.caldav, debug_mode='pdb')
         checker.check_all()
 
         ## TODO: I think the compact view now strips out some client-side behaviour.
@@ -2665,14 +2678,17 @@ END:VCALENDAR
         #     compfilter='VTODO', hide_completed_todos=True)
         # assert len(todos) == 1
 
+    ## TODO: use parameterized test, this is duplicated in testTodoRecurringCompleteThisandfuture
     def testTodoRecurringCompleteSafe(self):
         self.skip_on_compatibility_flag("read_only")
         self.skip_on_compatibility_flag("no_todo")
         c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
+        assert(len(c.todos()) == 0)
         t6 = c.save_todo(todo6, status="NEEDS-ACTION")
+        assert len(c.todos()) == 1
         if not self.check_compatibility_flag("rrule_takes_no_count"):
+            assert len(c.todos()) == 1
             t8 = c.save_todo(todo8)
-        if not self.check_compatibility_flag("rrule_takes_no_count"):
             assert len(c.todos()) == 2
         else:
             assert len(c.todos()) == 1
@@ -2697,10 +2713,10 @@ END:VCALENDAR
         self.skip_on_compatibility_flag("read_only")
         self.skip_on_compatibility_flag("no_todo")
         c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
+        assert(len(c.todos()) == 0)
         t6 = c.save_todo(todo6, status="NEEDS-ACTION")
         if not self.check_compatibility_flag("rrule_takes_no_count"):
             t8 = c.save_todo(todo8)
-        if not self.check_compatibility_flag("rrule_takes_no_count"):
             assert len(c.todos()) == 2
         else:
             assert len(c.todos()) == 1
