@@ -218,7 +218,7 @@ class FeatureSet:
             parent_info = self.find_feature(parent)
 
             if len(parent_info['subfeatures']):
-                foo = self.check_support(parent, return_type=dict, return_defaults=False)
+                foo = self.is_supported(parent, return_type=dict, return_defaults=False)
                 if len(parent_info['subfeatures']) > 1 or foo is not None:
                     dont_collapse = False
                     for sub in parent_info['subfeatures']:
@@ -258,7 +258,7 @@ class FeatureSet:
         else:
             breakpoint()
 
-    def check_support(self, feature, return_type=bool, return_defaults=True):
+    def is_supported(self, feature, return_type=bool, return_defaults=True):
         """Work in progress
 
         TODO: rename.  This method does not do any checking, just a

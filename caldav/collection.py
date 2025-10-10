@@ -419,7 +419,7 @@ class Calendar(DAVObject):
 
         if method is None:
             if self.client:
-                supported = self.client.features.check_support(
+                supported = self.client.features.is_supported(
                     "create-calendar", return_type=dict
                 )
                 if supported["support"] not in ("full", "fragile", "quirk"):
@@ -941,7 +941,7 @@ class Calendar(DAVObject):
                 "props": props,
             }
 
-            if not comp_class and not self.client.features.check_support(
+            if not comp_class and not self.client.features.is_supported(
                 "search.comp-type-optional"
             ):
                 if kwargs2["include_completed"] is None:
