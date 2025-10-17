@@ -676,13 +676,13 @@ class RepeatedFunctionalTestsBaseClass:
     _default_calendar = None
 
     ## TODO: move to davclient or compatibility_hints
-    def is_supported(self, feature, return_type=bool):
+    def is_supported(self, feature, return_type=bool, accept_fragile=False):
         """
         New-style.  It will replace check_compatibility_flag.
 
         TODO: write a better docstring
         """
-        return self.features.is_supported(feature, return_type)
+        return self.features.is_supported(feature, return_type, accept_fragile=accept_fragile)
 
     def check_compatibility_flag(self, flag):
         ## yield an assertion error if checking for the wrong thig
@@ -718,7 +718,7 @@ class RepeatedFunctionalTestsBaseClass:
 
         if not self.cleanup_regime == "wipe-calendar" and (
             not self.is_supported("create-calendar")
-            or not self.is_supported("delete-calendar")
+            or not self.is_supported("delete-calendar", accept_fragile=True)
         ):
             self.cleanup_regime = "thorough"
 
@@ -785,22 +785,26 @@ class RepeatedFunctionalTestsBaseClass:
         ):
             for cal in self.calendars_used:
                 ## do we need a try-except-pass?
-                for x in cal.search():
-                    x.delete()
+                try:
+                    for x in cal.search():
+                        x.delete()
+                except error.NotFoundError:
+                    pass
         elif (
             not self.is_supported("create-calendar")
             or self.cleanup_regime == "thorough"
         ):
-            for uid in uids_used:
-                try:
-                    obj = self._fixCalendar().object_by_uid(uid)
-                    obj.delete()
-                except error.NotFoundError:
-                    pass
-                except:
-                    logging.error(
-                        "Something went kaboom while deleting event", exc_info=True
-                    )
+            for cal in self.calendars_used:
+                for uid in uids_used:
+                    try:
+                        obj = self._fixCalendar().object_by_uid(uid)
+                        obj.delete()
+                    except error.NotFoundError:
+                        pass
+                    except:
+                        logging.error(
+                            "Something went kaboom while deleting event", exc_info=True
+                        )
             return
         for cal in self.calendars_used:
             cal.delete()
@@ -1208,13 +1212,13 @@ END:VCALENDAR
         assert len(events2) == 1
         assert events2[0].url == events[0].url
 
-        if self.is_supported("create-calendar") and self.check_support(
+        if self.is_supported("create-calendar") and self.is_supported(
             "create-calendar.set-displayname"
         ):
             ## We should be able to access the calender through the name
             c2 = self.principal.calendar(name="Yep")
             ## (but may break if we have multiple calendars with the same name)
-            if self.is_supported("delete-calendar"):
+            if self.is_supported("delete-calendar") or self.is_supported("delete-calendar", str) == 'fragile':
                 assert c2.url == c.url
                 events2 = cleanse(c2.events())
                 assert len(events2) == 1

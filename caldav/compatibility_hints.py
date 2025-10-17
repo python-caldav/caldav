@@ -258,12 +258,8 @@ class FeatureSet:
         else:
             breakpoint()
 
-    def is_supported(self, feature, return_type=bool, return_defaults=True):
+    def is_supported(self, feature, return_type=bool, return_defaults=True, accept_fragile=False):
         """Work in progress
-
-        TODO: rename.  This method does not do any checking, just a
-        lookup.  "get_support" sounds wrong, but perhaps
-        "lookup_support"?
 
         TODO: write a better docstring
 
@@ -275,14 +271,14 @@ class FeatureSet:
         feature_ = feature
         while True:
             if feature_ in self._server_features:
-                return self._convert_node(self._server_features[feature_], feature_info, return_type)
+                return self._convert_node(self._server_features[feature_], feature_info, return_type, accept_fragile)
             if not '.' in feature_:
                 if not return_defaults:
                     return None
-                return self._convert_node(self._default(feature_info), feature_info, return_type)
+                return self._convert_node(self._default(feature_info), feature_info, return_type, accept_fragile)
             feature_ = feature_[:feature_.rfind('.')]
 
-    def _convert_node(self, node, feature_info, return_type):
+    def _convert_node(self, node, feature_info, return_type, accept_fragile=False):
         """
         Return the information in a "node" given the wished return_type
 
@@ -301,7 +297,13 @@ class FeatureSet:
             support = node.get('support', 'full')
             if support == 'quirk':
                 return True
-            return support == 'full' and not node.get('enable') and not node.get('behaviour') and not node.get('observed')
+            if accept_fragile and support == 'fragile':
+                support = 'full'
+            if feature_info.get('type', 'server-feature') == 'server-feature':
+                return support == 'full'
+            else:
+                ## TODO: this may be improved
+                return not node.get('enable') and not node.get('behaviour') and not node.get('observed')
         else:
             assert False
 

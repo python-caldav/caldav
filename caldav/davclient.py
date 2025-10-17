@@ -613,6 +613,8 @@ class DAVClient:
         ret = []
         for x in principal_dict:
             p = principal_dict[x]
+            if not dav.DisplayName.tag in p:
+                continue
             name = p[dav.DisplayName.tag].text
             error.assert_(not p[dav.DisplayName.tag].getchildren())
             error.assert_(not p[dav.DisplayName.tag].items())
