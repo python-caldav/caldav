@@ -346,12 +346,15 @@ class AsyncCalendar(AsyncDAVObject):
 
         body = etree.tostring(query.xmlelement(), encoding="utf-8", xml_declaration=True)
         log.debug(f"[SEARCH DEBUG] Sending calendar-query REPORT to {self.url}")
+        log.debug(f"[SEARCH DEBUG] Request body: {body[:500]}")
         response = await self.client.report(str(self.url), body, depth=1)
 
         # Parse response
+        log.debug(f"[SEARCH DEBUG] Response type: {type(response)}, raw response: {response.raw[:500] if hasattr(response, 'raw') else 'no raw attr'}")
         objects = []
         response_data = response.expand_simple_props([cdav.CalendarData()])
         log.debug(f"[SEARCH DEBUG] Received {len(response_data)} items in response")
+        log.debug(f"[SEARCH DEBUG] Response data keys: {list(response_data.keys())}")
 
         for href, props in response_data.items():
             if href == str(self.url):
