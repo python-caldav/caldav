@@ -15,16 +15,8 @@ from typing import Union
 from urllib.parse import unquote
 
 
-try:
-    import niquests as requests
-    from niquests.auth import AuthBase
-    from niquests.models import Response
-    from niquests.structures import CaseInsensitiveDict
-except ImportError:
-    import requests
-    from requests.auth import AuthBase
-    from requests.models import Response
-    from requests.structures import CaseInsensitiveDict
+import httpx
+from httpx import BasicAuth, DigestAuth
 
 from lxml import etree
 from lxml.etree import _Element
@@ -104,13 +96,13 @@ class DAVResponse:
     raw = ""
     reason: str = ""
     tree: Optional[_Element] = None
-    headers: CaseInsensitiveDict = None
+    headers: httpx.Headers = None
     status: int = 0
     davclient = None
     huge_tree: bool = False
 
     def __init__(
-        self, response: Response, davclient: Optional["DAVClient"] = None
+        self, response: httpx.Response, davclient: Optional["DAVClient"] = None
     ) -> None:
         self.headers = response.headers
         self.status = response.status_code
@@ -460,7 +452,7 @@ class DAVClient:
         proxy: Optional[str] = None,
         username: Optional[str] = None,
         password: Optional[str] = None,
-        auth: Optional[AuthBase] = None,
+        auth: Optional[httpx.Auth] = None,
         auth_type: Optional[str] = None,
         timeout: Optional[int] = None,
         ssl_verify_cert: Union[bool, str] = True,
@@ -475,19 +467,21 @@ class DAVClient:
         Args:
           url: A fully qualified url: `scheme://user:pass@hostname:port`
           proxy: A string defining a proxy server: `scheme://hostname:port`. Scheme defaults to http, port defaults to 8080.
-          auth: A niquests.auth.AuthBase or requests.auth.AuthBase object, may be passed instead of username/password.  username and password should be passed as arguments or in the URL
-          timeout and ssl_verify_cert are passed to niquests.request.
+          auth: A httpx.Auth object, may be passed instead of username/password.  username and password should be passed as arguments or in the URL
+          timeout and ssl_verify_cert are passed to httpx.Client.
           if auth_type is given, the auth-object will be auto-created. Auth_type can be ``bearer``, ``digest`` or ``basic``. Things are likely to work without ``auth_type`` set, but if nothing else the number of requests to the server will be reduced, and some servers may require this to squelch warnings of unexpected HTML delivered from the
            server etc.
           ssl_verify_cert can be the path of a CA-bundle or False.
           huge_tree: boolean, enable XMLParser huge_tree to handle big events, beware of security issues, see : https://lxml.de/api/lxml.etree.XMLParser-class.html
           features: The default, None, will in version 2.x enable all existing workarounds in the code for backward compability.  Otherwise it will expect a FeatureSet or a dict as defined in `caldav.compatibility_hints` and use that to figure out what workarounds are needed.
 
-        The niquests library will honor a .netrc-file, if such a file exists
+        The httpx library will honor a .netrc-file, if such a file exists
         username and password may be omitted.
 
-        THe niquest library will honor standard proxy environmental variables like
-        HTTP_PROXY, HTTPS_PROXY and ALL_PROXY.  See https://niquests.readthedocs.io/en/latest/user/advanced.html#proxies
+        The httpx library will honor standard proxy environmental variables like
+        HTTP_PROXY, HTTPS_PROXY, ALL_PROXY, and NO_PROXY. See:
+        - https://www.python-httpx.org/advanced/proxies/
+        - https://www.python-httpx.org/environment_variables/
 
         If the caldav server is behind a proxy or replies with html instead of xml
         when returning 401, warnings will be printed which might be unwanted.
@@ -497,19 +491,21 @@ class DAVClient:
 
         ## Deprecation TODO: give a warning, user should use get_davclient or auto_calendar instead
 
-        try:
-            self.session = requests.Session(multiplexed=True)
-        except TypeError:
-            self.session = requests.Session()
-
         log.debug("url: " + str(url))
         self.url = URL.objectify(url)
         self.huge_tree = huge_tree
         self.features = FeatureSet(features)
+
+        # Store SSL and timeout settings early, needed for Client creation
+        self.timeout = timeout
+        self.ssl_verify_cert = ssl_verify_cert
+        self.ssl_cert = ssl_cert
+
         # Prepare proxy info
+        self.proxy = None
         if proxy is not None:
             _proxy = proxy
-            # niquests library expects the proxy url to have a scheme
+            # httpx library expects the proxy url to have a scheme
             if "://" not in proxy:
                 _proxy = self.url.scheme + "://" + proxy
 
@@ -524,14 +520,32 @@ class DAVClient:
             self.proxy = _proxy
 
         # Build global headers
-        self.headers = CaseInsensitiveDict(
-            {
-                "User-Agent": "python-caldav/" + __version__,
-                "Content-Type": "text/xml",
-                "Accept": "text/xml, text/calendar",
-            }
+        # Combine default headers with user-provided headers (user headers override defaults)
+        default_headers = {
+            "User-Agent": "python-caldav/" + __version__,
+            "Content-Type": "text/xml",
+            "Accept": "text/xml, text/calendar",
+        }
+        if headers:
+            combined_headers = dict(default_headers)
+            combined_headers.update(headers)
+        else:
+            combined_headers = default_headers
+
+        # Create httpx client with HTTP/2 support and optional proxy
+        # In httpx, proxy, verify, cert, timeout, and headers must be set at Client creation time, not per-request
+        # This ensures headers properly replace httpx's defaults rather than being merged
+        self.session = httpx.Client(
+            http2=True,
+            proxy=self.proxy,
+            verify=self.ssl_verify_cert,
+            cert=self.ssl_cert,
+            timeout=self.timeout,
+            headers=combined_headers,
         )
-        self.headers.update(headers or {})
+
+        # Store headers for reference (httpx.Client.headers property provides access)
+        self.headers = self.session.headers
         if self.url.username is not None:
             username = unquote(self.url.username)
             password = unquote(self.url.password)
@@ -553,9 +567,6 @@ class DAVClient:
 
         # TODO: it's possible to force through a specific auth method here,
         # but no test code for this.
-        self.timeout = timeout
-        self.ssl_verify_cert = ssl_verify_cert
-        self.ssl_cert = ssl_cert
         self.url = self.url.unauth()
         log.debug("self.url: " + str(url))
 
@@ -850,9 +861,9 @@ class DAVClient:
                 )
 
             if auth_type == "digest":
-                self.auth = requests.auth.HTTPDigestAuth(self.username, self.password)
+                self.auth = DigestAuth(self.username, self.password)
             elif auth_type == "basic":
-                self.auth = requests.auth.HTTPBasicAuth(self.username, self.password)
+                self.auth = BasicAuth(self.username, self.password)
             elif auth_type == "bearer":
                 self.auth = HTTPBearerAuth(self.password)
 
@@ -868,7 +879,8 @@ class DAVClient:
         """
         headers = headers or {}
 
-        combined_headers = self.headers.copy()
+        # httpx.Headers doesn't have copy() or update(), so we convert to dict
+        combined_headers = dict(self.headers)
         combined_headers.update(headers or {})
         if (body is None or body == "") and "Content-Type" in combined_headers:
             del combined_headers["Content-Type"]
@@ -876,10 +888,8 @@ class DAVClient:
         # objectify the url
         url_obj = URL.objectify(url)
 
-        proxies = None
         if self.proxy is not None:
-            proxies = {url_obj.scheme: self.proxy}
-            log.debug("using proxy - %s" % (proxies))
+            log.debug("using proxy - %s" % (self.proxy))
 
         log.debug(
             "sending request - method={0}, url={1}, headers={2}\nbody:\n{3}".format(
@@ -891,15 +901,13 @@ class DAVClient:
             r = self.session.request(
                 method,
                 str(url_obj),
-                data=to_wire(body),
+                content=to_wire(body),
                 headers=combined_headers,
-                proxies=proxies,
                 auth=self.auth,
-                timeout=self.timeout,
-                verify=self.ssl_verify_cert,
-                cert=self.ssl_cert,
+                follow_redirects=True,
             )
-            log.debug("server responded with %i %s" % (r.status_code, r.reason))
+            reason_phrase = r.reason_phrase if hasattr(r, 'reason_phrase') else ''
+            log.debug("server responded with %i %s" % (r.status_code, reason_phrase))
             if (
                 r.status_code == 401
                 and "text/html" in self.headers.get("Content-Type", "")
@@ -935,16 +943,13 @@ class DAVClient:
                 method="GET",
                 url=str(url_obj),
                 headers=combined_headers,
-                proxies=proxies,
-                timeout=self.timeout,
-                verify=self.ssl_verify_cert,
-                cert=self.ssl_cert,
+                follow_redirects=True,
             )
             if not r.status_code == 401:
                 raise
 
-        ## Returned headers
-        r_headers = CaseInsensitiveDict(r.headers)
+        ## Returned headers (httpx.Headers is already case-insensitive)
+        r_headers = r.headers
         if (
             r.status_code == 401
             and "WWW-Authenticate" in r_headers
@@ -988,8 +993,8 @@ class DAVClient:
 
         # this is an error condition that should be raised to the application
         if (
-            response.status == requests.codes.forbidden
-            or response.status == requests.codes.unauthorized
+            response.status == 403  # Forbidden
+            or response.status == 401  # Unauthorized
         ):
             try:
                 reason = response.reason

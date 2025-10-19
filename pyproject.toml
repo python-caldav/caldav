@@ -32,7 +32,7 @@ classifiers = [
 
 dependencies = [
   "lxml",
-  "niquests",
+  "httpx[http2]",
   "recurring-ical-events>=2.0.0",
   "typing_extensions;python_version<'3.11'",
   "icalendar>6.0.0"
@@ -49,6 +49,7 @@ Changelog = "https://github.com/python-caldav/caldav/blob/master/CHANGELOG.md"
 test = [
   "vobject",
   "pytest",
+  "pytest-asyncio",
   "coverage",
   "manuel",
   "proxy.py",
