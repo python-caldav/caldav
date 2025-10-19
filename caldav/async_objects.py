@@ -61,7 +61,7 @@ class AsyncCalendarObjectResource(AsyncDAVObject):
 
         # Generate URL if not provided
         if not self.url and parent:
-            uid = id or str(uuid.uuid4())
+            uid = self.id or str(uuid.uuid4())
             self.url = parent.url.join(f"{uid}.ics")
 
     def _extract_uid_from_data(self, data: str) -> Optional[str]:
