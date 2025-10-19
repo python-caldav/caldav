@@ -320,7 +320,12 @@ class DAVResponse:
             if r.tag == dav.SyncToken.tag:
                 self.sync_token = r.text
                 continue
-            error.assert_(r.tag == dav.Response.tag)
+            ## Some servers (particularly Nextcloud/Sabre-based) may include
+            ## unexpected elements in multistatus responses (text nodes, HTML warnings, etc.)
+            ## Skip these gracefully rather than failing - refs #203, #552
+            if r.tag != dav.Response.tag:
+                error.weirdness("unexpected element in multistatus, skipping", r)
+                continue
 
             (href, propstats, status) = self._parse_response(r)
             ## I would like to do this assert here ...
