@@ -993,8 +993,8 @@ class DAVClient:
 
         # this is an error condition that should be raised to the application
         if (
-            response.status == 403  # Forbidden
-            or response.status == 401  # Unauthorized
+            response.status == httpx.codes.FORBIDDEN
+            or response.status == httpx.codes.UNAUTHORIZED
         ):
             try:
                 reason = response.reason
