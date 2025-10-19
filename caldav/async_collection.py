@@ -332,14 +332,16 @@ class AsyncCalendar(AsyncDAVObject):
         from .elements import cdav, dav
         from lxml import etree
 
-        # Simplified query - just get all objects of the right type
-        comp_filter = cdav.CompFilter(name="VCALENDAR") + cdav.CompFilter(name=comp_class._comp_name)
+        # Build proper nested comp-filter structure for Nextcloud compatibility
+        # Filter must contain CompFilter, which can contain nested CompFilters
+        inner_comp_filter = cdav.CompFilter(name=comp_class._comp_name)
+        outer_comp_filter = cdav.CompFilter(name="VCALENDAR") + inner_comp_filter
+        filter_element = cdav.Filter() + outer_comp_filter
 
         query = (
             cdav.CalendarQuery()
             + [dav.Prop() + cdav.CalendarData()]
-            + cdav.Filter()
-            + comp_filter
+            + filter_element
         )
 
         body = etree.tostring(query.xmlelement(), encoding="utf-8", xml_declaration=True)
