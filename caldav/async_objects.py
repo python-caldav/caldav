@@ -129,7 +129,9 @@ class AsyncCalendarObjectResource(AsyncDAVObject):
             if not self.parent:
                 raise ValueError("Cannot save without URL or parent calendar")
             uid = self.id or str(uuid.uuid4())
+            log.debug(f"[SAVE DEBUG] Generating URL: parent.url={self.parent.url}, uid={uid}, self.id={self.id}")
             self.url = self.parent.url.join(f"{uid}.ics")
+            log.debug(f"[SAVE DEBUG] Generated URL: {self.url}")
 
         headers = {
             "Content-Type": "text/calendar; charset=utf-8",
@@ -139,7 +141,9 @@ class AsyncCalendarObjectResource(AsyncDAVObject):
             headers["If-Schedule-Tag-Match"] = if_schedule_tag_match
 
         # PUT the object
+        log.debug(f"[SAVE DEBUG] PUTting to URL: {str(self.url)}")
         await self.client.put(str(self.url), self._data, headers=headers)
+        log.debug(f"[SAVE DEBUG] PUT completed successfully")
         return self
 
     async def delete(self) -> None:
