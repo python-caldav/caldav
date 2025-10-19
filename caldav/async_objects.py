@@ -4,6 +4,7 @@ Async calendar object resources: AsyncEvent, AsyncTodo, AsyncJournal, etc.
 These classes represent individual calendar objects (events, todos, journals)
 and provide async APIs for loading, saving, and manipulating them.
 """
+
 import logging
 import uuid
 from typing import Optional
@@ -118,7 +119,7 @@ class AsyncCalendarObjectResource(AsyncDAVObject):
 
     async def save(
         self, if_schedule_tag_match: Optional[str] = None, **kwargs
-    ) -> "AsyncCalendarObjectResource":
+    ) -> tuple["AsyncCalendarObjectResource", "AsyncDAVResponse"]:
         """
         Save the object to the server.
 
@@ -126,7 +127,7 @@ class AsyncCalendarObjectResource(AsyncDAVObject):
             if_schedule_tag_match: Schedule-Tag for conditional update
 
         Returns:
-            self (for chaining)
+            Tuple of (self, response) for chaining and status checking
         """
         if not self._data:
             raise ValueError("Cannot save object without data")
@@ -151,9 +152,9 @@ class AsyncCalendarObjectResource(AsyncDAVObject):
 
         # PUT the object
         log.debug(f"[SAVE DEBUG] PUTting to URL: {str(self.url)}")
-        await self.client.put(str(self.url), self._data, headers=headers)
-        log.debug(f"[SAVE DEBUG] PUT completed successfully")
-        return self
+        response = await self.client.put(str(self.url), self._data, headers=headers)
+        log.debug(f"[SAVE DEBUG] PUT completed with status: {response.status}")
+        return self, response
 
     async def delete(self) -> None:
         """Delete this object from the server"""
@@ -172,8 +173,12 @@ class AsyncEvent(AsyncCalendarObjectResource):
 
     _comp_name = "VEVENT"
 
-    async def save(self, **kwargs) -> "AsyncEvent":
-        """Save the event to the server"""
+    async def save(self, **kwargs) -> tuple["AsyncEvent", "AsyncDAVResponse"]:
+        """Save the event to the server
+
+        Returns:
+            Tuple of (event, response) for chaining and status checking
+        """
         return await super().save(**kwargs)
 
 
@@ -186,8 +191,12 @@ class AsyncTodo(AsyncCalendarObjectResource):
 
     _comp_name = "VTODO"
 
-    async def save(self, **kwargs) -> "AsyncTodo":
-        """Save the todo to the server"""
+    async def save(self, **kwargs) -> tuple["AsyncTodo", "AsyncDAVResponse"]:
+        """Save the todo to the server
+
+        Returns:
+            Tuple of (todo, response) for chaining and status checking
+        """
         return await super().save(**kwargs)
 
 

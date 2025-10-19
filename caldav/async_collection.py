@@ -4,6 +4,7 @@ Async collection classes for CalDAV: AsyncCalendar, AsyncPrincipal, etc.
 These are async equivalents of the sync collection classes, providing
 async/await APIs for calendar and principal operations.
 """
+
 import logging
 from typing import Any
 from typing import List
@@ -407,7 +408,9 @@ class AsyncCalendar(AsyncDAVObject):
         log.debug(f"[SEARCH DEBUG] Returning {len(objects)} objects")
         return objects
 
-    async def save_event(self, ical: Optional[str] = None, **kwargs) -> "AsyncEvent":
+    async def save_event(
+        self, ical: Optional[str] = None, **kwargs
+    ) -> tuple["AsyncEvent", "AsyncDAVResponse"]:
         """
         Save an event to this calendar.
 
@@ -415,13 +418,15 @@ class AsyncCalendar(AsyncDAVObject):
             ical: iCalendar data as string
 
         Returns:
-            AsyncEvent object
+            Tuple of (AsyncEvent object, response)
         """
         from .async_objects import AsyncEvent
 
         return await self._save_object(ical, AsyncEvent, **kwargs)
 
-    async def save_todo(self, ical: Optional[str] = None, **kwargs) -> "AsyncTodo":
+    async def save_todo(
+        self, ical: Optional[str] = None, **kwargs
+    ) -> tuple["AsyncTodo", "AsyncDAVResponse"]:
         """
         Save a todo to this calendar.
 
@@ -429,17 +434,21 @@ class AsyncCalendar(AsyncDAVObject):
             ical: iCalendar data as string
 
         Returns:
-            AsyncTodo object
+            Tuple of (AsyncTodo object, response)
         """
         from .async_objects import AsyncTodo
 
         return await self._save_object(ical, AsyncTodo, **kwargs)
 
     async def _save_object(self, ical, obj_class, **kwargs):
-        """Helper to save a calendar object"""
-        obj = obj_class(client=self.client, data=ical, parent=self, **kwargs)
-        await obj.save()
-        return obj
+        """Helper to save a calendar object
+
+        Returns:
+            Tuple of (object, response)
+        """
+        obj = obj_class(client=self.client, data=ical, parent=self)
+        obj, response = await obj.save(**kwargs)
+        return obj, response
 
     async def event_by_uid(self, uid: str) -> "AsyncEvent":
         """Find an event by UID"""
