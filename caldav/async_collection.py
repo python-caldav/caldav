@@ -388,9 +388,9 @@ class AsyncCalendar(AsyncDAVObject):
             cal_data = props.get(cdav.CalendarData.tag)
             if cal_data:
                 log.debug(f"[SEARCH DEBUG] Found calendar data for href: {href}")
+                # Don't pass url - let object generate from UID to avoid relative URL issues
                 obj = comp_class(
                     client=self.client,
-                    url=href,
                     data=cal_data,
                     parent=self,
                 )
