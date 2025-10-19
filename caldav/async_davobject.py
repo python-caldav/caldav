@@ -85,8 +85,7 @@ class AsyncDAVObject:
                     path += ".ics"
             if path:
                 self.url = parent.url.join(path)
-            else:
-                self.url = parent.url
+            # else: Don't set URL to parent.url - let subclass or save() generate it properly
 
     def canonical_url(self) -> str:
         """Return the canonical URL for this object"""
