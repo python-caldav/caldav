@@ -6,8 +6,11 @@ and provide async APIs for loading, saving, and manipulating them.
 """
 import logging
 import uuid
-from typing import Optional, TYPE_CHECKING, Union
-from urllib.parse import ParseResult, SplitResult
+from typing import Optional
+from typing import TYPE_CHECKING
+from typing import Union
+from urllib.parse import ParseResult
+from urllib.parse import SplitResult
 
 from .async_davobject import AsyncDAVObject
 from .elements import cdav
@@ -64,13 +67,17 @@ class AsyncCalendarObjectResource(AsyncDAVObject):
     def _extract_uid_from_data(self, data: str) -> Optional[str]:
         """Extract UID from iCalendar data"""
         try:
-            for line in data.split('\n'):
+            for line in data.split("\n"):
                 stripped = line.strip()
-                if stripped.startswith('UID:'):
-                    uid = stripped.split(':', 1)[1].strip()
-                    log.debug(f"[UID EXTRACT DEBUG] Extracted UID: '{uid}' from line: '{line[:80]}'")
+                if stripped.startswith("UID:"):
+                    uid = stripped.split(":", 1)[1].strip()
+                    log.debug(
+                        f"[UID EXTRACT DEBUG] Extracted UID: '{uid}' from line: '{line[:80]}'"
+                    )
                     return uid
-            log.warning(f"[UID EXTRACT DEBUG] No UID found in data. First 500 chars: {data[:500]}")
+            log.warning(
+                f"[UID EXTRACT DEBUG] No UID found in data. First 500 chars: {data[:500]}"
+            )
         except Exception as e:
             log.error(f"[UID EXTRACT DEBUG] Exception extracting UID: {e}")
             pass
@@ -89,7 +96,9 @@ class AsyncCalendarObjectResource(AsyncDAVObject):
         if value and not self.id:
             self.id = self._extract_uid_from_data(value)
 
-    async def load(self, only_if_unloaded: bool = False) -> "AsyncCalendarObjectResource":
+    async def load(
+        self, only_if_unloaded: bool = False
+    ) -> "AsyncCalendarObjectResource":
         """
         Load the object data from the server.
 
@@ -108,9 +117,7 @@ class AsyncCalendarObjectResource(AsyncDAVObject):
         return self
 
     async def save(
-        self,
-        if_schedule_tag_match: Optional[str] = None,
-        **kwargs
+        self, if_schedule_tag_match: Optional[str] = None, **kwargs
     ) -> "AsyncCalendarObjectResource":
         """
         Save the object to the server.
@@ -129,7 +136,9 @@ class AsyncCalendarObjectResource(AsyncDAVObject):
             if not self.parent:
                 raise ValueError("Cannot save without URL or parent calendar")
             uid = self.id or str(uuid.uuid4())
-            log.debug(f"[SAVE DEBUG] Generating URL: parent.url={self.parent.url}, uid={uid}, self.id={self.id}")
+            log.debug(
+                f"[SAVE DEBUG] Generating URL: parent.url={self.parent.url}, uid={uid}, self.id={self.id}"
+            )
             self.url = self.parent.url.join(f"{uid}.ics")
             log.debug(f"[SAVE DEBUG] Generated URL: {self.url}")
 

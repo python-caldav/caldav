@@ -9,21 +9,32 @@ import logging
 import os
 import sys
 from types import TracebackType
-from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING, Union, cast
+from typing import Any
+from typing import cast
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Tuple
+from typing import TYPE_CHECKING
+from typing import Union
 from urllib.parse import unquote
 
 import httpx
-from httpx import BasicAuth, DigestAuth
+from httpx import BasicAuth
+from httpx import DigestAuth
 from lxml import etree
 from lxml.etree import _Element
 
 from .elements.base import BaseElement
 from caldav import __version__
-from caldav.davclient import DAVResponse, CONNKEYS  # Reuse DAVResponse and CONNKEYS
 from caldav.compatibility_hints import FeatureSet
-from caldav.elements import cdav, dav
+from caldav.davclient import CONNKEYS
+from caldav.davclient import DAVResponse
+from caldav.elements import cdav
+from caldav.elements import dav
 from caldav.lib import error
-from caldav.lib.python_utilities import to_normal_str, to_wire
+from caldav.lib.python_utilities import to_normal_str
+from caldav.lib.python_utilities import to_wire
 from caldav.lib.url import URL
 from caldav.objects import log
 from caldav.requests import HTTPBearerAuth
@@ -223,9 +234,7 @@ class AsyncDAVClient:
         """
         auth_type = self.auth_type
         if not auth_type and not auth_types:
-            raise error.AuthorizationError(
-                "No auth-type given. This shouldn't happen."
-            )
+            raise error.AuthorizationError("No auth-type given. This shouldn't happen.")
         if auth_types and auth_type and auth_type not in auth_types:
             raise error.AuthorizationError(
                 reason=f"Configuration specifies to use {auth_type}, but server only accepts {auth_types}"
@@ -297,7 +306,7 @@ class AsyncDAVClient:
                 auth=self.auth,
                 follow_redirects=True,
             )
-            reason_phrase = r.reason_phrase if hasattr(r, 'reason_phrase') else ''
+            reason_phrase = r.reason_phrase if hasattr(r, "reason_phrase") else ""
             log.debug("server responded with %i %s" % (r.status_code, reason_phrase))
             if (
                 r.status_code == 401
@@ -371,7 +380,10 @@ class AsyncDAVClient:
             return await self.request(str(url_obj), method, body, headers)
 
         # Raise authorization errors
-        if response.status == httpx.codes.FORBIDDEN or response.status == httpx.codes.UNAUTHORIZED:
+        if (
+            response.status == httpx.codes.FORBIDDEN
+            or response.status == httpx.codes.UNAUTHORIZED
+        ):
             try:
                 reason = response.reason
             except AttributeError:
@@ -418,11 +430,15 @@ class AsyncDAVClient:
             url or str(self.url), "PROPFIND", props, {"Depth": str(depth)}
         )
 
-    async def proppatch(self, url: str, body: str, dummy: None = None) -> AsyncDAVResponse:
+    async def proppatch(
+        self, url: str, body: str, dummy: None = None
+    ) -> AsyncDAVResponse:
         """Send a PROPPATCH request"""
         return await self.request(url, "PROPPATCH", body)
 
-    async def report(self, url: str, query: str = "", depth: int = 0) -> AsyncDAVResponse:
+    async def report(
+        self, url: str, query: str = "", depth: int = 0
+    ) -> AsyncDAVResponse:
         """Send a REPORT request"""
         return await self.request(
             url,
@@ -435,7 +451,9 @@ class AsyncDAVClient:
         """Send a MKCOL request"""
         return await self.request(url, "MKCOL", body)
 
-    async def mkcalendar(self, url: str, body: str = "", dummy: None = None) -> AsyncDAVResponse:
+    async def mkcalendar(
+        self, url: str, body: str = "", dummy: None = None
+    ) -> AsyncDAVResponse:
         """Send a MKCALENDAR request"""
         return await self.request(url, "MKCALENDAR", body)
 
@@ -507,4 +525,5 @@ class AsyncDAVClient:
             calendars = await principal.calendars()
         """
         from .async_collection import AsyncCalendar
+
         return AsyncCalendar(client=self, **kwargs)

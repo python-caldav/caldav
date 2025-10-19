@@ -3,10 +3,12 @@
 """
 Tests for async CalDAV client functionality.
 """
-import pytest
 from unittest import mock
 
-from caldav.async_davclient import AsyncDAVClient, AsyncDAVResponse
+import pytest
+
+from caldav.async_davclient import AsyncDAVClient
+from caldav.async_davclient import AsyncDAVResponse
 from caldav.lib import error
 
 

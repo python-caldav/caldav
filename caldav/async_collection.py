@@ -5,11 +5,17 @@ These are async equivalents of the sync collection classes, providing
 async/await APIs for calendar and principal operations.
 """
 import logging
-from typing import Any, List, Optional, TYPE_CHECKING, Union
-from urllib.parse import ParseResult, SplitResult
+from typing import Any
+from typing import List
+from typing import Optional
+from typing import TYPE_CHECKING
+from typing import Union
+from urllib.parse import ParseResult
+from urllib.parse import SplitResult
 
 from .async_davobject import AsyncDAVObject
-from .elements import cdav, dav
+from .elements import cdav
+from .elements import dav
 from .lib.url import URL
 
 if TYPE_CHECKING:
@@ -59,17 +65,23 @@ class AsyncCalendarSet(AsyncDAVObject):
 
                     # Get displayname
                     displayname_elem = props_dict.get(dav.DisplayName.tag)
-                    cal_name = displayname_elem.text if displayname_elem is not None else ""
+                    cal_name = (
+                        displayname_elem.text if displayname_elem is not None else ""
+                    )
 
                     # Extract calendar ID from URL
                     try:
-                        cal_id = cal_url.path.rstrip('/').split('/')[-1]
+                        cal_id = cal_url.path.rstrip("/").split("/")[-1]
                     except:
                         cal_id = None
 
                     cals.append(
                         AsyncCalendar(
-                            self.client, id=cal_id, url=cal_url, parent=self, name=cal_name
+                            self.client,
+                            id=cal_id,
+                            url=cal_url,
+                            parent=self,
+                            name=cal_name,
                         )
                     )
 
@@ -94,6 +106,7 @@ class AsyncCalendarSet(AsyncDAVObject):
         """
         if not cal_id:
             import uuid
+
             cal_id = str(uuid.uuid4())
 
         if not name:
@@ -124,7 +137,9 @@ class AsyncCalendarSet(AsyncDAVObject):
 
         await self.client.mkcalendar(str(cal_url), body)
 
-        return AsyncCalendar(self.client, url=cal_url, parent=self, name=name, id=cal_id)
+        return AsyncCalendar(
+            self.client, url=cal_url, parent=self, name=name, id=cal_id
+        )
 
     def calendar(
         self,
@@ -143,7 +158,9 @@ class AsyncCalendarSet(AsyncDAVObject):
         """
         if cal_id:
             cal_url = self.url.join(cal_id + "/")
-            return AsyncCalendar(self.client, url=cal_url, parent=self, id=cal_id, name=name)
+            return AsyncCalendar(
+                self.client, url=cal_url, parent=self, id=cal_id, name=name
+            )
         elif name:
             return AsyncCalendar(self.client, parent=self, name=name)
         else:
@@ -237,7 +254,9 @@ class AsyncPrincipal(AsyncDAVObject):
         """
         chs = await self.calendar_home_set
         return await chs.make_calendar(
-            name, cal_id, supported_calendar_component_set=supported_calendar_component_set
+            name,
+            cal_id,
+            supported_calendar_component_set=supported_calendar_component_set,
         )
 
     def calendar(
@@ -265,7 +284,9 @@ class AsyncPrincipal(AsyncDAVObject):
             # This is synchronous - just constructs an object
             # For async lookup, user should use calendars() method
             if self._calendar_home_set:
-                chs = AsyncCalendarSet(self.client, url=self._calendar_home_set, parent=self)
+                chs = AsyncCalendarSet(
+                    self.client, url=self._calendar_home_set, parent=self
+                )
                 return chs.calendar(name, cal_id)
             else:
                 raise ValueError("calendar_home_set not known, use calendars() instead")
@@ -286,6 +307,7 @@ class AsyncCalendar(AsyncDAVObject):
          * [AsyncEvent(), ...]
         """
         from .async_objects import AsyncEvent
+
         return await self.search(comp_class=AsyncEvent)
 
     async def todos(self) -> List["AsyncTodo"]:
@@ -296,6 +318,7 @@ class AsyncCalendar(AsyncDAVObject):
          * [AsyncTodo(), ...]
         """
         from .async_objects import AsyncTodo
+
         return await self.search(comp_class=AsyncTodo)
 
     async def journals(self) -> List["AsyncJournal"]:
@@ -306,13 +329,10 @@ class AsyncCalendar(AsyncDAVObject):
          * [AsyncJournal(), ...]
         """
         from .async_objects import AsyncJournal
+
         return await self.search(comp_class=AsyncJournal)
 
-    async def search(
-        self,
-        comp_class=None,
-        **kwargs
-    ) -> List[Any]:
+    async def search(self, comp_class=None, **kwargs) -> List[Any]:
         """
         Search for calendar objects.
 
@@ -326,6 +346,7 @@ class AsyncCalendar(AsyncDAVObject):
         """
         if comp_class is None:
             from .async_objects import AsyncEvent
+
             comp_class = AsyncEvent
 
         # Build calendar-query
@@ -339,19 +360,19 @@ class AsyncCalendar(AsyncDAVObject):
         filter_element = cdav.Filter() + outer_comp_filter
 
         query = (
-            cdav.CalendarQuery()
-            + [dav.Prop() + cdav.CalendarData()]
-            + filter_element
+            cdav.CalendarQuery() + [dav.Prop() + cdav.CalendarData()] + filter_element
         )
 
-        body = etree.tostring(query.xmlelement(), encoding="utf-8", xml_declaration=True)
+        body = etree.tostring(
+            query.xmlelement(), encoding="utf-8", xml_declaration=True
+        )
         log.debug(f"[SEARCH DEBUG] Sending calendar-query REPORT to {self.url}")
         log.debug(f"[SEARCH DEBUG] Request body: {body[:500]}")
         response = await self.client.report(str(self.url), body, depth=1)
 
         # Parse response
         log.debug(f"[SEARCH DEBUG] Response type: {type(response)}")
-        if hasattr(response, 'raw'):
+        if hasattr(response, "raw"):
             log.debug(f"[SEARCH DEBUG] Full raw response: {response.raw}")
         objects = []
         response_data = response.expand_simple_props([cdav.CalendarData()])
@@ -359,29 +380,34 @@ class AsyncCalendar(AsyncDAVObject):
         log.debug(f"[SEARCH DEBUG] Response data keys: {list(response_data.keys())}")
 
         for href, props in response_data.items():
+            log.debug(f"[SEARCH DEBUG] Processing href: {href}")
             if href == str(self.url):
+                log.debug(f"[SEARCH DEBUG] Skipping - matches calendar URL")
                 continue
 
             cal_data = props.get(cdav.CalendarData.tag)
             if cal_data:
+                log.debug(f"[SEARCH DEBUG] Found calendar data for href: {href}")
                 obj = comp_class(
                     client=self.client,
                     url=href,
                     data=cal_data,
                     parent=self,
                 )
-                log.debug(f"[SEARCH DEBUG] Created {comp_class.__name__} object with id={obj.id}, url={href}")
-                log.debug(f"[SEARCH DEBUG] First 200 chars of cal_data: {cal_data[:200]}")
+                log.debug(
+                    f"[SEARCH DEBUG] Created {comp_class.__name__} object with id={obj.id}, url={obj.url}"
+                )
+                log.debug(
+                    f"[SEARCH DEBUG] First 200 chars of cal_data: {cal_data[:200]}"
+                )
                 objects.append(obj)
+            else:
+                log.debug(f"[SEARCH DEBUG] No calendar data for href: {href}")
 
         log.debug(f"[SEARCH DEBUG] Returning {len(objects)} objects")
         return objects
 
-    async def save_event(
-        self,
-        ical: Optional[str] = None,
-        **kwargs
-    ) -> "AsyncEvent":
+    async def save_event(self, ical: Optional[str] = None, **kwargs) -> "AsyncEvent":
         """
         Save an event to this calendar.
 
@@ -392,13 +418,10 @@ class AsyncCalendar(AsyncDAVObject):
             AsyncEvent object
         """
         from .async_objects import AsyncEvent
+
         return await self._save_object(ical, AsyncEvent, **kwargs)
 
-    async def save_todo(
-        self,
-        ical: Optional[str] = None,
-        **kwargs
-    ) -> "AsyncTodo":
+    async def save_todo(self, ical: Optional[str] = None, **kwargs) -> "AsyncTodo":
         """
         Save a todo to this calendar.
 
@@ -409,6 +432,7 @@ class AsyncCalendar(AsyncDAVObject):
             AsyncTodo object
         """
         from .async_objects import AsyncTodo
+
         return await self._save_object(ical, AsyncTodo, **kwargs)
 
     async def _save_object(self, ical, obj_class, **kwargs):
@@ -420,20 +444,26 @@ class AsyncCalendar(AsyncDAVObject):
     async def event_by_uid(self, uid: str) -> "AsyncEvent":
         """Find an event by UID"""
         from .async_objects import AsyncEvent
+
         log.debug(f"[EVENT_BY_UID DEBUG] Searching for event with UID: {uid}")
         results = await self.search(comp_class=AsyncEvent)
         log.debug(f"[EVENT_BY_UID DEBUG] Search returned {len(results)} events")
         for event in results:
-            log.debug(f"[EVENT_BY_UID DEBUG] Comparing event.id='{event.id}' with uid='{uid}'")
+            log.debug(
+                f"[EVENT_BY_UID DEBUG] Comparing event.id='{event.id}' with uid='{uid}'"
+            )
             if event.id == uid:
                 log.debug(f"[EVENT_BY_UID DEBUG] Match found!")
                 return event
-        log.error(f"[EVENT_BY_UID DEBUG] No match found. Available UIDs: {[e.id for e in results]}")
+        log.error(
+            f"[EVENT_BY_UID DEBUG] No match found. Available UIDs: {[e.id for e in results]}"
+        )
         raise Exception(f"Event with UID {uid} not found")
 
     async def todo_by_uid(self, uid: str) -> "AsyncTodo":
         """Find a todo by UID"""
         from .async_objects import AsyncTodo
+
         results = await self.search(comp_class=AsyncTodo)
         for todo in results:
             if todo.id == uid:

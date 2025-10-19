@@ -6,16 +6,24 @@ It serves as the base class for AsyncPrincipal, AsyncCalendar, AsyncEvent, etc.
 """
 import logging
 import sys
-from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING, Union
-from urllib.parse import ParseResult, SplitResult
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Tuple
+from typing import TYPE_CHECKING
+from typing import Union
+from urllib.parse import ParseResult
+from urllib.parse import SplitResult
 
 from lxml import etree
 
-from .elements import cdav, dav
+from .elements import cdav
+from .elements import dav
 from .elements.base import BaseElement
 from .lib import error
-from .lib.url import URL
 from .lib.python_utilities import to_wire
+from .lib.url import URL
 
 if TYPE_CHECKING:
     from .async_davclient import AsyncDAVClient
@@ -89,7 +97,7 @@ class AsyncDAVObject:
 
     def canonical_url(self) -> str:
         """Return the canonical URL for this object"""
-        return str(self.url.canonical() if hasattr(self.url, 'canonical') else self.url)
+        return str(self.url.canonical() if hasattr(self.url, "canonical") else self.url)
 
     async def _query_properties(
         self, props: Optional[List[BaseElement]] = None, depth: int = 0
@@ -104,7 +112,9 @@ class AsyncDAVObject:
         root = dav.Propfind() + [dav.Prop() + props]
         return await self._query(root, depth)
 
-    async def _query(self, root: BaseElement, depth: int = 0, query_method: str = "propfind"):
+    async def _query(
+        self, root: BaseElement, depth: int = 0, query_method: str = "propfind"
+    ):
         """
         Execute a DAV query.
 
@@ -115,9 +125,9 @@ class AsyncDAVObject:
         """
         body = etree.tostring(root.xmlelement(), encoding="utf-8", xml_declaration=True)
         ret = await getattr(self.client, query_method)(
-            self.url.canonical() if hasattr(self.url, 'canonical') else str(self.url),
+            self.url.canonical() if hasattr(self.url, "canonical") else str(self.url),
             body,
-            depth
+            depth,
         )
         return ret
 
@@ -202,7 +212,7 @@ class AsyncDAVObject:
         """Save any changes to this object to the server"""
         # For base DAVObject, save typically uses set_properties
         # Subclasses override this with specific save logic
-        if hasattr(self, 'data') and self.data:
+        if hasattr(self, "data") and self.data:
             # This would be for CalendarObjectResource subclasses
             raise NotImplementedError(
                 "save() for calendar objects should be implemented in subclass"

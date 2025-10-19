@@ -14,10 +14,9 @@ from typing import TYPE_CHECKING
 from typing import Union
 from urllib.parse import unquote
 
-
 import httpx
-from httpx import BasicAuth, DigestAuth
-
+from httpx import BasicAuth
+from httpx import DigestAuth
 from lxml import etree
 from lxml.etree import _Element
 
@@ -911,7 +910,7 @@ class DAVClient:
                 auth=self.auth,
                 follow_redirects=True,
             )
-            reason_phrase = r.reason_phrase if hasattr(r, 'reason_phrase') else ''
+            reason_phrase = r.reason_phrase if hasattr(r, "reason_phrase") else ""
             log.debug("server responded with %i %s" % (r.status_code, reason_phrase))
             if (
                 r.status_code == 401

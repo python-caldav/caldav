@@ -3,12 +3,17 @@
 """
 Tests for async collection classes (AsyncPrincipal, AsyncCalendar, etc.)
 """
-import pytest
 from unittest import mock
 
+import pytest
+
+from caldav.async_collection import AsyncCalendar
+from caldav.async_collection import AsyncCalendarSet
+from caldav.async_collection import AsyncPrincipal
 from caldav.async_davclient import AsyncDAVClient
-from caldav.async_collection import AsyncPrincipal, AsyncCalendar, AsyncCalendarSet
-from caldav.async_objects import AsyncEvent, AsyncTodo, AsyncJournal
+from caldav.async_objects import AsyncEvent
+from caldav.async_objects import AsyncJournal
+from caldav.async_objects import AsyncTodo
 
 
 SAMPLE_EVENT_ICAL = """BEGIN:VCALENDAR
@@ -232,7 +237,7 @@ class TestAsyncEvent:
                 client=client,
                 parent=calendar,
                 data=SAMPLE_EVENT_ICAL,
-                id="test-event-123"
+                id="test-event-123",
             )
 
             await event.save()
@@ -262,10 +267,7 @@ class TestAsyncEvent:
         mocked.return_value = get_response
 
         async with AsyncDAVClient(url="http://calendar.example.com/") as client:
-            event = AsyncEvent(
-                client=client,
-                url="/calendars/user/personal/event1.ics"
-            )
+            event = AsyncEvent(client=client, url="/calendars/user/personal/event1.ics")
 
             await event.load()
 
@@ -294,7 +296,7 @@ class TestAsyncEvent:
             event = AsyncEvent(
                 client=client,
                 url="/calendars/user/personal/event1.ics",
-                data=SAMPLE_EVENT_ICAL
+                data=SAMPLE_EVENT_ICAL,
             )
 
             await event.delete()
@@ -302,7 +304,9 @@ class TestAsyncEvent:
             mocked.assert_called_once()
             call_args = mocked.call_args
             # Check that DELETE was called
-            assert "DELETE" in str(call_args) or (call_args[0] and call_args[0][0] == "DELETE")
+            assert "DELETE" in str(call_args) or (
+                call_args[0] and call_args[0][0] == "DELETE"
+            )
 
 
 class TestAsyncTodo:
@@ -326,7 +330,7 @@ class TestAsyncTodo:
                 client=client,
                 parent=calendar,
                 data=SAMPLE_TODO_ICAL,
-                id="test-todo-456"
+                id="test-todo-456",
             )
 
             await todo.save()
