@@ -350,7 +350,9 @@ class AsyncCalendar(AsyncDAVObject):
         response = await self.client.report(str(self.url), body, depth=1)
 
         # Parse response
-        log.debug(f"[SEARCH DEBUG] Response type: {type(response)}, raw response: {response.raw[:500] if hasattr(response, 'raw') else 'no raw attr'}")
+        log.debug(f"[SEARCH DEBUG] Response type: {type(response)}")
+        if hasattr(response, 'raw'):
+            log.debug(f"[SEARCH DEBUG] Full raw response: {response.raw}")
         objects = []
         response_data = response.expand_simple_props([cdav.CalendarData()])
         log.debug(f"[SEARCH DEBUG] Received {len(response_data)} items in response")
