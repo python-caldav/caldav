@@ -209,8 +209,12 @@ class AsyncJournal(AsyncCalendarObjectResource):
 
     _comp_name = "VJOURNAL"
 
-    async def save(self, **kwargs) -> "AsyncJournal":
-        """Save the journal to the server"""
+    async def save(self, **kwargs) -> tuple["AsyncJournal", "AsyncDAVResponse"]:
+        """Save the journal to the server
+
+        Returns:
+            Tuple of (journal, response) for chaining and status checking
+        """
         return await super().save(**kwargs)
 
 
@@ -223,6 +227,10 @@ class AsyncFreeBusy(AsyncCalendarObjectResource):
 
     _comp_name = "VFREEBUSY"
 
-    async def save(self, **kwargs) -> "AsyncFreeBusy":
-        """Save the freebusy to the server"""
+    async def save(self, **kwargs) -> tuple["AsyncFreeBusy", "AsyncDAVResponse"]:
+        """Save the freebusy to the server
+
+        Returns:
+            Tuple of (freebusy, response) for chaining and status checking
+        """
         return await super().save(**kwargs)

@@ -182,7 +182,8 @@ class TestAsyncCalendar:
             assert len(events) == 1
             assert isinstance(events[0], AsyncEvent)
             assert events[0].data == SAMPLE_EVENT_ICAL
-            assert "/calendars/user/personal/event1.ics" in str(events[0].url)
+            # URL is generated from UID, not from href in response
+            assert "/calendars/user/personal/test-event-123.ics" in str(events[0].url)
 
     @pytest.mark.asyncio
     @mock.patch("caldav.async_davclient.httpx.AsyncClient.request")
