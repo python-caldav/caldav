@@ -101,6 +101,33 @@ class AsyncDAVClient:
         self.huge_tree = huge_tree
         self.features = FeatureSet(features)
 
+        # Extract username/password from URL early (before creating AsyncClient)
+        # This needs to happen before we compute the base_url
+        if self.url.username is not None:
+            username = unquote(self.url.username)
+            password = unquote(self.url.password)
+
+        self.username = username
+        self.password = password
+        self.auth = auth
+        self.auth_type = auth_type
+
+        # Handle non-ASCII passwords
+        if isinstance(self.password, str):
+            self.password = self.password.encode("utf-8")
+        if auth and self.auth_type:
+            logging.error(
+                "both auth object and auth_type sent to AsyncDAVClient. The latter will be ignored."
+            )
+        elif self.auth_type:
+            self.build_auth_object()
+
+        # Compute base URL without authentication for httpx.AsyncClient
+        # This MUST be done before creating the AsyncClient to avoid relative URL issues
+        self.url = self.url.unauth()
+        base_url_str = str(self.url)
+        log.debug("self.url: " + base_url_str)
+
         # Store SSL and timeout settings early, needed for AsyncClient creation
         self.timeout = timeout
         self.ssl_verify_cert = ssl_verify_cert
@@ -136,8 +163,11 @@ class AsyncDAVClient:
             combined_headers = default_headers
 
         # Create httpx AsyncClient with HTTP/2 support
-        # In httpx, proxy, verify, cert, timeout, and headers must be set at Client creation time
+        # CRITICAL: base_url is required to handle relative URLs properly with cookies
+        # Without base_url, httpx's cookie jar will receive relative URLs which causes
+        # urllib.request.Request to fail with "unknown url type" error
         self.session = httpx.AsyncClient(
+            base_url=base_url_str,
             http2=True,
             proxy=self.proxy,
             verify=self.ssl_verify_cert,
@@ -148,28 +178,6 @@ class AsyncDAVClient:
 
         # Store headers for reference
         self.headers = self.session.headers
-
-        if self.url.username is not None:
-            username = unquote(self.url.username)
-            password = unquote(self.url.password)
-
-        self.username = username
-        self.password = password
-        self.auth = auth
-        self.auth_type = auth_type
-
-        # Handle non-ASCII passwords
-        if isinstance(self.password, str):
-            self.password = self.password.encode("utf-8")
-        if auth and self.auth_type:
-            logging.error(
-                "both auth object and auth_type sent to AsyncDAVClient. The latter will be ignored."
-            )
-        elif self.auth_type:
-            self.build_auth_object()
-
-        self.url = self.url.unauth()
-        log.debug("self.url: " + str(url))
 
         self._principal = None
 
