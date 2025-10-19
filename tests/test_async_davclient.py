@@ -117,18 +117,41 @@ class TestAsyncDAVClient:
             assert has_caldav is True
 
     @pytest.mark.asyncio
-    async def testPrincipalNotImplemented(self):
-        """Test that principal() raises NotImplementedError (Phase 3 feature)"""
+    @mock.patch("caldav.async_davclient.httpx.AsyncClient.request")
+    async def testPrincipalWorks(self, mocked):
+        """Test that principal() now works (Phase 3 implemented)"""
+        # Mock PROPFIND response
+        propfind_response = mock.MagicMock()
+        propfind_response.status_code = 207
+        propfind_response.headers = {"Content-Type": "text/xml"}
+        propfind_response.content = b"""<?xml version="1.0" encoding="utf-8"?>
+<multistatus xmlns="DAV:">
+  <response>
+    <href>/</href>
+    <propstat>
+      <status>HTTP/1.1 200 OK</status>
+      <prop>
+        <current-user-principal>
+          <href>/principals/user/</href>
+        </current-user-principal>
+      </prop>
+    </propstat>
+  </response>
+</multistatus>"""
+        mocked.return_value = propfind_response
+
         async with AsyncDAVClient(url="http://calendar.example.com/") as client:
-            with pytest.raises(NotImplementedError):
-                await client.principal()
+            principal = await client.principal()
+            # Should not raise an exception
+            assert principal is not None
 
     @pytest.mark.asyncio
-    async def testCalendarNotImplemented(self):
-        """Test that calendar() raises NotImplementedError (Phase 3 feature)"""
+    async def testCalendarWorks(self):
+        """Test that calendar() now works (Phase 3 implemented)"""
         async with AsyncDAVClient(url="http://calendar.example.com/") as client:
-            with pytest.raises(NotImplementedError):
-                client.calendar()
+            calendar = client.calendar(url="/calendars/user/personal/")
+            # Should not raise an exception
+            assert calendar is not None
 
     @pytest.mark.asyncio
     @mock.patch("caldav.async_davclient.httpx.AsyncClient.request")

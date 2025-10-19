@@ -473,24 +473,30 @@ class AsyncDAVClient:
 
     async def principal(self, *largs, **kwargs):
         """
-        Returns a Principal object for the current user.
+        Returns an AsyncPrincipal object for the current user.
 
-        Note: This will need to be updated in Phase 3 to return an AsyncPrincipal
-        For now, it raises NotImplementedError as we need async domain objects first.
+        This is the main entry point for interacting with calendars.
+
+        Returns:
+            AsyncPrincipal object
         """
-        raise NotImplementedError(
-            "AsyncDAVClient.principal() requires async domain objects (Phase 3). "
-            "Use the synchronous DAVClient for now, or wait for Phase 3 implementation."
-        )
+        from .async_collection import AsyncPrincipal
+
+        if not self._principal:
+            self._principal = AsyncPrincipal(client=self, *largs, **kwargs)
+            await self._principal._ensure_principal_url()
+        return self._principal
 
     def calendar(self, **kwargs):
         """
-        Returns a calendar object.
+        Returns an AsyncCalendar object.
 
-        Note: This will need to be updated in Phase 3 to return an AsyncCalendar
-        For now, it raises NotImplementedError as we need async domain objects first.
+        Note: This doesn't verify the calendar exists on the server.
+        Typically, a URL should be given as a named parameter.
+
+        If you don't know the URL, use:
+            principal = await client.principal()
+            calendars = await principal.calendars()
         """
-        raise NotImplementedError(
-            "AsyncDAVClient.calendar() requires async domain objects (Phase 3). "
-            "Use the synchronous DAVClient for now, or wait for Phase 3 implementation."
-        )
+        from .async_collection import AsyncCalendar
+        return AsyncCalendar(client=self, **kwargs)

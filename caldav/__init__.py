@@ -12,6 +12,8 @@ except ModuleNotFoundError:
     )
 from .davclient import DAVClient
 from .async_davclient import AsyncDAVClient, AsyncDAVResponse
+from .async_collection import AsyncPrincipal, AsyncCalendar, AsyncCalendarSet
+from .async_objects import AsyncEvent, AsyncTodo, AsyncJournal, AsyncFreeBusy
 
 ## TODO: this should go away in some future version of the library.
 from .objects import *
@@ -29,4 +31,16 @@ class NullHandler(logging.Handler):
 
 log.addHandler(NullHandler())
 
-__all__ = ["__version__", "DAVClient", "AsyncDAVClient", "AsyncDAVResponse"]
+__all__ = [
+    "__version__",
+    "DAVClient",
+    "AsyncDAVClient",
+    "AsyncDAVResponse",
+    "AsyncPrincipal",
+    "AsyncCalendar",
+    "AsyncCalendarSet",
+    "AsyncEvent",
+    "AsyncTodo",
+    "AsyncJournal",
+    "AsyncFreeBusy",
+]
