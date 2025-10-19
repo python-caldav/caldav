@@ -65,9 +65,14 @@ class AsyncCalendarObjectResource(AsyncDAVObject):
         """Extract UID from iCalendar data"""
         try:
             for line in data.split('\n'):
-                if line.startswith('UID:'):
-                    return line.split(':', 1)[1].strip()
-        except:
+                stripped = line.strip()
+                if stripped.startswith('UID:'):
+                    uid = stripped.split(':', 1)[1].strip()
+                    log.debug(f"[UID EXTRACT DEBUG] Extracted UID: '{uid}' from line: '{line[:80]}'")
+                    return uid
+            log.warning(f"[UID EXTRACT DEBUG] No UID found in data. First 500 chars: {data[:500]}")
+        except Exception as e:
+            log.error(f"[UID EXTRACT DEBUG] Exception extracting UID: {e}")
             pass
         return None
 

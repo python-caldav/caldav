@@ -345,11 +345,13 @@ class AsyncCalendar(AsyncDAVObject):
         )
 
         body = etree.tostring(query.xmlelement(), encoding="utf-8", xml_declaration=True)
+        log.debug(f"[SEARCH DEBUG] Sending calendar-query REPORT to {self.url}")
         response = await self.client.report(str(self.url), body, depth=1)
 
         # Parse response
         objects = []
         response_data = response.expand_simple_props([cdav.CalendarData()])
+        log.debug(f"[SEARCH DEBUG] Received {len(response_data)} items in response")
 
         for href, props in response_data.items():
             if href == str(self.url):
@@ -363,8 +365,11 @@ class AsyncCalendar(AsyncDAVObject):
                     data=cal_data,
                     parent=self,
                 )
+                log.debug(f"[SEARCH DEBUG] Created {comp_class.__name__} object with id={obj.id}, url={href}")
+                log.debug(f"[SEARCH DEBUG] First 200 chars of cal_data: {cal_data[:200]}")
                 objects.append(obj)
 
+        log.debug(f"[SEARCH DEBUG] Returning {len(objects)} objects")
         return objects
 
     async def save_event(
@@ -410,10 +415,15 @@ class AsyncCalendar(AsyncDAVObject):
     async def event_by_uid(self, uid: str) -> "AsyncEvent":
         """Find an event by UID"""
         from .async_objects import AsyncEvent
+        log.debug(f"[EVENT_BY_UID DEBUG] Searching for event with UID: {uid}")
         results = await self.search(comp_class=AsyncEvent)
+        log.debug(f"[EVENT_BY_UID DEBUG] Search returned {len(results)} events")
         for event in results:
+            log.debug(f"[EVENT_BY_UID DEBUG] Comparing event.id='{event.id}' with uid='{uid}'")
             if event.id == uid:
+                log.debug(f"[EVENT_BY_UID DEBUG] Match found!")
                 return event
+        log.error(f"[EVENT_BY_UID DEBUG] No match found. Available UIDs: {[e.id for e in results]}")
         raise Exception(f"Event with UID {uid} not found")
 
     async def todo_by_uid(self, uid: str) -> "AsyncTodo":
