@@ -11,6 +11,7 @@ except ModuleNotFoundError:
         "You need to install the `build` package and do a `python -m build` to get caldav.__version__ set correctly"
     )
 from .davclient import DAVClient
+from .async_davclient import AsyncDAVClient, AsyncDAVResponse
 
 ## TODO: this should go away in some future version of the library.
 from .objects import *
@@ -28,4 +29,4 @@ class NullHandler(logging.Handler):
 
 log.addHandler(NullHandler())
 
-__all__ = ["__version__", "DAVClient"]
+__all__ = ["__version__", "DAVClient", "AsyncDAVClient", "AsyncDAVResponse"]
