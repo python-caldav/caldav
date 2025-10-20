@@ -4,7 +4,6 @@ Async collection classes for CalDAV: AsyncCalendar, AsyncPrincipal, etc.
 These are async equivalents of the sync collection classes, providing
 async/await APIs for calendar and principal operations.
 """
-
 import logging
 from typing import Any
 from typing import List

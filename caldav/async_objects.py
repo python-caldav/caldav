@@ -4,7 +4,6 @@ Async calendar object resources: AsyncEvent, AsyncTodo, AsyncJournal, etc.
 These classes represent individual calendar objects (events, todos, journals)
 and provide async APIs for loading, saving, and manipulating them.
 """
-
 import logging
 import uuid
 from typing import Optional
