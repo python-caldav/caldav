@@ -463,7 +463,7 @@ class AsyncCalendar(AsyncDAVObject):
             if event.id == uid:
                 log.debug(f"[EVENT_BY_UID DEBUG] Match found!")
                 return event
-        log.error(
+        log.warning(
             f"[EVENT_BY_UID DEBUG] No match found. Available UIDs: {[e.id for e in results]}"
         )
         raise Exception(f"Event with UID {uid} not found")

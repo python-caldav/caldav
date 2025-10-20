@@ -79,7 +79,7 @@ class AsyncCalendarObjectResource(AsyncDAVObject):
                 f"[UID EXTRACT DEBUG] No UID found in data. First 500 chars: {data[:500]}"
             )
         except Exception as e:
-            log.error(f"[UID EXTRACT DEBUG] Exception extracting UID: {e}")
+            log.warning(f"[UID EXTRACT DEBUG] Exception extracting UID: {e}")
             pass
         return None
 
