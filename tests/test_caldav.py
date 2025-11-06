@@ -682,7 +682,9 @@ class RepeatedFunctionalTestsBaseClass:
 
         TODO: write a better docstring
         """
-        return self.features.is_supported(feature, return_type, accept_fragile=accept_fragile)
+        return self.features.is_supported(
+            feature, return_type, accept_fragile=accept_fragile
+        )
 
     def check_compatibility_flag(self, flag):
         ## yield an assertion error if checking for the wrong thig
@@ -780,9 +782,7 @@ class RepeatedFunctionalTestsBaseClass:
             return
         if self.check_compatibility_flag("read_only"):
             return  ## no cleanup needed
-        if (
-            self.cleanup_regime == "wipe-calendar"
-        ):
+        if self.cleanup_regime == "wipe-calendar":
             for cal in self.calendars_used:
                 ## do we need a try-except-pass?
                 try:
@@ -849,7 +849,7 @@ class RepeatedFunctionalTestsBaseClass:
     ## TODO: perhaps a decorator is a better pattern than a wrapper?
     def _fixCalendar(self, **kwargs):
         cal = self._fixCalendar_(**kwargs)
-        if self.cleanup_regime == 'wipe-calendar':
+        if self.cleanup_regime == "wipe-calendar":
             ## do we need a try-except-pass?
             ## (if so, consolidate)
             for x in cal.search():
@@ -879,7 +879,7 @@ class RepeatedFunctionalTestsBaseClass:
                         self._default_calendar = c
                         return c
                 self._default_calendar = calendars[0]
-                
+
             return self._default_calendar
         else:
             if not "name" in kwargs:
@@ -908,7 +908,7 @@ class RepeatedFunctionalTestsBaseClass:
             from caldav_server_tester import ServerQuirkChecker
         except:
             pytest.skip("caldav_server_tester is not installed")
-        checker = ServerQuirkChecker(self.caldav, debug_mode='pdb')
+        checker = ServerQuirkChecker(self.caldav, debug_mode="pdb")
         checker.check_all()
 
         ## TODO: I think the compact view now strips out some client-side behaviour.
@@ -933,7 +933,7 @@ class RepeatedFunctionalTestsBaseClass:
                         target.pop(x)
             ## Ignore "fragile" things
             for target in observed_, expected_:
-                if target.get(x, {}).get('support', 'full') == 'fragile':
+                if target.get(x, {}).get("support", "full") == "fragile":
                     for target2 in observed_, expected_:
                         target2.pop(x, None)
 
@@ -1218,7 +1218,10 @@ END:VCALENDAR
             ## We should be able to access the calender through the name
             c2 = self.principal.calendar(name="Yep")
             ## (but may break if we have multiple calendars with the same name)
-            if self.is_supported("delete-calendar") or self.is_supported("delete-calendar", str) == 'fragile':
+            if (
+                self.is_supported("delete-calendar")
+                or self.is_supported("delete-calendar", str) == "fragile"
+            ):
                 assert c2.url == c.url
                 events2 = cleanse(c2.events())
                 assert len(events2) == 1
@@ -1764,9 +1767,9 @@ END:VCALENDAR
             start=datetime(2006, 7, 13, 13, 0),
             end=datetime(2006, 7, 15, 13, 0),
         )
-        if (
-            self.is_supported("search.category")
-        ) and not self.check_compatibility_flag("combined_search_not_working"):
+        if (self.is_supported("search.category")) and not self.check_compatibility_flag(
+            "combined_search_not_working"
+        ):
             assert len(no_events) == 0
         some_events = c.search(
             comp_class=Event,
@@ -1973,9 +1976,9 @@ END:VCALENDAR
         ## category
         ## Too much copying of the examples ...
         some_todos = c.search(comp_class=Todo, category="FINANCE")
-        if (
-            self.is_supported("search.category")
-        ) and not self.check_compatibility_flag("text_search_not_working"):
+        if (self.is_supported("search.category")) and not self.check_compatibility_flag(
+            "text_search_not_working"
+        ):
             assert len(some_todos) == 6 + pre_cnt
         some_todos = c.search(comp_class=Todo, category="finance")
         if self.is_supported("search.category") and not self.check_compatibility_flag(
@@ -2687,7 +2690,7 @@ END:VCALENDAR
         self.skip_on_compatibility_flag("read_only")
         self.skip_on_compatibility_flag("no_todo")
         c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
-        assert(len(c.todos()) == 0)
+        assert len(c.todos()) == 0
         t6 = c.save_todo(todo6, status="NEEDS-ACTION")
         assert len(c.todos()) == 1
         if not self.check_compatibility_flag("rrule_takes_no_count"):
@@ -2717,7 +2720,7 @@ END:VCALENDAR
         self.skip_on_compatibility_flag("read_only")
         self.skip_on_compatibility_flag("no_todo")
         c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
-        assert(len(c.todos()) == 0)
+        assert len(c.todos()) == 0
         t6 = c.save_todo(todo6, status="NEEDS-ACTION")
         if not self.check_compatibility_flag("rrule_takes_no_count"):
             t8 = c.save_todo(todo8)
