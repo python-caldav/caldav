@@ -43,6 +43,7 @@ else:
 from .elements import cdav, dav
 from .elements.base import BaseElement
 from .lib import error
+from .lib.dav_core import DAVObjectCore
 from .lib.error import errmsg
 from .lib.python_utilities import to_wire
 from .lib.url import URL
@@ -62,7 +63,7 @@ may encounter inheritated methods coming from this class.
 """
 
 
-class DAVObject:
+class DAVObject(DAVObjectCore):
     """
     Base class for all DAV objects.  Can be instantiated by a client
     and an absolute or relative URL, or from the parent object.
@@ -95,28 +96,13 @@ class DAVObject:
           props: a dict with known properties for this object
           id: The resource id (UID for an Event)
         """
-
-        if client is None and parent is not None:
-            client = parent.client
-        self.client = client
-        self.parent = parent
-        self.name = name
-        self.id = id
-        self.props = props or {}
-        self.extra_init_options = extra
-        # url may be a path relative to the caldav root
-        if client and url:
-            self.url = client.url.join(url)
-        elif url is None:
-            self.url = None
-        else:
-            self.url = URL.objectify(url)
+        # Initialize using parent class which handles all the common logic
+        super().__init__(client, url, parent, name, id, props, **extra)
 
     @property
     def canonical_url(self) -> str:
-        if self.url is None:
-            raise ValueError("Unexpected value None for self.url")
-        return str(self.url.canonical())
+        # Use parent class implementation
+        return self.get_canonical_url()
 
     def children(self, type: Optional[str] = None) -> List[Tuple[URL, Any, Any]]:
         """List children, using a propfind (resourcetype) on the parent object,

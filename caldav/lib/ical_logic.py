@@ -7,6 +7,7 @@ that are used by both synchronous and asynchronous calendar object classes.
 import logging
 import uuid
 from typing import Optional
+from urllib.parse import quote
 
 log = logging.getLogger("caldav")
 
@@ -60,17 +61,29 @@ class ICalLogic:
         return str(uuid.uuid4())
 
     @staticmethod
-    def generate_object_url(parent_url, uid: Optional[str] = None) -> str:
+    def generate_object_url(
+        parent_url, uid: Optional[str] = None, quote_special_chars: bool = True
+    ) -> str:
         """
         Generate a URL for a calendar object based on its parent and UID.
 
         Args:
             parent_url: URL object of the parent calendar
             uid: UID of the calendar object (will generate if not provided)
+            quote_special_chars: If True, properly quote special characters in UID
+                                 (particularly slashes which need double-quoting per issue #143)
 
         Returns:
             URL string for the calendar object
         """
         if uid is None:
             uid = ICalLogic.generate_uid()
-        return parent_url.join(f"{uid}.ics")
+
+        if quote_special_chars:
+            # See https://github.com/python-caldav/caldav/issues/143
+            # Slashes need to be replaced with %2F first, then the whole UID quoted
+            uid_safe = quote(uid.replace("/", "%2F"))
+        else:
+            uid_safe = uid
+
+        return parent_url.join(f"{uid_safe}.ics")

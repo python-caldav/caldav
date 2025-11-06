@@ -69,6 +69,7 @@ from .elements import dav
 from .lib import error
 from .lib import vcal
 from .lib.error import errmsg
+from .lib.ical_logic import ICalLogic
 from .lib.python_utilities import to_normal_str
 from .lib.python_utilities import to_unicode
 from .lib.python_utilities import to_wire
@@ -734,7 +735,8 @@ class CalendarObjectResource(DAVObject):
             ## TODO: do we ever get here?  Perhaps this if is completely moot?
             id = re.search("(/|^)([^/]*).ics", str(path)).group(2)
         if id is None:
-            id = str(uuid.uuid1())
+            # Use shared logic for UID generation
+            id = ICalLogic.generate_uid()
 
         i.pop("UID", None)
         i.add("UID", id)
@@ -784,7 +786,10 @@ class CalendarObjectResource(DAVObject):
         ## better to generate a new uuid here, particularly if id is in some unexpected format.
         if not self.id:
             self.id = self._get_icalendar_component(assert_one=False)["UID"]
-        return self.parent.url.join(quote(self.id.replace("/", "%2F")) + ".ics")
+        # Use shared logic with special character handling
+        return ICalLogic.generate_object_url(
+            self.parent.url, self.id, quote_special_chars=True
+        )
 
     def change_attendee_status(self, attendee: Optional[Any] = None, **kwargs) -> None:
         """
