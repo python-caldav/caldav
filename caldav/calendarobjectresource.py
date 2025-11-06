@@ -731,6 +731,7 @@ class CalendarObjectResource(DAVObject):
         if not path and getattr(self, "path", None):
             path = self.path
         if id is None and path is not None and str(path).endswith(".ics"):
+            ## TODO: do we ever get here?  Perhaps this if is completely moot?
             id = re.search("(/|^)([^/]*).ics", str(path)).group(2)
         if id is None:
             id = str(uuid.uuid1())

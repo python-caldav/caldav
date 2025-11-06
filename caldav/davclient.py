@@ -849,12 +849,12 @@ class DAVClient:
                     reason="Server provides bearer auth, but no password given.  The bearer token should be configured as password"
                 )
 
-            if auth_type == "digest":
-                self.auth = requests.auth.HTTPDigestAuth(self.username, self.password)
-            elif auth_type == "basic":
-                self.auth = requests.auth.HTTPBasicAuth(self.username, self.password)
-            elif auth_type == "bearer":
-                self.auth = HTTPBearerAuth(self.password)
+        if auth_type == "digest":
+            self.auth = requests.auth.HTTPDigestAuth(self.username, self.password)
+        elif auth_type == "basic":
+            self.auth = requests.auth.HTTPBasicAuth(self.username, self.password)
+        elif auth_type == "bearer":
+            self.auth = HTTPBearerAuth(self.password)
 
     def request(
         self,
@@ -986,17 +986,6 @@ class DAVClient:
             self.password = None
             return self.request(str(url_obj), method, body, headers)
 
-        # this is an error condition that should be raised to the application
-        if (
-            response.status == requests.codes.forbidden
-            or response.status == requests.codes.unauthorized
-        ):
-            try:
-                reason = response.reason
-            except AttributeError:
-                reason = "None given"
-            raise error.AuthorizationError(url=str(url_obj), reason=reason)
-
         if error.debug_dump_communication:
             import datetime
             from tempfile import NamedTemporaryFile
@@ -1027,6 +1016,17 @@ class DAVClient:
                 else:
                     commlog.write(to_wire(response._raw))
                 commlog.write(b"\n")
+
+        # this is an error condition that should be raised to the application
+        if (
+            response.status == requests.codes.forbidden
+            or response.status == requests.codes.unauthorized
+        ):
+            try:
+                reason = response.reason
+            except AttributeError:
+                reason = "None given"
+            raise error.AuthorizationError(url=str(url_obj), reason=reason)
 
         return response
 
