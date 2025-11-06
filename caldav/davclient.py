@@ -1037,6 +1037,17 @@ class DAVClient:
                     commlog.write(to_wire(response._raw))
                 commlog.write(b"\n")
 
+        # this is an error condition that should be raised to the application
+        if (
+            response.status == requests.codes.forbidden
+            or response.status == requests.codes.unauthorized
+        ):
+            try:
+                reason = response.reason
+            except AttributeError:
+                reason = "None given"
+            raise error.AuthorizationError(url=str(url_obj), reason=reason)
+
         return response
 
 
