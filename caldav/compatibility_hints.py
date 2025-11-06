@@ -675,7 +675,7 @@ ecloud = {
         'interval': 10,
         'count': 1,
         'description': "It's needed to manually empty trashbin frequently when running tests.  Since this oepration takes some time and/or there are some caches, it's needed to run tests slowly, even when hammering the 'empty thrashbin' frequently"},
-    'old_flags': ['no-principal-search-all', 'no-principal-search-self', 'unique_calendar_ids'],
+    'old_flags': ['no-principal-search-all', 'no-principal-search-self', 'unique_calendar_ids', 'combined_search_not_working'],
 }
 
 ## ZIMBRA IS THE MOST SILLY, AND THERE ARE REGRESSIONS FOR EVERY RELEASE!
