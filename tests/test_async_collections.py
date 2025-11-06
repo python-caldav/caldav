@@ -9,11 +9,11 @@ import pytest
 
 from caldav.async_collection import AsyncCalendar
 from caldav.async_collection import AsyncCalendarSet
+from caldav.async_collection import AsyncEvent
+from caldav.async_collection import AsyncJournal
 from caldav.async_collection import AsyncPrincipal
+from caldav.async_collection import AsyncTodo
 from caldav.async_davclient import AsyncDAVClient
-from caldav.async_objects import AsyncEvent
-from caldav.async_objects import AsyncJournal
-from caldav.async_objects import AsyncTodo
 
 
 SAMPLE_EVENT_ICAL = """BEGIN:VCALENDAR
