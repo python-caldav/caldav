@@ -112,11 +112,18 @@ class FeatureSet:
         "search.recurrences.includes-implicit.todo": {
             "description": "tasks can also be recurring"
         },
+        "search.recurrences.includes-implicit.todo.pending": {
+            "description": "a future recurrence of a pending task should always be pending and appear in searches for pending tasks"
+        },
         "search.recurrences.includes-implicit.event": {
             "description": "support for events"
         },
         "search.recurrences.includes-implicit.infinite-scope": {
             "description": "Needless to say, search on any future date range, no matter how far out in the future, should yield the recurring object"
+        },
+        "search.combined-is-logical-and": {
+            "description": "Multiple search filters should yield only those that passes all filters"
+            ## For "unsupported", we could also add a "behaviour" (returns everything, returns nothing, returns logical OR, etc).
         },
         "search.recurrences.expanded": {
             "description": "According to RFC 4791, the server MUST expand recurrence objects if asked for it - but many server doesn't do that.  Some servers don't do expand at all, others deliver broken data, typically missing RECURRENCE-ID.  The python caldav client library (from 2.0) does the expand-operation client-side no matter if it's supported or not",
@@ -540,9 +547,6 @@ incompatibility_description = {
     'text_search_is_exact_match_sometimes':
         """Some servers are doing an exact match on summary field but substring match on category or vice versa""",
 
-   'combined_search_not_working':
-        """When querying for a text match and a date range in the same report, weird things happen""",
-
    'text_search_not_working':
         """Text search is generally broken""",
 
@@ -626,8 +630,8 @@ xandikos = {
 ## so I'm expecting this list to shrink a lot soon.
 radicale = {
     "search.category.fullstring": {"support": "unsupported"},
+    "search.recurrences.includes-implicit.todo.pending": {"support": "unsupported"},
     "search.recurrences.expanded.todo": {"support": "unsupported"},
-    "search.recurrences.includes-implicit.todo": {"support": "unsupported"},
     "search.recurrences.expanded.exception": {"support": "unsupported"},
     'old_flags': [
     ## calendar listings and calendar creation works a bit
@@ -640,9 +644,9 @@ radicale = {
     "no-principal-search-self", ## this may be because we haven't set up any users or authentication - so the display name of the current user principal is None
 
     'no_scheduling',
+    'no_search_openended',
 
     'text_search_is_case_insensitive',
-    'combined_search_not_working',
     #'text_search_is_exact_match_sometimes',
 
     ## extra features not specified in RFC5545
@@ -668,6 +672,7 @@ ecloud = {
     'search.comp-type-optional': {
         'support': 'ungraceful',
     },
+    "search.combined-is-logical-and": {"support": "unsupported"},
     'search.recurrences.includes-implicit.todo': {'support': 'unsupported'},
     ## TODO: this applies only to test runs, not to ordinary usage
     'rate-limit': {
@@ -675,7 +680,7 @@ ecloud = {
         'interval': 10,
         'count': 1,
         'description': "It's needed to manually empty trashbin frequently when running tests.  Since this oepration takes some time and/or there are some caches, it's needed to run tests slowly, even when hammering the 'empty thrashbin' frequently"},
-    'old_flags': ['no-principal-search-all', 'no-principal-search-self', 'unique_calendar_ids', 'combined_search_not_working'],
+    'old_flags': ['no-principal-search-all', 'no-principal-search-self', 'unique_calendar_ids'],
 }
 
 ## ZIMBRA IS THE MOST SILLY, AND THERE ARE REGRESSIONS FOR EVERY RELEASE!
@@ -741,11 +746,11 @@ baikal =  {
     'search.recurrences.expanded.todo': {'support': 'unsupported'},
     'search.recurrences.expanded.exception': {'support': 'unsupported'},
     'search.recurrences.includes-implicit.todo': {'support': 'unsupported'},
+    "search.combined-is-logical-and": {"support": "unsupported"},
     'old_flags': [
         ## date search on todos does not seem to work
         ## (TODO: do some research on this)
         'sync_breaks_on_delete',
-        'combined_search_not_working',
         'text_search_is_exact_match_sometimes',
         ## extra features not specified in RFC5545
         "calendar_order",
@@ -871,12 +876,12 @@ posteo = {
     'search.recurrences.expanded.todo': {'support': 'unsupported'},
     'search.recurrences.expanded.exception': {'support': 'unsupported'},
     'search.recurrences.includes-implicit.todo': {'support': 'unsupported'},
+    "search.combined-is-logical-and": {"support": "unsupported"},
     'old_flags': [
         'no_scheduling',
         'no_journal',
         #'no_recurring_todo', ## todo
         'no_sync_token',
-        'combined_search_not_working',
         'no_alarmsearch',
         "no-principal-search-self"
     ]

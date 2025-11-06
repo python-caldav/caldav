@@ -887,32 +887,74 @@ class Calendar(DAVObject):
 
         ## special compatibility-case when searching for pending todos
         if todo and not include_completed:
-            matches1 = self.search(
-                todo=True,
-                ignore_completed1=True,
-                include_completed=True,
-                **kwargs,
-            )
-            matches2 = self.search(
-                todo=True,
-                ignore_completed2=True,
-                include_completed=True,
-                **kwargs,
-            )
-            matches3 = self.search(
-                todo=True,
-                ignore_completed3=True,
-                include_completed=True,
-                **kwargs,
-            )
+            ## There are two ways to get the pending tasks - we can
+            ## ask the server to filter them out, or we can do it
+            ## client side.
+
+            ## If the server does not support combined searches, then it's
+            ## safest to do it client-side.
+
+            ## There is a special case (observed with radicale as of
+            ## 2025-11) where future recurrences of a task does not
+            ## match when doing a server-side filtering, so for this
+            ## case we also do client-side filtering (but the
+            ## "feature"
+            ## search.recurrences.includes-implicit.todo.pending will
+            ## not be supported if the feature
+            ## "search.recurrences.includes-implicit.todo" is not
+            ## supported ... hence the weird or below)
+
+            ## To be completely sure to get all pending tasks, for all
+            ## server implementations and for all valid icalendar
+            ## objects, we send three different searches to the
+            ## server.  This is probably bloated, and may in many
+            ## cases be more expensive than to ask for all tasks.  At
+            ## the other hand, for a well-used and well-handled old
+            ## todo-list, there may be a small set of pending tasks
+            ## and heaps of done tasks.
+
+            ## TODO: consider if not ignore_completed3 is sufficient,
+            ## then the recursive part of the query here is moot, and
+            ## we wouldn't waste so much time on repeated queries
+
+            if self.client.features.is_supported("search.combined-is-logical-and") and (
+                not self.client.features.is_supported(
+                    "search.recurrences.includes-implicit.todo"
+                )
+                or self.client.features.is_supported(
+                    "search.recurrences.includes-implicit.todo.pending"
+                )
+            ):
+                matches = (
+                    self.search(
+                        todo=True,
+                        ignore_completed1=True,
+                        include_completed=True,
+                        **kwargs,
+                    )
+                    + self.search(
+                        todo=True,
+                        ignore_completed2=True,
+                        include_completed=True,
+                        **kwargs,
+                    )
+                    + self.search(
+                        todo=True,
+                        ignore_completed3=True,
+                        include_completed=True,
+                        **kwargs,
+                    )
+                )
+            else:
+                matches = self.search(todo=True, include_completed=True, **kwargs)
             objects = []
             match_set = set()
-            for item in matches1 + matches2 + matches3:
+            for item in matches:
                 if item.url not in match_set:
                     match_set.add(item.url)
-                    ## and still, Zimbra seems to deliver too many TODOs in the
-                    ## matches2 ... let's do some post-filtering in case the
-                    ## server fails in filtering things the right way
+                    ## Client-side filtering is probably cheap, so we'll do it
+                    ## even when it shouldn't be needed.
+                    ## (can we assert all tasks have a valid STATUS field?)
                     if any(
                         x.get("STATUS") not in ("COMPLETED", "CANCELLED")
                         for x in item.icalendar_instance.subcomponents

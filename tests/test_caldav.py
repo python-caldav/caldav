@@ -1767,8 +1767,8 @@ END:VCALENDAR
             start=datetime(2006, 7, 13, 13, 0),
             end=datetime(2006, 7, 15, 13, 0),
         )
-        if (self.is_supported("search.category")) and not self.check_compatibility_flag(
-            "combined_search_not_working"
+        if self.is_supported("search.category") and self.is_supported(
+            "search.combined-is-logical-and"
         ):
             assert len(no_events) == 0
         some_events = c.search(
@@ -1777,8 +1777,8 @@ END:VCALENDAR
             start=datetime(1997, 11, 1, 13, 0),
             end=datetime(1997, 11, 3, 13, 0),
         )
-        if self.is_supported("search.category") and not self.check_compatibility_flag(
-            "combined_search_not_working"
+        if self.is_supported("search.category") and self.is_supported(
+            "search.combined-is-logical-and"
         ):
             assert len(some_events) == 1
 
@@ -2590,7 +2590,7 @@ END:VCALENDAR
 
         assert isinstance(todos1[0], Todo)
         assert isinstance(todos2[0], Todo)
-        if not self.check_compatibility_flag("combined_search_not_working"):
+        if not self.check_compatibility_flag("no_search_openended"):
             assert isinstance(todos3[0], Todo)
 
         ## * t6 should be returned, as it's a yearly task spanning over 2025
