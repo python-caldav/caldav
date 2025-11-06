@@ -713,8 +713,9 @@ class RepeatedFunctionalTestsBaseClass:
         calendar_info = self.check_support("test-calendar", dict)
         self.cleanup_regime = calendar_info.get("cleanup-regime", "light")
 
-        if not "cleanup" in self.server_params and not self.check_support(
-            "create-calendar"
+        if not "cleanup" in self.server_params and (
+            not self.check_support("create-calendar")
+            or not self.check_support("delete-calendar")
         ):
             self.cleanup_regime = "thorough"
 
