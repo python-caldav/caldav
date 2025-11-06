@@ -109,3 +109,7 @@ class PrincipalCollectionSet(BaseElement):
 
 class Allprop(BaseElement):
     tag: ClassVar[str] = ns("D", "allprop")
+
+
+class Owner(BaseElement):
+    tag: ClassVar[str] = ns("D", "owner")
