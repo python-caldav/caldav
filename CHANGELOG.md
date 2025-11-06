@@ -34,6 +34,7 @@ Except for that, some minor bugfixes.
 * Tweaks to support upcoming version 7 of the icalendar library.
 * Compatibility-tweaks for baikal, but as for now manual intervention is needed - see https://github.com/python-caldav/caldav/pull/556 and https://github.com/python-caldav/caldav/issues/553
 * Bugfix on authentication - things broke on Baikal if authentication method (i.e. digest) was set in the config.  I found a quite obvious bug, I did not investigate why the test code has been passing on all the other servers.  Weird thing.
+* Bugfix in the `davclient.principals`-method, allowing it to work on more servers
 
 ### Added
 
