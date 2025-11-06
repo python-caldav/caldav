@@ -715,7 +715,7 @@ class RepeatedFunctionalTestsBaseClass:
 
         if "cleanup" in self.server_params:
             self.cleanup_regime = self.server_params["cleanup"]
-            
+
         if not self.cleanup_regime == "wipe-calendar" and (
             not self.check_support("create-calendar")
             or not self.check_support("delete-calendar")
@@ -780,9 +780,7 @@ class RepeatedFunctionalTestsBaseClass:
             return
         if self.check_compatibility_flag("read_only"):
             return  ## no cleanup needed
-        if (
-            self.cleanup_regime == "wipe-calendar"
-        ):
+        if self.cleanup_regime == "wipe-calendar":
             cal = self._fixCalendar()
             ## do we need a try-except-pass?
             for x in cal.search():
