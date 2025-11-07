@@ -32,8 +32,11 @@ class FeatureSet:
        * "support" -> "quirk" if we have a server-peculiarity where it's needed with special care to get the request through.
     """
     FEATURES = {
+        "get-all-principals": {
+            "description": "Search for all principals, using a DAV REPORT query, yields at least one principal"
+        },
         "get-current-user-principal": {
-            "description": "Support for RFC5397, current principal extension.  Most CalDAV servers have this, but it is an extension to the standard"},
+            "description": "Support for RFC5397, current principal extension.  Most CalDAV servers have this, but it is an extension to the DAV standard"},
         "get-current-user-principal.has-calendar": {
             "type": "server-observation",
             "description": "Principal has one or more calendars.  Some servers and providers comes with a pre-defined calendar for each user, for other servers a calendar has to be explicitly created (supported means there exists a calendar - it may be because the calendar was already provisioned together with the principal, or it may be because a calendar was created manually, the checks can't see the difference)"},
@@ -109,21 +112,28 @@ class FeatureSet:
         "search.recurrences.includes-implicit.todo": {
             "description": "tasks can also be recurring"
         },
+        "search.recurrences.includes-implicit.todo.pending": {
+            "description": "a future recurrence of a pending task should always be pending and appear in searches for pending tasks"
+        },
         "search.recurrences.includes-implicit.event": {
             "description": "support for events"
         },
         "search.recurrences.includes-implicit.infinite-scope": {
             "description": "Needless to say, search on any future date range, no matter how far out in the future, should yield the recurring object"
         },
+        "search.combined-is-logical-and": {
+            "description": "Multiple search filters should yield only those that passes all filters"
+            ## For "unsupported", we could also add a "behaviour" (returns everything, returns nothing, returns logical OR, etc).
+        },
         "search.recurrences.expanded": {
             "description": "According to RFC 4791, the server MUST expand recurrence objects if asked for it - but many server doesn't do that.  Some servers don't do expand at all, others deliver broken data, typically missing RECURRENCE-ID.  The python caldav client library (from 2.0) does the expand-operation client-side no matter if it's supported or not",
             "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-9.6.5"],
         },
         "search.recurrences.expanded.todo": {
-            "description": "examding tasks"
+            "description": "expanding tasks"
         },
         "search.recurrences.expanded.event": {
-            "description": "examding events"
+            "description": "exanding events"
         },
         "search.recurrences.expanded.exception": {
             "description": "Server expand should work correctly also if a recurrence set with exceptions is given"
@@ -215,7 +225,7 @@ class FeatureSet:
             parent_info = self.find_feature(parent)
 
             if len(parent_info['subfeatures']):
-                foo = self.check_support(parent, return_type=dict, return_defaults=False)
+                foo = self.is_supported(parent, return_type=dict, return_defaults=False)
                 if len(parent_info['subfeatures']) > 1 or foo is not None:
                     dont_collapse = False
                     for sub in parent_info['subfeatures']:
@@ -255,12 +265,8 @@ class FeatureSet:
         else:
             breakpoint()
 
-    def check_support(self, feature, return_type=bool, return_defaults=True):
+    def is_supported(self, feature, return_type=bool, return_defaults=True, accept_fragile=False):
         """Work in progress
-
-        TODO: rename.  This method does not do any checking, just a
-        lookup.  "get_support" sounds wrong, but perhaps
-        "lookup_support"?
 
         TODO: write a better docstring
 
@@ -272,14 +278,14 @@ class FeatureSet:
         feature_ = feature
         while True:
             if feature_ in self._server_features:
-                return self._convert_node(self._server_features[feature_], feature_info, return_type)
+                return self._convert_node(self._server_features[feature_], feature_info, return_type, accept_fragile)
             if not '.' in feature_:
                 if not return_defaults:
                     return None
-                return self._convert_node(self._default(feature_info), feature_info, return_type)
+                return self._convert_node(self._default(feature_info), feature_info, return_type, accept_fragile)
             feature_ = feature_[:feature_.rfind('.')]
 
-    def _convert_node(self, node, feature_info, return_type):
+    def _convert_node(self, node, feature_info, return_type, accept_fragile=False):
         """
         Return the information in a "node" given the wished return_type
 
@@ -298,7 +304,13 @@ class FeatureSet:
             support = node.get('support', 'full')
             if support == 'quirk':
                 return True
-            return support == 'full' and not node.get('enable') and not node.get('behaviour') and not node.get('observed')
+            if accept_fragile and support == 'fragile':
+                support = 'full'
+            if feature_info.get('type', 'server-feature') == 'server-feature':
+                return support == 'full'
+            else:
+                ## TODO: this may be improved
+                return not node.get('enable') and not node.get('behaviour') and not node.get('observed')
         else:
             assert False
 
@@ -535,9 +547,6 @@ incompatibility_description = {
     'text_search_is_exact_match_sometimes':
         """Some servers are doing an exact match on summary field but substring match on category or vice versa""",
 
-   'combined_search_not_working':
-        """When querying for a text match and a date range in the same report, weird things happen""",
-
    'text_search_not_working':
         """Text search is generally broken""",
 
@@ -621,6 +630,7 @@ xandikos = {
 ## so I'm expecting this list to shrink a lot soon.
 radicale = {
     "search.category.fullstring": {"support": "unsupported"},
+    "search.recurrences.includes-implicit.todo.pending": {"support": "unsupported"},
     "search.recurrences.expanded.todo": {"support": "unsupported"},
     "search.recurrences.expanded.exception": {"support": "unsupported"},
     'old_flags': [
@@ -634,9 +644,9 @@ radicale = {
     "no-principal-search-self", ## this may be because we haven't set up any users or authentication - so the display name of the current user principal is None
 
     'no_scheduling',
+    'no_search_openended',
 
     'text_search_is_case_insensitive',
-    'combined_search_not_working',
     #'text_search_is_exact_match_sometimes',
 
     ## extra features not specified in RFC5545
@@ -656,10 +666,14 @@ ecloud = {
         'support': 'fragile',
         'behaviour': 'Deleting a recently created calendar fails'},
     'delete-calendar.free-namespace': { ## TODO: not caught by server-tester
-        'behaviour': "deleting a calendar moves it to a trashbin, thrashbin has to be manually 'emptied' from the web-ui before the namespace is freed up"},
+        'behaviour': "deleting a calendar moves it to a trashbin, thrashbin has to be manually 'emptied' from the web-ui before the namespace is freed up",
+        'support': 'fragile',
+    },
     'search.comp-type-optional': {
         'support': 'ungraceful',
     },
+    "search.combined-is-logical-and": {"support": "unsupported"},
+    'search.recurrences.includes-implicit.todo': {'support': 'unsupported'},
     ## TODO: this applies only to test runs, not to ordinary usage
     'rate-limit': {
         'enable': True,
@@ -726,15 +740,17 @@ bedework = [
 
 baikal =  {
     'create-calendar': {'support': 'quirk', 'behaviour': 'mkcol-required'},
+    'create-calendar.auto': {'support': 'unsupported'}, ## this is the default, but the "quirk" from create-calendar overwrites it.  Hm.
     'search.category.fullstring.smart': {'support': 'unsupported'},
     'search.comp-type-optional': {'support': 'ungraceful'},
     'search.recurrences.expanded.todo': {'support': 'unsupported'},
     'search.recurrences.expanded.exception': {'support': 'unsupported'},
+    'search.recurrences.includes-implicit.todo': {'support': 'unsupported'},
+    "search.combined-is-logical-and": {"support": "unsupported"},
     'old_flags': [
         ## date search on todos does not seem to work
         ## (TODO: do some research on this)
         'sync_breaks_on_delete',
-        'combined_search_not_working',
         'text_search_is_exact_match_sometimes',
         ## extra features not specified in RFC5545
         "calendar_order",
@@ -834,8 +850,9 @@ robur = {
     "search.category": { "support": "unsupported" },
     "search.comp-type-optional": { "support": "ungraceful" },
     "search.recurrences.expanded.todo": { "support": "unsupported" },
-    #"search.recurrences.expanded.event": { "support": "fragile" },
+    "search.recurrences.expanded.event": { "support": "fragile" },
     "search.recurrences.expanded.exception": { "support": "unsupported" },
+    'search.recurrences.includes-implicit.todo': {'support': 'unsupported'},
     'old_flags': [
         'non_existing_raises_other', ## AuthorizationError instead of NotFoundError
         'no_scheduling',
@@ -853,15 +870,18 @@ robur = {
 }
 
 posteo = {
-    "create-calendar": {  "support": "unsupported" },
-    "search.recurrences.expanded.exception": { "support": "unsupported" },
-    "search.recurrences.includes-implicit.todo": { "support": "unsupported" },
+    'create-calendar': {'support': 'unsupported'},
+    'search.category.fullstring.smart': {'support': 'unsupported'},
+    'search.comp-type-optional': {'support': 'ungraceful'},
+    'search.recurrences.expanded.todo': {'support': 'unsupported'},
+    'search.recurrences.expanded.exception': {'support': 'unsupported'},
+    'search.recurrences.includes-implicit.todo': {'support': 'unsupported'},
+    "search.combined-is-logical-and": {"support": "unsupported"},
     'old_flags': [
         'no_scheduling',
         'no_journal',
         #'no_recurring_todo', ## todo
         'no_sync_token',
-        'combined_search_not_working',
         'no_alarmsearch',
         "no-principal-search-self"
     ]
@@ -885,6 +905,7 @@ purelymail = {
     ## Purelymail claims that the search indexes are "lazily" populated,
     ## so search works some minutes after the event was created/edited.
     'search-cache': {'behaviour': 'delay', 'delay': 120},
+    "create-calendar.auto": {"support": "full"},
     'old_flags': [
         ## Known, work in progress
         'no_scheduling',
@@ -900,11 +921,6 @@ purelymail = {
 }
 
 gmx = {
-    ## This WILL create some arbitrary objects from year 2000 on your calendar when running
-    ## tests.
-    ## It's fine for me as my gmx calendar is only for testing, but it may not be
-    ## fine for you.
-    "test-calendar.compatibility-tests": { "name": "Mein Kalender", "cleanup": True },
     'create-calendar': {'support': 'unsupported'},
     'search.category.fullstring.smart': {'support': 'unsupported'},
     'search.comp-type-optional': {'support': 'fragile', 'description': 'unexpected results from date-search without comp-type - but only sometimes - TODO: research more'},

@@ -676,13 +676,15 @@ class RepeatedFunctionalTestsBaseClass:
     _default_calendar = None
 
     ## TODO: move to davclient or compatibility_hints
-    def check_support(self, feature, return_type=bool):
+    def is_supported(self, feature, return_type=bool, accept_fragile=False):
         """
         New-style.  It will replace check_compatibility_flag.
 
         TODO: write a better docstring
         """
-        return self.features.check_support(feature, return_type)
+        return self.features.is_supported(
+            feature, return_type, accept_fragile=accept_fragile
+        )
 
     def check_compatibility_flag(self, flag):
         ## yield an assertion error if checking for the wrong thig
@@ -695,7 +697,7 @@ class RepeatedFunctionalTestsBaseClass:
             pytest.skip("Test skipped due to server incompatibility issue: " + msg)
 
     def skip_unless_support(self, feature):
-        if not self.check_support(feature):
+        if not self.is_supported(feature):
             msg = self.features.find_feature(feature).get("description", feature)
             pytest.skip("Test skipped due to server incompatibility issue: " + msg)
 
@@ -710,15 +712,15 @@ class RepeatedFunctionalTestsBaseClass:
 
         self.features = FeatureSet(self.server_params.get("features", {}))
 
-        calendar_info = self.check_support("test-calendar", dict)
+        calendar_info = self.is_supported("test-calendar", dict)
         self.cleanup_regime = calendar_info.get("cleanup-regime", "light")
 
         if "cleanup" in self.server_params:
             self.cleanup_regime = self.server_params["cleanup"]
 
         if not self.cleanup_regime == "wipe-calendar" and (
-            not self.check_support("create-calendar")
-            or not self.check_support("delete-calendar")
+            not self.is_supported("create-calendar")
+            or not self.is_supported("delete-calendar", accept_fragile=True)
         ):
             self.cleanup_regime = "thorough"
 
@@ -736,11 +738,11 @@ class RepeatedFunctionalTestsBaseClass:
         self.caldav = client(**self.server_params)
         self.caldav.__enter__()
 
-        foo = self.check_support("rate-limit", dict)
+        foo = self.is_supported("rate-limit", dict)
         if foo.get("enable"):
             rate_delay = foo["interval"] / foo["count"]
             self.caldav.request = _delay_decorator(self.caldav.request, t=rate_delay)
-        foo = self.check_support("search-cache", dict)
+        foo = self.is_supported("search-cache", dict)
         if foo.get("behaviour") == "delay":
             Calendar._search = Calendar.search
             Calendar.search = _delay_decorator(Calendar.search, t=foo["delay"])
@@ -764,7 +766,7 @@ class RepeatedFunctionalTestsBaseClass:
 
     def teardown_method(self):
         if (
-            self.check_support("search-cache", dict).get("behaviour", "normal")
+            self.is_supported("search-cache", dict).get("behaviour", "normal")
             != "normal"
         ):
             Calendar.search = Calendar._search
@@ -781,24 +783,28 @@ class RepeatedFunctionalTestsBaseClass:
         if self.check_compatibility_flag("read_only"):
             return  ## no cleanup needed
         if self.cleanup_regime == "wipe-calendar":
-            cal = self._fixCalendar()
-            ## do we need a try-except-pass?
-            for x in cal.search():
-                x.delete()
-        elif (
-            not self.check_support("create-calendar")
-            or self.cleanup_regime == "thorough"
-        ):
-            for uid in uids_used:
+            for cal in self.calendars_used:
+                ## do we need a try-except-pass?
                 try:
-                    obj = self._fixCalendar().object_by_uid(uid)
-                    obj.delete()
+                    for x in cal.search():
+                        x.delete()
                 except error.NotFoundError:
                     pass
-                except:
-                    logging.error(
-                        "Something went kaboom while deleting event", exc_info=True
-                    )
+        elif (
+            not self.is_supported("create-calendar")
+            or self.cleanup_regime == "thorough"
+        ):
+            for cal in self.calendars_used:
+                for uid in uids_used:
+                    try:
+                        obj = self._fixCalendar().object_by_uid(uid)
+                        obj.delete()
+                    except error.NotFoundError:
+                        pass
+                    except:
+                        logging.error(
+                            "Something went kaboom while deleting event", exc_info=True
+                        )
             return
         for cal in self.calendars_used:
             cal.delete()
@@ -826,7 +832,7 @@ class RepeatedFunctionalTestsBaseClass:
             pass
         try:
             cal.events()
-            if check_support("delete-calendar", str) == "fragile":
+            if is_supported("delete-calendar", str) == "fragile":
                 ## sometimes it's needed to sleep a bit before deleting a calendar.  TODO: improve the compatibility-description.
                 time.sleep(10)
                 try:
@@ -840,13 +846,23 @@ class RepeatedFunctionalTestsBaseClass:
         except:
             pass
 
+    ## TODO: perhaps a decorator is a better pattern than a wrapper?
     def _fixCalendar(self, **kwargs):
+        cal = self._fixCalendar_(**kwargs)
+        if self.cleanup_regime == "wipe-calendar":
+            ## do we need a try-except-pass?
+            ## (if so, consolidate)
+            for x in cal.search():
+                x.delete()
+        return cal
+
+    def _fixCalendar_(self, **kwargs):
         """
         Should ideally return a new calendar, if that's not possible it
         should see if there exists a test calendar, if that's not
         possible, give up and return the primary calendar.
         """
-        if not self.check_support("create-calendar") or self.check_compatibility_flag(
+        if not self.is_supported("create-calendar") or self.check_compatibility_flag(
             "read_only"
         ):
             if not self._default_calendar:
@@ -863,6 +879,7 @@ class RepeatedFunctionalTestsBaseClass:
                         self._default_calendar = c
                         return c
                 self._default_calendar = calendars[0]
+
             return self._default_calendar
         else:
             if not "name" in kwargs:
@@ -870,7 +887,7 @@ class RepeatedFunctionalTestsBaseClass:
                     "unique_calendar_ids"
                 ) and self.cleanup_regime in ("light", "pre"):
                     self._teardownCalendar(cal_id=self.testcal_id)
-                if not self.check_support("create-calendar.set-displayname"):
+                if not self.is_supported("create-calendar.set-displayname"):
                     kwargs["name"] = None
                 else:
                     kwargs["name"] = "Yep"
@@ -891,7 +908,7 @@ class RepeatedFunctionalTestsBaseClass:
             from caldav_server_tester import ServerQuirkChecker
         except:
             pytest.skip("caldav_server_tester is not installed")
-        checker = ServerQuirkChecker(self.caldav)
+        checker = ServerQuirkChecker(self.caldav, debug_mode="pdb")
         checker.check_all()
 
         ## TODO: I think the compact view now strips out some client-side behaviour.
@@ -900,7 +917,7 @@ class RepeatedFunctionalTestsBaseClass:
         expected = self.caldav.features.dotted_feature_set_list(compact=True)
 
         ## This is to facilitate easier debugging.  In the end,
-        ## observed_ and expected_ should match eatch other, while
+        ## observed_ and expected_ should match each other, while
         ## observed and expected may contain more information.
         observed_ = copy.deepcopy(observed)
         expected_ = copy.deepcopy(expected)
@@ -914,6 +931,11 @@ class RepeatedFunctionalTestsBaseClass:
                 for target in observed_, expected_:
                     if x in target:
                         target.pop(x)
+            ## Ignore "fragile" things
+            for target in observed_, expected_:
+                if target.get(x, {}).get("support", "full") == "fragile":
+                    for target2 in observed_, expected_:
+                        target2.pop(x, None)
 
         ## Strip all free-text information from both observed and expected
         for stripdict in observed_, expected_:
@@ -1064,7 +1086,7 @@ END:VCALENDAR
 
         ## Not sure if those asserts make much sense, the main point here is to exercise
         ## the __str__ and __repr__ methods on the Calendar object.
-        if self.check_support("create-calendar.set-displayname"):
+        if self.is_supported("create-calendar.set-displayname"):
             name = c.get_property(dav.DisplayName(), use_cached=True)
             if not name:
                 name = c.url
@@ -1117,7 +1139,7 @@ END:VCALENDAR
         assert len(events) == 0
         c.delete()
 
-        if self.check_support("create-calendar.auto"):
+        if self.is_supported("create-calendar.auto"):
             with pytest.raises(self._notFound()):
                 self.principal.calendar(name="Yapp", cal_id="shouldnotexist").events()
 
@@ -1173,7 +1195,7 @@ END:VCALENDAR
         existing_urls = {x.url for x in existing_events}
         cleanse = lambda events: [x for x in events if x.url not in existing_urls]
 
-        if self.check_support("create-calendar"):
+        if self.is_supported("create-calendar"):
             ## we're supposed to be working towards a brand new calendar
             assert len(existing_events) == 0
 
@@ -1190,13 +1212,16 @@ END:VCALENDAR
         assert len(events2) == 1
         assert events2[0].url == events[0].url
 
-        if self.check_support("create-calendar") and self.check_support(
+        if self.is_supported("create-calendar") and self.is_supported(
             "create-calendar.set-displayname"
         ):
             ## We should be able to access the calender through the name
             c2 = self.principal.calendar(name="Yep")
             ## (but may break if we have multiple calendars with the same name)
-            if self.check_support("delete-calendar"):
+            if (
+                self.is_supported("delete-calendar")
+                or self.is_supported("delete-calendar", str) == "fragile"
+            ):
                 assert c2.url == c.url
                 events2 = cleanse(c2.events())
                 assert len(events2) == 1
@@ -1307,10 +1332,10 @@ END:VCALENDAR
         objcnt += len(c.events())
         obj = c.save_event(ev1)
         objcnt += 1
-        if self.check_support("save-load.event.recurrences"):
+        if self.is_supported("save-load.event.recurrences"):
             c.save_event(evr)
             objcnt += 1
-        if self.check_support("save-load.todo"):
+        if self.is_supported("save-load.todo"):
             c.save_todo(todo)
             c.save_todo(todo2)
             c.save_todo(todo3)
@@ -1436,10 +1461,10 @@ END:VCALENDAR
         objcnt += len(c.events())
         obj = c.save_event(ev1)
         objcnt += 1
-        if self.check_support("save-load.event.recurrences"):
+        if self.is_supported("save-load.event.recurrences"):
             c.save_event(evr)
             objcnt += 1
-        if not self.check_support("save-load.todo"):
+        if not self.is_supported("save-load.todo"):
             c.save_todo(todo)
             c.save_todo(todo2)
             c.save_todo(todo3)
@@ -1710,10 +1735,10 @@ END:VCALENDAR
 
         ## category
         some_events = c.search(comp_class=Event, category="PERSONAL")
-        if self.check_support("search.category"):
+        if self.is_supported("search.category"):
             assert len(some_events) == 1
         some_events = c.search(comp_class=Event, category="personal")
-        if self.check_support("search.category"):
+        if self.is_supported("search.category"):
             if self.check_compatibility_flag("text_search_is_case_insensitive"):
                 assert len(some_events) == 1
             else:
@@ -1732,7 +1757,7 @@ END:VCALENDAR
             assert len(some_events) in (0, 1)
         if self.check_compatibility_flag("text_search_is_exact_match_only"):
             assert len(some_events) == 0
-        elif self.check_support("search.category.fullstring"):
+        elif self.is_supported("search.category.fullstring"):
             assert len(some_events) == 1
 
         ## I expect "logical and" when combining category with a date range
@@ -1742,9 +1767,9 @@ END:VCALENDAR
             start=datetime(2006, 7, 13, 13, 0),
             end=datetime(2006, 7, 15, 13, 0),
         )
-        if (
-            self.check_support("search.category")
-        ) and not self.check_compatibility_flag("combined_search_not_working"):
+        if self.is_supported("search.category") and self.is_supported(
+            "search.combined-is-logical-and"
+        ):
             assert len(no_events) == 0
         some_events = c.search(
             comp_class=Event,
@@ -1752,8 +1777,8 @@ END:VCALENDAR
             start=datetime(1997, 11, 1, 13, 0),
             end=datetime(1997, 11, 3, 13, 0),
         )
-        if self.check_support("search.category") and not self.check_compatibility_flag(
-            "combined_search_not_working"
+        if self.is_supported("search.category") and self.is_supported(
+            "search.combined-is-logical-and"
         ):
             assert len(some_events) == 1
 
@@ -1918,7 +1943,7 @@ END:VCALENDAR
 
         ## Search without any parameters should yield everything on calendar
         all_todos = c.search()
-        if not self.check_support("search.comp-type-optional"):
+        if not self.is_supported("search.comp-type-optional"):
             assert len(all_todos) <= 6 + pre_cnt
         else:
             assert len(all_todos) == 6 + pre_cnt
@@ -1951,12 +1976,12 @@ END:VCALENDAR
         ## category
         ## Too much copying of the examples ...
         some_todos = c.search(comp_class=Todo, category="FINANCE")
-        if (
-            self.check_support("search.category")
-        ) and not self.check_compatibility_flag("text_search_not_working"):
+        if (self.is_supported("search.category")) and not self.check_compatibility_flag(
+            "text_search_not_working"
+        ):
             assert len(some_todos) == 6 + pre_cnt
         some_todos = c.search(comp_class=Todo, category="finance")
-        if self.check_support("search.category") and not self.check_compatibility_flag(
+        if self.is_supported("search.category") and not self.check_compatibility_flag(
             "text_search_not_working"
         ):
             if self.check_compatibility_flag("text_search_is_case_insensitive"):
@@ -1977,7 +2002,7 @@ END:VCALENDAR
             assert len(some_todos) - pre_cnt in (0, 6)
         elif self.check_compatibility_flag("text_search_is_exact_match_only"):
             assert len(some_todos) - pre_cnt == 0
-        elif not self.check_support(
+        elif not self.is_supported(
             "search.category"
         ) and not self.check_compatibility_flag("text_search_not_working"):
             ## This is the correct thing, according to the letter of the RFC
@@ -2528,7 +2553,7 @@ END:VCALENDAR
         # Hence a compliant server should chuck out all the todos except t5.
         # Not all servers perform according to (my interpretation of) the RFC.
         foo = 5
-        if not self.check_support("search.recurrences.includes-implicit.todo"):
+        if not self.is_supported("search.recurrences.includes-implicit.todo"):
             foo -= 1  ## t6 will not be returned
         if self.check_compatibility_flag(
             "vtodo_datesearch_nodtstart_task_is_skipped"
@@ -2542,13 +2567,13 @@ END:VCALENDAR
         assert len(todos2) == foo
 
         ## verify that "expand" works
-        if self.check_support("search.recurrences.includes-implicit.todo"):
+        if self.is_supported("search.recurrences.includes-implicit.todo"):
             ## todo1 and todo2 should be the same (todo1 using legacy method)
             ## todo1 and todo2 tries doing server side expand, with fallback
             ## to client side expand
             assert len([x for x in todos1 if "DTSTART:20020415T1330" in x.data]) == 1
             assert len([x for x in todos2 if "DTSTART:20020415T1330" in x.data]) == 1
-            if self.check_support("search.recurrences.expanded.todo"):
+            if self.is_supported("search.recurrences.expanded.todo"):
                 assert (
                     len([x for x in todos4 if "DTSTART:20020415T1330" in x.data]) == 1
                 )
@@ -2565,7 +2590,7 @@ END:VCALENDAR
 
         assert isinstance(todos1[0], Todo)
         assert isinstance(todos2[0], Todo)
-        if not self.check_compatibility_flag("combined_search_not_working"):
+        if not self.check_compatibility_flag("no_search_openended"):
             assert isinstance(todos3[0], Todo)
 
         ## * t6 should be returned, as it's a yearly task spanning over 2025
@@ -2576,7 +2601,7 @@ END:VCALENDAR
         urls_found = [x.url for x in todos1]
         urls_found2 = [x.url for x in todos2]
         assert set(urls_found) == set(urls_found2)
-        if self.check_support("search.recurrences.includes-implicit.todo"):
+        if self.is_supported("search.recurrences.includes-implicit.todo"):
             urls_found.remove(t6.url)
         if not self.check_compatibility_flag(
             "vtodo_datesearch_nodtstart_task_is_skipped"
@@ -2660,14 +2685,17 @@ END:VCALENDAR
         #     compfilter='VTODO', hide_completed_todos=True)
         # assert len(todos) == 1
 
+    ## TODO: use parameterized test, this is duplicated in testTodoRecurringCompleteThisandfuture
     def testTodoRecurringCompleteSafe(self):
         self.skip_on_compatibility_flag("read_only")
         self.skip_on_compatibility_flag("no_todo")
         c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
+        assert len(c.todos()) == 0
         t6 = c.save_todo(todo6, status="NEEDS-ACTION")
+        assert len(c.todos()) == 1
         if not self.check_compatibility_flag("rrule_takes_no_count"):
+            assert len(c.todos()) == 1
             t8 = c.save_todo(todo8)
-        if not self.check_compatibility_flag("rrule_takes_no_count"):
             assert len(c.todos()) == 2
         else:
             assert len(c.todos()) == 1
@@ -2692,10 +2720,10 @@ END:VCALENDAR
         self.skip_on_compatibility_flag("read_only")
         self.skip_on_compatibility_flag("no_todo")
         c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
+        assert len(c.todos()) == 0
         t6 = c.save_todo(todo6, status="NEEDS-ACTION")
         if not self.check_compatibility_flag("rrule_takes_no_count"):
             t8 = c.save_todo(todo8)
-        if not self.check_compatibility_flag("rrule_takes_no_count"):
             assert len(c.todos()) == 2
         else:
             assert len(c.todos()) == 1
@@ -2800,7 +2828,7 @@ END:VCALENDAR
         try:
             cc.delete()
         except error.DeleteError:
-            if not self.check_support(
+            if not self.is_supported(
                 "delete-calendar"
             ) or self.check_compatibility_flag("unique_calendar_ids"):
                 raise
@@ -2915,7 +2943,7 @@ END:VCALENDAR
         # add event
         e1 = c.save_event(ev1)
 
-        todo_ok = self.check_support("save-load.todo.mixed-calendar")
+        todo_ok = self.is_supported("save-load.todo.mixed-calendar")
         if todo_ok:
             t1 = c.save_todo(todo)
         assert e1.url is not None
@@ -3130,7 +3158,7 @@ END:VCALENDAR
         ## due to expandation, the DTSTART should be in 2008
         assert r1[0].data.count("DTSTART;VALUE=DATE:2008") == 1
         assert r2[0].data.count("DTSTART;VALUE=DATE:2008") == 1
-        if self.check_support("search.recurrences.expanded.event"):
+        if self.is_supported("search.recurrences.expanded.event"):
             assert r4[0].data.count("DTSTART;VALUE=DATE:2008") == 1
 
         ## With expand=True and searching over two recurrences ...
@@ -3168,7 +3196,7 @@ END:VCALENDAR
         # The recurring events should not be expanded when using the
         # events() method
         r = c.events()
-        if not not self.check_support("create-calendar"):
+        if not not self.is_supported("create-calendar"):
             assert len(r) == 1
         assert r[0].data.count("END:VEVENT") == 1
 
@@ -3195,14 +3223,14 @@ END:VCALENDAR
         )
 
         assert len(r) == 2
-        if self.check_support("search.recurrences.expanded.event"):
+        if self.is_supported("search.recurrences.expanded.event"):
             assert len(rs) == 2
 
         assert "RRULE" not in r[0].data
         assert "RRULE" not in r[1].data
 
         asserts_on_results = [r]
-        if self.check_support("search.recurrences.expanded.exception"):
+        if self.is_supported("search.recurrences.expanded.exception"):
             asserts_on_results.append(rs)
 
         for r in asserts_on_results:

@@ -594,8 +594,6 @@ class DAVClient:
         """
         Instead of returning the current logged-in principal, it attempts to query for all principals. This may or may not work dependent on the permissions and implementation of the calendar server.
         """
-        ## TODO: allow server side filtering.  We need a  <D:property-search><D:prop><D:displayname/></D:prop><D:match>{name}</D:match></D:property-search> inside the PrincipalPropertySearch
-
         if name:
             name_filter = [
                 dav.PropertySearch()
@@ -608,13 +606,15 @@ class DAVClient:
         query = (
             dav.PrincipalPropertySearch()
             + name_filter
-            + [dav.Prop() + cdav.CalendarHomeSet() + dav.DisplayName()]
+            + [dav.Prop(), cdav.CalendarHomeSet(), dav.DisplayName()]
         )
         response = self.report(self.url, etree.tostring(query.xmlelement()))
         principal_dict = response.find_objects_and_props()
         ret = []
         for x in principal_dict:
             p = principal_dict[x]
+            if not dav.DisplayName.tag in p:
+                continue
             name = p[dav.DisplayName.tag].text
             error.assert_(not p[dav.DisplayName.tag].getchildren())
             error.assert_(not p[dav.DisplayName.tag].items())

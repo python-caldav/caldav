@@ -24,6 +24,8 @@ Except for that, some minor bugfixes.
 
 ### Changed
 
+* The search for pending tasks will not do send any complicated search requests to the server if it's flagged that the server does not support such requests. (automatically setting such flags will come in a later version)
+* If the server is flagged not to support MKCALENDAR but supporting MKCOL instead (baikal), then it will use MKCOL when creating a calendar. (automatically setting such flags will come in a later version)
 * In 1.5.0, I moved the compability matrix from the tests directory and into the project itself - now I'm doing a major overhaul of it.  This change is much relevant for end users yet - but already now it's possible to configure "compatibility hints" when setting up the davclient, and the idea is that different kind of workarounds may be applied depending on the compatibility-matrix.  Search without comp-type is wonky on many servers, now the `search`-method will automatically deliver a union of a search of the three different comp-types if a comp-type is not set in the parameters *and* it's declared that the compatibility matrix does not work.  In parallel I'm developing a stand-alone tool caldav-server-tester to check the compatibility of a caldav server.  https://github.com/python-caldav/caldav/issues/532 / https://github.com/python-caldav/caldav/pull/537
 * Littered the code with `try: import niquests as requests except: import requests`, making it easier to flap between requests and niquests.
 * Use the "caldav" logger consistently instead of global logging.  https://github.com/python-caldav/caldav/pull/543 - fixed by Thomas Lovden
@@ -34,6 +36,8 @@ Except for that, some minor bugfixes.
 * Tweaks to support upcoming version 7 of the icalendar library.
 * Compatibility-tweaks for baikal, but as for now manual intervention is needed - see https://github.com/python-caldav/caldav/pull/556 and https://github.com/python-caldav/caldav/issues/553
 * Bugfix on authentication - things broke on Baikal if authentication method (i.e. digest) was set in the config.  I found a quite obvious bug, I did not investigate why the test code has been passing on all the other servers.  Weird thing.
+* Bugfix in the `davclient.principals`-method, allowing it to work on more servers - https://github.com/python-caldav/caldav/pull/559
+* Quite some compatibility-fixing of the test code
 
 ### Added
 
