@@ -1,26 +1,32 @@
 # Changelog
 
-## IMPORTANT - "flapping" changeset!
+## IMPORTANT - niquests vs requests - flapping changeset
 
-The requests library is stagnant, so in 2.0.0 I replaced it with a fork niquests (as someone recommended in a pull request).  It's a very tiny changeset, and three github issues could be closed just by doing this switch.  In addition niquests supports HTTP/2 and is one possible way forward for implementing async support.  However, the change has proven controversial.  The niquest author has not been able to cooperate very well with the rest of the python community, so niquests pulls in a lot of other forked libraries as for now.  Shortly after releasing 2.0 I had to revert back to requests and release 2.0.1.  As of writing, the caldav library will prefer to use niquest if it's possible to import niquests, otherwise it will fall back to requests.
+The requests library is stagnant, from 2.0.0 niquests has been in use.  It's a very tiny changeset, which resolved three github issues, fixed support for HTTP/2 and may open the door for an upcoming async proejct.  While I haven't looked much "under the bonnet", niquests seems to be a major upgrade of requests.  However, the niquest author has apparently failed cooperating well with some significant parts of the python community, so niquests pulls in a lot of other forked libraries as for now.  Shortly after releasing 2.0 I was requested to revert back to requests and release 2.0.1.  After 2.0.1, the library has been fixed so that it will always use niquests if niquests is available, and requests if niquests is not available.
 
-My plan now is to keep doing dual releases while maintaining the 2.x-series, the only difference being that niquests is explicitly in the dependencies for the x.x.9xx-release series, while it isn't in the x.x.x release sereis.  You are encouraged to make an informed decision on weather you are most comfortable with the stable but stagnant requests, or the niquests fork and choose your version accordingly.  When I'm starting to work on 3.0 (which will support async requests), I will think deeply about this and either choose niquests, httpx, or (it's always possible to hope!) requests 3.0.  **Your opinion is valuable for me**.  Feel free to comment on https://github.com/python-caldav/caldav/issues/457,  https://github.com/python-caldav/caldav/issues/530 or https://github.com/jawah/niquests/issues/267 if you have a github account, and if not you can reach out at python-http@plann.no.  (So far the most common recommendation is to go for httpx).
+You are encouraged to make an informed decision on weather you are most comfortable with the stable but stagnant requests, or the niquests fork.  I hope to settle down on some final decision when I'm starting to work on 3.0 (which will support async requests).  httpx may be an option.  **Your opinion is valuable for me**.  Feel free to comment on https://github.com/python-caldav/caldav/issues/457,  https://github.com/python-caldav/caldav/issues/530 or https://github.com/jawah/niquests/issues/267 if you have a github account, and if not you can reach out at python-http@plann.no.  (So far the most common recommendation seems to be to go for httpx.
 
-## Meta information
+## Meta
 
-The format of this file should adhere more or less to [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).  I sometimes throw in some extra sections though for the documentation changes and test framework changes (perhaps I should rather make separate CHANGELOGs in the tests and doc folders?)
+This file should adhere to [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), but it's manually maintained.  Feel free to comment or make a pull request if something breaks for you.
 
 Changelogs prior to v1.2 follows other formats and are available in the v1.2-release.
 
-This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html), though some earlier releases may be incompatible with the SemVer standard.
+This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html), though some earlier releases may be incompatible with the SemVer standard.  Also, the niquest/request hack in 2.x.xx vs 2.x.9xx is
 
-## [Unreleased]
+## [2.1.1] - [2025-11-09]
 
-**If you maintain a file `tests/conf_private.py`, chances are that the latest changesets will break!**  Since "running tests towards private CalDAV servers" is not considered to be part of the public API, I deem this to be allowed without increasing the major version number.  If you are affected and can't figure out of it, reach out by email, GitHub issue or GitHub discussions.  (Frankly, I'm interessted if anyone except me uses this, so feel free to reach out also if you can figure out of it).
+Version 2.1.0 comes without niquests in the dependency file.  Version 2.1.1 comes with niquests in the dependency file.  See above.
 
-I'm in the midst of a project building a [caldav compatibility checker](https://github.com/tobixen/caldav-server-tester), this is done in lockstep with some compatibility matrix refactoring that I'm working on.  The compatibility matrix is so far most relevant for the test code, it shouldn't be relevant for end users so far.  With this work taking much more time than expected, version 2.1 will come with half-done work here, most of the old "compatibility flags" still in place, some of them converted and cleaned up.  (One could argue that this is a major change - if anyone uses the compatibility flag list, things may break.  At the other hand, this is an obscure thing recently introduced, not really part of the public API per se).
+## [2.1.0] - [2025-11-08]
 
-Except for that, some minor bugfixes.
+I'm working on a [caldav compatibility checker](https://github.com/tobixen/caldav-server-tester) side project.  While doing so, I'm working on redefining the "compatibility matrix".  This should only affect the test code.  **If you maintain a file `tests/conf_private.py`, chances are that the latest changesets will break**  Since "running tests towards private CalDAV servers" is not considered to be part of the public API, I deem this to be allowed without bumping the major version number.  If you are affected and can't figure out of it, reach out by email, GitHub issue or GitHub discussions.  (Frankly, I'm interessted if anyone except me uses this, so feel free to reach out also if you can figure out of it).
+
+As always, the new release comes with quite some bugfixes, compatibility fixes and workarounds improving the support for various calendar servers observed in the wild.
+
+### Breaking Changes
+
+* As mentioned above, if you maintain a file `tests/conf_private.py`, chances are that your test runs will break.  Does anyone except me maintain a `tests/conf_private.py`-file?  Please reach out by email, GitHub issues or GitHub discussions.
 
 ### Changed
 
@@ -35,6 +41,7 @@ Except for that, some minor bugfixes.
 * A search without filtering on comp-type on a calendar containing a mix of events, journals and tasks should return a mix of such.  (All the examples in the RFC includes the comp-type filter, so many servers does not support this).  There were a bug in the auto-detection of comp-type, so tasks would typically be wrapped as events or vice-versa.  https://github.com/python-caldav/caldav/pull/540
 * Tweaks to support upcoming version 7 of the icalendar library.
 * Compatibility-tweaks for baikal, but as for now manual intervention is needed - see https://github.com/python-caldav/caldav/pull/556 and https://github.com/python-caldav/caldav/issues/553
+* @thyssentishman found a missing import after the old huge `objects.py` was broken up in smaller files.  Which again highlights that I probably have some dead, moot code in the project.  https://github.com/python-caldav/caldav/pull/554
 * Bugfix on authentication - things broke on Baikal if authentication method (i.e. digest) was set in the config.  I found a quite obvious bug, I did not investigate why the test code has been passing on all the other servers.  Weird thing.
 * Bugfix in the `davclient.principals`-method, allowing it to work on more servers - https://github.com/python-caldav/caldav/pull/559
 * Quite some compatibility-fixing of the test code
