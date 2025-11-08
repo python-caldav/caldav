@@ -22,7 +22,6 @@ from .elements import cdav
 from .elements import dav
 from .elements.base import BaseElement
 from .lib import error
-from .lib.dav_core import DAVObjectCore
 from .lib.python_utilities import to_wire
 from .lib.url import URL
 
@@ -37,7 +36,7 @@ else:
 log = logging.getLogger("caldav")
 
 
-class AsyncDAVObject(DAVObjectCore):
+class AsyncDAVObject:
     """
     Async base class for all DAV objects.
 
@@ -72,15 +71,33 @@ class AsyncDAVObject(DAVObjectCore):
           props: a dict with known properties for this object
           id: The resource id (UID for an Event)
         """
-        # Initialize using parent class which handles all the common logic
-        # This fixes the URL initialization to match sync behavior
-        super().__init__(client, url, parent, name, id, props, **extra)
+        if client is None and parent is not None:
+            client = parent.client
+        self.client = client
+        self.parent = parent
+        self.name = name
+        self.id = id
+        self.props = props or {}
+        self.extra_init_options = extra
 
-    @property
+        # URL handling
+        path = None
+        if url is not None:
+            self.url = URL.objectify(url)
+        elif parent is not None:
+            if name is not None:
+                path = name
+            elif id is not None:
+                path = id
+                if not path.endswith(".ics"):
+                    path += ".ics"
+            if path:
+                self.url = parent.url.join(path)
+            # else: Don't set URL to parent.url - let subclass or save() generate it properly
+
     def canonical_url(self) -> str:
         """Return the canonical URL for this object"""
-        # Use parent class implementation
-        return self.get_canonical_url()
+        return str(self.url.canonical() if hasattr(self.url, "canonical") else self.url)
 
     async def _query_properties(
         self, props: Optional[List[BaseElement]] = None, depth: int = 0
@@ -206,4 +223,12 @@ class AsyncDAVObject(DAVObjectCore):
         """Delete this object from the server"""
         await self.client.delete(str(self.url))
 
-    # get_display_name, __str__, and __repr__ are inherited from DAVObjectCore
+    def get_display_name(self) -> Optional[str]:
+        """Get the display name for this object (synchronous)"""
+        return self.name
+
+    def __str__(self) -> str:
+        return f"{self.__class__.__name__}({self.url})"
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(url={self.url!r}, client={self.client!r})"
