@@ -12,11 +12,15 @@ This file should adhere to [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 Changelogs prior to v1.2 follows other formats and are available in the v1.2-release.
 
-This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html), though some earlier releases may be incompatible with the SemVer standard.  Also, the niquest/request hack in 2.x.xx vs 2.x.9xx is
+This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html), though some earlier releases may be incompatible with the SemVer standard.
 
-## [2.1.1] - [2025-11-09]
+## [2.1.2] - [2025-11-08]
 
-Version 2.1.0 comes without niquests in the dependency file.  Version 2.1.1 comes with niquests in the dependency file.  See above.
+Version 2.1.0 comes without niquests in the dependency file.  Version 2.1.2 come with niquests in the dependency file.  Also fixed up some minor mistakes in the CHANGELOG.
+
+## [2.1.1] - [2025-11-08] [YANKED]
+
+Version 2.1.0 comes without niquests in the dependency file.  Version 2.1.1 should come with niquests in the dependency file, but I made a mistake.
 
 ## [2.1.0] - [2025-11-08]
 
