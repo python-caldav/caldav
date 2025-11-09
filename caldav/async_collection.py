@@ -5,6 +5,7 @@ These are async equivalents of the sync collection classes, providing
 async/await APIs for calendar and principal operations.
 """
 import logging
+import uuid
 from typing import Any
 from typing import List
 from typing import Optional
@@ -16,7 +17,6 @@ from urllib.parse import SplitResult
 from .async_davobject import AsyncDAVObject
 from .elements import cdav
 from .elements import dav
-from .lib.ical_logic import ICalLogic
 from .lib.url import URL
 
 if TYPE_CHECKING:
@@ -500,11 +500,31 @@ class AsyncCalendarObjectResource(AsyncDAVObject):
 
         # If data is provided, extract UID if not already set
         if data and not id:
-            self.id = ICalLogic.extract_uid_from_data(data)
+            self.id = self._extract_uid_from_data(data)
 
         # Generate URL if not provided
         if not self.url and parent:
-            self.url = ICalLogic.generate_object_url(parent.url, self.id)
+            uid = self.id or str(uuid.uuid4())
+            self.url = parent.url.join(f"{uid}.ics")
+
+    def _extract_uid_from_data(self, data: str) -> Optional[str]:
+        """Extract UID from iCalendar data"""
+        try:
+            for line in data.split("\n"):
+                stripped = line.strip()
+                if stripped.startswith("UID:"):
+                    uid = stripped.split(":", 1)[1].strip()
+                    log.debug(
+                        f"[UID EXTRACT DEBUG] Extracted UID: '{uid}' from line: '{line[:80]}'"
+                    )
+                    return uid
+            log.warning(
+                f"[UID EXTRACT DEBUG] No UID found in data. First 500 chars: {data[:500]}"
+            )
+        except Exception as e:
+            log.warning(f"[UID EXTRACT DEBUG] Exception extracting UID: {e}")
+            pass
+        return None
 
     @property
     def data(self) -> Optional[str]:
@@ -517,7 +537,7 @@ class AsyncCalendarObjectResource(AsyncDAVObject):
         self._data = value
         # Update UID if present in data
         if value and not self.id:
-            self.id = ICalLogic.extract_uid_from_data(value)
+            self.id = self._extract_uid_from_data(value)
 
     async def load(
         self, only_if_unloaded: bool = False
@@ -558,11 +578,11 @@ class AsyncCalendarObjectResource(AsyncDAVObject):
         if not self.url:
             if not self.parent:
                 raise ValueError("Cannot save without URL or parent calendar")
-            uid = self.id or ICalLogic.generate_uid()
+            uid = self.id or str(uuid.uuid4())
             log.debug(
                 f"[SAVE DEBUG] Generating URL: parent.url={self.parent.url}, uid={uid}, self.id={self.id}"
             )
-            self.url = ICalLogic.generate_object_url(self.parent.url, uid)
+            self.url = self.parent.url.join(f"{uid}.ics")
             log.debug(f"[SAVE DEBUG] Generated URL: {self.url}")
 
         headers = {
