@@ -929,7 +929,12 @@ class RepeatedFunctionalTestsBaseClass:
         for x in set(observed.keys()).union(set(expected.keys())):
             find_feature = checker.features_checked.find_feature
             type_ = find_feature(x).get("type", "server-feature")
-            if type_ in ("client-feature", "server-observation", "tests-behaviour", "client-hints"):
+            if type_ in (
+                "client-feature",
+                "server-observation",
+                "tests-behaviour",
+                "client-hints",
+            ):
                 for target in observed_, expected_:
                     if x in target:
                         target.pop(x)

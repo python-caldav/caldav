@@ -141,8 +141,8 @@ if test_radicale:
         self.serverdir.__exit__(None, None, None)
 
     features = compatibility_hints.radicale.copy()
-    domain = f'{radicale_host}:{radicale_port}'
-    features['auto-connect.url']['domain'] = domain
+    domain = f"{radicale_host}:{radicale_port}"
+    features["auto-connect.url"]["domain"] = domain
     caldav_servers.append(
         {
             "name": "LocalRadicale",
@@ -230,8 +230,8 @@ if test_xandikos:
         self.serverdir.__exit__(None, None, None)
 
     features = compatibility_hints.xandikos.copy()
-    domain = f'{xandikos_host}:{xandikos_port}'
-    features['auto-connect.url']['domain'] = domain
+    domain = f"{xandikos_host}:{xandikos_port}"
+    features["auto-connect.url"]["domain"] = domain
     caldav_servers.append(
         {
             "name": "LocalXandikos",
