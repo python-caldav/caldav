@@ -1,10 +1,7 @@
-try:
-    from niquests.auth import AuthBase
-except ImportError:
-    from requests.auth import AuthBase
+import httpx
 
 
-class HTTPBearerAuth(AuthBase):
+class HTTPBearerAuth(httpx.Auth):
     def __init__(self, password: str) -> None:
         self.password = password
 
