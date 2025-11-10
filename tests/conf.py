@@ -140,16 +140,16 @@ if test_radicale:
         i = 0
         self.serverdir.__exit__(None, None, None)
 
-    domain = f'{radicale_host}:{radicale_port}'
+    domain = f"{radicale_host}:{radicale_port}"
     features = compatibility_hints.radicale.copy()
-    features['auto-connect.url']['domain'] = domain
+    features["auto-connect.url"]["domain"] = domain
     compatibility_hints.radicale_tmp_test = features
     caldav_servers.append(
         {
             "name": "LocalRadicale",
             "username": "user1",
             "password": "",
-            "features": 'radicale_tmp_test',
+            "features": "radicale_tmp_test",
             "backwards_compatibility_url": f"http://{domain}/user1",
             "setup": setup_radicale,
             "teardown": teardown_radicale,
