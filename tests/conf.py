@@ -140,20 +140,22 @@ if test_radicale:
         i = 0
         self.serverdir.__exit__(None, None, None)
 
-    url = "http://%s:%i/" % (radicale_host, radicale_port)
+    features = compatibility_hints.radicale.copy()
+    domain = f'{radicale_host}:{radicale_port}'
+    features['auto-connect.url']['domain'] = domain
     caldav_servers.append(
         {
             "name": "LocalRadicale",
             "username": "user1",
-            "url": url,
             "password": "",
-            "backwards_compatibility_url": url + "user1",
-            "features": compatibility_hints.radicale,
+            "features": features,
+            "backwards_compatibility_url": f"http://{domain}/user1",
             "setup": setup_radicale,
             "teardown": teardown_radicale,
         }
     )
 
+## TODO: quite much duplicated code
 if test_xandikos:
     import asyncio
 
@@ -227,13 +229,14 @@ if test_xandikos:
 
         self.serverdir.__exit__(None, None, None)
 
-    url = "http://%s:%i/" % (xandikos_host, xandikos_port)
+    features = compatibility_hints.xandikos.copy()
+    domain = f'{xandikos_host}:{xandikos_port}'
+    features['auto-connect.url']['domain'] = domain
     caldav_servers.append(
         {
             "name": "LocalXandikos",
-            "url": url,
-            "backwards_compatibility_url": url + "sometestuser",
-            "features": compatibility_hints.xandikos,
+            "backwards_compatibility_url": f"http://{domain}/sometestuser",
+            "features": features,
             "setup": setup_xandikos,
             "teardown": teardown_xandikos,
         }
@@ -261,7 +264,6 @@ def client(
     elif no_args:
         return None
     for bad_param in (
-        "features",
         "incompatibilities",
         "backwards_compatibility_url",
         "principal_url",

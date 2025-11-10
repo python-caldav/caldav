@@ -473,9 +473,10 @@ class TestGetDAVClient:
         ) as conn:
             assert conn.principal()
             del os.environ["PYTHON_CALDAV_USE_TEST_SERVER"]
-            for key in ("url", "username", "password", "proxy"):
+            for key in ("username", "password", "proxy"):
                 if key in caldav_servers[-1]:
                     os.environ[f"CALDAV_{key.upper()}"] = caldav_servers[-1][key]
+            os.environ["CALDAV_URL"] = str(conn.url)
             with get_davclient(
                 testconfig=False, environment=True, check_config_file=False
             ) as conn2:
@@ -487,9 +488,10 @@ class TestGetDAVClient:
             testconfig=True, environment=False, name=-1, check_config_file=False
         ) as conn:
             config = {}
-            for key in ("url", "username", "password", "proxy"):
+            for key in ("username", "password", "proxy"):
                 if key in caldav_servers[-1]:
                     config[f"caldav_{key}"] = caldav_servers[-1][key]
+            config["caldav_url"] = str(conn.url)
 
             with tempfile.NamedTemporaryFile(
                 delete=True, encoding="utf-8", mode="w"
@@ -927,7 +929,7 @@ class RepeatedFunctionalTestsBaseClass:
         for x in set(observed.keys()).union(set(expected.keys())):
             find_feature = checker.features_checked.find_feature
             type_ = find_feature(x).get("type", "server-feature")
-            if type_ in ("client-feature", "server-observation", "tests-behaviour"):
+            if type_ in ("client-feature", "server-observation", "tests-behaviour", "client-hints"):
                 for target in observed_, expected_:
                     if x in target:
                         target.pop(x)

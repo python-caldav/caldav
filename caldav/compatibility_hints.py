@@ -609,14 +609,14 @@ incompatibility_description = {
 
 ## This is for Xandikos 0.2.12.
 ## Lots of development going on as of summer 2025, so expect the list to become shorter soon!
-xandikos_0_2_12 = {
+xandikos_v0_2_12 = {
     ## this only applies for very simple installations
     "auto-connect.url": {"domain": "localhost", "scheme": "http", "basepath": "/"},
-    #'search.recurrences.includes-implicit': {'support': 'unsupported'},
-    #'search.recurrences.expanded': {'support': 'unsupported'},
-    #'search.time-range.todo': {'support': 'unsupported'},
-    #'search.comp-type-optional': {'support': 'ungraceful'},
-    #"search.category.fullstring": {"support": "unsupported"},
+    'search.recurrences.includes-implicit': {'support': 'unsupported'},
+    'search.recurrences.expanded': {'support': 'unsupported'},
+    'search.time-range.todo': {'support': 'unsupported'},
+    'search.comp-type-optional': {'support': 'ungraceful'},
+    "search.category.fullstring": {"support": "unsupported"},
     "old_flags":  [
     ## https://github.com/jelmer/xandikos/issues/8
     'date_todo_search_ignores_duration',
@@ -659,7 +659,6 @@ xandikos_master = {
     ## scheduling is not supported
     "no_scheduling",
     'no-principal-search',
-    'text_search_is_exact_match_only',
 
     ## The test in the tests itself passes, but the test in the
     ## check_server_compatibility triggers a 500-error
