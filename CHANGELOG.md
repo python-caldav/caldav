@@ -14,6 +14,20 @@ Changelogs prior to v1.2 follows other formats and are available in the v1.2-rel
 
 This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html), though some earlier releases may be incompatible with the SemVer standard.
 
+## [Unreleased]
+
+I'm still working on "compatibility hints".  Unfortunately, documentation is still missing.  The gist of it:
+
+* Use `features: posteo` instead of `url: https://posteo.de:8443/` in the connection configuration.
+* Use `features: nextcloud` and `url: my.nextcloud.provider.eu` instead of `url: https://my.nextcloud.provider.eu/remote.php/dav`
+* The library will work around some known issues dependent on what feature-set it's given.
+
+## Added
+
+* The client connection parameter `features` may now simply be a string label referencing a well-known server or cloud solution - like `features: posteo`.  https://github.com/python-caldav/caldav/pull/561
+* The client connection parameter `url` is no longer needed when referencing a well-known cloud solution. https://github.com/python-caldav/caldav/pull/561
+* The client connection parameter `url` may contain just the domain name (without any slashes) and the URL will be constructed, if referencing a well-known caldav server implementation. https://github.com/python-caldav/caldav/pull/561
+
 ## [2.1.2] - [2025-11-08]
 
 Version 2.1.0 comes without niquests in the dependency file.  Version 2.1.2 come with niquests in the dependency file.  Also fixed up some minor mistakes in the CHANGELOG.
