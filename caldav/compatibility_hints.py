@@ -682,7 +682,7 @@ xandikos_master = {
     ]
 }
 
-xandikos=xandikos_master
+xandikos=xandikos_v0_2_12
 
 ## This seems to work as of version 3.5.4 of Radicale.
 ## There is much development going on at Radicale as of summar 2025,
