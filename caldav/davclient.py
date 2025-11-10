@@ -34,6 +34,7 @@ from caldav import __version__
 from caldav.collection import Calendar
 from caldav.collection import CalendarSet
 from caldav.collection import Principal
+import caldav.compatibility_hints
 from caldav.compatibility_hints import FeatureSet
 from caldav.elements import cdav
 from caldav.elements import dav
@@ -89,8 +90,22 @@ CONNKEYS = set(
         "ssl_cert",
         "auth",
         "auth_type",
+        "features",
     )
 )
+
+
+def _auto_url(url, features):
+    if isinstance(features, dict):
+        features = FeatureSet(features)
+    if not "/" in str(url):
+        url_hints = features.is_supported("auto-connect.url", dict)
+        if not url and "domain" in url_hints:
+            url = url_hints["domain"]
+        url = (
+            f"{url_hints.get('scheme', 'https')}://{url}{url_hints.get('basepath', '')}"
+        )
+    return url
 
 
 class DAVResponse:
@@ -456,7 +471,7 @@ class DAVClient:
 
     def __init__(
         self,
-        url: str,
+        url: Optional[str] = "",
         proxy: Optional[str] = None,
         username: Optional[str] = None,
         password: Optional[str] = None,
@@ -467,7 +482,7 @@ class DAVClient:
         ssl_cert: Union[str, Tuple[str, str], None] = None,
         headers: Mapping[str, str] = None,
         huge_tree: bool = False,
-        features: Union[FeatureSet, dict] = None,
+        features: Union[FeatureSet, dict, str] = None,
     ) -> None:
         """
         Sets up a HTTPConnection object towards the server in the url.
@@ -502,10 +517,15 @@ class DAVClient:
         except TypeError:
             self.session = requests.Session()
 
+        if isinstance(features, str):
+            features = getattr(caldav.compatibility_hints, features)
+        self.features = FeatureSet(features)
+        self.huge_tree = huge_tree
+
+        url = _auto_url(url, self.features)
+
         log.debug("url: " + str(url))
         self.url = URL.objectify(url)
-        self.huge_tree = huge_tree
-        self.features = FeatureSet(features)
         # Prepare proxy info
         if proxy is not None:
             _proxy = proxy

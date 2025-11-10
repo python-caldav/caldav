@@ -3,6 +3,9 @@
 This file serves as a database of different compatibility issues we've
 encountered while working on the caldav library, and descriptions on
 how the well-known servers behave.
+
+TODO: it should probably be split with the "feature definitions",
+"server implementation details" and "feature database logic" in three separate files.
 """
 import copy
 
@@ -19,8 +22,8 @@ class FeatureSet:
 
     An object of this class describes the feature set of a server.
 
-    TODO: use enums?
-      type -> "client-feature", "server-peculiarity", "tests-behaviour", "server-observation", "server-feature" (last is default)
+    TODO: use enums?  TODO: describe the different types  TODO: think more through the different types, consolidate?
+      type -> "client-feature", "client-hints", "server-peculiarity", "tests-behaviour", "server-observation", "server-feature" (last is default)
       support -> "supported" (default), "unsupported", "fragile", "quirk", "broken", "ungraceful"
 
     types:
@@ -32,6 +35,22 @@ class FeatureSet:
        * "support" -> "quirk" if we have a server-peculiarity where it's needed with special care to get the request through.
     """
     FEATURES = {
+        "auto-connect": {
+            ## Nothing here - everything is under auto-connect.url as for now.
+            ## Other connection details - like what auth method to use - could also
+            ## be under the auto-connect umbrella
+            "type": "client-hints",
+        },
+        "auto-connect.url": {
+            "description": "Instruction for how to access DAV.  I.e. `/remote.php/dav` - see also https://github.com/python-caldav/caldav/issues/463.  To be used in the get_davclient method if the URL only contains a domain",
+            "type": "client-hints",
+            "extra_keys": {
+                "basepath": "The path to append to the domain",
+                "domain": "Domain name may be given through the features - useful for well-known cloud solutions",
+                "scheme": "The scheme to prepend to the domain.  Defaults to https",
+                ## TODO: in the future, templates for the principal URL, calendar URLs etc may also be added.
+            }
+        },
         "get-all-principals": {
             "description": "Search for all principals, using a DAV REPORT query, yields at least one principal"
         },
@@ -182,6 +201,8 @@ class FeatureSet:
         ## changed ... but we need test code in place)
         self.backward_compatibility_mode = feature_set_dict is None
         self._server_features = {}
+        ## TODO: remove this when it can be removed
+        self._old_flags = []
         if feature_set_dict:
             self.copyFeatureSet(feature_set_dict)
 
@@ -190,6 +211,7 @@ class FeatureSet:
         for feature in feature_set:
             ## TODO: temp - should be removed
             if feature == 'old_flags':
+                self._old_flags = feature_set[feature]
                 continue
             feature_info = self.find_feature(feature)
             value = feature_set[feature]
@@ -260,7 +282,7 @@ class FeatureSet:
             return { "behaviour": "normal" }
         elif feature_type == 'server-observation':
             return { "observed": True }
-        elif feature_type == 'tests-behaviour':
+        elif feature_type in ('tests-behaviour', 'client-hints'):
             return { }
         else:
             breakpoint()
@@ -593,7 +615,9 @@ incompatibility_description = {
 
 ## This is for Xandikos 0.2.12.
 ## Lots of development going on as of summer 2025, so expect the list to become shorter soon!
-xandikos = {
+xandikos_v0_2_12 = {
+    ## this only applies for very simple installations
+    "auto-connect.url": {"domain": "localhost", "scheme": "http", "basepath": "/"},
     'search.recurrences.includes-implicit': {'support': 'unsupported'},
     'search.recurrences.expanded': {'support': 'unsupported'},
     'search.time-range.todo': {'support': 'unsupported'},
@@ -625,6 +649,41 @@ xandikos = {
     ]
 }
 
+xandikos_master = {
+    ## this only applies for very simple installations
+    "auto-connect.url": {"domain": "localhost", "scheme": "http", "basepath": "/"},
+    'search.comp-type-optional': {'support': 'unsupported'},
+    "search.category.fullstring": {"support": "unsupported"},
+    "search.recurrences.includes-implicit.todo.pending": {"support": "unsupported"},
+    'search.recurrences.expanded.todo': {'support': 'unsupported'},
+    'search.recurrences.expanded.exception': {'support': 'unsupported'},
+    "old_flags":  [
+    ## https://github.com/jelmer/xandikos/issues/8
+    'date_todo_search_ignores_duration',
+    'vtodo_datesearch_nostart_future_tasks_delivered',
+
+    ## scheduling is not supported
+    "no_scheduling",
+    'no-principal-search',
+
+    ## The test in the tests itself passes, but the test in the
+    ## check_server_compatibility triggers a 500-error
+    "no_freebusy_rfc4791",
+
+    ## The test with an rrule and an overridden event passes as
+    ## long as it's with timestamps.  With dates, xandikos gets
+    ## into troubles.  I've chosen to edit the test to use timestamp
+    ## rather than date, just to have the test exercised ... but we
+    ## should report this upstream
+    #'broken_expand_on_exceptions',
+
+    ## No alarm search (500 internal server error)
+    "no_alarmsearch",
+    ]
+}
+
+xandikos=xandikos_v0_2_12
+
 ## This seems to work as of version 3.5.4 of Radicale.
 ## There is much development going on at Radicale as of summar 2025,
 ## so I'm expecting this list to shrink a lot soon.
@@ -633,6 +692,8 @@ radicale = {
     "search.recurrences.includes-implicit.todo.pending": {"support": "unsupported"},
     "search.recurrences.expanded.todo": {"support": "unsupported"},
     "search.recurrences.expanded.exception": {"support": "unsupported"},
+    ## this only applies for very simple installations
+    "auto-connect.url": {"domain": "localhost", "scheme": "http", "basepath": "/"},
     'old_flags': [
     ## calendar listings and calendar creation works a bit
     ## "weird" on radicale
@@ -655,13 +716,15 @@ radicale = {
     ]
 }
 
-## TODO: Latest - mismatch between config and test script in delete-calendar.free-namespace ... and create-calendar.set-displayname?
-ecloud = {
+## NOT TESTED ... but this works for ecloud, and ecloud is based on nextcloud
+nextcloud = {
+    'auto-connect.url': {
+        'basepath': '/remote.php/dav',
+    },
     'search.category.fullstring.smart': {'support': 'unsupported'}, ## TODO: verify
     'search.comp-type-optional': {'support': 'ungraceful'},
     'search.recurrences.expanded.todo': {'support': 'unsupported'},
     'search.recurrences.expanded.exception': {'support': 'unsupported'}, ## TODO: verify
-
     'delete-calendar': {
         'support': 'fragile',
         'behaviour': 'Deleting a recently created calendar fails'},
@@ -674,18 +737,28 @@ ecloud = {
     },
     "search.combined-is-logical-and": {"support": "unsupported"},
     'search.recurrences.includes-implicit.todo': {'support': 'unsupported'},
+    'old_flags': ['no-principal-search-all', 'no-principal-search-self', 'unique_calendar_ids'],
+}
+
+## TODO: Latest - mismatch between config and test script in delete-calendar.free-namespace ... and create-calendar.set-displayname?
+ecloud = nextcloud | {
     ## TODO: this applies only to test runs, not to ordinary usage
     'rate-limit': {
         'enable': True,
         'interval': 10,
         'count': 1,
-        'description': "It's needed to manually empty trashbin frequently when running tests.  Since this oepration takes some time and/or there are some caches, it's needed to run tests slowly, even when hammering the 'empty thrashbin' frequently"},
-    'old_flags': ['no-principal-search-all', 'no-principal-search-self', 'unique_calendar_ids'],
+        'description': "It's needed to manually empty trashbin frequently when running tests.  Since this oepration takes some time and/or there are some caches, it's needed to run tests slowly, even when hammering the 'empty thrashbin' frequently",
+    },
+    'auto-connect.url': {
+        'basepath': '/remote.php/dav',
+        'domain': 'ecloud.global',
+        'scheme': 'https',
+    },
 }
 
-## ZIMBRA IS THE MOST SILLY, AND THERE ARE REGRESSIONS FOR EVERY RELEASE!
-## AAARGH!
+## Zimbra is not very good at it's caldav support
 zimbra = {
+    'auto-connect.url': {'basepath': '/dav/'},
     'search.recurrences.expanded.exception': {'support': 'unsupported'}, ## TODO: verify
     'create-calendar.set-displayname': {'support': 'unsupported'},
     'save-load.todo.mixed-calendar': {'support': 'unsupported'},
@@ -810,22 +883,6 @@ davical = {
 #    'no_freebusy_rfc4791'
 #]
 
-nextcloud = [
-    'date_search_ignores_duration',
-    'unique_calendar_ids',
-    'broken_expand',
-    'no_delete_calendar',
-    'sync_breaks_on_delete',
-    'no_recurring_todo',
-    'combined_search_not_working',
-    'text_search_is_exact_match_sometimes',
-    'search_needs_comptype',
-    'calendar_color',
-    'calendar_order',
-    'date_todo_search_ignores_duration',
-    'broken_expand_on_exceptions'
-]
-
 #fastmail = [
 #    'duplicates_not_allowed',
 #    'duplicate_in_other_calendar_with_same_uid_breaks',
@@ -845,6 +902,10 @@ nextcloud = [
 #]
 
 robur = {
+    "auto-connect.url": {
+        'domain': 'calendar.robur.coop',
+        'basepath': '/principals/', # TODO: this seems fishy
+    },
     "delete-calendar": {  "support": "fragile" },
     "search.time-range.todo": { "support": "unsupported" },
     "search.category": { "support": "unsupported" },
@@ -870,6 +931,11 @@ robur = {
 }
 
 posteo = {
+    'auto-connect.url': {
+        'scheme': 'https',
+        'domain': 'posteo.de:8443',
+        'basepath': '/',
+    },
     'create-calendar': {'support': 'unsupported'},
     'search.category.fullstring.smart': {'support': 'unsupported'},
     'search.comp-type-optional': {'support': 'ungraceful'},
@@ -904,8 +970,12 @@ posteo = {
 purelymail = {
     ## Purelymail claims that the search indexes are "lazily" populated,
     ## so search works some minutes after the event was created/edited.
-    'search-cache': {'behaviour': 'delay', 'delay': 120},
+    'search-cache': {'behaviour': 'delay', 'delay': 160},
     "create-calendar.auto": {"support": "full"},
+    'auto-connect.url': {
+        'basepath': '/webdav/',
+        'domain': 'purelymail.com',
+    },
     'old_flags': [
         ## Known, work in progress
         'no_scheduling',
@@ -921,6 +991,13 @@ purelymail = {
 }
 
 gmx = {
+    'auto-connect.url': {
+        'scheme': 'https',
+        'domain': 'caldav.gmx.net',
+        ## This won't work yet.  I'm not able to connect with gmx at all now,
+        ## so unable to create a verified fix for it now
+        'basepath': '/begenda/dav/{username}/calendar', ## TODO: foobar
+    },
     'create-calendar': {'support': 'unsupported'},
     'search.category.fullstring.smart': {'support': 'unsupported'},
     'search.comp-type-optional': {'support': 'fragile', 'description': 'unexpected results from date-search without comp-type - but only sometimes - TODO: research more'},

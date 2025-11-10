@@ -473,9 +473,10 @@ class TestGetDAVClient:
         ) as conn:
             assert conn.principal()
             del os.environ["PYTHON_CALDAV_USE_TEST_SERVER"]
-            for key in ("url", "username", "password", "proxy"):
+            for key in ("username", "password", "proxy"):
                 if key in caldav_servers[-1]:
                     os.environ[f"CALDAV_{key.upper()}"] = caldav_servers[-1][key]
+            os.environ["CALDAV_URL"] = str(conn.url)
             with get_davclient(
                 testconfig=False, environment=True, check_config_file=False
             ) as conn2:
@@ -487,9 +488,10 @@ class TestGetDAVClient:
             testconfig=True, environment=False, name=-1, check_config_file=False
         ) as conn:
             config = {}
-            for key in ("url", "username", "password", "proxy"):
+            for key in ("username", "password", "proxy"):
                 if key in caldav_servers[-1]:
                     config[f"caldav_{key}"] = caldav_servers[-1][key]
+            config["caldav_url"] = str(conn.url)
 
             with tempfile.NamedTemporaryFile(
                 delete=True, encoding="utf-8", mode="w"
@@ -682,7 +684,7 @@ class RepeatedFunctionalTestsBaseClass:
 
         TODO: write a better docstring
         """
-        return self.features.is_supported(
+        return self.caldav.features.is_supported(
             feature, return_type, accept_fragile=accept_fragile
         )
 
@@ -698,19 +700,18 @@ class RepeatedFunctionalTestsBaseClass:
 
     def skip_unless_support(self, feature):
         if not self.is_supported(feature):
-            msg = self.features.find_feature(feature).get("description", feature)
+            msg = self.caldav.features.find_feature(feature).get("description", feature)
             pytest.skip("Test skipped due to server incompatibility issue: " + msg)
 
     def setup_method(self):
         logging.debug("############## test setup")
         self.calendars_used = []
 
-        features = self.server_params.get("features", {})
+        self.caldav = client(**self.server_params)
+        self.caldav.__enter__()
 
         ## Temp thing
-        self.old_features = features.get("old_flags", [])
-
-        self.features = FeatureSet(self.server_params.get("features", {}))
+        self.old_features = self.caldav.features._old_flags
 
         calendar_info = self.is_supported("test-calendar", dict)
         self.cleanup_regime = calendar_info.get("cleanup-regime", "light")
@@ -734,9 +735,6 @@ class RepeatedFunctionalTestsBaseClass:
         else:
             self.testcal_id = "pythoncaldav-test"
             self.testcal_id2 = "pythoncaldav-test2"
-
-        self.caldav = client(**self.server_params)
-        self.caldav.__enter__()
 
         foo = self.is_supported("rate-limit", dict)
         if foo.get("enable"):
@@ -927,7 +925,12 @@ class RepeatedFunctionalTestsBaseClass:
         for x in set(observed.keys()).union(set(expected.keys())):
             find_feature = checker.features_checked.find_feature
             type_ = find_feature(x).get("type", "server-feature")
-            if type_ in ("client-feature", "server-observation", "tests-behaviour"):
+            if type_ in (
+                "client-feature",
+                "server-observation",
+                "tests-behaviour",
+                "client-hints",
+            ):
                 for target in observed_, expected_:
                     if x in target:
                         target.pop(x)
