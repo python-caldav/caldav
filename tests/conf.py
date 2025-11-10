@@ -143,9 +143,9 @@ if test_radicale:
     url = "http://%s:%i/" % (radicale_host, radicale_port)
     caldav_servers.append(
         {
-            "url": url,
             "name": "LocalRadicale",
             "username": "user1",
+            "url": url,
             "password": "",
             "backwards_compatibility_url": url + "user1",
             "features": compatibility_hints.radicale,

@@ -19,8 +19,8 @@ class FeatureSet:
 
     An object of this class describes the feature set of a server.
 
-    TODO: use enums?
-      type -> "client-feature", "server-peculiarity", "tests-behaviour", "server-observation", "server-feature" (last is default)
+    TODO: use enums?  TODO: describe the different types  TODO: think more through the different types, consolidate?
+      type -> "client-feature", "client-hints", "server-peculiarity", "tests-behaviour", "server-observation", "server-feature" (last is default)
       support -> "supported" (default), "unsupported", "fragile", "quirk", "broken", "ungraceful"
 
     types:
@@ -32,6 +32,22 @@ class FeatureSet:
        * "support" -> "quirk" if we have a server-peculiarity where it's needed with special care to get the request through.
     """
     FEATURES = {
+        "auto-connect": {
+            ## Nothing here - everything is under auto-connect.url as for now.
+            ## Other connection details - like what auth method to use - could also
+            ## be under the auto-connect umbrella
+            "type": "client-hints",
+        },
+        "auto-connect.url": {
+            "description": "Instruction for how to access DAV.  I.e. `/remote.php/dav` - see also https://github.com/python-caldav/caldav/issues/463.  To be used in the get_davclient method if the URL only contains a domain",
+            "type": "client-hints",
+            "extra_keys": {
+                "basepath": "The path to append to the domain",
+                "domain": "Domain name may be given through the features - useful for well-known cloud solutions",
+                "scheme": "The scheme to prepend to the domain.  Defaults to https",
+                ## TODO: in the future, templates for the principal URL, calendar URLs etc may also be added.
+            }
+        },
         "get-all-principals": {
             "description": "Search for all principals, using a DAV REPORT query, yields at least one principal"
         },
@@ -260,7 +276,7 @@ class FeatureSet:
             return { "behaviour": "normal" }
         elif feature_type == 'server-observation':
             return { "observed": True }
-        elif feature_type == 'tests-behaviour':
+        elif feature_type in ('tests-behaviour', 'client-hints'):
             return { }
         else:
             breakpoint()
@@ -593,12 +609,14 @@ incompatibility_description = {
 
 ## This is for Xandikos 0.2.12.
 ## Lots of development going on as of summer 2025, so expect the list to become shorter soon!
-xandikos = {
-    'search.recurrences.includes-implicit': {'support': 'unsupported'},
-    'search.recurrences.expanded': {'support': 'unsupported'},
-    'search.time-range.todo': {'support': 'unsupported'},
-    'search.comp-type-optional': {'support': 'ungraceful'},
-    "search.category.fullstring": {"support": "unsupported"},
+xandikos_0_2_12 = {
+    ## this only applies for very simple installations
+    "auto-connect.url": {"domain": "localhost", "scheme": "http", "basepath": "/"},
+    #'search.recurrences.includes-implicit': {'support': 'unsupported'},
+    #'search.recurrences.expanded': {'support': 'unsupported'},
+    #'search.time-range.todo': {'support': 'unsupported'},
+    #'search.comp-type-optional': {'support': 'ungraceful'},
+    #"search.category.fullstring": {"support": "unsupported"},
     "old_flags":  [
     ## https://github.com/jelmer/xandikos/issues/8
     'date_todo_search_ignores_duration',
@@ -625,6 +643,42 @@ xandikos = {
     ]
 }
 
+xandikos_master = {
+    ## this only applies for very simple installations
+    "auto-connect.url": {"domain": "localhost", "scheme": "http", "basepath": "/"},
+    'search.comp-type-optional': {'support': 'unsupported'},
+    "search.category.fullstring": {"support": "unsupported"},
+    "search.recurrences.includes-implicit.todo.pending": {"support": "unsupported"},
+    'search.recurrences.expanded.todo': {'support': 'unsupported'},
+    'search.recurrences.expanded.exception': {'support': 'unsupported'},
+    "old_flags":  [
+    ## https://github.com/jelmer/xandikos/issues/8
+    'date_todo_search_ignores_duration',
+    'vtodo_datesearch_nostart_future_tasks_delivered',
+
+    ## scheduling is not supported
+    "no_scheduling",
+    'no-principal-search',
+    'text_search_is_exact_match_only',
+
+    ## The test in the tests itself passes, but the test in the
+    ## check_server_compatibility triggers a 500-error
+    "no_freebusy_rfc4791",
+
+    ## The test with an rrule and an overridden event passes as
+    ## long as it's with timestamps.  With dates, xandikos gets
+    ## into troubles.  I've chosen to edit the test to use timestamp
+    ## rather than date, just to have the test exercised ... but we
+    ## should report this upstream
+    #'broken_expand_on_exceptions',
+
+    ## No alarm search (500 internal server error)
+    "no_alarmsearch",
+    ]
+}
+
+xandikos=xandikos_master
+
 ## This seems to work as of version 3.5.4 of Radicale.
 ## There is much development going on at Radicale as of summar 2025,
 ## so I'm expecting this list to shrink a lot soon.
@@ -633,6 +687,8 @@ radicale = {
     "search.recurrences.includes-implicit.todo.pending": {"support": "unsupported"},
     "search.recurrences.expanded.todo": {"support": "unsupported"},
     "search.recurrences.expanded.exception": {"support": "unsupported"},
+    ## this only applies for very simple installations
+    "auto-connect.url": {"domain": "localhost", "scheme": "http", "basepath": "/"},
     'old_flags': [
     ## calendar listings and calendar creation works a bit
     ## "weird" on radicale

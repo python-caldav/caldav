@@ -456,7 +456,7 @@ class DAVClient:
 
     def __init__(
         self,
-        url: str,
+        url: Optional[str] = "",
         proxy: Optional[str] = None,
         username: Optional[str] = None,
         password: Optional[str] = None,
@@ -502,10 +502,17 @@ class DAVClient:
         except TypeError:
             self.session = requests.Session()
 
+        self.features = FeatureSet(features)
+        self.huge_tree = huge_tree
+
+        if not '/' in str(url):
+            url_hints = self.features.is_supported("auto-connect.url", dict)
+            if not url and 'domain' in url_hints:
+                url = url_hints['domain']
+            url = f"{url_hints.get('scheme', 'https')}://{url}/{url_hints.get('basepath')}"
+            
         log.debug("url: " + str(url))
         self.url = URL.objectify(url)
-        self.huge_tree = huge_tree
-        self.features = FeatureSet(features)
         # Prepare proxy info
         if proxy is not None:
             _proxy = proxy
