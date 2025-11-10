@@ -896,6 +896,10 @@ davical = {
 #]
 
 robur = {
+    "auto-connect.url": {
+        'domain': 'calendar.robur.coop',
+        'basepath': '/principals/', # TODO: this seems fishy
+    },
     "delete-calendar": {  "support": "fragile" },
     "search.time-range.todo": { "support": "unsupported" },
     "search.category": { "support": "unsupported" },
@@ -921,6 +925,11 @@ robur = {
 }
 
 posteo = {
+    'auto-connect.url': {
+        'scheme': 'https',
+        'domain': 'posteo.de:8443',
+        'basepath': '/',
+    },
     'create-calendar': {'support': 'unsupported'},
     'search.category.fullstring.smart': {'support': 'unsupported'},
     'search.comp-type-optional': {'support': 'ungraceful'},
@@ -955,8 +964,12 @@ posteo = {
 purelymail = {
     ## Purelymail claims that the search indexes are "lazily" populated,
     ## so search works some minutes after the event was created/edited.
-    'search-cache': {'behaviour': 'delay', 'delay': 120},
+    'search-cache': {'behaviour': 'delay', 'delay': 160},
     "create-calendar.auto": {"support": "full"},
+    'auto-connect.url': {
+        'basepath': '/webdav/',
+        'domain': 'purelymail.com',
+    },
     'old_flags': [
         ## Known, work in progress
         'no_scheduling',
