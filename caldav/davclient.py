@@ -100,7 +100,7 @@ def _auto_url(url, features):
         url_hints = features.is_supported("auto-connect.url", dict)
         if not url and 'domain' in url_hints:
             url = url_hints['domain']
-        url = f"{url_hints.get('scheme', 'https')}://{url}{url_hints.get('basepath')}"
+        url = f"{url_hints.get('scheme', 'https')}://{url}{url_hints.get('basepath', '')}"
     return url
     
 

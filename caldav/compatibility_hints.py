@@ -710,13 +710,15 @@ radicale = {
     ]
 }
 
-## TODO: Latest - mismatch between config and test script in delete-calendar.free-namespace ... and create-calendar.set-displayname?
-ecloud = {
+## NOT TESTED ... but this works for ecloud, and ecloud is based on nextcloud
+nextcloud = {
+    'auto-connect.url': {
+        'basepath': '/remote.php/dav',
+    },
     'search.category.fullstring.smart': {'support': 'unsupported'}, ## TODO: verify
     'search.comp-type-optional': {'support': 'ungraceful'},
     'search.recurrences.expanded.todo': {'support': 'unsupported'},
     'search.recurrences.expanded.exception': {'support': 'unsupported'}, ## TODO: verify
-
     'delete-calendar': {
         'support': 'fragile',
         'behaviour': 'Deleting a recently created calendar fails'},
@@ -729,18 +731,28 @@ ecloud = {
     },
     "search.combined-is-logical-and": {"support": "unsupported"},
     'search.recurrences.includes-implicit.todo': {'support': 'unsupported'},
+    'old_flags': ['no-principal-search-all', 'no-principal-search-self', 'unique_calendar_ids'],
+}
+
+## TODO: Latest - mismatch between config and test script in delete-calendar.free-namespace ... and create-calendar.set-displayname?
+ecloud = nextcloud | {
     ## TODO: this applies only to test runs, not to ordinary usage
     'rate-limit': {
         'enable': True,
         'interval': 10,
         'count': 1,
-        'description': "It's needed to manually empty trashbin frequently when running tests.  Since this oepration takes some time and/or there are some caches, it's needed to run tests slowly, even when hammering the 'empty thrashbin' frequently"},
-    'old_flags': ['no-principal-search-all', 'no-principal-search-self', 'unique_calendar_ids'],
+        'description': "It's needed to manually empty trashbin frequently when running tests.  Since this oepration takes some time and/or there are some caches, it's needed to run tests slowly, even when hammering the 'empty thrashbin' frequently",
+    },
+    'auto-connect.url': {
+        'basepath': '/remote.php/dav',
+        'domain': 'ecloud.global',
+        'scheme': 'https',
+    },
 }
 
-## ZIMBRA IS THE MOST SILLY, AND THERE ARE REGRESSIONS FOR EVERY RELEASE!
-## AAARGH!
+## Zimbra is not very good at it's caldav support
 zimbra = {
+    'auto-connect.url': {'basepath': '/dav/'},
     'search.recurrences.expanded.exception': {'support': 'unsupported'}, ## TODO: verify
     'create-calendar.set-displayname': {'support': 'unsupported'},
     'save-load.todo.mixed-calendar': {'support': 'unsupported'},
@@ -864,22 +876,6 @@ davical = {
 #    'no_journal',
 #    'no_freebusy_rfc4791'
 #]
-
-nextcloud = [
-    'date_search_ignores_duration',
-    'unique_calendar_ids',
-    'broken_expand',
-    'no_delete_calendar',
-    'sync_breaks_on_delete',
-    'no_recurring_todo',
-    'combined_search_not_working',
-    'text_search_is_exact_match_sometimes',
-    'search_needs_comptype',
-    'calendar_color',
-    'calendar_order',
-    'date_todo_search_ignores_duration',
-    'broken_expand_on_exceptions'
-]
 
 #fastmail = [
 #    'duplicates_not_allowed',
