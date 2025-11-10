@@ -3,6 +3,9 @@
 This file serves as a database of different compatibility issues we've
 encountered while working on the caldav library, and descriptions on
 how the well-known servers behave.
+
+TODO: it should probably be split with the "feature definitions",
+"server implementation details" and "feature database logic" in three separate files.
 """
 import copy
 
@@ -198,6 +201,8 @@ class FeatureSet:
         ## changed ... but we need test code in place)
         self.backward_compatibility_mode = feature_set_dict is None
         self._server_features = {}
+        ## TODO: remove this when it can be removed
+        self._old_flags = []
         if feature_set_dict:
             self.copyFeatureSet(feature_set_dict)
 
@@ -206,6 +211,7 @@ class FeatureSet:
         for feature in feature_set:
             ## TODO: temp - should be removed
             if feature == 'old_flags':
+                self._old_flags = feature_set[feature]
                 continue
             feature_info = self.find_feature(feature)
             value = feature_set[feature]
@@ -985,6 +991,13 @@ purelymail = {
 }
 
 gmx = {
+    'auto-connect.url': {
+        'scheme': 'https',
+        'domain': 'caldav.gmx.net',
+        ## This won't work yet.  I'm not able to connect with gmx at all now,
+        ## so unable to create a verified fix for it now
+        'basepath': '/begenda/dav/{username}/calendar', ## TODO: foobar
+    },
     'create-calendar': {'support': 'unsupported'},
     'search.category.fullstring.smart': {'support': 'unsupported'},
     'search.comp-type-optional': {'support': 'fragile', 'description': 'unexpected results from date-search without comp-type - but only sometimes - TODO: research more'},

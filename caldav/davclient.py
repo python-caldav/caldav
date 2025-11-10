@@ -34,6 +34,7 @@ from caldav import __version__
 from caldav.collection import Calendar
 from caldav.collection import CalendarSet
 from caldav.collection import Principal
+import caldav.compatibility_hints
 from caldav.compatibility_hints import FeatureSet
 from caldav.elements import cdav
 from caldav.elements import dav
@@ -481,7 +482,7 @@ class DAVClient:
         ssl_cert: Union[str, Tuple[str, str], None] = None,
         headers: Mapping[str, str] = None,
         huge_tree: bool = False,
-        features: Union[FeatureSet, dict] = None,
+        features: Union[FeatureSet, dict, str] = None,
     ) -> None:
         """
         Sets up a HTTPConnection object towards the server in the url.
@@ -516,6 +517,8 @@ class DAVClient:
         except TypeError:
             self.session = requests.Session()
 
+        if isinstance(features, str):
+            features = getattr(caldav.compatibility_hints, features)
         self.features = FeatureSet(features)
         self.huge_tree = huge_tree
 

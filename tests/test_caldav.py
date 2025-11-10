@@ -684,7 +684,7 @@ class RepeatedFunctionalTestsBaseClass:
 
         TODO: write a better docstring
         """
-        return self.features.is_supported(
+        return self.caldav.features.is_supported(
             feature, return_type, accept_fragile=accept_fragile
         )
 
@@ -700,19 +700,18 @@ class RepeatedFunctionalTestsBaseClass:
 
     def skip_unless_support(self, feature):
         if not self.is_supported(feature):
-            msg = self.features.find_feature(feature).get("description", feature)
+            msg = self.caldav.features.find_feature(feature).get("description", feature)
             pytest.skip("Test skipped due to server incompatibility issue: " + msg)
 
     def setup_method(self):
         logging.debug("############## test setup")
         self.calendars_used = []
 
-        features = self.server_params.get("features", {})
+        self.caldav = client(**self.server_params)
+        self.caldav.__enter__()
 
         ## Temp thing
-        self.old_features = features.get("old_flags", [])
-
-        self.features = FeatureSet(self.server_params.get("features", {}))
+        self.old_features = self.caldav.features._old_flags
 
         calendar_info = self.is_supported("test-calendar", dict)
         self.cleanup_regime = calendar_info.get("cleanup-regime", "light")
@@ -736,9 +735,6 @@ class RepeatedFunctionalTestsBaseClass:
         else:
             self.testcal_id = "pythoncaldav-test"
             self.testcal_id2 = "pythoncaldav-test2"
-
-        self.caldav = client(**self.server_params)
-        self.caldav.__enter__()
 
         foo = self.is_supported("rate-limit", dict)
         if foo.get("enable"):
