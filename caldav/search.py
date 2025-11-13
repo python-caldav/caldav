@@ -1,3 +1,4 @@
+from copy import deepcopy
 from dataclasses import dataclass
 from dataclasses import field
 from dataclasses import replace
@@ -109,6 +110,8 @@ class ComponentSearcher():
         """
         Internal method - does three searches, one for each comp class (event, journal, todo).
         """
+        if xml and (isinstance(xml, str) or 'calendar-query' in xml.tag):
+            raise NotImplementedError("full xml given, and it has to be patched to include comp_type")
         clone = replace(self)
         objects = []
         for comp_class in (Event, Todo, Journal):
@@ -215,9 +218,11 @@ class ComponentSearcher():
                     ):
                         objects.append(item)
         else:
+            orig_xml = xml
+            
             ## Now the xml variable may be either a full query or a filter
-            ## and it may be either a string or an object
-            if not xml or not isinstance(xml, str) or not 'calendar-query' in xml.tag:
+            ## and it may be either a string or an object.
+            if not xml or (not isinstance(xml, str) and not xml.tag.endswith('calendar-query')):
                 (xml, self.comp_class) = self.build_search_xml_query(server_expand, props=props, filters=xml, _hacks=_hacks)
 
             if not self.comp_class and not calendar.client.features.is_supported(
@@ -226,7 +231,7 @@ class ComponentSearcher():
                 if self.include_completed is None:
                     self.include_completed = True
 
-                return self._search_caldav_with_comptype(calendar, server_expand, split_expanded, props, xml, _hacks)
+                return self._search_caldav_with_comptypes(calendar, server_expand, split_expanded, props, orig_xml, _hacks)
 
             try:
                 (response, objects) = calendar._request_report_build_resultlist(
@@ -241,7 +246,7 @@ class ComponentSearcher():
                     and not comp_class
                     and not "400" in err.reason
                 ):
-                    return self._search_caldav_with_comptype(calendar, server_expand, split_expanded, props, xml, _hacks)
+                    return self._search_caldav_with_comptypes(calendar, server_expand, split_expanded, props, orig_xml, _hacks)
                 raise
 
         obj2 = []
@@ -277,7 +282,7 @@ class ComponentSearcher():
                     continue
                 recurrence_properties = ["exdate", "exrule", "rdate", "rrule"]
                 if any(key in component for key in recurrence_properties):
-                    o.expand_rrule(start, end, include_completed=include_completed)
+                    o.expand_rrule(start, end, include_completed=self.include_completed)
 
             ## An expanded recurring object comes as one Event() with
             ## icalendar data containing multiple objects.  The caller may
@@ -327,12 +332,18 @@ class ComponentSearcher():
         vcalendar = cdav.CompFilter("VCALENDAR")
 
         comp_filter = None
-
-        ## TEMPTEMPTEMP!
-        foo=False
+        
         if filters:
-            foo=True
-        filters = filters or []
+            ## It's disgraceful - `somexml = xml + [ more_elements ]` will alter xml,
+            ## and there exists no `xml.copy`
+            ## Hence, we need to import the deepcopy tool ...
+            filters = deepcopy(filters)
+            if filters.tag == cdav.CompFilter.tag:
+                comp_filter = filters
+                filters = []
+
+        else:
+            filters = []
 
         vNotCompleted = cdav.TextMatch("COMPLETED", negate=True)
         vNotCancelled = cdav.TextMatch("CANCELLED", negate=True)
@@ -369,7 +380,16 @@ class ComponentSearcher():
                 cdav.CompFilter("VALARM") + cdav.TimeRange(self.alarm_start, self.alarm_end)
             )
 
-        ## Deal with event, todo, journal or comp_class
+        ## I've designed this badly, at different places the caller
+        ## may pass the component type either as boolean flags:
+        ##   `search(event=True, ...)`
+        ## as a component class:
+        ##   `search(comp_class=caldav.calendarobjectresource.Event)`
+        ## or as a component filter:
+        ##   `search(filters=cdav.CompFilter('VEVENT'), ...)`
+        ## The only thing I don't support is the component name ('VEVENT').
+        ## Anyway, this code section ensures both comp_filter and comp_class
+        ## is given.  Or at least, it tries to ensure it.
         for flagged, comp_name, comp_class_ in (
             (self.event, "VEVENT", Event),
             (self.todo, "VTODO", Todo),
@@ -388,8 +408,14 @@ class ComponentSearcher():
                         )
                     self.comp_class = comp_class_
 
+            if comp_filter and comp_filter.attributes['name'] == comp_name:
+                self.comp_class = comp_class_
+
             if self.comp_class == comp_class_:
-                comp_filter = cdav.CompFilter(comp_name)
+                if comp_filter:
+                    assert(comp_filter.attributes['name'] == comp_name)
+                else:
+                    comp_filter = cdav.CompFilter(comp_name)
 
         if self.comp_class and not comp_filter:
             raise error.ConsistencyError(
@@ -401,10 +427,7 @@ class ComponentSearcher():
                 match = cdav.NotDefined()
             else:
                 match = cdav.TextMatch(self._property_filters[property].to_ical())
-                filters.append(cdav.PropFilter(property.upper()) + match)
-
-        if foo:
-            import pdb; pdb.set_trace()
+            filters.append(cdav.PropFilter(property.upper()) + match)
 
         if comp_filter and filters:
             comp_filter += filters

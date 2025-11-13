@@ -1672,6 +1672,7 @@ END:VCALENDAR
 
         num_existing = len(c.events())
         num_existing_t = len(c.todos())
+        num_existing_j = len(c.journals())
 
         c.save_event(ev1)
         c.save_event(ev3)
@@ -1679,7 +1680,7 @@ END:VCALENDAR
 
         ## Search without any parameters should yield everything on calendar
         all_events = c.search()
-        assert len(all_events) <= 3 + num_existing + num_existing_t
+        assert len(all_events) <= 3 + num_existing + num_existing_t + num_existing_j
 
         ## Search with comp_class set to Event should yield all events on calendar
         all_events = c.search(comp_class=Event)

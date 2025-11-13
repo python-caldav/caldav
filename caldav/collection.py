@@ -801,6 +801,23 @@ class Calendar(DAVObject):
         """Sends a search request towards the server, processes the
         results if needed and returns the objects found.
 
+        Refactoring 2025-11: a new class
+        class:`caldav.search.ComponentSearcher` has been made, and
+        this method is sort of a wrapper for
+        ComponentSearcher.search_caldav, ensuring backward
+        compatibility.  The documentation may be slightly overlapping.
+        
+        I believe that for simple tasks, this method will be easier to
+        use than the new interface, hence there are no plans for the
+        foreseeable future to deprecate it.  This search method will
+        continue working as it has been doing before for all
+        foreseeable future.  I believe that for simple tasks, this
+        method will be easier to use than to construct a
+        ComponentSearcher object and do searches from there.  The
+        refactoring was made necessary because the parameter list to
+        `search` was becoming unmanagable.  Advanced searches should
+        be done via the new interface.
+
         Caveat: The searching is done on the server side, the RFC is
         not very crystal clear on many of the corner cases, and
         servers often behave differently when presented with a search
@@ -865,9 +882,15 @@ class Calendar(DAVObject):
          * ``xml`` - use this search query, and ignore other filter parameters
          * ``comp_class`` - alternative to the ``event``, ``todo`` or ``journal`` booleans described above.
          * ``filters`` - other kind of filters (in lxml tree format)
+
         """
         ## Late import to avoid cyclic imports
         from .search import ComponentSearcher
+        
+        ## This is basically a wrapper for ComponentSearcher.search_caldav
+        ## The logic below will massage the parameters in ``searchargs``
+        ## and put them into the ComponentSearcher object.
+        
 
         if searchargs.get('expand', True) not in (True, False):
             warnings.warn(
@@ -875,11 +898,11 @@ class Calendar(DAVObject):
                 DeprecationWarning,
                 stacklevel=2,
             )
-            if arcexpand == "client":
-                expand = True
-            if expand == "server":
+            if searchargs['expand'] == "client":
+                searchargs['expand'] = True
+            if searchargs['expand'] == "server":
                 server_expand = True
-                expand = False
+                searchargs['expand'] = False
 
         ## Transfer all the arguments to ComponentSearcher
         my_searcher = ComponentSearcher()
@@ -890,6 +913,10 @@ class Calendar(DAVObject):
                 alias = 'class'
             if key == 'category': ## TODO: should we have special logic?
                 alias = 'categories'
+            if key == 'no_category':
+                alias = 'no_categories'
+            if key == 'no_class_':
+                alias = 'no_class'
             if key == 'sort_keys':
                 if isinstance(searchargs['sort_keys'], str):
                     searchargs['sort_keys'] = [                    searchargs['sort_keys'] ]
@@ -1001,61 +1028,20 @@ class Calendar(DAVObject):
         Args:
          uid: the event uid
          comp_class: filter by component type (Event, Todo, Journal)
-         comp_filter: for backward compatibility
+         comp_filter: for backward compatibility.  Don't use!
 
         Returns:
          Event() or None
         """
-        from .search import ComponentSearcher
-        if comp_filter:
-            assert not comp_class
-            if hasattr(comp_filter, "attributes"):
-                if comp_filter.attributes is None:
-                    raise ValueError(
-                        "Unexpected None value for variable comp_filter.attributes"
-                    )
-                comp_filter = comp_filter.attributes["name"]
-            if comp_filter == "VTODO":
-                comp_class = Todo
-            elif comp_filter == "VJOURNAL":
-                comp_class = Journal
-            elif comp_filter == "VEVENT":
-                comp_class = Event
-            else:
-                raise error.ConsistencyError("Wrong compfilter")
-
-        query = cdav.TextMatch(uid)
-        query = cdav.PropFilter("UID") + query
-
-        root, comp_class = ComponentSearcher(comp_class=comp_class).build_search_xml_query(
-            filters=[query]
-        )
-
-        try:
-            items_found: List[Event] = self.search(root)
-            if not items_found:
-                raise error.NotFoundError("%s not found on server" % uid)
-        except Exception as err:
-            if comp_filter is not None:
-                raise
-            logging.warning(
-                "Error %s from server when doing an object_by_uid(%s).  search without compfilter set is not compatible with all server implementations, trying event_by_uid + todo_by_uid + journal_by_uid instead"
-                % (str(err), uid)
-            )
-            items_found = []
-            for compfilter in ("VTODO", "VEVENT", "VJOURNAL"):
-                try:
-                    items_found.append(
-                        self.object_by_uid(uid, cdav.CompFilter(compfilter))
-                    )
-                except error.NotFoundError:
-                    pass
-            if len(items_found) >= 1:
-                if len(items_found) > 1:
-                    logging.error(
-                        "multiple items found with same UID.  Returning the first one"
-                    )
-                return items_found[0]
+        ## 2025-11: some logic validating the comp_filter and
+        ## comp_class has been removed, and replaced with the
+        ## recommendation not to use comp_filter.  We're still using
+        ## comp_filter internally, but it's OK, it doesn't need to be
+        ## validated.
+        
+        ## Lots of old logic has been removed, I think the search method does things
+        ## much the same way:
+        items_found = self.search(comp_class=comp_class, filters=comp_filter, uid=uid)
 
         # Ref Lucas Verney, we've actually done a substring search, if the
         # uid given in the query is short (i.e. just "0") we're likely to
@@ -1075,7 +1061,7 @@ class Calendar(DAVObject):
             raise error.NotFoundError("%s not found on server" % uid)
         error.assert_(len(items_found2) == 1)
         return items_found2[0]
-
+        
     def todo_by_uid(self, uid: str) -> "CalendarObjectResource":
         """
         Returns the task with the given uid (wraps around :class:`object_by_uid`)
