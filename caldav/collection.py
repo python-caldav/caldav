@@ -13,7 +13,9 @@ import logging
 import sys
 import uuid
 import warnings
+from dataclasses import dataclass
 from datetime import datetime
+from icalendar.caselessdict import CaselessDict
 from typing import Any
 from typing import List
 from typing import Optional
@@ -398,7 +400,6 @@ class Principal(DAVObject):
         Returns the schedule outbox, as defined in RFC6638
         """
         return ScheduleOutbox(principal=self)
-
 
 class Calendar(DAVObject):
     """
@@ -789,17 +790,13 @@ class Calendar(DAVObject):
 
     def search(
         self,
-        xml=None,
-        comp_class: Optional[_CC] = None,
-        todo: Optional[bool] = None,
-        include_completed: bool = None,
-        sort_keys: Sequence[str] = (),
-        sort_reverse: bool = False,
-        expand: bool = False,
+        xml: str = None,
         server_expand: bool = False,
         split_expanded: bool = True,
+        sort_reverse: bool = False,
         props: Optional[List[cdav.CalendarData]] = None,
-        **kwargs,
+        filters = None,
+        **searchargs,
     ) -> List[_CC]:
         """Sends a search request towards the server, processes the
         results if needed and returns the objects found.
@@ -869,427 +866,49 @@ class Calendar(DAVObject):
          * ``comp_class`` - alternative to the ``event``, ``todo`` or ``journal`` booleans described above.
          * ``filters`` - other kind of filters (in lxml tree format)
         """
-        if expand not in (True, False):
+        ## Late import to avoid cyclic imports
+        from .search import ComponentSearcher
+
+        if searchargs.get('expand', True) not in (True, False):
             warnings.warn(
                 "in cal.search(), expand should be a bool",
                 DeprecationWarning,
                 stacklevel=2,
             )
-            if expand == "client":
+            if arcexpand == "client":
                 expand = True
             if expand == "server":
                 server_expand = True
                 expand = False
 
-        if expand or server_expand:
-            if not kwargs.get("start") or not kwargs.get("end"):
-                raise error.ReportError("can't expand without a date range")
-
-        ## special compatibility-case when searching for pending todos
-        if todo and not include_completed:
-            ## There are two ways to get the pending tasks - we can
-            ## ask the server to filter them out, or we can do it
-            ## client side.
-
-            ## If the server does not support combined searches, then it's
-            ## safest to do it client-side.
-
-            ## There is a special case (observed with radicale as of
-            ## 2025-11) where future recurrences of a task does not
-            ## match when doing a server-side filtering, so for this
-            ## case we also do client-side filtering (but the
-            ## "feature"
-            ## search.recurrences.includes-implicit.todo.pending will
-            ## not be supported if the feature
-            ## "search.recurrences.includes-implicit.todo" is not
-            ## supported ... hence the weird or below)
-
-            ## To be completely sure to get all pending tasks, for all
-            ## server implementations and for all valid icalendar
-            ## objects, we send three different searches to the
-            ## server.  This is probably bloated, and may in many
-            ## cases be more expensive than to ask for all tasks.  At
-            ## the other hand, for a well-used and well-handled old
-            ## todo-list, there may be a small set of pending tasks
-            ## and heaps of done tasks.
-
-            ## TODO: consider if not ignore_completed3 is sufficient,
-            ## then the recursive part of the query here is moot, and
-            ## we wouldn't waste so much time on repeated queries
-
-            if self.client.features.is_supported("search.combined-is-logical-and") and (
-                not self.client.features.is_supported(
-                    "search.recurrences.includes-implicit.todo"
-                )
-                or self.client.features.is_supported(
-                    "search.recurrences.includes-implicit.todo.pending"
-                )
-            ):
-                matches = (
-                    self.search(
-                        todo=True,
-                        ignore_completed1=True,
-                        include_completed=True,
-                        **kwargs,
-                    )
-                    + self.search(
-                        todo=True,
-                        ignore_completed2=True,
-                        include_completed=True,
-                        **kwargs,
-                    )
-                    + self.search(
-                        todo=True,
-                        ignore_completed3=True,
-                        include_completed=True,
-                        **kwargs,
-                    )
-                )
-            else:
-                matches = self.search(todo=True, include_completed=True, **kwargs)
-            objects = []
-            match_set = set()
-            for item in matches:
-                if item.url not in match_set:
-                    match_set.add(item.url)
-                    ## Client-side filtering is probably cheap, so we'll do it
-                    ## even when it shouldn't be needed.
-                    ## (can we assert all tasks have a valid STATUS field?)
-                    if any(
-                        x.get("STATUS") not in ("COMPLETED", "CANCELLED")
-                        for x in item.icalendar_instance.subcomponents
-                    ):
-                        objects.append(item)
-        else:
-            if not xml:
-                if server_expand:
-                    kwargs["expand"] = True
-                (xml, comp_class) = self.build_search_xml_query(
-                    comp_class=comp_class, todo=todo, props=props, **kwargs
-                )
-            elif kwargs:
-                raise error.ConsistencyError(
-                    "Inconsistent usage parameters: xml together with other search options"
-                )
-
-            ## For some of the workarounds below, we will do a recursive search, with all
-            ## those arguments:
-            kwargs2 = {
-                "include_completed": include_completed,
-                "sort_reverse": sort_reverse,
-                "expand": expand,
-                "server_expand": server_expand,
-                "split_expanded": split_expanded,
-                "props": props,
-            }
-
-            if not comp_class and not self.client.features.is_supported(
-                "search.comp-type-optional"
-            ):
-                if kwargs2["include_completed"] is None:
-                    kwargs2["include_completed"] = True
-                objects = (
-                    self.search(event=True, **kwargs2, **kwargs)
-                    + self.search(todo=True, **kwargs2, **kwargs)
-                    + self.search(journal=True, **kwargs2, **kwargs)
-                )
-                self.sort_objects(objects, sort_keys, sort_reverse)
-                return objects
-
-            try:
-                (response, objects) = self._request_report_build_resultlist(
-                    xml, comp_class, props=props
-                )
-
-            except error.ReportError as err:
-                ## This is only for backward compatibility.  The logic is even flawed.
-                ## But it does partially fix https://github.com/python-caldav/caldav/issues/401
-                if (
-                    self.client.features.backward_compatibility_mode
-                    and not comp_class
-                    and not "400" in err.reason
-                ):
-                    return self.search(
-                        sort_keys=sort_keys,
-                        sort_reverse=sort_reverse,
-                        *kwargs2,
-                        **kwargs,
-                    )
-                raise
-
-        obj2 = []
-
-        for o in objects:
-            ## This would not be needed if the servers would follow the standard ...
-            ## TODO: use self.calendar_multiget - see https://github.com/python-caldav/caldav/issues/487
-            try:
-                o.load(only_if_unloaded=True)
-                obj2.append(o)
-            except:
-                logging.error(
-                    "Server does not want to reveal details about the calendar object",
-                    exc_info=True,
-                )
-                pass
-        objects = obj2
-
-        ## Google sometimes returns empty objects
-        objects = [o for o in objects if o.has_component()]
-
-        if expand:
-            ## expand can only be used together with start and end (and not
-            ## with xml).  Error checking has already been done in
-            ## build_search_xml_query above.
-            start = kwargs["start"]
-            end = kwargs["end"]
-
-            ## Verify that any recurring objects returned are already expanded
-            for o in objects:
-                component = o.icalendar_component
-                if component is None:
+        ## Transfer all the arguments to ComponentSearcher
+        my_searcher = ComponentSearcher()
+        for key in searchargs:
+            assert key[0] != '_' ## not allowed
+            alias = key
+            if key == "class_": ## because class is a reserved word
+                alias = 'class'
+            if key == 'category': ## TODO: should we have special logic?
+                alias = 'categories'
+            if key == 'sort_keys':
+                if isinstance(searchargs['sort_keys'], str):
+                    searchargs['sort_keys'] = [                    searchargs['sort_keys'] ]
+                for sortkey in searchargs['sort_keys']:
+                    my_searcher.add_sort_key(sortkey, sort_reverse)
                     continue
-                recurrence_properties = ["exdate", "exrule", "rdate", "rrule"]
-                if any(key in component for key in recurrence_properties):
-                    o.expand_rrule(start, end, include_completed=include_completed)
-
-            ## An expanded recurring object comes as one Event() with
-            ## icalendar data containing multiple objects.  The caller may
-            ## expect multiple Event()s.  This code splits events into
-            ## separate objects:
-        if (expand or server_expand) and split_expanded:
-            objects_ = objects
-            objects = []
-            for o in objects_:
-                objects.extend(o.split_expanded())
-
-        ## partial workaround for https://github.com/python-caldav/caldav/issues/201
-        for obj in objects:
-            try:
-                obj.load(only_if_unloaded=True)
-            except:
-                pass
-
-        self.sort_objects(objects, sort_keys, sort_reverse)
-        return objects
-
-    def sort_objects(self, objects, sort_keys, sort_reverse):
-        def sort_key_func(x):
-            ret = []
-            comp = x.icalendar_component
-            defaults = {
-                ## TODO: all possible non-string sort attributes needs to be listed here, otherwise we will get type errors when comparing objects with the property defined vs undefined (or maybe we should make an "undefined" object that always will compare below any other type?  Perhaps there exists such an object already?)
-                "due": "2050-01-01",
-                "dtstart": "1970-01-01",
-                "priority": 0,
-                "status": {
-                    "VTODO": "NEEDS-ACTION",
-                    "VJOURNAL": "FINAL",
-                    "VEVENT": "TENTATIVE",
-                }[comp.name],
-                "category": "",
-                ## Usage of strftime is a simple way to ensure there won't be
-                ## problems if comparing dates with timestamps
-                "isnt_overdue": not (
-                    "due" in comp
-                    and comp["due"].dt.strftime("%F%H%M%S")
-                    < datetime.now().strftime("%F%H%M%S")
-                ),
-                "hasnt_started": (
-                    "dtstart" in comp
-                    and comp["dtstart"].dt.strftime("%F%H%M%S")
-                    > datetime.now().strftime("%F%H%M%S")
-                ),
-            }
-            for sort_key in sort_keys:
-                val = comp.get(sort_key, None)
-                if val is None:
-                    ret.append(defaults.get(sort_key.lower(), ""))
-                    continue
-                if hasattr(val, "dt"):
-                    val = val.dt
-                elif hasattr(val, "cats"):
-                    val = ",".join(val.cats)
-                if hasattr(val, "strftime"):
-                    ret.append(val.strftime("%F%H%M%S"))
-                else:
-                    ret.append(val)
-            return ret
-
-        if sort_keys:
-            ## ref https://github.com/python-caldav/caldav/issues/448 - allow strings instead of a sequence here
-            if isinstance(sort_keys, str):
-                sort_keys = (sort_keys,)
-            objects.sort(key=sort_key_func, reverse=sort_reverse)
-
-    def build_search_xml_query(
-        self,
-        comp_class=None,
-        todo=None,
-        ignore_completed1=None,
-        ignore_completed2=None,
-        ignore_completed3=None,
-        event=None,
-        journal=None,
-        filters=None,
-        expand=None,
-        start=None,
-        end=None,
-        props=None,
-        alarm_start=None,
-        alarm_end=None,
-        **kwargs,
-    ):
-        """This method will produce a caldav search query as an etree object.
-
-        It is primarily to be used from the search method.  See the
-        documentation for the search method for more information.
-        """
-        # those xml elements are weird.  (a+b)+c != a+(b+c).  First makes b and c as list members of a, second makes c an element in b which is an element of a.
-        # First objective is to let this take over all xml search query building and see that the current tests pass.
-        # ref https://www.ietf.org/rfc/rfc4791.txt, section 7.8.9 for how to build a todo-query
-        # We'll play with it and don't mind it's getting ugly and don't mind that the test coverage is lacking.
-        # we'll refactor and create some unit tests later, as well as ftests for complicated queries.
-
-        # build the request
-        data = cdav.CalendarData()
-        if expand:
-            if not start or not end:
-                raise error.ReportError("can't expand without a date range")
-            data += cdav.Expand(start, end)
-        if props is None:
-            props_ = [data]
-        else:
-            props_ = [data] + props
-        prop = dav.Prop() + props_
-        vcalendar = cdav.CompFilter("VCALENDAR")
-
-        comp_filter = None
-
-        filters = filters or []
-
-        vNotCompleted = cdav.TextMatch("COMPLETED", negate=True)
-        vNotCancelled = cdav.TextMatch("CANCELLED", negate=True)
-        vNeedsAction = cdav.TextMatch("NEEDS-ACTION")
-        vStatusNotCompleted = cdav.PropFilter("STATUS") + vNotCompleted
-        vStatusNotCancelled = cdav.PropFilter("STATUS") + vNotCancelled
-        vStatusNeedsAction = cdav.PropFilter("STATUS") + vNeedsAction
-        vStatusNotDefined = cdav.PropFilter("STATUS") + cdav.NotDefined()
-        vNoCompleteDate = cdav.PropFilter("COMPLETED") + cdav.NotDefined()
-        if ignore_completed1:
-            ## This query is quite much in line with https://tools.ietf.org/html/rfc4791#section-7.8.9
-            filters.extend([vNoCompleteDate, vStatusNotCompleted, vStatusNotCancelled])
-        elif ignore_completed2:
-            ## some server implementations (i.e. NextCloud
-            ## and Baikal) will yield "false" on a negated TextMatch
-            ## if the field is not defined.  Hence, for those
-            ## implementations we need to turn back and ask again
-            ## ... do you have any VTODOs for us where the STATUS
-            ## field is not defined? (ref
-            ## https://github.com/python-caldav/caldav/issues/14)
-            filters.extend([vNoCompleteDate, vStatusNotDefined])
-        elif ignore_completed3:
-            ## ... and considering recurring tasks we really need to
-            ## look a third time as well, this time for any task with
-            ## the NEEDS-ACTION status set (do we need the first go?
-            ## NEEDS-ACTION or no status set should cover them all?)
-            filters.extend([vStatusNeedsAction])
-
-        if start or end:
-            filters.append(cdav.TimeRange(start, end))
-
-        if alarm_start or alarm_end:
-            filters.append(
-                cdav.CompFilter("VALARM") + cdav.TimeRange(alarm_start, alarm_end)
-            )
-
-        ## Deal with event, todo, journal or comp_class
-        for flagged, comp_name, comp_class_ in (
-            (event, "VEVENT", Event),
-            (todo, "VTODO", Todo),
-            (journal, "VJOURNAL", Journal),
-        ):
-            if flagged is not None:
-                if not flagged:
-                    raise NotImplementedError(
-                        f"Negated search for {comp_name} not supported yet"
-                    )
-                if flagged:
-                    ## event/journal/todo is set, we adjust comp_class accordingly
-                    if comp_class is not None and comp_class is not comp_class:
-                        raise error.ConsistencyError(
-                            f"inconsistent search parameters - comp_class = {comp_class}, want {comp_class_}"
-                        )
-                    comp_class = comp_class_
-
-            if comp_class == comp_class_:
-                comp_filter = cdav.CompFilter(comp_name)
-
-        if comp_class and not comp_filter:
-            raise error.ConsistencyError(
-                f"unsupported comp class {comp_class} for search"
-            )
-
-        for other in kwargs:
-            find_not_defined = other.startswith("no_")
-            find_defined = other.startswith("has_")
-            if find_not_defined:
-                other = other[3:]
-            if find_defined:
-                other = other[4:]
-            if other in (
-                "uid",
-                "summary",
-                "comment",
-                "class_",
-                "class",
-                "category",
-                "description",
-                "location",
-                "status",
-                "due",
-                "dtstamp",
-                "dtstart",
-                "dtend",
-                "duration",
-                "priority",
-            ):
-                ## category and class_ is special
-                if other.endswith("category"):
-                    ## TODO: we probably need to do client side filtering.  I would
-                    ## expect --category='e' to fetch anything having the category e,
-                    ## but not including all other categories containing the letter e.
-                    ## As I read the caldav standard, the latter will be yielded.
-                    target = other.replace("category", "categories")
-                elif other == "class_":
-                    target = "class"
-                else:
-                    target = other
-
-                if find_not_defined:
-                    match = cdav.NotDefined()
-                elif find_defined:
-                    raise NotImplementedError(
-                        "Seems not to be supported by the CalDAV protocol?  or we can negate?  not supported yet, in any case"
-                    )
-                else:
-                    match = cdav.TextMatch(kwargs[other])
-                filters.append(cdav.PropFilter(target.upper()) + match)
+            elif key in my_searcher.__dataclass_fields__:
+                setattr(my_searcher, key, searchargs[key])
+                continue
+            elif alias.startswith('no_'):
+                my_searcher.add_property_filter(alias[3:], searchargs[key], operator='undef')
             else:
-                raise NotImplementedError("searching for %s not supported yet" % other)
+                my_searcher.add_property_filter(alias, searchargs[key])
 
-        if comp_filter and filters:
-            comp_filter += filters
-            vcalendar += comp_filter
-        elif comp_filter:
-            vcalendar += comp_filter
-        elif filters:
-            vcalendar += filters
+        if not xml and filters:
+            xml=filters
 
-        filter = cdav.Filter() + vcalendar
+        return my_searcher.search_caldav(self, server_expand, split_expanded, props, xml)
 
-        root = cdav.CalendarQuery() + [prop, filter]
-
-        return (root, comp_class)
 
     def freebusy_request(self, start: datetime, end: datetime) -> "FreeBusy":
         """
@@ -1387,6 +1006,7 @@ class Calendar(DAVObject):
         Returns:
          Event() or None
         """
+        from .search import ComponentSearcher
         if comp_filter:
             assert not comp_class
             if hasattr(comp_filter, "attributes"):
@@ -1407,8 +1027,8 @@ class Calendar(DAVObject):
         query = cdav.TextMatch(uid)
         query = cdav.PropFilter("UID") + query
 
-        root, comp_class = self.build_search_xml_query(
-            comp_class=comp_class, filters=[query]
+        root, comp_class = ComponentSearcher(comp_class=comp_class).build_search_xml_query(
+            filters=[query]
         )
 
         try:
