@@ -301,7 +301,7 @@ class ComponentSearcher:
                 ## Partial fix https://github.com/python-caldav/caldav/issues/401
                 if (
                     calendar.client.features.backward_compatibility_mode
-                    and not comp_class
+                    and not self.comp_class
                     and not "400" in err.reason
                 ):
                     return self._search_caldav_with_comptypes(
