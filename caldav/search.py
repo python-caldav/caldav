@@ -191,6 +191,9 @@ class ComponentSearcher():
             ## we wouldn't waste so much time on repeated queries
             clone = replace(self, include_completed=True)
             clone.include_completed=True
+            ## No point with expanding in the subqueries - the expand logic will be handled
+            ## further down.  We leave server_expand as it is, though.
+            clone.expand = False
             if calendar.client.features.is_supported("search.combined-is-logical-and") and (
                 not calendar.client.features.is_supported(
                     "search.recurrences.includes-implicit.todo"
@@ -201,9 +204,11 @@ class ComponentSearcher():
             ):
                 matches = []
                 for hacks in ('ignore_completed1', 'ignore_completed2', 'ignore_completed3'):
-                    matches.extend(clone.search_caldav(calendar, server_expand, split_expanded, props, xml, _hacks=hacks))
+                    ## The algorithm below does not handle recurrence split gently
+                    matches.extend(clone.search_caldav(calendar, server_expand, split_expanded=False, props=props, xml=xml, _hacks=hacks))
             else:
-                matches = clone.search_caldav(calendar, server_expand, split_expanded, props, xml, _hacks)
+                ## The algorithm below does not handle recurrence split gently
+                matches = clone.search_caldav(calendar, server_expand, split_expanded=False, props=props, xml=xml, _hacks=_hacks)
             objects = []
             match_set = set()
             for item in matches:
@@ -249,6 +254,10 @@ class ComponentSearcher():
                     return self._search_caldav_with_comptypes(calendar, server_expand, split_expanded, props, orig_xml, _hacks)
                 raise
 
+            ## Some things, like `calendar.object_by_uid`, should always work, no matter if `davclient.compatibility_hints` is correctly configured or not
+            if not objects and not self.comp_class and _hacks == 'insist':
+                return self._search_caldav_with_comptypes(calendar, server_expand, split_expanded, props, orig_xml, _hacks)
+
         obj2 = []
 
         for o in objects:
@@ -275,7 +284,7 @@ class ComponentSearcher():
             start = self.start
             end = self.end
 
-            ## Verify that any recurring objects returned are already expanded
+            ## Verify that any recurring objects returned are already expanded 
             for o in objects:
                 component = o.icalendar_component
                 if component is None:

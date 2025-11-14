@@ -796,6 +796,7 @@ class Calendar(DAVObject):
         sort_reverse: bool = False,
         props: Optional[List[cdav.CalendarData]] = None,
         filters = None,
+        _hacks = None,
         **searchargs,
     ) -> List[_CC]:
         """Sends a search request towards the server, processes the
@@ -934,7 +935,7 @@ class Calendar(DAVObject):
         if not xml and filters:
             xml=filters
 
-        return my_searcher.search_caldav(self, server_expand, split_expanded, props, xml)
+        return my_searcher.search_caldav(self, server_expand, split_expanded, props, xml, _hacks)
 
 
     def freebusy_request(self, start: datetime, end: datetime) -> "FreeBusy":
@@ -1041,12 +1042,14 @@ class Calendar(DAVObject):
         
         ## Lots of old logic has been removed, I think the search method does things
         ## much the same way:
-        items_found = self.search(comp_class=comp_class, filters=comp_filter, uid=uid)
+        items_found = self.search(comp_class=comp_class, filters=comp_filter, uid=uid, _hacks="insist")
 
         # Ref Lucas Verney, we've actually done a substring search, if the
         # uid given in the query is short (i.e. just "0") we're likely to
         # get false positives back from the server, we need to do an extra
         # check that the uid is correct
+        ## Todo: make support for "full text search" in the ComponentSearcher,
+        ## and move the filtering logic there
         items_found2 = []
         for item in items_found:
             ## In v0.10.0 we used regexps here - it's probably more optimized,
