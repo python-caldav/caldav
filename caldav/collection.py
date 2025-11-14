@@ -15,7 +15,6 @@ import uuid
 import warnings
 from dataclasses import dataclass
 from datetime import datetime
-from icalendar.caselessdict import CaselessDict
 from typing import Any
 from typing import List
 from typing import Optional
@@ -29,6 +28,7 @@ from urllib.parse import SplitResult
 from urllib.parse import unquote
 
 import icalendar
+from icalendar.caselessdict import CaselessDict
 
 try:
     from typing import ClassVar, Optional, Union, Type
@@ -400,6 +400,7 @@ class Principal(DAVObject):
         Returns the schedule outbox, as defined in RFC6638
         """
         return ScheduleOutbox(principal=self)
+
 
 class Calendar(DAVObject):
     """
@@ -795,8 +796,8 @@ class Calendar(DAVObject):
         split_expanded: bool = True,
         sort_reverse: bool = False,
         props: Optional[List[cdav.CalendarData]] = None,
-        filters = None,
-        _hacks = None,
+        filters=None,
+        _hacks=None,
         **searchargs,
     ) -> List[_CC]:
         """Sends a search request towards the server, processes the
@@ -807,7 +808,7 @@ class Calendar(DAVObject):
         this method is sort of a wrapper for
         ComponentSearcher.search_caldav, ensuring backward
         compatibility.  The documentation may be slightly overlapping.
-        
+
         I believe that for simple tasks, this method will be easier to
         use than the new interface, hence there are no plans for the
         foreseeable future to deprecate it.  This search method will
@@ -887,56 +888,58 @@ class Calendar(DAVObject):
         """
         ## Late import to avoid cyclic imports
         from .search import ComponentSearcher
-        
+
         ## This is basically a wrapper for ComponentSearcher.search_caldav
         ## The logic below will massage the parameters in ``searchargs``
         ## and put them into the ComponentSearcher object.
-        
 
-        if searchargs.get('expand', True) not in (True, False):
+        if searchargs.get("expand", True) not in (True, False):
             warnings.warn(
                 "in cal.search(), expand should be a bool",
                 DeprecationWarning,
                 stacklevel=2,
             )
-            if searchargs['expand'] == "client":
-                searchargs['expand'] = True
-            if searchargs['expand'] == "server":
+            if searchargs["expand"] == "client":
+                searchargs["expand"] = True
+            if searchargs["expand"] == "server":
                 server_expand = True
-                searchargs['expand'] = False
+                searchargs["expand"] = False
 
         ## Transfer all the arguments to ComponentSearcher
         my_searcher = ComponentSearcher()
         for key in searchargs:
-            assert key[0] != '_' ## not allowed
+            assert key[0] != "_"  ## not allowed
             alias = key
-            if key == "class_": ## because class is a reserved word
-                alias = 'class'
-            if key == 'category': ## TODO: should we have special logic?
-                alias = 'categories'
-            if key == 'no_category':
-                alias = 'no_categories'
-            if key == 'no_class_':
-                alias = 'no_class'
-            if key == 'sort_keys':
-                if isinstance(searchargs['sort_keys'], str):
-                    searchargs['sort_keys'] = [                    searchargs['sort_keys'] ]
-                for sortkey in searchargs['sort_keys']:
+            if key == "class_":  ## because class is a reserved word
+                alias = "class"
+            if key == "category":  ## TODO: should we have special logic?
+                alias = "categories"
+            if key == "no_category":
+                alias = "no_categories"
+            if key == "no_class_":
+                alias = "no_class"
+            if key == "sort_keys":
+                if isinstance(searchargs["sort_keys"], str):
+                    searchargs["sort_keys"] = [searchargs["sort_keys"]]
+                for sortkey in searchargs["sort_keys"]:
                     my_searcher.add_sort_key(sortkey, sort_reverse)
                     continue
             elif key in my_searcher.__dataclass_fields__:
                 setattr(my_searcher, key, searchargs[key])
                 continue
-            elif alias.startswith('no_'):
-                my_searcher.add_property_filter(alias[3:], searchargs[key], operator='undef')
+            elif alias.startswith("no_"):
+                my_searcher.add_property_filter(
+                    alias[3:], searchargs[key], operator="undef"
+                )
             else:
                 my_searcher.add_property_filter(alias, searchargs[key])
 
         if not xml and filters:
-            xml=filters
+            xml = filters
 
-        return my_searcher.search_caldav(self, server_expand, split_expanded, props, xml, _hacks)
-
+        return my_searcher.search_caldav(
+            self, server_expand, split_expanded, props, xml, _hacks
+        )
 
     def freebusy_request(self, start: datetime, end: datetime) -> "FreeBusy":
         """
@@ -1039,10 +1042,12 @@ class Calendar(DAVObject):
         ## recommendation not to use comp_filter.  We're still using
         ## comp_filter internally, but it's OK, it doesn't need to be
         ## validated.
-        
+
         ## Lots of old logic has been removed, I think the search method does things
         ## much the same way:
-        items_found = self.search(comp_class=comp_class, filters=comp_filter, uid=uid, _hacks="insist")
+        items_found = self.search(
+            comp_class=comp_class, filters=comp_filter, uid=uid, _hacks="insist"
+        )
 
         # Ref Lucas Verney, we've actually done a substring search, if the
         # uid given in the query is short (i.e. just "0") we're likely to
@@ -1064,7 +1069,7 @@ class Calendar(DAVObject):
             raise error.NotFoundError("%s not found on server" % uid)
         error.assert_(len(items_found2) == 1)
         return items_found2[0]
-        
+
     def todo_by_uid(self, uid: str) -> "CalendarObjectResource":
         """
         Returns the task with the given uid (wraps around :class:`object_by_uid`)
