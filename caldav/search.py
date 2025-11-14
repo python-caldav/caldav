@@ -81,7 +81,7 @@ class ComponentSearcher:
     _property_filters: dict = field(default_factory=dict)
     _property_operator: dict = field(default_factory=dict)
 
-    def add_property_filter(self, key: str, value: Any, operator: str = "==") -> None:
+    def add_property_filter(self, key: str, value: Any, operator: str = "contains") -> None:
         """Adds a filter for some specific iCalendar property.
 
         An iCalendar property should not be confused with a CalDAV
@@ -94,7 +94,7 @@ class ComponentSearcher:
 
         """
         ## some day in the future, perhaps we'll implement support for comparative operators ...
-        assert operator in ("==", "undef")
+        assert operator in ("contains", "undef")
         if operator != "undef":
             self._property_filters[key] = TypesFactory.for_property(key)(value)
         self._property_operator[key] = operator
