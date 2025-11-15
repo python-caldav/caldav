@@ -7,6 +7,7 @@ from typing import Any
 from typing import List
 from typing import Optional
 
+from icalendar_searcher import Searcher
 from icalendar.prop import TypesFactory
 from lxml import etree
 
@@ -23,93 +24,49 @@ from .lib import error
 TypesFactory = TypesFactory()
 
 
-@dataclass
-class ComponentSearcher:
-    """The primary purpose of this class is to bundle together all
-    search filters plus sort options to be used in calendar searches.
-    I also have long-term plans to allow for comparative filtering,
-    logical OR, etc.  Things that are not supported by the CalDAV
-    protocol can still be done client-side.  Over time I'm going to
-    support other protocols that may or may not support more advanced
-    searches.
+class CalDAVSearcher(Searcher):
+    """The baseclass (which is generic, and not CalDAV-specific)
+    allows building up a search query search logic.
 
-    For simple searches, the old way to do it will always work:
-    ``calendar.search(from=..., to=..., ...)``
-    This class offers an alternative way, this should be equivalent:
+    The base class also allows for simple client-side filtering (and
+    at some point in the future, more complex client-side filtering).
+
+    The CalDAV protocol is difficult, ambigiuous and does not offer
+    all kind of searches.  Client-side filtering may be needed to
+    smoothen over differences in how the different servers handle
+    search queries, as well as allowing for more complex searches.
+
+    A search may be performed by first setting up a CalDAVSearcher,
+    populate it with filter options, and then initiate the search from
+    he CalDAVSearcher.  Something like this (see the doc in the base
+    class):
+
     ``ComponentSearchFilter(from=..., to=...).search(calendar)``
 
-    icalendar properties are not meant to be sent through the
-    constructor, use the ``add_property_filter`` method.  Same
-    goes with sort keys, they can be added through the ``add_sort_key`` method.
-
+    However, for simple searches, the old way to
+    do it will always work:
+    
+    ``calendar.search(from=..., to=..., ...)``
+    
     The ``todo``, ``event`` and ``journal`` parameters are booleans
     for filtering the component type.  It's currently recommended to
-    set one and only one of them to True.  If i.e. both todo and
-    journal is set to True, everything but events should be returned,
-    but don't expect this to work as of 2025-11.  If none er given
-    (the default), all objects should be returned.  The latter depends
-    either on the server implementation or that the correct
-    ``compatibility_hints`` is configured for the caldav server.
+    set one and only one of them to True, as of 2025-11 there is no
+    guarantees for correct behaviour if setting two of them.  Also, if
+    none is given (the default), all objects should be returned -
+    however, all examples in the CalDAV RFC filters things by
+    component, and the different servers do different things when
+    confronted with a search missing component type.  With the correct
+    ``compatibility_hints`` (``davclient.features``) configured for
+    the caldav server, the algorithms will ensure correct behaviour.
 
-    For ``todo``, ``include_completed`` defaults to None, adding
-    logic for filtering out those.
-
-    ``start`` and ``end`` is giving a time range as defined in
-    RFC4791, section 9.9.  Note that those must be timestamps
-    and cannot be dates (as for now).
-
-    ``alarm_start`` and ``alarm_end`` is similar for alarm searching
-
-    If ``expand`` is set to True, recurring objects will be expanded
-    into reccurence objects.  This is only applicable if used together
-    with both ``start`` and ``end``.  Recommended.
+    Both the iCalendar standard and the (Cal)DAV standard defines
+    "properties".  Make sure not to confuse those.  iCalendar
+    properties used for filtering can be passed using
+    ``searcher.add_property_filter``.
     """
 
-    todo: bool = None
-    event: bool = None
-    journal: bool = None
-    start: datetime = None
-    end: datetime = None
-    alarm_start: datetime = None
-    alarm_end: datetime = None
-    comp_class: CalendarObjectResource = None
-    include_completed: bool = None
 
-    expand: bool = False
-
-    _sort_keys: list = field(default_factory=list)
-    _property_filters: dict = field(default_factory=dict)
-    _property_operator: dict = field(default_factory=dict)
-
-    def add_property_filter(self, key: str, value: Any, operator: str = "contains") -> None:
-        """Adds a filter for some specific iCalendar property.
-
-        An iCalendar property should not be confused with a CalDAV
-        property.  Examples of valid iCalendar properties: SUMMARY,
-        LOCATION, DESCRIPTION, DTSTART, STATUS, CLASS, etc
-
-        :param key: must be an icalendar property, i.e. SUMMARY
-        :param value: must adhere to the type defined in the RFC
-        :param operator: only == supported as for now
-
-        """
-        ## some day in the future, perhaps we'll implement support for comparative operators ...
-        assert operator in ("contains", "undef")
-        if operator != "undef":
-            self._property_filters[key] = TypesFactory.for_property(key)(value)
-        self._property_operator[key] = operator
-
-    def add_sort_key(self, key: str, reversed: bool = None) -> None:
-        """
-        The sort key should be an icalendar property.
-        """
-        assert key in TypesFactory.types_map or key in ("isnt_overdue", "hasnt_started")
-        self._sort_keys.append((key, reversed))
-
-    def filter(*args, **kwargs):
-        raise NotImplementedError()
-
-    def _search_caldav_with_comptypes(
+    def _search_with_comptypes(
         self,
         calendar: Calendar,
         server_expand: bool = False,
@@ -129,14 +86,14 @@ class ComponentSearcher:
         objects = []
         for comp_class in (Event, Todo, Journal):
             clone.comp_class = comp_class
-            objects += clone.search_caldav(
+            objects += clone.search(
                 calendar, server_expand, split_expanded, props, xml
             )
         self.sort_objects(objects)
         return objects
 
     ## TODO: refactor, split more logic out in smaller methods
-    def search_caldav(
+    def search(
         self,
         calendar: Calendar,
         server_expand: bool = False,
@@ -148,9 +105,9 @@ class ComponentSearcher:
         """Do the search on a CalDAV calendar.
 
         Only CalDAV-specific parameters goes to this method.  Those
-        parameters are pretty obscure - mostly for power users.
-        Unless you have some very special needs, the recommendation is
-        to not use those.
+        parameters are pretty obscure - mostly for power users and
+        internal usage.  Unless you have some very special needs, the
+        recommendation is to not use those.
 
         :param calendar: Calendar to be searched
         :param server_expand: Ask the CalDAV server to expand recurrences
@@ -159,14 +116,12 @@ class ComponentSearcher:
         :param xml: XML query to be sent to the server (string or elements)
         :param _hacks: Please don't ask!
 
+        Make sure not to confuse he CalDAV properties with iCalendar properties.
+
         If xml is given, any other filtering will not be sent to the server.
         They may still be applied through client-side filtering. (TODO: work in progress)
 
-        caldav search is the default search as for now - so we have an alias for it ``search``.
-
-        ``searcher.search(calendar)`` will always work, but no future guarantees are given
-        that the caldav parameters can be added.
-
+        ``searcher.search(calendar)`` to apply the search on a caldav server.
         """
         if self.expand or server_expand:
             if not self.start or not self.end:
@@ -178,7 +133,7 @@ class ComponentSearcher:
             if self.start or self.end:
                 if self._property_filters:
                     clone = replace(self, _property_filters={})
-                    objects = clone.search_caldav(
+                    objects = clone.search(
                         calendar, server_expand, split_expanded, props, xml
                     )
                     return self.filter(objects)
@@ -237,7 +192,7 @@ class ComponentSearcher:
                 ):
                     ## The algorithm below does not handle recurrence split gently
                     matches.extend(
-                        clone.search_caldav(
+                        clone.search(
                             calendar,
                             server_expand,
                             split_expanded=False,
@@ -248,7 +203,7 @@ class ComponentSearcher:
                     )
             else:
                 ## The algorithm below does not handle recurrence split gently
-                matches = clone.search_caldav(
+                matches = clone.search(
                     calendar,
                     server_expand,
                     split_expanded=False,
@@ -287,7 +242,7 @@ class ComponentSearcher:
                 if self.include_completed is None:
                     self.include_completed = True
 
-                return self._search_caldav_with_comptypes(
+                return self._search_with_comptypes(
                     calendar, server_expand, split_expanded, props, orig_xml, _hacks
                 )
 
@@ -304,14 +259,14 @@ class ComponentSearcher:
                     and not self.comp_class
                     and not "400" in err.reason
                 ):
-                    return self._search_caldav_with_comptypes(
+                    return self._search_with_comptypes(
                         calendar, server_expand, split_expanded, props, orig_xml, _hacks
                     )
                 raise
 
             ## Some things, like `calendar.object_by_uid`, should always work, no matter if `davclient.compatibility_hints` is correctly configured or not
             if not objects and not self.comp_class and _hacks == "insist":
-                return self._search_caldav_with_comptypes(
+                return self._search_with_comptypes(
                     calendar, server_expand, split_expanded, props, orig_xml, _hacks
                 )
 
@@ -369,8 +324,6 @@ class ComponentSearcher:
 
         self.sort_objects(objects)
         return objects
-
-    search = search_caldav
 
     def build_search_xml_query(
         self, server_expand=False, props=None, filters=None, _hacks=None
@@ -515,6 +468,7 @@ class ComponentSearcher:
 
         return (root, self.comp_class)
 
+    ## TODO: move to base class
     def sort_objects(self, objects):
         def sort_key_func(x):
             ret = []

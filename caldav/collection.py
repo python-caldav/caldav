@@ -804,9 +804,9 @@ class Calendar(DAVObject):
         results if needed and returns the objects found.
 
         Refactoring 2025-11: a new class
-        class:`caldav.search.ComponentSearcher` has been made, and
+        class:`caldav.search.CalDAVSearcher` has been made, and
         this method is sort of a wrapper for
-        ComponentSearcher.search_caldav, ensuring backward
+        CalDAVSearcher.search, ensuring backward
         compatibility.  The documentation may be slightly overlapping.
 
         I believe that for simple tasks, this method will be easier to
@@ -815,7 +815,7 @@ class Calendar(DAVObject):
         continue working as it has been doing before for all
         foreseeable future.  I believe that for simple tasks, this
         method will be easier to use than to construct a
-        ComponentSearcher object and do searches from there.  The
+        CalDAVSearcher object and do searches from there.  The
         refactoring was made necessary because the parameter list to
         `search` was becoming unmanagable.  Advanced searches should
         be done via the new interface.
@@ -887,11 +887,11 @@ class Calendar(DAVObject):
 
         """
         ## Late import to avoid cyclic imports
-        from .search import ComponentSearcher
+        from .search import CalDAVSearcher
 
-        ## This is basically a wrapper for ComponentSearcher.search_caldav
+        ## This is basically a wrapper for CalDAVSearcher.search
         ## The logic below will massage the parameters in ``searchargs``
-        ## and put them into the ComponentSearcher object.
+        ## and put them into the CalDAVSearcher object.
 
         if searchargs.get("expand", True) not in (True, False):
             warnings.warn(
@@ -905,8 +905,8 @@ class Calendar(DAVObject):
                 server_expand = True
                 searchargs["expand"] = False
 
-        ## Transfer all the arguments to ComponentSearcher
-        my_searcher = ComponentSearcher()
+        ## Transfer all the arguments to CalDAVSearcher
+        my_searcher = CalDAVSearcher()
         for key in searchargs:
             assert key[0] != "_"  ## not allowed
             alias = key
@@ -937,7 +937,7 @@ class Calendar(DAVObject):
         if not xml and filters:
             xml = filters
 
-        return my_searcher.search_caldav(
+        return my_searcher.search(
             self, server_expand, split_expanded, props, xml, _hacks
         )
 
@@ -1053,7 +1053,7 @@ class Calendar(DAVObject):
         # uid given in the query is short (i.e. just "0") we're likely to
         # get false positives back from the server, we need to do an extra
         # check that the uid is correct
-        ## Todo: make support for "full text search" in the ComponentSearcher,
+        ## Todo: make support for "full text search" in the CalDAVSearcher,
         ## and move the filtering logic there
         items_found2 = []
         for item in items_found:
