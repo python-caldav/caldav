@@ -2,6 +2,10 @@
 
 Contributions are mostly welcome.  If the length of this text scares you, then I'd rather want you to skip reading and just produce a pull-request in GitHub.
 
+## GitHub
+
+The official guidelines currently involves contributors to have a GitHub account - but this is not a requirement!  If you for some reason or another don't want to use GitHub, then that's fine.  Reach out by email, IRC, matrix, signal, deltachat, telegram or whatnot.
+
 ## Considerations
 
 * Contributions that break backward compatibility will (generally) not be accepted
