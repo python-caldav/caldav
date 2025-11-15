@@ -117,7 +117,7 @@ class FeatureSet:
         "search.category": {
             "description": "Search for category should work.  This is not explicitly specified in RFC4791, but covered in section 9.7.5.  No examples targets categories explicitly, but there are some text match examples in section 7.8.6 and following sections"},
         "search.category.fullstring": {
-            "description": "searches on the full string categories.  Meaning that a search for `category='hands,feet,head'` will match if categories is set so, but it may not necessary match with `CATEGORIES:head,feet,hands`"},
+            "description": "searches on the full string categories.  Meaning that a search for `category='hands,feet,head'` will match if categories is set so, but it may not necessary match with `CATEGORIES:head,feet,hands` - TODO: Is this a feature or a bug?  It may need reconsidering.  A comma-delimited string basically means that a field has multiple values?   Ref RFC5545, section 3.3.11."},
         "search.category.fullstring.smart": {
             "description": "For an event with `CATEGORIES:hands,feet,head` we'll also get a match when searching for \"feet,hands,head\""
         },
