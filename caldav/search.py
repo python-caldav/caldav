@@ -451,6 +451,10 @@ class CalDAVSearcher(Searcher):
             if self._property_operator[property] == "undef":
                 match = cdav.NotDefined()
             else:
+                ## Perhaps this replacement is wrong.
+                ## Ref RFC5545 section 3.3.11, the comma (without backslash)
+                ## basically means the text field should be considered to contain
+                ## multiple values
                 ## TODO - TODO - TODO ... this replace-logic is weird, there may be other
                 ## dragons here
                 match = cdav.TextMatch(self._property_filters[property].to_ical().replace(b'\\,',b','))
