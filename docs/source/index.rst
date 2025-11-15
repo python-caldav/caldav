@@ -13,8 +13,10 @@ Contents
    about
    tutorial
    howtos
+   performance
    reference
    examples
+   contact
 
 ====================
  Indices and tables
