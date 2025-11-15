@@ -451,7 +451,9 @@ class CalDAVSearcher(Searcher):
             if self._property_operator[property] == "undef":
                 match = cdav.NotDefined()
             else:
-                match = cdav.TextMatch(self._property_filters[property].to_ical())
+                ## TODO - TODO - TODO ... this replace-logic is weird, there may be other
+                ## dragons here
+                match = cdav.TextMatch(self._property_filters[property].to_ical().replace(b'\\,',b','))
             filters.append(cdav.PropFilter(property.upper()) + match)
 
         if comp_filter and filters:
