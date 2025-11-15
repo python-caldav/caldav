@@ -476,53 +476,5 @@ class CalDAVSearcher(Searcher):
 
     ## TODO: move to base class
     def sort_objects(self, objects):
-        def sort_key_func(x):
-            ret = []
-            comp = x.icalendar_component
-            defaults = {
-                ## TODO: all possible non-string sort attributes needs to be listed here, otherwise we will get type errors when comparing objects with the property defined vs undefined (or maybe we should make an "undefined" object that always will compare below any other type?  Perhaps there exists such an object already?)
-                "due": "2050-01-01",
-                "dtstart": "1970-01-01",
-                "priority": 0,
-                "status": {
-                    "VTODO": "NEEDS-ACTION",
-                    "VJOURNAL": "FINAL",
-                    "VEVENT": "TENTATIVE",
-                }[comp.name],
-                "category": "",
-                ## Usage of strftime is a simple way to ensure there won't be
-                ## problems if comparing dates with timestamps
-                "isnt_overdue": not (
-                    "due" in comp
-                    and comp["due"].dt.strftime("%F%H%M%S")
-                    < datetime.now().strftime("%F%H%M%S")
-                ),
-                "hasnt_started": (
-                    "dtstart" in comp
-                    and comp["dtstart"].dt.strftime("%F%H%M%S")
-                    > datetime.now().strftime("%F%H%M%S")
-                ),
-            }
-            for sort_key, reverse in self._sort_keys:
-                val = comp.get(sort_key, None)
-                if val is None:
-                    ret.append(defaults.get(sort_key.lower(), ""))
-                    continue
-                if hasattr(val, "dt"):
-                    val = val.dt
-                elif hasattr(val, "cats"):
-                    val = ",".join(val.cats)
-                if hasattr(val, "strftime"):
-                    val = val.strftime("%F%H%M%S")
-                if reverse:
-                    if isinstance(val, str):
-                        val = val.encode()
-                        val = bytes(b ^ 0xFF for b in val)
-                    else:
-                        val = -val
-                ret.append(val)
-
-            return ret
-
         if self._sort_keys:
-            objects.sort(key=sort_key_func)
+            objects.sort(key=self.sorting_value)
