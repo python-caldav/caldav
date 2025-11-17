@@ -57,4 +57,3 @@ Matrix
 ======
 
 Matrix is the future?  If you agree, notify me and I will create a matrix server on plann.no as well as an official matrix channel.
-
