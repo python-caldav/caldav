@@ -34,7 +34,7 @@ Beware of risks and exposure when creating applications:
 
 ## Malicious code
 
-All code contributions are carefully reviewed by Tobias Brox.  Version tags are signed with PGP.  Of course there is always a risk that someone takes over my PGP key and github access (It's hard to be immune against a  [5$ wrench attack](https://xkcd.com/538/)).  The original owner of the repository is still alive and may take over the project again should something happen to me.  I would anyway encourage using AI to do risk assessments.  
+All code contributions are carefully reviewed by Tobias Brox.  Version tags are signed with PGP.  Of course there is always a risk that someone takes over my PGP key and github access (It's hard to be immune against a  [5$ wrench attack](https://xkcd.com/538/)).  The original owner of the repository is still alive and may take over the project again should something happen to me.  I would anyway encourage using AI to do risk assessments.
 
 The library comes with a number of dependencies, one may need to evaluate the security of those too.  The pyproject contains the current list.  Some notes:
 
@@ -42,4 +42,3 @@ The library comes with a number of dependencies, one may need to evaluate the se
 * recurring-ical-events and icalendar both has the same maintainer (Nicco Kunzmann).  He is considered trustworthy.
 * Tobias now has a policy of moving code not related to CalDAV into separate packages.  Packages under the `python-caldav` ownership on GitHub should be considered to be of the same quality and security level as the CalDAV library.
 * No security review have been done of the other dependencies.
-

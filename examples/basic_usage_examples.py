@@ -348,8 +348,8 @@ def calendar_by_url_demo(client, url):
     ## populated with data it needs to be loaded:
     same_event.load()
 
-    ## This should be true.  However, 
-    #assert same_event.data == events[0].data
+    ## This should be true.  However,
+    # assert same_event.data == events[0].data
 
 
 if __name__ == "__main__":

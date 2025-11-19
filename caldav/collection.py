@@ -925,7 +925,7 @@ class Calendar(DAVObject):
                 for sortkey in searchargs["sort_keys"]:
                     my_searcher.add_sort_key(sortkey, sort_reverse)
                     continue
-            elif key == 'comp_class' or key in my_searcher.__dataclass_fields__:
+            elif key == "comp_class" or key in my_searcher.__dataclass_fields__:
                 setattr(my_searcher, key, searchargs[key])
                 continue
             elif alias.startswith("no_"):
@@ -1040,7 +1040,7 @@ class Calendar(DAVObject):
         """
         ## late import to avoid cyclic dependencies
         from .search import CalDAVSearcher
-        
+
         ## 2025-11: some logic validating the comp_filter and
         ## comp_class has been removed, and replaced with the
         ## recommendation not to use comp_filter.  We're still using
@@ -1050,9 +1050,11 @@ class Calendar(DAVObject):
         ## Lots of old logic has been removed, the new search logic
         ## can do the things for us:
         searcher = CalDAVSearcher(comp_class=comp_class)
-        ## Default is substring 
-        searcher.add_property_filter('uid', uid, '==')
-        items_found = searcher.search(self, xml=comp_filter, _hacks="insist", post_filter=True)
+        ## Default is substring
+        searcher.add_property_filter("uid", uid, "==")
+        items_found = searcher.search(
+            self, xml=comp_filter, _hacks="insist", post_filter=True
+        )
 
         if not items_found:
             raise error.NotFoundError("%s not found on server" % uid)

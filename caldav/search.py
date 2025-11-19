@@ -8,8 +8,8 @@ from typing import List
 from typing import Optional
 
 from icalendar import Timezone
-from icalendar_searcher import Searcher
 from icalendar.prop import TypesFactory
+from icalendar_searcher import Searcher
 from lxml import etree
 
 from .calendarobjectresource import CalendarObjectResource
@@ -46,9 +46,9 @@ class CalDAVSearcher(Searcher):
 
     However, for simple searches, the old way to
     do it will always work:
-    
+
     ``calendar.search(from=..., to=..., ...)``
-    
+
     The ``todo``, ``event`` and ``journal`` parameters are booleans
     for filtering the component type.  It's currently recommended to
     set one and only one of them to True, as of 2025-11 there is no
@@ -65,7 +65,8 @@ class CalDAVSearcher(Searcher):
     properties used for filtering can be passed using
     ``searcher.add_property_filter``.
     """
-    def __init__(self, comp_class: "CalendarObjectResource"=None, **kwargs) -> None:
+
+    def __init__(self, comp_class: "CalendarObjectResource" = None, **kwargs) -> None:
         self.comp_class = comp_class
         super().__init__(**kwargs)
 
@@ -89,9 +90,7 @@ class CalDAVSearcher(Searcher):
         objects = []
         for comp_class in (Event, Todo, Journal):
             clone.comp_class = comp_class
-            objects += clone.search(
-                calendar, server_expand, split_expanded, props, xml
-            )
+            objects += clone.search(calendar, server_expand, split_expanded, props, xml)
         self.sort_objects(objects)
         return objects
 
@@ -103,7 +102,7 @@ class CalDAVSearcher(Searcher):
         split_expanded: bool = True,
         props: Optional[List[cdav.CalendarData]] = None,
         xml: str = None,
-        post_filter = None,
+        post_filter=None,
         _hacks: str = None,
     ) -> List[CalendarObjectResource]:
         """Do the search on a CalDAV calendar.
@@ -137,10 +136,10 @@ class CalDAVSearcher(Searcher):
 
         """
         ## Setting default value for post_filter
-        if (post_filter is None and
-            ((self.todo and not self.include_completed or
-              self.expand))):
-                post_filter = True
+        if post_filter is None and (
+            (self.todo and not self.include_completed or self.expand)
+        ):
+            post_filter = True
 
         ## split_expanded should only take effect on expanded data
         if not self.expand and not server_expand:
@@ -317,7 +316,11 @@ class CalDAVSearcher(Searcher):
                     if not filtered:
                         continue
                 else:
-                    filtered = [x for x in o.icalendar_instance.subcomponents if not isinstance(x, Timezone)]
+                    filtered = [
+                        x
+                        for x in o.icalendar_instance.subcomponents
+                        if not isinstance(x, Timezone)
+                    ]
                 i = o.icalendar_instance
                 tz_ = [x for x in i if isinstance(x, Timezone)]
                 i.subcomponents = tz_
@@ -336,7 +339,7 @@ class CalDAVSearcher(Searcher):
                     new_i.add_component(comp)
                 if not (split_expanded):
                     objects.append(o)
-            
+
         ## partial workaround for https://github.com/python-caldav/caldav/issues/201
         for obj in objects:
             try:
@@ -423,7 +426,7 @@ class CalDAVSearcher(Searcher):
                 cdav.CompFilter("VALARM")
                 + cdav.TimeRange(self.alarm_start, self.alarm_end)
             )
-            
+
         ## I've designed this badly, at different places the caller
         ## may pass the component type either as boolean flags:
         ##   `search(event=True, ...)`
@@ -435,17 +438,14 @@ class CalDAVSearcher(Searcher):
         ## Anyway, this code section ensures both comp_filter and comp_class
         ## is given.  Or at least, it tries to ensure it.
         for flag, comp_name, comp_class_ in (
-            ('event', "VEVENT", Event),
-            ('todo', "VTODO", Todo),
-            ('journal', "VJOURNAL", Journal),
+            ("event", "VEVENT", Event),
+            ("todo", "VTODO", Todo),
+            ("journal", "VJOURNAL", Journal),
         ):
             flagged = getattr(self, flag)
             if flagged:
                 ## event/journal/todo is set, we adjust comp_class accordingly
-                if (
-                    self.comp_class is not None
-                    and self.comp_class is not comp_class_
-                ):
+                if self.comp_class is not None and self.comp_class is not comp_class_:
                     raise error.ConsistencyError(
                         f"inconsistent search parameters - comp_class = {self.comp_class}, want {comp_class_}"
                     )
@@ -453,7 +453,7 @@ class CalDAVSearcher(Searcher):
 
             if comp_filter and comp_filter.attributes["name"] == comp_name:
                 self.comp_class = comp_class_
-                if flag == 'todo' and not self.todo and self.include_completed is None:
+                if flag == "todo" and not self.todo and self.include_completed is None:
                     self.include_completed = True
                 setattr(self, flag, True)
 
@@ -478,7 +478,9 @@ class CalDAVSearcher(Searcher):
                 ## multiple values
                 ## TODO - TODO - TODO ... this replace-logic is weird, there may be other
                 ## dragons here
-                match = cdav.TextMatch(self._property_filters[property].to_ical().replace(b'\\,',b','))
+                match = cdav.TextMatch(
+                    self._property_filters[property].to_ical().replace(b"\\,", b",")
+                )
             filters.append(cdav.PropFilter(property.upper()) + match)
 
         if comp_filter and filters:
