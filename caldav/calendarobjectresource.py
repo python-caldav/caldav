@@ -185,13 +185,13 @@ class CalendarObjectResource(DAVObject):
         it can't be removed easily as it's exposed as part of the
         public API
         """
-        
+
         warnings.warn(
             "obj.split_expanded is likely to be removed in a future version of caldav.  Feel free to protest if you need it",
             DeprecationWarning,
             stacklevel=2,
         )
-        
+
         i = self.icalendar_instance.subcomponents
         tz_ = [x for x in i if isinstance(x, icalendar.Timezone)]
         ntz = [x for x in i if not isinstance(x, icalendar.Timezone)]
@@ -235,7 +235,7 @@ class CalendarObjectResource(DAVObject):
             DeprecationWarning,
             stacklevel=2,
         )
-        
+
         import recurring_ical_events
 
         recurrings = recurring_ical_events.of(
