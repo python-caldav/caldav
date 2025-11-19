@@ -458,6 +458,7 @@ class CalendarObjectResource(DAVObject):
         self.load(only_if_unloaded=True)
         if not self.icalendar_instance:
             return None
+        ## PERFORMANCE TODO: no point creating a big list here
         ret = [
             x
             for x in self.icalendar_instance.subcomponents
