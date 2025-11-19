@@ -924,7 +924,7 @@ class Calendar(DAVObject):
                 for sortkey in searchargs["sort_keys"]:
                     my_searcher.add_sort_key(sortkey, sort_reverse)
                     continue
-            elif key in my_searcher.__dataclass_fields__:
+            elif key == 'comp_class' or key in my_searcher.__dataclass_fields__:
                 setattr(my_searcher, key, searchargs[key])
                 continue
             elif alias.startswith("no_"):
@@ -1037,38 +1037,26 @@ class Calendar(DAVObject):
         Returns:
          Event() or None
         """
+        ## late import to avoid cyclic dependencies
+        from .search import CalDAVSearcher
+        
         ## 2025-11: some logic validating the comp_filter and
         ## comp_class has been removed, and replaced with the
         ## recommendation not to use comp_filter.  We're still using
         ## comp_filter internally, but it's OK, it doesn't need to be
         ## validated.
 
-        ## Lots of old logic has been removed, I think the search method does things
-        ## much the same way:
-        items_found = self.search(
-            comp_class=comp_class, filters=comp_filter, uid=uid, _hacks="insist"
-        )
+        ## Lots of old logic has been removed, the new search logic
+        ## can do the things for us:
+        searcher = CalDAVSearcher(comp_class=comp_class)
+        ## Default is substring 
+        searcher.add_property_filter('uid', uid, '==')
+        items_found = searcher.search(self, xml=comp_filter, _hacks="insist", post_filter=True)
 
-        # Ref Lucas Verney, we've actually done a substring search, if the
-        # uid given in the query is short (i.e. just "0") we're likely to
-        # get false positives back from the server, we need to do an extra
-        # check that the uid is correct
-        ## Todo: make support for "full text search" in the CalDAVSearcher,
-        ## and move the filtering logic there
-        items_found2 = []
-        for item in items_found:
-            ## In v0.10.0 we used regexps here - it's probably more optimized,
-            ## but at one point it broke due to an extra CR in the data.
-            ## Usage of the icalendar library increases readability and
-            ## reliability
-            if item.icalendar_component:
-                item_uid = item.icalendar_component.get("UID", None)
-                if item_uid and item_uid == uid:
-                    items_found2.append(item)
-        if not items_found2:
+        if not items_found:
             raise error.NotFoundError("%s not found on server" % uid)
-        error.assert_(len(items_found2) == 1)
-        return items_found2[0]
+        error.assert_(len(items_found) == 1)
+        return items_found[0]
 
     def todo_by_uid(self, uid: str) -> "CalendarObjectResource":
         """

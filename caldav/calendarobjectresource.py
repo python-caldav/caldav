@@ -223,6 +223,12 @@ class CalendarObjectResource(DAVObject):
         :param end: datetime
 
         """
+        ## TODO: this has been *copied* over to the icalendar-searcher package.
+        ## Duplicated code is bad.
+        ## This code will possibly become dead as the search method will utilize
+        ## the new interface.  For backward compatibility we need to keep this
+        ## method.  So ... instantiate a search object and take it from there?
+        ## or mark this as deprecated and remove it in some future version?
         import recurring_ical_events
 
         recurrings = recurring_ical_events.of(

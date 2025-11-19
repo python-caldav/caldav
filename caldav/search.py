@@ -7,6 +7,7 @@ from typing import Any
 from typing import List
 from typing import Optional
 
+from icalendar import Timezone
 from icalendar_searcher import Searcher
 from icalendar.prop import TypesFactory
 from lxml import etree
@@ -64,7 +65,9 @@ class CalDAVSearcher(Searcher):
     properties used for filtering can be passed using
     ``searcher.add_property_filter``.
     """
-
+    def __init__(self, comp_class: "CalendarObjectResource"=None, **kwargs) -> None:
+        self.comp_class = comp_class
+        super().__init__(**kwargs)
 
     def _search_with_comptypes(
         self,
@@ -100,6 +103,7 @@ class CalDAVSearcher(Searcher):
         split_expanded: bool = True,
         props: Optional[List[cdav.CalendarData]] = None,
         xml: str = None,
+        post_filter = False,
         _hacks: str = None,
     ) -> List[CalendarObjectResource]:
         """Do the search on a CalDAV calendar.
@@ -289,32 +293,35 @@ class CalDAVSearcher(Searcher):
         ## Google sometimes returns empty objects
         objects = [o for o in objects if o.has_component()]
 
-        if self.expand:
-            ## expand can only be used together with start and end (and not
-            ## with xml).  Error checking has already been done in
-            ## build_search_xml_query above.
-            start = self.start
-            end = self.end
-
-            ## Verify that any recurring objects returned are already expanded
-            for o in objects:
-                component = o.icalendar_component
-                if component is None:
+        ## Client side filtering - in case server returned too much.
+        ## Also needed to deal with == operator
+        ## Also fixes expanding
+        objects_ = objects
+        objects = []
+        for o in objects_:
+            filtered = self.check_component(o, expand_only=not post_filter)
+            if not filtered:
+                continue
+            i = o.icalendar_instance
+            tz_ = [x for x in i if isinstance(x, Timezone)]
+            i.subcomponents = tz_
+            for comp in filtered:
+                if isinstance(comp, Timezone):
                     continue
-                recurrence_properties = ["exdate", "exrule", "rdate", "rrule"]
-                if any(key in component for key in recurrence_properties):
-                    o.expand_rrule(start, end, include_completed=self.include_completed)
+                if self.expand and split_expanded:
+                    new_obj = o.copy(keep_uid=True)
+                    new_i = new_obj.icalendar_instance
+                    new_i.subcomponents = []
+                    for tz in tz_:
+                        new_i.add_component(tz)
+                    objects.append(new_obj)
+                else:
+                    new_i = i
+                new_i.add_component(comp)
+            if not (self.expand and split_expanded):
+                objects.append(o)
 
-            ## An expanded recurring object comes as one Event() with
-            ## icalendar data containing multiple objects.  The caller may
-            ## expect multiple Event()s.  This code splits events into
-            ## separate objects:
-        if (self.expand or server_expand) and split_expanded:
-            objects_ = objects
-            objects = []
-            for o in objects_:
-                objects.extend(o.split_expanded())
-
+            
         ## partial workaround for https://github.com/python-caldav/caldav/issues/201
         for obj in objects:
             try:
@@ -401,7 +408,7 @@ class CalDAVSearcher(Searcher):
                 cdav.CompFilter("VALARM")
                 + cdav.TimeRange(self.alarm_start, self.alarm_end)
             )
-
+            
         ## I've designed this badly, at different places the caller
         ## may pass the component type either as boolean flags:
         ##   `search(event=True, ...)`
@@ -412,11 +419,12 @@ class CalDAVSearcher(Searcher):
         ## The only thing I don't support is the component name ('VEVENT').
         ## Anyway, this code section ensures both comp_filter and comp_class
         ## is given.  Or at least, it tries to ensure it.
-        for flagged, comp_name, comp_class_ in (
-            (self.event, "VEVENT", Event),
-            (self.todo, "VTODO", Todo),
-            (self.journal, "VJOURNAL", Journal),
+        for flag, comp_name, comp_class_ in (
+            ('event', "VEVENT", Event),
+            ('todo', "VTODO", Todo),
+            ('journal', "VJOURNAL", Journal),
         ):
+            flagged = getattr(self, flag)
             if flagged is not None:
                 if not flagged:
                     raise NotImplementedError(
@@ -435,6 +443,7 @@ class CalDAVSearcher(Searcher):
 
             if comp_filter and comp_filter.attributes["name"] == comp_name:
                 self.comp_class = comp_class_
+                setattr(self, flag, True)
 
             if self.comp_class == comp_class_:
                 if comp_filter:
