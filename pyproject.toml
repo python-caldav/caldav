@@ -37,7 +37,7 @@ dependencies = [
   "recurring-ical-events>=2.0.0",
   "typing_extensions;python_version<'3.11'",
   "icalendar>6.0.0",
-  #"icalendar-searcher", ## not released at pypi yet
+  "icalendar-searcher>=0.1.0",
 ]
 dynamic = ["version"]
 

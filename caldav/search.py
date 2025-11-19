@@ -103,7 +103,7 @@ class CalDAVSearcher(Searcher):
         split_expanded: bool = True,
         props: Optional[List[cdav.CalendarData]] = None,
         xml: str = None,
-        post_filter = False,
+        post_filter = None,
         _hacks: str = None,
     ) -> List[CalendarObjectResource]:
         """Do the search on a CalDAV calendar.
@@ -118,15 +118,34 @@ class CalDAVSearcher(Searcher):
         :param split_expanded: Don't collect a recurrence set in one ical calendar
         :param props: CalDAV properties to send in the query
         :param xml: XML query to be sent to the server (string or elements)
+        :param post_filter: Do client-side filtering after querying the server
         :param _hacks: Please don't ask!
 
         Make sure not to confuse he CalDAV properties with iCalendar properties.
 
-        If xml is given, any other filtering will not be sent to the server.
+        If ``xml`` is given, any other filtering will not be sent to the server.
         They may still be applied through client-side filtering. (TODO: work in progress)
 
+        ``post_filter`` takes three values, ``True`` will always
+        filter the results, ``False`` will never filter the results,
+        and the default ``None`` will cause automagics to happen (not
+        implemented yet).  Or perhaps I'll just set it to True as
+        default.  TODO - make a decision here
+
+
         ``searcher.search(calendar)`` to apply the search on a caldav server.
+
         """
+        ## Setting default value for post_filter
+        if (post_filter is None and
+            ((self.todo and not self.include_completed or
+              self.expand))):
+                post_filter = True
+
+        ## split_expanded should only take effect on expanded data
+        if not self.expand and not server_expand:
+            split_expanded = False
+
         if self.expand or server_expand:
             if not self.start or not self.end:
                 raise error.ReportError("can't expand without a date range")
@@ -220,14 +239,7 @@ class CalDAVSearcher(Searcher):
             for item in matches:
                 if item.url not in match_set:
                     match_set.add(item.url)
-                    ## Client-side filtering is probably cheap, so we'll do it
-                    ## even when it shouldn't be needed.
-                    ## (can we assert all tasks have a valid STATUS field?)
-                    if any(
-                        x.get("STATUS") not in ("COMPLETED", "CANCELLED")
-                        for x in item.icalendar_instance.subcomponents
-                    ):
-                        objects.append(item)
+                    objects.append(item)
         else:
             orig_xml = xml
 
@@ -296,31 +308,34 @@ class CalDAVSearcher(Searcher):
         ## Client side filtering - in case server returned too much.
         ## Also needed to deal with == operator
         ## Also fixes expanding
-        objects_ = objects
-        objects = []
-        for o in objects_:
-            filtered = self.check_component(o, expand_only=not post_filter)
-            if not filtered:
-                continue
-            i = o.icalendar_instance
-            tz_ = [x for x in i if isinstance(x, Timezone)]
-            i.subcomponents = tz_
-            for comp in filtered:
-                if isinstance(comp, Timezone):
-                    continue
-                if self.expand and split_expanded:
-                    new_obj = o.copy(keep_uid=True)
-                    new_i = new_obj.icalendar_instance
-                    new_i.subcomponents = []
-                    for tz in tz_:
-                        new_i.add_component(tz)
-                    objects.append(new_obj)
+        if post_filter or self.expand or (split_expanded and server_expand):
+            objects_ = objects
+            objects = []
+            for o in objects_:
+                if self.expand or post_filter:
+                    filtered = self.check_component(o, expand_only=not post_filter)
+                    if not filtered:
+                        continue
                 else:
-                    new_i = i
-                new_i.add_component(comp)
-            if not (self.expand and split_expanded):
-                objects.append(o)
-
+                    filtered = [x for x in o.icalendar_instance.subcomponents if not isinstance(x, Timezone)]
+                i = o.icalendar_instance
+                tz_ = [x for x in i if isinstance(x, Timezone)]
+                i.subcomponents = tz_
+                for comp in filtered:
+                    if isinstance(comp, Timezone):
+                        continue
+                    if split_expanded:
+                        new_obj = o.copy(keep_uid=True)
+                        new_i = new_obj.icalendar_instance
+                        new_i.subcomponents = []
+                        for tz in tz_:
+                            new_i.add_component(tz)
+                        objects.append(new_obj)
+                    else:
+                        new_i = i
+                    new_i.add_component(comp)
+                if not (split_expanded):
+                    objects.append(o)
             
         ## partial workaround for https://github.com/python-caldav/caldav/issues/201
         for obj in objects:
@@ -425,24 +440,21 @@ class CalDAVSearcher(Searcher):
             ('journal', "VJOURNAL", Journal),
         ):
             flagged = getattr(self, flag)
-            if flagged is not None:
-                if not flagged:
-                    raise NotImplementedError(
-                        f"Negated search for {comp_name} not supported yet"
+            if flagged:
+                ## event/journal/todo is set, we adjust comp_class accordingly
+                if (
+                    self.comp_class is not None
+                    and self.comp_class is not comp_class_
+                ):
+                    raise error.ConsistencyError(
+                        f"inconsistent search parameters - comp_class = {self.comp_class}, want {comp_class_}"
                     )
-                if flagged:
-                    ## event/journal/todo is set, we adjust comp_class accordingly
-                    if (
-                        self.comp_class is not None
-                        and self.comp_class is not comp_class_
-                    ):
-                        raise error.ConsistencyError(
-                            f"inconsistent search parameters - comp_class = {self.comp_class}, want {comp_class_}"
-                        )
-                    self.comp_class = comp_class_
+                self.comp_class = comp_class_
 
             if comp_filter and comp_filter.attributes["name"] == comp_name:
                 self.comp_class = comp_class_
+                if flag == 'todo' and not self.todo and self.include_completed is None:
+                    self.include_completed = True
                 setattr(self, flag, True)
 
             if self.comp_class == comp_class_:

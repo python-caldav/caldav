@@ -797,6 +797,7 @@ class Calendar(DAVObject):
         sort_reverse: bool = False,
         props: Optional[List[cdav.CalendarData]] = None,
         filters=None,
+        post_filter=None,
         _hacks=None,
         **searchargs,
     ) -> List[_CC]:
@@ -938,7 +939,7 @@ class Calendar(DAVObject):
             xml = filters
 
         return my_searcher.search(
-            self, server_expand, split_expanded, props, xml, _hacks
+            self, server_expand, split_expanded, props, xml, post_filter, _hacks
         )
 
     def freebusy_request(self, start: datetime, end: datetime) -> "FreeBusy":
