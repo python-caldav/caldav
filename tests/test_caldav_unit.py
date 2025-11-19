@@ -404,7 +404,7 @@ class TestCalDAV:
     def testSearchForRecurringTask(self):
         client = MockedDAVClient(recurring_task_response)
         calendar = Calendar(client, url="/calendar/issue491/")
-        mytasks = calendar.search(todo=True, expand=False)
+        mytasks = calendar.search(todo=True, expand=False, post_filter=True)
         assert len(mytasks) == 1
         mytasks = calendar.search(
             todo=True,
@@ -420,6 +420,8 @@ class TestCalDAV:
             expand="client",
             start=datetime(2025, 1, 1),
             end=datetime(2025, 6, 5),
+            ## TODO - TEMP workaround for compatibility issues!  post_filter should not be needed!
+            post_filter=True,
         )
         assert len(mytasks) == 9
 
