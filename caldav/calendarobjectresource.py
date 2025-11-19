@@ -176,20 +176,22 @@ class CalendarObjectResource(DAVObject):
         self.icalendar_component.add("organizer", principal.get_vcal_address())
 
     def split_expanded(self) -> List[Self]:
-        """This is used internally for processing search results.
+        """This was used internally for processing search results.
         Library users probably don't need to care about this one.
 
-        In the CalDAV protocol, a VCALENDAR object returned from the
-        server may contain only one event/task/journal - but if the object is
-        recurrent, it may contain several recurrences.  This method
-        will split the recurrences into several objects.
+        The logic is now handled directly in the search method.
 
-        It's meant to be used for expanded data, where each component
-        is a recurrence, and where the recurrence set is complete for
-        some given time range.  However, it will also work on a
-        non-expanded object, containing the "master" component first
-        followed by "special" recurrences.
+        This method is probably used by nobody and nothing, but
+        it can't be removed easily as it's exposed as part of the
+        public API
         """
+        
+        warnings.warn(
+            "obj.split_expanded is likely to be removed in a future version of caldav.  Feel free to protest if you need it",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        
         i = self.icalendar_instance.subcomponents
         tz_ = [x for x in i if isinstance(x, icalendar.Timezone)]
         ntz = [x for x in i if not isinstance(x, icalendar.Timezone)]
@@ -224,11 +226,16 @@ class CalendarObjectResource(DAVObject):
 
         """
         ## TODO: this has been *copied* over to the icalendar-searcher package.
-        ## Duplicated code is bad.
-        ## This code will possibly become dead as the search method will utilize
-        ## the new interface.  For backward compatibility we need to keep this
-        ## method.  So ... instantiate a search object and take it from there?
-        ## or mark this as deprecated and remove it in some future version?
+        ## This code was previously used internally by the search.
+        ## By now it's probably dead code, used by nothing and nobody.
+        ## Since it's exposed as part of the API, I cannot delete it, but I can
+        ## deprecate it.
+        warnings.warn(
+            "obj.expand_rrule is likely to be removed in a future version of caldav.  Feel free to protest if you need it",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        
         import recurring_ical_events
 
         recurrings = recurring_ical_events.of(

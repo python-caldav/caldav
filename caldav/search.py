@@ -110,7 +110,7 @@ class CalDAVSearcher(Searcher):
         Only CalDAV-specific parameters goes to this method.  Those
         parameters are pretty obscure - mostly for power users and
         internal usage.  Unless you have some very special needs, the
-        recommendation is to not use those.
+        recommendation is to not pass anything but the calendar.
 
         :param calendar: Calendar to be searched
         :param server_expand: Ask the CalDAV server to expand recurrences
@@ -131,8 +131,14 @@ class CalDAVSearcher(Searcher):
         implemented yet).  Or perhaps I'll just set it to True as
         default.  TODO - make a decision here
 
+        In the CalDAV protocol, a VCALENDAR object returned from the
+        server may contain only one event/task/journal - but if the
+        object is recurrent, it may contain several recurrences.
+        ``split_expanded`` will split the recurrences into several
+        objects.  If you don't know what you're doing, then leave this
+        flag on.
 
-        ``searcher.search(calendar)`` to apply the search on a caldav server.
+        Use ``searcher.search(calendar)`` to apply the search on a caldav server.
 
         """
         ## Setting default value for post_filter
