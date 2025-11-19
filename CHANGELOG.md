@@ -22,11 +22,27 @@ I'm still working on "compatibility hints".  Unfortunately, documentation is sti
 * Use `features: nextcloud` and `url: my.nextcloud.provider.eu` instead of `url: https://my.nextcloud.provider.eu/remote.php/dav`
 * The library will work around some known issues dependent on what feature-set it's given.
 
+Searching may now be done by creating a `caldav.CalDAVSearcher` object and do a `searcher.search(cal)` instead of doing `cal.search(...)`.  However, there are no plans to deprecate the latter method.  Major refactoring work has been done here, and some of the logic has been moved to a new package icalendar-searcher.
+
+## Breaking Changes
+
+Some code has been split out into a new package - `icalendar-searcher`.  This does not affect compatibility, hence it's not needed to bump the major version number, but if you manage the dependencies manually it may still cause things to break.
+
+## Deprecations
+
+* `Event.expand_rrule` will be removed in some future release, unless someone protests.
+* `Event.split_expanded` too.  Both of them were used internally, now it's not.  It's dead code, most lkely nobody and nothing is using them.
+
+## Changed
+
+* Major refactoring!  Some of the logic has been pushed out of the CalDAV package and into a new package, icalendar-searcher.  New logic for doing client-side filtering of search results have also been added to that package.
+
 ## Added
 
 * The client connection parameter `features` may now simply be a string label referencing a well-known server or cloud solution - like `features: posteo`.  https://github.com/python-caldav/caldav/pull/561
 * The client connection parameter `url` is no longer needed when referencing a well-known cloud solution. https://github.com/python-caldav/caldav/pull/561
 * The client connection parameter `url` may contain just the domain name (without any slashes) and the URL will be constructed, if referencing a well-known caldav server implementation. https://github.com/python-caldav/caldav/pull/561
+* New interface for searches.  `mysearcher = caldav.CalDAVSearcher(...) ; mysearcher.add_property_filter(...) ; mysearcher.search(calendar)`.  May be useful for complicated searches.
 
 ## [2.1.2] - [2025-11-08]
 
