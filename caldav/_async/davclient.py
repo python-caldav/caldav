@@ -445,20 +445,31 @@ class AsyncDAVClient:
         return url
 
     async def _get_client(self) -> httpx.AsyncClient:
-        """Get or create the httpx AsyncClient."""
-        if self._client is None:
-            transport = None
-            if self._proxy:
-                transport = httpx.AsyncHTTPTransport(proxy=self._proxy)
+        """Get or create the httpx AsyncClient.
 
-            self._client = httpx.AsyncClient(
-                auth=self.auth,
-                timeout=self.timeout,
-                verify=self.ssl_verify_cert,
-                cert=self.ssl_cert,
-                transport=transport,
-            )
-        return self._client
+        When used from sync wrappers (via anyio.run()), we need to create
+        a fresh client each time because the connection pool gets invalidated
+        when the event loop closes.
+        """
+        # Always create a fresh client to avoid event loop issues
+        # The overhead is minimal compared to connection establishment
+        transport = None
+        if self._proxy:
+            transport = httpx.AsyncHTTPTransport(proxy=self._proxy)
+
+        # Disable connection pooling to avoid stale connections
+        # when used from sync context with multiple anyio.run() calls
+        limits = httpx.Limits(max_keepalive_connections=0)
+
+        client = httpx.AsyncClient(
+            auth=self.auth,
+            timeout=self.timeout,
+            verify=self.ssl_verify_cert,
+            cert=self.ssl_cert,
+            transport=transport,
+            limits=limits,
+        )
+        return client
 
     async def __aenter__(self) -> Self:
         await self._get_client()
@@ -518,7 +529,6 @@ class AsyncDAVClient:
         This is the core method that all other HTTP methods use.
         """
         headers = headers or {}
-        client = await self._get_client()
 
         combined_headers = dict(self.headers)
         combined_headers.update(headers or {})
@@ -533,49 +543,57 @@ class AsyncDAVClient:
             )
         )
 
-        try:
-            r = await client.request(
-                method,
-                str(url_obj),
-                content=to_wire(body) if body else None,
-                headers=combined_headers,
-            )
-            log.debug("server responded with %i %s" % (r.status_code, r.reason_phrase))
-
-            if (
-                r.status_code == 401
-                and "text/html" in self.headers.get("Content-Type", "")
-                and not self.auth
-            ):
-                msg = (
-                    "No authentication object was provided. "
-                    "HTML was returned when probing the server for supported authentication types."
+        # Create a fresh client for each request to avoid event loop issues
+        # when used from sync context with multiple anyio.run() calls
+        async with await self._get_client() as client:
+            try:
+                r = await client.request(
+                    method,
+                    str(url_obj),
+                    content=to_wire(body) if body else None,
+                    headers=combined_headers,
                 )
-                if r.headers.get("WWW-Authenticate"):
-                    auth_types = [
-                        t
-                        for t in self.extract_auth_types(r.headers["WWW-Authenticate"])
-                        if t in ["basic", "digest", "bearer"]
-                    ]
-                    if auth_types:
-                        msg += "\nSupported authentication types: %s" % (
-                            ", ".join(auth_types)
-                        )
-                log.warning(msg)
-            response = DAVResponse(r, self)
-        except httpx.RequestError:
-            if self.auth or not self.password:
-                raise
-            # Workaround for servers that abort connection instead of 401
-            r = await client.request(
-                method="GET",
-                url=str(url_obj),
-                headers=combined_headers,
-            )
-            if r.status_code != 401:
-                raise
+                log.debug(
+                    "server responded with %i %s" % (r.status_code, r.reason_phrase)
+                )
 
-        # Handle authentication
+                if (
+                    r.status_code == 401
+                    and "text/html" in self.headers.get("Content-Type", "")
+                    and not self.auth
+                ):
+                    msg = (
+                        "No authentication object was provided. "
+                        "HTML was returned when probing the server for supported authentication types."
+                    )
+                    if r.headers.get("WWW-Authenticate"):
+                        auth_types = [
+                            t
+                            for t in self.extract_auth_types(
+                                r.headers["WWW-Authenticate"]
+                            )
+                            if t in ["basic", "digest", "bearer"]
+                        ]
+                        if auth_types:
+                            msg += "\nSupported authentication types: %s" % (
+                                ", ".join(auth_types)
+                            )
+                    log.warning(msg)
+                response = DAVResponse(r, self)
+            except httpx.RequestError:
+                if self.auth or not self.password:
+                    raise
+                # Workaround for servers that abort connection instead of 401
+                r = await client.request(
+                    method="GET",
+                    url=str(url_obj),
+                    headers=combined_headers,
+                )
+                if r.status_code != 401:
+                    raise
+                response = DAVResponse(r, self)
+
+        # Handle authentication (outside the client context - will create new client if needed)
         if (
             r.status_code == 401
             and "WWW-Authenticate" in r.headers
@@ -590,11 +608,6 @@ class AsyncDAVClient:
                     "The server does not provide any of the currently "
                     "supported authentication methods: basic, digest, bearer"
                 )
-
-            # Recreate client with new auth
-            if self._client:
-                await self._client.aclose()
-                self._client = None
 
             return await self.request(url, method, body, headers)
 
@@ -612,11 +625,6 @@ class AsyncDAVClient:
 
             self.username = None
             self.password = None
-
-            # Recreate client with new auth
-            if self._client:
-                await self._client.aclose()
-                self._client = None
 
             return await self.request(str(url_obj), method, body, headers)
 

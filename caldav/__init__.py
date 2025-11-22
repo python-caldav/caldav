@@ -10,7 +10,9 @@ except ModuleNotFoundError:
     warnings.warn(
         "You need to install the `build` package and do a `python -m build` to get caldav.__version__ set correctly"
     )
-from .davclient import DAVClient
+
+# Import from the new async-first implementation with sync wrappers
+from ._sync.davclient import DAVClient
 from .search import CalDAVSearcher
 
 ## TODO: this should go away in some future version of the library.
