@@ -263,6 +263,23 @@ class AsyncCalendarObjectResource(AsyncDAVObject):
             or self._icalendar_instance
         )
 
+    def has_component(self):
+        """
+        Returns True if there exists a VEVENT, VTODO or VJOURNAL in the data.
+        Returns False if it's only a VFREEBUSY, VTIMEZONE or unknown components.
+
+        Used internally after search to remove empty search results.
+        """
+        return (
+            self._data
+            or self._vobject_instance
+            or (self._icalendar_instance and self.icalendar_component)
+        ) and self.data.count("BEGIN:VEVENT") + self.data.count(
+            "BEGIN:VTODO"
+        ) + self.data.count(
+            "BEGIN:VJOURNAL"
+        ) > 0
+
     def _find_id_path(self, id=None, path=None) -> None:
         """Find or generate UID and path."""
         i = self._get_icalendar_component(assert_one=False)

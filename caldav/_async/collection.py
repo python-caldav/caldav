@@ -448,6 +448,51 @@ class AsyncCalendar(AsyncDAVObject):
             )
         return self
 
+    async def _request_report_build_resultlist(
+        self, xml, comp_class=None, props=None, no_calendardata=False
+    ):
+        """
+        Takes some input XML, does a report query on a calendar object
+        and returns the resource objects found.
+        """
+        from caldav._async.calendarobjectresource import AsyncCalendarObjectResource
+
+        matches = []
+        if props is None:
+            props_ = [cdav.CalendarData()]
+        else:
+            props_ = [cdav.CalendarData()] + props
+        response = await self._query(xml, 1, "report")
+        results = response.expand_simple_props(props_)
+        for r in results:
+            pdata = results[r]
+            if cdav.CalendarData.tag in pdata:
+                cdata = pdata.pop(cdav.CalendarData.tag)
+                comp_class_ = (
+                    self._calendar_comp_class_by_data(cdata)
+                    if comp_class is None
+                    else comp_class
+                )
+            else:
+                cdata = None
+            if comp_class_ is None:
+                comp_class_ = AsyncCalendarObjectResource
+            url = URL(r)
+            if url.hostname is None:
+                url = quote(r)
+            if self.url.join(url) == self.url:
+                continue
+            matches.append(
+                comp_class_(
+                    self.client,
+                    url=self.url.join(url),
+                    data=cdata,
+                    parent=self,
+                    props=pdata,
+                )
+            )
+        return (response, matches)
+
     async def search(
         self,
         xml: str = None,
