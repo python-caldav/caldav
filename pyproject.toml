@@ -33,7 +33,8 @@ classifiers = [
 
 dependencies = [
   "lxml",
-  "niquests",
+  "httpx>=0.25.0",
+  "anyio>=4.0.0",
   "recurring-ical-events>=2.0.0",
   "typing_extensions;python_version<'3.11'",
   "icalendar>6.0.0",
