@@ -161,7 +161,7 @@ class AsyncCalendarObjectResource(AsyncDAVObject):
             return to_wire(self._icalendar_instance.to_ical())
         return None
 
-    data: Any = property(_get_data, _set_data, doc="vCal representation")
+    data: str = property(_get_data, _set_data, doc="vCal representation")
     wire_data = property(_get_wire_data, _set_data, doc="vCal in wire format")
 
     def _set_vobject_instance(self, inst):
