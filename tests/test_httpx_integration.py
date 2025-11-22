@@ -5,11 +5,18 @@ Simple integration tests for the httpx async-first implementation.
 Tests both sync and async clients against a live CalDAV server.
 Requires a running CalDAV server (e.g., Nextcloud, Radicale).
 
+These tests are skipped by default unless CALDAV_TEST_URL is set,
+or a server is reachable at the default URL.
+
 Usage:
+    # With explicit server URL
+    CALDAV_TEST_URL=http://localhost:8080/remote.php/dav pytest tests/test_httpx_integration.py -v
+
+    # Or just run if server is at default location
     pytest tests/test_httpx_integration.py -v
 
 Environment variables:
-    CALDAV_URL - CalDAV server URL (default: http://localhost:8080/remote.php/dav)
+    CALDAV_TEST_URL - CalDAV server URL (enables tests when set)
     CALDAV_USER - Username (default: admin)
     CALDAV_PASS - Password (default: admin)
 """
@@ -21,9 +28,33 @@ from datetime import timedelta
 import pytest
 
 # Test configuration from environment or defaults
-CALDAV_URL = os.environ.get("CALDAV_URL", "http://localhost:8080/remote.php/dav")
+# Use CALDAV_TEST_URL to explicitly enable these tests
+CALDAV_URL = os.environ.get("CALDAV_TEST_URL", "http://localhost:8080/remote.php/dav")
 CALDAV_USER = os.environ.get("CALDAV_USER", "admin")
 CALDAV_PASS = os.environ.get("CALDAV_PASS", "admin")
+
+
+def _server_reachable():
+    """Check if the CalDAV server is reachable."""
+    try:
+        import httpx
+
+        with httpx.Client(timeout=5.0) as client:
+            response = client.get(CALDAV_URL)
+            # Accept any response - server is reachable
+            return True
+    except Exception:
+        return False
+
+
+# Skip all tests in this module if server not reachable and not explicitly enabled
+_explicit_url = "CALDAV_TEST_URL" in os.environ
+_server_available = _server_reachable() if not _explicit_url else True
+
+pytestmark = pytest.mark.skipif(
+    not _explicit_url and not _server_available,
+    reason="CalDAV server not available. Set CALDAV_TEST_URL to enable.",
+)
 
 
 # Sample iCalendar data
