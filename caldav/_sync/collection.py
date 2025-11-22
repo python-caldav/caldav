@@ -343,19 +343,26 @@ class Calendar(DAVObject):
     def save_event(self, ical=None, no_overwrite=False, no_create=False, **ical_data):
         from caldav._sync.calendarobjectresource import Event
 
-        # This needs to delegate to the original sync logic for now
-        # as the async version doesn't have save_event yet
-        raise NotImplementedError("save_event not yet implemented in async")
+        async_event = _run_sync(
+            self._async.save_event, ical, no_overwrite, no_create, **ical_data
+        )
+        return Event._from_async(async_event, self._sync_client, self)
 
     def save_todo(self, ical=None, no_overwrite=False, no_create=False, **ical_data):
         from caldav._sync.calendarobjectresource import Todo
 
-        raise NotImplementedError("save_todo not yet implemented in async")
+        async_todo = _run_sync(
+            self._async.save_todo, ical, no_overwrite, no_create, **ical_data
+        )
+        return Todo._from_async(async_todo, self._sync_client, self)
 
     def save_journal(self, ical=None, no_overwrite=False, no_create=False, **ical_data):
         from caldav._sync.calendarobjectresource import Journal
 
-        raise NotImplementedError("save_journal not yet implemented in async")
+        async_journal = _run_sync(
+            self._async.save_journal, ical, no_overwrite, no_create, **ical_data
+        )
+        return Journal._from_async(async_journal, self._sync_client, self)
 
 
 class ScheduleMailbox(Calendar):

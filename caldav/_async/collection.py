@@ -658,6 +658,78 @@ class AsyncCalendar(AsyncDAVObject):
         """Returns the journal with the given uid"""
         return await self.object_by_uid(uid, comp_filter=cdav.CompFilter("VJOURNAL"))
 
+    def _use_or_create_ics(self, ical, objtype, **ical_data):
+        """Create or use an ical object."""
+        from caldav.lib import vcal
+        from caldav.lib.python_utilities import to_wire
+
+        if ical_data or (
+            (isinstance(ical, str) or isinstance(ical, bytes))
+            and b"BEGIN:VCALENDAR" not in to_wire(ical)
+        ):
+            if ical and "ical_fragment" not in ical_data:
+                ical_data["ical_fragment"] = ical
+            return vcal.create_ical(objtype=objtype, **ical_data)
+        return ical
+
+    async def save_object(
+        self,
+        objclass,
+        ical=None,
+        no_overwrite=False,
+        no_create=False,
+        **ical_data,
+    ):
+        """Add a new object to the calendar.
+
+        Args:
+          objclass: AsyncEvent, AsyncTodo, AsyncJournal
+          ical: ical object (text, icalendar or vobject instance)
+          no_overwrite: existing calendar objects should not be overwritten
+          no_create: don't create a new object
+        """
+        o = objclass(
+            self.client,
+            data=self._use_or_create_ics(
+                ical,
+                objtype=f"V{objclass.__name__.replace('Async', '').upper()}",
+                **ical_data,
+            ),
+            parent=self,
+        )
+        o = await o.save(no_overwrite=no_overwrite, no_create=no_create)
+        return o
+
+    async def save_event(
+        self, ical=None, no_overwrite=False, no_create=False, **ical_data
+    ):
+        """Save an event to the calendar."""
+        from caldav._async.calendarobjectresource import AsyncEvent
+
+        return await self.save_object(
+            AsyncEvent, ical, no_overwrite, no_create, **ical_data
+        )
+
+    async def save_todo(
+        self, ical=None, no_overwrite=False, no_create=False, **ical_data
+    ):
+        """Save a todo to the calendar."""
+        from caldav._async.calendarobjectresource import AsyncTodo
+
+        return await self.save_object(
+            AsyncTodo, ical, no_overwrite, no_create, **ical_data
+        )
+
+    async def save_journal(
+        self, ical=None, no_overwrite=False, no_create=False, **ical_data
+    ):
+        """Save a journal entry to the calendar."""
+        from caldav._async.calendarobjectresource import AsyncJournal
+
+        return await self.save_object(
+            AsyncJournal, ical, no_overwrite, no_create, **ical_data
+        )
+
 
 class AsyncScheduleMailbox(AsyncCalendar):
     """

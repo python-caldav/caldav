@@ -564,6 +564,15 @@ class CalDAVSearcher(Searcher):
                 server_expand, props=props, filters=xml, _hacks=_hacks
             )
 
+        # Convert sync comp_class to async comp_class for async search
+        sync_to_async_class = {
+            Event: AsyncEvent,
+            Todo: AsyncTodo,
+            Journal: AsyncJournal,
+        }
+        if self.comp_class in sync_to_async_class:
+            self.comp_class = sync_to_async_class[self.comp_class]
+
         if not self.comp_class and not calendar.client.features.is_supported(
             "search.comp-type-optional"
         ):
