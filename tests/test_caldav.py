@@ -1760,6 +1760,12 @@ END:VCALENDAR
         else:
             assert len(some_events) in (0, 1)
 
+        ## explicit substring search will force through a substring
+        ## search even if the server does not support it
+        searcher = CalDAVSearcher(comp_class=Event)
+        searcher.add_property_filter("category", "PERSON", operator="contains")
+        assert len(searcher.search(c)) == 1
+
         ## I expect "logical and" when combining category with a date range
         no_events = c.search(
             comp_class=Event,
@@ -1990,6 +1996,11 @@ END:VCALENDAR
             assert len(some_todos) == 6
         else:
             assert len(some_todos) in (0, 6)
+
+        ## If the server is known to not support substring searches, the client should work around this
+        searcher=CalDAVSearcher(comp_class=Todo)
+        searcher.add_property_filter("category", "MIL", operator="contains")
+        assert(len(searcher.search(c)) == 6)
 
         ## completing events, and it should not show up anymore
         assert t3.is_pending()

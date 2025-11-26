@@ -102,6 +102,77 @@ class CalDAVSearcher(Searcher):
     """
 
     comp_class: Optional["CalendarObjectResource"] = None
+    _explicit_operators: set = field(default_factory=set)
+
+    def add_property_filter(
+        self,
+        key: str,
+        value: Any,
+        operator: str = None,
+        case_sensitive: bool = True,
+        collation: Optional[Collation] = None,
+        locale: Optional[str] = None,
+    ) -> None:
+        """Adds a filter for some specific iCalendar property.
+
+        Examples of valid iCalendar properties: SUMMARY,
+        LOCATION, DESCRIPTION, DTSTART, STATUS, CLASS, etc
+
+        :param key: iCalendar property name (e.g., SUMMARY).
+                   Special virtual property "category" (singular) is also supported
+                   for substring matching within category names
+        :param value: Filter value, should adhere to the type defined in the RFC
+        :param operator: Comparison operator ("contains", "==", "undef"). If not
+                        specified, the server decides the matching behavior (usually
+                        substring search per RFC). If explicitly set to "contains"
+                        and the server doesn't support substring search, client-side
+                        filtering is used (may transfer more data from server).
+        :param case_sensitive: If False, text comparisons are case-insensitive.
+                              Note: CalDAV standard case-insensitivity only applies
+                              to ASCII characters.
+        :param collation: Advanced collation strategy for text comparison.
+                         May not work on all servers.
+        :param locale: Locale string (e.g., "de_DE") for locale-aware collation.
+                      Only used with collation=Collation.LOCALE. May not work on
+                      all servers.
+
+        **Supported operators:**
+
+        * **contains** - substring match (e.g., "rain" matches "Training session"
+          and "Singing in the rain")
+        * **==** - exact match required, enforced client-side
+        * **undef** - matches if property is not defined (value parameter ignored)
+
+        **Special handling for categories:**
+
+        - **"categories"** (plural): Exact category name matching
+          - "contains": subset check (all filter categories must be in component)
+          - "==": exact set equality (same categories, order doesn't matter)
+          - Commas in filter values split into multiple categories
+
+        - **"category"** (singular): Substring matching within category names
+          - "contains": substring match (e.g., "out" matches "outdoor")
+          - "==": exact match to at least one category name
+          - Commas in filter values treated as literal characters
+
+        Examples:
+            # Case-insensitive search
+            searcher.add_property_filter("SUMMARY", "meeting", case_sensitive=False)
+
+            # Explicit substring search (guaranteed via client-side if needed)
+            searcher.add_property_filter("LOCATION", "room", operator="contains")
+
+            # Exact match
+            searcher.add_property_filter("STATUS", "CONFIRMED", operator="==")
+        """
+        if operator is not None:
+            # Base class lowercases the key, so we need to as well
+            self._explicit_operators.add(key.lower())
+            super().add_property_filter(key, value, operator, case_sensitive, collation, locale)
+        else:
+            # operator not specified - don't pass it, let base class use default
+            # Don't track as explicit
+            super().add_property_filter(key, value, case_sensitive=case_sensitive, collation=collation, locale=locale)
 
     def _search_with_comptypes(
         self,
@@ -208,6 +279,33 @@ class CalDAVSearcher(Searcher):
             clone = replace(self, **replacements)
             objects = clone.search(calendar, server_expand, split_expanded, props, xml)
             return self.filter(objects, post_filter, split_expanded, server_expand)
+
+        ## special compatibility-case for servers that do not support substring search
+        ## Only applies when user explicitly requested substring search with operator="contains"
+        if (
+            not calendar.client.features.is_supported("search.text.substring")
+            and post_filter is not False
+        ):
+            # Check if any property has explicitly specified operator="contains"
+            explicit_contains = [
+                prop
+                for prop in self._property_operator
+                if prop in self._explicit_operators
+                and self._property_operator[prop] == "contains"
+            ]
+            if explicit_contains:
+                # Remove explicit substring filters from server query,
+                # will be applied client-side instead
+                replacements = {}
+                for thing in things:
+                    replacements[thing] = getattr(self, thing).copy()
+                    for prop in explicit_contains:
+                        replacements[thing].pop(prop, None)
+                # Also need to preserve the _explicit_operators set but remove these properties
+                clone = replace(self, **replacements)
+                clone._explicit_operators = self._explicit_operators - set(explicit_contains)
+                objects = clone.search(calendar, server_expand, split_expanded, props, xml)
+                return self.filter(objects, post_filter=True, split_expanded=split_expanded, server_expand=server_expand)
 
         ## special compatibility-case for servers that does not
         ## support combined searches very well
