@@ -11,6 +11,26 @@ Discovery methods (in order of preference):
 2. DNS TXT records (for path information)
 3. Well-Known URIs (/.well-known/caldav or /.well-known/carddav)
 
+SECURITY CONSIDERATIONS:
+    DNS-based discovery is vulnerable to attacks if DNS is not secured with DNSSEC:
+
+    - DNS Spoofing: Attackers can provide malicious SRV/TXT records pointing to
+      attacker-controlled servers
+    - Downgrade Attacks: Malicious DNS can specify non-TLS services, causing
+      credentials to be sent in plaintext
+    - Man-in-the-Middle: Even with HTTPS, attackers can redirect to their servers
+
+    MITIGATIONS:
+    - require_tls=True (DEFAULT): Only accept HTTPS connections, preventing
+      downgrade attacks
+    - ssl_verify_cert=True (DEFAULT): Verify TLS certificates
+    - Use DNSSEC when possible for DNS integrity
+    - Manually verify discovered endpoints for sensitive applications
+    - Consider certificate pinning for known domains
+
+    For high-security environments, manual configuration may be preferable to
+    automatic discovery.
+
 See: https://datatracker.ietf.org/doc/html/rfc6764
 """
 import logging
@@ -291,6 +311,7 @@ def discover_service(
     timeout: int = 10,
     ssl_verify_cert: bool = True,
     prefer_tls: bool = True,
+    require_tls: bool = True,
 ) -> Optional[ServiceInfo]:
     """
     Discover CalDAV or CardDAV service for a domain or email address.
@@ -301,12 +322,29 @@ def discover_service(
     2. DNS TXT records for path information
     3. Well-Known URIs as fallback
 
+    SECURITY WARNING:
+        RFC 6764 discovery relies on DNS, which can be spoofed if not using DNSSEC.
+        An attacker controlling DNS could:
+        - Redirect connections to a malicious server
+        - Downgrade from HTTPS to HTTP to capture credentials
+        - Perform man-in-the-middle attacks
+
+        By default, require_tls=True prevents HTTP downgrade attacks.
+        For production use, consider:
+        - Using DNSSEC-validated domains
+        - Manual verification of discovered endpoints
+        - Pinning certificates for known domains
+
     Args:
         identifier: Domain name (example.com) or email address (user@example.com)
         service_type: Either 'caldav' or 'carddav'
         timeout: Timeout for HTTP requests in seconds
         ssl_verify_cert: Whether to verify SSL certificates
-        prefer_tls: If True, try TLS services first
+        prefer_tls: If True, try TLS services first (only used if require_tls=False)
+        require_tls: If True (default), ONLY accept TLS connections. This prevents
+                     DNS-based downgrade attacks to plaintext HTTP. Set to False
+                     only if you explicitly need to support non-TLS servers and
+                     trust your DNS infrastructure.
 
     Returns:
         ServiceInfo object with discovered service details, or None if discovery fails
@@ -318,6 +356,9 @@ def discover_service(
         >>> info = discover_service('user@example.com', 'caldav')
         >>> if info:
         ...     print(f"Service URL: {info.url}")
+
+        >>> # Allow non-TLS (INSECURE - only for testing)
+        >>> info = discover_service('user@example.com', 'caldav', require_tls=False)
     """
     if service_type not in ("caldav", "carddav"):
         raise DiscoveryError(
@@ -330,8 +371,14 @@ def discover_service(
         log.debug(f"Username extracted from identifier: {username}")
 
     # Try SRV/TXT records first (RFC 6764 section 5)
-    # Prefer TLS services over non-TLS
-    tls_options = [True, False] if prefer_tls else [False, True]
+    # Security: require_tls=True prevents downgrade attacks
+    if require_tls:
+        tls_options = [True]  # Only accept TLS connections
+        log.debug("require_tls=True: Only attempting TLS discovery")
+    else:
+        # Prefer TLS services over non-TLS when both are allowed
+        tls_options = [True, False] if prefer_tls else [False, True]
+        log.warning("require_tls=False: Allowing non-TLS connections (INSECURE)")
 
     for use_tls in tls_options:
         srv_records = _srv_lookup(domain, service_type, use_tls)
@@ -392,6 +439,7 @@ def discover_caldav(
     timeout: int = 10,
     ssl_verify_cert: bool = True,
     prefer_tls: bool = True,
+    require_tls: bool = True,
 ) -> Optional[ServiceInfo]:
     """
     Convenience function to discover CalDAV service.
@@ -401,6 +449,7 @@ def discover_caldav(
         timeout: Timeout for HTTP requests in seconds
         ssl_verify_cert: Whether to verify SSL certificates
         prefer_tls: If True, try TLS services first
+        require_tls: If True (default), only accept TLS connections
 
     Returns:
         ServiceInfo object or None
@@ -411,6 +460,7 @@ def discover_caldav(
         timeout=timeout,
         ssl_verify_cert=ssl_verify_cert,
         prefer_tls=prefer_tls,
+        require_tls=require_tls,
     )
 
 
@@ -419,6 +469,7 @@ def discover_carddav(
     timeout: int = 10,
     ssl_verify_cert: bool = True,
     prefer_tls: bool = True,
+    require_tls: bool = True,
 ) -> Optional[ServiceInfo]:
     """
     Convenience function to discover CardDAV service.
@@ -428,6 +479,7 @@ def discover_carddav(
         timeout: Timeout for HTTP requests in seconds
         ssl_verify_cert: Whether to verify SSL certificates
         prefer_tls: If True, try TLS services first
+        require_tls: If True (default), only accept TLS connections
 
     Returns:
         ServiceInfo object or None
@@ -438,4 +490,5 @@ def discover_carddav(
         timeout=timeout,
         ssl_verify_cert=ssl_verify_cert,
         prefer_tls=prefer_tls,
+        require_tls=require_tls,
     )

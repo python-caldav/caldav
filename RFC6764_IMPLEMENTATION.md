@@ -211,10 +211,68 @@ Potential improvements:
 
 ## Security Considerations
 
-1. **DNS Security**: Discovery relies on DNS, which can be spoofed. For production use, consider DNSSEC.
-2. **TLS Verification**: The implementation verifies SSL certificates by default.
-3. **Timeout**: Discovery has a 10-second default timeout to prevent hanging.
-4. **Fallback**: Failed discovery falls back to feature hints or defaults.
+⚠️ **CRITICAL SECURITY WARNING**
+
+RFC 6764 DNS-based service discovery has inherent security risks if DNS is not secured with DNSSEC:
+
+### Attack Vectors
+
+1. **DNS Spoofing**: Attackers controlling DNS can provide malicious SRV/TXT records pointing to attacker-controlled servers
+2. **Downgrade Attacks**: Malicious DNS can specify non-TLS services (`_caldav._tcp` instead of `_caldavs._tcp`), causing credentials to be sent in plaintext HTTP
+3. **Man-in-the-Middle**: Even with HTTPS, attackers can redirect to their servers and present fake certificates
+
+### Security Mitigations Implemented
+
+1. **`require_tls=True` (DEFAULT)**: Only accepts HTTPS connections, preventing HTTP downgrade attacks
+   ```python
+   # Safe - only allows HTTPS
+   client = DAVClient(url='user@example.com', password='pass')
+
+   # DANGEROUS - allows HTTP if DNS specifies it
+   client = DAVClient(url='user@example.com', password='pass', require_tls=False)
+   ```
+
+2. **`ssl_verify_cert=True` (DEFAULT)**: Verifies TLS certificates to prevent MITM attacks
+
+3. **Timeout Protection**: 10-second default timeout prevents hanging on malicious DNS
+
+4. **Explicit Fallback**: Failed discovery falls back to feature hints or defaults
+
+### Best Practices for Production
+
+1. **Use DNSSEC**: Deploy DNSSEC on your domains to cryptographically secure DNS responses
+2. **Verify Endpoints**: Manually verify discovered endpoints for sensitive applications
+3. **Certificate Pinning**: Consider pinning certificates for known domains
+4. **Manual Configuration**: For high-security environments, manual URL configuration may be preferable to automatic discovery
+5. **Monitor Discovery**: Log and monitor discovered endpoints for unexpected changes
+
+### Example: Secure Usage
+
+```python
+# Recommended for production
+client = DAVClient(
+    url='user@example.com',
+    password='secure_password',
+    require_tls=True,        # Default - only HTTPS
+    ssl_verify_cert=True,    # Default - verify certificates
+)
+
+# For testing/development only
+client = DAVClient(
+    url='user@example.com',
+    password='test_password',
+    require_tls=False,       # INSECURE - allows HTTP
+    enable_rfc6764=True,
+)
+```
+
+### When to Disable RFC 6764
+
+Consider setting `enable_rfc6764=False` for:
+- High-security applications handling sensitive data
+- Environments without DNSSEC
+- When manual endpoint verification is required
+- Legacy systems requiring specific server configurations
 
 ## References
 
