@@ -61,7 +61,7 @@ def test_explicit_contains_vs_default_contains() -> None:
     assert searcher._property_operator.get("description") == "=="
 
 
-def test_substring_workaround_only_for_explicit_contains(mocker) -> None:
+def test_substring_workaround_only_for_explicit_contains() -> None:
     """Test that substring workaround only applies to explicit operator="contains"."""
     from unittest.mock import MagicMock
 
@@ -97,9 +97,9 @@ def test_substring_workaround_only_for_explicit_contains(mocker) -> None:
     searcher.search(calendar)
 
 
-def test_substring_workaround_applies_for_explicit_contains(mocker) -> None:
+def test_substring_workaround_applies_for_explicit_contains() -> None:
     """Test that substring workaround applies when operator="contains" is explicit."""
-    from unittest.mock import MagicMock, patch
+    from unittest.mock import MagicMock
 
     # Create a mock calendar that doesn't support substring search
     calendar = MagicMock()
