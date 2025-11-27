@@ -230,7 +230,10 @@ if test_xandikos:
 
         self.serverdir.__exit__(None, None, None)
 
-    features = compatibility_hints.xandikos.copy()
+    if xandikos.__version__ == (0, 2, 12):
+        features = compatibility_hints.xandikos_v0_2_12.copy()
+    else:
+        features = compatibility_hints.xandikos_v0_3.copy()
     domain = f"{xandikos_host}:{xandikos_port}"
     features["auto-connect.url"]["domain"] = domain
     caldav_servers.append(

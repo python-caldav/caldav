@@ -2,9 +2,11 @@
 
 ## IMPORTANT - niquests vs requests - flapping changeset
 
-The requests library is stagnant, from 2.0.0 niquests has been in use.  It's a very tiny changeset, which resolved three github issues, fixed support for HTTP/2 and may open the door for an upcoming async proejct.  While I haven't looked much "under the bonnet", niquests seems to be a major upgrade of requests.  However, the niquest author has apparently failed cooperating well with some significant parts of the python community, so niquests pulls in a lot of other forked libraries as for now.  Shortly after releasing 2.0 I was requested to revert back to requests and release 2.0.1.  After 2.0.1, the library has been fixed so that it will always use niquests if niquests is available, and requests if niquests is not available.
+The requests library is stagnant, from 2.0.0 niquests has been in use.  It's a very tiny changeset, which resolved three github issues (and created a new one - see https://github.com/python-caldav/caldav/issues/564), fixed support for HTTP/2 and may open the door for an upcoming async proejct.  While I haven't looked much "under the bonnet", niquests seems to be a major upgrade of requests.  However, the niquest author has apparently failed cooperating well with some significant parts of the python community, so niquests pulls in a lot of other forked libraries as for now.  Shortly after releasing 2.0 I was requested to revert back to requests and release 2.0.1.  After 2.0.1, the library has been fixed so that it will always use niquests if niquests is available, and requests if niquests is not available.
 
-You are encouraged to make an informed decision on weather you are most comfortable with the stable but stagnant requests, or the niquests fork.  I hope to settle down on some final decision when I'm starting to work on 3.0 (which will support async requests).  httpx may be an option.  **Your opinion is valuable for me**.  Feel free to comment on https://github.com/python-caldav/caldav/issues/457,  https://github.com/python-caldav/caldav/issues/530 or https://github.com/jawah/niquests/issues/267 if you have a github account, and if not you can reach out at python-http@plann.no.  (So far the most common recommendation seems to be to go for httpx.
+You are encouraged to make an informed decision on weather you are most comfortable with the stable but stagnant requests, or the niquests fork.  I hope to settle down on some final decision when I'm starting to work on 3.0 (which will support async requests).  httpx may be an option.  **Your opinion is valuable for me**.  Feel free to comment on https://github.com/python-caldav/caldav/issues/457,  https://github.com/python-caldav/caldav/issues/530 or https://github.com/jawah/niquests/issues/267 - if you have a github account, and if not you can reach out at python-http@plann.no.
+
+So far the most common recommendation seems to be to go for httpx.  See also https://github.com/python-caldav/caldav/pull/565
 
 ## Meta
 
@@ -22,27 +24,35 @@ I'm still working on "compatibility hints".  Unfortunately, documentation is sti
 * Use `features: nextcloud` and `url: my.nextcloud.provider.eu` instead of `url: https://my.nextcloud.provider.eu/remote.php/dav`
 * The library will work around some known issues dependent on what feature-set it's given.
 
-Searching may now be done by creating a `caldav.CalDAVSearcher` object and do a `searcher.search(cal)` instead of doing `cal.search(...)`.  However, there are no plans to deprecate the latter method.  Major refactoring work has been done here, and some of the logic has been moved to a new package icalendar-searcher.
+Searching may now be done by creating a `caldav.CalDAVSearcher` object and do a `searcher.search(cal)` instead of doing `cal.search(...)`.  While there are no plans to deprecate the latter method, the new logic offers more features.  Major refactoring work has been done here, and some of the logic has been moved to a new package icalendar-searcher.
 
-## Breaking Changes
+### Breaking Changes
 
-Some code has been split out into a new package - `icalendar-searcher`.  This does not affect compatibility, hence it's not needed to bump the major version number, but if you manage the dependencies manually it may still cause things to break.
+* Some code has been split out into a new package - `icalendar-searcher`.  This does not affect compatibility, hence it's not needed to bump the major version number, but if you manage the dependencies manually it may still cause things to break.
+* Lots of work has been put in to work around server-quirks, ensuring more consistent search-results regardless of what server is in use.  For some use cases this may be a breaking change as search results from certain servers may have changed (see more below).
 
-## Deprecations
+### Deprecations
 
 * `Event.expand_rrule` will be removed in some future release, unless someone protests.
 * `Event.split_expanded` too.  Both of them were used internally, now it's not.  It's dead code, most lkely nobody and nothing is using them.
 
-## Changed
+### Changed
 
 * Major refactoring!  Some of the logic has been pushed out of the CalDAV package and into a new package, icalendar-searcher.  New logic for doing client-side filtering of search results have also been added to that package.
+* **Server compatibility improvements**: Significant work-arounds added for inconsistent CalDAV server behavior, aiming for consistent search results regardless of the server in use. Many of these work-arounds require proper server compatibility configuration via the `features` / `compatibility_hints` system. This may be a **breaking change** for some use cases, as backward-bug-compatibility is not preserved - searches may return different results if the previous behavior was relying on server quirks.
 
-## Added
+### Added
 
 * The client connection parameter `features` may now simply be a string label referencing a well-known server or cloud solution - like `features: posteo`.  https://github.com/python-caldav/caldav/pull/561
 * The client connection parameter `url` is no longer needed when referencing a well-known cloud solution. https://github.com/python-caldav/caldav/pull/561
 * The client connection parameter `url` may contain just the domain name (without any slashes) and the URL will be constructed, if referencing a well-known caldav server implementation. https://github.com/python-caldav/caldav/pull/561
 * New interface for searches.  `mysearcher = caldav.CalDAVSearcher(...) ; mysearcher.add_property_filter(...) ; mysearcher.search(calendar)`.  May be useful for complicated searches.
+* **Collation support for CalDAV text-match queries (RFC 4791 § 9.7.5)**: CalDAV searches now properly pass collation attributes to the server, enabling case-insensitive searches and Unicode-aware text matching. The `CalDAVSearcher.add_property_filter()` method now accepts `case_sensitive` and `collation` parameters. Supported collations include:
+  - `i;octet` (case-sensitive, binary comparison) - default
+  - `i;ascii-casemap` (case-insensitive for ASCII characters, RFC 4790)
+  - `i;unicode-casemap` (Unicode case-insensitive, RFC 5051 - server support may vary)
+* Client-side filtering method: `CalDAVSearcher.filter()` provides comprehensive client-side filtering, expansion, and sorting of calendar objects with full timezone preservation support.
+* Example code: New `examples/collation_usage.py` demonstrates case-sensitive and case-insensitive calendar searches.
 
 ## [2.1.2] - [2025-11-08]
 

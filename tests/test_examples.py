@@ -31,3 +31,10 @@ class TestExamples:
         from examples import basic_usage_examples
 
         basic_usage_examples.run_examples()
+
+    def test_collation(self):
+        from examples import collation_usage
+
+        with get_davclient() as client:
+            mycal = client.principal().make_calendar(name="Test calendar")
+            collation_usage.run_examples()
