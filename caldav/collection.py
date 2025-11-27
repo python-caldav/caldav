@@ -913,8 +913,6 @@ class Calendar(DAVObject):
             alias = key
             if key == "class_":  ## because class is a reserved word
                 alias = "class"
-            if key == "category":  ## TODO: should we have special logic?
-                alias = "categories"
             if key == "no_category":
                 alias = "no_categories"
             if key == "no_class_":

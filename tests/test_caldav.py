@@ -63,6 +63,7 @@ from caldav.objects import Event
 from caldav.objects import FreeBusy
 from caldav.objects import Principal
 from caldav.objects import Todo
+from caldav.search import CalDAVSearcher
 
 log = logging.getLogger("caldav")
 
@@ -1708,12 +1709,12 @@ END:VCALENDAR
         some_events = c.search(
             comp_class=Event, uid="19970901T130000Z-123403@example.com"
         )
-        if not self.check_compatibility_flag("text_search_not_working"):
+        if self.is_supported("search.text"):
             assert len(some_events) == 1
 
         ## class
         some_events = c.search(comp_class=Event, class_="CONFIDENTIAL")
-        if not self.check_compatibility_flag("text_search_not_working"):
+        if self.is_supported("search.text"):
             assert len(some_events) == 1
 
         ## not defined
@@ -1722,47 +1723,42 @@ END:VCALENDAR
         ## or perhaps not,
         ## ref https://gitlab.com/davical-project/davical/-/issues/281#note_1265743591
         ## PUBLIC is default, so maybe no events should be returned?
-        if not self.check_compatibility_flag("isnotdefined_not_working"):
+        if self.is_supported("search.is-not-defined"):
             assert len(some_events) == 2
 
         some_events = c.search(comp_class=Event, no_category=True)
         ## ev1, ev3 should be returned
-        if not self.check_compatibility_flag("isnotdefined_not_working"):
+        if self.is_supported("search.is-not-defined"):
             assert len(some_events) == 2
 
         some_events = c.search(comp_class=Event, no_dtend=True)
         ## evr should be returned
-        if not self.check_compatibility_flag("isnotdefined_not_working"):
+        if self.is_supported("search.is-not-defined"):
             assert len(some_events) == 1
-
-        self.skip_on_compatibility_flag("text_search_not_working")
 
         ## category
         some_events = c.search(comp_class=Event, category="PERSONAL")
-        if self.is_supported("search.category"):
-            assert len(some_events) == 1
+        assert len(some_events) == 1
         some_events = c.search(comp_class=Event, category="personal")
-        if self.is_supported("search.category"):
-            if self.check_compatibility_flag("text_search_is_case_insensitive"):
-                assert len(some_events) == 1
-            else:
-                assert len(some_events) == 0
+        assert len(some_events) == 0
+        searcher = CalDAVSearcher(comp_class=Event)
+        searcher.add_property_filter("category", "personal", case_sensitive=False)
+        some_events = searcher.search(c)
+        assert len(some_events) == 1
 
-        ## This is not a very useful search, and it's sort of a client side bug that we allow it at all.
         ## It will not match if categories field is set to "PERSONAL,ANNIVERSARY,SPECIAL OCCASION"
         ## It may not match since the above is to be considered equivalent to the raw data entered.
         some_events = c.search(
             comp_class=Event, category="ANNIVERSARY,PERSONAL,SPECIAL OCCASION"
         )
         assert len(some_events) in (0, 1)
-        ## TODO: This is actually a bug. We need to do client side filtering
         some_events = c.search(comp_class=Event, category="PERSON")
-        if self.check_compatibility_flag("text_search_is_exact_match_sometimes"):
-            assert len(some_events) in (0, 1)
-        if self.check_compatibility_flag("text_search_is_exact_match_only"):
-            assert len(some_events) == 0
-        elif self.is_supported("search.category.fullstring"):
+        if self.is_supported("search.text.substring") and self.is_supported(
+            "search.text.category.substring"
+        ):
             assert len(some_events) == 1
+        else:
+            assert len(some_events) in (0, 1)
 
         ## I expect "logical and" when combining category with a date range
         no_events = c.search(
@@ -1771,27 +1767,21 @@ END:VCALENDAR
             start=datetime(2006, 7, 13, 13, 0),
             end=datetime(2006, 7, 15, 13, 0),
         )
-        if self.is_supported("search.category") and self.is_supported(
-            "search.combined-is-logical-and"
-        ):
-            assert len(no_events) == 0
+        assert len(no_events) == 0
         some_events = c.search(
             comp_class=Event,
             category="PERSONAL",
             start=datetime(1997, 11, 1, 13, 0),
             end=datetime(1997, 11, 3, 13, 0),
         )
-        if self.is_supported("search.category") and self.is_supported(
-            "search.combined-is-logical-and"
-        ):
-            assert len(some_events) == 1
+        assert len(some_events) == 1
 
         some_events = c.search(comp_class=Event, summary="Bastille Day Party")
         assert len(some_events) == 1
         some_events = c.search(comp_class=Event, summary="Bastille Day")
-        if self.check_compatibility_flag("text_search_is_exact_match_sometimes"):
+        if self.is_supported("search.text.substring", str) == "fragile":
             assert len(some_events) in (0, 2)
-        elif self.check_compatibility_flag("text_search_is_exact_match_only"):
+        if not self.is_supported("search.text.substring"):
             assert len(some_events) == 0
         else:
             assert len(some_events) == 2
@@ -1961,7 +1951,7 @@ END:VCALENDAR
         ## well, perhaps only 3 will be returned - see
         ## https://gitlab.com/davical-project/davical/-/issues/281 )
         all_todos = c.search(todo=True)
-        if self.check_compatibility_flag("isnotdefined_not_working"):
+        if not self.is_supported("search.is-not-defined"):
             assert len(all_todos) - pre_cnt in (3, 6)
         else:
             assert len(all_todos) == 6 + pre_cnt
@@ -1969,48 +1959,37 @@ END:VCALENDAR
         ## Search for misc text fields
         ## UID is a special case, supported by almost all servers
         some_todos = c.search(comp_class=Todo, uid="19970901T130000Z-123404@host.com")
-        if not self.check_compatibility_flag("text_search_not_working"):
+        if self.is_supported("search.text"):
             assert len(some_todos) == 1 + pre_cnt
 
         ## class ... hm, all 6 example todos are 'CONFIDENTIAL' ...
         some_todos = c.search(comp_class=Todo, class_="CONFIDENTIAL")
-        if not self.check_compatibility_flag("text_search_not_working"):
+        if self.is_supported("search.text"):
             assert len(some_todos) == 6 + pre_cnt
 
         ## category
         ## Too much copying of the examples ...
         some_todos = c.search(comp_class=Todo, category="FINANCE")
-        if (self.is_supported("search.category")) and not self.check_compatibility_flag(
-            "text_search_not_working"
-        ):
-            assert len(some_todos) == 6 + pre_cnt
+        assert len(some_todos) == 6 + pre_cnt
         some_todos = c.search(comp_class=Todo, category="finance")
-        if self.is_supported("search.category") and not self.check_compatibility_flag(
-            "text_search_not_working"
-        ):
-            if self.check_compatibility_flag("text_search_is_case_insensitive"):
-                assert len(some_todos) == 6 + pre_cnt
-            else:
-                assert len(some_todos) == 0 + pre_cnt
-
-        ## This is not a very useful search, and it's sort of a client side bug that we allow it at all.
-        ## It will not match if categories field is set to "PERSONAL,ANNIVERSARY,SPECIAL OCCASION"
-        ## It may not match since the above is to be considered equivalent to the raw data entered.
-        some_todos = c.search(comp_class=Todo, category="FAMILY,FINANCE")
-        if not self.check_compatibility_flag("text_search_not_working"):
-            assert len(some_todos) - pre_cnt in (0, 6)
+        assert len(some_todos) == 0 + pre_cnt
+        searcher = CalDAVSearcher(comp_class=Todo)
+        searcher.add_property_filter("category", "finance", case_sensitive=False)
+        some_todos = searcher.search(c)
+        assert len(some_todos) == 6 + pre_cnt
+        some_todos = c.search(comp_class=Todo, categories="FAMILY,FINANCE")
+        assert len(some_todos) - pre_cnt == 6
         ## TODO: We should consider to do client side filtering to ensure exact
         ## match only on components having MIL as a category (and not FAMILY)
+        some_todos = c.search(comp_class=Todo, categories="MIL")
+        assert len(some_todos) == 0
         some_todos = c.search(comp_class=Todo, category="MIL")
-        if self.check_compatibility_flag("text_search_is_exact_match_sometimes"):
-            assert len(some_todos) - pre_cnt in (0, 6)
-        elif self.check_compatibility_flag("text_search_is_exact_match_only"):
-            assert len(some_todos) - pre_cnt == 0
-        elif not self.is_supported(
-            "search.category"
-        ) and not self.check_compatibility_flag("text_search_not_working"):
-            ## This is the correct thing, according to the letter of the RFC
-            assert len(some_todos) - pre_cnt == 6
+        if self.is_supported("search.text.substring") and self.is_supported(
+            "search.text.category.substring"
+        ):
+            assert len(some_todos) == 6
+        else:
+            assert len(some_todos) in (0, 6)
 
         ## completing events, and it should not show up anymore
         assert t3.is_pending()
@@ -2496,10 +2475,7 @@ END:VCALENDAR
         t5 = c.save_todo(todo5)
         t6 = c.save_todo(todo6)
         todos = c.todos()
-        if self.check_compatibility_flag("isnotdefined_not_working"):
-            assert len(todos) in (3, 6)
-        else:
-            assert len(todos) == 6
+        assert len(todos) == 6
 
         notodos = c.date_search(  # default compfilter is events
             start=datetime(1997, 4, 14), end=datetime(2015, 5, 14), expand=False
@@ -2697,18 +2673,18 @@ END:VCALENDAR
         assert len(c.todos()) == 0
         t6 = c.save_todo(todo6, status="NEEDS-ACTION")
         assert len(c.todos()) == 1
-        if not self.check_compatibility_flag("rrule_takes_no_count"):
+        if self.is_supported("save-load.todo.recurrences.count"):
             assert len(c.todos()) == 1
             t8 = c.save_todo(todo8)
             assert len(c.todos()) == 2
         else:
             assert len(c.todos()) == 1
         t6.complete(handle_rrule=True, rrule_mode="safe")
-        if self.check_compatibility_flag("rrule_takes_no_count"):
+        if not self.is_supported("save-load.todo.recurrences.count"):
             assert len(c.todos()) == 1
             assert len(c.todos(include_completed=True)) == 2
             c.todos()[0].delete()
-        self.skip_on_compatibility_flag("rrule_takes_no_count")
+        self.skip_unless_support("save-load.todo.recurrences.count")
         assert len(c.todos()) == 2
         assert len(c.todos(include_completed=True)) == 3
         t8.complete(handle_rrule=True, rrule_mode="safe")
@@ -2726,17 +2702,17 @@ END:VCALENDAR
         c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
         assert len(c.todos()) == 0
         t6 = c.save_todo(todo6, status="NEEDS-ACTION")
-        if not self.check_compatibility_flag("rrule_takes_no_count"):
+        if self.is_supported("save-load.todo.recurrences.count"):
             t8 = c.save_todo(todo8)
             assert len(c.todos()) == 2
         else:
             assert len(c.todos()) == 1
         t6.complete(handle_rrule=True, rrule_mode="thisandfuture")
         all_todos = c.todos(include_completed=True)
-        if self.check_compatibility_flag("rrule_takes_no_count"):
+        if not self.is_supported("save-load.todo.recurrences.count"):
             assert len(c.todos()) == 1
             assert len(all_todos) == 1
-        self.skip_on_compatibility_flag("rrule_takes_no_count")
+        self.skip_unless_support("save-load.todo.recurrences.count")
         assert len(c.todos()) == 2
         assert len(all_todos) == 2
         # assert sum([len(x.icalendar_instance.subcomponents) for x in all_todos]) == 5

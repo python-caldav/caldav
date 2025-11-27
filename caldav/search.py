@@ -10,6 +10,7 @@ from typing import Optional
 from icalendar import Timezone
 from icalendar.prop import TypesFactory
 from icalendar_searcher import Searcher
+from icalendar_searcher.collation import Collation
 from lxml import etree
 
 from .calendarobjectresource import CalendarObjectResource
@@ -25,6 +26,40 @@ from .lib import error
 TypesFactory = TypesFactory()
 
 
+def _collation_to_caldav(collation: Collation, case_sensitive: bool = True) -> str:
+    """Map icalendar-searcher Collation enum to CalDAV collation identifier.
+
+    CalDAV supports collation identifiers from RFC 4790. The default is "i;ascii-casemap"
+    and servers must support at least "i;ascii-casemap" and "i;octet".
+
+    :param collation: icalendar-searcher Collation enum value
+    :param case_sensitive: Whether the collation should be case-sensitive
+    :return: CalDAV collation identifier string
+    """
+    if collation == Collation.SIMPLE:
+        # SIMPLE collation maps to CalDAV's basic collations
+        if case_sensitive:
+            return "i;octet"
+        else:
+            return "i;ascii-casemap"
+    elif collation == Collation.UNICODE:
+        # Unicode Collation Algorithm - not all servers support this
+        # Note: "i;unicode-casemap" is case-insensitive by definition
+        # For case-sensitive Unicode, we fall back to i;octet (binary)
+        if case_sensitive:
+            return "i;octet"
+        else:
+            return "i;unicode-casemap"
+    elif collation == Collation.LOCALE:
+        # Locale-specific collation - not widely supported in CalDAV
+        # Fallback to i;ascii-casemap as most servers don't support locale-specific collations
+        return "i;ascii-casemap"
+    else:
+        # Default to binary/octet for unknown collations
+        return "i;octet"
+
+
+@dataclass
 class CalDAVSearcher(Searcher):
     """The baseclass (which is generic, and not CalDAV-specific)
     allows building up a search query search logic.
@@ -66,9 +101,7 @@ class CalDAVSearcher(Searcher):
     ``searcher.add_property_filter``.
     """
 
-    def __init__(self, comp_class: "CalendarObjectResource" = None, **kwargs) -> None:
-        self.comp_class = comp_class
-        super().__init__(**kwargs)
+    comp_class: Optional["CalendarObjectResource"] = None
 
     def _search_with_comptypes(
         self,
@@ -86,13 +119,13 @@ class CalDAVSearcher(Searcher):
             raise NotImplementedError(
                 "full xml given, and it has to be patched to include comp_type"
             )
-        clone = replace(self)
         objects = []
+        assert self.event is None and self.todo is None and self.journal is None
         for comp_class in (Event, Todo, Journal):
+            clone = replace(self)
             clone.comp_class = comp_class
             objects += clone.search(calendar, server_expand, split_expanded, props, xml)
-        self.sort_objects(objects)
-        return objects
+        return self.sort(objects)
 
     ## TODO: refactor, split more logic out in smaller methods
     def search(
@@ -143,7 +176,11 @@ class CalDAVSearcher(Searcher):
         """
         ## Setting default value for post_filter
         if post_filter is None and (
-            (self.todo and not self.include_completed or self.expand)
+            (self.todo and not self.include_completed)
+            or self.expand
+            or "categories" in self._property_filters
+            or "category" in self._property_filters
+            or not calendar.client.features.is_supported("search.text.case-sensitive")
         ):
             post_filter = True
 
@@ -155,16 +192,38 @@ class CalDAVSearcher(Searcher):
             if not self.start or not self.end:
                 raise error.ReportError("can't expand without a date range")
 
+        ## special compatbility-case for servers that does not
+        ## support category search properly
+        things = ("filters", "operator", "locale", "collation")
+        things = [f"_property_{thing}" for thing in things]
+        if (
+            not calendar.client.features.is_supported("search.text.category")
+            and "categories" in self._property_filters
+            and post_filter is not False
+        ):
+            replacements = {}
+            for thing in things:
+                replacements[thing] = getattr(self, thing).copy()
+                replacements[thing].pop("categories")
+            clone = replace(self, **replacements)
+            objects = clone.search(calendar, server_expand, split_expanded, props, xml)
+            return self.filter(objects, post_filter, split_expanded, server_expand)
+
         ## special compatibility-case for servers that does not
         ## support combined searches very well
         if not calendar.client.features.is_supported("search.combined-is-logical-and"):
+            replacements = {}
+            for thing in things:
+                replacements[thing] = {}
             if self.start or self.end:
                 if self._property_filters:
-                    clone = replace(self, _property_filters={})
+                    clone = replace(self, **replacements)
                     objects = clone.search(
                         calendar, server_expand, split_expanded, props, xml
                     )
-                    return self.filter(objects)
+                    return self.filter(
+                        objects, post_filter, split_expanded, server_expand
+                    )
 
         ## special compatibility-case when searching for pending todos
         if self.todo and not self.include_completed:
@@ -309,10 +368,50 @@ class CalDAVSearcher(Searcher):
 
         ## Google sometimes returns empty objects
         objects = [o for o in objects if o.has_component()]
+        objects = self.filter(objects, post_filter, split_expanded, server_expand)
 
-        ## Client side filtering - in case server returned too much.
-        ## Also needed to deal with == operator
-        ## Also fixes expanding
+        ## partial workaround for https://github.com/python-caldav/caldav/issues/201
+        for obj in objects:
+            try:
+                obj.load(only_if_unloaded=True)
+            except:
+                pass
+
+        return self.sort(objects)
+
+    def filter(
+        self,
+        objects: List[CalendarObjectResource],
+        post_filter: Optional[bool] = None,
+        split_expanded: bool = True,
+        server_expand: bool = False,
+    ) -> List[CalendarObjectResource]:
+        """Apply client-side filtering and handle recurrence expansion/splitting.
+
+        This method performs client-side filtering of calendar objects, handles
+        recurrence expansion, and splits expanded recurrences into separate objects
+        when requested.
+
+        :param objects: List of Event/Todo/Journal objects to filter
+        :param post_filter: Whether to apply the searcher's filter logic.
+            - True: Always apply filters (check_component)
+            - False: Never apply filters, only handle splitting
+            - None: Use default behavior (depends on self.expand and other flags)
+        :param split_expanded: Whether to split recurrence sets into multiple
+            separate CalendarObjectResource objects. If False, a recurrence set
+            will be contained in a single object with multiple subcomponents.
+        :param server_expand: Indicates that the server was supposed to expand
+            recurrences. If True and split_expanded is True, splitting will be
+            performed even without self.expand being set.
+        :return: Filtered and/or split list of CalendarObjectResource objects
+
+        The method handles:
+        - Client-side filtering when server returns too many results
+        - Exact match filtering (== operator)
+        - Recurrence expansion via self.check_component
+        - Splitting expanded recurrences into separate objects
+        - Preserving VTIMEZONE components when splitting
+        """
         if post_filter or self.expand or (split_expanded and server_expand):
             objects_ = objects
             objects = []
@@ -328,7 +427,7 @@ class CalDAVSearcher(Searcher):
                         if not isinstance(x, Timezone)
                     ]
                 i = o.icalendar_instance
-                tz_ = [x for x in i if isinstance(x, Timezone)]
+                tz_ = [x for x in i.subcomponents if isinstance(x, Timezone)]
                 i.subcomponents = tz_
                 for comp in filtered:
                     if isinstance(comp, Timezone):
@@ -345,15 +444,6 @@ class CalDAVSearcher(Searcher):
                     new_i.add_component(comp)
                 if not (split_expanded):
                     objects.append(o)
-
-        ## partial workaround for https://github.com/python-caldav/caldav/issues/201
-        for obj in objects:
-            try:
-                obj.load(only_if_unloaded=True)
-            except:
-                pass
-
-        self.sort_objects(objects)
         return objects
 
     def build_search_xml_query(
@@ -477,17 +567,40 @@ class CalDAVSearcher(Searcher):
         for property in self._property_operator:
             if self._property_operator[property] == "undef":
                 match = cdav.NotDefined()
+                filters.append(cdav.PropFilter(property.upper()) + match)
             else:
-                ## Perhaps this replacement is wrong.
-                ## Ref RFC5545 section 3.3.11, the comma (without backslash)
-                ## basically means the text field should be considered to contain
-                ## multiple values
-                ## TODO - TODO - TODO ... this replace-logic is weird, there may be other
-                ## dragons here
-                match = cdav.TextMatch(
-                    self._property_filters[property].to_ical().replace(b"\\,", b",")
-                )
-            filters.append(cdav.PropFilter(property.upper()) + match)
+                value = self._property_filters[property]
+                property_ = property.upper()
+                if property.lower() == "category":
+                    property_ = "CATEGORIES"
+                if property.lower() == "categories":
+                    values = value.cats
+                else:
+                    values = [value]
+
+                for value in values:
+                    if hasattr(value, "to_ical"):
+                        value = value.to_ical()
+
+                    # Get collation setting for this property if available
+                    collation_str = "i;octet"  # Default to binary
+                    if (
+                        hasattr(self, "_property_collation")
+                        and property in self._property_collation
+                    ):
+                        case_sensitive = self._property_case_sensitive.get(
+                            property, True
+                        )
+                        collation_str = _collation_to_caldav(
+                            self._property_collation[property], case_sensitive
+                        )
+
+                    match = cdav.TextMatch(value, collation=collation_str)
+                    if "False" in str(match) or "True" in str(match):
+                        import pdb
+
+                        pdb.set_trace()
+                    filters.append(cdav.PropFilter(property_) + match)
 
         if comp_filter and filters:
             comp_filter += filters
@@ -502,8 +615,3 @@ class CalDAVSearcher(Searcher):
         root = cdav.CalendarQuery() + [prop, filter]
 
         return (root, self.comp_class)
-
-    ## TODO: move to base class
-    def sort_objects(self, objects):
-        if self._sort_keys:
-            objects.sort(key=self.sorting_value)

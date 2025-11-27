@@ -98,8 +98,10 @@ class FeatureSet:
         },
         "save-load.event": {"description": "it's possible to save and load events to the calendar"},
         "save-load.event.recurrences": {"description": "it's possible to save and load recurring events to the calendar - events with an RRULE property set, including recurrence sets"},
+        "save-load.event.recurrences.count": {"description": "The server will receive and store a recurring event with a count set in the RRULE"},
         "save-load.todo": {"description": "it's possible to save and load tasks to the calendar"},
         "save-load.todo.recurrences": {"description": "it's possible to save and load recurring tasks to the calendar"},
+        "save-load.todo.recurrences.count": {"description": "The server will receive and store a recurring task with a count set in the RRULE"},
         "save-load.todo.mixed-calendar": {"description": "The same calendar may contain both events and tasks (Zimbra only allows tasks to be placed on special task lists)"},
         "search": {
             "description": "calendar MUST support searching for objects using the REPORT method, as specified in RFC4791, section 7"
@@ -114,12 +116,25 @@ class FeatureSet:
         "search.time-range.todo": {"description": "basic time range searches for tasks works"},
         "search.time-range.event": {"description": "basic time range searches for event works"},
         "search.time-range.journal": {"description": "basic time range searches for journal works"},
-        "search.category": {
+        "search.is-not-defined": {
+            "description": "Supports searching for objects where properties is-not-defined according to rfc4791 section 9.7.4"
+        },
+        "search.text": {
+            "description": "Search for text attributes should work"
+        },
+        "search.text.case-sensitive": {
+            "description": "In RFC4791, section-9.7.5, a text-match may pass a collation, and i;ascii-casemap MUST be the default, this is not checked (yet - TODO) by the caldav-server-checker project.  Section 7.5 describes that the servers also are REQUIRED to support i;octet.  The definitions of those collations are given in RFC4790, i;octet is a case-sensitive byte-by-byte comparition (fastest).  search.text.case-sensitive is supported if passing the i;octet collation to search causes the search to be case-sensitive."
+        },
+        "search.text.case-insensitive": {
+            "description": "The i;ascii-casemap requires ascii-characters to be case-insensitive, while non-ascii characters are compared byte-by-byte (case-sensitive).  Proper unicode case-insensitive searches may be supported by the server, but it's not a requirement in the RFC.  As for now, we consider case-insensitive searches to be supported if the i;ascii-casemap collation does what it's supposed to do..  In the future we may consider adding a search.text.case-insensitive.unicode. (i;unicode-casemap is defined in RFC5051)"
+        },
+        "search.text.substring": {
+            "description": "According to RFC4791 the search done should be a substring search.  The search.text.substring feature is set if the calendar server does this (as opposed to only return full matches).  Substring matches does not always make sense, but it's mandated by the RFC.  When a server does a substring match on some properties but an exact match on others, the support should be marked as fragile.  Except for categories, which are handled in search.text.category.substring"
+        },
+        "search.text.category": {
             "description": "Search for category should work.  This is not explicitly specified in RFC4791, but covered in section 9.7.5.  No examples targets categories explicitly, but there are some text match examples in section 7.8.6 and following sections"},
-        "search.category.fullstring": {
-            "description": "searches on the full string categories.  Meaning that a search for `category='hands,feet,head'` will match if categories is set so, but it may not necessary match with `CATEGORIES:head,feet,hands` - TODO: Is this a feature or a bug?  It may need reconsidering.  A comma-delimited string basically means that a field has multiple values?   Ref RFC5545, section 3.3.11."},
-        "search.category.fullstring.smart": {
-            "description": "For an event with `CATEGORIES:hands,feet,head` we'll also get a match when searching for \"feet,hands,head\""
+        "search.text.category.substring": {
+            "description": "Substring search for category should work according to the RFC.  I.e., search for mil should match family,finance",
         },
         "search.recurrences": {
             "description": "Support for recurrences in search"
@@ -563,15 +578,6 @@ incompatibility_description = {
     'text_search_is_case_insensitive':
         """Probably not supporting the collation used by the caldav library""",
 
-    'text_search_is_exact_match_only':
-        """Searching for 'CONF' i.e. in the class field will not yield CONFIDENTIAL.  Which generally makes sense, but the RFC specifies substring match""",
-
-    'text_search_is_exact_match_sometimes':
-        """Some servers are doing an exact match on summary field but substring match on category or vice versa""",
-
-   'text_search_not_working':
-        """Text search is generally broken""",
-
     'date_search_ignores_duration':
         """Date search with search interval overlapping event interval works on events with dtstart and dtend, but not on events with dtstart and due""",
 
@@ -587,9 +593,6 @@ incompatibility_description = {
     'no_supported_components_support':
         """The supported components prop query does not work""",
 
-    'rrule_takes_no_count':
-        """Fastmail consistently yields a "502 bad gateway" when presented with a rrule containing COUNT""",
-
     'no-current-user-principal':
         """when querying for the current user principal property, server doesn't report anything useful""",
 
@@ -598,9 +601,6 @@ incompatibility_description = {
 
     'no_relships':
         """The calendar server does not support child/parent relationships between calendar components""",
-
-    'isnotdefined_not_working':
-        """The is-not-defined in a calendar-query not working as it should - see https://gitlab.com/davical-project/davical/-/issues/281""",
 
     'robur_rrule_freq_yearly_expands_monthly':
         """Robur expands a yearly event into a monthly event.  I believe I've reported this one upstream at some point, but can't find back to it""",
@@ -622,7 +622,8 @@ xandikos_v0_2_12 = {
     'search.recurrences.expanded': {'support': 'unsupported'},
     'search.time-range.todo': {'support': 'unsupported'},
     'search.comp-type-optional': {'support': 'ungraceful'},
-    "search.category.fullstring": {"support": "unsupported"},
+    "search.text.substring": {"support": "unsupported"},
+    "search.text.category.substring": {"support": "unsupported"},
     "old_flags":  [
     ## https://github.com/jelmer/xandikos/issues/8
     'date_todo_search_ignores_duration',
@@ -631,7 +632,6 @@ xandikos_v0_2_12 = {
     ## scheduling is not supported
     "no_scheduling",
     'no-principal-search',
-    'text_search_is_exact_match_only',
 
     ## The test in the tests itself passes, but the test in the
     ## check_server_compatibility triggers a 500-error
@@ -649,11 +649,10 @@ xandikos_v0_2_12 = {
     ]
 }
 
-xandikos_master = {
+xandikos_v0_3 = {
     ## this only applies for very simple installations
     "auto-connect.url": {"domain": "localhost", "scheme": "http", "basepath": "/"},
     'search.comp-type-optional': {'support': 'unsupported'},
-    "search.category.fullstring": {"support": "unsupported"},
     "search.recurrences.includes-implicit.todo.pending": {"support": "unsupported"},
     'search.recurrences.expanded.todo': {'support': 'unsupported'},
     'search.recurrences.expanded.exception': {'support': 'unsupported'},
@@ -682,13 +681,14 @@ xandikos_master = {
     ]
 }
 
-xandikos=xandikos_v0_2_12
+xandikos=xandikos_v0_3
 
 ## This seems to work as of version 3.5.4 of Radicale.
 ## There is much development going on at Radicale as of summar 2025,
 ## so I'm expecting this list to shrink a lot soon.
 radicale = {
-    "search.category.fullstring": {"support": "unsupported"},
+    "search.text.case-sensitive":  {"support": "unsupported"},
+    "search.is-not-defined": {"support": "fragile", "behaviour": "seems to work for categories but not for dtend"},
     "search.recurrences.includes-implicit.todo.pending": {"support": "unsupported"},
     "search.recurrences.expanded.todo": {"support": "unsupported"},
     "search.recurrences.expanded.exception": {"support": "unsupported"},
@@ -707,7 +707,6 @@ radicale = {
     'no_scheduling',
     'no_search_openended',
 
-    'text_search_is_case_insensitive',
     #'text_search_is_exact_match_sometimes',
 
     ## extra features not specified in RFC5545
@@ -721,7 +720,7 @@ nextcloud = {
     'auto-connect.url': {
         'basepath': '/remote.php/dav',
     },
-    'search.category.fullstring.smart': {'support': 'unsupported'}, ## TODO: verify
+    'search.combined-is-logical-and': {'support': 'unsupported'},
     'search.comp-type-optional': {'support': 'ungraceful'},
     'search.recurrences.expanded.todo': {'support': 'unsupported'},
     'search.recurrences.expanded.exception': {'support': 'unsupported'}, ## TODO: verify
@@ -762,9 +761,13 @@ zimbra = {
     'search.recurrences.expanded.exception': {'support': 'unsupported'}, ## TODO: verify
     'create-calendar.set-displayname': {'support': 'unsupported'},
     'save-load.todo.mixed-calendar': {'support': 'unsupported'},
-    'search.category': {'support': 'ungraceful'},
+    'save-load.todo.recurrences.count': {'support': 'unsupported'}, ## This is a new problem?
+    'search.is-not-defined': {'support': 'unsupported'},
+    'search.text.substring': {'support': 'unsupported'},
+    'search.text.category': {'support': 'ungraceful'},
+    'search.is-not-defined':  {'support': 'unsupported'},
     'search.recurrences.expanded.todo': { "support": "unsupported" },
-    'search.comp-type-optional': {'support': 'fragile'}, ## TODO: more research on this, looks like a bug in the checker
+    'search.comp-type-optional': {'support': 'fragile'}, ## TODO: more research on this, looks like a bug in the checker,
     "old_flags": [
     ## apparently, zimbra has no journal support
     'no_journal',
@@ -780,9 +783,7 @@ zimbra = {
     'no_delete_event',
     'no_sync_token',
     'vtodo_datesearch_notime_task_is_skipped',
-    'text_search_is_exact_match_only',
     'no_relships',
-    'isnotdefined_not_working',
     "no_alarmsearch",
     "no-principal-search",
 
@@ -814,8 +815,8 @@ bedework = [
 baikal =  {
     'create-calendar': {'support': 'quirk', 'behaviour': 'mkcol-required'},
     'create-calendar.auto': {'support': 'unsupported'}, ## this is the default, but the "quirk" from create-calendar overwrites it.  Hm.
-    'search.category.fullstring.smart': {'support': 'unsupported'},
-    'search.comp-type-optional': {'support': 'ungraceful'},
+
+    #'search.comp-type-optional': {'support': 'ungraceful'}, ## Possibly this has been fixed?
     'search.recurrences.expanded.todo': {'support': 'unsupported'},
     'search.recurrences.expanded.exception': {'support': 'unsupported'},
     'search.recurrences.includes-implicit.todo': {'support': 'unsupported'},
@@ -824,7 +825,8 @@ baikal =  {
         ## date search on todos does not seem to work
         ## (TODO: do some research on this)
         'sync_breaks_on_delete',
-        'text_search_is_exact_match_sometimes',
+        "no-principal-search-all",
+        "no-principal-search",
         ## extra features not specified in RFC5545
         "calendar_order",
         "calendar_color"
@@ -845,7 +847,7 @@ baikal =  {
 #]
 
 davical = {
-    "search.category.fullstring.smart": { "support": "unsupported" },
+
     "search.comp-type-optional": { "support": "fragile" },
     "search.recurrences.expanded.todo": { "support": "unsupported" },
     "search.recurrences.expanded.exception": { "support": "unsupported" },
@@ -907,8 +909,9 @@ robur = {
         'basepath': '/principals/', # TODO: this seems fishy
     },
     "delete-calendar": {  "support": "fragile" },
+    "search.is-not-defined": { "support": "unsupported" },
     "search.time-range.todo": { "support": "unsupported" },
-    "search.category": { "support": "unsupported" },
+    "search.text": { "support": "unsupported", "behaviour": "a text search ignores the filter and returns all elements" },
     "search.comp-type-optional": { "support": "ungraceful" },
     "search.recurrences.expanded.todo": { "support": "unsupported" },
     "search.recurrences.expanded.event": { "support": "fragile" },
@@ -921,10 +924,8 @@ robur = {
         'no_supported_components_support',
         'no_journal',
         'no_freebusy_rfc4791',
-        'text_search_not_working',
         "no-principal-search",
         'no_relships',
-        'isnotdefined_not_working',
         'no_alarmsearch',
         'unique_calendar_ids',
     ]
@@ -937,7 +938,6 @@ posteo = {
         'basepath': '/',
     },
     'create-calendar': {'support': 'unsupported'},
-    'search.category.fullstring.smart': {'support': 'unsupported'},
     'search.comp-type-optional': {'support': 'ungraceful'},
     'search.recurrences.expanded.todo': {'support': 'unsupported'},
     'search.recurrences.expanded.exception': {'support': 'unsupported'},
@@ -999,7 +999,6 @@ gmx = {
         'basepath': '/begenda/dav/{username}/calendar', ## TODO: foobar
     },
     'create-calendar': {'support': 'unsupported'},
-    'search.category.fullstring.smart': {'support': 'unsupported'},
     'search.comp-type-optional': {'support': 'fragile', 'description': 'unexpected results from date-search without comp-type - but only sometimes - TODO: research more'},
     'search.recurrences.expanded': {'support': 'unsupported'},
     "old_flags":  [
