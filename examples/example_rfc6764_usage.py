@@ -22,8 +22,24 @@ except Exception as e:
 
 print("\n")
 
-# Example 2: Automatic RFC6764 discovery with domain
-print("Example 2: Using bare domain (RFC6764 discovery enabled by default)")
+# Example 2: Discovery from username (no URL needed)
+# When username is an email, URL parameter can be omitted
+print("Example 2: Using username for discovery (no URL parameter)")
+print("-" * 70)
+try:
+    client = DAVClient(
+        username="user@example.com",  # URL discovered from username
+        password="password",
+    )
+    print(f"Client URL after discovery: {client.url}")
+    print(f"Username: {client.username}")
+except Exception as e:
+    print(f"Discovery failed (expected for example.com): {e}")
+
+print("\n")
+
+# Example 3: Automatic RFC6764 discovery with domain
+print("Example 3: Using bare domain (RFC6764 discovery enabled by default)")
 print("-" * 70)
 try:
     client = DAVClient(url="calendar.example.com", username="user", password="password")
@@ -33,8 +49,8 @@ except Exception as e:
 
 print("\n")
 
-# Example 3: Disable RFC6764 discovery
-print("Example 3: Disable RFC6764 discovery (use feature hints instead)")
+# Example 4: Disable RFC6764 discovery
+print("Example 4: Disable RFC6764 discovery (use feature hints instead)")
 print("-" * 70)
 try:
     client = DAVClient(
@@ -50,8 +66,8 @@ except Exception as e:
 
 print("\n")
 
-# Example 4: Full URL bypasses discovery
-print("Example 4: Full URL (RFC6764 discovery automatically skipped)")
+# Example 5: Full URL bypasses discovery
+print("Example 5: Full URL (RFC6764 discovery automatically skipped)")
 print("-" * 70)
 client = DAVClient(
     url="https://caldav.example.com/dav/", username="user", password="password"
@@ -60,8 +76,8 @@ print(f"Client URL (no discovery needed): {client.url}")
 
 print("\n")
 
-# Example 5: Using feature hints with NextCloud
-print("Example 5: Using feature hints (NextCloud)")
+# Example 6: Using feature hints with NextCloud
+print("Example 6: Using feature hints (NextCloud)")
 print("-" * 70)
 client = DAVClient(
     url="nextcloud.example.com",
@@ -74,8 +90,8 @@ print(f"Client URL with NextCloud feature hint: {client.url}")
 
 print("\n")
 
-# Example 6: Direct discovery API usage
-print("Example 6: Using discovery API directly")
+# Example 7: Direct discovery API usage
+print("Example 7: Using discovery API directly")
 print("-" * 70)
 from caldav.discovery import discover_caldav
 

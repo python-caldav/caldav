@@ -96,7 +96,7 @@ CONNKEYS = set(
 )
 
 
-def _auto_url(url, features, timeout=10, ssl_verify_cert=True, enable_rfc6764=True):
+def _auto_url(url, features, timeout=10, ssl_verify_cert=True, enable_rfc6764=True, username=None):
     """
     Auto-construct URL from domain and features, with optional RFC6764 discovery.
 
@@ -106,6 +106,7 @@ def _auto_url(url, features, timeout=10, ssl_verify_cert=True, enable_rfc6764=Tr
         timeout: Timeout for RFC6764 well-known URI lookups
         ssl_verify_cert: SSL verification setting
         enable_rfc6764: Whether to attempt RFC6764 discovery
+        username: Username to use for discovery if URL is not provided
 
     Returns:
         A tuple of (url_string, discovered_username_or_None)
@@ -115,8 +116,13 @@ def _auto_url(url, features, timeout=10, ssl_verify_cert=True, enable_rfc6764=Tr
         features = FeatureSet(features)
 
     # If URL already has a path component, don't do discovery
-    if "/" in str(url):
+    if url and "/" in str(url):
         return (url, None)
+
+    # If no URL provided but username contains @, use username for discovery
+    if not url and username and "@" in str(username) and enable_rfc6764:
+        log.debug(f"No URL provided, using username for RFC6764 discovery: {username}")
+        url = username
 
     # Try RFC6764 discovery first if enabled and we have a bare domain/email
     if enable_rfc6764 and url:
@@ -533,12 +539,16 @@ class DAVClient:
         Sets up a HTTPConnection object towards the server in the url.
 
         Args:
-          url: A fully qualified url, domain name, or email address.
+          url: A fully qualified url, domain name, or email address. Can be omitted if username
+               is an email address (RFC6764 discovery will use the username).
                Examples:
                - Full URL: `https://caldav.example.com/dav/`
                - Domain: `example.com` (will attempt RFC6764 discovery if enable_rfc6764=True)
                - Email: `user@example.com` (will attempt RFC6764 discovery if enable_rfc6764=True)
                - URL with auth: `scheme://user:pass@hostname:port`
+               - Omit URL: Use `username='user@example.com'` for discovery
+          username: Username for authentication. If url is omitted and username contains @,
+                    RFC6764 discovery will be attempted using the username as email address.
           proxy: A string defining a proxy server: `scheme://hostname:port`. Scheme defaults to http, port defaults to 8080.
           auth: A niquests.auth.AuthBase or requests.auth.AuthBase object, may be passed instead of username/password.  username and password should be passed as arguments or in the URL
           timeout and ssl_verify_cert are passed to niquests.request.
@@ -585,6 +595,7 @@ class DAVClient:
             timeout=timeout or 10,
             ssl_verify_cert=ssl_verify_cert,
             enable_rfc6764=enable_rfc6764,
+            username=username,
         )
 
         log.debug("url: " + str(url))
