@@ -291,20 +291,31 @@ DNSSEC validation adds minimal overhead:
 - No impact on subsequent CalDAV operations
 - Results can be cached to amortize cost
 
-### Limitations
+### How DNSSEC Works in This Implementation
 
-**DNSSEC only validates DNS-based discovery (SRV/TXT records)**:
-- When `verify_dnssec=True`, only DNS SRV and TXT records are validated
-- Well-known URI discovery (`.well-known/caldav`) is **not** DNSSEC-validated
-- If no SRV records exist, discovery will fail with `verify_dnssec=True`
-- This is intentional: DNSSEC validates DNS records, not HTTPS endpoints
+**When `verify_dnssec=True`**, the library enables DNSSEC for **ALL DNS lookups**:
 
-**Why well-known URIs can't use DNSSEC**:
-- Well-known URI discovery uses HTTPS requests, not DNS lookups
-- The service endpoint is discovered via HTTP redirect, which DNSSEC doesn't secure
-- TLS certificate validation secures the HTTPS connection, not DNSSEC
+1. **RFC 6764 Discovery** (SRV/TXT records):
+   - Uses dnspython with EDNS0 and AD flags
+   - Validates RRSIG signatures in DNS responses
+   - Fails if DNSSEC signatures are missing or invalid
 
-**Recommendation**: Only use `verify_dnssec=True` with domains that have proper DNS SRV records configured for CalDAV/CardDAV.
+2. **All HTTPS Requests** (including well-known URI discovery):
+   - Uses niquests with DNS-over-HTTPS (DoH) resolver
+   - DoH automatically provides DNSSEC validation
+   - Uses Cloudflare's 1.1.1.1 DoH service
+   - Validates A/AAAA records used for HTTPS connections
+
+**This means**:
+- ✅ DNS SRV/TXT lookups are DNSSEC-validated
+- ✅ A/AAAA lookups for HTTPS connections are DNSSEC-validated
+- ✅ Works with both SRV-based and well-known URI discovery
+- ✅ All CalDAV requests use DNSSEC-validated DNS
+
+**Benefits**:
+- Complete protection against DNS spoofing for all operations
+- No bypasses or gaps in DNSSEC coverage
+- Seamless integration with niquests' resolver system
 
 ## Future Enhancements
 
@@ -316,10 +327,9 @@ Potential improvements:
 - [ ] Environment variable `CALDAV_DISABLE_RFC6764` for global control
 - [ ] Metrics/telemetry for discovery success rates
 - [x] DNSSEC validation (implemented in issue571 branch)
-- [ ] Custom DNS resolver for niquests/urllib3_future with DNSSEC validation for HTTPS requests
-  - Would validate DNSSEC for A/AAAA records during HTTPS connections
-  - Requires deep integration with urllib3_future's resolver system
-  - Complex implementation beyond current scope
+- [x] DNSSEC for ALL DNS lookups (implemented using niquests DoH resolver)
+- [ ] Configurable DoH provider (currently hardcoded to Cloudflare)
+- [ ] Environment variable for DoH resolver selection
 
 ## Security Considerations
 

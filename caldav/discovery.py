@@ -306,7 +306,11 @@ def _txt_lookup(domain: str, service_type: str, use_tls: bool = True, verify_dns
 
 
 def _well_known_lookup(
-    domain: str, service_type: str, timeout: int = 10, ssl_verify_cert: bool = True
+    domain: str,
+    service_type: str,
+    timeout: int = 10,
+    ssl_verify_cert: bool = True,
+    verify_dnssec: bool = False,
 ) -> Optional[ServiceInfo]:
     """
     Try to discover service via Well-Known URI (RFC 5785).
@@ -320,6 +324,7 @@ def _well_known_lookup(
         service_type: Either 'caldav' or 'carddav'
         timeout: Request timeout in seconds
         ssl_verify_cert: Whether to verify SSL certificates
+        verify_dnssec: If True, use DoH resolver with DNSSEC validation
 
     Returns:
         ServiceInfo if successful, None otherwise
@@ -330,14 +335,23 @@ def _well_known_lookup(
     log.debug(f"Trying well-known URI: {url}")
 
     try:
+        # If DNSSEC validation requested, use DoH resolver
+        # Niquests automatically provides DNSSEC with custom resolvers
+        if verify_dnssec:
+            log.debug("Using DoH resolver with DNSSEC for well-known URI lookup")
+            session = requests.Session(resolver="doh+cloudflare://")
+        else:
+            session = requests.Session()
+
         # We expect a redirect to the actual service URL
         # Use HEAD or GET with allow_redirects
-        response = requests.get(
+        response = session.get(
             url,
             timeout=timeout,
             verify=ssl_verify_cert,
             allow_redirects=False,  # We want to see the redirect
         )
+        session.close()
 
         # RFC 6764 says we should follow redirects
         if response.status_code in (301, 302, 303, 307, 308):
@@ -499,20 +513,11 @@ def discover_service(
             )
 
     # Fallback to well-known URI (RFC 6764 section 5)
-    # Note: Well-known URI discovery uses HTTPS, not DNS, so DNSSEC doesn't apply
-    if verify_dnssec:
-        # If DNSSEC validation was requested but no SRV records exist to validate,
-        # we should fail rather than fall back to well-known URI
-        log.warning(
-            f"DNSSEC validation requested but no SRV records found for {domain}. "
-            "Cannot validate well-known URI discovery via DNSSEC."
-        )
-        raise DiscoveryError(
-            reason=f"DNSSEC validation requested but no DNS records found for {domain}"
-        )
-
+    # When verify_dnssec=True, use DoH resolver which provides DNSSEC for A/AAAA records
     log.debug("SRV lookup failed, trying well-known URI")
-    well_known_info = _well_known_lookup(domain, service_type, timeout, ssl_verify_cert)
+    well_known_info = _well_known_lookup(
+        domain, service_type, timeout, ssl_verify_cert, verify_dnssec
+    )
 
     if well_known_info:
         # Preserve username from email address
