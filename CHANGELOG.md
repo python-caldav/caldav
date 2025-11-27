@@ -43,6 +43,15 @@ Searching may now be done by creating a `caldav.CalDAVSearcher` object and do a 
 
 ### Added
 
+* **RFC 6764 DNS-based service discovery**: Automatic CalDAV/CardDAV service discovery using DNS SRV/TXT records and well-known URIs. Users can now provide just a domain name or email address (e.g., `DAVClient(url='user@example.com')`) and the library will automatically discover the CalDAV service endpoint. The discovery process follows RFC 6764 specification:
+  - DNS SRV record lookup for `_caldavs._tcp` and `_caldav._tcp` services
+  - DNS TXT record lookup for service path information
+  - Well-known URI fallback (`.well-known/caldav`)
+  - Automatic preference for TLS-secured services
+  - Graceful fallback to feature hints if discovery fails
+  - New `caldav.discovery` module with `discover_caldav()` and `discover_carddav()` functions
+  - New `enable_rfc6764` parameter for `DAVClient` (default: `True`) to control discovery behavior
+  - New required dependency: `dnspython` for DNS queries
 * The client connection parameter `features` may now simply be a string label referencing a well-known server or cloud solution - like `features: posteo`.  https://github.com/python-caldav/caldav/pull/561
 * The client connection parameter `url` is no longer needed when referencing a well-known cloud solution. https://github.com/python-caldav/caldav/pull/561
 * The client connection parameter `url` may contain just the domain name (without any slashes) and the URL will be constructed, if referencing a well-known caldav server implementation. https://github.com/python-caldav/caldav/pull/561
