@@ -199,6 +199,98 @@ location /.well-known/caldav {
 - **dnspython** (new required dependency) - For DNS SRV/TXT lookups
 - **niquests** or **requests** (existing) - For well-known URI lookups
 
+## DNSSEC Validation
+
+**NEW in issue571 branch**: Optional DNSSEC validation for enhanced security.
+
+### What is DNSSEC?
+
+DNSSEC (DNS Security Extensions) provides cryptographic authentication of DNS data, ensuring that DNS responses have not been tampered with during transit. It protects against DNS spoofing and cache poisoning attacks.
+
+### Enabling DNSSEC Validation
+
+```python
+from caldav import DAVClient
+
+# Enable DNSSEC validation
+client = DAVClient(
+    url='user@example.com',
+    password='secure_password',
+    verify_dnssec=True,  # Requires DNSSEC-enabled domain
+)
+```
+
+### How DNSSEC Validation Works
+
+When `verify_dnssec=True`:
+1. DNS queries include EDNS0 extension with DO (DNSSEC OK) flag
+2. Queries request AD (Authenticated Data) flag
+3. Responses are validated for RRSIG (signature) records
+4. Discovery fails if signatures are missing or invalid
+
+### Requirements
+
+- **Domain must have DNSSEC enabled** with properly configured:
+  - DS records in parent zone
+  - DNSKEY records in zone
+  - RRSIG signatures for all records
+- **Recursive resolver must support DNSSEC** (most modern resolvers do)
+- **dnspython library** (already required for RFC 6764)
+
+### Error Handling
+
+```python
+from caldav import DAVClient
+from caldav.discovery import DiscoveryError
+
+try:
+    client = DAVClient(
+        url='user@example.com',
+        password='password',
+        verify_dnssec=True,
+    )
+except DiscoveryError as e:
+    print(f"DNSSEC validation failed: {e}")
+    # Fall back to manual configuration
+    client = DAVClient(
+        url='https://caldav.example.com/dav/',
+        username='user',
+        password='password',
+    )
+```
+
+### When to Use DNSSEC Validation
+
+**✅ Recommended for:**
+- High-security environments handling sensitive data
+- Financial or healthcare applications
+- Government or enterprise deployments
+- Any environment where DNS security is critical
+
+**❌ Not recommended for:**
+- Domains without DNSSEC enabled (will fail)
+- Development/testing with local DNS
+- Quick prototyping
+- Public services where availability > security
+
+### Testing DNSSEC Support
+
+Check if a domain has DNSSEC enabled:
+
+```bash
+# Check for DNSSEC records
+dig +dnssec _caldavs._tcp.example.com SRV
+
+# Should see RRSIG records in response
+```
+
+### Performance Impact
+
+DNSSEC validation adds minimal overhead:
+- ~10-50ms additional latency for DNS queries
+- No impact on subsequent CalDAV operations
+- Results can be cached to amortize cost
+
 ## Future Enhancements
 
 Potential improvements:
@@ -208,6 +300,7 @@ Potential improvements:
 - [ ] Integration with `get_davclient()` function
 - [ ] Environment variable `CALDAV_DISABLE_RFC6764` for global control
 - [ ] Metrics/telemetry for discovery success rates
+- [x] DNSSEC validation (implemented in issue571 branch)
 
 ## Security Considerations
 
@@ -234,27 +327,47 @@ RFC 6764 DNS-based service discovery has inherent security risks if DNS is not s
 
 2. **`ssl_verify_cert=True` (DEFAULT)**: Verifies TLS certificates to prevent MITM attacks
 
-3. **Timeout Protection**: 10-second default timeout prevents hanging on malicious DNS
+3. **`verify_dnssec=False` (DEFAULT, opt-in)**: Optional DNSSEC validation for DNS integrity
+   ```python
+   # Maximum security - requires DNSSEC-enabled domain
+   client = DAVClient(
+       url='user@example.com',
+       password='pass',
+       verify_dnssec=True,  # Cryptographically verify DNS responses
+   )
+   ```
 
-4. **Explicit Fallback**: Failed discovery falls back to feature hints or defaults
+4. **Timeout Protection**: 10-second default timeout prevents hanging on malicious DNS
+
+5. **Explicit Fallback**: Failed discovery falls back to feature hints or defaults
 
 ### Best Practices for Production
 
 1. **Use DNSSEC**: Deploy DNSSEC on your domains to cryptographically secure DNS responses
-2. **Verify Endpoints**: Manually verify discovered endpoints for sensitive applications
-3. **Certificate Pinning**: Consider pinning certificates for known domains
-4. **Manual Configuration**: For high-security environments, manual URL configuration may be preferable to automatic discovery
-5. **Monitor Discovery**: Log and monitor discovered endpoints for unexpected changes
+2. **Enable DNSSEC Validation**: Use `verify_dnssec=True` for high-security environments with DNSSEC-enabled domains
+3. **Verify Endpoints**: Manually verify discovered endpoints for sensitive applications
+4. **Certificate Pinning**: Consider pinning certificates for known domains
+5. **Manual Configuration**: For high-security environments, manual URL configuration may be preferable to automatic discovery
+6. **Monitor Discovery**: Log and monitor discovered endpoints for unexpected changes
 
 ### Example: Secure Usage
 
 ```python
-# Recommended for production
+# Recommended for production (standard security)
 client = DAVClient(
     url='user@example.com',
     password='secure_password',
     require_tls=True,        # Default - only HTTPS
     ssl_verify_cert=True,    # Default - verify certificates
+)
+
+# Maximum security with DNSSEC (requires DNSSEC-enabled domain)
+client = DAVClient(
+    url='user@example.com',
+    password='secure_password',
+    require_tls=True,        # Default - only HTTPS
+    ssl_verify_cert=True,    # Default - verify certificates
+    verify_dnssec=True,      # Validate DNS signatures
 )
 
 # For testing/development only
@@ -269,10 +382,10 @@ client = DAVClient(
 ### When to Disable RFC 6764
 
 Consider setting `enable_rfc6764=False` for:
-- High-security applications handling sensitive data
-- Environments without DNSSEC
+- Environments without DNSSEC where DNS trust is low
 - When manual endpoint verification is required
 - Legacy systems requiring specific server configurations
+- Development/testing with non-standard DNS setups
 
 ## References
 

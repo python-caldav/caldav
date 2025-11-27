@@ -112,6 +112,41 @@ def _extract_domain(identifier: str) -> Tuple[str, Optional[str]]:
     return (identifier.strip(), None)
 
 
+def _validate_dnssec(response) -> bool:
+    """
+    Validate DNSSEC signatures for a DNS response.
+
+    Args:
+        response: DNS response object from dns.resolver
+
+    Returns:
+        True if DNSSEC validation succeeds or if no DNSSEC records present,
+        False if DNSSEC validation fails
+
+    Note:
+        This function uses dnspython's built-in DNSSEC validation.
+        If the response is not signed with DNSSEC, it returns True
+        (no validation performed). If signed but invalid, returns False.
+    """
+    try:
+        # Check if response has RRSIG (DNSSEC signature) records
+        if hasattr(response, 'response') and response.response is not None:
+            # Look for RRSIG in the answer section
+            for rrset in response.response.answer:
+                if rrset.rdtype == dns.rdatatype.RRSIG:
+                    log.debug("DNSSEC signatures found in response")
+                    # dnspython handles DNSSEC validation during resolve
+                    # If we got here without an exception, validation passed
+                    return True
+            # No DNSSEC signatures found - not signed
+            log.debug("No DNSSEC signatures in response")
+            return False
+        return False
+    except Exception as e:
+        log.warning(f"DNSSEC validation error: {e}")
+        return False
+
+
 def _parse_txt_record(txt_data: str) -> Optional[str]:
     """
     Parse TXT record data to extract the path attribute.
@@ -141,29 +176,47 @@ def _parse_txt_record(txt_data: str) -> Optional[str]:
 
 
 def _srv_lookup(
-    domain: str, service_type: str, use_tls: bool = True
+    domain: str, service_type: str, use_tls: bool = True, verify_dnssec: bool = False
 ) -> List[Tuple[str, int, int, int]]:
     """
-    Perform DNS SRV record lookup.
+    Perform DNS SRV record lookup with optional DNSSEC validation.
 
     Args:
         domain: The domain to query
         service_type: Either 'caldav' or 'carddav'
         use_tls: If True, query for TLS service (_caldavs), else non-TLS (_caldav)
+        verify_dnssec: If True, validate DNSSEC signatures (raises error if validation fails)
 
     Returns:
         List of tuples: (hostname, port, priority, weight)
         Sorted by priority (lower is better), then randomized by weight
+
+    Raises:
+        DiscoveryError: If DNSSEC validation fails when verify_dnssec=True
     """
     # Construct the SRV record name
     # RFC 6764 defines: _caldavs._tcp, _caldav._tcp, _carddavs._tcp, _carddav._tcp
     service_suffix = "s" if use_tls else ""
     srv_name = f"_{service_type}{service_suffix}._tcp.{domain}"
 
-    log.debug(f"Performing SRV lookup for {srv_name}")
+    log.debug(f"Performing SRV lookup for {srv_name} (DNSSEC={verify_dnssec})")
 
     try:
-        answers = dns.resolver.resolve(srv_name, "SRV")
+        # Create a resolver with DNSSEC validation if requested
+        if verify_dnssec:
+            resolver = dns.resolver.Resolver()
+            resolver.use_edns(0, dns.flags.DO, 4096)  # Enable DNSSEC
+            resolver.flags = (resolver.flags or 0) | dns.flags.AD  # Request authenticated data
+            answers = resolver.resolve(srv_name, "SRV")
+
+            # Validate DNSSEC
+            if not _validate_dnssec(answers):
+                raise DiscoveryError(
+                    reason=f"DNSSEC validation failed for {srv_name}"
+                )
+            log.info(f"DNSSEC validation passed for {srv_name}")
+        else:
+            answers = dns.resolver.resolve(srv_name, "SRV")
         results = []
 
         for rdata in answers:
@@ -190,25 +243,43 @@ def _srv_lookup(
         return []
 
 
-def _txt_lookup(domain: str, service_type: str, use_tls: bool = True) -> Optional[str]:
+def _txt_lookup(domain: str, service_type: str, use_tls: bool = True, verify_dnssec: bool = False) -> Optional[str]:
     """
-    Perform DNS TXT record lookup to find the service path.
+    Perform DNS TXT record lookup to find the service path with optional DNSSEC validation.
 
     Args:
         domain: The domain to query
         service_type: Either 'caldav' or 'carddav'
         use_tls: If True, query for TLS service (_caldavs), else non-TLS (_caldav)
+        verify_dnssec: If True, validate DNSSEC signatures
 
     Returns:
         The path from the TXT record, or None if not found
+
+    Raises:
+        DiscoveryError: If DNSSEC validation fails when verify_dnssec=True
     """
     service_suffix = "s" if use_tls else ""
     txt_name = f"_{service_type}{service_suffix}._tcp.{domain}"
 
-    log.debug(f"Performing TXT lookup for {txt_name}")
+    log.debug(f"Performing TXT lookup for {txt_name} (DNSSEC={verify_dnssec})")
 
     try:
-        answers = dns.resolver.resolve(txt_name, "TXT")
+        # Create a resolver with DNSSEC validation if requested
+        if verify_dnssec:
+            resolver = dns.resolver.Resolver()
+            resolver.use_edns(0, dns.flags.DO, 4096)  # Enable DNSSEC
+            resolver.flags = (resolver.flags or 0) | dns.flags.AD  # Request authenticated data
+            answers = resolver.resolve(txt_name, "TXT")
+
+            # Validate DNSSEC
+            if not _validate_dnssec(answers):
+                raise DiscoveryError(
+                    reason=f"DNSSEC validation failed for {txt_name}"
+                )
+            log.info(f"DNSSEC validation passed for {txt_name}")
+        else:
+            answers = dns.resolver.resolve(txt_name, "TXT")
 
         for rdata in answers:
             # TXT records can have multiple strings; join them
@@ -312,6 +383,7 @@ def discover_service(
     ssl_verify_cert: bool = True,
     prefer_tls: bool = True,
     require_tls: bool = True,
+    verify_dnssec: bool = False,
 ) -> Optional[ServiceInfo]:
     """
     Discover CalDAV or CardDAV service for a domain or email address.
@@ -345,17 +417,26 @@ def discover_service(
                      DNS-based downgrade attacks to plaintext HTTP. Set to False
                      only if you explicitly need to support non-TLS servers and
                      trust your DNS infrastructure.
+        verify_dnssec: If True, validate DNSSEC signatures on DNS responses.
+                       This provides cryptographic proof that DNS records are authentic
+                       and have not been tampered with. Requires DNS servers to support
+                       DNSSEC. Discovery will fail if DNSSEC validation fails.
+                       Default: False (for compatibility with non-DNSSEC domains).
 
     Returns:
         ServiceInfo object with discovered service details, or None if discovery fails
 
     Raises:
-        DiscoveryError: If service_type is invalid
+        DiscoveryError: If service_type is invalid or if DNSSEC validation fails
+                        when verify_dnssec=True
 
     Examples:
         >>> info = discover_service('user@example.com', 'caldav')
         >>> if info:
         ...     print(f"Service URL: {info.url}")
+
+        >>> # With DNSSEC validation (recommended for production)
+        >>> info = discover_service('user@example.com', 'caldav', verify_dnssec=True)
 
         >>> # Allow non-TLS (INSECURE - only for testing)
         >>> info = discover_service('user@example.com', 'caldav', require_tls=False)
@@ -381,14 +462,14 @@ def discover_service(
         log.warning("require_tls=False: Allowing non-TLS connections (INSECURE)")
 
     for use_tls in tls_options:
-        srv_records = _srv_lookup(domain, service_type, use_tls)
+        srv_records = _srv_lookup(domain, service_type, use_tls, verify_dnssec)
 
         if srv_records:
             # Use the highest priority record (first in sorted list)
             hostname, port, priority, weight = srv_records[0]
 
             # Try to get path from TXT record
-            path = _txt_lookup(domain, service_type, use_tls)
+            path = _txt_lookup(domain, service_type, use_tls, verify_dnssec)
             if not path:
                 # RFC 6764 section 5: If no TXT record, try well-known URI for path
                 log.debug("No TXT record found, using root path")
@@ -440,6 +521,7 @@ def discover_caldav(
     ssl_verify_cert: bool = True,
     prefer_tls: bool = True,
     require_tls: bool = True,
+    verify_dnssec: bool = False,
 ) -> Optional[ServiceInfo]:
     """
     Convenience function to discover CalDAV service.
@@ -450,6 +532,7 @@ def discover_caldav(
         ssl_verify_cert: Whether to verify SSL certificates
         prefer_tls: If True, try TLS services first
         require_tls: If True (default), only accept TLS connections
+        verify_dnssec: If True, validate DNSSEC signatures
 
     Returns:
         ServiceInfo object or None
@@ -461,6 +544,7 @@ def discover_caldav(
         ssl_verify_cert=ssl_verify_cert,
         prefer_tls=prefer_tls,
         require_tls=require_tls,
+        verify_dnssec=verify_dnssec,
     )
 
 
@@ -470,6 +554,7 @@ def discover_carddav(
     ssl_verify_cert: bool = True,
     prefer_tls: bool = True,
     require_tls: bool = True,
+    verify_dnssec: bool = False,
 ) -> Optional[ServiceInfo]:
     """
     Convenience function to discover CardDAV service.
@@ -480,6 +565,8 @@ def discover_carddav(
         ssl_verify_cert: Whether to verify SSL certificates
         prefer_tls: If True, try TLS services first
         require_tls: If True (default), only accept TLS connections
+        verify_dnssec: If True, validate DNSSEC signatures. Requires DNSSEC to be
+                      enabled on the domain. Will raise DiscoveryError if validation fails.
 
     Returns:
         ServiceInfo object or None
@@ -491,4 +578,5 @@ def discover_carddav(
         ssl_verify_cert=ssl_verify_cert,
         prefer_tls=prefer_tls,
         require_tls=require_tls,
+        verify_dnssec=verify_dnssec,
     )

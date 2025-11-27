@@ -53,6 +53,7 @@ Also, the RFC6764 discovery may not always be robust, causing fallbacks and henc
 * **RFC 6764 DNS-based service discovery**: Automatic CalDAV/CardDAV service discovery using DNS SRV/TXT records and well-known URIs. Users can now provide just a domain name or email address (e.g., `DAVClient(username='user@example.com')`) and the library will automatically discover the CalDAV service endpoint. The discovery process follows RFC 6764 specification.  This involves a new required dependency: `dnspython` for DNS queries.  DNS-based discovery can be disabled in the davclient connection settings, but I've opted against implementing a fallback if the dns library is not installed.
   - **SECURITY**: DNS-based discovery has security implications. By default, `require_tls=True` prevents downgrade attacks by only accepting HTTPS connections. See security documentation for details.
   - New `require_tls` parameter (default: `True`) prevents DNS-based downgrade attacks
+  - **NEW (issue571 branch)**: Optional `verify_dnssec` parameter (default: `False`) for DNSSEC validation. When enabled, DNS responses are cryptographically validated to prevent DNS spoofing. Requires DNSSEC-enabled domains.
   - Username extraction from email addresses (`user@example.com` → username: `user`)
   - Discovery from username parameter when URL is omitted
 * The client connection parameter `features` may now simply be a string label referencing a well-known server or cloud solution - like `features: posteo`.  https://github.com/python-caldav/caldav/pull/561

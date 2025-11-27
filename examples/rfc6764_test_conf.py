@@ -13,8 +13,9 @@ path.insert(0, '.')
 
 try:
     from tests.conf_private import caldav_servers
-except:
+except (ModuleNotFoundError, ImportError):
     caldav_servers = []
+
 from caldav.discovery import discover_caldav
 from caldav.lib.url import URL
 from caldav import compatibility_hints
@@ -45,7 +46,7 @@ for url in urls:
         domains.append(".".join(hostsplit[-i:]))
 
 discovered_urls = []
-        
+
 for domain in domains:
     print("-" * 70)
     service_info = discover_caldav(domain)
@@ -57,6 +58,17 @@ for domain in domains:
         print(f"Port: {service_info.port}")
         print(f"Path: {service_info.path}")
         print(f"TLS: {service_info.tls}")
+
+        # Test DNSSEC validation
+        try:
+            service_info_dnssec = discover_caldav(domain, verify_dnssec=True)
+            dnssec_validated = service_info_dnssec is not None
+        except Exception as e:
+            dnssec_validated = False
+            print(f"DNSSEC validation error: {e}")
+
+        print(f"DNSSEC validated: {dnssec_validated}")
+
         if service_info.url:
             discovered_urls.append(service_info.url)
     else:

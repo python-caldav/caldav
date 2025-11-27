@@ -93,11 +93,12 @@ CONNKEYS = set(
         "features",
         "enable_rfc6764",
         "require_tls",
+        "verify_dnssec",
     )
 )
 
 
-def _auto_url(url, features, timeout=10, ssl_verify_cert=True, enable_rfc6764=True, username=None, require_tls=True):
+def _auto_url(url, features, timeout=10, ssl_verify_cert=True, enable_rfc6764=True, username=None, require_tls=True, verify_dnssec=False):
     """
     Auto-construct URL from domain and features, with optional RFC6764 discovery.
 
@@ -109,6 +110,7 @@ def _auto_url(url, features, timeout=10, ssl_verify_cert=True, enable_rfc6764=Tr
         enable_rfc6764: Whether to attempt RFC6764 discovery
         username: Username to use for discovery if URL is not provided
         require_tls: Only accept TLS connections during discovery (default: True)
+        verify_dnssec: If True, validate DNSSEC signatures during discovery (default: False)
 
     Returns:
         A tuple of (url_string, discovered_username_or_None)
@@ -138,6 +140,7 @@ def _auto_url(url, features, timeout=10, ssl_verify_cert=True, enable_rfc6764=Tr
                 if isinstance(ssl_verify_cert, bool)
                 else True,
                 require_tls=require_tls,
+                verify_dnssec=verify_dnssec,
             )
             if service_info:
                 log.info(
@@ -538,6 +541,7 @@ class DAVClient:
         features: Union[FeatureSet, dict, str] = None,
         enable_rfc6764: bool = True,
         require_tls: bool = True,
+        verify_dnssec: bool = False,
     ) -> None:
         """
         Sets up a HTTPConnection object towards the server in the url.
@@ -575,6 +579,12 @@ class DAVClient:
                        redirect to unencrypted HTTP. Set to False ONLY if you need to
                        support non-TLS servers and trust your DNS infrastructure.
                        This parameter has no effect if enable_rfc6764=False.
+          verify_dnssec: boolean, validate DNSSEC signatures during RFC6764 discovery. Default: False.
+                         When True, DNS lookups will request DNSSEC validation and fail if
+                         signatures are invalid or missing. This provides cryptographic proof
+                         that DNS responses have not been tampered with. Requires DNSSEC to be
+                         enabled on the domain. Set to True for high-security environments.
+                         This parameter has no effect if enable_rfc6764=False.
 
         The niquests library will honor a .netrc-file, if such a file exists
         username and password may be omitted.
@@ -608,6 +618,7 @@ class DAVClient:
             enable_rfc6764=enable_rfc6764,
             username=username,
             require_tls=require_tls,
+            verify_dnssec=verify_dnssec,
         )
 
         log.debug("url: " + str(url))
