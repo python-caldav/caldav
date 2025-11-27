@@ -8,41 +8,24 @@ This project includes a framework for running tests against a Baikal CalDAV serv
 
 ```bash
 cd tests/docker-test-servers/baikal
-docker-compose up -d
+./start.sh
 ```
 
-This will start the Baikal CalDAV server on `http://localhost:8800`.
+This will:
+1. Start the Baikal CalDAV server container
+2. Copy the pre-configured database and config files
+3. Restart the container to apply the configuration
+4. Wait for Baikal to be ready on `http://localhost:8800`
 
-### 2. Initial Configuration
+### 2. Pre-configured and Ready!
 
-Baikal requires initial setup on first run. You have two options:
+This Baikal instance comes **pre-configured** with:
+- Admin user: `admin` / `admin`
+- Test user: `testuser` / `testpass`
+- Default calendar and addressbook already created
+- Digest authentication enabled
 
-#### Option A: Web-based Configuration (Recommended for first-time setup)
-
-1. Open your browser and navigate to `http://localhost:8800`
-2. Follow the setup wizard:
-   - Set admin password: `admin` (or your choice)
-   - Configure timezone: `UTC` (recommended)
-3. Create a test user:
-   - Go to `http://localhost:8800/admin`
-   - Login with admin credentials
-   - Navigate to "Users & Resources"
-   - Add user: `testuser` with password `testpass`
-
-#### Option B: Use Pre-configured Setup
-
-If you have a pre-configured Baikal instance, you can export and reuse the configuration:
-
-```bash
-# Export config from running container
-docker cp baikal-test:/var/www/baikal/Specific ./baikal-backup/Specific
-docker cp baikal-test:/var/www/baikal/config ./baikal-backup/config
-
-# Later, restore to a new container by modifying docker-compose.yml:
-# volumes:
-#   - ./baikal-backup/Specific:/var/www/baikal/Specific
-#   - ./baikal-backup/config:/var/www/baikal/config
-```
+**No manual configuration needed!** The container will start ready to use.
 
 ### 3. Run Tests
 
@@ -168,10 +151,24 @@ docker-compose restart baikal
 The Baikal testing framework consists of:
 
 1. **tests/docker-test-servers/baikal/docker-compose.yml** - Defines the Baikal container service
-2. **.github/workflows/tests.yaml** - GitHub Actions workflow with Baikal service
-3. **tests/conf_baikal.py** - Baikal connection configuration
-4. **tests/docker-test-servers/baikal/setup_baikal.sh** - Helper script for setup
-5. **tests/docker-test-servers/baikal/configure_baikal.py** - Automated configuration script
+2. **tests/docker-test-servers/baikal/Specific/** - Pre-configured database and config files
+3. **tests/docker-test-servers/baikal/create_baikal_db.py** - Script to regenerate config (if needed)
+4. **.github/workflows/tests.yaml** - GitHub Actions workflow with Baikal service
+5. **tests/conf.py** - Auto-detects Baikal when BAIKAL_URL is set
+
+## Regenerating Configuration
+
+If you need to recreate the pre-configured database:
+
+```bash
+cd tests/docker-test-servers/baikal
+python3 create_baikal_db.py
+```
+
+This will regenerate:
+- `Specific/db/db.sqlite` - Database with testuser
+- `Specific/config.php` - Main configuration
+- `Specific/config.system.php` - System configuration
 
 ## Contributing
 

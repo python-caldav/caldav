@@ -36,9 +36,18 @@ jobs:
           path: ~/.cache/pip
           key: pip|${{ hashFiles('setup.py') }}|${{ hashFiles('tox.ini') }}
       - run: pip install tox
+      - name: Configure Baikal with pre-seeded database
+        run: |
+          # Copy pre-configured database and config to Baikal container
+          docker cp tests/docker-test-servers/baikal/Specific/. ${{ job.services.baikal.id }}:/var/www/baikal/Specific/
+          docker cp tests/docker-test-servers/baikal/config/. ${{ job.services.baikal.id }}:/var/www/baikal/config/
+          # Restart to pick up configuration
+          docker restart ${{ job.services.baikal.id }}
       - name: Wait for Baikal to be ready
         run: |
-          timeout 60 bash -c 'until curl -f http://localhost:8800/ 2>/dev/null; do sleep 2; done'
+          sleep 5
+          timeout 60 bash -c 'until curl -f http://localhost:8800/ 2>/dev/null; do echo "Waiting..."; sleep 2; done'
+          echo "Baikal is ready!"
       - run: tox -e py
         env:
           BAIKAL_URL: http://localhost:8800
