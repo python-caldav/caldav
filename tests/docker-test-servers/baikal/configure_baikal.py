@@ -14,11 +14,10 @@ Environment Variables:
     BAIKAL_USERNAME: Test user username (default: testuser)
     BAIKAL_PASSWORD: Test user password (default: testpass)
 """
-
-import os
-import sys
-import sqlite3
 import hashlib
+import os
+import sqlite3
+import sys
 from pathlib import Path
 
 try:
@@ -55,16 +54,19 @@ def create_baikal_database(db_path: Path, username: str, password: str) -> None:
     cursor = conn.cursor()
 
     # Create users table
-    cursor.execute("""
+    cursor.execute(
+        """
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY,
             username TEXT UNIQUE,
             digesta1 TEXT
         )
-    """)
+    """
+    )
 
     # Create calendars table
-    cursor.execute("""
+    cursor.execute(
+        """
         CREATE TABLE IF NOT EXISTS calendars (
             id INTEGER PRIMARY KEY,
             principaluri TEXT,
@@ -74,10 +76,12 @@ def create_baikal_database(db_path: Path, username: str, password: str) -> None:
             components TEXT,
             ctag INTEGER
         )
-    """)
+    """
+    )
 
     # Create addressbooks table
-    cursor.execute("""
+    cursor.execute(
+        """
         CREATE TABLE IF NOT EXISTS addressbooks (
             id INTEGER PRIMARY KEY,
             principaluri TEXT,
@@ -86,7 +90,8 @@ def create_baikal_database(db_path: Path, username: str, password: str) -> None:
             description TEXT,
             ctag INTEGER
         )
-    """)
+    """
+    )
 
     # Create test user with digest auth
     realm = "BaikalDAV"
@@ -94,7 +99,7 @@ def create_baikal_database(db_path: Path, username: str, password: str) -> None:
 
     cursor.execute(
         "INSERT OR REPLACE INTO users (username, digesta1) VALUES (?, ?)",
-        (username, ha1)
+        (username, ha1),
     )
 
     # Create default calendar for user
@@ -103,7 +108,7 @@ def create_baikal_database(db_path: Path, username: str, password: str) -> None:
         """INSERT OR REPLACE INTO calendars
            (principaluri, displayname, uri, components, ctag)
            VALUES (?, ?, ?, ?, ?)""",
-        (principal_uri, "Default Calendar", "default", "VEVENT,VTODO,VJOURNAL", 1)
+        (principal_uri, "Default Calendar", "default", "VEVENT,VTODO,VJOURNAL", 1),
     )
 
     # Create default addressbook for user
@@ -111,7 +116,7 @@ def create_baikal_database(db_path: Path, username: str, password: str) -> None:
         """INSERT OR REPLACE INTO addressbooks
            (principaluri, displayname, uri, ctag)
            VALUES (?, ?, ?, ?)""",
-        (principal_uri, "Default Address Book", "default", 1)
+        (principal_uri, "Default Address Book", "default", 1),
     )
 
     conn.commit()
@@ -122,10 +127,10 @@ def create_baikal_database(db_path: Path, username: str, password: str) -> None:
 def main() -> int:
     """Main function."""
     # Get configuration from environment
-    baikal_url = os.environ.get('BAIKAL_URL', 'http://localhost:8800')
-    admin_password = os.environ.get('BAIKAL_ADMIN_PASSWORD', 'admin')
-    username = os.environ.get('BAIKAL_USERNAME', 'testuser')
-    password = os.environ.get('BAIKAL_PASSWORD', 'testpass')
+    baikal_url = os.environ.get("BAIKAL_URL", "http://localhost:8800")
+    admin_password = os.environ.get("BAIKAL_ADMIN_PASSWORD", "admin")
+    username = os.environ.get("BAIKAL_USERNAME", "testuser")
+    password = os.environ.get("BAIKAL_PASSWORD", "testpass")
 
     print(f"Configuring Baikal at {baikal_url}")
     print(f"Test user: {username}")
@@ -139,9 +144,9 @@ def main() -> int:
         print("Make sure Baikal is running (e.g., docker-compose up -d)")
 
     # Note: Direct file configuration requires access to Baikal's container filesystem
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("NOTE: Direct configuration requires container filesystem access")
-    print("="*70)
+    print("=" * 70)
     print("\nFor Docker-based setup, you can:")
     print("1. Use docker exec to run this script inside the container")
     print("2. Mount a pre-configured volume with config and database")
@@ -149,10 +154,10 @@ def main() -> int:
     print("\nExample for docker exec:")
     print(f"  docker cp scripts/configure_baikal.py baikal-test:/tmp/")
     print(f"  docker exec baikal-test python3 /tmp/configure_baikal.py")
-    print("="*70 + "\n")
+    print("=" * 70 + "\n")
 
     return 0
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())

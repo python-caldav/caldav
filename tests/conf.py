@@ -98,8 +98,9 @@ try:
     from .conf_private import test_baikal
 except ImportError:
     import os
+
     ## Test Baikal if BAIKAL_URL is set (e.g., in CI or locally with Docker)
-    test_baikal = os.environ.get('BAIKAL_URL') is not None
+    test_baikal = os.environ.get("BAIKAL_URL") is not None
 
 #####################
 # Public test servers
@@ -263,9 +264,9 @@ if test_xandikos:
 if test_baikal:
     import os
 
-    baikal_url = os.environ.get('BAIKAL_URL', f"http://{baikal_host}:{baikal_port}")
-    baikal_username = os.environ.get('BAIKAL_USERNAME', 'testuser')
-    baikal_password = os.environ.get('BAIKAL_PASSWORD', 'testpass')
+    baikal_url = os.environ.get("BAIKAL_URL", f"http://{baikal_host}:{baikal_port}")
+    baikal_username = os.environ.get("BAIKAL_USERNAME", "testuser")
+    baikal_password = os.environ.get("BAIKAL_PASSWORD", "testpass")
 
     def is_baikal_accessible():
         """Check if Baikal server is accessible."""
