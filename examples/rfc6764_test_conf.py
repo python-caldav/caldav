@@ -11,7 +11,10 @@ path.insert(0, '..')
 path.insert(0, '.')
 
 
-from tests.conf_private import caldav_servers
+try:
+    from tests.conf_private import caldav_servers
+except:
+    caldav_servers = []
 from caldav.discovery import discover_caldav
 from caldav.lib.url import URL
 from caldav import compatibility_hints
