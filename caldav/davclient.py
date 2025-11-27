@@ -108,14 +108,15 @@ def _auto_url(url, features, timeout=10, ssl_verify_cert=True, enable_rfc6764=Tr
         enable_rfc6764: Whether to attempt RFC6764 discovery
 
     Returns:
-        A complete URL string
+        A tuple of (url_string, discovered_username_or_None)
+        The discovered_username will be extracted from email addresses like user@example.com
     """
     if isinstance(features, dict):
         features = FeatureSet(features)
 
     # If URL already has a path component, don't do discovery
     if "/" in str(url):
-        return url
+        return (url, None)
 
     # Try RFC6764 discovery first if enabled and we have a bare domain/email
     if enable_rfc6764 and url:
@@ -133,7 +134,11 @@ def _auto_url(url, features, timeout=10, ssl_verify_cert=True, enable_rfc6764=Tr
                 log.info(
                     f"RFC6764 discovered service: {service_info.url} (source: {service_info.source})"
                 )
-                return service_info.url
+                if service_info.username:
+                    log.debug(
+                        f"Username discovered from email: {service_info.username}"
+                    )
+                return (service_info.url, service_info.username)
         except DiscoveryError as e:
             log.debug(f"RFC6764 discovery failed: {e}")
         except Exception as e:
@@ -144,7 +149,7 @@ def _auto_url(url, features, timeout=10, ssl_verify_cert=True, enable_rfc6764=Tr
     if not url and "domain" in url_hints:
         url = url_hints["domain"]
     url = f"{url_hints.get('scheme', 'https')}://{url}{url_hints.get('basepath', '')}"
-    return url
+    return (url, None)
 
 
 class DAVResponse:
@@ -574,7 +579,7 @@ class DAVClient:
         self.features = FeatureSet(features)
         self.huge_tree = huge_tree
 
-        url = _auto_url(
+        url, discovered_username = _auto_url(
             url,
             self.features,
             timeout=timeout or 10,
@@ -613,6 +618,11 @@ class DAVClient:
         if self.url.username is not None:
             username = unquote(self.url.username)
             password = unquote(self.url.password)
+
+        # Use discovered username if no explicit username was provided
+        if username is None and discovered_username is not None:
+            username = discovered_username
+            log.debug(f"Using discovered username from RFC6764: {username}")
 
         self.username = username
         self.password = password

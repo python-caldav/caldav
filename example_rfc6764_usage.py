@@ -7,15 +7,16 @@ This script demonstrates how the RFC6764 integration works.
 from caldav import DAVClient
 
 # Example 1: Automatic RFC6764 discovery with email address
-print("Example 1: Using email address (RFC6764 discovery enabled by default)")
+# Username is automatically extracted from the email address
+print("Example 1: Using email address (username auto-extracted)")
 print("-" * 70)
 try:
     client = DAVClient(
-        url="user@example.com",  # Domain will be extracted and discovered
-        username="user",
-        password="password",
+        url="user@example.com",  # Domain will be extracted, username preserved
+        password="password",  # Username extracted from email, just provide password
     )
     print(f"Client URL after discovery: {client.url}")
+    print(f"Username: {client.username}")
 except Exception as e:
     print(f"Discovery failed (expected for example.com): {e}")
 

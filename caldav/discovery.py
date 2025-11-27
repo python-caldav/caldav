@@ -52,41 +52,44 @@ class ServiceInfo:
     priority: int = 0
     weight: int = 0
     source: str = "unknown"  # 'srv', 'txt', 'well-known', 'manual'
+    username: Optional[str] = None  # Extracted from email address if provided
 
     def __str__(self) -> str:
-        return f"ServiceInfo(url={self.url}, source={self.source}, priority={self.priority})"
+        return f"ServiceInfo(url={self.url}, source={self.source}, priority={self.priority}, username={self.username})"
 
 
-def _extract_domain(identifier: str) -> str:
+def _extract_domain(identifier: str) -> Tuple[str, Optional[str]]:
     """
-    Extract domain from an email address or URL.
+    Extract domain and optional username from an email address or URL.
 
     Args:
         identifier: Email address (user@example.com) or domain (example.com)
 
     Returns:
-        The domain portion
+        A tuple of (domain, username) where username is None if not present
 
     Examples:
         >>> _extract_domain('user@example.com')
-        'example.com'
+        ('example.com', 'user')
         >>> _extract_domain('example.com')
-        'example.com'
+        ('example.com', None)
         >>> _extract_domain('https://caldav.example.com/path')
-        'caldav.example.com'
+        ('caldav.example.com', None)
     """
     # If it looks like a URL, parse it
     if "://" in identifier:
         parsed = urlparse(identifier)
-        return parsed.hostname or identifier
+        return (parsed.hostname or identifier, None)
 
     # If it contains @, it's an email address
     if "@" in identifier:
         parts = identifier.split("@")
-        return parts[-1].strip()
+        username = parts[0].strip() if parts[0] else None
+        domain = parts[-1].strip()
+        return (domain, username)
 
     # Otherwise assume it's already a domain
-    return identifier.strip()
+    return (identifier.strip(), None)
 
 
 def _parse_txt_record(txt_data: str) -> Optional[str]:
@@ -321,8 +324,10 @@ def discover_service(
             reason=f"Invalid service_type: {service_type}. Must be 'caldav' or 'carddav'"
         )
 
-    domain = _extract_domain(identifier)
+    domain, username = _extract_domain(identifier)
     log.info(f"Discovering {service_type} service for domain: {domain}")
+    if username:
+        log.debug(f"Username extracted from identifier: {username}")
 
     # Try SRV/TXT records first (RFC 6764 section 5)
     # Prefer TLS services over non-TLS
@@ -362,6 +367,7 @@ def discover_service(
                 priority=priority,
                 weight=weight,
                 source="srv",
+                username=username,
             )
 
     # Fallback to well-known URI (RFC 6764 section 5)
@@ -369,6 +375,8 @@ def discover_service(
     well_known_info = _well_known_lookup(domain, service_type, timeout, ssl_verify_cert)
 
     if well_known_info:
+        # Preserve username from email address
+        well_known_info.username = username
         log.info(
             f"Discovered {service_type} service via well-known URI: {well_known_info.url}"
         )
