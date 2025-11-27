@@ -7,8 +7,8 @@ This script will run through all domains found in:
 """
 from sys import path
 
-path.insert(0, '..')
-path.insert(0, '.')
+path.insert(0, "..")
+path.insert(0, ".")
 
 
 try:
@@ -22,30 +22,30 @@ from caldav import compatibility_hints
 urls = []
 domains = []
 for server in caldav_servers:
-    url = server.get('url')
+    url = server.get("url")
     urls.append(url)
 
 for compconf in dir(compatibility_hints):
-    if compconf.startswith('_'):
+    if compconf.startswith("_"):
         continue
     compconf = getattr(compatibility_hints, compconf)
-    if hasattr(compconf, 'get'):
-        urls.append(compconf.get('auto-connect.url', {}).get('domain'))
+    if hasattr(compconf, "get"):
+        urls.append(compconf.get("auto-connect.url", {}).get("domain"))
 
 for url in urls:
     if not url:
         continue
-    if '//' in url:
+    if "//" in url:
         url = URL(url)
-        url = url.unauth().netloc.split(':')[0]
-    hostsplit = url.split('.')
+        url = url.unauth().netloc.split(":")[0]
+    hostsplit = url.split(".")
     ## This asserts there is at least one dot in the domain,
     ## and that no TLDs have those srv records.
-    for i in range(2, len(hostsplit)+1):
+    for i in range(2, len(hostsplit) + 1):
         domains.append(".".join(hostsplit[-i:]))
 
 discovered_urls = []
-        
+
 for domain in domains:
     print("-" * 70)
     service_info = discover_caldav(domain)
@@ -62,5 +62,4 @@ for domain in domains:
     else:
         print(f"No service discovered for {domain}")
 
-assert(discovered_urls)
-
+assert discovered_urls

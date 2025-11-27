@@ -97,7 +97,15 @@ CONNKEYS = set(
 )
 
 
-def _auto_url(url, features, timeout=10, ssl_verify_cert=True, enable_rfc6764=True, username=None, require_tls=True):
+def _auto_url(
+    url,
+    features,
+    timeout=10,
+    ssl_verify_cert=True,
+    enable_rfc6764=True,
+    username=None,
+    require_tls=True,
+):
     """
     Auto-construct URL from domain and features, with optional RFC6764 discovery.
 
