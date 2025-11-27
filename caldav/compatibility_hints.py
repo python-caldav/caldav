@@ -51,6 +51,10 @@ class FeatureSet:
                 ## TODO: in the future, templates for the principal URL, calendar URLs etc may also be added.
             }
         },
+        "auto-connect.verify_dnssec": {
+            "description": "Whether to validate DNSSEC signatures during RFC6764 DNS-based service discovery.  Defaults to False (disabled). When enabled, DNS responses must have valid DNSSEC signatures, providing cryptographic proof against DNS spoofing.",
+            "type": "client-hints",
+        },
         "get-all-principals": {
             "description": "Search for all principals, using a DAV REPORT query, yields at least one principal"
         },

@@ -28,8 +28,15 @@ Searching may now be done by creating a `caldav.CalDAVSearcher` object and do a 
 
 ### Breaking Changes
 
-* Some code has been split out into a new package - `icalendar-searcher`.  This does not affect compatibility, hence it's not needed to bump the major version number, but if you manage the dependencies manually it may still cause things to break.
 * Lots of work has been put in to work around server-quirks, ensuring more consistent search-results regardless of what server is in use.  For some use cases this may be a breaking change as search results from certain servers may have changed (see more below).
+* New dependency on the python-dns package, for RFC6764 discovery.  As far as I understand the SemVer standard, new dependencies can be added without increasing the major version number - but for some scenarios where it's hard to add new dependencies, this may be a breaking change.  This is a well-known package, so the security impact should be low.  This library is only used when doing such a recovery.  If anyone minds this dependency, I can change the project so this becomes an optional dependency.
+* Some code has been split out into a new package - `icalendar-searcher`. so this may also break if you manage the dependencies manually.  This library was written by me, so the security impact is low.
+
+## Security
+
+I do see a major security flaw with the RFC6764 discovery.  If the DNS is not to be trusted, someone can highjack the connection by spoofing the service records, and also spoofing the TLS setting, encouraging the client to connect over plain-text HTTP without certificate validation.  Utilizing this it may be possible to steal the credentials.  This flaw can be mitigated by using DNSSEC, but DNSSEC is not widely used, and there is currently no mechanisms in this package to verify that the DNS is secure.
+
+Also, the RFC6764 discovery may not always be robust, causing fallbacks and hence a non-deterministic behaviour.
 
 ### Deprecations
 
@@ -38,11 +45,17 @@ Searching may now be done by creating a `caldav.CalDAVSearcher` object and do a 
 
 ### Changed
 
-* Major refactoring!  Some of the logic has been pushed out of the CalDAV package and into a new package, icalendar-searcher.  New logic for doing client-side filtering of search results have also been added to that package.
+* **Major refactoring!**  Some of the logic has been pushed out of the CalDAV package and into a new package, icalendar-searcher.  New logic for doing client-side filtering of search results have also been added to that package.  This refactoring enables possibilities for more advanced search queries as well as client-side filtering.
 * **Server compatibility improvements**: Significant work-arounds added for inconsistent CalDAV server behavior, aiming for consistent search results regardless of the server in use. Many of these work-arounds require proper server compatibility configuration via the `features` / `compatibility_hints` system. This may be a **breaking change** for some use cases, as backward-bug-compatibility is not preserved - searches may return different results if the previous behavior was relying on server quirks.
 
 ### Added
 
+* **RFC 6764 DNS-based service discovery**: Automatic CalDAV/CardDAV service discovery using DNS SRV/TXT records and well-known URIs. Users can now provide just a domain name or email address (e.g., `DAVClient(username='user@example.com')`) and the library will automatically discover the CalDAV service endpoint. The discovery process follows RFC 6764 specification.  This involves a new required dependency: `dnspython` for DNS queries.  DNS-based discovery can be disabled in the davclient connection settings, but I've opted against implementing a fallback if the dns library is not installed.
+  - **SECURITY**: DNS-based discovery has security implications. By default, `require_tls=True` prevents downgrade attacks by only accepting HTTPS connections. See security documentation for details.
+  - New `require_tls` parameter (default: `True`) prevents DNS-based downgrade attacks
+  - **NEW (issue571 branch)**: Optional `verify_dnssec` parameter (default: `False`) for DNSSEC validation. When enabled, DNS responses are cryptographically validated to prevent DNS spoofing. Requires DNSSEC-enabled domains.
+  - Username extraction from email addresses (`user@example.com` → username: `user`)
+  - Discovery from username parameter when URL is omitted
 * The client connection parameter `features` may now simply be a string label referencing a well-known server or cloud solution - like `features: posteo`.  https://github.com/python-caldav/caldav/pull/561
 * The client connection parameter `url` is no longer needed when referencing a well-known cloud solution. https://github.com/python-caldav/caldav/pull/561
 * The client connection parameter `url` may contain just the domain name (without any slashes) and the URL will be constructed, if referencing a well-known caldav server implementation. https://github.com/python-caldav/caldav/pull/561
