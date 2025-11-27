@@ -38,6 +38,7 @@ dependencies = [
   "typing_extensions;python_version<'3.11'",
   "icalendar>6.0.0",
   "icalendar-searcher>=1.0.0,<2",
+  "dnspython",
 ]
 dynamic = ["version"]
 

@@ -38,3 +38,6 @@ class TestExamples:
         with get_davclient() as client:
             mycal = client.principal().make_calendar(name="Test calendar")
             collation_usage.run_examples()
+
+    def test_rfc8764_test_conf(self):
+        from examples import rfc6764_test_conf

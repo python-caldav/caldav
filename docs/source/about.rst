@@ -213,6 +213,9 @@ Some notes on CalDAV URLs
 
 .. todo::
    This section should be moved into separate HOWTOs for each calendar server/provider.
+   Check if comment "to be released" can be removed
+
+From v2.1, well-known URLs were hard-coded into the compatibility_hints.  As of v2.2 (to be released 2025-12) auto-detection based on RFC6764 is supported.  This protocol is widely used.  For servers supporting it, it's sufficient to add something like "demo2.nextcloud.com" in the URL.  For well-known calendar providers, it's not needed to enter anything in the URL, it suffices to put i.e. `features="ecloud"` into the connection parameters.
 
 CalDAV URLs can be quite confusing, some software requires the URL to the calendar, other requires the URL to the principal.  The Python CalDAV library does support accessing calendars and principals using such URLs, but the recommended practice is to configure up the CalDAV root URL and tell the library to find the principal and calendars from that.  Typical examples of CalDAV URLs:
 

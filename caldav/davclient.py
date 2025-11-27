@@ -91,21 +91,82 @@ CONNKEYS = set(
         "auth",
         "auth_type",
         "features",
+        "enable_rfc6764",
+        "require_tls",
     )
 )
 
 
-def _auto_url(url, features):
+def _auto_url(
+    url,
+    features,
+    timeout=10,
+    ssl_verify_cert=True,
+    enable_rfc6764=True,
+    username=None,
+    require_tls=True,
+):
+    """
+    Auto-construct URL from domain and features, with optional RFC6764 discovery.
+
+    Args:
+        url: User-provided URL, domain, or email address
+        features: FeatureSet object or dict
+        timeout: Timeout for RFC6764 well-known URI lookups
+        ssl_verify_cert: SSL verification setting
+        enable_rfc6764: Whether to attempt RFC6764 discovery
+        username: Username to use for discovery if URL is not provided
+        require_tls: Only accept TLS connections during discovery (default: True)
+
+    Returns:
+        A tuple of (url_string, discovered_username_or_None)
+        The discovered_username will be extracted from email addresses like user@example.com
+    """
     if isinstance(features, dict):
         features = FeatureSet(features)
-    if not "/" in str(url):
-        url_hints = features.is_supported("auto-connect.url", dict)
-        if not url and "domain" in url_hints:
-            url = url_hints["domain"]
-        url = (
-            f"{url_hints.get('scheme', 'https')}://{url}{url_hints.get('basepath', '')}"
-        )
-    return url
+
+    # If URL already has a path component, don't do discovery
+    if url and "/" in str(url):
+        return (url, None)
+
+    # If no URL provided but username contains @, use username for discovery
+    if not url and username and "@" in str(username) and enable_rfc6764:
+        log.debug(f"No URL provided, using username for RFC6764 discovery: {username}")
+        url = username
+
+    # Try RFC6764 discovery first if enabled and we have a bare domain/email
+    if enable_rfc6764 and url:
+        from caldav.discovery import discover_caldav, DiscoveryError
+
+        try:
+            service_info = discover_caldav(
+                identifier=url,
+                timeout=timeout,
+                ssl_verify_cert=ssl_verify_cert
+                if isinstance(ssl_verify_cert, bool)
+                else True,
+                require_tls=require_tls,
+            )
+            if service_info:
+                log.info(
+                    f"RFC6764 discovered service: {service_info.url} (source: {service_info.source})"
+                )
+                if service_info.username:
+                    log.debug(
+                        f"Username discovered from email: {service_info.username}"
+                    )
+                return (service_info.url, service_info.username)
+        except DiscoveryError as e:
+            log.debug(f"RFC6764 discovery failed: {e}")
+        except Exception as e:
+            log.debug(f"RFC6764 discovery error: {e}")
+
+    # Fall back to feature-based URL construction
+    url_hints = features.is_supported("auto-connect.url", dict)
+    if not url and "domain" in url_hints:
+        url = url_hints["domain"]
+    url = f"{url_hints.get('scheme', 'https')}://{url}{url_hints.get('basepath', '')}"
+    return (url, None)
 
 
 class DAVResponse:
@@ -483,12 +544,23 @@ class DAVClient:
         headers: Mapping[str, str] = None,
         huge_tree: bool = False,
         features: Union[FeatureSet, dict, str] = None,
+        enable_rfc6764: bool = True,
+        require_tls: bool = True,
     ) -> None:
         """
         Sets up a HTTPConnection object towards the server in the url.
 
         Args:
-          url: A fully qualified url: `scheme://user:pass@hostname:port`
+          url: A fully qualified url, domain name, or email address. Can be omitted if username
+               is an email address (RFC6764 discovery will use the username).
+               Examples:
+               - Full URL: `https://caldav.example.com/dav/`
+               - Domain: `example.com` (will attempt RFC6764 discovery if enable_rfc6764=True)
+               - Email: `user@example.com` (will attempt RFC6764 discovery if enable_rfc6764=True)
+               - URL with auth: `scheme://user:pass@hostname:port`
+               - Omit URL: Use `username='user@example.com'` for discovery
+          username: Username for authentication. If url is omitted and username contains @,
+                    RFC6764 discovery will be attempted using the username as email address.
           proxy: A string defining a proxy server: `scheme://hostname:port`. Scheme defaults to http, port defaults to 8080.
           auth: A niquests.auth.AuthBase or requests.auth.AuthBase object, may be passed instead of username/password.  username and password should be passed as arguments or in the URL
           timeout and ssl_verify_cert are passed to niquests.request.
@@ -497,6 +569,20 @@ class DAVClient:
           ssl_verify_cert can be the path of a CA-bundle or False.
           huge_tree: boolean, enable XMLParser huge_tree to handle big events, beware of security issues, see : https://lxml.de/api/lxml.etree.XMLParser-class.html
           features: The default, None, will in version 2.x enable all existing workarounds in the code for backward compability.  Otherwise it will expect a FeatureSet or a dict as defined in `caldav.compatibility_hints` and use that to figure out what workarounds are needed.
+          enable_rfc6764: boolean, enable RFC6764 DNS-based service discovery for CalDAV/CardDAV.
+                          Default: True. When enabled and a domain or email address is provided as url,
+                          the library will attempt to discover the CalDAV service using:
+                          1. DNS SRV records (_caldavs._tcp / _caldav._tcp)
+                          2. DNS TXT records for path information
+                          3. Well-Known URIs (/.well-known/caldav)
+                          Set to False to disable automatic discovery and rely only on feature hints.
+                          SECURITY: See require_tls parameter for security considerations.
+          require_tls: boolean, require TLS (HTTPS) for discovered services. Default: True.
+                       When True, RFC6764 discovery will ONLY accept HTTPS connections,
+                       preventing DNS-based downgrade attacks where malicious DNS could
+                       redirect to unencrypted HTTP. Set to False ONLY if you need to
+                       support non-TLS servers and trust your DNS infrastructure.
+                       This parameter has no effect if enable_rfc6764=False.
 
         The niquests library will honor a .netrc-file, if such a file exists
         username and password may be omitted.
@@ -522,7 +608,15 @@ class DAVClient:
         self.features = FeatureSet(features)
         self.huge_tree = huge_tree
 
-        url = _auto_url(url, self.features)
+        url, discovered_username = _auto_url(
+            url,
+            self.features,
+            timeout=timeout or 10,
+            ssl_verify_cert=ssl_verify_cert,
+            enable_rfc6764=enable_rfc6764,
+            username=username,
+            require_tls=require_tls,
+        )
 
         log.debug("url: " + str(url))
         self.url = URL.objectify(url)
@@ -555,6 +649,11 @@ class DAVClient:
         if self.url.username is not None:
             username = unquote(self.url.username)
             password = unquote(self.url.password)
+
+        # Use discovered username if no explicit username was provided
+        if username is None and discovered_username is not None:
+            username = discovered_username
+            log.debug(f"Using discovered username from RFC6764: {username}")
 
         self.username = username
         self.password = password
