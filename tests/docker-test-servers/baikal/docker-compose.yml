@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  baikal:
+    image: ckulka/baikal:nginx
+    container_name: baikal-test
+    ports:
+      - "8800:80"
+    environment:
+      # Basic configuration
+      - BAIKAL_SERVERNAME=localhost
+    volumes:
+      # Persist Baikal data between runs
+      - baikal-data:/var/www/baikal/Specific
+      - baikal-config:/var/www/baikal/config
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  baikal-data:
+  baikal-config:

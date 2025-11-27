@@ -15,6 +15,17 @@ jobs:
       fail-fast: false
       matrix:
         python: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+    services:
+      baikal:
+        image: ckulka/baikal:nginx
+        ports:
+          - 8800:80
+        options: >-
+          --health-cmd "curl -f http://localhost/ || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+          --health-start-period 30s
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -25,7 +36,12 @@ jobs:
           path: ~/.cache/pip
           key: pip|${{ hashFiles('setup.py') }}|${{ hashFiles('tox.ini') }}
       - run: pip install tox
+      - name: Wait for Baikal to be ready
+        run: |
+          timeout 60 bash -c 'until curl -f http://localhost:8800/ 2>/dev/null; do sleep 2; done'
       - run: tox -e py
+        env:
+          BAIKAL_URL: http://localhost:8800
   docs:
     runs-on: ubuntu-latest
     steps:

@@ -28,3 +28,5 @@ tests/conf_private.py
 .eggs
 .venv
 caldav/_version.py
+tests/docker-test-servers/baikal/baikal-backup/
+tests/docker-test-servers/*/baikal-backup/
