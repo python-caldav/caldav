@@ -88,6 +88,19 @@ try:
 except ImportError:
     rfc6638_users = []
 
+try:
+    from .conf_private import baikal_host, baikal_port
+except ImportError:
+    baikal_host = "localhost"
+    baikal_port = 8800
+
+try:
+    from .conf_private import test_baikal
+except ImportError:
+    import os
+    ## Test Baikal if BAIKAL_URL is set (e.g., in CI or locally with Docker)
+    test_baikal = os.environ.get('BAIKAL_URL') is not None
+
 #####################
 # Public test servers
 #####################
@@ -245,6 +258,34 @@ if test_xandikos:
             "teardown": teardown_xandikos,
         }
     )
+
+## Baikal - external Docker container
+if test_baikal:
+    import os
+
+    baikal_url = os.environ.get('BAIKAL_URL', f"http://{baikal_host}:{baikal_port}")
+    baikal_username = os.environ.get('BAIKAL_USERNAME', 'testuser')
+    baikal_password = os.environ.get('BAIKAL_PASSWORD', 'testpass')
+
+    def is_baikal_accessible():
+        """Check if Baikal server is accessible."""
+        try:
+            response = requests.get(baikal_url, timeout=5)
+            return response.status_code in (200, 401, 403, 404)
+        except Exception:
+            return False
+
+    if is_baikal_accessible():
+        features = compatibility_hints.baikal.copy()
+        caldav_servers.append(
+            {
+                "name": "Baikal",
+                "url": baikal_url,
+                "username": baikal_username,
+                "password": baikal_password,
+                "features": features,
+            }
+        )
 
 
 ###################################################################
