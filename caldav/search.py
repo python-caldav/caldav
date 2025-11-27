@@ -168,11 +168,19 @@ class CalDAVSearcher(Searcher):
         if operator is not None:
             # Base class lowercases the key, so we need to as well
             self._explicit_operators.add(key.lower())
-            super().add_property_filter(key, value, operator, case_sensitive, collation, locale)
+            super().add_property_filter(
+                key, value, operator, case_sensitive, collation, locale
+            )
         else:
             # operator not specified - don't pass it, let base class use default
             # Don't track as explicit
-            super().add_property_filter(key, value, case_sensitive=case_sensitive, collation=collation, locale=locale)
+            super().add_property_filter(
+                key,
+                value,
+                case_sensitive=case_sensitive,
+                collation=collation,
+                locale=locale,
+            )
 
     def _search_with_comptypes(
         self,
@@ -303,9 +311,18 @@ class CalDAVSearcher(Searcher):
                         replacements[thing].pop(prop, None)
                 # Also need to preserve the _explicit_operators set but remove these properties
                 clone = replace(self, **replacements)
-                clone._explicit_operators = self._explicit_operators - set(explicit_contains)
-                objects = clone.search(calendar, server_expand, split_expanded, props, xml)
-                return self.filter(objects, post_filter=True, split_expanded=split_expanded, server_expand=server_expand)
+                clone._explicit_operators = self._explicit_operators - set(
+                    explicit_contains
+                )
+                objects = clone.search(
+                    calendar, server_expand, split_expanded, props, xml
+                )
+                return self.filter(
+                    objects,
+                    post_filter=True,
+                    split_expanded=split_expanded,
+                    server_expand=server_expand,
+                )
 
         ## special compatibility-case for servers that does not
         ## support combined searches very well
