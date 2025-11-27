@@ -1,4 +1,4 @@
-version: '3.8'
+version: '3.3'
 
 services:
   baikal:
@@ -7,17 +7,4 @@ services:
     ports:
       - "8800:80"
     environment:
-      # Basic configuration
       - BAIKAL_SERVERNAME=localhost
-    volumes:
-      # Use named volume for Baikal data (pre-configured files copied via start.sh)
-      - baikal-data:/var/www/baikal/Specific
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
-
-volumes:
-  baikal-data:
