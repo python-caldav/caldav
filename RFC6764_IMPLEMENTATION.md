@@ -291,6 +291,21 @@ DNSSEC validation adds minimal overhead:
 - No impact on subsequent CalDAV operations
 - Results can be cached to amortize cost
 
+### Limitations
+
+**DNSSEC only validates DNS-based discovery (SRV/TXT records)**:
+- When `verify_dnssec=True`, only DNS SRV and TXT records are validated
+- Well-known URI discovery (`.well-known/caldav`) is **not** DNSSEC-validated
+- If no SRV records exist, discovery will fail with `verify_dnssec=True`
+- This is intentional: DNSSEC validates DNS records, not HTTPS endpoints
+
+**Why well-known URIs can't use DNSSEC**:
+- Well-known URI discovery uses HTTPS requests, not DNS lookups
+- The service endpoint is discovered via HTTP redirect, which DNSSEC doesn't secure
+- TLS certificate validation secures the HTTPS connection, not DNSSEC
+
+**Recommendation**: Only use `verify_dnssec=True` with domains that have proper DNS SRV records configured for CalDAV/CardDAV.
+
 ## Future Enhancements
 
 Potential improvements:
@@ -301,6 +316,10 @@ Potential improvements:
 - [ ] Environment variable `CALDAV_DISABLE_RFC6764` for global control
 - [ ] Metrics/telemetry for discovery success rates
 - [x] DNSSEC validation (implemented in issue571 branch)
+- [ ] Custom DNS resolver for niquests/urllib3_future with DNSSEC validation for HTTPS requests
+  - Would validate DNSSEC for A/AAAA records during HTTPS connections
+  - Requires deep integration with urllib3_future's resolver system
+  - Complex implementation beyond current scope
 
 ## Security Considerations
 
