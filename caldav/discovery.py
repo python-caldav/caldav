@@ -499,6 +499,18 @@ def discover_service(
             )
 
     # Fallback to well-known URI (RFC 6764 section 5)
+    # Note: Well-known URI discovery uses HTTPS, not DNS, so DNSSEC doesn't apply
+    if verify_dnssec:
+        # If DNSSEC validation was requested but no SRV records exist to validate,
+        # we should fail rather than fall back to well-known URI
+        log.warning(
+            f"DNSSEC validation requested but no SRV records found for {domain}. "
+            "Cannot validate well-known URI discovery via DNSSEC."
+        )
+        raise DiscoveryError(
+            reason=f"DNSSEC validation requested but no DNS records found for {domain}"
+        )
+
     log.debug("SRV lookup failed, trying well-known URI")
     well_known_info = _well_known_lookup(domain, service_type, timeout, ssl_verify_cert)
 
