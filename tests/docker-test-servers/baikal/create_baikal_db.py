@@ -18,7 +18,7 @@ from pathlib import Path
 
 
 def create_baikal_db(db_path: Path, username: str = "testuser", password: str = "testpass") -> None:
-    """Create a Baikal SQLite database with a test user."""
+    """Create a Baikal SQLite database with a test user using official schema."""
 
     # Ensure directory exists
     db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -30,108 +30,161 @@ def create_baikal_db(db_path: Path, username: str = "testuser", password: str = 
     conn = sqlite3.connect(str(db_path))
     cursor = conn.cursor()
 
-    # Create users table
-    cursor.execute("""
-        CREATE TABLE users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE,
-            digesta1 TEXT
-        )
-    """)
+    # Use the official Baikal SQLite schema
+    # This schema is from Baikal's Core/Resources/Db/SQLite/db.sql
+    schema_sql = """
+CREATE TABLE addressbooks (
+    id integer primary key asc NOT NULL,
+    principaluri text NOT NULL,
+    displayname text,
+    uri text NOT NULL,
+    description text,
+    synctoken integer DEFAULT 1 NOT NULL
+);
 
-    # Create principals table
-    cursor.execute("""
-        CREATE TABLE principals (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            uri TEXT UNIQUE,
-            email TEXT,
-            displayname TEXT
-        )
-    """)
+CREATE TABLE cards (
+    id integer primary key asc NOT NULL,
+    addressbookid integer NOT NULL,
+    carddata blob,
+    uri text NOT NULL,
+    lastmodified integer,
+    etag text,
+    size integer
+);
 
-    # Create calendars table
-    cursor.execute("""
-        CREATE TABLE calendars (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            principaluri TEXT,
-            displayname TEXT,
-            uri TEXT,
-            description TEXT,
-            components TEXT,
-            ctag INTEGER,
-            calendarcolor TEXT,
-            timezone TEXT,
-            calendarorder INTEGER,
-            UNIQUE(principaluri, uri)
-        )
-    """)
+CREATE TABLE addressbookchanges (
+    id integer primary key asc NOT NULL,
+    uri text,
+    synctoken integer NOT NULL,
+    addressbookid integer NOT NULL,
+    operation integer NOT NULL
+);
 
-    # Create calendarobjects table
-    cursor.execute("""
-        CREATE TABLE calendarobjects (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            calendardata BLOB,
-            uri TEXT,
-            calendarid INTEGER,
-            lastmodified INTEGER,
-            etag TEXT,
-            size INTEGER,
-            componenttype TEXT,
-            firstoccurence INTEGER,
-            lastoccurence INTEGER,
-            uid TEXT,
-            UNIQUE(calendarid, uri)
-        )
-    """)
+CREATE INDEX addressbookid_synctoken ON addressbookchanges (addressbookid, synctoken);
 
-    # Create addressbooks table
-    cursor.execute("""
-        CREATE TABLE addressbooks (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            principaluri TEXT,
-            displayname TEXT,
-            uri TEXT,
-            description TEXT,
-            ctag INTEGER,
-            UNIQUE(principaluri, uri)
-        )
-    """)
+CREATE TABLE calendarobjects (
+    id integer primary key asc NOT NULL,
+    calendardata blob NOT NULL,
+    uri text NOT NULL,
+    calendarid integer NOT NULL,
+    lastmodified integer NOT NULL,
+    etag text NOT NULL,
+    size integer NOT NULL,
+    componenttype text,
+    firstoccurence integer,
+    lastoccurence integer,
+    uid text
+);
 
-    # Create cards table
-    cursor.execute("""
-        CREATE TABLE cards (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            carddata BLOB,
-            uri TEXT,
-            addressbookid INTEGER,
-            lastmodified INTEGER,
-            etag TEXT,
-            size INTEGER,
-            UNIQUE(addressbookid, uri)
-        )
-    """)
+CREATE TABLE calendars (
+    id integer primary key asc NOT NULL,
+    synctoken integer DEFAULT 1 NOT NULL,
+    components text NOT NULL
+);
 
-    # Create addressbookchanges table
-    cursor.execute("""
-        CREATE TABLE addressbookchanges (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            uri TEXT,
-            synctoken INTEGER,
-            addressbookid INTEGER,
-            operation INTEGER
-        )
-    """)
+CREATE TABLE calendarinstances (
+    id integer primary key asc NOT NULL,
+    calendarid integer,
+    principaluri text,
+    access integer,
+    displayname text,
+    uri text NOT NULL,
+    description text,
+    calendarorder integer,
+    calendarcolor text,
+    timezone text,
+    transparent bool,
+    share_href text,
+    share_displayname text,
+    share_invitestatus integer DEFAULT '2',
+    UNIQUE (principaluri, uri),
+    UNIQUE (calendarid, principaluri),
+    UNIQUE (calendarid, share_href)
+);
 
-    # Create calendarchanges table
-    cursor.execute("""
-        CREATE TABLE calendarchanges (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            uri TEXT,
-            synctoken INTEGER,
-            calendarid INTEGER,
-            operation INTEGER
-        )
-    """)
+CREATE TABLE calendarchanges (
+    id integer primary key asc NOT NULL,
+    uri text,
+    synctoken integer NOT NULL,
+    calendarid integer NOT NULL,
+    operation integer NOT NULL
+);
+
+CREATE INDEX calendarid_synctoken ON calendarchanges (calendarid, synctoken);
+
+CREATE TABLE calendarsubscriptions (
+    id integer primary key asc NOT NULL,
+    uri text NOT NULL,
+    principaluri text NOT NULL,
+    source text NOT NULL,
+    displayname text,
+    refreshrate text,
+    calendarorder integer,
+    calendarcolor text,
+    striptodos bool,
+    stripalarms bool,
+    stripattachments bool,
+    lastmodified int
+);
+
+CREATE TABLE schedulingobjects (
+    id integer primary key asc NOT NULL,
+    principaluri text NOT NULL,
+    calendardata blob,
+    uri text NOT NULL,
+    lastmodified integer,
+    etag text NOT NULL,
+    size integer NOT NULL
+);
+
+CREATE INDEX principaluri_uri ON calendarsubscriptions (principaluri, uri);
+
+CREATE TABLE locks (
+    id integer primary key asc NOT NULL,
+    owner text,
+    timeout integer,
+    created integer,
+    token text,
+    scope integer,
+    depth integer,
+    uri text
+);
+
+CREATE TABLE principals (
+    id INTEGER PRIMARY KEY ASC NOT NULL,
+    uri TEXT NOT NULL,
+    email TEXT,
+    displayname TEXT,
+    UNIQUE(uri)
+);
+
+CREATE TABLE groupmembers (
+    id INTEGER PRIMARY KEY ASC NOT NULL,
+    principal_id INTEGER NOT NULL,
+    member_id INTEGER NOT NULL,
+    UNIQUE(principal_id, member_id)
+);
+
+CREATE TABLE propertystorage (
+    id integer primary key asc NOT NULL,
+    path text NOT NULL,
+    name text NOT NULL,
+    valuetype integer NOT NULL,
+    value string
+);
+
+CREATE UNIQUE INDEX path_property ON propertystorage (path, name);
+
+CREATE TABLE users (
+    id integer primary key asc NOT NULL,
+    username TEXT NOT NULL,
+    digesta1 TEXT NOT NULL,
+    UNIQUE(username)
+);
+"""
+
+    # Execute the schema
+    cursor.executescript(schema_sql)
 
     # Create test user with digest auth
     # Digest A1 = MD5(username:BaikalDAV:password)
@@ -150,18 +203,25 @@ def create_baikal_db(db_path: Path, username: str = "testuser", password: str = 
         (principal_uri, f"{username}@baikal.test", f"Test User ({username})")
     )
 
-    # Create default calendar for user
+    # Create default calendar
     cursor.execute(
-        """INSERT INTO calendars
-           (principaluri, displayname, uri, components, ctag, calendarcolor, calendarorder)
+        "INSERT INTO calendars (synctoken, components) VALUES (?, ?)",
+        (1, "VEVENT,VTODO,VJOURNAL")
+    )
+    calendar_id = cursor.lastrowid
+
+    # Create calendar instance for the user
+    cursor.execute(
+        """INSERT INTO calendarinstances
+           (calendarid, principaluri, access, displayname, uri, calendarorder, calendarcolor)
            VALUES (?, ?, ?, ?, ?, ?, ?)""",
-        (principal_uri, "Default Calendar", "default", "VEVENT,VTODO,VJOURNAL", 1, "#3a87ad", 0)
+        (calendar_id, principal_uri, 1, "Default Calendar", "default", 0, "#3a87ad")
     )
 
     # Create default addressbook for user
     cursor.execute(
         """INSERT INTO addressbooks
-           (principaluri, displayname, uri, ctag)
+           (principaluri, displayname, uri, synctoken)
            VALUES (?, ?, ?, ?)""",
         (principal_uri, "Default Address Book", "default", 1)
     )
@@ -265,6 +325,40 @@ define("BAIKAL_ADMIN_PASSWORDRESET_ENABLE", FALSE);
     print(f"✓ Created Baikal system config at {system_path}")
 
 
+def create_baikal_yaml(yaml_path: Path) -> None:
+    """Create Baikal baikal.yaml configuration file for newer Baikal versions."""
+
+    yaml_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Admin password hash (MD5 of 'admin')
+    admin_hash = "21232f297a57a5a743894a0e4a801fc3"
+
+    yaml_content = """system:
+  configured_version: '0.10.1'
+  timezone: 'UTC'
+  card_enabled: true
+  cal_enabled: true
+  invite_from: 'noreply@baikal.test'
+  dav_auth_type: 'Digest'
+  admin_passwordhash: {admin_hash}
+  failed_access_message: 'user %u authentication failure for Baikal'
+  auth_realm: BaikalDAV
+  base_uri: ''
+
+database:
+  encryption_key: 'test-encryption-key-for-automated-testing'
+  backend: 'sqlite'
+  sqlite_file: '/var/www/baikal/Specific/db/db.sqlite'
+  mysql_host: 'localhost'
+  mysql_dbname: 'baikal'
+  mysql_username: 'baikal'
+  mysql_password: 'baikal'
+""".format(admin_hash=admin_hash)
+
+    yaml_path.write_text(yaml_content)
+    print(f"✓ Created Baikal YAML config at {yaml_path}")
+
+
 if __name__ == "__main__":
     script_dir = Path(__file__).parent
 
@@ -272,12 +366,16 @@ if __name__ == "__main__":
     db_path = script_dir / "Specific" / "db" / "db.sqlite"
     create_baikal_db(db_path, username="testuser", password="testpass")
 
-    # Create config files
+    # Create legacy PHP config files (for older Baikal versions)
     config_path = script_dir / "Specific" / "config.php"
     create_baikal_config(config_path)
 
     system_path = script_dir / "Specific" / "config.system.php"
     create_system_config(system_path)
+
+    # Create YAML config file (for newer Baikal versions 0.7.0+)
+    yaml_path = script_dir / "config" / "baikal.yaml"
+    create_baikal_yaml(yaml_path)
 
     print("\n" + "="*70)
     print("Baikal pre-configuration complete!")

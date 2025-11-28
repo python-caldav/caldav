@@ -8,17 +8,15 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-echo "Starting Baikal CalDAV server..."
-docker-compose up -d
-
-echo "Waiting for container to start..."
-sleep 3
+echo "Creating container (not started yet)..."
+docker-compose up --no-start
 
 echo "Copying pre-configured files into container..."
 docker cp Specific/. baikal-test:/var/www/baikal/Specific/
+docker cp config/. baikal-test:/var/www/baikal/config/
 
-echo "Restarting Baikal to apply configuration..."
-docker restart baikal-test
+echo "Starting Baikal (entrypoint will fix permissions)..."
+docker start baikal-test
 
 echo ""
 echo "Waiting for Baikal to be ready..."

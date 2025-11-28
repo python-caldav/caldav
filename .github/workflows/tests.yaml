@@ -41,6 +41,9 @@ jobs:
           # Copy pre-configured database and config to Baikal container
           docker cp tests/docker-test-servers/baikal/Specific/. ${{ job.services.baikal.id }}:/var/www/baikal/Specific/
           docker cp tests/docker-test-servers/baikal/config/. ${{ job.services.baikal.id }}:/var/www/baikal/config/
+          # Fix permissions for SQLite
+          docker exec ${{ job.services.baikal.id }} chown -R nginx:nginx /var/www/baikal/Specific /var/www/baikal/config
+          docker exec ${{ job.services.baikal.id }} chmod -R 770 /var/www/baikal/Specific
           # Restart to pick up configuration
           docker restart ${{ job.services.baikal.id }}
       - name: Wait for Baikal to be ready

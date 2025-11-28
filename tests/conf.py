@@ -98,9 +98,23 @@ try:
     from .conf_private import test_baikal
 except ImportError:
     import os
+    import subprocess
 
-    ## Test Baikal if BAIKAL_URL is set (e.g., in CI or locally with Docker)
-    test_baikal = os.environ.get("BAIKAL_URL") is not None
+    ## Test Baikal if BAIKAL_URL is set OR if docker-compose is available
+    if os.environ.get("BAIKAL_URL") is not None:
+        test_baikal = True
+    else:
+        # Check if docker-compose is available
+        try:
+            subprocess.run(
+                ["docker-compose", "--version"],
+                capture_output=True,
+                check=True,
+                timeout=5,
+            )
+            test_baikal = True
+        except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
+            test_baikal = False
 
 #####################
 # Public test servers
@@ -260,23 +274,134 @@ if test_xandikos:
         }
     )
 
-## Baikal - external Docker container
+## Baikal - Docker container with automated setup
 if test_baikal:
     import os
+    import subprocess
+    from pathlib import Path
 
-    baikal_url = os.environ.get("BAIKAL_URL", f"http://{baikal_host}:{baikal_port}")
+    baikal_base_url = os.environ.get("BAIKAL_URL", f"http://{baikal_host}:{baikal_port}")
+    # Ensure the URL includes /dav.php/ for CalDAV endpoint
+    if not baikal_base_url.endswith('/dav.php') and not baikal_base_url.endswith('/dav.php/'):
+        baikal_url = f"{baikal_base_url}/dav.php"
+    else:
+        baikal_url = baikal_base_url.rstrip('/')
+
     baikal_username = os.environ.get("BAIKAL_USERNAME", "testuser")
     baikal_password = os.environ.get("BAIKAL_PASSWORD", "testpass")
 
-    def is_baikal_accessible():
+    def is_baikal_accessible() -> bool:
         """Check if Baikal server is accessible."""
         try:
-            response = requests.get(baikal_url, timeout=5)
+            # Check the dav.php endpoint
+            response = requests.get(f"{baikal_url}/", timeout=5)
             return response.status_code in (200, 401, 403, 404)
         except Exception:
             return False
 
+    def setup_baikal(self) -> None:
+        """Start Baikal Docker container with pre-configured database."""
+        import subprocess
+        import time
+        from pathlib import Path
+
+        # Check if docker-compose is available
+        try:
+            subprocess.run(
+                ["docker-compose", "--version"],
+                capture_output=True,
+                check=True,
+                timeout=5,
+            )
+        except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired) as e:
+            raise RuntimeError(
+                "docker-compose is not available. Baikal tests require Docker. "
+                "Please install Docker or skip Baikal tests by setting "
+                "test_baikal=False in tests/conf_private.py"
+            ) from e
+
+        # Get the docker-compose directory
+        baikal_dir = Path(__file__).parent / "docker-test-servers" / "baikal"
+
+        # Check if docker-compose.yml exists
+        if not (baikal_dir / "docker-compose.yml").exists():
+            raise FileNotFoundError(
+                f"docker-compose.yml not found in {baikal_dir}"
+            )
+
+        # Start the container but don't wait for full startup
+        print(f"Starting Baikal container from {baikal_dir}...")
+        subprocess.run(
+            ["docker-compose", "up", "--no-start"],
+            cwd=baikal_dir,
+            check=True,
+            capture_output=True,
+        )
+
+        # Copy pre-configured files BEFORE starting the container
+        # This way the entrypoint script will fix permissions properly
+        print("Copying pre-configured files into container...")
+        specific_dir = baikal_dir / "Specific"
+        config_dir = baikal_dir / "config"
+
+        subprocess.run(
+            ["docker", "cp", f"{specific_dir}/.", "baikal-test:/var/www/baikal/Specific/"],
+            check=True,
+            capture_output=True,
+        )
+
+        # Copy YAML config for newer Baikal versions
+        if config_dir.exists():
+            subprocess.run(
+                ["docker", "cp", f"{config_dir}/.", "baikal-test:/var/www/baikal/config/"],
+                check=True,
+                capture_output=True,
+            )
+
+        # Now start the container - the entrypoint will fix permissions
+        print("Starting container...")
+        subprocess.run(
+            ["docker", "start", "baikal-test"],
+            check=True,
+            capture_output=True,
+        )
+
+        # Wait for Baikal to be ready
+        print("Waiting for Baikal to be ready...")
+        max_attempts = 30
+        for i in range(max_attempts):
+            try:
+                response = requests.get(f"{baikal_url}/", timeout=2)
+                if response.status_code in (200, 401, 403):
+                    print(f"✓ Baikal is ready at {baikal_url}")
+                    return
+            except Exception:
+                pass
+            time.sleep(1)
+
+        raise TimeoutError(
+            f"Baikal did not become ready after {max_attempts} seconds"
+        )
+
+    def teardown_baikal(self) -> None:
+        """Stop Baikal Docker container."""
+        import subprocess
+        from pathlib import Path
+
+        baikal_dir = Path(__file__).parent / "docker-test-servers" / "baikal"
+
+        print("Stopping Baikal container...")
+        subprocess.run(
+            ["docker-compose", "down"],
+            cwd=baikal_dir,
+            check=True,
+            capture_output=True,
+        )
+        print("✓ Baikal container stopped")
+
+    # Only add Baikal to test servers if accessible OR if we can start it
     if is_baikal_accessible():
+        # Already running, just use it
         features = compatibility_hints.baikal.copy()
         caldav_servers.append(
             {
@@ -285,6 +410,20 @@ if test_baikal:
                 "username": baikal_username,
                 "password": baikal_password,
                 "features": features,
+            }
+        )
+    else:
+        # Not running, add with setup/teardown to auto-start
+        features = compatibility_hints.baikal.copy()
+        caldav_servers.append(
+            {
+                "name": "Baikal",
+                "url": baikal_url,
+                "username": baikal_username,
+                "password": baikal_password,
+                "features": features,
+                "setup": setup_baikal,
+                "teardown": teardown_baikal,
             }
         )
 

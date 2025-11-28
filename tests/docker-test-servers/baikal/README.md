@@ -2,9 +2,31 @@
 
 This project includes a framework for running tests against a Baikal CalDAV server in a Docker container. This setup works both locally and in CI/CD pipelines (GitHub Actions).
 
-## Quick Start (Local Testing)
+## Requirements
 
-### 1. Start Baikal Container
+- **Docker** and **docker-compose** must be installed
+- If Docker is not available, Baikal tests will be automatically skipped
+
+## Automatic Setup
+
+**Tests automatically start Baikal if Docker is available!** Just run:
+
+```bash
+pytest tests/
+# or
+tox -e py
+```
+
+The test framework will:
+1. Detect if docker-compose is available
+2. Automatically start the Baikal container if needed
+3. Configure it with the pre-seeded database
+4. Run tests against it
+5. Clean up after tests complete
+
+## Manual Setup (Optional)
+
+If you prefer to start Baikal manually:
 
 ```bash
 cd tests/docker-test-servers/baikal
@@ -12,39 +34,33 @@ cd tests/docker-test-servers/baikal
 ```
 
 This will:
-1. Start the Baikal CalDAV server container
+1. Create the Baikal CalDAV server container
 2. Copy the pre-configured database and config files
-3. Restart the container to apply the configuration
+3. Start the container (entrypoint fixes permissions automatically)
 4. Wait for Baikal to be ready on `http://localhost:8800`
 
-### 2. Pre-configured and Ready!
+## Pre-configured Setup
 
 This Baikal instance comes **pre-configured** with:
 - Admin user: `admin` / `admin`
 - Test user: `testuser` / `testpass`
 - Default calendar and addressbook already created
 - Digest authentication enabled
+- CalDAV URL: `http://localhost:8800/dav.php`
 
 **No manual configuration needed!** The container will start ready to use.
 
-### 3. Run Tests
+**Note:** The test framework automatically appends `/dav.php` to the base URL, so you can set `BAIKAL_URL=http://localhost:8800` and it will work correctly.
 
-```bash
-# From project root directory
-# Export Baikal URL (optional, defaults to http://localhost:8800)
-export BAIKAL_URL=http://localhost:8800
-export BAIKAL_USERNAME=testuser
-export BAIKAL_PASSWORD=testpass
+## Disabling Baikal Tests
 
-# Run tests
-pytest tests/
+If you want to skip Baikal tests, create `tests/conf_private.py`:
+
+```python
+test_baikal = False
 ```
 
-Or with tox:
-
-```bash
-tox -e py
-```
+Or simply don't install Docker - the tests will automatically skip Baikal if Docker is not available.
 
 ## GitHub Actions (CI/CD)
 

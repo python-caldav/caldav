@@ -812,10 +812,7 @@ bedework = [
     'duplicate_in_other_calendar_with_same_uid_is_lost'
 ]
 
-baikal =  {
-    'create-calendar': {'support': 'quirk', 'behaviour': 'mkcol-required'},
-    'create-calendar.auto': {'support': 'unsupported'}, ## this is the default, but the "quirk" from create-calendar overwrites it.  Hm.
-
+baikal =  { ## version 0.10.1
     #'search.comp-type-optional': {'support': 'ungraceful'}, ## Possibly this has been fixed?
     'search.recurrences.expanded.todo': {'support': 'unsupported'},
     'search.recurrences.expanded.exception': {'support': 'unsupported'},
@@ -832,6 +829,13 @@ baikal =  {
         "calendar_color"
     ]
 } ## TODO: testPrincipals, testWrongAuthType, testTodoDatesearch fails
+
+## Some unknown version of baikal has this
+baikal_old = baikal | {
+    'create-calendar': {'support': 'quirk', 'behaviour': 'mkcol-required'},
+    'create-calendar.auto': {'support': 'unsupported'}, ## this is the default, but the "quirk" from create-calendar overwrites it.  Hm.
+
+}
 
 ## See comments on https://github.com/python-caldav/caldav/issues/3
 #icloud = [
