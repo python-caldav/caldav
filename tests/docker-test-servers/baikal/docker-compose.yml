@@ -1,0 +1,10 @@
+version: '3.3'
+
+services:
+  baikal:
+    image: ckulka/baikal:nginx
+    container_name: baikal-test
+    ports:
+      - "8800:80"
+    environment:
+      - BAIKAL_SERVERNAME=localhost

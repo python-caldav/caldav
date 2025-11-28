@@ -14,7 +14,18 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+        python: ${{ github.event_name == 'pull_request' && fromJSON('["3.9", "3.14"]') || fromJSON('["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]') }}
+    services:
+      baikal:
+        image: ckulka/baikal:nginx
+        ports:
+          - 8800:80
+        options: >-
+          --health-cmd "curl -f http://localhost/ || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+          --health-start-period 30s
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -25,7 +36,24 @@ jobs:
           path: ~/.cache/pip
           key: pip|${{ hashFiles('setup.py') }}|${{ hashFiles('tox.ini') }}
       - run: pip install tox
+      - name: Configure Baikal with pre-seeded database
+        run: |
+          # Copy pre-configured database and config to Baikal container
+          docker cp tests/docker-test-servers/baikal/Specific/. ${{ job.services.baikal.id }}:/var/www/baikal/Specific/
+          docker cp tests/docker-test-servers/baikal/config/. ${{ job.services.baikal.id }}:/var/www/baikal/config/
+          # Fix permissions for SQLite
+          docker exec ${{ job.services.baikal.id }} chown -R nginx:nginx /var/www/baikal/Specific /var/www/baikal/config
+          docker exec ${{ job.services.baikal.id }} chmod -R 770 /var/www/baikal/Specific
+          # Restart to pick up configuration
+          docker restart ${{ job.services.baikal.id }}
+      - name: Wait for Baikal to be ready
+        run: |
+          sleep 5
+          timeout 60 bash -c 'until curl -f http://localhost:8800/ 2>/dev/null; do echo "Waiting..."; sleep 2; done'
+          echo "Baikal is ready!"
       - run: tox -e py
+        env:
+          BAIKAL_URL: http://localhost:8800
   docs:
     runs-on: ubuntu-latest
     steps:

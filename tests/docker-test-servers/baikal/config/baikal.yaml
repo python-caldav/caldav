@@ -1,0 +1,20 @@
+system:
+  configured_version: '0.10.1'
+  timezone: 'UTC'
+  card_enabled: true
+  cal_enabled: true
+  invite_from: 'noreply@baikal.test'
+  dav_auth_type: 'Digest'
+  admin_passwordhash: 21232f297a57a5a743894a0e4a801fc3
+  failed_access_message: 'user %u authentication failure for Baikal'
+  auth_realm: BaikalDAV
+  base_uri: ''
+
+database:
+  encryption_key: 'test-encryption-key-for-automated-testing'
+  backend: 'sqlite'
+  sqlite_file: '/var/www/baikal/Specific/db/db.sqlite'
+  mysql_host: 'localhost'
+  mysql_dbname: 'baikal'
+  mysql_username: 'baikal'
+  mysql_password: 'baikal'
