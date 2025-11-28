@@ -50,6 +50,14 @@ Also, the RFC6764 discovery may not always be robust, causing fallbacks and henc
 
 ### Added
 
+* **Automated Baikal Docker testing framework**: Complete automated testing setup for Baikal CalDAV server (v0.10.1) using Docker containers. The framework automatically detects docker-compose availability, starts containers when needed, and gracefully skips tests when Docker is unavailable. Works seamlessly in both local development and CI/CD environments (GitHub Actions).
+  - Automatic container lifecycle management (setup/teardown)
+  - Pre-configured database with test user credentials
+  - Auto-appends `/dav.php` to base URL for correct CalDAV endpoint
+  - Uses official Baikal 0.10.1 SQLite schema with all required tables
+  - YAML configuration support for Baikal 0.7.0+ compatibility
+  - Graceful degradation on systems without Docker
+  - Updated compatibility hints for Baikal 0.10.1
 * **RFC 6764 DNS-based service discovery**: Automatic CalDAV/CardDAV service discovery using DNS SRV/TXT records and well-known URIs. Users can now provide just a domain name or email address (e.g., `DAVClient(username='user@example.com')`) and the library will automatically discover the CalDAV service endpoint. The discovery process follows RFC 6764 specification.  This involves a new required dependency: `dnspython` for DNS queries.  DNS-based discovery can be disabled in the davclient connection settings, but I've opted against implementing a fallback if the dns library is not installed.
   - **SECURITY**: DNS-based discovery has security implications. By default, `require_tls=True` prevents downgrade attacks by only accepting HTTPS connections. See security documentation for details.
   - New `require_tls` parameter (default: `True`) prevents DNS-based downgrade attacks
