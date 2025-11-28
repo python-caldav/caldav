@@ -26,6 +26,19 @@ jobs:
           --health-timeout 5s
           --health-retries 5
           --health-start-period 30s
+      nextcloud:
+        image: nextcloud:latest
+        ports:
+          - 8801:80
+        env:
+          NEXTCLOUD_ADMIN_USER: admin
+          NEXTCLOUD_ADMIN_PASSWORD: admin
+        options: >-
+          --health-cmd "curl -f http://localhost/status.php || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+          --health-start-period 60s
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -51,9 +64,32 @@ jobs:
           sleep 5
           timeout 60 bash -c 'until curl -f http://localhost:8800/ 2>/dev/null; do echo "Waiting..."; sleep 2; done'
           echo "Baikal is ready!"
+      - name: Configure Nextcloud
+        run: |
+          # Wait for Nextcloud to be ready
+          timeout 120 bash -c 'until docker exec ${{ job.services.nextcloud.id }} php occ status 2>/dev/null | grep -q "installed: true"; do echo "Waiting for Nextcloud..."; sleep 2; done'
+          echo "Nextcloud is ready"
+
+          # Disable password policy
+          docker exec ${{ job.services.nextcloud.id }} php occ app:disable password_policy || true
+
+          # Create test user
+          docker exec -e OC_PASS="TestPassword123!" ${{ job.services.nextcloud.id }} php occ user:add --password-from-env --display-name="Test User" testuser || echo "User may already exist"
+
+          # Enable calendar and contacts apps
+          docker exec ${{ job.services.nextcloud.id }} php occ app:enable calendar || true
+          docker exec ${{ job.services.nextcloud.id }} php occ app:enable contacts || true
+
+          # Disable rate limiting and bruteforce protection
+          docker exec ${{ job.services.nextcloud.id }} php occ config:system:set ratelimit.enabled --value=false --type=boolean || true
+          docker exec ${{ job.services.nextcloud.id }} php occ app:disable bruteforcesettings || true
+          docker exec ${{ job.services.nextcloud.id }} php occ config:system:set auth.bruteforce.protection.enabled --value=false --type=boolean || true
+
+          echo "Nextcloud is configured!"
       - run: tox -e py
         env:
           BAIKAL_URL: http://localhost:8800
+          NEXTCLOUD_URL: http://localhost:8801
   docs:
     runs-on: ubuntu-latest
     steps:

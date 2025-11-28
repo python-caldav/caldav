@@ -6,7 +6,7 @@ set -e
 
 CONTAINER_NAME="nextcloud-test"
 TEST_USER="testuser"
-TEST_PASSWORD="testpass"
+TEST_PASSWORD="TestPassword123!"
 
 echo "Waiting for Nextcloud to be ready..."
 max_attempts=60
@@ -24,15 +24,21 @@ for i in $(seq 1 $max_attempts); do
 done
 
 echo ""
+echo "Disabling password policy for testing..."
+docker exec $CONTAINER_NAME php occ app:disable password_policy || true
+
 echo "Creating test user..."
 # Create test user (ignore error if already exists)
-docker exec $CONTAINER_NAME php occ user:add --password-from-env --display-name="Test User" $TEST_USER <<< "$TEST_PASSWORD" 2>/dev/null || echo "User may already exist"
+docker exec -e OC_PASS="$TEST_PASSWORD" $CONTAINER_NAME php occ user:add --password-from-env --display-name="Test User" $TEST_USER 2>/dev/null || echo "User may already exist"
 
 echo "Enabling calendar app..."
 docker exec $CONTAINER_NAME php occ app:enable calendar || true
 
 echo "Enabling contacts app..."
 docker exec $CONTAINER_NAME php occ app:enable contacts || true
+
+echo "Disabling rate limiting for testing..."
+docker exec $CONTAINER_NAME php occ config:system:set ratelimit.enabled --value=false --type=boolean || true
 
 echo ""
 echo "✓ Nextcloud setup complete!"

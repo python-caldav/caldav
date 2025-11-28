@@ -44,7 +44,7 @@ This will:
 
 This Nextcloud instance comes **pre-configured** with:
 - Admin user: `admin` / `admin`
-- Test user: `testuser` / `testpass`
+- Test user: `testuser` / `TestPassword123!`
 - Calendar and Contacts apps enabled
 - CalDAV URL: `http://localhost:8801/remote.php/dav`
 
@@ -56,7 +56,7 @@ This Nextcloud instance comes **pre-configured** with:
 
 - `NEXTCLOUD_URL`: URL of the Nextcloud server (default: `http://localhost:8801`)
 - `NEXTCLOUD_USERNAME`: Test user username (default: `testuser`)
-- `NEXTCLOUD_PASSWORD`: Test user password (default: `testpass`)
+- `NEXTCLOUD_PASSWORD`: Test user password (default: `TestPassword123!`)
 
 ## Disabling Nextcloud Tests
 

@@ -491,7 +491,7 @@ if test_nextcloud:
         nextcloud_url = nextcloud_base_url.rstrip("/")
 
     nextcloud_username = os.environ.get("NEXTCLOUD_USERNAME", "testuser")
-    nextcloud_password = os.environ.get("NEXTCLOUD_PASSWORD", "testpass")
+    nextcloud_password = os.environ.get("NEXTCLOUD_PASSWORD", "TestPassword123!")
 
     def is_nextcloud_accessible() -> bool:
         """Check if Nextcloud server is accessible."""
