@@ -8,6 +8,10 @@ All contributions are carefully reviewed by the maintainer, and all releases are
 
 # Known security issues and risks
 
+## RFC6764
+
+I do see a major security flaw with the RFC6764 discovery. If the DNS is not to be trusted, someone can highjack the connection by spoofing the service records, and also spoofing the TLS setting, encouraging the client to connect over plain-text HTTP without certificate validation. Utilizing this it may be possible to steal the credentials. This flaw can be mitigated by using DNSSEC, but DNSSEC is not widely used, and there is currently no mechanisms in this package to verify that the DNS is secure.  This will be partly mitigated by adding a `require_tls` connection parameter that is True by default.
+
 ## DDoS/OOM risk
 
 The package offers both client-side and server-side expansion of recurring events and tasks.  It currently does not offer expansion for open-ended date searches - but with a large enough timespan and a frequent enough RRULE, there may be millions of recurrences returned.  Those recurrences are returned as a generator, so things will not break down immediately.  However, there is no guaranteed sort order of the recurrences ... and once you add sorting parameters to the search, bad things may happen.
