@@ -66,9 +66,30 @@ jobs:
           echo "Baikal is ready!"
       - name: Configure Nextcloud
         run: |
-          # Wait for Nextcloud to be ready
-          timeout 120 bash -c 'until docker exec ${{ job.services.nextcloud.id }} php occ status 2>/dev/null | grep -q "installed: true"; do echo "Waiting for Nextcloud..."; sleep 2; done'
-          echo "Nextcloud is ready"
+          # Wait for Nextcloud web server to be up
+          echo "Waiting for Nextcloud web server..."
+          timeout 60 bash -c 'until curl -f http://localhost:8801/status.php 2>/dev/null; do echo -n "."; sleep 2; done'
+          echo ""
+          echo "✓ Web server is up"
+
+          # Wait for Nextcloud to be installed (first startup takes longer)
+          echo "Waiting for Nextcloud to complete installation..."
+          for i in {1..180}; do
+            if docker exec ${{ job.services.nextcloud.id }} php occ status 2>/dev/null | grep -q "installed: true"; then
+              echo "✓ Nextcloud is installed and ready"
+              break
+            fi
+            if [ $i -eq 180 ]; then
+              echo "✗ Nextcloud did not complete installation in time"
+              echo "Container logs:"
+              docker logs ${{ job.services.nextcloud.id }} | tail -100
+              echo "Trying to run occ status:"
+              docker exec ${{ job.services.nextcloud.id }} php occ status || true
+              exit 1
+            fi
+            echo -n "."
+            sleep 2
+          done
 
           # Disable password policy
           docker exec ${{ job.services.nextcloud.id }} php occ app:disable password_policy || true
