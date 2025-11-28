@@ -445,6 +445,172 @@ if test_baikal:
             }
         )
 
+## Nextcloud - Docker container with automated setup
+try:
+    from .conf_private import test_nextcloud
+except ImportError:
+    import os
+    import subprocess
+
+    ## Test Nextcloud if NEXTCLOUD_URL is set OR if docker-compose is available
+    if os.environ.get("NEXTCLOUD_URL") is not None:
+        test_nextcloud = True
+    else:
+        # Check if docker-compose is available
+        try:
+            subprocess.run(
+                ["docker-compose", "--version"],
+                capture_output=True,
+                check=True,
+                timeout=5,
+            )
+            test_nextcloud = True
+        except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
+            test_nextcloud = False
+
+try:
+    from .conf_private import nextcloud_host, nextcloud_port
+except ImportError:
+    nextcloud_host = "localhost"
+    nextcloud_port = 8801
+
+if test_nextcloud:
+    import os
+    import subprocess
+    from pathlib import Path
+
+    nextcloud_base_url = os.environ.get(
+        "NEXTCLOUD_URL", f"http://{nextcloud_host}:{nextcloud_port}"
+    )
+    # Ensure the URL includes /remote.php/dav/ for CalDAV endpoint
+    if not nextcloud_base_url.endswith("/remote.php/dav") and not nextcloud_base_url.endswith(
+        "/remote.php/dav/"
+    ):
+        nextcloud_url = f"{nextcloud_base_url}/remote.php/dav"
+    else:
+        nextcloud_url = nextcloud_base_url.rstrip("/")
+
+    nextcloud_username = os.environ.get("NEXTCLOUD_USERNAME", "testuser")
+    nextcloud_password = os.environ.get("NEXTCLOUD_PASSWORD", "testpass")
+
+    def is_nextcloud_accessible() -> bool:
+        """Check if Nextcloud server is accessible."""
+        try:
+            # Check the dav endpoint
+            response = requests.get(f"{nextcloud_url}/", timeout=5)
+            return response.status_code in (200, 401, 403, 404, 207)
+        except Exception:
+            return False
+
+    def setup_nextcloud(self) -> None:
+        """Start Nextcloud Docker container and configure it."""
+        import subprocess
+        import time
+        from pathlib import Path
+
+        # Check if docker-compose is available
+        try:
+            subprocess.run(
+                ["docker-compose", "--version"],
+                capture_output=True,
+                check=True,
+                timeout=5,
+            )
+        except (
+            subprocess.CalledProcessError,
+            FileNotFoundError,
+            subprocess.TimeoutExpired,
+        ) as e:
+            raise RuntimeError(
+                "docker-compose is not available. Nextcloud tests require Docker. "
+                "Please install Docker or skip Nextcloud tests by setting "
+                "test_nextcloud=False in tests/conf_private.py"
+            ) from e
+
+        # Get the docker-compose directory
+        nextcloud_dir = Path(__file__).parent / "docker-test-servers" / "nextcloud"
+
+        # Check if docker-compose.yml exists
+        if not (nextcloud_dir / "docker-compose.yml").exists():
+            raise FileNotFoundError(f"docker-compose.yml not found in {nextcloud_dir}")
+
+        # Start the container
+        print(f"Starting Nextcloud container from {nextcloud_dir}...")
+        subprocess.run(
+            ["docker-compose", "up", "-d"],
+            cwd=nextcloud_dir,
+            check=True,
+            capture_output=True,
+        )
+
+        # Run setup script to configure Nextcloud and create test user
+        print("Configuring Nextcloud...")
+        setup_script = nextcloud_dir / "setup_nextcloud.sh"
+        subprocess.run(
+            [str(setup_script)],
+            cwd=nextcloud_dir,
+            check=True,
+        )
+
+        # Wait for Nextcloud to be ready
+        print("Waiting for Nextcloud to be ready...")
+        max_attempts = 30
+        for i in range(max_attempts):
+            try:
+                response = requests.get(f"{nextcloud_url}/", timeout=2)
+                if response.status_code in (200, 401, 403, 207):
+                    print(f"✓ Nextcloud is ready at {nextcloud_url}")
+                    return
+            except Exception:
+                pass
+            time.sleep(1)
+
+        raise TimeoutError(f"Nextcloud did not become ready after {max_attempts} seconds")
+
+    def teardown_nextcloud(self) -> None:
+        """Stop Nextcloud Docker container."""
+        import subprocess
+        from pathlib import Path
+
+        nextcloud_dir = Path(__file__).parent / "docker-test-servers" / "nextcloud"
+
+        print("Stopping Nextcloud container...")
+        subprocess.run(
+            ["docker-compose", "down"],
+            cwd=nextcloud_dir,
+            check=True,
+            capture_output=True,
+        )
+        print("✓ Nextcloud container stopped")
+
+    # Only add Nextcloud to test servers if accessible OR if we can start it
+    if is_nextcloud_accessible():
+        # Already running, just use it
+        features = compatibility_hints.nextcloud.copy()
+        caldav_servers.append(
+            {
+                "name": "Nextcloud",
+                "url": nextcloud_url,
+                "username": nextcloud_username,
+                "password": nextcloud_password,
+                "features": features,
+            }
+        )
+    else:
+        # Not running, add with setup/teardown to auto-start
+        features = compatibility_hints.nextcloud.copy()
+        caldav_servers.append(
+            {
+                "name": "Nextcloud",
+                "url": nextcloud_url,
+                "username": nextcloud_username,
+                "password": nextcloud_password,
+                "features": features,
+                "setup": setup_nextcloud,
+                "teardown": teardown_nextcloud,
+            }
+        )
+
 
 ###################################################################
 # Convenience - get a DAVClient object from the caldav_servers list

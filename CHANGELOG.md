@@ -63,6 +63,13 @@ Also, the RFC6764 discovery may not always be robust, causing fallbacks and henc
   - `i;unicode-casemap` (Unicode case-insensitive, RFC 5051 - server support may vary)
 * Client-side filtering method: `CalDAVSearcher.filter()` provides comprehensive client-side filtering, expansion, and sorting of calendar objects with full timezone preservation support.
 * Example code: New `examples/collation_usage.py` demonstrates case-sensitive and case-insensitive calendar searches.
+* **Automated Nextcloud Docker testing framework**: Complete automated testing setup for Nextcloud CalDAV/CardDAV server using Docker containers with SQLite backend. Provides real-world testing coverage against one of the most popular cloud platforms.
+  - Automatic container lifecycle management with user provisioning
+  - Uses official Nextcloud Docker image with automated setup script
+  - Auto-appends `/remote.php/dav` to base URL for correct CalDAV endpoint
+  - Creates test user and enables calendar/contacts apps automatically
+  - Graceful degradation on systems without Docker
+  - Compatible with existing Nextcloud compatibility hints
 
 ### Test suite
 
