@@ -27,6 +27,10 @@ SECURITY CONSIDERATIONS:
     - Use DNSSEC when possible for DNS integrity
     - Manually verify discovered endpoints for sensitive applications
     - Consider certificate pinning for known domains
+    - TODO: we should validate that the discovery does not point the client
+      to another domain.  If a highjacked DNS is telling us to visit
+      caldav.evil-hacker.ru and there exists a valid certificate for
+      said domain, then TLS-validation is not going to save the day.
 
     For high-security environments, manual configuration may be preferable to
     automatic discovery.
