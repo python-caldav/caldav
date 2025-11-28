@@ -10,14 +10,15 @@ This creates a database with:
 Usage:
     python create_baikal_db.py
 """
-
 import hashlib
 import os
 import sqlite3
 from pathlib import Path
 
 
-def create_baikal_db(db_path: Path, username: str = "testuser", password: str = "testpass") -> None:
+def create_baikal_db(
+    db_path: Path, username: str = "testuser", password: str = "testpass"
+) -> None:
     """Create a Baikal SQLite database with a test user using official schema."""
 
     # Ensure directory exists
@@ -192,21 +193,20 @@ CREATE TABLE users (
     ha1 = hashlib.md5(f"{username}:{realm}:{password}".encode()).hexdigest()
 
     cursor.execute(
-        "INSERT INTO users (username, digesta1) VALUES (?, ?)",
-        (username, ha1)
+        "INSERT INTO users (username, digesta1) VALUES (?, ?)", (username, ha1)
     )
 
     # Create principal for user
     principal_uri = f"principals/{username}"
     cursor.execute(
         "INSERT INTO principals (uri, email, displayname) VALUES (?, ?, ?)",
-        (principal_uri, f"{username}@baikal.test", f"Test User ({username})")
+        (principal_uri, f"{username}@baikal.test", f"Test User ({username})"),
     )
 
     # Create default calendar
     cursor.execute(
         "INSERT INTO calendars (synctoken, components) VALUES (?, ?)",
-        (1, "VEVENT,VTODO,VJOURNAL")
+        (1, "VEVENT,VTODO,VJOURNAL"),
     )
     calendar_id = cursor.lastrowid
 
@@ -215,7 +215,7 @@ CREATE TABLE users (
         """INSERT INTO calendarinstances
            (calendarid, principaluri, access, displayname, uri, calendarorder, calendarcolor)
            VALUES (?, ?, ?, ?, ?, ?, ?)""",
-        (calendar_id, principal_uri, 1, "Default Calendar", "default", 0, "#3a87ad")
+        (calendar_id, principal_uri, 1, "Default Calendar", "default", 0, "#3a87ad"),
     )
 
     # Create default addressbook for user
@@ -223,7 +223,7 @@ CREATE TABLE users (
         """INSERT INTO addressbooks
            (principaluri, displayname, uri, synctoken)
            VALUES (?, ?, ?, ?)""",
-        (principal_uri, "Default Address Book", "default", 1)
+        (principal_uri, "Default Address Book", "default", 1),
     )
 
     conn.commit()
@@ -353,7 +353,9 @@ database:
   mysql_dbname: 'baikal'
   mysql_username: 'baikal'
   mysql_password: 'baikal'
-""".format(admin_hash=admin_hash)
+""".format(
+        admin_hash=admin_hash
+    )
 
     yaml_path.write_text(yaml_content)
     print(f"✓ Created Baikal YAML config at {yaml_path}")
@@ -377,9 +379,9 @@ if __name__ == "__main__":
     yaml_path = script_dir / "config" / "baikal.yaml"
     create_baikal_yaml(yaml_path)
 
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("Baikal pre-configuration complete!")
-    print("="*70)
+    print("=" * 70)
     print("\nYou can now start Baikal with: docker-compose up -d")
     print("\nCredentials:")
     print("  Admin: admin / admin")

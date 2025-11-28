@@ -41,7 +41,7 @@ Also, the RFC6764 discovery may not always be robust, causing fallbacks and henc
 ### Deprecations
 
 * `Event.expand_rrule` will be removed in some future release, unless someone protests.
-* `Event.split_expanded` too.  Both of them were used internally, now it's not.  It's dead code, most lkely nobody and nothing is using them.
+* `Event.split_expanded` too.  Both of them were used internally, now it's not.  It's dead code, most likely nobody and nothing is using them.
 
 ### Changed
 
@@ -50,29 +50,24 @@ Also, the RFC6764 discovery may not always be robust, causing fallbacks and henc
 
 ### Added
 
-* **Automated Baikal Docker testing framework**: Complete automated testing setup for Baikal CalDAV server (v0.10.1) using Docker containers. The framework automatically detects docker-compose availability, starts containers when needed, and gracefully skips tests when Docker is unavailable. Works seamlessly in both local development and CI/CD environments (GitHub Actions).
-  - Automatic container lifecycle management (setup/teardown)
-  - Pre-configured database with test user credentials
-  - Auto-appends `/dav.php` to base URL for correct CalDAV endpoint
-  - Uses official Baikal 0.10.1 SQLite schema with all required tables
-  - YAML configuration support for Baikal 0.7.0+ compatibility
-  - Graceful degradation on systems without Docker
-  - Updated compatibility hints for Baikal 0.10.1
-* **RFC 6764 DNS-based service discovery**: Automatic CalDAV/CardDAV service discovery using DNS SRV/TXT records and well-known URIs. Users can now provide just a domain name or email address (e.g., `DAVClient(username='user@example.com')`) and the library will automatically discover the CalDAV service endpoint. The discovery process follows RFC 6764 specification.  This involves a new required dependency: `dnspython` for DNS queries.  DNS-based discovery can be disabled in the davclient connection settings, but I've opted against implementing a fallback if the dns library is not installed.
-  - **SECURITY**: DNS-based discovery has security implications. By default, `require_tls=True` prevents downgrade attacks by only accepting HTTPS connections. See security documentation for details.
+* **New ways to configure the client connection, new parameters**
+  - **RFC 6764 DNS-based service discovery**: Automatic CalDAV/CardDAV service discovery using DNS SRV/TXT records and well-known URIs. Users can now provide just a domain name or email address (e.g., `DAVClient(username='user@example.com')`) and the library will automatically discover the CalDAV service endpoint. The discovery process follows RFC 6764 specification.  This involves a new required dependency: `dnspython` for DNS queries.  DNS-based discovery can be disabled in the davclient connection settings, but I've opted against implementing a fallback if the dns library is not installed.
   - New `require_tls` parameter (default: `True`) prevents DNS-based downgrade attacks
-  - Username extraction from email addresses (`user@example.com` → username: `user`)
-  - Discovery from username parameter when URL is omitted
-* The client connection parameter `features` may now simply be a string label referencing a well-known server or cloud solution - like `features: posteo`.  https://github.com/python-caldav/caldav/pull/561
-* The client connection parameter `url` is no longer needed when referencing a well-known cloud solution. https://github.com/python-caldav/caldav/pull/561
-* The client connection parameter `url` may contain just the domain name (without any slashes) and the URL will be constructed, if referencing a well-known caldav server implementation. https://github.com/python-caldav/caldav/pull/561
-* New interface for searches.  `mysearcher = caldav.CalDAVSearcher(...) ; mysearcher.add_property_filter(...) ; mysearcher.search(calendar)`.  May be useful for complicated searches.
+  - The client connection parameter `features` may now simply be a string label referencing a well-known server or cloud solution - like `features: posteo`.  https://github.com/python-caldav/caldav/pull/561
+  - The client connection parameter `url` is no longer needed when referencing a well-known cloud solution. https://github.com/python-caldav/caldav/pull/561
+  * The client connection parameter `url` may contain just the domain name (without any slashes).  It may then either look up the URL path in the known caldav server database, or through RFC6764
+* **New interface for searches**  `mysearcher = caldav.CalDAVSearcher(...) ; mysearcher.add_property_filter(...) ; mysearcher.search(calendar)`.  It's a bit harder to use, but opens up the possibility to do more complicated searches.
 * **Collation support for CalDAV text-match queries (RFC 4791 § 9.7.5)**: CalDAV searches now properly pass collation attributes to the server, enabling case-insensitive searches and Unicode-aware text matching. The `CalDAVSearcher.add_property_filter()` method now accepts `case_sensitive` and `collation` parameters. Supported collations include:
   - `i;octet` (case-sensitive, binary comparison) - default
   - `i;ascii-casemap` (case-insensitive for ASCII characters, RFC 4790)
   - `i;unicode-casemap` (Unicode case-insensitive, RFC 5051 - server support may vary)
 * Client-side filtering method: `CalDAVSearcher.filter()` provides comprehensive client-side filtering, expansion, and sorting of calendar objects with full timezone preservation support.
 * Example code: New `examples/collation_usage.py` demonstrates case-sensitive and case-insensitive calendar searches.
+
+### Test suite
+
+* **Automated Baikal Docker testing framework** using Docker containers.   Will only run if docker is available.
+* Since the new search code now can work around different server quirks, quite some of the test code has been simplified.  Many cases of "make a search, if server supports this, then assert correct number of events returned" could be collapsed to "make a search, then assert correct number of events returned" - meaning that **the library is tested rather than the server**.
 
 ## [2.1.2] - [2025-11-08]
 

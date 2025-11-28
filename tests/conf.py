@@ -113,7 +113,11 @@ except ImportError:
                 timeout=5,
             )
             test_baikal = True
-        except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
+        except (
+            subprocess.CalledProcessError,
+            FileNotFoundError,
+            subprocess.TimeoutExpired,
+        ):
             test_baikal = False
 
 #####################
@@ -280,12 +284,16 @@ if test_baikal:
     import subprocess
     from pathlib import Path
 
-    baikal_base_url = os.environ.get("BAIKAL_URL", f"http://{baikal_host}:{baikal_port}")
+    baikal_base_url = os.environ.get(
+        "BAIKAL_URL", f"http://{baikal_host}:{baikal_port}"
+    )
     # Ensure the URL includes /dav.php/ for CalDAV endpoint
-    if not baikal_base_url.endswith('/dav.php') and not baikal_base_url.endswith('/dav.php/'):
+    if not baikal_base_url.endswith("/dav.php") and not baikal_base_url.endswith(
+        "/dav.php/"
+    ):
         baikal_url = f"{baikal_base_url}/dav.php"
     else:
-        baikal_url = baikal_base_url.rstrip('/')
+        baikal_url = baikal_base_url.rstrip("/")
 
     baikal_username = os.environ.get("BAIKAL_USERNAME", "testuser")
     baikal_password = os.environ.get("BAIKAL_PASSWORD", "testpass")
@@ -313,7 +321,11 @@ if test_baikal:
                 check=True,
                 timeout=5,
             )
-        except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired) as e:
+        except (
+            subprocess.CalledProcessError,
+            FileNotFoundError,
+            subprocess.TimeoutExpired,
+        ) as e:
             raise RuntimeError(
                 "docker-compose is not available. Baikal tests require Docker. "
                 "Please install Docker or skip Baikal tests by setting "
@@ -325,9 +337,7 @@ if test_baikal:
 
         # Check if docker-compose.yml exists
         if not (baikal_dir / "docker-compose.yml").exists():
-            raise FileNotFoundError(
-                f"docker-compose.yml not found in {baikal_dir}"
-            )
+            raise FileNotFoundError(f"docker-compose.yml not found in {baikal_dir}")
 
         # Start the container but don't wait for full startup
         print(f"Starting Baikal container from {baikal_dir}...")
@@ -345,7 +355,12 @@ if test_baikal:
         config_dir = baikal_dir / "config"
 
         subprocess.run(
-            ["docker", "cp", f"{specific_dir}/.", "baikal-test:/var/www/baikal/Specific/"],
+            [
+                "docker",
+                "cp",
+                f"{specific_dir}/.",
+                "baikal-test:/var/www/baikal/Specific/",
+            ],
             check=True,
             capture_output=True,
         )
@@ -353,7 +368,12 @@ if test_baikal:
         # Copy YAML config for newer Baikal versions
         if config_dir.exists():
             subprocess.run(
-                ["docker", "cp", f"{config_dir}/.", "baikal-test:/var/www/baikal/config/"],
+                [
+                    "docker",
+                    "cp",
+                    f"{config_dir}/.",
+                    "baikal-test:/var/www/baikal/config/",
+                ],
                 check=True,
                 capture_output=True,
             )
@@ -379,9 +399,7 @@ if test_baikal:
                 pass
             time.sleep(1)
 
-        raise TimeoutError(
-            f"Baikal did not become ready after {max_attempts} seconds"
-        )
+        raise TimeoutError(f"Baikal did not become ready after {max_attempts} seconds")
 
     def teardown_baikal(self) -> None:
         """Stop Baikal Docker container."""
