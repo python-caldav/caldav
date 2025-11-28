@@ -39,6 +39,24 @@ docker exec $CONTAINER_NAME php occ app:enable contacts || true
 
 echo "Disabling rate limiting for testing..."
 docker exec $CONTAINER_NAME php occ config:system:set ratelimit.enabled --value=false --type=boolean || true
+docker exec $CONTAINER_NAME php occ app:disable bruteforcesettings || true
+docker exec $CONTAINER_NAME php occ config:system:set auth.bruteforce.protection.enabled --value=false --type=boolean || true
+
+echo "Configuring CalDAV rate limits..."
+docker exec $CONTAINER_NAME php occ config:app:set dav rateLimitCalendarCreation --value=99999 || true
+docker exec $CONTAINER_NAME php occ config:app:set dav maximumCalendarsSubscriptions --value=-1 || true
+
+echo "Adding IP whitelist for rate limiting..."
+docker exec $CONTAINER_NAME php occ config:system:set ratelimit.whitelist.0 --value='172.19.0.0/16' || true
+docker exec $CONTAINER_NAME php occ config:system:set ratelimit.whitelist.1 --value='127.0.0.1' || true
+
+echo "Clearing rate limit cache..."
+docker exec $CONTAINER_NAME php -r "
+\$db = new PDO('sqlite:/var/www/html/data/nextcloud.db');
+\$db->exec('DELETE FROM oc_ratelimit_entries');
+\$db->exec('DELETE FROM oc_bruteforce_attempts');
+echo 'Cleared rate limit and bruteforce caches\n';
+" || true
 
 echo ""
 echo "✓ Nextcloud setup complete!"

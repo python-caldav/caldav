@@ -85,6 +85,22 @@ jobs:
           docker exec ${{ job.services.nextcloud.id }} php occ app:disable bruteforcesettings || true
           docker exec ${{ job.services.nextcloud.id }} php occ config:system:set auth.bruteforce.protection.enabled --value=false --type=boolean || true
 
+          # Configure CalDAV rate limits
+          docker exec ${{ job.services.nextcloud.id }} php occ config:app:set dav rateLimitCalendarCreation --value=99999 || true
+          docker exec ${{ job.services.nextcloud.id }} php occ config:app:set dav maximumCalendarsSubscriptions --value=-1 || true
+
+          # Add IP whitelist for rate limiting
+          docker exec ${{ job.services.nextcloud.id }} php occ config:system:set ratelimit.whitelist.0 --value='172.17.0.0/16' || true
+          docker exec ${{ job.services.nextcloud.id }} php occ config:system:set ratelimit.whitelist.1 --value='127.0.0.1' || true
+
+          # Clear rate limit cache
+          docker exec ${{ job.services.nextcloud.id }} php -r "
+          \$db = new PDO('sqlite:/var/www/html/data/nextcloud.db');
+          \$db->exec('DELETE FROM oc_ratelimit_entries');
+          \$db->exec('DELETE FROM oc_bruteforce_attempts');
+          echo 'Cleared rate limit and bruteforce caches\n';
+          " || true
+
           echo "Nextcloud is configured!"
       - run: tox -e py
         env:

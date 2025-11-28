@@ -546,10 +546,11 @@ if test_nextcloud:
         # Run setup script to configure Nextcloud and create test user
         print("Configuring Nextcloud...")
         setup_script = nextcloud_dir / "setup_nextcloud.sh"
-        subprocess.run(
+        result = subprocess.run(
             [str(setup_script)],
             cwd=nextcloud_dir,
             check=True,
+            capture_output=False,
         )
 
         # Wait for Nextcloud to be ready
