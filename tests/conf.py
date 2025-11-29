@@ -417,33 +417,23 @@ if test_baikal:
         )
         print("✓ Baikal container stopped")
 
+    conn_params = {
+        "name": "Baikal",
+        "url": baikal_url,
+        "username": baikal_username,
+        "password": baikal_password,
+        "features": 'baikal',
+    }
+        
     # Only add Baikal to test servers if accessible OR if we can start it
     if is_baikal_accessible():
-        # Already running, just use it
-        features = compatibility_hints.baikal.copy()
-        caldav_servers.append(
-            {
-                "name": "Baikal",
-                "url": baikal_url,
-                "username": baikal_username,
-                "password": baikal_password,
-                "features": features,
-            }
-        )
+        caldav_servers.append(conn_params)
     else:
         # Not running, add with setup/teardown to auto-start
-        features = compatibility_hints.baikal.copy()
-        caldav_servers.append(
-            {
-                "name": "Baikal",
-                "url": baikal_url,
-                "username": baikal_username,
-                "password": baikal_password,
-                "features": features,
+        caldav_servers.append(conn_params | {
                 "setup": setup_baikal,
                 "teardown": teardown_baikal,
-            }
-        )
+        })
 
 ## Nextcloud - Docker container with automated setup
 try:
