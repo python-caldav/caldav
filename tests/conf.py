@@ -675,6 +675,11 @@ if test_cyrus:
         import time
         from pathlib import Path
 
+        # Check if Cyrus is already accessible (e.g., in GitHub Actions)
+        if is_cyrus_accessible():
+            print(f"✓ Cyrus is already running at {cyrus_base_url}")
+            return
+
         # Check if docker-compose is available
         try:
             subprocess.run(
@@ -737,6 +742,11 @@ if test_cyrus:
         """Stop Cyrus Docker container."""
         import subprocess
         from pathlib import Path
+
+        # If CYRUS_URL is set, the server is externally managed (e.g., GitHub Actions)
+        # Don't try to stop it
+        if os.environ.get("CYRUS_URL") is not None:
+            return
 
         # Check if we started the container (by checking if it's running)
         try:
