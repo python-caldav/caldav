@@ -7,6 +7,9 @@ import logging
 import tempfile
 import threading
 import time
+import os
+import subprocess
+from pathlib import Path
 
 try:
     import niquests as requests
@@ -97,9 +100,6 @@ except ImportError:
 try:
     from .conf_private import test_baikal
 except ImportError:
-    import os
-    import subprocess
-
     ## Test Baikal if BAIKAL_URL is set OR if docker-compose is available
     if os.environ.get("BAIKAL_URL") is not None:
         test_baikal = True
@@ -280,9 +280,6 @@ if test_xandikos:
 
 ## Baikal - Docker container with automated setup
 if test_baikal:
-    import os
-    import subprocess
-    from pathlib import Path
 
     baikal_base_url = os.environ.get(
         "BAIKAL_URL", f"http://{baikal_host}:{baikal_port}"
@@ -439,9 +436,6 @@ if test_baikal:
 try:
     from .conf_private import test_nextcloud
 except ImportError:
-    import os
-    import subprocess
-
     ## Test Nextcloud if NEXTCLOUD_URL is set OR if docker-compose is available
     if os.environ.get("NEXTCLOUD_URL") is not None:
         test_nextcloud = True
@@ -469,10 +463,6 @@ except ImportError:
     nextcloud_port = 8801
 
 if test_nextcloud:
-    import os
-    import subprocess
-    from pathlib import Path
-
     nextcloud_base_url = os.environ.get(
         "NEXTCLOUD_URL", f"http://{nextcloud_host}:{nextcloud_port}"
     )
@@ -602,9 +592,6 @@ if test_nextcloud:
 try:
     from .conf_private import test_cyrus
 except ImportError:
-    import os
-    import subprocess
-
     ## Test Cyrus if CYRUS_URL is set OR if docker-compose is available
     if os.environ.get("CYRUS_URL") is not None:
         test_cyrus = True
@@ -628,10 +615,6 @@ except ImportError:
     cyrus_port = 8802
 
 if test_cyrus:
-    import os
-    import subprocess
-    from pathlib import Path
-
     cyrus_base_url = os.environ.get(
         "CYRUS_URL", f"http://{cyrus_host}:{cyrus_port}"
     )
