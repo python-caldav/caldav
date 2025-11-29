@@ -39,6 +39,20 @@ jobs:
           --health-timeout 5s
           --health-retries 5
           --health-start-period 60s
+      cyrus:
+        image: ghcr.io/cyrusimap/cyrus-docker-test-server:latest
+        ports:
+          - 8802:8080
+          - 8001:8001
+        env:
+          DEFAULTDOMAIN: example.com
+          SERVERNAME: cyrus-test
+        options: >-
+          --health-cmd "curl -s http://localhost:8080/ || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+          --health-start-period 60s
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -116,10 +130,27 @@ jobs:
           " || true
 
           echo "Nextcloud is configured!"
+      - name: Wait for Cyrus to be ready
+        run: |
+          echo "Waiting for Cyrus server..."
+          # Cyrus takes a bit longer to initialize
+          sleep 10
+          timeout 60 bash -c 'until curl -s http://localhost:8802/ 2>/dev/null | grep -q .; do echo -n "."; sleep 2; done'
+          echo ""
+          echo "✓ Cyrus HTTP server is ready"
+
+          # Verify CalDAV access with pre-created user
+          echo "Verifying CalDAV access..."
+          if curl -s -u user1:x http://localhost:8802/dav/calendars/user/user1/ 2>/dev/null | grep -q "multistatus"; then
+            echo "✓ Cyrus CalDAV is accessible"
+          else
+            echo "Warning: CalDAV verification failed, but continuing..."
+          fi
       - run: tox -e py
         env:
           BAIKAL_URL: http://localhost:8800
           NEXTCLOUD_URL: http://localhost:8801
+          CYRUS_URL: http://localhost:8802
   docs:
     runs-on: ubuntu-latest
     steps:
