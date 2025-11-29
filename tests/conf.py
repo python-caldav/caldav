@@ -618,6 +618,174 @@ if test_nextcloud:
             }
         )
 
+## Cyrus IMAP - Docker container with CalDAV/CardDAV support
+try:
+    from .conf_private import test_cyrus
+except ImportError:
+    import os
+    import subprocess
+
+    ## Test Cyrus if CYRUS_URL is set OR if docker-compose is available
+    if os.environ.get("CYRUS_URL") is not None:
+        test_cyrus = True
+    else:
+        # Check if docker-compose is available
+        try:
+            subprocess.run(
+                ["docker-compose", "--version"],
+                capture_output=True,
+                check=True,
+                timeout=5,
+            )
+            test_cyrus = True
+        except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
+            test_cyrus = False
+
+try:
+    from .conf_private import cyrus_host, cyrus_port
+except ImportError:
+    cyrus_host = "localhost"
+    cyrus_port = 8802
+
+if test_cyrus:
+    import os
+    import subprocess
+    from pathlib import Path
+
+    cyrus_base_url = os.environ.get(
+        "CYRUS_URL", f"http://{cyrus_host}:{cyrus_port}"
+    )
+    # Cyrus CalDAV path includes the username
+    cyrus_username = os.environ.get("CYRUS_USERNAME", "testuser")
+    cyrus_password = os.environ.get("CYRUS_PASSWORD", "x")
+    cyrus_url = f"{cyrus_base_url}/dav/calendars/user/{cyrus_username}"
+
+    def is_cyrus_accessible() -> bool:
+        """Check if Cyrus server is accessible."""
+        try:
+            response = requests.get(f"{cyrus_base_url}/", timeout=5)
+            return response.status_code in (200, 401, 403, 404, 207)
+        except Exception:
+            return False
+
+    def setup_cyrus(self) -> None:
+        """Start Cyrus Docker container and configure it."""
+        import subprocess
+        import time
+        from pathlib import Path
+
+        # Check if docker-compose is available
+        try:
+            subprocess.run(
+                ["docker-compose", "--version"],
+                capture_output=True,
+                check=True,
+                timeout=5,
+            )
+        except (
+            subprocess.CalledProcessError,
+            FileNotFoundError,
+            subprocess.TimeoutExpired,
+        ) as e:
+            raise RuntimeError(
+                "docker-compose is not available. Cyrus tests require Docker. "
+                "Please install Docker or skip Cyrus tests by setting "
+                "test_cyrus=False in tests/conf_private.py"
+            ) from e
+
+        # Get the docker-compose directory
+        cyrus_dir = Path(__file__).parent / "docker-test-servers" / "cyrus"
+
+        # Check if docker-compose.yml exists
+        if not (cyrus_dir / "docker-compose.yml").exists():
+            raise FileNotFoundError(f"docker-compose.yml not found in {cyrus_dir}")
+
+        # Start the container
+        print(f"Starting Cyrus container from {cyrus_dir}...")
+        subprocess.run(
+            ["docker-compose", "up", "-d"],
+            cwd=cyrus_dir,
+            check=True,
+            capture_output=True,
+        )
+
+        # Wait for Cyrus to be ready
+        print("Waiting for Cyrus HTTP server to be ready...")
+        max_attempts = 30
+        for i in range(max_attempts):
+            try:
+                response = requests.get(f"{cyrus_base_url}/", timeout=2)
+                if response.status_code in (200, 401, 403, 207):
+                    print(f"✓ Cyrus HTTP server is ready at {cyrus_base_url}")
+                    break
+            except Exception:
+                pass
+            time.sleep(1)
+        else:
+            raise TimeoutError(f"Cyrus did not become ready after {max_attempts} seconds")
+
+        # Create test user via management API
+        print("Creating test user via management API...")
+        try:
+            management_url = f"http://{cyrus_host}:8001"
+            response = requests.put(
+                f"{management_url}/user/{cyrus_username}",
+                json={"password": cyrus_password},
+                timeout=5,
+            )
+            if response.ok:
+                print(f"✓ Test user created: {cyrus_username}")
+            else:
+                print(f"User creation status: {response.status_code} (may already exist)")
+        except Exception as e:
+            print(f"Warning: Could not create user via API: {e}")
+
+    def teardown_cyrus(self) -> None:
+        """Stop Cyrus Docker container."""
+        import subprocess
+        from pathlib import Path
+
+        # Check if we started the container (by checking if it's running)
+        try:
+            result = subprocess.run(
+                ["docker", "inspect", "-f", "{{.State.Running}}", "cyrus-test"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            if result.stdout.strip() != "true":
+                return  # Container not running, nothing to teardown
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+            return  # Container doesn't exist or inspect failed
+
+        cyrus_dir = Path(__file__).parent / "docker-test-servers" / "cyrus"
+
+        print("Stopping Cyrus container...")
+        try:
+            subprocess.run(
+                ["docker-compose", "down"],
+                cwd=cyrus_dir,
+                timeout=30,
+                capture_output=True,
+            )
+            print("✓ Cyrus container stopped")
+        except subprocess.TimeoutExpired:
+            print("Warning: Timeout stopping Cyrus container")
+
+    # Add to servers list
+    features = set()
+    caldav_servers.append(
+        {
+            "name": "Cyrus",
+            "url": cyrus_url,
+            "username": cyrus_username,
+            "password": cyrus_password,
+            "features": features,
+            "setup": setup_cyrus,
+            "teardown": teardown_cyrus,
+        }
+    )
+
 
 ###################################################################
 # Convenience - get a DAVClient object from the caldav_servers list
