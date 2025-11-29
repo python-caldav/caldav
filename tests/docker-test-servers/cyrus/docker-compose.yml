@@ -11,16 +11,11 @@ services:
     environment:
       - DEFAULTDOMAIN=example.com
       - SERVERNAME=cyrus-test
-    volumes:
-      - cyrus-data:/var/lib/cyrus
-      - cyrus-spool:/var/spool/cyrus
+    # No volumes - let data be ephemeral for testing
+    # This ensures each start is fresh with newly created users
     healthcheck:
       test: ["CMD", "curl", "-s", "http://localhost:8080/"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 30s
-
-volumes:
-  cyrus-data:
-  cyrus-spool:

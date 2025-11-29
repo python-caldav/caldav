@@ -590,10 +590,19 @@ if test_cyrus:
     cyrus_url = f"{cyrus_base_url}/dav/calendars/user/{cyrus_username}"
 
     def is_cyrus_accessible() -> bool:
-        """Check if Cyrus server is accessible."""
+        """Check if Cyrus CalDAV server is accessible and working."""
         try:
-            response = requests.get(f"{cyrus_base_url}/", timeout=5)
-            return response.status_code in (200, 401, 403, 404, 207)
+            # Test actual CalDAV access, not just HTTP server
+            response = requests.request(
+                'PROPFIND',
+                f"{cyrus_url}/",
+                auth=(cyrus_username, cyrus_password),
+                headers={'Depth': '0'},
+                timeout=5
+            )
+            # 207 Multi-Status means CalDAV is working
+            # 404 with multistatus also means server is responding but user might not exist yet
+            return response.status_code in (200, 207)
         except Exception:
             return False
 
