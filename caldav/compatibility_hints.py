@@ -721,7 +721,7 @@ radicale = {
     ]
 }
 
-## NOT TESTED ... but this works for ecloud, and ecloud is based on nextcloud
+## Be aware that nextcloud by default have different rate limits, including how often a user is allowed to create a new calendar.  This may break test runs badly.
 nextcloud = {
     'auto-connect.url': {
         'basepath': '/remote.php/dav',
@@ -843,6 +843,11 @@ baikal_old = baikal | {
     'create-calendar': {'support': 'quirk', 'behaviour': 'mkcol-required'},
     'create-calendar.auto': {'support': 'unsupported'}, ## this is the default, but the "quirk" from create-calendar overwrites it.  Hm.
 
+}
+
+cyrus = {
+    "search.comp-type-optional": {"support": "ungraceful"},
+    "search.recurrences.expanded.exception": {"support": "unsupported"},
 }
 
 ## See comments on https://github.com/python-caldav/caldav/issues/3

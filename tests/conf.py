@@ -4,9 +4,12 @@
 ## Make a conf_private.py for personal configuration.
 ## Check conf_private.py.EXAMPLE
 import logging
+import os
+import subprocess
 import tempfile
 import threading
 import time
+from pathlib import Path
 
 try:
     import niquests as requests
@@ -88,6 +91,42 @@ try:
 except ImportError:
     rfc6638_users = []
 
+#############################
+# Docker-based test servers #
+#############################
+
+
+## This pattern is repeated quite often when trying to run docker
+def _run_command(cmd_list, return_output=False, timeout=5):
+    try:
+        result = subprocess.run(
+            cmd_list,
+            capture_output=True,
+            check=True,
+            timeout=timeout,
+        )
+        if return_output:
+            return result.stdout.strip()
+        return True
+    except (
+        subprocess.CalledProcessError,
+        FileNotFoundError,
+        subprocess.TimeoutExpired,
+    ) as e:
+        return False
+
+
+def _verify_docker(raise_err: bool = False):
+    has_docker = _run_command(["docker-compose", "--version"]) and _run_command(["docker", "ps"])
+    if raise_err and not has_docker:
+        raise RuntimeError(
+            "docker-compose is not available. Baikal tests require Docker. "
+            "Please install Docker or skip Baikal tests by setting "
+            "test_baikal=False in tests/conf_private.py"
+        )
+    return has_docker
+
+
 try:
     from .conf_private import baikal_host, baikal_port
 except ImportError:
@@ -97,28 +136,12 @@ except ImportError:
 try:
     from .conf_private import test_baikal
 except ImportError:
-    import os
-    import subprocess
-
     ## Test Baikal if BAIKAL_URL is set OR if docker-compose is available
     if os.environ.get("BAIKAL_URL") is not None:
         test_baikal = True
     else:
         # Check if docker-compose is available
-        try:
-            subprocess.run(
-                ["docker-compose", "--version"],
-                capture_output=True,
-                check=True,
-                timeout=5,
-            )
-            test_baikal = True
-        except (
-            subprocess.CalledProcessError,
-            FileNotFoundError,
-            subprocess.TimeoutExpired,
-        ):
-            test_baikal = False
+        test_baikal = _verify_docker()
 
 #####################
 # Public test servers
@@ -280,10 +303,6 @@ if test_xandikos:
 
 ## Baikal - Docker container with automated setup
 if test_baikal:
-    import os
-    import subprocess
-    from pathlib import Path
-
     baikal_base_url = os.environ.get(
         "BAIKAL_URL", f"http://{baikal_host}:{baikal_port}"
     )
@@ -309,28 +328,11 @@ if test_baikal:
 
     def setup_baikal(self) -> None:
         """Start Baikal Docker container with pre-configured database."""
-        import subprocess
         import time
         from pathlib import Path
 
+        _verify_docker(raise_err=True)
         # Check if docker-compose is available
-        try:
-            subprocess.run(
-                ["docker-compose", "--version"],
-                capture_output=True,
-                check=True,
-                timeout=5,
-            )
-        except (
-            subprocess.CalledProcessError,
-            FileNotFoundError,
-            subprocess.TimeoutExpired,
-        ) as e:
-            raise RuntimeError(
-                "docker-compose is not available. Baikal tests require Docker. "
-                "Please install Docker or skip Baikal tests by setting "
-                "test_baikal=False in tests/conf_private.py"
-            ) from e
 
         # Get the docker-compose directory
         baikal_dir = Path(__file__).parent / "docker-test-servers" / "baikal"
@@ -341,6 +343,7 @@ if test_baikal:
 
         # Start the container but don't wait for full startup
         print(f"Starting Baikal container from {baikal_dir}...")
+
         subprocess.run(
             ["docker-compose", "up", "--no-start"],
             cwd=baikal_dir,
@@ -403,8 +406,6 @@ if test_baikal:
 
     def teardown_baikal(self) -> None:
         """Stop Baikal Docker container."""
-        import subprocess
-        from pathlib import Path
 
         baikal_dir = Path(__file__).parent / "docker-test-servers" / "baikal"
 
@@ -417,29 +418,22 @@ if test_baikal:
         )
         print("✓ Baikal container stopped")
 
+    conn_params = {
+        "name": "Baikal",
+        "url": baikal_url,
+        "username": baikal_username,
+        "password": baikal_password,
+        "features": "baikal",
+    }
+
     # Only add Baikal to test servers if accessible OR if we can start it
     if is_baikal_accessible():
-        # Already running, just use it
-        features = compatibility_hints.baikal.copy()
-        caldav_servers.append(
-            {
-                "name": "Baikal",
-                "url": baikal_url,
-                "username": baikal_username,
-                "password": baikal_password,
-                "features": features,
-            }
-        )
+        caldav_servers.append(conn_params)
     else:
         # Not running, add with setup/teardown to auto-start
-        features = compatibility_hints.baikal.copy()
         caldav_servers.append(
-            {
-                "name": "Baikal",
-                "url": baikal_url,
-                "username": baikal_username,
-                "password": baikal_password,
-                "features": features,
+            conn_params
+            | {
                 "setup": setup_baikal,
                 "teardown": teardown_baikal,
             }
@@ -449,28 +443,12 @@ if test_baikal:
 try:
     from .conf_private import test_nextcloud
 except ImportError:
-    import os
-    import subprocess
-
     ## Test Nextcloud if NEXTCLOUD_URL is set OR if docker-compose is available
     if os.environ.get("NEXTCLOUD_URL") is not None:
         test_nextcloud = True
     else:
         # Check if docker-compose is available
-        try:
-            subprocess.run(
-                ["docker-compose", "--version"],
-                capture_output=True,
-                check=True,
-                timeout=5,
-            )
-            test_nextcloud = True
-        except (
-            subprocess.CalledProcessError,
-            FileNotFoundError,
-            subprocess.TimeoutExpired,
-        ):
-            test_nextcloud = False
+        test_nextcloud = _verify_docker()
 
 try:
     from .conf_private import nextcloud_host, nextcloud_port
@@ -479,10 +457,6 @@ except ImportError:
     nextcloud_port = 8801
 
 if test_nextcloud:
-    import os
-    import subprocess
-    from pathlib import Path
-
     nextcloud_base_url = os.environ.get(
         "NEXTCLOUD_URL", f"http://{nextcloud_host}:{nextcloud_port}"
     )
@@ -508,28 +482,9 @@ if test_nextcloud:
 
     def setup_nextcloud(self) -> None:
         """Start Nextcloud Docker container and configure it."""
-        import subprocess
         import time
-        from pathlib import Path
 
-        # Check if docker-compose is available
-        try:
-            subprocess.run(
-                ["docker-compose", "--version"],
-                capture_output=True,
-                check=True,
-                timeout=5,
-            )
-        except (
-            subprocess.CalledProcessError,
-            FileNotFoundError,
-            subprocess.TimeoutExpired,
-        ) as e:
-            raise RuntimeError(
-                "docker-compose is not available. Nextcloud tests require Docker. "
-                "Please install Docker or skip Nextcloud tests by setting "
-                "test_nextcloud=False in tests/conf_private.py"
-            ) from e
+        _verify_docker(raise_err=True)
 
         # Get the docker-compose directory
         nextcloud_dir = Path(__file__).parent / "docker-test-servers" / "nextcloud"
@@ -576,8 +531,6 @@ if test_nextcloud:
 
     def teardown_nextcloud(self) -> None:
         """Stop Nextcloud Docker container."""
-        import subprocess
-        from pathlib import Path
 
         nextcloud_dir = Path(__file__).parent / "docker-test-servers" / "nextcloud"
 
@@ -590,33 +543,165 @@ if test_nextcloud:
         )
         print("✓ Nextcloud container stopped")
 
+    conn_params = {
+        "name": "Nextcloud",
+        "url": nextcloud_url,
+        "username": nextcloud_username,
+        "password": nextcloud_password,
+        "features": "nextcloud",
+    }
     # Only add Nextcloud to test servers if accessible OR if we can start it
     if is_nextcloud_accessible():
         # Already running, just use it
-        features = compatibility_hints.nextcloud.copy()
-        caldav_servers.append(
-            {
-                "name": "Nextcloud",
-                "url": nextcloud_url,
-                "username": nextcloud_username,
-                "password": nextcloud_password,
-                "features": features,
-            }
-        )
+        caldav_servers.append(conn_params)
     else:
         # Not running, add with setup/teardown to auto-start
-        features = compatibility_hints.nextcloud.copy()
         caldav_servers.append(
-            {
-                "name": "Nextcloud",
-                "url": nextcloud_url,
-                "username": nextcloud_username,
-                "password": nextcloud_password,
-                "features": features,
+            conn_params
+            | {
                 "setup": setup_nextcloud,
                 "teardown": teardown_nextcloud,
             }
         )
+
+## Cyrus IMAP - Docker container with CalDAV/CardDAV support
+try:
+    from .conf_private import test_cyrus
+except ImportError:
+    ## Test Cyrus if CYRUS_URL is set OR if docker-compose is available
+    if os.environ.get("CYRUS_URL") is not None:
+        test_cyrus = True
+    else:
+        # Check if docker-compose is available
+        test_cyrus = _verify_docker()
+
+try:
+    from .conf_private import cyrus_host, cyrus_port
+except ImportError:
+    cyrus_host = "localhost"
+    cyrus_port = 8802
+
+if test_cyrus:
+    cyrus_base_url = os.environ.get("CYRUS_URL", f"http://{cyrus_host}:{cyrus_port}")
+    # Cyrus CalDAV path includes the username
+    # Use user1 (pre-created user in Cyrus docker test server)
+    cyrus_username = os.environ.get("CYRUS_USERNAME", "user1")
+    cyrus_password = os.environ.get("CYRUS_PASSWORD", "x")
+    cyrus_url = f"{cyrus_base_url}/dav/calendars/user/{cyrus_username}"
+
+    def is_cyrus_accessible() -> bool:
+        """Check if Cyrus CalDAV server is accessible and working."""
+        try:
+            # Test actual CalDAV access, not just HTTP server
+            response = requests.request(
+                'PROPFIND',
+                f"{cyrus_url}/",
+                auth=(cyrus_username, cyrus_password),
+                headers={'Depth': '0'},
+                timeout=5
+            )
+            # 207 Multi-Status means CalDAV is working
+            # 404 with multistatus also means server is responding but user might not exist yet
+            return response.status_code in (200, 207)
+        except Exception:
+            return False
+
+    def setup_cyrus(self) -> None:
+        """Start Cyrus Docker container and configure it."""
+        import time
+
+        # Check if Cyrus is already accessible (e.g., in GitHub Actions)
+        if is_cyrus_accessible():
+            print(f"✓ Cyrus is already running at {cyrus_base_url}")
+            return
+
+        # Check if docker-compose is available
+        _verify_docker(raise_err=True)
+
+        # Get the docker-compose directory
+        cyrus_dir = Path(__file__).parent / "docker-test-servers" / "cyrus"
+
+        # Check if start.sh exists
+        start_script = cyrus_dir / "start.sh"
+        if not start_script.exists():
+            raise FileNotFoundError(f"start.sh not found in {cyrus_dir}")
+
+        # Run start.sh script which handles docker-compose and setup
+        print(f"Starting Cyrus container from {cyrus_dir}...")
+        env = os.environ.copy()
+        # Unset DOCKER_HOST to avoid conflicts with Podman
+        env.pop("DOCKER_HOST", None)
+        subprocess.run(
+            [str(start_script)],
+            cwd=cyrus_dir,
+            check=True,
+            capture_output=False,
+            env=env,
+        )
+
+        # Wait a bit more to ensure Cyrus is fully ready
+        print("Verifying Cyrus is ready for CalDAV...")
+        time.sleep(2)
+
+        # Verify CalDAV access
+        try:
+            response = requests.get(
+                f"{cyrus_url}/", auth=(cyrus_username, cyrus_password), timeout=5
+            )
+            if response.status_code in (200, 207, 401, 403):
+                print(f"✓ Cyrus CalDAV is accessible at {cyrus_url}")
+            else:
+                print(f"Warning: Cyrus returned status {response.status_code}")
+        except Exception as e:
+            print(f"Warning: Could not verify Cyrus access: {e}")
+
+    def teardown_cyrus(self) -> None:
+        """Stop Cyrus Docker container."""
+
+        # If CYRUS_URL is set, the server is externally managed (e.g., GitHub Actions)
+        # Don't try to stop it
+        if os.environ.get("CYRUS_URL") is not None:
+            return
+
+        # Check if we started the container (by checking if it's running)
+        output = _run_command(
+            ["docker", "inspect", "-f", "{{.State.Running}}", "cyrus-test"],
+            return_output=True,
+        )
+
+        # Container doesn't exist or not running or inspect failed
+        # => nothing to tear down
+        if not output or output != "true":
+            # TODO: is this expected?  What if container is running,
+            ## but the command fails for other reasons?
+            return
+
+        cyrus_dir = Path(__file__).parent / "docker-test-servers" / "cyrus"
+
+        print("Stopping Cyrus container...")
+        try:
+            subprocess.run(
+                ["docker-compose", "down"],
+                cwd=cyrus_dir,
+                timeout=30,
+                capture_output=True,
+            )
+            print("✓ Cyrus container stopped")
+        except subprocess.TimeoutExpired:
+            print("Warning: Timeout stopping Cyrus container")
+
+    # Add to servers list
+    caldav_servers.append(
+        {
+            "name": "Cyrus",
+            "url": cyrus_url,
+            "username": cyrus_username,
+            "password": cyrus_password,
+            "features": "cyrus",
+            "setup": setup_cyrus,
+            "teardown": teardown_cyrus,
+        }
+    )
 
 
 ###################################################################
