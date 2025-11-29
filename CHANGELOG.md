@@ -18,6 +18,20 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 
 ## [Unreleased]
 
+### Added
+- Sync token support detection in compatibility hints:
+  - `sync-token` - RFC6578 sync-collection reports support with levels: full, fragile (race conditions), or unsupported
+  - `sync-token` behaviour flag "time-based" for second-precision tokens requiring sleep(1) between operations
+  - `sync-token.delete` - Support for sync-collection reports after object deletion
+
+### Changed
+- Updated server compatibility configurations for sync token support:
+  - Zimbra: marked as not supporting sync tokens
+  - Baikal: marked as not supporting sync after deletion (418 I'm a teapot error)
+  - DAVical: marked as having fragile sync token support
+  - Posteo: marked as not supporting sync tokens
+  - GMX: marked as not supporting sync tokens
+
 I'm still working on "compatibility hints".  Unfortunately, documentation is still missing.  The gist of it:
 
 * Use `features: posteo` instead of `url: https://posteo.de:8443/` in the connection configuration.
