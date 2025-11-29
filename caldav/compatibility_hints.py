@@ -721,7 +721,7 @@ radicale = {
     ]
 }
 
-## NOT TESTED ... but this works for ecloud, and ecloud is based on nextcloud
+## Be aware that nextcloud by default have different rate limits, including how often a user is allowed to create a new calendar.  This may break test runs badly.
 nextcloud = {
     'auto-connect.url': {
         'basepath': '/remote.php/dav',

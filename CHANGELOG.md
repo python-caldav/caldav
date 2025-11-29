@@ -90,7 +90,7 @@ Also, the RFC6764 discovery may not always be robust, causing fallbacks and henc
 
 ### Test suite
 
-* **Automated Baikal Docker testing framework** using Docker containers.   Will only run if docker is available.
+* **Automated Baikal Docker testing framework** using Docker containers.   Will only run if docker is available.  The good thing is that test coverage is increased a lot for every pull request, I hope this will relieving me of a lot of pain learning that the tests fails towards real-world servers when trying to do a release.  The bad thing is that the test runs takes a lot more time.  Use `pytest -k Radicale` or `pytest -k Xandikos` - or run the tests in an environment not having access to docker if you want a quicker test run.
 * Since the new search code now can work around different server quirks, quite some of the test code has been simplified.  Many cases of "make a search, if server supports this, then assert correct number of events returned" could be collapsed to "make a search, then assert correct number of events returned" - meaning that **the library is tested rather than the server**.
 
 ## [2.1.2] - [2025-11-08]
