@@ -41,6 +41,7 @@ Some of the old "compatibility_flags" that is used by the test code has been mov
 * Lots of work has been put in to work around server-quirks, ensuring more consistent search-results regardless of what server is in use.  For some use cases this may be a breaking change as search results from certain servers may have changed (see more below).
 * New dependency on the python-dns package, for RFC6764 discovery.  As far as I understand the SemVer standard, new dependencies can be added without increasing the major version number - but for some scenarios where it's hard to add new dependencies, this may be a breaking change.  This is a well-known package, so the security impact should be low.  This library is only used when doing such a recovery.  If anyone minds this dependency, I can change the project so this becomes an optional dependency.
 * Some code has been split out into a new package - `icalendar-searcher`. so this may also break if you manage the dependencies manually.  This library was written by me, so the security impact is low.
+* Not really breaking as such, but the test suite may now take a lot of time to run.  See the "Test Suite" section below.
 
 ## Security
 
@@ -67,30 +68,20 @@ Also, the RFC6764 discovery may not always be robust, causing fallbacks and henc
   - The client connection parameter `url` is no longer needed when referencing a well-known cloud solution. https://github.com/python-caldav/caldav/pull/561
   * The client connection parameter `url` may contain just the domain name (without any slashes).  It may then either look up the URL path in the known caldav server database, or through RFC6764
 * **New interface for searches**  `mysearcher = caldav.CalDAVSearcher(...) ; mysearcher.add_property_filter(...) ; mysearcher.search(calendar)`.  It's a bit harder to use, but opens up the possibility to do more complicated searches.
-* **Collation support for CalDAV text-match queries (RFC 4791 § 9.7.5)**: CalDAV searches now properly pass collation attributes to the server, enabling case-insensitive searches and Unicode-aware text matching. The `CalDAVSearcher.add_property_filter()` method now accepts `case_sensitive` and `collation` parameters. Supported collations include:
+* **Collation support for CalDAV text-match queries (RFC 4791 § 9.7.5)**: CalDAV searches may now pass different collation attributes to the server, enabling case-insensitive searches. (but more work on this may be useful, see https://github.com/python-caldav/caldav/issues/567).  The `CalDAVSearcher.add_property_filter()` method now accepts `case_sensitive` and `collation` parameters. Supported collations include:
   - `i;octet` (case-sensitive, binary comparison) - default
   - `i;ascii-casemap` (case-insensitive for ASCII characters, RFC 4790)
   - `i;unicode-casemap` (Unicode case-insensitive, RFC 5051 - server support may vary)
 * Client-side filtering method: `CalDAVSearcher.filter()` provides comprehensive client-side filtering, expansion, and sorting of calendar objects with full timezone preservation support.
 * Example code: New `examples/collation_usage.py` demonstrates case-sensitive and case-insensitive calendar searches.
-* **Automated Nextcloud Docker testing framework**: Complete automated testing setup for Nextcloud CalDAV/CardDAV server using Docker containers with SQLite backend. Provides real-world testing coverage against one of the most popular cloud platforms.
-  - Automatic container lifecycle management with user provisioning
-  - Uses official Nextcloud Docker image with automated setup script
-  - Auto-appends `/remote.php/dav` to base URL for correct CalDAV endpoint
-  - Creates test user and enables calendar/contacts apps automatically
-  - Graceful degradation on systems without Docker
-  - Compatible with existing Nextcloud compatibility hints
-* **Automated Cyrus IMAP Docker testing framework**: Complete automated testing setup for Cyrus IMAP CalDAV/CardDAV server using the official Cyrus Docker test image.
-  - Uses official `ghcr.io/cyrusimap/cyrus-docker-test-server` image
-  - Automatic container lifecycle management
-  - Creates test users via management API (HTTP port 8001)
-  - Supports CalDAV, CardDAV, IMAP, and JMAP protocols
-  - Graceful degradation on systems without Docker
-  - Simple password scheme for testing (password `x`)
 
-### Test suite
+### Test Suite
 
-* **Automated Baikal Docker testing framework** using Docker containers.   Will only run if docker is available.  The good thing is that test coverage is increased a lot for every pull request, I hope this will relieving me of a lot of pain learning that the tests fails towards real-world servers when trying to do a release.  The bad thing is that the test runs takes a lot more time.  Use `pytest -k Radicale` or `pytest -k Xandikos` - or run the tests in an environment not having access to docker if you want a quicker test run.
+* **Automated Docker testing framework** using Docker containers, if docker is available.
+  * Cyrus, NextCloud and Baikal added so far.
+  * For all of those, automated setups with a well-known username/password combo was a challenge.  I had planned to add more servers, but this proved to be too much work.
+  * The good thing is that test coverage is increased a lot for every pull request, I hope this will relieving me of a lot of pain learning that the tests fails towards real-world servers when trying to do a release.
+  * The bad thing is that the test runs takes a lot more time.  Use `pytest -k Radicale` or `pytest -k Xandikos` - or run the tests in an environment not having access to docker if you want a quicker test run - or set up a local `conf_private.py` where you specify what servers to test.
 * Since the new search code now can work around different server quirks, quite some of the test code has been simplified.  Many cases of "make a search, if server supports this, then assert correct number of events returned" could be collapsed to "make a search, then assert correct number of events returned" - meaning that **the library is tested rather than the server**.
 
 ## [2.1.2] - [2025-11-08]
