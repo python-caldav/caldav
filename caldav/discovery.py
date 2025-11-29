@@ -107,8 +107,8 @@ def _is_subdomain_or_same(discovered_domain: str, original_domain: str) -> bool:
         False
     """
     # Normalize to lowercase for comparison
-    discovered = discovered_domain.lower().strip('.')
-    original = original_domain.lower().strip('.')
+    discovered = discovered_domain.lower().strip(".")
+    original = original_domain.lower().strip(".")
 
     # Same domain is always allowed
     if discovered == original:
@@ -116,7 +116,7 @@ def _is_subdomain_or_same(discovered_domain: str, original_domain: str) -> bool:
 
     # Check if discovered is a subdomain of original
     # Must end with .original_domain to be a valid subdomain
-    if discovered.endswith('.' + original):
+    if discovered.endswith("." + original):
         return True
 
     return False
