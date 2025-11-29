@@ -656,7 +656,8 @@ if test_cyrus:
         "CYRUS_URL", f"http://{cyrus_host}:{cyrus_port}"
     )
     # Cyrus CalDAV path includes the username
-    cyrus_username = os.environ.get("CYRUS_USERNAME", "testuser")
+    # Use user1 (pre-created user in Cyrus docker test server)
+    cyrus_username = os.environ.get("CYRUS_USERNAME", "user1")
     cyrus_password = os.environ.get("CYRUS_PASSWORD", "x")
     cyrus_url = f"{cyrus_base_url}/dav/calendars/user/{cyrus_username}"
 
@@ -696,49 +697,41 @@ if test_cyrus:
         # Get the docker-compose directory
         cyrus_dir = Path(__file__).parent / "docker-test-servers" / "cyrus"
 
-        # Check if docker-compose.yml exists
-        if not (cyrus_dir / "docker-compose.yml").exists():
-            raise FileNotFoundError(f"docker-compose.yml not found in {cyrus_dir}")
+        # Check if start.sh exists
+        start_script = cyrus_dir / "start.sh"
+        if not start_script.exists():
+            raise FileNotFoundError(f"start.sh not found in {cyrus_dir}")
 
-        # Start the container
+        # Run start.sh script which handles docker-compose and setup
         print(f"Starting Cyrus container from {cyrus_dir}...")
+        env = os.environ.copy()
+        # Unset DOCKER_HOST to avoid conflicts with Podman
+        env.pop('DOCKER_HOST', None)
         subprocess.run(
-            ["docker-compose", "up", "-d"],
+            [str(start_script)],
             cwd=cyrus_dir,
             check=True,
-            capture_output=True,
+            capture_output=False,
+            env=env,
         )
 
-        # Wait for Cyrus to be ready
-        print("Waiting for Cyrus HTTP server to be ready...")
-        max_attempts = 30
-        for i in range(max_attempts):
-            try:
-                response = requests.get(f"{cyrus_base_url}/", timeout=2)
-                if response.status_code in (200, 401, 403, 207):
-                    print(f"✓ Cyrus HTTP server is ready at {cyrus_base_url}")
-                    break
-            except Exception:
-                pass
-            time.sleep(1)
-        else:
-            raise TimeoutError(f"Cyrus did not become ready after {max_attempts} seconds")
+        # Wait a bit more to ensure Cyrus is fully ready
+        print("Verifying Cyrus is ready for CalDAV...")
+        time.sleep(2)
 
-        # Create test user via management API
-        print("Creating test user via management API...")
+        # Verify CalDAV access
         try:
-            management_url = f"http://{cyrus_host}:8001"
-            response = requests.put(
-                f"{management_url}/user/{cyrus_username}",
-                json={"password": cyrus_password},
-                timeout=5,
+            response = requests.get(
+                f"{cyrus_url}/",
+                auth=(cyrus_username, cyrus_password),
+                timeout=5
             )
-            if response.ok:
-                print(f"✓ Test user created: {cyrus_username}")
+            if response.status_code in (200, 207, 401, 403):
+                print(f"✓ Cyrus CalDAV is accessible at {cyrus_url}")
             else:
-                print(f"User creation status: {response.status_code} (may already exist)")
+                print(f"Warning: Cyrus returned status {response.status_code}")
         except Exception as e:
-            print(f"Warning: Could not create user via API: {e}")
+            print(f"Warning: Could not verify Cyrus access: {e}")
 
     def teardown_cyrus(self) -> None:
         """Stop Cyrus Docker container."""

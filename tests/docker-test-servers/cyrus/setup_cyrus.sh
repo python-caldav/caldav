@@ -4,14 +4,14 @@
 set -e
 
 CONTAINER_NAME="cyrus-test"
-TEST_USER="testuser"
+TEST_USER="user1"  # Use pre-created user (user1-user5 are created automatically)
 TEST_PASSWORD="x"  # Cyrus test server uses 'x' as default password
-MANAGEMENT_URL="http://localhost:8001"
 
 echo "Waiting for Cyrus server to be ready..."
 max_attempts=30
 for i in $(seq 1 $max_attempts); do
-    if curl -f http://localhost:8802/ 2>/dev/null >/dev/null; then
+    # Accept any HTTP response (including 404) as a sign that the server is up
+    if curl -s http://localhost:8802/ 2>/dev/null | grep -q .; then
         echo "✓ Cyrus HTTP server is ready"
         break
     fi
@@ -24,13 +24,13 @@ for i in $(seq 1 $max_attempts); do
 done
 
 echo ""
-echo "Creating test user via management API..."
-# Create user using the management API
-# The API expects a PUT request with user data
-curl -X PUT "${MANAGEMENT_URL}/user/${TEST_USER}" \
-    -H "Content-Type: application/json" \
-    -d '{"password": "'${TEST_PASSWORD}'"}' \
-    2>/dev/null || echo "User may already exist"
+echo "Verifying CalDAV access..."
+# Test CalDAV access with pre-created user
+if curl -s -u ${TEST_USER}:${TEST_PASSWORD} http://localhost:8802/dav/calendars/user/${TEST_USER}/ 2>/dev/null | grep -q "multistatus"; then
+    echo "✓ CalDAV is accessible"
+else
+    echo "Warning: CalDAV access test failed, but continuing..."
+fi
 
 echo ""
 echo "✓ Cyrus setup complete!"
