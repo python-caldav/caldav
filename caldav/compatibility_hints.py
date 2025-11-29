@@ -825,7 +825,7 @@ baikal =  { ## version 0.10.1
     'search.recurrences.expanded.exception': {'support': 'unsupported'},
     'search.recurrences.includes-implicit.todo': {'support': 'unsupported'},
     "search.combined-is-logical-and": {"support": "unsupported"},
-    'sync-token.delete': {'support': 'unsupported', 'behaviour': 'Returns 418 I\'m a teapot or similar error when syncing after deletion'},
+    #'sync-token.delete': {'support': 'unsupported'}, ## Perhaps on some older servers?
     'old_flags': [
         ## date search on todos does not seem to work
         ## (TODO: do some research on this)
