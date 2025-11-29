@@ -140,12 +140,9 @@ jobs:
           echo "✓ Cyrus HTTP server is ready"
 
           # Verify CalDAV access with pre-created user
-          echo "Verifying CalDAV access..."
-          if curl -s -u user1:x http://localhost:8802/dav/calendars/user/user1/ 2>/dev/null | grep -q "multistatus"; then
-            echo "✓ Cyrus CalDAV is accessible"
-          else
-            echo "Warning: CalDAV verification failed, but continuing..."
-          fi
+          echo "Waiting for CalDAV access..."
+          timeout 60 bash -c 'until curl -s -u user1:x http://localhost:8802/dav/calendars/user/user1/ 2>/dev/null | grep -q "multistatus" ; do echo -n "."; sleep 2; done'
+          echo "✓ Cyrus CalDAV with pre-created user ready"
       - run: tox -e py
         env:
           NEXTCLOUD_URL: http://localhost:8801
