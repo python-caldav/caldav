@@ -117,7 +117,7 @@ def _run_command(cmd_list, return_output=False, timeout=5):
 
 
 def _verify_docker(raise_err: bool = False):
-    has_docker = _run_command(["docker-compose", "--version"])
+    has_docker = _run_command(["docker-compose", "--version"]) and _run_command(["docker", "ps"])
     if raise_err and not has_docker:
         raise RuntimeError(
             "docker-compose is not available. Baikal tests require Docker. "
