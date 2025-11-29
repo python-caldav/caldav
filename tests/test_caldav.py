@@ -1319,6 +1319,19 @@ END:VCALENDAR
         samecal = self.caldav.principal().calendar(cal_id=mycal.url)
         assert mycal.url.canonical() == samecal.url.canonical()
 
+    def testObjectByUID(self):
+        """
+        It should be possible to save a task and retrieve it by uid
+        """
+        c = self._fixCalendar()
+        c.save_todo(summary="Some test task with a well-known uid", uid="well_known_1")
+        foo = c.object_by_uid("well_known_1")
+        assert(foo.component['summary'] == "Some test task with a well-known uid")
+        with pytest.raises(error.NotFoundError):
+            foo = c.object_by_uid("well_known")
+        with pytest.raises(error.NotFoundError):
+            foo = c.object_by_uid("well_known_10")
+        
     def testObjectBySyncToken(self):
         """
         Support for sync-collection reports, ref https://github.com/python-caldav/caldav/issues/87.

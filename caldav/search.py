@@ -190,6 +190,7 @@ class CalDAVSearcher(Searcher):
         props: Optional[List[cdav.CalendarData]] = None,
         xml: str = None,
         _hacks: str = None,
+        post_filter: bool = None
     ) -> List[CalendarObjectResource]:
         """
         Internal method - does three searches, one for each comp class (event, journal, todo).
@@ -203,7 +204,7 @@ class CalDAVSearcher(Searcher):
         for comp_class in (Event, Todo, Journal):
             clone = replace(self)
             clone.comp_class = comp_class
-            objects += clone.search(calendar, server_expand, split_expanded, props, xml)
+            objects += clone.search(calendar, server_expand, split_expanded, props, xml, post_filter, _hacks)
         return self.sort(objects)
 
     ## TODO: refactor, split more logic out in smaller methods
@@ -438,7 +439,7 @@ class CalDAVSearcher(Searcher):
                     self.include_completed = True
 
                 return self._search_with_comptypes(
-                    calendar, server_expand, split_expanded, props, orig_xml, _hacks
+                    calendar, server_expand, split_expanded, props, orig_xml, post_filter, _hacks
                 )
 
             try:
@@ -455,14 +456,14 @@ class CalDAVSearcher(Searcher):
                     and not "400" in err.reason
                 ):
                     return self._search_with_comptypes(
-                        calendar, server_expand, split_expanded, props, orig_xml, _hacks
+                        calendar, server_expand, split_expanded, props, orig_xml, post_filter, _hacks
                     )
                 raise
 
             ## Some things, like `calendar.object_by_uid`, should always work, no matter if `davclient.compatibility_hints` is correctly configured or not
             if not objects and not self.comp_class and _hacks == "insist":
                 return self._search_with_comptypes(
-                    calendar, server_expand, split_expanded, props, orig_xml, _hacks
+                    calendar, server_expand, split_expanded, props, orig_xml, post_filter, _hacks
                 )
 
         obj2 = []
@@ -711,10 +712,6 @@ class CalDAVSearcher(Searcher):
                         )
 
                     match = cdav.TextMatch(value, collation=collation_str)
-                    if "False" in str(match) or "True" in str(match):
-                        import pdb
-
-                        pdb.set_trace()
                     filters.append(cdav.PropFilter(property_) + match)
 
         if comp_filter and filters:
