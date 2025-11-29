@@ -18,6 +18,14 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 
 ## [Unreleased]
 
+### Added
+- Sync token support detection in compatibility hints:
+  - `sync-token` - RFC6578 sync-collection reports support with levels: full, fragile (race conditions), or unsupported
+  - `sync-token` behaviour flag "time-based" for second-precision tokens requiring sleep(1) between operations
+  - `sync-token.delete` - Support for sync-collection reports after object deletion
+
+### Changed
+
 I'm still working on "compatibility hints".  Unfortunately, documentation is still missing.  The gist of it:
 
 * Use `features: posteo` instead of `url: https://posteo.de:8443/` in the connection configuration.
@@ -25,6 +33,8 @@ I'm still working on "compatibility hints".  Unfortunately, documentation is sti
 * The library will work around some known issues dependent on what feature-set it's given.
 
 Searching may now be done by creating a `caldav.CalDAVSearcher` object and do a `searcher.search(cal)` instead of doing `cal.search(...)`.  While there are no plans to deprecate the latter method, the new logic offers more features.  Major refactoring work has been done here, and some of the logic has been moved to a new package icalendar-searcher.
+
+Some of the old "compatibility_flags" that is used by the test code has been moved into the new "features"-structure in `caldav/compatibility_hints.py`.
 
 ### Breaking Changes
 
