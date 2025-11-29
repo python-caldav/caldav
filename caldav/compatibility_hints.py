@@ -172,6 +172,12 @@ class FeatureSet:
         "search.recurrences.expanded.exception": {
             "description": "Server expand should work correctly also if a recurrence set with exceptions is given"
         },
+        "sync-token": {
+            "description": "RFC6578 sync-collection reports are supported. Server provides sync tokens that can be used to efficiently retrieve only changed objects since last sync. Support can be 'full', 'fragile' (occasionally returns more content than expected), or 'unsupported'. Behaviour 'time-based' indicates second-precision tokens requiring sleep(1) between operations"
+        },
+        "sync-token.delete": {
+            "description": "Server correctly handles sync-collection reports after objects have been deleted from the calendar"
+        },
         ## TODO: as for now, the tests will run towards the first calendar it will find, and most of the tests will assume the calendar is empty.  This is bad.
         "test-calendar": {
             "type": "tests-behaviour",
@@ -768,6 +774,7 @@ zimbra = {
     'search.is-not-defined':  {'support': 'unsupported'},
     'search.recurrences.expanded.todo': { "support": "unsupported" },
     'search.comp-type-optional': {'support': 'fragile'}, ## TODO: more research on this, looks like a bug in the checker,
+    'sync-token': {'support': 'unsupported'},
     "old_flags": [
     ## apparently, zimbra has no journal support
     'no_journal',
@@ -818,6 +825,7 @@ baikal =  { ## version 0.10.1
     'search.recurrences.expanded.exception': {'support': 'unsupported'},
     'search.recurrences.includes-implicit.todo': {'support': 'unsupported'},
     "search.combined-is-logical-and": {"support": "unsupported"},
+    #'sync-token.delete': {'support': 'unsupported'}, ## Perhaps on some older servers?
     'old_flags': [
         ## date search on todos does not seem to work
         ## (TODO: do some research on this)
@@ -855,6 +863,7 @@ davical = {
     "search.comp-type-optional": { "support": "fragile" },
     "search.recurrences.expanded.todo": { "support": "unsupported" },
     "search.recurrences.expanded.exception": { "support": "unsupported" },
+    'sync-token': {'support': 'fragile'},
     "old_flags": [
         #'no_journal', ## it threw a 500 internal server error! ## for old versions
         #'nofreebusy', ## for old versions
@@ -947,6 +956,7 @@ posteo = {
     'search.recurrences.expanded.exception': {'support': 'unsupported'},
     'search.recurrences.includes-implicit.todo': {'support': 'unsupported'},
     "search.combined-is-logical-and": {"support": "unsupported"},
+    'sync-token': {'support': 'unsupported'},
     'old_flags': [
         'no_scheduling',
         'no_journal',
@@ -1005,6 +1015,7 @@ gmx = {
     'create-calendar': {'support': 'unsupported'},
     'search.comp-type-optional': {'support': 'fragile', 'description': 'unexpected results from date-search without comp-type - but only sometimes - TODO: research more'},
     'search.recurrences.expanded': {'support': 'unsupported'},
+    'sync-token': {'support': 'unsupported'},
     "old_flags":  [
         "no_scheduling_mailbox",
         #"text_search_is_case_insensitive",
