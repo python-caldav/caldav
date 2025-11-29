@@ -848,6 +848,10 @@ baikal_old = baikal | {
 cyrus = {
     "search.comp-type-optional": {"support": "ungraceful"},
     "search.recurrences.expanded.exception": {"support": "unsupported"},
+    'old_flags': [
+        'no-principal-search',
+        'no-principal-search-all'
+    ]
 }
 
 ## See comments on https://github.com/python-caldav/caldav/issues/3
