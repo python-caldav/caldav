@@ -15,7 +15,7 @@ services:
       - cyrus-data:/var/lib/cyrus
       - cyrus-spool:/var/spool/cyrus
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/"]
+      test: ["CMD", "curl", "-s", "http://localhost:8080/"]
       interval: 10s
       timeout: 5s
       retries: 5

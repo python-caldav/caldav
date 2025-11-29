@@ -42,19 +42,19 @@ This will:
 ## Configuration
 
 This Cyrus instance comes **pre-configured** with:
-- Test user: `testuser` / `x`
-- CalDAV URL: `http://localhost:8802/dav/calendars/user/testuser`
-- CardDAV URL: `http://localhost:8802/dav/addressbooks/user/testuser`
-- Management API: `http://localhost:8001`
+- Test users: `user1`, `user2`, `user3`, `user4`, `user5` (password: `x` for all)
+- CalDAV URL: `http://localhost:8802/dav/calendars/user/user1`
+- CardDAV URL: `http://localhost:8802/dav/addressbooks/user/user1`
+- Management API: `http://localhost:8001` (for creating additional users)
 
-**No manual configuration needed!** The container will start ready to use.
+**No manual configuration needed!** The container will start with 5 pre-created users ready to use.
 
 **Note:** Cyrus uses a simple password scheme for testing where all passwords are `x`.
 
 ## Environment Variables
 
 - `CYRUS_URL`: URL of the Cyrus server (default: `http://localhost:8802`)
-- `CYRUS_USERNAME`: Test user username (default: `testuser`)
+- `CYRUS_USERNAME`: Test user username (default: `user1`)
 - `CYRUS_PASSWORD`: Test user password (default: `x`)
 
 ## Disabling Cyrus Tests
