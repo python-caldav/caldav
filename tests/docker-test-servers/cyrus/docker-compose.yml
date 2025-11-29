@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  cyrus:
+    image: ghcr.io/cyrusimap/cyrus-docker-test-server:latest
+    container_name: cyrus-test
+    ports:
+      - "8802:8080"  # HTTP (CalDAV/CardDAV/JMAP)
+      - "8143:8143"  # IMAP
+      - "8001:8001"  # Management API
+    environment:
+      - DEFAULTDOMAIN=example.com
+      - SERVERNAME=cyrus-test
+    volumes:
+      - cyrus-data:/var/lib/cyrus
+      - cyrus-spool:/var/spool/cyrus
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  cyrus-data:
+  cyrus-spool:

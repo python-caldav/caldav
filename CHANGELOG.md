@@ -80,6 +80,13 @@ Also, the RFC6764 discovery may not always be robust, causing fallbacks and henc
   - Creates test user and enables calendar/contacts apps automatically
   - Graceful degradation on systems without Docker
   - Compatible with existing Nextcloud compatibility hints
+* **Automated Cyrus IMAP Docker testing framework**: Complete automated testing setup for Cyrus IMAP CalDAV/CardDAV server using the official Cyrus Docker test image.
+  - Uses official `ghcr.io/cyrusimap/cyrus-docker-test-server` image
+  - Automatic container lifecycle management
+  - Creates test users via management API (HTTP port 8001)
+  - Supports CalDAV, CardDAV, IMAP, and JMAP protocols
+  - Graceful degradation on systems without Docker
+  - Simple password scheme for testing (password `x`)
 
 ### Test suite
 
