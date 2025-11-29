@@ -23,14 +23,12 @@ SECURITY CONSIDERATIONS:
     MITIGATIONS:
     - require_tls=True (DEFAULT): Only accept HTTPS connections, preventing
       downgrade attacks
-    - ssl_verify_cert=True (DEFAULT): Verify TLS certificates
+    - ssl_verify_cert=True (DEFAULT): Verify TLS certificates per RFC 6125
+    - Domain validation (RFC 6764 Section 8): Discovered hostnames must be
+      in the same domain as the queried domain to prevent redirection attacks
     - Use DNSSEC when possible for DNS integrity
     - Manually verify discovered endpoints for sensitive applications
     - Consider certificate pinning for known domains
-    - TODO: we should validate that the discovery does not point the client
-      to another domain.  If a highjacked DNS is telling us to visit
-      caldav.evil-hacker.ru and there exists a valid certificate for
-      said domain, then TLS-validation is not going to save the day.
 
     For high-security environments, manual configuration may be preferable to
     automatic discovery.
@@ -80,6 +78,48 @@ class ServiceInfo:
 
     def __str__(self) -> str:
         return f"ServiceInfo(url={self.url}, source={self.source}, priority={self.priority}, username={self.username})"
+
+
+def _is_subdomain_or_same(discovered_domain: str, original_domain: str) -> bool:
+    """
+    Check if discovered domain is the same as or a subdomain of the original domain.
+
+    This prevents DNS hijacking attacks where malicious DNS records redirect
+    to completely different domains (e.g., acme.com -> evil.hackers.are.us).
+
+    Args:
+        discovered_domain: The hostname discovered via DNS SRV/TXT or well-known URI
+        original_domain: The domain from the user's identifier
+
+    Returns:
+        True if discovered_domain is safe (same domain or subdomain), False otherwise
+
+    Examples:
+        >>> _is_subdomain_or_same('calendar.example.com', 'example.com')
+        True
+        >>> _is_subdomain_or_same('example.com', 'example.com')
+        True
+        >>> _is_subdomain_or_same('evil.com', 'example.com')
+        False
+        >>> _is_subdomain_or_same('subdomain.calendar.example.com', 'example.com')
+        True
+        >>> _is_subdomain_or_same('exampleXcom.evil.com', 'example.com')
+        False
+    """
+    # Normalize to lowercase for comparison
+    discovered = discovered_domain.lower().strip('.')
+    original = original_domain.lower().strip('.')
+
+    # Same domain is always allowed
+    if discovered == original:
+        return True
+
+    # Check if discovered is a subdomain of original
+    # Must end with .original_domain to be a valid subdomain
+    if discovered.endswith('.' + original):
+        return True
+
+    return False
 
 
 def _extract_domain(identifier: str) -> Tuple[str, Optional[str]]:
@@ -248,6 +288,8 @@ def _well_known_lookup(
     - https://domain/.well-known/caldav
     - https://domain/.well-known/carddav
 
+    Security: Redirects to different domains are validated per RFC 6764 Section 8.
+
     Args:
         domain: The domain to query
         service_type: Either 'caldav' or 'carddav'
@@ -281,10 +323,20 @@ def _well_known_lookup(
                 # Make it an absolute URL if it's relative
                 final_url = urljoin(url, location)
                 parsed = urlparse(final_url)
+                redirect_hostname = parsed.hostname or domain
+
+                # RFC 6764 Section 8 Security: Validate redirect target is in same domain
+                if not _is_subdomain_or_same(redirect_hostname, domain):
+                    log.warning(
+                        f"RFC 6764 Security: Rejecting well-known redirect to different domain. "
+                        f"Queried domain: {domain}, Redirect target: {redirect_hostname}. "
+                        f"Ignoring this redirect for security."
+                    )
+                    return None
 
                 return ServiceInfo(
                     url=final_url,
-                    hostname=parsed.hostname or domain,
+                    hostname=redirect_hostname,
                     port=parsed.port or (443 if parsed.scheme == "https" else 80),
                     path=parsed.path or "/",
                     tls=parsed.scheme == "https",
@@ -390,6 +442,17 @@ def discover_service(
         if srv_records:
             # Use the highest priority record (first in sorted list)
             hostname, port, priority, weight = srv_records[0]
+
+            # RFC 6764 Section 8 Security: Validate discovered hostname is in same domain
+            # "clients SHOULD check that the target FQDN returned in the SRV record
+            # matches the original service domain that was queried"
+            if not _is_subdomain_or_same(hostname, domain):
+                log.warning(
+                    f"RFC 6764 Security: Rejecting SRV record pointing to different domain. "
+                    f"Queried domain: {domain}, Target FQDN: {hostname}. "
+                    f"This may indicate DNS hijacking or misconfiguration."
+                )
+                continue  # Try next TLS option or fall back to well-known
 
             # Try to get path from TXT record
             path = _txt_lookup(domain, service_type, use_tls)
