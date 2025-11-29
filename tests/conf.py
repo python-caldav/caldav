@@ -590,33 +590,23 @@ if test_nextcloud:
         )
         print("✓ Nextcloud container stopped")
 
+    conn_params = {
+        "name": "Nextcloud",
+        "url": nextcloud_url,
+        "username": nextcloud_username,
+        "password": nextcloud_password,
+        "features": "nextcloud"
+    }
     # Only add Nextcloud to test servers if accessible OR if we can start it
     if is_nextcloud_accessible():
         # Already running, just use it
-        features = compatibility_hints.nextcloud.copy()
-        caldav_servers.append(
-            {
-                "name": "Nextcloud",
-                "url": nextcloud_url,
-                "username": nextcloud_username,
-                "password": nextcloud_password,
-                "features": features,
-            }
-        )
+        caldav_servers.append(conn_params)
     else:
         # Not running, add with setup/teardown to auto-start
-        features = compatibility_hints.nextcloud.copy()
-        caldav_servers.append(
-            {
-                "name": "Nextcloud",
-                "url": nextcloud_url,
-                "username": nextcloud_username,
-                "password": nextcloud_password,
-                "features": features,
-                "setup": setup_nextcloud,
-                "teardown": teardown_nextcloud,
-            }
-        )
+        caldav_servers.append(conn_params | {
+            "setup": setup_nextcloud,
+            "teardown": teardown_nextcloud,
+        })
 
 ## Cyrus IMAP - Docker container with CalDAV/CardDAV support
 try:
@@ -776,14 +766,13 @@ if test_cyrus:
             print("Warning: Timeout stopping Cyrus container")
 
     # Add to servers list
-    features = set()
     caldav_servers.append(
         {
             "name": "Cyrus",
             "url": cyrus_url,
             "username": cyrus_username,
             "password": cyrus_password,
-            "features": features,
+            "features": 'cyrus',
             "setup": setup_cyrus,
             "teardown": teardown_cyrus,
         }

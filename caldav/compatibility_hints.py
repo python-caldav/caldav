@@ -845,6 +845,11 @@ baikal_old = baikal | {
 
 }
 
+cyrus = {
+    "search.comp-type-optional": {"support": "ungraceful"},
+    "search.recurrences.expanded.exception": {"support": "unsupported"},
+}
+
 ## See comments on https://github.com/python-caldav/caldav/issues/3
 #icloud = [
 #    'unique_calendar_ids',
