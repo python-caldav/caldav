@@ -25,12 +25,6 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
   - `sync-token.delete` - Support for sync-collection reports after object deletion
 
 ### Changed
-- Updated server compatibility configurations for sync token support:
-  - Zimbra: marked as not supporting sync tokens
-  - Baikal: marked as not supporting sync after deletion (418 I'm a teapot error)
-  - DAVical: marked as having fragile sync token support
-  - Posteo: marked as not supporting sync tokens
-  - GMX: marked as not supporting sync tokens
 
 I'm still working on "compatibility hints".  Unfortunately, documentation is still missing.  The gist of it:
 
@@ -39,6 +33,8 @@ I'm still working on "compatibility hints".  Unfortunately, documentation is sti
 * The library will work around some known issues dependent on what feature-set it's given.
 
 Searching may now be done by creating a `caldav.CalDAVSearcher` object and do a `searcher.search(cal)` instead of doing `cal.search(...)`.  While there are no plans to deprecate the latter method, the new logic offers more features.  Major refactoring work has been done here, and some of the logic has been moved to a new package icalendar-searcher.
+
+Some of the old "compatibility_flags" that is used by the test code has been moved into the new "features"-structure in `caldav/compatibility_hints.py`.
 
 ### Breaking Changes
 
