@@ -148,8 +148,8 @@ jobs:
           fi
       - run: tox -e py
         env:
-          BAIKAL_URL: http://localhost:8800
           NEXTCLOUD_URL: http://localhost:8801
+          BAIKAL_URL: http://localhost:8800
           CYRUS_URL: http://localhost:8802
   docs:
     runs-on: ubuntu-latest
