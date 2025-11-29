@@ -465,7 +465,11 @@ except ImportError:
                 timeout=5,
             )
             test_nextcloud = True
-        except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
+        except (
+            subprocess.CalledProcessError,
+            FileNotFoundError,
+            subprocess.TimeoutExpired,
+        ):
             test_nextcloud = False
 
 try:
@@ -483,9 +487,9 @@ if test_nextcloud:
         "NEXTCLOUD_URL", f"http://{nextcloud_host}:{nextcloud_port}"
     )
     # Ensure the URL includes /remote.php/dav/ for CalDAV endpoint
-    if not nextcloud_base_url.endswith("/remote.php/dav") and not nextcloud_base_url.endswith(
-        "/remote.php/dav/"
-    ):
+    if not nextcloud_base_url.endswith(
+        "/remote.php/dav"
+    ) and not nextcloud_base_url.endswith("/remote.php/dav/"):
         nextcloud_url = f"{nextcloud_base_url}/remote.php/dav"
     else:
         nextcloud_url = nextcloud_base_url.rstrip("/")
@@ -566,7 +570,9 @@ if test_nextcloud:
                 pass
             time.sleep(1)
 
-        raise TimeoutError(f"Nextcloud did not become ready after {max_attempts} seconds")
+        raise TimeoutError(
+            f"Nextcloud did not become ready after {max_attempts} seconds"
+        )
 
     def teardown_nextcloud(self) -> None:
         """Stop Nextcloud Docker container."""
