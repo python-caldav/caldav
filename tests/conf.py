@@ -117,7 +117,9 @@ def _run_command(cmd_list, return_output=False, timeout=5):
 
 
 def _verify_docker(raise_err: bool = False):
-    has_docker = _run_command(["docker-compose", "--version"]) and _run_command(["docker", "ps"])
+    has_docker = _run_command(["docker-compose", "--version"]) and _run_command(
+        ["docker", "ps"]
+    )
     if raise_err and not has_docker:
         raise RuntimeError(
             "docker-compose is not available. Baikal tests require Docker. "
@@ -586,7 +588,7 @@ if test_cyrus:
     # Cyrus CalDAV path includes the username
     # Use user1 (pre-created user in Cyrus docker test server)
     cyrus_username = os.environ.get("CYRUS_USERNAME", "user1")
-    cyrus_password = os.environ.get("CYRUS_PASSWORD", "x")
+    cyrus_password = os.environ.get("CYRUS_PASSWORD", "any-password-seems-to-work")
     cyrus_url = f"{cyrus_base_url}/dav/calendars/user/{cyrus_username}"
 
     def is_cyrus_accessible() -> bool:
@@ -594,11 +596,11 @@ if test_cyrus:
         try:
             # Test actual CalDAV access, not just HTTP server
             response = requests.request(
-                'PROPFIND',
+                "PROPFIND",
                 f"{cyrus_url}/",
                 auth=(cyrus_username, cyrus_password),
-                headers={'Depth': '0'},
-                timeout=5
+                headers={"Depth": "0"},
+                timeout=5,
             )
             # 207 Multi-Status means CalDAV is working
             # 404 with multistatus also means server is responding but user might not exist yet

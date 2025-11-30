@@ -722,7 +722,6 @@ class RepeatedFunctionalTestsBaseClass:
 
         if not self.cleanup_regime == "wipe-calendar" and (
             not self.is_supported("create-calendar")
-            or not self.is_supported("delete-calendar", accept_fragile=True)
         ):
             self.cleanup_regime = "thorough"
 
@@ -809,9 +808,8 @@ class RepeatedFunctionalTestsBaseClass:
             cal.delete()
         if self.check_compatibility_flag("unique_calendar_ids") and mode == "pre":
             a = self._teardownCalendar(name="Yep")
-        if mode == "post":
-            for calid in (self.testcal_id, self.testcal_id2):
-                self._teardownCalendar(cal_id=calid)
+        for calid in (self.testcal_id, self.testcal_id2):
+            self._teardownCalendar(cal_id=calid)
         if self.cleanup_regime == "thorough":
             for name in ("Yep", "Yapp", "Yølp", self.testcal_id, self.testcal_id2):
                 self._teardownCalendar(name=name)
@@ -830,17 +828,6 @@ class RepeatedFunctionalTestsBaseClass:
         except:
             pass
         try:
-            cal.events()
-            if is_supported("delete-calendar", str) == "fragile":
-                ## sometimes it's needed to sleep a bit before deleting a calendar.  TODO: improve the compatibility-description.
-                time.sleep(10)
-                try:
-                    cal.delete()
-                except:
-                    pass
-            remaining = cal.search()
-            for x in remaining:
-                x.delete()
             cal.delete()
         except:
             pass
@@ -894,10 +881,17 @@ class RepeatedFunctionalTestsBaseClass:
                 kwargs["cal_id"] = self.testcal_id
             try:
                 ret = self.principal.make_calendar(**kwargs)
-            except error.MkcalendarError:
+            except (error.MkcalendarError, error.AuthorizationError):
                 ## "calendar already exists" can be ignored (at least
-                ## if no_delete_calendar flag is set)
-                ret = self.principal.calendar(cal_id=kwargs["cal_id"])
+                ## if no_delete_calendar flag is set).  Cyrus wrongly
+                ## flags this throug an AuthorizationError.  I guess
+                ## the logic is "you are not authorized to override
+                ## a unique id constraint")
+                self.principal.calendar(cal_id=kwargs["cal_id"]).delete()
+                import pdb
+
+                pdb.set_trace()
+                ret = self._fixCalendar(**kwargs)
             if self.cleanup_regime == "post":
                 self.calendars_used.append(ret)
             return ret
@@ -1141,7 +1135,14 @@ END:VCALENDAR
         assert len(events) == 0
         events = self.principal.calendar(name="Yep", cal_id=self.testcal_id).events()
         assert len(events) == 0
-        c.delete()
+        ## some calendars cannot be deleted immedately.  The caldav-server-checker is supposed
+        ## to check for this, but for cyrus the server check doesn't flag it, while the
+        ## test run breaks because of this
+        try:
+            c.delete()
+        except:
+            time.sleep(1)
+            c.delete()
 
         if self.is_supported("create-calendar.auto"):
             with pytest.raises(self._notFound()):
@@ -1323,15 +1324,15 @@ END:VCALENDAR
         """
         It should be possible to save a task and retrieve it by uid
         """
-        c = self._fixCalendar()
+        c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
         c.save_todo(summary="Some test task with a well-known uid", uid="well_known_1")
         foo = c.object_by_uid("well_known_1")
-        assert(foo.component['summary'] == "Some test task with a well-known uid")
+        assert foo.component["summary"] == "Some test task with a well-known uid"
         with pytest.raises(error.NotFoundError):
             foo = c.object_by_uid("well_known")
         with pytest.raises(error.NotFoundError):
             foo = c.object_by_uid("well_known_10")
-        
+
     def testObjectBySyncToken(self):
         """
         Support for sync-collection reports, ref https://github.com/python-caldav/caldav/issues/87.
@@ -2269,7 +2270,7 @@ END:VCALENDAR
         self.skip_on_compatibility_flag("object_by_uid_is_broken")
         parent = c.save_todo(
             dtstart=datetime(2022, 12, 26, 19, 00, tzinfo=utc),
-            dtend=datetime(2022, 12, 26, 21, 00, tzinfo=utc),
+            due=datetime(2022, 12, 26, 21, 00, tzinfo=utc),
             summary="this is a parent test task",
             uid="ctuid3",
             child=[some_todo.id],
