@@ -208,6 +208,7 @@ class DAVResponse:
             and not expect_xml
             and not expect_no_xml
             and response.status_code < 400
+            and response.text
         ):
             error.weirdness(f"Unexpected content type: {content_type}")
         try:

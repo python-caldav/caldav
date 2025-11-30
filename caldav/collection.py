@@ -15,6 +15,7 @@ import uuid
 import warnings
 from dataclasses import dataclass
 from datetime import datetime
+from time import sleep
 from typing import Any
 from typing import List
 from typing import Optional
@@ -487,6 +488,31 @@ class Calendar(DAVObject):
                         "calendar server does not support display name on calendar?  Ignoring",
                         exc_info=True,
                     )
+
+    def delete(self):
+        ## TODO: remove quirk handling from the functional tests
+        ## TODO: this needs test code
+        quirk_info = self.client.features.is_supported("delete-calendar", dict)
+        wipe = quirk_info["support"] in ("unsupported", "fragile")
+        if quirk_info["support"] == "fragile":
+            ## Do some retries on deleting the calendar
+            for x in range(0, 20):
+                try:
+                    super().delete()
+                except DeleteError:
+                    pass
+                try:
+                    x = self.events()
+                    sleep(0.3)
+                except error.NotFoundError:
+                    wipe = False
+                    break
+
+        if wipe:
+            for x in self.search():
+                x.delete()
+        else:
+            super().delete()
 
     def get_supported_components(self) -> List[Any]:
         """
