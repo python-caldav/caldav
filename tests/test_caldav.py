@@ -1277,7 +1277,7 @@ END:VCALENDAR
             alarm_action="AUDIO",
         )
 
-        self.skip_on_compatibility_flag("no_alarmsearch")
+        self.skip_unless_support("search.time-range.alarm")
 
         ## So we have an alarm that goes off 07:45 for an event starting 08:00
 

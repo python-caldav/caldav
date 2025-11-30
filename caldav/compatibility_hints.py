@@ -450,9 +450,6 @@ incompatibility_description = {
     'no_current-user-principal':
         """Current user principal not supported by the server (flag is ignored by the tests as for now - pass the principal URL as the testing URL and it will work, albeit with one warning""",
 
-    'no_alarmsearch':
-        """Searching for alarms may yield too few or too many or even a 500 internal server error""",
-
     'no_scheduling':
         """RFC6833 is not supported""",
 
@@ -652,8 +649,6 @@ xandikos_v0_2_12 = {
     ## should report this upstream
     #'broken_expand_on_exceptions',
 
-    ## No alarm search (500 internal server error)
-    "no_alarmsearch",
     ]
 }
 
@@ -685,8 +680,6 @@ xandikos_v0_3 = {
     ## should report this upstream
     #'broken_expand_on_exceptions',
 
-    ## No alarm search (500 internal server error)
-    "no_alarmsearch",
     ]
 }
 
@@ -706,7 +699,6 @@ radicale = {
     'old_flags': [
     ## calendar listings and calendar creation works a bit
     ## "weird" on radicale
-    "no_alarmsearch", ## This is fixed and will be released soon
 
     ## freebusy is not supported yet, but on the long-term road map
     #"no_freebusy_rfc4791",
@@ -795,7 +787,6 @@ zimbra = {
     'no_sync_token',
     'vtodo_datesearch_notime_task_is_skipped',
     'no_relships',
-    "no_alarmsearch",
     "no-principal-search",
 
     ## TODO: I just discovered that when searching for a date some
@@ -888,7 +879,6 @@ davical = {
         'calendar_color',
         'calendar_order',
         'vtodo_datesearch_notime_task_is_skipped',
-        "no_alarmsearch",
     ]
 }
 
@@ -955,7 +945,6 @@ robur = {
         'no_freebusy_rfc4791',
         "no-principal-search",
         'no_relships',
-        'no_alarmsearch',
         'unique_calendar_ids',
     ]
 }
@@ -979,7 +968,6 @@ posteo = {
         'no_journal',
         #'no_recurring_todo', ## todo
         'no_sync_token',
-        'no_alarmsearch',
         "no-principal-search-self"
     ]
 }
@@ -1018,7 +1006,6 @@ purelymail = {
         "no-principal-search", ## more research may be needed.  "cant-operate-on-root", indicating that the URL may need adjusting?
 
         ## I haven't raised this one with them yet
-        'no_alarmsearch',
     ]
 }
 
