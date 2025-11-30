@@ -26,6 +26,12 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 - Alarm search support detection:
   - `search.time-range.alarm` - Time range searches for alarms (RFC4791 section 9.9)
   - Updated server configurations for: Cyrus, Xandikos, Zimbra, DAVical, Robur, Posteo, Purelymail, GMX
+- Principal search support detection:
+  - `principal-search` - Server supports searching for principals (CalDAV users)
+  - `principal-search.by-name` - Search principals by display name (not yet tested, requires multiple users)
+  - `principal-search.by-name.self` - Search for own principal by display name
+  - `principal-search.list-all` - List all principals without name filter
+  - Removed deprecated compatibility flags: `no-principal-search`, `no-principal-search-all`
 
 ### Changed
 
