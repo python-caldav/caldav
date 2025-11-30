@@ -191,7 +191,7 @@ class FeatureSet:
         "principal-search.list-all": {
             "description": "Server allows listing all principals without a name filter. Often blocked for privacy/security reasons"
         },
-        "duplicate-uid.cross-calendar": {
+        "save.duplicate-uid.cross-calendar": {
             "description": "Server allows events with the same UID to exist in different calendars and treats them as separate entities. Support can be 'full' (allowed), 'ungraceful' (rejected with error), or 'unsupported' (silently ignored). Behaviour 'silently-ignored' means the duplicate is not saved but no error is thrown"
         },
         ## TODO: as for now, the tests will run towards the first calendar it will find, and most of the tests will assume the calendar is empty.  This is bad.
@@ -772,7 +772,7 @@ zimbra = {
     'search.time-range.alarm': {'support': 'unsupported'},
     'sync-token': {'support': 'unsupported'},
     'principal-search': {'support': 'unsupported'},
-    'duplicate-uid.cross-calendar': {'support': 'unsupported', 'behaviour': 'silently-ignored'},
+    'save.duplicate-uid.cross-calendar': {'support': 'unsupported', 'behaviour': 'silently-ignored'},
     "old_flags": [
     ## apparently, zimbra has no journal support
     'no_journal',
@@ -802,7 +802,7 @@ zimbra = {
 }
 
 bedework = {
-    'duplicate-uid.cross-calendar': {'support': 'unsupported', 'behaviour': 'silently-ignored'},
+    'save.duplicate-uid.cross-calendar': {'support': 'unsupported', 'behaviour': 'silently-ignored'},
     'old_flags': [
     ## quite a lot of things were missing in Bedework last I checked -
     ## but that's quite a while ago!
@@ -849,7 +849,7 @@ cyrus = {
     'delete-calendar': {
         'support': 'fragile',
         'behaviour': 'Deleting a recently created calendar fails'},
-    'duplicate-uid.cross-calendar': {'support': 'ungraceful'},
+    'save.duplicate-uid.cross-calendar': {'support': 'ungraceful'},
     'old_flags': []
 }
 

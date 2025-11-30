@@ -33,7 +33,7 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
   - `principal-search.list-all` - List all principals without name filter
   - Removed deprecated compatibility flags: `no-principal-search`, `no-principal-search-all`
 - Duplicate UID handling detection:
-  - `duplicate-uid.cross-calendar` - Server allows events with same UID in different calendars
+  - `save.duplicate-uid.cross-calendar` - Server allows events with same UID in different calendars
   - Support levels: full (allowed), ungraceful (error thrown), unsupported (silently ignored)
   - Updated server configurations for: Zimbra, Bedework, Baikal
   - Removed deprecated compatibility flags: `duplicate_in_other_calendar_with_same_uid_is_lost`, `duplicate_in_other_calendar_with_same_uid_breaks`
