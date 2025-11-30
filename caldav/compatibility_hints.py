@@ -191,6 +191,9 @@ class FeatureSet:
         "principal-search.list-all": {
             "description": "Server allows listing all principals without a name filter. Often blocked for privacy/security reasons"
         },
+        "duplicate-uid.cross-calendar": {
+            "description": "Server allows events with the same UID to exist in different calendars and treats them as separate entities. Support can be 'full' (allowed), 'ungraceful' (rejected with error), or 'unsupported' (silently ignored). Behaviour 'silently-ignored' means the duplicate is not saved but no error is thrown"
+        },
         ## TODO: as for now, the tests will run towards the first calendar it will find, and most of the tests will assume the calendar is empty.  This is bad.
         "test-calendar": {
             "type": "tests-behaviour",
@@ -485,13 +488,6 @@ incompatibility_description = {
         """Duplication of an event in the same calendar not allowed """
         """(even with different uid)""",
 
-    'duplicate_in_other_calendar_with_same_uid_is_lost':
-        """Fetch an event from one calendar, save it to another ... """
-        """and the duplicate will be ignored""",
-
-    'duplicate_in_other_calendar_with_same_uid_breaks':
-        """Fetch an event from one calendar, save it to another ... """
-        """and get some error from the server""",
 
     'event_by_url_is_broken':
         """A GET towards a valid calendar object resource URL will yield 404 (wtf?)""",
@@ -776,6 +772,7 @@ zimbra = {
     'search.time-range.alarm': {'support': 'unsupported'},
     'sync-token': {'support': 'unsupported'},
     'principal-search': {'support': 'unsupported'},
+    'duplicate-uid.cross-calendar': {'support': 'unsupported', 'behaviour': 'silently-ignored'},
     "old_flags": [
     ## apparently, zimbra has no journal support
     'no_journal',
@@ -786,7 +783,6 @@ zimbra = {
     ## earlier versions of Zimbra display-name could be changed, but
     ## then the calendar would not be available on the old URL
     ## anymore)
-    'duplicate_in_other_calendar_with_same_uid_is_lost',
     'event_by_url_is_broken',
     'no_delete_event',
     'no_sync_token',
@@ -805,7 +801,9 @@ zimbra = {
     ## Search for 'zimbra' in the code repository!
 }
 
-bedework = [
+bedework = {
+    'duplicate-uid.cross-calendar': {'support': 'unsupported', 'behaviour': 'silently-ignored'},
+    'old_flags': [
     ## quite a lot of things were missing in Bedework last I checked -
     ## but that's quite a while ago!
     'no_journal',
@@ -815,8 +813,8 @@ bedework = [
     ## taking an event, changing the uid, and saving in the same calendar gives a 403.
     ## editing the content slightly and it works.  Weird ...
     'duplicates_not_allowed',
-    'duplicate_in_other_calendar_with_same_uid_is_lost'
-]
+    ]
+}
 
 baikal =  { ## version 0.10.1
     #'search.comp-type-optional': {'support': 'ungraceful'}, ## Possibly this has been fixed?
@@ -851,9 +849,8 @@ cyrus = {
     'delete-calendar': {
         'support': 'fragile',
         'behaviour': 'Deleting a recently created calendar fails'},
-    'old_flags': [
-        'duplicate_in_other_calendar_with_same_uid_breaks'
-    ]
+    'duplicate-uid.cross-calendar': {'support': 'ungraceful'},
+    'old_flags': []
 }
 
 ## See comments on https://github.com/python-caldav/caldav/issues/3
