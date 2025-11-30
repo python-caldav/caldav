@@ -887,11 +887,10 @@ class RepeatedFunctionalTestsBaseClass:
                 ## flags this throug an AuthorizationError.  I guess
                 ## the logic is "you are not authorized to override
                 ## a unique id constraint")
-                self.principal.calendar(cal_id=kwargs["cal_id"]).delete()
-                import pdb
-
-                pdb.set_trace()
-                ret = self._fixCalendar(**kwargs)
+                assert False
+                ret = self.principal.calendar(cal_id=kwargs["cal_id"])
+                #self.principal.calendar(cal_id=kwargs["cal_id"]).delete()
+                #ret = self._fixCalendar(**kwargs)
             if self.cleanup_regime == "post":
                 self.calendars_used.append(ret)
             return ret

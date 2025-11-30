@@ -499,7 +499,7 @@ class Calendar(DAVObject):
             for x in range(0, 20):
                 try:
                     super().delete()
-                except DeleteError:
+                except error.DeleteError:
                     pass
                 try:
                     x = self.events()
