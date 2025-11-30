@@ -1,5 +1,0 @@
-FAILED tests/test_caldav.py::TestForServerECloud::testObjectBySyncToken - caldav.lib.error.NotFoundError: NotFoundError at '404 Not Found
-FAILED tests/test_caldav.py::TestForServerECloud::testSearchEvent - assert 1 == 0
-FAILED tests/test_caldav.py::TestForServerECloud::testTodoDatesearch - assert 4 == 5
-FAILED tests/test_caldav.py::TestForServerECloud::testEditSingleRecurrence - caldav.lib.error.PutError: PutError at '404 Not Found
-
