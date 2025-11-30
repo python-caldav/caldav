@@ -179,6 +179,18 @@ class FeatureSet:
         "sync-token.delete": {
             "description": "Server correctly handles sync-collection reports after objects have been deleted from the calendar"
         },
+        "principal-search": {
+            "description": "Server supports searching for principals (CalDAV users). Principal search may be restricted for privacy/security reasons on many servers"
+        },
+        "principal-search.by-name": {
+            "description": "Server supports searching for principals by display name. Testing this properly requires setting up another user with a known name, so this check is not yet implemented"
+        },
+        "principal-search.by-name.self": {
+            "description": "Server allows searching for own principal by display name. Some servers block this for privacy reasons even when general principal search works"
+        },
+        "principal-search.list-all": {
+            "description": "Server allows listing all principals without a name filter. Often blocked for privacy/security reasons"
+        },
         ## TODO: as for now, the tests will run towards the first calendar it will find, and most of the tests will assume the calendar is empty.  This is bad.
         "test-calendar": {
             "type": "tests-behaviour",
@@ -438,15 +450,6 @@ incompatibility_description = {
     'inaccurate_datesearch':
         """A date search may yield results outside the search interval""",
 
-    'no-principal-search':
-        """Searching for principals gives a 403 error or similar""",
-
-    'no-principal-search-self':
-        """Searching for my own principal by name gives nothing, a 403 error or similar""",
-
-    'no-principal-search-all':
-        """Searching for all principals gives a 403 error or similar""",
-
     'no_current-user-principal':
         """Current user principal not supported by the server (flag is ignored by the tests as for now - pass the principal URL as the testing URL and it will work, albeit with one warning""",
 
@@ -629,6 +632,7 @@ xandikos_v0_2_12 = {
     'search.comp-type-optional': {'support': 'ungraceful'},
     "search.text.substring": {"support": "unsupported"},
     "search.text.category.substring": {"support": "unsupported"},
+    'principal-search': {'support': 'unsupported'},
     "old_flags":  [
     ## https://github.com/jelmer/xandikos/issues/8
     'date_todo_search_ignores_duration',
@@ -636,7 +640,6 @@ xandikos_v0_2_12 = {
 
     ## scheduling is not supported
     "no_scheduling",
-    'no-principal-search',
 
     ## The test in the tests itself passes, but the test in the
     ## check_server_compatibility triggers a 500-error
@@ -659,6 +662,7 @@ xandikos_v0_3 = {
     "search.recurrences.includes-implicit.todo.pending": {"support": "unsupported"},
     'search.recurrences.expanded.todo': {'support': 'unsupported'},
     'search.recurrences.expanded.exception': {'support': 'unsupported'},
+    'principal-search': {'support': 'unsupported'},
     "old_flags":  [
     ## https://github.com/jelmer/xandikos/issues/8
     'date_todo_search_ignores_duration',
@@ -666,7 +670,6 @@ xandikos_v0_3 = {
 
     ## scheduling is not supported
     "no_scheduling",
-    'no-principal-search',
 
     ## The test in the tests itself passes, but the test in the
     ## check_server_compatibility triggers a 500-error
@@ -693,6 +696,7 @@ radicale = {
     "search.recurrences.includes-implicit.todo.pending": {"support": "unsupported"},
     "search.recurrences.expanded.todo": {"support": "unsupported"},
     "search.recurrences.expanded.exception": {"support": "unsupported"},
+    'principal-search.by-name.self': {'support': 'unsupported', 'behaviour': 'No display name available - cannot test'},
     ## this only applies for very simple installations
     "auto-connect.url": {"domain": "localhost", "scheme": "http", "basepath": "/"},
     'old_flags': [
@@ -701,8 +705,6 @@ radicale = {
 
     ## freebusy is not supported yet, but on the long-term road map
     #"no_freebusy_rfc4791",
-
-    "no-principal-search-self", ## this may be because we haven't set up any users or authentication - so the display name of the current user principal is None
 
     'no_scheduling',
     'no_search_openended',
@@ -737,7 +739,9 @@ nextcloud = {
     "search.combined-is-logical-and": {"support": "unsupported"},
     'search.recurrences.includes-implicit.todo': {'support': 'unsupported'},
     'save-load.todo.mixed-calendar': {'support': 'unsupported'}, ## Why?  It started complaining about this just recently.
-    'old_flags': ['no-principal-search-all', 'no-principal-search-self', 'unique_calendar_ids'],
+    'principal-search.by-name.self': {'support': 'unsupported'},
+    'principal-search.list-all': {'support': 'unsupported'},
+    'old_flags': ['unique_calendar_ids'],
 }
 
 ## TODO: Latest - mismatch between config and test script in delete-calendar.free-namespace ... and create-calendar.set-displayname?
@@ -771,6 +775,7 @@ zimbra = {
     'search.comp-type-optional': {'support': 'fragile'}, ## TODO: more research on this, looks like a bug in the checker,
     'search.time-range.alarm': {'support': 'unsupported'},
     'sync-token': {'support': 'unsupported'},
+    'principal-search': {'support': 'unsupported'},
     "old_flags": [
     ## apparently, zimbra has no journal support
     'no_journal',
@@ -787,7 +792,6 @@ zimbra = {
     'no_sync_token',
     'vtodo_datesearch_notime_task_is_skipped',
     'no_relships',
-    "no-principal-search",
 
     ## TODO: I just discovered that when searching for a date some
     ## years after a recurring daily event was made, the event does
@@ -825,8 +829,6 @@ baikal =  { ## version 0.10.1
         ## date search on todos does not seem to work
         ## (TODO: do some research on this)
         'sync_breaks_on_delete',
-        "no-principal-search-all",
-        "no-principal-search",
         ## extra features not specified in RFC5545
         "calendar_order",
         "calendar_color"
@@ -844,13 +846,12 @@ cyrus = {
     "search.comp-type-optional": {"support": "ungraceful"},
     "search.recurrences.expanded.exception": {"support": "unsupported"},
     'search.time-range.alarm': {'support': 'unsupported'},
+    'principal-search.list-all': {'support': 'unsupported'},
     "test-calendar": {"cleanup-regime": "pre"},
     'delete-calendar': {
         'support': 'fragile',
         'behaviour': 'Deleting a recently created calendar fails'},
     'old_flags': [
-        'no-principal-search',
-        'no-principal-search-all',
         'duplicate_in_other_calendar_with_same_uid_breaks'
     ]
 }
@@ -875,6 +876,8 @@ davical = {
     "search.recurrences.expanded.exception": { "support": "unsupported" },
     'search.time-range.alarm': {'support': 'unsupported'},
     'sync-token': {'support': 'fragile'},
+    'principal-search': {'support': 'unsupported'},
+    'principal-search.list-all': {'support': 'unsupported'},
     "old_flags": [
         #'no_journal', ## it threw a 500 internal server error! ## for old versions
         #'nofreebusy', ## for old versions
@@ -941,6 +944,7 @@ robur = {
     "search.recurrences.expanded.event": { "support": "fragile" },
     "search.recurrences.expanded.exception": { "support": "unsupported" },
     'search.recurrences.includes-implicit.todo': {'support': 'unsupported'},
+    'principal-search': {'support': 'unsupported'},
     'old_flags': [
         'non_existing_raises_other', ## AuthorizationError instead of NotFoundError
         'no_scheduling',
@@ -948,7 +952,6 @@ robur = {
         'no_supported_components_support',
         'no_journal',
         'no_freebusy_rfc4791',
-        "no-principal-search",
         'no_relships',
         'unique_calendar_ids',
     ]
@@ -968,12 +971,13 @@ posteo = {
     "search.combined-is-logical-and": {"support": "unsupported"},
     'search.time-range.alarm': {'support': 'unsupported'},
     'sync-token': {'support': 'unsupported'},
+    'principal-search': {'support': 'unsupported'},
     'old_flags': [
         'no_scheduling',
         'no_journal',
         #'no_recurring_todo', ## todo
         'no_sync_token',
-        "no-principal-search-self"
+        ""
     ]
 }
 
@@ -997,6 +1001,7 @@ purelymail = {
     'search-cache': {'behaviour': 'delay', 'delay': 160},
     "create-calendar.auto": {"support": "full"},
     'search.time-range.alarm': {'support': 'unsupported'},
+    'principal-search': {'support': 'unsupported'},
     'auto-connect.url': {
         'basepath': '/webdav/',
         'domain': 'purelymail.com',
@@ -1007,8 +1012,6 @@ purelymail = {
 
         ## Known, not a breach of standard
         'no_supported_components_support',
-
-        "no-principal-search", ## more research may be needed.  "cant-operate-on-root", indicating that the URL may need adjusting?
 
         ## I haven't raised this one with them yet
     ]
@@ -1027,17 +1030,16 @@ gmx = {
     'search.recurrences.expanded': {'support': 'unsupported'},
     'search.time-range.alarm': {'support': 'unsupported'},
     'sync-token': {'support': 'unsupported'},
+    'principal-search': {'support': 'unsupported'},
     "old_flags":  [
         "no_scheduling_mailbox",
         #"text_search_is_case_insensitive",
-        "no-principal-search-all",
         "no_freebusy_rfc4791",
         "no_search_openended",
         "no_sync_token",
         "no_scheduling_calendar_user_address_set",
-        "no-principal-search-self",
+        "",
         "vtodo-cannot-be-uncompleted",
-        #"no-principal-search-all",
     ]
 }
 
