@@ -116,6 +116,7 @@ class FeatureSet:
         "search.time-range.todo": {"description": "basic time range searches for tasks works"},
         "search.time-range.event": {"description": "basic time range searches for event works"},
         "search.time-range.journal": {"description": "basic time range searches for journal works"},
+        "search.time-range.alarm": {"description": "Time range searches for alarms work. The server supports searching for events based on when their alarms trigger, as specified in RFC4791 section 9.9"},
         "search.is-not-defined": {
             "description": "Supports searching for objects where properties is-not-defined according to rfc4791 section 9.7.4"
         },
@@ -627,6 +628,7 @@ xandikos_v0_2_12 = {
     'search.recurrences.includes-implicit': {'support': 'unsupported'},
     'search.recurrences.expanded': {'support': 'unsupported'},
     'search.time-range.todo': {'support': 'unsupported'},
+    'search.time-range.alarm': {'support': 'ungraceful', 'behaviour': '500 internal server error'},
     'search.comp-type-optional': {'support': 'ungraceful'},
     "search.text.substring": {"support": "unsupported"},
     "search.text.category.substring": {"support": "unsupported"},
@@ -662,6 +664,7 @@ xandikos_v0_3 = {
     "search.recurrences.includes-implicit.todo.pending": {"support": "unsupported"},
     'search.recurrences.expanded.todo': {'support': 'unsupported'},
     'search.recurrences.expanded.exception': {'support': 'unsupported'},
+    'search.time-range.alarm': {'support': 'ungraceful', 'behaviour': '500 internal server error'},
     "old_flags":  [
     ## https://github.com/jelmer/xandikos/issues/8
     'date_todo_search_ignores_duration',
@@ -774,6 +777,7 @@ zimbra = {
     'search.is-not-defined':  {'support': 'unsupported'},
     'search.recurrences.expanded.todo': { "support": "unsupported" },
     'search.comp-type-optional': {'support': 'fragile'}, ## TODO: more research on this, looks like a bug in the checker,
+    'search.time-range.alarm': {'support': 'unsupported'},
     'sync-token': {'support': 'unsupported'},
     "old_flags": [
     ## apparently, zimbra has no journal support
@@ -848,6 +852,7 @@ baikal_old = baikal | {
 cyrus = {
     "search.comp-type-optional": {"support": "ungraceful"},
     "search.recurrences.expanded.exception": {"support": "unsupported"},
+    'search.time-range.alarm': {'support': 'unsupported'},
     'old_flags': [
         'no-principal-search',
         'no-principal-search-all'
@@ -872,6 +877,7 @@ davical = {
     "search.comp-type-optional": { "support": "fragile" },
     "search.recurrences.expanded.todo": { "support": "unsupported" },
     "search.recurrences.expanded.exception": { "support": "unsupported" },
+    'search.time-range.alarm': {'support': 'unsupported'},
     'sync-token': {'support': 'fragile'},
     "old_flags": [
         #'no_journal', ## it threw a 500 internal server error! ## for old versions
@@ -933,6 +939,7 @@ robur = {
     "delete-calendar": {  "support": "fragile" },
     "search.is-not-defined": { "support": "unsupported" },
     "search.time-range.todo": { "support": "unsupported" },
+    "search.time-range.alarm": {'support': 'unsupported'},
     "search.text": { "support": "unsupported", "behaviour": "a text search ignores the filter and returns all elements" },
     "search.comp-type-optional": { "support": "ungraceful" },
     "search.recurrences.expanded.todo": { "support": "unsupported" },
@@ -965,6 +972,7 @@ posteo = {
     'search.recurrences.expanded.exception': {'support': 'unsupported'},
     'search.recurrences.includes-implicit.todo': {'support': 'unsupported'},
     "search.combined-is-logical-and": {"support": "unsupported"},
+    'search.time-range.alarm': {'support': 'unsupported'},
     'sync-token': {'support': 'unsupported'},
     'old_flags': [
         'no_scheduling',
@@ -995,6 +1003,7 @@ purelymail = {
     ## so search works some minutes after the event was created/edited.
     'search-cache': {'behaviour': 'delay', 'delay': 160},
     "create-calendar.auto": {"support": "full"},
+    'search.time-range.alarm': {'support': 'unsupported'},
     'auto-connect.url': {
         'basepath': '/webdav/',
         'domain': 'purelymail.com',
@@ -1024,6 +1033,7 @@ gmx = {
     'create-calendar': {'support': 'unsupported'},
     'search.comp-type-optional': {'support': 'fragile', 'description': 'unexpected results from date-search without comp-type - but only sometimes - TODO: research more'},
     'search.recurrences.expanded': {'support': 'unsupported'},
+    'search.time-range.alarm': {'support': 'unsupported'},
     'sync-token': {'support': 'unsupported'},
     "old_flags":  [
         "no_scheduling_mailbox",

@@ -23,6 +23,9 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
   - `sync-token` - RFC6578 sync-collection reports support with levels: full, fragile (race conditions), or unsupported
   - `sync-token` behaviour flag "time-based" for second-precision tokens requiring sleep(1) between operations
   - `sync-token.delete` - Support for sync-collection reports after object deletion
+- Alarm search support detection:
+  - `search.time-range.alarm` - Time range searches for alarms (RFC4791 section 9.9)
+  - Updated server configurations for: Cyrus, Xandikos, Zimbra, DAVical, Robur, Posteo, Purelymail, GMX
 
 ### Changed
 
