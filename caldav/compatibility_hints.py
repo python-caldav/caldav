@@ -659,7 +659,6 @@ xandikos_v0_3 = {
     "search.recurrences.includes-implicit.todo.pending": {"support": "unsupported"},
     'search.recurrences.expanded.todo': {'support': 'unsupported'},
     'search.recurrences.expanded.exception': {'support': 'unsupported'},
-    'search.time-range.alarm': {'support': 'ungraceful', 'behaviour': '500 internal server error'},
     "old_flags":  [
     ## https://github.com/jelmer/xandikos/issues/8
     'date_todo_search_ignores_duration',
@@ -737,6 +736,7 @@ nextcloud = {
     },
     "search.combined-is-logical-and": {"support": "unsupported"},
     'search.recurrences.includes-implicit.todo': {'support': 'unsupported'},
+    'save-load.todo.mixed-calendar': {'support': 'unsupported'}, ## Why?  It started complaining about this just recently.
     'old_flags': ['no-principal-search-all', 'no-principal-search-self', 'unique_calendar_ids'],
 }
 
@@ -844,9 +844,14 @@ cyrus = {
     "search.comp-type-optional": {"support": "ungraceful"},
     "search.recurrences.expanded.exception": {"support": "unsupported"},
     'search.time-range.alarm': {'support': 'unsupported'},
+    "test-calendar": {"cleanup-regime": "pre"},
+    'delete-calendar': {
+        'support': 'fragile',
+        'behaviour': 'Deleting a recently created calendar fails'},
     'old_flags': [
         'no-principal-search',
-        'no-principal-search-all'
+        'no-principal-search-all',
+        'duplicate_in_other_calendar_with_same_uid_breaks'
     ]
 }
 
