@@ -156,7 +156,7 @@ jobs:
           # Verify CalDAV access with pre-created user
           # Cyrus CalDAV can take significant time to initialize, especially in CI
           echo "Waiting for CalDAV access..."
-          if timeout 120 bash -c 'until curl -s -u user1:x http://localhost:8802/dav/calendars/user/user1/ 2>/dev/null | grep -q "multistatus" ; do echo -n "."; sleep 2; done'; then
+          if timeout 120 bash -c 'until curl -s -X PROPFIND -u user1:x http://localhost:8802/dav/calendars/user/user1/ 2>/dev/null | grep -q "multistatus" ; do echo -n "."; sleep 2; done'; then
             echo ""
             echo "✓ Cyrus CalDAV with pre-created user ready"
           else
@@ -176,8 +176,8 @@ jobs:
             echo "=== HTTP response from host ==="
             curl -v http://localhost:8802/ 2>&1 || true
             echo ""
-            echo "=== CalDAV response from host ==="
-            curl -v -u user1:x http://localhost:8802/dav/calendars/user/user1/ 2>&1 || true
+            echo "=== CalDAV PROPFIND response from host ==="
+            curl -v -X PROPFIND -u user1:x http://localhost:8802/dav/calendars/user/user1/ 2>&1 || true
             echo ""
             echo "=== HTTP response from inside container ==="
             docker exec ${{ job.services.cyrus.id }} curl -v http://localhost:8080/ 2>&1 || true
