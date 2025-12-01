@@ -8,14 +8,13 @@
 ##
 ## 1. [DONE] Extract conf_private import logic into helper function
 ##
-## 2. Create Docker server base class to eliminate duplication between
+## 2. Create a DockerTestServer base class to eliminate duplication between
 ##    Baikal, Nextcloud, and Cyrus setup/teardown logic. All three follow
 ##    the same pattern: start.sh/stop.sh scripts, wait for HTTP response,
 ##    similar accessibility checks.
 ##
-## 3. Move Radicale and Xandikos setup into separate files/classes.
-##    These are complex embedded servers with substantial setup code that
-##    clutters this config file.
+## 3. Create a TestServer base class that also covers Radicale and Xandikos
+##    setup
 ##
 ## 4. Split into test_servers/ package structure:
 ##    - test_servers/base.py: Base classes and utilities
@@ -24,11 +23,13 @@
 ##    - test_servers/embedded_servers.py: Radicale, Xandikos
 ##    This would reduce conf.py from 550+ lines to <100 lines.
 ##
-## 5. Create server registry pattern for dynamic server registration
+## 5. Consider creating server registry pattern for dynamic server registration
 ##    instead of procedural if-blocks for each server type.
 ##
 ## 6. Extract magic numbers into named constants:
 ##    DEFAULT_HTTP_TIMEOUT, MAX_STARTUP_WAIT_SECONDS, etc.
+
+## See also https://github.com/python-caldav/caldav/issues/577
 
 import logging
 import os
