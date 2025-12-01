@@ -1113,15 +1113,15 @@ END:VCALENDAR
             assert c.__class__.__name__ == "Calendar"
 
     def testPrincipals(self):
-        self.skip_on_compatibility_flag("no-principal-search")
-        if not self.check_compatibility_flag("no-principal-search-self"):
+        self.skip_unless_support("principal-search")
+        if self.is_supported("principal-search.by-name.self"):
             my_name = self.principal.get_display_name()
             my_principals = self.caldav.principals(name=my_name)
             assert isinstance(my_principals, list)
             assert len(my_principals) == 1
             assert my_principals[0].url == self.principal.url
 
-        self.skip_on_compatibility_flag("no-principal-search-all")
+        self.skip_unless_support("principal-search.list-all")
         all_principals = self.caldav.principals()
         assert isinstance(all_principals, list)
         if all_principals:
@@ -1617,9 +1617,7 @@ END:VCALENDAR
             e1_dup.save()
             assert len(c1.events()) == 2
 
-        if not self.check_compatibility_flag(
-            "duplicate_in_other_calendar_with_same_uid_breaks"
-        ):
+        if self.is_supported('save.duplicate-uid.cross-calendar'):
             e1_in_c2 = e1.copy(new_parent=c2, keep_uid=True)
             e1_in_c2.save()
             if not self.check_compatibility_flag(
