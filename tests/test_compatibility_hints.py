@@ -214,3 +214,27 @@ class TestFeatureSetCollapse:
         # Both have same value, should collapse
         assert "sync-token.delete" not in fs._server_features
         assert fs._server_features["sync-token"] == complex_value
+
+    def test_collapse_principal_search_real_scenario(self) -> None:
+        """Test user's real scenario: principal-search subfeatures with same value should collapse"""
+        fs = FeatureSet()
+
+        # Real scenario from user: both principal-search subfeatures have same unsupported value
+        fs._server_features = {
+            'get-current-user-principal': {'support': 'full'},
+            'principal-search.by-name': {
+                'support': 'unsupported',
+                'behaviour': "Search by name failed: AuthorizationError at 'http://localhost:8802/dav/calendars/user/user1', reason Forbidden"
+            },
+            'principal-search.list-all': {
+                'support': 'unsupported',
+                'behaviour': "List all principals failed: AuthorizationError at 'http://localhost:8802/dav/calendars/user/user1', reason Forbidden"
+            }
+        }
+
+        fs.collapse()
+
+        # Both principal-search subfeatures should collapse,
+        # even if the behaviour message is different.
+        assert "principal-search.list-all" not in fs._server_features
+        assert "principal-search" in fs._server_features

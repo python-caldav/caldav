@@ -51,9 +51,6 @@ class FeatureSet:
                 ## TODO: in the future, templates for the principal URL, calendar URLs etc may also be added.
             }
         },
-        "get-all-principals": {
-            "description": "Search for all principals, using a DAV REPORT query, yields at least one principal"
-        },
         "get-current-user-principal": {
             "description": "Support for RFC5397, current principal extension.  Most CalDAV servers have this, but it is an extension to the DAV standard"},
         "get-current-user-principal.has-calendar": {
@@ -180,7 +177,7 @@ class FeatureSet:
             "description": "Server correctly handles sync-collection reports after objects have been deleted from the calendar"
         },
         "principal-search": {
-            "description": "Server supports searching for principals (CalDAV users). Principal search may be restricted for privacy/security reasons on many servers"
+            "description": "Server supports searching for principals (CalDAV users). Principal search may be restricted for privacy/security reasons on many servers.  (not to be confused with get-current-user-principal)"
         },
         "principal-search.by-name": {
             "description": "Server supports searching for principals by display name. Testing this properly requires setting up another user with a known name, so this check is not yet implemented"
@@ -191,6 +188,8 @@ class FeatureSet:
         "principal-search.list-all": {
             "description": "Server allows listing all principals without a name filter. Often blocked for privacy/security reasons"
         },
+        "save": {},
+        "save.duplicate-uid": {},
         "save.duplicate-uid.cross-calendar": {
             "description": "Server allows events with the same UID to exist in different calendars and treats them as separate entities. Support can be 'full' (allowed), 'ungraceful' (rejected with error), or 'unsupported' (silently ignored). Behaviour 'silently-ignored' means the duplicate is not saved but no error is thrown"
         },
@@ -266,6 +265,29 @@ class FeatureSet:
         if collapse:
             self.collapse()
 
+    def _collapse_key(self, feature_dict):
+        """
+        Extract the key part of a feature dictionary for comparison during collapse.
+
+        For collapse purposes, we compare the 'support' level (or 'enable', 'behaviour', 'observed')
+        but ignore differences in detailed behaviour messages, as those are often implementation-specific
+        error messages that shouldn't prevent collapsing.
+        """
+        if not isinstance(feature_dict, dict):
+            return feature_dict
+
+        # Return a tuple of the main status fields, ignoring detailed messages
+        return (
+            feature_dict.get('support'),
+            feature_dict.get('enable'),
+            feature_dict.get('observed'),
+            # Include 'behaviour' only if it's a simple value, not a detailed error message
+            # (we consider it detailed if it contains common error indicators)
+            None if ('behaviour' in feature_dict and
+                    any(x in str(feature_dict.get('behaviour', '')) for x in ['Error', 'failed', 'http://', 'https://']))
+            else feature_dict.get('behaviour')
+        )
+
     def collapse(self):
         """
         If all subfeatures are the same, it should be collapsed into the parent
@@ -287,14 +309,17 @@ class FeatureSet:
                 foo = self.is_supported(parent, return_type=dict, return_defaults=False)
                 if len(parent_info['subfeatures']) > 1 or foo is not None:
                     dont_collapse = False
+                    foo_key = self._collapse_key(foo) if foo is not None else None
                     for sub in parent_info['subfeatures']:
                         bar = self._server_features.get(f"{parent}.{sub}")
                         if bar is None:
                             dont_collapse = True
                             break
+                        bar_key = self._collapse_key(bar)
                         if foo is None:
                             foo = bar
-                        elif bar != foo:
+                            foo_key = bar_key
+                        elif bar_key != foo_key:
                             dont_collapse = True
                             break
                     if not dont_collapse:
@@ -409,11 +434,18 @@ class FeatureSet:
 
     @classmethod
     def feature_tree(cls) -> dict:
-        """A "path" may have several "subpaths" in self.FEATURES
+        """TODO: is this in use at all?  Can it be deprecated already?
+        
+        TODO: the description may be outdated as I decided to refactor
+        things from "overly complex" to "just sufficiently complex".
+        Or maybe it's still a bit too complex.
+        
+        A "path" may have several "subpaths" in self.FEATURES
         (i.e. feat.subfeat.A, feat.subfeat.B, feat.subfeat.C)
 
         This method will return `{'feat': { 'subfeat': {'A': {}, ...}}}`
         making it possible to traverse the feature tree
+
         """
         ## I'm an old fart, grown up in an age where CPU-cycles was considered
         ## expensive ... so I always cache things when possible ...
@@ -596,9 +628,6 @@ incompatibility_description = {
     'no_supported_components_support':
         """The supported components prop query does not work""",
 
-    'no-current-user-principal':
-        """when querying for the current user principal property, server doesn't report anything useful""",
-
     'read_only':
         """The calendar server does not support PUT, POST, DELETE, PROPSET, MKCALENDAR, etc""",
 
@@ -734,7 +763,7 @@ nextcloud = {
     },
     "search.combined-is-logical-and": {"support": "unsupported"},
     'search.recurrences.includes-implicit.todo': {'support': 'unsupported'},
-    'save-load.todo.mixed-calendar': {'support': 'unsupported'}, ## Why?  It started complaining about this just recently.
+    #'save-load.todo.mixed-calendar': {'support': 'unsupported'}, ## Why?  It started complaining about this just recently.
     'principal-search.by-name.self': {'support': 'unsupported'},
     'principal-search.list-all': {'support': 'unsupported'},
     'old_flags': ['unique_calendar_ids'],
@@ -844,7 +873,7 @@ cyrus = {
     "search.comp-type-optional": {"support": "ungraceful"},
     "search.recurrences.expanded.exception": {"support": "unsupported"},
     'search.time-range.alarm': {'support': 'unsupported'},
-    'principal-search.list-all': {'support': 'unsupported'},
+    'principal-search': {'support': 'unsupported'},
     "test-calendar": {"cleanup-regime": "pre"},
     'delete-calendar': {
         'support': 'fragile',
