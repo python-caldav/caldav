@@ -27,7 +27,10 @@
 ##
 ## 6. Extract magic numbers into named constants:
 ##    DEFAULT_HTTP_TIMEOUT, MAX_STARTUP_WAIT_SECONDS, etc.
-## See also https://github.com/python-caldav/caldav/issues/577
+##
+## 7. client() method should be removed, davclient.get_davclient should be used
+##    instead
+
 import logging
 import os
 import subprocess
