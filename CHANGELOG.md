@@ -57,9 +57,9 @@ Some of the old "compatibility_flags" that is used by the test code has been mov
 * Some code has been split out into a new package - `icalendar-searcher`. so this may also break if you manage the dependencies manually.  This library was written by me, so the security impact is low.
 * Not really breaking as such, but the test suite may now take a lot of time to run.  See the "Test Suite" section below.
 
-## Security
+### Security
 
-I do see a major security flaw with the RFC6764 discovery.  If the DNS is not to be trusted, someone can highjack the connection by spoofing the service records, and also spoofing the TLS setting, encouraging the client to connect over plain-text HTTP without certificate validation.  Utilizing this it may be possible to steal the credentials.  This flaw can be mitigated by using DNSSEC, but DNSSEC is not widely used, and there is currently no mechanisms in this package to verify that the DNS is secure.
+I do see a major security flaw with the RFC6764 discovery.  If the DNS is not to be trusted, someone can highjack the connection by spoofing the service records, and also spoofing the TLS setting, encouraging the client to connect over plain-text HTTP without certificate validation.  Utilizing this it may be possible to steal the credentials.  This flaw can be mitigated by using DNSSEC, but DNSSEC is not widely used, and there is currently no mechanisms in this package to verify that the DNS is secure.  The implementation will require TLS and cert validation by default, and will also require that the domain does not change (forwarding from acme.com may to caldav.acme.com is allowed, a forward to evil.hackers.are.us will not be accepted).
 
 Also, the RFC6764 discovery may not always be robust, causing fallbacks and hence a non-deterministic behaviour.
 
@@ -95,7 +95,8 @@ Also, the RFC6764 discovery may not always be robust, causing fallbacks and henc
   * Cyrus, NextCloud and Baikal added so far.
   * For all of those, automated setups with a well-known username/password combo was a challenge.  I had planned to add more servers, but this proved to be too much work.
   * The good thing is that test coverage is increased a lot for every pull request, I hope this will relieving me of a lot of pain learning that the tests fails towards real-world servers when trying to do a release.
-  * The bad thing is that the test runs takes a lot more time.  Use `pytest -k Radicale` or `pytest -k Xandikos` - or run the tests in an environment not having access to docker if you want a quicker test run - or set up a local `conf_private.py` where you specify what servers to test.
+  * The bad thing is that the test runs takes a lot more time.  Use `pytest -k Radicale` or `pytest -k Xandikos` - or run the tests in an environment not having access to docker if you want a quicker test run - or set up a local `conf_private.py` where you specify what servers to test.  It may also be a good idea to run `start.sh` and `stop.sh` in `tests/docker-test-servers/*` manually so the container can stay up for the whole duration of the testing rather than being taken up and down for every test.
+  * **Docker volume cleanup**: All teardown functions now automatically prune ephemeral Docker volumes (`docker-compose down -v`) to prevent `/var/lib/docker/volumes` from filling up with leftover test data. This applies to Cyrus, Nextcloud, and Baikal test servers.
 * Since the new search code now can work around different server quirks, quite some of the test code has been simplified.  Many cases of "make a search, if server supports this, then assert correct number of events returned" could be collapsed to "make a search, then assert correct number of events returned" - meaning that **the library is tested rather than the server**.
 
 ## [2.1.2] - [2025-11-08]

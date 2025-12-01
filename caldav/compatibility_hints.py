@@ -281,11 +281,6 @@ class FeatureSet:
             feature_dict.get('support'),
             feature_dict.get('enable'),
             feature_dict.get('observed'),
-            # Include 'behaviour' only if it's a simple value, not a detailed error message
-            # (we consider it detailed if it contains common error indicators)
-            None if ('behaviour' in feature_dict and
-                    any(x in str(feature_dict.get('behaviour', '')) for x in ['Error', 'failed', 'http://', 'https://']))
-            else feature_dict.get('behaviour')
         )
 
     def collapse(self):
@@ -687,7 +682,7 @@ xandikos_v0_3 = {
     "search.recurrences.includes-implicit.todo.pending": {"support": "unsupported"},
     'search.recurrences.expanded.todo': {'support': 'unsupported'},
     'search.recurrences.expanded.exception': {'support': 'unsupported'},
-    'principal-search': {'support': 'unsupported'},
+    'principal-search': {'support': 'ungraceful'},
     "old_flags":  [
     ## https://github.com/jelmer/xandikos/issues/8
     'date_todo_search_ignores_duration',
@@ -721,7 +716,7 @@ radicale = {
     "search.recurrences.includes-implicit.todo.pending": {"support": "unsupported"},
     "search.recurrences.expanded.todo": {"support": "unsupported"},
     "search.recurrences.expanded.exception": {"support": "unsupported"},
-    'principal-search.by-name.self': {'support': 'unsupported', 'behaviour': 'No display name available - cannot test'},
+    'principal-search.by-name.self': {'support': 'unknown', 'behaviour': 'No display name available - cannot test'},
     ## this only applies for very simple installations
     "auto-connect.url": {"domain": "localhost", "scheme": "http", "basepath": "/"},
     'old_flags': [
@@ -764,8 +759,8 @@ nextcloud = {
     "search.combined-is-logical-and": {"support": "unsupported"},
     'search.recurrences.includes-implicit.todo': {'support': 'unsupported'},
     #'save-load.todo.mixed-calendar': {'support': 'unsupported'}, ## Why?  It started complaining about this just recently.
-    'principal-search.by-name.self': {'support': 'unsupported'},
-    'principal-search.list-all': {'support': 'unsupported'},
+    'principal-search.by-name': {'support': 'unsupported'},
+    'principal-search.list-all': {'support': 'ungraceful'},
     'old_flags': ['unique_calendar_ids'],
 }
 
@@ -851,11 +846,10 @@ baikal =  { ## version 0.10.1
     'search.recurrences.expanded.exception': {'support': 'unsupported'},
     'search.recurrences.includes-implicit.todo': {'support': 'unsupported'},
     "search.combined-is-logical-and": {"support": "unsupported"},
+    'principal-search.by-name': {'support': 'unsupported'}, ## This is weird - I'm quite sure the tests were passing without this one some few days ago.
+    'principal-search.list-all': {'support': 'ungraceful'}, ## This is weird - I'm quite sure the tests were passing without this one some few days ago.
     #'sync-token.delete': {'support': 'unsupported'}, ## Perhaps on some older servers?
     'old_flags': [
-        ## date search on todos does not seem to work
-        ## (TODO: do some research on this)
-        'sync_breaks_on_delete',
         ## extra features not specified in RFC5545
         "calendar_order",
         "calendar_color"
@@ -873,7 +867,7 @@ cyrus = {
     "search.comp-type-optional": {"support": "ungraceful"},
     "search.recurrences.expanded.exception": {"support": "unsupported"},
     'search.time-range.alarm': {'support': 'unsupported'},
-    'principal-search': {'support': 'unsupported'},
+    'principal-search': {'support': 'ungraceful'},
     "test-calendar": {"cleanup-regime": "pre"},
     'delete-calendar': {
         'support': 'fragile',

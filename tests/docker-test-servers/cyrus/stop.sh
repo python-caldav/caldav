@@ -6,9 +6,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-echo "Stopping Cyrus (data will be preserved in volumes)..."
-docker-compose stop
+echo "Stopping Cyrus and removing volumes..."
+docker-compose down -v
 
-echo "✓ Cyrus stopped"
-echo ""
-echo "To remove all data: docker-compose down -v"
+echo "✓ Cyrus stopped and volumes removed"

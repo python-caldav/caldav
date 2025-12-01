@@ -729,6 +729,13 @@ class DAVClient:
             + [dav.Prop(), cdav.CalendarHomeSet(), dav.DisplayName()]
         )
         response = self.report(self.url, etree.tostring(query.xmlelement()))
+
+        ## Possibly we should follow redirects (response status 3xx), but as
+        ## for now we're just treating it in the same way as 4xx and 5xx -
+        ## probably the server did not support the operation
+        if response.status >= 300:
+            raise error.ReportError(f"{response.status} {response.reason} - {response.raw}")
+        
         principal_dict = response.find_objects_and_props()
         ret = []
         for x in principal_dict:

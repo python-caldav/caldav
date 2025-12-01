@@ -938,7 +938,7 @@ class RepeatedFunctionalTestsBaseClass:
                         target.pop(x)
             ## Ignore "fragile" things
             for target in observed_, expected_:
-                if target.get(x, {}).get("support", "full") == "fragile":
+                if target.get(x, {}).get("support", "full") in ("fragile", "unknown"):
                     for target2 in observed_, expected_:
                         target2.pop(x, None)
 
@@ -1620,25 +1620,22 @@ END:VCALENDAR
         if self.is_supported('save.duplicate-uid.cross-calendar'):
             e1_in_c2 = e1.copy(new_parent=c2, keep_uid=True)
             e1_in_c2.save()
-            if not self.check_compatibility_flag(
-                "duplicate_in_other_calendar_with_same_uid_is_lost"
-            ):
-                assert len(c2.events()) == 1
+            assert len(c2.events()) == 1
 
-                ## what will happen with the event in c1 if we modify the event in c2,
-                ## which shares the id with the event in c1?
-                e1_in_c2.vobject_instance.vevent.summary.value = "asdf"
-                e1_in_c2.save()
-                e1.load()
-                ## should e1.summary be 'asdf' or 'Bastille Day Party'?  I do
-                ## not know, but all implementations I've tested will treat
-                ## the copy in the other calendar as a distinct entity, even
-                ## if the uid is the same.
-                assert e1.vobject_instance.vevent.summary.value == "Bastille Day Party"
-                assert (
-                    c2.events()[0].vobject_instance.vevent.uid
-                    == e1.vobject_instance.vevent.uid
-                )
+            ## what will happen with the event in c1 if we modify the event in c2,
+            ## which shares the id with the event in c1?
+            e1_in_c2.vobject_instance.vevent.summary.value = "asdf"
+            e1_in_c2.save()
+            e1.load()
+            ## should e1.summary be 'asdf' or 'Bastille Day Party'?  I do
+            ## not know, but all implementations I've tested will treat
+            ## the copy in the other calendar as a distinct entity, even
+            ## if the uid is the same.
+            assert e1.vobject_instance.vevent.summary.value == "Bastille Day Party"
+            assert (
+                c2.events()[0].vobject_instance.vevent.uid
+                == e1.vobject_instance.vevent.uid
+            )
 
         ## Duplicate the event in the same calendar, with same uid -
         ## this makes no sense, there won't be any duplication

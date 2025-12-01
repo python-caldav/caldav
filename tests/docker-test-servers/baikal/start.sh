@@ -3,6 +3,8 @@
 #
 # Usage: ./start.sh
 
+## This logic is also sort of duplicated in the .github/workflows/test.yaml file
+
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
