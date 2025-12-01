@@ -26,11 +26,20 @@ done
 echo ""
 echo "Verifying CalDAV access..."
 # Test CalDAV access with pre-created user
-if curl -s -u ${TEST_USER}:${TEST_PASSWORD} http://localhost:8802/dav/calendars/user/${TEST_USER}/ 2>/dev/null | grep -q "multistatus"; then
-    echo "✓ CalDAV is accessible"
-else
-    echo "Warning: CalDAV access test failed, but continuing..."
-fi
+# Cyrus CalDAV can take additional time to initialize after HTTP is ready
+max_caldav_attempts=60  # 2 minutes at 2s intervals
+for i in $(seq 1 $max_caldav_attempts); do
+    if curl -s -u ${TEST_USER}:${TEST_PASSWORD} http://localhost:8802/dav/calendars/user/${TEST_USER}/ 2>/dev/null | grep -q "multistatus"; then
+        echo "✓ CalDAV is accessible"
+        break
+    fi
+    if [ $i -eq $max_caldav_attempts ]; then
+        echo "Warning: CalDAV access test failed after ${max_caldav_attempts} attempts, but continuing..."
+        break
+    fi
+    echo -n "."
+    sleep 2
+done
 
 echo ""
 echo "✓ Cyrus setup complete!"

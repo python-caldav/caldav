@@ -76,15 +76,24 @@ jobs:
       - name: Wait for Baikal to be ready
         run: |
           sleep 5
-          timeout 60 bash -c 'until curl -f http://localhost:8800/ 2>/dev/null; do echo "Waiting..."; sleep 2; done'
-          echo "Baikal is ready!"
+          if timeout 60 bash -c 'until curl -f http://localhost:8800/ 2>/dev/null; do echo "Waiting..."; sleep 2; done'; then
+            echo "✓ Baikal is ready!"
+          else
+            echo "✗ Error: Baikal did not become ready within 60 seconds"
+            exit 1
+          fi
       - name: Configure Nextcloud
         run: |
           # Wait for Nextcloud web server to be up
           echo "Waiting for Nextcloud web server..."
-          timeout 60 bash -c 'until curl -f http://localhost:8801/status.php 2>/dev/null; do echo -n "."; sleep 2; done'
-          echo ""
-          echo "✓ Web server is up"
+          if timeout 60 bash -c 'until curl -f http://localhost:8801/status.php 2>/dev/null; do echo -n "."; sleep 2; done'; then
+            echo ""
+            echo "✓ Web server is up"
+          else
+            echo ""
+            echo "✗ Error: Nextcloud web server did not become ready within 60 seconds"
+            exit 1
+          fi
 
           # Install Nextcloud if not already installed
           if ! docker exec ${{ job.services.nextcloud.id }} php occ status 2>/dev/null | grep -q "installed: true"; then
@@ -135,14 +144,35 @@ jobs:
           echo "Waiting for Cyrus server..."
           # Cyrus takes a bit longer to initialize
           sleep 10
-          timeout 60 bash -c 'until curl -s http://localhost:8802/ 2>/dev/null | grep -q .; do echo -n "."; sleep 2; done'
-          echo ""
-          echo "✓ Cyrus HTTP server is ready"
+          if timeout 60 bash -c 'until curl -s http://localhost:8802/ 2>/dev/null | grep -q .; do echo -n "."; sleep 2; done'; then
+            echo ""
+            echo "✓ Cyrus HTTP server is ready"
+          else
+            echo ""
+            echo "✗ Error: Cyrus HTTP server did not become ready within 60 seconds"
+            exit 1
+          fi
 
           # Verify CalDAV access with pre-created user
+          # Cyrus CalDAV can take significant time to initialize, especially in CI
           echo "Waiting for CalDAV access..."
-          timeout 60 bash -c 'until curl -s -u user1:x http://localhost:8802/dav/calendars/user/user1/ 2>/dev/null | grep -q "multistatus" ; do echo -n "."; sleep 2; done'
-          echo "✓ Cyrus CalDAV with pre-created user ready"
+          if timeout 120 bash -c 'until curl -s -u user1:x http://localhost:8802/dav/calendars/user/user1/ 2>/dev/null | grep -q "multistatus" ; do echo -n "."; sleep 2; done'; then
+            echo ""
+            echo "✓ Cyrus CalDAV with pre-created user ready"
+          else
+            echo ""
+            echo "✗ Error: Cyrus CalDAV did not become accessible within 120 seconds"
+            echo "Attempting to debug..."
+            echo "HTTP response:"
+            curl -v http://localhost:8802/ 2>&1 || true
+            echo ""
+            echo "CalDAV response:"
+            curl -v -u user1:x http://localhost:8802/dav/calendars/user/user1/ 2>&1 || true
+            echo ""
+            echo "Container logs:"
+            docker logs ${{ job.services.cyrus.id }} 2>&1 | tail -50 || true
+            exit 1
+          fi
       - run: tox -e py
         env:
           NEXTCLOUD_URL: http://localhost:8801
