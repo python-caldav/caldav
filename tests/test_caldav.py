@@ -319,6 +319,14 @@ PRIORITY:1
 END:VTODO
 END:VCALENDAR"""
 
+## It may be that I'm trying to stretch the caldav standards too
+## much.  my idea is that with i.e. BYHOUR specified in the RRULE, it
+## shall mean that "all recurrences has to be done before some exact
+## due time" for quite a lot of chores, the due date of the next
+## recurrence would depend on the completed timestamp of the previous
+## task.  I think it's not a breach of the standard to have BYHOUR
+## specified on a weekly task, but some servers may have issues
+## with it.
 todo8 = """
 BEGIN:VCALENDAR
 VERSION:2.0
