@@ -12,66 +12,28 @@ So far the most common recommendation seems to be to go for httpx.  See also htt
 
 This file should adhere to [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), but it's manually maintained.  Feel free to comment or make a pull request if something breaks for you.
 
-Changelogs prior to v1.2 follows other formats and are available in the v1.2-release.
+Changelogs prior to v1.2 is pruned, but available in the v1.2 release
 
 This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html), though some earlier releases may be incompatible with the SemVer standard.
 
 ## [Unreleased]
 
-### Added
-- Sync token support detection in compatibility hints:
-  - `sync-token` - RFC6578 sync-collection reports support with levels: full, fragile (race conditions), or unsupported
-  - `sync-token` behaviour flag "time-based" for second-precision tokens requiring sleep(1) between operations
-  - `sync-token.delete` - Support for sync-collection reports after object deletion
-- Alarm search support detection:
-  - `search.time-range.alarm` - Time range searches for alarms (RFC4791 section 9.9)
-  - Updated server configurations for: Cyrus, Xandikos, Zimbra, DAVical, Robur, Posteo, Purelymail, GMX
-- Principal search support detection:
-  - `principal-search` - Server supports searching for principals (CalDAV users)
-  - `principal-search.by-name` - Search principals by display name (not yet tested, requires multiple users)
-  - `principal-search.by-name.self` - Search for own principal by display name
-  - `principal-search.list-all` - List all principals without name filter
-  - Removed deprecated compatibility flags: `no-principal-search`, `no-principal-search-all`
-- Duplicate UID handling detection:
-  - `save.duplicate-uid.cross-calendar` - Server allows events with same UID in different calendars
-  - Support levels: full (allowed), ungraceful (error thrown), unsupported (silently ignored)
-  - Updated server configurations for: Zimbra, Bedework, Baikal
-  - Removed deprecated compatibility flags: `duplicate_in_other_calendar_with_same_uid_is_lost`, `duplicate_in_other_calendar_with_same_uid_breaks`
-
-### Changed
-
-I'm still working on "compatibility hints".  Unfortunately, documentation is still missing.  The gist of it:
-
-* Use `features: posteo` instead of `url: https://posteo.de:8443/` in the connection configuration.
-* Use `features: nextcloud` and `url: my.nextcloud.provider.eu` instead of `url: https://my.nextcloud.provider.eu/remote.php/dav`
-* The library will work around some known issues dependent on what feature-set it's given.
-
-Searching may now be done by creating a `caldav.CalDAVSearcher` object and do a `searcher.search(cal)` instead of doing `cal.search(...)`.  While there are no plans to deprecate the latter method, the new logic offers more features.  Major refactoring work has been done here, and some of the logic has been moved to a new package icalendar-searcher.
-
-Some of the old "compatibility_flags" that is used by the test code has been moved into the new "features"-structure in `caldav/compatibility_hints.py`.
-
-### Breaking Changes
+### Potentially Breaking Changes
 
 * Lots of work has been put in to work around server-quirks, ensuring more consistent search-results regardless of what server is in use.  For some use cases this may be a breaking change as search results from certain servers may have changed (see more below).
 * New dependency on the python-dns package, for RFC6764 discovery.  As far as I understand the SemVer standard, new dependencies can be added without increasing the major version number - but for some scenarios where it's hard to add new dependencies, this may be a breaking change.  This is a well-known package, so the security impact should be low.  This library is only used when doing such a recovery.  If anyone minds this dependency, I can change the project so this becomes an optional dependency.
 * Some code has been split out into a new package - `icalendar-searcher`. so this may also break if you manage the dependencies manually.  This library was written by me, so the security impact is low.
 * Not really breaking as such, but the test suite may now take a lot of time to run.  See the "Test Suite" section below.
 
-### Security
-
-I do see a major security flaw with the RFC6764 discovery.  If the DNS is not to be trusted, someone can highjack the connection by spoofing the service records, and also spoofing the TLS setting, encouraging the client to connect over plain-text HTTP without certificate validation.  Utilizing this it may be possible to steal the credentials.  This flaw can be mitigated by using DNSSEC, but DNSSEC is not widely used, and there is currently no mechanisms in this package to verify that the DNS is secure.  The implementation will require TLS and cert validation by default, and will also require that the domain does not change (forwarding from acme.com may to caldav.acme.com is allowed, a forward to evil.hackers.are.us will not be accepted).
-
-Also, the RFC6764 discovery may not always be robust, causing fallbacks and hence a non-deterministic behaviour.
-
-### Deprecations
-
-* `Event.expand_rrule` will be removed in some future release, unless someone protests.
-* `Event.split_expanded` too.  Both of them were used internally, now it's not.  It's dead code, most likely nobody and nothing is using them.
-
 ### Changed
 
+* I'm still working on "compatibility hints".  Unfortunately, documentation is still missing.  The gist of it:
+  * Use `features: posteo` instead of `url: https://posteo.de:8443/` in the connection configuration.
+  * Use `features: nextcloud` and `url: my.nextcloud.provider.eu` instead of `url: https://my.nextcloud.provider.eu/remote.php/dav`
 * **Major refactoring!**  Some of the logic has been pushed out of the CalDAV package and into a new package, icalendar-searcher.  New logic for doing client-side filtering of search results have also been added to that package.  This refactoring enables possibilities for more advanced search queries as well as client-side filtering.
+  * For advanced search queries, it's needed to create a `caldav.CalDAVSearcher` object, add filters and do a `searcher.search(cal)` instead of doing `cal.search(...)`.
 * **Server compatibility improvements**: Significant work-arounds added for inconsistent CalDAV server behavior, aiming for consistent search results regardless of the server in use. Many of these work-arounds require proper server compatibility configuration via the `features` / `compatibility_hints` system. This may be a **breaking change** for some use cases, as backward-bug-compatibility is not preserved - searches may return different results if the previous behavior was relying on server quirks.
+
 
 ### Added
 
@@ -89,6 +51,21 @@ Also, the RFC6764 discovery may not always be robust, causing fallbacks and henc
 * Client-side filtering method: `CalDAVSearcher.filter()` provides comprehensive client-side filtering, expansion, and sorting of calendar objects with full timezone preservation support.
 * Example code: New `examples/collation_usage.py` demonstrates case-sensitive and case-insensitive calendar searches.
 
+
+### Security
+
+There is a major security flaw with the RFC6764 discovery.  If the DNS is not trusted (public hotspot, for instance), someone can highjack the connection by spoofing the service records.  The protocol also allows to downgrade from https to http.  Utilizing this it may be possible to steal the credentials.  Mitigations: 
+ * DNSSEC is the ultimae soluion, but DNSSEC is not widely used.  I tried implementing robust DNSSEC validation, but it was too complicaed.
+ * Require TLS.  By default, connections through the autodiscovery is required to use TLS.
+ * Decline domain change.  If acme.com forwards to caldav.acme.com, it will be accepted, if it forward to evil.hackers.are.us the connection is declined.
+
+Also, the RFC6764 discovery may not always be robust, causing fallbacks and hence a non-deterministic behaviour.
+
+### Deprecations
+
+* `Event.expand_rrule` will be removed in some future release, unless someone protests.
+* `Event.split_expanded` too.  Both of them were used internally, now it's not.  It's dead code, most likely nobody and nothing is using them.
+
 ### Test Suite
 
 * **Automated Docker testing framework** using Docker containers, if docker is available.
@@ -99,6 +76,7 @@ Also, the RFC6764 discovery may not always be robust, causing fallbacks and henc
   * **Docker volume cleanup**: All teardown functions now automatically prune ephemeral Docker volumes (`docker-compose down -v`) to prevent `/var/lib/docker/volumes` from filling up with leftover test data. This applies to Cyrus, Nextcloud, and Baikal test servers.
   * **Cyrus CalDAV initialization**: Increased timeout for Cyrus CalDAV access verification in GitHub Actions from 60s to 120s, as CalDAV initialization can take significant time after the HTTP server is ready, especially in CI environments. Fixed CalDAV check to use PROPFIND method instead of GET, as GET returns HTTP 204 No Content without the multistatus XML response needed for verification.
 * Since the new search code now can work around different server quirks, quite some of the test code has been simplified.  Many cases of "make a search, if server supports this, then assert correct number of events returned" could be collapsed to "make a search, then assert correct number of events returned" - meaning that **the library is tested rather than the server**.
+* Some of the old "compatibility_flags" that is used by the test code has been moved into the new "features"-structure in `caldav/compatibility_hints.py`.  Use the package caldav-server-checker to check the feature-set of your CalDAV server.
 
 ## [2.1.2] - [2025-11-08]
 
