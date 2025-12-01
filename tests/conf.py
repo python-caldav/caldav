@@ -30,7 +30,6 @@
 ##
 ## 7. client() method should be removed, davclient.get_davclient should be used
 ##    instead
-
 import logging
 import os
 import subprocess

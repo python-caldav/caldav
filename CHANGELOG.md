@@ -54,7 +54,7 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 
 ### Security
 
-There is a major security flaw with the RFC6764 discovery.  If the DNS is not trusted (public hotspot, for instance), someone can highjack the connection by spoofing the service records.  The protocol also allows to downgrade from https to http.  Utilizing this it may be possible to steal the credentials.  Mitigations: 
+There is a major security flaw with the RFC6764 discovery.  If the DNS is not trusted (public hotspot, for instance), someone can highjack the connection by spoofing the service records.  The protocol also allows to downgrade from https to http.  Utilizing this it may be possible to steal the credentials.  Mitigations:
  * DNSSEC is the ultimae soluion, but DNSSEC is not widely used.  I tried implementing robust DNSSEC validation, but it was too complicaed.
  * Require TLS.  By default, connections through the autodiscovery is required to use TLS.
  * Decline domain change.  If acme.com forwards to caldav.acme.com, it will be accepted, if it forward to evil.hackers.are.us the connection is declined.
