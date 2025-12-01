@@ -163,14 +163,24 @@ jobs:
             echo ""
             echo "✗ Error: Cyrus CalDAV did not become accessible within 120 seconds"
             echo "Attempting to debug..."
-            echo "HTTP response:"
+            echo ""
+            echo "=== Container logs ==="
+            docker logs ${{ job.services.cyrus.id }} 2>&1 | tail -100 || true
+            echo ""
+            echo "=== Listening ports inside container ==="
+            docker exec ${{ job.services.cyrus.id }} netstat -tlnp 2>&1 || true
+            echo ""
+            echo "=== Running processes ==="
+            docker exec ${{ job.services.cyrus.id }} ps aux 2>&1 || true
+            echo ""
+            echo "=== HTTP response from host ==="
             curl -v http://localhost:8802/ 2>&1 || true
             echo ""
-            echo "CalDAV response:"
+            echo "=== CalDAV response from host ==="
             curl -v -u user1:x http://localhost:8802/dav/calendars/user/user1/ 2>&1 || true
             echo ""
-            echo "Container logs:"
-            docker logs ${{ job.services.cyrus.id }} 2>&1 | tail -50 || true
+            echo "=== HTTP response from inside container ==="
+            docker exec ${{ job.services.cyrus.id }} curl -v http://localhost:8080/ 2>&1 || true
             exit 1
           fi
       - run: tox -e py
