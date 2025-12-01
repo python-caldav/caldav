@@ -8,6 +8,26 @@ source = "vcs"
 [tool.hatch.build.hooks.vcs]
 version-file = "caldav/_version.py"
 
+[tool.hatch.build.targets.sdist]
+exclude = [
+  ".#*",      # Emacs lock files
+  "#*#",      # Emacs auto-save files
+  "*~",       # Backup files
+  "*.swp",    # Vim swap files
+  "*.pyc",    # Python bytecode
+  "__pycache__",
+]
+
+[tool.hatch.build.targets.wheel]
+exclude = [
+  ".#*",
+  "#*#",
+  "*~",
+  "*.swp",
+  "*.pyc",
+  "__pycache__",
+]
+
 [project]
 name = "caldav"
 authors = [{ name = "Cyril Robert", email = "cyril@hippie.io" }, { name = "Tobias Brox", email = "caldav@plann.no" }]
