@@ -25,11 +25,11 @@ done
 
 echo ""
 echo "Verifying CalDAV access..."
-# Test CalDAV access with pre-created user using PROPFIND
+# Test CalDAV access with pre-created user using PROPFIND with Depth header
 # Cyrus CalDAV can take additional time to initialize after HTTP is ready
 max_caldav_attempts=60  # 2 minutes at 2s intervals
 for i in $(seq 1 $max_caldav_attempts); do
-    if curl -s -X PROPFIND -u ${TEST_USER}:${TEST_PASSWORD} http://localhost:8802/dav/calendars/user/${TEST_USER}/ 2>/dev/null | grep -q "multistatus"; then
+    if curl -s -X PROPFIND -H "Depth: 0" -u ${TEST_USER}:${TEST_PASSWORD} http://localhost:8802/dav/calendars/user/${TEST_USER}/ 2>/dev/null | grep -qi "multistatus\|collection"; then
         echo "✓ CalDAV is accessible"
         break
     fi

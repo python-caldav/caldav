@@ -3,7 +3,6 @@
 ## YOU SHOULD MOST LIKELY NOT EDIT THIS FILE!
 ## Make a conf_private.py for personal configuration.
 ## Check conf_private.py.EXAMPLE
-
 ## TODO: Future refactoring suggestions (in priority order):
 ##
 ## 1. [DONE] Extract conf_private import logic into helper function
@@ -28,9 +27,7 @@
 ##
 ## 6. Extract magic numbers into named constants:
 ##    DEFAULT_HTTP_TIMEOUT, MAX_STARTUP_WAIT_SECONDS, etc.
-
 ## See also https://github.com/python-caldav/caldav/issues/577
-
 import logging
 import os
 import subprocess
@@ -38,7 +35,9 @@ import tempfile
 import threading
 import time
 from pathlib import Path
-from typing import Any, Optional, List
+from typing import Any
+from typing import List
+from typing import Optional
 
 try:
     import niquests as requests
@@ -54,7 +53,10 @@ from caldav.davclient import DAVClient
 # Configuration import utilities
 ####################################
 
-def _import_from_private(name: str, default: Any = None, variants: Optional[List[str]] = None) -> Any:
+
+def _import_from_private(
+    name: str, default: Any = None, variants: Optional[List[str]] = None
+) -> Any:
     """
     Import attribute from conf_private.py with fallback variants.
 
@@ -74,13 +76,14 @@ def _import_from_private(name: str, default: Any = None, variants: Optional[List
         >>> test_baikal = _import_from_private('test_baikal', default=True)
     """
     if variants is None:
-        variants = ['conf_private', 'tests.conf_private', '.conf_private']
+        variants = ["conf_private", "tests.conf_private", ".conf_private"]
 
     for variant in variants:
         try:
-            if variant.startswith('.'):
+            if variant.startswith("."):
                 # Relative import - use importlib for better compatibility
                 import importlib
+
                 try:
                     module = importlib.import_module(variant, package=__package__)
                     return getattr(module, name)
@@ -96,51 +99,58 @@ def _import_from_private(name: str, default: Any = None, variants: Optional[List
 
     return default
 
+
 ####################################
 # Import personal test server config
 ####################################
 
 # Legacy compatibility: only_private → test_public_test_servers
-only_private = _import_from_private('only_private')
+only_private = _import_from_private("only_private")
 if only_private is not None:
     test_public_test_servers = not only_private
 else:
-    test_public_test_servers = _import_from_private('test_public_test_servers', default=False)
+    test_public_test_servers = _import_from_private(
+        "test_public_test_servers", default=False
+    )
 
 # User-configured caldav servers
-caldav_servers = _import_from_private('caldav_servers', default=[])
+caldav_servers = _import_from_private("caldav_servers", default=[])
 
 # Check if private test servers should be tested
-test_private_test_servers = _import_from_private('test_private_test_servers', default=True)
+test_private_test_servers = _import_from_private(
+    "test_private_test_servers", default=True
+)
 if not test_private_test_servers:
     caldav_servers = []
 
 # Xandikos configuration
-xandikos_host = _import_from_private('xandikos_host', default='localhost')
-xandikos_port = _import_from_private('xandikos_port', default=8993)
-test_xandikos = _import_from_private('test_xandikos')
+xandikos_host = _import_from_private("xandikos_host", default="localhost")
+xandikos_port = _import_from_private("xandikos_port", default=8993)
+test_xandikos = _import_from_private("test_xandikos")
 if test_xandikos is None:
     # Auto-detect if xandikos is installed
     try:
         import xandikos
+
         test_xandikos = True
     except ImportError:
         test_xandikos = False
 
 # Radicale configuration
-radicale_host = _import_from_private('radicale_host', default='localhost')
-radicale_port = _import_from_private('radicale_port', default=5232)
-test_radicale = _import_from_private('test_radicale')
+radicale_host = _import_from_private("radicale_host", default="localhost")
+radicale_port = _import_from_private("radicale_port", default=5232)
+test_radicale = _import_from_private("test_radicale")
 if test_radicale is None:
     # Auto-detect if radicale is installed
     try:
         import radicale
+
         test_radicale = True
     except ImportError:
         test_radicale = False
 
 # RFC6638 users for scheduling tests
-rfc6638_users = _import_from_private('rfc6638_users', default=[])
+rfc6638_users = _import_from_private("rfc6638_users", default=[])
 
 #############################
 # Docker-based test servers #
@@ -179,11 +189,13 @@ def _verify_docker(raise_err: bool = False):
         )
     return has_docker
 
+
 ## We may have different expectations to different servers on how they
 ## respond before they are ready to receive CalDAV requests and when
 ## they are still starting up, hence it's needed with different
 ## functions for each server.
 _is_accessible_funcs = {}
+
 
 def _start_or_stop_server(name, action, timeout=60):
     lcname = name.lower()
@@ -197,10 +209,10 @@ def _start_or_stop_server(name, action, timeout=60):
     ## server.  We simply run f"{action}.sh" and assume the server comes up/down.
     ## If it's not a docker-server, we do not need to verify docker
     _verify_docker(raise_err=True)
-    
+
     # Get the docker-compose directory
     dir = Path(__file__).parent / "docker-test-servers" / lcname
-    
+
     # Check if start.sh/stop.sh exists
     script = dir / f"{action}.sh"
     if not script.exists():
@@ -215,17 +227,17 @@ def _start_or_stop_server(name, action, timeout=60):
         cwd=dir,
         check=True,
         capture_output=True,
-        #env=env
+        # env=env
     )
 
-    if action == 'stop':
+    if action == "stop":
         print(f"✓ {name} server stopped and volumes removed")
         ## Rest of the logic is irrelevant for stopping
         return
-    
+
     ## This is probably moot, typically already taken care of in start.sh,
     ## but let's not rely on that
-    for attempt in range(0,60):
+    for attempt in range(0, 60):
         if _is_accessible_funcs[lcname]():
             print(f"✓ {name} is ready")
             return
@@ -233,11 +245,15 @@ def _start_or_stop_server(name, action, timeout=60):
             print(f"... waiting for {name} to become ready")
             time.sleep(1)
 
-    raise RuntimeError(f"{name} is still not accessible after {timeout}s, needs manual investigation.  Tried to run {start_script} in directory {dir}")
+    raise RuntimeError(
+        f"{name} is still not accessible after {timeout}s, needs manual investigation.  Tried to run {start_script} in directory {dir}"
+    )
 
-## wrapper            
+
+## wrapper
 def _conf_method(name, action):
     return lambda self: _start_or_stop_server(name, action)
+
 
 def _add_conf(name, url, username, password, extra_params={}):
     lcname = name.lower()
@@ -246,7 +262,7 @@ def _add_conf(name, url, username, password, extra_params={}):
         "features": lcname,
         "url": url,
         "username": username,
-        "password": password
+        "password": password,
     }
     conn_params.update(extra_params)
     if _is_accessible_funcs[lcname]():
@@ -256,15 +272,16 @@ def _add_conf(name, url, username, password, extra_params={}):
         caldav_servers.append(
             conn_params
             | {
-                "setup": _conf_method(name, 'start'),
-                "teardown": _conf_method(name, 'stop')
+                "setup": _conf_method(name, "start"),
+                "teardown": _conf_method(name, "stop"),
             }
         )
 
+
 # Baikal configuration
-baikal_host = _import_from_private('baikal_host', default='localhost')
-baikal_port = _import_from_private('baikal_port', default=8800)
-test_baikal = _import_from_private('test_baikal')
+baikal_host = _import_from_private("baikal_host", default="localhost")
+baikal_port = _import_from_private("baikal_port", default=8800)
+test_baikal = _import_from_private("test_baikal")
 if test_baikal is None:
     # Auto-enable if BAIKAL_URL is set OR if docker-compose is available
     if os.environ.get("BAIKAL_URL") is not None:
@@ -455,14 +472,14 @@ if test_baikal:
         except Exception:
             return False
 
-    _is_accessible_funcs['baikal'] = is_baikal_accessible
+    _is_accessible_funcs["baikal"] = is_baikal_accessible
     _add_conf("Baikal", baikal_url, baikal_username, baikal_password)
 
 ## Nextcloud - Docker container with automated setup
 # Nextcloud configuration
-nextcloud_host = _import_from_private('nextcloud_host', default='localhost')
-nextcloud_port = _import_from_private('nextcloud_port', default=8801)
-test_nextcloud = _import_from_private('test_nextcloud')
+nextcloud_host = _import_from_private("nextcloud_host", default="localhost")
+nextcloud_port = _import_from_private("nextcloud_port", default=8801)
+test_nextcloud = _import_from_private("test_nextcloud")
 if test_nextcloud is None:
     # Auto-enable if NEXTCLOUD_URL is set OR if docker-compose is available
     if os.environ.get("NEXTCLOUD_URL") is not None:
@@ -494,14 +511,14 @@ if test_nextcloud:
         except Exception:
             return False
 
-    _is_accessible_funcs['nextcloud'] = is_nextcloud_accessible
+    _is_accessible_funcs["nextcloud"] = is_nextcloud_accessible
     _add_conf("Nextcloud", nextcloud_url, nextcloud_username, nextcloud_password)
 
 ## Cyrus IMAP - Docker container with CalDAV/CardDAV support
 # Cyrus configuration
-cyrus_host = _import_from_private('cyrus_host', default='localhost')
-cyrus_port = _import_from_private('cyrus_port', default=8802)
-test_cyrus = _import_from_private('test_cyrus')
+cyrus_host = _import_from_private("cyrus_host", default="localhost")
+cyrus_port = _import_from_private("cyrus_port", default=8802)
+test_cyrus = _import_from_private("test_cyrus")
 if test_cyrus is None:
     # Auto-enable if CYRUS_URL is set OR if docker-compose is available
     if os.environ.get("CYRUS_URL") is not None:
@@ -516,7 +533,7 @@ if test_cyrus:
     cyrus_username = os.environ.get("CYRUS_USERNAME", "user1")
     cyrus_password = os.environ.get("CYRUS_PASSWORD", "any-password-seems-to-work")
     cyrus_url = f"{cyrus_base_url}/dav/calendars/user/{cyrus_username}"
-            
+
     def is_cyrus_accessible() -> bool:
         """Check if Cyrus CalDAV server is accessible and working."""
         try:
@@ -534,9 +551,10 @@ if test_cyrus:
         except Exception:
             return False
 
-    _is_accessible_funcs['cyrus'] = is_cyrus_accessible
-    
+    _is_accessible_funcs["cyrus"] = is_cyrus_accessible
+
     _add_conf("Cyrus", cyrus_url, cyrus_username, cyrus_password)
+
 
 ###################################################################
 # Convenience - get a DAVClient object from the caldav_servers list

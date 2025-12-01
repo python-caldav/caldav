@@ -8,6 +8,7 @@ communication, and there should be no dependencies on a working caldav
 server for the tests in this file.
 """
 import pytest
+
 from caldav.compatibility_hints import FeatureSet
 
 
@@ -32,7 +33,9 @@ class TestFeatureSetCollapse:
         assert "search.recurrences.expanded.todo" not in fs._server_features
         assert "search.recurrences.expanded.exception" not in fs._server_features
         assert "search.recurrences.expanded" in fs._server_features
-        assert fs._server_features["search.recurrences.expanded"] == {"support": "unsupported"}
+        assert fs._server_features["search.recurrences.expanded"] == {
+            "support": "unsupported"
+        }
 
     def test_collapse_different_values_no_collapse(self) -> None:
         """When subfeatures have different values, they should NOT collapse"""
@@ -93,7 +96,7 @@ class TestFeatureSetCollapse:
         fs._server_features = {
             "save.duplicate-uid.cross-calendar": {
                 "support": "unsupported",
-                "behaviour": "silently-ignored"
+                "behaviour": "silently-ignored",
             },
         }
 
@@ -201,7 +204,7 @@ class TestFeatureSetCollapse:
         complex_value = {
             "support": "fragile",
             "behaviour": "time-based",
-            "extra": "metadata"
+            "extra": "metadata",
         }
 
         fs._server_features = {
@@ -221,15 +224,15 @@ class TestFeatureSetCollapse:
 
         # Real scenario from user: both principal-search subfeatures have same unsupported value
         fs._server_features = {
-            'get-current-user-principal': {'support': 'full'},
-            'principal-search.by-name': {
-                'support': 'unsupported',
-                'behaviour': "Search by name failed: AuthorizationError at 'http://localhost:8802/dav/calendars/user/user1', reason Forbidden"
+            "get-current-user-principal": {"support": "full"},
+            "principal-search.by-name": {
+                "support": "unsupported",
+                "behaviour": "Search by name failed: AuthorizationError at 'http://localhost:8802/dav/calendars/user/user1', reason Forbidden",
             },
-            'principal-search.list-all': {
-                'support': 'unsupported',
-                'behaviour': "List all principals failed: AuthorizationError at 'http://localhost:8802/dav/calendars/user/user1', reason Forbidden"
-            }
+            "principal-search.list-all": {
+                "support": "unsupported",
+                "behaviour": "List all principals failed: AuthorizationError at 'http://localhost:8802/dav/calendars/user/user1', reason Forbidden",
+            },
         }
 
         fs.collapse()

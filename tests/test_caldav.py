@@ -897,8 +897,8 @@ class RepeatedFunctionalTestsBaseClass:
                 ## a unique id constraint")
                 assert False
                 ret = self.principal.calendar(cal_id=kwargs["cal_id"])
-                #self.principal.calendar(cal_id=kwargs["cal_id"]).delete()
-                #ret = self._fixCalendar(**kwargs)
+                # self.principal.calendar(cal_id=kwargs["cal_id"]).delete()
+                # ret = self._fixCalendar(**kwargs)
             if self.cleanup_regime == "post":
                 self.calendars_used.append(ret)
             return ret
@@ -1617,7 +1617,7 @@ END:VCALENDAR
             e1_dup.save()
             assert len(c1.events()) == 2
 
-        if self.is_supported('save.duplicate-uid.cross-calendar'):
+        if self.is_supported("save.duplicate-uid.cross-calendar"):
             e1_in_c2 = e1.copy(new_parent=c2, keep_uid=True)
             e1_in_c2.save()
             assert len(c2.events()) == 1

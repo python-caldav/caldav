@@ -430,11 +430,11 @@ class FeatureSet:
     @classmethod
     def feature_tree(cls) -> dict:
         """TODO: is this in use at all?  Can it be deprecated already?
-        
+
         TODO: the description may be outdated as I decided to refactor
         things from "overly complex" to "just sufficiently complex".
         Or maybe it's still a bit too complex.
-        
+
         A "path" may have several "subpaths" in self.FEATURES
         (i.e. feat.subfeat.A, feat.subfeat.B, feat.subfeat.C)
 
