@@ -26,6 +26,8 @@ class FeatureSet:
       type -> "client-feature", "client-hints", "server-peculiarity", "tests-behaviour", "server-observation", "server-feature" (last is default)
       support -> "full" (default), "unsupported", "fragile", "quirk", "broken", "ungraceful"
 
+    unsupported means that attempts to use the feature will be silently ignored (this may actually be the worst option, as it may cause data loss).  quirk means that the feature is suppored, but special handling needs to be done towards the server.  fragile means that it sometimes works and sometimes not - either it's arbitrary, or we didn't spend enough time doing research into the patterns.  My idea behind broken was that the server should do completely unexpected things.  Probably a lot of things classified as "unsupported" today should rather be classified as "broken".  Some AI-generated code is using"broken".  TODO: look through and clean up.  "ungraceful" means the server will throw some error (this may indeed be the most graceful, as the client may catch the error and handle it in the best possible way).
+
     types:
      * client-feature means the client is supposed to do special things (like, rate-limiting).  While the need for rate-limiting may be set by the server, it may not be possible to reliably establish it by probling the server, and the value may differ for different clients.
      * server-peculiarity - weird behaviour detected at the server side, behaviour that is too odd to be described as "missing support for a feature".  Example: there is some cache working, causing a delay from some object is sent to the server and until it can be retrieved.  The difference between an "unsupported server-feature" and a "server-peculiarity" may be a bit floating - like, arguably "instant updates" may be considered a feature.
@@ -181,6 +183,7 @@ class FeatureSet:
         "sync-token.delete": {
             "description": "Server correctly handles sync-collection reports after objects have been deleted from the calendar"
         },
+        'freebusy-query': {'description': "freebusy queries come in two flavors, one query can be done towards a CalDAV server as defined in RFC4791, another query can be done through the scheduling framework, RFC 5538.  Only RFC4791 is tested for as today"},
         "freebusy-query.rfc4791": {
             "description": "Server supports free/busy-query REPORT as specified in RFC4791 section 7.10. The REPORT allows clients to query for free/busy time information for a time range. Servers without this support will typically return an error (often 500 Internal Server Error or 501 Not Implemented). Note: RFC6638 defines a different freebusy mechanism for scheduling",
             "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-7.10"],
@@ -906,6 +909,10 @@ sogo = {
     },
     "search.recurrences.includes-implicit.todo": {
         "support": "unsupported"
+    },
+    ## TODO: do some research into this, I think this is a bug in the checker script
+    "search.recurrences.includes-implicit.todo.pending": {
+        "support": "fragile"
     },
     "search.recurrences.includes-implicit.infinite-scope": {
         "support": "unsupported"
