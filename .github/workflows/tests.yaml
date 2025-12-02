@@ -214,8 +214,14 @@ jobs:
       - name: Configure SOGo
         run: |
           echo "Configuring SOGo..."
-          # Copy configuration files to SOGo container
-          docker cp tests/docker-test-servers/sogo/sogo.conf ${{ job.services.sogo.id }}:/etc/sogo/sogo.conf
+
+          # Get database container hostname
+          DB_HOST=$(docker inspect ${{ job.services.sogo-db.id }} --format='{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}')
+          echo "Database host: $DB_HOST"
+
+          # Copy and modify configuration to use correct database hostname
+          sed "s/@db:/@$DB_HOST:/g" tests/docker-test-servers/sogo/sogo.conf > /tmp/sogo.conf
+          docker cp /tmp/sogo.conf ${{ job.services.sogo.id }}:/etc/sogo/sogo.conf
           docker cp tests/docker-test-servers/sogo/init-sogo-users.sql ${{ job.services.sogo-db.id }}:/tmp/init-sogo-users.sql
 
           # Initialize database with test user
