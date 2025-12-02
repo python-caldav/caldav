@@ -557,6 +557,45 @@ if test_cyrus:
 
     _add_conf("Cyrus", cyrus_url, cyrus_username, cyrus_password)
 
+## SOGo - Docker container with PostgreSQL backend
+# SOGo configuration
+sogo_host = _import_from_private("sogo_host", default="localhost")
+sogo_port = _import_from_private("sogo_port", default=8803)
+test_sogo = _import_from_private("test_sogo")
+if test_sogo is None:
+    # Auto-enable if SOGO_URL is set OR if docker-compose is available
+    if os.environ.get("SOGO_URL") is not None:
+        test_sogo = True
+    else:
+        test_sogo = _verify_docker()
+
+if test_sogo:
+    sogo_base_url = os.environ.get("SOGO_URL", f"http://{sogo_host}:{sogo_port}")
+    # SOGo CalDAV path includes the username
+    sogo_username = os.environ.get("SOGO_USERNAME", "testuser")
+    sogo_password = os.environ.get("SOGO_PASSWORD", "testpass")
+    sogo_url = f"{sogo_base_url}/SOGo/dav/{sogo_username}/Calendar/"
+
+    def is_sogo_accessible() -> bool:
+        """Check if SOGo CalDAV server is accessible and working."""
+        try:
+            # Test actual CalDAV access, not just HTTP server
+            response = requests.request(
+                "PROPFIND",
+                f"{sogo_url}",
+                auth=(sogo_username, sogo_password),
+                headers={"Depth": "0"},
+                timeout=5,
+            )
+            # 207 Multi-Status means CalDAV is working
+            return response.status_code in (200, 207)
+        except Exception:
+            return False
+
+    _is_accessible_funcs["sogo"] = is_sogo_accessible
+
+    _add_conf("SOGo", sogo_url, sogo_username, sogo_password)
+
 
 ###################################################################
 # Convenience - get a DAVClient object from the caldav_servers list

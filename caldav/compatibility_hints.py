@@ -24,7 +24,9 @@ class FeatureSet:
 
     TODO: use enums?  TODO: describe the different types  TODO: think more through the different types, consolidate?
       type -> "client-feature", "client-hints", "server-peculiarity", "tests-behaviour", "server-observation", "server-feature" (last is default)
-      support -> "supported" (default), "unsupported", "fragile", "quirk", "broken", "ungraceful"
+      support -> "full" (default), "unsupported", "fragile", "quirk", "broken", "ungraceful"
+
+    unsupported means that attempts to use the feature will be silently ignored (this may actually be the worst option, as it may cause data loss).  quirk means that the feature is suppored, but special handling needs to be done towards the server.  fragile means that it sometimes works and sometimes not - either it's arbitrary, or we didn't spend enough time doing research into the patterns.  My idea behind broken was that the server should do completely unexpected things.  Probably a lot of things classified as "unsupported" today should rather be classified as "broken".  Some AI-generated code is using"broken".  TODO: look through and clean up.  "ungraceful" means the server will throw some error (this may indeed be the most graceful, as the client may catch the error and handle it in the best possible way).
 
     types:
      * client-feature means the client is supposed to do special things (like, rate-limiting).  While the need for rate-limiting may be set by the server, it may not be possible to reliably establish it by probling the server, and the value may differ for different clients.
@@ -100,6 +102,7 @@ class FeatureSet:
         "save-load.todo.recurrences": {"description": "it's possible to save and load recurring tasks to the calendar"},
         "save-load.todo.recurrences.count": {"description": "The server will receive and store a recurring task with a count set in the RRULE"},
         "save-load.todo.mixed-calendar": {"description": "The same calendar may contain both events and tasks (Zimbra only allows tasks to be placed on special task lists)"},
+        "save-load.journal": {"description": "The server will even accept journals"},
         "search": {
             "description": "calendar MUST support searching for objects using the REPORT method, as specified in RFC4791, section 7"
         },
@@ -110,6 +113,10 @@ class FeatureSet:
         ## stuff that hasn't been moved from the old "quirk list"
         "search.time-range": {
             "description": "Search for time or date ranges should work.  This is specified in RFC4791, section 7.4 and section 9.9"},
+        "search.time-range.accurate": {
+            "description": "Time-range searches should only return events/todos that actually fall within the requested time range. Some servers incorrectly return recurring events whose recurrences fall outside (after) the search interval, or events with no recurrences in the requested time range at all. RFC4791 section 9.9 specifies that a VEVENT component overlaps a time range if the condition (start < search_end AND end > search_start) is true.",
+            "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-9.9"],
+        },
         "search.time-range.todo": {"description": "basic time range searches for tasks works"},
         "search.time-range.event": {"description": "basic time range searches for event works"},
         "search.time-range.journal": {"description": "basic time range searches for journal works"},
@@ -174,7 +181,13 @@ class FeatureSet:
             "description": "RFC6578 sync-collection reports are supported. Server provides sync tokens that can be used to efficiently retrieve only changed objects since last sync. Support can be 'full', 'fragile' (occasionally returns more content than expected), or 'unsupported'. Behaviour 'time-based' indicates second-precision tokens requiring sleep(1) between operations"
         },
         "sync-token.delete": {
-            "description": "Server correctly handles sync-collection reports after objects have been deleted from the calendar"
+            "description": "Server correctly handles sync-collection reports after objects have been deleted from the calendar (solved in Nextcloud in https://github.com/nextcloud/server/pull/44130)"
+        },
+        'freebusy-query': {'description': "freebusy queries come in two flavors, one query can be done towards a CalDAV server as defined in RFC4791, another query can be done through the scheduling framework, RFC 5538.  Only RFC4791 is tested for as today"},
+        "freebusy-query.rfc4791": {
+            "description": "Server supports free/busy-query REPORT as specified in RFC4791 section 7.10. The REPORT allows clients to query for free/busy time information for a time range. Servers without this support will typically return an error (often 500 Internal Server Error or 501 Not Implemented). Note: RFC6638 defines a different freebusy mechanism for scheduling",
+            "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-7.10"],
+            "default": {"support": "supported"}
         },
         "principal-search": {
             "description": "Server supports searching for principals (CalDAV users). Principal search may be restricted for privacy/security reasons on many servers.  (not to be confused with get-current-user-principal)"
@@ -476,10 +489,6 @@ class FeatureSet:
 ## * Perhaps some more readable format should be considered (yaml?).
 ## * Consider how to get this into the documentation
 incompatibility_description = {
-
-    'inaccurate_datesearch':
-        """A date search may yield results outside the search interval""",
-
     'no_current-user-principal':
         """Current user principal not supported by the server (flag is ignored by the tests as for now - pass the principal URL as the testing URL and it will work, albeit with one warning""",
 
@@ -496,9 +505,6 @@ incompatibility_description = {
         """The given user starts without an assigned default calendar """
         """(or without pre-defined calendars at all)""",
 
-    'no_freebusy_rfc4791':
-        """Server does not support a freebusy-request as per RFC4791""",
-
     'no_freebusy_rfc6638':
         """Server does not support a freebusy-request as per RFC6638""",
 
@@ -507,9 +513,6 @@ incompatibility_description = {
 
     'calendar_color':
         """Server supports (nonstandard) calendar color property""",
-
-    'no_journal':
-        """Server does not support journal entries""",
 
     'duplicates_not_allowed':
         """Duplication of an event in the same calendar not allowed """
@@ -522,26 +525,6 @@ incompatibility_description = {
     'no_delete_event':
         """Zimbra does not support deleting an event, probably because event_by_url is broken""",
 
-    'no_sync_token':
-        """RFC6578 is not supported, things will break if we try to do a sync-token report""",
-
-    'time_based_sync_tokens':
-        """A sync-token report depends on the unix timestamp, """
-        """several syncs on the same second may cause problems, """
-        """so we need to sleep a bit. """
-        """(this is a neligible problem if sync returns too much, but may be """
-        """disasterously if it returns too little). """,
-
-    'fragile_sync_tokens':
-        """Every now and then (or perhaps always), more content than expected """
-        """will be returned on a simple sync request.  Possibly a race condition """
-        """if the token is timstamp-based?""",
-
-    'sync_breaks_on_delete':
-        """I have observed a calendar server (sabre-based) that returned """
-        """418 I'm a teapot """
-        """when requesting updates on a calendar after some calendar resource """
-        """object was deleted""",
 
     'propfind_allprop_failure':
         """The propfind test fails ... """
@@ -623,17 +606,11 @@ incompatibility_description = {
     'no_supported_components_support':
         """The supported components prop query does not work""",
 
-    'read_only':
-        """The calendar server does not support PUT, POST, DELETE, PROPSET, MKCALENDAR, etc""",
-
     'no_relships':
         """The calendar server does not support child/parent relationships between calendar components""",
 
     'robur_rrule_freq_yearly_expands_monthly':
         """Robur expands a yearly event into a monthly event.  I believe I've reported this one upstream at some point, but can't find back to it""",
-
-    'no_search':
-        """Apparently the calendar server does not support search at all (this often implies that 'object_by_uid_is_broken' has to be set as well)""",
 
     'no_search_openended':
         """An open-ended search will not work""",
@@ -653,6 +630,7 @@ xandikos_v0_2_12 = {
     "search.text.substring": {"support": "unsupported"},
     "search.text.category.substring": {"support": "unsupported"},
     'principal-search': {'support': 'unsupported'},
+    'freebusy-query.rfc4791': {'support': 'ungraceful', 'behaviour': '500 internal server error'},
     "old_flags":  [
     ## https://github.com/jelmer/xandikos/issues/8
     'date_todo_search_ignores_duration',
@@ -660,10 +638,6 @@ xandikos_v0_2_12 = {
 
     ## scheduling is not supported
     "no_scheduling",
-
-    ## The test in the tests itself passes, but the test in the
-    ## check_server_compatibility triggers a 500-error
-    "no_freebusy_rfc4791",
 
     ## The test with an rrule and an overridden event passes as
     ## long as it's with timestamps.  With dates, xandikos gets
@@ -683,6 +657,7 @@ xandikos_v0_3 = {
     'search.recurrences.expanded.todo': {'support': 'unsupported'},
     'search.recurrences.expanded.exception': {'support': 'unsupported'},
     'principal-search': {'support': 'ungraceful'},
+    'freebusy-query.rfc4791': {'support': 'ungraceful', 'behaviour': '500 internal server error'},
     "old_flags":  [
     ## https://github.com/jelmer/xandikos/issues/8
     'date_todo_search_ignores_duration',
@@ -690,10 +665,6 @@ xandikos_v0_3 = {
 
     ## scheduling is not supported
     "no_scheduling",
-
-    ## The test in the tests itself passes, but the test in the
-    ## check_server_compatibility triggers a 500-error
-    "no_freebusy_rfc4791",
 
     ## The test with an rrule and an overridden event passes as
     ## long as it's with timestamps.  With dates, xandikos gets
@@ -719,12 +690,11 @@ radicale = {
     'principal-search.by-name.self': {'support': 'unknown', 'behaviour': 'No display name available - cannot test'},
     ## this only applies for very simple installations
     "auto-connect.url": {"domain": "localhost", "scheme": "http", "basepath": "/"},
+    ## freebusy is not supported yet, but on the long-term road map
+    'freebusy-query.rfc4791': {'support': 'unsupported'},
     'old_flags': [
     ## calendar listings and calendar creation works a bit
     ## "weird" on radicale
-
-    ## freebusy is not supported yet, but on the long-term road map
-    #"no_freebusy_rfc4791",
 
     'no_scheduling',
     'no_search_openended',
@@ -787,6 +757,7 @@ zimbra = {
     'create-calendar.set-displayname': {'support': 'unsupported'},
     'save-load.todo.mixed-calendar': {'support': 'unsupported'},
     'save-load.todo.recurrences.count': {'support': 'unsupported'}, ## This is a new problem?
+    'save-load.journal': { "support": "unsupported" },
     'search.is-not-defined': {'support': 'unsupported'},
     'search.text.substring': {'support': 'unsupported'},
     'search.text.category': {'support': 'ungraceful'},
@@ -797,9 +768,9 @@ zimbra = {
     'sync-token': {'support': 'unsupported'},
     'principal-search': {'support': 'unsupported'},
     'save.duplicate-uid.cross-calendar': {'support': 'unsupported', 'behaviour': 'silently-ignored'},
+
     "old_flags": [
     ## apparently, zimbra has no journal support
-    'no_journal',
 
     ## setting display name in zimbra does not work (display name,
     ## calendar-ID and URL is the same, the display name cannot be
@@ -809,7 +780,6 @@ zimbra = {
     ## anymore)
     'event_by_url_is_broken',
     'no_delete_event',
-    'no_sync_token',
     'vtodo_datesearch_notime_task_is_skipped',
     'no_relships',
 
@@ -841,6 +811,7 @@ bedework = {
 }
 
 baikal =  { ## version 0.10.1
+    "save-load.journal": {'support': 'ungraceful'},
     #'search.comp-type-optional': {'support': 'ungraceful'}, ## Possibly this has been fixed?
     'search.recurrences.expanded.todo': {'support': 'unsupported'},
     'search.recurrences.expanded.exception': {'support': 'unsupported'},
@@ -910,12 +881,54 @@ davical = {
     ]
 }
 
-#google = [
-#    'no_mkcalendar',
-#    'no_overwrite',
-#    'no_todo',
-#]
+sogo = {
+    "save-load.journal": { "support": "ungraceful" },
+    'freebusy-query.rfc4791': {'support': 'ungraceful'},
+    "search.time-range.accurate": {
+        "support": "unsupported",
+        "description": "SOGo returns events/todos that fall outside the requested time range. For recurring events, it may return recurrences that start after the search interval ends, or events with no recurrences in the requested range at all."
+    },
+    "search.time-range.alarm": {
+        "support": "unsupported"
+    },
+    "search.time-range.event": {
+        "support": "unsupported"
+    },
+    "search.time-range.todo": {
+        "support": "unsupported"
+    },
+    "search.text": {
+        "support": "unsupported"
+    },
+    "search.is-not-defined": {
+        "support": "unsupported"
+    },
+    "search.comp-type-optional": {
+        "support": "ungraceful"
+    },
+    "search.recurrences.includes-implicit.todo": {
+        "support": "unsupported"
+    },
+    ## TODO: do some research into this, I think this is a bug in the checker script
+    "search.recurrences.includes-implicit.todo.pending": {
+        "support": "fragile"
+    },
+    "search.recurrences.includes-implicit.infinite-scope": {
+        "support": "unsupported"
+    },
+    "sync-token": {
+        "support": "fragile"
+    },
+    "search.recurrences.expanded": {
+        "support": "unsupported"
+    },
+    "principal-search": {
+        "support": "ungraceful",
+        "behaviour": "Search by name failed: ReportError at '501 Not Implemented - <?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\n<body><h3>An error occurred during object publishing</h3><p>did not find the specified REPORT</p></body>\n</html>\n', reason no reason",
+    },
 
+}
+## Old notes for sogo (todo - incorporate them in the structure above)
 ## https://www.sogo.nu/bugs/view.php?id=3065
 ## left a note about time-based sync tokens on https://www.sogo.nu/bugs/view.php?id=5163
 ## https://www.sogo.nu/bugs/view.php?id=5282
@@ -928,7 +941,15 @@ davical = {
 #    "text_search_not_working",
 #    "isnotdefined_not_working",
 #    'no_journal',
-#    'no_freebusy_rfc4791'
+#    'no_freebusoy_rfc4791'
+#]
+
+
+
+#google = [
+#    'no_mkcalendar',
+#    'no_overwrite',
+#    'no_todo',
 #]
 
 #fastmail = [
@@ -954,7 +975,8 @@ robur = {
         'domain': 'calendar.robur.coop',
         'basepath': '/principals/', # TODO: this seems fishy
     },
-    "delete-calendar": {  "support": "fragile" },
+    "save-load.journal": { "support": "unsupported" },
+    "delete-calendar": { "support": "fragile" },
     "search.is-not-defined": { "support": "unsupported" },
     "search.time-range.todo": { "support": "unsupported" },
     "search.time-range.alarm": {'support': 'unsupported'},
@@ -965,13 +987,12 @@ robur = {
     "search.recurrences.expanded.exception": { "support": "unsupported" },
     'search.recurrences.includes-implicit.todo': {'support': 'unsupported'},
     'principal-search': {'support': 'unsupported'},
+    'freebusy-query.rfc4791': {'support': 'unsupported'},
     'old_flags': [
         'non_existing_raises_other', ## AuthorizationError instead of NotFoundError
         'no_scheduling',
         'no_sync_token',
         'no_supported_components_support',
-        'no_journal',
-        'no_freebusy_rfc4791',
         'no_relships',
         'unique_calendar_ids',
     ]
@@ -984,6 +1005,7 @@ posteo = {
         'basepath': '/',
     },
     'create-calendar': {'support': 'unsupported'},
+    'save-load.journal': { "support": "unsupported" },
     'search.comp-type-optional': {'support': 'ungraceful'},
     'search.recurrences.expanded.todo': {'support': 'unsupported'},
     'search.recurrences.expanded.exception': {'support': 'unsupported'},
@@ -994,7 +1016,6 @@ posteo = {
     'principal-search': {'support': 'unsupported'},
     'old_flags': [
         'no_scheduling',
-        'no_journal',
         #'no_recurring_todo', ## todo
         'no_sync_token',
         ""
@@ -1051,10 +1072,10 @@ gmx = {
     'search.time-range.alarm': {'support': 'unsupported'},
     'sync-token': {'support': 'unsupported'},
     'principal-search': {'support': 'unsupported'},
+    'freebusy-query.rfc4791': {'support': 'unsupported'},
     "old_flags":  [
         "no_scheduling_mailbox",
         #"text_search_is_case_insensitive",
-        "no_freebusy_rfc4791",
         "no_search_openended",
         "no_sync_token",
         "no_scheduling_calendar_user_address_set",
