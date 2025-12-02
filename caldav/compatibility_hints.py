@@ -181,7 +181,7 @@ class FeatureSet:
             "description": "RFC6578 sync-collection reports are supported. Server provides sync tokens that can be used to efficiently retrieve only changed objects since last sync. Support can be 'full', 'fragile' (occasionally returns more content than expected), or 'unsupported'. Behaviour 'time-based' indicates second-precision tokens requiring sleep(1) between operations"
         },
         "sync-token.delete": {
-            "description": "Server correctly handles sync-collection reports after objects have been deleted from the calendar"
+            "description": "Server correctly handles sync-collection reports after objects have been deleted from the calendar (solved in Nextcloud in https://github.com/nextcloud/server/pull/44130)"
         },
         'freebusy-query': {'description': "freebusy queries come in two flavors, one query can be done towards a CalDAV server as defined in RFC4791, another query can be done through the scheduling framework, RFC 5538.  Only RFC4791 is tested for as today"},
         "freebusy-query.rfc4791": {
