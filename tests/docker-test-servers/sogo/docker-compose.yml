@@ -1,0 +1,43 @@
+services:
+  sogo:
+    image: japoch/sogo:latest
+    container_name: sogo-test
+    ports:
+      - "8803:80"
+    environment:
+      - sogo_user=testuser
+      - sogo_pass=testpass
+      - sogo_name=Test User
+      - sogo_fqhn=example.com
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - sogo-data:/srv
+      - ./sogo.conf:/etc/sogo/sogo.conf:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/SOGo/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  db:
+    image: mariadb:11
+    container_name: sogo-db
+    environment:
+      - MYSQL_DATABASE=sogo
+      - MYSQL_USER=sogo
+      - MYSQL_PASSWORD=sogo
+      - MYSQL_ROOT_PASSWORD=sogo
+    volumes:
+      - ./init-sogo-users.sql:/docker-entrypoint-initdb.d/init-sogo-users.sql:ro
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+volumes:
+  sogo-data:
