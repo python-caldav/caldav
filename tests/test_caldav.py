@@ -786,7 +786,7 @@ class RepeatedFunctionalTestsBaseClass:
     def _cleanup(self, mode=None):
         if self.cleanup_regime in ("pre", "post") and self.cleanup_regime != mode:
             return
-        if self.check_compatibility_flag("read_only"):
+        if not self.is_supported("save-load"):
             return  ## no cleanup needed
         if self.cleanup_regime == "wipe-calendar":
             for cal in self.calendars_used:
@@ -856,9 +856,7 @@ class RepeatedFunctionalTestsBaseClass:
         should see if there exists a test calendar, if that's not
         possible, give up and return the primary calendar.
         """
-        if not self.is_supported("create-calendar") or self.check_compatibility_flag(
-            "read_only"
-        ):
+        if not self.is_supported("create-calendar"):
             if not self._default_calendar:
                 calendars = self.principal.calendars()
                 for c in calendars:
@@ -1072,7 +1070,7 @@ END:VCALENDAR
         """
         c = self._fixCalendar()
 
-        if not self.check_compatibility_flag("read_only"):
+        if self.is_supported("save-load.event"):
             ## populate the calendar with an event or two or three
             c.save_event(ev1)
             c.save_event(ev2)
@@ -1132,8 +1130,6 @@ END:VCALENDAR
 
     def testCreateDeleteCalendar(self):
         self.skip_unless_support("create-calendar")
-        self.skip_on_compatibility_flag("read_only")
-        self.skip_unless_support("delete-calendar")
         if not self.check_compatibility_flag(
             "unique_calendar_ids"
         ) and self.cleanup_regime in ("light", "pre"):
@@ -1145,21 +1141,14 @@ END:VCALENDAR
         assert len(events) == 0
         events = self.principal.calendar(name="Yep", cal_id=self.testcal_id).events()
         assert len(events) == 0
-        ## some calendars cannot be deleted immedately.  The caldav-server-checker is supposed
-        ## to check for this, but for cyrus the server check doesn't flag it, while the
-        ## test run breaks because of this
-        try:
-            c.delete()
-        except:
-            time.sleep(1)
-            c.delete()
+        c.delete()
 
         if self.is_supported("create-calendar.auto"):
             with pytest.raises(self._notFound()):
                 self.principal.calendar(name="Yapp", cal_id="shouldnotexist").events()
 
     def testChangeAttendeeStatusWithEmailGiven(self):
-        self.skip_on_compatibility_flag("read_only")
+        self.skip_unless_support("save-load.event")
         c = self._fixCalendar()
 
         event = c.save_event(
@@ -1177,7 +1166,7 @@ END:VCALENDAR
         ## TODO: work in progress ... see https://github.com/python-caldav/caldav/issues/399
 
     def testMultiGet(self):
-        self.skip_on_compatibility_flag("read_only")
+        self.skip_unless_support("save-load.event")
         c = self._fixCalendar()
 
         event1 = c.save_event(
@@ -1203,7 +1192,7 @@ END:VCALENDAR
         event1.load_by_multiget()
 
     def testCreateEvent(self):
-        self.skip_on_compatibility_flag("read_only")
+        self.skip_unless_support("save-load.event")
         c = self._fixCalendar()
 
         existing_events = c.events()
@@ -1348,7 +1337,7 @@ END:VCALENDAR
         Support for sync-collection reports, ref https://github.com/python-caldav/caldav/issues/87.
         This test is using explicit calls to objects_by_sync_token
         """
-        self.skip_on_compatibility_flag("read_only")
+        self.skip_unless_support("save-load.event")
         self.skip_unless_support("sync-token")
 
         ## Boiler plate ... make a calendar and add some content
@@ -1482,7 +1471,7 @@ END:VCALENDAR
         Same test pattern as testObjectBySyncToken, but exercises the .sync() method
         """
         self.skip_unless_support("sync-token")
-        self.skip_on_compatibility_flag("read_only")
+        self.skip_unless_support("save-load.event")
 
         ## Check if sync tokens are time-based (need sleep(1) between operations)
         sync_info = self.is_supported("sync-token", return_type=dict)
@@ -1584,7 +1573,7 @@ END:VCALENDAR
             assert len(list(deleted)) == 0
 
     def testLoadEvent(self):
-        self.skip_on_compatibility_flag("read_only")
+        self.skip_unless_support("save-load.event")
         self.skip_unless_support("create-calendar")
         if not self.check_compatibility_flag(
             "unique_calendar_ids"
@@ -1607,7 +1596,7 @@ END:VCALENDAR
             self._teardownCalendar(cal_id=self.testcal_id2)
 
     def testCopyEvent(self):
-        self.skip_on_compatibility_flag("read_only")
+        self.skip_unless_support("save-load.event")
         self.skip_unless_support("create-calendar")
         if not self.check_compatibility_flag(
             "unique_calendar_ids"
@@ -1667,7 +1656,7 @@ END:VCALENDAR
             self._teardownCalendar(cal_id=self.testcal_id2)
 
     def testCreateCalendarAndEventFromVobject(self):
-        self.skip_on_compatibility_flag("read_only")
+        self.skip_unless_support("save-load.event")
         c = self._fixCalendar()
 
         ## in case the calendar is reused
@@ -1696,7 +1685,7 @@ END:VCALENDAR
         assert "VEVENT" in components
 
     def testSearchEvent(self):
-        self.skip_on_compatibility_flag("read_only")
+        self.skip_unless_support("save-load.event")
         self.skip_unless_support("search")
         c = self._fixCalendar()
 
@@ -1814,13 +1803,21 @@ END:VCALENDAR
         some_events = c.search(comp_class=Event, summary="Bastille Day Party")
         assert len(some_events) == 1
         some_events = c.search(comp_class=Event, summary="Bastille Day")
+        ## fragile substring searches => anything could happen
         if self.is_supported("search.text.substring", str) == "fragile":
             assert len(some_events) in (0, 2)
-        if not self.is_supported("search.text.substring"):
+        ## substring search not offered => implicit substring search is ignored.
+        ## EXCEPT if text search is not offered - then the filtering logic will be done client-side
+        if not self.is_supported("search.text.substring") and self.is_supported("search.text"):
             assert len(some_events) == 0
         else:
             assert len(some_events) == 2
 
+        ## An explicit substring search should always do a substring search
+        searcher = CalDAVSearcher(event=True)
+        searcher.add_property_filter('summary', "Bastille Day", "contains")
+        assert len(searcher.search(c)) == 2
+        
         ## Even sorting should work out
         all_events = c.search(sort_keys=("summary", "dtstamp"))
         assert len(all_events) == 3
@@ -1880,8 +1877,7 @@ END:VCALENDAR
         )
 
     def testSearchSortTodo(self):
-        self.skip_on_compatibility_flag("read_only")
-        self.skip_on_compatibility_flag("no_todo")
+        self.skip_unless_support("save-load.todo")
         self.skip_unless_support("search")
         c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
         pre_todos = c.todos()
@@ -1956,8 +1952,7 @@ END:VCALENDAR
         check_order(all_tasks, (1, 5, 4, 3, 2, 6))
 
     def testSearchTodos(self):
-        self.skip_on_compatibility_flag("read_only")
-        self.skip_on_compatibility_flag("no_todo")
+        self.skip_unless_support("save-load.todo")
         self.skip_unless_support("search")
         c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
 
@@ -2102,7 +2097,7 @@ END:VCALENDAR
             client(**connect_params).principal()
 
     def testCreateChildParent(self):
-        self.skip_on_compatibility_flag("read_only")
+        self.skip_unless_support("save-load.event")
         self.skip_on_compatibility_flag("no_relships")
         self.skip_on_compatibility_flag("object_by_uid_is_broken")
         c = self._fixCalendar(supported_calendar_component_set=["VEVENT"])
@@ -2230,8 +2225,7 @@ END:VCALENDAR
         assert [str(obj.component["UID"]) for obj in bar["PARENT"]] == ["ctuid5"]
 
     def testSetDue(self):
-        self.skip_on_compatibility_flag("read_only")
-        self.skip_on_compatibility_flag("no_todo")
+        self.skip_unless_support("save-load.todo")
 
         c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
 
@@ -2358,8 +2352,7 @@ END:VCALENDAR
         * It will add some journal entries to it
         * It will list out all journal entries
         """
-        self.skip_on_compatibility_flag("read_only")
-        self.skip_on_compatibility_flag("no_journal")
+        self.skip_unless_support("save-load.journal")
         c = self._fixCalendar(supported_calendar_component_set=["VJOURNAL"])
         j1 = c.save_journal(journal)
         journals = c.journals()
@@ -2389,10 +2382,7 @@ END:VCALENDAR
         * Verify the cal.todos() method
         * Verify that cal.events() method returns nothing
         """
-        self.skip_on_compatibility_flag("read_only")
-
-        # bedeworks and google calendar and some others does not support VTODO
-        self.skip_on_compatibility_flag("no_todo")
+        self.skip_unless_support("save-load.todo")
 
         # For most servers (notable exception Zimbra), it's
         # possible to create a calendar and add todo-items to it.
@@ -2446,9 +2436,7 @@ END:VCALENDAR
         * It will list out all pending tasks, sorted by due date
         * It will list out all pending tasks, sorted by priority
         """
-        self.skip_on_compatibility_flag("read_only")
-        # Not all server implementations have support for VTODO
-        self.skip_on_compatibility_flag("no_todo")
+        self.skip_unless_support("save-load.todo")
         c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
 
         # add todo-item
@@ -2500,9 +2488,7 @@ END:VCALENDAR
         """
         Let's see how the date search method works for todo events
         """
-        self.skip_on_compatibility_flag("read_only")
-        # bedeworks does not support VTODO
-        self.skip_on_compatibility_flag("no_todo")
+        self.skip_unless_support("save-load.todo")
         self.skip_unless_support("search.time-range.todo")
         c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
 
@@ -2656,9 +2642,8 @@ END:VCALENDAR
         """
         Will check that todo-items can be completed and deleted
         """
-        self.skip_on_compatibility_flag("read_only")
+        self.skip_unless_support("save-load.todo")
         # not all caldav servers support VTODO
-        self.skip_on_compatibility_flag("no_todo")
         c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
 
         # add todo-items
@@ -2706,8 +2691,7 @@ END:VCALENDAR
 
     ## TODO: use parameterized test, this is duplicated in testTodoRecurringCompleteThisandfuture
     def testTodoRecurringCompleteSafe(self):
-        self.skip_on_compatibility_flag("read_only")
-        self.skip_on_compatibility_flag("no_todo")
+        self.skip_unless_support("save-load.todo")
         c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
         assert len(c.todos()) == 0
         t6 = c.save_todo(todo6, status="NEEDS-ACTION")
@@ -2736,8 +2720,7 @@ END:VCALENDAR
         [x.delete() for x in c.todos(include_completed=True)]
 
     def testTodoRecurringCompleteThisandfuture(self):
-        self.skip_on_compatibility_flag("read_only")
-        self.skip_on_compatibility_flag("no_todo")
+        self.skip_unless_support("save-load.todo")
         c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
         assert len(c.todos()) == 0
         t6 = c.save_todo(todo6, status="NEEDS-ACTION")
@@ -2762,7 +2745,7 @@ END:VCALENDAR
         assert len(c.todos()) == 1
 
     def testUtf8Event(self):
-        self.skip_on_compatibility_flag("read_only")
+        self.skip_unless_support("save-load.event")
         # TODO: what's the difference between this and testUnicodeEvent?
         # TODO: split up in creating a calendar with non-ascii name
         # and an event with non-ascii description
@@ -2798,7 +2781,7 @@ END:VCALENDAR
             self._teardownCalendar(cal_id=self.testcal_id)
 
     def testUnicodeEvent(self):
-        self.skip_on_compatibility_flag("read_only")
+        self.skip_unless_support("save-load.event")
         self.skip_unless_support("create-calendar")
         if not self.check_compatibility_flag(
             "unique_calendar_ids"
@@ -2819,7 +2802,6 @@ END:VCALENDAR
             assert len(events) == 1
 
     def testSetCalendarProperties(self):
-        self.skip_on_compatibility_flag("read_only")
         self.skip_unless_support("create-calendar.set-displayname")
         self.skip_unless_support("delete-calendar")
 
@@ -2908,7 +2890,7 @@ END:VCALENDAR
         """
         Makes sure we can add events and look them up by URL and ID
         """
-        self.skip_on_compatibility_flag("read_only")
+        self.skip_unless_support("save-load.event")
         # Create calendar
         c = self._fixCalendar()
         assert c.url is not None
@@ -2944,7 +2926,7 @@ END:VCALENDAR
         """
         Makes sure we can add events and delete them
         """
-        self.skip_on_compatibility_flag("read_only")
+        self.skip_unless_support("save-load.event")
         # Create calendar
         c = self._fixCalendar()
         assert c.url is not None
@@ -3038,7 +3020,7 @@ END:VCALENDAR
         Also verifies that it's possible to change a date of a
         non-recurring event
         """
-        self.skip_on_compatibility_flag("read_only")
+        self.skip_unless_support("save-load.event")
         self.skip_unless_support("search")
         # Create calendar, add event ...
         c = self._fixCalendar()
@@ -3106,7 +3088,7 @@ END:VCALENDAR
         assert len(r) == 1
 
         # Lets try a freebusy request as well
-        self.skip_on_compatibility_flag("no_freebusy_rfc4791")
+        self.skip_unless_support("freebusy-query.rfc4791")
 
         freebusy = c.freebusy_request(
             datetime(2007, 7, 13, 17, 00, 00), datetime(2007, 7, 15, 17, 00, 00)
@@ -3125,9 +3107,8 @@ END:VCALENDAR
         library per se.  How will it behave if we serve it a recurring
         event?
         """
-        self.skip_on_compatibility_flag("read_only")
+        self.skip_unless_support("save-load.event")
         self.skip_unless_support("search.recurrences.includes-implicit.event")
-        self.skip_unless_support("search")
         c = self._fixCalendar()
 
         # evr is a yearly event starting at 1997-11-02
