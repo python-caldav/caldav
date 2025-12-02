@@ -51,9 +51,6 @@ class FeatureSet:
                 ## TODO: in the future, templates for the principal URL, calendar URLs etc may also be added.
             }
         },
-        "get-all-principals": {
-            "description": "Search for all principals, using a DAV REPORT query, yields at least one principal"
-        },
         "get-current-user-principal": {
             "description": "Support for RFC5397, current principal extension.  Most CalDAV servers have this, but it is an extension to the DAV standard"},
         "get-current-user-principal.has-calendar": {
@@ -116,6 +113,7 @@ class FeatureSet:
         "search.time-range.todo": {"description": "basic time range searches for tasks works"},
         "search.time-range.event": {"description": "basic time range searches for event works"},
         "search.time-range.journal": {"description": "basic time range searches for journal works"},
+        "search.time-range.alarm": {"description": "Time range searches for alarms work. The server supports searching for events based on when their alarms trigger, as specified in RFC4791 section 9.9"},
         "search.is-not-defined": {
             "description": "Supports searching for objects where properties is-not-defined according to rfc4791 section 9.7.4"
         },
@@ -177,6 +175,23 @@ class FeatureSet:
         },
         "sync-token.delete": {
             "description": "Server correctly handles sync-collection reports after objects have been deleted from the calendar"
+        },
+        "principal-search": {
+            "description": "Server supports searching for principals (CalDAV users). Principal search may be restricted for privacy/security reasons on many servers.  (not to be confused with get-current-user-principal)"
+        },
+        "principal-search.by-name": {
+            "description": "Server supports searching for principals by display name. Testing this properly requires setting up another user with a known name, so this check is not yet implemented"
+        },
+        "principal-search.by-name.self": {
+            "description": "Server allows searching for own principal by display name. Some servers block this for privacy reasons even when general principal search works"
+        },
+        "principal-search.list-all": {
+            "description": "Server allows listing all principals without a name filter. Often blocked for privacy/security reasons"
+        },
+        "save": {},
+        "save.duplicate-uid": {},
+        "save.duplicate-uid.cross-calendar": {
+            "description": "Server allows events with the same UID to exist in different calendars and treats them as separate entities. Support can be 'full' (allowed), 'ungraceful' (rejected with error), or 'unsupported' (silently ignored). Behaviour 'silently-ignored' means the duplicate is not saved but no error is thrown"
         },
         ## TODO: as for now, the tests will run towards the first calendar it will find, and most of the tests will assume the calendar is empty.  This is bad.
         "test-calendar": {
@@ -250,6 +265,24 @@ class FeatureSet:
         if collapse:
             self.collapse()
 
+    def _collapse_key(self, feature_dict):
+        """
+        Extract the key part of a feature dictionary for comparison during collapse.
+
+        For collapse purposes, we compare the 'support' level (or 'enable', 'behaviour', 'observed')
+        but ignore differences in detailed behaviour messages, as those are often implementation-specific
+        error messages that shouldn't prevent collapsing.
+        """
+        if not isinstance(feature_dict, dict):
+            return feature_dict
+
+        # Return a tuple of the main status fields, ignoring detailed messages
+        return (
+            feature_dict.get('support'),
+            feature_dict.get('enable'),
+            feature_dict.get('observed'),
+        )
+
     def collapse(self):
         """
         If all subfeatures are the same, it should be collapsed into the parent
@@ -271,14 +304,17 @@ class FeatureSet:
                 foo = self.is_supported(parent, return_type=dict, return_defaults=False)
                 if len(parent_info['subfeatures']) > 1 or foo is not None:
                     dont_collapse = False
+                    foo_key = self._collapse_key(foo) if foo is not None else None
                     for sub in parent_info['subfeatures']:
                         bar = self._server_features.get(f"{parent}.{sub}")
                         if bar is None:
                             dont_collapse = True
                             break
+                        bar_key = self._collapse_key(bar)
                         if foo is None:
                             foo = bar
-                        elif bar != foo:
+                            foo_key = bar_key
+                        elif bar_key != foo_key:
                             dont_collapse = True
                             break
                     if not dont_collapse:
@@ -393,11 +429,18 @@ class FeatureSet:
 
     @classmethod
     def feature_tree(cls) -> dict:
-        """A "path" may have several "subpaths" in self.FEATURES
+        """TODO: is this in use at all?  Can it be deprecated already?
+
+        TODO: the description may be outdated as I decided to refactor
+        things from "overly complex" to "just sufficiently complex".
+        Or maybe it's still a bit too complex.
+
+        A "path" may have several "subpaths" in self.FEATURES
         (i.e. feat.subfeat.A, feat.subfeat.B, feat.subfeat.C)
 
         This method will return `{'feat': { 'subfeat': {'A': {}, ...}}}`
         making it possible to traverse the feature tree
+
         """
         ## I'm an old fart, grown up in an age where CPU-cycles was considered
         ## expensive ... so I always cache things when possible ...
@@ -437,20 +480,8 @@ incompatibility_description = {
     'inaccurate_datesearch':
         """A date search may yield results outside the search interval""",
 
-    'no-principal-search':
-        """Searching for principals gives a 403 error or similar""",
-
-    'no-principal-search-self':
-        """Searching for my own principal by name gives nothing, a 403 error or similar""",
-
-    'no-principal-search-all':
-        """Searching for all principals gives a 403 error or similar""",
-
     'no_current-user-principal':
         """Current user principal not supported by the server (flag is ignored by the tests as for now - pass the principal URL as the testing URL and it will work, albeit with one warning""",
-
-    'no_alarmsearch':
-        """Searching for alarms may yield too few or too many or even a 500 internal server error""",
 
     'no_scheduling':
         """RFC6833 is not supported""",
@@ -484,13 +515,6 @@ incompatibility_description = {
         """Duplication of an event in the same calendar not allowed """
         """(even with different uid)""",
 
-    'duplicate_in_other_calendar_with_same_uid_is_lost':
-        """Fetch an event from one calendar, save it to another ... """
-        """and the duplicate will be ignored""",
-
-    'duplicate_in_other_calendar_with_same_uid_breaks':
-        """Fetch an event from one calendar, save it to another ... """
-        """and get some error from the server""",
 
     'event_by_url_is_broken':
         """A GET towards a valid calendar object resource URL will yield 404 (wtf?)""",
@@ -599,9 +623,6 @@ incompatibility_description = {
     'no_supported_components_support':
         """The supported components prop query does not work""",
 
-    'no-current-user-principal':
-        """when querying for the current user principal property, server doesn't report anything useful""",
-
     'read_only':
         """The calendar server does not support PUT, POST, DELETE, PROPSET, MKCALENDAR, etc""",
 
@@ -627,9 +648,11 @@ xandikos_v0_2_12 = {
     'search.recurrences.includes-implicit': {'support': 'unsupported'},
     'search.recurrences.expanded': {'support': 'unsupported'},
     'search.time-range.todo': {'support': 'unsupported'},
+    'search.time-range.alarm': {'support': 'ungraceful', 'behaviour': '500 internal server error'},
     'search.comp-type-optional': {'support': 'ungraceful'},
     "search.text.substring": {"support": "unsupported"},
     "search.text.category.substring": {"support": "unsupported"},
+    'principal-search': {'support': 'unsupported'},
     "old_flags":  [
     ## https://github.com/jelmer/xandikos/issues/8
     'date_todo_search_ignores_duration',
@@ -637,7 +660,6 @@ xandikos_v0_2_12 = {
 
     ## scheduling is not supported
     "no_scheduling",
-    'no-principal-search',
 
     ## The test in the tests itself passes, but the test in the
     ## check_server_compatibility triggers a 500-error
@@ -650,8 +672,6 @@ xandikos_v0_2_12 = {
     ## should report this upstream
     #'broken_expand_on_exceptions',
 
-    ## No alarm search (500 internal server error)
-    "no_alarmsearch",
     ]
 }
 
@@ -662,6 +682,7 @@ xandikos_v0_3 = {
     "search.recurrences.includes-implicit.todo.pending": {"support": "unsupported"},
     'search.recurrences.expanded.todo': {'support': 'unsupported'},
     'search.recurrences.expanded.exception': {'support': 'unsupported'},
+    'principal-search': {'support': 'ungraceful'},
     "old_flags":  [
     ## https://github.com/jelmer/xandikos/issues/8
     'date_todo_search_ignores_duration',
@@ -669,7 +690,6 @@ xandikos_v0_3 = {
 
     ## scheduling is not supported
     "no_scheduling",
-    'no-principal-search',
 
     ## The test in the tests itself passes, but the test in the
     ## check_server_compatibility triggers a 500-error
@@ -682,8 +702,6 @@ xandikos_v0_3 = {
     ## should report this upstream
     #'broken_expand_on_exceptions',
 
-    ## No alarm search (500 internal server error)
-    "no_alarmsearch",
     ]
 }
 
@@ -698,17 +716,15 @@ radicale = {
     "search.recurrences.includes-implicit.todo.pending": {"support": "unsupported"},
     "search.recurrences.expanded.todo": {"support": "unsupported"},
     "search.recurrences.expanded.exception": {"support": "unsupported"},
+    'principal-search.by-name.self': {'support': 'unknown', 'behaviour': 'No display name available - cannot test'},
     ## this only applies for very simple installations
     "auto-connect.url": {"domain": "localhost", "scheme": "http", "basepath": "/"},
     'old_flags': [
     ## calendar listings and calendar creation works a bit
     ## "weird" on radicale
-    "no_alarmsearch", ## This is fixed and will be released soon
 
     ## freebusy is not supported yet, but on the long-term road map
     #"no_freebusy_rfc4791",
-
-    "no-principal-search-self", ## this may be because we haven't set up any users or authentication - so the display name of the current user principal is None
 
     'no_scheduling',
     'no_search_openended',
@@ -721,7 +737,7 @@ radicale = {
     ]
 }
 
-## NOT TESTED ... but this works for ecloud, and ecloud is based on nextcloud
+## Be aware that nextcloud by default have different rate limits, including how often a user is allowed to create a new calendar.  This may break test runs badly.
 nextcloud = {
     'auto-connect.url': {
         'basepath': '/remote.php/dav',
@@ -742,7 +758,10 @@ nextcloud = {
     },
     "search.combined-is-logical-and": {"support": "unsupported"},
     'search.recurrences.includes-implicit.todo': {'support': 'unsupported'},
-    'old_flags': ['no-principal-search-all', 'no-principal-search-self', 'unique_calendar_ids'],
+    #'save-load.todo.mixed-calendar': {'support': 'unsupported'}, ## Why?  It started complaining about this just recently.
+    'principal-search.by-name': {'support': 'unsupported'},
+    'principal-search.list-all': {'support': 'ungraceful'},
+    'old_flags': ['unique_calendar_ids'],
 }
 
 ## TODO: Latest - mismatch between config and test script in delete-calendar.free-namespace ... and create-calendar.set-displayname?
@@ -774,7 +793,10 @@ zimbra = {
     'search.is-not-defined':  {'support': 'unsupported'},
     'search.recurrences.expanded.todo': { "support": "unsupported" },
     'search.comp-type-optional': {'support': 'fragile'}, ## TODO: more research on this, looks like a bug in the checker,
+    'search.time-range.alarm': {'support': 'unsupported'},
     'sync-token': {'support': 'unsupported'},
+    'principal-search': {'support': 'unsupported'},
+    'save.duplicate-uid.cross-calendar': {'support': 'unsupported', 'behaviour': 'silently-ignored'},
     "old_flags": [
     ## apparently, zimbra has no journal support
     'no_journal',
@@ -785,14 +807,11 @@ zimbra = {
     ## earlier versions of Zimbra display-name could be changed, but
     ## then the calendar would not be available on the old URL
     ## anymore)
-    'duplicate_in_other_calendar_with_same_uid_is_lost',
     'event_by_url_is_broken',
     'no_delete_event',
     'no_sync_token',
     'vtodo_datesearch_notime_task_is_skipped',
     'no_relships',
-    "no_alarmsearch",
-    "no-principal-search",
 
     ## TODO: I just discovered that when searching for a date some
     ## years after a recurring daily event was made, the event does
@@ -806,7 +825,9 @@ zimbra = {
     ## Search for 'zimbra' in the code repository!
 }
 
-bedework = [
+bedework = {
+    'save.duplicate-uid.cross-calendar': {'support': 'unsupported', 'behaviour': 'silently-ignored'},
+    'old_flags': [
     ## quite a lot of things were missing in Bedework last I checked -
     ## but that's quite a while ago!
     'no_journal',
@@ -816,8 +837,8 @@ bedework = [
     ## taking an event, changing the uid, and saving in the same calendar gives a 403.
     ## editing the content slightly and it works.  Weird ...
     'duplicates_not_allowed',
-    'duplicate_in_other_calendar_with_same_uid_is_lost'
-]
+    ]
+}
 
 baikal =  { ## version 0.10.1
     #'search.comp-type-optional': {'support': 'ungraceful'}, ## Possibly this has been fixed?
@@ -825,13 +846,10 @@ baikal =  { ## version 0.10.1
     'search.recurrences.expanded.exception': {'support': 'unsupported'},
     'search.recurrences.includes-implicit.todo': {'support': 'unsupported'},
     "search.combined-is-logical-and": {"support": "unsupported"},
+    'principal-search.by-name': {'support': 'unsupported'}, ## This is weird - I'm quite sure the tests were passing without this one some few days ago.
+    'principal-search.list-all': {'support': 'ungraceful'}, ## This is weird - I'm quite sure the tests were passing without this one some few days ago.
     #'sync-token.delete': {'support': 'unsupported'}, ## Perhaps on some older servers?
     'old_flags': [
-        ## date search on todos does not seem to work
-        ## (TODO: do some research on this)
-        'sync_breaks_on_delete',
-        "no-principal-search-all",
-        "no-principal-search",
         ## extra features not specified in RFC5545
         "calendar_order",
         "calendar_color"
@@ -843,6 +861,19 @@ baikal_old = baikal | {
     'create-calendar': {'support': 'quirk', 'behaviour': 'mkcol-required'},
     'create-calendar.auto': {'support': 'unsupported'}, ## this is the default, but the "quirk" from create-calendar overwrites it.  Hm.
 
+}
+
+cyrus = {
+    "search.comp-type-optional": {"support": "ungraceful"},
+    "search.recurrences.expanded.exception": {"support": "unsupported"},
+    'search.time-range.alarm': {'support': 'unsupported'},
+    'principal-search': {'support': 'ungraceful'},
+    "test-calendar": {"cleanup-regime": "pre"},
+    'delete-calendar': {
+        'support': 'fragile',
+        'behaviour': 'Deleting a recently created calendar fails'},
+    'save.duplicate-uid.cross-calendar': {'support': 'ungraceful'},
+    'old_flags': []
 }
 
 ## See comments on https://github.com/python-caldav/caldav/issues/3
@@ -863,7 +894,10 @@ davical = {
     "search.comp-type-optional": { "support": "fragile" },
     "search.recurrences.expanded.todo": { "support": "unsupported" },
     "search.recurrences.expanded.exception": { "support": "unsupported" },
+    'search.time-range.alarm': {'support': 'unsupported'},
     'sync-token': {'support': 'fragile'},
+    'principal-search': {'support': 'unsupported'},
+    'principal-search.list-all': {'support': 'unsupported'},
     "old_flags": [
         #'no_journal', ## it threw a 500 internal server error! ## for old versions
         #'nofreebusy', ## for old versions
@@ -873,7 +907,6 @@ davical = {
         'calendar_color',
         'calendar_order',
         'vtodo_datesearch_notime_task_is_skipped',
-        "no_alarmsearch",
     ]
 }
 
@@ -924,12 +957,14 @@ robur = {
     "delete-calendar": {  "support": "fragile" },
     "search.is-not-defined": { "support": "unsupported" },
     "search.time-range.todo": { "support": "unsupported" },
+    "search.time-range.alarm": {'support': 'unsupported'},
     "search.text": { "support": "unsupported", "behaviour": "a text search ignores the filter and returns all elements" },
     "search.comp-type-optional": { "support": "ungraceful" },
     "search.recurrences.expanded.todo": { "support": "unsupported" },
     "search.recurrences.expanded.event": { "support": "fragile" },
     "search.recurrences.expanded.exception": { "support": "unsupported" },
     'search.recurrences.includes-implicit.todo': {'support': 'unsupported'},
+    'principal-search': {'support': 'unsupported'},
     'old_flags': [
         'non_existing_raises_other', ## AuthorizationError instead of NotFoundError
         'no_scheduling',
@@ -937,9 +972,7 @@ robur = {
         'no_supported_components_support',
         'no_journal',
         'no_freebusy_rfc4791',
-        "no-principal-search",
         'no_relships',
-        'no_alarmsearch',
         'unique_calendar_ids',
     ]
 }
@@ -956,14 +989,15 @@ posteo = {
     'search.recurrences.expanded.exception': {'support': 'unsupported'},
     'search.recurrences.includes-implicit.todo': {'support': 'unsupported'},
     "search.combined-is-logical-and": {"support": "unsupported"},
+    'search.time-range.alarm': {'support': 'unsupported'},
     'sync-token': {'support': 'unsupported'},
+    'principal-search': {'support': 'unsupported'},
     'old_flags': [
         'no_scheduling',
         'no_journal',
         #'no_recurring_todo', ## todo
         'no_sync_token',
-        'no_alarmsearch',
-        "no-principal-search-self"
+        ""
     ]
 }
 
@@ -986,6 +1020,8 @@ purelymail = {
     ## so search works some minutes after the event was created/edited.
     'search-cache': {'behaviour': 'delay', 'delay': 160},
     "create-calendar.auto": {"support": "full"},
+    'search.time-range.alarm': {'support': 'unsupported'},
+    'principal-search': {'support': 'unsupported'},
     'auto-connect.url': {
         'basepath': '/webdav/',
         'domain': 'purelymail.com',
@@ -997,10 +1033,7 @@ purelymail = {
         ## Known, not a breach of standard
         'no_supported_components_support',
 
-        "no-principal-search", ## more research may be needed.  "cant-operate-on-root", indicating that the URL may need adjusting?
-
         ## I haven't raised this one with them yet
-        'no_alarmsearch',
     ]
 }
 
@@ -1015,18 +1048,18 @@ gmx = {
     'create-calendar': {'support': 'unsupported'},
     'search.comp-type-optional': {'support': 'fragile', 'description': 'unexpected results from date-search without comp-type - but only sometimes - TODO: research more'},
     'search.recurrences.expanded': {'support': 'unsupported'},
+    'search.time-range.alarm': {'support': 'unsupported'},
     'sync-token': {'support': 'unsupported'},
+    'principal-search': {'support': 'unsupported'},
     "old_flags":  [
         "no_scheduling_mailbox",
         #"text_search_is_case_insensitive",
-        "no-principal-search-all",
         "no_freebusy_rfc4791",
         "no_search_openended",
         "no_sync_token",
         "no_scheduling_calendar_user_address_set",
-        "no-principal-search-self",
+        "",
         "vtodo-cannot-be-uncompleted",
-        #"no-principal-search-all",
     ]
 }
 

@@ -319,6 +319,14 @@ PRIORITY:1
 END:VTODO
 END:VCALENDAR"""
 
+## It may be that I'm trying to stretch the caldav standards too
+## much.  my idea is that with i.e. BYHOUR specified in the RRULE, it
+## shall mean that "all recurrences has to be done before some exact
+## due time" for quite a lot of chores, the due date of the next
+## recurrence would depend on the completed timestamp of the previous
+## task.  I think it's not a breach of the standard to have BYHOUR
+## specified on a weekly task, but some servers may have issues
+## with it.
 todo8 = """
 BEGIN:VCALENDAR
 VERSION:2.0
@@ -722,7 +730,6 @@ class RepeatedFunctionalTestsBaseClass:
 
         if not self.cleanup_regime == "wipe-calendar" and (
             not self.is_supported("create-calendar")
-            or not self.is_supported("delete-calendar", accept_fragile=True)
         ):
             self.cleanup_regime = "thorough"
 
@@ -809,9 +816,8 @@ class RepeatedFunctionalTestsBaseClass:
             cal.delete()
         if self.check_compatibility_flag("unique_calendar_ids") and mode == "pre":
             a = self._teardownCalendar(name="Yep")
-        if mode == "post":
-            for calid in (self.testcal_id, self.testcal_id2):
-                self._teardownCalendar(cal_id=calid)
+        for calid in (self.testcal_id, self.testcal_id2):
+            self._teardownCalendar(cal_id=calid)
         if self.cleanup_regime == "thorough":
             for name in ("Yep", "Yapp", "Yølp", self.testcal_id, self.testcal_id2):
                 self._teardownCalendar(name=name)
@@ -830,17 +836,6 @@ class RepeatedFunctionalTestsBaseClass:
         except:
             pass
         try:
-            cal.events()
-            if is_supported("delete-calendar", str) == "fragile":
-                ## sometimes it's needed to sleep a bit before deleting a calendar.  TODO: improve the compatibility-description.
-                time.sleep(10)
-                try:
-                    cal.delete()
-                except:
-                    pass
-            remaining = cal.search()
-            for x in remaining:
-                x.delete()
             cal.delete()
         except:
             pass
@@ -894,10 +889,16 @@ class RepeatedFunctionalTestsBaseClass:
                 kwargs["cal_id"] = self.testcal_id
             try:
                 ret = self.principal.make_calendar(**kwargs)
-            except error.MkcalendarError:
+            except (error.MkcalendarError, error.AuthorizationError):
                 ## "calendar already exists" can be ignored (at least
-                ## if no_delete_calendar flag is set)
+                ## if no_delete_calendar flag is set).  Cyrus wrongly
+                ## flags this throug an AuthorizationError.  I guess
+                ## the logic is "you are not authorized to override
+                ## a unique id constraint")
+                assert False
                 ret = self.principal.calendar(cal_id=kwargs["cal_id"])
+                # self.principal.calendar(cal_id=kwargs["cal_id"]).delete()
+                # ret = self._fixCalendar(**kwargs)
             if self.cleanup_regime == "post":
                 self.calendars_used.append(ret)
             return ret
@@ -937,7 +938,7 @@ class RepeatedFunctionalTestsBaseClass:
                         target.pop(x)
             ## Ignore "fragile" things
             for target in observed_, expected_:
-                if target.get(x, {}).get("support", "full") == "fragile":
+                if target.get(x, {}).get("support", "full") in ("fragile", "unknown"):
                     for target2 in observed_, expected_:
                         target2.pop(x, None)
 
@@ -1112,15 +1113,15 @@ END:VCALENDAR
             assert c.__class__.__name__ == "Calendar"
 
     def testPrincipals(self):
-        self.skip_on_compatibility_flag("no-principal-search")
-        if not self.check_compatibility_flag("no-principal-search-self"):
+        self.skip_unless_support("principal-search")
+        if self.is_supported("principal-search.by-name.self"):
             my_name = self.principal.get_display_name()
             my_principals = self.caldav.principals(name=my_name)
             assert isinstance(my_principals, list)
             assert len(my_principals) == 1
             assert my_principals[0].url == self.principal.url
 
-        self.skip_on_compatibility_flag("no-principal-search-all")
+        self.skip_unless_support("principal-search.list-all")
         all_principals = self.caldav.principals()
         assert isinstance(all_principals, list)
         if all_principals:
@@ -1141,7 +1142,14 @@ END:VCALENDAR
         assert len(events) == 0
         events = self.principal.calendar(name="Yep", cal_id=self.testcal_id).events()
         assert len(events) == 0
-        c.delete()
+        ## some calendars cannot be deleted immedately.  The caldav-server-checker is supposed
+        ## to check for this, but for cyrus the server check doesn't flag it, while the
+        ## test run breaks because of this
+        try:
+            c.delete()
+        except:
+            time.sleep(1)
+            c.delete()
 
         if self.is_supported("create-calendar.auto"):
             with pytest.raises(self._notFound()):
@@ -1277,7 +1285,7 @@ END:VCALENDAR
             alarm_action="AUDIO",
         )
 
-        self.skip_on_compatibility_flag("no_alarmsearch")
+        self.skip_unless_support("search.time-range.alarm")
 
         ## So we have an alarm that goes off 07:45 for an event starting 08:00
 
@@ -1318,6 +1326,19 @@ END:VCALENDAR
         ## passing cal_id as a URL object should also work.
         samecal = self.caldav.principal().calendar(cal_id=mycal.url)
         assert mycal.url.canonical() == samecal.url.canonical()
+
+    def testObjectByUID(self):
+        """
+        It should be possible to save a task and retrieve it by uid
+        """
+        c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
+        c.save_todo(summary="Some test task with a well-known uid", uid="well_known_1")
+        foo = c.object_by_uid("well_known_1")
+        assert foo.component["summary"] == "Some test task with a well-known uid"
+        with pytest.raises(error.NotFoundError):
+            foo = c.object_by_uid("well_known")
+        with pytest.raises(error.NotFoundError):
+            foo = c.object_by_uid("well_known_10")
 
     def testObjectBySyncToken(self):
         """
@@ -1596,30 +1617,25 @@ END:VCALENDAR
             e1_dup.save()
             assert len(c1.events()) == 2
 
-        if not self.check_compatibility_flag(
-            "duplicate_in_other_calendar_with_same_uid_breaks"
-        ):
+        if self.is_supported("save.duplicate-uid.cross-calendar"):
             e1_in_c2 = e1.copy(new_parent=c2, keep_uid=True)
             e1_in_c2.save()
-            if not self.check_compatibility_flag(
-                "duplicate_in_other_calendar_with_same_uid_is_lost"
-            ):
-                assert len(c2.events()) == 1
+            assert len(c2.events()) == 1
 
-                ## what will happen with the event in c1 if we modify the event in c2,
-                ## which shares the id with the event in c1?
-                e1_in_c2.vobject_instance.vevent.summary.value = "asdf"
-                e1_in_c2.save()
-                e1.load()
-                ## should e1.summary be 'asdf' or 'Bastille Day Party'?  I do
-                ## not know, but all implementations I've tested will treat
-                ## the copy in the other calendar as a distinct entity, even
-                ## if the uid is the same.
-                assert e1.vobject_instance.vevent.summary.value == "Bastille Day Party"
-                assert (
-                    c2.events()[0].vobject_instance.vevent.uid
-                    == e1.vobject_instance.vevent.uid
-                )
+            ## what will happen with the event in c1 if we modify the event in c2,
+            ## which shares the id with the event in c1?
+            e1_in_c2.vobject_instance.vevent.summary.value = "asdf"
+            e1_in_c2.save()
+            e1.load()
+            ## should e1.summary be 'asdf' or 'Bastille Day Party'?  I do
+            ## not know, but all implementations I've tested will treat
+            ## the copy in the other calendar as a distinct entity, even
+            ## if the uid is the same.
+            assert e1.vobject_instance.vevent.summary.value == "Bastille Day Party"
+            assert (
+                c2.events()[0].vobject_instance.vevent.uid
+                == e1.vobject_instance.vevent.uid
+            )
 
         ## Duplicate the event in the same calendar, with same uid -
         ## this makes no sense, there won't be any duplication
@@ -2256,7 +2272,7 @@ END:VCALENDAR
         self.skip_on_compatibility_flag("object_by_uid_is_broken")
         parent = c.save_todo(
             dtstart=datetime(2022, 12, 26, 19, 00, tzinfo=utc),
-            dtend=datetime(2022, 12, 26, 21, 00, tzinfo=utc),
+            due=datetime(2022, 12, 26, 21, 00, tzinfo=utc),
             summary="this is a parent test task",
             uid="ctuid3",
             child=[some_todo.id],
