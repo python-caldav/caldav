@@ -1697,7 +1697,7 @@ END:VCALENDAR
 
     def testSearchEvent(self):
         self.skip_on_compatibility_flag("read_only")
-        self.skip_on_compatibility_flag("no_search")
+        self.skip_unless_support("search")
         c = self._fixCalendar()
 
         num_existing = len(c.events())
@@ -1882,7 +1882,7 @@ END:VCALENDAR
     def testSearchSortTodo(self):
         self.skip_on_compatibility_flag("read_only")
         self.skip_on_compatibility_flag("no_todo")
-        self.skip_on_compatibility_flag("no_search")
+        self.skip_unless_support("search")
         c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
         pre_todos = c.todos()
         pre_todo_uid_map = {x.icalendar_component["uid"] for x in pre_todos}
@@ -1958,7 +1958,7 @@ END:VCALENDAR
     def testSearchTodos(self):
         self.skip_on_compatibility_flag("read_only")
         self.skip_on_compatibility_flag("no_todo")
-        self.skip_on_compatibility_flag("no_search")
+        self.skip_unless_support("search")
         c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
 
         pre_cnt = len(c.todos())
@@ -3039,7 +3039,7 @@ END:VCALENDAR
         non-recurring event
         """
         self.skip_on_compatibility_flag("read_only")
-        self.skip_on_compatibility_flag("no_search")
+        self.skip_unless_support("search")
         # Create calendar, add event ...
         c = self._fixCalendar()
         assert c.url is not None
@@ -3127,7 +3127,7 @@ END:VCALENDAR
         """
         self.skip_on_compatibility_flag("read_only")
         self.skip_unless_support("search.recurrences.includes-implicit.event")
-        self.skip_on_compatibility_flag("no_search")
+        self.skip_unless_support("search")
         c = self._fixCalendar()
 
         # evr is a yearly event starting at 1997-11-02
@@ -3220,7 +3220,7 @@ END:VCALENDAR
         assert r[0].data.count("END:VEVENT") == 1
 
     def testRecurringDateWithExceptionSearch(self):
-        self.skip_on_compatibility_flag("no_search")
+        self.skip_unless_support("search")
         c = self._fixCalendar()
 
         # evr2 is a bi-weekly event starting 2024-04-11
