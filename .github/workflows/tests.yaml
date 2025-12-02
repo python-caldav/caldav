@@ -53,6 +53,34 @@ jobs:
           --health-timeout 5s
           --health-retries 5
           --health-start-period 60s
+      sogo-db:
+        image: mariadb:11
+        env:
+          MYSQL_DATABASE: sogo
+          MYSQL_USER: sogo
+          MYSQL_PASSWORD: sogo
+          MYSQL_ROOT_PASSWORD: sogo
+        options: >-
+          --health-cmd "healthcheck.sh --connect --innodb_initialized"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+          --health-start-period 10s
+      sogo:
+        image: japoch/sogo:latest
+        ports:
+          - 8803:80
+        env:
+          sogo_user: testuser
+          sogo_pass: testpass
+          sogo_name: Test User
+          sogo_fqhn: example.com
+        options: >-
+          --health-cmd "curl -f http://localhost/SOGo/ || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+          --health-start-period 30s
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -183,11 +211,44 @@ jobs:
             docker exec ${{ job.services.cyrus.id }} curl -v http://localhost:8080/ 2>&1 || true
             exit 1
           fi
+      - name: Configure SOGo
+        run: |
+          echo "Configuring SOGo..."
+          # Copy configuration files to SOGo container
+          docker cp tests/docker-test-servers/sogo/sogo.conf ${{ job.services.sogo.id }}:/etc/sogo/sogo.conf
+          docker cp tests/docker-test-servers/sogo/init-sogo-users.sql ${{ job.services.sogo-db.id }}:/tmp/init-sogo-users.sql
+
+          # Initialize database with test user
+          docker exec -i ${{ job.services.sogo-db.id }} mysql -usogo -psogo sogo < tests/docker-test-servers/sogo/init-sogo-users.sql
+
+          # Restart SOGo to pick up configuration
+          docker restart ${{ job.services.sogo.id }}
+
+          # Wait for SOGo to be ready
+          echo "Waiting for SOGo..."
+          if timeout 60 bash -c 'until curl -f http://localhost:8803/SOGo/ 2>/dev/null; do echo -n "."; sleep 2; done'; then
+            echo ""
+            echo "✓ SOGo is ready"
+          else
+            echo ""
+            echo "✗ Error: SOGo did not become ready within 60 seconds"
+            exit 1
+          fi
+
+          # Verify CalDAV access
+          echo "Verifying CalDAV access..."
+          if curl -s -X PROPFIND -H "Depth: 0" -u testuser:testpass http://localhost:8803/SOGo/dav/testuser/Calendar/ 2>/dev/null | grep -qi "multistatus"; then
+            echo "✓ SOGo CalDAV access verified"
+          else
+            echo "✗ Error: SOGo CalDAV access failed"
+            exit 1
+          fi
       - run: tox -e py
         env:
           NEXTCLOUD_URL: http://localhost:8801
           BAIKAL_URL: http://localhost:8800
           CYRUS_URL: http://localhost:8802
+          SOGO_URL: http://localhost:8803
   docs:
     runs-on: ubuntu-latest
     steps:
