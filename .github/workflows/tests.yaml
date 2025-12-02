@@ -75,12 +75,6 @@ jobs:
           sogo_pass: testpass
           sogo_name: Test User
           sogo_fqhn: example.com
-        options: >-
-          --health-cmd "curl -f http://localhost/SOGo/ || exit 1"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-          --health-start-period 30s
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -214,6 +208,9 @@ jobs:
       - name: Configure SOGo
         run: |
           echo "Configuring SOGo..."
+
+          # Wait for SOGo container to start (it won't be healthy yet due to missing DB config)
+          sleep 5
 
           # Get database container hostname
           DB_HOST=$(docker inspect ${{ job.services.sogo-db.id }} --format='{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}')
