@@ -282,7 +282,7 @@ class Principal(DAVObject):
 
     def get_vcal_address(self) -> "vCalAddress":
         """
-        Returns the principal, as an icalendar.vCalAddress object
+        Returns the principal, as an icalendar.vCalAddress object.
         """
         from icalendar import vCalAddress, vText
 
@@ -339,13 +339,13 @@ class Principal(DAVObject):
 
     def calendars(self) -> List["Calendar"]:
         """
-        Return the principials calendars
+        Return the principal's calendars.
         """
         return self.calendar_home_set.calendars()
 
     def freebusy_request(self, dtstart, dtend, attendees):
         """Sends a freebusy-request for some attendee to the server
-        as per RFC6638
+        as per RFC6638.
         """
 
         freebusy_ical = icalendar.Calendar()
@@ -989,7 +989,7 @@ class Calendar(DAVObject):
         sort_key: Optional[str] = None,
     ) -> List["Todo"]:
         """
-        Fetches a list of todo events (this is a wrapper around search)
+        Fetches a list of todo events (this is a wrapper around search).
 
         Args:
           sort_keys: use this field in the VTODO for sorting (iterable of lower case string, i.e. ('priority','due')).
@@ -1041,7 +1041,7 @@ class Calendar(DAVObject):
 
     def event_by_url(self, href, data: Optional[Any] = None) -> "Event":
         """
-        Returns the event with the given URL
+        Returns the event with the given URL.
         """
         return Event(url=href, data=data, parent=self).load()
 
