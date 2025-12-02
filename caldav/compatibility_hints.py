@@ -768,7 +768,7 @@ zimbra = {
     'sync-token': {'support': 'unsupported'},
     'principal-search': {'support': 'unsupported'},
     'save.duplicate-uid.cross-calendar': {'support': 'unsupported', 'behaviour': 'silently-ignored'},
-    
+
     "old_flags": [
     ## apparently, zimbra has no journal support
 
@@ -780,7 +780,6 @@ zimbra = {
     ## anymore)
     'event_by_url_is_broken',
     'no_delete_event',
-    'no_sync_token',
     'vtodo_datesearch_notime_task_is_skipped',
     'no_relships',
 

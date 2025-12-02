@@ -1808,16 +1808,18 @@ END:VCALENDAR
             assert len(some_events) in (0, 2)
         ## substring search not offered => implicit substring search is ignored.
         ## EXCEPT if text search is not offered - then the filtering logic will be done client-side
-        if not self.is_supported("search.text.substring") and self.is_supported("search.text"):
+        if not self.is_supported("search.text.substring") and self.is_supported(
+            "search.text"
+        ):
             assert len(some_events) == 0
         else:
             assert len(some_events) == 2
 
         ## An explicit substring search should always do a substring search
         searcher = CalDAVSearcher(event=True)
-        searcher.add_property_filter('summary', "Bastille Day", "contains")
+        searcher.add_property_filter("summary", "Bastille Day", "contains")
         assert len(searcher.search(c)) == 2
-        
+
         ## Even sorting should work out
         all_events = c.search(sort_keys=("summary", "dtstamp"))
         assert len(all_events) == 3
