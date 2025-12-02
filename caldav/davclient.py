@@ -242,10 +242,10 @@ class DAVResponse:
                 ## expect_xml means text/xml or application/xml
                 ## expect_xml -> raise an error
                 ## anything else (text/plain, text/html, ''),
-                ## log an error and continue
+                ## log an info message and continue (some servers return HTML error pages)
                 if not expect_no_xml or log.level <= logging.DEBUG:
                     if not expect_no_xml:
-                        _log = logging.critical
+                        _log = logging.info
                     else:
                         _log = logging.debug
                         ## The statement below may not be true.
