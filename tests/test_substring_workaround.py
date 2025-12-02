@@ -67,7 +67,7 @@ def test_substring_workaround_only_for_explicit_contains() -> None:
 
     # Create a mock calendar that doesn't support substring search
     calendar = MagicMock()
-    calendar.client.features.is_supported = lambda feature: {
+    calendar.client.features.is_supported = lambda feature, return_type=bool: {
         "search.text.substring": False,
         "search.text.case-sensitive": True,
         "search.text.category": True,
@@ -103,7 +103,7 @@ def test_substring_workaround_applies_for_explicit_contains() -> None:
 
     # Create a mock calendar that doesn't support substring search
     calendar = MagicMock()
-    calendar.client.features.is_supported = lambda feature: {
+    calendar.client.features.is_supported = lambda feature, return_type=bool: {
         "search.text.substring": False,
         "search.text.case-sensitive": True,
         "search.text.category": True,
@@ -144,7 +144,7 @@ def test_mixed_explicit_and_implicit_operators() -> None:
     from unittest.mock import MagicMock
 
     calendar = MagicMock()
-    calendar.client.features.is_supported = lambda feature: {
+    calendar.client.features.is_supported = lambda feature, return_type=bool: {
         "search.text.substring": False,
         "search.text.case-sensitive": True,
         "search.text.category": True,

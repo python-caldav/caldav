@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  bedework:
+    image: ioggstream/bedework:latest
+    container_name: bedework-test
+    ports:
+      - "8804:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/bedework/"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 120s
