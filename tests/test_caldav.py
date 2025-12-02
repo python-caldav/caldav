@@ -1349,7 +1349,7 @@ END:VCALENDAR
         This test is using explicit calls to objects_by_sync_token
         """
         self.skip_on_compatibility_flag("read_only")
-        self.skip_on_compatibility_flag("no_sync_token")
+        self.skip_unless_support("sync-token")
 
         ## Boiler plate ... make a calendar and add some content
         c = self._fixCalendar()
@@ -1369,7 +1369,12 @@ END:VCALENDAR
             c.save_todo(todo3)
             objcnt += 3
 
-        if self.check_compatibility_flag("time_based_sync_tokens"):
+        ## Check if sync tokens are time-based (need sleep(1) between operations)
+        sync_info = self.is_supported("sync-token", return_type=dict)
+        is_time_based = sync_info.get("behaviour") == "time-based"
+        is_fragile = sync_info.get("support") == "fragile"
+
+        if is_time_based:
             time.sleep(1)
 
         ## objects should return all objcnt object.
@@ -1381,31 +1386,31 @@ END:VCALENDAR
         for some_obj in my_objects:
             assert some_obj.data is None
 
-        if self.check_compatibility_flag("time_based_sync_tokens"):
+        if is_time_based:
             time.sleep(1)
 
         ## running sync_token again with the new token should return 0 hits
         my_changed_objects = c.objects_by_sync_token(sync_token=my_objects.sync_token)
-        if not self.check_compatibility_flag("fragile_sync_tokens"):
+        if not is_fragile:
             assert len(list(my_changed_objects)) == 0
 
         ## I was unable to run the rest of the tests towards Google using their legacy caldav API
         self.skip_on_compatibility_flag("no_overwrite")
 
         ## MODIFYING an object
-        if self.check_compatibility_flag("time_based_sync_tokens"):
+        if is_time_based:
             time.sleep(1)
         obj.icalendar_instance.subcomponents[0]["SUMMARY"] = "foobar"
         obj.save()
 
-        if self.check_compatibility_flag("time_based_sync_tokens"):
+        if is_time_based:
             time.sleep(1)
 
         ## The modified object should be returned by the server
         my_changed_objects = c.objects_by_sync_token(
             sync_token=my_changed_objects.sync_token, load_objects=True
         )
-        if self.check_compatibility_flag("fragile_sync_tokens"):
+        if is_fragile:
             assert len(list(my_changed_objects)) >= 1
         else:
             assert len(list(my_changed_objects)) == 1
@@ -1413,7 +1418,7 @@ END:VCALENDAR
         ## this time it should be loaded
         assert list(my_changed_objects)[0].data is not None
 
-        if self.check_compatibility_flag("time_based_sync_tokens"):
+        if is_time_based:
             time.sleep(1)
 
         ## Re-running objects_by_sync_token, and no objects should be returned
@@ -1421,45 +1426,45 @@ END:VCALENDAR
             sync_token=my_changed_objects.sync_token
         )
 
-        if not self.check_compatibility_flag("fragile_sync_tokens"):
+        if not is_fragile:
             assert len(list(my_changed_objects)) == 0
 
         ## ADDING yet another object ... and it should also be reported
-        if self.check_compatibility_flag("time_based_sync_tokens"):
+        if is_time_based:
             time.sleep(1)
         obj3 = c.save_event(ev3)
-        if self.check_compatibility_flag("time_based_sync_tokens"):
+        if is_time_based:
             time.sleep(1)
         my_changed_objects = c.objects_by_sync_token(
             sync_token=my_changed_objects.sync_token
         )
-        if not self.check_compatibility_flag("fragile_sync_tokens"):
+        if not is_fragile:
             assert len(list(my_changed_objects)) == 1
 
-        if self.check_compatibility_flag("time_based_sync_tokens"):
+        if is_time_based:
             time.sleep(1)
 
         ## Re-running objects_by_sync_token, and no objects should be returned
         my_changed_objects = c.objects_by_sync_token(
             sync_token=my_changed_objects.sync_token
         )
-        if not self.check_compatibility_flag("fragile_sync_tokens"):
+        if not is_fragile:
             assert len(list(my_changed_objects)) == 0
 
-        if self.check_compatibility_flag("time_based_sync_tokens"):
+        if is_time_based:
             time.sleep(1)
 
         ## DELETING the object ... and it should be reported
         obj.delete()
-        self.skip_on_compatibility_flag("sync_breaks_on_delete")
-        if self.check_compatibility_flag("time_based_sync_tokens"):
+        self.skip_unless_support("sync-token.delete")
+        if is_time_based:
             time.sleep(1)
         my_changed_objects = c.objects_by_sync_token(
             sync_token=my_changed_objects.sync_token, load_objects=True
         )
-        if not self.check_compatibility_flag("fragile_sync_tokens"):
+        if not is_fragile:
             assert len(list(my_changed_objects)) == 1
-        if self.check_compatibility_flag("time_based_sync_tokens"):
+        if is_time_based:
             time.sleep(1)
         ## even if we have asked for the object to be loaded, data should be None as it's a deleted object
         assert list(my_changed_objects)[0].data is None
@@ -1468,7 +1473,7 @@ END:VCALENDAR
         my_changed_objects = c.objects_by_sync_token(
             sync_token=my_changed_objects.sync_token
         )
-        if not self.check_compatibility_flag("fragile_sync_tokens"):
+        if not is_fragile:
             assert len(list(my_changed_objects)) == 0
 
     def testSync(self):
@@ -1476,8 +1481,13 @@ END:VCALENDAR
         Support for sync-collection reports, ref https://github.com/python-caldav/caldav/issues/87.
         Same test pattern as testObjectBySyncToken, but exercises the .sync() method
         """
-        self.skip_on_compatibility_flag("no_sync_token")
+        self.skip_unless_support("sync-token")
         self.skip_on_compatibility_flag("read_only")
+
+        ## Check if sync tokens are time-based (need sleep(1) between operations)
+        sync_info = self.is_supported("sync-token", return_type=dict)
+        is_time_based = sync_info.get("behaviour") == "time-based"
+        is_fragile = sync_info.get("support") == "fragile"
 
         ## Boiler plate ... make a calendar and add some content
         c = self._fixCalendar()
@@ -1492,13 +1502,13 @@ END:VCALENDAR
         if self.is_supported("save-load.event.recurrences"):
             c.save_event(evr)
             objcnt += 1
-        if not self.is_supported("save-load.todo"):
+        if self.is_supported("save-load.todo"):
             c.save_todo(todo)
             c.save_todo(todo2)
             c.save_todo(todo3)
             objcnt += 3
 
-        if self.check_compatibility_flag("time_based_sync_tokens"):
+        if is_time_based:
             time.sleep(1)
 
         ## objects should return all objcnt object.
@@ -1506,16 +1516,16 @@ END:VCALENDAR
         assert my_objects.sync_token != ""
         assert len(list(my_objects)) == objcnt
 
-        if self.check_compatibility_flag("time_based_sync_tokens"):
+        if is_time_based:
             time.sleep(1)
 
         ## sync() should do nothing
         updated, deleted = my_objects.sync()
-        if not self.check_compatibility_flag("fragile_sync_tokens"):
+        if not is_fragile:
             assert len(list(updated)) == 0
             assert len(list(deleted)) == 0
 
-        if self.check_compatibility_flag("time_based_sync_tokens"):
+        if is_time_based:
             time.sleep(1)
 
         ## I was unable to run the rest of the tests towards Google using their legacy caldav API
@@ -1525,51 +1535,51 @@ END:VCALENDAR
         obj.icalendar_instance.subcomponents[0]["SUMMARY"] = "foobar"
         obj.save()
 
-        if self.check_compatibility_flag("time_based_sync_tokens"):
+        if is_time_based:
             time.sleep(1)
 
         updated, deleted = my_objects.sync()
-        if not self.check_compatibility_flag("fragile_sync_tokens"):
+        if not is_fragile:
             assert len(list(updated)) == 1
             assert len(list(deleted)) == 0
         assert "foobar" in my_objects.objects_by_url()[obj.url].data
 
-        if self.check_compatibility_flag("time_based_sync_tokens"):
+        if is_time_based:
             time.sleep(1)
 
         ## ADDING yet another object ... and it should also be reported
         obj3 = c.save_event(ev3)
 
-        if self.check_compatibility_flag("time_based_sync_tokens"):
+        if is_time_based:
             time.sleep(1)
 
         updated, deleted = my_objects.sync()
-        if not self.check_compatibility_flag("fragile_sync_tokens"):
+        if not is_fragile:
             assert len(list(updated)) == 1
             assert len(list(deleted)) == 0
         assert obj3.url in my_objects.objects_by_url()
 
-        self.skip_on_compatibility_flag("sync_breaks_on_delete")
+        self.skip_unless_support("sync-token.delete")
 
-        if self.check_compatibility_flag("time_based_sync_tokens"):
+        if is_time_based:
             time.sleep(1)
 
         ## DELETING the object ... and it should be reported
         obj.delete()
-        if self.check_compatibility_flag("time_based_sync_tokens"):
+        if is_time_based:
             time.sleep(1)
         updated, deleted = my_objects.sync()
-        if not self.check_compatibility_flag("fragile_sync_tokens"):
+        if not is_fragile:
             assert len(list(updated)) == 0
             assert len(list(deleted)) == 1
         assert not obj.url in my_objects.objects_by_url()
 
-        if self.check_compatibility_flag("time_based_sync_tokens"):
+        if is_time_based:
             time.sleep(1)
 
         ## sync() should do nothing
         updated, deleted = my_objects.sync()
-        if not self.check_compatibility_flag("fragile_sync_tokens"):
+        if not is_fragile:
             assert len(list(updated)) == 0
             assert len(list(deleted)) == 0
 

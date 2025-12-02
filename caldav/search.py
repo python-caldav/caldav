@@ -263,6 +263,7 @@ class CalDAVSearcher(Searcher):
             or "categories" in self._property_filters
             or "category" in self._property_filters
             or not calendar.client.features.is_supported("search.text.case-sensitive")
+            or not calendar.client.features.is_supported("search.time-range.accurate")
         ):
             post_filter = True
 

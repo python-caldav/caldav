@@ -523,26 +523,6 @@ incompatibility_description = {
     'no_delete_event':
         """Zimbra does not support deleting an event, probably because event_by_url is broken""",
 
-    'no_sync_token':
-        """RFC6578 is not supported, things will break if we try to do a sync-token report""",
-
-    'time_based_sync_tokens':
-        """A sync-token report depends on the unix timestamp, """
-        """several syncs on the same second may cause problems, """
-        """so we need to sleep a bit. """
-        """(this is a neligible problem if sync returns too much, but may be """
-        """disasterously if it returns too little). """,
-
-    'fragile_sync_tokens':
-        """Every now and then (or perhaps always), more content than expected """
-        """will be returned on a simple sync request.  Possibly a race condition """
-        """if the token is timstamp-based?""",
-
-    'sync_breaks_on_delete':
-        """I have observed a calendar server (sabre-based) that returned """
-        """418 I'm a teapot """
-        """when requesting updates on a calendar after some calendar resource """
-        """object was deleted""",
 
     'propfind_allprop_failure':
         """The propfind test fails ... """
