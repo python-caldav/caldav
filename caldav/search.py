@@ -281,7 +281,10 @@ class CalDAVSearcher(Searcher):
         things = [f"_property_{thing}" for thing in things]
         if (
             not calendar.client.features.is_supported("search.text.category")
-            and ("categories" in self._property_filters or "category" in self._property_filters)
+            and (
+                "categories" in self._property_filters
+                or "category" in self._property_filters
+            )
             and post_filter is not False
         ):
             replacements = {}

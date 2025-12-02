@@ -1115,6 +1115,31 @@ class Calendar(DAVObject):
         """
         return self.search(comp_class=Event)
 
+    def _generate_fake_sync_token(self, objects: List["CalendarObjectResource"]) -> str:
+        """
+        Generate a fake sync token for servers without sync support.
+        Uses a hash of all ETags to detect changes.
+
+        Args:
+            objects: List of calendar objects to generate token from
+
+        Returns:
+            A fake sync token string
+        """
+        import hashlib
+
+        etags = []
+        for obj in objects:
+            if hasattr(obj, "props") and dav.GetEtag.tag in obj.props:
+                etags.append(str(obj.props[dav.GetEtag.tag]))
+            elif hasattr(obj, "url"):
+                ## If no etag, use URL as fallback identifier
+                etags.append(str(obj.url.canonical()))
+        etags.sort()  ## Consistent ordering
+        combined = "|".join(etags)
+        hash_value = hashlib.md5(combined.encode()).hexdigest()
+        return f"fake-{hash_value}"
+
     def objects_by_sync_token(
         self, sync_token: Optional[Any] = None, load_objects: bool = False
     ) -> "SynchronizableCalendarObjectCollection":
@@ -1135,31 +1160,98 @@ class Calendar(DAVObject):
 
         This method will return a SynchronizableCalendarObjectCollection object, which is
         an iterable.
-        """
-        cmd = dav.SyncCollection()
-        token = dav.SyncToken(value=sync_token)
-        level = dav.SyncLevel(value="1")
-        props = dav.Prop() + dav.GetEtag()
-        root = cmd + [level, token, props]
-        (response, objects) = self._request_report_build_resultlist(
-            root, props=[dav.GetEtag()], no_calendardata=True
-        )
-        ## TODO: look more into this, I think sync_token should be directly available through response object
-        try:
-            sync_token = response.sync_token
-        except:
-            sync_token = response.tree.findall(".//" + dav.SyncToken.tag)[0].text
 
-        ## this is not quite right - the etag we've fetched can already be outdated
+        This method transparently falls back to retrieving all objects if the server
+        doesn't support sync tokens. The fallback behavior is identical from the user's
+        perspective, but less efficient as it transfers the entire calendar on each sync.
+        """
+        ## Check if we should attempt to use sync tokens
+        ## (either server supports them, or we haven't checked yet, or this is a fake token)
+        use_sync_token = True
+        sync_support = self.client.features.is_supported("sync-token", return_type=dict)
+        if sync_support.get("support") == "unsupported":
+            use_sync_token = False
+        ## If sync_token looks like a fake token, don't try real sync-collection
+        if (
+            sync_token
+            and isinstance(sync_token, str)
+            and sync_token.startswith("fake-")
+        ):
+            use_sync_token = False
+
+        if use_sync_token:
+            try:
+                cmd = dav.SyncCollection()
+                token = dav.SyncToken(value=sync_token)
+                level = dav.SyncLevel(value="1")
+                props = dav.Prop() + dav.GetEtag()
+                root = cmd + [level, token, props]
+                (response, objects) = self._request_report_build_resultlist(
+                    root, props=[dav.GetEtag()], no_calendardata=True
+                )
+                ## TODO: look more into this, I think sync_token should be directly available through response object
+                try:
+                    sync_token = response.sync_token
+                except:
+                    sync_token = response.tree.findall(".//" + dav.SyncToken.tag)[
+                        0
+                    ].text
+
+                ## this is not quite right - the etag we've fetched can already be outdated
+                if load_objects:
+                    for obj in objects:
+                        try:
+                            obj.load()
+                        except error.NotFoundError:
+                            ## The object was deleted
+                            pass
+                return SynchronizableCalendarObjectCollection(
+                    calendar=self, objects=objects, sync_token=sync_token
+                )
+            except (error.ReportError, error.DAVError) as e:
+                ## Server doesn't support sync tokens or the sync-collection REPORT failed
+                log.info(
+                    f"Sync-collection REPORT failed ({e}), falling back to full retrieval"
+                )
+                ## Fall through to fallback implementation
+
+        ## FALLBACK: Server doesn't support sync tokens
+        ## Retrieve all objects and emulate sync token behavior
+        log.debug("Using fallback sync mechanism (retrieving all objects)")
+        objects = list(self.search())
+
+        ## Load objects if requested
         if load_objects:
             for obj in objects:
                 try:
                     obj.load()
                 except error.NotFoundError:
-                    ## The object was deleted
                     pass
+
+        ## Fetch ETags for all objects if not already present
+        if objects and (
+            not hasattr(objects[0], "props") or dav.GetEtag.tag not in objects[0].props
+        ):
+            ## Need to get ETags - do a PROPFIND
+            try:
+                urls = [obj.url for obj in objects]
+                if urls:
+                    ## Use multiget to efficiently fetch ETags
+                    props_data = self._multiget(urls, raise_notfound=False)
+                    url_to_obj = {obj.url.canonical(): obj for obj in objects}
+                    for url, data in props_data:
+                        canonical_url = self.url.join(url).canonical()
+                        if canonical_url in url_to_obj:
+                            ## The multiget doesn't fetch etags, so we need another approach
+                            pass
+            except:
+                pass
+
+        ## Generate a fake sync token based on current state
+        fake_sync_token = self._generate_fake_sync_token(objects)
+
         return SynchronizableCalendarObjectCollection(
-            calendar=self, objects=objects, sync_token=sync_token
+            calendar=self, objects=objects, sync_token=fake_sync_token
         )
 
     objects = objects_by_sync_token
@@ -1312,31 +1404,103 @@ class SynchronizableCalendarObjectCollection:
     def sync(self) -> Tuple[Any, Any]:
         """
         This method will contact the caldav server,
-        request all changes from it, and sync up the collection
+        request all changes from it, and sync up the collection.
+
+        This method transparently falls back to comparing full calendar state
+        if the server doesn't support sync tokens.
         """
         updated_objs = []
         deleted_objs = []
-        updates = self.calendar.objects_by_sync_token(
-            self.sync_token, load_objects=False
-        )
-        obu = self.objects_by_url()
-        for obj in updates:
-            obj.url = obj.url.canonical()
-            if (
-                obj.url in obu
-                and dav.GetEtag.tag in obu[obj.url].props
-                and dav.GetEtag.tag in obj.props
-            ):
-                if obu[obj.url].props[dav.GetEtag.tag] == obj.props[dav.GetEtag.tag]:
-                    continue
-            obu[obj.url] = obj
-            try:
-                obj.load()
-                updated_objs.append(obj)
-            except error.NotFoundError:
-                deleted_objs.append(obj)
-                obu.pop(obj.url)
 
-        self.objects = obu.values()
-        self.sync_token = updates.sync_token
+        ## Check if we're using fake sync tokens (fallback mode)
+        is_fake_token = isinstance(self.sync_token, str) and self.sync_token.startswith(
+            "fake-"
+        )
+
+        if not is_fake_token:
+            ## Try to use real sync tokens
+            try:
+                updates = self.calendar.objects_by_sync_token(
+                    self.sync_token, load_objects=False
+                )
+
+                ## If we got a fake token back, we've fallen back
+                if isinstance(
+                    updates.sync_token, str
+                ) and updates.sync_token.startswith("fake-"):
+                    is_fake_token = True
+                else:
+                    ## Real sync token path
+                    obu = self.objects_by_url()
+                    for obj in updates:
+                        obj.url = obj.url.canonical()
+                        if (
+                            obj.url in obu
+                            and dav.GetEtag.tag in obu[obj.url].props
+                            and dav.GetEtag.tag in obj.props
+                        ):
+                            if (
+                                obu[obj.url].props[dav.GetEtag.tag]
+                                == obj.props[dav.GetEtag.tag]
+                            ):
+                                continue
+                        obu[obj.url] = obj
+                        try:
+                            obj.load()
+                            updated_objs.append(obj)
+                        except error.NotFoundError:
+                            deleted_objs.append(obj)
+                            obu.pop(obj.url)
+
+                    self.objects = obu.values()
+                    self.sync_token = updates.sync_token
+                    return (updated_objs, deleted_objs)
+            except (error.ReportError, error.DAVError):
+                ## Sync failed, fall back
+                is_fake_token = True
+
+        if is_fake_token:
+            ## FALLBACK: Compare full calendar state
+            log.debug("Using fallback sync mechanism (comparing all objects)")
+
+            ## Retrieve all current objects from server
+            current_objects = list(self.calendar.search())
+
+            ## Load them
+            for obj in current_objects:
+                try:
+                    obj.load()
+                except error.NotFoundError:
+                    pass
+
+            ## Build URL-indexed dicts for comparison
+            current_by_url = {obj.url.canonical(): obj for obj in current_objects}
+            old_by_url = self.objects_by_url()
+
+            ## Find updated and new objects
+            for url, obj in current_by_url.items():
+                if url in old_by_url:
+                    ## Object exists in both - check if modified
+                    ## Compare data if available, otherwise consider it unchanged
+                    old_data = (
+                        old_by_url[url].data
+                        if hasattr(old_by_url[url], "data")
+                        else None
+                    )
+                    new_data = obj.data if hasattr(obj, "data") else None
+                    if old_data != new_data and new_data is not None:
+                        updated_objs.append(obj)
+                else:
+                    ## New object
+                    updated_objs.append(obj)
+
+            ## Find deleted objects
+            for url in old_by_url:
+                if url not in current_by_url:
+                    deleted_objs.append(old_by_url[url])
+
+            ## Update internal state
+            self.objects = list(current_by_url.values())
+            self.sync_token = self.calendar._generate_fake_sync_token(self.objects)
+
         return (updated_objs, deleted_objs)

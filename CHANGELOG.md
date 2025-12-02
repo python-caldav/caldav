@@ -24,9 +24,11 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 * New dependency on the python-dns package, for RFC6764 discovery.  As far as I understand the SemVer standard, new dependencies can be added without increasing the major version number - but for some scenarios where it's hard to add new dependencies, this may be a breaking change.  This is a well-known package, so the security impact should be low.  This library is only used when doing such a recovery.  If anyone minds this dependency, I can change the project so this becomes an optional dependency.
 * Some code has been split out into a new package - `icalendar-searcher`. so this may also break if you manage the dependencies manually.  This library was written by me, so the security impact is low.
 * Not really breaking as such, but the test suite may now take a lot of time to run.  See the "Test Suite" section below.
+* When using the sync-token API now on servers not supporting sync-token, the full calendar will be fetched on every sync.  The change is intended to be un-breaking, but for people having very big calendars and syncing them to a mobile device with limited memory, bandwidth, CPU and battery, this change may be painful.
 
 ### Changed
 
+* Transparent handling of calendar servers not supporting sync-tokens.  The API will yield the same result, albeit with more bandwidth and memory consumption.
 * I'm still working on "compatibility hints".  Unfortunately, documentation is still missing.  The gist of it:
   * Use `features: posteo` instead of `url: https://posteo.de:8443/` in the connection configuration.
   * Use `features: nextcloud` and `url: my.nextcloud.provider.eu` instead of `url: https://my.nextcloud.provider.eu/remote.php/dav`

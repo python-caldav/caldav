@@ -1819,7 +1819,7 @@ END:VCALENDAR
         ## Explicit substring filter should always work
         searcher = CalDAVSearcher(event=True)
         searcher.add_property_filter("summary", "Bastille Day", "contains")
-        some_events=searcher.search(c)
+        some_events = searcher.search(c)
         assert len(some_events) == 2
 
         ## An explicit substring search should always do a substring search
