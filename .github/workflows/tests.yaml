@@ -222,7 +222,7 @@ jobs:
           docker cp tests/docker-test-servers/sogo/init-sogo-users.sql ${{ job.services.sogo-db.id }}:/tmp/init-sogo-users.sql
 
           # Initialize database with test user
-          docker exec -i ${{ job.services.sogo-db.id }} mysql -usogo -psogo sogo < tests/docker-test-servers/sogo/init-sogo-users.sql
+          docker exec -i ${{ job.services.sogo-db.id }} mariadb -usogo -psogo sogo < tests/docker-test-servers/sogo/init-sogo-users.sql
 
           # Restart SOGo to pick up configuration
           docker restart ${{ job.services.sogo.id }}
