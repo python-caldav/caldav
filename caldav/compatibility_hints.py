@@ -1084,4 +1084,11 @@ gmx = {
     ]
 }
 
+sogo = {
+    "search.time-range.accurate": {
+        "support": "unsupported",
+        "description": "SOGo returns events/todos that fall outside the requested time range. For recurring events, it may return recurrences that start after the search interval ends, or events with no recurrences in the requested range at all."
+    }
+}
+
 # fmt: on

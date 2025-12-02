@@ -1802,6 +1802,7 @@ END:VCALENDAR
 
         some_events = c.search(comp_class=Event, summary="Bastille Day Party")
         assert len(some_events) == 1
+
         some_events = c.search(comp_class=Event, summary="Bastille Day")
         ## fragile substring searches => anything could happen
         if self.is_supported("search.text.substring", str) == "fragile":
@@ -1814,6 +1815,12 @@ END:VCALENDAR
             assert len(some_events) == 0
         else:
             assert len(some_events) == 2
+
+        ## Explicit substring filter should always work
+        searcher = CalDAVSearcher(event=True)
+        searcher.add_property_filter("summary", "Bastille Day", "contains")
+        some_events=searcher.search(c)
+        assert len(some_events) == 2
 
         ## An explicit substring search should always do a substring search
         searcher = CalDAVSearcher(event=True)

@@ -281,13 +281,14 @@ class CalDAVSearcher(Searcher):
         things = [f"_property_{thing}" for thing in things]
         if (
             not calendar.client.features.is_supported("search.text.category")
-            and "categories" in self._property_filters
+            and ("categories" in self._property_filters or "category" in self._property_filters)
             and post_filter is not False
         ):
             replacements = {}
             for thing in things:
                 replacements[thing] = getattr(self, thing).copy()
-                replacements[thing].pop("categories")
+                replacements[thing].pop("categories", None)
+                replacements[thing].pop("category", None)
             clone = replace(self, **replacements)
             objects = clone.search(calendar, server_expand, split_expanded, props, xml)
             return self.filter(objects, post_filter, split_expanded, server_expand)
