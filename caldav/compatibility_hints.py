@@ -110,6 +110,11 @@ class FeatureSet:
         ## stuff that hasn't been moved from the old "quirk list"
         "search.time-range": {
             "description": "Search for time or date ranges should work.  This is specified in RFC4791, section 7.4 and section 9.9"},
+        "search.time-range.accurate": {
+            "description": "Time-range searches should only return events/todos that actually fall within the requested time range. Some servers incorrectly return recurring events whose recurrences fall outside (after) the search interval, or events with no recurrences in the requested time range at all. RFC4791 section 9.9 specifies that a VEVENT component overlaps a time range if the condition (start < search_end AND end > search_start) is true.",
+            "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-9.9"],
+            "default": {"support": "supported"}
+        },
         "search.time-range.todo": {"description": "basic time range searches for tasks works"},
         "search.time-range.event": {"description": "basic time range searches for event works"},
         "search.time-range.journal": {"description": "basic time range searches for journal works"},
@@ -476,10 +481,6 @@ class FeatureSet:
 ## * Perhaps some more readable format should be considered (yaml?).
 ## * Consider how to get this into the documentation
 incompatibility_description = {
-
-    'inaccurate_datesearch':
-        """A date search may yield results outside the search interval""",
-
     'no_current-user-principal':
         """Current user principal not supported by the server (flag is ignored by the tests as for now - pass the principal URL as the testing URL and it will work, albeit with one warning""",
 
@@ -631,9 +632,6 @@ incompatibility_description = {
 
     'robur_rrule_freq_yearly_expands_monthly':
         """Robur expands a yearly event into a monthly event.  I believe I've reported this one upstream at some point, but can't find back to it""",
-
-    'no_search':
-        """Apparently the calendar server does not support search at all (this often implies that 'object_by_uid_is_broken' has to be set as well)""",
 
     'no_search_openended':
         """An open-ended search will not work""",
@@ -908,6 +906,48 @@ davical = {
         'calendar_order',
         'vtodo_datesearch_notime_task_is_skipped',
     ]
+}
+
+sogo = {
+    "search.time-range.accurate": {
+        "support": "unsupported",
+        "description": "SOGo returns events/todos that fall outside the requested time range. For recurring events, it may return recurrences that start after the search interval ends, or events with no recurrences in the requested range at all."
+    },
+    "search.time-range.alarm": {
+        "support": "unsupported"
+    },
+    "search.time-range.event": {
+        "support": "unsupported"
+    },
+    "search.time-range.todo": {
+        "support": "unsupported"
+    },
+    "search.text": {
+        "support": "unsupported"
+    },
+    "search.is-not-defined": {
+        "support": "unsupported"
+    },
+    "search.comp-type-optional": {
+        "support": "ungraceful"
+    },
+    "search.recurrences.includes-implicit.todo": {
+        "support": "unsupported"
+    },
+    "search.recurrences.includes-implicit.infinite-scope": {
+        "support": "unsupported"
+    },
+    "sync-token": {
+        "support": "fragile"
+    },
+    "search.recurrences.expanded": {
+        "support": "unsupported"
+    },
+    "principal-search": {
+        "support": "ungraceful",
+        "behaviour": "Search by name failed: ReportError at '501 Not Implemented - <?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\n<body><h3>An error occurred during object publishing</h3><p>did not find the specified REPORT</p></body>\n</html>\n', reason no reason",
+    },
+
 }
 
 #google = [

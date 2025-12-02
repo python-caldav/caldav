@@ -903,12 +903,15 @@ class RepeatedFunctionalTestsBaseClass:
                 self.calendars_used.append(ret)
             return ret
 
-    def testCheckCompatibility(self):
+    def testCheckCompatibility(self, request) -> None:
         try:
             from caldav_server_tester import ServerQuirkChecker
         except:
             pytest.skip("caldav_server_tester is not installed")
-        checker = ServerQuirkChecker(self.caldav, debug_mode="pdb")
+
+        # Use pdb debug mode if pytest was run with --pdb, otherwise use logging
+        debug_mode = "pdb" if request.config.option.usepdb else "logging"
+        checker = ServerQuirkChecker(self.caldav, debug_mode=debug_mode)
         checker.check_all()
 
         ## TODO: I think the compact view now strips out some client-side behaviour.
@@ -2491,7 +2494,6 @@ END:VCALENDAR
         # bedeworks does not support VTODO
         self.skip_on_compatibility_flag("no_todo")
         self.skip_unless_support("search.time-range.todo")
-        self.skip_on_compatibility_flag("no_search")
         c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
 
         # add todo-item
