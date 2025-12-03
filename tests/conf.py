@@ -609,7 +609,9 @@ if test_bedework is None:
         test_bedework = _verify_docker()
 
 if test_bedework:
-    bedework_base_url = os.environ.get("BEDEWORK_URL", f"http://{bedework_host}:{bedework_port}")
+    bedework_base_url = os.environ.get(
+        "BEDEWORK_URL", f"http://{bedework_host}:{bedework_port}"
+    )
     # Bedework CalDAV path includes the username
     bedework_username = os.environ.get("BEDEWORK_USERNAME", "vbede")
     bedework_password = os.environ.get("BEDEWORK_PASSWORD", "bedework")
