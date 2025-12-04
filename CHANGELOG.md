@@ -16,7 +16,11 @@ Changelogs prior to v1.2 is pruned, but available in the v1.2 release
 
 This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html), though some earlier releases may be incompatible with the SemVer standard.
 
-## [Unreleased]
+## [2.2.1] - [2025-12-04]
+
+2.2.0 is released with requests support, 2.2.1 with niquests support.
+
+## [2.2.0] - [2025-12-04]
 
 Highlights:
 
