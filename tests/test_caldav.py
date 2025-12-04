@@ -1356,9 +1356,13 @@ END:VCALENDAR
         assert my_objects.sync_token != ""
         assert len(list(my_objects)) == objcnt
 
-        ## They should not be loaded.
-        for some_obj in my_objects:
-            assert some_obj.data is None
+        ## They should not be loaded (unless using fallback fake tokens).
+        ## Fake tokens are used when the server doesn't support sync-collection,
+        ## and in that case objects will have data because search() loads them.
+        is_using_fallback = my_objects.sync_token.startswith("fake-")
+        if not is_using_fallback:
+            for some_obj in my_objects:
+                assert some_obj.data is None
 
         if is_time_based:
             time.sleep(1)

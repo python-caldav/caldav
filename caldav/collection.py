@@ -1229,15 +1229,20 @@ class Calendar(DAVObject):
         ## FALLBACK: Server doesn't support sync tokens
         ## Retrieve all objects and emulate sync token behavior
         log.debug("Using fallback sync mechanism (retrieving all objects)")
+
+        ## Use search() to get all objects. search() will include CalendarData by default.
+        ## We can't avoid this in the fallback mechanism without significant refactoring.
         objects = list(self.search())
 
-        ## Load objects if requested
+        ## Load objects if requested (objects may already have data from search)
         if load_objects:
             for obj in objects:
-                try:
-                    obj.load()
-                except error.NotFoundError:
-                    pass
+                ## Only load if not already loaded
+                if not hasattr(obj, "_data") or obj._data is None:
+                    try:
+                        obj.load()
+                    except error.NotFoundError:
+                        pass
 
         ## Fetch ETags for all objects if not already present
         if objects and (
@@ -1463,7 +1468,8 @@ class SynchronizableCalendarObjectCollection:
                             deleted_objs.append(obj)
                             obu.pop(obj.url)
 
-                    self.objects = obu.values()
+                    self.objects = list(obu.values())
+                    self._objects_by_url = None  ## Invalidate cache
                     self.sync_token = updates.sync_token
                     return (updated_objs, deleted_objs)
             except (error.ReportError, error.DAVError):
@@ -1512,6 +1518,7 @@ class SynchronizableCalendarObjectCollection:
 
             ## Update internal state
             self.objects = list(current_by_url.values())
+            self._objects_by_url = None  ## Invalidate cache
             self.sync_token = self.calendar._generate_fake_sync_token(self.objects)
 
         return (updated_objs, deleted_objs)
