@@ -3281,22 +3281,23 @@ END:VCALENDAR
             asserts_on_results.append(rs)
 
         for r in asserts_on_results:
-            assert isinstance(
-                r[0].icalendar_component["RECURRENCE-ID"], icalendar.vDDDTypes
-            )
+            # Check that we have two recurrence instances with correct dates
+            # Order is not guaranteed by the spec, so collect the dates and verify both are present
+            recurrence_ids = []
+            for event in r:
+                assert isinstance(
+                    event.icalendar_component["RECURRENCE-ID"], icalendar.vDDDTypes
+                )
+                ## TODO: xandikos returns a datetime without a tzinfo, radicale returns a datetime with tzinfo=UTC, but perhaps other calendar servers returns the timestamp converted to localtime?
+                recurrence_ids.append(
+                    event.icalendar_component["RECURRENCE-ID"].dt.replace(tzinfo=None)
+                )
 
-            ## TODO: xandikos returns a datetime without a tzinfo, radicale returns a datetime with tzinfo=UTC, but perhaps other calendar servers returns the timestamp converted to localtime?
-
-            assert r[0].icalendar_component["RECURRENCE-ID"].dt.replace(
-                tzinfo=None
-            ) == datetime(2024, 4, 11, 12, 30, 00)
-
-            assert isinstance(
-                r[1].icalendar_component["RECURRENCE-ID"], icalendar.vDDDTypes
-            )
-            assert r[1].icalendar_component["RECURRENCE-ID"].dt.replace(
-                tzinfo=None
-            ) == datetime(2024, 4, 25, 12, 30, 00)
+            # Verify we have both expected recurrence instances (order-independent)
+            assert set(recurrence_ids) == {
+                datetime(2024, 4, 11, 12, 30, 0),
+                datetime(2024, 4, 25, 12, 30, 0),
+            }
 
     def testEditSingleRecurrence(self):
         """
