@@ -1347,7 +1347,12 @@ END:VCALENDAR
         sync_info = self.is_supported("sync-token", return_type=dict)
         is_time_based = sync_info.get("behaviour") == "time-based"
         ## Consider the client-side fake sync-tokens and etag stuff to be fragile
-        is_fragile = sync_info.get("support") in ("fragile", "broken", "unsupported", "ungraceful")
+        is_fragile = sync_info.get("support") in (
+            "fragile",
+            "broken",
+            "unsupported",
+            "ungraceful",
+        )
 
         if is_time_based:
             time.sleep(1)
@@ -1466,7 +1471,12 @@ END:VCALENDAR
         sync_info = self.is_supported("sync-token", return_type=dict)
         is_time_based = sync_info.get("behaviour") == "time-based"
         ## Consider the client-side fake sync-tokens and etag stuff to be fragile
-        is_fragile = sync_info.get("support") in ("fragile", "broken", "unsupported", "ungraceful")
+        is_fragile = sync_info.get("support") in (
+            "fragile",
+            "broken",
+            "unsupported",
+            "ungraceful",
+        )
 
         ## Boiler plate ... make a calendar and add some content
         c = self._fixCalendar()

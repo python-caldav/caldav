@@ -1247,7 +1247,8 @@ class Calendar(DAVObject):
         ## Fetch ETags for all objects if not already present
         ## ETags are crucial for detecting changes in the fallback mechanism
         if all_objects and (
-            not hasattr(all_objects[0], "props") or dav.GetEtag.tag not in all_objects[0].props
+            not hasattr(all_objects[0], "props")
+            or dav.GetEtag.tag not in all_objects[0].props
         ):
             ## Use PROPFIND to fetch ETags for all objects
             try:
@@ -1275,7 +1276,11 @@ class Calendar(DAVObject):
         fake_sync_token = self._generate_fake_sync_token(all_objects)
 
         ## If a sync_token was provided, check if anything has changed
-        if sync_token and isinstance(sync_token, str) and sync_token.startswith("fake-"):
+        if (
+            sync_token
+            and isinstance(sync_token, str)
+            and sync_token.startswith("fake-")
+        ):
             ## Compare the provided token with the new token
             if sync_token == fake_sync_token:
                 ## Nothing has changed, return empty collection
