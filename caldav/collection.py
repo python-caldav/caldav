@@ -976,7 +976,6 @@ class Calendar(DAVObject):
             ## those arguments:
             kwargs2 = {
                 "include_completed": include_completed,
-                "sort_reverse": sort_reverse,
                 "expand": expand,
                 "server_expand": server_expand,
                 "split_expanded": split_expanded,
@@ -1012,7 +1011,7 @@ class Calendar(DAVObject):
                     return self.search(
                         sort_keys=sort_keys,
                         sort_reverse=sort_reverse,
-                        *kwargs2,
+                        **kwargs2,
                         **kwargs,
                     )
                 raise
