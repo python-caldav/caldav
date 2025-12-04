@@ -163,7 +163,9 @@ def _auto_url(
 
     # Fall back to feature-based URL construction
     url_hints = features.is_supported("auto-connect.url", dict)
-    if not url and "domain" in url_hints:
+    # If URL is still empty or looks like an email (from failed discovery attempt),
+    # replace it with the domain from hints
+    if (not url or (url and "@" in str(url))) and "domain" in url_hints:
         url = url_hints["domain"]
     url = f"{url_hints.get('scheme', 'https')}://{url}{url_hints.get('basepath', '')}"
     return (url, None)

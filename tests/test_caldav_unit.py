@@ -1517,3 +1517,38 @@ END:VCALENDAR
                 "basic",
                 "digest",
             }
+
+    def testAutoUrlEcloudWithEmailUsername(self) -> None:
+        """
+        Test that auto-connect URL construction works correctly for ecloud
+        when username is an email address and no URL is provided.
+
+        Bug: When username is "tobixen@e.email" and no URL is provided,
+        the auto-connect logic should use the domain from the ecloud hints
+        (ecloud.global) rather than treating the username as a URL.
+
+        Expected URL: https://ecloud.global/remote.php/dav
+
+        The bug occurs when RFC6764 discovery is enabled (default behavior):
+        1. Line 133-135 sets url = username for discovery
+        2. RFC6764 discovery fails for the invalid email-as-domain
+        3. Fallback logic (line 166-167) doesn't replace url with domain from hints
+           because url is no longer empty
+        4. Result: https://tobixen@e.email/remote.php/dav (wrong!)
+           Should be: https://ecloud.global/remote.php/dav
+        """
+        from caldav.davclient import _auto_url
+        from caldav.compatibility_hints import ecloud
+
+        # Test with email username and no URL - should use ecloud domain from hints
+        # RFC6764 is enabled by default, which triggers the bug
+        url, discovered_username = _auto_url(
+            url=None,
+            username="tobixen@e.email",
+            features=ecloud,
+            enable_rfc6764=True,  # Default behavior - this triggers the bug
+        )
+
+        assert url == "https://ecloud.global/remote.php/dav", \
+            f"Expected 'https://ecloud.global/remote.php/dav', got '{url}'"
+        assert discovered_username is None
