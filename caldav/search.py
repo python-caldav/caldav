@@ -401,18 +401,19 @@ class CalDAVSearcher(Searcher):
             ## further down.  We leave server_expand as it is, though.
             clone.expand = False
             if (
-                    calendar.client.features.is_supported(
-                        'search.text') and
-                    calendar.client.features.is_supported(
-                        "search.combined-is-logical-and"
-                    ) and (
-                not calendar.client.features.is_supported(
-                    "search.recurrences.includes-implicit.todo"
+                calendar.client.features.is_supported("search.text")
+                and calendar.client.features.is_supported(
+                    "search.combined-is-logical-and"
                 )
-                or calendar.client.features.is_supported(
-                    "search.recurrences.includes-implicit.todo.pending"
+                and (
+                    not calendar.client.features.is_supported(
+                        "search.recurrences.includes-implicit.todo"
+                    )
+                    or calendar.client.features.is_supported(
+                        "search.recurrences.includes-implicit.todo.pending"
+                    )
                 )
-            )):
+            ):
                 matches = []
                 for hacks in (
                     "ignore_completed1",

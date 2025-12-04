@@ -1141,8 +1141,10 @@ class Calendar(DAVObject):
         return f"fake-{hash_value}"
 
     def objects_by_sync_token(
-        self, sync_token: Optional[Any] = None, load_objects: bool = False,
-        disable_fallback: bool = False
+        self,
+        sync_token: Optional[Any] = None,
+        load_objects: bool = False,
+        disable_fallback: bool = False,
     ) -> "SynchronizableCalendarObjectCollection":
         """objects_by_sync_token aka objects
 

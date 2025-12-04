@@ -921,7 +921,7 @@ class RepeatedFunctionalTestsBaseClass:
         for feature in set(observed.keys()).union(set(expected.keys())):
             observation = fo.is_supported(feature, str)
             expectation = fe.is_supported(feature, str)
-            if 'fragile' in (observation, expectation):
+            if "fragile" in (observation, expectation):
                 continue
             type_ = fo.find_feature(feature).get("type", "server-feature")
             if type_ in (
@@ -929,10 +929,12 @@ class RepeatedFunctionalTestsBaseClass:
                 "server-observation",
                 "tests-behaviour",
                 "client-hints",
-                'server-peculiarity'
+                "server-peculiarity",
             ):
                 continue
-            assert (expectation == observation), f"expectation is {expectation}, observation is {observation} for {feature}"
+            assert (
+                expectation == observation
+            ), f"expectation is {expectation}, observation is {observation} for {feature}"
 
     def testSupport(self):
         """
@@ -3304,7 +3306,7 @@ END:VCALENDAR
         event.
         """
         self.skip_unless_support("search.recurrences.includes-implicit.event")
-        
+
         ## TODO TODO TODO ... gross hack just to skip this test on bedework.
         ## The test fails on bedework, the edit does not go through
         ## I don't want to spend time on research into bedework or more special
