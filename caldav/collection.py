@@ -1232,11 +1232,11 @@ class Calendar(DAVObject):
 
         ## Use search() to get all objects. search() will include CalendarData by default.
         ## We can't avoid this in the fallback mechanism without significant refactoring.
-        objects = list(self.search())
+        all_objects = list(self.search())
 
         ## Load objects if requested (objects may already have data from search)
         if load_objects:
-            for obj in objects:
+            for obj in all_objects:
                 ## Only load if not already loaded
                 if not hasattr(obj, "_data") or obj._data is None:
                     try:
@@ -1245,29 +1245,49 @@ class Calendar(DAVObject):
                         pass
 
         ## Fetch ETags for all objects if not already present
-        if objects and (
-            not hasattr(objects[0], "props") or dav.GetEtag.tag not in objects[0].props
+        ## ETags are crucial for detecting changes in the fallback mechanism
+        if all_objects and (
+            not hasattr(all_objects[0], "props") or dav.GetEtag.tag not in all_objects[0].props
         ):
-            ## Need to get ETags - do a PROPFIND
+            ## Use PROPFIND to fetch ETags for all objects
             try:
-                urls = [obj.url for obj in objects]
-                if urls:
-                    ## Use multiget to efficiently fetch ETags
-                    props_data = self._multiget(urls, raise_notfound=False)
-                    url_to_obj = {obj.url.canonical(): obj for obj in objects}
-                    for url, data in props_data:
-                        canonical_url = self.url.join(url).canonical()
-                        if canonical_url in url_to_obj:
-                            ## The multiget doesn't fetch etags, so we need another approach
-                            pass
-            except:
+                ## Do a depth-1 PROPFIND on the calendar to get all ETags
+                response = self._query_properties([dav.GetEtag()], depth=1)
+                etag_props = response.expand_simple_props([dav.GetEtag()])
+
+                ## Map ETags to objects by URL (using string keys for reliable comparison)
+                url_to_obj = {str(obj.url.canonical()): obj for obj in all_objects}
+                log.debug(f"Fallback: Fetching ETags for {len(url_to_obj)} objects")
+                for url_str, props in etag_props.items():
+                    canonical_url_str = str(self.url.join(url_str).canonical())
+                    if canonical_url_str in url_to_obj:
+                        if not hasattr(url_to_obj[canonical_url_str], "props"):
+                            url_to_obj[canonical_url_str].props = {}
+                        url_to_obj[canonical_url_str].props.update(props)
+                        log.debug(f"Fallback: Added ETag to {canonical_url_str}")
+            except Exception as e:
+                ## If fetching ETags fails, we'll fall back to URL-based tokens
+                ## which can't detect content changes, only additions/deletions
+                log.debug(f"Failed to fetch ETags for fallback sync: {e}")
                 pass
 
         ## Generate a fake sync token based on current state
-        fake_sync_token = self._generate_fake_sync_token(objects)
+        fake_sync_token = self._generate_fake_sync_token(all_objects)
+
+        ## If a sync_token was provided, check if anything has changed
+        if sync_token and isinstance(sync_token, str) and sync_token.startswith("fake-"):
+            ## Compare the provided token with the new token
+            if sync_token == fake_sync_token:
+                ## Nothing has changed, return empty collection
+                return SynchronizableCalendarObjectCollection(
+                    calendar=self, objects=[], sync_token=fake_sync_token
+                )
+            ## If tokens differ, return all objects (emulating a full sync)
+            ## In a real implementation, we'd return only changed objects,
+            ## but that requires storing previous state which we don't have
 
         return SynchronizableCalendarObjectCollection(
-            calendar=self, objects=objects, sync_token=fake_sync_token
+            calendar=self, objects=all_objects, sync_token=fake_sync_token
         )
 
     objects = objects_by_sync_token

@@ -546,12 +546,6 @@ incompatibility_description = {
         """it asserts DAV:allprop response contains the text 'resourcetype', """
         """possibly this assert is wrong""",
 
-    'no_todo':
-        """Support for VTODO (tasks) apparently missing""",
-
-    'no_todo_on_standard_calendar':
-        """Tasklists can be created, but a normal calendar does not support tasks""",
-
     'vtodo_datesearch_nodtstart_task_is_skipped':
         """date searches for todo-items will not find tasks without a dtstart""",
 

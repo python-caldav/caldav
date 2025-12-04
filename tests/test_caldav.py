@@ -1329,7 +1329,7 @@ END:VCALENDAR
         c = self._fixCalendar()
         objcnt = 0
         ## in case we need to reuse an existing calendar ...
-        if not self.check_compatibility_flag("no_todo"):
+        if self.is_supported("save-load.todo.mixed-calendar"):
             objcnt += len(c.todos())
         objcnt += len(c.events())
         obj = c.save_event(ev1)
@@ -1337,7 +1337,7 @@ END:VCALENDAR
         if self.is_supported("save-load.event.recurrences"):
             c.save_event(evr)
             objcnt += 1
-        if self.is_supported("save-load.todo"):
+        if self.is_supported("save-load.todo.mixed-calendar"):
             c.save_todo(todo)
             c.save_todo(todo2)
             c.save_todo(todo3)
@@ -1346,7 +1346,8 @@ END:VCALENDAR
         ## Check if sync tokens are time-based (need sleep(1) between operations)
         sync_info = self.is_supported("sync-token", return_type=dict)
         is_time_based = sync_info.get("behaviour") == "time-based"
-        is_fragile = sync_info.get("support") == "fragile"
+        ## Consider the client-side fake sync-tokens and etag stuff to be fragile
+        is_fragile = sync_info.get("support") in ("fragile", "broken", "unsupported", "ungraceful")
 
         if is_time_based:
             time.sleep(1)
@@ -1464,14 +1465,15 @@ END:VCALENDAR
         ## Check if sync tokens are time-based (need sleep(1) between operations)
         sync_info = self.is_supported("sync-token", return_type=dict)
         is_time_based = sync_info.get("behaviour") == "time-based"
-        is_fragile = sync_info.get("support") == "fragile"
+        ## Consider the client-side fake sync-tokens and etag stuff to be fragile
+        is_fragile = sync_info.get("support") in ("fragile", "broken", "unsupported", "ungraceful")
 
         ## Boiler plate ... make a calendar and add some content
         c = self._fixCalendar()
 
         objcnt = 0
         ## in case we need to reuse an existing calendar ...
-        if not self.check_compatibility_flag("no_todo"):
+        if self.is_supported("save-load.todo.mixed-calendar"):
             objcnt += len(c.todos())
         objcnt += len(c.events())
         obj = c.save_event(ev1)
@@ -1479,7 +1481,7 @@ END:VCALENDAR
         if self.is_supported("save-load.event.recurrences"):
             c.save_event(evr)
             objcnt += 1
-        if self.is_supported("save-load.todo"):
+        if self.is_supported("save-load.todo.mixed-calendar"):
             c.save_todo(todo)
             c.save_todo(todo2)
             c.save_todo(todo3)
@@ -2815,7 +2817,7 @@ END:VCALENDAR
         events = c.events()
 
         # no todos should be added
-        if not self.check_compatibility_flag("no_todo"):
+        if self.is_supported("save-load.todo"):
             todos = c.todos()
             assert len(todos) == 0
 
