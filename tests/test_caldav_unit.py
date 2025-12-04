@@ -1549,6 +1549,7 @@ END:VCALENDAR
             enable_rfc6764=True,  # Default behavior - this triggers the bug
         )
 
-        assert url == "https://ecloud.global/remote.php/dav", \
-            f"Expected 'https://ecloud.global/remote.php/dav', got '{url}'"
+        assert (
+            url == "https://ecloud.global/remote.php/dav"
+        ), f"Expected 'https://ecloud.global/remote.php/dav', got '{url}'"
         assert discovered_username is None

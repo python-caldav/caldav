@@ -213,7 +213,7 @@ class FeatureSet:
         "save": {},
         "save.duplicate-uid": {},
         "save.duplicate-uid.cross-calendar": {
-            "description": "Server allows events with the same UID to exist in different calendars and treats them as separate entities. Support can be 'full' (allowed), 'ungraceful' (rejected with error), or 'unsupported' (silently ignored). Behaviour 'silently-ignored' means the duplicate is not saved but no error is thrown"
+            "description": "Server allows events with the same UID to exist in different calendars and treats them as separate entities. Support can be 'full' (allowed), 'ungraceful' (rejected with error), or 'unsupported' (silently ignored or moved). Behaviour 'silently-ignored' means the duplicate is not saved but no error is thrown. Behaviour 'moved-instead-of-copied' means the event is moved from the original calendar to the new calendar (Zimbra behavior)"
         },
         ## TODO: as for now, the tests will run towards the first calendar it will find, and most of the tests will assume the calendar is empty.  This is bad.
         "test-calendar": {
@@ -772,13 +772,14 @@ zimbra = {
     'save-load.todo.recurrences.count': {'support': 'unsupported'}, ## This is a new problem?
     'save-load.journal': "ungraceful",
     'search.is-not-defined': {'support': 'unsupported'},
+    #'search.text': 'unsupported', ## weeeird ... it wasn't like this before
     'search.text.substring': {'support': 'unsupported'},
     'search.text.category': {'support': 'ungraceful'},
     'search.is-not-defined':  {'support': 'unsupported'},
     'search.recurrences.expanded.todo': { "support": "unsupported" },
     'search.comp-type-optional': {'support': 'fragile'}, ## TODO: more research on this, looks like a bug in the checker,
     'search.time-range.alarm': {'support': 'unsupported'},
-    #'sync-token': {'support': 'unsupported'},
+    'sync-token': {'support': 'unsupported'},
     'principal-search': "ungraceful",
     'save.duplicate-uid.cross-calendar': {'support': 'unsupported', "behaviour": "moved-instead-of-copied" },
 
@@ -859,6 +860,9 @@ bedework = {
         "support": "fragile"
     },
     ## Check results are non-deterministic!?
+    "search.recurrences.expanded.exception": {
+        "support": "unsupported"
+    },
     "search.recurrences.expanded.event": {
         "support": "unsupported"
     },
@@ -1049,7 +1053,7 @@ robur = {
         'domain': 'calendar.robur.coop',
         'basepath': '/principals/', # TODO: this seems fishy
     },
-    "save-load.journal": { "support": "unsupported" },
+    "save-load.journal": { "support": "ungraceful" },
     "delete-calendar": { "support": "fragile" },
     "search.is-not-defined": { "support": "unsupported" },
     "search.time-range.todo": { "support": "unsupported" },
