@@ -163,7 +163,9 @@ def _auto_url(
 
     # Fall back to feature-based URL construction
     url_hints = features.is_supported("auto-connect.url", dict)
-    if not url and "domain" in url_hints:
+    # If URL is still empty or looks like an email (from failed discovery attempt),
+    # replace it with the domain from hints
+    if (not url or (url and "@" in str(url))) and "domain" in url_hints:
         url = url_hints["domain"]
     url = f"{url_hints.get('scheme', 'https')}://{url}{url_hints.get('basepath', '')}"
     return (url, None)
@@ -242,10 +244,10 @@ class DAVResponse:
                 ## expect_xml means text/xml or application/xml
                 ## expect_xml -> raise an error
                 ## anything else (text/plain, text/html, ''),
-                ## log an error and continue
+                ## log an info message and continue (some servers return HTML error pages)
                 if not expect_no_xml or log.level <= logging.DEBUG:
                     if not expect_no_xml:
-                        _log = logging.critical
+                        _log = logging.info
                     else:
                         _log = logging.debug
                         ## The statement below may not be true.

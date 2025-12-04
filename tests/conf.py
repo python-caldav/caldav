@@ -254,7 +254,7 @@ def _start_or_stop_server(name, action, timeout=60):
 
 ## wrapper
 def _conf_method(name, action):
-    return lambda self: _start_or_stop_server(name, action)
+    return lambda: _start_or_stop_server(name, action)
 
 
 def _add_conf(name, url, username, password, extra_params={}):
@@ -595,6 +595,47 @@ if test_sogo:
     _is_accessible_funcs["sogo"] = is_sogo_accessible
 
     _add_conf("SOGo", sogo_url, sogo_username, sogo_password)
+
+## Bedework - Docker container with JBoss
+# Bedework configuration
+bedework_host = _import_from_private("bedework_host", default="localhost")
+bedework_port = _import_from_private("bedework_port", default=8804)
+test_bedework = _import_from_private("test_bedework")
+if test_bedework is None:
+    # Auto-enable if BEDEWORK_URL is set OR if docker-compose is available
+    if os.environ.get("BEDEWORK_URL") is not None:
+        test_bedework = True
+    else:
+        test_bedework = _verify_docker()
+
+if test_bedework:
+    bedework_base_url = os.environ.get(
+        "BEDEWORK_URL", f"http://{bedework_host}:{bedework_port}"
+    )
+    # Bedework CalDAV path includes the username
+    bedework_username = os.environ.get("BEDEWORK_USERNAME", "vbede")
+    bedework_password = os.environ.get("BEDEWORK_PASSWORD", "bedework")
+    bedework_url = f"{bedework_base_url}/ucaldav/user/{bedework_username}/"
+
+    def is_bedework_accessible() -> bool:
+        """Check if Bedework CalDAV server is accessible and working."""
+        try:
+            # Test actual CalDAV access, not just HTTP server
+            response = requests.request(
+                "PROPFIND",
+                f"{bedework_url}",
+                auth=(bedework_username, bedework_password),
+                headers={"Depth": "0"},
+                timeout=5,
+            )
+            # 207 Multi-Status means CalDAV is working
+            return response.status_code in (200, 207)
+        except Exception:
+            return False
+
+    _is_accessible_funcs["bedework"] = is_bedework_accessible
+
+    _add_conf("Bedework", bedework_url, bedework_username, bedework_password)
 
 
 ###################################################################

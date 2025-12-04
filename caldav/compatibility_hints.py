@@ -103,11 +103,18 @@ class FeatureSet:
         "save-load.todo.recurrences.count": {"description": "The server will receive and store a recurring task with a count set in the RRULE"},
         "save-load.todo.mixed-calendar": {"description": "The same calendar may contain both events and tasks (Zimbra only allows tasks to be placed on special task lists)"},
         "save-load.journal": {"description": "The server will even accept journals"},
+        "save-load.event.timezone": {
+            "description": "The server accepts events with non-UTC timezone information. When unsupported or broken, the server may reject events with timezone data (e.g., return 403 Forbidden). Related to GitHub issue https://github.com/python-caldav/caldav/issues/372."
+        },
         "search": {
             "description": "calendar MUST support searching for objects using the REPORT method, as specified in RFC4791, section 7"
         },
         "search.comp-type-optional": {
             "description": "In all the search examples in the RFC, comptype is given during a search, the client specifies if it's event or tasks or journals that is wanted.  However, as I read the RFC this is not required.  If omitted, the server should deliver all objects.  Many servers will not return anything if the COMPTYPE filter is not set.  Other servers will return 404"
+        },
+        "search.comp-type": {
+            "description": "Server correctly filters calendar-query results by component type. When 'broken', server may misclassify component types (e.g., returning TODOs when VEVENTs are requested). The library will perform client-side filtering to work around this issue",
+            "default": {"support": "full"}
         },
         ## TODO - there is still quite a lot of search-related
         ## stuff that hasn't been moved from the old "quirk list"
@@ -140,6 +147,9 @@ class FeatureSet:
             "description": "Search for category should work.  This is not explicitly specified in RFC4791, but covered in section 9.7.5.  No examples targets categories explicitly, but there are some text match examples in section 7.8.6 and following sections"},
         "search.text.category.substring": {
             "description": "Substring search for category should work according to the RFC.  I.e., search for mil should match family,finance",
+        },
+        "search.text.by-uid": {
+            "description": "The server supports searching for objects by UID property. When unsupported, calendar.object_by_uid(uid) will not work.  This may be removed in the feature - the checker-script is not checking the right thing (check TODO-comments), probably search by uid is no special case for any server implementations"
         },
         "search.recurrences": {
             "description": "Support for recurrences in search"
@@ -183,11 +193,10 @@ class FeatureSet:
         "sync-token.delete": {
             "description": "Server correctly handles sync-collection reports after objects have been deleted from the calendar (solved in Nextcloud in https://github.com/nextcloud/server/pull/44130)"
         },
-        'freebusy-query': {'description': "freebusy queries come in two flavors, one query can be done towards a CalDAV server as defined in RFC4791, another query can be done through the scheduling framework, RFC 5538.  Only RFC4791 is tested for as today"},
+        'freebusy-query': {'description': "freebusy queries come in two flavors, one query can be done towards a CalDAV server as defined in RFC4791, another query can be done through the scheduling framework, RFC 6638.  Only RFC4791 is tested for as today"},
         "freebusy-query.rfc4791": {
             "description": "Server supports free/busy-query REPORT as specified in RFC4791 section 7.10. The REPORT allows clients to query for free/busy time information for a time range. Servers without this support will typically return an error (often 500 Internal Server Error or 501 Not Implemented). Note: RFC6638 defines a different freebusy mechanism for scheduling",
             "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-7.10"],
-            "default": {"support": "supported"}
         },
         "principal-search": {
             "description": "Server supports searching for principals (CalDAV users). Principal search may be restricted for privacy/security reasons on many servers.  (not to be confused with get-current-user-principal)"
@@ -204,7 +213,7 @@ class FeatureSet:
         "save": {},
         "save.duplicate-uid": {},
         "save.duplicate-uid.cross-calendar": {
-            "description": "Server allows events with the same UID to exist in different calendars and treats them as separate entities. Support can be 'full' (allowed), 'ungraceful' (rejected with error), or 'unsupported' (silently ignored). Behaviour 'silently-ignored' means the duplicate is not saved but no error is thrown"
+            "description": "Server allows events with the same UID to exist in different calendars and treats them as separate entities. Support can be 'full' (allowed), 'ungraceful' (rejected with error), or 'unsupported' (silently ignored or moved). Behaviour 'silently-ignored' means the duplicate is not saved but no error is thrown. Behaviour 'moved-instead-of-copied' means the event is moved from the original calendar to the new calendar (Zimbra behavior)"
         },
         ## TODO: as for now, the tests will run towards the first calendar it will find, and most of the tests will assume the calendar is empty.  This is bad.
         "test-calendar": {
@@ -253,7 +262,7 @@ class FeatureSet:
         ## TODO: remove this when it can be removed
         self._old_flags = []
         if feature_set_dict:
-            self.copyFeatureSet(feature_set_dict)
+            self.copyFeatureSet(feature_set_dict, collapse=False)
 
     ## TODO: Why is this camelCase while every other method is with under_score?  rename ...
     def copyFeatureSet(self, feature_set, collapse=True):
@@ -476,6 +485,12 @@ class FeatureSet:
 
 #### OLD STYLE
 
+## THE LIST BELOW IS TO BE REMOVED COMPLETELY.  DO NOT USE IT.
+
+## It's not considered to be part of the public API (though, it should
+## have been prefixed with _ to make it clear).  The list is being
+## removed little-by-little, without regards of SemVer.
+
 ## The lists below are specifying what tests should be skipped or
 ## modified to accept non-conforming resultsets from the different
 ## calendar servers.  In addition there are some hacks in the library
@@ -579,9 +594,6 @@ incompatibility_description = {
         """Events should be deleted before the calendar is deleted, """
         """and/or deleting a calendar may not have immediate effect""",
 
-    'object_by_uid_is_broken':
-        """calendar.object_by_uid(uid) does not work""",
-
     'no_overwrite':
         """events cannot be edited""",
 
@@ -653,7 +665,8 @@ xandikos_v0_3 = {
     ## this only applies for very simple installations
     "auto-connect.url": {"domain": "localhost", "scheme": "http", "basepath": "/"},
     'search.comp-type-optional': {'support': 'unsupported'},
-    "search.recurrences.includes-implicit.todo.pending": {"support": "unsupported"},
+    ## This suddenly disappeared.  Should probably look more into the checks ...
+    #"search.recurrences.includes-implicit.todo.pending": {"support": "unsupported"},
     'search.recurrences.expanded.todo': {'support': 'unsupported'},
     'search.recurrences.expanded.exception': {'support': 'unsupported'},
     'principal-search': {'support': 'ungraceful'},
@@ -687,11 +700,11 @@ radicale = {
     "search.recurrences.includes-implicit.todo.pending": {"support": "unsupported"},
     "search.recurrences.expanded.todo": {"support": "unsupported"},
     "search.recurrences.expanded.exception": {"support": "unsupported"},
-    'principal-search.by-name.self': {'support': 'unknown', 'behaviour': 'No display name available - cannot test'},
+    'principal-search': {'support': 'unknown', 'behaviour': 'No display name available - cannot test'},
+    'principal-search.list-all': {'support': 'unsupported'},
     ## this only applies for very simple installations
     "auto-connect.url": {"domain": "localhost", "scheme": "http", "basepath": "/"},
     ## freebusy is not supported yet, but on the long-term road map
-    'freebusy-query.rfc4791': {'support': 'unsupported'},
     'old_flags': [
     ## calendar listings and calendar creation works a bit
     ## "weird" on radicale
@@ -757,8 +770,9 @@ zimbra = {
     'create-calendar.set-displayname': {'support': 'unsupported'},
     'save-load.todo.mixed-calendar': {'support': 'unsupported'},
     'save-load.todo.recurrences.count': {'support': 'unsupported'}, ## This is a new problem?
-    'save-load.journal': { "support": "unsupported" },
+    'save-load.journal': "ungraceful",
     'search.is-not-defined': {'support': 'unsupported'},
+    #'search.text': 'unsupported', ## weeeird ... it wasn't like this before
     'search.text.substring': {'support': 'unsupported'},
     'search.text.category': {'support': 'ungraceful'},
     'search.is-not-defined':  {'support': 'unsupported'},
@@ -766,8 +780,8 @@ zimbra = {
     'search.comp-type-optional': {'support': 'fragile'}, ## TODO: more research on this, looks like a bug in the checker,
     'search.time-range.alarm': {'support': 'unsupported'},
     'sync-token': {'support': 'unsupported'},
-    'principal-search': {'support': 'unsupported'},
-    'save.duplicate-uid.cross-calendar': {'support': 'unsupported', 'behaviour': 'silently-ignored'},
+    'principal-search': "ungraceful",
+    'save.duplicate-uid.cross-calendar': {'support': 'unsupported', "behaviour": "moved-instead-of-copied" },
 
     "old_flags": [
     ## apparently, zimbra has no journal support
@@ -796,18 +810,81 @@ zimbra = {
 }
 
 bedework = {
-    'save.duplicate-uid.cross-calendar': {'support': 'unsupported', 'behaviour': 'silently-ignored'},
+    'search.comp-type': {'support': 'broken', 'behaviour': 'Server returns everything when searching for events and nothing when searching for todos'},
+    #"search.combined-is-logical-and": { "support": "unsupported" },
+    ## TODO: play with this and see if it's needed
+    'search-cache': {'behaviour': 'delay', 'delay': 1.5},
+    ## TODO: play with this and see if it's needed
     'old_flags': [
-    ## quite a lot of things were missing in Bedework last I checked -
-    ## but that's quite a while ago!
-    'no_journal',
-    'no_todo',
     'propfind_allprop_failure',
-    'no_recurring',
-    ## taking an event, changing the uid, and saving in the same calendar gives a 403.
-    ## editing the content slightly and it works.  Weird ...
     'duplicates_not_allowed',
-    ]
+    ],
+    'auto-connect.url': {'basepath': '/ucaldav/'},
+    "save-load.journal": {
+        "support": "ungraceful"
+    },
+    "search.time-range.alarm": {
+        "support": "unsupported"
+    },
+    ## Huh?  Non-deterministic behaviour of the checking script?
+    #"save.duplicate-uid.cross-calendar": {
+    #    "support": "unsupported",
+    #    "behaviour": "silently-ignored"
+    #},
+    "freebusy-query.rfc4791": {
+        "support": "full"
+    },
+    "search.time-range.todo": {
+        "support": "unsupported"
+    },
+    "search.text": {
+        "support": "unsupported"
+    },
+    "search.is-not-defined": {
+        "support": "fragile"
+    },
+    "search.text.by-uid": {
+        "support": "fragile",
+        "behaviour": "sometimes the text search delivers everything, other times it doesn't deliver anything.  When the text search delivers everything, then the post-filtering will save the day"
+    },
+    "search.time-range.accurate": {
+        "support": "unsupported"
+    },
+    "search.recurrences.includes-implicit.todo": {
+        "support": "unsupported"
+    },
+    "search.recurrences.includes-implicit.infinite-scope": {
+        "support": "unsupported"
+    },
+    "sync-token": {
+        "support": "fragile"
+    },
+    ## Check results are non-deterministic!?
+    "search.recurrences.expanded.exception": {
+        "support": "unsupported"
+    },
+    "search.recurrences.expanded.event": {
+        "support": "unsupported"
+    },
+    ## It doesn't support expanding events, but it supports exapnding tasks!?
+    ## Or maybe there is a problem in the checker script?
+    ## TODO: look into this
+    #"search.recurrences.expanded.todo": True,
+    "principal-search": {
+        "support": "ungraceful",
+    }
+}
+
+synology = {
+    'principal-search': False,
+    'search.time-range.alarm': False,
+    'sync-token': 'fragile',
+    'delete-calendar': False,
+    'delete-calendar.free-namespace': False,
+    'search.comp-type-optional': 'fragile',
+    "search.recurrences.expanded.exception": False,
+    'test-calendar': {'cleanup-regime': 'wipe-calendar'},
+    'old_flags': ['vtodo_datesearch_nodtstart_task_is_skipped'],
 }
 
 baikal =  { ## version 0.10.1
@@ -900,11 +977,12 @@ sogo = {
     "search.text": {
         "support": "unsupported"
     },
+    "search.text.by-uid": True,
     "search.is-not-defined": {
         "support": "unsupported"
     },
     "search.comp-type-optional": {
-        "support": "ungraceful"
+        "support": "unsupported"
     },
     "search.recurrences.includes-implicit.todo": {
         "support": "unsupported"
@@ -975,7 +1053,7 @@ robur = {
         'domain': 'calendar.robur.coop',
         'basepath': '/principals/', # TODO: this seems fishy
     },
-    "save-load.journal": { "support": "unsupported" },
+    "save-load.journal": { "support": "ungraceful" },
     "delete-calendar": { "support": "fragile" },
     "search.is-not-defined": { "support": "unsupported" },
     "search.time-range.todo": { "support": "unsupported" },
@@ -991,7 +1069,6 @@ robur = {
     'old_flags': [
         'non_existing_raises_other', ## AuthorizationError instead of NotFoundError
         'no_scheduling',
-        'no_sync_token',
         'no_supported_components_support',
         'no_relships',
         'unique_calendar_ids',
@@ -1005,20 +1082,17 @@ posteo = {
         'basepath': '/',
     },
     'create-calendar': {'support': 'unsupported'},
-    'save-load.journal': { "support": "unsupported" },
+    'save-load.journal': { "support": "ungraceful" },
     'search.comp-type-optional': {'support': 'ungraceful'},
     'search.recurrences.expanded.todo': {'support': 'unsupported'},
     'search.recurrences.expanded.exception': {'support': 'unsupported'},
     'search.recurrences.includes-implicit.todo': {'support': 'unsupported'},
     "search.combined-is-logical-and": {"support": "unsupported"},
-    'search.time-range.alarm': {'support': 'unsupported'},
     'sync-token': {'support': 'unsupported'},
     'principal-search': {'support': 'unsupported'},
     'old_flags': [
         'no_scheduling',
         #'no_recurring_todo', ## todo
-        'no_sync_token',
-        ""
     ]
 }
 
@@ -1077,18 +1151,9 @@ gmx = {
         "no_scheduling_mailbox",
         #"text_search_is_case_insensitive",
         "no_search_openended",
-        "no_sync_token",
         "no_scheduling_calendar_user_address_set",
-        "",
         "vtodo-cannot-be-uncompleted",
     ]
-}
-
-sogo = {
-    "search.time-range.accurate": {
-        "support": "unsupported",
-        "description": "SOGo returns events/todos that fall outside the requested time range. For recurring events, it may return recurrences that start after the search interval ends, or events with no recurrences in the requested range at all."
-    }
 }
 
 # fmt: on

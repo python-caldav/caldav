@@ -66,6 +66,7 @@ jobs:
           --health-timeout 5s
           --health-retries 20
           --health-start-period 10s
+          --network-alias db
       sogo:
         image: japoch/sogo:latest
         ports:
@@ -75,6 +76,16 @@ jobs:
           sogo_pass: testpass
           sogo_name: Test User
           sogo_fqhn: example.com
+      bedework:
+        image: ioggstream/bedework:latest
+        ports:
+          - 8804:8080
+        options: >-
+          --health-cmd "curl -f http://localhost:8080/bedework/ || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 15
+          --health-start-period 120s
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -209,26 +220,24 @@ jobs:
         run: |
           echo "Configuring SOGo..."
 
-          # Wait for SOGo container to start (it won't be healthy yet due to missing DB config)
+          # Wait for database to be ready
+          echo "Waiting for database..."
           sleep 5
 
-          # Get database container hostname
-          DB_HOST=$(docker inspect ${{ job.services.sogo-db.id }} --format='{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}')
-          echo "Database host: $DB_HOST"
-
-          # Copy and modify configuration to use correct database hostname
-          sed "s/@db:/@$DB_HOST:/g" tests/docker-test-servers/sogo/sogo.conf > /tmp/sogo.conf
-          docker cp /tmp/sogo.conf ${{ job.services.sogo.id }}:/etc/sogo/sogo.conf
-          docker cp tests/docker-test-servers/sogo/init-sogo-users.sql ${{ job.services.sogo-db.id }}:/tmp/init-sogo-users.sql
-
           # Initialize database with test user
+          docker cp tests/docker-test-servers/sogo/init-sogo-users.sql ${{ job.services.sogo-db.id }}:/tmp/init-sogo-users.sql
           docker exec -i ${{ job.services.sogo-db.id }} mariadb -usogo -psogo sogo < tests/docker-test-servers/sogo/init-sogo-users.sql
+          echo "✓ Database initialized with test user"
+
+          # Copy SOGo configuration (database is now reachable via network alias 'db')
+          docker cp tests/docker-test-servers/sogo/sogo.conf ${{ job.services.sogo.id }}:/etc/sogo/sogo.conf
+          echo "✓ SOGo configuration copied"
 
           # Restart SOGo to pick up configuration
           docker restart ${{ job.services.sogo.id }}
 
           # Wait for SOGo to be ready
-          echo "Waiting for SOGo..."
+          echo "Waiting for SOGo to start..."
           if timeout 60 bash -c 'until curl -f http://localhost:8803/SOGo/ 2>/dev/null; do echo -n "."; sleep 2; done'; then
             echo ""
             echo "✓ SOGo is ready"
@@ -246,12 +255,34 @@ jobs:
             echo "✗ Error: SOGo CalDAV access failed"
             exit 1
           fi
+      - name: Configure Bedework
+        run: |
+          echo "Waiting for Bedework..."
+          # Bedework/JBoss takes longer to start up
+          if timeout 180 bash -c 'until curl -f http://localhost:8804/bedework/ 2>/dev/null; do echo -n "."; sleep 5; done'; then
+            echo ""
+            echo "✓ Bedework web interface is ready"
+          else
+            echo ""
+            echo "✗ Error: Bedework did not become ready within 180 seconds"
+            exit 1
+          fi
+
+          # Verify CalDAV access with default user (vbede:bedework)
+          echo "Verifying CalDAV access..."
+          if curl -s -X PROPFIND -H "Depth: 0" -u vbede:bedework http://localhost:8804/ucaldav/user/vbede/ 2>/dev/null | grep -qi "multistatus"; then
+            echo "✓ Bedework CalDAV access verified"
+          else
+            echo "✗ Error: Bedework CalDAV access failed"
+            exit 1
+          fi
       - run: tox -e py
         env:
           NEXTCLOUD_URL: http://localhost:8801
           BAIKAL_URL: http://localhost:8800
           CYRUS_URL: http://localhost:8802
           SOGO_URL: http://localhost:8803
+          BEDEWORK_URL: http://localhost:8804
   docs:
     runs-on: ubuntu-latest
     steps:

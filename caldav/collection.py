@@ -1141,7 +1141,10 @@ class Calendar(DAVObject):
         return f"fake-{hash_value}"
 
     def objects_by_sync_token(
-        self, sync_token: Optional[Any] = None, load_objects: bool = False
+        self,
+        sync_token: Optional[Any] = None,
+        load_objects: bool = False,
+        disable_fallback: bool = False,
     ) -> "SynchronizableCalendarObjectCollection":
         """objects_by_sync_token aka objects
 
@@ -1164,12 +1167,18 @@ class Calendar(DAVObject):
         This method transparently falls back to retrieving all objects if the server
         doesn't support sync tokens. The fallback behavior is identical from the user's
         perspective, but less efficient as it transfers the entire calendar on each sync.
+
+        If disable_fallback is set to True, the method will raise an exception instead
+        of falling back to retrieving all objects. This is useful for testing whether
+        the server truly supports sync tokens.
         """
         ## Check if we should attempt to use sync tokens
         ## (either server supports them, or we haven't checked yet, or this is a fake token)
         use_sync_token = True
         sync_support = self.client.features.is_supported("sync-token", return_type=dict)
         if sync_support.get("support") == "unsupported":
+            if disable_fallback:
+                raise error.ReportError("Sync tokens are not supported by the server")
             use_sync_token = False
         ## If sync_token looks like a fake token, don't try real sync-collection
         if (
@@ -1210,6 +1219,8 @@ class Calendar(DAVObject):
                 )
             except (error.ReportError, error.DAVError) as e:
                 ## Server doesn't support sync tokens or the sync-collection REPORT failed
+                if disable_fallback:
+                    raise
                 log.info(
                     f"Sync-collection REPORT failed ({e}), falling back to full retrieval"
                 )

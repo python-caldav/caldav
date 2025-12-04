@@ -200,7 +200,9 @@ class CalDAVSearcher(Searcher):
                 "full xml given, and it has to be patched to include comp_type"
             )
         objects = []
+
         assert self.event is None and self.todo is None and self.journal is None
+
         for comp_class in (Event, Todo, Journal):
             clone = replace(self)
             clone.comp_class = comp_class
@@ -256,6 +258,20 @@ class CalDAVSearcher(Searcher):
         Use ``searcher.search(calendar)`` to apply the search on a caldav server.
 
         """
+        ## Handle servers with broken component-type filtering (e.g., Bedework)
+        ## Such servers may misclassify component types in responses
+        comp_type_support = calendar.client.features.is_supported(
+            "search.comp-type", str
+        )
+        if (
+            (self.comp_class or self.todo or self.event or self.journal)
+            and comp_type_support == "broken"
+            and not _hacks
+            and post_filter is not False
+        ):
+            _hacks = "no_comp_filter"
+            post_filter = True
+
         ## Setting default value for post_filter
         if post_filter is None and (
             (self.todo and not self.include_completed)
@@ -335,11 +351,11 @@ class CalDAVSearcher(Searcher):
         ## special compatibility-case for servers that does not
         ## support combined searches very well
         if not calendar.client.features.is_supported("search.combined-is-logical-and"):
-            replacements = {}
-            for thing in things:
-                replacements[thing] = {}
             if self.start or self.end:
                 if self._property_filters:
+                    replacements = {}
+                    for thing in things:
+                        replacements[thing] = {}
                     clone = replace(self, **replacements)
                     objects = clone.search(
                         calendar, server_expand, split_expanded, props, xml
@@ -384,14 +400,18 @@ class CalDAVSearcher(Searcher):
             ## No point with expanding in the subqueries - the expand logic will be handled
             ## further down.  We leave server_expand as it is, though.
             clone.expand = False
-            if calendar.client.features.is_supported(
-                "search.combined-is-logical-and"
-            ) and (
-                not calendar.client.features.is_supported(
-                    "search.recurrences.includes-implicit.todo"
+            if (
+                calendar.client.features.is_supported("search.text")
+                and calendar.client.features.is_supported(
+                    "search.combined-is-logical-and"
                 )
-                or calendar.client.features.is_supported(
-                    "search.recurrences.includes-implicit.todo.pending"
+                and (
+                    not calendar.client.features.is_supported(
+                        "search.recurrences.includes-implicit.todo"
+                    )
+                    or calendar.client.features.is_supported(
+                        "search.recurrences.includes-implicit.todo.pending"
+                    )
                 )
             ):
                 matches = []
@@ -699,11 +719,19 @@ class CalDAVSearcher(Searcher):
                     assert comp_filter.attributes["name"] == comp_name
                 else:
                     comp_filter = cdav.CompFilter(comp_name)
+                setattr(self, flag, True)
 
         if self.comp_class and not comp_filter:
             raise error.ConsistencyError(
                 f"unsupported comp class {self.comp_class} for search"
             )
+
+        ## Special hack for bedework.
+        ## If asked for todos, we should NOT give any comp_filter to the server,
+        ## we should rather ask for everything, and then do client-side filtering
+        if _hacks == "no_comp_filter":
+            comp_filter = None
+            self.comp_class = None
 
         for property in self._property_operator:
             if self._property_operator[property] == "undef":
