@@ -728,7 +728,7 @@ class RepeatedFunctionalTestsBaseClass:
         if "cleanup" in self.server_params:
             self.cleanup_regime = self.server_params["cleanup"]
 
-        if not self.cleanup_regime == "wipe-calendar" and (
+        if self.cleanup_regime != "wipe-calendar" and (
             not self.is_supported("create-calendar")
         ):
             self.cleanup_regime = "thorough"
@@ -1324,7 +1324,6 @@ END:VCALENDAR
         This test is using explicit calls to objects_by_sync_token
         """
         self.skip_unless_support("save-load.event")
-        self.skip_unless_support("sync-token")
 
         ## Boiler plate ... make a calendar and add some content
         c = self._fixCalendar()
@@ -1456,7 +1455,6 @@ END:VCALENDAR
         Support for sync-collection reports, ref https://github.com/python-caldav/caldav/issues/87.
         Same test pattern as testObjectBySyncToken, but exercises the .sync() method
         """
-        self.skip_unless_support("sync-token")
         self.skip_unless_support("save-load.event")
 
         ## Check if sync tokens are time-based (need sleep(1) between operations)

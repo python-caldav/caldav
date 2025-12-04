@@ -10,7 +10,7 @@ So far the most common recommendation seems to be to go for httpx.  See also htt
 
 ## Meta
 
-This file should adhere to [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), but it's manually maintained.  Feel free to comment or make a pull request if something breaks for you.
+This file should adhere to [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), but it's manually maintained, and I have some extra sections in it.  Notably an executive summary at the top,  "Breaking Changes" or "Potentially Breaking Changes", list of GitHub issues/pull requests closed/merged, information on changes in the test framework, credits to people assisting, an overview of how much time I've spent on each release, and an overview of calendar servers the release has been tested towards.
 
 Changelogs prior to v1.2 is pruned, but available in the v1.2 release
 
@@ -18,13 +18,24 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 
 ## [Unreleased]
 
+Highlights:
+
+* New ways to set up client connections:
+  - For cloud-based services, it should suffice to pass username, password and the name of the service, no URL needed (though, just some few providers supported so far)
+  - If the username is in email format, then it's generally not needed to pass a URL.
+* v2.2 comes with lots of workarounds around lack of feature support in the servers - notably the sync-token API will work also towards servers not supporting sync-tokens.  In some cases lack of server functionality is detected, but as for now it may be needed to specify what server one is user through the `features` configuration flag.
+* v2.2 supports more complex searches.  Client-side filtering will be utilized for the things that aren't supported on the server side.
+
 ### Potentially Breaking Changes
 
-* Lots of work has been put in to work around server-quirks, ensuring more consistent search-results regardless of what server is in use.  For some use cases this may be a breaking change as search results from certain servers may have changed (see more below).
-* New dependency on the python-dns package, for RFC6764 discovery.  As far as I understand the SemVer standard, new dependencies can be added without increasing the major version number - but for some scenarios where it's hard to add new dependencies, this may be a breaking change.  This is a well-known package, so the security impact should be low.  This library is only used when doing such a recovery.  If anyone minds this dependency, I can change the project so this becomes an optional dependency.
-* Some code has been split out into a new package - `icalendar-searcher`. so this may also break if you manage the dependencies manually.  This library was written by me, so the security impact is low.
-* Not really breaking as such, but the test suite may now take a lot of time to run.  See the "Test Suite" section below.
-* When using the sync-token API now on servers not supporting sync-token, the full calendar will be fetched on every sync.  The change is intended to be un-breaking, but for people having very big calendars and syncing them to a mobile device with limited memory, bandwidth, CPU and battery, this change may be painful.
+(More information on the changes in the Changed section)
+
+* **Search results may differ** due to workarounds for various server compatibility problems.  For some use cases this may be a breaking change.  https://xkcd.com/1172/
+* **New dependencies**.  As far as I understand the SemVer standard, new dependencies can be added without increasing the major version number - but for some scenarios where it's hard to add new dependencies, this may be a breaking change.
+  - The python-dns package is used for RFC6764 discovery.    This is a well-known package, so the security impact should be low.  This library is only used when doing such a recovery.  If anyone minds this dependency, I can change the project so this becomes an optional dependency.
+  - Some code has been split out into a new package - `icalendar-searcher`. so this may also break if you manage the dependencies manually.  As this package was made by the maintainer of the CalDAV package, the security impact of adding this dependency should be low.
+* Potentially major **performance problems**: rather than throwing errors, the sync-token-API may now fetch the full calendar.  This change is intended to be un-breaking, but for people having very big calendars and syncing them to a mobile device with limited memory, bandwidth, CPU and battery, this change may be painful.  (If a servers is marked to have "fragile" support for sync-tokens, the fallback will apply to those servers too).
+* **Very slow test suite** due to lots of docker-containers spun up with verious server implementations.  See the "Test Suite" section below.
 
 ### Changed
 
@@ -36,6 +47,13 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
   * For advanced search queries, it's needed to create a `caldav.CalDAVSearcher` object, add filters and do a `searcher.search(cal)` instead of doing `cal.search(...)`.
 * **Server compatibility improvements**: Significant work-arounds added for inconsistent CalDAV server behavior, aiming for consistent search results regardless of the server in use. Many of these work-arounds require proper server compatibility configuration via the `features` / `compatibility_hints` system. This may be a **breaking change** for some use cases, as backward-bug-compatibility is not preserved - searches may return different results if the previous behavior was relying on server quirks.
 
+### Fixed
+
+* As noted above, quite some changes have been done to searches.  One may argue if this is breaking changes, changes or bugfixes.  At least github issues #434, #461, #566 and #509 has been closed in the process.
+* A minor bug in the FeatureSet constructor was fixed, sometimes information could be lost.
+* Downgraded a CRITICAL error message to INFO, for some conditions that clearly wasn't CRITICAL (HTML error responses from server or wrong content-type given, when XML was expected)
+* Probably some other minor bug fixes (though, most of the bugs fixed in this release was introduced after 2.1.2)
+* A user managed to trigger a crash bug in the search in https://github.com/python-caldav/caldav/issues/587 - this has indirectly been fixed through the refactorings.
 
 ### Added
 
@@ -53,32 +71,131 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 * Client-side filtering method: `CalDAVSearcher.filter()` provides comprehensive client-side filtering, expansion, and sorting of calendar objects with full timezone preservation support.
 * Example code: New `examples/collation_usage.py` demonstrates case-sensitive and case-insensitive calendar searches.
 
-
 ### Security
 
 There is a major security flaw with the RFC6764 discovery.  If the DNS is not trusted (public hotspot, for instance), someone can highjack the connection by spoofing the service records.  The protocol also allows to downgrade from https to http.  Utilizing this it may be possible to steal the credentials.  Mitigations:
- * DNSSEC is the ultimae soluion, but DNSSEC is not widely used.  I tried implementing robust DNSSEC validation, but it was too complicaed.
+ * DNSSEC is the ultimate soluion, but DNSSEC is not widely used.  I tried implementing robust DNSSEC validation, but it was too complicaed.
  * Require TLS.  By default, connections through the autodiscovery is required to use TLS.
  * Decline domain change.  If acme.com forwards to caldav.acme.com, it will be accepted, if it forward to evil.hackers.are.us the connection is declined.
 
 Also, the RFC6764 discovery may not always be robust, causing fallbacks and hence a non-deterministic behaviour.
 
-### Deprecations
+### Deprecated
 
 * `Event.expand_rrule` will be removed in some future release, unless someone protests.
 * `Event.split_expanded` too.  Both of them were used internally, now it's not.  It's dead code, most likely nobody and nothing is using them.
 
-### Test Suite
+### GitHub Issues Closed
+
+- #574 - SECURITY: check domain name on auto-discovery (2025-11-29) - https://github.com/python-caldav/caldav/issues/574 - fixes issues introduced after previous release
+- #532 - Replace compatibility flags list with compatibility matrix dict (2025-11-10) https://github.com/python-caldav/caldav/issues/532 - this process is not completely done, a new issue has been raised for mopping up the rest
+- #402 - Server compatibility hints (2025-12-03) https://github.com/python-caldav/caldav/issues/402 - sort of duplicate of #532
+- #463 - Try out paths to find caldav base URL (2025-11-10) https://github.com/python-caldav/caldav/issues/463 - sort of solved through the compatbility hints file.
+- #461 - Path handling error with non-standard URL formats (2025-12-02) https://github.com/python-caldav/caldav/issues/461 - the issue ended up identifying the need to work around missing server-side support for sync-token, this has been fixed
+- #434 - Search event with summary (2025-11-27) https://github.com/python-caldav/caldav/issues/434 - the new search interface contains work-arounds for server-side incompatibilities as well as advanced client-side filtering
+- #401 - Some server needs explicit event or task when doing search (2025-07-19) https://github.com/python-caldav/caldav/issues/401 - code now contains clean workarounds for fetching everything regardless of server side support
+- #102 - Support for RFC6764 - find CalDAV URL through DNS lookup (created 2020, closed 2025-11-27) - https://github.com/python-caldav/caldav/issues/102
+- #311 - Google calendar - make authentication simpler and document it (created 2023, closed 2025-06-16) - https://github.com/python-caldav/caldav/issues/311 - no work on Google has been done, but user-contributed examples and documentation has been refactored, polished and published.
+- #372 - Server says "Forbidden" when creating event with timezone (created 2024, closed 2025-12-03) - https://github.com/python-caldav/caldav/issues/372 - it's outside the scope supporting the old dateutil.tz objects in the CalDAV library.  Checks have been added to the caldav-server-checker script to verify that the new-style Timezone objects work.
+- #351 - `calendar.search`-method with timestamp filters yielding too much (created 2023, closed 2025-12-02) - https://github.com/python-caldav/caldav/issues/351 the new search interface may do client-side filtering
+- #340 - 507 error during collection sync (created 2023, closed 2025-12-03) - https://github.com/python-caldav/caldav/issues/340 - this should be fixed by the new sync-tokens workaround
+- #587 - Calendar.search broken with TypeError: Calendar.search() got multiple values for argument 'sort_keys' (created 2025-12-04, closed 2025-12-04) -  https://github.com/python-caldav/caldav/issues/587 - this bug has indirectly been fixed through the refactorings.
+
+### GitHub Pull Requests Merged
+
+- #584 - Bedework server support (2025-12-04) - https://github.com/python-caldav/caldav/pull/584
+- #583 - Transparent fallback for servers not supporting sync tokens (2025-12-02) - https://github.com/python-caldav/caldav/pull/583
+- #582 - Fix docstrings in Principal and Calendar classes (2025-12-02) - https://github.com/python-caldav/caldav/pull/582
+- #581 - SOGo server support (2025-12-02) - https://github.com/python-caldav/caldav/pull/581
+- #579 - Sync-tokens compatibility feature flags (2025-11-29) - https://github.com/python-caldav/caldav/pull/579
+- #578 - Docker server testing cyrus (2025-12-02) - https://github.com/python-caldav/caldav/pull/578
+- #576 - Add RFC 6764 domain validation to prevent DNS hijacking attacks (2025-11-29) - https://github.com/python-caldav/caldav/pull/576
+- #575 - Add automated Nextcloud CalDAV/CardDAV testing framework (2025-11-29) - https://github.com/python-caldav/caldav/pull/575
+- #573 - Add Baikal Docker test server framework for CI/CD (2025-11-28) - https://github.com/python-caldav/caldav/pull/573
+- #570 - Add RFC 6764 DNS-based service discovery (2025-11-27) - https://github.com/python-caldav/caldav/pull/570
+- #569 - Improved substring search (2025-11-27) - https://github.com/python-caldav/caldav/pull/569
+- #566 - More compatibility work (2025-11-27) - https://github.com/python-caldav/caldav/pull/566
+- #563 - Refactoring search and filters (2025-11-19) - https://github.com/python-caldav/caldav/pull/563
+- #561 - Connection details in the server hints (2025-11-10) - https://github.com/python-caldav/caldav/pull/561
+- #560 - Python 3.14 support (2025-11-09) - https://github.com/python-caldav/caldav/pull/560
+
+### Test Framework
 
 * **Automated Docker testing framework** using Docker containers, if docker is available.
   * Cyrus, NextCloud and Baikal added so far.
   * For all of those, automated setups with a well-known username/password combo was a challenge.  I had planned to add more servers, but this proved to be too much work.
   * The good thing is that test coverage is increased a lot for every pull request, I hope this will relieving me of a lot of pain learning that the tests fails towards real-world servers when trying to do a release.
   * The bad thing is that the test runs takes a lot more time.  Use `pytest -k Radicale` or `pytest -k Xandikos` - or run the tests in an environment not having access to docker if you want a quicker test run - or set up a local `conf_private.py` where you specify what servers to test.  It may also be a good idea to run `start.sh` and `stop.sh` in `tests/docker-test-servers/*` manually so the container can stay up for the whole duration of the testing rather than being taken up and down for every test.
-  * **Docker volume cleanup**: All teardown functions now automatically prune ephemeral Docker volumes (`docker-compose down -v`) to prevent `/var/lib/docker/volumes` from filling up with leftover test data. This applies to Cyrus, Nextcloud, and Baikal test servers.
-  * **Cyrus CalDAV initialization**: Increased timeout for Cyrus CalDAV access verification in GitHub Actions from 60s to 120s, as CalDAV initialization can take significant time after the HTTP server is ready, especially in CI environments. Fixed CalDAV check to use PROPFIND method instead of GET, as GET returns HTTP 204 No Content without the multistatus XML response needed for verification.
+  * **Docker volume cleanup**: All teardown functions should automatically prune ephemeral Docker volumes to prevent `/var/lib/docker/volumes` from filling up with leftover test data. This applies to Cyrus, Nextcloud, and Baikal test servers.
 * Since the new search code now can work around different server quirks, quite some of the test code has been simplified.  Many cases of "make a search, if server supports this, then assert correct number of events returned" could be collapsed to "make a search, then assert correct number of events returned" - meaning that **the library is tested rather than the server**.
-* Some of the old "compatibility_flags" that is used by the test code has been moved into the new "features"-structure in `caldav/compatibility_hints.py`.  Use the package caldav-server-checker to check the feature-set of your CalDAV server.
+* Some of the old "compatibility_flags" that is used by the test code has been moved into the new "features"-structure in `caldav/compatibility_hints.py`.  Use the package caldav-server-checker to check the feature-set of your CalDAV server (though, as for now the last work done is on a separate branch.  A relase will be made soon).
+* Note, the `testCheckCompatibility` will be run if and only if the caldav-server-checker package is installed and available.  If the package is installed, the version of it has to correspond exactly to the caldav version - and even then, it may break for various reasons (the caldav server tester is still under development, no stable release exists yet).  The corresponding version of the package has not been released yet (it's even not merged to the main branch).  I hope to improve on this somehow before the next release.  It can be a very useful test - if the compatibility configuration is wrong, tests may break or be skipped for the wrong reasons.
+
+### Time Spent
+
+(The "Time Spent"-section was missing from the 2.1-release, so this includes everything since 2.0)
+
+The maintainer has spent around 230 hours since version 2.0.0, plus paid some money for AI-assistance from Claude.  This time includes work on the two sub-projects icalendar-searcher and caldav-server-tester (not released yet).
+
+The estimation given at the road map was 28h for "Server checker and server compatibility hints project", 8h for "Maintain and expand the test server list", and 12h for "Outstanding issues slated for v3.0".  Including the Claude efforts, consider this to be 5x as much time as estimated.
+
+Some few reasons of the overrun:
+
+* Quite much of this time has been put down into the  caldav-server-tester project, and the icalendar-search project also took me a few days to complete.
+* "Let's make sure to support both case-sensitive and case-insensitive search" may sound like a simple task, but collations is a major tarpit!  Now I know that the correct uppercase version of "istanbul" depends on the locale used ...
+* The test framework with docker contained servers was also a major tarpit.  "Why not just spin up server X in a docker container" - it sounded trivial, but then come the hard realites:
+  - Most of the servers needs some extra configuration to get a test user with well-known username and password in place
+  - Some servers are optimized for manual "installation and configuration", rather than automated setup with an epheremal disk volume.
+  - Some servers have external requirements, like a stand-alone database server, requiring significant amounts of configuration for connecting the database and the calendar server (database username, password, connection details, +++)
+  - Docker services in the "GitHub Actions" that I use for automated external testing has to be set up completely different and independently from the local tests.  This is also a tarpit as I cannot inspect and debug problems so easily, every test run takes very long time and generates several megabytes of logs.
+  - Luckily, with the new caldav-server-tester script it's easy to get the compatibility configuration readily set up.  In theory.  In practice, I need to do quite some work on the caldav-server-tester to correctly verify all the unique quirks of the new server.
+  - In practice, the test suite will still be breaking, requiring lots of debugging figuring out of the problems.
+* Quite many other rabbit holes and tarpits have been found on the way, but I digress.  This is quite a bit outside the scope of a CHANGELOG.
+
+### Credits
+
+The following contributors (by GitHub username) have assisted by reporting issues, submitting pull requests and provided feedback:
+
+@ArtemIsmagilov, @cbcoutinho, @cdce8p, @dieterbahr, @dozed, @Ducking2180, @edel-macias-cubix, @erahhal, @greve, @jannistpl, @julien4215, @Kreijstal, @lbt, @lothar-mar, @mauritium, @moi90, @niccokunzmann, @oxivanisher, @paramazo, @pessimo, @Savvasg35, @seanmills1020, @siderai, @slyon, @smurfix, @soundstorm, @thogitnet, @thomasloven, @thyssentishman, @ugniusslev, @whoamiafterall, @yuwash, @zealseeker, @Zhx-Chenailuoding, @Zocker1999NET, @Sashank, @Claude and @tobixen
+
+### Test runs before release
+
+Local docker containers and python server instances:
+
+* Radicale
+* Xandikos
+* Nextcloud
+* Baikal
+* Cyrus
+* SOGo
+* Bedework
+
+External servers tested:
+
+* eCloud (NextCloud)
+* Zimbra
+* Synology
+* Posteo
+* Baikal
+
+Servers and platforms not tested this time:
+
+* Robur (Some tests have been run towards Robur - but it seems to be some problems with the server, or perhaps active rate-limiting, the tests stops up after a while)
+* PurelyMail (partly tested - but test runs takes EXTREMELY long time due to the search-cache server peculiarity, and the test runs still frequently fails in non-deterministic ways).
+* GMX (It throws authorization errors, didn't figure out of it yet)
+* DAViCal (my test server is offline)
+
+I should probably look more into the breakages with PurelyMail and GMX.
+
+Those servers ought to be tested, but I'm missing accounts/capacity to do it at the moment:
+
+* Google
+* iCloud
+* FastMail
+* calendar.mail.ru
+* Lark
+* all-inkl.com
+* OX
 
 ## [2.1.2] - [2025-11-08]
 
@@ -200,7 +317,7 @@ If you disagree with any of this, please raise an issue and I'll consider if it'
 * Added test code for some observed problem that I couldn't reproduce - https://github.com/python-caldav/caldav/issues/397 - https://github.com/python-caldav/caldav/pull/521
 * Wrote up some test code to improve code coverage - https://github.com/python-caldav/caldav/issues/93 - https://github.com/python-caldav/caldav/pull/526
 
-### Time spent
+### Time Spent
 
 The maintainer has spent around 49 hours totally since 1.6.  That is a bit above estimate.  For one thing, the configuration file change was not in the original road map for 2.0.
 
@@ -405,7 +522,7 @@ Seems like I've been using the wrong procedure all the time for doing pypi-relea
 
 ## [1.3.4] - 2023-07-19 [YANKED]
 
-... Github has some features that it will merge pull requests only when all tests passes ... but somehow I can't get it to work, so 1.3.4 broke the style test again ...
+... GitHub has some features that it will merge pull requests only when all tests passes ... but somehow I can't get it to work, so 1.3.4 broke the style test again ...
 
 ## [1.3.3] - 2023-07-19
 

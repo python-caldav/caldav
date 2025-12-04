@@ -779,7 +779,7 @@ zimbra = {
     'search.recurrences.expanded.todo': { "support": "unsupported" },
     'search.comp-type-optional': {'support': 'fragile'}, ## TODO: more research on this, looks like a bug in the checker,
     'search.time-range.alarm': {'support': 'unsupported'},
-    'sync-token': {'support': 'unsupported'},
+    'sync-token': {'support': 'ungraceful'},
     'principal-search': "ungraceful",
     'save.duplicate-uid.cross-calendar': {'support': 'unsupported', "behaviour": "moved-instead-of-copied" },
 
@@ -1059,20 +1059,22 @@ robur = {
     "search.time-range.todo": { "support": "unsupported" },
     "search.time-range.alarm": {'support': 'unsupported'},
     "search.text": { "support": "unsupported", "behaviour": "a text search ignores the filter and returns all elements" },
+    "search.text.by-uid": { "support": "fragile", "behaviour": "Probably not supported, but my caldav-server-checker tool has issues with it at the moment" },
     "search.comp-type-optional": { "support": "ungraceful" },
     "search.recurrences.expanded.todo": { "support": "unsupported" },
     "search.recurrences.expanded.event": { "support": "fragile" },
     "search.recurrences.expanded.exception": { "support": "unsupported" },
     'search.recurrences.includes-implicit.todo': {'support': 'unsupported'},
-    'principal-search': {'support': 'unsupported'},
-    'freebusy-query.rfc4791': {'support': 'unsupported'},
+    'principal-search': {'support': 'ungraceful'},
+    'freebusy-query.rfc4791': {'support': 'ungraceful'},
     'old_flags': [
         'non_existing_raises_other', ## AuthorizationError instead of NotFoundError
         'no_scheduling',
         'no_supported_components_support',
         'no_relships',
         'unique_calendar_ids',
-    ]
+    ],
+    "sync-token": False,
 }
 
 posteo = {
@@ -1083,12 +1085,15 @@ posteo = {
     },
     'create-calendar': {'support': 'unsupported'},
     'save-load.journal': { "support": "ungraceful" },
+    ## TODO1: we should ignore cases where observations are unknown while configuration is known
+    ## TODO2: there are more calendars available at the posteo account, so it should be possible to check this.
+    "save.duplicate-uid.cross-calendar": { "support": "unknown" },
     'search.comp-type-optional': {'support': 'ungraceful'},
     'search.recurrences.expanded.todo': {'support': 'unsupported'},
     'search.recurrences.expanded.exception': {'support': 'unsupported'},
     'search.recurrences.includes-implicit.todo': {'support': 'unsupported'},
     "search.combined-is-logical-and": {"support": "unsupported"},
-    'sync-token': {'support': 'unsupported'},
+    'sync-token': {'support': 'ungraceful'},
     'principal-search': {'support': 'unsupported'},
     'old_flags': [
         'no_scheduling',
