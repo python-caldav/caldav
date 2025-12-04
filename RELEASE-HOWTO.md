@@ -20,7 +20,7 @@ I have no clue on the proper procedures for doing releases, and I keep on doing 
 * Set the variable `VERSION=2.2.0`
 * Commit the changes (typically `CHANGELOG.md`, perhaps documentation): `git commit -am "preparing for releasing v${VERSION}"`
 * Create a tag: `git tag -as v${VERSION}` - use the release notes in the tag message.  Don't push it yet.
-* Make a clone: `git clone caldav/ caldav-release ; cd caldav-release ; git checkout v${VERSION}`
+* Make a clone: `cd ~ ; git clone caldav/ caldav-release ; cd caldav-release ; git checkout v${VERSION}`
 * Run tests (particularly the style check): `pytest` and `tox -e style`.
 * Push the code to github: `cd ~/caldav ; git push ; git push --tags`
 * Some people relies on the github release system for finding releases - go to https://github.com/python-caldav/caldav/releases/new, choose the new tag, copy the version number and the release notes in.  Remember to check the box to make it the latest release.
