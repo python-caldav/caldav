@@ -14,6 +14,21 @@ That said, personally I'm all ears for suggestions on how to improve
 the CalDAV library - even if that includes blunt criticism of the work
 I've done.
 
+Specific for this project, we should probably strive not to use too
+many negative adjectives on server implementations, even when they
+break all the standards badly.  I may not have been very good at this
+earlier (and I may not have weeded out all he negativity from the
+mastar branch yet), but I'm striving to improve myself.  While the
+RFCs may seem sub-optimal or ambiguous sometimes, accusing the authors
+for being stupid, evil or corrupt is clearly way out of the line.
+
+The main branch for this project is called "master".  If the project
+was made today, the name of the branch would be "main.  For ME, I
+cannot understand how naming a git-branch "master" can be offensive -
+but if YOU get offended by it, please notify me.  I will not quesion
+it, and I will not hold you responsible for it, I will just rename the
+branch.
+
 Unacceptable behavior may be reported to Tobias Brox, the current
 maintainer of the project.  The email address coc-abuse@plann.no may
 be used.  If complaining to Tobias doesn't help, you may try reaching
@@ -22,4 +37,4 @@ If Tobias is the subject of the complaint, you may want to put Cyril
 on the Cc-list in your complaint.  His email address can be found
 through http://scr.im/22q7
 
-Tobias Brox, 2025-05-21
+Tobias Brox, 2025-05-21 (amended 2025-12-04)

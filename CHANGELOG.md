@@ -44,10 +44,7 @@ Highlights:
 ### Changed
 
 * Transparent handling of calendar servers not supporting sync-tokens.  The API will yield the same result, albeit with more bandwidth and memory consumption.
-* I'm still working on "compatibility hints".  Unfortunately, documentation is still missing.  The gist of it:
-  * Use `features: posteo` instead of `url: https://posteo.de:8443/` in the connection configuration.
-  * Use `features: nextcloud` and `url: my.nextcloud.provider.eu` instead of `url: https://my.nextcloud.provider.eu/remote.php/dav`
-  * Or even easier, use `features: nextcloud` and `username: tobixen@example.com`
+* I'm still working on "compatibility hints".  Unfortunately, documentation is still missing.
 * **Major refactoring!**  Some of the logic has been pushed out of the CalDAV package and into a new package, icalendar-searcher.  New logic for doing client-side filtering of search results have also been added to that package.  This refactoring enables possibilities for more advanced search queries as well as client-side filtering.
   * For advanced search queries, it's needed to create a `caldav.CalDAVSearcher` object, add filters and do a `searcher.search(cal)` instead of doing `cal.search(...)`.
 * **Server compatibility improvements**: Significant work-arounds added for inconsistent CalDAV server behavior, aiming for consistent search results regardless of the server in use. Many of these work-arounds require proper server compatibility configuration via the `features` / `compatibility_hints` system. This may be a **breaking change** for some use cases, as backward-bug-compatibility is not preserved - searches may return different results if the previous behavior was relying on server quirks.
@@ -64,6 +61,9 @@ Highlights:
 
 * **New ways to configure the client connection, new parameters**
   - **RFC 6764 DNS-based service discovery**: Automatic CalDAV/CardDAV service discovery using DNS SRV/TXT records and well-known URIs. Users can now provide just a domain name or email address (e.g., `DAVClient(username='user@example.com')`) and the library will automatically discover the CalDAV service endpoint. The discovery process follows RFC 6764 specification.  This involves a new required dependency: `dnspython` for DNS queries.  DNS-based discovery can be disabled in the davclient connection settings, but I've opted against implementing a fallback if the dns library is not installed.
+  - Use `features: posteo` instead of `url: https://posteo.de:8443/` in the connection configuration.
+  - Use `features: nextcloud` and `url: my.nextcloud.provider.eu` instead of `url: https://my.nextcloud.provider.eu/remote.php/dav`
+  - Or even easier, use `features: nextcloud` and `username: tobixen@example.com`
   - New `require_tls` parameter (default: `True`) prevents DNS-based downgrade attacks
   - The client connection parameter `features` may now simply be a string label referencing a well-known server or cloud solution - like `features: posteo`.  https://github.com/python-caldav/caldav/pull/561
   - The client connection parameter `url` is no longer needed when referencing a well-known cloud solution. https://github.com/python-caldav/caldav/pull/561
@@ -79,7 +79,7 @@ Highlights:
 ### Security
 
 There is a major security flaw with the RFC6764 discovery.  If the DNS is not trusted (public hotspot, for instance), someone can highjack the connection by spoofing the service records.  The protocol also allows to downgrade from https to http.  Utilizing this it may be possible to steal the credentials.  Mitigations:
- * DNSSEC is the ultimate soluion, but DNSSEC is not widely used.  I tried implementing robust DNSSEC validation, but it was too complicaed.
+ * DNSSEC is the ultimate soluion, but DNSSEC is not widely used.  I tried implementing robust DNSSEC validation, but it was too complicated.
  * Require TLS.  By default, connections through the autodiscovery is required to use TLS.
  * Decline domain change.  If acme.com forwards to caldav.acme.com, it will be accepted, if it forward to evil.hackers.are.us the connection is declined.
 
@@ -182,10 +182,10 @@ External servers tested:
 * Synology
 * Posteo
 * Baikal
+* Robur
 
 Servers and platforms not tested this time:
 
-* Robur (Some tests have been run towards Robur - but it seems to be some problems with the server, or perhaps active rate-limiting, the tests stops up after a while)
 * PurelyMail (partly tested - but test runs takes EXTREMELY long time due to the search-cache server peculiarity, and the test runs still frequently fails in non-deterministic ways).
 * GMX (It throws authorization errors, didn't figure out of it yet)
 * DAViCal (my test server is offline)
