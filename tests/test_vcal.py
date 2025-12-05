@@ -335,7 +335,11 @@ END:VJOURNAL
 END:VCALENDAR"""
 
         # Test each component type
-        for ical in [double_event_without_dtstamp, todo_without_dtstamp, journal_without_dtstamp]:
+        for ical in [
+            double_event_without_dtstamp,
+            todo_without_dtstamp,
+            journal_without_dtstamp,
+        ]:
             # Verify the original doesn't have DTSTAMP
             assert "DTSTAMP:" not in ical
 
@@ -347,12 +351,14 @@ END:VCALENDAR"""
 
             # Verify it matches the expected format (YYYYMMDDTHHMMSSZ)
             dtstamp_match = re.search(r"DTSTAMP:(\d{8}T\d{6}Z)", fixed)
-            assert dtstamp_match is not None, f"DTSTAMP should be in correct format in:\n{fixed}"
+            assert (
+                dtstamp_match is not None
+            ), f"DTSTAMP should be in correct format in:\n{fixed}"
 
-            if ical.count('BEGIN:VEVENT') == 2:
-                assert fixed.count('DTSTAMP:') == 2
+            if ical.count("BEGIN:VEVENT") == 2:
+                assert fixed.count("DTSTAMP:") == 2
             else:
-                assert fixed.count('DTSTAMP:') == 1
+                assert fixed.count("DTSTAMP:") == 1
 
             # Verify the fixed ical is valid
             self.verifyICal(fixed)

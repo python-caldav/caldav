@@ -91,10 +91,14 @@ def fix(event):
 
     ## 6) add DTSTAMP if not given
     ## (corner case that DTSTAMP is given in one but not all the recurrences is ignored)
-    if not '\nDTSTAMP:' in fixed:
-        assert ('\nEND' in fixed)
-        dtstamp=datetime.datetime.now(tz=datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ')
-        fixed = re.sub('(\nEND:(VTODO|VEVENT|VJOURNAL))', f'\nDTSTAMP:{dtstamp}\\1', fixed)
+    if not "\nDTSTAMP:" in fixed:
+        assert "\nEND" in fixed
+        dtstamp = datetime.datetime.now(tz=datetime.timezone.utc).strftime(
+            "%Y%m%dT%H%M%SZ"
+        )
+        fixed = re.sub(
+            "(\nEND:(VTODO|VEVENT|VJOURNAL))", f"\nDTSTAMP:{dtstamp}\\1", fixed
+        )
 
     ## 3 fix duplicated DTSTAMP ... and ...
     ## 5 prepare to remove DURATION or DTEND/DUE if both DURATION and
