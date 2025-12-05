@@ -2,7 +2,7 @@
 
 Issues should be fixed ASAP, and information on any security issue should be published as soon as it's fixed. Use the GitHub issue tracker or check up [CONTACT](CONTACT.md) or even the [CODE OF CONDUCT](CODE_OF_CONDUCT) file to get in touch with the maintainer.
 
-There is no "LTS"-releases of the CalDAV package, but the maintainer will always consider backporting security fixes if it's deemed relevant.  The maintainer is doing most of the maintenance on hobby-basis and may have other things in life preventing him from dealing with issues on the go, so no guarantees are given.
+There are no "LTS"-releases of the CalDAV package, but the maintainer will always consider backporting security fixes if it's deemed relevant.  The maintainer is doing most of the maintenance on hobby-basis and may have other things in life preventing him from dealing with issues on the go, so no guarantees are given.
 
 All contributions are carefully reviewed by the maintainer, and all releases are carefully tested and tagged with a PGP-signed commit.
 
