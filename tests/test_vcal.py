@@ -56,7 +56,7 @@ class TestVcal(TestCase):
         self.assertEqual(normalize(ical1, ignore_uid), normalize(ical2, ignore_uid))
         return ical2
 
-    def verifyICal(self, ical):
+    def verifyICal(self, ical, allow_reordering=False):
         """
         Does a best effort on verifying that the ical is correct, by
         pushing it through the vobject and icalendar library
@@ -155,16 +155,6 @@ UID:1c9bba3e-c121-11ed-bf96-982cbcdd642c
 CATEGORIES:oslo
 END:VEVENT
 END:VCALENDAR
-""",
-            ## Next one contains a DTSTAMP before BEGIN:VEVENT
-            ## Doesn’t make sense, but valid, and more importantly,
-            ## not failing during the `fix` call.
-            """DTSTAMP:20210205T101751Z
-BEGIN:VEVENT
-UID:20200516T060000Z-123401@example.com
-SUMMARY:Do the needful
-DTSTART:20210517T060000Z
-END:VEVENT
 """,
         ]
         broken_ical = [
@@ -295,3 +285,74 @@ END:VCALENDAR""",
 
         for ical in non_broken_ical:
             assert vcal.fix(ical) == ical
+
+    def test_missing_dtstamp_fix(self) -> None:
+        """
+        Test that missing DTSTAMP is added by the fix function.
+        DTSTAMP is mandatory according to RFC5545 but doesn't cause
+        vobject to fail, so it needs its own test (issue #504).
+        """
+        # Event without DTSTAMP
+        double_event_without_dtstamp = """BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//FOSDEM//Example//EN
+BEGIN:VEVENT
+UID:missing-dtstamp-test@example.com
+DTSTART:20250101T100000Z
+DTEND:20250101T110000Z
+SUMMARY:Event without DTSTAMP
+RRULE:FREQ=YEARLY
+END:VEVENT
+BEGIN:VEVENT
+UID:missing-dtstamp-test@example.com
+DTSTART:20260101T100000Z
+DTEND:20260101T110000Z
+SUMMARY:Event without DateTimeSTAMP 2026
+RECURRENCE-ID:20260101T100000Z
+END:VEVENT
+END:VCALENDAR"""
+
+        # Todo without DTSTAMP
+        todo_without_dtstamp = """BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//FOSDEM//Example//EN
+BEGIN:VTODO
+UID:missing-dtstamp-todo@example.com
+SUMMARY:Todo without DTSTAMP
+DUE:20250101T120000Z
+END:VTODO
+END:VCALENDAR"""
+
+        # Journal without DTSTAMP
+        journal_without_dtstamp = """BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//FOSDEM//Example//EN
+BEGIN:VJOURNAL
+UID:missing-dtstamp-journal@example.com
+SUMMARY:Journal without DTSTAMP
+DTSTART:20250101T100000Z
+END:VJOURNAL
+END:VCALENDAR"""
+
+        # Test each component type
+        for ical in [double_event_without_dtstamp, todo_without_dtstamp, journal_without_dtstamp]:
+            # Verify the original doesn't have DTSTAMP
+            assert "DTSTAMP:" not in ical
+
+            # Apply the fix
+            fixed = vcal.fix(ical)
+
+            # Verify DTSTAMP was added
+            assert "DTSTAMP:" in fixed, f"DTSTAMP should be added to:\n{ical}"
+
+            # Verify it matches the expected format (YYYYMMDDTHHMMSSZ)
+            dtstamp_match = re.search(r"DTSTAMP:(\d{8}T\d{6}Z)", fixed)
+            assert dtstamp_match is not None, f"DTSTAMP should be in correct format in:\n{fixed}"
+
+            if ical.count('BEGIN:VEVENT') == 2:
+                assert fixed.count('DTSTAMP:') == 2
+            else:
+                assert fixed.count('DTSTAMP:') == 1
+
+            # Verify the fixed ical is valid
+            self.verifyICal(fixed)
