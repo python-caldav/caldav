@@ -36,10 +36,7 @@ Consider this procedures to be a more of a guideline than a rigid procedure.  Us
 * Add an entry in the `CHANGELOG.md` file.
 
 * Create a pull request
-```
 
 ## Code of Conduct
 
-There is some text on https://www.contributor-covenant.org/, please DO reach out at t-py-caldav@tobixen.no if you notice a need for an explicit Code of Conduct.
-
-Specific for this project, we should probably strive not to use too many negative adjectives on server implementations.
+Code of Conduct has been moved to a [separate document](CODE_OF_CONDUCT]
