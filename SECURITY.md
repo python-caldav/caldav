@@ -10,7 +10,7 @@ All contributions are carefully reviewed by the maintainer, and all releases are
 
 ## RFC6764
 
-I do see a major security flaw with the RFC6764 discovery. If the DNS is not to be trusted, someone can highjack the connection by spoofing the service records, and also spoofing the TLS setting, encouraging the client to connect over plain-text HTTP without certificate validation. Utilizing this it may be possible to steal the credentials. This flaw can be mitigated by using DNSSEC, but DNSSEC is not widely used, and there is currently no mechanisms in this package to verify that the DNS is secure.  This will be partly mitigated by adding a `require_tls` connection parameter that is True by default.
+I do see a major security flaw with the RFC6764 discovery. If the DNS is not to be trusted, someone can highjack the connection by spoofing the service records, and also spoofing the TLS setting, encouraging the client to connect over plain-text HTTP without certificate validation. Utilizing this it may be possible to steal the credentials. This flaw can be mitigated by using DNSSEC, but DNSSEC is not widely used, and fixing support for DNSSEC validation in the CalDAV library was found to be non-trivial (perhaps I'll look into it again some time after 3.0 has been released).  This has been mitigated by adding a require_tls` connection parameter that is True by default, plus by ensuring one isn't routed to a different domain.
 
 ## DDoS/OOM risk
 
