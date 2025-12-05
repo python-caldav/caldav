@@ -2,6 +2,10 @@
 
 Contributions are mostly welcome.  If the length of this text scares you, then I'd rather want you to skip reading and just produce a pull-request in GitHub.
 
+## Usage of AI and other tools
+
+A separate [AI POLICY](AI_POLICY.md) has been made.  The gist of it, be transparent and inform if your contribution was a result of clever tool usage and/or AI-usage, don't submit code if you don't understand the code yourself, and you are supposed to contribute value to the project.  If you're too lazy to read the AI Policy, then at least have a chat with the AI to work out if your contribution is within the policy or not.
+
 ## GitHub
 
 The official guidelines currently involves contributors to have a GitHub account - but this is not a requirement!  If you for some reason or another don't want to use GitHub, then that's fine.  Reach out by email, IRC, matrix, signal, deltachat, telegram or whatnot.
@@ -36,10 +40,7 @@ Consider this procedures to be a more of a guideline than a rigid procedure.  Us
 * Add an entry in the `CHANGELOG.md` file.
 
 * Create a pull request
-```
 
 ## Code of Conduct
 
-There is some text on https://www.contributor-covenant.org/, please DO reach out at t-py-caldav@tobixen.no if you notice a need for an explicit Code of Conduct.
-
-Specific for this project, we should probably strive not to use too many negative adjectives on server implementations.
+Code of Conduct has been moved to a [separate document](CODE_OF_CONDUCT]
