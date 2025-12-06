@@ -92,6 +92,10 @@ class FeatureSet:
         "delete-calendar.free-namespace": {
             "description": "The delete operations clears the namespace, so that another calendar with the same ID/name can be created"
         },
+        "http": { },
+        "http.multiplexing": {
+            "description": "chulka/baikal:nginx is having Problems with using HTTP/2 with multiplexing, ref https://github.com/python-caldav/caldav/issues/564.  I haven't (yet) been able to reproduce this locally, so no check for this yet.  We'll define it as fragile in the radicale config as for now"
+        },
         "save-load": {
             "description": "it's possible to save and load objects to the calendar"
         },
@@ -880,6 +884,7 @@ synology = {
 }
 
 baikal =  { ## version 0.10.1
+    "http.multiplexing": "fragile", ## ref https://github.com/python-caldav/caldav/issues/564
     "save-load.journal": {'support': 'ungraceful'},
     #'search.comp-type-optional': {'support': 'ungraceful'}, ## Possibly this has been fixed?
     'search.recurrences.expanded.todo': {'support': 'unsupported'},

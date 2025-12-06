@@ -599,17 +599,18 @@ class DAVClient:
         """
         headers = headers or {}
 
-        ## Deprecation TODO: give a warning, user should use get_davclient or auto_calendar instead
-
-        try:
-            self.session = requests.Session(multiplexed=True)
-        except TypeError:
-            self.session = requests.Session()
+        ## Deprecation TODO: give a warning, user should use get_davclient or auto_calendar instead.  Probably.
 
         if isinstance(features, str):
             features = getattr(caldav.compatibility_hints, features)
         self.features = FeatureSet(features)
         self.huge_tree = huge_tree
+
+        try:
+            multiplexed = self.features.is_supported('http.multiplexing')
+            self.session = requests.Session(multiplexed=multiplexed)
+        except TypeError:
+            self.session = requests.Session()
 
         url, discovered_username = _auto_url(
             url,
