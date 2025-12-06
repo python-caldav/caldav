@@ -92,6 +92,10 @@ class FeatureSet:
         "delete-calendar.free-namespace": {
             "description": "The delete operations clears the namespace, so that another calendar with the same ID/name can be created"
         },
+        "http": { },
+        "http.multiplexing": {
+            "description": "chulka/baikal:nginx is having Problems with using HTTP/2 with multiplexing, ref https://github.com/python-caldav/caldav/issues/564.  I haven't (yet) been able to reproduce this locally, so no check for this yet.  We'll define it as fragile in the radicale config as for now"
+        },
         "save-load": {
             "description": "it's possible to save and load objects to the calendar"
         },
@@ -263,6 +267,26 @@ class FeatureSet:
         self._old_flags = []
         if feature_set_dict:
             self.copyFeatureSet(feature_set_dict, collapse=False)
+
+
+    def set_feature(self, feature, value=True):
+        if isinstance(value, dict):
+            fc = {feature: value}
+        elif isinstance(value, str):
+            fc = {feature: {"support": value}}
+        elif value is True:
+            fc = {feature: {"support": "full"}}
+        elif value is False:
+            fc = {feature: {"support": "unsupported"}}
+        elif value is None:
+            fc = {feature: {"support": "unknown"}}
+        else:
+            assert False
+        self.copyFeatureSet(fc, collapse=False)
+        feat_def = self.find_feature(feature)
+        feat_type = feat_def.get('type', 'server-feature')
+        sup = fc[feature].get('support', feat_def.get('default', 'full'))
+
 
     ## TODO: Why is this camelCase while every other method is with under_score?  rename ...
     def copyFeatureSet(self, feature_set, collapse=True):
@@ -880,6 +904,7 @@ synology = {
 }
 
 baikal =  { ## version 0.10.1
+    "http.multiplexing": "fragile", ## ref https://github.com/python-caldav/caldav/issues/564
     "save-load.journal": {'support': 'ungraceful'},
     #'search.comp-type-optional': {'support': 'ungraceful'}, ## Possibly this has been fixed?
     'search.recurrences.expanded.todo': {'support': 'unsupported'},

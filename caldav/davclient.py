@@ -599,17 +599,18 @@ class DAVClient:
         """
         headers = headers or {}
 
-        ## Deprecation TODO: give a warning, user should use get_davclient or auto_calendar instead
-
-        try:
-            self.session = requests.Session(multiplexed=True)
-        except TypeError:
-            self.session = requests.Session()
+        ## Deprecation TODO: give a warning, user should use get_davclient or auto_calendar instead.  Probably.
 
         if isinstance(features, str):
             features = getattr(caldav.compatibility_hints, features)
         self.features = FeatureSet(features)
         self.huge_tree = huge_tree
+
+        try:
+            multiplexed = self.features.is_supported("http.multiplexing")
+            self.session = requests.Session(multiplexed=multiplexed)
+        except TypeError:
+            self.session = requests.Session()
 
         url, discovered_username = _auto_url(
             url,
@@ -1100,6 +1101,24 @@ class DAVClient:
             and self.password
             and isinstance(self.password, bytes)
         ):
+            ## TODO: this has become a mess and should be refactored.
+            ## (Arguably, this logic doesn't belong here at all.
+            ## with niquests it's possible to just pass the username
+            ## and password, maybe we should try that?)
+
+            ## Most likely we're here due to wrong username/password
+            ## combo, but it could also be a multiplexing problem.
+            if (
+                self.features.is_supported("http.multiplexing", return_defaults=False)
+                is None
+            ):
+                self.session = requests.Session()
+                self.features.set_feature("http.multiplexing", "unknown")
+                ## If this one also fails, we give up
+                ret = self.request(str(url_obj), method, body, headers)
+                self.features.set_feature("http.multiplexing", False)
+                return ret
+
             ## Most likely we're here due to wrong username/password
             ## combo, but it could also be charset problems.  Some
             ## (ancient) servers don't like UTF-8 binary auth with
@@ -1115,6 +1134,7 @@ class DAVClient:
 
             self.username = None
             self.password = None
+
             return self.request(str(url_obj), method, body, headers)
 
         if error.debug_dump_communication:
