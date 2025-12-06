@@ -16,6 +16,13 @@ Changelogs prior to v1.2 is pruned, but available in the v1.2 release
 
 This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html), though some earlier releases may be incompatible with the SemVer standard.
 
+## [2.2.3] - [2025-12-06]
+
+### Fixed
+
+* Some servers did not support the combination of HTTP/2-multiplexing and authentication.  Two workarounds fixed; baikal will specifically not use multiplexing, and an attempt to authenticate without multiplexing will be made upon authentication problems.  Fixes https://github.com/python-caldav/caldav/issues/564
+* The DTSTAMP is mandatory in icalendar data.  The `vcal.fix`-scrubber has been updated to make up a DTSTAMP if it's missing.  Fixes https://github.com/python-caldav/caldav/issues/504
+
 ## [2.2.2] - [2025-12-04]
 
 2.2.1 is released with requests support (mispelled riquests in 2.2.0), 2.2.2 with niquests support
