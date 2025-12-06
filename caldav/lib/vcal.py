@@ -58,6 +58,18 @@ def fix(event):
     and duration set - which is forbidden according to the RFC.  We
     should probably verify that the data is consistent.  As for now,
     we'll just drop DURATION or DTEND (whatever comes last).
+
+    6) On FOSSDEM I was presented with icalendar data missing the
+    DTSTAMP field.  This is mandatory according to the RFC.
+
+    All logic here is done with on the ical string, and not on
+    icalendar objects.  There are two reasons for it, originally
+    optimization (not having to parse the icalendar data and create an
+    object, if it's to be tossed away again shortly afterwards), but
+    also because broken icalendar data may cause the instantiation of
+    an icalendar object to break.
+
+    TODO: this should probably be moved out from the library.
     """
     event = to_normal_str(event)
     if not event.endswith("\n"):
@@ -76,6 +88,17 @@ def fix(event):
 
     ## 4) trailing whitespace probably never makes sense
     fixed = re.sub(" *$", "", fixed)
+
+    ## 6) add DTSTAMP if not given
+    ## (corner case that DTSTAMP is given in one but not all the recurrences is ignored)
+    if not "\nDTSTAMP:" in fixed:
+        assert "\nEND" in fixed
+        dtstamp = datetime.datetime.now(tz=datetime.timezone.utc).strftime(
+            "%Y%m%dT%H%M%SZ"
+        )
+        fixed = re.sub(
+            "(\nEND:(VTODO|VEVENT|VJOURNAL))", f"\nDTSTAMP:{dtstamp}\\1", fixed
+        )
 
     ## 3 fix duplicated DTSTAMP ... and ...
     ## 5 prepare to remove DURATION or DTEND/DUE if both DURATION and

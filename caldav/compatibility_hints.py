@@ -874,11 +874,9 @@ synology = {
     'search.time-range.alarm': False,
     'sync-token': 'fragile',
     'delete-calendar': False,
-    'delete-calendar.free-namespace': False,
     'search.comp-type-optional': 'fragile',
     "search.recurrences.expanded.exception": False,
-    'test-calendar': {'cleanup-regime': 'wipe-calendar'},
-    'old_flags': ['vtodo_datesearch_nodtstart_task_is_skipped'],
+     'old_flags': ['vtodo_datesearch_nodtstart_task_is_skipped'],
 }
 
 baikal =  { ## version 0.10.1
@@ -1034,12 +1032,6 @@ sogo = {
 #    'text_search_is_exact_match_sometimes',
 #    'rrule_takes_no_count',
 #    'isnotdefined_not_working',
-#]
-
-#synology = [
-#    "fragile_sync_tokens",
-#    "vtodo_datesearch_notime_task_is_skipped",
-#    "no_recurring_todo",
 #]
 
 robur = {
