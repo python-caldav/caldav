@@ -21,6 +21,23 @@ davclient.py        (REWRITE) - Thin wrapper using asyncio.run()
 - Can fix API inconsistencies in async version
 - 100% backward compatibility via wrapper
 
+**Backward Compatibility & Deprecation Strategy**:
+
+Version 3.0 will maintain 100% backward compatibility while introducing the async API. The sync wrapper will support both old and new method names. Over subsequent releases, we'll gradually deprecate old patterns:
+
+- **Easily duplicated functionality** (e.g., `get_principal()` vs `principal()`): Support both indefinitely
+- **Commonly used methods** (e.g., `principal()`, old parameter names):
+  - v3.0: Supported, deprecation noted in docstrings
+  - v4.0: Deprecation warnings added
+  - v5.0+: Consider removal
+- **Less common patterns** (e.g., `dummy` parameters):
+  - v3.0: Deprecation warnings added
+  - v4.0+: Consider removal
+
+This gives users ample time to migrate without breaking existing code.
+
+**Code Style**: Switch from Black to Ruff formatter/linter. The configuration from the icalendar-searcher project can serve as a reference.
+
 ### 2. Primary Entry Point: get_davclient() ✅
 
 **Decision**: Use factory function as primary entry point, not direct class instantiation.
@@ -55,14 +72,16 @@ async def get_davclient(..., probe: bool = True) -> AsyncDAVClient:  # Async: Tr
 ```
 
 **Behavior**:
-- Simple OPTIONS request to verify server reachable
-- Opt-out available via `probe=False`
-- Default differs: sync=False (compat), async=True (opinionated)
+- Performs a simple OPTIONS request to verify the server is reachable and supports DAV methods
+- Can be disabled via `probe=False` when needed (e.g., testing, offline scenarios)
+- Default differs between sync and async:
+  - Sync: `probe=False` (backward compatibility - no behavior change)
+  - Async: `probe=True` (fail-fast principle - catch issues immediately)
 
 **Rationale**:
-- Fail fast - catch config errors immediately
-- Better UX - clear error messages
-- `connect()` rejected as name - no actual connection in __init__
+- Early error detection - configuration issues discovered at connection time, not first use
+- Better user experience - clear error messages about connectivity problems
+- Name choice: `connect()` was rejected because `__init__()` doesn't actually establish a connection
 
 ### 4. Eliminate _query() ✅
 
@@ -130,14 +149,12 @@ async def mkcalendar(url: str, ...) -> DAVResponse:
 ```
 
 **Rationale**:
-- `self.url` is base CalDAV URL
-- Query methods often query the base
-- Resource methods target specific paths
-- Making `delete(url=None)` dangerous - could try to delete entire server!
+- `self.url` represents the base CalDAV server URL (e.g., `https://caldav.example.com/`)
+- Query methods sometimes operate on the base URL (checking server capabilities, discovering principals)
+- Resource methods always target specific resource paths (events, calendars, etc.)
+- Safety consideration: `delete(url=None)` could be misinterpreted as attempting to delete the entire server. While servers would likely reject such a request, requiring an explicit URL prevents ambiguity and potential accidents
 
 ### 7. Parameter Standardization ✅
-
-**High Priority Fixes**:
 
 1. **Remove `dummy` parameters** - backward compat cruft
    ```python
