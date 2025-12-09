@@ -12,7 +12,7 @@ from flask import jsonify
 from flask import Response
 from google.oauth2.credentials import Credentials
 
-from caldav import DAVClient
+from caldav.davclient import get_davclient
 from caldav.requests import HTTPBearerAuth
 
 
@@ -93,7 +93,7 @@ def serve_calendar_ics(calendar_name):
         calendar_url = CALDAV_URL_TEMPLATE.format(calendar_id=calendar_id)
 
         # connect to the calendar using CalDAV
-        client = DAVClient(url=calendar_url, auth=HTTPBearerAuth(access_token))
+        client = get_davclient(url=calendar_url, auth=HTTPBearerAuth(access_token))
         principal = client.principal()
         calendars = principal.calendars()
 

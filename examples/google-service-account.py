@@ -10,7 +10,7 @@ from google.oauth2 import service_account
 from google_auth_oauthlib.flow import InstalledAppFlow
 from requests.auth import AuthBase
 
-import caldav
+from caldav.davclient import get_davclient
 
 
 SERVICE_ACCOUNT_FILE = "service.json"
@@ -35,7 +35,7 @@ creds.refresh(Request())
 calid = "{ID}@group.calendar.google.com"
 url = "https://apidata.googleusercontent.com/caldav/v2/" + calid + "/events"
 
-client = caldav.DAVClient(url, auth=OAuth(creds))
+client = get_davclient(url, auth=OAuth(creds))
 
 for calendar in client.principal().calendars():
     events = calendar.events()
