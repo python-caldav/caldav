@@ -1,0 +1,87 @@
+# Async CalDAV Refactoring Design Documents
+
+This directory contains design documents for the async-first CalDAV refactoring project.
+
+## Overview
+
+The goal is to refactor the caldav library to be async-first, with a thin sync wrapper for backward compatibility. This allows us to:
+
+1. Modernize the codebase for async/await
+2. Clean up API inconsistencies in the async version
+3. Maintain 100% backward compatibility via sync wrapper
+4. Minimize code duplication
+
+## Key Documents
+
+### ASYNC_REFACTORING_PLAN.md
+**Master plan** consolidating all decisions. Start here for the complete picture of:
+- Architecture (async-first with sync wrapper)
+- File structure and implementation phases
+- Backward compatibility and deprecation strategy
+- API improvements and standardization
+- Testing strategy and success criteria
+
+### API_ANALYSIS.md
+Analysis of 10 API inconsistencies in the current davclient.py and proposed fixes for the async API:
+- URL parameter handling (optional vs required)
+- Dummy parameters (backward compat cruft)
+- Body parameter naming inconsistencies
+- Method naming improvements
+- Parameter standardization
+
+### URL_AND_METHOD_RESEARCH.md
+Research on URL semantics and HTTP method wrapper usage:
+- How method wrappers are actually used in the codebase
+- URL parameter split (optional for query methods, required for resource methods)
+- Why `delete(url=None)` would be dangerous
+- Dynamic dispatch analysis
+
+### ELIMINATE_METHOD_WRAPPERS_ANALYSIS.md
+Decision analysis on `DAVObject._query()`:
+- Why `_query()` should be eliminated
+- Why method wrappers should be kept (mocking, discoverability)
+- How callers will use wrappers directly
+
+### METHOD_GENERATION_ANALYSIS.md
+Analysis of manual vs generated HTTP method wrappers:
+- Option A: Manual wrappers + helper (recommended)
+- Option B: Dynamic generation at runtime
+- Option C: Decorator-based generation
+- Trade-offs: code size vs clarity vs debuggability
+
+### GET_DAVCLIENT_ANALYSIS.md
+Analysis of factory function as primary entry point:
+- Why `get_davclient()` should be the recommended way
+- Environment variable and config file support
+- Connection probe feature design
+- 12-factor app principles
+
+### RUFF_CONFIGURATION_PROPOSAL.md
+How to configure Ruff formatter/linter for partial codebase adoption:
+- Include patterns to apply Ruff only to new/rewritten files
+- Configuration reference from icalendar-searcher project
+- Four options analyzed (include patterns recommended)
+- Gradual expansion strategy
+
+## Implementation Status
+
+**Current Phase**: Design and planning (Phase 0)
+
+**Branch**: `playground/new_async_api_design`
+
+**Next Steps**:
+1. Phase 1: Create `async_davclient.py` with `AsyncDAVClient`
+2. Phase 2: Create `async_davobject.py` (eliminate `_query()`)
+3. Phase 3: Create `async_collection.py`
+4. Phase 4: Rewrite `davclient.py` as sync wrapper
+5. Phase 5: Update documentation and examples
+
+## Design Principles
+
+Throughout these documents, the following principles guide our decisions:
+
+- **Clarity over cleverness** - Explicit is better than implicit
+- **Minimize duplication** - Async-first architecture eliminates sync/async code duplication
+- **Backward compatibility** - 100% via sync wrapper, gradual deprecation
+- **Type safety** - Full type hints in async API
+- **Pythonic** - Follow established Python patterns and conventions
