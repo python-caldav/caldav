@@ -42,7 +42,9 @@ print("\n")
 print("Example 3: Using bare domain (RFC6764 discovery enabled by default)")
 print("-" * 70)
 try:
-    client = get_davclient(url="calendar.example.com", username="user", password="password")
+    client = get_davclient(
+        url="calendar.example.com", username="user", password="password"
+    )
     print(f"Client URL after discovery: {client.url}")
 except Exception as e:
     print(f"Discovery failed (expected for example.com): {e}")
