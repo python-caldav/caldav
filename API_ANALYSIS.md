@@ -58,16 +58,33 @@ proppatch(url: str, ...)                   # Required
 delete(url: str)                           # Required
 ```
 
+**Research Finding:** (See URL_AND_METHOD_RESEARCH.md for full analysis)
+
+The inconsistency exists for **good reasons**:
+- `self.url` is the **base CalDAV URL** (e.g., `https://caldav.example.com/`)
+- Query methods (`propfind`, `report`, `options`) often query the base URL ✓
+- Resource methods (`put`, `delete`, `post`, etc.) always target **specific resources** ✗
+
+Making `delete(url=None)` would be **dangerous** - could accidentally try to delete the entire CalDAV server!
+
 **Recommendation:**
-- Make `url` optional for all methods, defaulting to `self.url`
-- OR make it required everywhere for consistency
-- **Preferred:** Optional everywhere with default `self.url`
+- **Query methods** (`propfind`, `report`, `options`): Optional URL, defaults to `self.url` ✓
+- **Resource methods** (`put`, `delete`, `post`, `proppatch`, `mkcol`, `mkcalendar`): **Required URL** ✓
 
 ```python
-# Proposed:
-propfind(url: Optional[str] = None, ...)
-proppatch(url: Optional[str] = None, ...)
-delete(url: Optional[str] = None)
+# Proposed (async API):
+# Query methods - safe defaults
+async def propfind(url: Optional[str] = None, ...) -> DAVResponse:
+async def report(url: Optional[str] = None, ...) -> DAVResponse:
+async def options(url: Optional[str] = None, ...) -> DAVResponse:
+
+# Resource methods - URL required for safety
+async def put(url: str, ...) -> DAVResponse:
+async def delete(url: str, ...) -> DAVResponse:  # MUST be explicit!
+async def post(url: str, ...) -> DAVResponse:
+async def proppatch(url: str, ...) -> DAVResponse:
+async def mkcol(url: str, ...) -> DAVResponse:
+async def mkcalendar(url: str, ...) -> DAVResponse:
 ```
 
 ### 2. **Dummy Parameters**
@@ -217,16 +234,30 @@ proppatch(url, body: str, dummy)             # "body"
 mkcol(url, body: str, dummy)                 # "body"
 ```
 
+**Research Finding:**
+
+DAVObject._query() uses dynamic dispatch:
+```python
+ret = getattr(self.client, query_method)(url, body, depth)
+```
+
+This means all methods must have compatible signatures for when called via `_query(propfind/proppatch/mkcol/mkcalendar)`.
+
 **Recommendation:**
-- Use `body` everywhere for consistency
-- Or use semantic names: `props_xml`, `query_xml`, `request_body`
-- **Preferred:** Keep semantic names, but be consistent
+- Standardize on `body` for all methods to enable consistent dynamic dispatch
+- More generic and works for all HTTP methods
 
 ```python
-# Proposed:
+# Proposed (async API):
 async def propfind(url=None, body: str = "", depth: int = 0) -> DAVResponse:
 async def report(url=None, body: str = "", depth: int = 0) -> DAVResponse:
-async def proppatch(url=None, body: str = "") -> DAVResponse:
+async def proppatch(url, body: str = "") -> DAVResponse:
+async def mkcol(url, body: str = "") -> DAVResponse:
+async def mkcalendar(url, body: str = "") -> DAVResponse:
+
+# Sync wrapper maintains old names:
+def propfind(self, url=None, props="", depth=0):  # "props" for backward compat
+    return asyncio.run(self._async.propfind(url, props, depth))
 ```
 
 ### 8. **Depth Parameter Inconsistency**
@@ -359,86 +390,89 @@ class AsyncDAVClient:
         """Check if server supports CalDAV Scheduling (RFC6833)"""
         ...
 
-    # HTTP methods - consistent signatures
+    # HTTP methods - split by URL semantics (see URL_AND_METHOD_RESEARCH.md)
+
+    # Query methods - URL optional (defaults to self.url)
     async def propfind(
         self,
-        url: Optional[str] = None,
+        url: Optional[str] = None,  # Defaults to self.url
         body: str = "",
         depth: int = 0,
         headers: Optional[Dict[str, str]] = None,
     ) -> DAVResponse:
-        """PROPFIND request"""
-        ...
-
-    async def proppatch(
-        self,
-        url: Optional[str] = None,
-        body: str = "",
-        headers: Optional[Dict[str, str]] = None,
-    ) -> DAVResponse:
-        """PROPPATCH request"""
+        """PROPFIND request. Defaults to querying the base CalDAV URL."""
         ...
 
     async def report(
         self,
-        url: Optional[str] = None,
+        url: Optional[str] = None,  # Defaults to self.url
         body: str = "",
         depth: int = 0,
         headers: Optional[Dict[str, str]] = None,
     ) -> DAVResponse:
-        """REPORT request"""
-        ...
-
-    async def mkcol(
-        self,
-        url: Optional[str] = None,
-        body: str = "",
-        headers: Optional[Dict[str, str]] = None,
-    ) -> DAVResponse:
-        """MKCOL request"""
-        ...
-
-    async def mkcalendar(
-        self,
-        url: Optional[str] = None,
-        body: str = "",
-        headers: Optional[Dict[str, str]] = None,
-    ) -> DAVResponse:
-        """MKCALENDAR request"""
-        ...
-
-    async def put(
-        self,
-        url: Optional[str] = None,
-        body: str = "",
-        headers: Optional[Dict[str, str]] = None,
-    ) -> DAVResponse:
-        """PUT request"""
-        ...
-
-    async def post(
-        self,
-        url: Optional[str] = None,
-        body: str = "",
-        headers: Optional[Dict[str, str]] = None,
-    ) -> DAVResponse:
-        """POST request"""
-        ...
-
-    async def delete(
-        self,
-        url: Optional[str] = None,
-        headers: Optional[Dict[str, str]] = None,
-    ) -> DAVResponse:
-        """DELETE request"""
+        """REPORT request. Defaults to querying the base CalDAV URL."""
         ...
 
     async def options(
         self,
-        url: Optional[str] = None,
+        url: Optional[str] = None,  # Defaults to self.url
         headers: Optional[Dict[str, str]] = None,
     ) -> DAVResponse:
-        """OPTIONS request"""
+        """OPTIONS request. Defaults to querying the base CalDAV URL."""
+        ...
+
+    # Resource methods - URL required (safety!)
+    async def proppatch(
+        self,
+        url: str,  # REQUIRED - targets specific resource
+        body: str = "",
+        headers: Optional[Dict[str, str]] = None,
+    ) -> DAVResponse:
+        """PROPPATCH request to update properties of a specific resource."""
+        ...
+
+    async def mkcol(
+        self,
+        url: str,  # REQUIRED - creates at specific path
+        body: str = "",
+        headers: Optional[Dict[str, str]] = None,
+    ) -> DAVResponse:
+        """MKCOL request to create a collection at a specific path."""
+        ...
+
+    async def mkcalendar(
+        self,
+        url: str,  # REQUIRED - creates at specific path
+        body: str = "",
+        headers: Optional[Dict[str, str]] = None,
+    ) -> DAVResponse:
+        """MKCALENDAR request to create a calendar at a specific path."""
+        ...
+
+    async def put(
+        self,
+        url: str,  # REQUIRED - targets specific resource
+        body: str = "",
+        headers: Optional[Dict[str, str]] = None,
+    ) -> DAVResponse:
+        """PUT request to create/update a specific resource."""
+        ...
+
+    async def post(
+        self,
+        url: str,  # REQUIRED - posts to specific endpoint
+        body: str = "",
+        headers: Optional[Dict[str, str]] = None,
+    ) -> DAVResponse:
+        """POST request to a specific endpoint."""
+        ...
+
+    async def delete(
+        self,
+        url: str,  # REQUIRED - safety critical!
+        headers: Optional[Dict[str, str]] = None,
+    ) -> DAVResponse:
+        """DELETE request to remove a specific resource. URL must be explicit for safety."""
         ...
 
     # Low-level request method
@@ -468,13 +502,15 @@ class AsyncDAVClient:
 
 ## Summary of Changes
 
-### High Priority (Consistency)
+### High Priority (Consistency & Safety)
 
-1. ✅ Make `url` parameter optional everywhere (default to `self.url`)
+1. ✅ **Split URL requirements** (see URL_AND_METHOD_RESEARCH.md):
+   - Optional for query methods: `propfind`, `report`, `options`
+   - **Required for resource methods**: `put`, `delete`, `post`, `proppatch`, `mkcol`, `mkcalendar`
 2. ✅ Remove `dummy` parameters
 3. ✅ Make `body` parameter optional everywhere (default to `""`)
 4. ✅ Add `headers` parameter to all HTTP methods
-5. ✅ Standardize parameter naming (`body` instead of `props`/`query`)
+5. ✅ Standardize parameter naming (`body` instead of `props`/`query`) for dynamic dispatch compatibility
 
 ### Medium Priority (Pythonic)
 
