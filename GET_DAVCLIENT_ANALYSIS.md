@@ -300,9 +300,163 @@ caldav.aio.get_davclient()  # Async (or get_client)
 caldav.get_client()     # Sync
 caldav.aio.get_client() # Async
 
-# Option 3: Even simpler
+# Option 3: connect() - REJECTED
 caldav.connect()     # Sync
 caldav.aio.connect() # Async
 ```
 
-Personally prefer **Option 3** for clarity, but **Option 1** for consistency with existing code.
+**Option 3 rejected**: `connect()` implies immediate connection attempt, but `DAVClient.__init__()` doesn't connect to the server. It only stores configuration. Actual network I/O happens on first method call.
+
+**Recommendation**: Stick with **Option 1** (`get_davclient`) for consistency.
+
+## Adding Connection Probe
+
+### The Problem
+
+Current behavior:
+```python
+# This succeeds even if server is unreachable:
+client = get_davclient(url="https://invalid-server.com", username="x", password="y")
+
+# Error only happens on first actual call:
+principal = client.principal()  # <-- ConnectionError here
+```
+
+Users don't know if credentials/URL are correct until first use.
+
+### Proposal: Optional Connection Probe
+
+Add a `probe` parameter to verify connectivity:
+
+```python
+def get_davclient(
+    check_config_file: bool = True,
+    config_file: str = None,
+    config_section: str = None,
+    testconfig: bool = False,
+    environment: bool = True,
+    name: str = None,
+    probe: bool = True,  # NEW: verify connection
+    **config_data,
+) -> DAVClient:
+    """
+    Get a DAVClient with optional connection verification.
+
+    Args:
+        probe: If True, performs a simple OPTIONS request to verify
+               the server is reachable and responds. Default: True.
+               Set to False to skip verification (useful for testing).
+    """
+    client = DAVClient(**merged_config)
+
+    if probe:
+        try:
+            # Simple probe - just check if server responds
+            client.options(str(client.url))
+        except Exception as e:
+            raise ConnectionError(
+                f"Failed to connect to CalDAV server at {client.url}: {e}"
+            ) from e
+
+    return client
+```
+
+### Usage
+
+```python
+# Verify connection immediately:
+with get_davclient(url="...", username="...", password="...") as client:
+    # If we get here, server is reachable
+    principal = client.principal()
+
+# Skip probe (for testing or when server might be down):
+with get_davclient(url="...", probe=False) as client:
+    # No connection attempt yet
+    ...
+```
+
+### Async Version
+
+```python
+async def get_davclient(
+    ...,
+    probe: bool = True,
+    **config_data,
+) -> AsyncDAVClient:
+    """Async version with connection probe"""
+    client = AsyncDAVClient(**merged_config)
+
+    if probe:
+        try:
+            await client.options(str(client.url))
+        except Exception as e:
+            raise ConnectionError(
+                f"Failed to connect to CalDAV server at {client.url}: {e}"
+            ) from e
+
+    return client
+
+# Usage:
+async with await get_davclient(url="...") as client:
+    # Connection verified
+    ...
+```
+
+### Benefits
+
+1. **Fail fast** - errors caught immediately, not on first use
+2. **Better UX** - clear error message about connectivity
+3. **Opt-out available** - `probe=False` for testing or when needed
+4. **Minimal overhead** - single OPTIONS request
+5. **Validates config** - catches typos in URL, wrong credentials, etc.
+
+### Considerations
+
+**What should the probe do?**
+
+Option A (minimal): Just `OPTIONS` request
+- ✅ Fast
+- ✅ Doesn't require authentication (usually)
+- ❌ Doesn't verify credentials
+
+Option B (thorough): Try to get principal
+- ✅ Verifies credentials
+- ✅ Verifies CalDAV support
+- ❌ Slower
+- ❌ Requires valid credentials
+
+**Recommendation**: Start with **Option A** (OPTIONS), consider Option B later or as separate parameter:
+
+```python
+get_davclient(
+    ...,
+    probe: bool = True,           # OPTIONS request
+    verify_auth: bool = False,    # Also try to authenticate
+)
+```
+
+### Default Value
+
+**Should probe default to True or False?**
+
+Arguments for `True`:
+- ✅ Better UX - catches errors early
+- ✅ Fail fast principle
+- ✅ Most production use cases want this
+
+Arguments for `False`:
+- ✅ Backward compatible (no behavior change)
+- ✅ Faster (no extra request)
+- ✅ Works when server is temporarily down
+
+**Recommendation**: Default to `True` for new async API, `False` for sync (backward compat).
+
+```python
+# Sync (backward compatible):
+def get_davclient(..., probe: bool = False) -> DAVClient:
+    ...
+
+# Async (new, opinionated):
+async def get_davclient(..., probe: bool = True) -> AsyncDAVClient:
+    ...
+```
