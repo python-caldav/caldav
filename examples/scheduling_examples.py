@@ -11,8 +11,8 @@ from datetime import timezone
 from icalendar import Calendar
 from icalendar import Event
 
-from caldav import DAVClient
 from caldav import error
+from caldav.davclient import get_davclient
 
 
 ###############
@@ -34,9 +34,9 @@ class TestUser:
             conndata = rfc6638_users[i - 1].copy()
             if "incompatibilities" in conndata:
                 conndata.pop("incompatibilities")
-            self.client = DAVClient(**conndata)
+            self.client = get_davclient(**conndata)
         else:
-            self.client = DAVClient(
+            self.client = get_davclient(
                 username="testaccount%i" % i,
                 password="hunter2",
                 url="http://davical.bekkenstenveien53c.oslo.no/caldav.php/",
