@@ -4,14 +4,14 @@ Example usage of RFC6764 service discovery in python-caldav
 
 This script demonstrates how the RFC6764 integration works.
 """
-from caldav import DAVClient
+from caldav.davclient import get_davclient
 
 # Example 1: Automatic RFC6764 discovery with email address
 # Username is automatically extracted from the email address
 print("Example 1: Using email address (username auto-extracted)")
 print("-" * 70)
 try:
-    client = DAVClient(
+    client = get_davclient(
         url="user@example.com",  # Domain will be extracted, username preserved
         password="password",  # Username extracted from email, just provide password
     )
@@ -27,7 +27,7 @@ print("\n")
 print("Example 2: Using username for discovery (no URL parameter)")
 print("-" * 70)
 try:
-    client = DAVClient(
+    client = get_davclient(
         username="user@example.com",  # URL discovered from username
         password="password",
     )
@@ -42,7 +42,9 @@ print("\n")
 print("Example 3: Using bare domain (RFC6764 discovery enabled by default)")
 print("-" * 70)
 try:
-    client = DAVClient(url="calendar.example.com", username="user", password="password")
+    client = get_davclient(
+        url="calendar.example.com", username="user", password="password"
+    )
     print(f"Client URL after discovery: {client.url}")
 except Exception as e:
     print(f"Discovery failed (expected for example.com): {e}")
@@ -53,7 +55,7 @@ print("\n")
 print("Example 4: Disable RFC6764 discovery (use feature hints instead)")
 print("-" * 70)
 try:
-    client = DAVClient(
+    client = get_davclient(
         url="calendar.example.com",
         username="user",
         password="password",
@@ -69,7 +71,7 @@ print("\n")
 # Example 5: Full URL bypasses discovery
 print("Example 5: Full URL (RFC6764 discovery automatically skipped)")
 print("-" * 70)
-client = DAVClient(
+client = get_davclient(
     url="https://caldav.example.com/dav/", username="user", password="password"
 )
 print(f"Client URL (no discovery needed): {client.url}")
@@ -79,7 +81,7 @@ print("\n")
 # Example 6: Using feature hints with NextCloud
 print("Example 6: Using feature hints (NextCloud)")
 print("-" * 70)
-client = DAVClient(
+client = get_davclient(
     url="nextcloud.example.com",
     username="user",
     password="password",

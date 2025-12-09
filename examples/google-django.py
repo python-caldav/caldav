@@ -15,7 +15,7 @@ from allauth.socialaccount.models import SocialApp
 from allauth.socialaccount.models import SocialToken
 from google.oauth2.credentials import Credentials
 
-from caldav import DAVClient
+from caldav.davclient import get_davclient
 from caldav.requests import HTTPBearerAuth
 
 
@@ -45,7 +45,7 @@ def sync_calendar(user, calendar_id):
     credentials = get_google_credentials(user)
 
     # Set up CalDAV client with OAuth token
-    client = DAVClient(
+    client = get_davclient(
         url=f"https://apidata.googleusercontent.com/caldav/v2/{calendar_id}/events",
         auth=HTTPBearerAuth(credentials.token),
     )
