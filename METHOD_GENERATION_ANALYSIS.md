@@ -287,66 +287,22 @@ class DAVClient:
 - ❌ Still somewhat repetitive
 - ❌ Decorator makes it less obvious what's happening
 
-### Option D: Keep Manual Methods, Add Helper
+## Recommendation: Option A (Manual + Helper)
 
-Simplest approach - keep methods but use helper:
-
-```python
-class DAVClient:
-
-    def _build_headers(self, method, depth=0):
-        """Helper to build method-specific headers"""
-        if method == "PROPFIND":
-            return {"Depth": str(depth)}
-        elif method == "REPORT":
-            return {
-                "Depth": str(depth),
-                "Content-Type": 'application/xml; charset="utf-8"'
-            }
-        return {}
-
-    async def propfind(self, url=None, body="", depth=0, headers=None):
-        """PROPFIND request"""
-        final_headers = {**self._build_headers("PROPFIND", depth), **(headers or {})}
-        return await self.request(url or str(self.url), "PROPFIND", body, final_headers)
-
-    async def report(self, url=None, body="", depth=0, headers=None):
-        """REPORT request"""
-        final_headers = {**self._build_headers("REPORT", depth), **(headers or {})}
-        return await self.request(url or str(self.url), "REPORT", body, final_headers)
-
-    async def proppatch(self, url, body="", headers=None):
-        """PROPPATCH request"""
-        return await self.request(url, "PROPPATCH", body, headers or {})
-
-    # ... etc for other methods
-```
-
-**Pros:**
-- ✅ Explicit and clear
-- ✅ Easy to debug
-- ✅ Good IDE support
-- ✅ Mocking works
-- ✅ Simple to understand
-
-**Cons:**
-- ❌ ~300 lines for 8 methods
-- ❌ Some repetition
-
-## Recommendation: Option D (Manual + Helper)
-
-For the **async refactoring**, I recommend **Option D**:
+For the **async refactoring**, I recommend **Option A**:
 
 1. **Keep manual methods** - 8 methods × ~40 lines = ~320 lines
 2. **Use helper for headers** - reduces duplication
 3. **Eliminate `_query()`** - callers use methods directly
 4. **Clear and explicit** - Pythonic, easy to understand
 
+Note: Option A achieves the same result as what I previously called "Option D" - they're the same approach.
+
 **Why not generated (Option B/C)?**
 - Async/await makes generation more complex
 - Type hints would be harder
 - Debugging generated async code is painful
-- Not that much code savings (~100 lines)
+- Not that much code savings (~200 lines)
 
 **Implementation in async:**
 
