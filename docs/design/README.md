@@ -65,18 +65,29 @@ How to configure Ruff formatter/linter for partial codebase adoption:
 - Four options analyzed (include patterns recommended)
 - Gradual expansion strategy
 
+### [`PHASE_1_IMPLEMENTATION.md`](PHASE_1_IMPLEMENTATION.md)
+**Implementation status** for Phase 1 (Core Async Client):
+- Complete implementation of `async_davclient.py`
+- AsyncDAVClient and AsyncDAVResponse classes
+- All HTTP method wrappers (propfind, report, etc.)
+- Factory function with connection probing
+- API improvements applied (standardized parameters, type hints)
+- Next steps and known limitations
+
 ## Implementation Status
 
-**Current Phase**: Design and planning (Phase 0)
+**Current Phase**: Phase 1 Complete ✅ - Phase 2 Ready to Start
 
 **Branch**: `playground/new_async_api_design`
 
+**Completed**:
+- ✅ Phase 1: Created `async_davclient.py` with `AsyncDAVClient` - [See Implementation Details](PHASE_1_IMPLEMENTATION.md)
+
 **Next Steps**:
-1. Phase 1: Create `async_davclient.py` with `AsyncDAVClient`
-2. Phase 2: Create `async_davobject.py` (eliminate `_query()`)
-3. Phase 3: Create `async_collection.py`
-4. Phase 4: Rewrite `davclient.py` as sync wrapper
-5. Phase 5: Update documentation and examples
+1. Phase 2: Create `async_davobject.py` (eliminate `_query()`)
+2. Phase 3: Create `async_collection.py`
+3. Phase 4: Rewrite `davclient.py` as sync wrapper
+4. Phase 5: Update documentation and examples
 
 ## Design Principles
 
