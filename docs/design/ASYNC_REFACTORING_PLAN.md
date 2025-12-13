@@ -331,11 +331,11 @@ This is research/planning phase. Implementation timeline TBD based on:
 ## Notes
 
 - This plan is based on analysis in:
-  - API_ANALYSIS.md
-  - URL_AND_METHOD_RESEARCH.md
-  - ELIMINATE_METHOD_WRAPPERS_ANALYSIS.md
-  - METHOD_GENERATION_ANALYSIS.md
-  - GET_DAVCLIENT_ANALYSIS.md
+  - [`API_ANALYSIS.md`](API_ANALYSIS.md)
+  - [`URL_AND_METHOD_RESEARCH.md`](URL_AND_METHOD_RESEARCH.md)
+  - [`ELIMINATE_METHOD_WRAPPERS_ANALYSIS.md`](ELIMINATE_METHOD_WRAPPERS_ANALYSIS.md)
+  - [`METHOD_GENERATION_ANALYSIS.md`](METHOD_GENERATION_ANALYSIS.md)
+  - [`GET_DAVCLIENT_ANALYSIS.md`](GET_DAVCLIENT_ANALYSIS.md)
 
 - All decisions are documented with rationale
 - Trade-offs have been considered
