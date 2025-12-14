@@ -407,8 +407,54 @@ class FeatureSet:
             if not '.' in feature_:
                 if not return_defaults:
                     return None
+                # Before returning default, check if we have subfeatures with explicit values
+                # If subfeatures exist and have mixed support levels, we should derive the parent status
+                derived = self._derive_from_subfeatures(feature_, feature_info, return_type, accept_fragile)
+                if derived is not None:
+                    return derived
                 return self._convert_node(self._default(feature_info), feature_info, return_type, accept_fragile)
             feature_ = feature_[:feature_.rfind('.')]
+
+    def _derive_from_subfeatures(self, feature, feature_info, return_type, accept_fragile=False):
+        """
+        Derive parent feature status from explicitly set subfeatures.
+
+        Logic:
+        - If all subfeatures have the same status → use that status
+        - If subfeatures have mixed statuses → return "unknown"
+          (since we can't definitively determine the parent's status)
+
+        Returns None if no subfeatures are explicitly set.
+        """
+        if 'subfeatures' not in feature_info or not feature_info['subfeatures']:
+            return None
+
+        # Collect statuses from explicitly set subfeatures
+        subfeature_statuses = []
+        for sub in feature_info['subfeatures']:
+            subfeature_key = f"{feature}.{sub}"
+            if subfeature_key in self._server_features:
+                sub_dict = self._server_features[subfeature_key]
+                # Extract the support level (or enable/behaviour/observed)
+                status = sub_dict.get('support', sub_dict.get('enable', sub_dict.get('behaviour', sub_dict.get('observed'))))
+                if status:
+                    subfeature_statuses.append(status)
+
+        # If no subfeatures are explicitly set, return None (use default)
+        if not subfeature_statuses:
+            return None
+
+        # Check if all subfeatures have the same status
+        if all(status == subfeature_statuses[0] for status in subfeature_statuses):
+            # All same - use that status
+            derived_status = subfeature_statuses[0]
+        else:
+            # Mixed statuses - we don't have complete/consistent information
+            derived_status = 'unknown'
+
+        # Create a node dict with the derived status
+        derived_node = {'support': derived_status}
+        return self._convert_node(derived_node, feature_info, return_type, accept_fragile)
 
     def _convert_node(self, node, feature_info, return_type, accept_fragile=False):
         """
