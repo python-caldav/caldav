@@ -715,37 +715,40 @@ class DAVClient:
         log.debug("self.url: " + str(url))
 
         self._principal = None
-        self._async_client = None  # Lazy-initialized async client
 
     def _get_async_client(self) -> AsyncDAVClient:
         """
-        Get or create the internal AsyncDAVClient for HTTP operations.
+        Create a new AsyncDAVClient for HTTP operations.
 
         This is part of the demonstration wrapper showing async-first architecture.
         The sync API delegates HTTP operations to AsyncDAVClient via asyncio.run().
+
+        NOTE: We create a new client each time because asyncio.run() creates
+        a new event loop for each call, and AsyncSession is tied to a specific
+        event loop. This is inefficient but correct for a demonstration wrapper.
+        The full Phase 4 implementation will handle event loop management properly.
         """
-        if self._async_client is None:
-            # Create async client with same configuration
-            # Note: Don't pass features since it's already a FeatureSet and would be wrapped again
-            self._async_client = AsyncDAVClient(
-                url=str(self.url),
-                proxy=self.proxy if hasattr(self, 'proxy') else None,
-                username=self.username,
-                password=self.password.decode('utf-8') if isinstance(self.password, bytes) else self.password,
-                auth=self.auth,
-                auth_type=self.auth_type,
-                timeout=self.timeout,
-                ssl_verify_cert=self.ssl_verify_cert,
-                ssl_cert=self.ssl_cert,
-                headers=dict(self.headers),  # Convert CaseInsensitiveDict to regular dict
-                huge_tree=self.huge_tree,
-                features=None,  # Use default features to avoid double-wrapping
-                enable_rfc6764=False,  # Already discovered in sync __init__
-                require_tls=True,
-            )
-            # Manually set the features object to avoid FeatureSet wrapping
-            self._async_client.features = self.features
-        return self._async_client
+        # Create async client with same configuration
+        # Note: Don't pass features since it's already a FeatureSet and would be wrapped again
+        async_client = AsyncDAVClient(
+            url=str(self.url),
+            proxy=self.proxy if hasattr(self, 'proxy') else None,
+            username=self.username,
+            password=self.password.decode('utf-8') if isinstance(self.password, bytes) else self.password,
+            auth=self.auth,
+            auth_type=None,  # Auth object already built, don't try to build it again
+            timeout=self.timeout,
+            ssl_verify_cert=self.ssl_verify_cert,
+            ssl_cert=self.ssl_cert,
+            headers=dict(self.headers),  # Convert CaseInsensitiveDict to regular dict
+            huge_tree=self.huge_tree,
+            features=None,  # Use default features to avoid double-wrapping
+            enable_rfc6764=False,  # Already discovered in sync __init__
+            require_tls=True,
+        )
+        # Manually set the features object to avoid FeatureSet wrapping
+        async_client.features = self.features
+        return async_client
 
     def __enter__(self) -> Self:
         ## Used for tests, to set up a temporarily test server
