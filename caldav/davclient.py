@@ -1123,192 +1123,25 @@ class DAVClient:
         headers: Mapping[str, str] = None,
     ) -> DAVResponse:
         """
-        Actually sends the request, and does the authentication
+        Send a generic HTTP request.
+
+        DEMONSTRATION WRAPPER: Delegates to AsyncDAVClient via asyncio.run().
+
+        Args:
+            url: The URL to request
+            method: HTTP method (GET, PUT, DELETE, etc.)
+            body: Request body
+            headers: Optional headers dict
+
+        Returns:
+            DAVResponse
         """
-        headers = headers or {}
-
-        combined_headers = self.headers.copy()
-        combined_headers.update(headers or {})
-        if (body is None or body == "") and "Content-Type" in combined_headers:
-            del combined_headers["Content-Type"]
-
-        # objectify the url
-        url_obj = URL.objectify(url)
-
-        proxies = None
-        if self.proxy is not None:
-            proxies = {url_obj.scheme: self.proxy}
-            log.debug("using proxy - %s" % (proxies))
-
-        log.debug(
-            "sending request - method={0}, url={1}, headers={2}\nbody:\n{3}".format(
-                method, str(url_obj), combined_headers, to_normal_str(body)
-            )
+        async_client = self._get_async_client()
+        async_response = asyncio.run(
+            async_client.request(url=url, method=method, body=body, headers=headers)
         )
-
-        try:
-            r = self.session.request(
-                method,
-                str(url_obj),
-                data=to_wire(body),
-                headers=combined_headers,
-                proxies=proxies,
-                auth=self.auth,
-                timeout=self.timeout,
-                verify=self.ssl_verify_cert,
-                cert=self.ssl_cert,
-            )
-            log.debug("server responded with %i %s" % (r.status_code, r.reason))
-            if (
-                r.status_code == 401
-                and "text/html" in self.headers.get("Content-Type", "")
-                and not self.auth
-            ):
-                # The server can return HTML on 401 sometimes (ie. it's behind a proxy)
-                # The user can avoid logging errors by setting the authentication type by themselves.
-                msg = (
-                    "No authentication object was provided. "
-                    "HTML was returned when probing the server for supported authentication types. "
-                    "To avoid logging errors, consider passing the auth_type connection parameter"
-                )
-                if r.headers.get("WWW-Authenticate"):
-                    auth_types = [
-                        t
-                        for t in self.extract_auth_types(r.headers["WWW-Authenticate"])
-                        if t in ["basic", "digest", "bearer"]
-                    ]
-                    if auth_types:
-                        msg += "\nSupported authentication types: %s" % (
-                            ", ".join(auth_types)
-                        )
-                log.warning(msg)
-            response = DAVResponse(r, self)
-        except:
-            ## this is a workaround needed due to some weird server
-            ## that would just abort the connection rather than send a
-            ## 401 when an unauthenticated request with a body was
-            ## sent to the server - ref https://github.com/python-caldav/caldav/issues/158
-            if self.auth or not self.password:
-                raise
-            r = self.session.request(
-                method="GET",
-                url=str(url_obj),
-                headers=combined_headers,
-                proxies=proxies,
-                timeout=self.timeout,
-                verify=self.ssl_verify_cert,
-                cert=self.ssl_cert,
-            )
-            if not r.status_code == 401:
-                raise
-
-        ## Returned headers
-        r_headers = CaseInsensitiveDict(r.headers)
-        if (
-            r.status_code == 401
-            and "WWW-Authenticate" in r_headers
-            and not self.auth
-            and (self.username or self.password)
-        ):
-            auth_types = self.extract_auth_types(r_headers["WWW-Authenticate"])
-            self.build_auth_object(auth_types)
-
-            if not self.auth:
-                raise NotImplementedError(
-                    "The server does not provide any of the currently "
-                    "supported authentication methods: basic, digest, bearer"
-                )
-
-            return self.request(url, method, body, headers)
-
-        elif (
-            r.status_code == 401
-            and "WWW-Authenticate" in r_headers
-            and self.auth
-            and self.password
-            and isinstance(self.password, bytes)
-        ):
-            ## TODO: this has become a mess and should be refactored.
-            ## (Arguably, this logic doesn't belong here at all.
-            ## with niquests it's possible to just pass the username
-            ## and password, maybe we should try that?)
-
-            ## Most likely we're here due to wrong username/password
-            ## combo, but it could also be a multiplexing problem.
-            if (
-                self.features.is_supported("http.multiplexing", return_defaults=False)
-                is None
-            ):
-                self.session = requests.Session()
-                ## If this one also fails, we give up
-                ret = self.request(str(url_obj), method, body, headers)
-                # Only mark multiplexing as unsupported if retry also failed with 401
-                # If retry succeeded, we don't set the feature - it's just unknown/not tested
-                if ret.status_code == 401:
-                    self.features.set_feature("http.multiplexing", False)
-                return ret
-
-            ## Most likely we're here due to wrong username/password
-            ## combo, but it could also be charset problems.  Some
-            ## (ancient) servers don't like UTF-8 binary auth with
-            ## Digest authentication.  An example are old SabreDAV
-            ## based servers.  Not sure about UTF-8 and Basic Auth,
-            ## but likely the same.  so retry if password is a bytes
-            ## sequence and not a string (see commit 13a4714, which
-            ## introduced this regression)
-
-            auth_types = self.extract_auth_types(r_headers["WWW-Authenticate"])
-            self.password = self.password.decode()
-            self.build_auth_object(auth_types)
-
-            self.username = None
-            self.password = None
-
-            return self.request(str(url_obj), method, body, headers)
-
-        if error.debug_dump_communication:
-            import datetime
-            from tempfile import NamedTemporaryFile
-
-            with NamedTemporaryFile(prefix="caldavcomm", delete=False) as commlog:
-                commlog.write(b"=" * 80 + b"\n")
-                commlog.write(f"{datetime.datetime.now():%FT%H:%M:%S}".encode("utf-8"))
-                commlog.write(b"\n====>\n")
-                commlog.write(f"{method} {url}\n".encode("utf-8"))
-                commlog.write(
-                    b"\n".join(to_wire(f"{x}: {headers[x]}") for x in headers)
-                )
-                commlog.write(b"\n\n")
-                commlog.write(to_wire(body))
-                commlog.write(b"<====\n")
-                commlog.write(f"{response.status} {response.reason}".encode("utf-8"))
-                commlog.write(
-                    b"\n".join(
-                        to_wire(f"{x}: {response.headers[x]}") for x in response.headers
-                    )
-                )
-                commlog.write(b"\n\n")
-                ct = response.headers.get("Content-Type", "")
-                if response.tree is not None:
-                    commlog.write(
-                        to_wire(etree.tostring(response.tree, pretty_print=True))
-                    )
-                else:
-                    commlog.write(to_wire(response._raw))
-                commlog.write(b"\n")
-
-        # this is an error condition that should be raised to the application
-        if (
-            response.status == requests.codes.forbidden
-            or response.status == requests.codes.unauthorized
-        ):
-            try:
-                reason = response.reason
-            except AttributeError:
-                reason = "None given"
-            raise error.AuthorizationError(url=str(url_obj), reason=reason)
-
-        return response
+        mock_response = _async_response_to_mock_response(async_response)
+        return DAVResponse(mock_response, self)
 
 
 def auto_calendars(
