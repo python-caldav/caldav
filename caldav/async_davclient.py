@@ -9,8 +9,9 @@ For sync usage, see the davclient.py wrapper.
 import logging
 import os
 import sys
+from collections.abc import Mapping
 from types import TracebackType
-from typing import Any, cast, Dict, List, Mapping, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union, cast
 from urllib.parse import unquote
 
 try:
@@ -36,9 +37,9 @@ from caldav.objects import log
 from caldav.requests import HTTPBearerAuth
 
 if sys.version_info < (3, 9):
-    from typing import Iterable, Mapping
+    from collections.abc import Mapping
 else:
-    from collections.abc import Iterable, Mapping
+    from collections.abc import Mapping
 
 if sys.version_info < (3, 11):
     from typing_extensions import Self
@@ -62,9 +63,7 @@ class AsyncDAVResponse:
     davclient: Optional["AsyncDAVClient"] = None
     huge_tree: bool = False
 
-    def __init__(
-        self, response: Response, davclient: Optional["AsyncDAVClient"] = None
-    ) -> None:
+    def __init__(self, response: Response, davclient: Optional["AsyncDAVClient"] = None) -> None:
         self.headers = response.headers
         self.status = response.status_code
         log.debug("response headers: " + str(self.headers))
@@ -78,8 +77,8 @@ class AsyncDAVResponse:
         content_type = self.headers.get("Content-Type", "")
         xml = ["text/xml", "application/xml"]
         no_xml = ["text/plain", "text/calendar", "application/octet-stream"]
-        expect_xml = any((content_type.startswith(x) for x in xml))
-        expect_no_xml = any((content_type.startswith(x) for x in no_xml))
+        expect_xml = any(content_type.startswith(x) for x in xml)
+        expect_no_xml = any(content_type.startswith(x) for x in no_xml)
         if (
             content_type
             and not expect_xml
@@ -100,9 +99,7 @@ class AsyncDAVResponse:
             try:
                 self.tree = etree.XML(
                     self._raw,
-                    parser=etree.XMLParser(
-                        remove_blank_text=True, huge_tree=self.huge_tree
-                    ),
+                    parser=etree.XMLParser(remove_blank_text=True, huge_tree=self.huge_tree),
                 )
             except:
                 if not expect_no_xml or log.level <= logging.DEBUG:
@@ -206,6 +203,7 @@ class AsyncDAVClient:
 
         if isinstance(features, str):
             import caldav.compatibility_hints
+
             features = getattr(caldav.compatibility_hints, features)
         self.features = FeatureSet(features)
         self.huge_tree = huge_tree
@@ -219,6 +217,7 @@ class AsyncDAVClient:
 
         # Auto-construct URL if needed (RFC6764 discovery, etc.)
         from caldav.davclient import _auto_url
+
         url_str, discovered_username = _auto_url(
             url,
             self.features,
@@ -355,9 +354,7 @@ class AsyncDAVClient:
             log.debug("using proxy - %s" % (proxies))
 
         log.debug(
-            "sending request - method={0}, url={1}, headers={2}\nbody:\n{3}".format(
-                method, str(url_obj), combined_headers, to_normal_str(body)
-            )
+            f"sending request - method={method}, url={str(url_obj)}, headers={combined_headers}\nbody:\n{to_normal_str(body)}"
         )
 
         try:
@@ -390,9 +387,7 @@ class AsyncDAVClient:
                         if t in ["basic", "digest", "bearer"]
                     ]
                     if auth_types:
-                        msg += "\nSupported authentication types: %s" % (
-                            ", ".join(auth_types)
-                        )
+                        msg += "\nSupported authentication types: %s" % (", ".join(auth_types))
                 log.warning(msg)
             response = AsyncDAVResponse(r, self)
         except:
@@ -410,8 +405,7 @@ class AsyncDAVClient:
                 cert=self.ssl_cert,
             )
             log.debug(
-                "auth type detection: server responded with %i %s"
-                % (r.status_code, r.reason)
+                "auth type detection: server responded with %i %s" % (r.status_code, r.reason)
             )
             if r.status_code == 401 and r.headers.get("WWW-Authenticate"):
                 auth_types = self.extract_auth_types(r.headers["WWW-Authenticate"])
@@ -460,10 +454,7 @@ class AsyncDAVClient:
         ):
             # Handle multiplexing issue (matches original sync client)
             # Most likely wrong username/password combo, but could be a multiplexing problem
-            if (
-                self.features.is_supported("http.multiplexing", return_defaults=False)
-                is None
-            ):
+            if self.features.is_supported("http.multiplexing", return_defaults=False) is None:
                 await self.session.close()
                 self.session = niquests.AsyncSession()
                 self.features.set_feature("http.multiplexing", "unknown")
@@ -704,9 +695,11 @@ class AsyncDAVClient:
             self.auth = HTTPBearerAuth(self.password)
         elif auth_type == "digest":
             from niquests.auth import HTTPDigestAuth
+
             self.auth = HTTPDigestAuth(self.username, self.password)
         elif auth_type == "basic":
             from niquests.auth import HTTPBasicAuth
+
             self.auth = HTTPBasicAuth(self.username, self.password)
         else:
             raise error.AuthorizationError(f"Unsupported auth type: {auth_type}")
@@ -780,8 +773,6 @@ async def get_davclient(
 
         except Exception as e:
             await client.close()
-            raise error.DAVError(
-                f"Failed to connect to CalDAV server at {client.url}: {e}"
-            ) from e
+            raise error.DAVError(f"Failed to connect to CalDAV server at {client.url}: {e}") from e
 
     return client
