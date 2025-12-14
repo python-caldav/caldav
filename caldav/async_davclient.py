@@ -245,8 +245,9 @@ class AsyncDAVClient:
             url_password = unquote(self.url.password)
 
         # Combine credentials (explicit params take precedence)
-        self.username = username or url_username
-        self.password = password or url_password
+        # Use explicit None check to preserve empty strings (needed for servers with no auth)
+        self.username = username if username is not None else url_username
+        self.password = password if password is not None else url_password
 
         # Setup authentication
         self.auth = auth
@@ -428,6 +429,48 @@ class AsyncDAVClient:
                     cert=self.ssl_cert,
                 )
             response = AsyncDAVResponse(r, self)
+
+        # Handle 401 responses for auth negotiation (after try/except)
+        # This matches the original sync client's auth negotiation logic
+        r_headers = CaseInsensitiveDict(r.headers)
+        if (
+            r.status_code == 401
+            and "WWW-Authenticate" in r_headers
+            and not self.auth
+            and (self.username or self.password)
+        ):
+            auth_types = self.extract_auth_types(r_headers["WWW-Authenticate"])
+            self.build_auth_object(auth_types)
+
+            if not self.auth:
+                raise NotImplementedError(
+                    "The server does not provide any of the currently "
+                    "supported authentication methods: basic, digest, bearer"
+                )
+
+            # Retry request with authentication
+            return await self.request(url, method, body, headers)
+
+        elif (
+            r.status_code == 401
+            and "WWW-Authenticate" in r_headers
+            and self.auth
+            and self.password
+            and isinstance(self.password, bytes)
+        ):
+            # Handle multiplexing issue (matches original sync client)
+            # Most likely wrong username/password combo, but could be a multiplexing problem
+            if (
+                self.features.is_supported("http.multiplexing", return_defaults=False)
+                is None
+            ):
+                await self.session.close()
+                self.session = niquests.AsyncSession()
+                self.features.set_feature("http.multiplexing", "unknown")
+                # If this one also fails, we give up
+                ret = await self.request(str(url_obj), method, body, headers)
+                self.features.set_feature("http.multiplexing", False)
+                return ret
 
         return response
 
