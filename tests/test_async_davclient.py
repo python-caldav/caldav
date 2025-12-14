@@ -1,19 +1,18 @@
 #!/usr/bin/env python
-# -*- encoding: utf-8 -*-
 """
 Unit tests for async_davclient module.
 
 Rule: None of the tests in this file should initiate any internet
 communication. We use Mock/MagicMock to emulate server communication.
 """
+
 import os
-import pytest
-from unittest import mock
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from caldav.async_davclient import AsyncDAVClient, AsyncDAVResponse, get_davclient
 from caldav.lib import error
-
 
 # Sample XML responses for testing
 SAMPLE_MULTISTATUS_XML = b"""<?xml version="1.0" encoding="utf-8" ?>
@@ -380,9 +379,7 @@ class TestAsyncDAVClient:
         mock_response = create_mock_response(status_code=204, reason="No Content")
         client.session.request = AsyncMock(return_value=mock_response)
 
-        response = await client.delete(
-            url="https://caldav.example.com/dav/calendar/event.ics"
-        )
+        response = await client.delete(url="https://caldav.example.com/dav/calendar/event.ics")
 
         assert response.status == 204
         call_args = client.session.request.call_args
@@ -413,9 +410,7 @@ class TestAsyncDAVClient:
         mock_response = create_mock_response(status_code=201)
         client.session.request = AsyncMock(return_value=mock_response)
 
-        response = await client.mkcol(
-            url="https://caldav.example.com/dav/newcollection/"
-        )
+        response = await client.mkcol(url="https://caldav.example.com/dav/newcollection/")
 
         assert response.status == 201
         call_args = client.session.request.call_args
@@ -443,11 +438,11 @@ class TestAsyncDAVClient:
         client = AsyncDAVClient(url="https://caldav.example.com/dav/")
 
         # Single auth type
-        auth_types = client.extract_auth_types("Basic realm=\"Test\"")
+        auth_types = client.extract_auth_types('Basic realm="Test"')
         assert "basic" in auth_types
 
         # Multiple auth types
-        auth_types = client.extract_auth_types("Basic realm=\"Test\", Digest realm=\"Test\"")
+        auth_types = client.extract_auth_types('Basic realm="Test", Digest realm="Test"')
         assert "basic" in auth_types
         assert "digest" in auth_types
 

@@ -100,3 +100,40 @@ ignore = ["DEP002"]  # Test dependencies (pytest, coverage, etc.) are not import
 
 [tool.deptry.per_rule_ignores]
 DEP001 = ["conf"]  # Local test configuration file, not a package
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+# Only apply Ruff to new async files added after v2.2.2
+# This allows gradual adoption without reformatting the entire codebase
+include = [
+    "caldav/aio.py",
+    "caldav/async_davclient.py",
+    "tests/test_async_davclient.py",
+]
+
+[tool.ruff.lint]
+# Based on icalendar-searcher config
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "W",    # pycodestyle warnings
+    "I",    # isort
+    "UP",   # pyupgrade (modernize code)
+    "B",    # flake8-bugbear (find bugs)
+    "ANN",  # type annotations
+]
+ignore = [
+    "E501",    # Line too long (formatter handles this)
+    "ANN401",  # Any type (sometimes necessary)
+]
+
+[tool.ruff.format]
+# Use Ruff's formatter (Black-compatible)
+quote-style = "double"
+indent-style = "space"
+
+[tool.ruff.lint.isort]
+known-first-party = ["caldav"]
+
