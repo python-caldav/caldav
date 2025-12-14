@@ -1,4 +1,13 @@
 #!/usr/bin/env python
+"""
+Sync CalDAV client - wraps async implementation for backward compatibility.
+
+This module provides the traditional synchronous API. The HTTP operations
+are delegated to AsyncDAVClient and executed via asyncio.run().
+
+For new async code, use: from caldav import aio
+"""
+import asyncio
 import logging
 import os
 import sys
@@ -44,6 +53,9 @@ from caldav.lib.python_utilities import to_wire
 from caldav.lib.url import URL
 from caldav.objects import log
 from caldav.requests import HTTPBearerAuth
+
+# Import async implementation for wrapping
+from caldav.async_davclient import AsyncDAVClient
 
 if TYPE_CHECKING:
     pass
@@ -169,6 +181,26 @@ def _auto_url(
         url = url_hints["domain"]
     url = f"{url_hints.get('scheme', 'https')}://{url}{url_hints.get('basepath', '')}"
     return (url, None)
+
+
+def _async_response_to_mock_response(async_response):
+    """
+    Convert AsyncDAVResponse to a mock Response object for DAVResponse.
+
+    This is a temporary helper for the demonstration wrapper that shows
+    the async-first architecture works. In Phase 4, DAVResponse will be
+    fully rewritten to wrap AsyncDAVResponse directly.
+    """
+    from unittest.mock import MagicMock
+
+    mock_resp = MagicMock()
+    mock_resp.content = async_response._raw
+    mock_resp.status_code = async_response.status
+    mock_resp.reason = async_response.reason
+    mock_resp.headers = async_response.headers
+    mock_resp.text = async_response.raw
+
+    return mock_resp
 
 
 class DAVResponse:
@@ -683,6 +715,37 @@ class DAVClient:
         log.debug("self.url: " + str(url))
 
         self._principal = None
+        self._async_client = None  # Lazy-initialized async client
+
+    def _get_async_client(self) -> AsyncDAVClient:
+        """
+        Get or create the internal AsyncDAVClient for HTTP operations.
+
+        This is part of the demonstration wrapper showing async-first architecture.
+        The sync API delegates HTTP operations to AsyncDAVClient via asyncio.run().
+        """
+        if self._async_client is None:
+            # Create async client with same configuration
+            # Note: Don't pass features since it's already a FeatureSet and would be wrapped again
+            self._async_client = AsyncDAVClient(
+                url=str(self.url),
+                proxy=self.proxy if hasattr(self, 'proxy') else None,
+                username=self.username,
+                password=self.password.decode('utf-8') if isinstance(self.password, bytes) else self.password,
+                auth=self.auth,
+                auth_type=self.auth_type,
+                timeout=self.timeout,
+                ssl_verify_cert=self.ssl_verify_cert,
+                ssl_cert=self.ssl_cert,
+                headers=dict(self.headers),  # Convert CaseInsensitiveDict to regular dict
+                huge_tree=self.huge_tree,
+                features=None,  # Use default features to avoid double-wrapping
+                enable_rfc6764=False,  # Already discovered in sync __init__
+                require_tls=True,
+            )
+            # Manually set the features object to avoid FeatureSet wrapping
+            self._async_client.features = self.features
+        return self._async_client
 
     def __enter__(self) -> Self:
         ## Used for tests, to set up a temporarily test server
@@ -709,9 +772,11 @@ class DAVClient:
 
     def close(self) -> None:
         """
-        Closes the DAVClient's session object
+        Closes the DAVClient's session object and async client if created.
         """
         self.session.close()
+        if self._async_client is not None:
+            asyncio.run(self._async_client.close())
 
     def principals(self, name=None):
         """
@@ -827,6 +892,9 @@ class DAVClient:
         """
         Send a propfind request.
 
+        DEMONSTRATION WRAPPER: This method now delegates to AsyncDAVClient
+        via asyncio.run(), showing the async-first architecture works.
+
         Parameters
         ----------
         url : URL
@@ -840,13 +908,18 @@ class DAVClient:
         -------
         DAVResponse
         """
-        return self.request(
-            url or str(self.url), "PROPFIND", props, {"Depth": str(depth)}
+        async_client = self._get_async_client()
+        async_response = asyncio.run(
+            async_client.propfind(url=url, body=props, depth=depth)
         )
+        mock_response = _async_response_to_mock_response(async_response)
+        return DAVResponse(mock_response, self)
 
     def proppatch(self, url: str, body: str, dummy: None = None) -> DAVResponse:
         """
         Send a proppatch request.
+
+        DEMONSTRATION WRAPPER: Delegates to AsyncDAVClient via asyncio.run().
 
         Args:
             url: url for the root of the propfind.
@@ -856,11 +929,16 @@ class DAVClient:
         Returns:
             DAVResponse
         """
-        return self.request(url, "PROPPATCH", body)
+        async_client = self._get_async_client()
+        async_response = asyncio.run(async_client.proppatch(url=url, body=body))
+        mock_response = _async_response_to_mock_response(async_response)
+        return DAVResponse(mock_response, self)
 
     def report(self, url: str, query: str = "", depth: int = 0) -> DAVResponse:
         """
         Send a report request.
+
+        DEMONSTRATION WRAPPER: Delegates to AsyncDAVClient via asyncio.run().
 
         Args:
             url: url for the root of the propfind.
@@ -870,16 +948,16 @@ class DAVClient:
         Returns
             DAVResponse
         """
-        return self.request(
-            url,
-            "REPORT",
-            query,
-            {"Depth": str(depth), "Content-Type": 'application/xml; charset="utf-8"'},
-        )
+        async_client = self._get_async_client()
+        async_response = asyncio.run(async_client.report(url=url, body=query, depth=depth))
+        mock_response = _async_response_to_mock_response(async_response)
+        return DAVResponse(mock_response, self)
 
     def mkcol(self, url: str, body: str, dummy: None = None) -> DAVResponse:
         """
         Send a MKCOL request.
+
+        DEMONSTRATION WRAPPER: Delegates to AsyncDAVClient via asyncio.run().
 
         MKCOL is basically not used with caldav, one should use
         MKCALENDAR instead.  However, some calendar servers MAY allow
@@ -898,11 +976,16 @@ class DAVClient:
         Returns:
             DAVResponse
         """
-        return self.request(url, "MKCOL", body)
+        async_client = self._get_async_client()
+        async_response = asyncio.run(async_client.mkcol(url=url, body=body))
+        mock_response = _async_response_to_mock_response(async_response)
+        return DAVResponse(mock_response, self)
 
     def mkcalendar(self, url: str, body: str = "", dummy: None = None) -> DAVResponse:
         """
         Send a mkcalendar request.
+
+        DEMONSTRATION WRAPPER: Delegates to AsyncDAVClient via asyncio.run().
 
         Args:
             url: url for the root of the mkcalendar
@@ -912,35 +995,61 @@ class DAVClient:
         Returns:
             DAVResponse
         """
-        return self.request(url, "MKCALENDAR", body)
+        async_client = self._get_async_client()
+        async_response = asyncio.run(async_client.mkcalendar(url=url, body=body))
+        mock_response = _async_response_to_mock_response(async_response)
+        return DAVResponse(mock_response, self)
 
     def put(
         self, url: str, body: str, headers: Mapping[str, str] = None
     ) -> DAVResponse:
         """
         Send a put request.
+
+        DEMONSTRATION WRAPPER: Delegates to AsyncDAVClient via asyncio.run().
         """
-        return self.request(url, "PUT", body, headers or {})
+        # Resolve relative URLs against base URL
+        if url.startswith('/'):
+            url = str(self.url) + url
+        async_client = self._get_async_client()
+        async_response = asyncio.run(async_client.put(url=url, body=body, headers=headers))
+        mock_response = _async_response_to_mock_response(async_response)
+        return DAVResponse(mock_response, self)
 
     def post(
         self, url: str, body: str, headers: Mapping[str, str] = None
     ) -> DAVResponse:
         """
         Send a POST request.
+
+        DEMONSTRATION WRAPPER: Delegates to AsyncDAVClient via asyncio.run().
         """
-        return self.request(url, "POST", body, headers or {})
+        async_client = self._get_async_client()
+        async_response = asyncio.run(async_client.post(url=url, body=body, headers=headers))
+        mock_response = _async_response_to_mock_response(async_response)
+        return DAVResponse(mock_response, self)
 
     def delete(self, url: str) -> DAVResponse:
         """
         Send a delete request.
+
+        DEMONSTRATION WRAPPER: Delegates to AsyncDAVClient via asyncio.run().
         """
-        return self.request(url, "DELETE")
+        async_client = self._get_async_client()
+        async_response = asyncio.run(async_client.delete(url=url))
+        mock_response = _async_response_to_mock_response(async_response)
+        return DAVResponse(mock_response, self)
 
     def options(self, url: str) -> DAVResponse:
         """
         Send an options request.
+
+        DEMONSTRATION WRAPPER: Delegates to AsyncDAVClient via asyncio.run().
         """
-        return self.request(url, "OPTIONS")
+        async_client = self._get_async_client()
+        async_response = asyncio.run(async_client.options(url=url))
+        mock_response = _async_response_to_mock_response(async_response)
+        return DAVResponse(mock_response, self)
 
     def extract_auth_types(self, header: str):
         """This is probably meant for internal usage.  It takes the
