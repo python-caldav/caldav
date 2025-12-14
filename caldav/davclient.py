@@ -1240,10 +1240,12 @@ class DAVClient:
                 is None
             ):
                 self.session = requests.Session()
-                self.features.set_feature("http.multiplexing", "unknown")
                 ## If this one also fails, we give up
                 ret = self.request(str(url_obj), method, body, headers)
-                self.features.set_feature("http.multiplexing", False)
+                # Only mark multiplexing as unsupported if retry also failed with 401
+                # If retry succeeded, we don't set the feature - it's just unknown/not tested
+                if ret.status_code == 401:
+                    self.features.set_feature("http.multiplexing", False)
                 return ret
 
             ## Most likely we're here due to wrong username/password
