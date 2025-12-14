@@ -458,6 +458,29 @@ class AsyncDAVClient:
                     self.features.set_feature("http.multiplexing", False)
                 return ret
 
+            # Most likely we're here due to wrong username/password combo,
+            # but it could also be charset problems. Some (ancient) servers
+            # don't like UTF-8 binary auth with Digest authentication.
+            # An example are old SabreDAV based servers. Not sure about UTF-8
+            # and Basic Auth, but likely the same. So retry if password is
+            # a bytes sequence and not a string.
+            auth_types = self.extract_auth_types(r_headers["WWW-Authenticate"])
+            self.password = self.password.decode()
+            self.build_auth_object(auth_types)
+
+            self.username = None
+            self.password = None
+
+            return await self.request(str(url_obj), method, body, headers)
+
+        # Raise AuthorizationError for 401/403 responses (matches original sync client)
+        if response.status in (401, 403):
+            try:
+                reason = response.reason
+            except AttributeError:
+                reason = "None given"
+            raise error.AuthorizationError(url=str(url_obj), reason=reason)
+
         return response
 
     # ==================== HTTP Method Wrappers ====================
