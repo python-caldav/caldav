@@ -420,27 +420,39 @@ class FeatureSet:
         Derive parent feature status from explicitly set subfeatures.
 
         Logic:
-        - If all subfeatures have the same status → use that status
+        - Only consider subfeatures WITHOUT explicit defaults (those are independent features)
+        - If all relevant subfeatures have the same status → use that status
         - If subfeatures have mixed statuses → return "unknown"
           (since we can't definitively determine the parent's status)
 
-        Returns None if no subfeatures are explicitly set.
+        Returns None if no relevant subfeatures are explicitly set.
         """
         if 'subfeatures' not in feature_info or not feature_info['subfeatures']:
             return None
 
-        # Collect statuses from explicitly set subfeatures
+        # Collect statuses from explicitly set subfeatures (excluding independent ones)
         subfeature_statuses = []
         for sub in feature_info['subfeatures']:
             subfeature_key = f"{feature}.{sub}"
             if subfeature_key in self._server_features:
+                # Skip subfeatures with explicit defaults - they represent independent behaviors
+                # not hierarchical components of the parent feature
+                try:
+                    subfeature_info = self.find_feature(subfeature_key)
+                    if 'default' in subfeature_info:
+                        # This subfeature has an explicit default, meaning it's independent
+                        continue
+                except:
+                    # If we can't find the feature info, include it conservatively
+                    pass
+
                 sub_dict = self._server_features[subfeature_key]
                 # Extract the support level (or enable/behaviour/observed)
                 status = sub_dict.get('support', sub_dict.get('enable', sub_dict.get('behaviour', sub_dict.get('observed'))))
                 if status:
                     subfeature_statuses.append(status)
 
-        # If no subfeatures are explicitly set, return None (use default)
+        # If no relevant subfeatures are explicitly set, return None (use default)
         if not subfeature_statuses:
             return None
 
