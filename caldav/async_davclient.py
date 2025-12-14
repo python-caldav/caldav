@@ -11,19 +11,20 @@ import os
 import sys
 from collections.abc import Mapping
 from types import TracebackType
-from typing import Dict, List, Optional, Tuple, Union, cast
+from typing import Any, Optional, Union, cast
 from urllib.parse import unquote
 
 try:
+    import niquests
     from niquests import AsyncSession
     from niquests.auth import AuthBase
     from niquests.models import Response
     from niquests.structures import CaseInsensitiveDict
-except ImportError:
+except ImportError as err:
     raise ImportError(
         "niquests library with async support is required for async_davclient. "
         "Install with: pip install niquests"
-    )
+    ) from err
 
 from lxml import etree
 from lxml.etree import _Element
@@ -35,11 +36,6 @@ from caldav.lib.python_utilities import to_normal_str, to_wire
 from caldav.lib.url import URL
 from caldav.objects import log
 from caldav.requests import HTTPBearerAuth
-
-if sys.version_info < (3, 9):
-    from collections.abc import Mapping
-else:
-    from collections.abc import Mapping
 
 if sys.version_info < (3, 11):
     from typing_extensions import Self
@@ -55,7 +51,6 @@ class AsyncDAVResponse:
     End users typically won't interact with this class directly.
     """
 
-    raw = ""
     reason: str = ""
     tree: Optional[_Element] = None
     headers: CaseInsensitiveDict = None
@@ -89,7 +84,7 @@ class AsyncDAVResponse:
             error.weirdness(f"Unexpected content type: {content_type}")
         try:
             content_length = int(self.headers["Content-Length"])
-        except:
+        except (KeyError, ValueError, TypeError):
             content_length = -1
         if content_length == 0 or not self._raw:
             self._raw = ""
@@ -101,7 +96,7 @@ class AsyncDAVResponse:
                     self._raw,
                     parser=etree.XMLParser(remove_blank_text=True, huge_tree=self.huge_tree),
                 )
-            except:
+            except Exception:
                 if not expect_no_xml or log.level <= logging.DEBUG:
                     if not expect_no_xml:
                         _log = logging.info
@@ -173,7 +168,7 @@ class AsyncDAVClient:
         auth_type: Optional[str] = None,
         timeout: Optional[int] = None,
         ssl_verify_cert: Union[bool, str] = True,
-        ssl_cert: Union[str, Tuple[str, str], None] = None,
+        ssl_cert: Union[str, tuple[str, str], None] = None,
         headers: Optional[Mapping[str, str]] = None,
         huge_tree: bool = False,
         features: Union[FeatureSet, dict, str, None] = None,
@@ -265,7 +260,7 @@ class AsyncDAVClient:
         self.ssl_cert = ssl_cert
 
         # Setup headers with User-Agent
-        self.headers: Dict[str, str] = {
+        self.headers: dict[str, str] = {
             "User-Agent": f"caldav-async/{__version__}",
         }
         self.headers.update(headers)
@@ -291,7 +286,7 @@ class AsyncDAVClient:
     @staticmethod
     def _build_method_headers(
         method: str, depth: Optional[int] = None, extra_headers: Optional[Mapping[str, str]] = None
-    ) -> Dict[str, str]:
+    ) -> dict[str, str]:
         """
         Build headers for WebDAV methods.
 
@@ -303,7 +298,7 @@ class AsyncDAVClient:
         Returns:
             Dictionary of headers.
         """
-        headers: Dict[str, str] = {}
+        headers: dict[str, str] = {}
 
         # Add Depth header for methods that support it
         if depth is not None:
@@ -351,7 +346,7 @@ class AsyncDAVClient:
         proxies = None
         if self.proxy is not None:
             proxies = {url_obj.scheme: self.proxy}
-            log.debug("using proxy - %s" % (proxies))
+            log.debug(f"using proxy - {proxies}")
 
         log.debug(
             f"sending request - method={method}, url={str(url_obj)}, headers={combined_headers}\nbody:\n{to_normal_str(body)}"
@@ -369,7 +364,7 @@ class AsyncDAVClient:
                 verify=self.ssl_verify_cert,
                 cert=self.ssl_cert,
             )
-            log.debug("server responded with %i %s" % (r.status_code, r.reason))
+            log.debug(f"server responded with {r.status_code} {r.reason}")
             if (
                 r.status_code == 401
                 and "text/html" in self.headers.get("Content-Type", "")
@@ -387,10 +382,10 @@ class AsyncDAVClient:
                         if t in ["basic", "digest", "bearer"]
                     ]
                     if auth_types:
-                        msg += "\nSupported authentication types: %s" % (", ".join(auth_types))
+                        msg += "\nSupported authentication types: {}".format(", ".join(auth_types))
                 log.warning(msg)
             response = AsyncDAVResponse(r, self)
-        except:
+        except Exception:
             # Workaround for servers that abort connection on unauthenticated requests
             # ref https://github.com/python-caldav/caldav/issues/158
             if self.auth or not self.password:
@@ -404,9 +399,7 @@ class AsyncDAVClient:
                 verify=self.ssl_verify_cert,
                 cert=self.ssl_cert,
             )
-            log.debug(
-                "auth type detection: server responded with %i %s" % (r.status_code, r.reason)
-            )
+            log.debug(f"auth type detection: server responded with {r.status_code} {r.reason}")
             if r.status_code == 401 and r.headers.get("WWW-Authenticate"):
                 auth_types = self.extract_auth_types(r.headers["WWW-Authenticate"])
                 self.build_auth_object(auth_types)
@@ -660,7 +653,7 @@ class AsyncDAVClient:
         # https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/WWW-Authenticate#syntax
         return {h.split()[0] for h in header.lower().split(",")}
 
-    def build_auth_object(self, auth_types: Optional[List[str]] = None) -> None:
+    def build_auth_object(self, auth_types: Optional[list[str]] = None) -> None:
         """
         Build authentication object based on configured credentials.
 
@@ -713,7 +706,7 @@ async def get_davclient(
     username: Optional[str] = None,
     password: Optional[str] = None,
     probe: bool = True,
-    **kwargs,
+    **kwargs: Any,
 ) -> AsyncDAVClient:
     """
     Get an async DAV client instance.
