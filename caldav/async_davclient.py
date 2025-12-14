@@ -449,11 +449,13 @@ class AsyncDAVClient:
             # Most likely wrong username/password combo, but could be a multiplexing problem
             if self.features.is_supported("http.multiplexing", return_defaults=False) is None:
                 await self.session.close()
-                self.session = niquests.AsyncSession()
-                self.features.set_feature("http.multiplexing", "unknown")
+                self.session = niquests.AsyncSession(multiplexed=False)
                 # If this one also fails, we give up
                 ret = await self.request(str(url_obj), method, body, headers)
-                self.features.set_feature("http.multiplexing", False)
+                # Only mark multiplexing as unsupported if retry also failed with 401
+                # If retry succeeded, we don't set the feature - it's just unknown/not tested
+                if ret.status_code == 401:
+                    self.features.set_feature("http.multiplexing", False)
                 return ret
 
         return response
