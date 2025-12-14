@@ -730,12 +730,25 @@ class DAVClient:
         """
         # Create async client with same configuration
         # Note: Don't pass features since it's already a FeatureSet and would be wrapped again
+
+        # Convert sync auth to async auth if needed
+        async_auth = self.auth
+        if self.auth is not None:
+            from niquests.auth import HTTPDigestAuth, AsyncHTTPDigestAuth
+            # Check if it's sync HTTPDigestAuth and convert to async version
+            if isinstance(self.auth, HTTPDigestAuth):
+                async_auth = AsyncHTTPDigestAuth(
+                    self.auth.username,
+                    self.auth.password
+                )
+            # Other auth types (BasicAuth, BearerAuth) work in both contexts
+
         async_client = AsyncDAVClient(
             url=str(self.url),
             proxy=self.proxy if hasattr(self, 'proxy') else None,
             username=self.username,
             password=self.password.decode('utf-8') if isinstance(self.password, bytes) else self.password,
-            auth=self.auth,
+            auth=async_auth,
             auth_type=None,  # Auth object already built, don't try to build it again
             timeout=self.timeout,
             ssl_verify_cert=self.ssl_verify_cert,
