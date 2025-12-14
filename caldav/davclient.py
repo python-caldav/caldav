@@ -775,11 +775,13 @@ class DAVClient:
 
     def close(self) -> None:
         """
-        Closes the DAVClient's session object and async client if created.
+        Closes the DAVClient's session object.
+
+        Note: In the async wrapper demonstration, we don't cache async clients,
+        so there's nothing to close here. Each request creates and cleans up
+        its own async client via asyncio.run() context.
         """
         self.session.close()
-        if self._async_client is not None:
-            asyncio.run(self._async_client.close())
 
     def principals(self, name=None):
         """
