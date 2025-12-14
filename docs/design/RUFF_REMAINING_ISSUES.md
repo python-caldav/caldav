@@ -1,14 +1,59 @@
-# Ruff Remaining Issues for Async Files
+# Ruff Issues for Async Files - Resolution Log
 
 Generated after initial Ruff setup on new async files (v2.2.2+).
 
 ## Summary
 
-- **Total issues**: 20
-- **Auto-fixed**: 13
-- **Remaining**: 20 (some require manual fixes)
+- **Initial issues**: 33
+- **Auto-fixed (first pass)**: 13
+- **Auto-fixed (unsafe)**: 14
+- **Manually fixed**: 9
+- **Final status**: ✅ All issues resolved (0 remaining)
 
-## Remaining Issues by Category
+## Resolution Summary
+
+All Ruff issues have been fixed! The async files now pass all linting checks.
+
+### What Was Fixed
+
+**Auto-fixed (Safe - First Pass)**:
+- Sorted and organized imports
+- Moved `Mapping` from `typing` to `collections.abc`
+- Simplified generator expressions
+- Converted some `.format()` calls to f-strings
+
+**Auto-fixed (Unsafe Fixes)**:
+- Type annotation modernization: `Dict` → `dict`, `List` → `list`, `Tuple` → `tuple`
+- Removed outdated Python version blocks
+- Additional string formatting conversions
+
+**Manually Fixed**:
+1. **Import error handling (B904)**: Added `from err` to raise statement
+2. **Missing import (F821)**: Added `import niquests` module reference
+3. **Variable redefinition (F811)**: Removed duplicate `raw = ""` class variable
+4. **Bare except clauses (E722, 3 instances)**:
+   - Content-Length parsing: `except (KeyError, ValueError, TypeError)`
+   - XML parsing: `except Exception`
+   - Connection errors: `except Exception`
+5. **String formatting (UP031, 2 instances)**: Converted `%` formatting to f-strings
+6. **Type annotation (ANN003)**: Added `**kwargs: Any` annotation
+
+### Verification
+
+```bash
+$ ruff check .
+All checks passed!
+
+$ ruff format .
+3 files left unchanged
+
+$ pytest tests/test_compatibility_hints.py tests/test_caldav.py::TestForServerLocalRadicale
+57 passed, 13 skipped
+```
+
+---
+
+## Original Issues by Category (For Reference)
 
 ### 1. Type Annotation Modernization (UP006, UP035)
 **Count**: 8 issues
