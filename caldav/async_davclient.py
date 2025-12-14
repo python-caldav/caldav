@@ -687,9 +687,9 @@ class AsyncDAVClient:
         if auth_type == "bearer":
             self.auth = HTTPBearerAuth(self.password)
         elif auth_type == "digest":
-            from niquests.auth import HTTPDigestAuth
+            from niquests.auth import AsyncHTTPDigestAuth
 
-            self.auth = HTTPDigestAuth(self.username, self.password)
+            self.auth = AsyncHTTPDigestAuth(self.username, self.password)
         elif auth_type == "basic":
             from niquests.auth import HTTPBasicAuth
 
