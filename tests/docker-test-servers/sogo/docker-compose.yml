@@ -13,8 +13,10 @@ services:
       db:
         condition: service_healthy
     volumes:
-      - sogo-data:/srv
       - ./sogo.conf:/etc/sogo/sogo.conf:ro
+    tmpfs:
+      # Make the container truly ephemeral - data is lost on restart
+      - /srv:size=500m,mode=1777
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost/SOGo/"]
       interval: 10s
@@ -32,12 +34,12 @@ services:
       - MYSQL_ROOT_PASSWORD=sogo
     volumes:
       - ./init-sogo-users.sql:/docker-entrypoint-initdb.d/init-sogo-users.sql:ro
+    tmpfs:
+      # Make the database truly ephemeral - data is lost on restart
+      - /var/lib/mysql:size=500m,mode=1777
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 5s
       timeout: 5s
       retries: 20
       start_period: 10s
-
-volumes:
-  sogo-data:
