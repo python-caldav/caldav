@@ -174,6 +174,7 @@ class TestSyncTokenFallback:
         ), "Should return all objects when changes detected"
         assert result2.sync_token != initial_token
 
+    ## TODO
     @pytest.mark.xfail(
         reason="Mock objects don't preserve props updates properly - integration test needed"
     )
