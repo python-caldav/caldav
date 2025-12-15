@@ -768,7 +768,7 @@ class DAVClient:
         if hasattr(self, "setup"):
             try:
                 self.setup()
-            except:
+            except TypeError:
                 self.setup(self)
         return self
 
