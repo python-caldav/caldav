@@ -901,7 +901,7 @@ class RepeatedFunctionalTestsBaseClass:
     def testCheckCompatibility(self, request) -> None:
         try:
             from caldav_server_tester import ServerQuirkChecker
-        except:
+        except ImportError:
             pytest.skip("caldav_server_tester is not installed")
 
         # Use pdb debug mode if pytest was run with --pdb, otherwise use logging
