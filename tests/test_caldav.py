@@ -781,7 +781,10 @@ class RepeatedFunctionalTestsBaseClass:
         logging.debug("############################")
         self._cleanup("post")
         logging.debug("############## test teardown_method almost done")
-        self.caldav.teardown(self.caldav)
+        try:
+            self.caldav.teardown()
+        except TypeError:
+            self.caldav.teardown(self.caldav)
 
     def _cleanup(self, mode=None):
         if self.cleanup_regime in ("pre", "post") and self.cleanup_regime != mode:
