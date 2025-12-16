@@ -151,7 +151,13 @@ class CalendarObjectResource(DAVObject):
             The result from the async function
         """
         import asyncio
-        from caldav.async_davobject import AsyncCalendarObjectResource, AsyncDAVObject
+        from caldav.async_davobject import (
+            AsyncCalendarObjectResource,
+            AsyncDAVObject,
+            AsyncEvent,
+            AsyncTodo,
+            AsyncJournal,
+        )
 
         if self.client is None:
             raise ValueError("Unexpected value None for self.client")
@@ -168,11 +174,22 @@ class CalendarObjectResource(DAVObject):
                         id=getattr(self.parent, 'id', None),
                         props=getattr(self.parent, 'props', {}).copy() if hasattr(self.parent, 'props') else {},
                     )
+                    # Store reference to sync parent for methods that need it (e.g., no_create/no_overwrite checks)
+                    async_parent._sync_parent = self.parent
 
                 # Create async object with same state
                 # Use self.data (property) to get current data from whichever source is available
                 # (_data, _icalendar_instance, or _vobject_instance)
-                async_obj = AsyncCalendarObjectResource(
+                # Determine the correct async class based on the sync class
+                sync_class_name = self.__class__.__name__
+                async_class_map = {
+                    "Event": AsyncEvent,
+                    "Todo": AsyncTodo,
+                    "Journal": AsyncJournal,
+                }
+                AsyncClass = async_class_map.get(sync_class_name, AsyncCalendarObjectResource)
+
+                async_obj = AsyncClass(
                     client=async_client,
                     url=self.url,
                     data=self.data,
@@ -933,16 +950,142 @@ class CalendarObjectResource(DAVObject):
          * self
 
         """
+        # Early return if there's no data (no-op case)
+        if (
+            self._vobject_instance is None
+            and self._data is None
+            and self._icalendar_instance is None
+        ):
+            return self
+
+        # Helper function to get the full object by UID
+        def get_self():
+            from caldav.lib import error
+
+            uid = self.id or self.icalendar_component.get("uid")
+            if uid and self.parent:
+                try:
+                    if not obj_type:
+                        _obj_type = self.__class__.__name__.lower()
+                    else:
+                        _obj_type = obj_type
+                    if _obj_type:
+                        method_name = f"{_obj_type}_by_uid"
+                        if hasattr(self.parent, method_name):
+                            return getattr(self.parent, method_name)(uid)
+                    if hasattr(self.parent, "object_by_uid"):
+                        return self.parent.object_by_uid(uid)
+                except error.NotFoundError:
+                    return None
+            return None
+
+        # Handle no_overwrite/no_create validation BEFORE async delegation
+        # This must be done here because it requires collection methods (event_by_uid, etc.)
+        # which are sync and can't be called from async context (nested event loop issue)
+        if no_overwrite or no_create:
+            from caldav.lib import error
+
+            if not obj_type:
+                obj_type = self.__class__.__name__.lower()
+
+            # Determine the ID
+            uid = self.id or self.icalendar_component.get("uid")
+
+            # Check if object exists using parent collection methods
+            existing = get_self()
+
+            # Validate constraints
+            if not uid and no_create:
+                raise error.ConsistencyError("no_create flag was set, but no ID given")
+            if no_overwrite and existing:
+                raise error.ConsistencyError(
+                    "no_overwrite flag was set, but object already exists"
+                )
+            if no_create and not existing:
+                raise error.ConsistencyError(
+                    "no_create flag was set, but object does not exist"
+                )
+
+        # Handle recurrence instances BEFORE async delegation
+        # When saving a single recurrence instance, we need to:
+        # - Get the full recurring event from the server
+        # - Add/update the recurrence instance in the event's subcomponents
+        # - Save the full event back
+        # This prevents overwriting the entire recurring event with just one instance
+        if (
+            only_this_recurrence or all_recurrences
+        ) and "RECURRENCE-ID" in self.icalendar_component:
+            import icalendar
+            from caldav.lib import error
+
+            obj = get_self()  # Get the full object, not only the recurrence
+            if obj is None:
+                raise error.NotFoundError("Could not find parent recurring event")
+
+            ici = obj.icalendar_instance  # ical instance
+
+            if all_recurrences:
+                occ = obj.icalendar_component  # original calendar component
+                ncc = self.icalendar_component.copy()  # new calendar component
+                for prop in ["exdate", "exrule", "rdate", "rrule"]:
+                    if prop in occ:
+                        ncc[prop] = occ[prop]
+
+                # dtstart_diff = how much we've moved the time
+                dtstart_diff = (
+                    ncc.start.astimezone() - ncc["recurrence-id"].dt.astimezone()
+                )
+                new_duration = ncc.duration
+                ncc.pop("dtstart")
+                ncc.add("dtstart", occ.start + dtstart_diff)
+                for ep in ("duration", "dtend"):
+                    if ep in ncc:
+                        ncc.pop(ep)
+                ncc.add("dtend", ncc.start + new_duration)
+                ncc.pop("recurrence-id")
+                s = ici.subcomponents
+
+                # Replace the "root" subcomponent
+                comp_idxes = [
+                    i
+                    for i in range(0, len(s))
+                    if not isinstance(s[i], icalendar.Timezone)
+                ]
+                comp_idx = comp_idxes[0]
+                s[comp_idx] = ncc
+
+                # The recurrence-ids of all objects has to be recalculated
+                if dtstart_diff:
+                    for i in comp_idxes[1:]:
+                        rid = s[i].pop("recurrence-id")
+                        s[i].add("recurrence-id", rid.dt + dtstart_diff)
+
+                return obj.save(increase_seqno=increase_seqno)
+
+            if only_this_recurrence:
+                existing_idx = [
+                    i
+                    for i in range(0, len(ici.subcomponents))
+                    if ici.subcomponents[i].get("recurrence-id")
+                    == self.icalendar_component["recurrence-id"]
+                ]
+                error.assert_(len(existing_idx) <= 1)
+                if existing_idx:
+                    ici.subcomponents[existing_idx[0]] = self.icalendar_component
+                else:
+                    ici.add_component(self.icalendar_component)
+                return obj.save(increase_seqno=increase_seqno)
+
         # Delegate to async implementation
         async def _async_save(async_obj):
             await async_obj.save(
-                no_overwrite=no_overwrite,
-                no_create=no_create,
+                no_overwrite=False,  # Already validated above
+                no_create=False,     # Already validated above
                 obj_type=obj_type,
                 increase_seqno=increase_seqno,
                 if_schedule_tag_match=if_schedule_tag_match,
-                only_this_recurrence=only_this_recurrence,
-                all_recurrences=all_recurrences,
+                only_this_recurrence=False,  # Already handled above
+                all_recurrences=False,       # Already handled above
             )
             return self  # Return the sync object
 

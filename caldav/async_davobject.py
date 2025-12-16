@@ -682,9 +682,11 @@ class AsyncCalendarObjectResource(AsyncDAVObject):
 
         path = self.url.path if self.url else None
 
-        # TODO: Implement full no_overwrite/no_create logic
+        # NOTE: no_create/no_overwrite validation is handled in the sync wrapper
+        # because it requires collection methods (event_by_uid, etc.) which are Phase 3 work.
+        # For Phase 2, the sync wrapper performs the validation before calling async save().
+
         # TODO: Implement full recurrence handling
-        # For now, just do a basic save
 
         # Handle SEQUENCE increment
         if increase_seqno and "SEQUENCE" in self.icalendar_component:
