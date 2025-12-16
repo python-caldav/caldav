@@ -100,6 +100,24 @@ docker-compose down -v
 ./start.sh
 ```
 
+## Known Issues
+
+### Repeated Compatibility Tests Against Same Container
+
+**Issue:** Running the `testCheckCompatibility` test repeatedly against the same Nextcloud container will eventually fail with 500 errors due to database unique constraint violations.
+
+**Root Cause:** The compatibility tests create test objects with fixed UIDs (e.g., `csc_simple_event1`, `csc_alarm_test_event`). On the first run, these are created successfully. On subsequent runs against the same container, the test tries to create these objects again, violating SQLite unique constraints.
+
+**Workaround:** Restart the container between test runs to get a fresh database:
+```bash
+cd tests/docker-test-servers/nextcloud
+./stop.sh && ./start.sh
+```
+
+**Note:** The tmpfs storage is ephemeral between container restarts (data is lost on stop/start), but persists during a single container's lifetime. This is the expected behavior for efficient testing - most tests work fine with a persistent container, and only the compatibility tests require a fresh container.
+
+**TODO:** This should be fixed in the caldav-server-tester project by having the PrepareCalendar check properly handle existing test objects or by cleaning up test data before creating new objects.
+
 ## Docker Compose Commands
 
 ```bash
@@ -135,7 +153,7 @@ The Nextcloud testing framework consists of:
 
 - First startup takes longer (~1 minute) as Nextcloud initializes
 - Uses SQLite for simplicity (production should use MySQL/PostgreSQL)
-- Data is persisted in a Docker volume between restarts
+- Data is stored in tmpfs (ephemeral storage) - lost on container restart but persists during container lifetime
 - Container runs on port 8801 (to avoid conflicts with Baikal on 8800)
 
 ## Version
