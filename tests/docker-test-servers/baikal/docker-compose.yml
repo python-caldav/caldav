@@ -10,5 +10,5 @@ services:
       - BAIKAL_SERVERNAME=localhost
     tmpfs:
       # Make the container truly ephemeral - data is lost on restart
-      - /var/www/baikal/Specific:size=100m,mode=1777
-      - /var/www/baikal/config:size=10m,mode=1777
+      - /var/www/baikal/Specific:size=100m
+      - /var/www/baikal/config:size=10m

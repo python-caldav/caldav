@@ -13,4 +13,4 @@ services:
       - NEXTCLOUD_TRUSTED_DOMAINS=localhost
     tmpfs:
       # Make the container truly ephemeral - data is lost on restart
-      - /var/www/html:size=2g,mode=1777
+      - /var/www/html:size=2g
