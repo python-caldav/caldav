@@ -139,6 +139,69 @@ class CalendarObjectResource(DAVObject):
                 old_id = self.icalendar_component.pop("UID", None)
                 self.icalendar_component.add("UID", id)
 
+    def _run_async_calendar(self, async_func):
+        """
+        Helper method to run an async function with async delegation for CalendarObjectResource.
+        Creates an AsyncCalendarObjectResource and runs the provided async function.
+
+        Args:
+            async_func: A callable that takes an AsyncCalendarObjectResource and returns a coroutine
+
+        Returns:
+            The result from the async function
+        """
+        import asyncio
+        from caldav.async_davobject import AsyncCalendarObjectResource, AsyncDAVObject
+
+        if self.client is None:
+            raise ValueError("Unexpected value None for self.client")
+
+        async def _execute():
+            async_client = self.client._get_async_client()
+            async with async_client:
+                # Create async parent if needed (minimal stub with just URL)
+                async_parent = None
+                if self.parent:
+                    async_parent = AsyncDAVObject(
+                        client=async_client,
+                        url=self.parent.url,
+                        id=getattr(self.parent, 'id', None),
+                        props=getattr(self.parent, 'props', {}).copy() if hasattr(self.parent, 'props') else {},
+                    )
+
+                # Create async object with same state
+                # Use self.data (property) to get current data from whichever source is available
+                # (_data, _icalendar_instance, or _vobject_instance)
+                async_obj = AsyncCalendarObjectResource(
+                    client=async_client,
+                    url=self.url,
+                    data=self.data,
+                    parent=async_parent,
+                    id=self.id,
+                    props=self.props.copy(),
+                )
+
+                # Run the async function
+                result = await async_func(async_obj)
+
+                # Copy back state changes
+                self.props.update(async_obj.props)
+                if async_obj.url and async_obj.url != self.url:
+                    self.url = async_obj.url
+                if async_obj.id and async_obj.id != self.id:
+                    self.id = async_obj.id
+                # Only update data if it changed (to preserve local modifications to icalendar_instance)
+                # Compare with self.data (property) not self._data (field) to catch all modifications
+                current_data = self.data
+                if async_obj._data and async_obj._data != current_data:
+                    self._data = async_obj._data
+                    self._icalendar_instance = None
+                    self._vobject_instance = None
+
+                return result
+
+        return asyncio.run(_execute())
+
     def set_end(self, end, move_dtstart=False):
         """The RFC specifies that a VEVENT/VTODO cannot have both
         dtend/due and duration, so when setting dtend/due, the duration
@@ -674,29 +737,12 @@ class CalendarObjectResource(DAVObject):
         """
         (Re)load the object from the caldav server.
         """
-        if only_if_unloaded and self.is_loaded():
-            return self
+        # Delegate to async implementation
+        async def _async_load(async_obj):
+            await async_obj.load(only_if_unloaded=only_if_unloaded)
+            return self  # Return the sync object
 
-        if self.url is None:
-            raise ValueError("Unexpected value None for self.url")
-
-        if self.client is None:
-            raise ValueError("Unexpected value None for self.client")
-
-        try:
-            r = self.client.request(str(self.url))
-            if r.status and r.status == 404:
-                raise error.NotFoundError(errmsg(r))
-            self.data = r.raw
-        except error.NotFoundError:
-            raise
-        except:
-            return self.load_by_multiget()
-        if "Etag" in r.headers:
-            self.props[dav.GetEtag.tag] = r.headers["Etag"]
-        if "Schedule-Tag" in r.headers:
-            self.props[cdav.ScheduleTag.tag] = r.headers["Schedule-Tag"]
-        return self
+        return self._run_async_calendar(_async_load)
 
     def load_by_multiget(self) -> Self:
         """
@@ -887,134 +933,20 @@ class CalendarObjectResource(DAVObject):
          * self
 
         """
-        ## Rather than passing the icalendar data verbatimely, we're
-        ## efficiently running the icalendar code through the icalendar
-        ## library.  This may cause data modifications and may "unfix"
-        ## https://github.com/python-caldav/caldav/issues/43
-        ## TODO: think more about this
-        if not obj_type:
-            obj_type = self.__class__.__name__.lower()
-        if (
-            self._vobject_instance is None
-            and self._data is None
-            and self._icalendar_instance is None
-        ):
-            ## TODO: This makes no sense.  We should probably raise an error.
-            ## But the behaviour should be officially deprecated first.
-            return self
+        # Delegate to async implementation
+        async def _async_save(async_obj):
+            await async_obj.save(
+                no_overwrite=no_overwrite,
+                no_create=no_create,
+                obj_type=obj_type,
+                increase_seqno=increase_seqno,
+                if_schedule_tag_match=if_schedule_tag_match,
+                only_this_recurrence=only_this_recurrence,
+                all_recurrences=all_recurrences,
+            )
+            return self  # Return the sync object
 
-        path = self.url.path if self.url else None
-
-        def get_self():
-            self.id = self.id or self.icalendar_component.get("uid")
-            if self.id:
-                try:
-                    if obj_type:
-                        return getattr(self.parent, "%s_by_uid" % obj_type)(self.id)
-                    else:
-                        return self.parent.object_by_uid(self.id)
-                except error.NotFoundError:
-                    return None
-            return None
-
-        if no_overwrite or no_create:
-            ## SECURITY TODO: path names on the server does not
-            ## necessarily map cleanly to UUIDs.  We need to do quite
-            ## some refactoring here to ensure all corner cases are
-            ## covered.  Doing a GET first to check if the resource is
-            ## found and then a PUT also gives a potential race
-            ## condition.  (Possibly the API gives no safe way to ensure
-            ## a unique new calendar item is created to the server without
-            ## overwriting old stuff or vice versa - it seems silly to me
-            ## to do a PUT instead of POST when creating new data).
-            ## TODO: the "find id"-logic is duplicated in _create,
-            ## should be refactored
-            existing = get_self()
-            if not self.id and no_create:
-                raise error.ConsistencyError("no_create flag was set, but no ID given")
-            if no_overwrite and existing:
-                raise error.ConsistencyError(
-                    "no_overwrite flag was set, but object already exists"
-                )
-
-            if no_create and not existing:
-                raise error.ConsistencyError(
-                    "no_create flag was set, but object does not exists"
-                )
-
-        ## Save a single recurrence-id and all calendars servers seems
-        ## to overwrite the full object, effectively deleting the
-        ## RRULE.  I can't find this behaviour specified in the RFC.
-        ## That's probably not what the caller intended intended.
-        if (
-            only_this_recurrence or all_recurrences
-        ) and "RECURRENCE-ID" in self.icalendar_component:
-            obj = get_self()  ## get the full object, not only the recurrence
-            ici = obj.icalendar_instance  # ical instance
-            if all_recurrences:
-                occ = obj.icalendar_component  ## original calendar component
-                ncc = self.icalendar_component.copy()  ## new calendar component
-                for prop in ["exdate", "exrule", "rdate", "rrule"]:
-                    if prop in occ:
-                        ncc[prop] = occ[prop]
-
-                ## dtstart_diff = how much we've moved the time
-                ## TODO: we may easily have timezone problems here and events shifting some hours ...
-                dtstart_diff = (
-                    ncc.start.astimezone() - ncc["recurrence-id"].dt.astimezone()
-                )
-                new_duration = ncc.duration
-                ncc.pop("dtstart")
-                ncc.add("dtstart", occ.start + dtstart_diff)
-                for ep in ("duration", "dtend"):
-                    if ep in ncc:
-                        ncc.pop(ep)
-                ncc.add("dtend", ncc.start + new_duration)
-                ncc.pop("recurrence-id")
-                s = ici.subcomponents
-
-                ## Replace the "root" subcomponent
-                comp_idxes = (
-                    i
-                    for i in range(0, len(s))
-                    if not isinstance(s[i], icalendar.Timezone)
-                )
-                comp_idx = next(comp_idxes)
-                s[comp_idx] = ncc
-
-                ## The recurrence-ids of all objects has to be
-                ## recalculated (this is probably not quite right.  If
-                ## we move the time of a daily meeting from 8 to 10,
-                ## then we need to do this.  If we move the date of
-                ## the first instance, then probably we shouldn't
-                ## ... oh well ... so many complications)
-                if dtstart_diff:
-                    for i in comp_idxes:
-                        rid = s[i].pop("recurrence-id")
-                        s[i].add("recurrence-id", rid.dt + dtstart_diff)
-
-                return obj.save(increase_seqno=increase_seqno)
-            if only_this_recurrence:
-                existing_idx = [
-                    i
-                    for i in range(0, len(ici.subcomponents))
-                    if ici.subcomponents[i].get("recurrence-id")
-                    == self.icalendar_component["recurrence-id"]
-                ]
-                error.assert_(len(existing_idx) <= 1)
-                if existing_idx:
-                    ici.subcomponents[existing_idx[0]] = self.icalendar_component
-                else:
-                    ici.add_component(self.icalendar_component)
-                return obj.save(increase_seqno=increase_seqno)
-
-        if "SEQUENCE" in self.icalendar_component:
-            seqno = self.icalendar_component.pop("SEQUENCE", None)
-            if seqno is not None:
-                self.icalendar_component.add("SEQUENCE", seqno + 1)
-
-        self._create(id=self.id, path=path)
-        return self
+        return self._run_async_calendar(_async_save)
 
     def is_loaded(self):
         """Returns True if there exists data in the object.  An

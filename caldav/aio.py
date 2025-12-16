@@ -18,9 +18,23 @@ from caldav.async_davclient import (
     AsyncDAVResponse,
     get_davclient,
 )
+from caldav.async_davobject import (
+    AsyncDAVObject,
+    AsyncCalendarObjectResource,
+    AsyncEvent,
+    AsyncTodo,
+    AsyncJournal,
+    AsyncFreeBusy,
+)
 
 __all__ = [
     "AsyncDAVClient",
     "AsyncDAVResponse",
     "get_davclient",
+    "AsyncDAVObject",
+    "AsyncCalendarObjectResource",
+    "AsyncEvent",
+    "AsyncTodo",
+    "AsyncJournal",
+    "AsyncFreeBusy",
 ]

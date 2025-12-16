@@ -118,6 +118,50 @@ class DAVObject:
             raise ValueError("Unexpected value None for self.url")
         return str(self.url.canonical())
 
+    def _run_async(self, async_func):
+        """
+        Helper method to run an async function with async delegation.
+        Creates an AsyncDAVObject and runs the provided async function.
+
+        Args:
+            async_func: A callable that takes an AsyncDAVObject and returns a coroutine
+
+        Returns:
+            The result from the async function
+        """
+        import asyncio
+        from caldav.async_davobject import AsyncDAVObject
+
+        if self.client is None:
+            raise ValueError("Unexpected value None for self.client")
+
+        async def _execute():
+            async_client = self.client._get_async_client()
+            async with async_client:
+                # Create async object with same state
+                async_obj = AsyncDAVObject(
+                    client=async_client,
+                    url=self.url,
+                    parent=None,  # Parent is complex, handle separately if needed
+                    name=self.name,
+                    id=self.id,
+                    props=self.props.copy(),
+                )
+
+                # Run the async function
+                result = await async_func(async_obj)
+
+                # Copy back state changes
+                self.props.update(async_obj.props)
+                if async_obj.url and async_obj.url != self.url:
+                    self.url = async_obj.url
+                if async_obj.id and async_obj.id != self.id:
+                    self.id = async_obj.id
+
+                return result
+
+        return asyncio.run(_execute())
+
     def children(self, type: Optional[str] = None) -> List[Tuple[URL, Any, Any]]:
         """List children, using a propfind (resourcetype) on the parent object,
         at depth = 1.
@@ -284,86 +328,16 @@ class DAVObject:
           ``{proptag: value, ...}``
 
         """
-        from .collection import Principal  ## late import to avoid cyclic dependencies
-
-        rc = None
-        response = self._query_properties(props, depth)
-        if not parse_response_xml:
-            return response
-
-        if not parse_props:
-            properties = response.find_objects_and_props()
-        else:
-            properties = response.expand_simple_props(props)
-
-        error.assert_(properties)
-
-        if self.url is None:
-            raise ValueError("Unexpected value None for self.url")
-
-        path = unquote(self.url.path)
-        if path.endswith("/"):
-            exchange_path = path[:-1]
-        else:
-            exchange_path = path + "/"
-
-        if path in properties:
-            rc = properties[path]
-        elif exchange_path in properties:
-            if not isinstance(self, Principal):
-                ## Some caldav servers reports the URL for the current
-                ## principal to end with / when doing a propfind for
-                ## current-user-principal - I believe that's a bug,
-                ## the principal is not a collection and should not
-                ## end with /.  (example in rfc5397 does not end with /).
-                ## ... but it gets worse ... when doing a propfind on the
-                ## principal, the href returned may be without the slash.
-                ## Such inconsistency is clearly a bug.
-                log.warning(
-                    "potential path handling problem with ending slashes.  Path given: %s, path found: %s.  %s"
-                    % (path, exchange_path, error.ERR_FRAGMENT)
-                )
-                error.assert_(False)
-            rc = properties[exchange_path]
-        elif self.url in properties:
-            rc = properties[self.url]
-        elif "/principal/" in properties and path.endswith("/principal/"):
-            ## Workaround for a known iCloud bug.
-            ## The properties key is expected to be the same as the path.
-            ## path is on the format /123456/principal/ but properties key is /principal/
-            ## tests apparently passed post bc589093a34f0ed0ef489ad5e9cba048750c9837 and 3ee4e42e2fa8f78b71e5ffd1ef322e4007df7a60, even without this workaround
-            ## TODO: should probably be investigated more.
-            ## (observed also by others, ref https://github.com/python-caldav/caldav/issues/168)
-            rc = properties["/principal/"]
-        elif "//" in path and path.replace("//", "/") in properties:
-            ## ref https://github.com/python-caldav/caldav/issues/302
-            ## though, it would be nice to find the root cause,
-            ## self.url should not contain double slashes in the first place
-            rc = properties[path.replace("//", "/")]
-        elif len(properties) == 1:
-            ## Ref https://github.com/python-caldav/caldav/issues/191 ...
-            ## let's be pragmatic and just accept whatever the server is
-            ## throwing at us.  But we'll log an error anyway.
-            log.warning(
-                "Possibly the server has a path handling problem, possibly the URL configured is wrong.\n"
-                "Path expected: %s, path found: %s %s.\n"
-                "Continuing, probably everything will be fine"
-                % (path, str(list(properties)), error.ERR_FRAGMENT)
+        # Delegate to async implementation
+        async def _async_get_properties(async_obj):
+            return await async_obj.get_properties(
+                props=props,
+                depth=depth,
+                parse_response_xml=parse_response_xml,
+                parse_props=parse_props,
             )
-            rc = list(properties.values())[0]
-        else:
-            log.warning(
-                "Possibly the server has a path handling problem.  Path expected: %s, paths found: %s %s"
-                % (path, str(list(properties)), error.ERR_FRAGMENT)
-            )
-            error.assert_(False)
 
-        if parse_props:
-            if rc is None:
-                raise ValueError("Unexpected value None for rc")
-
-            self.props.update(rc)
-        return rc
+        return self._run_async(_async_get_properties)
 
     def set_properties(self, props: Optional[Any] = None) -> Self:
         """
@@ -374,19 +348,12 @@ class DAVObject:
         Returns:
          * self
         """
-        props = [] if props is None else props
-        prop = dav.Prop() + props
-        set = dav.Set() + prop
-        root = dav.PropertyUpdate() + set
+        # Delegate to async implementation
+        async def _async_set_properties(async_obj):
+            await async_obj.set_properties(props=props)
+            return self  # Return the sync object
 
-        r = self._query(root, query_method="proppatch")
-
-        statuses = r.tree.findall(".//" + dav.Status.tag)
-        for s in statuses:
-            if " 200 " not in s.text:
-                raise error.PropsetError(s.text)
-
-        return self
+        return self._run_async(_async_set_properties)
 
     def save(self) -> Self:
         """
@@ -402,15 +369,12 @@ class DAVObject:
         """
         Delete the object.
         """
-        if self.url is not None:
-            if self.client is None:
-                raise ValueError("Unexpected value None for self.client")
+        # Delegate to async implementation
+        async def _async_delete(async_obj):
+            await async_obj.delete()
+            return None
 
-            r = self.client.delete(str(self.url))
-
-            # TODO: find out why we get 404
-            if r.status not in (200, 204, 404):
-                raise error.DeleteError(errmsg(r))
+        return self._run_async(_async_delete)
 
     def get_display_name(self):
         """
