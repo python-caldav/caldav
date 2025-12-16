@@ -461,10 +461,12 @@ class AsyncCalendarObjectResource(AsyncDAVObject):
     @property
     def data(self) -> Any:
         """Get the iCalendar data."""
+        from caldav.lib.python_utilities import to_normal_str
+
         if self._data is None and self._icalendar_instance is not None:
-            self._data = self._icalendar_instance.to_ical()
+            self._data = to_normal_str(self._icalendar_instance.to_ical())
         if self._data is None and self._vobject_instance is not None:
-            self._data = self._vobject_instance.serialize()
+            self._data = to_normal_str(self._vobject_instance.serialize())
         return self._data
 
     @data.setter
@@ -621,6 +623,8 @@ class AsyncCalendarObjectResource(AsyncDAVObject):
         i.add("UID", id)
 
         self.id = id
+        # Invalidate cached data since we modified the icalendar component
+        self._data = None
 
         if path is None:
             path = self._generate_url()
