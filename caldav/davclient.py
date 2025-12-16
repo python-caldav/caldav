@@ -1237,6 +1237,30 @@ class DAVClient:
         response = DAVResponse(r, self)
         return response
 
+    def _get_async_client(self):
+        """
+        Create an AsyncDAVClient with the same parameters as this sync client.
+        Used internally for async delegation in the sync wrapper pattern.
+        """
+        from caldav.async_davclient import AsyncDAVClient
+
+        return AsyncDAVClient(
+            url=str(self.url),
+            proxy=self.proxy,
+            username=self.username,
+            password=self.password,
+            auth=self.auth,
+            auth_type=self.auth_type,
+            timeout=self.timeout,
+            ssl_verify_cert=self.ssl_verify_cert,
+            ssl_cert=self.ssl_cert,
+            headers=self.headers,
+            huge_tree=self.huge_tree,
+            features=self.features.feature_set if hasattr(self.features, 'feature_set') else None,
+            enable_rfc6764=False,  # Already resolved in sync client
+            require_tls=True,
+        )
+
 
 def auto_calendars(
     config_file: str = None,
