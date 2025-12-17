@@ -123,6 +123,10 @@ class DAVObject:
         Helper method to run an async function with async delegation.
         Creates an AsyncDAVObject and runs the provided async function.
 
+        If the DAVClient was opened with context manager (__enter__), this will
+        reuse the persistent async client and event loop for better performance.
+        Otherwise, it falls back to creating a new client for each call.
+
         Args:
             async_func: A callable that takes an AsyncDAVObject and returns a coroutine
 
@@ -145,12 +149,17 @@ class DAVObject:
                 f"a different mocking approach. Method: {async_func.__name__}"
             )
 
-        async def _execute():
-            async_client = self.client._get_async_client()
-            async with async_client:
-                # Create async object with same state
+        # Check if we have a cached async client (from context manager)
+        if (hasattr(self.client, '_async_client') and
+            self.client._async_client is not None and
+            hasattr(self.client, '_loop_manager') and
+            self.client._loop_manager is not None):
+            # Use persistent async client with reused connections
+            log.debug("Using persistent async client with connection reuse")
+            async def _execute_cached():
+                # Create async object with same state, using cached client
                 async_obj = AsyncDAVObject(
-                    client=async_client,
+                    client=self.client._async_client,
                     url=self.url,
                     parent=None,  # Parent is complex, handle separately if needed
                     name=self.name,
@@ -170,7 +179,37 @@ class DAVObject:
 
                 return result
 
-        return asyncio.run(_execute())
+            return self.client._loop_manager.run_coroutine(_execute_cached())
+        else:
+            # Fall back to old behavior: create new client each time
+            # This happens if DAVClient is used without context manager
+            log.debug("Fallback: creating new async client (no context manager)")
+            async def _execute():
+                async_client = self.client._get_async_client()
+                async with async_client:
+                    # Create async object with same state
+                    async_obj = AsyncDAVObject(
+                        client=async_client,
+                        url=self.url,
+                        parent=None,  # Parent is complex, handle separately if needed
+                        name=self.name,
+                        id=self.id,
+                        props=self.props.copy(),
+                    )
+
+                    # Run the async function
+                    result = await async_func(async_obj)
+
+                    # Copy back state changes
+                    self.props.update(async_obj.props)
+                    if async_obj.url and async_obj.url != self.url:
+                        self.url = async_obj.url
+                    if async_obj.id and async_obj.id != self.id:
+                        self.id = async_obj.id
+
+                    return result
+
+            return asyncio.run(_execute())
 
     def children(self, type: Optional[str] = None) -> List[Tuple[URL, Any, Any]]:
         """List children, using a propfind (resourcetype) on the parent object,

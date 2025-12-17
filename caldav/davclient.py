@@ -11,6 +11,7 @@ import asyncio
 import logging
 import os
 import sys
+import threading
 import warnings
 from types import TracebackType
 from typing import Any
@@ -69,6 +70,50 @@ if sys.version_info < (3, 11):
     from typing_extensions import Self
 else:
     from typing import Self
+
+
+class EventLoopManager:
+    """Manages a persistent event loop in a background thread.
+
+    This allows reusing HTTP connections across multiple sync API calls
+    by maintaining a single event loop and AsyncDAVClient session.
+    """
+
+    def __init__(self) -> None:
+        self._loop: Optional[asyncio.AbstractEventLoop] = None
+        self._thread: Optional[threading.Thread] = None
+        self._started = threading.Event()
+
+    def start(self) -> None:
+        """Start the background event loop."""
+        if self._thread is not None:
+            return  # Already started
+
+        def run_loop():
+            self._loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(self._loop)
+            self._started.set()
+            self._loop.run_forever()
+
+        self._thread = threading.Thread(target=run_loop, daemon=True)
+        self._thread.start()
+        self._started.wait()  # Wait for loop to be ready
+
+    def run_coroutine(self, coro):
+        """Run a coroutine in the background event loop."""
+        if self._loop is None:
+            raise RuntimeError("Event loop not started")
+
+        future = asyncio.run_coroutine_threadsafe(coro, self._loop)
+        return future.result()
+
+    def stop(self) -> None:
+        """Stop the background event loop."""
+        if self._loop is not None:
+            self._loop.call_soon_threadsafe(self._loop.stop)
+            if self._thread is not None:
+                self._thread.join()
+
 
 """
 The ``DAVClient`` class handles the basic communication with a
@@ -715,6 +760,8 @@ class DAVClient:
         log.debug("self.url: " + str(url))
 
         self._principal = None
+        self._loop_manager: Optional[EventLoopManager] = None
+        self._async_client: Optional[AsyncDAVClient] = None
 
     def _get_async_client(self) -> AsyncDAVClient:
         """
@@ -770,6 +817,18 @@ class DAVClient:
                 self.setup()
             except TypeError:
                 self.setup(self)
+
+        # Start persistent event loop for HTTP connection reuse
+        self._loop_manager = EventLoopManager()
+        self._loop_manager.start()
+
+        # Create async client once (with persistent session)
+        async def create_client():
+            async_client = self._get_async_client()
+            await async_client.__aenter__()
+            return async_client
+
+        self._async_client = self._loop_manager.run_coroutine(create_client())
         return self
 
     def __exit__(
@@ -788,12 +847,20 @@ class DAVClient:
 
     def close(self) -> None:
         """
-        Closes the DAVClient's session object.
-
-        Note: In the async wrapper demonstration, we don't cache async clients,
-        so there's nothing to close here. Each request creates and cleans up
-        its own async client via asyncio.run() context.
+        Closes the DAVClient's session object and cleans up event loop.
         """
+        # Close async client if it exists
+        if self._async_client is not None:
+            async def close_client():
+                await self._async_client.__aexit__(None, None, None)
+
+            if self._loop_manager is not None:
+                self._loop_manager.run_coroutine(close_client())
+
+        # Stop event loop
+        if self._loop_manager is not None:
+            self._loop_manager.stop()
+
         self.session.close()
 
     def principals(self, name=None):
