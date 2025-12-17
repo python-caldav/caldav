@@ -111,3 +111,5 @@ async delegation, documenting that mocking needs to be updated for async support
 - ✓ no_create/no_overwrite validation moved to sync wrapper
 - ✓ Recurrence handling moved to sync wrapper
 - ✓ Unit tests without client (load with only_if_unloaded)
+- ✓ Mocked client detection for unit tests (testAbsoluteURL)
+- ✓ Sync fallback in get_properties() for mocked clients
