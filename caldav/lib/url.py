@@ -189,7 +189,7 @@ class URL:
         ):
             raise ValueError("%s can't be joined with %s" % (self, path))
 
-        if path.path[0] == "/":
+        if path.path and path.path[0] == "/":
             ret_path = path.path
         else:
             sep = "/"
