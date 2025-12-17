@@ -1244,12 +1244,24 @@ class DAVClient:
         """
         from caldav.async_davclient import AsyncDAVClient
 
+        # Convert sync auth to async auth if needed
+        async_auth = self.auth
+        if self.auth is not None:
+            from niquests.auth import HTTPDigestAuth, AsyncHTTPDigestAuth
+            # Check if it's sync HTTPDigestAuth and convert to async version
+            if isinstance(self.auth, HTTPDigestAuth):
+                async_auth = AsyncHTTPDigestAuth(
+                    self.auth.username,
+                    self.auth.password
+                )
+            # Other auth types (BasicAuth, BearerAuth) work in both contexts
+
         return AsyncDAVClient(
             url=str(self.url),
             proxy=self.proxy,
             username=self.username,
             password=self.password,
-            auth=self.auth,
+            auth=async_auth,
             auth_type=self.auth_type,
             timeout=self.timeout,
             ssl_verify_cert=self.ssl_verify_cert,
