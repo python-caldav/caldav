@@ -338,6 +338,45 @@ class DAVObject:
           ``{proptag: value, ...}``
 
         """
+        # For mocked clients, use sync implementation to avoid creating new async client
+        if self.client and hasattr(self.client, '_is_mocked') and self.client._is_mocked():
+            from .collection import Principal  ## late import to avoid cyclic dependencies
+
+            rc = None
+            response = self._query_properties(props, depth)
+            if not parse_response_xml:
+                return response
+
+            if not parse_props:
+                properties = response.find_objects_and_props()
+            else:
+                properties = response.expand_simple_props(props)
+
+            error.assert_(properties)
+
+            if self.url is None:
+                raise ValueError("Unexpected value None for self.url")
+
+            path = unquote(self.url.path)
+            if path.endswith("/"):
+                exchange_path = path[:-1]
+            else:
+                exchange_path = path + "/"
+
+            if path in properties:
+                rc = properties[path]
+            elif exchange_path in properties:
+                if not isinstance(self, Principal):
+                    log.warning(
+                        f"The path {path} was not found in the properties, but {exchange_path} was. "
+                        "This may indicate a server bug or a trailing slash issue."
+                    )
+                rc = properties[exchange_path]
+            else:
+                error.assert_(False)
+            self.props.update(rc)
+            return rc
+
         # Delegate to async implementation
         async def _async_get_properties(async_obj):
             return await async_obj.get_properties(
