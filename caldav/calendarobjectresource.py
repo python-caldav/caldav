@@ -754,6 +754,10 @@ class CalendarObjectResource(DAVObject):
         """
         (Re)load the object from the caldav server.
         """
+        # Early return if already loaded (for unit tests without client)
+        if only_if_unloaded and self.is_loaded():
+            return self
+
         # Delegate to async implementation
         async def _async_load(async_obj):
             await async_obj.load(only_if_unloaded=only_if_unloaded)
