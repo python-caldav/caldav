@@ -1150,10 +1150,15 @@ class DAVClient:
         Returns True if:
         - session.request is a MagicMock (mocked via @mock.patch)
         - request() method has been overridden in a subclass (MockedDAVClient)
+        - any of the main DAV methods (propfind, proppatch, put, etc.) are mocked
         """
         from unittest.mock import MagicMock
         return (isinstance(self.session.request, MagicMock) or
-                type(self).request != DAVClient.request)
+                type(self).request != DAVClient.request or
+                isinstance(self.propfind, MagicMock) or
+                isinstance(self.proppatch, MagicMock) or
+                isinstance(self.put, MagicMock) or
+                isinstance(self.delete, MagicMock))
 
     def request(
         self,

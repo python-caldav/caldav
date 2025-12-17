@@ -31,22 +31,39 @@ E   <s:message>An exception occurred while executing a query: SQLSTATE[23000]:
     oc_calendarobjects.uid</s:message>
 ```
 
-### Hypothesis to Test
-**Nextcloud may not allow deleting an object and then reinserting an object with the same UID later**
-- This could explain the UNIQUE constraint violations if tests are deleting and recreating objects
-- Easy to test: Create object with UID, delete it, try to recreate with same UID
-- If confirmed, this is a Nextcloud limitation/bug that should be reported upstream
+### Test Results: Hypothesis CONFIRMED ✓
 
-### Investigation Steps (when prioritized)
-1. **Test the UID reuse hypothesis** (30 min - quick win)
-   - Create simple test: create object with UID "test-123", delete it, recreate with same UID
-   - Check if this reproduces the UNIQUE constraint violation
-2. Search Nextcloud issue tracker for known UNIQUE constraint issues
-3. Reproduce reliably with minimal test case from caldav_server_tester
-4. Examine Nextcloud's CalDAV/SabreDAV code for UID and transaction handling
-5. Understand why container restart fixes it (in-memory cache? transaction state?)
-6. Create minimal reproduction outside caldav_server_tester
-7. File upstream bug report with Nextcloud if confirmed as their issue
+**Date**: 2025-12-17
+**Test script**: `/tmp/test_nextcloud_uid_reuse.py`
+
+**Finding**: Nextcloud does NOT allow reusing a UID after deletion. This is a **Nextcloud bug**.
+
+**Test steps**:
+1. Created event with UID `test-uid-reuse-hypothesis-12345` ✓
+2. Deleted the event ✓
+3. Confirmed deletion with `event_by_uid()` (throws NotFoundError) ✓
+4. Attempted to create new event with same UID → **FAILED with UNIQUE constraint** ✗
+
+**Error received**:
+```
+500 Internal Server Error
+SQLSTATE[23000]: Integrity constraint violation: 19 UNIQUE constraint failed:
+oc_calendarobjects.calendarid, oc_calendarobjects.calendartype, oc_calendarobjects.uid
+```
+
+**Conclusion**:
+- This violates CalDAV RFC expectations - UIDs should be reusable after deletion
+- Nextcloud's internal database retains constraint even after CalDAV object is deleted
+- This explains why `ServerQuirkChecker.check_all()` fails - it likely deletes and recreates test objects
+- Container restart fixes it because it clears the internal state
+
+### Next Steps (when prioritized)
+1. ✓ ~~Test the UID reuse hypothesis~~ - **CONFIRMED**
+2. Search Nextcloud issue tracker for similar reports
+3. Create minimal bug report with reproduction steps
+4. File upstream bug report with Nextcloud
+5. Consider adding server quirk detection in caldav_server_tester
+6. Document workaround: avoid UID reuse with Nextcloud, or restart container between test runs
 
 ### References
 - Test: `tests/test_caldav.py::TestForServerNextcloud::testCheckCompatibility`
