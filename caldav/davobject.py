@@ -135,6 +135,16 @@ class DAVObject:
         if self.client is None:
             raise ValueError("Unexpected value None for self.client")
 
+        # Check if client is mocked (for unit tests)
+        if hasattr(self.client, '_is_mocked') and self.client._is_mocked():
+            # For mocked clients, we can't use async delegation because the mock
+            # only works on the sync request() method. Raise a clear error.
+            raise NotImplementedError(
+                f"Async delegation is not supported for mocked clients. "
+                f"The method you're trying to call requires real async implementation or "
+                f"a different mocking approach. Method: {async_func.__name__}"
+            )
+
         async def _execute():
             async_client = self.client._get_async_client()
             async with async_client:

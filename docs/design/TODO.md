@@ -67,6 +67,24 @@ E   <s:message>An exception occurred while executing a query: SQLSTATE[23000]:
 - Async collection methods (event_by_uid, etc.) not implemented → no_create/no_overwrite validation done in sync wrapper
 - Recurrence handling done in sync wrapper → will move to async in Phase 3
 
+### Known Test Limitations
+
+#### MockedDAVClient doesn't work with async delegation
+**Status**: Known limitation in Phase 2
+**Affected test**: `tests/test_caldav_unit.py::TestCalDAV::testPathWithEscapedCharacters`
+
+MockedDAVClient overrides `request()` to return mocked responses without network calls.
+However, with async delegation, `_run_async()` creates a new async client that makes
+real HTTP connections, bypassing the mock.
+
+**Options to fix**:
+1. Make MockedDAVClient override `_get_async_client()` to return a mocked async client
+2. Update tests to use `@mock.patch` on async client methods
+3. Implement a fallback sync path for mocked clients
+
+**Current approach**: Raise clear NotImplementedError when mocked client tries to use
+async delegation, documenting that mocking needs to be updated for async support.
+
 ### Recently Fixed
 - ✓ Infinite redirect loop in multiplexing retry
 - ✓ Path matching assertion failures
@@ -75,3 +93,4 @@ E   <s:message>An exception occurred while executing a query: SQLSTATE[23000]:
 - ✓ Async class type mapping (Event→AsyncEvent, etc.)
 - ✓ no_create/no_overwrite validation moved to sync wrapper
 - ✓ Recurrence handling moved to sync wrapper
+- ✓ Unit tests without client (load with only_if_unloaded)
