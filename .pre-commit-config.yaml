@@ -14,3 +14,9 @@ repos:
       - id: check-byte-order-marker
       - id: trailing-whitespace
       - id: end-of-file-fixer
+  - repo: https://github.com/lycheeverse/lychee
+    rev: lychee-v0.22.0
+    hooks:
+      - id: lychee-docker
+        args: ["--no-progress", "--timeout", "10"]
+        types: [markdown, rst]
