@@ -787,6 +787,8 @@ class RepeatedFunctionalTestsBaseClass:
             self.caldav.teardown(self.caldav)
 
     def _cleanup(self, mode=None):
+        if self.cleanup_regime == "none":
+            return  ## no cleanup for ephemeral servers
         if self.cleanup_regime in ("pre", "post") and self.cleanup_regime != mode:
             return
         if not self.is_supported("save-load"):
