@@ -820,6 +820,8 @@ nextcloud = {
     #'save-load.todo.mixed-calendar': {'support': 'unsupported'}, ## Why?  It started complaining about this just recently.
     'principal-search.by-name': {'support': 'unsupported'},
     'principal-search.list-all': {'support': 'ungraceful'},
+    # Ephemeral Docker container: no cleanup needed, unique calendars per test
+    'test-calendar': {'cleanup-regime': 'none'},
     'old_flags': ['unique_calendar_ids'],
 }
 
@@ -895,6 +897,8 @@ bedework = {
     'propfind_allprop_failure',
     'duplicates_not_allowed',
     ],
+    # Ephemeral Docker container: no cleanup needed
+    'test-calendar': {'cleanup-regime': 'none'},
     'auto-connect.url': {'basepath': '/ucaldav/'},
     "save-load.journal": {
         "support": "ungraceful"
@@ -991,7 +995,8 @@ cyrus = {
     "search.recurrences.expanded.exception": {"support": "unsupported"},
     'search.time-range.alarm': {'support': 'unsupported'},
     'principal-search': {'support': 'ungraceful'},
-    "test-calendar": {"cleanup-regime": "pre"},
+    # Ephemeral Docker container: no cleanup needed
+    "test-calendar": {"cleanup-regime": "none"},
     'delete-calendar': {
         'support': 'fragile',
         'behaviour': 'Deleting a recently created calendar fails'},
@@ -1079,6 +1084,8 @@ sogo = {
         "support": "ungraceful",
         "behaviour": "Search by name failed: ReportError at '501 Not Implemented - <?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\n<body><h3>An error occurred during object publishing</h3><p>did not find the specified REPORT</p></body>\n</html>\n', reason no reason",
     },
+    # Ephemeral Docker container: no cleanup needed
+    'test-calendar': {'cleanup-regime': 'none'},
 
 }
 ## Old notes for sogo (todo - incorporate them in the structure above)

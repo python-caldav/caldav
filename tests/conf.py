@@ -475,6 +475,13 @@ if test_baikal:
             return False
 
     _is_accessible_funcs["baikal"] = is_baikal_accessible
+
+    # Start Baikal container once at module load if not already running
+    # This prevents per-test setup/teardown overhead
+    if not is_baikal_accessible():
+        print("Starting Baikal container for test session...")
+        _start_or_stop_server("Baikal", "start")
+
     _add_conf("Baikal", baikal_url, baikal_username, baikal_password)
 
 ## Nextcloud - Docker container with automated setup
@@ -514,6 +521,13 @@ if test_nextcloud:
             return False
 
     _is_accessible_funcs["nextcloud"] = is_nextcloud_accessible
+
+    # Start Nextcloud container once at module load if not already running
+    # This prevents per-test setup/teardown overhead (40-90s per test)
+    if not is_nextcloud_accessible():
+        print("Starting Nextcloud container for test session...")
+        _start_or_stop_server("Nextcloud", "start")
+
     _add_conf("Nextcloud", nextcloud_url, nextcloud_username, nextcloud_password)
 
 ## Cyrus IMAP - Docker container with CalDAV/CardDAV support
@@ -555,6 +569,12 @@ if test_cyrus:
 
     _is_accessible_funcs["cyrus"] = is_cyrus_accessible
 
+    # Start Cyrus container once at module load if not already running
+    # This prevents per-test setup/teardown overhead
+    if not is_cyrus_accessible():
+        print("Starting Cyrus container for test session...")
+        _start_or_stop_server("Cyrus", "start")
+
     _add_conf("Cyrus", cyrus_url, cyrus_username, cyrus_password)
 
 ## SOGo - Docker container with PostgreSQL backend
@@ -593,6 +613,12 @@ if test_sogo:
             return False
 
     _is_accessible_funcs["sogo"] = is_sogo_accessible
+
+    # Start SOGo container once at module load if not already running
+    # This prevents per-test setup/teardown overhead
+    if not is_sogo_accessible():
+        print("Starting SOGo container for test session...")
+        _start_or_stop_server("SOGo", "start")
 
     _add_conf("SOGo", sogo_url, sogo_username, sogo_password)
 
@@ -634,6 +660,12 @@ if test_bedework:
             return False
 
     _is_accessible_funcs["bedework"] = is_bedework_accessible
+
+    # Start Bedework container once at module load if not already running
+    # This prevents per-test setup/teardown overhead (100s+ per test)
+    if not is_bedework_accessible():
+        print("Starting Bedework container for test session...")
+        _start_or_stop_server("Bedework", "start")
 
     _add_conf("Bedework", bedework_url, bedework_username, bedework_password)
 
