@@ -107,6 +107,9 @@ class FeatureSet:
         "save-load.todo.recurrences.count": {"description": "The server will receive and store a recurring task with a count set in the RRULE"},
         "save-load.todo.mixed-calendar": {"description": "The same calendar may contain both events and tasks (Zimbra only allows tasks to be placed on special task lists)"},
         "save-load.journal": {"description": "The server will even accept journals"},
+        "save-load.reuse-deleted-uid": {
+            "description": "After deleting an event, the server allows creating a new event with the same UID. When 'broken', the server keeps deleted events in a trashbin with a soft-delete flag, causing unique constraint violations on UID reuse. See https://github.com/nextcloud/server/issues/30096"
+        },
         "save-load.event.timezone": {
             "description": "The server accepts events with non-UTC timezone information. When unsupported or broken, the server may reject events with timezone data (e.g., return 403 Forbidden). Related to GitHub issue https://github.com/python-caldav/caldav/issues/372."
         },
@@ -820,8 +823,6 @@ nextcloud = {
     #'save-load.todo.mixed-calendar': {'support': 'unsupported'}, ## Why?  It started complaining about this just recently.
     'principal-search.by-name': {'support': 'unsupported'},
     'principal-search.list-all': {'support': 'ungraceful'},
-    # Ephemeral Docker container: no cleanup needed, unique calendars per test
-    'test-calendar': {'cleanup-regime': 'none'},
     'old_flags': ['unique_calendar_ids'],
 }
 
@@ -897,8 +898,8 @@ bedework = {
     'propfind_allprop_failure',
     'duplicates_not_allowed',
     ],
-    # Ephemeral Docker container: no cleanup needed
-    'test-calendar': {'cleanup-regime': 'none'},
+    # Ephemeral Docker container: wipe objects (delete-calendar not supported)
+    'test-calendar': {'cleanup-regime': 'wipe-calendar'},
     'auto-connect.url': {'basepath': '/ucaldav/'},
     "save-load.journal": {
         "support": "ungraceful"
@@ -995,8 +996,8 @@ cyrus = {
     "search.recurrences.expanded.exception": {"support": "unsupported"},
     'search.time-range.alarm': {'support': 'unsupported'},
     'principal-search': {'support': 'ungraceful'},
-    # Ephemeral Docker container: no cleanup needed
-    "test-calendar": {"cleanup-regime": "none"},
+    # Ephemeral Docker container: wipe objects but keep calendar (avoids UID conflicts)
+    "test-calendar": {"cleanup-regime": "wipe-calendar"},
     'delete-calendar': {
         'support': 'fragile',
         'behaviour': 'Deleting a recently created calendar fails'},
@@ -1084,8 +1085,8 @@ sogo = {
         "support": "ungraceful",
         "behaviour": "Search by name failed: ReportError at '501 Not Implemented - <?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\n<body><h3>An error occurred during object publishing</h3><p>did not find the specified REPORT</p></body>\n</html>\n', reason no reason",
     },
-    # Ephemeral Docker container: no cleanup needed
-    'test-calendar': {'cleanup-regime': 'none'},
+    # Ephemeral Docker container: wipe objects (delete-calendar fragile)
+    'test-calendar': {'cleanup-regime': 'wipe-calendar'},
 
 }
 ## Old notes for sogo (todo - incorporate them in the structure above)
