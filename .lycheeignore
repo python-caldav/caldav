@@ -1,0 +1,17 @@
+# Example domains that don't resolve
+https?://your\.server\.example\.com/.*
+https?://.*\.example\.com/.*
+
+# CalDAV endpoints that require authentication (401/403 expected)
+https://caldav\.fastmail\.com/.*
+https://caldav\.gmx\.net/.*
+https://caldav\.icloud\.com/.*
+https://p\d+-caldav\.icloud\.com/.*
+https://posteo\.de:\d+/.*
+https://purelymail\.com/.*
+https://webmail\.all-inkl\.com/.*
+https://www\.google\.com/calendar/dav/.*
+https://caldav-jp\.larksuite\.com/.*
+
+# Apple namespace URL (returns 404 but is a valid XML namespace reference)
+http://apple\.com/ns/ical/
