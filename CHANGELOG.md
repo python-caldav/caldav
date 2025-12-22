@@ -16,6 +16,13 @@ Changelogs prior to v1.2 is pruned, but available in the v1.2 release
 
 This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html), though some earlier releases may be incompatible with the SemVer standard.
 
+## [Unreleased]
+
+### Added
+
+* Added deptry for dependency verification in CI
+* Added python-dateutil and PyYAML as explicit dependencies (were transitive)
+
 ## [2.2.3] - [2025-12-06]
 
 ### Fixed
