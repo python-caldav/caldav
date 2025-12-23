@@ -13,26 +13,15 @@ import logging
 import sys
 import uuid
 import warnings
-from dataclasses import dataclass
 from datetime import datetime
 from time import sleep
-from typing import Any
-from typing import List
-from typing import Optional
-from typing import Tuple
-from typing import TYPE_CHECKING
-from typing import TypeVar
-from typing import Union
-from urllib.parse import ParseResult
-from urllib.parse import quote
-from urllib.parse import SplitResult
-from urllib.parse import unquote
+from typing import TYPE_CHECKING, Any, List, Optional, Tuple, TypeVar, Union
+from urllib.parse import ParseResult, SplitResult, quote, unquote
 
 import icalendar
-from icalendar.caselessdict import CaselessDict
 
 try:
-    from typing import ClassVar, Optional, Union, Type
+    from typing import Optional, Type, Union
 
     TimeStamp = Optional[Union[date, datetime]]
 except:
@@ -44,30 +33,22 @@ if TYPE_CHECKING:
     from .davclient import DAVClient
 
 if sys.version_info < (3, 9):
-    from typing import Callable, Container, Iterable, Iterator, Sequence
+    from collections.abc import Iterable, Iterator, Sequence
 
-    from typing_extensions import DefaultDict, Literal
+    from typing_extensions import Literal
 else:
-    from collections import defaultdict as DefaultDict
-    from collections.abc import Callable, Container, Iterable, Iterator, Sequence
+    from collections.abc import Iterable, Iterator, Sequence
     from typing import Literal
 
 if sys.version_info < (3, 11):
-    from typing_extensions import Self
+    pass
 else:
-    from typing import Self
+    pass
 
-from .calendarobjectresource import CalendarObjectResource
-from .calendarobjectresource import Event
-from .calendarobjectresource import FreeBusy
-from .calendarobjectresource import Journal
-from .calendarobjectresource import Todo
+from .calendarobjectresource import CalendarObjectResource, Event, FreeBusy, Journal, Todo
 from .davobject import DAVObject
-from .elements.cdav import CalendarData
-from .elements import cdav
-from .elements import dav
-from .lib import error
-from .lib import vcal
+from .elements import cdav, dav
+from .lib import error, vcal
 from .lib.python_utilities import to_wire
 from .lib.url import URL
 
@@ -92,6 +73,7 @@ class CalendarSet(DAVObject):
             The result from the async function
         """
         import asyncio
+
         from caldav.async_collection import AsyncCalendarSet
 
         if self.client is None:
@@ -297,12 +279,82 @@ class Principal(DAVObject):
     is not stored anywhere)
     """
 
+    def _run_async_principal(self, async_func):
+        """
+        Helper method to run an async function with async delegation for Principal.
+        Creates an AsyncPrincipal and runs the provided async function.
+
+        Args:
+            async_func: A callable that takes an AsyncPrincipal and returns a coroutine
+
+        Returns:
+            The result from the async function
+        """
+        import asyncio
+
+        from caldav.async_collection import AsyncPrincipal
+
+        if self.client is None:
+            raise ValueError("Unexpected value None for self.client")
+
+        # Check if client is mocked (for unit tests)
+        if hasattr(self.client, "_is_mocked") and self.client._is_mocked():
+            raise NotImplementedError(
+                "Async delegation is not supported for mocked clients."
+            )
+
+        # Check if we have a cached async client (from context manager)
+        if (
+            hasattr(self.client, "_async_client")
+            and self.client._async_client is not None
+            and hasattr(self.client, "_loop_manager")
+            and self.client._loop_manager is not None
+        ):
+            # Use persistent async client with reused connections
+            async def _execute_cached():
+                async_obj = AsyncPrincipal(
+                    client=self.client._async_client,
+                    url=self.url,
+                    calendar_home_set=self._calendar_home_set.url
+                    if self._calendar_home_set
+                    else None,
+                )
+                return await async_func(async_obj)
+
+            return self.client._loop_manager.run_coroutine(_execute_cached())
+        else:
+            # Fall back to creating a new client each time
+            async def _execute():
+                async_client = self.client._get_async_client()
+                async with async_client:
+                    async_obj = AsyncPrincipal(
+                        client=async_client,
+                        url=self.url,
+                        calendar_home_set=self._calendar_home_set.url
+                        if self._calendar_home_set
+                        else None,
+                    )
+                    return await async_func(async_obj)
+
+            return asyncio.run(_execute())
+
+    def _async_calendar_to_sync(self, async_cal) -> "Calendar":
+        """Convert an AsyncCalendar to a sync Calendar."""
+        return Calendar(
+            client=self.client,
+            url=async_cal.url,
+            parent=self,
+            name=async_cal.name,
+            id=async_cal.id,
+            props=async_cal.props.copy() if async_cal.props else {},
+        )
+
     def __init__(
         self,
         client: Optional["DAVClient"] = None,
         url: Union[str, ParseResult, SplitResult, URL, None] = None,
-        calendar_home_set: URL = None,
-        **kwargs,  ## to be passed to super.__init__
+        calendar_home_set: Optional[URL] = None,
+        **kwargs: Any,
     ) -> None:
         """
         Returns a Principal.
@@ -548,7 +600,6 @@ class Calendar(DAVObject):
                 sccs += cdav.Comp(scc)
             prop += sccs
         if method == "mkcol":
-            from caldav.lib.debug import printxml
 
             prop += dav.ResourceType() + [dav.Collection(), cdav.Calendar()]
 
@@ -568,7 +619,7 @@ class Calendar(DAVObject):
         if name:
             try:
                 self.set_properties([display_name])
-            except Exception as e:
+            except Exception:
                 ## TODO: investigate.  Those asserts break.
                 try:
                     current_display_name = self.get_display_name()
