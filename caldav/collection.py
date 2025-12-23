@@ -80,6 +80,78 @@ class CalendarSet(DAVObject):
     A CalendarSet is a set of calendars.
     """
 
+    def _run_async_calendarset(self, async_func):
+        """
+        Helper method to run an async function with async delegation for CalendarSet.
+        Creates an AsyncCalendarSet and runs the provided async function.
+
+        Args:
+            async_func: A callable that takes an AsyncCalendarSet and returns a coroutine
+
+        Returns:
+            The result from the async function
+        """
+        import asyncio
+        from caldav.async_collection import AsyncCalendarSet
+
+        if self.client is None:
+            raise ValueError("Unexpected value None for self.client")
+
+        # Check if client is mocked (for unit tests)
+        if hasattr(self.client, "_is_mocked") and self.client._is_mocked():
+            # For mocked clients, we can't use async delegation
+            raise NotImplementedError(
+                "Async delegation is not supported for mocked clients."
+            )
+
+        # Check if we have a cached async client (from context manager)
+        if (
+            hasattr(self.client, "_async_client")
+            and self.client._async_client is not None
+            and hasattr(self.client, "_loop_manager")
+            and self.client._loop_manager is not None
+        ):
+            # Use persistent async client with reused connections
+            async def _execute_cached():
+                async_obj = AsyncCalendarSet(
+                    client=self.client._async_client,
+                    url=self.url,
+                    parent=None,
+                    name=self.name,
+                    id=self.id,
+                    props=self.props.copy(),
+                )
+                return await async_func(async_obj)
+
+            return self.client._loop_manager.run_coroutine(_execute_cached())
+        else:
+            # Fall back to creating a new client each time
+            async def _execute():
+                async_client = self.client._get_async_client()
+                async with async_client:
+                    async_obj = AsyncCalendarSet(
+                        client=async_client,
+                        url=self.url,
+                        parent=None,
+                        name=self.name,
+                        id=self.id,
+                        props=self.props.copy(),
+                    )
+                    return await async_func(async_obj)
+
+            return asyncio.run(_execute())
+
+    def _async_calendar_to_sync(self, async_cal) -> "Calendar":
+        """Convert an AsyncCalendar to a sync Calendar."""
+        return Calendar(
+            client=self.client,
+            url=async_cal.url,
+            parent=self,
+            name=async_cal.name,
+            id=async_cal.id,
+            props=async_cal.props.copy() if async_cal.props else {},
+        )
+
     def calendars(self) -> List["Calendar"]:
         """
         List all calendar collections in this set.
@@ -87,15 +159,29 @@ class CalendarSet(DAVObject):
         Returns:
          * [Calendar(), ...]
         """
-        cals = []
+        # Check if we should use async delegation
+        if self.client and not (
+            hasattr(self.client, "_is_mocked") and self.client._is_mocked()
+        ):
+            try:
 
+                async def _async_calendars(async_obj):
+                    return await async_obj.calendars()
+
+                async_cals = self._run_async_calendarset(_async_calendars)
+                return [self._async_calendar_to_sync(ac) for ac in async_cals]
+            except NotImplementedError:
+                pass  # Fall through to sync implementation
+
+        # Sync implementation (fallback for mocked clients)
+        cals = []
         data = self.children(cdav.Calendar.tag)
         for c_url, c_type, c_name in data:
             try:
                 cal_id = c_url.split("/")[-2]
                 if not cal_id:
                     continue
-            except:
+            except Exception:
                 log.error(f"Calendar {c_name} has unexpected url {c_url}")
                 cal_id = None
             cals.append(
@@ -109,7 +195,7 @@ class CalendarSet(DAVObject):
         name: Optional[str] = None,
         cal_id: Optional[str] = None,
         supported_calendar_component_set: Optional[Any] = None,
-        method=None,
+        method: Optional[str] = None,
     ) -> "Calendar":
         """
         Utility method for creating a new calendar.
@@ -121,10 +207,13 @@ class CalendarSet(DAVObject):
            (EVENT, VTODO, VFREEBUSY, VJOURNAL) the calendar should handle.
            Should be set to ['VTODO'] when creating a task list in Zimbra -
            in most other cases the default will be OK.
+          method: 'mkcalendar' or 'mkcol' - usually auto-detected
 
         Returns:
           Calendar(...)-object
         """
+        # Note: Async delegation for make_calendar requires AsyncCalendar.save()
+        # which will be implemented in Phase 3 Commit 3. For now, use sync.
         return Calendar(
             self.client,
             name=name,
@@ -147,6 +236,7 @@ class CalendarSet(DAVObject):
         Returns:
           Calendar(...)-object
         """
+        # For name-based lookup, use calendars() which already uses async delegation
         if name and not cal_id:
             for calendar in self.calendars():
                 display_name = calendar.get_display_name()
@@ -154,7 +244,7 @@ class CalendarSet(DAVObject):
                     return calendar
         if name and not cal_id:
             raise error.NotFoundError(
-                "No calendar with name %s found under %s" % (name, self.url)
+                f"No calendar with name {name} found under {self.url}"
             )
         if not cal_id and not name:
             cals = self.calendars()
