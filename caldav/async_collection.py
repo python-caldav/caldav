@@ -165,9 +165,7 @@ class AsyncPrincipal(AsyncDAVObject):
         """
         self._calendar_home_set: Optional[AsyncCalendarSet] = None
         if calendar_home_set:
-            self._calendar_home_set = AsyncCalendarSet(
-                client=client, url=calendar_home_set
-            )
+            self._calendar_home_set = AsyncCalendarSet(client=client, url=calendar_home_set)
         super().__init__(client=client, url=url, **kwargs)
 
     @classmethod
@@ -258,7 +256,10 @@ class AsyncPrincipal(AsyncDAVObject):
         """
         calendar_home = await self.get_calendar_home_set()
         return await calendar_home.make_calendar(
-            name, cal_id, supported_calendar_component_set=supported_calendar_component_set, method=method
+            name,
+            cal_id,
+            supported_calendar_component_set=supported_calendar_component_set,
+            method=method,
         )
 
     async def calendar(
@@ -327,7 +328,12 @@ class AsyncPrincipal(AsyncDAVObject):
 
 
 class AsyncCalendar(AsyncDAVObject):
-    """Stub for Phase 3: Async Calendar implementation."""
+    """
+    Async version of Calendar - represents a calendar collection.
+
+    Refer to RFC 4791 for details:
+    https://tools.ietf.org/html/rfc4791#section-5.3.1
+    """
 
     def __init__(
         self,
@@ -348,14 +354,198 @@ class AsyncCalendar(AsyncDAVObject):
             **extra,
         )
         self.supported_calendar_component_set = supported_calendar_component_set
+        self.extra_init_options = extra
+
+    async def _create(
+        self,
+        name: Optional[str] = None,
+        id: Optional[str] = None,
+        supported_calendar_component_set: Optional[Any] = None,
+        method: Optional[str] = None,
+    ) -> None:
+        """
+        Create a new calendar on the server.
+
+        Args:
+            name: Display name for the calendar
+            id: UUID for the calendar (generated if not provided)
+            supported_calendar_component_set: Component types (VEVENT, VTODO, etc.)
+            method: 'mkcalendar' or 'mkcol' (auto-detected if not provided)
+        """
+        import uuid as uuid_mod
+
+        from lxml import etree
+
+        from caldav.elements import dav
+        from caldav.lib.python_utilities import to_wire
+
+        if id is None:
+            id = str(uuid_mod.uuid1())
+        self.id = id
+
+        if method is None:
+            if self.client:
+                supported = self.client.features.is_supported("create-calendar", return_type=dict)
+                if supported["support"] not in ("full", "fragile", "quirk"):
+                    raise error.MkcalendarError(
+                        "Creation of calendars (allegedly) not supported on this server"
+                    )
+                if supported["support"] == "quirk" and supported["behaviour"] == "mkcol-required":
+                    method = "mkcol"
+                else:
+                    method = "mkcalendar"
+            else:
+                method = "mkcalendar"
+
+        if self.parent is None or self.parent.url is None:
+            raise ValueError("Calendar parent URL is required for creation")
+
+        path = self.parent.url.join(id + "/")
+        self.url = path
+
+        # Build the XML body
+        prop = dav.Prop()
+        display_name = None
+        if name:
+            display_name = dav.DisplayName(name)
+            prop += [display_name]
+        if supported_calendar_component_set:
+            sccs = cdav.SupportedCalendarComponentSet()
+            for scc in supported_calendar_component_set:
+                sccs += cdav.Comp(scc)
+            prop += sccs
+        if method == "mkcol":
+            prop += dav.ResourceType() + [dav.Collection(), cdav.Calendar()]
+
+        set_elem = dav.Set() + prop
+        mkcol = (dav.Mkcol() if method == "mkcol" else cdav.Mkcalendar()) + set_elem
+
+        body = etree.tostring(mkcol.xmlelement(), encoding="utf-8", xml_declaration=True)
+
+        if self.client is None:
+            raise ValueError("Unexpected value None for self.client")
+
+        # Execute the create request
+        if method == "mkcol":
+            response = await self.client.mkcol(str(path), to_wire(body))
+        else:
+            response = await self.client.mkcalendar(str(path), to_wire(body))
+
+        if response.status not in (200, 201, 204):
+            raise error.MkcalendarError(f"Failed to create calendar: {response.status}")
+
+        # Try to set display name explicitly (some servers don't handle it in MKCALENDAR)
+        if name and display_name:
+            try:
+                await self.set_properties([display_name])
+            except Exception:
+                try:
+                    current_display_name = await self.get_display_name()
+                    if current_display_name != name:
+                        log.warning(
+                            "calendar server does not support display name on calendar? Ignoring"
+                        )
+                except Exception:
+                    log.warning(
+                        "calendar server does not support display name on calendar? Ignoring",
+                        exc_info=True,
+                    )
 
     async def save(self, method: Optional[str] = None) -> Self:
-        """Stub: Calendar save not yet implemented."""
+        """
+        Save the calendar. Creates it on the server if it doesn't exist yet.
+
+        Returns:
+            self
+        """
+        if self.url is None:
+            await self._create(
+                id=self.id,
+                name=self.name,
+                supported_calendar_component_set=self.supported_calendar_component_set,
+                method=method,
+            )
+        return self
+
+    async def delete(self) -> None:
+        """
+        Delete the calendar.
+
+        Handles fragile servers with retry logic.
+        """
+        import asyncio
+
+        if self.client is None:
+            raise ValueError("Unexpected value None for self.client")
+
+        quirk_info = self.client.features.is_supported("delete-calendar", dict)
+        wipe = quirk_info["support"] in ("unsupported", "fragile")
+
+        if quirk_info["support"] == "fragile":
+            # Do some retries on deleting the calendar
+            for _ in range(20):
+                try:
+                    await super().delete()
+                except error.DeleteError:
+                    pass
+                try:
+                    # Check if calendar still exists
+                    await self.events()
+                    await asyncio.sleep(0.3)
+                except error.NotFoundError:
+                    wipe = False
+                    break
+
+        if wipe:
+            # Wipe all objects first
+            async for obj in await self.search():
+                await obj.delete()
+        else:
+            await super().delete()
+
+    async def get_supported_components(self) -> list[Any]:
+        """
+        Get the list of component types supported by this calendar.
+
+        Returns:
+            List of component names (e.g., ['VEVENT', 'VTODO', 'VJOURNAL'])
+        """
+        from urllib.parse import unquote
+
+        if self.url is None:
+            raise ValueError("Unexpected value None for self.url")
+
+        props = [cdav.SupportedCalendarComponentSet()]
+        response = await self.get_properties(props, parse_response_xml=False)
+        response_list = response.find_objects_and_props()
+        prop = response_list[unquote(self.url.path)][cdav.SupportedCalendarComponentSet().tag]
+        return [supported.get("name") for supported in prop]
+
+    async def events(self) -> list["AsyncCalendarObjectResource"]:
+        """
+        Get all events in the calendar.
+
+        Note: Full implementation requires search() which will be added later.
+        """
         raise NotImplementedError(
-            "AsyncCalendar.save() is not yet implemented. "
-            "This is a Phase 3 feature (async collections). "
-            "For now, use the sync API via caldav.Calendar"
+            "AsyncCalendar.events() requires search() implementation. "
+            "Use the sync API via caldav.Calendar for now."
         )
+
+    async def search(self, **kwargs: Any) -> list["AsyncCalendarObjectResource"]:
+        """
+        Search for calendar objects.
+
+        Note: Full implementation will be added in a future commit.
+        """
+        raise NotImplementedError(
+            "AsyncCalendar.search() is not yet implemented. "
+            "Use the sync API via caldav.Calendar for now."
+        )
+
+
+# Forward reference for type hints
+AsyncCalendarObjectResource = Any  # Will be properly imported when needed
 
 
 class AsyncScheduleMailbox(AsyncCalendar):
