@@ -76,18 +76,23 @@ How to configure Ruff formatter/linter for partial codebase adoption:
 
 ## Implementation Status
 
-**Current Phase**: Phase 1 Complete ✅ - Phase 2 Ready to Start
+**Current Phase**: Phase 3 Complete ✅ (Core Methods) - Search methods deferred
 
 **Branch**: `playground/new_async_api_design`
 
 **Completed**:
 - ✅ Phase 1: Created `async_davclient.py` with `AsyncDAVClient` - [See Implementation Details](PHASE_1_IMPLEMENTATION.md)
+- ✅ Phase 2: Created `async_davobject.py` with `AsyncDAVObject`, `AsyncCalendarObjectResource`
+- ✅ Phase 3 (Core): Created `async_collection.py` with:
+  - `AsyncCalendarSet` - calendars(), make_calendar(), calendar()
+  - `AsyncPrincipal` - get_calendar_home_set(), calendars(), calendar_user_address_set()
+  - `AsyncCalendar` - _create(), save(), delete(), get_supported_components()
+  - Sync wrappers in `collection.py` with `_run_async_*` helpers
 
-**Next Steps**:
-1. Phase 2: Create `async_davobject.py` (eliminate `_query()`)
-2. Phase 3: Create `async_collection.py`
-3. Phase 4: Rewrite `davclient.py` as sync wrapper
-4. Phase 5: Update documentation and examples
+**Remaining Work**:
+- Phase 3 (Search): AsyncCalendar.search() and related methods (events(), todos(), etc.)
+- Phase 4: Complete sync wrapper rewrite
+- Phase 5: Update documentation and examples
 
 ## Design Principles
 
