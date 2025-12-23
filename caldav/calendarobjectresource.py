@@ -171,8 +171,10 @@ class CalendarObjectResource(DAVObject):
                     async_parent = AsyncDAVObject(
                         client=async_client,
                         url=self.parent.url,
-                        id=getattr(self.parent, 'id', None),
-                        props=getattr(self.parent, 'props', {}).copy() if hasattr(self.parent, 'props') else {},
+                        id=getattr(self.parent, "id", None),
+                        props=getattr(self.parent, "props", {}).copy()
+                        if hasattr(self.parent, "props")
+                        else {},
                     )
                     # Store reference to sync parent for methods that need it (e.g., no_create/no_overwrite checks)
                     async_parent._sync_parent = self.parent
@@ -187,7 +189,9 @@ class CalendarObjectResource(DAVObject):
                     "Todo": AsyncTodo,
                     "Journal": AsyncJournal,
                 }
-                AsyncClass = async_class_map.get(sync_class_name, AsyncCalendarObjectResource)
+                AsyncClass = async_class_map.get(
+                    sync_class_name, AsyncCalendarObjectResource
+                )
 
                 async_obj = AsyncClass(
                     client=async_client,
@@ -1084,12 +1088,12 @@ class CalendarObjectResource(DAVObject):
         async def _async_save(async_obj):
             await async_obj.save(
                 no_overwrite=False,  # Already validated above
-                no_create=False,     # Already validated above
+                no_create=False,  # Already validated above
                 obj_type=obj_type,
                 increase_seqno=increase_seqno,
                 if_schedule_tag_match=if_schedule_tag_match,
                 only_this_recurrence=False,  # Already handled above
-                all_recurrences=False,       # Already handled above
+                all_recurrences=False,  # Already handled above
             )
             return self  # Return the sync object
 

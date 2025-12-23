@@ -5,19 +5,30 @@ Async-first DAVObject implementation for the caldav library.
 This module provides async versions of the DAV object classes.
 For sync usage, see the davobject.py wrapper.
 """
-
 import sys
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Tuple, Union
-from urllib.parse import ParseResult, SplitResult, quote, unquote
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Sequence
+from typing import Tuple
+from typing import TYPE_CHECKING
+from typing import Union
+from urllib.parse import ParseResult
+from urllib.parse import quote
+from urllib.parse import SplitResult
+from urllib.parse import unquote
 
 from lxml import etree
 
-from caldav.elements import cdav, dav
+from caldav.elements import cdav
+from caldav.elements import dav
 from caldav.elements.base import BaseElement
 from caldav.lib import error
 from caldav.lib.python_utilities import to_wire
 from caldav.lib.url import URL
-from caldav.objects import errmsg, log
+from caldav.objects import errmsg
+from caldav.objects import log
 
 if sys.version_info < (3, 11):
     from typing_extensions import Self
@@ -130,7 +141,9 @@ class AsyncDAVObject:
                 # And why is the strip_trailing_slash-method needed?
                 # The collection URL should always end with a slash according
                 # to RFC 2518, section 5.2.
-                if (isinstance(self, AsyncCalendarSet) and type == cdav.Calendar.tag) or (
+                if (
+                    isinstance(self, AsyncCalendarSet) and type == cdav.Calendar.tag
+                ) or (
                     self.url.canonical().strip_trailing_slash()
                     != self.url.join(path).canonical().strip_trailing_slash()
                 ):
@@ -250,7 +263,9 @@ class AsyncDAVObject:
           ``{proptag: value, ...}``
 
         """
-        from .async_collection import AsyncPrincipal  ## late import to avoid cyclic dependencies
+        from .async_collection import (
+            AsyncPrincipal,
+        )  ## late import to avoid cyclic dependencies
 
         rc = None
         response = await self._query_properties(props, depth)
@@ -408,9 +423,7 @@ class AsyncDAVObject:
         try:
             # Use cached property if available, otherwise return URL
             # We can't await async methods in __str__
-            return (
-                str(self.props.get(dav.DisplayName.tag)) or str(self.url)
-            )
+            return str(self.props.get(dav.DisplayName.tag)) or str(self.url)
         except Exception:
             return str(self.url)
 
@@ -448,14 +461,13 @@ class AsyncCalendarObjectResource(AsyncDAVObject):
         AsyncCalendarObjectResource has an additional parameter for its constructor:
          * data = "...", vCal data for the event
         """
-        super().__init__(
-            client=client, url=url, parent=parent, id=id, props=props
-        )
+        super().__init__(client=client, url=url, parent=parent, id=id, props=props)
         if data is not None:
             self.data = data  # type: ignore
             if id:
                 try:
                     import icalendar
+
                     old_id = self.icalendar_component.pop("UID", None)
                     self.icalendar_component.add("UID", id)
                 except Exception:
@@ -485,6 +497,7 @@ class AsyncCalendarObjectResource(AsyncDAVObject):
         if self._icalendar_instance is None and self._data:
             try:
                 import icalendar
+
                 self._icalendar_instance = icalendar.Calendar.from_ical(self._data)
             except Exception as e:
                 log.error(f"Failed to parse icalendar data: {e}")
@@ -496,6 +509,7 @@ class AsyncCalendarObjectResource(AsyncDAVObject):
         if not self.icalendar_instance:
             return None
         import icalendar
+
         for component in self.icalendar_instance.subcomponents:
             if not isinstance(component, icalendar.Timezone):
                 return component
@@ -507,6 +521,7 @@ class AsyncCalendarObjectResource(AsyncDAVObject):
         if self._vobject_instance is None and self._data:
             try:
                 import vobject
+
                 self._vobject_instance = vobject.readOne(self._data)
             except Exception as e:
                 log.error(f"Failed to parse vobject data: {e}")
@@ -569,7 +584,9 @@ class AsyncCalendarObjectResource(AsyncDAVObject):
             raise ValueError("Unexpected value None for self.client")
 
         r = await self.client.put(
-            str(self.url), str(self.data), {"Content-Type": 'text/calendar; charset="utf-8"'}
+            str(self.url),
+            str(self.data),
+            {"Content-Type": 'text/calendar; charset="utf-8"'},
         )
 
         if r.status == 302:
@@ -580,6 +597,7 @@ class AsyncCalendarObjectResource(AsyncDAVObject):
             if retry_on_failure:
                 try:
                     import vobject
+
                     # This looks like a noop, but the object may be "cleaned"
                     # See https://github.com/python-caldav/caldav/issues/43
                     self.vobject_instance
@@ -588,12 +606,16 @@ class AsyncCalendarObjectResource(AsyncDAVObject):
                     pass
             raise error.PutError(errmsg(r))
 
-    async def _create(self, id: Optional[str] = None, path: Optional[str] = None) -> None:
+    async def _create(
+        self, id: Optional[str] = None, path: Optional[str] = None
+    ) -> None:
         """Create a new calendar object on the server."""
         await self._find_id_path(id=id, path=path)
         await self._put()
 
-    async def _find_id_path(self, id: Optional[str] = None, path: Optional[str] = None) -> None:
+    async def _find_id_path(
+        self, id: Optional[str] = None, path: Optional[str] = None
+    ) -> None:
         """
         Determine the ID and path for this calendar object.
 

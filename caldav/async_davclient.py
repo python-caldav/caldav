@@ -5,13 +5,19 @@ Async-first DAVClient implementation for the caldav library.
 This module provides the core async CalDAV/WebDAV client functionality.
 For sync usage, see the davclient.py wrapper.
 """
-
 import logging
 import os
 import sys
 from collections.abc import Mapping
 from types import TracebackType
-from typing import Any, Dict, Iterable, List, Optional, Tuple, Union, cast
+from typing import Any
+from typing import cast
+from typing import Dict
+from typing import Iterable
+from typing import List
+from typing import Optional
+from typing import Tuple
+from typing import Union
 from urllib.parse import unquote
 
 try:
@@ -60,10 +66,13 @@ class AsyncDAVResponse:
     davclient: Optional["AsyncDAVClient"] = None
     huge_tree: bool = False
 
-    def __init__(self, response: Response, davclient: Optional["AsyncDAVClient"] = None) -> None:
+    def __init__(
+        self, response: Response, davclient: Optional["AsyncDAVClient"] = None
+    ) -> None:
         # Call sync DAVResponse to respect any test patches/mocks (e.g., proxy assertions)
         # Lazy import to avoid circular dependency
         from caldav.davclient import DAVResponse as _SyncDAVResponse
+
         _SyncDAVResponse(response, None)
 
         self.headers = response.headers
@@ -101,7 +110,9 @@ class AsyncDAVResponse:
             try:
                 self.tree = etree.XML(
                     self._raw,
-                    parser=etree.XMLParser(remove_blank_text=True, huge_tree=self.huge_tree),
+                    parser=etree.XMLParser(
+                        remove_blank_text=True, huge_tree=self.huge_tree
+                    ),
                 )
             except Exception:
                 if not expect_no_xml or log.level <= logging.DEBUG:
@@ -185,7 +196,9 @@ class AsyncDAVResponse:
         ):
             raise error.ResponseError(status)
 
-    def _parse_response(self, response: _Element) -> Tuple[str, List[_Element], Optional[Any]]:
+    def _parse_response(
+        self, response: _Element
+    ) -> Tuple[str, List[_Element], Optional[Any]]:
         """
         One response should contain one or zero status children, one
         href tag and zero or more propstats.  Find them, assert there
@@ -294,7 +307,11 @@ class AsyncDAVResponse:
         return self.objects
 
     def _expand_simple_prop(
-        self, proptag: str, props_found: Dict[str, _Element], multi_value_allowed: bool = False, xpath: Optional[str] = None
+        self,
+        proptag: str,
+        props_found: Dict[str, _Element],
+        multi_value_allowed: bool = False,
+        xpath: Optional[str] = None,
     ) -> Union[str, List[str], None]:
         values = []
         if proptag in props_found:
@@ -515,7 +532,9 @@ class AsyncDAVClient:
 
     @staticmethod
     def _build_method_headers(
-        method: str, depth: Optional[int] = None, extra_headers: Optional[Mapping[str, str]] = None
+        method: str,
+        depth: Optional[int] = None,
+        extra_headers: Optional[Mapping[str, str]] = None,
     ) -> dict[str, str]:
         """
         Build headers for WebDAV methods.
@@ -612,7 +631,9 @@ class AsyncDAVClient:
                         if t in ["basic", "digest", "bearer"]
                     ]
                     if auth_types:
-                        msg += "\nSupported authentication types: {}".format(", ".join(auth_types))
+                        msg += "\nSupported authentication types: {}".format(
+                            ", ".join(auth_types)
+                        )
                 log.warning(msg)
             response = AsyncDAVResponse(r, self)
         except Exception:
@@ -629,7 +650,9 @@ class AsyncDAVClient:
                 verify=self.ssl_verify_cert,
                 cert=self.ssl_cert,
             )
-            log.debug(f"auth type detection: server responded with {r.status_code} {r.reason}")
+            log.debug(
+                f"auth type detection: server responded with {r.status_code} {r.reason}"
+            )
             if r.status_code == 401 and r.headers.get("WWW-Authenticate"):
                 auth_types = self.extract_auth_types(r.headers["WWW-Authenticate"])
                 self.build_auth_object(auth_types)
@@ -677,7 +700,10 @@ class AsyncDAVClient:
         ):
             # Handle multiplexing issue (matches original sync client)
             # Most likely wrong username/password combo, but could be a multiplexing problem
-            if self.features.is_supported("http.multiplexing", return_defaults=False) is None:
+            if (
+                self.features.is_supported("http.multiplexing", return_defaults=False)
+                is None
+            ):
                 await self.session.close()
                 self.session = niquests.AsyncSession(multiplexed=False)
                 # Set multiplexing to False BEFORE retry to prevent infinite loop
@@ -1015,12 +1041,16 @@ async def get_davclient(
             # Check for DAV support
             dav_header = response.headers.get("DAV", "")
             if not dav_header:
-                log.warning("Server did not return DAV header - may not be a DAV server")
+                log.warning(
+                    "Server did not return DAV header - may not be a DAV server"
+                )
             else:
                 log.debug(f"Server DAV capabilities: {dav_header}")
 
         except Exception as e:
             await client.close()
-            raise error.DAVError(f"Failed to connect to CalDAV server at {client.url}: {e}") from e
+            raise error.DAVError(
+                f"Failed to connect to CalDAV server at {client.url}: {e}"
+            ) from e
 
     return client

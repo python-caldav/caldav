@@ -782,19 +782,19 @@ class DAVClient:
         async_auth = self.auth
         if self.auth is not None:
             from niquests.auth import HTTPDigestAuth, AsyncHTTPDigestAuth
+
             # Check if it's sync HTTPDigestAuth and convert to async version
             if isinstance(self.auth, HTTPDigestAuth):
-                async_auth = AsyncHTTPDigestAuth(
-                    self.auth.username,
-                    self.auth.password
-                )
+                async_auth = AsyncHTTPDigestAuth(self.auth.username, self.auth.password)
             # Other auth types (BasicAuth, BearerAuth) work in both contexts
 
         async_client = AsyncDAVClient(
             url=str(self.url),
-            proxy=self.proxy if hasattr(self, 'proxy') else None,
+            proxy=self.proxy if hasattr(self, "proxy") else None,
             username=self.username,
-            password=self.password.decode('utf-8') if isinstance(self.password, bytes) else self.password,
+            password=self.password.decode("utf-8")
+            if isinstance(self.password, bytes)
+            else self.password,
             auth=async_auth,
             auth_type=None,  # Auth object already built, don't try to build it again
             timeout=self.timeout,
@@ -851,6 +851,7 @@ class DAVClient:
         """
         # Close async client if it exists
         if self._async_client is not None:
+
             async def close_client():
                 await self._async_client.__aexit__(None, None, None)
 
@@ -1047,7 +1048,9 @@ class DAVClient:
             return self.request(url, "REPORT", query, headers)
 
         async_client = self._get_async_client()
-        async_response = asyncio.run(async_client.report(url=url, body=query, depth=depth))
+        async_response = asyncio.run(
+            async_client.report(url=url, body=query, depth=depth)
+        )
         mock_response = _async_response_to_mock_response(async_response)
         return DAVResponse(mock_response, self)
 
@@ -1117,10 +1120,12 @@ class DAVClient:
             return self.request(url, "PUT", body, headers)
 
         # Resolve relative URLs against base URL
-        if url.startswith('/'):
+        if url.startswith("/"):
             url = str(self.url) + url
         async_client = self._get_async_client()
-        async_response = asyncio.run(async_client.put(url=url, body=body, headers=headers))
+        async_response = asyncio.run(
+            async_client.put(url=url, body=body, headers=headers)
+        )
         mock_response = _async_response_to_mock_response(async_response)
         return DAVResponse(mock_response, self)
 
@@ -1136,7 +1141,9 @@ class DAVClient:
             return self.request(url, "POST", body, headers)
 
         async_client = self._get_async_client()
-        async_response = asyncio.run(async_client.post(url=url, body=body, headers=headers))
+        async_response = asyncio.run(
+            async_client.post(url=url, body=body, headers=headers)
+        )
         mock_response = _async_response_to_mock_response(async_response)
         return DAVResponse(mock_response, self)
 
@@ -1220,12 +1227,15 @@ class DAVClient:
         - any of the main DAV methods (propfind, proppatch, put, etc.) are mocked
         """
         from unittest.mock import MagicMock
-        return (isinstance(self.session.request, MagicMock) or
-                type(self).request != DAVClient.request or
-                isinstance(self.propfind, MagicMock) or
-                isinstance(self.proppatch, MagicMock) or
-                isinstance(self.put, MagicMock) or
-                isinstance(self.delete, MagicMock))
+
+        return (
+            isinstance(self.session.request, MagicMock)
+            or type(self).request != DAVClient.request
+            or isinstance(self.propfind, MagicMock)
+            or isinstance(self.proppatch, MagicMock)
+            or isinstance(self.put, MagicMock)
+            or isinstance(self.delete, MagicMock)
+        )
 
     def request(
         self,
@@ -1320,12 +1330,10 @@ class DAVClient:
         async_auth = self.auth
         if self.auth is not None:
             from niquests.auth import HTTPDigestAuth, AsyncHTTPDigestAuth
+
             # Check if it's sync HTTPDigestAuth and convert to async version
             if isinstance(self.auth, HTTPDigestAuth):
-                async_auth = AsyncHTTPDigestAuth(
-                    self.auth.username,
-                    self.auth.password
-                )
+                async_auth = AsyncHTTPDigestAuth(self.auth.username, self.auth.password)
             # Other auth types (BasicAuth, BearerAuth) work in both contexts
 
         return AsyncDAVClient(
@@ -1340,7 +1348,9 @@ class DAVClient:
             ssl_cert=self.ssl_cert,
             headers=self.headers,
             huge_tree=self.huge_tree,
-            features=self.features.feature_set if hasattr(self.features, 'feature_set') else None,
+            features=self.features.feature_set
+            if hasattr(self.features, "feature_set")
+            else None,
             enable_rfc6764=False,  # Already resolved in sync client
             require_tls=True,
         )

@@ -136,4 +136,3 @@ indent-style = "space"
 
 [tool.ruff.lint.isort]
 known-first-party = ["caldav"]
-

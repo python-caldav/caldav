@@ -5,13 +5,16 @@ Unit tests for async_davclient module.
 Rule: None of the tests in this file should initiate any internet
 communication. We use Mock/MagicMock to emulate server communication.
 """
-
 import os
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock
+from unittest.mock import MagicMock
+from unittest.mock import patch
 
 import pytest
 
-from caldav.async_davclient import AsyncDAVClient, AsyncDAVResponse, get_davclient
+from caldav.async_davclient import AsyncDAVClient
+from caldav.async_davclient import AsyncDAVResponse
+from caldav.async_davclient import get_davclient
 from caldav.lib import error
 
 # Sample XML responses for testing
@@ -207,7 +210,9 @@ class TestAsyncDAVClient:
 
         # Test with extra headers
         extra = {"X-Test": "value"}
-        headers = AsyncDAVClient._build_method_headers("PROPFIND", depth=0, extra_headers=extra)
+        headers = AsyncDAVClient._build_method_headers(
+            "PROPFIND", depth=0, extra_headers=extra
+        )
         assert headers["X-Test"] == "value"
         assert headers["Depth"] == "0"
 
@@ -379,7 +384,9 @@ class TestAsyncDAVClient:
         mock_response = create_mock_response(status_code=204, reason="No Content")
         client.session.request = AsyncMock(return_value=mock_response)
 
-        response = await client.delete(url="https://caldav.example.com/dav/calendar/event.ics")
+        response = await client.delete(
+            url="https://caldav.example.com/dav/calendar/event.ics"
+        )
 
         assert response.status == 204
         call_args = client.session.request.call_args
@@ -410,7 +417,9 @@ class TestAsyncDAVClient:
         mock_response = create_mock_response(status_code=201)
         client.session.request = AsyncMock(return_value=mock_response)
 
-        response = await client.mkcol(url="https://caldav.example.com/dav/newcollection/")
+        response = await client.mkcol(
+            url="https://caldav.example.com/dav/newcollection/"
+        )
 
         assert response.status == 201
         call_args = client.session.request.call_args
@@ -442,7 +451,9 @@ class TestAsyncDAVClient:
         assert "basic" in auth_types
 
         # Multiple auth types
-        auth_types = client.extract_auth_types('Basic realm="Test", Digest realm="Test"')
+        auth_types = client.extract_auth_types(
+            'Basic realm="Test", Digest realm="Test"'
+        )
         assert "basic" in auth_types
         assert "digest" in auth_types
 
@@ -676,7 +687,9 @@ class TestAPIImprovements:
         for method_name in methods:
             method = getattr(AsyncDAVClient, method_name)
             sig = inspect.signature(method)
-            assert "headers" in sig.parameters, f"{method_name} missing headers parameter"
+            assert (
+                "headers" in sig.parameters
+            ), f"{method_name} missing headers parameter"
 
     @pytest.mark.asyncio
     async def test_url_requirements_split(self) -> None:
@@ -690,7 +703,10 @@ class TestAPIImprovements:
             sig = inspect.signature(method)
             url_param = sig.parameters["url"]
             # Check default is None or has default
-            assert url_param.default is None or url_param.default != inspect.Parameter.empty
+            assert (
+                url_param.default is None
+                or url_param.default != inspect.Parameter.empty
+            )
 
         # Resource methods - URL should be required (no default)
         resource_methods = ["proppatch", "mkcol", "mkcalendar", "put", "post", "delete"]
@@ -721,9 +737,9 @@ class TestTypeHints:
         for method_name in methods:
             method = getattr(AsyncDAVClient, method_name)
             sig = inspect.signature(method)
-            assert sig.return_annotation != inspect.Signature.empty, (
-                f"{method_name} missing return type annotation"
-            )
+            assert (
+                sig.return_annotation != inspect.Signature.empty
+            ), f"{method_name} missing return type annotation"
 
     def test_get_davclient_has_return_type(self) -> None:
         """Verify get_davclient has return type annotation."""

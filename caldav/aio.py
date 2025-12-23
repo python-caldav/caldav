@@ -11,21 +11,16 @@ Example:
         principal = await client.get_principal()
         calendars = await principal.calendars()
 """
-
 # Re-export async components for convenience
-from caldav.async_davclient import (
-    AsyncDAVClient,
-    AsyncDAVResponse,
-    get_davclient,
-)
-from caldav.async_davobject import (
-    AsyncDAVObject,
-    AsyncCalendarObjectResource,
-    AsyncEvent,
-    AsyncTodo,
-    AsyncJournal,
-    AsyncFreeBusy,
-)
+from caldav.async_davclient import AsyncDAVClient
+from caldav.async_davclient import AsyncDAVResponse
+from caldav.async_davclient import get_davclient
+from caldav.async_davobject import AsyncCalendarObjectResource
+from caldav.async_davobject import AsyncDAVObject
+from caldav.async_davobject import AsyncEvent
+from caldav.async_davobject import AsyncFreeBusy
+from caldav.async_davobject import AsyncJournal
+from caldav.async_davobject import AsyncTodo
 
 __all__ = [
     "AsyncDAVClient",

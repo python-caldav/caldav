@@ -140,7 +140,7 @@ class DAVObject:
             raise ValueError("Unexpected value None for self.client")
 
         # Check if client is mocked (for unit tests)
-        if hasattr(self.client, '_is_mocked') and self.client._is_mocked():
+        if hasattr(self.client, "_is_mocked") and self.client._is_mocked():
             # For mocked clients, we can't use async delegation because the mock
             # only works on the sync request() method. Raise a clear error.
             raise NotImplementedError(
@@ -150,12 +150,15 @@ class DAVObject:
             )
 
         # Check if we have a cached async client (from context manager)
-        if (hasattr(self.client, '_async_client') and
-            self.client._async_client is not None and
-            hasattr(self.client, '_loop_manager') and
-            self.client._loop_manager is not None):
+        if (
+            hasattr(self.client, "_async_client")
+            and self.client._async_client is not None
+            and hasattr(self.client, "_loop_manager")
+            and self.client._loop_manager is not None
+        ):
             # Use persistent async client with reused connections
             log.debug("Using persistent async client with connection reuse")
+
             async def _execute_cached():
                 # Create async object with same state, using cached client
                 async_obj = AsyncDAVObject(
@@ -184,6 +187,7 @@ class DAVObject:
             # Fall back to old behavior: create new client each time
             # This happens if DAVClient is used without context manager
             log.debug("Fallback: creating new async client (no context manager)")
+
             async def _execute():
                 async_client = self.client._get_async_client()
                 async with async_client:
@@ -378,8 +382,14 @@ class DAVObject:
 
         """
         # For mocked clients, use sync implementation to avoid creating new async client
-        if self.client and hasattr(self.client, '_is_mocked') and self.client._is_mocked():
-            from .collection import Principal  ## late import to avoid cyclic dependencies
+        if (
+            self.client
+            and hasattr(self.client, "_is_mocked")
+            and self.client._is_mocked()
+        ):
+            from .collection import (
+                Principal,
+            )  ## late import to avoid cyclic dependencies
 
             rc = None
             response = self._query_properties(props, depth)
@@ -436,6 +446,7 @@ class DAVObject:
         Returns:
          * self
         """
+
         # Delegate to async implementation
         async def _async_set_properties(async_obj):
             await async_obj.set_properties(props=props)
@@ -457,6 +468,7 @@ class DAVObject:
         """
         Delete the object.
         """
+
         # Delegate to async implementation
         async def _async_delete(async_obj):
             await async_obj.delete()
