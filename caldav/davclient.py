@@ -763,6 +763,28 @@ class DAVClient:
         self._loop_manager: Optional[EventLoopManager] = None
         self._async_client: Optional[AsyncDAVClient] = None
 
+    def _run_async_operation(self, async_method_name: str, **kwargs) -> "AsyncDAVResponse":
+        """
+        Run an async operation with proper resource cleanup.
+
+        This helper creates an async client, runs the specified method,
+        and ensures the client is properly closed to avoid file descriptor leaks.
+
+        Args:
+            async_method_name: Name of the method to call on AsyncDAVClient
+            **kwargs: Arguments to pass to the method
+
+        Returns:
+            AsyncDAVResponse from the async operation
+        """
+        async def _execute():
+            async_client = self._get_async_client()
+            async with async_client:
+                method = getattr(async_client, async_method_name)
+                return await method(**kwargs)
+
+        return asyncio.run(_execute())
+
     def _get_async_client(self) -> AsyncDAVClient:
         """
         Create a new AsyncDAVClient for HTTP operations.
@@ -774,6 +796,9 @@ class DAVClient:
         a new event loop for each call, and AsyncSession is tied to a specific
         event loop. This is inefficient but correct for a demonstration wrapper.
         The full Phase 4 implementation will handle event loop management properly.
+
+        IMPORTANT: Always use _run_async_operation() or wrap in 'async with'
+        to ensure proper cleanup and avoid file descriptor leaks.
         """
         # Create async client with same configuration
         # Note: Don't pass features since it's already a FeatureSet and would be wrapped again
@@ -1000,9 +1025,8 @@ class DAVClient:
             headers = {"Depth": str(depth)}
             return self.request(url or str(self.url), "PROPFIND", props, headers)
 
-        async_client = self._get_async_client()
-        async_response = asyncio.run(
-            async_client.propfind(url=url, body=props, depth=depth)
+        async_response = self._run_async_operation(
+            "propfind", url=url, body=props, depth=depth
         )
         mock_response = _async_response_to_mock_response(async_response)
         return DAVResponse(mock_response, self)
@@ -1024,8 +1048,7 @@ class DAVClient:
         if self._is_mocked():
             return self.request(url, "PROPPATCH", body)
 
-        async_client = self._get_async_client()
-        async_response = asyncio.run(async_client.proppatch(url=url, body=body))
+        async_response = self._run_async_operation("proppatch", url=url, body=body)
         mock_response = _async_response_to_mock_response(async_response)
         return DAVResponse(mock_response, self)
 
@@ -1047,9 +1070,8 @@ class DAVClient:
             headers = {"Depth": str(depth)}
             return self.request(url, "REPORT", query, headers)
 
-        async_client = self._get_async_client()
-        async_response = asyncio.run(
-            async_client.report(url=url, body=query, depth=depth)
+        async_response = self._run_async_operation(
+            "report", url=url, body=query, depth=depth
         )
         mock_response = _async_response_to_mock_response(async_response)
         return DAVResponse(mock_response, self)
@@ -1080,8 +1102,7 @@ class DAVClient:
         if self._is_mocked():
             return self.request(url, "MKCOL", body)
 
-        async_client = self._get_async_client()
-        async_response = asyncio.run(async_client.mkcol(url=url, body=body))
+        async_response = self._run_async_operation("mkcol", url=url, body=body)
         mock_response = _async_response_to_mock_response(async_response)
         return DAVResponse(mock_response, self)
 
@@ -1102,8 +1123,7 @@ class DAVClient:
         if self._is_mocked():
             return self.request(url, "MKCALENDAR", body)
 
-        async_client = self._get_async_client()
-        async_response = asyncio.run(async_client.mkcalendar(url=url, body=body))
+        async_response = self._run_async_operation("mkcalendar", url=url, body=body)
         mock_response = _async_response_to_mock_response(async_response)
         return DAVResponse(mock_response, self)
 
@@ -1122,9 +1142,8 @@ class DAVClient:
         # Resolve relative URLs against base URL
         if url.startswith("/"):
             url = str(self.url) + url
-        async_client = self._get_async_client()
-        async_response = asyncio.run(
-            async_client.put(url=url, body=body, headers=headers)
+        async_response = self._run_async_operation(
+            "put", url=url, body=body, headers=headers
         )
         mock_response = _async_response_to_mock_response(async_response)
         return DAVResponse(mock_response, self)
@@ -1140,9 +1159,8 @@ class DAVClient:
         if self._is_mocked():
             return self.request(url, "POST", body, headers)
 
-        async_client = self._get_async_client()
-        async_response = asyncio.run(
-            async_client.post(url=url, body=body, headers=headers)
+        async_response = self._run_async_operation(
+            "post", url=url, body=body, headers=headers
         )
         mock_response = _async_response_to_mock_response(async_response)
         return DAVResponse(mock_response, self)
@@ -1156,8 +1174,7 @@ class DAVClient:
         if self._is_mocked():
             return self.request(url, "DELETE", "")
 
-        async_client = self._get_async_client()
-        async_response = asyncio.run(async_client.delete(url=url))
+        async_response = self._run_async_operation("delete", url=url)
         mock_response = _async_response_to_mock_response(async_response)
         return DAVResponse(mock_response, self)
 
@@ -1167,8 +1184,7 @@ class DAVClient:
 
         DEMONSTRATION WRAPPER: Delegates to AsyncDAVClient via asyncio.run().
         """
-        async_client = self._get_async_client()
-        async_response = asyncio.run(async_client.options(url=url))
+        async_response = self._run_async_operation("options", url=url)
         mock_response = _async_response_to_mock_response(async_response)
         return DAVResponse(mock_response, self)
 
@@ -1265,10 +1281,9 @@ class DAVClient:
             # Use old sync implementation for mocked tests
             return self._sync_request(url, method, body, headers)
 
-        # Normal path: delegate to async
-        async_client = self._get_async_client()
-        async_response = asyncio.run(
-            async_client.request(url=url, method=method, body=body, headers=headers)
+        # Normal path: delegate to async with proper cleanup
+        async_response = self._run_async_operation(
+            "request", url=url, method=method, body=body, headers=headers
         )
         mock_response = _async_response_to_mock_response(async_response)
         return DAVResponse(mock_response, self)
