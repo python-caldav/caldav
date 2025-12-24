@@ -1122,10 +1122,9 @@ END:VCALENDAR
     def testCreateDeleteCalendar(self):
         self.skip_unless_support("create-calendar")
         self.skip_unless_support("delete-calendar")
-        if not self.check_compatibility_flag(
-            "unique_calendar_ids"
-        ) and self.cleanup_regime in ("light", "pre"):
-            self._teardownCalendar(cal_id=self.testcal_id)
+        # Always try to delete the calendar first in case a previous test run
+        # was interrupted and left the calendar behind
+        self._teardownCalendar(cal_id=self.testcal_id)
         c = self.principal.make_calendar(name="Yep", cal_id=self.testcal_id)
 
         assert c.url is not None
