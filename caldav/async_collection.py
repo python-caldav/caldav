@@ -8,10 +8,20 @@ For sync usage, see collection.py which wraps these async implementations.
 
 import logging
 import sys
+import warnings
+from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any, Optional, Union
 from urllib.parse import ParseResult, SplitResult, quote
 
-from caldav.async_davobject import AsyncDAVObject
+from lxml import etree
+
+from caldav.async_davobject import (
+    AsyncCalendarObjectResource,
+    AsyncDAVObject,
+    AsyncEvent,
+    AsyncJournal,
+    AsyncTodo,
+)
 from caldav.elements import cdav
 from caldav.lib import error
 from caldav.lib.url import URL
@@ -521,31 +531,373 @@ class AsyncCalendar(AsyncDAVObject):
         prop = response_list[unquote(self.url.path)][cdav.SupportedCalendarComponentSet().tag]
         return [supported.get("name") for supported in prop]
 
-    async def events(self) -> list["AsyncCalendarObjectResource"]:
+    def _calendar_comp_class_by_data(self, data: Optional[str]) -> type:
         """
-        Get all events in the calendar.
+        Determine the async component class based on iCalendar data.
 
-        Note: Full implementation requires search() which will be added later.
+        Args:
+            data: iCalendar text data
+
+        Returns:
+            AsyncEvent, AsyncTodo, AsyncJournal, or AsyncCalendarObjectResource
         """
-        raise NotImplementedError(
-            "AsyncCalendar.events() requires search() implementation. "
-            "Use the sync API via caldav.Calendar for now."
-        )
+        if data is None:
+            return AsyncCalendarObjectResource
+        if hasattr(data, "split"):
+            for line in data.split("\n"):
+                line = line.strip()
+                if line == "BEGIN:VEVENT":
+                    return AsyncEvent
+                if line == "BEGIN:VTODO":
+                    return AsyncTodo
+                if line == "BEGIN:VJOURNAL":
+                    return AsyncJournal
+        return AsyncCalendarObjectResource
 
-    async def search(self, **kwargs: Any) -> list["AsyncCalendarObjectResource"]:
+    async def _request_report_build_resultlist(
+        self,
+        xml: Any,
+        comp_class: Optional[type] = None,
+        props: Optional[list[Any]] = None,
+    ) -> tuple[Any, list[AsyncCalendarObjectResource]]:
+        """
+        Send a REPORT query and build a list of calendar objects from the response.
+
+        Args:
+            xml: XML query (string or element)
+            comp_class: Component class to use for results (auto-detected if None)
+            props: Additional properties to request
+
+        Returns:
+            Tuple of (response, list of calendar objects)
+        """
+        if self.url is None:
+            raise ValueError("Unexpected value None for self.url")
+        if self.client is None:
+            raise ValueError("Unexpected value None for self.client")
+
+        # Build XML body
+        if hasattr(xml, "xmlelement"):
+            body = etree.tostring(
+                xml.xmlelement(),
+                encoding="utf-8",
+                xml_declaration=True,
+            )
+        elif isinstance(xml, str):
+            body = xml.encode("utf-8") if isinstance(xml, str) else xml
+        else:
+            body = etree.tostring(xml, encoding="utf-8", xml_declaration=True)
+
+        # Send REPORT request
+        response = await self.client.report(str(self.url), body, depth=1)
+        if response.status == 404:
+            raise error.NotFoundError(f"{response.status} {response.reason}")
+        if response.status >= 400:
+            raise error.ReportError(f"{response.status} {response.reason}")
+
+        # Build result list from response
+        matches = []
+        if props is None:
+            props_ = [cdav.CalendarData()]
+        else:
+            props_ = [cdav.CalendarData()] + props
+
+        results = response.expand_simple_props(props_)
+        for r in results:
+            pdata = results[r]
+            cdata = None
+            comp_class_ = comp_class
+
+            if cdav.CalendarData.tag in pdata:
+                cdata = pdata.pop(cdav.CalendarData.tag)
+                if comp_class_ is None:
+                    comp_class_ = self._calendar_comp_class_by_data(cdata)
+
+            if comp_class_ is None:
+                comp_class_ = AsyncCalendarObjectResource
+
+            url = URL(r)
+            if url.hostname is None:
+                url = quote(r)
+
+            # Skip if the URL matches the calendar URL itself (iCloud quirk)
+            if self.url.join(url) == self.url:
+                continue
+
+            matches.append(
+                comp_class_(
+                    self.client,
+                    url=self.url.join(url),
+                    data=cdata,
+                    parent=self,
+                    props=pdata,
+                )
+            )
+
+        return (response, matches)
+
+    async def search(
+        self,
+        xml: Optional[str] = None,
+        server_expand: bool = False,
+        split_expanded: bool = True,
+        sort_reverse: bool = False,
+        props: Optional[list[Any]] = None,
+        filters: Any = None,
+        post_filter: Optional[bool] = None,
+        _hacks: Optional[str] = None,
+        **searchargs: Any,
+    ) -> list[AsyncCalendarObjectResource]:
         """
         Search for calendar objects.
 
-        Note: Full implementation will be added in a future commit.
+        This async method delegates to CalDAVSearcher for query building and
+        filtering, but handles the HTTP request asynchronously.
+
+        Args:
+            xml: Raw XML query to send (overrides other filters)
+            server_expand: Request server-side recurrence expansion
+            split_expanded: Split expanded recurrences into separate objects
+            sort_reverse: Reverse sort order
+            props: Additional CalDAV properties to request
+            filters: Additional filters (lxml elements)
+            post_filter: Force client-side filtering (True/False/None)
+            _hacks: Internal compatibility flags
+            **searchargs: Search parameters (event, todo, journal, start, end,
+                         summary, uid, category, expand, include_completed, etc.)
+
+        Returns:
+            List of AsyncCalendarObjectResource objects (AsyncEvent, AsyncTodo, etc.)
         """
-        raise NotImplementedError(
-            "AsyncCalendar.search() is not yet implemented. "
-            "Use the sync API via caldav.Calendar for now."
+        from caldav.search import CalDAVSearcher
+
+        if self.client is None:
+            raise ValueError("Unexpected value None for self.client")
+
+        # Handle deprecated expand parameter
+        if searchargs.get("expand", True) not in (True, False):
+            warnings.warn(
+                "in cal.search(), expand should be a bool",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            if searchargs["expand"] == "client":
+                searchargs["expand"] = True
+            if searchargs["expand"] == "server":
+                server_expand = True
+                searchargs["expand"] = False
+
+        # Build CalDAVSearcher and configure it
+        my_searcher = CalDAVSearcher()
+        for key in searchargs:
+            assert key[0] != "_"
+            alias = key
+            if key == "class_":
+                alias = "class"
+            if key == "no_category":
+                alias = "no_categories"
+            if key == "no_class_":
+                alias = "no_class"
+            if key == "sort_keys":
+                if isinstance(searchargs["sort_keys"], str):
+                    searchargs["sort_keys"] = [searchargs["sort_keys"]]
+                for sortkey in searchargs["sort_keys"]:
+                    my_searcher.add_sort_key(sortkey, sort_reverse)
+                continue
+            elif key == "comp_class" or key in my_searcher.__dataclass_fields__:
+                setattr(my_searcher, key, searchargs[key])
+                continue
+            elif alias.startswith("no_"):
+                my_searcher.add_property_filter(alias[3:], searchargs[key], operator="undef")
+            else:
+                my_searcher.add_property_filter(alias, searchargs[key])
+
+        if not xml and filters:
+            xml = filters
+
+        # Build the XML query using CalDAVSearcher
+        if not xml or (not isinstance(xml, str) and not xml.tag.endswith("calendar-query")):
+            (xml, my_searcher.comp_class) = my_searcher.build_search_xml_query(
+                server_expand, props=props, filters=xml, _hacks=_hacks
+            )
+
+        # Handle servers that require component type in search
+        if not my_searcher.comp_class and not self.client.features.is_supported(
+            "search.comp-type-optional"
+        ):
+            if my_searcher.include_completed is None:
+                my_searcher.include_completed = True
+            # Search for each component type
+            objects: list[AsyncCalendarObjectResource] = []
+            for comp_class in (AsyncEvent, AsyncTodo, AsyncJournal):
+                try:
+                    comp_xml = my_searcher.build_search_xml_query(
+                        server_expand, props=props, _hacks=_hacks
+                    )[0]
+                    _, comp_objects = await self._request_report_build_resultlist(
+                        comp_xml, comp_class, props
+                    )
+                    objects.extend(comp_objects)
+                except error.ReportError:
+                    pass
+            return my_searcher.sort(objects)
+
+        # Send the REPORT request
+        try:
+            response, objects = await self._request_report_build_resultlist(
+                xml, my_searcher.comp_class, props
+            )
+        except error.ReportError:
+            if self.client.features.backward_compatibility_mode and not my_searcher.comp_class:
+                # Try searching with each component type
+                objects = []
+                for comp_class in (AsyncEvent, AsyncTodo, AsyncJournal):
+                    try:
+                        _, comp_objects = await self._request_report_build_resultlist(
+                            xml, comp_class, props
+                        )
+                        objects.extend(comp_objects)
+                    except error.ReportError:
+                        pass
+            else:
+                raise
+
+        # Load objects that need it
+        loaded_objects = []
+        for o in objects:
+            try:
+                await o.load(only_if_unloaded=True)
+                loaded_objects.append(o)
+            except Exception:
+                log.error(
+                    "Server does not want to reveal details about the calendar object",
+                    exc_info=True,
+                )
+        objects = loaded_objects
+
+        # Filter out empty objects (Google quirk)
+        objects = [o for o in objects if o.has_component()]
+
+        # Apply client-side filtering
+        objects = my_searcher.filter(objects, post_filter, split_expanded, server_expand)
+
+        # Ensure objects are loaded
+        for obj in objects:
+            try:
+                await obj.load(only_if_unloaded=True)
+            except Exception:
+                pass
+
+        return my_searcher.sort(objects)
+
+    async def events(self) -> list[AsyncEvent]:
+        """
+        Get all events in the calendar.
+
+        Returns:
+            List of AsyncEvent objects
+        """
+        return await self.search(event=True)
+
+    async def todos(
+        self,
+        sort_keys: Sequence[str] = ("due", "priority"),
+        include_completed: bool = False,
+    ) -> list[AsyncTodo]:
+        """
+        Get todo items from the calendar.
+
+        Args:
+            sort_keys: Properties to sort by
+            include_completed: Include completed todos
+
+        Returns:
+            List of AsyncTodo objects
+        """
+        return await self.search(
+            todo=True, include_completed=include_completed, sort_keys=list(sort_keys)
         )
 
+    async def journals(self) -> list[AsyncJournal]:
+        """
+        Get all journal entries in the calendar.
 
-# Forward reference for type hints
-AsyncCalendarObjectResource = Any  # Will be properly imported when needed
+        Returns:
+            List of AsyncJournal objects
+        """
+        return await self.search(journal=True)
+
+    async def event_by_uid(self, uid: str) -> AsyncEvent:
+        """
+        Get an event by its UID.
+
+        Args:
+            uid: The UID of the event
+
+        Returns:
+            AsyncEvent object
+
+        Raises:
+            NotFoundError: If no event with that UID exists
+        """
+        results = await self.search(event=True, uid=uid)
+        if not results:
+            raise error.NotFoundError(f"No event with UID {uid}")
+        return results[0]
+
+    async def todo_by_uid(self, uid: str) -> AsyncTodo:
+        """
+        Get a todo by its UID.
+
+        Args:
+            uid: The UID of the todo
+
+        Returns:
+            AsyncTodo object
+
+        Raises:
+            NotFoundError: If no todo with that UID exists
+        """
+        results = await self.search(todo=True, uid=uid, include_completed=True)
+        if not results:
+            raise error.NotFoundError(f"No todo with UID {uid}")
+        return results[0]
+
+    async def journal_by_uid(self, uid: str) -> AsyncJournal:
+        """
+        Get a journal entry by its UID.
+
+        Args:
+            uid: The UID of the journal
+
+        Returns:
+            AsyncJournal object
+
+        Raises:
+            NotFoundError: If no journal with that UID exists
+        """
+        results = await self.search(journal=True, uid=uid)
+        if not results:
+            raise error.NotFoundError(f"No journal with UID {uid}")
+        return results[0]
+
+    async def object_by_uid(self, uid: str) -> AsyncCalendarObjectResource:
+        """
+        Get a calendar object by its UID (any type).
+
+        Args:
+            uid: The UID of the object
+
+        Returns:
+            AsyncCalendarObjectResource (could be Event, Todo, or Journal)
+
+        Raises:
+            NotFoundError: If no object with that UID exists
+        """
+        results = await self.search(uid=uid)
+        if not results:
+            raise error.NotFoundError(f"No object with UID {uid}")
+        return results[0]
 
 
 class AsyncScheduleMailbox(AsyncCalendar):
