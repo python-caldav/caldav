@@ -785,6 +785,8 @@ class RepeatedFunctionalTestsBaseClass:
             self.caldav.teardown()
         except TypeError:
             self.caldav.teardown(self.caldav)
+        # Close the client to release resources (event loop, connections)
+        self.caldav.__exit__(None, None, None)
 
     def _cleanup(self, mode=None):
         if self.cleanup_regime == "none":

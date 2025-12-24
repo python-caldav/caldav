@@ -7,6 +7,7 @@ are delegated to AsyncDAVClient and executed via asyncio.run().
 
 For new async code, use: from caldav import aio
 """
+
 import asyncio
 import logging
 import os
@@ -108,11 +109,16 @@ class EventLoopManager:
         return future.result()
 
     def stop(self) -> None:
-        """Stop the background event loop."""
+        """Stop the background event loop and close resources."""
         if self._loop is not None:
             self._loop.call_soon_threadsafe(self._loop.stop)
             if self._thread is not None:
-                self._thread.join()
+                self._thread.join(timeout=5)  # Don't hang forever
+            # Close the loop to release the selector (epoll fd)
+            if not self._loop.is_closed():
+                self._loop.close()
+            self._loop = None
+            self._thread = None
 
 
 """
@@ -199,9 +205,7 @@ def _auto_url(
             service_info = discover_caldav(
                 identifier=url,
                 timeout=timeout,
-                ssl_verify_cert=ssl_verify_cert
-                if isinstance(ssl_verify_cert, bool)
-                else True,
+                ssl_verify_cert=ssl_verify_cert if isinstance(ssl_verify_cert, bool) else True,
                 require_tls=require_tls,
             )
             if service_info:
@@ -209,9 +213,7 @@ def _auto_url(
                     f"RFC6764 discovered service: {service_info.url} (source: {service_info.source})"
                 )
                 if service_info.username:
-                    log.debug(
-                        f"Username discovered from email: {service_info.username}"
-                    )
+                    log.debug(f"Username discovered from email: {service_info.username}")
                 return (service_info.url, service_info.username)
         except DiscoveryError as e:
             log.debug(f"RFC6764 discovery failed: {e}")
@@ -264,9 +266,7 @@ class DAVResponse:
     davclient = None
     huge_tree: bool = False
 
-    def __init__(
-        self, response: Response, davclient: Optional["DAVClient"] = None
-    ) -> None:
+    def __init__(self, response: Response, davclient: Optional["DAVClient"] = None) -> None:
         self.headers = response.headers
         self.status = response.status_code
         log.debug("response headers: " + str(self.headers))
@@ -310,9 +310,7 @@ class DAVResponse:
                 ## the content type given.
                 self.tree = etree.XML(
                     self._raw,
-                    parser=etree.XMLParser(
-                        remove_blank_text=True, huge_tree=self.huge_tree
-                    ),
+                    parser=etree.XMLParser(remove_blank_text=True, huge_tree=self.huge_tree),
                 )
             except:
                 ## Content wasn't XML.  What does the content-type say?
@@ -442,9 +440,7 @@ class DAVResponse:
                 ## mode I want to be sure we do not toss away any data
                 children = elem.getchildren()
                 error.assert_(len(children) == 1)
-                error.assert_(
-                    children[0].tag == "{https://purelymail.com}does-not-exist"
-                )
+                error.assert_(children[0].tag == "{https://purelymail.com}does-not-exist")
                 check_404 = True
             else:
                 ## i.e. purelymail may contain one more tag, <error>...</error>
@@ -518,9 +514,7 @@ class DAVResponse:
 
         return self.objects
 
-    def _expand_simple_prop(
-        self, proptag, props_found, multi_value_allowed=False, xpath=None
-    ):
+    def _expand_simple_prop(self, proptag, props_found, multi_value_allowed=False, xpath=None):
         values = []
         if proptag in props_found:
             prop_xml = props_found[proptag]
@@ -583,9 +577,7 @@ class DAVResponse:
                 if prop.tag is None:
                     continue
 
-                props_found[prop.tag] = self._expand_simple_prop(
-                    prop.tag, props_found, xpath=xpath
-                )
+                props_found[prop.tag] = self._expand_simple_prop(prop.tag, props_found, xpath=xpath)
             for prop in multi_value_props:
                 if prop.tag is None:
                     continue
@@ -767,8 +759,9 @@ class DAVClient:
         """
         Run an async operation with proper resource cleanup.
 
-        This helper creates an async client, runs the specified method,
-        and ensures the client is properly closed to avoid file descriptor leaks.
+        This helper runs the specified method on an AsyncDAVClient, using
+        the persistent client and event loop when available (context manager mode),
+        or creating a new client with asyncio.run() otherwise.
 
         Args:
             async_method_name: Name of the method to call on AsyncDAVClient
@@ -777,6 +770,16 @@ class DAVClient:
         Returns:
             AsyncDAVResponse from the async operation
         """
+        # Use persistent client/loop when available (context manager mode)
+        if self._loop_manager is not None and self._async_client is not None:
+
+            async def _execute_cached():
+                method = getattr(self._async_client, async_method_name)
+                return await method(**kwargs)
+
+            return self._loop_manager.run_coroutine(_execute_cached())
+
+        # Fall back to creating a new client each time
         async def _execute():
             async_client = self._get_async_client()
             async with async_client:
@@ -881,11 +884,16 @@ class DAVClient:
                 await self._async_client.__aexit__(None, None, None)
 
             if self._loop_manager is not None:
-                self._loop_manager.run_coroutine(close_client())
+                try:
+                    self._loop_manager.run_coroutine(close_client())
+                except RuntimeError:
+                    pass  # Event loop may already be stopped
+            self._async_client = None
 
         # Stop event loop
         if self._loop_manager is not None:
             self._loop_manager.stop()
+            self._loop_manager = None
 
         self.session.close()
 
@@ -895,9 +903,7 @@ class DAVClient:
         """
         if name:
             name_filter = [
-                dav.PropertySearch()
-                + [dav.Prop() + [dav.DisplayName()]]
-                + dav.Match(value=name)
+                dav.PropertySearch() + [dav.Prop() + [dav.DisplayName()]] + dav.Match(value=name)
             ]
         else:
             name_filter = []
@@ -913,9 +919,7 @@ class DAVClient:
         ## for now we're just treating it in the same way as 4xx and 5xx -
         ## probably the server did not support the operation
         if response.status >= 300:
-            raise error.ReportError(
-                f"{response.status} {response.reason} - {response.raw}"
-            )
+            raise error.ReportError(f"{response.status} {response.reason} - {response.raw}")
 
         principal_dict = response.find_objects_and_props()
         ret = []
@@ -936,9 +940,7 @@ class DAVClient:
             chs_url = chs_href[0].text
             calendar_home_set = CalendarSet(client=self, url=chs_url)
             ret.append(
-                Principal(
-                    client=self, url=x, name=name, calendar_home_set=calendar_home_set
-                )
+                Principal(client=self, url=x, name=name, calendar_home_set=calendar_home_set)
             )
         return ret
 
@@ -997,9 +999,7 @@ class DAVClient:
         support_list = self.check_dav_support()
         return support_list is not None and "calendar-auto-schedule" in support_list
 
-    def propfind(
-        self, url: Optional[str] = None, props: str = "", depth: int = 0
-    ) -> DAVResponse:
+    def propfind(self, url: Optional[str] = None, props: str = "", depth: int = 0) -> DAVResponse:
         """
         Send a propfind request.
 
@@ -1025,9 +1025,7 @@ class DAVClient:
             headers = {"Depth": str(depth)}
             return self.request(url or str(self.url), "PROPFIND", props, headers)
 
-        async_response = self._run_async_operation(
-            "propfind", url=url, body=props, depth=depth
-        )
+        async_response = self._run_async_operation("propfind", url=url, body=props, depth=depth)
         mock_response = _async_response_to_mock_response(async_response)
         return DAVResponse(mock_response, self)
 
@@ -1070,9 +1068,7 @@ class DAVClient:
             headers = {"Depth": str(depth)}
             return self.request(url, "REPORT", query, headers)
 
-        async_response = self._run_async_operation(
-            "report", url=url, body=query, depth=depth
-        )
+        async_response = self._run_async_operation("report", url=url, body=query, depth=depth)
         mock_response = _async_response_to_mock_response(async_response)
         return DAVResponse(mock_response, self)
 
@@ -1127,9 +1123,7 @@ class DAVClient:
         mock_response = _async_response_to_mock_response(async_response)
         return DAVResponse(mock_response, self)
 
-    def put(
-        self, url: str, body: str, headers: Mapping[str, str] = None
-    ) -> DAVResponse:
+    def put(self, url: str, body: str, headers: Mapping[str, str] = None) -> DAVResponse:
         """
         Send a put request.
 
@@ -1142,15 +1136,11 @@ class DAVClient:
         # Resolve relative URLs against base URL
         if url.startswith("/"):
             url = str(self.url) + url
-        async_response = self._run_async_operation(
-            "put", url=url, body=body, headers=headers
-        )
+        async_response = self._run_async_operation("put", url=url, body=body, headers=headers)
         mock_response = _async_response_to_mock_response(async_response)
         return DAVResponse(mock_response, self)
 
-    def post(
-        self, url: str, body: str, headers: Mapping[str, str] = None
-    ) -> DAVResponse:
+    def post(self, url: str, body: str, headers: Mapping[str, str] = None) -> DAVResponse:
         """
         Send a POST request.
 
@@ -1159,9 +1149,7 @@ class DAVClient:
         if self._is_mocked():
             return self.request(url, "POST", body, headers)
 
-        async_response = self._run_async_operation(
-            "post", url=url, body=body, headers=headers
-        )
+        async_response = self._run_async_operation("post", url=url, body=body, headers=headers)
         mock_response = _async_response_to_mock_response(async_response)
         return DAVResponse(mock_response, self)
 
@@ -1363,9 +1351,7 @@ class DAVClient:
             ssl_cert=self.ssl_cert,
             headers=self.headers,
             huge_tree=self.huge_tree,
-            features=self.features.feature_set
-            if hasattr(self.features, "feature_set")
-            else None,
+            features=self.features.feature_set if hasattr(self.features, "feature_set") else None,
             enable_rfc6764=False,  # Already resolved in sync client
             require_tls=True,
         )
@@ -1465,9 +1451,7 @@ def get_davclient(
     if environment:
         conf = {}
         for conf_key in (
-            x
-            for x in os.environ
-            if x.startswith("CALDAV_") and not x.startswith("CALDAV_CONFIG")
+            x for x in os.environ if x.startswith("CALDAV_") and not x.startswith("CALDAV_CONFIG")
         ):
             conf[conf_key[7:].lower()] = os.environ[conf_key]
         if conf:
