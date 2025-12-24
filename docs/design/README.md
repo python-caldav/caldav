@@ -76,7 +76,7 @@ How to configure Ruff formatter/linter for partial codebase adoption:
 
 ## Implementation Status
 
-**Current Phase**: Phase 3 Complete ✅ (Core Methods) - Search methods deferred
+**Current Phase**: Phase 3 Complete ✅ (Core + Search Methods)
 
 **Branch**: `playground/new_async_api_design`
 
@@ -88,9 +88,12 @@ How to configure Ruff formatter/linter for partial codebase adoption:
   - `AsyncPrincipal` - get_calendar_home_set(), calendars(), calendar_user_address_set()
   - `AsyncCalendar` - _create(), save(), delete(), get_supported_components()
   - Sync wrappers in `collection.py` with `_run_async_*` helpers
+- ✅ Phase 3 (Search): Added search methods to `AsyncCalendar`:
+  - search() - Full async search using CalDAVSearcher for query building
+  - events(), todos(), journals() - Convenience methods
+  - event_by_uid(), todo_by_uid(), journal_by_uid(), object_by_uid() - UID lookups
 
 **Remaining Work**:
-- Phase 3 (Search): AsyncCalendar.search() and related methods (events(), todos(), etc.)
 - Phase 4: Complete sync wrapper rewrite
 - Phase 5: Update documentation and examples
 
