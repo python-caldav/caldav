@@ -12,6 +12,7 @@ Contents
 
    about
    tutorial
+   async
    howtos
    performance
    reference

@@ -1,35 +1,61 @@
 #!/usr/bin/env python
 """
-Async API for caldav library.
+Async-first CalDAV API.
 
-This module provides a convenient entry point for async CalDAV operations.
+This module provides async versions of the CalDAV client and objects.
+Use this for new async code:
 
-Example:
     from caldav import aio
 
-    async with await aio.get_davclient(url="...", username="...", password="...") as client:
-        principal = await client.get_principal()
+    async with aio.AsyncDAVClient(url=..., username=..., password=...) as client:
+        principal = await client.principal()
         calendars = await principal.calendars()
+        for cal in calendars:
+            events = await cal.events()
+
+For backward-compatible sync code, continue using:
+
+    from caldav import DAVClient
 """
 # Re-export async components for convenience
-from caldav.async_davclient import AsyncDAVClient
-from caldav.async_davclient import AsyncDAVResponse
-from caldav.async_davclient import get_davclient
-from caldav.async_davobject import AsyncCalendarObjectResource
-from caldav.async_davobject import AsyncDAVObject
-from caldav.async_davobject import AsyncEvent
-from caldav.async_davobject import AsyncFreeBusy
-from caldav.async_davobject import AsyncJournal
-from caldav.async_davobject import AsyncTodo
+from caldav.async_collection import (
+    AsyncCalendar,
+    AsyncCalendarSet,
+    AsyncPrincipal,
+    AsyncScheduleInbox,
+    AsyncScheduleMailbox,
+    AsyncScheduleOutbox,
+)
+from caldav.async_davclient import AsyncDAVClient, AsyncDAVResponse
+from caldav.async_davclient import get_davclient as get_async_davclient
+from caldav.async_davobject import (
+    AsyncCalendarObjectResource,
+    AsyncDAVObject,
+    AsyncEvent,
+    AsyncFreeBusy,
+    AsyncJournal,
+    AsyncTodo,
+)
 
 __all__ = [
+    # Client
     "AsyncDAVClient",
     "AsyncDAVResponse",
-    "get_davclient",
+    "get_async_davclient",
+    # Base objects
     "AsyncDAVObject",
     "AsyncCalendarObjectResource",
+    # Calendar object types
     "AsyncEvent",
     "AsyncTodo",
     "AsyncJournal",
     "AsyncFreeBusy",
+    # Collections
+    "AsyncCalendar",
+    "AsyncCalendarSet",
+    "AsyncPrincipal",
+    # Scheduling (RFC6638)
+    "AsyncScheduleMailbox",
+    "AsyncScheduleInbox",
+    "AsyncScheduleOutbox",
 ]

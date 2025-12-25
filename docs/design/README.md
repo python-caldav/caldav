@@ -98,8 +98,15 @@ How to configure Ruff formatter/linter for partial codebase adoption:
   - Removed mock response conversion (_async_response_to_mock_response)
   - All HTTP method wrappers pass AsyncDAVResponse to DAVResponse
 
+- ✅ Phase 5: Documentation and examples
+  - Updated `caldav/__init__.py` to export `get_davclient`
+  - Updated `caldav/aio.py` with all async collection classes
+  - Created `examples/async_usage_examples.py`
+  - Created `docs/source/async.rst` with tutorial and migration guide
+  - Updated `README.md` with async examples
+
 **Remaining Work**:
-- Phase 5: Update documentation and examples
+- Optional: Add API reference docs for async classes (autodoc)
 
 ## Design Principles
 

@@ -7,9 +7,40 @@ Features:
  * create, modify calendar
  * create, update and delete event
  * search events by dates
+ * async support via `caldav.aio` module
  * etc.
 
-The documentation was freshed up a bit as of version 2.0, and is available at https://caldav.readthedocs.io/
+## Quick Start
+
+```python
+from caldav import get_davclient
+
+with get_davclient() as client:
+    principal = client.principal()
+    calendars = principal.calendars()
+    for cal in calendars:
+        print(f"Calendar: {cal.name}")
+```
+
+## Async API
+
+For async/await support, use the `caldav.aio` module:
+
+```python
+import asyncio
+from caldav import aio
+
+async def main():
+    async with aio.get_async_davclient() as client:
+        principal = await client.principal()
+        calendars = await principal.calendars()
+        for cal in calendars:
+            print(f"Calendar: {cal.name}")
+
+asyncio.run(main())
+```
+
+The documentation was updated as of version 2.0, and is available at https://caldav.readthedocs.io/
 
 The package is published at [Pypi](https://pypi.org/project/caldav)
 
