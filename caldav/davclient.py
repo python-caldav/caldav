@@ -57,10 +57,7 @@ from caldav.objects import log
 from caldav.requests import HTTPBearerAuth
 
 # Import async implementation for wrapping
-from caldav.async_davclient import AsyncDAVClient
-
-if TYPE_CHECKING:
-    pass
+from caldav.async_davclient import AsyncDAVClient, AsyncDAVResponse
 
 if sys.version_info < (3, 9):
     from typing import Iterable, Mapping
@@ -230,26 +227,6 @@ def _auto_url(
     return (url, None)
 
 
-def _async_response_to_mock_response(async_response):
-    """
-    Convert AsyncDAVResponse to a mock Response object for DAVResponse.
-
-    This is a temporary helper for the demonstration wrapper that shows
-    the async-first architecture works. In Phase 4, DAVResponse will be
-    fully rewritten to wrap AsyncDAVResponse directly.
-    """
-    from unittest.mock import MagicMock
-
-    mock_resp = MagicMock()
-    mock_resp.content = async_response._raw
-    mock_resp.status_code = async_response.status
-    mock_resp.reason = async_response.reason
-    mock_resp.headers = async_response.headers
-    mock_resp.text = async_response.raw
-
-    return mock_resp
-
-
 class DAVResponse:
     """
     This class is a response from a DAV request.  It is instantiated from
@@ -266,7 +243,18 @@ class DAVResponse:
     davclient = None
     huge_tree: bool = False
 
-    def __init__(self, response: Response, davclient: Optional["DAVClient"] = None) -> None:
+    def __init__(
+        self,
+        response: Union[Response, AsyncDAVResponse],
+        davclient: Optional["DAVClient"] = None,
+    ) -> None:
+        # If response is already an AsyncDAVResponse, copy its parsed properties
+        # This avoids re-parsing XML and eliminates the need for mock responses
+        if isinstance(response, AsyncDAVResponse):
+            self._init_from_async_response(response, davclient)
+            return
+
+        # Original sync Response handling
         self.headers = response.headers
         self.status = response.status_code
         log.debug("response headers: " + str(self.headers))
@@ -354,6 +342,30 @@ class DAVResponse:
             self.reason = response.reason
         except AttributeError:
             self.reason = ""
+
+    def _init_from_async_response(
+        self, async_response: AsyncDAVResponse, davclient: Optional["DAVClient"]
+    ) -> None:
+        """
+        Initialize from an AsyncDAVResponse by copying its already-parsed properties.
+
+        This is more efficient than creating a mock Response and re-parsing,
+        as AsyncDAVResponse has already done the XML parsing.
+        """
+        self.headers = async_response.headers
+        self.status = async_response.status
+        self.reason = async_response.reason
+        self.tree = async_response.tree
+        self._raw = async_response._raw
+        self.davclient = davclient
+        if davclient:
+            self.huge_tree = davclient.huge_tree
+        else:
+            self.huge_tree = async_response.huge_tree
+
+        # Copy objects dict if already parsed
+        if hasattr(async_response, "objects"):
+            self.objects = async_response.objects
 
     @property
     def raw(self) -> str:
@@ -1026,8 +1038,7 @@ class DAVClient:
             return self.request(url or str(self.url), "PROPFIND", props, headers)
 
         async_response = self._run_async_operation("propfind", url=url, body=props, depth=depth)
-        mock_response = _async_response_to_mock_response(async_response)
-        return DAVResponse(mock_response, self)
+        return DAVResponse(async_response, self)
 
     def proppatch(self, url: str, body: str, dummy: None = None) -> DAVResponse:
         """
@@ -1047,8 +1058,7 @@ class DAVClient:
             return self.request(url, "PROPPATCH", body)
 
         async_response = self._run_async_operation("proppatch", url=url, body=body)
-        mock_response = _async_response_to_mock_response(async_response)
-        return DAVResponse(mock_response, self)
+        return DAVResponse(async_response, self)
 
     def report(self, url: str, query: str = "", depth: int = 0) -> DAVResponse:
         """
@@ -1069,8 +1079,7 @@ class DAVClient:
             return self.request(url, "REPORT", query, headers)
 
         async_response = self._run_async_operation("report", url=url, body=query, depth=depth)
-        mock_response = _async_response_to_mock_response(async_response)
-        return DAVResponse(mock_response, self)
+        return DAVResponse(async_response, self)
 
     def mkcol(self, url: str, body: str, dummy: None = None) -> DAVResponse:
         """
@@ -1099,8 +1108,7 @@ class DAVClient:
             return self.request(url, "MKCOL", body)
 
         async_response = self._run_async_operation("mkcol", url=url, body=body)
-        mock_response = _async_response_to_mock_response(async_response)
-        return DAVResponse(mock_response, self)
+        return DAVResponse(async_response, self)
 
     def mkcalendar(self, url: str, body: str = "", dummy: None = None) -> DAVResponse:
         """
@@ -1120,8 +1128,7 @@ class DAVClient:
             return self.request(url, "MKCALENDAR", body)
 
         async_response = self._run_async_operation("mkcalendar", url=url, body=body)
-        mock_response = _async_response_to_mock_response(async_response)
-        return DAVResponse(mock_response, self)
+        return DAVResponse(async_response, self)
 
     def put(self, url: str, body: str, headers: Mapping[str, str] = None) -> DAVResponse:
         """
@@ -1137,8 +1144,7 @@ class DAVClient:
         if url.startswith("/"):
             url = str(self.url) + url
         async_response = self._run_async_operation("put", url=url, body=body, headers=headers)
-        mock_response = _async_response_to_mock_response(async_response)
-        return DAVResponse(mock_response, self)
+        return DAVResponse(async_response, self)
 
     def post(self, url: str, body: str, headers: Mapping[str, str] = None) -> DAVResponse:
         """
@@ -1150,8 +1156,7 @@ class DAVClient:
             return self.request(url, "POST", body, headers)
 
         async_response = self._run_async_operation("post", url=url, body=body, headers=headers)
-        mock_response = _async_response_to_mock_response(async_response)
-        return DAVResponse(mock_response, self)
+        return DAVResponse(async_response, self)
 
     def delete(self, url: str) -> DAVResponse:
         """
@@ -1163,8 +1168,7 @@ class DAVClient:
             return self.request(url, "DELETE", "")
 
         async_response = self._run_async_operation("delete", url=url)
-        mock_response = _async_response_to_mock_response(async_response)
-        return DAVResponse(mock_response, self)
+        return DAVResponse(async_response, self)
 
     def options(self, url: str) -> DAVResponse:
         """
@@ -1173,8 +1177,7 @@ class DAVClient:
         DEMONSTRATION WRAPPER: Delegates to AsyncDAVClient via asyncio.run().
         """
         async_response = self._run_async_operation("options", url=url)
-        mock_response = _async_response_to_mock_response(async_response)
-        return DAVResponse(mock_response, self)
+        return DAVResponse(async_response, self)
 
     def extract_auth_types(self, header: str):
         """This is probably meant for internal usage.  It takes the
@@ -1273,8 +1276,7 @@ class DAVClient:
         async_response = self._run_async_operation(
             "request", url=url, method=method, body=body, headers=headers
         )
-        mock_response = _async_response_to_mock_response(async_response)
-        return DAVResponse(mock_response, self)
+        return DAVResponse(async_response, self)
 
     def _sync_request(
         self,
