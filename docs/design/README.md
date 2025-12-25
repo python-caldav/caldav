@@ -76,7 +76,7 @@ How to configure Ruff formatter/linter for partial codebase adoption:
 
 ## Implementation Status
 
-**Current Phase**: Phase 3 Complete ✅ (Core + Search Methods)
+**Current Phase**: Phase 4 Complete ✅ (Sync Wrapper Cleanup)
 
 **Branch**: `playground/new_async_api_design`
 
@@ -93,8 +93,12 @@ How to configure Ruff formatter/linter for partial codebase adoption:
   - events(), todos(), journals() - Convenience methods
   - event_by_uid(), todo_by_uid(), journal_by_uid(), object_by_uid() - UID lookups
 
+- ✅ Phase 4: Sync wrapper cleanup
+  - DAVResponse now accepts AsyncDAVResponse directly
+  - Removed mock response conversion (_async_response_to_mock_response)
+  - All HTTP method wrappers pass AsyncDAVResponse to DAVResponse
+
 **Remaining Work**:
-- Phase 4: Complete sync wrapper rewrite
 - Phase 5: Update documentation and examples
 
 ## Design Principles
