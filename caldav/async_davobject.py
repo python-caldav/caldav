@@ -466,9 +466,7 @@ class AsyncCalendarObjectResource(AsyncDAVObject):
             self.data = data  # type: ignore
             if id:
                 try:
-                    import icalendar
-
-                    old_id = self.icalendar_component.pop("UID", None)
+                    self.icalendar_component.pop("UID", None)
                     self.icalendar_component.add("UID", id)
                 except Exception:
                     pass  # If icalendar is not available or data is invalid
@@ -615,14 +613,14 @@ class AsyncCalendarObjectResource(AsyncDAVObject):
         elif r.status not in (204, 201):
             if retry_on_failure:
                 try:
-                    import vobject
-
-                    # This looks like a noop, but the object may be "cleaned"
-                    # See https://github.com/python-caldav/caldav/issues/43
-                    self.vobject_instance
-                    return await self._put(False)
+                    import vobject  # noqa: F401 - checking availability
                 except ImportError:
-                    pass
+                    retry_on_failure = False
+            if retry_on_failure:
+                # This looks like a noop, but the object may be "cleaned"
+                # See https://github.com/python-caldav/caldav/issues/43
+                self.vobject_instance
+                return await self._put(False)
             raise error.PutError(errmsg(r))
 
     async def _create(
