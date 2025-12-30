@@ -747,3 +747,73 @@ class TestTypeHints:
 
         sig = inspect.signature(get_davclient)
         assert sig.return_annotation != inspect.Signature.empty
+
+
+class TestAsyncCalendarObjectResource:
+    """Tests for AsyncCalendarObjectResource class."""
+
+    def test_has_component_method_exists(self) -> None:
+        """
+        Test that AsyncCalendarObjectResource has the has_component() method.
+
+        This test catches a bug where AsyncCalendarObjectResource was missing
+        the has_component() method that's used in AsyncCalendar.search() to
+        filter out empty search results (a Google quirk).
+
+        See async_collection.py:779 which calls:
+            objects = [o for o in objects if o.has_component()]
+        """
+        from caldav.async_davobject import (
+            AsyncCalendarObjectResource,
+            AsyncEvent,
+            AsyncTodo,
+            AsyncJournal,
+        )
+
+        # Verify has_component exists on all async calendar object classes
+        for cls in [AsyncCalendarObjectResource, AsyncEvent, AsyncTodo, AsyncJournal]:
+            assert hasattr(cls, "has_component"), f"{cls.__name__} missing has_component method"
+
+    def test_has_component_with_data(self) -> None:
+        """Test has_component returns True when object has VEVENT/VTODO/VJOURNAL."""
+        from caldav.async_davobject import AsyncEvent
+
+        event_data = """BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+UID:test@example.com
+DTSTART:20200101T100000Z
+DTEND:20200101T110000Z
+SUMMARY:Test Event
+END:VEVENT
+END:VCALENDAR"""
+
+        event = AsyncEvent(client=None, data=event_data)
+        assert event.has_component() is True
+
+    def test_has_component_without_data(self) -> None:
+        """Test has_component returns False when object has no data."""
+        from caldav.async_davobject import AsyncCalendarObjectResource
+
+        obj = AsyncCalendarObjectResource(client=None, data=None)
+        assert obj.has_component() is False
+
+    def test_has_component_with_empty_data(self) -> None:
+        """Test has_component returns False when object has empty data."""
+        from caldav.async_davobject import AsyncCalendarObjectResource
+
+        obj = AsyncCalendarObjectResource(client=None, data="")
+        assert obj.has_component() is False
+
+    def test_has_component_with_only_vcalendar(self) -> None:
+        """Test has_component returns False when only VCALENDAR wrapper exists."""
+        from caldav.async_davobject import AsyncCalendarObjectResource
+
+        # Only VCALENDAR wrapper, no actual component
+        data = """BEGIN:VCALENDAR
+VERSION:2.0
+END:VCALENDAR"""
+
+        obj = AsyncCalendarObjectResource(client=None, data=data)
+        # This should return False since there's no VEVENT/VTODO/VJOURNAL
+        assert obj.has_component() is False

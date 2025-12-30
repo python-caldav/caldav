@@ -535,6 +535,25 @@ class AsyncCalendarObjectResource(AsyncDAVObject):
             or self._icalendar_instance is not None
         )
 
+    def has_component(self) -> bool:
+        """
+        Returns True if there exists a VEVENT, VTODO or VJOURNAL in the data.
+        Returns False if it's only a VFREEBUSY, VTIMEZONE or unknown components.
+
+        Used internally after search to remove empty search results
+        (sometimes Google returns such empty objects).
+        """
+        if not (self._data or self._vobject_instance or self._icalendar_instance):
+            return False
+        data = self.data
+        if not data:
+            return False
+        return (
+            data.count("BEGIN:VEVENT")
+            + data.count("BEGIN:VTODO")
+            + data.count("BEGIN:VJOURNAL")
+        ) > 0
+
     async def load(self, only_if_unloaded: bool = False) -> Self:
         """
         (Re)load the object from the caldav server.
