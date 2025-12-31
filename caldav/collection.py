@@ -552,6 +552,102 @@ class Calendar(DAVObject):
     https://tools.ietf.org/html/rfc4791#section-5.3.1
     """
 
+    def _run_async_calendar(self, async_func):
+        """
+        Helper method to run an async function with async delegation for Calendar.
+        Creates an AsyncCalendar and runs the provided async function.
+
+        Args:
+            async_func: A callable that takes an AsyncCalendar and returns a coroutine
+
+        Returns:
+            The result from the async function
+        """
+        import asyncio
+
+        from caldav.async_collection import AsyncCalendar
+
+        if self.client is None:
+            raise ValueError("Unexpected value None for self.client")
+
+        # Check if client is mocked (for unit tests)
+        if hasattr(self.client, "_is_mocked") and self.client._is_mocked():
+            raise NotImplementedError(
+                "Async delegation is not supported for mocked clients."
+            )
+
+        # Check if we have a cached async client (from context manager)
+        if (
+            hasattr(self.client, "_async_client")
+            and self.client._async_client is not None
+            and hasattr(self.client, "_loop_manager")
+            and self.client._loop_manager is not None
+        ):
+            # Use persistent async client with reused connections
+            async def _execute_cached():
+                async_obj = AsyncCalendar(
+                    client=self.client._async_client,
+                    url=self.url,
+                    parent=None,
+                    name=self.name,
+                    id=self.id,
+                    props=self.props.copy() if self.props else {},
+                )
+                return await async_func(async_obj)
+
+            return self.client._loop_manager.run_coroutine(_execute_cached())
+        else:
+            # Fall back to creating a new client each time
+            async def _execute():
+                async_client = self.client._get_async_client()
+                async with async_client:
+                    async_obj = AsyncCalendar(
+                        client=async_client,
+                        url=self.url,
+                        parent=None,
+                        name=self.name,
+                        id=self.id,
+                        props=self.props.copy() if self.props else {},
+                    )
+                    return await async_func(async_obj)
+
+            return asyncio.run(_execute())
+
+    def _async_object_to_sync(self, async_obj) -> "CalendarObjectResource":
+        """
+        Convert an async calendar object to its sync equivalent.
+
+        Args:
+            async_obj: An AsyncEvent, AsyncTodo, AsyncJournal, or AsyncCalendarObjectResource
+
+        Returns:
+            The corresponding sync object (Event, Todo, Journal, or CalendarObjectResource)
+        """
+        from caldav.async_davobject import (
+            AsyncEvent,
+            AsyncJournal,
+            AsyncTodo,
+        )
+
+        # Determine the correct sync class based on the async type
+        if isinstance(async_obj, AsyncEvent):
+            cls = Event
+        elif isinstance(async_obj, AsyncTodo):
+            cls = Todo
+        elif isinstance(async_obj, AsyncJournal):
+            cls = Journal
+        else:
+            cls = CalendarObjectResource
+
+        return cls(
+            client=self.client,
+            url=async_obj.url,
+            data=async_obj.data,
+            parent=self,
+            id=async_obj.id,
+            props=async_obj.props.copy() if async_obj.props else {},
+        )
+
     def _create(
         self, name=None, id=None, supported_calendar_component_set=None, method=None
     ) -> None:
@@ -1054,6 +1150,41 @@ class Calendar(DAVObject):
          * ``filters`` - other kind of filters (in lxml tree format)
 
         """
+        # Try async delegation for simple cases (non-todo searches or when
+        # include_completed=True). For pending todo searches, use the sync
+        # implementation which has complex logic for handling recurrences
+        # and server compatibility quirks.
+        # Note: When include_completed is not specified and todo=True, the
+        # CalDAVSearcher defaults include_completed to False (pending todos only).
+        is_todo_search = searchargs.get("todo", False)
+        include_completed = searchargs.get("include_completed")
+        # Default include_completed to False for todo searches, True otherwise
+        if include_completed is None:
+            include_completed = not is_todo_search
+        is_pending_todo_search = is_todo_search and not include_completed
+
+        if not is_pending_todo_search:
+            try:
+
+                async def _async_search(async_cal):
+                    return await async_cal.search(
+                        xml=xml,
+                        server_expand=server_expand,
+                        split_expanded=split_expanded,
+                        sort_reverse=sort_reverse,
+                        props=props,
+                        filters=filters,
+                        post_filter=post_filter,
+                        _hacks=_hacks,
+                        **searchargs,
+                    )
+
+                async_results = self._run_async_calendar(_async_search)
+                return [self._async_object_to_sync(obj) for obj in async_results]
+            except NotImplementedError:
+                # Fall back to sync implementation for mocked clients
+                pass
+
         ## Late import to avoid cyclic imports
         from .search import CalDAVSearcher
 

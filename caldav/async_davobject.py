@@ -497,6 +497,10 @@ class AsyncCalendarObjectResource(AsyncDAVObject):
                 import icalendar
 
                 self._icalendar_instance = icalendar.Calendar.from_ical(self._data)
+                # Invalidate _data so that accessing .data later will serialize
+                # the (potentially modified) icalendar_instance instead of
+                # returning stale cached data
+                self._data = None
             except Exception as e:
                 log.error(f"Failed to parse icalendar data: {e}")
         return self._icalendar_instance
@@ -551,6 +555,24 @@ class AsyncCalendarObjectResource(AsyncDAVObject):
             + data.count("BEGIN:VTODO")
             + data.count("BEGIN:VJOURNAL")
         ) > 0
+
+    def copy(self, keep_uid: bool = False, new_parent: Optional[Any] = None) -> Self:
+        """
+        Events, todos etc can be copied within the same calendar, to another
+        calendar or even to another caldav server.
+        """
+        import uuid
+
+        obj = self.__class__(
+            parent=new_parent or self.parent,
+            data=self.data,
+            id=self.id if keep_uid else str(uuid.uuid1()),
+        )
+        if new_parent or not keep_uid:
+            obj.url = obj._generate_url()
+        else:
+            obj.url = self.url
+        return obj
 
     async def load(self, only_if_unloaded: bool = False) -> Self:
         """

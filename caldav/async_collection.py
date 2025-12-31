@@ -715,11 +715,32 @@ class AsyncCalendar(AsyncDAVObject):
         if not xml and filters:
             xml = filters
 
+        # Set post_filter=True when searching for pending todos (same as sync version)
+        # This ensures completed todos are filtered out on the client side
+        if post_filter is None and my_searcher.todo and not my_searcher.include_completed:
+            post_filter = True
+
         # Build the XML query using CalDAVSearcher
         if not xml or (not isinstance(xml, str) and not xml.tag.endswith("calendar-query")):
             (xml, my_searcher.comp_class) = my_searcher.build_search_xml_query(
                 server_expand, props=props, filters=xml, _hacks=_hacks
             )
+
+        # CalDAVSearcher uses sync classes, convert to async equivalents for result objects.
+        # Important: Don't modify my_searcher.comp_class directly, as build_search_xml_query()
+        # may be called again below and it only understands sync classes.
+        from caldav.calendarobjectresource import (
+            Event as SyncEvent,
+            Journal as SyncJournal,
+            Todo as SyncTodo,
+        )
+
+        sync_to_async = {
+            SyncEvent: AsyncEvent,
+            SyncTodo: AsyncTodo,
+            SyncJournal: AsyncJournal,
+        }
+        async_comp_class = sync_to_async.get(my_searcher.comp_class, my_searcher.comp_class)
 
         # Handle servers that require component type in search
         if not my_searcher.comp_class and not self.client.features.is_supported(
@@ -745,7 +766,7 @@ class AsyncCalendar(AsyncDAVObject):
         # Send the REPORT request
         try:
             response, objects = await self._request_report_build_resultlist(
-                xml, my_searcher.comp_class, props
+                xml, async_comp_class, props
             )
         except error.ReportError:
             if self.client.features.backward_compatibility_mode and not my_searcher.comp_class:
