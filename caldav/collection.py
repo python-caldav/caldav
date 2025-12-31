@@ -1150,40 +1150,29 @@ class Calendar(DAVObject):
          * ``filters`` - other kind of filters (in lxml tree format)
 
         """
-        # Try async delegation for simple cases (non-todo searches or when
-        # include_completed=True). For pending todo searches, use the sync
-        # implementation which has complex logic for handling recurrences
-        # and server compatibility quirks.
-        # Note: When include_completed is not specified and todo=True, the
-        # CalDAVSearcher defaults include_completed to False (pending todos only).
-        is_todo_search = searchargs.get("todo", False)
-        include_completed = searchargs.get("include_completed")
-        # Default include_completed to False for todo searches, True otherwise
-        if include_completed is None:
-            include_completed = not is_todo_search
-        is_pending_todo_search = is_todo_search and not include_completed
+        # Try async delegation first - both sync and async now use the same
+        # CalDAVSearcher compatibility logic (sync uses search(), async uses
+        # async_search()), so delegation is safe for all search types.
+        try:
 
-        if not is_pending_todo_search:
-            try:
+            async def _async_search(async_cal):
+                return await async_cal.search(
+                    xml=xml,
+                    server_expand=server_expand,
+                    split_expanded=split_expanded,
+                    sort_reverse=sort_reverse,
+                    props=props,
+                    filters=filters,
+                    post_filter=post_filter,
+                    _hacks=_hacks,
+                    **searchargs,
+                )
 
-                async def _async_search(async_cal):
-                    return await async_cal.search(
-                        xml=xml,
-                        server_expand=server_expand,
-                        split_expanded=split_expanded,
-                        sort_reverse=sort_reverse,
-                        props=props,
-                        filters=filters,
-                        post_filter=post_filter,
-                        _hacks=_hacks,
-                        **searchargs,
-                    )
-
-                async_results = self._run_async_calendar(_async_search)
-                return [self._async_object_to_sync(obj) for obj in async_results]
-            except NotImplementedError:
-                # Fall back to sync implementation for mocked clients
-                pass
+            async_results = self._run_async_calendar(_async_search)
+            return [self._async_object_to_sync(obj) for obj in async_results]
+        except NotImplementedError:
+            # Fall back to sync implementation for mocked clients
+            pass
 
         ## Late import to avoid cyclic imports
         from .search import CalDAVSearcher

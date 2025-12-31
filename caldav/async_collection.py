@@ -651,8 +651,8 @@ class AsyncCalendar(AsyncDAVObject):
         """
         Search for calendar objects.
 
-        This async method delegates to CalDAVSearcher for query building and
-        filtering, but handles the HTTP request asynchronously.
+        This async method uses CalDAVSearcher.async_search() which shares all
+        the compatibility logic with the sync version.
 
         Args:
             xml: Raw XML query to send (overrides other filters)
@@ -715,101 +715,16 @@ class AsyncCalendar(AsyncDAVObject):
         if not xml and filters:
             xml = filters
 
-        # Set post_filter=True when searching for pending todos (same as sync version)
-        # This ensures completed todos are filtered out on the client side
-        if post_filter is None and my_searcher.todo and not my_searcher.include_completed:
-            post_filter = True
-
-        # Build the XML query using CalDAVSearcher
-        if not xml or (not isinstance(xml, str) and not xml.tag.endswith("calendar-query")):
-            (xml, my_searcher.comp_class) = my_searcher.build_search_xml_query(
-                server_expand, props=props, filters=xml, _hacks=_hacks
-            )
-
-        # CalDAVSearcher uses sync classes, convert to async equivalents for result objects.
-        # Important: Don't modify my_searcher.comp_class directly, as build_search_xml_query()
-        # may be called again below and it only understands sync classes.
-        from caldav.calendarobjectresource import (
-            Event as SyncEvent,
-            Journal as SyncJournal,
-            Todo as SyncTodo,
+        # Use CalDAVSearcher.async_search() which has all the compatibility logic
+        return await my_searcher.async_search(
+            self,
+            server_expand=server_expand,
+            split_expanded=split_expanded,
+            props=props,
+            xml=xml,
+            post_filter=post_filter,
+            _hacks=_hacks,
         )
-
-        sync_to_async = {
-            SyncEvent: AsyncEvent,
-            SyncTodo: AsyncTodo,
-            SyncJournal: AsyncJournal,
-        }
-        async_comp_class = sync_to_async.get(my_searcher.comp_class, my_searcher.comp_class)
-
-        # Handle servers that require component type in search
-        if not my_searcher.comp_class and not self.client.features.is_supported(
-            "search.comp-type-optional"
-        ):
-            if my_searcher.include_completed is None:
-                my_searcher.include_completed = True
-            # Search for each component type
-            objects: list[AsyncCalendarObjectResource] = []
-            for comp_class in (AsyncEvent, AsyncTodo, AsyncJournal):
-                try:
-                    comp_xml = my_searcher.build_search_xml_query(
-                        server_expand, props=props, _hacks=_hacks
-                    )[0]
-                    _, comp_objects = await self._request_report_build_resultlist(
-                        comp_xml, comp_class, props
-                    )
-                    objects.extend(comp_objects)
-                except error.ReportError:
-                    pass
-            return my_searcher.sort(objects)
-
-        # Send the REPORT request
-        try:
-            response, objects = await self._request_report_build_resultlist(
-                xml, async_comp_class, props
-            )
-        except error.ReportError:
-            if self.client.features.backward_compatibility_mode and not my_searcher.comp_class:
-                # Try searching with each component type
-                objects = []
-                for comp_class in (AsyncEvent, AsyncTodo, AsyncJournal):
-                    try:
-                        _, comp_objects = await self._request_report_build_resultlist(
-                            xml, comp_class, props
-                        )
-                        objects.extend(comp_objects)
-                    except error.ReportError:
-                        pass
-            else:
-                raise
-
-        # Load objects that need it
-        loaded_objects = []
-        for o in objects:
-            try:
-                await o.load(only_if_unloaded=True)
-                loaded_objects.append(o)
-            except Exception:
-                log.error(
-                    "Server does not want to reveal details about the calendar object",
-                    exc_info=True,
-                )
-        objects = loaded_objects
-
-        # Filter out empty objects (Google quirk)
-        objects = [o for o in objects if o.has_component()]
-
-        # Apply client-side filtering
-        objects = my_searcher.filter(objects, post_filter, split_expanded, server_expand)
-
-        # Ensure objects are loaded
-        for obj in objects:
-            try:
-                await obj.load(only_if_unloaded=True)
-            except Exception:
-                pass
-
-        return my_searcher.sort(objects)
 
     async def events(self) -> list[AsyncEvent]:
         """

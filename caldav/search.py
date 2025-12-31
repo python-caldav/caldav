@@ -3,9 +3,11 @@ from dataclasses import dataclass
 from dataclasses import field
 from dataclasses import replace
 from datetime import datetime
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import List
 from typing import Optional
+from typing import Union
 
 from icalendar import Timezone
 from icalendar.prop import TypesFactory
@@ -22,6 +24,15 @@ from .elements import cdav
 from .elements import dav
 from .elements.base import BaseElement
 from .lib import error
+
+if TYPE_CHECKING:
+    from .async_collection import AsyncCalendar
+    from .async_davobject import (
+        AsyncCalendarObjectResource,
+        AsyncEvent,
+        AsyncJournal,
+        AsyncTodo,
+    )
 
 TypesFactory = TypesFactory()
 
@@ -536,6 +547,303 @@ class CalDAVSearcher(Searcher):
             try:
                 obj.load(only_if_unloaded=True)
             except:
+                pass
+
+        return self.sort(objects)
+
+    async def _async_search_with_comptypes(
+        self,
+        calendar: "AsyncCalendar",
+        server_expand: bool = False,
+        split_expanded: bool = True,
+        props: Optional[List[cdav.CalendarData]] = None,
+        xml: str = None,
+        _hacks: str = None,
+        post_filter: bool = None,
+    ) -> List["AsyncCalendarObjectResource"]:
+        """
+        Internal async method - does three searches, one for each comp class.
+        """
+        # Import async types at runtime to avoid circular imports
+        from .async_davobject import AsyncEvent, AsyncJournal, AsyncTodo
+
+        if xml and (isinstance(xml, str) or "calendar-query" in xml.tag):
+            raise NotImplementedError(
+                "full xml given, and it has to be patched to include comp_type"
+            )
+        objects: List["AsyncCalendarObjectResource"] = []
+
+        assert self.event is None and self.todo is None and self.journal is None
+
+        for comp_class in (AsyncEvent, AsyncTodo, AsyncJournal):
+            clone = replace(self)
+            clone.comp_class = comp_class
+            results = await clone.async_search(
+                calendar, server_expand, split_expanded, props, xml, post_filter, _hacks
+            )
+            objects.extend(results)
+        return self.sort(objects)
+
+    async def async_search(
+        self,
+        calendar: "AsyncCalendar",
+        server_expand: bool = False,
+        split_expanded: bool = True,
+        props: Optional[List[cdav.CalendarData]] = None,
+        xml: str = None,
+        post_filter=None,
+        _hacks: str = None,
+    ) -> List["AsyncCalendarObjectResource"]:
+        """Async version of search() - does the search on an AsyncCalendar.
+
+        This method mirrors the sync search() method but uses async HTTP operations.
+        All the same compatibility logic is applied.
+
+        See the sync search() method for full documentation.
+        """
+        # Import async types at runtime to avoid circular imports
+        from .async_davobject import AsyncEvent, AsyncJournal, AsyncTodo
+
+        ## Handle servers with broken component-type filtering (e.g., Bedework)
+        comp_type_support = calendar.client.features.is_supported(
+            "search.comp-type", str
+        )
+        if (
+            (self.comp_class or self.todo or self.event or self.journal)
+            and comp_type_support == "broken"
+            and not _hacks
+            and post_filter is not False
+        ):
+            _hacks = "no_comp_filter"
+            post_filter = True
+
+        ## Setting default value for post_filter
+        if post_filter is None and (
+            (self.todo and not self.include_completed)
+            or self.expand
+            or "categories" in self._property_filters
+            or "category" in self._property_filters
+            or not calendar.client.features.is_supported("search.text.case-sensitive")
+            or not calendar.client.features.is_supported("search.time-range.accurate")
+        ):
+            post_filter = True
+
+        ## split_expanded should only take effect on expanded data
+        if not self.expand and not server_expand:
+            split_expanded = False
+
+        if self.expand or server_expand:
+            if not self.start or not self.end:
+                raise error.ReportError("can't expand without a date range")
+
+        ## special compatibility-case for servers that does not
+        ## support category search properly
+        things = ("filters", "operator", "locale", "collation")
+        things = [f"_property_{thing}" for thing in things]
+        if (
+            not calendar.client.features.is_supported("search.text.category")
+            and (
+                "categories" in self._property_filters
+                or "category" in self._property_filters
+            )
+            and post_filter is not False
+        ):
+            replacements = {}
+            for thing in things:
+                replacements[thing] = getattr(self, thing).copy()
+                replacements[thing].pop("categories", None)
+                replacements[thing].pop("category", None)
+            clone = replace(self, **replacements)
+            objects = await clone.async_search(
+                calendar, server_expand, split_expanded, props, xml
+            )
+            return self.filter(objects, post_filter, split_expanded, server_expand)
+
+        ## special compatibility-case for servers that do not support substring search
+        if (
+            not calendar.client.features.is_supported("search.text.substring")
+            and post_filter is not False
+        ):
+            explicit_contains = [
+                prop
+                for prop in self._property_operator
+                if prop in self._explicit_operators
+                and self._property_operator[prop] == "contains"
+            ]
+            if explicit_contains:
+                replacements = {}
+                for thing in things:
+                    replacements[thing] = getattr(self, thing).copy()
+                    for prop in explicit_contains:
+                        replacements[thing].pop(prop, None)
+                clone = replace(self, **replacements)
+                clone._explicit_operators = self._explicit_operators - set(
+                    explicit_contains
+                )
+                objects = await clone.async_search(
+                    calendar, server_expand, split_expanded, props, xml
+                )
+                return self.filter(
+                    objects,
+                    post_filter=True,
+                    split_expanded=split_expanded,
+                    server_expand=server_expand,
+                )
+
+        ## special compatibility-case for servers that do not support combined searches
+        if not calendar.client.features.is_supported("search.combined-is-logical-and"):
+            if self.start or self.end:
+                if self._property_filters:
+                    replacements = {}
+                    for thing in things:
+                        replacements[thing] = {}
+                    clone = replace(self, **replacements)
+                    objects = await clone.async_search(
+                        calendar, server_expand, split_expanded, props, xml
+                    )
+                    return self.filter(
+                        objects, post_filter, split_expanded, server_expand
+                    )
+
+        ## special compatibility-case when searching for pending todos
+        if self.todo and not self.include_completed:
+            clone = replace(self, include_completed=True)
+            clone.include_completed = True
+            clone.expand = False
+            if (
+                calendar.client.features.is_supported("search.text")
+                and calendar.client.features.is_supported(
+                    "search.combined-is-logical-and"
+                )
+                and (
+                    not calendar.client.features.is_supported(
+                        "search.recurrences.includes-implicit.todo"
+                    )
+                    or calendar.client.features.is_supported(
+                        "search.recurrences.includes-implicit.todo.pending"
+                    )
+                )
+            ):
+                matches: List["AsyncCalendarObjectResource"] = []
+                for hacks in (
+                    "ignore_completed1",
+                    "ignore_completed2",
+                    "ignore_completed3",
+                ):
+                    results = await clone.async_search(
+                        calendar,
+                        server_expand,
+                        split_expanded=False,
+                        props=props,
+                        xml=xml,
+                        _hacks=hacks,
+                    )
+                    matches.extend(results)
+            else:
+                matches = await clone.async_search(
+                    calendar,
+                    server_expand,
+                    split_expanded=False,
+                    props=props,
+                    xml=xml,
+                    _hacks=_hacks,
+                )
+            objects: List["AsyncCalendarObjectResource"] = []
+            match_set = set()
+            for item in matches:
+                if item.url not in match_set:
+                    match_set.add(item.url)
+                    objects.append(item)
+        else:
+            orig_xml = xml
+
+            if not xml or (
+                not isinstance(xml, str) and not xml.tag.endswith("calendar-query")
+            ):
+                (xml, self.comp_class) = self.build_search_xml_query(
+                    server_expand, props=props, filters=xml, _hacks=_hacks
+                )
+
+            # Convert sync comp_class to async equivalent
+            sync_to_async = {
+                Event: AsyncEvent,
+                Todo: AsyncTodo,
+                Journal: AsyncJournal,
+            }
+            async_comp_class = sync_to_async.get(self.comp_class, self.comp_class)
+
+            if not self.comp_class and not calendar.client.features.is_supported(
+                "search.comp-type-optional"
+            ):
+                if self.include_completed is None:
+                    self.include_completed = True
+
+                return await self._async_search_with_comptypes(
+                    calendar,
+                    server_expand,
+                    split_expanded,
+                    props,
+                    orig_xml,
+                    _hacks,
+                    post_filter,
+                )
+
+            try:
+                (response, objects) = await calendar._request_report_build_resultlist(
+                    xml, async_comp_class, props=props
+                )
+
+            except error.ReportError as err:
+                if (
+                    calendar.client.features.backward_compatibility_mode
+                    and not self.comp_class
+                    and "400" not in err.reason
+                ):
+                    return await self._async_search_with_comptypes(
+                        calendar,
+                        server_expand,
+                        split_expanded,
+                        props,
+                        orig_xml,
+                        _hacks,
+                        post_filter,
+                    )
+                raise
+
+            if not objects and not self.comp_class and _hacks == "insist":
+                return await self._async_search_with_comptypes(
+                    calendar,
+                    server_expand,
+                    split_expanded,
+                    props,
+                    orig_xml,
+                    _hacks,
+                    post_filter,
+                )
+
+        obj2: List["AsyncCalendarObjectResource"] = []
+        for o in objects:
+            try:
+                await o.load(only_if_unloaded=True)
+                obj2.append(o)
+            except Exception:
+                import logging
+
+                logging.error(
+                    "Server does not want to reveal details about the calendar object",
+                    exc_info=True,
+                )
+        objects = obj2
+
+        ## Google sometimes returns empty objects
+        objects = [o for o in objects if o.has_component()]
+        objects = self.filter(objects, post_filter, split_expanded, server_expand)
+
+        ## partial workaround for https://github.com/python-caldav/caldav/issues/201
+        for obj in objects:
+            try:
+                await obj.load(only_if_unloaded=True)
+            except Exception:
                 pass
 
         return self.sort(objects)
