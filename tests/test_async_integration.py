@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- encoding: utf-8 -*-
 """
 Functional integration tests for the async API.
 
@@ -7,12 +6,13 @@ These tests verify that the async API works correctly with real CalDAV servers.
 They run against all available servers (Radicale, Xandikos, Docker servers)
 using the same dynamic class generation pattern as the sync tests.
 """
+from datetime import datetime
+from typing import Any
+
 import pytest
 import pytest_asyncio
-from datetime import datetime
-from typing import Any, Dict
 
-from .test_servers import get_available_servers, TestServer
+from .test_servers import TestServer, get_available_servers
 
 # Test data
 ev1 = """BEGIN:VCALENDAR
@@ -270,7 +270,7 @@ class AsyncFunctionalTestsBaseClass:
 # Create a test class for each available server, similar to how
 # test_caldav.py works for sync tests.
 
-_generated_classes: Dict[str, type] = {}
+_generated_classes: dict[str, type] = {}
 
 for _server in get_available_servers():
     _classname = f"TestAsyncFor{_server.name.replace(' ', '')}"

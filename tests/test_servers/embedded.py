@@ -8,14 +8,14 @@ in-process: Radicale and Xandikos.
 import socket
 import tempfile
 import threading
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 try:
     import niquests as requests
 except ImportError:
     import requests  # type: ignore
 
-from .base import EmbeddedTestServer, STARTUP_POLL_INTERVAL, MAX_STARTUP_WAIT_SECONDS
+from .base import EmbeddedTestServer
 from .registry import register_server_class
 
 
@@ -29,7 +29,7 @@ class RadicaleTestServer(EmbeddedTestServer):
 
     name = "LocalRadicale"
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:
+    def __init__(self, config: Optional[dict[str, Any]] = None) -> None:
         config = config or {}
         config.setdefault("host", "localhost")
         config.setdefault("port", 5232)
@@ -71,8 +71,8 @@ class RadicaleTestServer(EmbeddedTestServer):
             import radicale
             import radicale.config
             import radicale.server
-        except ImportError:
-            raise RuntimeError("Radicale is not installed")
+        except ImportError as e:
+            raise RuntimeError("Radicale is not installed") from e
 
         # Create temporary storage directory
         self.serverdir = tempfile.TemporaryDirectory()
@@ -148,7 +148,7 @@ class XandikosTestServer(EmbeddedTestServer):
 
     name = "LocalXandikos"
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:
+    def __init__(self, config: Optional[dict[str, Any]] = None) -> None:
         config = config or {}
         config.setdefault("host", "localhost")
         config.setdefault("port", 8993)
@@ -187,10 +187,11 @@ class XandikosTestServer(EmbeddedTestServer):
 
         try:
             from xandikos.web import XandikosApp, XandikosBackend
-        except ImportError:
-            raise RuntimeError("Xandikos is not installed")
+        except ImportError as e:
+            raise RuntimeError("Xandikos is not installed") from e
 
         import asyncio
+
         from aiohttp import web
 
         # Create temporary storage directory
