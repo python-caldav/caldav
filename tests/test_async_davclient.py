@@ -599,7 +599,7 @@ class TestGetDAVClient:
         """Test that get_davclient raises error without URL."""
         # Clear any env vars that might be set
         with patch.dict(os.environ, {}, clear=True):
-            with pytest.raises(ValueError, match="URL is required"):
+            with pytest.raises(ValueError, match="No configuration found"):
                 await get_davclient(username="user", password="pass", probe=False)
 
     @pytest.mark.asyncio
