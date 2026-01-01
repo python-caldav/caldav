@@ -52,8 +52,10 @@ class RadicaleTestServer(EmbeddedTestServer):
 
     def is_accessible(self) -> bool:
         try:
+            # Check the user URL to ensure the server is ready
+            # and to auto-create the user collection (Radicale does this on first access)
             response = requests.get(
-                f"http://{self.host}:{self.port}",
+                f"http://{self.host}:{self.port}/{self.username}",
                 timeout=2,
             )
             return response.status_code in (200, 401, 403, 404)
@@ -95,6 +97,27 @@ class RadicaleTestServer(EmbeddedTestServer):
 
         # Wait for server to be ready
         self._wait_for_startup()
+
+        # Create the user collection with MKCOL
+        # Radicale requires the parent collection to exist before MKCALENDAR
+        user_url = f"http://{self.host}:{self.port}/{self.username}/"
+        try:
+            response = requests.request(
+                "MKCOL",
+                user_url,
+                timeout=5,
+            )
+            # 201 = created, 405 = already exists (or method not allowed)
+            if response.status_code not in (200, 201, 204, 405):
+                # Some servers need a trailing slash, try without
+                response = requests.request(
+                    "MKCOL",
+                    user_url.rstrip("/"),
+                    timeout=5,
+                )
+        except Exception:
+            pass  # Ignore errors, the collection might already exist
+
         self._started = True
 
     def stop(self) -> None:
@@ -136,6 +159,7 @@ class XandikosTestServer(EmbeddedTestServer):
         self.serverdir: Optional[tempfile.TemporaryDirectory] = None
         self.xapp_loop: Optional[Any] = None
         self.xapp_runner: Optional[Any] = None
+        self.xapp: Optional[Any] = None
         self.thread: Optional[threading.Thread] = None
 
     def _default_port(self) -> int:
@@ -162,8 +186,7 @@ class XandikosTestServer(EmbeddedTestServer):
             return
 
         try:
-            import xandikos
-            import xandikos.web
+            from xandikos.web import XandikosApp, XandikosBackend
         except ImportError:
             raise RuntimeError("Xandikos is not installed")
 
@@ -174,31 +197,35 @@ class XandikosTestServer(EmbeddedTestServer):
         self.serverdir = tempfile.TemporaryDirectory()
         self.serverdir.__enter__()
 
-        # Create and configure the Xandikos app
-        xapp = xandikos.web.XandikosApp(
-            self.serverdir.name,
-            current_user_principal=f"/{self.username}/",
-            autocreate=True,
+        # Create backend and configure principal (following conf.py pattern)
+        backend = XandikosBackend(path=self.serverdir.name)
+        backend._mark_as_principal(f"/{self.username}/")
+        backend.create_principal(f"/{self.username}/", create_defaults=True)
+
+        # Create the Xandikos app with the backend
+        mainapp = XandikosApp(
+            backend, current_user_principal=self.username, strict=True
         )
 
-        async def start_app() -> None:
-            self.xapp_runner = web.AppRunner(xapp.app)
-            await self.xapp_runner.setup()
-            site = web.TCPSite(self.xapp_runner, self.host, self.port)
-            await site.start()
-            # Keep running until cancelled
-            while True:
-                await asyncio.sleep(3600)
+        # Create aiohttp handler
+        async def xandikos_handler(request: web.Request) -> web.Response:
+            return await mainapp.aiohttp_handler(request, "/")
+
+        self.xapp = web.Application()
+        self.xapp.router.add_route("*", "/{path_info:.*}", xandikos_handler)
 
         def run_in_thread() -> None:
             self.xapp_loop = asyncio.new_event_loop()
             asyncio.set_event_loop(self.xapp_loop)
-            try:
-                self.xapp_loop.run_until_complete(start_app())
-            except asyncio.CancelledError:
-                pass
-            finally:
-                self.xapp_loop.close()
+
+            async def start_app() -> None:
+                self.xapp_runner = web.AppRunner(self.xapp)
+                await self.xapp_runner.setup()
+                site = web.TCPSite(self.xapp_runner, self.host, self.port)
+                await site.start()
+
+            self.xapp_loop.run_until_complete(start_app())
+            self.xapp_loop.run_forever()
 
         # Start server in a background thread
         self.thread = threading.Thread(target=run_in_thread)
@@ -210,25 +237,33 @@ class XandikosTestServer(EmbeddedTestServer):
 
     def stop(self) -> None:
         """Stop the Xandikos server and cleanup."""
-        import asyncio
-
-        if self.xapp_loop and self.xapp_runner:
-            # Schedule cleanup in the event loop
-            async def cleanup() -> None:
-                await self.xapp_runner.cleanup()
-
-            future = asyncio.run_coroutine_threadsafe(cleanup(), self.xapp_loop)
-            try:
-                future.result(timeout=5)
-            except Exception:
-                pass
-
-            # Stop the event loop
+        if self.xapp_loop:
             self.xapp_loop.call_soon_threadsafe(self.xapp_loop.stop)
+
+            # Send a dummy request to unblock the event loop if needed
+            def silly_request() -> None:
+                try:
+                    requests.get(f"http://{self.host}:{self.port}", timeout=1)
+                except Exception:
+                    pass
+
+            threading.Thread(target=silly_request).start()
 
         if self.thread:
             self.thread.join(timeout=5)
             self.thread = None
+
+        if self.xapp_loop and self.xapp_runner:
+            # Cleanup the runner
+            import asyncio
+
+            try:
+                # Create a new loop just for cleanup since the old one is stopped
+                cleanup_loop = asyncio.new_event_loop()
+                cleanup_loop.run_until_complete(self.xapp_runner.cleanup())
+                cleanup_loop.close()
+            except Exception:
+                pass
 
         if self.serverdir:
             self.serverdir.__exit__(None, None, None)
@@ -236,6 +271,7 @@ class XandikosTestServer(EmbeddedTestServer):
 
         self.xapp_loop = None
         self.xapp_runner = None
+        self.xapp = None
         self._started = False
 
 

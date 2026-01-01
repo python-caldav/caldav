@@ -553,8 +553,8 @@ class AsyncDAVClient:
         if depth is not None:
             headers["Depth"] = str(depth)
 
-        # Add Content-Type for REPORT method
-        if method == "REPORT":
+        # Add Content-Type for methods that typically send XML bodies
+        if method in ("REPORT", "PROPFIND", "PROPPATCH", "MKCALENDAR", "MKCOL"):
             headers["Content-Type"] = 'application/xml; charset="utf-8"'
 
         # Merge additional headers
