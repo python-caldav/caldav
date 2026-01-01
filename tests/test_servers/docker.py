@@ -1,0 +1,196 @@
+"""
+Docker-based test server implementations.
+
+This module provides test server implementations for servers that run
+in Docker containers: Baikal, Nextcloud, Cyrus, SOGo, and Bedework.
+"""
+
+import os
+from typing import Any, Dict, Optional
+
+try:
+    import niquests as requests
+except ImportError:
+    import requests  # type: ignore
+
+from .base import DockerTestServer, DEFAULT_HTTP_TIMEOUT
+from .registry import register_server_class
+
+
+class BaikalTestServer(DockerTestServer):
+    """
+    Baikal CalDAV server in Docker.
+
+    Baikal is a lightweight CalDAV/CardDAV server.
+    """
+
+    name = "Baikal"
+
+    def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:
+        config = config or {}
+        config.setdefault("host", os.environ.get("BAIKAL_HOST", "localhost"))
+        config.setdefault("port", int(os.environ.get("BAIKAL_PORT", "8800")))
+        config.setdefault("username", os.environ.get("BAIKAL_USERNAME", "testuser"))
+        config.setdefault("password", os.environ.get("BAIKAL_PASSWORD", "testpass"))
+        super().__init__(config)
+
+    def _default_port(self) -> int:
+        return 8800
+
+    @property
+    def url(self) -> str:
+        return f"http://{self.host}:{self.port}/dav.php"
+
+
+class NextcloudTestServer(DockerTestServer):
+    """
+    Nextcloud CalDAV server in Docker.
+
+    Nextcloud is a self-hosted cloud platform with CalDAV support.
+    """
+
+    name = "Nextcloud"
+
+    def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:
+        config = config or {}
+        config.setdefault("host", os.environ.get("NEXTCLOUD_HOST", "localhost"))
+        config.setdefault("port", int(os.environ.get("NEXTCLOUD_PORT", "8801")))
+        config.setdefault("username", os.environ.get("NEXTCLOUD_USERNAME", "testuser"))
+        config.setdefault(
+            "password", os.environ.get("NEXTCLOUD_PASSWORD", "TestPassword123!")
+        )
+        super().__init__(config)
+
+    def _default_port(self) -> int:
+        return 8801
+
+    @property
+    def url(self) -> str:
+        return f"http://{self.host}:{self.port}/remote.php/dav"
+
+    def is_accessible(self) -> bool:
+        """Check if Nextcloud is accessible."""
+        try:
+            response = requests.get(f"{self.url}/", timeout=DEFAULT_HTTP_TIMEOUT)
+            return response.status_code in (200, 207, 401, 403, 404)
+        except Exception:
+            return False
+
+
+class CyrusTestServer(DockerTestServer):
+    """
+    Cyrus IMAP server with CalDAV support in Docker.
+
+    Cyrus is a mail server that also supports CalDAV/CardDAV.
+    """
+
+    name = "Cyrus"
+
+    def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:
+        config = config or {}
+        config.setdefault("host", os.environ.get("CYRUS_HOST", "localhost"))
+        config.setdefault("port", int(os.environ.get("CYRUS_PORT", "8802")))
+        config.setdefault("username", os.environ.get("CYRUS_USERNAME", "testuser@test.local"))
+        config.setdefault("password", os.environ.get("CYRUS_PASSWORD", "testpassword"))
+        super().__init__(config)
+
+    def _default_port(self) -> int:
+        return 8802
+
+    @property
+    def url(self) -> str:
+        return f"http://{self.host}:{self.port}/dav/calendars/user/{self.username.split('@')[0]}"
+
+    def is_accessible(self) -> bool:
+        """Check if Cyrus is accessible using PROPFIND."""
+        try:
+            response = requests.request(
+                "PROPFIND",
+                f"http://{self.host}:{self.port}/dav/",
+                timeout=DEFAULT_HTTP_TIMEOUT,
+            )
+            return response.status_code in (200, 207, 401, 403, 404)
+        except Exception:
+            return False
+
+
+class SOGoTestServer(DockerTestServer):
+    """
+    SOGo groupware server in Docker.
+
+    SOGo is an open-source groupware server with CalDAV support.
+    """
+
+    name = "SOGo"
+
+    def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:
+        config = config or {}
+        config.setdefault("host", os.environ.get("SOGO_HOST", "localhost"))
+        config.setdefault("port", int(os.environ.get("SOGO_PORT", "8803")))
+        config.setdefault("username", os.environ.get("SOGO_USERNAME", "testuser"))
+        config.setdefault("password", os.environ.get("SOGO_PASSWORD", "testpassword"))
+        super().__init__(config)
+
+    def _default_port(self) -> int:
+        return 8803
+
+    @property
+    def url(self) -> str:
+        return f"http://{self.host}:{self.port}/SOGo/dav/{self.username}"
+
+    def is_accessible(self) -> bool:
+        """Check if SOGo is accessible using PROPFIND."""
+        try:
+            response = requests.request(
+                "PROPFIND",
+                f"http://{self.host}:{self.port}/SOGo/",
+                timeout=DEFAULT_HTTP_TIMEOUT,
+            )
+            return response.status_code in (200, 207, 401, 403, 404)
+        except Exception:
+            return False
+
+
+class BedeworkTestServer(DockerTestServer):
+    """
+    Bedework calendar server in Docker.
+
+    Bedework is an enterprise-class open-source calendar system.
+    """
+
+    name = "Bedework"
+
+    def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:
+        config = config or {}
+        config.setdefault("host", os.environ.get("BEDEWORK_HOST", "localhost"))
+        config.setdefault("port", int(os.environ.get("BEDEWORK_PORT", "8804")))
+        config.setdefault("username", os.environ.get("BEDEWORK_USERNAME", "admin"))
+        config.setdefault("password", os.environ.get("BEDEWORK_PASSWORD", "bedework"))
+        super().__init__(config)
+
+    def _default_port(self) -> int:
+        return 8804
+
+    @property
+    def url(self) -> str:
+        return f"http://{self.host}:{self.port}/ucaldav/user/{self.username}"
+
+    def is_accessible(self) -> bool:
+        """Check if Bedework is accessible using PROPFIND."""
+        try:
+            response = requests.request(
+                "PROPFIND",
+                f"http://{self.host}:{self.port}/ucaldav/",
+                timeout=DEFAULT_HTTP_TIMEOUT,
+            )
+            return response.status_code in (200, 207, 401, 403, 404)
+        except Exception:
+            return False
+
+
+# Register server classes
+register_server_class("baikal", BaikalTestServer)
+register_server_class("nextcloud", NextcloudTestServer)
+register_server_class("cyrus", CyrusTestServer)
+register_server_class("sogo", SOGoTestServer)
+register_server_class("bedework", BedeworkTestServer)
