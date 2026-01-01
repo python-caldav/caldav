@@ -6,29 +6,18 @@ This module provides async versions of the DAV object classes.
 For sync usage, see the davobject.py wrapper.
 """
 import sys
-from typing import Any
-from typing import Dict
-from typing import List
-from typing import Optional
-from typing import Sequence
-from typing import Tuple
-from typing import TYPE_CHECKING
-from typing import Union
-from urllib.parse import ParseResult
-from urllib.parse import quote
-from urllib.parse import SplitResult
-from urllib.parse import unquote
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
+from urllib.parse import ParseResult, SplitResult, quote, unquote
 
 from lxml import etree
 
-from caldav.elements import cdav
-from caldav.elements import dav
+from caldav.elements import cdav, dav
 from caldav.elements.base import BaseElement
 from caldav.lib import error
 from caldav.lib.python_utilities import to_wire
 from caldav.lib.url import URL
-from caldav.objects import errmsg
-from caldav.objects import log
+from caldav.objects import errmsg, log
 
 if sys.version_info < (3, 11):
     from typing_extensions import Self
@@ -772,6 +761,87 @@ class AsyncTodo(AsyncCalendarObjectResource):
     """Async version of Todo. Uses DUE as the end parameter."""
 
     _ENDPARAM = "DUE"
+
+    def is_pending(self, component: Optional[Any] = None) -> Optional[bool]:
+        """
+        Check if the todo is pending (not completed).
+
+        Args:
+            component: Optional icalendar component (defaults to self.icalendar_component)
+
+        Returns:
+            True if pending, False if completed/cancelled, None if unknown
+        """
+        if component is None:
+            component = self.icalendar_component
+        if component.get("COMPLETED", None) is not None:
+            return False
+        status = component.get("STATUS", "NEEDS-ACTION")
+        if status in ("NEEDS-ACTION", "IN-PROCESS"):
+            return True
+        if status in ("CANCELLED", "COMPLETED"):
+            return False
+        return None
+
+    def _complete_ical(
+        self,
+        component: Optional[Any] = None,
+        completion_timestamp: Optional[Any] = None,
+    ) -> None:
+        """Mark the icalendar component as completed."""
+        from datetime import datetime, timezone
+
+        if component is None:
+            component = self.icalendar_component
+        if completion_timestamp is None:
+            completion_timestamp = datetime.now(timezone.utc)
+
+        assert self.is_pending(component)
+        component.pop("STATUS", None)
+        component.add("STATUS", "COMPLETED")
+        component.add("COMPLETED", completion_timestamp)
+
+    async def complete(
+        self,
+        completion_timestamp: Optional[Any] = None,
+        handle_rrule: bool = False,
+    ) -> None:
+        """
+        Mark the todo as completed.
+
+        Args:
+            completion_timestamp: When the task was completed (defaults to now)
+            handle_rrule: If True, handle recurring tasks specially (not yet implemented in async)
+
+        Note:
+            The handle_rrule parameter is not yet fully implemented in the async version.
+            For recurring tasks, use the sync API or set handle_rrule=False.
+        """
+        from datetime import datetime, timezone
+
+        if not completion_timestamp:
+            completion_timestamp = datetime.now(timezone.utc)
+
+        if "RRULE" in self.icalendar_component and handle_rrule:
+            raise NotImplementedError(
+                "Recurring task completion is not yet implemented in the async API. "
+                "Use handle_rrule=False or use the sync API."
+            )
+
+        self._complete_ical(completion_timestamp=completion_timestamp)
+        await self.save()
+
+    async def uncomplete(self) -> None:
+        """
+        Undo completion - marks a completed task as not completed.
+        """
+        component = self.icalendar_component
+        if "status" in component:
+            component.pop("status")
+        component.add("status", "NEEDS-ACTION")
+        if "completed" in component:
+            component.pop("completed")
+        await self.save()
 
 
 class AsyncJournal(AsyncCalendarObjectResource):
