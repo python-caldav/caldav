@@ -756,11 +756,84 @@ class AsyncEvent(AsyncCalendarObjectResource):
 
     _ENDPARAM = "DTEND"
 
+    def get_duration(self) -> Any:
+        """
+        Get the duration for this event.
+
+        Returns DURATION if set, otherwise calculates from DTEND - DTSTART.
+
+        Returns:
+            timedelta representing the duration
+        """
+        from datetime import datetime, timedelta
+
+        component = self.icalendar_component
+        if "DURATION" in component:
+            return component["DURATION"].dt
+        elif "DTSTART" in component and self._ENDPARAM in component:
+            end = component[self._ENDPARAM].dt
+            start = component["DTSTART"].dt
+            # Handle mismatch between date and datetime
+            if isinstance(end, datetime) != isinstance(start, datetime):
+                start = datetime(start.year, start.month, start.day)
+                end = datetime(end.year, end.month, end.day)
+            return end - start
+        elif "DTSTART" in component and not isinstance(component["DTSTART"], datetime):
+            return timedelta(days=1)
+        return timedelta(0)
+
 
 class AsyncTodo(AsyncCalendarObjectResource):
     """Async version of Todo. Uses DUE as the end parameter."""
 
     _ENDPARAM = "DUE"
+
+    def get_due(self) -> Optional[Any]:
+        """
+        Get the DUE date/time for this todo.
+
+        A VTODO may have DUE or DURATION set. This returns or calculates DUE.
+
+        Returns:
+            datetime or date if set, None otherwise
+        """
+        component = self.icalendar_component
+        if "DUE" in component:
+            return component["DUE"].dt
+        elif "DTEND" in component:
+            return component["DTEND"].dt
+        elif "DURATION" in component and "DTSTART" in component:
+            return component["DTSTART"].dt + component["DURATION"].dt
+        return None
+
+    # Alias for compatibility
+    get_dtend = get_due
+
+    def get_duration(self) -> Any:
+        """
+        Get the duration for this todo.
+
+        Returns DURATION if set, otherwise calculates from DUE - DTSTART.
+
+        Returns:
+            timedelta representing the duration
+        """
+        from datetime import datetime, timedelta
+
+        component = self.icalendar_component
+        if "DURATION" in component:
+            return component["DURATION"].dt
+        elif "DTSTART" in component and self._ENDPARAM in component:
+            end = component[self._ENDPARAM].dt
+            start = component["DTSTART"].dt
+            # Handle mismatch between date and datetime
+            if isinstance(end, datetime) != isinstance(start, datetime):
+                start = datetime(start.year, start.month, start.day)
+                end = datetime(end.year, end.month, end.day)
+            return end - start
+        elif "DTSTART" in component and not isinstance(component["DTSTART"], datetime):
+            return timedelta(days=1)
+        return timedelta(0)
 
     def is_pending(self, component: Optional[Any] = None) -> Optional[bool]:
         """
