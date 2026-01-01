@@ -1,6 +1,10 @@
 import json
 import logging
 import os
+import re
+import sys
+from fnmatch import fnmatch
+from typing import Any, Dict, Optional, Union
 
 """
 This configuration parsing code was just copied from my plann library (and will be removed from there at some point in the future).  Test coverage is poor as for now.
@@ -123,3 +127,235 @@ def read_config(fn, interactive_error=False):
         else:
             logging.error("error in config file.  It will be ignored", exc_info=True)
     return {}
+
+
+def expand_env_vars(value: Any) -> Any:
+    """
+    Expand environment variable references in configuration values.
+
+    Supports two syntaxes:
+    - ${VAR} - expands to the value of VAR, or empty string if not set
+    - ${VAR:-default} - expands to the value of VAR, or 'default' if not set
+
+    Works recursively on dicts and lists.
+
+    Examples:
+        >>> os.environ['TEST_VAR'] = 'hello'
+        >>> expand_env_vars('${TEST_VAR}')
+        'hello'
+        >>> expand_env_vars('${MISSING:-default_value}')
+        'default_value'
+        >>> expand_env_vars({'key': '${TEST_VAR}'})
+        {'key': 'hello'}
+    """
+    if isinstance(value, str):
+        # Pattern matches ${VAR} or ${VAR:-default}
+        pattern = r"\$\{([^}:]+)(?::-([^}]*))?\}"
+
+        def replacer(match: re.Match) -> str:
+            var_name = match.group(1)
+            default = match.group(2) if match.group(2) is not None else ""
+            return os.environ.get(var_name, default)
+
+        return re.sub(pattern, replacer, value)
+    elif isinstance(value, dict):
+        return {k: expand_env_vars(v) for k, v in value.items()}
+    elif isinstance(value, list):
+        return [expand_env_vars(v) for v in value]
+    return value
+
+
+# Valid connection parameter keys for DAVClient
+CONNKEYS = frozenset(
+    [
+        "url",
+        "proxy",
+        "username",
+        "password",
+        "timeout",
+        "headers",
+        "huge_tree",
+        "ssl_verify_cert",
+        "ssl_cert",
+        "auth",
+        "auth_type",
+        "features",
+        "enable_rfc6764",
+        "require_tls",
+    ]
+)
+
+
+def get_connection_params(
+    check_config_file: bool = True,
+    config_file: Optional[str] = None,
+    config_section: Optional[str] = None,
+    testconfig: bool = False,
+    environment: bool = True,
+    name: Optional[str] = None,
+    **explicit_params: Any,
+) -> Optional[Dict[str, Any]]:
+    """
+    Get connection parameters from multiple sources.
+
+    This is THE single source of truth for configuration discovery.
+    Both sync and async get_davclient() functions should use this.
+
+    Priority (first non-empty wins):
+    1. Explicit parameters (url=, username=, password=, etc.)
+    2. Test server config (if testconfig=True or PYTHON_CALDAV_USE_TEST_SERVER env var)
+    3. Environment variables (CALDAV_URL, CALDAV_USERNAME, etc.)
+    4. Config file (CALDAV_CONFIG_FILE env var or default locations)
+
+    Args:
+        check_config_file: Whether to look for config files
+        config_file: Explicit path to config file
+        config_section: Section name in config file (default: "default")
+        testconfig: Whether to use test server configuration
+        environment: Whether to read from environment variables
+        name: Name of test server to use (for testconfig)
+        **explicit_params: Explicit connection parameters
+
+    Returns:
+        Dict with connection parameters (url, username, password, etc.)
+        or None if no configuration found.
+    """
+    # 1. Explicit parameters take highest priority
+    if explicit_params:
+        # Filter to valid connection keys
+        conn_params = {k: v for k, v in explicit_params.items() if k in CONNKEYS}
+        if conn_params.get("url"):
+            return conn_params
+
+    # 2. Test server configuration
+    if testconfig or (environment and os.environ.get("PYTHON_CALDAV_USE_TEST_SERVER")):
+        conn = _get_test_server_config(name, environment)
+        if conn is not None:
+            return conn
+
+    # 3. Environment variables (CALDAV_*)
+    if environment:
+        conn_params = _get_env_config()
+        if conn_params:
+            return conn_params
+
+        # Also check for config file path from environment
+        if not config_file:
+            config_file = os.environ.get("CALDAV_CONFIG_FILE")
+        if not config_section:
+            config_section = os.environ.get("CALDAV_CONFIG_SECTION")
+
+    # 4. Config file
+    if check_config_file:
+        conn_params = _get_file_config(config_file, config_section)
+        if conn_params:
+            return conn_params
+
+    return None
+
+
+def _get_env_config() -> Optional[Dict[str, Any]]:
+    """Extract connection parameters from CALDAV_* environment variables."""
+    conf: Dict[str, Any] = {}
+    for env_key in os.environ:
+        if env_key.startswith("CALDAV_") and not env_key.startswith("CALDAV_CONFIG"):
+            key = env_key[7:].lower()
+            # Map common aliases
+            if key == "pass":
+                key = "password"
+            elif key == "user":
+                key = "username"
+            if key in CONNKEYS:
+                conf[key] = os.environ[env_key]
+    return conf if conf else None
+
+
+def _get_file_config(
+    file_path: Optional[str], section_name: Optional[str]
+) -> Optional[Dict[str, Any]]:
+    """Extract connection parameters from config file."""
+    if not section_name:
+        section_name = "default"
+
+    cfg = read_config(file_path)
+    if not cfg:
+        return None
+
+    section_data = config_section(cfg, section_name)
+    conn_params: Dict[str, Any] = {}
+    for k in section_data:
+        if k.startswith("caldav_") and section_data[k]:
+            key = k[7:]
+            # Map common aliases
+            if key == "pass":
+                key = "password"
+            elif key == "user":
+                key = "username"
+            if key in CONNKEYS:
+                conn_params[key] = section_data[k]
+
+    return conn_params if conn_params else None
+
+
+def _get_test_server_config(
+    name: Optional[str], environment: bool
+) -> Optional[Dict[str, Any]]:
+    """
+    Get connection parameters from test server configuration.
+
+    This imports from tests/conf.py and uses the client() function there.
+    """
+    # Save current sys.path
+    original_path = sys.path.copy()
+
+    try:
+        sys.path.insert(0, "tests")
+        sys.path.insert(1, ".")
+
+        try:
+            from conf import client
+        except ImportError:
+            return None
+
+        # Parse server selection from environment
+        idx: Optional[int] = None
+        if environment:
+            idx_str = os.environ.get("PYTHON_CALDAV_TEST_SERVER_IDX")
+            if idx_str:
+                try:
+                    idx = int(idx_str)
+                except (ValueError, TypeError):
+                    pass
+
+            name = name or os.environ.get("PYTHON_CALDAV_TEST_SERVER_NAME")
+            if name and idx is None:
+                try:
+                    idx = int(name)
+                    name = None
+                except ValueError:
+                    pass
+
+        conn = client(idx, name)
+        if conn is None:
+            return None
+
+        # Extract connection parameters from DAVClient object
+        conn_params: Dict[str, Any] = {}
+        for key in CONNKEYS:
+            if hasattr(conn, key):
+                value = getattr(conn, key)
+                if value is not None:
+                    conn_params[key] = value
+
+        # The client may have setup/teardown - store them too
+        if hasattr(conn, "setup"):
+            conn_params["_setup"] = conn.setup
+        if hasattr(conn, "teardown"):
+            conn_params["_teardown"] = conn.teardown
+        if hasattr(conn, "server_name"):
+            conn_params["_server_name"] = conn.server_name
+
+        return conn_params
+
+    finally:
+        sys.path = original_path

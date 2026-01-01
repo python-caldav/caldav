@@ -987,50 +987,90 @@ async def get_davclient(
     username: Optional[str] = None,
     password: Optional[str] = None,
     probe: bool = True,
+    check_config_file: bool = True,
+    config_file: Optional[str] = None,
+    config_section: Optional[str] = None,
+    testconfig: bool = False,
+    environment: bool = True,
+    name: Optional[str] = None,
     **kwargs: Any,
 ) -> AsyncDAVClient:
     """
     Get an async DAV client instance.
 
-    This is the recommended way to create a DAV client. It supports:
+    This is the recommended way to create an async DAV client. It supports:
+    - Explicit parameters (url=, username=, password=, etc.)
+    - Test server config (if testconfig=True or PYTHON_CALDAV_USE_TEST_SERVER env var)
     - Environment variables (CALDAV_URL, CALDAV_USERNAME, CALDAV_PASSWORD)
-    - Configuration files (if implemented)
+    - Configuration files (JSON/YAML in ~/.config/caldav/)
     - Connection probing to verify server accessibility
 
     Args:
         url: CalDAV server URL, domain, or email address.
-             Falls back to CALDAV_URL environment variable.
         username: Username for authentication.
-                  Falls back to CALDAV_USERNAME environment variable.
         password: Password for authentication.
-                  Falls back to CALDAV_PASSWORD environment variable.
         probe: Verify connectivity with OPTIONS request (default: True).
+        check_config_file: Whether to look for config files (default: True).
+        config_file: Explicit path to config file.
+        config_section: Section name in config file (default: "default").
+        testconfig: Whether to use test server configuration.
+        environment: Whether to read from environment variables (default: True).
+        name: Name of test server to use (for testconfig).
         **kwargs: Additional arguments passed to AsyncDAVClient.__init__().
 
     Returns:
         AsyncDAVClient instance.
 
+    Raises:
+        ValueError: If no configuration is found.
+
     Example:
         async with await get_davclient(url="...", username="...", password="...") as client:
-            principal = await client.get_principal()
+            principal = await AsyncPrincipal.create(client)
     """
-    # Fall back to environment variables
-    url = url or os.environ.get("CALDAV_URL")
-    username = username or os.environ.get("CALDAV_USERNAME")
-    password = password or os.environ.get("CALDAV_PASSWORD")
+    from . import config as config_module
 
-    if not url:
+    # Merge explicit url/username/password into kwargs for config lookup
+    explicit_params = dict(kwargs)
+    if url:
+        explicit_params["url"] = url
+    if username:
+        explicit_params["username"] = username
+    if password:
+        explicit_params["password"] = password
+
+    # Use unified config discovery
+    conn_params = config_module.get_connection_params(
+        check_config_file=check_config_file,
+        config_file=config_file,
+        config_section=config_section,
+        testconfig=testconfig,
+        environment=environment,
+        name=name,
+        **explicit_params,
+    )
+
+    if conn_params is None:
         raise ValueError(
-            "URL is required. Provide via url parameter or CALDAV_URL environment variable."
+            "No configuration found. Provide connection parameters, "
+            "set CALDAV_URL environment variable, or create a config file."
         )
 
+    # Extract special keys that aren't connection params
+    setup_func = conn_params.pop("_setup", None)
+    teardown_func = conn_params.pop("_teardown", None)
+    server_name = conn_params.pop("_server_name", None)
+
     # Create client
-    client = AsyncDAVClient(
-        url=url,
-        username=username,
-        password=password,
-        **kwargs,
-    )
+    client = AsyncDAVClient(**conn_params)
+
+    # Attach test server metadata if present
+    if setup_func is not None:
+        client.setup = setup_func
+    if teardown_func is not None:
+        client.teardown = teardown_func
+    if server_name is not None:
+        client.server_name = server_name
 
     # Probe connection if requested
     if probe:

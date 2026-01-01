@@ -1409,78 +1409,63 @@ def get_davclient(
     **config_data,
 ) -> "DAVClient":
     """
-    This function will yield a DAVClient object.  It will not try to
-    connect (see auto_calendars for that).  It will read configuration
-    from various sources, dependent on the parameters given, in this
-    order:
+    Get a DAVClient object with configuration from multiple sources.
 
-    * Data from the parameters given
-    * Environment variables prepended with `CALDAV_`, like `CALDAV_URL`, `CALDAV_USERNAME`, `CALDAV_PASSWORD`.
-    * Environment variables `PYTHON_CALDAV_USE_TEST_SERVER` and `CALDAV_CONFIG_FILE` will be honored if environment is set
-    * Data from `./tests/conf.py` or `./conf.py` (this includes the possibility to spin up a test server)
-    * Configuration file.  Documented in the plann project as for now.  (TODO - move it)
+    This function reads configuration from various sources in priority order:
+
+    1. Explicit parameters (url=, username=, password=, etc.)
+    2. Test server config (if testconfig=True or PYTHON_CALDAV_USE_TEST_SERVER env var)
+    3. Environment variables (CALDAV_URL, CALDAV_USERNAME, etc.)
+    4. Config file (CALDAV_CONFIG_FILE env var or default locations)
+
+    Args:
+        check_config_file: Whether to look for config files (default: True)
+        config_file: Explicit path to config file
+        config_section: Section name in config file (default: "default")
+        testconfig: Whether to use test server configuration
+        environment: Whether to read from environment variables (default: True)
+        name: Name of test server to use (for testconfig)
+        **config_data: Explicit connection parameters
+
+    Returns:
+        DAVClient instance
+
+    Raises:
+        ValueError: If no configuration is found
     """
-    if config_data:
-        return DAVClient(**config_data)
+    from . import config
 
-    if testconfig or (environment and os.environ.get("PYTHON_CALDAV_USE_TEST_SERVER")):
-        sys.path.insert(0, "tests")
-        sys.path.insert(1, ".")
-        ## TODO: move the code from client into here
-        try:
-            from conf import client
+    # Use unified config discovery
+    conn_params = config.get_connection_params(
+        check_config_file=check_config_file,
+        config_file=config_file,
+        config_section=config_section,
+        testconfig=testconfig,
+        environment=environment,
+        name=name,
+        **config_data,
+    )
 
-            idx = os.environ.get("PYTHON_CALDAV_TEST_SERVER_IDX")
-            try:
-                idx = int(idx)
-            except (ValueError, TypeError):
-                idx = None
-            name = name or os.environ.get("PYTHON_CALDAV_TEST_SERVER_NAME")
-            if name and not idx:
-                try:
-                    idx = int(name)
-                    name = None
-                except ValueError:
-                    pass
-            conn = client(idx, name)
-            if conn:
-                return conn
-        except ImportError:
-            pass
-        finally:
-            sys.path = sys.path[2:]
+    if conn_params is None:
+        raise ValueError(
+            "No configuration found. Provide connection parameters, "
+            "set CALDAV_URL environment variable, or create a config file."
+        )
 
-    if environment:
-        conf = {}
-        for conf_key in (
-            x for x in os.environ if x.startswith("CALDAV_") and not x.startswith("CALDAV_CONFIG")
-        ):
-            conf[conf_key[7:].lower()] = os.environ[conf_key]
-        if conf:
-            return DAVClient(**conf)
-        if not config_file:
-            config_file = os.environ.get("CALDAV_CONFIG_FILE")
-        if not config_section:
-            config_section = os.environ.get("CALDAV_CONFIG_SECTION")
+    # Extract special keys that aren't connection params
+    setup_func = conn_params.pop("_setup", None)
+    teardown_func = conn_params.pop("_teardown", None)
+    server_name = conn_params.pop("_server_name", None)
 
-    if check_config_file:
-        ## late import in 2.0, as the config stuff isn't properly tested
-        from . import config
+    # Create client
+    client = DAVClient(**conn_params)
 
-        if not config_section:
-            config_section = "default"
+    # Attach test server metadata if present
+    if setup_func is not None:
+        client.setup = setup_func
+    if teardown_func is not None:
+        client.teardown = teardown_func
+    if server_name is not None:
+        client.server_name = server_name
 
-        cfg = config.read_config(config_file)
-        if cfg:
-            section = config.config_section(cfg, config_section)
-            conn_params = {}
-            for k in section:
-                if k.startswith("caldav_") and section[k]:
-                    key = k[7:]
-                    if key == "pass":
-                        key = "password"
-                    if key == "user":
-                        key = "username"
-                    conn_params[key] = section[k]
-            if conn_params:
-                return DAVClient(**conn_params)
+    return client
