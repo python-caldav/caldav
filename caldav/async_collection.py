@@ -835,6 +835,251 @@ class AsyncCalendar(AsyncDAVObject):
             raise error.NotFoundError(f"No object with UID {uid}")
         return results[0]
 
+    def _use_or_create_ics(
+        self, ical: Any, objtype: str, **ical_data: Any
+    ) -> Any:
+        """
+        Create an iCalendar object from provided data or use existing one.
+
+        Args:
+            ical: Existing ical data (text, icalendar or vobject instance)
+            objtype: Object type (VEVENT, VTODO, VJOURNAL)
+            **ical_data: Properties to insert into the icalendar object
+
+        Returns:
+            iCalendar data
+        """
+        from caldav.lib import vcal
+        from caldav.lib.python_utilities import to_wire
+
+        if ical_data or (
+            (isinstance(ical, str) or isinstance(ical, bytes))
+            and b"BEGIN:VCALENDAR" not in to_wire(ical)
+        ):
+            if ical and "ical_fragment" not in ical_data:
+                ical_data["ical_fragment"] = ical
+            return vcal.create_ical(objtype=objtype, **ical_data)
+        return ical
+
+    async def save_object(
+        self,
+        objclass: type,
+        ical: Optional[Any] = None,
+        no_overwrite: bool = False,
+        no_create: bool = False,
+        **ical_data: Any,
+    ) -> AsyncCalendarObjectResource:
+        """
+        Add a new object to the calendar, with the given ical.
+
+        Args:
+            objclass: AsyncEvent, AsyncTodo, or AsyncJournal
+            ical: ical object (text, icalendar or vobject instance)
+            no_overwrite: existing calendar objects should not be overwritten
+            no_create: don't create a new object, existing objects should be updated
+            **ical_data: properties to be inserted into the icalendar object
+
+        Returns:
+            AsyncCalendarObjectResource (AsyncEvent, AsyncTodo, or AsyncJournal)
+        """
+        obj = objclass(
+            self.client,
+            data=self._use_or_create_ics(
+                ical, objtype=f"V{objclass.__name__.replace('Async', '').upper()}", **ical_data
+            ),
+            parent=self,
+        )
+        return await obj.save(no_overwrite=no_overwrite, no_create=no_create)
+
+    async def save_event(
+        self,
+        ical: Optional[Any] = None,
+        no_overwrite: bool = False,
+        no_create: bool = False,
+        **ical_data: Any,
+    ) -> AsyncEvent:
+        """
+        Save an event to the calendar.
+
+        See save_object for full documentation.
+        """
+        return await self.save_object(
+            AsyncEvent, ical, no_overwrite=no_overwrite, no_create=no_create, **ical_data
+        )
+
+    async def save_todo(
+        self,
+        ical: Optional[Any] = None,
+        no_overwrite: bool = False,
+        no_create: bool = False,
+        **ical_data: Any,
+    ) -> AsyncTodo:
+        """
+        Save a todo to the calendar.
+
+        See save_object for full documentation.
+        """
+        return await self.save_object(
+            AsyncTodo, ical, no_overwrite=no_overwrite, no_create=no_create, **ical_data
+        )
+
+    async def save_journal(
+        self,
+        ical: Optional[Any] = None,
+        no_overwrite: bool = False,
+        no_create: bool = False,
+        **ical_data: Any,
+    ) -> AsyncJournal:
+        """
+        Save a journal entry to the calendar.
+
+        See save_object for full documentation.
+        """
+        return await self.save_object(
+            AsyncJournal, ical, no_overwrite=no_overwrite, no_create=no_create, **ical_data
+        )
+
+    # Legacy aliases
+    add_object = save_object
+    add_event = save_event
+    add_todo = save_todo
+    add_journal = save_journal
+
+    async def _multiget(
+        self, event_urls: list[URL], raise_notfound: bool = False
+    ) -> list[tuple[str, Optional[str]]]:
+        """
+        Get multiple events' data using calendar-multiget REPORT.
+
+        Args:
+            event_urls: List of URLs to fetch
+            raise_notfound: Raise NotFoundError if any URL returns 404
+
+        Returns:
+            List of (url, data) tuples
+        """
+        from caldav.elements import dav
+        from caldav.lib.python_utilities import to_wire
+
+        if self.url is None:
+            raise ValueError("Unexpected value None for self.url")
+        if self.client is None:
+            raise ValueError("Unexpected value None for self.client")
+
+        prop = cdav.Prop() + cdav.CalendarData()
+        root = (
+            cdav.CalendarMultiGet()
+            + prop
+            + [dav.Href(value=u.path) for u in event_urls]
+        )
+
+        body = etree.tostring(
+            root.xmlelement(), encoding="utf-8", xml_declaration=True
+        )
+        response = await self.client.report(str(self.url), to_wire(body), depth=1)
+
+        if raise_notfound:
+            for href in response.statuses:
+                status = response.statuses[href]
+                if status and "404" in status:
+                    raise error.NotFoundError(f"Status {status} in {href}")
+
+        results = response.expand_simple_props([cdav.CalendarData()])
+        return [(r, results[r].get(cdav.CalendarData.tag)) for r in results]
+
+    async def multiget(
+        self, event_urls: list[URL], raise_notfound: bool = False
+    ) -> list[AsyncCalendarObjectResource]:
+        """
+        Get multiple events' data using calendar-multiget REPORT.
+
+        Args:
+            event_urls: List of URLs to fetch
+            raise_notfound: Raise NotFoundError if any URL returns 404
+
+        Returns:
+            List of AsyncCalendarObjectResource objects
+        """
+        results = await self._multiget(event_urls, raise_notfound=raise_notfound)
+        objects = []
+        for url, data in results:
+            comp_class = self._calendar_comp_class_by_data(data)
+            objects.append(
+                comp_class(
+                    self.client,
+                    url=self.url.join(url),
+                    data=data,
+                    parent=self,
+                )
+            )
+        return objects
+
+    async def calendar_multiget(
+        self, event_urls: list[URL], raise_notfound: bool = False
+    ) -> list[AsyncCalendarObjectResource]:
+        """
+        Legacy alias for multiget.
+
+        This is for backward compatibility. It may be removed in 3.0 or later.
+        """
+        return await self.multiget(event_urls, raise_notfound=raise_notfound)
+
+    async def freebusy_request(
+        self, start: Any, end: Any
+    ) -> AsyncCalendarObjectResource:
+        """
+        Search the calendar for free/busy information.
+
+        Args:
+            start: Start datetime
+            end: End datetime
+
+        Returns:
+            AsyncCalendarObjectResource containing free/busy data
+        """
+        from caldav.lib.python_utilities import to_wire
+
+        if self.client is None:
+            raise ValueError("Unexpected value None for self.client")
+        if self.url is None:
+            raise ValueError("Unexpected value None for self.url")
+
+        root = cdav.FreeBusyQuery() + [cdav.TimeRange(start, end)]
+        body = etree.tostring(
+            root.xmlelement(), encoding="utf-8", xml_declaration=True
+        )
+        response = await self.client.report(str(self.url), to_wire(body), depth=1)
+
+        # Return a FreeBusy-like object (using AsyncCalendarObjectResource for now)
+        return AsyncCalendarObjectResource(
+            self.client, url=self.url, data=response.raw, parent=self
+        )
+
+    async def event_by_url(
+        self, href: Union[str, URL], data: Optional[str] = None
+    ) -> AsyncEvent:
+        """
+        Get an event by its URL.
+
+        Args:
+            href: URL of the event
+            data: Optional cached data
+
+        Returns:
+            AsyncEvent object
+        """
+        event = AsyncEvent(url=href, data=data, parent=self, client=self.client)
+        return await event.load()
+
+    async def objects(self) -> list[AsyncCalendarObjectResource]:
+        """
+        Get all objects in the calendar (events, todos, journals).
+
+        Returns:
+            List of AsyncCalendarObjectResource objects
+        """
+        return await self.search()
+
 
 class AsyncScheduleMailbox(AsyncCalendar):
     """Base class for schedule inbox/outbox (RFC6638)."""
