@@ -1,36 +1,44 @@
 #!/usr/bin/env python
 # -*- encoding: utf-8 -*-
-## YOU SHOULD MOST LIKELY NOT EDIT THIS FILE!
-## Make a conf_private.py for personal configuration.
-## Check conf_private.py.EXAMPLE
-## TODO: Future refactoring suggestions (in priority order):
-##
-## 1. [DONE] Extract conf_private import logic into helper function
-##
-## 2. Create a DockerTestServer base class to eliminate duplication between
-##    Baikal, Nextcloud, and Cyrus setup/teardown logic. All three follow
-##    the same pattern: start.sh/stop.sh scripts, wait for HTTP response,
-##    similar accessibility checks.
-##
-## 3. Create a TestServer base class that also covers Radicale and Xandikos
-##    setup
-##
-## 4. Split into test_servers/ package structure:
-##    - test_servers/base.py: Base classes and utilities
-##    - test_servers/config_loader.py: Configuration import logic
-##    - test_servers/docker_servers.py: Baikal, Nextcloud, Cyrus
-##    - test_servers/embedded_servers.py: Radicale, Xandikos
-##    This would reduce conf.py from 550+ lines to <100 lines.
-##
-## 5. Consider creating server registry pattern for dynamic server registration
-##    instead of procedural if-blocks for each server type.
-##
-## 6. Extract magic numbers into named constants:
-##    DEFAULT_HTTP_TIMEOUT, MAX_STARTUP_WAIT_SECONDS, etc.
-##
-## 7. client() method should be removed, davclient.get_davclient should be used
-##    instead
+"""
+Test server configuration for caldav sync tests.
+
+DEPRECATION NOTICE:
+    This module is being phased out in favor of the tests/test_servers/ package.
+    New tests should use:
+        from tests.test_servers import get_available_servers, TestServer
+
+    For async tests, use the test_servers framework directly.
+    This module is kept for backwards compatibility with existing sync tests.
+
+    Private server configuration should migrate from conf_private.py to
+    tests/test_servers.yaml (YAML/JSON format).
+
+COMPLETED REFACTORING:
+    The following TODOs from this module have been implemented in test_servers/:
+    - [DONE] TestServer base class with EmbeddedTestServer and DockerTestServer
+    - [DONE] RadicaleTestServer and XandikosTestServer (embedded servers)
+    - [DONE] BaikalTestServer, NextcloudTestServer, etc. (Docker servers)
+    - [DONE] ServerRegistry pattern for dynamic server registration
+    - [DONE] Magic numbers extracted into named constants
+    - [DONE] Config loading from YAML/JSON files (config_loader.py)
+
+REMAINING WORK:
+    - Migrate test_caldav.py to use test_servers framework
+    - Remove duplication between this module and test_servers/
+
+Legacy conf_private.py is still supported but deprecated.
+"""
 import logging
+import warnings
+
+# Emit deprecation warning when this module is imported
+warnings.warn(
+    "tests.conf is deprecated. For new tests, use tests.test_servers instead. "
+    "See tests/test_servers/__init__.py for usage examples.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 import os
 import subprocess
 import tempfile
@@ -676,6 +684,15 @@ if test_bedework:
 def client(
     idx=None, name=None, setup=lambda conn: None, teardown=lambda conn: None, **kwargs
 ):
+    """
+    DEPRECATED: Use caldav.davclient.get_davclient() or test_servers.get_sync_client() instead.
+    """
+    warnings.warn(
+        "tests.conf.client() is deprecated. Use caldav.davclient.get_davclient() "
+        "or test_servers.TestServer.get_sync_client() instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     kwargs_ = kwargs.copy()
     no_args = not any(x for x in kwargs if kwargs[x] is not None)
     if idx is None and name is None and no_args and caldav_servers:
