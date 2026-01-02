@@ -13,7 +13,7 @@ try:
 except ImportError:
     import requests  # type: ignore
 
-from .base import DockerTestServer, DEFAULT_HTTP_TIMEOUT
+from .base import DEFAULT_HTTP_TIMEOUT, DockerTestServer
 from .registry import register_server_class
 
 
@@ -188,9 +188,48 @@ class BedeworkTestServer(DockerTestServer):
             return False
 
 
+class DavicalTestServer(DockerTestServer):
+    """
+    DAViCal CalDAV server in Docker.
+
+    DAViCal is a CalDAV server using PostgreSQL as its backend.
+    It provides full CalDAV and CardDAV support.
+    """
+
+    name = "Davical"
+
+    def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:
+        config = config or {}
+        config.setdefault("host", os.environ.get("DAVICAL_HOST", "localhost"))
+        config.setdefault("port", int(os.environ.get("DAVICAL_PORT", "8805")))
+        config.setdefault("username", os.environ.get("DAVICAL_USERNAME", "admin"))
+        config.setdefault("password", os.environ.get("DAVICAL_PASSWORD", "testpass"))
+        super().__init__(config)
+
+    def _default_port(self) -> int:
+        return 8805
+
+    @property
+    def url(self) -> str:
+        return f"http://{self.host}:{self.port}/davical/caldav.php/{self.username}/"
+
+    def is_accessible(self) -> bool:
+        """Check if DAViCal is accessible."""
+        try:
+            response = requests.request(
+                "PROPFIND",
+                f"http://{self.host}:{self.port}/davical/caldav.php/",
+                timeout=DEFAULT_HTTP_TIMEOUT,
+            )
+            return response.status_code in (200, 207, 401, 403, 404)
+        except Exception:
+            return False
+
+
 # Register server classes
 register_server_class("baikal", BaikalTestServer)
 register_server_class("nextcloud", NextcloudTestServer)
 register_server_class("cyrus", CyrusTestServer)
 register_server_class("sogo", SOGoTestServer)
 register_server_class("bedework", BedeworkTestServer)
+register_server_class("davical", DavicalTestServer)
