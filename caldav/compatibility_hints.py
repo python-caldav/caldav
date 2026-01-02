@@ -260,6 +260,9 @@ class FeatureSet:
         """
         if isinstance(feature_set_dict, FeatureSet):
             self._server_features = copy.deepcopy(feature_set_dict._server_features)
+            self.backward_compatibility_mode = feature_set_dict.backward_compatibility_mode
+            self._old_flags = copy.copy(feature_set_dict._old_flags) if hasattr(feature_set_dict, '_old_flags') else []
+            return
 
         ## TODO: copy the FEATURES dict, or just the feature_set dict?
         ## (anyways, that is an internal design decision that may be
@@ -1019,7 +1022,9 @@ cyrus = {
 #]
 
 davical = {
-
+    # Disable HTTP/2 multiplexing - davical doesn't support it well and niquests
+    # lazy responses cause MultiplexingError when accessing status_code
+    "http.multiplexing": { "support": "unsupported" },
     "search.comp-type-optional": { "support": "fragile" },
     "search.recurrences.expanded.todo": { "support": "unsupported" },
     "search.recurrences.expanded.exception": { "support": "unsupported" },

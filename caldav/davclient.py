@@ -605,12 +605,10 @@ class DAVClient:
             ssl_cert=self.ssl_cert,
             headers=dict(self.headers),  # Convert CaseInsensitiveDict to regular dict
             huge_tree=self.huge_tree,
-            features=None,  # Use default features to avoid double-wrapping
+            features=self.features,  # Pass features so session is created with correct settings
             enable_rfc6764=False,  # Already discovered in sync __init__
             require_tls=True,
         )
-        # Manually set the features object to avoid FeatureSet wrapping
-        async_client.features = self.features
         return async_client
 
     def __enter__(self) -> Self:
@@ -1134,7 +1132,7 @@ def get_davclient(
     environment: bool = True,
     name: str = None,
     **config_data,
-) -> "DAVClient":
+) -> Optional["DAVClient"]:
     """
     Get a DAVClient object with configuration from multiple sources.
 
@@ -1155,10 +1153,7 @@ def get_davclient(
         **config_data: Explicit connection parameters
 
     Returns:
-        DAVClient instance
-
-    Raises:
-        ValueError: If no configuration is found
+        DAVClient instance, or None if no configuration is found
     """
     from . import config
 
@@ -1174,10 +1169,7 @@ def get_davclient(
     )
 
     if conn_params is None:
-        raise ValueError(
-            "No configuration found. Provide connection parameters, "
-            "set CALDAV_URL environment variable, or create a config file."
-        )
+        return None
 
     # Extract special keys that aren't connection params
     setup_func = conn_params.pop("_setup", None)

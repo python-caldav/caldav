@@ -200,7 +200,10 @@ class AsyncDAVClient:
             import caldav.compatibility_hints
 
             features = getattr(caldav.compatibility_hints, features)
-        self.features = FeatureSet(features)
+        if isinstance(features, FeatureSet):
+            self.features = features
+        else:
+            self.features = FeatureSet(features)
         self.huge_tree = huge_tree
 
         # Create async session with HTTP/2 multiplexing if supported

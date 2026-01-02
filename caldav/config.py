@@ -317,23 +317,28 @@ def _get_test_server_config(
         except ImportError:
             return None
 
-        # Parse server selection from environment
+        # Parse server selection
         idx: Optional[int] = None
-        if environment:
-            idx_str = os.environ.get("PYTHON_CALDAV_TEST_SERVER_IDX")
-            if idx_str:
-                try:
-                    idx = int(idx_str)
-                except (ValueError, TypeError):
-                    pass
 
-            name = name or os.environ.get("PYTHON_CALDAV_TEST_SERVER_NAME")
-            if name and idx is None:
-                try:
-                    idx = int(name)
-                    name = None
-                except ValueError:
-                    pass
+        # If name is provided and can be parsed as int, use it as idx
+        if name is not None:
+            try:
+                idx = int(name)
+                name = None
+            except (ValueError, TypeError):
+                pass
+
+        # Also check environment variables if environment=True
+        if environment:
+            if idx is None:
+                idx_str = os.environ.get("PYTHON_CALDAV_TEST_SERVER_IDX")
+                if idx_str:
+                    try:
+                        idx = int(idx_str)
+                    except (ValueError, TypeError):
+                        pass
+            if name is None:
+                name = os.environ.get("PYTHON_CALDAV_TEST_SERVER_NAME")
 
         conn = client(idx, name)
         if conn is None:
