@@ -779,7 +779,7 @@ xandikos=xandikos_v0_3
 radicale = {
     "search.text.case-sensitive":  {"support": "unsupported"},
     "search.is-not-defined": {"support": "fragile", "behaviour": "seems to work for categories but not for dtend"},
-    "search.recurrences.includes-implicit.todo.pending": {"support": "unsupported"},
+    "search.recurrences.includes-implicit.todo.pending": {"support": "fragile", "behaviour": "inconsistent results between runs"},
     "search.recurrences.expanded.todo": {"support": "unsupported"},
     "search.recurrences.expanded.exception": {"support": "unsupported"},
     'principal-search': {'support': 'unknown', 'behaviour': 'No display name available - cannot test'},

@@ -1002,27 +1002,31 @@ class CalDAVSearcher(Searcher):
         ## The only thing I don't support is the component name ('VEVENT').
         ## Anyway, this code section ensures both comp_filter and comp_class
         ## is given.  Or at least, it tries to ensure it.
-        for flag, comp_name, comp_class_ in (
-            ("event", "VEVENT", Event),
-            ("todo", "VTODO", Todo),
-            ("journal", "VJOURNAL", Journal),
+        # Import async classes for comparison (needed when called from async_search)
+        from .async_davobject import AsyncEvent, AsyncJournal, AsyncTodo
+
+        for flag, comp_name, comp_classes in (
+            ("event", "VEVENT", (Event, AsyncEvent)),
+            ("todo", "VTODO", (Todo, AsyncTodo)),
+            ("journal", "VJOURNAL", (Journal, AsyncJournal)),
         ):
             flagged = getattr(self, flag)
+            sync_class = comp_classes[0]  # First in tuple is always the sync class
             if flagged:
                 ## event/journal/todo is set, we adjust comp_class accordingly
-                if self.comp_class is not None and self.comp_class is not comp_class_:
+                if self.comp_class is not None and self.comp_class not in comp_classes:
                     raise error.ConsistencyError(
-                        f"inconsistent search parameters - comp_class = {self.comp_class}, want {comp_class_}"
+                        f"inconsistent search parameters - comp_class = {self.comp_class}, want {sync_class}"
                     )
-                self.comp_class = comp_class_
+                self.comp_class = sync_class
 
             if comp_filter and comp_filter.attributes["name"] == comp_name:
-                self.comp_class = comp_class_
+                self.comp_class = sync_class
                 if flag == "todo" and not self.todo and self.include_completed is None:
                     self.include_completed = True
                 setattr(self, flag, True)
 
-            if self.comp_class == comp_class_:
+            if self.comp_class in comp_classes:
                 if comp_filter:
                     assert comp_filter.attributes["name"] == comp_name
                 else:
