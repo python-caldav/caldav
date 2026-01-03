@@ -98,8 +98,8 @@ class AsyncFunctionalTestsBaseClass:
         server = self.server
         server.start()
         yield server
-        # Note: We don't stop the server here to allow reuse across tests
-        # The server will be stopped at module end
+        # Stop the server to free the port for other test modules
+        server.stop()
 
     @pytest_asyncio.fixture
     async def async_client(self, test_server: TestServer) -> Any:
