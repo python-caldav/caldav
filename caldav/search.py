@@ -376,7 +376,7 @@ class CalDAVSearcher(Searcher):
                     )
 
         ## special compatibility-case when searching for pending todos
-        if self.todo and not self.include_completed:
+        if self.todo and self.include_completed is False:
             ## There are two ways to get the pending tasks - we can
             ## ask the server to filter them out, or we can do it
             ## client side.
@@ -706,7 +706,7 @@ class CalDAVSearcher(Searcher):
                     )
 
         ## special compatibility-case when searching for pending todos
-        if self.todo and not self.include_completed:
+        if self.todo and self.include_completed is False:
             clone = replace(self, include_completed=True)
             clone.include_completed = True
             clone.expand = False
