@@ -15,6 +15,14 @@ The goal is to refactor the caldav library to be async-first, with a thin sync w
 
 ## Key Documents
 
+### [`SYNC_ASYNC_PATTERNS.md`](SYNC_ASYNC_PATTERNS.md)
+**Industry patterns analysis** for libraries supporting both sync and async APIs:
+- Sans-I/O pattern (h11, h2, wsproto)
+- Unasync code generation (urllib3, httpcore)
+- Async-first with sync wrapper
+- Comparison table and tradeoffs
+- Antipatterns to avoid
+
 ### [`ASYNC_REFACTORING_PLAN.md`](ASYNC_REFACTORING_PLAN.md)
 **Master plan** consolidating all decisions. Start here for the complete picture of:
 - Architecture (async-first with sync wrapper)
