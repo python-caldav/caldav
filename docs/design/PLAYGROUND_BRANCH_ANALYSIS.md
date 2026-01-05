@@ -66,7 +66,7 @@ if hasattr(self.client, "_is_mocked") and self.client._is_mocked():
 ### Pattern Match: Async-First with Sync Wrapper
 
 The playground branch follows the **Async-First with Sync Wrapper** pattern from
-SYNC_ASYNC_PATTERNS.md. Here's how it compares:
+`SYNC_ASYNC_PATTERNS.md`. Here's how it compares:
 
 | Aspect | Pattern Description | Playground Implementation |
 |--------|---------------------|---------------------------|
@@ -164,6 +164,6 @@ over the overhead of event loop management.
 
 ## References
 
-- [SYNC_ASYNC_PATTERNS.md](SYNC_ASYNC_PATTERNS.md) - Industry patterns analysis
-- [ASYNC_REFACTORING_PLAN.md](ASYNC_REFACTORING_PLAN.md) - Original refactoring plan
+- [`SYNC_ASYNC_PATTERNS.md`](SYNC_ASYNC_PATTERNS.md) - Industry patterns analysis
+- [`ASYNC_REFACTORING_PLAN.md`](ASYNC_REFACTORING_PLAN.md) - Original refactoring plan
 - Branch: `playground/new_async_api_design`
