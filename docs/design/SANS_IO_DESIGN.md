@@ -667,3 +667,4 @@ is an internal architectural improvement, not a user-facing change.
 - [h11 - Sans-I/O HTTP/1.1](https://github.com/python-hyper/h11)
 - [SYNC_ASYNC_PATTERNS.md](SYNC_ASYNC_PATTERNS.md) - Pattern comparison
 - [PLAYGROUND_BRANCH_ANALYSIS.md](PLAYGROUND_BRANCH_ANALYSIS.md) - Current implementation analysis
+- [SANS_IO_IMPLEMENTATION_PLAN.md](SANS_IO_IMPLEMENTATION_PLAN.md) - **Detailed implementation plan**

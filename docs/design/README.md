@@ -31,11 +31,20 @@ The goal is to refactor the caldav library to be async-first, with a thin sync w
 - Strengths, weaknesses, and potential optimizations
 
 ### [`SANS_IO_DESIGN.md`](SANS_IO_DESIGN.md)
-**Alternative architecture proposal** using the Sans-I/O pattern:
+**Sans-I/O architecture analysis** - long-term architectural improvement:
 - Separates protocol logic from I/O operations
-- Proposed file structure and migration path
+- **API Stability Analysis**: Demonstrates Sans-I/O is internal, public API unchanged
+- **Hybrid Approach**: Gradual migration strategy that builds on playground branch
 - Code examples for protocol layer and I/O shells
 - Comparison with playground branch approach
+
+### [`SANS_IO_IMPLEMENTATION_PLAN.md`](SANS_IO_IMPLEMENTATION_PLAN.md)
+**Detailed implementation plan** for Sans-I/O architecture:
+- **Starting point**: Playground branch (leverages existing work)
+- Seven implementation phases with code examples
+- Complete file structure and migration checklist
+- Protocol types, XML builders, XML parsers, I/O shells
+- Backward compatibility maintained throughout
 
 ### [`ASYNC_REFACTORING_PLAN.md`](ASYNC_REFACTORING_PLAN.md)
 **Master plan** consolidating all decisions. Start here for the complete picture of:
@@ -130,6 +139,33 @@ How to configure Ruff formatter/linter for partial codebase adoption:
 **Remaining Work**:
 - Optional: Add API reference docs for async classes (autodoc)
 
+## Long-Term Roadmap
+
+The architecture evolution follows a three-phase plan:
+
+### Phase 1: Async-First (Current - Playground Branch) ✅
+- Async-first implementation with sync wrapper
+- Single source of truth (async code)
+- Acceptable runtime overhead for sync users
+- **Status**: Complete and working
+
+### Phase 2: Protocol Extraction (Future)
+- Gradually extract protocol logic into `caldav/protocol/`
+- No public API changes required
+- Better testability (protocol tests without HTTP mocking)
+- Reduced coupling between protocol and I/O
+- **Trigger**: When test improvements needed or httpx support requested
+
+### Phase 3: Full Sans-I/O (Long-term)
+- Complete separation of protocol and I/O
+- Optional protocol-level API for power users
+- Support for alternative HTTP libraries
+- **Trigger**: Major version bump (3.0) or community demand
+
+**Key insight**: Sans-I/O is an *internal* architectural improvement. The public API
+(`DAVClient`, `Calendar`, etc.) remains unchanged. See [SANS_IO_DESIGN.md](SANS_IO_DESIGN.md)
+for detailed analysis.
+
 ## Design Principles
 
 Throughout these documents, the following principles guide our decisions:
@@ -139,3 +175,4 @@ Throughout these documents, the following principles guide our decisions:
 - **Backward compatibility** - 100% via sync wrapper, gradual deprecation
 - **Type safety** - Full type hints in async API
 - **Pythonic** - Follow established Python patterns and conventions
+- **Incremental improvement** - Sans-I/O can be adopted gradually without breaking changes
