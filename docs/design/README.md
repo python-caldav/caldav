@@ -30,6 +30,13 @@ The goal is to refactor the caldav library to be async-first, with a thin sync w
 - Tradeoffs accepted and alternatives not taken
 - Strengths, weaknesses, and potential optimizations
 
+### [`SANS_IO_DESIGN.md`](SANS_IO_DESIGN.md)
+**Alternative architecture proposal** using the Sans-I/O pattern:
+- Separates protocol logic from I/O operations
+- Proposed file structure and migration path
+- Code examples for protocol layer and I/O shells
+- Comparison with playground branch approach
+
 ### [`ASYNC_REFACTORING_PLAN.md`](ASYNC_REFACTORING_PLAN.md)
 **Master plan** consolidating all decisions. Start here for the complete picture of:
 - Architecture (async-first with sync wrapper)
