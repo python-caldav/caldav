@@ -23,6 +23,13 @@ The goal is to refactor the caldav library to be async-first, with a thin sync w
 - Comparison table and tradeoffs
 - Antipatterns to avoid
 
+### [`PLAYGROUND_BRANCH_ANALYSIS.md`](PLAYGROUND_BRANCH_ANALYSIS.md)
+**Playground branch evaluation** comparing the current implementation against industry patterns:
+- How the `playground/new_async_api_design` branch implements async-first with sync wrapper
+- Event loop management strategies (per-call vs context manager)
+- Tradeoffs accepted and alternatives not taken
+- Strengths, weaknesses, and potential optimizations
+
 ### [`ASYNC_REFACTORING_PLAN.md`](ASYNC_REFACTORING_PLAN.md)
 **Master plan** consolidating all decisions. Start here for the complete picture of:
 - Architecture (async-first with sync wrapper)
