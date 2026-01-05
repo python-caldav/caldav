@@ -398,20 +398,268 @@ caldav/
 ## Disadvantages of Sans-I/O
 
 1. **Significant refactoring**: Requires restructuring most of the codebase
-2. **API changes**: High-level API may need to change
-3. **Learning curve**: Pattern is less familiar to some developers
-4. **Overkill?**: For a library of this scope, may be overengineering
+2. **Learning curve**: Pattern is less familiar to some developers
+3. **Incremental migration is complex**: Need to maintain both old and new code during transition
+
+## API Stability Analysis
+
+**Key finding: Sans-I/O does NOT require public API changes.**
+
+The Sans-I/O pattern is an *internal* architectural change. The user-facing API can
+remain identical:
+
+### Current Public API (unchanged)
+
+```python
+# Sync API - caldav module
+from caldav import DAVClient, get_davclient
+
+client = DAVClient(url="https://...", username="...", password="...")
+principal = client.principal()
+calendars = principal.calendars()
+events = calendar.search(start=..., end=..., event=True)
+event.save()
+
+# Async API - caldav.aio module
+from caldav.aio import AsyncDAVClient, get_async_davclient
+
+client = await AsyncDAVClient.create(url="https://...")
+principal = await client.principal()
+calendars = await principal.calendars()
+```
+
+### How Sans-I/O Preserves This API
+
+The change is purely internal. For example, `Calendar.search()` today:
+
+```python
+# Current implementation (simplified)
+class Calendar:
+    def search(self, start=None, end=None, **kwargs):
+        xml = self._build_search_query(start, end, **kwargs)  # Protocol logic
+        response = self.client.report(self.url, xml)           # I/O
+        return self._parse_results(response)                   # Protocol logic
+```
+
+With Sans-I/O, same public API, different internals:
+
+```python
+# Sans-I/O implementation (simplified)
+class Calendar:
+    def search(self, start=None, end=None, **kwargs):
+        # Protocol layer builds request
+        request = self._protocol.calendar_query_request(
+            self.url, start, end, **kwargs
+        )
+        # I/O shell executes it
+        response = self._io.execute(request)
+        # Protocol layer parses response
+        return self._protocol.parse_calendar_query_response(response)
+```
+
+**Users see no difference** - the method signature, parameters, and return types
+are identical.
+
+### What COULD Change (Optional)
+
+Some *optional* new APIs could be exposed for advanced users:
+
+```python
+# Optional: Direct protocol access for power users
+from caldav.protocol import CalDAVProtocol
+
+protocol = CalDAVProtocol()
+request = protocol.calendar_query_request(url, start, end)
+# User can inspect/modify request before execution
+# User can use their own HTTP client
+```
+
+But this would be *additive*, not breaking existing code.
+
+## Hybrid Approach: Gradual Migration
+
+A hybrid approach allows incremental migration without breaking changes:
+
+### Strategy: Protocol Extraction
+
+Instead of a full rewrite, extract protocol logic piece by piece:
+
+```
+Phase 1: Create protocol module alongside existing code
+         ├── caldav/protocol/          # NEW: Protocol layer
+         ├── caldav/davclient.py       # EXISTING: Still works
+         └── caldav/collection.py      # EXISTING: Still works
+
+Phase 2: Migrate internals to use protocol layer
+         ├── caldav/protocol/
+         ├── caldav/davclient.py       # MODIFIED: Uses protocol internally
+         └── caldav/collection.py      # MODIFIED: Uses protocol internally
+
+Phase 3: (Optional) Expose protocol layer publicly
+         ├── caldav/protocol/          # Now part of public API
+         └── ...
+```
+
+### Concrete Hybrid Migration Plan
+
+#### Step 1: Extract XML Building (Low Risk)
+
+The `CalDAVSearcher.build_search_xml_query()` and element builders are already
+mostly sans-I/O. Formalize this:
+
+```python
+# caldav/protocol/xml_builders.py
+def build_propfind_body(props: list[str]) -> bytes:
+    """Build PROPFIND request body. Pure function, no I/O."""
+    ...
+
+def build_calendar_query(start, end, expand, **filters) -> bytes:
+    """Build calendar-query REPORT body. Pure function, no I/O."""
+    ...
+```
+
+Current code can immediately use these, no API changes.
+
+#### Step 2: Extract Response Parsing (Low Risk)
+
+`BaseDAVResponse` already has parsing logic. Extract to pure functions:
+
+```python
+# caldav/protocol/xml_parsers.py
+def parse_multistatus(body: bytes) -> list[dict]:
+    """Parse multistatus response. Pure function, no I/O."""
+    ...
+
+def parse_calendar_data(body: bytes) -> list[CalendarObject]:
+    """Parse calendar-query response. Pure function, no I/O."""
+    ...
+```
+
+#### Step 3: Create Request/Response Types (Low Risk)
+
+```python
+# caldav/protocol/types.py
+@dataclass
+class DAVRequest:
+    method: str
+    path: str
+    headers: dict[str, str]
+    body: bytes | None
+
+@dataclass
+class DAVResponse:
+    status: int
+    headers: dict[str, str]
+    body: bytes
+```
+
+#### Step 4: Refactor DAVClient Internals (Medium Risk)
+
+```python
+# caldav/davclient.py
+class DAVClient:
+    def propfind(self, url, props, depth=0):
+        # OLD: Mixed protocol and I/O
+        # NEW: Separate concerns
+        body = build_propfind_body(props)  # Protocol
+        response = self._http_request("PROPFIND", url, body, depth)  # I/O
+        return parse_propfind_response(response.content)  # Protocol
+```
+
+#### Step 5: Create I/O Abstraction (Medium Risk)
+
+```python
+# caldav/io/base.py
+class BaseIO(Protocol):
+    def execute(self, request: DAVRequest) -> DAVResponse: ...
+
+# caldav/io/sync.py
+class SyncIO(BaseIO):
+    def __init__(self, session: requests.Session): ...
+
+# caldav/io/async_.py
+class AsyncIO(BaseIO):
+    async def execute(self, request: DAVRequest) -> DAVResponse: ...
+```
+
+### Timeline Estimate
+
+| Phase | Effort | Risk | Can Be Done Incrementally |
+|-------|--------|------|---------------------------|
+| XML builders extraction | 1-2 days | Low | Yes |
+| Response parsers extraction | 1-2 days | Low | Yes |
+| Request/Response types | 1 day | Low | Yes |
+| DAVClient refactor | 3-5 days | Medium | Yes, method by method |
+| I/O abstraction | 2-3 days | Medium | Yes |
+| Collection classes refactor | 5-7 days | Medium | Yes, class by class |
+| Full async parity | 3-5 days | Low | Yes |
+
+**Total: ~3-4 weeks of focused work**, but can be spread over time.
+
+### Compatibility During Migration
+
+During migration, both paths work:
+
+```python
+# Old path (still works)
+client = DAVClient(url, username, password)
+calendar.search(...)  # Uses refactored internals transparently
+
+# New path (optional, for power users)
+from caldav.protocol import CalDAVProtocol
+from caldav.io import SyncIO
+
+protocol = CalDAVProtocol()
+io = SyncIO(session)
+request = protocol.calendar_query_request(...)
+response = io.execute(request)
+results = protocol.parse_response(response)
+```
+
+## Long-Term Vision
+
+### Phase 1: Current (Playground Branch)
+- Async-first with sync wrapper
+- Single source of truth
+- Acceptable runtime overhead
+
+### Phase 2: Protocol Extraction (6-12 months)
+- Gradually extract protocol logic
+- No public API changes
+- Better testability
+- Reduced coupling
+
+### Phase 3: Full Sans-I/O (12-24 months)
+- Complete separation of protocol and I/O
+- Optional protocol-level API for power users
+- Support for alternative HTTP libraries
+- Community contributions to protocol layer
+
+### Decision Points
+
+**Move to Phase 2 when:**
+- Test suite needs improvement (protocol tests are easier)
+- Want to support httpx or other HTTP libraries
+- Performance profiling shows overhead issues
+
+**Move to Phase 3 when:**
+- Demand for protocol-level access (custom HTTP handling)
+- Major version bump planned (3.0)
+- Community interest in contributing to protocol layer
 
 ## Recommendation
 
-The Sans-I/O approach is **technically superior** but requires significant effort.
-Consider it if:
+**Short-term:** The playground branch approach is a reasonable pragmatic choice that
+delivers async support without major refactoring.
 
-- The current approach's runtime overhead becomes measurable
-- There's demand to support multiple HTTP libraries (httpx, urllib3)
-- A major version bump (3.0) is planned anyway
+**Medium-term:** Begin gradual protocol extraction (Steps 1-3 above) as opportunities
+arise. These low-risk changes improve testability and don't require API changes.
 
-For now, the playground branch approach is a reasonable pragmatic choice.
+**Long-term:** Full Sans-I/O architecture remains a viable goal for a future major
+version, achievable incrementally without breaking existing users.
+
+The key insight is that **Sans-I/O and the current API are compatible** - Sans-I/O
+is an internal architectural improvement, not a user-facing change.
 
 ## References
 
