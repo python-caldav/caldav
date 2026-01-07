@@ -364,17 +364,48 @@ def _element_to_value(elem: _Element) -> Any:
 
     For simple elements, returns text content.
     For complex elements with children, returns dict or list.
+    Handles special CalDAV elements like supported-calendar-component-set.
     """
     if len(elem) == 0:
         return elem.text
 
-    # For elements with children, try to extract meaningful data
+    # Special handling for known complex properties
+    tag = elem.tag
+
+    # supported-calendar-component-set: extract comp names
+    if tag == cdav.SupportedCalendarComponentSet.tag:
+        return [child.get("name") for child in elem if child.get("name")]
+
+    # calendar-user-address-set: extract href texts
+    if tag == cdav.CalendarUserAddressSet.tag:
+        return [child.text for child in elem if child.tag == dav.Href.tag and child.text]
+
+    # calendar-home-set: extract href text (usually single)
+    if tag == cdav.CalendarHomeSet.tag:
+        hrefs = [child.text for child in elem if child.tag == dav.Href.tag and child.text]
+        return hrefs[0] if len(hrefs) == 1 else hrefs
+
+    # resourcetype: extract child tag names (e.g., collection, calendar)
+    if tag == dav.ResourceType.tag:
+        return [child.tag for child in elem]
+
+    # principal-URL, current-user-principal: extract href
+    if tag in (dav.PrincipalURL.tag, dav.CurrentUserPrincipal.tag):
+        for child in elem:
+            if child.tag == dav.Href.tag and child.text:
+                return child.text
+        return None
+
+    # Generic handling for elements with children
     children_texts = []
     for child in elem:
         if child.text:
             children_texts.append(child.text)
+        elif child.get("name"):
+            # Elements with name attribute (like comp)
+            children_texts.append(child.get("name"))
         elif len(child) == 0:
-            # Empty element - use tag name (e.g., resourcetype)
+            # Empty element - use tag name
             children_texts.append(child.tag)
 
     if len(children_texts) == 1:

@@ -264,6 +264,54 @@ END:VCALENDAR</C:calendar-data>
         assert result.deleted[0] == "/cal/deleted.ics"
         assert result.sync_token == "new-token"
 
+    def test_parse_complex_properties(self):
+        """Parse complex properties like supported-calendar-component-set."""
+        xml = b"""<?xml version="1.0"?>
+        <D:multistatus xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
+            <D:response>
+                <D:href>/calendars/user/calendar/</D:href>
+                <D:propstat>
+                    <D:prop>
+                        <D:displayname>My Calendar</D:displayname>
+                        <D:resourcetype>
+                            <D:collection/>
+                            <C:calendar/>
+                        </D:resourcetype>
+                        <C:supported-calendar-component-set>
+                            <C:comp name="VEVENT"/>
+                            <C:comp name="VTODO"/>
+                            <C:comp name="VJOURNAL"/>
+                        </C:supported-calendar-component-set>
+                        <C:calendar-home-set>
+                            <D:href>/calendars/user/</D:href>
+                        </C:calendar-home-set>
+                    </D:prop>
+                    <D:status>HTTP/1.1 200 OK</D:status>
+                </D:propstat>
+            </D:response>
+        </D:multistatus>"""
+
+        results = parse_propfind_response(xml, status_code=207)
+
+        assert len(results) == 1
+        props = results[0].properties
+
+        # Simple property
+        assert props["{DAV:}displayname"] == "My Calendar"
+
+        # resourcetype - list of child tags
+        resourcetype = props["{DAV:}resourcetype"]
+        assert "{DAV:}collection" in resourcetype
+        assert "{urn:ietf:params:xml:ns:caldav}calendar" in resourcetype
+
+        # supported-calendar-component-set - list of component names
+        components = props["{urn:ietf:params:xml:ns:caldav}supported-calendar-component-set"]
+        assert components == ["VEVENT", "VTODO", "VJOURNAL"]
+
+        # calendar-home-set - extracted href
+        home_set = props["{urn:ietf:params:xml:ns:caldav}calendar-home-set"]
+        assert home_set == "/calendars/user/"
+
 
 class TestCalDAVProtocol:
     """Test the CalDAVProtocol class."""
