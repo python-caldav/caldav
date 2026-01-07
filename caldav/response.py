@@ -6,6 +6,7 @@ AsyncDAVResponse (async) to eliminate code duplication.
 """
 
 import logging
+import warnings
 from collections.abc import Iterable
 from typing import Any, Dict, List, Optional, Tuple, Union, cast
 from urllib.parse import unquote
@@ -145,7 +146,17 @@ class BaseDAVResponse:
         has to be done by the caller.
 
         self.sync_token will be populated if found, self.objects will be populated.
+
+        .. deprecated::
+            Use ``response.results`` instead, which provides pre-parsed property values.
+            This method will be removed in a future version.
         """
+        warnings.warn(
+            "find_objects_and_props() is deprecated. Use response.results instead, "
+            "which provides pre-parsed property values from the protocol layer.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self.objects: Dict[str, Dict[str, _Element]] = {}
         self.statuses: Dict[str, str] = {}
 

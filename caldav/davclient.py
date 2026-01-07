@@ -229,6 +229,9 @@ class DAVResponse(BaseDAVResponse):
     status: int = 0
     davclient = None
     huge_tree: bool = False
+    # Protocol-layer parsed results (new interface, replaces find_objects_and_props())
+    results: Optional[List] = None
+    sync_token: Optional[str] = None
 
     def __init__(
         self,
@@ -353,6 +356,11 @@ class DAVResponse(BaseDAVResponse):
         # Copy objects dict if already parsed
         if hasattr(async_response, "objects"):
             self.objects = async_response.objects
+
+        # Copy protocol-layer parsed results (new interface)
+        # These provide pre-parsed property values without needing find_objects_and_props()
+        self.results = getattr(async_response, "results", None)
+        self.sync_token = getattr(async_response, "sync_token", None)
 
     @property
     def raw(self) -> str:
