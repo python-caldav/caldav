@@ -165,6 +165,9 @@ How to configure Ruff formatter/linter for partial codebase adoption:
 - ✅ Phase 6: Protocol-based client classes
   - `caldav/protocol_client.py` - SyncProtocolClient, AsyncProtocolClient
   - 39 unit tests all passing
+- ✅ Phase 7: Integration testing
+  - `tests/test_protocol_client_integration.py` - 18 integration tests
+  - Verified against Radicale and Xandikos servers
 
 **Available for use**:
 - `caldav.protocol` - Low-level protocol access
@@ -183,14 +186,14 @@ The architecture evolution follows a three-phase plan:
 - Acceptable runtime overhead for sync users
 - **Status**: Complete and working
 
-### Phase 2: Protocol Extraction (In Progress) 🚧
+### Phase 2: Protocol Extraction (Complete) ✅
 - ✅ Protocol layer created: `caldav/protocol/`
 - ✅ I/O layer created: `caldav/io/`
 - ✅ Protocol-based clients available
-- 🔄 Integration with existing DAVClient (optional, for internal refactoring)
+- ✅ 57 tests (39 unit + 18 integration) all passing
+- Optional: DAVClient internal refactoring to use protocol layer
 - Better testability (protocol tests without HTTP mocking)
 - Reduced coupling between protocol and I/O
-- **Trigger**: When test improvements needed or httpx support requested
 
 ### Phase 3: Full Sans-I/O (Long-term)
 - Complete separation of protocol and I/O
