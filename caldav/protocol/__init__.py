@@ -62,6 +62,7 @@ from .xml_parsers import (
     parse_propfind_response,
     parse_sync_collection_response,
 )
+from .operations import CalDAVProtocol
 
 __all__ = [
     # Enums
@@ -92,4 +93,6 @@ __all__ = [
     "parse_multistatus",
     "parse_propfind_response",
     "parse_sync_collection_response",
+    # Protocol
+    "CalDAVProtocol",
 ]
