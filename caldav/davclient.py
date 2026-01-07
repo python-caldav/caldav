@@ -1,17 +1,15 @@
 #!/usr/bin/env python
 """
-Sync CalDAV client - wraps async implementation for backward compatibility.
+Sync CalDAV client using niquests library.
 
-This module provides the traditional synchronous API. The HTTP operations
-are delegated to AsyncDAVClient and executed via asyncio.run().
+This module provides the traditional synchronous API with protocol layer
+for XML building and response parsing.
 
-For new async code, use: from caldav import aio
+For async code, use: from caldav import aio
 """
 
-import asyncio
 import logging
 import sys
-import threading
 import warnings
 from types import TracebackType
 from typing import List, Optional, Tuple, Union, cast
@@ -34,8 +32,6 @@ from lxml.etree import _Element
 import caldav.compatibility_hints
 from caldav import __version__
 
-# Import async implementation for wrapping
-from caldav.async_davclient import AsyncDAVClient, AsyncDAVResponse
 from caldav.collection import Calendar, CalendarSet, Principal
 from caldav.compatibility_hints import FeatureSet
 from caldav.elements import cdav, dav
@@ -55,54 +51,6 @@ if sys.version_info < (3, 11):
     from typing_extensions import Self
 else:
     from typing import Self
-
-
-class EventLoopManager:
-    """Manages a persistent event loop in a background thread.
-
-    This allows reusing HTTP connections across multiple sync API calls
-    by maintaining a single event loop and AsyncDAVClient session.
-    """
-
-    def __init__(self) -> None:
-        self._loop: Optional[asyncio.AbstractEventLoop] = None
-        self._thread: Optional[threading.Thread] = None
-        self._started = threading.Event()
-
-    def start(self) -> None:
-        """Start the background event loop."""
-        if self._thread is not None:
-            return  # Already started
-
-        def run_loop():
-            self._loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(self._loop)
-            self._started.set()
-            self._loop.run_forever()
-
-        self._thread = threading.Thread(target=run_loop, daemon=True)
-        self._thread.start()
-        self._started.wait()  # Wait for loop to be ready
-
-    def run_coroutine(self, coro):
-        """Run a coroutine in the background event loop."""
-        if self._loop is None:
-            raise RuntimeError("Event loop not started")
-
-        future = asyncio.run_coroutine_threadsafe(coro, self._loop)
-        return future.result()
-
-    def stop(self) -> None:
-        """Stop the background event loop and close resources."""
-        if self._loop is not None:
-            self._loop.call_soon_threadsafe(self._loop.stop)
-            if self._thread is not None:
-                self._thread.join(timeout=5)  # Don't hang forever
-            # Close the loop to release the selector (epoll fd)
-            if not self._loop.is_closed():
-                self._loop.close()
-            self._loop = None
-            self._thread = None
 
 
 """
@@ -235,16 +183,9 @@ class DAVResponse(BaseDAVResponse):
 
     def __init__(
         self,
-        response: Union[Response, AsyncDAVResponse],
+        response: Response,
         davclient: Optional["DAVClient"] = None,
     ) -> None:
-        # If response is already an AsyncDAVResponse, copy its parsed properties
-        # This avoids re-parsing XML and eliminates the need for mock responses
-        if isinstance(response, AsyncDAVResponse):
-            self._init_from_async_response(response, davclient)
-            return
-
-        # Original sync Response handling
         self.headers = response.headers
         self.status = response.status_code
         log.debug("response headers: " + str(self.headers))
@@ -332,35 +273,6 @@ class DAVResponse(BaseDAVResponse):
             self.reason = response.reason
         except AttributeError:
             self.reason = ""
-
-    def _init_from_async_response(
-        self, async_response: AsyncDAVResponse, davclient: Optional["DAVClient"]
-    ) -> None:
-        """
-        Initialize from an AsyncDAVResponse by copying its already-parsed properties.
-
-        This is more efficient than creating a mock Response and re-parsing,
-        as AsyncDAVResponse has already done the XML parsing.
-        """
-        self.headers = async_response.headers
-        self.status = async_response.status
-        self.reason = async_response.reason
-        self.tree = async_response.tree
-        self._raw = async_response._raw
-        self.davclient = davclient
-        if davclient:
-            self.huge_tree = davclient.huge_tree
-        else:
-            self.huge_tree = async_response.huge_tree
-
-        # Copy objects dict if already parsed
-        if hasattr(async_response, "objects"):
-            self.objects = async_response.objects
-
-        # Copy protocol-layer parsed results (new interface)
-        # These provide pre-parsed property values without needing find_objects_and_props()
-        self.results = getattr(async_response, "results", None)
-        self.sync_token = getattr(async_response, "sync_token", None)
 
     @property
     def raw(self) -> str:
@@ -535,89 +447,6 @@ class DAVClient:
         log.debug("self.url: " + str(url))
 
         self._principal = None
-        self._loop_manager: Optional[EventLoopManager] = None
-        self._async_client: Optional[AsyncDAVClient] = None
-
-    def _run_async_operation(self, async_method_name: str, **kwargs) -> "AsyncDAVResponse":
-        """
-        Run an async operation with proper resource cleanup.
-
-        This helper runs the specified method on an AsyncDAVClient, using
-        the persistent client and event loop when available (context manager mode),
-        or creating a new client with asyncio.run() otherwise.
-
-        Args:
-            async_method_name: Name of the method to call on AsyncDAVClient
-            **kwargs: Arguments to pass to the method
-
-        Returns:
-            AsyncDAVResponse from the async operation
-        """
-        # Use persistent client/loop when available (context manager mode)
-        if self._loop_manager is not None and self._async_client is not None:
-
-            async def _execute_cached():
-                method = getattr(self._async_client, async_method_name)
-                return await method(**kwargs)
-
-            return self._loop_manager.run_coroutine(_execute_cached())
-
-        # Fall back to creating a new client each time
-        async def _execute():
-            async_client = self._get_async_client()
-            async with async_client:
-                method = getattr(async_client, async_method_name)
-                return await method(**kwargs)
-
-        return asyncio.run(_execute())
-
-    def _get_async_client(self) -> AsyncDAVClient:
-        """
-        Create a new AsyncDAVClient for HTTP operations.
-
-        This is part of the demonstration wrapper showing async-first architecture.
-        The sync API delegates HTTP operations to AsyncDAVClient via asyncio.run().
-
-        NOTE: We create a new client each time because asyncio.run() creates
-        a new event loop for each call, and AsyncSession is tied to a specific
-        event loop. This is inefficient but correct for a demonstration wrapper.
-        The full Phase 4 implementation will handle event loop management properly.
-
-        IMPORTANT: Always use _run_async_operation() or wrap in 'async with'
-        to ensure proper cleanup and avoid file descriptor leaks.
-        """
-        # Create async client with same configuration
-        # Note: Don't pass features since it's already a FeatureSet and would be wrapped again
-
-        # Convert sync auth to async auth if needed
-        async_auth = self.auth
-        if self.auth is not None:
-            from niquests.auth import AsyncHTTPDigestAuth, HTTPDigestAuth
-
-            # Check if it's sync HTTPDigestAuth and convert to async version
-            if isinstance(self.auth, HTTPDigestAuth):
-                async_auth = AsyncHTTPDigestAuth(self.auth.username, self.auth.password)
-            # Other auth types (BasicAuth, BearerAuth) work in both contexts
-
-        async_client = AsyncDAVClient(
-            url=str(self.url),
-            proxy=self.proxy if hasattr(self, "proxy") else None,
-            username=self.username,
-            password=self.password.decode("utf-8")
-            if isinstance(self.password, bytes)
-            else self.password,
-            auth=async_auth,
-            auth_type=None,  # Auth object already built, don't try to build it again
-            timeout=self.timeout,
-            ssl_verify_cert=self.ssl_verify_cert,
-            ssl_cert=self.ssl_cert,
-            headers=dict(self.headers),  # Convert CaseInsensitiveDict to regular dict
-            huge_tree=self.huge_tree,
-            features=self.features,  # Pass features so session is created with correct settings
-            enable_rfc6764=False,  # Already discovered in sync __init__
-            require_tls=True,
-        )
-        return async_client
 
     def __enter__(self) -> Self:
         ## Used for tests, to set up a temporarily test server
@@ -626,18 +455,6 @@ class DAVClient:
                 self.setup()
             except TypeError:
                 self.setup(self)
-
-        # Start persistent event loop for HTTP connection reuse
-        self._loop_manager = EventLoopManager()
-        self._loop_manager.start()
-
-        # Create async client once (with persistent session)
-        async def create_client():
-            async_client = self._get_async_client()
-            await async_client.__aenter__()
-            return async_client
-
-        self._async_client = self._loop_manager.run_coroutine(create_client())
         return self
 
     def __exit__(
@@ -656,26 +473,8 @@ class DAVClient:
 
     def close(self) -> None:
         """
-        Closes the DAVClient's session object and cleans up event loop.
+        Closes the DAVClient's session object.
         """
-        # Close async client if it exists
-        if self._async_client is not None:
-
-            async def close_client():
-                await self._async_client.__aexit__(None, None, None)
-
-            if self._loop_manager is not None:
-                try:
-                    self._loop_manager.run_coroutine(close_client())
-                except RuntimeError:
-                    pass  # Event loop may already be stopped
-            self._async_client = None
-
-        # Stop event loop
-        if self._loop_manager is not None:
-            self._loop_manager.stop()
-            self._loop_manager = None
-
         self.session.close()
 
     def principals(self, name=None):
@@ -809,9 +608,7 @@ class DAVClient:
             from caldav.protocol.xml_parsers import parse_propfind_response
 
             raw_bytes = (
-                response._raw
-                if isinstance(response._raw, bytes)
-                else response._raw.encode("utf-8")
+                response._raw if isinstance(response._raw, bytes) else response._raw.encode("utf-8")
             )
             response.results = parse_propfind_response(
                 raw_bytes, response.status, response.huge_tree
@@ -953,25 +750,6 @@ class DAVClient:
             self.auth = requests.auth.HTTPBasicAuth(self.username, self.password)
         elif auth_type == "bearer":
             self.auth = HTTPBearerAuth(self.password)
-
-    def _is_mocked(self) -> bool:
-        """
-        Check if we're in a test context (for unit test compatibility).
-        Returns True if:
-        - session.request is a MagicMock (mocked via @mock.patch)
-        - request() method has been overridden in a subclass (MockedDAVClient)
-        - any of the main DAV methods (propfind, proppatch, put, etc.) are mocked
-        """
-        from unittest.mock import MagicMock
-
-        return (
-            isinstance(self.session.request, MagicMock)
-            or type(self).request != DAVClient.request
-            or isinstance(self.propfind, MagicMock)
-            or isinstance(self.proppatch, MagicMock)
-            or isinstance(self.put, MagicMock)
-            or isinstance(self.delete, MagicMock)
-        )
 
     def request(
         self,

@@ -118,103 +118,6 @@ class DAVObject:
             raise ValueError("Unexpected value None for self.url")
         return str(self.url.canonical())
 
-    def _run_async(self, async_func):
-        """
-        Helper method to run an async function with async delegation.
-        Creates an AsyncDAVObject and runs the provided async function.
-
-        If the DAVClient was opened with context manager (__enter__), this will
-        reuse the persistent async client and event loop for better performance.
-        Otherwise, it falls back to creating a new client for each call.
-
-        Args:
-            async_func: A callable that takes an AsyncDAVObject and returns a coroutine
-
-        Returns:
-            The result from the async function
-        """
-        import asyncio
-        from caldav.async_davobject import AsyncDAVObject
-
-        if self.client is None:
-            raise ValueError("Unexpected value None for self.client")
-
-        # Check if client is mocked (for unit tests)
-        if hasattr(self.client, "_is_mocked") and self.client._is_mocked():
-            # For mocked clients, we can't use async delegation because the mock
-            # only works on the sync request() method. Raise a clear error.
-            raise NotImplementedError(
-                f"Async delegation is not supported for mocked clients. "
-                f"The method you're trying to call requires real async implementation or "
-                f"a different mocking approach. Method: {async_func.__name__}"
-            )
-
-        # Check if we have a cached async client (from context manager)
-        if (
-            hasattr(self.client, "_async_client")
-            and self.client._async_client is not None
-            and hasattr(self.client, "_loop_manager")
-            and self.client._loop_manager is not None
-        ):
-            # Use persistent async client with reused connections
-            log.debug("Using persistent async client with connection reuse")
-
-            async def _execute_cached():
-                # Create async object with same state, using cached client
-                async_obj = AsyncDAVObject(
-                    client=self.client._async_client,
-                    url=self.url,
-                    parent=None,  # Parent is complex, handle separately if needed
-                    name=self.name,
-                    id=self.id,
-                    props=self.props.copy(),
-                )
-
-                # Run the async function
-                result = await async_func(async_obj)
-
-                # Copy back state changes
-                self.props.update(async_obj.props)
-                if async_obj.url and async_obj.url != self.url:
-                    self.url = async_obj.url
-                if async_obj.id and async_obj.id != self.id:
-                    self.id = async_obj.id
-
-                return result
-
-            return self.client._loop_manager.run_coroutine(_execute_cached())
-        else:
-            # Fall back to old behavior: create new client each time
-            # This happens if DAVClient is used without context manager
-            log.debug("Fallback: creating new async client (no context manager)")
-
-            async def _execute():
-                async_client = self.client._get_async_client()
-                async with async_client:
-                    # Create async object with same state
-                    async_obj = AsyncDAVObject(
-                        client=async_client,
-                        url=self.url,
-                        parent=None,  # Parent is complex, handle separately if needed
-                        name=self.name,
-                        id=self.id,
-                        props=self.props.copy(),
-                    )
-
-                    # Run the async function
-                    result = await async_func(async_obj)
-
-                    # Copy back state changes
-                    self.props.update(async_obj.props)
-                    if async_obj.url and async_obj.url != self.url:
-                        self.url = async_obj.url
-                    if async_obj.id and async_obj.id != self.id:
-                        self.id = async_obj.id
-
-                    return result
-
-            return asyncio.run(_execute())
-
     def children(self, type: Optional[str] = None) -> List[Tuple[URL, Any, Any]]:
         """List children, using a propfind (resourcetype) on the parent object,
         at depth = 1.
@@ -242,9 +145,7 @@ class DAVObject:
         multiprops = [dav.ResourceType()]
         props_multiprops = props + multiprops
         response = self._query_properties(props_multiprops, depth)
-        properties = response.expand_simple_props(
-            props=props, multi_value_props=multiprops
-        )
+        properties = response.expand_simple_props(props=props, multi_value_props=multiprops)
 
         for path in properties:
             resource_types = properties[path][dav.ResourceType.tag]
@@ -271,9 +172,7 @@ class DAVObject:
         ## the properties we've already fetched
         return c
 
-    def _query_properties(
-        self, props: Optional[Sequence[BaseElement]] = None, depth: int = 0
-    ):
+    def _query_properties(self, props: Optional[Sequence[BaseElement]] = None, depth: int = 0):
         """
         This is an internal method for doing a propfind query.  It's a
         result of code-refactoring work, attempting to consolidate
@@ -322,17 +221,9 @@ class DAVObject:
             ## COMPATIBILITY HACK - see https://github.com/python-caldav/caldav/issues/309
             ## TODO: server quirks!
             body = to_wire(body)
-            if (
-                ret.status == 500
-                and b"D:getetag" not in body
-                and b"<C:calendar-data" in body
-            ):
-                body = body.replace(
-                    b"<C:calendar-data", b"<D:getetag/><C:calendar-data"
-                )
-                return self._query(
-                    body, depth, query_method, url, expected_return_value
-                )
+            if ret.status == 500 and b"D:getetag" not in body and b"<C:calendar-data" in body:
+                body = body.replace(b"<C:calendar-data", b"<D:getetag/><C:calendar-data")
+                return self._query(body, depth, query_method, url, expected_return_value)
             raise error.exception_by_method[query_method](errmsg(ret))
         return ret
 
@@ -381,61 +272,60 @@ class DAVObject:
           ``{proptag: value, ...}``
 
         """
-        # For mocked clients, use sync implementation to avoid creating new async client
-        if (
-            self.client
-            and hasattr(self.client, "_is_mocked")
-            and self.client._is_mocked()
-        ):
-            from .collection import (
-                Principal,
-            )  ## late import to avoid cyclic dependencies
+        from .collection import (
+            Principal,
+        )  ## late import to avoid cyclic dependencies
 
-            rc = None
-            response = self._query_properties(props, depth)
-            if not parse_response_xml:
-                return response
+        rc = None
+        response = self._query_properties(props, depth)
+        if not parse_response_xml:
+            return response
 
-            if not parse_props:
-                properties = response.find_objects_and_props()
-            else:
-                properties = response.expand_simple_props(props)
+        # Use protocol layer results when available and parse_props=True
+        if parse_props and response.results:
+            # Convert results to the expected {href: {tag: value}} format
+            properties = {}
+            for result in response.results:
+                # Start with None for all requested props (for backward compat)
+                result_props = {}
+                if props:
+                    for prop in props:
+                        if prop.tag:
+                            result_props[prop.tag] = None
+                # Then overlay with actual values from server
+                result_props.update(result.properties)
+                properties[result.href] = result_props
+        elif not parse_props:
+            # Caller wants raw XML elements - use deprecated method
+            properties = response.find_objects_and_props()
+        else:
+            # Fallback to expand_simple_props for mocked responses
+            properties = response.expand_simple_props(props)
 
-            error.assert_(properties)
+        error.assert_(properties)
 
-            if self.url is None:
-                raise ValueError("Unexpected value None for self.url")
+        if self.url is None:
+            raise ValueError("Unexpected value None for self.url")
 
-            path = unquote(self.url.path)
-            if path.endswith("/"):
-                exchange_path = path[:-1]
-            else:
-                exchange_path = path + "/"
+        path = unquote(self.url.path)
+        if path.endswith("/"):
+            exchange_path = path[:-1]
+        else:
+            exchange_path = path + "/"
 
-            if path in properties:
-                rc = properties[path]
-            elif exchange_path in properties:
-                if not isinstance(self, Principal):
-                    log.warning(
-                        f"The path {path} was not found in the properties, but {exchange_path} was. "
-                        "This may indicate a server bug or a trailing slash issue."
-                    )
-                rc = properties[exchange_path]
-            else:
-                error.assert_(False)
-            self.props.update(rc)
-            return rc
-
-        # Delegate to async implementation
-        async def _async_get_properties(async_obj):
-            return await async_obj.get_properties(
-                props=props,
-                depth=depth,
-                parse_response_xml=parse_response_xml,
-                parse_props=parse_props,
-            )
-
-        return self._run_async(_async_get_properties)
+        if path in properties:
+            rc = properties[path]
+        elif exchange_path in properties:
+            if not isinstance(self, Principal):
+                log.warning(
+                    f"The path {path} was not found in the properties, but {exchange_path} was. "
+                    "This may indicate a server bug or a trailing slash issue."
+                )
+            rc = properties[exchange_path]
+        else:
+            error.assert_(False)
+        self.props.update(rc)
+        return rc
 
     def set_properties(self, props: Optional[Any] = None) -> Self:
         """
@@ -446,13 +336,34 @@ class DAVObject:
         Returns:
          * self
         """
+        props = [] if props is None else props
+        prop = dav.Prop() + props
+        set_elem = dav.Set() + prop
+        root = dav.PropertyUpdate() + set_elem
 
-        # Delegate to async implementation
-        async def _async_set_properties(async_obj):
-            await async_obj.set_properties(props=props)
-            return self  # Return the sync object
+        body = ""
+        if root:
+            if hasattr(root, "xmlelement"):
+                body = etree.tostring(
+                    root.xmlelement(),
+                    encoding="utf-8",
+                    xml_declaration=True,
+                    pretty_print=error.debug_dump_communication,
+                )
+            else:
+                body = root
 
-        return self._run_async(_async_set_properties)
+        if self.url is None:
+            raise ValueError("Unexpected value None for self.url")
+        if self.client is None:
+            raise ValueError("Unexpected value None for self.client")
+
+        r = self.client.proppatch(str(self.url), body)
+
+        if r.status >= 400:
+            raise error.PropsetError(errmsg(r))
+
+        return self
 
     def save(self) -> Self:
         """
@@ -468,13 +379,15 @@ class DAVObject:
         """
         Delete the object.
         """
+        if self.url is not None:
+            if self.client is None:
+                raise ValueError("Unexpected value None for self.client")
 
-        # Delegate to async implementation
-        async def _async_delete(async_obj):
-            await async_obj.delete()
-            return None
+            r = self.client.delete(str(self.url))
 
-        return self._run_async(_async_delete)
+            # TODO: find out why we get 404
+            if r.status not in (200, 204, 404):
+                raise error.DeleteError(errmsg(r))
 
     def get_display_name(self):
         """
@@ -484,9 +397,7 @@ class DAVObject:
 
     def __str__(self) -> str:
         try:
-            return (
-                str(self.get_property(dav.DisplayName(), use_cached=True)) or self.url
-            )
+            return str(self.get_property(dav.DisplayName(), use_cached=True)) or self.url
         except:
             return str(self.url)
 

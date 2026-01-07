@@ -140,108 +140,6 @@ class CalendarObjectResource(DAVObject):
                 old_id = self.icalendar_component.pop("UID", None)
                 self.icalendar_component.add("UID", id)
 
-    def _run_async_calendar(self, async_func):
-        """
-        Helper method to run an async function with async delegation for CalendarObjectResource.
-        Creates an AsyncCalendarObjectResource and runs the provided async function.
-
-        Args:
-            async_func: A callable that takes an AsyncCalendarObjectResource and returns a coroutine
-
-        Returns:
-            The result from the async function
-        """
-        import asyncio
-        from caldav.async_davobject import (
-            AsyncCalendarObjectResource,
-            AsyncDAVObject,
-            AsyncEvent,
-            AsyncTodo,
-            AsyncJournal,
-        )
-
-        if self.client is None:
-            raise ValueError("Unexpected value None for self.client")
-
-        # Helper to create async object from sync state
-        def _create_async_obj(async_client):
-            # Create async parent if needed (minimal stub with just URL)
-            async_parent = None
-            if self.parent:
-                async_parent = AsyncDAVObject(
-                    client=async_client,
-                    url=self.parent.url,
-                    id=getattr(self.parent, "id", None),
-                    props=getattr(self.parent, "props", {}).copy()
-                    if hasattr(self.parent, "props")
-                    else {},
-                )
-                # Store reference to sync parent for methods that need it (e.g., no_create/no_overwrite checks)
-                async_parent._sync_parent = self.parent
-
-            # Create async object with same state
-            # Use self.data (property) to get current data from whichever source is available
-            # (_data, _icalendar_instance, or _vobject_instance)
-            # Determine the correct async class based on the sync class
-            sync_class_name = self.__class__.__name__
-            async_class_map = {
-                "Event": AsyncEvent,
-                "Todo": AsyncTodo,
-                "Journal": AsyncJournal,
-            }
-            AsyncClass = async_class_map.get(sync_class_name, AsyncCalendarObjectResource)
-
-            return AsyncClass(
-                client=async_client,
-                url=self.url,
-                data=self.data,
-                parent=async_parent,
-                id=self.id,
-                props=self.props.copy(),
-            )
-
-        # Helper to copy back state changes
-        def _copy_back_state(async_obj):
-            self.props.update(async_obj.props)
-            if async_obj.url and async_obj.url != self.url:
-                self.url = async_obj.url
-            if async_obj.id and async_obj.id != self.id:
-                self.id = async_obj.id
-            # Only update data if it changed (to preserve local modifications to icalendar_instance)
-            # Compare with self.data (property) not self._data (field) to catch all modifications
-            current_data = self.data
-            if async_obj._data and async_obj._data != current_data:
-                self._data = async_obj._data
-                self._icalendar_instance = None
-                self._vobject_instance = None
-
-        # Use persistent client/loop when available (context manager mode)
-        if (
-            hasattr(self.client, "_async_client")
-            and self.client._async_client is not None
-            and hasattr(self.client, "_loop_manager")
-            and self.client._loop_manager is not None
-        ):
-
-            async def _execute_cached():
-                async_obj = _create_async_obj(self.client._async_client)
-                result = await async_func(async_obj)
-                _copy_back_state(async_obj)
-                return result
-
-            return self.client._loop_manager.run_coroutine(_execute_cached())
-
-        # Fall back to creating a new client each time
-        async def _execute():
-            async_client = self.client._get_async_client()
-            async with async_client:
-                async_obj = _create_async_obj(async_client)
-                result = await async_func(async_obj)
-                _copy_back_state(async_obj)
-                return result
-
-        return asyncio.run(_execute())
-
     def set_end(self, end, move_dtstart=False):
         """The RFC specifies that a VEVENT/VTODO cannot have both
         dtend/due and duration, so when setting dtend/due, the duration
@@ -761,16 +659,29 @@ class CalendarObjectResource(DAVObject):
         """
         (Re)load the object from the caldav server.
         """
-        # Early return if already loaded (for unit tests without client)
         if only_if_unloaded and self.is_loaded():
             return self
 
-        # Delegate to async implementation
-        async def _async_load(async_obj):
-            await async_obj.load(only_if_unloaded=only_if_unloaded)
-            return self  # Return the sync object
+        if self.url is None:
+            raise ValueError("Unexpected value None for self.url")
+        if self.client is None:
+            raise ValueError("Unexpected value None for self.client")
 
-        return self._run_async_calendar(_async_load)
+        try:
+            r = self.client.request(str(self.url))
+            if r.status and r.status == 404:
+                raise error.NotFoundError(errmsg(r))
+            self.data = r.raw  # type: ignore
+        except error.NotFoundError:
+            raise
+        except Exception:
+            return self.load_by_multiget()
+
+        if "Etag" in r.headers:
+            self.props[dav.GetEtag.tag] = r.headers["Etag"]
+        if "Schedule-Tag" in r.headers:
+            self.props[cdav.ScheduleTag.tag] = r.headers["Schedule-Tag"]
+        return self
 
     def load_by_multiget(self) -> Self:
         """
@@ -1075,20 +986,15 @@ class CalendarObjectResource(DAVObject):
                     ici.add_component(self.icalendar_component)
                 return obj.save(increase_seqno=increase_seqno)
 
-        # Delegate to async implementation
-        async def _async_save(async_obj):
-            await async_obj.save(
-                no_overwrite=False,  # Already validated above
-                no_create=False,  # Already validated above
-                obj_type=obj_type,
-                increase_seqno=increase_seqno,
-                if_schedule_tag_match=if_schedule_tag_match,
-                only_this_recurrence=False,  # Already handled above
-                all_recurrences=False,  # Already handled above
-            )
-            return self  # Return the sync object
+        # Handle SEQUENCE increment
+        if increase_seqno and "SEQUENCE" in self.icalendar_component:
+            seqno = self.icalendar_component.pop("SEQUENCE", None)
+            if seqno is not None:
+                self.icalendar_component.add("SEQUENCE", seqno + 1)
 
-        return self._run_async_calendar(_async_save)
+        path = self.url.path if self.url else None
+        self._create(id=self.id, path=path)
+        return self
 
     def is_loaded(self):
         """Returns True if there exists data in the object.  An
