@@ -759,6 +759,17 @@ class Calendar(DAVObject):
         if self.url is None:
             raise ValueError("Unexpected value None for self.url")
 
+        # Delegate to async version which uses protocol layer
+        try:
+
+            async def _async_get_supported_components(async_cal):
+                return await async_cal.get_supported_components()
+
+            return self._run_async_calendar(_async_get_supported_components)
+        except NotImplementedError:
+            pass  # Fall through to sync implementation for mocked clients
+
+        # Sync fallback implementation for mocked clients
         props = [cdav.SupportedCalendarComponentSet()]
         response = self.get_properties(props, parse_response_xml=False)
         response_list = response.find_objects_and_props()
