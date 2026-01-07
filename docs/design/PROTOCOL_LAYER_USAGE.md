@@ -263,9 +263,12 @@ io.close()
 The standard `DAVClient` and `AsyncDAVClient` now expose parsed results via `response.results`:
 
 ```python
-from caldav import DAVClient
+from caldav import get_davclient
 
-with DAVClient(url="https://cal.example.com", username="user", password="pass") as client:
+# Use get_davclient() factory method (recommended)
+client = get_davclient(url="https://cal.example.com", username="user", password="pass")
+
+with client:
     # propfind returns DAVResponse with parsed results
     response = client.propfind("/calendars/", depth=1)
 
@@ -282,11 +285,14 @@ with DAVClient(url="https://cal.example.com", username="user", password="pass") 
 ### Async version
 
 ```python
-from caldav.aio import AsyncDAVClient
+from caldav.aio import get_async_davclient
 import asyncio
 
 async def main():
-    async with AsyncDAVClient(url="https://cal.example.com", username="user", password="pass") as client:
+    # Use get_async_davclient() factory method (recommended)
+    client = get_async_davclient(url="https://cal.example.com", username="user", password="pass")
+
+    async with client:
         response = await client.propfind("/calendars/", depth=1)
 
         for result in response.results:
