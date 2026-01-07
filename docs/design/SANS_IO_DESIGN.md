@@ -661,6 +661,40 @@ version, achievable incrementally without breaking existing users.
 The key insight is that **Sans-I/O and the current API are compatible** - Sans-I/O
 is an internal architectural improvement, not a user-facing change.
 
+## Implementation Status and DAVClient Refactoring Decision
+
+**Status (as of 2026-01):** The Sans-I/O protocol layer is complete and available:
+
+- `caldav.protocol` - Protocol types, XML builders, XML parsers
+- `caldav.io` - SyncIO and AsyncIO implementations
+- `caldav.protocol_client` - SyncProtocolClient and AsyncProtocolClient
+- 57 tests (39 unit + 18 integration) all passing
+
+### Should DAVClient use the protocol layer internally?
+
+**Decision: No - Keep separate implementations.**
+
+**Rationale:**
+
+1. **Working code principle:** The existing DAVClient/AsyncDAVClient work well and
+   are thoroughly tested. Refactoring them to use the protocol layer internally
+   risks introducing bugs.
+
+2. **Different abstraction levels:** DAVClient operates at the HTTP method level
+   (propfind, report, etc.) while the protocol layer focuses on request/response
+   building and parsing. Mixing these abstractions adds unnecessary complexity.
+
+3. **User choice:** Users can choose the approach that fits their needs:
+   - `DAVClient` - Full-featured client with discovery, caching, etc.
+   - `SyncProtocolClient` - Sans-I/O-based client for maximum testability
+   - `CalDAVProtocol` - Direct protocol access for custom HTTP handling
+
+4. **Risk/benefit:** The effort and risk of refactoring DAVClient outweigh the
+   benefits. Users who need Sans-I/O benefits can use the protocol clients directly.
+
+**Future consideration:** If significant bugs are found in XML generation/parsing,
+consolidating on the protocol layer's implementation may become worthwhile.
+
 ## References
 
 - [Building Protocol Libraries The Right Way](https://www.youtube.com/watch?v=7cC3_jGwl_U) - Cory Benfield, PyCon 2016
