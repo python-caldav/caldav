@@ -258,6 +258,43 @@ results = protocol.parse_propfind(response)
 io.close()
 ```
 
+## Using response.results with DAVClient
+
+The standard `DAVClient` and `AsyncDAVClient` now expose parsed results via `response.results`:
+
+```python
+from caldav import DAVClient
+
+with DAVClient(url="https://cal.example.com", username="user", password="pass") as client:
+    # propfind returns DAVResponse with parsed results
+    response = client.propfind("/calendars/", depth=1)
+
+    # New interface: use response.results for pre-parsed values
+    if response.results:
+        for result in response.results:
+            print(f"Resource: {result.href}")
+            print(f"Display name: {result.properties.get('{DAV:}displayname')}")
+
+    # Deprecated: find_objects_and_props() still works but shows warning
+    # objects = response.find_objects_and_props()  # DeprecationWarning
+```
+
+### Async version
+
+```python
+from caldav.aio import AsyncDAVClient
+import asyncio
+
+async def main():
+    async with AsyncDAVClient(url="https://cal.example.com", username="user", password="pass") as client:
+        response = await client.propfind("/calendars/", depth=1)
+
+        for result in response.results:
+            print(f"{result.href}: {result.properties}")
+
+asyncio.run(main())
+```
+
 ## Comparison with Standard Client
 
 | Feature | DAVClient | SyncProtocolClient |
