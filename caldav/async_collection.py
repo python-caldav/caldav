@@ -524,12 +524,31 @@ class AsyncCalendar(AsyncDAVObject):
 
         if self.url is None:
             raise ValueError("Unexpected value None for self.url")
+        if self.client is None:
+            raise ValueError("Unexpected value None for self.client")
 
-        props = [cdav.SupportedCalendarComponentSet()]
-        response = await self.get_properties(props, parse_response_xml=False)
-        response_list = response.find_objects_and_props()
-        prop = response_list[unquote(self.url.path)][cdav.SupportedCalendarComponentSet().tag]
-        return [supported.get("name") for supported in prop]
+        # Use the protocol layer for parsing - it automatically extracts component names
+        response = await self.client.propfind(
+            str(self.url),
+            props=["supported-calendar-component-set"],
+            depth=0,
+        )
+
+        if not response.results:
+            return []
+
+        # Find the result matching our URL
+        url_path = unquote(self.url.path)
+        for result in response.results:
+            # Match by path (results may have different path formats)
+            if result.href == url_path or url_path.endswith(result.href) or result.href.endswith(url_path.rstrip("/")):
+                components = result.properties.get(
+                    cdav.SupportedCalendarComponentSet.tag, []
+                )
+                # Protocol layer returns list of component names directly
+                return components if isinstance(components, list) else []
+
+        return []
 
     def _calendar_comp_class_by_data(self, data: Optional[str]) -> type:
         """
