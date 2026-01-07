@@ -389,8 +389,8 @@ def _element_to_value(elem: _Element) -> Any:
     if tag == dav.ResourceType.tag:
         return [child.tag for child in elem]
 
-    # principal-URL, current-user-principal: extract href
-    if tag in (dav.PrincipalURL.tag, dav.CurrentUserPrincipal.tag):
+    # current-user-principal: extract href
+    if tag == dav.CurrentUserPrincipal.tag:
         for child in elem:
             if child.tag == dav.Href.tag and child.text:
                 return child.text

@@ -7,9 +7,10 @@ For sync usage, see the davclient.py wrapper.
 """
 import logging
 import sys
+import warnings
 from collections.abc import Mapping
 from types import TracebackType
-from typing import Any, Optional, Union, cast
+from typing import Any, List, Optional, Union, cast
 from urllib.parse import unquote
 
 try:
@@ -33,6 +34,20 @@ from caldav.lib import error
 from caldav.lib.python_utilities import to_normal_str, to_wire
 from caldav.lib.url import URL
 from caldav.objects import log
+from caldav.protocol.types import PropfindResult, CalendarQueryResult, SyncCollectionResult
+from caldav.protocol.xml_builders import (
+    build_propfind_body,
+    build_calendar_query_body,
+    build_calendar_multiget_body,
+    build_sync_collection_body,
+    build_mkcalendar_body,
+    build_proppatch_body,
+)
+from caldav.protocol.xml_parsers import (
+    parse_propfind_response,
+    parse_calendar_query_response,
+    parse_sync_collection_response,
+)
 from caldav.requests import HTTPBearerAuth
 from caldav.response import BaseDAVResponse
 
@@ -50,10 +65,17 @@ class AsyncDAVResponse(BaseDAVResponse):
     End users typically won't interact with this class directly.
 
     Response parsing methods are inherited from BaseDAVResponse.
+
+    New protocol-based attributes:
+        results: Parsed results from protocol layer (List[PropfindResult], etc.)
+        sync_token: Sync token from sync-collection response
     """
 
     reason: str = ""
     davclient: Optional["AsyncDAVClient"] = None
+    # Protocol-based parsed results (new interface)
+    results: Optional[List[Union[PropfindResult, CalendarQueryResult]]] = None
+    sync_token: Optional[str] = None
 
     def __init__(
         self, response: Response, davclient: Optional["AsyncDAVClient"] = None
@@ -504,21 +526,34 @@ class AsyncDAVClient:
         body: str = "",
         depth: int = 0,
         headers: Optional[Mapping[str, str]] = None,
+        props: Optional[List[str]] = None,
     ) -> AsyncDAVResponse:
         """
         Send a PROPFIND request.
 
         Args:
             url: Target URL (defaults to self.url).
-            body: XML properties request.
+            body: XML properties request (legacy, use props instead).
             depth: Maximum recursion depth.
             headers: Additional headers.
+            props: List of property names to request (uses protocol layer).
 
         Returns:
-            AsyncDAVResponse
+            AsyncDAVResponse with results attribute containing parsed PropfindResult list.
         """
+        # Use protocol layer to build XML if props provided
+        if props is not None and not body:
+            body = build_propfind_body(props).decode("utf-8")
+
         final_headers = self._build_method_headers("PROPFIND", depth, headers)
-        return await self.request(url or str(self.url), "PROPFIND", body, final_headers)
+        response = await self.request(url or str(self.url), "PROPFIND", body, final_headers)
+
+        # Parse response using protocol layer
+        if response.status in (200, 207) and response._raw:
+            raw_bytes = response._raw if isinstance(response._raw, bytes) else response._raw.encode("utf-8")
+            response.results = parse_propfind_response(raw_bytes, response.status, response.huge_tree)
+
+        return response
 
     async def report(
         self,
@@ -674,6 +709,149 @@ class AsyncDAVClient:
             AsyncDAVResponse
         """
         return await self.request(url, "DELETE", "", headers)
+
+    # ==================== High-Level CalDAV Methods ====================
+    # These methods use the protocol layer for building XML and parsing responses
+
+    async def calendar_query(
+        self,
+        url: Optional[str] = None,
+        start: Optional[Any] = None,
+        end: Optional[Any] = None,
+        event: bool = False,
+        todo: bool = False,
+        journal: bool = False,
+        expand: bool = False,
+        depth: int = 1,
+        headers: Optional[Mapping[str, str]] = None,
+    ) -> AsyncDAVResponse:
+        """
+        Execute a calendar-query REPORT to search for calendar objects.
+
+        Args:
+            url: Target calendar URL (defaults to self.url).
+            start: Start of time range filter.
+            end: End of time range filter.
+            event: Include events (VEVENT).
+            todo: Include todos (VTODO).
+            journal: Include journals (VJOURNAL).
+            expand: Expand recurring events.
+            depth: Search depth.
+            headers: Additional headers.
+
+        Returns:
+            AsyncDAVResponse with results containing List[CalendarQueryResult].
+        """
+        from datetime import datetime
+
+        body, _ = build_calendar_query_body(
+            start=start,
+            end=end,
+            event=event,
+            todo=todo,
+            journal=journal,
+            expand=expand,
+        )
+
+        final_headers = self._build_method_headers("REPORT", depth, headers)
+        response = await self.request(
+            url or str(self.url), "REPORT", body.decode("utf-8"), final_headers
+        )
+
+        # Parse response using protocol layer
+        if response.status in (200, 207) and response._raw:
+            raw_bytes = (
+                response._raw
+                if isinstance(response._raw, bytes)
+                else response._raw.encode("utf-8")
+            )
+            response.results = parse_calendar_query_response(
+                raw_bytes, response.status, response.huge_tree
+            )
+
+        return response
+
+    async def calendar_multiget(
+        self,
+        url: Optional[str] = None,
+        hrefs: Optional[List[str]] = None,
+        depth: int = 1,
+        headers: Optional[Mapping[str, str]] = None,
+    ) -> AsyncDAVResponse:
+        """
+        Execute a calendar-multiget REPORT to fetch specific calendar objects.
+
+        Args:
+            url: Target calendar URL (defaults to self.url).
+            hrefs: List of object URLs to retrieve.
+            depth: Search depth.
+            headers: Additional headers.
+
+        Returns:
+            AsyncDAVResponse with results containing List[CalendarQueryResult].
+        """
+        body = build_calendar_multiget_body(hrefs or [])
+
+        final_headers = self._build_method_headers("REPORT", depth, headers)
+        response = await self.request(
+            url or str(self.url), "REPORT", body.decode("utf-8"), final_headers
+        )
+
+        # Parse response using protocol layer
+        if response.status in (200, 207) and response._raw:
+            raw_bytes = (
+                response._raw
+                if isinstance(response._raw, bytes)
+                else response._raw.encode("utf-8")
+            )
+            response.results = parse_calendar_query_response(
+                raw_bytes, response.status, response.huge_tree
+            )
+
+        return response
+
+    async def sync_collection(
+        self,
+        url: Optional[str] = None,
+        sync_token: Optional[str] = None,
+        props: Optional[List[str]] = None,
+        depth: int = 1,
+        headers: Optional[Mapping[str, str]] = None,
+    ) -> AsyncDAVResponse:
+        """
+        Execute a sync-collection REPORT for efficient synchronization.
+
+        Args:
+            url: Target calendar URL (defaults to self.url).
+            sync_token: Previous sync token (None for initial sync).
+            props: Properties to include in response.
+            depth: Search depth.
+            headers: Additional headers.
+
+        Returns:
+            AsyncDAVResponse with results containing SyncCollectionResult.
+        """
+        body = build_sync_collection_body(sync_token=sync_token, props=props)
+
+        final_headers = self._build_method_headers("REPORT", depth, headers)
+        response = await self.request(
+            url or str(self.url), "REPORT", body.decode("utf-8"), final_headers
+        )
+
+        # Parse response using protocol layer
+        if response.status in (200, 207) and response._raw:
+            raw_bytes = (
+                response._raw
+                if isinstance(response._raw, bytes)
+                else response._raw.encode("utf-8")
+            )
+            sync_result = parse_sync_collection_response(
+                raw_bytes, response.status, response.huge_tree
+            )
+            response.results = sync_result.changed
+            response.sync_token = sync_result.sync_token
+
+        return response
 
     # ==================== Authentication Helpers ====================
 

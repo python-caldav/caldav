@@ -654,13 +654,17 @@ class TestAPIImprovements:
 
     @pytest.mark.asyncio
     async def test_standardized_body_parameter(self) -> None:
-        """Verify all methods use 'body' parameter, not 'props' or 'query'."""
+        """Verify methods have appropriate parameters.
+
+        propfind has both 'body' (legacy) and 'props' (new protocol-based).
+        report uses 'body' for raw XML.
+        """
         import inspect
 
-        # Check propfind uses 'body', not 'props'
+        # Check propfind has both body (legacy) and props (new)
         sig = inspect.signature(AsyncDAVClient.propfind)
-        assert "body" in sig.parameters
-        assert "props" not in sig.parameters
+        assert "body" in sig.parameters  # Legacy parameter
+        assert "props" in sig.parameters  # New protocol-based parameter
 
         # Check report uses 'body', not 'query'
         sig = inspect.signature(AsyncDAVClient.report)
