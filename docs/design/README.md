@@ -168,11 +168,17 @@ How to configure Ruff formatter/linter for partial codebase adoption:
 - ✅ Phase 7: Integration testing
   - `tests/test_protocol_client_integration.py` - 18 integration tests
   - Verified against Radicale and Xandikos servers
+- ✅ Phase 8: Protocol layer integration into DAVClient
+  - `AsyncDAVClient.propfind()` uses protocol layer for parsing
+  - `response.results` exposes `PropfindResult` objects with pre-parsed values
+  - `find_objects_and_props()` deprecated with warning
+  - High-level classes (`AsyncCalendar.get_supported_components()`) migrated
 
 **Available for use**:
 - `caldav.protocol` - Low-level protocol access
 - `caldav.io` - I/O implementations
 - `caldav.protocol_client` - High-level protocol clients
+- `response.results` - Pre-parsed property values on DAVResponse/AsyncDAVResponse
 
 See [PROTOCOL_LAYER_USAGE.md](PROTOCOL_LAYER_USAGE.md) for usage guide.
 
