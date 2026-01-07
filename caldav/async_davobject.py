@@ -261,9 +261,25 @@ class AsyncDAVObject:
         if not parse_response_xml:
             return response
 
-        if not parse_props:
+        # Use protocol layer results when available and parse_props=True
+        if parse_props and response.results:
+            # Convert results to the expected {href: {tag: value}} format
+            properties = {}
+            for result in response.results:
+                # Start with None for all requested props (for backward compat)
+                result_props = {}
+                if props:
+                    for prop in props:
+                        if prop.tag:
+                            result_props[prop.tag] = None
+                # Then overlay with actual values from server
+                result_props.update(result.properties)
+                properties[result.href] = result_props
+        elif not parse_props:
+            # Caller wants raw XML elements - use deprecated method
             properties = response.find_objects_and_props()
         else:
+            # Fallback to expand_simple_props for mocked responses
             properties = response.expand_simple_props(props)
 
         error.assert_(properties)
