@@ -336,7 +336,7 @@ caldav/
 ├── io/                          # I/O implementations
 │   ├── __init__.py
 │   ├── base.py                 # Protocol definitions
-│   ├── sync.py                 # SyncIO (requests)
+│   ├── sync.py                 # SyncIO (niquests)
 │   └── async_.py               # AsyncIO (aiohttp)
 │
 └── protocol_client.py          # High-level protocol clients

@@ -800,20 +800,27 @@ class DAVClient:
         -------
         DAVResponse
         """
-        # For mocked tests or subclasses, use request() method
-        if self._is_mocked():
-            # Build the appropriate headers for PROPFIND
-            headers = {"Depth": str(depth)}
-            return self.request(url or str(self.url), "PROPFIND", props, headers)
+        # Use sync path with protocol layer parsing
+        headers = {"Depth": str(depth)}
+        response = self.request(url or str(self.url), "PROPFIND", props, headers)
 
-        async_response = self._run_async_operation("propfind", url=url, body=props, depth=depth)
-        return DAVResponse(async_response, self)
+        # Parse response using protocol layer
+        if response.status in (200, 207) and response._raw:
+            from caldav.protocol.xml_parsers import parse_propfind_response
+
+            raw_bytes = (
+                response._raw
+                if isinstance(response._raw, bytes)
+                else response._raw.encode("utf-8")
+            )
+            response.results = parse_propfind_response(
+                raw_bytes, response.status, response.huge_tree
+            )
+        return response
 
     def proppatch(self, url: str, body: str, dummy: None = None) -> DAVResponse:
         """
         Send a proppatch request.
-
-        DEMONSTRATION WRAPPER: Delegates to AsyncDAVClient via asyncio.run().
 
         Args:
             url: url for the root of the propfind.
@@ -823,17 +830,11 @@ class DAVClient:
         Returns:
             DAVResponse
         """
-        if self._is_mocked():
-            return self.request(url, "PROPPATCH", body)
-
-        async_response = self._run_async_operation("proppatch", url=url, body=body)
-        return DAVResponse(async_response, self)
+        return self.request(url, "PROPPATCH", body)
 
     def report(self, url: str, query: str = "", depth: int = 0) -> DAVResponse:
         """
         Send a report request.
-
-        DEMONSTRATION WRAPPER: Delegates to AsyncDAVClient via asyncio.run().
 
         Args:
             url: url for the root of the propfind.
@@ -843,18 +844,12 @@ class DAVClient:
         Returns
             DAVResponse
         """
-        if self._is_mocked():
-            headers = {"Depth": str(depth)}
-            return self.request(url, "REPORT", query, headers)
-
-        async_response = self._run_async_operation("report", url=url, body=query, depth=depth)
-        return DAVResponse(async_response, self)
+        headers = {"Depth": str(depth)}
+        return self.request(url, "REPORT", query, headers)
 
     def mkcol(self, url: str, body: str, dummy: None = None) -> DAVResponse:
         """
         Send a MKCOL request.
-
-        DEMONSTRATION WRAPPER: Delegates to AsyncDAVClient via asyncio.run().
 
         MKCOL is basically not used with caldav, one should use
         MKCALENDAR instead.  However, some calendar servers MAY allow
@@ -873,17 +868,11 @@ class DAVClient:
         Returns:
             DAVResponse
         """
-        if self._is_mocked():
-            return self.request(url, "MKCOL", body)
-
-        async_response = self._run_async_operation("mkcol", url=url, body=body)
-        return DAVResponse(async_response, self)
+        return self.request(url, "MKCOL", body)
 
     def mkcalendar(self, url: str, body: str = "", dummy: None = None) -> DAVResponse:
         """
         Send a mkcalendar request.
-
-        DEMONSTRATION WRAPPER: Delegates to AsyncDAVClient via asyncio.run().
 
         Args:
             url: url for the root of the mkcalendar
@@ -893,60 +882,31 @@ class DAVClient:
         Returns:
             DAVResponse
         """
-        if self._is_mocked():
-            return self.request(url, "MKCALENDAR", body)
-
-        async_response = self._run_async_operation("mkcalendar", url=url, body=body)
-        return DAVResponse(async_response, self)
+        return self.request(url, "MKCALENDAR", body)
 
     def put(self, url: str, body: str, headers: Mapping[str, str] = None) -> DAVResponse:
         """
         Send a put request.
-
-        DEMONSTRATION WRAPPER: Delegates to AsyncDAVClient via asyncio.run().
         """
-        # For mocked tests, use the old sync path via request()
-        if self._is_mocked():
-            return self.request(url, "PUT", body, headers)
-
-        # Resolve relative URLs against base URL
-        if url.startswith("/"):
-            url = str(self.url) + url
-        async_response = self._run_async_operation("put", url=url, body=body, headers=headers)
-        return DAVResponse(async_response, self)
+        return self.request(url, "PUT", body, headers)
 
     def post(self, url: str, body: str, headers: Mapping[str, str] = None) -> DAVResponse:
         """
         Send a POST request.
-
-        DEMONSTRATION WRAPPER: Delegates to AsyncDAVClient via asyncio.run().
         """
-        if self._is_mocked():
-            return self.request(url, "POST", body, headers)
-
-        async_response = self._run_async_operation("post", url=url, body=body, headers=headers)
-        return DAVResponse(async_response, self)
+        return self.request(url, "POST", body, headers)
 
     def delete(self, url: str) -> DAVResponse:
         """
         Send a delete request.
-
-        DEMONSTRATION WRAPPER: Delegates to AsyncDAVClient via asyncio.run().
         """
-        if self._is_mocked():
-            return self.request(url, "DELETE", "")
-
-        async_response = self._run_async_operation("delete", url=url)
-        return DAVResponse(async_response, self)
+        return self.request(url, "DELETE", "")
 
     def options(self, url: str) -> DAVResponse:
         """
         Send an options request.
-
-        DEMONSTRATION WRAPPER: Delegates to AsyncDAVClient via asyncio.run().
         """
-        async_response = self._run_async_operation("options", url=url)
-        return DAVResponse(async_response, self)
+        return self.request(url, "OPTIONS", "")
 
     def extract_auth_types(self, header: str):
         """This is probably meant for internal usage.  It takes the
@@ -1023,8 +983,7 @@ class DAVClient:
         """
         Send a generic HTTP request.
 
-        Delegates to AsyncDAVClient via asyncio.run(), except when running
-        unit tests that mock requests.Session.request (for backward compatibility).
+        Uses the sync session directly for all operations.
 
         Args:
             url: The URL to request
@@ -1035,17 +994,7 @@ class DAVClient:
         Returns:
             DAVResponse
         """
-        # Check if we're in a test context with mocked session.request
-        # This maintains backward compatibility with existing unit tests
-        if self._is_mocked():
-            # Use old sync implementation for mocked tests
-            return self._sync_request(url, method, body, headers)
-
-        # Normal path: delegate to async with proper cleanup
-        async_response = self._run_async_operation(
-            "request", url=url, method=method, body=body, headers=headers
-        )
-        return DAVResponse(async_response, self)
+        return self._sync_request(url, method, body, headers)
 
     def _sync_request(
         self,

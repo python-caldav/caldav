@@ -1,17 +1,20 @@
 """
-Synchronous I/O implementation using requests library.
+Synchronous I/O implementation using niquests library.
 """
 
 from typing import Optional
 
-import requests
+try:
+    import niquests as requests
+except ImportError:
+    import requests  # type: ignore[no-redef]
 
 from caldav.protocol.types import DAVRequest, DAVResponse
 
 
 class SyncIO:
     """
-    Synchronous I/O shell using requests library.
+    Synchronous I/O shell using niquests library.
 
     This is a thin wrapper that executes DAVRequest objects via HTTP
     and returns DAVResponse objects.
