@@ -46,6 +46,14 @@ The goal is to refactor the caldav library to be async-first, with a thin sync w
 - Protocol types, XML builders, XML parsers, I/O shells
 - Backward compatibility maintained throughout
 
+### [`PROTOCOL_LAYER_USAGE.md`](PROTOCOL_LAYER_USAGE.md)
+**Usage guide** for the Sans-I/O protocol layer:
+- Quick start with `SyncProtocolClient` and `AsyncProtocolClient`
+- Low-level protocol access for maximum control
+- Available request builders and response parsers
+- Testing without HTTP mocking
+- Using custom HTTP libraries
+
 ### [`ASYNC_REFACTORING_PLAN.md`](ASYNC_REFACTORING_PLAN.md)
 **Master plan** consolidating all decisions. Start here for the complete picture of:
 - Architecture (async-first with sync wrapper)
@@ -139,6 +147,32 @@ How to configure Ruff formatter/linter for partial codebase adoption:
 **Remaining Work**:
 - Optional: Add API reference docs for async classes (autodoc)
 
+## Sans-I/O Implementation Status
+
+**Branch**: `playground/sans_io_asynd_design`
+
+**Completed**:
+- ✅ Phase 1-3: Protocol layer foundation
+  - `caldav/protocol/types.py` - DAVRequest, DAVResponse, result types
+  - `caldav/protocol/xml_builders.py` - 8 pure XML building functions
+  - `caldav/protocol/xml_parsers.py` - 5 pure XML parsing functions
+- ✅ Phase 4: CalDAVProtocol operations class
+  - Request builders for all CalDAV operations
+  - Response parsers with structured result types
+- ✅ Phase 5: I/O layer abstraction
+  - `caldav/io/sync.py` - SyncIO using requests
+  - `caldav/io/async_.py` - AsyncIO using aiohttp
+- ✅ Phase 6: Protocol-based client classes
+  - `caldav/protocol_client.py` - SyncProtocolClient, AsyncProtocolClient
+  - 39 unit tests all passing
+
+**Available for use**:
+- `caldav.protocol` - Low-level protocol access
+- `caldav.io` - I/O implementations
+- `caldav.protocol_client` - High-level protocol clients
+
+See [PROTOCOL_LAYER_USAGE.md](PROTOCOL_LAYER_USAGE.md) for usage guide.
+
 ## Long-Term Roadmap
 
 The architecture evolution follows a three-phase plan:
@@ -149,9 +183,11 @@ The architecture evolution follows a three-phase plan:
 - Acceptable runtime overhead for sync users
 - **Status**: Complete and working
 
-### Phase 2: Protocol Extraction (Future)
-- Gradually extract protocol logic into `caldav/protocol/`
-- No public API changes required
+### Phase 2: Protocol Extraction (In Progress) 🚧
+- ✅ Protocol layer created: `caldav/protocol/`
+- ✅ I/O layer created: `caldav/io/`
+- ✅ Protocol-based clients available
+- 🔄 Integration with existing DAVClient (optional, for internal refactoring)
 - Better testability (protocol tests without HTTP mocking)
 - Reduced coupling between protocol and I/O
 - **Trigger**: When test improvements needed or httpx support requested
