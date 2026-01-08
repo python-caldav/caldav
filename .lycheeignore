@@ -2,6 +2,9 @@
 https?://your\.server\.example\.com/.*
 https?://.*\.example\.com/.*
 
+# Localhost URLs for test servers (not accessible in CI)
+http://localhost:\d+/.*
+
 # CalDAV endpoints that require authentication (401/403 expected)
 https://caldav\.fastmail\.com/.*
 https://caldav\.gmx\.net/.*
