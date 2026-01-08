@@ -128,7 +128,7 @@ class SOGoTestServer(DockerTestServer):
         config.setdefault("host", os.environ.get("SOGO_HOST", "localhost"))
         config.setdefault("port", int(os.environ.get("SOGO_PORT", "8803")))
         config.setdefault("username", os.environ.get("SOGO_USERNAME", "testuser"))
-        config.setdefault("password", os.environ.get("SOGO_PASSWORD", "testpassword"))
+        config.setdefault("password", os.environ.get("SOGO_PASSWORD", "testpass"))
         super().__init__(config)
 
     def _default_port(self) -> int:
