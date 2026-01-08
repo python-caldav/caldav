@@ -613,7 +613,8 @@ class AsyncDAVClient:
         Returns:
             AsyncDAVResponse
         """
-        return await self.request(url, "PROPPATCH", body, headers)
+        final_headers = self._build_method_headers("PROPPATCH", extra_headers=headers)
+        return await self.request(url, "PROPPATCH", body, final_headers)
 
     async def mkcol(
         self,
@@ -634,7 +635,8 @@ class AsyncDAVClient:
         Returns:
             AsyncDAVResponse
         """
-        return await self.request(url, "MKCOL", body, headers)
+        final_headers = self._build_method_headers("MKCOL", extra_headers=headers)
+        return await self.request(url, "MKCOL", body, final_headers)
 
     async def mkcalendar(
         self,
@@ -653,7 +655,8 @@ class AsyncDAVClient:
         Returns:
             AsyncDAVResponse
         """
-        return await self.request(url, "MKCALENDAR", body, headers)
+        final_headers = self._build_method_headers("MKCALENDAR", extra_headers=headers)
+        return await self.request(url, "MKCALENDAR", body, final_headers)
 
     async def put(
         self,
