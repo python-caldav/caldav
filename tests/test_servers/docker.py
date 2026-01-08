@@ -90,8 +90,8 @@ class CyrusTestServer(DockerTestServer):
         config = config or {}
         config.setdefault("host", os.environ.get("CYRUS_HOST", "localhost"))
         config.setdefault("port", int(os.environ.get("CYRUS_PORT", "8802")))
-        config.setdefault("username", os.environ.get("CYRUS_USERNAME", "testuser@test.local"))
-        config.setdefault("password", os.environ.get("CYRUS_PASSWORD", "testpassword"))
+        config.setdefault("username", os.environ.get("CYRUS_USERNAME", "user1"))
+        config.setdefault("password", os.environ.get("CYRUS_PASSWORD", "x"))
         super().__init__(config)
 
     def _default_port(self) -> int:
@@ -99,7 +99,7 @@ class CyrusTestServer(DockerTestServer):
 
     @property
     def url(self) -> str:
-        return f"http://{self.host}:{self.port}/dav/calendars/user/{self.username.split('@')[0]}"
+        return f"http://{self.host}:{self.port}/dav/calendars/user/{self.username}"
 
     def is_accessible(self) -> bool:
         """Check if Cyrus is accessible using PROPFIND."""
@@ -164,7 +164,7 @@ class BedeworkTestServer(DockerTestServer):
         config = config or {}
         config.setdefault("host", os.environ.get("BEDEWORK_HOST", "localhost"))
         config.setdefault("port", int(os.environ.get("BEDEWORK_PORT", "8804")))
-        config.setdefault("username", os.environ.get("BEDEWORK_USERNAME", "admin"))
+        config.setdefault("username", os.environ.get("BEDEWORK_USERNAME", "vbede"))
         config.setdefault("password", os.environ.get("BEDEWORK_PASSWORD", "bedework"))
         # Bedework has a search cache that requires delays
         config.setdefault("features", "bedework")
