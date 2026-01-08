@@ -143,6 +143,7 @@ class TestServer(ABC):
             url=self.url,
             username=self.username,
             password=self.password,
+            features=self.features,
             probe=False,  # We already checked accessibility
         )
 

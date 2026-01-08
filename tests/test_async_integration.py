@@ -6,13 +6,31 @@ These tests verify that the async API works correctly with real CalDAV servers.
 They run against all available servers (Radicale, Xandikos, Docker servers)
 using the same dynamic class generation pattern as the sync tests.
 """
+import asyncio
 from datetime import datetime
+from functools import wraps
 from typing import Any
 
 import pytest
 import pytest_asyncio
 
 from .test_servers import TestServer, get_available_servers
+
+
+def _async_delay_decorator(f, t=20):
+    """
+    Async decorator that adds a delay before calling the wrapped coroutine.
+
+    This is needed for servers like Bedework that have a search cache that
+    isn't immediately updated when objects are created/modified.
+    """
+
+    @wraps(f)
+    async def wrapper(*args, **kwargs):
+        await asyncio.sleep(t)
+        return await f(*args, **kwargs)
+
+    return wrapper
 
 # Test data
 ev1 = """BEGIN:VCALENDAR
@@ -92,6 +110,9 @@ class AsyncFunctionalTestsBaseClass:
     # Server configuration - set by dynamic class generation
     server: TestServer
 
+    # Class-level tracking for patched methods
+    _original_search = None
+
     @pytest.fixture(scope="class")
     def test_server(self) -> TestServer:
         """Get the test server for this class."""
@@ -104,7 +125,21 @@ class AsyncFunctionalTestsBaseClass:
     @pytest_asyncio.fixture
     async def async_client(self, test_server: TestServer) -> Any:
         """Create an async client connected to the test server."""
+        from caldav.async_collection import AsyncCalendar
+
         client = await test_server.get_async_client()
+
+        # Apply search-cache delay if needed (similar to sync tests)
+        search_cache_config = client.features.is_supported("search-cache", dict)
+        if search_cache_config.get("behaviour") == "delay":
+            delay = search_cache_config.get("delay", 1.5)
+            # Only wrap once - store original and check before wrapping
+            if AsyncFunctionalTestsBaseClass._original_search is None:
+                AsyncFunctionalTestsBaseClass._original_search = AsyncCalendar.search
+                AsyncCalendar.search = _async_delay_decorator(
+                    AsyncFunctionalTestsBaseClass._original_search, t=delay
+                )
+
         yield client
         await client.close()
 

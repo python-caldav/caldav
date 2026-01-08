@@ -166,6 +166,8 @@ class BedeworkTestServer(DockerTestServer):
         config.setdefault("port", int(os.environ.get("BEDEWORK_PORT", "8804")))
         config.setdefault("username", os.environ.get("BEDEWORK_USERNAME", "admin"))
         config.setdefault("password", os.environ.get("BEDEWORK_PASSWORD", "bedework"))
+        # Bedework has a search cache that requires delays
+        config.setdefault("features", "bedework")
         super().__init__(config)
 
     def _default_port(self) -> int:
