@@ -32,6 +32,7 @@ def _async_delay_decorator(f, t=20):
 
     return wrapper
 
+
 # Test data
 ev1 = """BEGIN:VCALENDAR
 VERSION:2.0
@@ -161,14 +162,24 @@ class AsyncFunctionalTestsBaseClass:
     @pytest_asyncio.fixture
     async def async_calendar(self, async_client: Any) -> Any:
         """Create a test calendar and clean up afterwards."""
-        from caldav.async_collection import AsyncCalendarSet
+        from caldav.async_collection import AsyncCalendarSet, AsyncPrincipal
+        from caldav.lib.error import AuthorizationError, MkcalendarError, NotFoundError
 
         calendar_name = f"async-test-{datetime.now().strftime('%Y%m%d%H%M%S%f')}"
+        calendar = None
 
-        # Create calendar directly using the client URL as calendar home
-        # This bypasses principal discovery which some servers don't support
-        calendar_home = AsyncCalendarSet(client=async_client, url=async_client.url)
-        calendar = await calendar_home.make_calendar(name=calendar_name)
+        # Try principal-based calendar creation first (works for Baikal, Xandikos)
+        try:
+            principal = await AsyncPrincipal.create(async_client)
+            calendar = await principal.make_calendar(name=calendar_name)
+        except (NotFoundError, AuthorizationError, MkcalendarError):
+            # Fall back to direct calendar creation (works for Radicale)
+            pass
+
+        if calendar is None:
+            # Fall back to creating calendar at client URL
+            calendar_home = AsyncCalendarSet(client=async_client, url=async_client.url)
+            calendar = await calendar_home.make_calendar(name=calendar_name)
 
         yield calendar
 
@@ -194,14 +205,24 @@ class AsyncFunctionalTestsBaseClass:
     @pytest.mark.asyncio
     async def test_principal_make_calendar(self, async_client: Any) -> None:
         """Test creating and deleting a calendar."""
-        from caldav.async_collection import AsyncCalendarSet
+        from caldav.async_collection import AsyncCalendarSet, AsyncPrincipal
+        from caldav.lib.error import AuthorizationError, MkcalendarError, NotFoundError
 
         calendar_name = f"async-principal-test-{datetime.now().strftime('%Y%m%d%H%M%S%f')}"
+        calendar = None
 
-        # Create calendar using calendar set at client URL
-        # This bypasses principal discovery which some servers don't support
-        calendar_home = AsyncCalendarSet(client=async_client, url=async_client.url)
-        calendar = await calendar_home.make_calendar(name=calendar_name)
+        # Try principal-based calendar creation first (works for Baikal, Xandikos)
+        try:
+            principal = await AsyncPrincipal.create(async_client)
+            calendar = await principal.make_calendar(name=calendar_name)
+        except (NotFoundError, AuthorizationError, MkcalendarError):
+            # Fall back to direct calendar creation (works for Radicale)
+            pass
+
+        if calendar is None:
+            # Fall back to creating calendar at client URL
+            calendar_home = AsyncCalendarSet(client=async_client, url=async_client.url)
+            calendar = await calendar_home.make_calendar(name=calendar_name)
 
         assert calendar is not None
         assert calendar.url is not None

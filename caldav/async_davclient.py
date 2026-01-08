@@ -965,12 +965,13 @@ async def get_davclient(
     from . import config as config_module
 
     # Merge explicit url/username/password into kwargs for config lookup
+    # Note: Use `is not None` rather than truthiness to allow empty strings
     explicit_params = dict(kwargs)
-    if url:
+    if url is not None:
         explicit_params["url"] = url
-    if username:
+    if username is not None:
         explicit_params["username"] = username
-    if password:
+    if password is not None:
         explicit_params["password"] = password
 
     # Use unified config discovery
