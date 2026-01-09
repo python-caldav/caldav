@@ -782,8 +782,7 @@ class DAVClient:
         headers: Mapping[str, str] = None,
     ) -> DAVResponse:
         """
-        Old sync implementation for backward compatibility with unit tests.
-        This is only used when session.request is mocked.
+        Sync HTTP request implementation with auth negotiation.
         """
         headers = headers or {}
 
@@ -815,6 +814,27 @@ class DAVClient:
             verify=self.ssl_verify_cert,
             cert=self.ssl_cert,
         )
+
+        # Handle 401 responses for auth negotiation
+        r_headers = CaseInsensitiveDict(r.headers)
+        if (
+            r.status_code == 401
+            and "WWW-Authenticate" in r_headers
+            and not self.auth
+            and (self.username or self.password)
+        ):
+            auth_types = self.extract_auth_types(r_headers["WWW-Authenticate"])
+            self.build_auth_object(auth_types)
+
+            if not self.auth:
+                raise NotImplementedError(
+                    "The server does not provide any of the currently "
+                    "supported authentication methods: basic, digest, bearer"
+                )
+
+            # Retry request with authentication
+            return self._sync_request(url, method, body, headers)
+
         response = DAVResponse(r, self)
         return response
 
