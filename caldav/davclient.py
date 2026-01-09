@@ -744,12 +744,17 @@ class DAVClient:
                     reason="Server provides bearer auth, but no password given.  The bearer token should be configured as password"
                 )
 
+        # Decode password if it's bytes (HTTPDigestAuth needs string)
+        password = self.password
+        if isinstance(password, bytes):
+            password = password.decode("utf-8")
+
         if auth_type == "digest":
-            self.auth = requests.auth.HTTPDigestAuth(self.username, self.password)
+            self.auth = requests.auth.HTTPDigestAuth(self.username, password)
         elif auth_type == "basic":
-            self.auth = requests.auth.HTTPBasicAuth(self.username, self.password)
+            self.auth = requests.auth.HTTPBasicAuth(self.username, password)
         elif auth_type == "bearer":
-            self.auth = HTTPBearerAuth(self.password)
+            self.auth = HTTPBearerAuth(password)
 
     def request(
         self,
@@ -834,6 +839,14 @@ class DAVClient:
 
             # Retry request with authentication
             return self._sync_request(url, method, body, headers)
+
+        # Raise AuthorizationError for 401/403 after auth attempt
+        if r.status_code in (401, 403):
+            try:
+                reason = r.reason
+            except AttributeError:
+                reason = "None given"
+            raise error.AuthorizationError(url=str(url_obj), reason=reason)
 
         response = DAVResponse(r, self)
         return response
