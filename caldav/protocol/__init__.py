@@ -8,26 +8,21 @@ The protocol layer is organized into:
 - types: Core data structures (DAVRequest, DAVResponse, result types)
 - xml_builders: Pure functions to build XML request bodies
 - xml_parsers: Pure functions to parse XML response bodies
-- operations: High-level CalDAVProtocol class combining builders and parsers
+
+Both DAVClient (sync) and AsyncDAVClient (async) use these shared
+functions for XML building and parsing, ensuring consistent behavior.
 
 Example usage:
 
-    from caldav.protocol import CalDAVProtocol, DAVRequest, DAVResponse
+    from caldav.protocol import build_propfind_body, parse_propfind_response
 
-    protocol = CalDAVProtocol(base_url="https://cal.example.com")
+    # Build XML body (no I/O)
+    body = build_propfind_body(["displayname", "resourcetype"])
 
-    # Build a request (no I/O)
-    request = protocol.propfind_request(
-        path="/calendars/user/",
-        props=["displayname", "resourcetype"],
-        depth=1
-    )
-
-    # Execute via your preferred I/O (sync, async, or mock)
-    response = your_http_client.execute(request)
+    # ... send request via your HTTP client ...
 
     # Parse response (no I/O)
-    result = protocol.parse_propfind_response(response)
+    results = parse_propfind_response(response_body)
 """
 
 from .types import (
@@ -62,7 +57,6 @@ from .xml_parsers import (
     parse_propfind_response,
     parse_sync_collection_response,
 )
-from .operations import CalDAVProtocol
 
 __all__ = [
     # Enums
@@ -93,6 +87,4 @@ __all__ = [
     "parse_multistatus",
     "parse_propfind_response",
     "parse_sync_collection_response",
-    # Protocol
-    "CalDAVProtocol",
 ]
