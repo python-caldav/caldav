@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   nextcloud:
     image: nextcloud:latest
@@ -13,4 +11,5 @@ services:
       - NEXTCLOUD_TRUSTED_DOMAINS=localhost
     tmpfs:
       # Make the container truly ephemeral - data is lost on restart
-      - /var/www/html:size=2g
+      # uid/gid 33 is www-data in the Nextcloud container
+      - /var/www/html:size=2g,uid=33,gid=33
