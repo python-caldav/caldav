@@ -1,11 +1,11 @@
 # Sans-I/O Implementation Plan
 
 **Last Updated:** January 2026
-**Status:** Phase 1 Complete, Phase 2 In Progress
+**Status:** Phase 1-3 Complete
 
 ## Current Architecture
 
-The Sans-I/O refactoring has been partially completed. Here's the current state:
+The Sans-I/O refactoring has been significantly completed. Here's the current state:
 
 ```
 ┌─────────────────────────────────────────────────────┐
@@ -41,17 +41,18 @@ The Sans-I/O refactoring has been partially completed. Here's the current state:
    - `DAVClient` - Full sync API with backward compatibility
    - `AsyncDAVClient` - Async API (not yet released)
 
-### The Problem: Code Duplication
+### Remaining Duplication
 
-`davclient.py` (959 lines) and `async_davclient.py` (1035 lines) share ~65% of their logic:
+After Phase 2-3 refactoring, duplication has been significantly reduced:
 
-| Component | Duplication |
-|-----------|-------------|
-| `extract_auth_types()` | **100%** identical |
-| HTTP method wrappers (put, post, delete, etc.) | ~95% |
-| `build_auth_object()` | ~70% |
-| Response initialization | ~80% |
-| Constructor logic | ~85% |
+| Component | Status |
+|-----------|--------|
+| `extract_auth_types()` | ✅ Extracted to `caldav/lib/auth.py` |
+| `select_auth_type()` | ✅ Extracted to `caldav/lib/auth.py` |
+| `CONNKEYS` | ✅ Single source in `caldav/config.py` |
+| Response initialization | ✅ Consolidated in `BaseDAVResponse._init_from_response()` |
+| HTTP method wrappers | ~95% similar (acceptable - sync/async signatures differ) |
+| Constructor logic | ~85% similar (acceptable - client setup differs) |
 
 ## Refactoring Plan
 
@@ -71,94 +72,34 @@ The protocol layer is working:
 - `caldav/protocol/xml_parsers.py` - Response parsing
 - `caldav/protocol/types.py` - Type definitions
 
-### Phase 2: Extract Shared Utilities (Current)
+### Phase 2: Extract Shared Utilities ✅ COMPLETE
 
 **Goal:** Reduce duplication without architectural changes.
 
-#### Step 2.1: Extract `extract_auth_types()`
+**Completed:**
 
-This method is **100% identical** in both clients.
+- `caldav/lib/auth.py` created with:
+  - `extract_auth_types()` - Parse WWW-Authenticate headers
+  - `select_auth_type()` - Choose best auth method from options
+- `CONNKEYS` uses single source in `caldav/config.py`
+- Both clients import and use these shared utilities
 
-```python
-# caldav/lib/auth.py (new file)
-def extract_auth_types(www_authenticate: str) -> list[str]:
-    """Extract authentication types from WWW-Authenticate header."""
-    # ... identical implementation ...
-```
-
-Both clients import and use this function.
-
-#### Step 2.2: Extract `CONNKEYS` Constant
-
-Currently only in `davclient.py`, but needed by both.
-
-```python
-# caldav/lib/constants.py (new or existing)
-CONNKEYS = frozenset([
-    "url", "proxy", "username", "password", "timeout", "headers",
-    "huge_tree", "ssl_verify_cert", "ssl_cert", "auth", "auth_type",
-    "features", "enable_rfc6764", "require_tls",
-])
-```
-
-#### Step 2.3: Extract Auth Type Selection Logic
-
-The `build_auth_object()` method has ~70% duplication. Extract the selection logic:
-
-```python
-# caldav/lib/auth.py
-def select_auth_method(
-    auth_types: list[str],
-    prefer_digest: bool = True
-) -> str | None:
-    """Select best auth method from available types."""
-    if prefer_digest and "digest" in auth_types:
-        return "digest"
-    if "basic" in auth_types:
-        return "basic"
-    if "bearer" in auth_types:
-        return "bearer"
-    return None
-```
-
-Each client still creates its own auth object (sync vs async differ).
-
-### Phase 3: Consolidate Response Handling
+### Phase 3: Consolidate Response Handling ✅ COMPLETE
 
 **Goal:** Move common response logic to `BaseDAVResponse`.
 
-Currently both `DAVResponse` and `AsyncDAVResponse` have ~80% identical `__init__()` logic for:
-- XML parsing with etree
-- Exception handling
-- Error status processing
+**Completed:**
 
-#### Proposed Structure:
-
-```python
-# caldav/response.py
-class BaseDAVResponse:
-    """Base class with shared response handling."""
-
-    def _parse_xml(self, raw: bytes) -> etree.Element | None:
-        """Parse XML body - shared implementation."""
-        # Move identical parsing logic here
-
-    def _process_errors(self, status: int, tree: etree.Element) -> None:
-        """Process error responses - shared implementation."""
-        # Move identical error handling here
-
-class DAVResponse(BaseDAVResponse):
-    """Sync response - thin wrapper."""
-
-    def __init__(self, response, client):
-        self._init_from_response(response)  # Calls shared methods
-
-class AsyncDAVResponse(BaseDAVResponse):
-    """Async response - thin wrapper."""
-
-    def __init__(self, response, client):
-        self._init_from_response(response)  # Calls shared methods
-```
+- `BaseDAVResponse._init_from_response()` now contains all shared initialization:
+  - Headers and status extraction
+  - XML parsing with etree
+  - Content-type validation
+  - CRLF normalization
+  - Error handling
+- `BaseDAVResponse.raw` property moved from subclasses
+- `DAVResponse.__init__` reduced to single delegation call
+- `AsyncDAVResponse.__init__` reduced to single delegation call
+- Eliminated ~150 lines of duplicated code
 
 ### Phase 4: Consider Base Client Class (Future)
 
@@ -169,15 +110,15 @@ A `BaseDAVClient` could reduce duplication further, but:
 - May not be worth the complexity
 - Evaluate after simpler refactoring is done
 
-## Files to Modify
+## Files Modified
 
 | File | Changes |
 |------|---------|
-| `caldav/lib/auth.py` | NEW: Shared auth utilities |
-| `caldav/lib/constants.py` | Add CONNKEYS if not present |
-| `caldav/davclient.py` | Import shared utilities |
-| `caldav/async_davclient.py` | Import shared utilities |
-| `caldav/response.py` | Consolidate BaseDAVResponse |
+| `caldav/lib/auth.py` | ✅ NEW: Shared auth utilities |
+| `caldav/config.py` | ✅ CONNKEYS single source |
+| `caldav/davclient.py` | ✅ Uses shared utilities, simplified DAVResponse |
+| `caldav/async_davclient.py` | ✅ Uses shared utilities, simplified AsyncDAVResponse |
+| `caldav/response.py` | ✅ BaseDAVResponse with _init_from_response() and raw property |
 
 ## Files Removed (Cleanup Done)
 
@@ -192,21 +133,15 @@ These were from the abandoned io/ layer approach:
 ## Success Criteria
 
 1. ✅ Protocol layer is single source of truth for XML
-2. ⏳ No duplicate utility functions between clients
-3. ⏳ Shared constants accessible to both clients
-4. ⏳ Common response logic in BaseDAVResponse
+2. ✅ No duplicate utility functions between clients (auth.py)
+3. ✅ Shared constants accessible to both clients (config.py)
+4. ✅ Common response logic in BaseDAVResponse
 5. ✅ All existing tests pass
 6. ✅ Backward compatibility maintained for sync API
-
-## Testing Strategy
-
-1. Run existing test suite after each change
-2. Verify both sync and async integration tests pass
-3. Test with real servers (Radicale, Xandikos, Nextcloud)
 
 ## Timeline
 
 - **Phase 1:** ✅ Complete
-- **Phase 2:** 1-2 days (extract utilities)
-- **Phase 3:** 2-3 days (consolidate response handling)
-- **Phase 4:** Evaluate after Phase 3
+- **Phase 2:** ✅ Complete
+- **Phase 3:** ✅ Complete
+- **Phase 4:** Evaluate if further refactoring is needed
