@@ -98,6 +98,18 @@ from caldav.operations.calendarset_ops import (
     process_calendar_list,
     resolve_calendar_url,
 )
+from caldav.operations.calendar_ops import (
+    CalendarObjectInfo,
+    build_calendar_object_url,
+    detect_component_type,
+    detect_component_type_from_icalendar,
+    detect_component_type_from_string,
+    generate_fake_sync_token,
+    is_fake_sync_token,
+    normalize_result_url,
+    process_report_results,
+    should_skip_calendar_self_reference,
+)
 
 __all__ = [
     # Base types
@@ -154,4 +166,15 @@ __all__ = [
     "resolve_calendar_url",
     "find_calendar_by_name",
     "find_calendar_by_id",
+    # Calendar operations
+    "CalendarObjectInfo",
+    "detect_component_type",
+    "detect_component_type_from_string",
+    "detect_component_type_from_icalendar",
+    "generate_fake_sync_token",
+    "is_fake_sync_token",
+    "normalize_result_url",
+    "should_skip_calendar_self_reference",
+    "process_report_results",
+    "build_calendar_object_url",
 ]
