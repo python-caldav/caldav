@@ -49,6 +49,17 @@ from caldav.operations.base import (
     is_collection_resource,
     normalize_href,
 )
+from caldav.operations.davobject_ops import (
+    ChildData,
+    ChildrenQuery,
+    PropertiesResult,
+    build_children_query,
+    convert_protocol_results_to_properties,
+    find_object_properties,
+    process_children_response,
+    validate_delete_response,
+    validate_proppatch_response,
+)
 
 __all__ = [
     # Base types
@@ -60,4 +71,14 @@ __all__ = [
     "is_calendar_resource",
     "is_collection_resource",
     "get_property_value",
+    # DAVObject operations
+    "ChildrenQuery",
+    "ChildData",
+    "PropertiesResult",
+    "build_children_query",
+    "process_children_response",
+    "find_object_properties",
+    "convert_protocol_results_to_properties",
+    "validate_delete_response",
+    "validate_proppatch_response",
 ]
