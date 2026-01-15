@@ -10,7 +10,7 @@ import sys
 import warnings
 from collections.abc import Mapping
 from types import TracebackType
-from typing import Any, List, Optional, Union, cast
+from typing import Any, List, Optional, Union
 from urllib.parse import unquote
 
 try:
@@ -25,8 +25,6 @@ except ImportError as err:
         "Install with: pip install niquests"
     ) from err
 
-from lxml import etree
-from lxml.etree import _Element
 
 from caldav import __version__
 from caldav.compatibility_hints import FeatureSet
@@ -72,8 +70,6 @@ class AsyncDAVResponse(BaseDAVResponse):
         sync_token: Sync token from sync-collection response
     """
 
-    reason: str = ""
-    davclient: Optional["AsyncDAVClient"] = None
     # Protocol-based parsed results (new interface)
     results: Optional[List[Union[PropfindResult, CalendarQueryResult]]] = None
     sync_token: Optional[str] = None
@@ -81,86 +77,7 @@ class AsyncDAVResponse(BaseDAVResponse):
     def __init__(
         self, response: Response, davclient: Optional["AsyncDAVClient"] = None
     ) -> None:
-        # Call sync DAVResponse to respect any test patches/mocks (e.g., proxy assertions)
-        # Lazy import to avoid circular dependency
-        from caldav.davclient import DAVResponse as _SyncDAVResponse
-
-        _SyncDAVResponse(response, None)
-
-        self.headers = response.headers
-        self.status = response.status_code
-        log.debug("response headers: " + str(self.headers))
-        log.debug("response status: " + str(self.status))
-
-        self._raw = response.content
-        self.davclient = davclient
-        if davclient:
-            self.huge_tree = davclient.huge_tree
-
-        content_type = self.headers.get("Content-Type", "")
-        xml = ["text/xml", "application/xml"]
-        no_xml = ["text/plain", "text/calendar", "application/octet-stream"]
-        expect_xml = any(content_type.startswith(x) for x in xml)
-        expect_no_xml = any(content_type.startswith(x) for x in no_xml)
-        if (
-            content_type
-            and not expect_xml
-            and not expect_no_xml
-            and response.status_code < 400
-            and response.text
-        ):
-            error.weirdness(f"Unexpected content type: {content_type}")
-        try:
-            content_length = int(self.headers["Content-Length"])
-        except (KeyError, ValueError, TypeError):
-            content_length = -1
-        if content_length == 0 or not self._raw:
-            self._raw = ""
-            self.tree = None
-            log.debug("No content delivered")
-        else:
-            try:
-                self.tree = etree.XML(
-                    self._raw,
-                    parser=etree.XMLParser(
-                        remove_blank_text=True, huge_tree=self.huge_tree
-                    ),
-                )
-            except Exception:
-                if not expect_no_xml or log.level <= logging.DEBUG:
-                    if not expect_no_xml:
-                        _log = logging.info
-                    else:
-                        _log = logging.debug
-                    _log(
-                        "Expected some valid XML from the server, but got this: \n"
-                        + str(self._raw),
-                        exc_info=True,
-                    )
-                if expect_xml:
-                    raise
-            else:
-                if log.level <= logging.DEBUG:
-                    log.debug(etree.tostring(self.tree, pretty_print=True))
-
-        if hasattr(self, "_raw"):
-            log.debug(self._raw)
-            # ref https://github.com/python-caldav/caldav/issues/112
-            if isinstance(self._raw, bytes):
-                self._raw = self._raw.replace(b"\r\n", b"\n")
-            elif isinstance(self._raw, str):
-                self._raw = self._raw.replace("\r\n", "\n")
-        self.status = response.status_code
-        try:
-            self.reason = response.reason
-        except AttributeError:
-            self.reason = ""
-
-    @property
-    def raw(self) -> str:
-        if not hasattr(self, "_raw"):
-            self._raw = etree.tostring(cast(_Element, self.tree), pretty_print=True)
-        return to_normal_str(self._raw)
+        self._init_from_response(response, davclient)
 
     # Response parsing methods are inherited from BaseDAVResponse
 

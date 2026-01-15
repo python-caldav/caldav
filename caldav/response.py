@@ -8,15 +8,20 @@ AsyncDAVResponse (async) to eliminate code duplication.
 import logging
 import warnings
 from collections.abc import Iterable
-from typing import Any, Dict, List, Optional, Tuple, Union, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union, cast
 from urllib.parse import unquote
 
+from lxml import etree
 from lxml.etree import _Element
 
 from caldav.elements import dav
 from caldav.elements.base import BaseElement
 from caldav.lib import error
+from caldav.lib.python_utilities import to_normal_str
 from caldav.lib.url import URL
+
+if TYPE_CHECKING:
+    from niquests.models import Response
 
 log = logging.getLogger(__name__)
 
@@ -35,6 +40,107 @@ class BaseDAVResponse:
     status: int = 0
     _raw: Any = ""
     huge_tree: bool = False
+    reason: str = ""
+    davclient: Any = None
+
+    def _init_from_response(self, response: "Response", davclient: Any = None) -> None:
+        """
+        Initialize response from an HTTP response object.
+
+        This shared method extracts headers, status, and parses XML content.
+        Both DAVResponse and AsyncDAVResponse should call this from their __init__.
+
+        Args:
+            response: The HTTP response object from niquests
+            davclient: Optional reference to the DAVClient for huge_tree setting
+        """
+        self.headers = response.headers
+        self.status = response.status_code
+        log.debug("response headers: " + str(self.headers))
+        log.debug("response status: " + str(self.status))
+
+        self._raw = response.content
+        self.davclient = davclient
+        if davclient:
+            self.huge_tree = davclient.huge_tree
+
+        content_type = self.headers.get("Content-Type", "")
+        xml_types = ["text/xml", "application/xml"]
+        no_xml_types = ["text/plain", "text/calendar", "application/octet-stream"]
+        expect_xml = any(content_type.startswith(x) for x in xml_types)
+        expect_no_xml = any(content_type.startswith(x) for x in no_xml_types)
+        if (
+            content_type
+            and not expect_xml
+            and not expect_no_xml
+            and response.status_code < 400
+            and response.text
+        ):
+            error.weirdness(f"Unexpected content type: {content_type}")
+        try:
+            content_length = int(self.headers["Content-Length"])
+        except (KeyError, ValueError, TypeError):
+            content_length = -1
+        if content_length == 0 or not self._raw:
+            self._raw = ""
+            self.tree = None
+            log.debug("No content delivered")
+        else:
+            # For really huge objects we should pass the object as a stream to the
+            # XML parser, but we would also need to decompress on the fly.
+            try:
+                # https://github.com/python-caldav/caldav/issues/142
+                # We cannot trust the content-type (iCloud, OX and others).
+                # We'll try to parse the content as XML no matter the content type.
+                self.tree = etree.XML(
+                    self._raw,
+                    parser=etree.XMLParser(
+                        remove_blank_text=True, huge_tree=self.huge_tree
+                    ),
+                )
+            except Exception:
+                # Content wasn't XML.  What does the content-type say?
+                # expect_no_xml means text/plain or text/calendar -> ok, pass on
+                # expect_xml means text/xml or application/xml -> raise an error
+                # anything else -> log an info message and continue
+                if not expect_no_xml or log.level <= logging.DEBUG:
+                    if not expect_no_xml:
+                        _log = logging.info
+                    else:
+                        _log = logging.debug
+                    _log(
+                        "Expected some valid XML from the server, but got this: \n"
+                        + str(self._raw),
+                        exc_info=True,
+                    )
+                if expect_xml:
+                    raise
+            else:
+                if log.level <= logging.DEBUG:
+                    log.debug(etree.tostring(self.tree, pretty_print=True))
+
+        # this if will always be true as for now, see other comments on streaming.
+        if hasattr(self, "_raw"):
+            log.debug(self._raw)
+            # ref https://github.com/python-caldav/caldav/issues/112 stray CRs may cause problems
+            if isinstance(self._raw, bytes):
+                self._raw = self._raw.replace(b"\r\n", b"\n")
+            elif isinstance(self._raw, str):
+                self._raw = self._raw.replace("\r\n", "\n")
+        self.status = response.status_code
+        # ref https://github.com/python-caldav/caldav/issues/81,
+        # incidents with a response without a reason has been observed
+        try:
+            self.reason = response.reason
+        except AttributeError:
+            self.reason = ""
+
+    @property
+    def raw(self) -> str:
+        """Return the raw response content as a string."""
+        if not hasattr(self, "_raw"):
+            self._raw = etree.tostring(cast(_Element, self.tree), pretty_print=True)
+        return to_normal_str(self._raw)
 
     def _strip_to_multistatus(self) -> Union[_Element, List[_Element]]:
         """
