@@ -82,6 +82,14 @@ from caldav.operations.calendarobject_ops import (
     reduce_rrule_count,
     set_duration,
 )
+from caldav.operations.principal_ops import (
+    PrincipalData,
+    create_vcal_address,
+    extract_calendar_user_addresses,
+    sanitize_calendar_home_set_url,
+    should_update_client_base_url,
+    sort_calendar_user_addresses,
+)
 
 __all__ = [
     # Base types
@@ -124,4 +132,11 @@ __all__ = [
     "copy_component_with_new_uid",
     "get_reverse_reltype",
     "extract_relations",
+    # Principal operations
+    "PrincipalData",
+    "sanitize_calendar_home_set_url",
+    "sort_calendar_user_addresses",
+    "extract_calendar_user_addresses",
+    "create_vcal_address",
+    "should_update_client_base_url",
 ]
