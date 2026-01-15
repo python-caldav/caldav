@@ -771,7 +771,10 @@ xandikos_v0_3 = {
     ]
 }
 
-xandikos=xandikos_v0_3
+xandikos_main = xandikos_v0_3.copy()
+xandikos_main.pop('search.recurrences.expanded.todo')
+
+xandikos = xandikos_main
 
 ## This seems to work as of version 3.5.4 of Radicale.
 ## There is much development going on at Radicale as of summar 2025,

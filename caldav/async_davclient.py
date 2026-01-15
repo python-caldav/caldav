@@ -455,7 +455,8 @@ class AsyncDAVClient:
             r.status_code == 401
             and "WWW-Authenticate" in r_headers
             and not self.auth
-            and (self.username or self.password)
+            and self.username is not None
+            and self.password is not None  # Empty password OK, but None means not configured
         ):
             auth_types = self.extract_auth_types(r_headers["WWW-Authenticate"])
             self.build_auth_object(auth_types)

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Sync CalDAV client using niquests library.
+Sync CalDAV client using niquests or requests library.
 
 This module provides the traditional synchronous API with protocol layer
 for XML building and response parsing.
@@ -826,7 +826,8 @@ class DAVClient:
             r.status_code == 401
             and "WWW-Authenticate" in r_headers
             and not self.auth
-            and (self.username or self.password)
+            and self.username is not None
+            and self.password is not None  # Empty password OK, but None means not configured
         ):
             auth_types = self.extract_auth_types(r_headers["WWW-Authenticate"])
             self.build_auth_object(auth_types)
