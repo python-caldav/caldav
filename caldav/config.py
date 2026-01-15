@@ -207,13 +207,24 @@ def get_connection_params(
     3. Environment variables (CALDAV_URL, CALDAV_USERNAME, etc.)
     4. Config file (CALDAV_CONFIG_FILE env var or default locations)
 
+    Test Server Mode:
+        When testconfig=True or PYTHON_CALDAV_USE_TEST_SERVER env var is set,
+        only config file sections with 'testing_allowed: true' will be used.
+        This prevents accidentally using personal/production servers for testing.
+
+        If no test server is found, returns None (does NOT fall through to
+        regular config file or environment variables).
+
+        Environment variable PYTHON_CALDAV_TEST_SERVER_NAME can specify which
+        config section to use for testing.
+
     Args:
         check_config_file: Whether to look for config files
         config_file: Explicit path to config file
         config_section: Section name in config file (default: "default")
         testconfig: Whether to use test server configuration
         environment: Whether to read from environment variables
-        name: Name of test server to use (for testconfig)
+        name: Name of test server/config section to use (for testconfig)
         **explicit_params: Explicit connection parameters
 
     Returns:
@@ -232,6 +243,13 @@ def get_connection_params(
         conn = _get_test_server_config(name, environment)
         if conn is not None:
             return conn
+        # In test mode, don't fall through to regular config - return None
+        # This prevents accidentally using personal/production servers for testing
+        logging.info(
+            "Test server mode enabled but no server with testing_allowed=true found. "
+            "Add 'testing_allowed: true' to a config section to enable it for testing."
+        )
+        return None
 
     # 3. Environment variables (CALDAV_*)
     if environment:
@@ -282,6 +300,56 @@ def _get_file_config(
         return None
 
     section_data = config_section(cfg, section_name)
+    return _extract_conn_params_from_section(section_data)
+
+
+def _get_test_server_config(
+    name: Optional[str], environment: bool
+) -> Optional[Dict[str, Any]]:
+    """
+    Get connection parameters for test server.
+
+    Looks for config file sections with 'testing_allowed: true'.
+
+    Args:
+        name: Specific config section name to use. If None, finds first
+              section with testing_allowed=true.
+        environment: Whether to check environment variables for section name.
+
+    Returns:
+        Connection parameters dict, or None if no test server configured.
+    """
+    # Check environment for section name
+    if environment and name is None:
+        name = os.environ.get("PYTHON_CALDAV_TEST_SERVER_NAME")
+
+    # Read config file
+    cfg = read_config(None)  # Use default config file locations
+    if not cfg:
+        return None
+
+    # If name is specified, use that section (must have testing_allowed)
+    if name is not None:
+        section_data = config_section(cfg, name)
+        if not section_data.get("testing_allowed"):
+            logging.warning(
+                f"Config section '{name}' does not have testing_allowed=true, skipping"
+            )
+            return None
+        return _extract_conn_params_from_section(section_data)
+
+    # Find first section with testing_allowed=true
+    for section_name in cfg:
+        section_data = config_section(cfg, section_name)
+        if section_data.get("testing_allowed"):
+            logging.info(f"Using test server from config section: {section_name}")
+            return _extract_conn_params_from_section(section_data)
+
+    return None
+
+
+def _extract_conn_params_from_section(section_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Extract connection parameters from a config section dict."""
     conn_params: Dict[str, Any] = {}
     for k in section_data:
         if k.startswith("caldav_") and section_data[k]:
@@ -292,75 +360,8 @@ def _get_file_config(
             elif key == "user":
                 key = "username"
             if key in CONNKEYS:
-                conn_params[key] = section_data[k]
+                conn_params[key] = expand_env_vars(section_data[k])
+        elif k == "features" and section_data[k]:
+            conn_params["features"] = section_data[k]
 
-    return conn_params if conn_params else None
-
-
-def _get_test_server_config(
-    name: Optional[str], environment: bool
-) -> Optional[Dict[str, Any]]:
-    """
-    Get connection parameters from test server configuration.
-
-    This imports from tests/conf.py and uses the client() function there.
-    """
-    # Save current sys.path
-    original_path = sys.path.copy()
-
-    try:
-        sys.path.insert(0, "tests")
-        sys.path.insert(1, ".")
-
-        try:
-            from conf import client
-        except ImportError:
-            return None
-
-        # Parse server selection
-        idx: Optional[int] = None
-
-        # If name is provided and can be parsed as int, use it as idx
-        if name is not None:
-            try:
-                idx = int(name)
-                name = None
-            except (ValueError, TypeError):
-                pass
-
-        # Also check environment variables if environment=True
-        if environment:
-            if idx is None:
-                idx_str = os.environ.get("PYTHON_CALDAV_TEST_SERVER_IDX")
-                if idx_str:
-                    try:
-                        idx = int(idx_str)
-                    except (ValueError, TypeError):
-                        pass
-            if name is None:
-                name = os.environ.get("PYTHON_CALDAV_TEST_SERVER_NAME")
-
-        conn = client(idx, name)
-        if conn is None:
-            return None
-
-        # Extract connection parameters from DAVClient object
-        conn_params: Dict[str, Any] = {}
-        for key in CONNKEYS:
-            if hasattr(conn, key):
-                value = getattr(conn, key)
-                if value is not None:
-                    conn_params[key] = value
-
-        # The client may have setup/teardown - store them too
-        if hasattr(conn, "setup"):
-            conn_params["_setup"] = conn.setup
-        if hasattr(conn, "teardown"):
-            conn_params["_teardown"] = conn.teardown
-        if hasattr(conn, "server_name"):
-            conn_params["_server_name"] = conn.server_name
-
-        return conn_params
-
-    finally:
-        sys.path = original_path
+    return conn_params if conn_params.get("url") else None
