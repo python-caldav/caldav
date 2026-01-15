@@ -309,43 +309,115 @@ def _get_test_server_config(
     """
     Get connection parameters for test server.
 
-    Looks for config file sections with 'testing_allowed: true'.
+    Priority:
+    1. Config file sections with 'testing_allowed: true'
+    2. Built-in test servers from tests/conf.py (radicale, xandikos, docker)
 
     Args:
-        name: Specific config section name to use. If None, finds first
-              section with testing_allowed=true.
-        environment: Whether to check environment variables for section name.
+        name: Specific config section or test server name/index to use.
+              Can be a config section name, test server name, or numeric index.
+        environment: Whether to check environment variables for server selection.
 
     Returns:
         Connection parameters dict, or None if no test server configured.
     """
-    # Check environment for section name
+    # Check environment for server name
     if environment and name is None:
         name = os.environ.get("PYTHON_CALDAV_TEST_SERVER_NAME")
 
-    # Read config file
+    # 1. Try config file with testing_allowed flag
     cfg = read_config(None)  # Use default config file locations
-    if not cfg:
-        return None
+    if cfg:
+        # If name is specified, check if it's a config section with testing_allowed
+        if name is not None and not isinstance(name, int):
+            section_data = config_section(cfg, str(name))
+            if section_data.get("testing_allowed"):
+                return _extract_conn_params_from_section(section_data)
 
-    # If name is specified, use that section (must have testing_allowed)
-    if name is not None:
-        section_data = config_section(cfg, name)
-        if not section_data.get("testing_allowed"):
-            logging.warning(
-                f"Config section '{name}' does not have testing_allowed=true, skipping"
-            )
+        # Find first section with testing_allowed=true (if no name specified)
+        if name is None:
+            for section_name in cfg:
+                section_data = config_section(cfg, section_name)
+                if section_data.get("testing_allowed"):
+                    logging.info(f"Using test server from config section: {section_name}")
+                    return _extract_conn_params_from_section(section_data)
+
+    # 2. Fall back to built-in test servers from tests/conf.py
+    return _get_builtin_test_server(name, environment)
+
+
+def _get_builtin_test_server(
+    name: Optional[str], environment: bool
+) -> Optional[Dict[str, Any]]:
+    """
+    Get connection parameters from built-in test servers (tests/conf.py).
+
+    This supports radicale, xandikos, and docker-based test servers.
+    """
+    # Save current sys.path
+    original_path = sys.path.copy()
+
+    try:
+        sys.path.insert(0, "tests")
+        sys.path.insert(1, ".")
+
+        try:
+            from conf import client
+        except (ImportError, ModuleNotFoundError) as e:
+            logging.debug(f"Could not import tests/conf.py: {e}")
             return None
-        return _extract_conn_params_from_section(section_data)
+        except Exception as e:
+            # Handle other import errors (e.g., syntax errors, missing dependencies)
+            logging.warning(f"Error importing tests/conf.py: {e}")
+            return None
 
-    # Find first section with testing_allowed=true
-    for section_name in cfg:
-        section_data = config_section(cfg, section_name)
-        if section_data.get("testing_allowed"):
-            logging.info(f"Using test server from config section: {section_name}")
-            return _extract_conn_params_from_section(section_data)
+        # Parse server selection
+        idx: Optional[int] = None
 
-    return None
+        # If name is provided and can be parsed as int, use it as idx
+        if name is not None:
+            try:
+                idx = int(name)
+                name = None
+            except (ValueError, TypeError):
+                pass
+
+        # Also check environment variables if environment=True
+        if environment:
+            if idx is None:
+                idx_str = os.environ.get("PYTHON_CALDAV_TEST_SERVER_IDX")
+                if idx_str:
+                    try:
+                        idx = int(idx_str)
+                    except (ValueError, TypeError):
+                        pass
+            if name is None:
+                name = os.environ.get("PYTHON_CALDAV_TEST_SERVER_NAME")
+
+        conn = client(idx, name)
+        if conn is None:
+            return None
+
+        # Extract connection parameters from DAVClient object
+        conn_params: Dict[str, Any] = {}
+        for key in CONNKEYS:
+            if hasattr(conn, key):
+                value = getattr(conn, key)
+                if value is not None:
+                    conn_params[key] = value
+
+        # The client may have setup/teardown - store them too
+        if hasattr(conn, "setup"):
+            conn_params["_setup"] = conn.setup
+        if hasattr(conn, "teardown"):
+            conn_params["_teardown"] = conn.teardown
+        if hasattr(conn, "server_name"):
+            conn_params["_server_name"] = conn.server_name
+
+        return conn_params
+
+    finally:
+        sys.path = original_path
 
 
 def _extract_conn_params_from_section(section_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
