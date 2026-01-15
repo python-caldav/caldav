@@ -31,6 +31,7 @@ from lxml.etree import _Element
 from caldav import __version__
 from caldav.compatibility_hints import FeatureSet
 from caldav.lib import error
+from caldav.lib.auth import extract_auth_types
 from caldav.lib.python_utilities import to_normal_str, to_wire
 from caldav.lib.url import URL
 from caldav.objects import log
@@ -859,18 +860,12 @@ class AsyncDAVClient:
 
     # ==================== Authentication Helpers ====================
 
-    def extract_auth_types(self, header: str) -> set:
-        """
-        Extract authentication types from WWW-Authenticate header.
+    def extract_auth_types(self, header: str) -> set[str]:
+        """Extract authentication types from WWW-Authenticate header.
 
-        Args:
-            header: WWW-Authenticate header value.
-
-        Returns:
-            Set of auth type strings.
+        Delegates to caldav.lib.auth.extract_auth_types().
         """
-        # https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/WWW-Authenticate#syntax
-        return {h.split()[0] for h in header.lower().split(",")}
+        return extract_auth_types(header)
 
     def build_auth_object(self, auth_types: Optional[list[str]] = None) -> None:
         """

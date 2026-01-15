@@ -36,6 +36,7 @@ from caldav.collection import Calendar, CalendarSet, Principal
 from caldav.compatibility_hints import FeatureSet
 from caldav.elements import cdav, dav
 from caldav.lib import error
+from caldav.lib.auth import extract_auth_types
 from caldav.lib.python_utilities import to_normal_str, to_wire
 from caldav.lib.url import URL
 from caldav.objects import log
@@ -70,26 +71,8 @@ environmental variables, a configuration file or test configuration.
 """
 
 ## TODO: this is also declared in davclient.DAVClient.__init__(...)
-## TODO: it should be consolidated, duplication is a bad thing
-## TODO: and it's almost certain that we'll forget to update this list
-CONNKEYS = set(
-    (
-        "url",
-        "proxy",
-        "username",
-        "password",
-        "timeout",
-        "headers",
-        "huge_tree",
-        "ssl_verify_cert",
-        "ssl_cert",
-        "auth",
-        "auth_type",
-        "features",
-        "enable_rfc6764",
-        "require_tls",
-    )
-)
+# Import CONNKEYS from config to avoid duplication
+from caldav.config import CONNKEYS
 
 
 def _auto_url(
@@ -705,13 +688,12 @@ class DAVClient:
         """
         return self.request(url, "OPTIONS", "")
 
-    def extract_auth_types(self, header: str):
-        """This is probably meant for internal usage.  It takes the
-        headers it got from the server and figures out what
-        authentication types the server supports
+    def extract_auth_types(self, header: str) -> set[str]:
+        """Extract authentication types from WWW-Authenticate header.
+
+        Delegates to caldav.lib.auth.extract_auth_types().
         """
-        # https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/WWW-Authenticate#syntax
-        return {h.split()[0] for h in header.lower().split(",")}
+        return extract_auth_types(header)
 
     def build_auth_object(self, auth_types: Optional[List[str]] = None):
         """Fixes self.auth.  If ``self.auth_type`` is given, then
