@@ -90,6 +90,14 @@ from caldav.operations.principal_ops import (
     should_update_client_base_url,
     sort_calendar_user_addresses,
 )
+from caldav.operations.calendarset_ops import (
+    CalendarInfo,
+    extract_calendar_id_from_url,
+    find_calendar_by_id,
+    find_calendar_by_name,
+    process_calendar_list,
+    resolve_calendar_url,
+)
 
 __all__ = [
     # Base types
@@ -139,4 +147,11 @@ __all__ = [
     "extract_calendar_user_addresses",
     "create_vcal_address",
     "should_update_client_base_url",
+    # CalendarSet operations
+    "CalendarInfo",
+    "extract_calendar_id_from_url",
+    "process_calendar_list",
+    "resolve_calendar_url",
+    "find_calendar_by_name",
+    "find_calendar_by_id",
 ]
