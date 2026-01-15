@@ -1,343 +1,217 @@
 # Protocol Layer Usage Guide
 
-This guide explains how to use the Sans-I/O protocol layer directly for advanced use cases.
+This guide explains how to use the Sans-I/O protocol layer for testing and advanced use cases.
 
 ## Overview
 
-The protocol layer provides a clean separation between:
-- **Protocol logic**: Building requests, parsing responses (no I/O)
-- **I/O layer**: Actually sending/receiving HTTP (thin wrapper)
+The protocol layer (`caldav/protocol/`) provides pure functions for:
+- **XML Building**: Construct request bodies without I/O
+- **XML Parsing**: Parse response bodies without I/O
 
-This architecture enables:
+This separation enables:
 - Easy testing without HTTP mocking
-- Pluggable HTTP libraries
+- Same code works for sync and async
 - Clear separation of concerns
 
-## Quick Start
+## Module Structure
 
-### Using the High-Level Protocol Client
+```
+caldav/protocol/
+├── __init__.py      # Public exports
+├── types.py         # DAVRequest, DAVResponse, result dataclasses
+├── xml_builders.py  # Pure functions to build XML
+└── xml_parsers.py   # Pure functions to parse XML
+```
 
-For most use cases, use `SyncProtocolClient` or `AsyncProtocolClient`:
+## Testing Without HTTP Mocking
+
+The main benefit of the protocol layer is testability:
 
 ```python
-from caldav.protocol_client import SyncProtocolClient
-
-# Create client
-client = SyncProtocolClient(
-    base_url="https://cal.example.com",
-    username="user",
-    password="pass",
+from caldav.protocol import (
+    build_propfind_body,
+    build_calendar_query_body,
+    parse_propfind_response,
+    parse_calendar_query_response,
 )
 
-# Use as context manager for proper cleanup
-with client:
-    # List calendars
-    calendars = client.propfind("/calendars/", ["displayname"], depth=1)
-    for cal in calendars:
-        print(f"{cal.href}: {cal.properties}")
+def test_propfind_body_building():
+    """Test XML building - no HTTP needed."""
+    body = build_propfind_body(["displayname", "resourcetype"])
+    xml = body.decode("utf-8")
 
-    # Search for events
-    from datetime import datetime
-    events = client.calendar_query(
-        "/calendars/user/cal/",
-        start=datetime(2024, 1, 1),
-        end=datetime(2024, 12, 31),
-        event=True,
-    )
-    for event in events:
-        print(f"Event: {event.href}")
-        print(f"Data: {event.calendar_data[:100]}...")
+    assert "propfind" in xml.lower()
+    assert "displayname" in xml.lower()
+    assert "resourcetype" in xml.lower()
+
+def test_propfind_response_parsing():
+    """Test XML parsing - no HTTP needed."""
+    xml = b'''<?xml version="1.0"?>
+    <D:multistatus xmlns:D="DAV:">
+        <D:response>
+            <D:href>/calendars/user/</D:href>
+            <D:propstat>
+                <D:prop>
+                    <D:displayname>My Calendar</D:displayname>
+                </D:prop>
+                <D:status>HTTP/1.1 200 OK</D:status>
+            </D:propstat>
+        </D:response>
+    </D:multistatus>'''
+
+    results = parse_propfind_response(xml, status_code=207)
+
+    assert len(results) == 1
+    assert results[0].href == "/calendars/user/"
+    assert results[0].properties["{DAV:}displayname"] == "My Calendar"
 ```
 
-### Async Version
+## Available Functions
+
+### XML Builders
 
 ```python
-from caldav.protocol_client import AsyncProtocolClient
-import asyncio
-
-async def main():
-    async with AsyncProtocolClient(
-        base_url="https://cal.example.com",
-        username="user",
-        password="pass",
-    ) as client:
-        calendars = await client.propfind("/calendars/", ["displayname"], depth=1)
-        for cal in calendars:
-            print(f"{cal.href}: {cal.properties}")
-
-asyncio.run(main())
-```
-
-## Low-Level Protocol Access
-
-For maximum control, use the protocol layer directly:
-
-### Building Requests
-
-```python
-from caldav.protocol import CalDAVProtocol, DAVMethod
-
-# Create protocol instance (no I/O happens here)
-protocol = CalDAVProtocol(
-    base_url="https://cal.example.com",
-    username="user",
-    password="pass",
+from caldav.protocol import (
+    build_propfind_body,
+    build_proppatch_body,
+    build_calendar_query_body,
+    build_calendar_multiget_body,
+    build_sync_collection_body,
+    build_mkcalendar_body,
+    build_mkcol_body,
+    build_freebusy_query_body,
 )
 
-# Build a PROPFIND request
-request = protocol.propfind_request(
-    path="/calendars/",
-    props=["displayname", "resourcetype"],
-    depth=1,
+# PROPFIND
+body = build_propfind_body(["displayname", "resourcetype"])
+
+# Calendar query with time range
+body, comp_type = build_calendar_query_body(
+    start=datetime(2024, 1, 1),
+    end=datetime(2024, 12, 31),
+    event=True,  # or todo=True, journal=True
 )
 
-print(f"Method: {request.method}")      # DAVMethod.PROPFIND
-print(f"URL: {request.url}")            # https://cal.example.com/calendars/
-print(f"Headers: {request.headers}")    # {'Content-Type': '...', 'Authorization': '...', 'Depth': '1'}
-print(f"Body: {request.body[:100]}...")  # XML body
+# Multiget specific items
+body = build_calendar_multiget_body([
+    "/cal/event1.ics",
+    "/cal/event2.ics",
+])
+
+# MKCALENDAR
+body = build_mkcalendar_body(
+    displayname="My Calendar",
+    description="A test calendar",
+)
 ```
 
-### Executing Requests
+### XML Parsers
 
 ```python
-from caldav.io import SyncIO
+from caldav.protocol import (
+    parse_multistatus,
+    parse_propfind_response,
+    parse_calendar_query_response,
+    parse_calendar_multiget_response,
+    parse_sync_collection_response,
+)
 
-# Create I/O handler
-io = SyncIO(timeout=30.0, verify=True)
-
-# Execute request
-response = io.execute(request)
-
-print(f"Status: {response.status}")     # 207
-print(f"Headers: {response.headers}")
-print(f"Body: {response.body[:100]}...")
-
-io.close()
-```
-
-### Parsing Responses
-
-```python
-# Parse the response
-results = protocol.parse_propfind(response)
-
+# Parse PROPFIND response
+results = parse_propfind_response(xml_body, status_code=207)
 for result in results:
-    print(f"Resource: {result.href}")
-    print(f"Properties: {result.properties}")
-    print(f"Status: {result.status}")
+    print(f"href: {result.href}")
+    print(f"props: {result.properties}")
+
+# Parse calendar-query response
+results = parse_calendar_query_response(xml_body, status_code=207)
+for result in results:
+    print(f"href: {result.href}")
+    print(f"etag: {result.etag}")
+    print(f"data: {result.calendar_data}")
+
+# Parse sync-collection response
+result = parse_sync_collection_response(xml_body, status_code=207)
+print(f"changed: {result.changed}")
+print(f"deleted: {result.deleted}")
+print(f"sync_token: {result.sync_token}")
 ```
-
-## Available Request Builders
-
-The `CalDAVProtocol` class provides these request builders:
-
-| Method | Description |
-|--------|-------------|
-| `propfind_request()` | PROPFIND to get resource properties |
-| `proppatch_request()` | PROPPATCH to set properties |
-| `calendar_query_request()` | calendar-query REPORT for searching |
-| `calendar_multiget_request()` | calendar-multiget REPORT |
-| `sync_collection_request()` | sync-collection REPORT |
-| `freebusy_request()` | free-busy-query REPORT |
-| `mkcalendar_request()` | MKCALENDAR to create calendars |
-| `get_request()` | GET to retrieve resources |
-| `put_request()` | PUT to create/update resources |
-| `delete_request()` | DELETE to remove resources |
-| `options_request()` | OPTIONS to query capabilities |
-
-## Available Response Parsers
-
-| Method | Returns |
-|--------|---------|
-| `parse_propfind()` | `List[PropfindResult]` |
-| `parse_calendar_query()` | `List[CalendarQueryResult]` |
-| `parse_calendar_multiget()` | `List[CalendarQueryResult]` |
-| `parse_sync_collection()` | `SyncCollectionResult` |
 
 ## Result Types
 
-### PropfindResult
+The parsers return typed dataclasses:
 
 ```python
+from caldav.protocol import (
+    PropfindResult,
+    CalendarQueryResult,
+    SyncCollectionResult,
+    MultistatusResponse,
+)
+
+# PropfindResult
 @dataclass
 class PropfindResult:
-    href: str                    # Resource URL/path
-    properties: Dict[str, Any]   # Property name -> value
-    status: int = 200            # HTTP status for this resource
-```
+    href: str
+    properties: dict[str, Any]
+    status: int = 200
 
-### CalendarQueryResult
-
-```python
+# CalendarQueryResult
 @dataclass
 class CalendarQueryResult:
-    href: str                    # Calendar object URL
-    etag: Optional[str]          # ETag for conditional updates
-    calendar_data: Optional[str] # iCalendar data
-    status: int = 200
-```
+    href: str
+    etag: str | None
+    calendar_data: str | None
 
-### SyncCollectionResult
-
-```python
+# SyncCollectionResult
 @dataclass
 class SyncCollectionResult:
-    changed: List[CalendarQueryResult]  # Changed/new items
-    deleted: List[str]                   # Deleted hrefs
-    sync_token: Optional[str]            # New sync token
+    changed: list[CalendarQueryResult]
+    deleted: list[str]
+    sync_token: str | None
 ```
 
-## Testing with Protocol Layer
+## Using with Custom HTTP
 
-The protocol layer makes testing easy - no HTTP mocking required:
-
-```python
-from caldav.protocol import CalDAVProtocol, DAVResponse
-
-def test_propfind_parsing():
-    protocol = CalDAVProtocol()
-
-    # Create a fake response (no network needed)
-    response = DAVResponse(
-        status=207,
-        headers={},
-        body=b'''<?xml version="1.0"?>
-        <D:multistatus xmlns:D="DAV:">
-            <D:response>
-                <D:href>/calendars/</D:href>
-                <D:propstat>
-                    <D:prop><D:displayname>Test</D:displayname></D:prop>
-                    <D:status>HTTP/1.1 200 OK</D:status>
-                </D:propstat>
-            </D:response>
-        </D:multistatus>''',
-    )
-
-    # Test parsing
-    results = protocol.parse_propfind(response)
-    assert len(results) == 1
-    assert results[0].href == "/calendars/"
-```
-
-## Using a Custom HTTP Library
-
-The I/O layer is pluggable. To use a different HTTP library:
+If you want to use the protocol layer with a different HTTP library:
 
 ```python
-from caldav.protocol import DAVRequest, DAVResponse
 import httpx  # or any HTTP library
+from caldav.protocol import build_propfind_body, parse_propfind_response
 
-class HttpxIO:
-    def __init__(self):
-        self.client = httpx.Client()
+# Build request body
+body = build_propfind_body(["displayname"])
 
-    def execute(self, request: DAVRequest) -> DAVResponse:
-        response = self.client.request(
-            method=request.method.value,
-            url=request.url,
-            headers=request.headers,
-            content=request.body,
-        )
-        return DAVResponse(
-            status=response.status_code,
-            headers=dict(response.headers),
-            body=response.content,
-        )
+# Make request with your HTTP library
+response = httpx.request(
+    "PROPFIND",
+    "https://cal.example.com/calendars/",
+    content=body,
+    headers={
+        "Content-Type": "application/xml",
+        "Depth": "1",
+    },
+    auth=("user", "pass"),
+)
 
-    def close(self):
-        self.client.close()
-
-# Use with protocol
-protocol = CalDAVProtocol(base_url="https://cal.example.com")
-io = HttpxIO()
-
-request = protocol.propfind_request("/calendars/", ["displayname"])
-response = io.execute(request)
-results = protocol.parse_propfind(response)
-
-io.close()
+# Parse response
+results = parse_propfind_response(response.content, response.status_code)
 ```
 
-## Using response.results with DAVClient
+## Integration with DAVClient
 
-The standard `DAVClient` and `AsyncDAVClient` now expose parsed results via `response.results`:
+The protocol layer is used internally by `DAVClient` and `AsyncDAVClient`.
+You can access parsed results via `response.results`:
 
 ```python
-from caldav import get_davclient
+from caldav import DAVClient
 
-# Use get_davclient() factory method (recommended)
-client = get_davclient(url="https://cal.example.com", username="user", password="pass")
+client = DAVClient(url="https://cal.example.com", username="user", password="pass")
+response = client.propfind(url, props=["displayname"], depth=1)
 
-with client:
-    # propfind returns DAVResponse with parsed results
-    response = client.propfind("/calendars/", depth=1)
+# Access pre-parsed results
+for result in response.results:
+    print(f"{result.href}: {result.properties}")
 
-    # New interface: use response.results for pre-parsed values
-    if response.results:
-        for result in response.results:
-            print(f"Resource: {result.href}")
-            print(f"Display name: {result.properties.get('{DAV:}displayname')}")
-
-    # Deprecated: find_objects_and_props() still works but shows warning
-    # objects = response.find_objects_and_props()  # DeprecationWarning
-```
-
-### Async version
-
-```python
-from caldav.aio import get_async_davclient
-import asyncio
-
-async def main():
-    # Use get_async_davclient() factory method (recommended)
-    client = get_async_davclient(url="https://cal.example.com", username="user", password="pass")
-
-    async with client:
-        response = await client.propfind("/calendars/", depth=1)
-
-        for result in response.results:
-            print(f"{result.href}: {result.properties}")
-
-asyncio.run(main())
-```
-
-## Comparison with Standard Client
-
-| Feature | DAVClient | SyncProtocolClient |
-|---------|-----------|-------------------|
-| Ease of use | High | Medium |
-| Control | Medium | High |
-| Testability | Needs mocking | Pure unit tests |
-| HTTP library | requests/niquests | Pluggable |
-| Feature completeness | Full | Core operations |
-
-**Use `DAVClient`** for:
-- Most applications
-- Full feature set (scheduling, freebusy, etc.)
-- Automatic discovery
-
-**Use `SyncProtocolClient`** for:
-- Advanced use cases
-- Custom HTTP handling
-- Maximum testability
-- Learning the CalDAV protocol
-
-## File Structure
-
-```
-caldav/
-├── protocol/                    # Sans-I/O protocol layer
-│   ├── __init__.py             # Exports
-│   ├── types.py                # DAVRequest, DAVResponse, result types
-│   ├── xml_builders.py         # Pure XML construction
-│   ├── xml_parsers.py          # Pure XML parsing
-│   └── operations.py           # CalDAVProtocol class
-│
-├── io/                          # I/O implementations
-│   ├── __init__.py
-│   ├── base.py                 # Protocol definitions
-│   ├── sync.py                 # SyncIO (niquests)
-│   └── async_.py               # AsyncIO (aiohttp)
-│
-└── protocol_client.py          # High-level protocol clients
+# Legacy method (deprecated but still works)
+objects = response.find_objects_and_props()
 ```
