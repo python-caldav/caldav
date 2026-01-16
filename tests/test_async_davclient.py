@@ -229,13 +229,20 @@ class TestAsyncDAVClient:
     @pytest.mark.asyncio
     async def test_close(self) -> None:
         """Test close method."""
+        from caldav.async_davclient import _USE_HTTPX
+
         client = AsyncDAVClient(url="https://caldav.example.com/dav/")
         client.session = AsyncMock()
-        client.session.aclose = AsyncMock()  # httpx uses aclose()
+        # httpx uses aclose(), niquests uses close()
+        client.session.aclose = AsyncMock()
+        client.session.close = AsyncMock()
 
         await client.close()
 
-        client.session.aclose.assert_called_once()
+        if _USE_HTTPX:
+            client.session.aclose.assert_called_once()
+        else:
+            client.session.close.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_request_method(self) -> None:
