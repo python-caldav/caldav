@@ -4,11 +4,17 @@ Base class for DAV response parsing.
 This module contains the shared logic between DAVResponse (sync) and
 AsyncDAVResponse (async) to eliminate code duplication.
 """
-
 import logging
 import warnings
 from collections.abc import Iterable
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union, cast
+from typing import Any
+from typing import cast
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Tuple
+from typing import TYPE_CHECKING
+from typing import Union
 from urllib.parse import unquote
 
 from lxml import etree
@@ -21,7 +27,9 @@ from caldav.lib.python_utilities import to_normal_str
 from caldav.lib.url import URL
 
 if TYPE_CHECKING:
-    from niquests.models import Response
+    # Protocol for HTTP response objects (works with httpx, niquests, requests)
+    # Using Any as the type hint to avoid strict protocol matching
+    Response = Any
 
 log = logging.getLogger(__name__)
 
@@ -130,8 +138,9 @@ class BaseDAVResponse:
         self.status = response.status_code
         # ref https://github.com/python-caldav/caldav/issues/81,
         # incidents with a response without a reason has been observed
+        # httpx uses reason_phrase, niquests/requests use reason
         try:
-            self.reason = response.reason
+            self.reason = getattr(response, "reason_phrase", None) or response.reason
         except AttributeError:
             self.reason = ""
 

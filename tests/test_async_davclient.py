@@ -65,6 +65,7 @@ def create_mock_response(
     resp.content = content
     resp.status_code = status_code
     resp.reason = reason
+    resp.reason_phrase = reason  # httpx uses reason_phrase
     resp.headers = headers or {}
     resp.text = content.decode("utf-8") if content else ""
     return resp
@@ -230,11 +231,11 @@ class TestAsyncDAVClient:
         """Test close method."""
         client = AsyncDAVClient(url="https://caldav.example.com/dav/")
         client.session = AsyncMock()
-        client.session.close = AsyncMock()
+        client.session.aclose = AsyncMock()  # httpx uses aclose()
 
         await client.close()
 
-        client.session.close.assert_called_once()
+        client.session.aclose.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_request_method(self) -> None:
@@ -274,9 +275,10 @@ class TestAsyncDAVClient:
 
         assert response.status == 207
         call_args = client.session.request.call_args
-        assert call_args[0][0] == "PROPFIND"  # method
-        assert "Depth" in call_args[1]["headers"]
-        assert call_args[1]["headers"]["Depth"] == "1"
+        # httpx uses kwargs for method and headers
+        assert call_args.kwargs["method"] == "PROPFIND"
+        assert "Depth" in call_args.kwargs["headers"]
+        assert call_args.kwargs["headers"]["Depth"] == "1"
 
     @pytest.mark.asyncio
     async def test_propfind_with_custom_url(self) -> None:
@@ -299,7 +301,8 @@ class TestAsyncDAVClient:
 
         assert response.status == 207
         call_args = client.session.request.call_args
-        assert "calendars" in call_args[0][1]  # URL
+        # httpx uses kwargs for url
+        assert "calendars" in call_args.kwargs["url"]
 
     @pytest.mark.asyncio
     async def test_report_method(self) -> None:
@@ -318,9 +321,9 @@ class TestAsyncDAVClient:
 
         assert response.status == 207
         call_args = client.session.request.call_args
-        assert call_args[0][0] == "REPORT"
-        assert "Content-Type" in call_args[1]["headers"]
-        assert "application/xml" in call_args[1]["headers"]["Content-Type"]
+        assert call_args.kwargs["method"] == "REPORT"
+        assert "Content-Type" in call_args.kwargs["headers"]
+        assert "application/xml" in call_args.kwargs["headers"]["Content-Type"]
 
     @pytest.mark.asyncio
     async def test_options_method(self) -> None:
@@ -340,7 +343,7 @@ class TestAsyncDAVClient:
         assert response.status == 200
         assert "DAV" in response.headers
         call_args = client.session.request.call_args
-        assert call_args[0][0] == "OPTIONS"
+        assert call_args.kwargs["method"] == "OPTIONS"
 
     @pytest.mark.asyncio
     async def test_proppatch_method(self) -> None:
@@ -357,7 +360,7 @@ class TestAsyncDAVClient:
 
         assert response.status == 207
         call_args = client.session.request.call_args
-        assert call_args[0][0] == "PROPPATCH"
+        assert call_args.kwargs["method"] == "PROPPATCH"
 
     @pytest.mark.asyncio
     async def test_put_method(self) -> None:
@@ -374,7 +377,7 @@ class TestAsyncDAVClient:
 
         assert response.status == 201
         call_args = client.session.request.call_args
-        assert call_args[0][0] == "PUT"
+        assert call_args.kwargs["method"] == "PUT"
 
     @pytest.mark.asyncio
     async def test_delete_method(self) -> None:
@@ -390,7 +393,7 @@ class TestAsyncDAVClient:
 
         assert response.status == 204
         call_args = client.session.request.call_args
-        assert call_args[0][0] == "DELETE"
+        assert call_args.kwargs["method"] == "DELETE"
 
     @pytest.mark.asyncio
     async def test_post_method(self) -> None:
@@ -407,7 +410,7 @@ class TestAsyncDAVClient:
 
         assert response.status == 200
         call_args = client.session.request.call_args
-        assert call_args[0][0] == "POST"
+        assert call_args.kwargs["method"] == "POST"
 
     @pytest.mark.asyncio
     async def test_mkcol_method(self) -> None:
@@ -423,7 +426,7 @@ class TestAsyncDAVClient:
 
         assert response.status == 201
         call_args = client.session.request.call_args
-        assert call_args[0][0] == "MKCOL"
+        assert call_args.kwargs["method"] == "MKCOL"
 
     @pytest.mark.asyncio
     async def test_mkcalendar_method(self) -> None:
@@ -440,7 +443,7 @@ class TestAsyncDAVClient:
 
         assert response.status == 201
         call_args = client.session.request.call_args
-        assert call_args[0][0] == "MKCALENDAR"
+        assert call_args.kwargs["method"] == "MKCALENDAR"
 
     def test_extract_auth_types(self) -> None:
         """Test extracting auth types from WWW-Authenticate header."""
@@ -776,7 +779,9 @@ class TestAsyncCalendarObjectResource:
 
         # Verify has_component exists on all async calendar object classes
         for cls in [AsyncCalendarObjectResource, AsyncEvent, AsyncTodo, AsyncJournal]:
-            assert hasattr(cls, "has_component"), f"{cls.__name__} missing has_component method"
+            assert hasattr(
+                cls, "has_component"
+            ), f"{cls.__name__} missing has_component method"
 
     def test_has_component_with_data(self) -> None:
         """Test has_component returns True when object has VEVENT/VTODO/VJOURNAL."""
