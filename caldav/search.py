@@ -29,12 +29,12 @@ from .operations.search_ops import should_remove_category_filter
 from .operations.search_ops import should_remove_property_filters_for_combined
 
 if TYPE_CHECKING:
-    from .async_collection import AsyncCalendar
-    from .async_davobject import (
-        AsyncCalendarObjectResource,
-        AsyncEvent,
-        AsyncJournal,
-        AsyncTodo,
+    from .collection import Calendar as AsyncCalendar
+    from .calendarobjectresource import (
+        CalendarObjectResource as AsyncCalendarObjectResource,
+        Event as AsyncEvent,
+        Journal as AsyncJournal,
+        Todo as AsyncTodo,
     )
 
 TypesFactory = TypesFactory()
@@ -538,8 +538,9 @@ class CalDAVSearcher(Searcher):
         """
         Internal async method - does three searches, one for each comp class.
         """
-        # Import async types at runtime to avoid circular imports
-        from .async_davobject import AsyncEvent, AsyncJournal, AsyncTodo
+        # Import unified types at runtime to avoid circular imports
+        # These work with both sync and async clients
+        from .calendarobjectresource import Event as AsyncEvent, Journal as AsyncJournal, Todo as AsyncTodo
 
         if xml and (isinstance(xml, str) or "calendar-query" in xml.tag):
             raise NotImplementedError(
@@ -575,8 +576,9 @@ class CalDAVSearcher(Searcher):
 
         See the sync search() method for full documentation.
         """
-        # Import async types at runtime to avoid circular imports
-        from .async_davobject import AsyncEvent, AsyncJournal, AsyncTodo
+        # Import unified types at runtime to avoid circular imports
+        # These work with both sync and async clients
+        from .calendarobjectresource import Event as AsyncEvent, Journal as AsyncJournal, Todo as AsyncTodo
 
         ## Handle servers with broken component-type filtering (e.g., Bedework)
         comp_type_support = calendar.client.features.is_supported(
@@ -798,7 +800,11 @@ class CalDAVSearcher(Searcher):
         obj2: List["AsyncCalendarObjectResource"] = []
         for o in objects:
             try:
-                await o.load(only_if_unloaded=True)
+                # load() may return self (sync) or coroutine (async) depending on state
+                result = o.load(only_if_unloaded=True)
+                import inspect
+                if inspect.isawaitable(result):
+                    await result
                 obj2.append(o)
             except Exception:
                 import logging
@@ -816,7 +822,11 @@ class CalDAVSearcher(Searcher):
         ## partial workaround for https://github.com/python-caldav/caldav/issues/201
         for obj in objects:
             try:
-                await obj.load(only_if_unloaded=True)
+                # load() may return self (sync) or coroutine (async) depending on state
+                result = obj.load(only_if_unloaded=True)
+                import inspect
+                if inspect.isawaitable(result):
+                    await result
             except Exception:
                 pass
 

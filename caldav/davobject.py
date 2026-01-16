@@ -193,7 +193,12 @@ class DAVObject:
         This is an internal method for doing a propfind query.  It's a
         result of code-refactoring work, attempting to consolidate
         similar-looking code into a common method.
+
+        For async clients, returns a coroutine that must be awaited.
         """
+        if self.is_async_client:
+            return self._async_query_properties(props, depth)
+
         root = None
         # build the propfind request
         if props is not None and len(props) > 0:
@@ -201,6 +206,18 @@ class DAVObject:
             root = dav.Propfind() + prop
 
         return self._query(root, depth)
+
+    async def _async_query_properties(
+        self, props: Optional[Sequence[BaseElement]] = None, depth: int = 0
+    ):
+        """Async implementation of _query_properties."""
+        root = None
+        # build the propfind request
+        if props is not None and len(props) > 0:
+            prop = dav.Prop() + props
+            root = dav.Propfind() + prop
+
+        return await self._async_query(root, depth)
 
     def _query(
         self,
@@ -214,7 +231,12 @@ class DAVObject:
         This is an internal method for doing a query.  It's a
         result of code-refactoring work, attempting to consolidate
         similar-looking code into a common method.
+
+        For async clients, returns a coroutine that must be awaited.
         """
+        if self.is_async_client:
+            return self._async_query(root, depth, query_method, url, expected_return_value)
+
         body = ""
         if root:
             if hasattr(root, "xmlelement"):
@@ -251,6 +273,50 @@ class DAVObject:
             raise error.exception_by_method[query_method](errmsg(ret))
         return ret
 
+    async def _async_query(
+        self,
+        root=None,
+        depth=0,
+        query_method="propfind",
+        url=None,
+        expected_return_value=None,
+    ):
+        """Async implementation of _query."""
+        body = ""
+        if root:
+            if hasattr(root, "xmlelement"):
+                body = etree.tostring(
+                    root.xmlelement(),
+                    encoding="utf-8",
+                    xml_declaration=True,
+                    pretty_print=error.debug_dump_communication,
+                )
+            else:
+                body = root
+        if url is None:
+            url = self.url
+        ret = await getattr(self.client, query_method)(url, body, depth)
+        if ret.status == 404:
+            raise error.NotFoundError(errmsg(ret))
+        if (
+            expected_return_value is not None and ret.status != expected_return_value
+        ) or ret.status >= 400:
+            ## COMPATIBILITY HACK - see https://github.com/python-caldav/caldav/issues/309
+            body = to_wire(body)
+            if (
+                ret.status == 500
+                and b"D:getetag" not in body
+                and b"<C:calendar-data" in body
+            ):
+                body = body.replace(
+                    b"<C:calendar-data", b"<D:getetag/><C:calendar-data"
+                )
+                return await self._async_query(
+                    body, depth, query_method, url, expected_return_value
+                )
+            raise error.exception_by_method[query_method](errmsg(ret))
+        return ret
+
     def get_property(
         self, prop: BaseElement, use_cached: bool = False, **passthrough
     ) -> Optional[str]:
@@ -263,12 +329,27 @@ class DAVObject:
          use_cached: don't send anything to the server if we've asked before
 
         Other parameters are sent directly to the :class:`get_properties` method
+
+        For async clients, returns a coroutine that must be awaited.
         """
+        if self.is_async_client:
+            return self._async_get_property(prop, use_cached, **passthrough)
+
         ## TODO: use_cached should probably be true
         if use_cached:
             if prop.tag in self.props:
                 return self.props[prop.tag]
         foo = self.get_properties([prop], **passthrough)
+        return foo.get(prop.tag, None)
+
+    async def _async_get_property(
+        self, prop: BaseElement, use_cached: bool = False, **passthrough
+    ) -> Optional[str]:
+        """Async implementation of get_property."""
+        if use_cached:
+            if prop.tag in self.props:
+                return self.props[prop.tag]
+        foo = await self._async_get_properties([prop], **passthrough)
         return foo.get(prop.tag, None)
 
     def get_properties(
@@ -295,7 +376,11 @@ class DAVObject:
         Returns:
           ``{proptag: value, ...}``
 
+        For async clients, returns a coroutine that must be awaited.
         """
+        if self.is_async_client:
+            return self._async_get_properties(props, depth, parse_response_xml, parse_props)
+
         from .collection import (
             Principal,
         )  ## late import to avoid cyclic dependencies
@@ -351,15 +436,83 @@ class DAVObject:
         self.props.update(rc)
         return rc
 
+    async def _async_get_properties(
+        self,
+        props: Optional[Sequence[BaseElement]] = None,
+        depth: int = 0,
+        parse_response_xml: bool = True,
+        parse_props: bool = True,
+    ):
+        """Async implementation of get_properties."""
+        from .collection import (
+            Principal,
+        )  ## late import to avoid cyclic dependencies
+
+        rc = None
+        response = await self._async_query_properties(props, depth)
+        if not parse_response_xml:
+            return response
+
+        # Use protocol layer results when available and parse_props=True
+        if parse_props and response.results:
+            # Convert results to the expected {href: {tag: value}} format
+            properties = {}
+            for result in response.results:
+                # Start with None for all requested props (for backward compat)
+                result_props = {}
+                if props:
+                    for prop in props:
+                        if prop.tag:
+                            result_props[prop.tag] = None
+                # Then overlay with actual values from server
+                result_props.update(result.properties)
+                properties[result.href] = result_props
+        elif not parse_props:
+            # Caller wants raw XML elements - use deprecated method
+            properties = response.find_objects_and_props()
+        else:
+            # Fallback to expand_simple_props for mocked responses
+            properties = response.expand_simple_props(props)
+
+        error.assert_(properties)
+
+        if self.url is None:
+            raise ValueError("Unexpected value None for self.url")
+
+        path = unquote(self.url.path)
+        if path.endswith("/"):
+            exchange_path = path[:-1]
+        else:
+            exchange_path = path + "/"
+
+        if path in properties:
+            rc = properties[path]
+        elif exchange_path in properties:
+            if not isinstance(self, Principal):
+                log.warning(
+                    f"The path {path} was not found in the properties, but {exchange_path} was. "
+                    "This may indicate a server bug or a trailing slash issue."
+                )
+            rc = properties[exchange_path]
+        else:
+            error.assert_(False)
+        self.props.update(rc)
+        return rc
+
     def set_properties(self, props: Optional[Any] = None) -> Self:
         """
         Set properties (PROPPATCH) for this object.
 
          * props = [dav.DisplayName('name'), ...]
 
+        For async clients, returns a coroutine that must be awaited.
+
         Returns:
          * self
         """
+        if self.is_async_client:
+            return self._async_set_properties(props)
+
         props = [] if props is None else props
         prop = dav.Prop() + props
         set_elem = dav.Set() + prop
@@ -383,6 +536,37 @@ class DAVObject:
             raise ValueError("Unexpected value None for self.client")
 
         r = self.client.proppatch(str(self.url), body)
+
+        if r.status >= 400:
+            raise error.PropsetError(errmsg(r))
+
+        return self
+
+    async def _async_set_properties(self, props: Optional[Any] = None) -> Self:
+        """Async implementation of set_properties."""
+        props = [] if props is None else props
+        prop = dav.Prop() + props
+        set_elem = dav.Set() + prop
+        root = dav.PropertyUpdate() + set_elem
+
+        body = ""
+        if root:
+            if hasattr(root, "xmlelement"):
+                body = etree.tostring(
+                    root.xmlelement(),
+                    encoding="utf-8",
+                    xml_declaration=True,
+                    pretty_print=error.debug_dump_communication,
+                )
+            else:
+                body = root
+
+        if self.url is None:
+            raise ValueError("Unexpected value None for self.url")
+        if self.client is None:
+            raise ValueError("Unexpected value None for self.client")
+
+        r = await self.client.proppatch(str(self.url), body)
 
         if r.status >= 400:
             raise error.PropsetError(errmsg(r))

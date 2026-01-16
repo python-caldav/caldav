@@ -683,17 +683,19 @@ class CalendarObjectResource(DAVObject):
         Example (async):
             await obj.load()
         """
+        # Check if already loaded BEFORE delegating to async
+        # This avoids returning a coroutine when no work is needed
         if only_if_unloaded and self.is_loaded():
             return self
+
+        # Dual-mode support: async clients return a coroutine
+        if self.is_async_client:
+            return self._async_load(only_if_unloaded=only_if_unloaded)
 
         if self.url is None:
             raise ValueError("Unexpected value None for self.url")
         if self.client is None:
             raise ValueError("Unexpected value None for self.client")
-
-        # Dual-mode support: async clients return a coroutine
-        if self.is_async_client:
-            return self._async_load()
 
         try:
             r = self.client.request(str(self.url))
@@ -711,8 +713,16 @@ class CalendarObjectResource(DAVObject):
             self.props[cdav.ScheduleTag.tag] = r.headers["Schedule-Tag"]
         return self
 
-    async def _async_load(self) -> Self:
+    async def _async_load(self, only_if_unloaded: bool = False) -> Self:
         """Async implementation of load."""
+        if only_if_unloaded and self.is_loaded():
+            return self
+
+        if self.url is None:
+            raise ValueError("Unexpected value None for self.url")
+        if self.client is None:
+            raise ValueError("Unexpected value None for self.client")
+
         try:
             r = await self.client.request(str(self.url))
             if r.status and r.status == 404:
