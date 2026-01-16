@@ -38,8 +38,8 @@ from caldav import __version__
 from caldav.collection import Calendar, CalendarSet, Principal
 from caldav.compatibility_hints import FeatureSet
 from caldav.elements import cdav, dav
+from caldav.base_client import BaseDAVClient, create_client_from_config
 from caldav.lib import error
-from caldav.lib.auth import extract_auth_types
 from caldav.lib.python_utilities import to_normal_str, to_wire
 from caldav.lib.url import URL
 from caldav.objects import log
@@ -177,7 +177,7 @@ class DAVResponse(BaseDAVResponse):
     # Response parsing methods are inherited from BaseDAVResponse
 
 
-class DAVClient:
+class DAVClient(BaseDAVClient):
     """
     Basic client for webdav, uses the niquests lib; gives access to
     low-level operations towards the caldav server.
@@ -816,49 +816,24 @@ class DAVClient:
         """
         return self.request(url, "OPTIONS", "")
 
-    def extract_auth_types(self, header: str) -> set[str]:
-        """Extract authentication types from WWW-Authenticate header.
+    def build_auth_object(self, auth_types: Optional[List[str]] = None) -> None:
+        """Build authentication object for the requests/niquests library.
 
-        Delegates to caldav.lib.auth.extract_auth_types().
-        """
-        return extract_auth_types(header)
-
-    def build_auth_object(self, auth_types: Optional[List[str]] = None):
-        """Fixes self.auth.  If ``self.auth_type`` is given, then
-        insist on using this one.  If not, then assume auth_types to
-        be a list of acceptable auth types and choose the most
-        appropriate one (prefer digest or basic if username is given,
-        and bearer if password is given).
+        Uses shared auth type selection logic from BaseDAVClient, then
+        creates the appropriate auth object for this HTTP library.
 
         Args:
-            auth_types - A list/tuple of acceptable auth_types
+            auth_types: List of acceptable auth types from server.
         """
-        auth_type = self.auth_type
-        if not auth_type and not auth_types:
-            raise error.AuthorizationError(
-                "No auth-type given.  This shouldn't happen.  Raise an issue at https://github.com/python-caldav/caldav/issues/ or by email noauthtype@plann.no"
-            )
-        if auth_types and auth_type and auth_type not in auth_types:
-            raise error.AuthorizationError(
-                reason=f"Configuration specifies to use {auth_type}, but server only accepts {auth_types}"
-            )
-        if not auth_type and auth_types:
-            if self.username and "digest" in auth_types:
-                auth_type = "digest"
-            elif self.username and "basic" in auth_types:
-                auth_type = "basic"
-            elif self.password and "bearer" in auth_types:
-                auth_type = "bearer"
-            elif "bearer" in auth_types:
-                raise error.AuthorizationError(
-                    reason="Server provides bearer auth, but no password given.  The bearer token should be configured as password"
-                )
+        # Use shared selection logic
+        auth_type = self._select_auth_type(auth_types)
 
         # Decode password if it's bytes (HTTPDigestAuth needs string)
         password = self.password
         if isinstance(password, bytes):
             password = password.decode("utf-8")
 
+        # Create auth object for requests/niquests
         if auth_type == "digest":
             self.auth = requests.auth.HTTPDigestAuth(self.username, password)
         elif auth_type == "basic":
@@ -986,7 +961,7 @@ def auto_calendar(*largs, **kwargs) -> Iterable["Calendar"]:
 
 
 def auto_conn(*largs, config_data: dict = None, **kwargs):
-    """A quite stubbed verison of get_davclient was included in the
+    """A quite stubbed version of get_davclient was included in the
     v1.5-release as auto_conn, but renamed a few days later.  Probably
     nobody except my caldav tester project uses auto_conn, but as a
     thumb of rule anything released should stay "deprecated" for at
@@ -1035,10 +1010,8 @@ def get_davclient(
     Returns:
         DAVClient instance, or None if no configuration is found
     """
-    from . import config
-
-    # Use unified config discovery
-    conn_params = config.get_connection_params(
+    return create_client_from_config(
+        DAVClient,
         check_config_file=check_config_file,
         config_file=config_file,
         config_section=config_section,
@@ -1047,24 +1020,3 @@ def get_davclient(
         name=name,
         **config_data,
     )
-
-    if conn_params is None:
-        return None
-
-    # Extract special keys that aren't connection params
-    setup_func = conn_params.pop("_setup", None)
-    teardown_func = conn_params.pop("_teardown", None)
-    server_name = conn_params.pop("_server_name", None)
-
-    # Create client
-    client = DAVClient(**conn_params)
-
-    # Attach test server metadata if present
-    if setup_func is not None:
-        client.setup = setup_func
-    if teardown_func is not None:
-        client.teardown = teardown_func
-    if server_name is not None:
-        client.server_name = server_name
-
-    return client

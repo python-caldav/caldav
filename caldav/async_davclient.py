@@ -50,9 +50,9 @@ if not _USE_HTTPX and not _USE_NIQUESTS:
 
 
 from caldav import __version__
+from caldav.base_client import BaseDAVClient, create_client_from_config
 from caldav.compatibility_hints import FeatureSet
 from caldav.lib import error
-from caldav.lib.auth import extract_auth_types
 from caldav.lib.python_utilities import to_normal_str, to_wire
 from caldav.lib.url import URL
 from caldav.objects import log
@@ -110,7 +110,7 @@ class AsyncDAVResponse(BaseDAVResponse):
     # Response parsing methods are inherited from BaseDAVResponse
 
 
-class AsyncDAVClient:
+class AsyncDAVClient(BaseDAVClient):
     """
     Async WebDAV/CalDAV client.
 
@@ -862,42 +862,17 @@ class AsyncDAVClient:
 
     # ==================== Authentication Helpers ====================
 
-    def extract_auth_types(self, header: str) -> set[str]:
-        """Extract authentication types from WWW-Authenticate header.
-
-        Delegates to caldav.lib.auth.extract_auth_types().
-        """
-        return extract_auth_types(header)
-
     def build_auth_object(self, auth_types: Optional[list[str]] = None) -> None:
-        """
-        Build authentication object based on configured credentials.
+        """Build authentication object for the httpx/niquests library.
+
+        Uses shared auth type selection logic from BaseDAVClient, then
+        creates the appropriate auth object for this HTTP library.
 
         Args:
-            auth_types: List of acceptable auth types.
+            auth_types: List of acceptable auth types from server.
         """
-        auth_type = self.auth_type
-        if not auth_type and not auth_types:
-            raise error.AuthorizationError(
-                "No auth-type given. This shouldn't happen. "
-                "Raise an issue at https://github.com/python-caldav/caldav/issues/"
-            )
-        if auth_types and auth_type and auth_type not in auth_types:
-            raise error.AuthorizationError(
-                f"Auth type {auth_type} not supported by server. Supported: {auth_types}"
-            )
-
-        # If no explicit auth_type, choose best from available types
-        if not auth_type:
-            # Prefer digest, then basic, then bearer
-            if "digest" in auth_types:
-                auth_type = "digest"
-            elif "basic" in auth_types:
-                auth_type = "basic"
-            elif "bearer" in auth_types:
-                auth_type = "bearer"
-            else:
-                auth_type = auth_types[0] if auth_types else None
+        # Use shared selection logic
+        auth_type = self._select_auth_type(auth_types)
 
         # Build auth object - use appropriate classes for httpx or niquests
         if auth_type == "bearer":
@@ -916,7 +891,7 @@ class AsyncDAVClient:
                 from niquests.auth import HTTPBasicAuth
 
                 self.auth = HTTPBasicAuth(self.username, self.password)
-        else:
+        elif auth_type:
             raise error.AuthorizationError(f"Unsupported auth type: {auth_type}")
 
     # ==================== High-Level Methods ====================
@@ -1229,50 +1204,32 @@ async def get_davclient(
         async with await get_davclient(url="...", username="...", password="...") as client:
             principal = await AsyncPrincipal.create(client)
     """
-    from . import config as config_module
-
     # Merge explicit url/username/password into kwargs for config lookup
-    # Note: Use `is not None` rather than truthiness to allow empty strings
-    explicit_params = dict(kwargs)
+    config_data = dict(kwargs)
     if url is not None:
-        explicit_params["url"] = url
+        config_data["url"] = url
     if username is not None:
-        explicit_params["username"] = username
+        config_data["username"] = username
     if password is not None:
-        explicit_params["password"] = password
+        config_data["password"] = password
 
-    # Use unified config discovery
-    conn_params = config_module.get_connection_params(
+    # Use shared config helper
+    client = create_client_from_config(
+        AsyncDAVClient,
         check_config_file=check_config_file,
         config_file=config_file,
         config_section=config_section,
         testconfig=testconfig,
         environment=environment,
         name=name,
-        **explicit_params,
+        **config_data,
     )
 
-    if conn_params is None:
+    if client is None:
         raise ValueError(
             "No configuration found. Provide connection parameters, "
             "set CALDAV_URL environment variable, or create a config file."
         )
-
-    # Extract special keys that aren't connection params
-    setup_func = conn_params.pop("_setup", None)
-    teardown_func = conn_params.pop("_teardown", None)
-    server_name = conn_params.pop("_server_name", None)
-
-    # Create client
-    client = AsyncDAVClient(**conn_params)
-
-    # Attach test server metadata if present
-    if setup_func is not None:
-        client.setup = setup_func
-    if teardown_func is not None:
-        client.teardown = teardown_func
-    if server_name is not None:
-        client.server_name = server_name
 
     # Probe connection if requested
     if probe:
