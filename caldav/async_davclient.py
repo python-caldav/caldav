@@ -13,8 +13,13 @@ from types import TracebackType
 from typing import Any
 from typing import List
 from typing import Optional
+from typing import TYPE_CHECKING
 from typing import Union
 from urllib.parse import unquote
+
+if TYPE_CHECKING:
+    from caldav.calendarobjectresource import CalendarObjectResource, Event, Todo
+    from caldav.collection import Calendar, Principal
 
 # Try httpx first (preferred), fall back to niquests
 _USE_HTTPX = False
@@ -913,6 +918,257 @@ class AsyncDAVClient:
                 self.auth = HTTPBasicAuth(self.username, self.password)
         else:
             raise error.AuthorizationError(f"Unsupported auth type: {auth_type}")
+
+    # ==================== High-Level Methods ====================
+    # These methods provide a clean, client-centric async API using the operations layer.
+
+    async def get_principal(self) -> "Principal":
+        """Get the principal (user) for this CalDAV connection.
+
+        This method fetches the current-user-principal from the server and returns
+        a Principal object that can be used to access calendars and other resources.
+
+        Returns:
+            Principal object for the authenticated user.
+
+        Example:
+            async with await get_davclient(url="...", username="...", password="...") as client:
+                principal = await client.get_principal()
+                calendars = await client.get_calendars(principal)
+        """
+        from caldav.collection import Principal
+
+        # Use operations layer for discovery logic
+        from caldav.operations import (
+            sanitize_calendar_home_set_url,
+            should_update_client_base_url,
+        )
+
+        # Fetch current-user-principal
+        response = await self.propfind(
+            str(self.url),
+            props=["{DAV:}current-user-principal"],
+            depth=0,
+        )
+
+        principal_url = None
+        if response.results:
+            for result in response.results:
+                cup = result.properties.get("{DAV:}current-user-principal")
+                if cup:
+                    principal_url = cup
+                    break
+
+        if not principal_url:
+            # Fallback: use the base URL as principal URL
+            principal_url = str(self.url)
+
+        # Create and return Principal object
+        principal = Principal(client=self, url=principal_url)
+        return principal
+
+    async def get_calendars(
+        self, principal: Optional["Principal"] = None
+    ) -> List["Calendar"]:
+        """Get all calendars for the given principal.
+
+        This method fetches calendars from the principal's calendar-home-set
+        and returns a list of Calendar objects.
+
+        Args:
+            principal: Principal object (if None, fetches principal first)
+
+        Returns:
+            List of Calendar objects.
+
+        Example:
+            principal = await client.get_principal()
+            calendars = await client.get_calendars(principal)
+            for cal in calendars:
+                print(f"Calendar: {cal.name}")
+        """
+        from caldav.collection import Calendar, Principal
+        from caldav.operations import process_calendar_list, CalendarInfo
+
+        if principal is None:
+            principal = await self.get_principal()
+
+        # Get calendar-home-set from principal
+        calendar_home_url = await self._get_calendar_home_set(principal)
+        if not calendar_home_url:
+            return []
+
+        # Fetch calendars via PROPFIND
+        response = await self.propfind(
+            calendar_home_url,
+            props=[
+                "{DAV:}resourcetype",
+                "{DAV:}displayname",
+                "{urn:ietf:params:xml:ns:caldav}supported-calendar-component-set",
+                "{http://apple.com/ns/ical/}calendar-color",
+                "{http://calendarserver.org/ns/}getctag",
+            ],
+            depth=1,
+        )
+
+        # Use operations layer to process results
+        calendar_infos = process_calendar_list(
+            results=response.results or [],
+            base_url=calendar_home_url,
+        )
+
+        # Convert CalendarInfo to Calendar objects
+        calendars = []
+        for info in calendar_infos:
+            cal = Calendar(
+                client=self,
+                url=info.url,
+                name=info.name,
+            )
+            calendars.append(cal)
+
+        return calendars
+
+    async def _get_calendar_home_set(self, principal: "Principal") -> Optional[str]:
+        """Get the calendar-home-set URL for a principal.
+
+        Args:
+            principal: Principal object
+
+        Returns:
+            Calendar home set URL or None
+        """
+        from caldav.operations import sanitize_calendar_home_set_url
+
+        # Try to get from principal properties
+        response = await self.propfind(
+            str(principal.url),
+            props=["{urn:ietf:params:xml:ns:caldav}calendar-home-set"],
+            depth=0,
+        )
+
+        if response.results:
+            for result in response.results:
+                home_set = result.properties.get(
+                    "{urn:ietf:params:xml:ns:caldav}calendar-home-set"
+                )
+                if home_set:
+                    return sanitize_calendar_home_set_url(home_set)
+
+        return None
+
+    async def get_events(
+        self,
+        calendar: "Calendar",
+        start: Optional[Any] = None,
+        end: Optional[Any] = None,
+    ) -> List["Event"]:
+        """Get events from a calendar.
+
+        This is a convenience method that searches for VEVENT objects in the
+        calendar, optionally filtered by date range.
+
+        Args:
+            calendar: Calendar to search
+            start: Start of date range (optional)
+            end: End of date range (optional)
+
+        Returns:
+            List of Event objects.
+
+        Example:
+            from datetime import datetime
+            events = await client.get_events(
+                calendar,
+                start=datetime(2024, 1, 1),
+                end=datetime(2024, 12, 31)
+            )
+        """
+        return await self.search_calendar(calendar, event=True, start=start, end=end)
+
+    async def get_todos(
+        self,
+        calendar: "Calendar",
+        include_completed: bool = False,
+    ) -> List["Todo"]:
+        """Get todos from a calendar.
+
+        Args:
+            calendar: Calendar to search
+            include_completed: Whether to include completed todos
+
+        Returns:
+            List of Todo objects.
+        """
+        return await self.search_calendar(
+            calendar, todo=True, include_completed=include_completed
+        )
+
+    async def search_calendar(
+        self,
+        calendar: "Calendar",
+        event: bool = False,
+        todo: bool = False,
+        journal: bool = False,
+        start: Optional[Any] = None,
+        end: Optional[Any] = None,
+        include_completed: Optional[bool] = None,
+        expand: bool = False,
+        **kwargs: Any,
+    ) -> List["CalendarObjectResource"]:
+        """Search a calendar for events, todos, or journals.
+
+        This method provides a clean interface to calendar search using the
+        operations layer for building queries and processing results.
+
+        Args:
+            calendar: Calendar to search
+            event: Search for events (VEVENT)
+            todo: Search for todos (VTODO)
+            journal: Search for journals (VJOURNAL)
+            start: Start of date range
+            end: End of date range
+            include_completed: Include completed todos (default: False for todos)
+            expand: Expand recurring events
+            **kwargs: Additional search parameters
+
+        Returns:
+            List of Event/Todo/Journal objects.
+
+        Example:
+            # Get all events in January 2024
+            events = await client.search_calendar(
+                calendar,
+                event=True,
+                start=datetime(2024, 1, 1),
+                end=datetime(2024, 1, 31),
+            )
+
+            # Get pending todos
+            todos = await client.search_calendar(
+                calendar,
+                todo=True,
+                include_completed=False,
+            )
+        """
+        from caldav.search import CalDAVSearcher
+
+        # Build searcher with parameters
+        searcher = CalDAVSearcher(
+            event=event,
+            todo=todo,
+            journal=journal,
+            start=start,
+            end=end,
+            expand=expand,
+        )
+
+        if include_completed is not None:
+            searcher.include_completed = include_completed
+
+        # Execute async search
+        results = await searcher.async_search(calendar, **kwargs)
+        return results
 
 
 # ==================== Factory Function ====================

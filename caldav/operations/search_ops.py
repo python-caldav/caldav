@@ -11,7 +11,6 @@ Key functions:
 - determine_search_strategy(): Analyze server features and return search plan
 - collation_to_caldav(): Map collation enum to CalDAV identifier
 """
-
 from copy import deepcopy
 from dataclasses import dataclass
 from dataclasses import field
@@ -180,7 +179,8 @@ def get_explicit_contains_properties(
     return [
         prop
         for prop in searcher._property_operator
-        if prop in explicit_operators and searcher._property_operator[prop] == "contains"
+        if prop in explicit_operators
+        and searcher._property_operator[prop] == "contains"
     ]
 
 
@@ -214,7 +214,9 @@ def needs_pending_todo_multi_search(
         and features.is_supported("search.combined-is-logical-and")
         and (
             not features.is_supported("search.recurrences.includes-implicit.todo")
-            or features.is_supported("search.recurrences.includes-implicit.todo.pending")
+            or features.is_supported(
+                "search.recurrences.includes-implicit.todo.pending"
+            )
         )
     )
 
@@ -374,7 +376,9 @@ def build_search_xml_query(
     ]
 
     for flag, comp_name, sync_class, async_class in comp_mappings:
-        comp_classes = (sync_class,) if async_class is None else (sync_class, async_class)
+        comp_classes = (
+            (sync_class,) if async_class is None else (sync_class, async_class)
+        )
         flagged = getattr(searcher, flag, False)
 
         if flagged:
@@ -386,7 +390,11 @@ def build_search_xml_query(
 
         if comp_filter and comp_filter.attributes.get("name") == comp_name:
             comp_class = sync_class
-            if flag == "todo" and not getattr(searcher, "todo", False) and searcher.include_completed is None:
+            if (
+                flag == "todo"
+                and not getattr(searcher, "todo", False)
+                and searcher.include_completed is None
+            ):
                 searcher.include_completed = True
             setattr(searcher, flag, True)
 
@@ -430,7 +438,9 @@ def build_search_xml_query(
                     hasattr(searcher, "_property_collation")
                     and property in searcher._property_collation
                 ):
-                    case_sensitive = searcher._property_case_sensitive.get(property, True)
+                    case_sensitive = searcher._property_case_sensitive.get(
+                        property, True
+                    )
                     collation_str = collation_to_caldav(
                         searcher._property_collation[property], case_sensitive
                     )

@@ -11,9 +11,11 @@ import logging
 import sys
 import warnings
 from types import TracebackType
+from typing import Any
 from typing import List
 from typing import Optional
 from typing import Tuple
+from typing import TYPE_CHECKING
 from typing import Union
 from urllib.parse import unquote
 
@@ -53,6 +55,9 @@ if sys.version_info < (3, 11):
     from typing_extensions import Self
 else:
     from typing import Self
+
+if TYPE_CHECKING:
+    from caldav.calendarobjectresource import CalendarObjectResource, Event, Todo
 
 
 """
@@ -443,6 +448,138 @@ class DAVClient:
         client.principal().calendars()
         """
         return Calendar(client=self, **kwargs)
+
+    # ==================== High-Level Methods ====================
+    # These methods mirror the async API for consistency.
+
+    def get_principal(self) -> Principal:
+        """Get the principal (user) for this CalDAV connection.
+
+        This is an alias for principal() for API consistency with AsyncDAVClient.
+
+        Returns:
+            Principal object for the authenticated user.
+        """
+        return self.principal()
+
+    def get_calendars(self, principal: Optional[Principal] = None) -> List[Calendar]:
+        """Get all calendars for the given principal.
+
+        This method fetches calendars from the principal's calendar-home-set
+        and returns a list of Calendar objects.
+
+        Args:
+            principal: Principal object (if None, fetches principal first)
+
+        Returns:
+            List of Calendar objects.
+
+        Example:
+            principal = client.get_principal()
+            calendars = client.get_calendars(principal)
+            for cal in calendars:
+                print(f"Calendar: {cal.name}")
+        """
+        if principal is None:
+            principal = self.principal()
+        return principal.calendars()
+
+    def get_events(
+        self,
+        calendar: Calendar,
+        start: Optional[Any] = None,
+        end: Optional[Any] = None,
+    ) -> List["Event"]:
+        """Get events from a calendar.
+
+        This is a convenience method that searches for VEVENT objects in the
+        calendar, optionally filtered by date range.
+
+        Args:
+            calendar: Calendar to search
+            start: Start of date range (optional)
+            end: End of date range (optional)
+
+        Returns:
+            List of Event objects.
+
+        Example:
+            from datetime import datetime
+            events = client.get_events(
+                calendar,
+                start=datetime(2024, 1, 1),
+                end=datetime(2024, 12, 31)
+            )
+        """
+        return self.search_calendar(calendar, event=True, start=start, end=end)
+
+    def get_todos(
+        self,
+        calendar: Calendar,
+        include_completed: bool = False,
+    ) -> List["Todo"]:
+        """Get todos from a calendar.
+
+        Args:
+            calendar: Calendar to search
+            include_completed: Whether to include completed todos
+
+        Returns:
+            List of Todo objects.
+        """
+        return self.search_calendar(
+            calendar, todo=True, include_completed=include_completed
+        )
+
+    def search_calendar(
+        self,
+        calendar: Calendar,
+        event: bool = False,
+        todo: bool = False,
+        journal: bool = False,
+        start: Optional[Any] = None,
+        end: Optional[Any] = None,
+        include_completed: Optional[bool] = None,
+        expand: bool = False,
+        **kwargs: Any,
+    ) -> List["CalendarObjectResource"]:
+        """Search a calendar for events, todos, or journals.
+
+        This method provides a clean interface to calendar search.
+
+        Args:
+            calendar: Calendar to search
+            event: Search for events (VEVENT)
+            todo: Search for todos (VTODO)
+            journal: Search for journals (VJOURNAL)
+            start: Start of date range
+            end: End of date range
+            include_completed: Include completed todos (default: False for todos)
+            expand: Expand recurring events
+            **kwargs: Additional search parameters
+
+        Returns:
+            List of Event/Todo/Journal objects.
+
+        Example:
+            # Get all events in January 2024
+            events = client.search_calendar(
+                calendar,
+                event=True,
+                start=datetime(2024, 1, 1),
+                end=datetime(2024, 1, 31),
+            )
+        """
+        return calendar.search(
+            event=event,
+            todo=todo,
+            journal=journal,
+            start=start,
+            end=end,
+            include_completed=include_completed,
+            expand=expand,
+            **kwargs,
+        )
 
     def check_dav_support(self) -> Optional[str]:
         """
