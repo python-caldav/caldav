@@ -480,9 +480,81 @@ class DAVClient:
             for cal in calendars:
                 print(f"Calendar: {cal.name}")
         """
+        from caldav.operations import is_calendar_resource, extract_calendar_id_from_url
+
         if principal is None:
             principal = self.principal()
-        return principal.calendars()
+
+        # Get calendar-home-set from principal
+        calendar_home_url = self._get_calendar_home_set(principal)
+        if not calendar_home_url:
+            return []
+
+        # Fetch calendars via PROPFIND
+        response = self.propfind(
+            calendar_home_url,
+            props=[
+                "{DAV:}resourcetype",
+                "{DAV:}displayname",
+                "{urn:ietf:params:xml:ns:caldav}supported-calendar-component-set",
+                "{http://apple.com/ns/ical/}calendar-color",
+                "{http://calendarserver.org/ns/}getctag",
+            ],
+            depth=1,
+        )
+
+        # Process results to extract calendars
+        calendars = []
+        for result in response.results or []:
+            # Check if this is a calendar resource
+            if not is_calendar_resource(result.properties):
+                continue
+
+            # Extract calendar info
+            url = result.href
+            name = result.properties.get("{DAV:}displayname")
+            cal_id = extract_calendar_id_from_url(url)
+
+            if not cal_id:
+                continue
+
+            cal = Calendar(
+                client=self,
+                url=url,
+                name=name,
+                id=cal_id,
+            )
+            calendars.append(cal)
+
+        return calendars
+
+    def _get_calendar_home_set(self, principal: Principal) -> Optional[str]:
+        """Get the calendar-home-set URL for a principal.
+
+        Args:
+            principal: Principal object
+
+        Returns:
+            Calendar home set URL or None
+        """
+        from caldav.operations import sanitize_calendar_home_set_url
+
+        # Try to get from principal properties
+        response = self.propfind(
+            str(principal.url),
+            props=["{urn:ietf:params:xml:ns:caldav}calendar-home-set"],
+            depth=0,
+        )
+
+        if response.results:
+            for result in response.results:
+                home_set = result.properties.get(
+                    "{urn:ietf:params:xml:ns:caldav}calendar-home-set"
+                )
+                if home_set:
+                    return sanitize_calendar_home_set_url(home_set)
+
+        return None
 
     def get_events(
         self,

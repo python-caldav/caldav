@@ -84,7 +84,7 @@ END:VCALENDAR"""
 
 async def save_event(calendar: Any, data: str) -> Any:
     """Helper to save an event to a calendar."""
-    from caldav.async_davobject import AsyncEvent
+    from caldav.aio import AsyncEvent
 
     event = AsyncEvent(parent=calendar, data=data)
     await event.save()
@@ -93,7 +93,7 @@ async def save_event(calendar: Any, data: str) -> Any:
 
 async def save_todo(calendar: Any, data: str) -> Any:
     """Helper to save a todo to a calendar."""
-    from caldav.async_davobject import AsyncTodo
+    from caldav.aio import AsyncTodo
 
     todo = AsyncTodo(parent=calendar, data=data)
     await todo.save()
@@ -127,7 +127,7 @@ class AsyncFunctionalTestsBaseClass:
     @pytest_asyncio.fixture
     async def async_client(self, test_server: TestServer) -> Any:
         """Create an async client connected to the test server."""
-        from caldav.async_collection import AsyncCalendar
+        from caldav.aio import AsyncCalendar
 
         client = await test_server.get_async_client()
 
@@ -148,7 +148,7 @@ class AsyncFunctionalTestsBaseClass:
     @pytest_asyncio.fixture
     async def async_principal(self, async_client: Any) -> Any:
         """Get the principal for the async client."""
-        from caldav.async_collection import AsyncPrincipal
+        from caldav.aio import AsyncPrincipal
         from caldav.lib.error import NotFoundError
 
         try:
@@ -163,7 +163,7 @@ class AsyncFunctionalTestsBaseClass:
     @pytest_asyncio.fixture
     async def async_calendar(self, async_client: Any) -> Any:
         """Create a test calendar and clean up afterwards."""
-        from caldav.async_collection import AsyncCalendarSet, AsyncPrincipal
+        from caldav.aio import AsyncCalendarSet, AsyncPrincipal
         from caldav.lib.error import AuthorizationError, MkcalendarError, NotFoundError
 
         calendar_name = f"async-test-{datetime.now().strftime('%Y%m%d%H%M%S%f')}"
@@ -195,7 +195,7 @@ class AsyncFunctionalTestsBaseClass:
     @pytest.mark.asyncio
     async def test_principal_calendars(self, async_client: Any) -> None:
         """Test getting calendars from calendar home."""
-        from caldav.async_collection import AsyncCalendarSet
+        from caldav.aio import AsyncCalendarSet
 
         # Use calendar set at client URL to get calendars
         # This bypasses principal discovery which some servers don't support
@@ -206,7 +206,7 @@ class AsyncFunctionalTestsBaseClass:
     @pytest.mark.asyncio
     async def test_principal_make_calendar(self, async_client: Any) -> None:
         """Test creating and deleting a calendar."""
-        from caldav.async_collection import AsyncCalendarSet, AsyncPrincipal
+        from caldav.aio import AsyncCalendarSet, AsyncPrincipal
         from caldav.lib.error import AuthorizationError, MkcalendarError, NotFoundError
 
         calendar_name = (
@@ -236,7 +236,7 @@ class AsyncFunctionalTestsBaseClass:
     @pytest.mark.asyncio
     async def test_search_events(self, async_calendar: Any) -> None:
         """Test searching for events."""
-        from caldav.async_davobject import AsyncEvent
+        from caldav.aio import AsyncEvent
 
         # Add test events
         await save_event(async_calendar, ev1)
@@ -267,7 +267,7 @@ class AsyncFunctionalTestsBaseClass:
     @pytest.mark.asyncio
     async def test_search_todos_pending(self, async_calendar: Any) -> None:
         """Test searching for pending todos."""
-        from caldav.async_davobject import AsyncTodo
+        from caldav.aio import AsyncTodo
 
         # Add pending and completed todos
         await save_todo(async_calendar, todo1)
@@ -297,7 +297,7 @@ class AsyncFunctionalTestsBaseClass:
     @pytest.mark.asyncio
     async def test_events_method(self, async_calendar: Any) -> None:
         """Test the events() convenience method."""
-        from caldav.async_davobject import AsyncEvent
+        from caldav.aio import AsyncEvent
 
         # Add test events
         await save_event(async_calendar, ev1)
@@ -312,7 +312,7 @@ class AsyncFunctionalTestsBaseClass:
     @pytest.mark.asyncio
     async def test_todos_method(self, async_calendar: Any) -> None:
         """Test the todos() convenience method."""
-        from caldav.async_davobject import AsyncTodo
+        from caldav.aio import AsyncTodo
 
         # Add test todos
         await save_todo(async_calendar, todo1)

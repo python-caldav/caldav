@@ -118,6 +118,18 @@ class DAVObject:
             raise ValueError("Unexpected value None for self.url")
         return str(self.url.canonical())
 
+    @property
+    def is_async_client(self) -> bool:
+        """Check if this object is connected to an async client.
+
+        Returns:
+            True if the client is an AsyncDAVClient, False otherwise.
+        """
+        if self.client is None:
+            return False
+        # Use string check to avoid circular imports
+        return type(self.client).__name__ == "AsyncDAVClient"
+
     def children(self, type: Optional[str] = None) -> List[Tuple[URL, Any, Any]]:
         """List children, using a propfind (resourcetype) on the parent object,
         at depth = 1.
@@ -390,14 +402,34 @@ class DAVObject:
     def delete(self) -> None:
         """
         Delete the object.
+
+        For sync clients, deletes and returns None.
+        For async clients, returns a coroutine that must be awaited.
+
+        Example (sync):
+            obj.delete()
+
+        Example (async):
+            await obj.delete()
         """
         if self.url is not None:
             if self.client is None:
                 raise ValueError("Unexpected value None for self.client")
 
+            # Delegate to client for dual-mode support
+            if self.is_async_client:
+                return self._async_delete()
+
             r = self.client.delete(str(self.url))
 
             # TODO: find out why we get 404
+            if r.status not in (200, 204, 404):
+                raise error.DeleteError(errmsg(r))
+
+    async def _async_delete(self) -> None:
+        """Async implementation of delete."""
+        if self.url is not None and self.client is not None:
+            r = await self.client.delete(str(self.url))
             if r.status not in (200, 204, 404):
                 raise error.DeleteError(errmsg(r))
 

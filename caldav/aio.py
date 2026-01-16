@@ -8,7 +8,7 @@ Use this for new async code:
     from caldav import aio
 
     async with aio.AsyncDAVClient(url=..., username=..., password=...) as client:
-        principal = await client.principal()
+        principal = await client.get_principal()
         calendars = await principal.calendars()
         for cal in calendars:
             events = await cal.events()
@@ -16,42 +16,79 @@ Use this for new async code:
 For backward-compatible sync code, continue using:
 
     from caldav import DAVClient
+
+Note: As of the Sans-I/O refactoring (Phase 9), the domain objects (Calendar,
+Principal, Event, etc.) are now dual-mode - they work with both sync and async
+clients. When used with AsyncDAVClient, methods like calendars(), events(), etc.
+return coroutines that must be awaited.
+
+The Async* aliases are kept for backward compatibility but now point to the
+unified dual-mode classes.
 """
-# Re-export async components for convenience
-from caldav.async_collection import AsyncCalendar
-from caldav.async_collection import AsyncCalendarSet
-from caldav.async_collection import AsyncPrincipal
-from caldav.async_collection import AsyncScheduleInbox
-from caldav.async_collection import AsyncScheduleMailbox
-from caldav.async_collection import AsyncScheduleOutbox
+# Import the async client (this is truly async)
 from caldav.async_davclient import AsyncDAVClient
 from caldav.async_davclient import AsyncDAVResponse
 from caldav.async_davclient import get_davclient as get_async_davclient
-from caldav.async_davobject import AsyncCalendarObjectResource
-from caldav.async_davobject import AsyncDAVObject
-from caldav.async_davobject import AsyncEvent
-from caldav.async_davobject import AsyncFreeBusy
-from caldav.async_davobject import AsyncJournal
-from caldav.async_davobject import AsyncTodo
+from caldav.calendarobjectresource import CalendarObjectResource
+from caldav.calendarobjectresource import Event
+from caldav.calendarobjectresource import FreeBusy
+from caldav.calendarobjectresource import Journal
+from caldav.calendarobjectresource import Todo
+from caldav.collection import Calendar
+from caldav.collection import CalendarSet
+from caldav.collection import Principal
+from caldav.collection import ScheduleInbox
+from caldav.collection import ScheduleMailbox
+from caldav.collection import ScheduleOutbox
+from caldav.davobject import DAVObject
+
+# Import unified dual-mode domain classes
+
+# Create aliases for backward compatibility with code using Async* names
+AsyncDAVObject = DAVObject
+AsyncCalendarObjectResource = CalendarObjectResource
+AsyncEvent = Event
+AsyncTodo = Todo
+AsyncJournal = Journal
+AsyncFreeBusy = FreeBusy
+AsyncCalendar = Calendar
+AsyncCalendarSet = CalendarSet
+AsyncPrincipal = Principal
+AsyncScheduleMailbox = ScheduleMailbox
+AsyncScheduleInbox = ScheduleInbox
+AsyncScheduleOutbox = ScheduleOutbox
 
 __all__ = [
     # Client
     "AsyncDAVClient",
     "AsyncDAVResponse",
     "get_async_davclient",
-    # Base objects
+    # Base objects (unified dual-mode)
+    "DAVObject",
+    "CalendarObjectResource",
+    # Calendar object types (unified dual-mode)
+    "Event",
+    "Todo",
+    "Journal",
+    "FreeBusy",
+    # Collections (unified dual-mode)
+    "Calendar",
+    "CalendarSet",
+    "Principal",
+    # Scheduling (RFC6638)
+    "ScheduleMailbox",
+    "ScheduleInbox",
+    "ScheduleOutbox",
+    # Legacy aliases for backward compatibility
     "AsyncDAVObject",
     "AsyncCalendarObjectResource",
-    # Calendar object types
     "AsyncEvent",
     "AsyncTodo",
     "AsyncJournal",
     "AsyncFreeBusy",
-    # Collections
     "AsyncCalendar",
     "AsyncCalendarSet",
     "AsyncPrincipal",
-    # Scheduling (RFC6638)
     "AsyncScheduleMailbox",
     "AsyncScheduleInbox",
     "AsyncScheduleOutbox",

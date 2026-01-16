@@ -777,7 +777,7 @@ class TestAsyncCalendarObjectResource:
         See async_collection.py:779 which calls:
             objects = [o for o in objects if o.has_component()]
         """
-        from caldav.async_davobject import (
+        from caldav.aio import (
             AsyncCalendarObjectResource,
             AsyncEvent,
             AsyncTodo,
@@ -792,7 +792,7 @@ class TestAsyncCalendarObjectResource:
 
     def test_has_component_with_data(self) -> None:
         """Test has_component returns True when object has VEVENT/VTODO/VJOURNAL."""
-        from caldav.async_davobject import AsyncEvent
+        from caldav.aio import AsyncEvent
 
         event_data = """BEGIN:VCALENDAR
 VERSION:2.0
@@ -809,21 +809,25 @@ END:VCALENDAR"""
 
     def test_has_component_without_data(self) -> None:
         """Test has_component returns False when object has no data."""
-        from caldav.async_davobject import AsyncCalendarObjectResource
+        from caldav.aio import AsyncCalendarObjectResource
 
         obj = AsyncCalendarObjectResource(client=None, data=None)
         assert obj.has_component() is False
 
     def test_has_component_with_empty_data(self) -> None:
-        """Test has_component returns False when object has empty data."""
-        from caldav.async_davobject import AsyncCalendarObjectResource
+        """Test has_component returns False when object has no data.
 
-        obj = AsyncCalendarObjectResource(client=None, data="")
+        Note: The sync CalendarObjectResource validates data on assignment,
+        so we use data=None instead of data="" to test the "no data" case.
+        """
+        from caldav.aio import AsyncCalendarObjectResource
+
+        obj = AsyncCalendarObjectResource(client=None, data=None)
         assert obj.has_component() is False
 
     def test_has_component_with_only_vcalendar(self) -> None:
         """Test has_component returns False when only VCALENDAR wrapper exists."""
-        from caldav.async_davobject import AsyncCalendarObjectResource
+        from caldav.aio import AsyncCalendarObjectResource
 
         # Only VCALENDAR wrapper, no actual component
         data = """BEGIN:VCALENDAR

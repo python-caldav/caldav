@@ -673,6 +673,15 @@ class CalendarObjectResource(DAVObject):
     def load(self, only_if_unloaded: bool = False) -> Self:
         """
         (Re)load the object from the caldav server.
+
+        For sync clients, loads and returns self.
+        For async clients, returns a coroutine that must be awaited.
+
+        Example (sync):
+            obj.load()
+
+        Example (async):
+            await obj.load()
         """
         if only_if_unloaded and self.is_loaded():
             return self
@@ -681,6 +690,10 @@ class CalendarObjectResource(DAVObject):
             raise ValueError("Unexpected value None for self.url")
         if self.client is None:
             raise ValueError("Unexpected value None for self.client")
+
+        # Dual-mode support: async clients return a coroutine
+        if self.is_async_client:
+            return self._async_load()
 
         try:
             r = self.client.request(str(self.url))
@@ -691,6 +704,25 @@ class CalendarObjectResource(DAVObject):
             raise
         except Exception:
             return self.load_by_multiget()
+
+        if "Etag" in r.headers:
+            self.props[dav.GetEtag.tag] = r.headers["Etag"]
+        if "Schedule-Tag" in r.headers:
+            self.props[cdav.ScheduleTag.tag] = r.headers["Schedule-Tag"]
+        return self
+
+    async def _async_load(self) -> Self:
+        """Async implementation of load."""
+        try:
+            r = await self.client.request(str(self.url))
+            if r.status and r.status == 404:
+                raise error.NotFoundError(errmsg(r))
+            self.data = r.raw  # type: ignore
+        except error.NotFoundError:
+            raise
+        except Exception:
+            # Note: load_by_multiget is sync-only, not supported in async mode yet
+            raise
 
         if "Etag" in r.headers:
             self.props[dav.GetEtag.tag] = r.headers["Etag"]
@@ -787,10 +819,37 @@ class CalendarObjectResource(DAVObject):
             else:
                 raise error.PutError(errmsg(r))
 
+    async def _async_put(self, retry_on_failure=True):
+        """Async version of _put for async clients."""
+        r = await self.client.put(
+            str(self.url),
+            str(self.data),
+            {"Content-Type": 'text/calendar; charset="utf-8"'},
+        )
+        if r.status == 302:
+            path = [x[1] for x in r.headers if x[0] == "location"][0]
+            self.url = URL.objectify(path)
+        elif r.status not in (204, 201):
+            if retry_on_failure:
+                try:
+                    import vobject
+                except ImportError:
+                    retry_on_failure = False
+            if retry_on_failure:
+                self.vobject_instance
+                return await self._async_put(False)
+            else:
+                raise error.PutError(errmsg(r))
+
     def _create(self, id=None, path=None, retry_on_failure=True) -> None:
         ## TODO: Find a better method name
         self._find_id_path(id=id, path=path)
         self._put()
+
+    async def _async_create(self, id=None, path=None) -> None:
+        """Async version of _create for async clients."""
+        self._find_id_path(id=id, path=path)
+        await self._async_put()
 
     def _generate_url(self):
         ## See https://github.com/python-caldav/caldav/issues/143 for the rationale behind double-quoting slashes
@@ -1020,7 +1079,17 @@ class CalendarObjectResource(DAVObject):
                 self.icalendar_component.add("SEQUENCE", seqno + 1)
 
         path = self.url.path if self.url else None
+
+        # Dual-mode support: async clients return a coroutine
+        if self.is_async_client:
+            return self._async_save_final(path)
+
         self._create(id=self.id, path=path)
+        return self
+
+    async def _async_save_final(self, path) -> Self:
+        """Async helper for the final save operation."""
+        await self._async_create(id=self.id, path=path)
         return self
 
     def is_loaded(self):
@@ -1037,7 +1106,7 @@ class CalendarObjectResource(DAVObject):
             or self._icalendar_instance
         )
 
-    def has_component(self):
+    def has_component(self) -> bool:
         """
         Returns True if there exists a VEVENT, VTODO or VJOURNAL in the data.
         Returns False if it's only a VFREEBUSY, VTIMEZONE or unknown components.
@@ -1047,14 +1116,16 @@ class CalendarObjectResource(DAVObject):
 
         Used internally after search to remove empty search results (sometimes Google return such)
         """
-        return (
+        if not (
             self._data
             or self._vobject_instance
             or (self._icalendar_instance and self.icalendar_component)
-        ) and self.data.count("BEGIN:VEVENT") + self.data.count(
-            "BEGIN:VTODO"
-        ) + self.data.count(
-            "BEGIN:VJOURNAL"
+        ):
+            return False
+        return (
+            self.data.count("BEGIN:VEVENT")
+            + self.data.count("BEGIN:VTODO")
+            + self.data.count("BEGIN:VJOURNAL")
         ) > 0
 
     def __str__(self) -> str:

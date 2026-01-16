@@ -307,11 +307,11 @@ def build_search_xml_query(
     # Import here to avoid circular imports at module level
     from caldav.calendarobjectresource import Event, Todo, Journal
 
-    try:
-        from caldav.async_davobject import AsyncEvent, AsyncJournal, AsyncTodo
-    except ImportError:
-        # Async classes may not be available
-        AsyncEvent = AsyncTodo = AsyncJournal = None
+    # With dual-mode classes, Async* are now aliases to the sync classes
+    # Keep the aliases for backward compatibility in type checks
+    AsyncEvent = Event
+    AsyncTodo = Todo
+    AsyncJournal = Journal
 
     # Build the request
     data = cdav.CalendarData()

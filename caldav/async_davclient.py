@@ -1011,19 +1011,28 @@ class AsyncDAVClient:
             depth=1,
         )
 
-        # Use operations layer to process results
-        calendar_infos = process_calendar_list(
-            results=response.results or [],
-            base_url=calendar_home_url,
-        )
+        # Process results to extract calendars
+        from caldav.operations import is_calendar_resource, extract_calendar_id_from_url
 
-        # Convert CalendarInfo to Calendar objects
         calendars = []
-        for info in calendar_infos:
+        for result in response.results or []:
+            # Check if this is a calendar resource
+            if not is_calendar_resource(result.properties):
+                continue
+
+            # Extract calendar info
+            url = result.href
+            name = result.properties.get("{DAV:}displayname")
+            cal_id = extract_calendar_id_from_url(url)
+
+            if not cal_id:
+                continue
+
             cal = Calendar(
                 client=self,
-                url=info.url,
-                name=info.name,
+                url=url,
+                name=name,
+                id=cal_id,
             )
             calendars.append(cal)
 
