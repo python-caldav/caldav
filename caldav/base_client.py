@@ -118,7 +118,7 @@ class BaseDAVClient(ABC):
         pass
 
 
-def create_client_from_config(
+def get_davclient(
     client_class: type,
     check_config_file: bool = True,
     config_file: Optional[str] = None,
@@ -129,28 +129,44 @@ def create_client_from_config(
     **config_data,
 ) -> Optional[Any]:
     """
-    Create a DAV client using configuration from multiple sources.
+    Get a DAV client instance with configuration from multiple sources.
 
-    This is a shared helper for both sync and async get_davclient functions.
-    It reads configuration from various sources in priority order:
+    This is the canonical implementation used by both sync and async clients.
+    Configuration is read from various sources in priority order:
 
     1. Explicit parameters (url=, username=, password=, etc.)
     2. Test server config (if testconfig=True or PYTHON_CALDAV_USE_TEST_SERVER env var)
-    3. Environment variables (CALDAV_URL, CALDAV_USERNAME, etc.)
-    4. Config file (CALDAV_CONFIG_FILE env var or default locations)
+    3. Environment variables (CALDAV_URL, CALDAV_USERNAME, CALDAV_PASSWORD)
+    4. Config file (CALDAV_CONFIG_FILE env var or ~/.config/caldav/)
 
     Args:
         client_class: The client class to instantiate (DAVClient or AsyncDAVClient).
-        check_config_file: Whether to look for config files.
+        check_config_file: Whether to look for config files (default: True).
         config_file: Explicit path to config file.
-        config_section: Section name in config file.
+        config_section: Section name in config file (default: "default").
         testconfig: Whether to use test server configuration.
-        environment: Whether to read from environment variables.
-        name: Name of test server to use.
-        **config_data: Explicit connection parameters.
+        environment: Whether to read from environment variables (default: True).
+        name: Name of test server to use (for testconfig).
+        **config_data: Explicit connection parameters passed to client constructor.
+            Common parameters include:
+            - url: CalDAV server URL, domain, or email address
+            - username: Username for authentication
+            - password: Password for authentication
+            - ssl_verify_cert: Whether to verify SSL certificates
+            - auth_type: Authentication type ("basic", "digest", "bearer")
 
     Returns:
         Client instance, or None if no configuration is found.
+
+    Example (sync)::
+
+        from caldav.davclient import get_davclient
+        client = get_davclient(url="https://caldav.example.com", username="user", password="pass")
+
+    Example (async)::
+
+        from caldav.async_davclient import get_davclient
+        client = await get_davclient(url="https://caldav.example.com", username="user", password="pass")
     """
     from caldav import config
 

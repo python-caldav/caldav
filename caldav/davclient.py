@@ -38,7 +38,8 @@ from caldav import __version__
 from caldav.collection import Calendar, CalendarSet, Principal
 from caldav.compatibility_hints import FeatureSet
 from caldav.elements import cdav, dav
-from caldav.base_client import BaseDAVClient, create_client_from_config
+from caldav.base_client import BaseDAVClient
+from caldav.base_client import get_davclient as _base_get_davclient
 from caldav.lib import error
 from caldav.lib.python_utilities import to_normal_str, to_wire
 from caldav.lib.url import URL
@@ -960,63 +961,13 @@ def auto_calendar(*largs, **kwargs) -> Iterable["Calendar"]:
     return next(auto_calendars(*largs, **kwargs), None)
 
 
-def auto_conn(*largs, config_data: dict = None, **kwargs):
-    """A quite stubbed version of get_davclient was included in the
-    v1.5-release as auto_conn, but renamed a few days later.  Probably
-    nobody except my caldav tester project uses auto_conn, but as a
-    thumb of rule anything released should stay "deprecated" for at
-    least one major release before being removed.
-
-    TODO: remove in version 3.0
+def get_davclient(**kwargs) -> Optional["DAVClient"]:
     """
-    warnings.warn(
-        "auto_conn was renamed get_davclient",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    if config_data:
-        kwargs.update(config_data)
-    return get_davclient(*largs, **kwargs)
+    Get a DAVClient instance with configuration from multiple sources.
 
-
-def get_davclient(
-    check_config_file: bool = True,
-    config_file: str = None,
-    config_section: str = None,
-    testconfig: bool = False,
-    environment: bool = True,
-    name: str = None,
-    **config_data,
-) -> Optional["DAVClient"]:
-    """
-    Get a DAVClient object with configuration from multiple sources.
-
-    This function reads configuration from various sources in priority order:
-
-    1. Explicit parameters (url=, username=, password=, etc.)
-    2. Test server config (if testconfig=True or PYTHON_CALDAV_USE_TEST_SERVER env var)
-    3. Environment variables (CALDAV_URL, CALDAV_USERNAME, etc.)
-    4. Config file (CALDAV_CONFIG_FILE env var or default locations)
-
-    Args:
-        check_config_file: Whether to look for config files (default: True)
-        config_file: Explicit path to config file
-        config_section: Section name in config file (default: "default")
-        testconfig: Whether to use test server configuration
-        environment: Whether to read from environment variables (default: True)
-        name: Name of test server to use (for testconfig)
-        **config_data: Explicit connection parameters
+    See :func:`caldav.base_client.get_davclient` for full documentation.
 
     Returns:
-        DAVClient instance, or None if no configuration is found
+        DAVClient instance, or None if no configuration is found.
     """
-    return create_client_from_config(
-        DAVClient,
-        check_config_file=check_config_file,
-        config_file=config_file,
-        config_section=config_section,
-        testconfig=testconfig,
-        environment=environment,
-        name=name,
-        **config_data,
-    )
+    return _base_get_davclient(DAVClient, **kwargs)

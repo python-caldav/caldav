@@ -50,7 +50,8 @@ if not _USE_HTTPX and not _USE_NIQUESTS:
 
 
 from caldav import __version__
-from caldav.base_client import BaseDAVClient, create_client_from_config
+from caldav.base_client import BaseDAVClient
+from caldav.base_client import get_davclient as _base_get_davclient
 from caldav.compatibility_hints import FeatureSet
 from caldav.lib import error
 from caldav.lib.python_utilities import to_normal_str, to_wire
@@ -1158,41 +1159,15 @@ class AsyncDAVClient(BaseDAVClient):
 # ==================== Factory Function ====================
 
 
-async def get_davclient(
-    url: Optional[str] = None,
-    username: Optional[str] = None,
-    password: Optional[str] = None,
-    probe: bool = True,
-    check_config_file: bool = True,
-    config_file: Optional[str] = None,
-    config_section: Optional[str] = None,
-    testconfig: bool = False,
-    environment: bool = True,
-    name: Optional[str] = None,
-    **kwargs: Any,
-) -> AsyncDAVClient:
+async def get_davclient(probe: bool = True, **kwargs: Any) -> AsyncDAVClient:
     """
-    Get an async DAV client instance.
+    Get an async DAV client instance with configuration from multiple sources.
 
-    This is the recommended way to create an async DAV client. It supports:
-    - Explicit parameters (url=, username=, password=, etc.)
-    - Test server config (if testconfig=True or PYTHON_CALDAV_USE_TEST_SERVER env var)
-    - Environment variables (CALDAV_URL, CALDAV_USERNAME, CALDAV_PASSWORD)
-    - Configuration files (JSON/YAML in ~/.config/caldav/)
-    - Connection probing to verify server accessibility
+    See :func:`caldav.base_client.get_davclient` for full documentation.
 
     Args:
-        url: CalDAV server URL, domain, or email address.
-        username: Username for authentication.
-        password: Password for authentication.
         probe: Verify connectivity with OPTIONS request (default: True).
-        check_config_file: Whether to look for config files (default: True).
-        config_file: Explicit path to config file.
-        config_section: Section name in config file (default: "default").
-        testconfig: Whether to use test server configuration.
-        environment: Whether to read from environment variables (default: True).
-        name: Name of test server to use (for testconfig).
-        **kwargs: Additional arguments passed to AsyncDAVClient.__init__().
+        **kwargs: All other arguments passed to base get_davclient.
 
     Returns:
         AsyncDAVClient instance.
@@ -1200,30 +1175,12 @@ async def get_davclient(
     Raises:
         ValueError: If no configuration is found.
 
-    Example:
-        async with await get_davclient(url="...", username="...", password="...") as client:
-            principal = await AsyncPrincipal.create(client)
-    """
-    # Merge explicit url/username/password into kwargs for config lookup
-    config_data = dict(kwargs)
-    if url is not None:
-        config_data["url"] = url
-    if username is not None:
-        config_data["username"] = username
-    if password is not None:
-        config_data["password"] = password
+    Example::
 
-    # Use shared config helper
-    client = create_client_from_config(
-        AsyncDAVClient,
-        check_config_file=check_config_file,
-        config_file=config_file,
-        config_section=config_section,
-        testconfig=testconfig,
-        environment=environment,
-        name=name,
-        **config_data,
-    )
+        async with await get_davclient(url="...", username="...", password="...") as client:
+            principal = await client.principal()
+    """
+    client = _base_get_davclient(AsyncDAVClient, **kwargs)
 
     if client is None:
         raise ValueError(
