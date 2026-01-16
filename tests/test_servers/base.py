@@ -6,9 +6,12 @@ This module provides abstract base classes for different types of test servers:
 - EmbeddedTestServer: For servers that run in-process (Radicale, Xandikos)
 - DockerTestServer: For servers that run in Docker containers
 """
-
-from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional
+from abc import ABC
+from abc import abstractmethod
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
 
 try:
     import niquests as requests
@@ -48,7 +51,9 @@ class TestServer(ABC):
                     Common keys: host, port, username, password, features
         """
         self.config = config or {}
-        self.name = self.config.get("name", self.__class__.__name__.replace("TestServer", ""))
+        self.name = self.config.get(
+            "name", self.__class__.__name__.replace("TestServer", "")
+        )
         self._started = False
 
     @property
@@ -279,7 +284,11 @@ class DockerTestServer(TestServer):
                 timeout=5,
             )
             return True
-        except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
+        except (
+            subprocess.CalledProcessError,
+            FileNotFoundError,
+            subprocess.TimeoutExpired,
+        ):
             return False
 
     def start(self) -> None:
@@ -367,7 +376,9 @@ class ExternalTestServer(TestServer):
     def start(self) -> None:
         """External servers are already running - nothing to do."""
         if not self.is_accessible():
-            raise RuntimeError(f"External server {self.name} at {self.url} is not accessible")
+            raise RuntimeError(
+                f"External server {self.name} at {self.url} is not accessible"
+            )
         self._started = True
 
     def stop(self) -> None:

@@ -3,10 +3,10 @@ from dataclasses import dataclass
 from dataclasses import field
 from dataclasses import replace
 from datetime import datetime
-from typing import TYPE_CHECKING
 from typing import Any
 from typing import List
 from typing import Optional
+from typing import TYPE_CHECKING
 from typing import Union
 
 from icalendar import Timezone

@@ -4,17 +4,14 @@ Tests for the CalendarSet operations module.
 These tests verify the Sans-I/O business logic for CalendarSet operations
 like extracting calendar IDs and resolving calendar URLs.
 """
-
 import pytest
 
-from caldav.operations.calendarset_ops import (
-    CalendarInfo,
-    extract_calendar_id_from_url,
-    find_calendar_by_id,
-    find_calendar_by_name,
-    process_calendar_list,
-    resolve_calendar_url,
-)
+from caldav.operations.calendarset_ops import CalendarInfo
+from caldav.operations.calendarset_ops import extract_calendar_id_from_url
+from caldav.operations.calendarset_ops import find_calendar_by_id
+from caldav.operations.calendarset_ops import find_calendar_by_name
+from caldav.operations.calendarset_ops import process_calendar_list
+from caldav.operations.calendarset_ops import resolve_calendar_url
 
 
 class TestExtractCalendarIdFromUrl:
@@ -55,8 +52,16 @@ class TestProcessCalendarList:
     def test_processes_children_data(self):
         """Processes children data into CalendarInfo objects."""
         children_data = [
-            ("/calendars/user/work/", ["{DAV:}collection", "{urn:ietf:params:xml:ns:caldav}calendar"], "Work"),
-            ("/calendars/user/personal/", ["{DAV:}collection", "{urn:ietf:params:xml:ns:caldav}calendar"], "Personal"),
+            (
+                "/calendars/user/work/",
+                ["{DAV:}collection", "{urn:ietf:params:xml:ns:caldav}calendar"],
+                "Work",
+            ),
+            (
+                "/calendars/user/personal/",
+                ["{DAV:}collection", "{urn:ietf:params:xml:ns:caldav}calendar"],
+                "Personal",
+            ),
         ]
 
         result = process_calendar_list(children_data)
@@ -148,8 +153,15 @@ class TestFindCalendarByName:
     def test_finds_calendar_by_name(self):
         """Finds a calendar by its display name."""
         calendars = [
-            CalendarInfo(url="/cal/work/", cal_id="work", name="Work", resource_types=[]),
-            CalendarInfo(url="/cal/personal/", cal_id="personal", name="Personal", resource_types=[]),
+            CalendarInfo(
+                url="/cal/work/", cal_id="work", name="Work", resource_types=[]
+            ),
+            CalendarInfo(
+                url="/cal/personal/",
+                cal_id="personal",
+                name="Personal",
+                resource_types=[],
+            ),
         ]
 
         result = find_calendar_by_name(calendars, "Personal")
@@ -160,7 +172,9 @@ class TestFindCalendarByName:
     def test_returns_none_if_not_found(self):
         """Returns None if no calendar matches."""
         calendars = [
-            CalendarInfo(url="/cal/work/", cal_id="work", name="Work", resource_types=[]),
+            CalendarInfo(
+                url="/cal/work/", cal_id="work", name="Work", resource_types=[]
+            ),
         ]
 
         result = find_calendar_by_name(calendars, "NonExistent")
@@ -175,7 +189,12 @@ class TestFindCalendarByName:
         """Handles calendars with None name."""
         calendars = [
             CalendarInfo(url="/cal/work/", cal_id="work", name=None, resource_types=[]),
-            CalendarInfo(url="/cal/personal/", cal_id="personal", name="Personal", resource_types=[]),
+            CalendarInfo(
+                url="/cal/personal/",
+                cal_id="personal",
+                name="Personal",
+                resource_types=[],
+            ),
         ]
 
         result = find_calendar_by_name(calendars, "Personal")
@@ -190,8 +209,15 @@ class TestFindCalendarById:
     def test_finds_calendar_by_id(self):
         """Finds a calendar by its ID."""
         calendars = [
-            CalendarInfo(url="/cal/work/", cal_id="work", name="Work", resource_types=[]),
-            CalendarInfo(url="/cal/personal/", cal_id="personal", name="Personal", resource_types=[]),
+            CalendarInfo(
+                url="/cal/work/", cal_id="work", name="Work", resource_types=[]
+            ),
+            CalendarInfo(
+                url="/cal/personal/",
+                cal_id="personal",
+                name="Personal",
+                resource_types=[],
+            ),
         ]
 
         result = find_calendar_by_id(calendars, "work")
@@ -202,7 +228,9 @@ class TestFindCalendarById:
     def test_returns_none_if_not_found(self):
         """Returns None if no calendar matches."""
         calendars = [
-            CalendarInfo(url="/cal/work/", cal_id="work", name="Work", resource_types=[]),
+            CalendarInfo(
+                url="/cal/work/", cal_id="work", name="Work", resource_types=[]
+            ),
         ]
 
         result = find_calendar_by_id(calendars, "nonexistent")
@@ -223,7 +251,10 @@ class TestCalendarInfo:
             url="/calendars/user/work/",
             cal_id="work",
             name="Work Calendar",
-            resource_types=["{DAV:}collection", "{urn:ietf:params:xml:ns:caldav}calendar"],
+            resource_types=[
+                "{DAV:}collection",
+                "{urn:ietf:params:xml:ns:caldav}calendar",
+            ],
         )
 
         assert info.url == "/calendars/user/work/"

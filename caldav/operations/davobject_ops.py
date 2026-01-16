@@ -5,21 +5,24 @@ This module contains pure functions for DAVObject operations like
 getting/setting properties, listing children, and deleting resources.
 Both sync and async clients use these same functions.
 """
-
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
-from urllib.parse import quote, unquote
+from dataclasses import dataclass
+from dataclasses import field
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Tuple
+from urllib.parse import quote
+from urllib.parse import unquote
 
-from caldav.operations.base import (
-    PropertyData,
-    QuerySpec,
-    extract_resource_type,
-    is_calendar_resource,
-    normalize_href,
-)
+from caldav.operations.base import extract_resource_type
+from caldav.operations.base import is_calendar_resource
+from caldav.operations.base import normalize_href
+from caldav.operations.base import PropertyData
+from caldav.operations.base import QuerySpec
 
 log = logging.getLogger("caldav")
 
@@ -176,7 +179,11 @@ def find_object_properties(
     Raises:
         ValueError: If no matching properties found
     """
-    path = unquote(object_url) if "://" not in object_url else unquote(_extract_path(object_url))
+    path = (
+        unquote(object_url)
+        if "://" not in object_url
+        else unquote(_extract_path(object_url))
+    )
 
     # Try with and without trailing slash
     if path.endswith("/"):
@@ -195,11 +202,15 @@ def find_object_properties(
                 f"The path {path} was not found in the properties, but {exchange_path} was. "
                 "This may indicate a server bug or a trailing slash issue."
             )
-        return PropertiesResult(properties=properties_by_href[exchange_path], matched_path=exchange_path)
+        return PropertiesResult(
+            properties=properties_by_href[exchange_path], matched_path=exchange_path
+        )
 
     # Try full URL as key
     if object_url in properties_by_href:
-        return PropertiesResult(properties=properties_by_href[object_url], matched_path=object_url)
+        return PropertiesResult(
+            properties=properties_by_href[object_url], matched_path=object_url
+        )
 
     # iCloud workaround - /principal/ path
     if "/principal/" in properties_by_href and path.endswith("/principal/"):
@@ -213,7 +224,9 @@ def find_object_properties(
         normalized = path.replace("//", "/")
         if normalized in properties_by_href:
             log.warning(f"Path contained double slashes: {path} -> {normalized}")
-            return PropertiesResult(properties=properties_by_href[normalized], matched_path=normalized)
+            return PropertiesResult(
+                properties=properties_by_href[normalized], matched_path=normalized
+            )
 
     # Last resort: if only one result, use it
     if len(properties_by_href) == 1:
@@ -223,7 +236,9 @@ def find_object_properties(
             f"Path expected: {path}, path found: {only_path}. "
             "Continuing, probably everything will be fine"
         )
-        return PropertiesResult(properties=properties_by_href[only_path], matched_path=only_path)
+        return PropertiesResult(
+            properties=properties_by_href[only_path], matched_path=only_path
+        )
 
     # No match found
     raise ValueError(

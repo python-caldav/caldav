@@ -39,77 +39,64 @@ Modules:
     calendarset_ops: CalendarSet operations (list calendars, make calendar)
     calendar_ops: Calendar operations (search, multiget, sync)
 """
-
-from caldav.operations.base import (
-    PropertyData,
-    QuerySpec,
-    extract_resource_type,
-    get_property_value,
-    is_calendar_resource,
-    is_collection_resource,
-    normalize_href,
-)
-from caldav.operations.davobject_ops import (
-    ChildData,
-    ChildrenQuery,
-    PropertiesResult,
-    build_children_query,
-    convert_protocol_results_to_properties,
-    find_object_properties,
-    process_children_response,
-    validate_delete_response,
-    validate_proppatch_response,
-)
-from caldav.operations.calendarobject_ops import (
-    CalendarObjectData,
-    calculate_next_recurrence,
-    copy_component_with_new_uid,
-    extract_relations,
-    extract_uid_from_path,
-    find_id_and_path,
-    generate_uid,
-    generate_url,
-    get_due,
-    get_duration,
-    get_non_timezone_subcomponents,
-    get_primary_component,
-    get_reverse_reltype,
-    has_calendar_component,
-    is_calendar_data_loaded,
-    is_task_pending,
-    mark_task_completed,
-    mark_task_uncompleted,
-    reduce_rrule_count,
-    set_duration,
-)
-from caldav.operations.principal_ops import (
-    PrincipalData,
-    create_vcal_address,
-    extract_calendar_user_addresses,
-    sanitize_calendar_home_set_url,
-    should_update_client_base_url,
-    sort_calendar_user_addresses,
-)
-from caldav.operations.calendarset_ops import (
-    CalendarInfo,
-    extract_calendar_id_from_url,
-    find_calendar_by_id,
-    find_calendar_by_name,
-    process_calendar_list,
-    resolve_calendar_url,
-)
-from caldav.operations.calendar_ops import (
-    CalendarObjectInfo,
-    build_calendar_object_url,
-    detect_component_type,
-    detect_component_type_from_icalendar,
-    detect_component_type_from_string,
-    generate_fake_sync_token,
-    is_fake_sync_token,
-    normalize_result_url,
-    process_report_results,
-    should_skip_calendar_self_reference,
-)
+from caldav.operations.base import extract_resource_type
+from caldav.operations.base import get_property_value
+from caldav.operations.base import is_calendar_resource
+from caldav.operations.base import is_collection_resource
+from caldav.operations.base import normalize_href
+from caldav.operations.base import PropertyData
+from caldav.operations.base import QuerySpec
+from caldav.operations.calendar_ops import build_calendar_object_url
+from caldav.operations.calendar_ops import CalendarObjectInfo
+from caldav.operations.calendar_ops import detect_component_type
+from caldav.operations.calendar_ops import detect_component_type_from_icalendar
+from caldav.operations.calendar_ops import detect_component_type_from_string
+from caldav.operations.calendar_ops import generate_fake_sync_token
+from caldav.operations.calendar_ops import is_fake_sync_token
+from caldav.operations.calendar_ops import normalize_result_url
+from caldav.operations.calendar_ops import process_report_results
+from caldav.operations.calendar_ops import should_skip_calendar_self_reference
+from caldav.operations.calendarobject_ops import calculate_next_recurrence
+from caldav.operations.calendarobject_ops import CalendarObjectData
+from caldav.operations.calendarobject_ops import copy_component_with_new_uid
+from caldav.operations.calendarobject_ops import extract_relations
+from caldav.operations.calendarobject_ops import extract_uid_from_path
+from caldav.operations.calendarobject_ops import find_id_and_path
+from caldav.operations.calendarobject_ops import generate_uid
+from caldav.operations.calendarobject_ops import generate_url
+from caldav.operations.calendarobject_ops import get_due
+from caldav.operations.calendarobject_ops import get_duration
+from caldav.operations.calendarobject_ops import get_non_timezone_subcomponents
+from caldav.operations.calendarobject_ops import get_primary_component
+from caldav.operations.calendarobject_ops import get_reverse_reltype
+from caldav.operations.calendarobject_ops import has_calendar_component
+from caldav.operations.calendarobject_ops import is_calendar_data_loaded
+from caldav.operations.calendarobject_ops import is_task_pending
+from caldav.operations.calendarobject_ops import mark_task_completed
+from caldav.operations.calendarobject_ops import mark_task_uncompleted
+from caldav.operations.calendarobject_ops import reduce_rrule_count
+from caldav.operations.calendarobject_ops import set_duration
+from caldav.operations.calendarset_ops import CalendarInfo
+from caldav.operations.calendarset_ops import extract_calendar_id_from_url
+from caldav.operations.calendarset_ops import find_calendar_by_id
+from caldav.operations.calendarset_ops import find_calendar_by_name
+from caldav.operations.calendarset_ops import process_calendar_list
+from caldav.operations.calendarset_ops import resolve_calendar_url
+from caldav.operations.davobject_ops import build_children_query
+from caldav.operations.davobject_ops import ChildData
+from caldav.operations.davobject_ops import ChildrenQuery
+from caldav.operations.davobject_ops import convert_protocol_results_to_properties
+from caldav.operations.davobject_ops import find_object_properties
+from caldav.operations.davobject_ops import process_children_response
+from caldav.operations.davobject_ops import PropertiesResult
+from caldav.operations.davobject_ops import validate_delete_response
+from caldav.operations.davobject_ops import validate_proppatch_response
+from caldav.operations.principal_ops import create_vcal_address
+from caldav.operations.principal_ops import extract_calendar_user_addresses
+from caldav.operations.principal_ops import PrincipalData
+from caldav.operations.principal_ops import sanitize_calendar_home_set_url
+from caldav.operations.principal_ops import should_update_client_base_url
+from caldav.operations.principal_ops import sort_calendar_user_addresses
 
 __all__ = [
     # Base types

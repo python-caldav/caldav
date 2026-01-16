@@ -4,7 +4,6 @@ Authentication utilities for CalDAV clients.
 This module contains shared authentication logic used by both
 DAVClient (sync) and AsyncDAVClient (async).
 """
-
 from __future__ import annotations
 
 

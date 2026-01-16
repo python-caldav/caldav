@@ -145,7 +145,9 @@ class DAVObject:
         multiprops = [dav.ResourceType()]
         props_multiprops = props + multiprops
         response = self._query_properties(props_multiprops, depth)
-        properties = response.expand_simple_props(props=props, multi_value_props=multiprops)
+        properties = response.expand_simple_props(
+            props=props, multi_value_props=multiprops
+        )
 
         for path in properties:
             resource_types = properties[path][dav.ResourceType.tag]
@@ -172,7 +174,9 @@ class DAVObject:
         ## the properties we've already fetched
         return c
 
-    def _query_properties(self, props: Optional[Sequence[BaseElement]] = None, depth: int = 0):
+    def _query_properties(
+        self, props: Optional[Sequence[BaseElement]] = None, depth: int = 0
+    ):
         """
         This is an internal method for doing a propfind query.  It's a
         result of code-refactoring work, attempting to consolidate
@@ -221,9 +225,17 @@ class DAVObject:
             ## COMPATIBILITY HACK - see https://github.com/python-caldav/caldav/issues/309
             ## TODO: server quirks!
             body = to_wire(body)
-            if ret.status == 500 and b"D:getetag" not in body and b"<C:calendar-data" in body:
-                body = body.replace(b"<C:calendar-data", b"<D:getetag/><C:calendar-data")
-                return self._query(body, depth, query_method, url, expected_return_value)
+            if (
+                ret.status == 500
+                and b"D:getetag" not in body
+                and b"<C:calendar-data" in body
+            ):
+                body = body.replace(
+                    b"<C:calendar-data", b"<D:getetag/><C:calendar-data"
+                )
+                return self._query(
+                    body, depth, query_method, url, expected_return_value
+                )
             raise error.exception_by_method[query_method](errmsg(ret))
         return ret
 
@@ -397,7 +409,9 @@ class DAVObject:
 
     def __str__(self) -> str:
         try:
-            return str(self.get_property(dav.DisplayName(), use_cached=True)) or self.url
+            return (
+                str(self.get_property(dav.DisplayName(), use_cached=True)) or self.url
+            )
         except:
             return str(self.url)
 

@@ -7,14 +7,19 @@ Both sync and async clients use these same functions.
 
 These functions work on icalendar component objects or raw data strings.
 """
-
 from __future__ import annotations
 
 import re
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from datetime import datetime
+from datetime import timedelta
+from datetime import timezone
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Tuple
 from urllib.parse import quote
 
 import icalendar
@@ -406,9 +411,7 @@ def is_calendar_data_loaded(
         True if data is loaded
     """
     return bool(
-        (data and data.count("BEGIN:") > 1)
-        or vobject_instance
-        or icalendar_instance
+        (data and data.count("BEGIN:") > 1) or vobject_instance or icalendar_instance
     )
 
 
@@ -469,7 +472,10 @@ def get_primary_component(icalendar_instance: Any) -> Optional[Any]:
         return None
 
     for comp in components:
-        if isinstance(comp, (icalendar.Event, icalendar.Todo, icalendar.Journal, icalendar.FreeBusy)):
+        if isinstance(
+            comp,
+            (icalendar.Event, icalendar.Todo, icalendar.Journal, icalendar.FreeBusy),
+        ):
             return comp
 
     return None

@@ -4,31 +4,26 @@ Unit tests for Sans-I/O protocol layer.
 These tests verify protocol logic without any HTTP mocking required.
 All tests are pure - they test data transformations only.
 """
-
-import pytest
 from datetime import datetime
 
-from caldav.protocol import (
-    # Types
-    DAVMethod,
-    DAVRequest,
-    DAVResponse,
-    PropfindResult,
-    CalendarQueryResult,
-    MultistatusResponse,
-    SyncCollectionResult,
-    # Builders
-    build_propfind_body,
-    build_calendar_query_body,
-    build_calendar_multiget_body,
-    build_sync_collection_body,
-    build_mkcalendar_body,
-    # Parsers
-    parse_multistatus,
-    parse_propfind_response,
-    parse_calendar_query_response,
-    parse_sync_collection_response,
-)
+import pytest
+
+from caldav.protocol import build_calendar_multiget_body
+from caldav.protocol import build_calendar_query_body
+from caldav.protocol import build_mkcalendar_body
+from caldav.protocol import build_propfind_body
+from caldav.protocol import build_sync_collection_body
+from caldav.protocol import CalendarQueryResult
+from caldav.protocol import DAVMethod
+from caldav.protocol import DAVRequest
+from caldav.protocol import DAVResponse
+from caldav.protocol import MultistatusResponse
+from caldav.protocol import parse_calendar_query_response
+from caldav.protocol import parse_multistatus
+from caldav.protocol import parse_propfind_response
+from caldav.protocol import parse_sync_collection_response
+from caldav.protocol import PropfindResult
+from caldav.protocol import SyncCollectionResult
 
 
 class TestDAVTypes:
@@ -303,11 +298,11 @@ END:VCALENDAR</C:calendar-data>
         assert "{urn:ietf:params:xml:ns:caldav}calendar" in resourcetype
 
         # supported-calendar-component-set - list of component names
-        components = props["{urn:ietf:params:xml:ns:caldav}supported-calendar-component-set"]
+        components = props[
+            "{urn:ietf:params:xml:ns:caldav}supported-calendar-component-set"
+        ]
         assert components == ["VEVENT", "VTODO", "VJOURNAL"]
 
         # calendar-home-set - extracted href
         home_set = props["{urn:ietf:params:xml:ns:caldav}calendar-home-set"]
         assert home_set == "/calendars/user/"
-
-

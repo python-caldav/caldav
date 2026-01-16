@@ -4,23 +4,20 @@ Tests for the DAVObject operations module.
 These tests verify the Sans-I/O business logic for DAVObject operations
 like getting properties, listing children, and delete validation.
 """
-
 import pytest
 
-from caldav.operations.davobject_ops import (
-    CALDAV_CALENDAR,
-    DAV_DISPLAYNAME,
-    DAV_RESOURCETYPE,
-    ChildData,
-    ChildrenQuery,
-    PropertiesResult,
-    build_children_query,
-    convert_protocol_results_to_properties,
-    find_object_properties,
-    process_children_response,
-    validate_delete_response,
-    validate_proppatch_response,
-)
+from caldav.operations.davobject_ops import build_children_query
+from caldav.operations.davobject_ops import CALDAV_CALENDAR
+from caldav.operations.davobject_ops import ChildData
+from caldav.operations.davobject_ops import ChildrenQuery
+from caldav.operations.davobject_ops import convert_protocol_results_to_properties
+from caldav.operations.davobject_ops import DAV_DISPLAYNAME
+from caldav.operations.davobject_ops import DAV_RESOURCETYPE
+from caldav.operations.davobject_ops import find_object_properties
+from caldav.operations.davobject_ops import process_children_response
+from caldav.operations.davobject_ops import PropertiesResult
+from caldav.operations.davobject_ops import validate_delete_response
+from caldav.operations.davobject_ops import validate_proppatch_response
 
 
 class TestBuildChildrenQuery:

@@ -5,23 +5,25 @@ Async collection classes for Phase 3.
 This module provides async versions of Principal, CalendarSet, and Calendar.
 For sync usage, see collection.py which wraps these async implementations.
 """
-
 import logging
 import sys
 import warnings
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any, Optional, Union
-from urllib.parse import ParseResult, SplitResult, quote
+from typing import Any
+from typing import Optional
+from typing import TYPE_CHECKING
+from typing import Union
+from urllib.parse import ParseResult
+from urllib.parse import quote
+from urllib.parse import SplitResult
 
 from lxml import etree
 
-from caldav.async_davobject import (
-    AsyncCalendarObjectResource,
-    AsyncDAVObject,
-    AsyncEvent,
-    AsyncJournal,
-    AsyncTodo,
-)
+from caldav.async_davobject import AsyncCalendarObjectResource
+from caldav.async_davobject import AsyncDAVObject
+from caldav.async_davobject import AsyncEvent
+from caldav.async_davobject import AsyncJournal
+from caldav.async_davobject import AsyncTodo
 from caldav.elements import cdav
 from caldav.lib import error
 from caldav.lib.url import URL
@@ -60,7 +62,11 @@ class AsyncCalendarSet(AsyncDAVObject):
             except Exception:
                 log.error(f"Calendar {c_name} has unexpected url {c_url}")
                 cal_id = None
-            cals.append(AsyncCalendar(self.client, id=cal_id, url=c_url, parent=self, name=c_name))
+            cals.append(
+                AsyncCalendar(
+                    self.client, id=cal_id, url=c_url, parent=self, name=c_name
+                )
+            )
 
         return cals
 
@@ -115,7 +121,9 @@ class AsyncCalendarSet(AsyncDAVObject):
                 if display_name == name:
                     return calendar
         if name and not cal_id:
-            raise error.NotFoundError(f"No calendar with name {name} found under {self.url}")
+            raise error.NotFoundError(
+                f"No calendar with name {name} found under {self.url}"
+            )
         if not cal_id and not name:
             cals = await self.calendars()
             if not cals:
@@ -128,7 +136,9 @@ class AsyncCalendarSet(AsyncDAVObject):
         if cal_id is None:
             raise ValueError("Unexpected value None for cal_id")
 
-        if str(URL.objectify(cal_id).canonical()).startswith(str(self.client.url.canonical())):
+        if str(URL.objectify(cal_id).canonical()).startswith(
+            str(self.client.url.canonical())
+        ):
             url = self.client.url.join(cal_id)
         elif isinstance(cal_id, URL) or (
             isinstance(cal_id, str)
@@ -175,7 +185,9 @@ class AsyncPrincipal(AsyncDAVObject):
         """
         self._calendar_home_set: Optional[AsyncCalendarSet] = None
         if calendar_home_set:
-            self._calendar_home_set = AsyncCalendarSet(client=client, url=calendar_home_set)
+            self._calendar_home_set = AsyncCalendarSet(
+                client=client, url=calendar_home_set
+            )
         super().__init__(client=client, url=url, **kwargs)
 
     @classmethod
@@ -236,7 +248,10 @@ class AsyncPrincipal(AsyncDAVObject):
 
             sanitized_url = URL.objectify(calendar_home_set_url)
             if sanitized_url is not None:
-                if sanitized_url.hostname and sanitized_url.hostname != self.client.url.hostname:
+                if (
+                    sanitized_url.hostname
+                    and sanitized_url.hostname != self.client.url.hostname
+                ):
                     # icloud (and others?) having a load balanced system
                     self.client.url = sanitized_url
 
@@ -299,7 +314,9 @@ class AsyncPrincipal(AsyncDAVObject):
         """
         from caldav.elements import dav
 
-        _addresses = await self.get_property(cdav.CalendarUserAddressSet(), parse_props=False)
+        _addresses = await self.get_property(
+            cdav.CalendarUserAddressSet(), parse_props=False
+        )
 
         if _addresses is None:
             raise error.NotFoundError("No calendar user addresses given from server")
@@ -395,12 +412,17 @@ class AsyncCalendar(AsyncDAVObject):
 
         if method is None:
             if self.client:
-                supported = self.client.features.is_supported("create-calendar", return_type=dict)
+                supported = self.client.features.is_supported(
+                    "create-calendar", return_type=dict
+                )
                 if supported["support"] not in ("full", "fragile", "quirk"):
                     raise error.MkcalendarError(
                         "Creation of calendars (allegedly) not supported on this server"
                     )
-                if supported["support"] == "quirk" and supported["behaviour"] == "mkcol-required":
+                if (
+                    supported["support"] == "quirk"
+                    and supported["behaviour"] == "mkcol-required"
+                ):
                     method = "mkcol"
                 else:
                     method = "mkcalendar"
@@ -430,7 +452,9 @@ class AsyncCalendar(AsyncDAVObject):
         set_elem = dav.Set() + prop
         mkcol = (dav.Mkcol() if method == "mkcol" else cdav.Mkcalendar()) + set_elem
 
-        body = etree.tostring(mkcol.xmlelement(), encoding="utf-8", xml_declaration=True)
+        body = etree.tostring(
+            mkcol.xmlelement(), encoding="utf-8", xml_declaration=True
+        )
 
         if self.client is None:
             raise ValueError("Unexpected value None for self.client")
@@ -541,7 +565,11 @@ class AsyncCalendar(AsyncDAVObject):
         url_path = unquote(self.url.path)
         for result in response.results:
             # Match by path (results may have different path formats)
-            if result.href == url_path or url_path.endswith(result.href) or result.href.endswith(url_path.rstrip("/")):
+            if (
+                result.href == url_path
+                or url_path.endswith(result.href)
+                or result.href.endswith(url_path.rstrip("/"))
+            ):
                 components = result.properties.get(
                     cdav.SupportedCalendarComponentSet.tag, []
                 )
@@ -727,7 +755,9 @@ class AsyncCalendar(AsyncDAVObject):
                 setattr(my_searcher, key, searchargs[key])
                 continue
             elif alias.startswith("no_"):
-                my_searcher.add_property_filter(alias[3:], searchargs[key], operator="undef")
+                my_searcher.add_property_filter(
+                    alias[3:], searchargs[key], operator="undef"
+                )
             else:
                 my_searcher.add_property_filter(alias, searchargs[key])
 
@@ -854,9 +884,7 @@ class AsyncCalendar(AsyncDAVObject):
             raise error.NotFoundError(f"No object with UID {uid}")
         return results[0]
 
-    def _use_or_create_ics(
-        self, ical: Any, objtype: str, **ical_data: Any
-    ) -> Any:
+    def _use_or_create_ics(self, ical: Any, objtype: str, **ical_data: Any) -> Any:
         """
         Create an iCalendar object from provided data or use existing one.
 
@@ -904,7 +932,9 @@ class AsyncCalendar(AsyncDAVObject):
         obj = objclass(
             self.client,
             data=self._use_or_create_ics(
-                ical, objtype=f"V{objclass.__name__.replace('Async', '').upper()}", **ical_data
+                ical,
+                objtype=f"V{objclass.__name__.replace('Async', '').upper()}",
+                **ical_data,
             ),
             parent=self,
         )
@@ -923,7 +953,11 @@ class AsyncCalendar(AsyncDAVObject):
         See save_object for full documentation.
         """
         return await self.save_object(
-            AsyncEvent, ical, no_overwrite=no_overwrite, no_create=no_create, **ical_data
+            AsyncEvent,
+            ical,
+            no_overwrite=no_overwrite,
+            no_create=no_create,
+            **ical_data,
         )
 
     async def save_todo(
@@ -955,7 +989,11 @@ class AsyncCalendar(AsyncDAVObject):
         See save_object for full documentation.
         """
         return await self.save_object(
-            AsyncJournal, ical, no_overwrite=no_overwrite, no_create=no_create, **ical_data
+            AsyncJournal,
+            ical,
+            no_overwrite=no_overwrite,
+            no_create=no_create,
+            **ical_data,
         )
 
     # Legacy aliases
@@ -992,9 +1030,7 @@ class AsyncCalendar(AsyncDAVObject):
             + [dav.Href(value=u.path) for u in event_urls]
         )
 
-        body = etree.tostring(
-            root.xmlelement(), encoding="utf-8", xml_declaration=True
-        )
+        body = etree.tostring(root.xmlelement(), encoding="utf-8", xml_declaration=True)
         response = await self.client.report(str(self.url), to_wire(body), depth=1)
 
         if raise_notfound:
@@ -1064,9 +1100,7 @@ class AsyncCalendar(AsyncDAVObject):
             raise ValueError("Unexpected value None for self.url")
 
         root = cdav.FreeBusyQuery() + [cdav.TimeRange(start, end)]
-        body = etree.tostring(
-            root.xmlelement(), encoding="utf-8", xml_declaration=True
-        )
+        body = etree.tostring(root.xmlelement(), encoding="utf-8", xml_declaration=True)
         response = await self.client.report(str(self.url), to_wire(body), depth=1)
 
         # Return a FreeBusy-like object (using AsyncCalendarObjectResource for now)

@@ -4,8 +4,11 @@ Server registry for test server discovery and management.
 This module provides a registry for discovering and managing test servers.
 It supports automatic detection of available servers and lazy initialization.
 """
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Type
 
-from typing import Dict, List, Optional, Type
 from .base import TestServer
 
 
@@ -106,10 +109,7 @@ class ServerRegistry:
         Returns:
             List of servers where config.get("enabled", True) is True
         """
-        return [
-            s for s in self._servers.values()
-            if s.config.get("enabled", True)
-        ]
+        return [s for s in self._servers.values() if s.config.get("enabled", True)]
 
     def load_from_config(self, config: Dict) -> None:
         """

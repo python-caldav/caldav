@@ -4,13 +4,17 @@ Pure functions for building CalDAV XML request bodies.
 All functions in this module are pure - they take data in and return XML out,
 with no side effects or I/O.
 """
-
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Tuple
 
 from lxml import etree
 
-from caldav.elements import cdav, dav
+from caldav.elements import cdav
+from caldav.elements import dav
 from caldav.elements.base import BaseElement
 
 
@@ -41,9 +45,7 @@ def build_propfind_body(
     else:
         propfind = dav.Propfind() + dav.Prop()
 
-    return etree.tostring(
-        propfind.xmlelement(), encoding="utf-8", xml_declaration=True
-    )
+    return etree.tostring(propfind.xmlelement(), encoding="utf-8", xml_declaration=True)
 
 
 def build_proppatch_body(
@@ -189,9 +191,7 @@ def build_calendar_multiget_body(
 
     multiget = cdav.CalendarMultiGet() + elements
 
-    return etree.tostring(
-        multiget.xmlelement(), encoding="utf-8", xml_declaration=True
-    )
+    return etree.tostring(multiget.xmlelement(), encoding="utf-8", xml_declaration=True)
 
 
 def build_sync_collection_body(

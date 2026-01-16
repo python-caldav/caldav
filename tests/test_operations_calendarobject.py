@@ -4,33 +4,32 @@ Tests for CalendarObjectResource operations module.
 These tests verify the Sans-I/O business logic for calendar objects
 without any network I/O.
 """
-
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
+from datetime import timedelta
+from datetime import timezone
 
 import icalendar
 import pytest
 
-from caldav.operations.calendarobject_ops import (
-    calculate_next_recurrence,
-    copy_component_with_new_uid,
-    extract_relations,
-    extract_uid_from_path,
-    find_id_and_path,
-    generate_uid,
-    generate_url,
-    get_due,
-    get_duration,
-    get_non_timezone_subcomponents,
-    get_primary_component,
-    get_reverse_reltype,
-    has_calendar_component,
-    is_calendar_data_loaded,
-    is_task_pending,
-    mark_task_completed,
-    mark_task_uncompleted,
-    reduce_rrule_count,
-    set_duration,
-)
+from caldav.operations.calendarobject_ops import calculate_next_recurrence
+from caldav.operations.calendarobject_ops import copy_component_with_new_uid
+from caldav.operations.calendarobject_ops import extract_relations
+from caldav.operations.calendarobject_ops import extract_uid_from_path
+from caldav.operations.calendarobject_ops import find_id_and_path
+from caldav.operations.calendarobject_ops import generate_uid
+from caldav.operations.calendarobject_ops import generate_url
+from caldav.operations.calendarobject_ops import get_due
+from caldav.operations.calendarobject_ops import get_duration
+from caldav.operations.calendarobject_ops import get_non_timezone_subcomponents
+from caldav.operations.calendarobject_ops import get_primary_component
+from caldav.operations.calendarobject_ops import get_reverse_reltype
+from caldav.operations.calendarobject_ops import has_calendar_component
+from caldav.operations.calendarobject_ops import is_calendar_data_loaded
+from caldav.operations.calendarobject_ops import is_task_pending
+from caldav.operations.calendarobject_ops import mark_task_completed
+from caldav.operations.calendarobject_ops import mark_task_uncompleted
+from caldav.operations.calendarobject_ops import reduce_rrule_count
+from caldav.operations.calendarobject_ops import set_duration
 
 
 class TestGenerateUid:

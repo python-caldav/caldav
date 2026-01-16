@@ -11,11 +11,15 @@ Design principles:
 - Request specs describe WHAT to request, not HOW
 - Response processors transform parsed data into domain-friendly formats
 """
-
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Sequence
+from dataclasses import dataclass
+from dataclasses import field
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Sequence
 
 from caldav.lib.url import URL
 

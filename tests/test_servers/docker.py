@@ -4,9 +4,10 @@ Docker-based test server implementations.
 This module provides test server implementations for servers that run
 in Docker containers: Baikal, Nextcloud, Cyrus, SOGo, and Bedework.
 """
-
 import os
-from typing import Any, Dict, Optional
+from typing import Any
+from typing import Dict
+from typing import Optional
 
 try:
     import niquests as requests

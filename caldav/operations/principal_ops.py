@@ -5,11 +5,12 @@ This module contains pure functions for Principal operations like
 URL sanitization and vCalAddress creation. Both sync and async clients
 use these same functions.
 """
-
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, List, Optional
+from typing import Any
+from typing import List
+from typing import Optional
 from urllib.parse import quote
 
 

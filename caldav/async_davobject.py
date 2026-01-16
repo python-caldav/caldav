@@ -7,17 +7,28 @@ For sync usage, see the davobject.py wrapper.
 """
 import sys
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
-from urllib.parse import ParseResult, SplitResult, quote, unquote
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Tuple
+from typing import TYPE_CHECKING
+from typing import Union
+from urllib.parse import ParseResult
+from urllib.parse import quote
+from urllib.parse import SplitResult
+from urllib.parse import unquote
 
 from lxml import etree
 
-from caldav.elements import cdav, dav
+from caldav.elements import cdav
+from caldav.elements import dav
 from caldav.elements.base import BaseElement
 from caldav.lib import error
 from caldav.lib.python_utilities import to_wire
 from caldav.lib.url import URL
-from caldav.objects import errmsg, log
+from caldav.objects import errmsg
+from caldav.objects import log
 
 if sys.version_info < (3, 11):
     from typing_extensions import Self

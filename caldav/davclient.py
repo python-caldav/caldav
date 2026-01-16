@@ -7,12 +7,14 @@ for XML building and response parsing.
 
 For async code, use: from caldav import aio
 """
-
 import logging
 import sys
 import warnings
 from types import TracebackType
-from typing import List, Optional, Tuple, Union
+from typing import List
+from typing import Optional
+from typing import Tuple
+from typing import Union
 from urllib.parse import unquote
 
 try:
@@ -119,7 +121,9 @@ def _auto_url(
             service_info = discover_caldav(
                 identifier=url,
                 timeout=timeout,
-                ssl_verify_cert=ssl_verify_cert if isinstance(ssl_verify_cert, bool) else True,
+                ssl_verify_cert=ssl_verify_cert
+                if isinstance(ssl_verify_cert, bool)
+                else True,
                 require_tls=require_tls,
             )
             if service_info:
@@ -127,7 +131,9 @@ def _auto_url(
                     f"RFC6764 discovered service: {service_info.url} (source: {service_info.source})"
                 )
                 if service_info.username:
-                    log.debug(f"Username discovered from email: {service_info.username}")
+                    log.debug(
+                        f"Username discovered from email: {service_info.username}"
+                    )
                 return (service_info.url, service_info.username)
         except DiscoveryError as e:
             log.debug(f"RFC6764 discovery failed: {e}")
@@ -365,7 +371,9 @@ class DAVClient:
         """
         if name:
             name_filter = [
-                dav.PropertySearch() + [dav.Prop() + [dav.DisplayName()]] + dav.Match(value=name)
+                dav.PropertySearch()
+                + [dav.Prop() + [dav.DisplayName()]]
+                + dav.Match(value=name)
             ]
         else:
             name_filter = []
@@ -381,7 +389,9 @@ class DAVClient:
         ## for now we're just treating it in the same way as 4xx and 5xx -
         ## probably the server did not support the operation
         if response.status >= 300:
-            raise error.ReportError(f"{response.status} {response.reason} - {response.raw}")
+            raise error.ReportError(
+                f"{response.status} {response.reason} - {response.raw}"
+            )
 
         principal_dict = response.find_objects_and_props()
         ret = []
@@ -402,7 +412,9 @@ class DAVClient:
             chs_url = chs_href[0].text
             calendar_home_set = CalendarSet(client=self, url=chs_url)
             ret.append(
-                Principal(client=self, url=x, name=name, calendar_home_set=calendar_home_set)
+                Principal(
+                    client=self, url=x, name=name, calendar_home_set=calendar_home_set
+                )
             )
         return ret
 
@@ -461,7 +473,9 @@ class DAVClient:
         support_list = self.check_dav_support()
         return support_list is not None and "calendar-auto-schedule" in support_list
 
-    def propfind(self, url: Optional[str] = None, props: str = "", depth: int = 0) -> DAVResponse:
+    def propfind(
+        self, url: Optional[str] = None, props: str = "", depth: int = 0
+    ) -> DAVResponse:
         """
         Send a propfind request.
 
@@ -490,7 +504,9 @@ class DAVClient:
             from caldav.protocol.xml_parsers import parse_propfind_response
 
             raw_bytes = (
-                response._raw if isinstance(response._raw, bytes) else response._raw.encode("utf-8")
+                response._raw
+                if isinstance(response._raw, bytes)
+                else response._raw.encode("utf-8")
             )
             response.results = parse_propfind_response(
                 raw_bytes, response.status, response.huge_tree
@@ -563,13 +579,17 @@ class DAVClient:
         """
         return self.request(url, "MKCALENDAR", body)
 
-    def put(self, url: str, body: str, headers: Mapping[str, str] = None) -> DAVResponse:
+    def put(
+        self, url: str, body: str, headers: Mapping[str, str] = None
+    ) -> DAVResponse:
         """
         Send a put request.
         """
         return self.request(url, "PUT", body, headers)
 
-    def post(self, url: str, body: str, headers: Mapping[str, str] = None) -> DAVResponse:
+    def post(
+        self, url: str, body: str, headers: Mapping[str, str] = None
+    ) -> DAVResponse:
         """
         Send a POST request.
         """
@@ -708,7 +728,8 @@ class DAVClient:
             and "WWW-Authenticate" in r_headers
             and not self.auth
             and self.username is not None
-            and self.password is not None  # Empty password OK, but None means not configured
+            and self.password
+            is not None  # Empty password OK, but None means not configured
         ):
             auth_types = self.extract_auth_types(r_headers["WWW-Authenticate"])
             self.build_auth_object(auth_types)

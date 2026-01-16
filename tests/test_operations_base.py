@@ -4,18 +4,15 @@ Tests for the operations layer base module.
 These tests verify the Sans-I/O utility functions work correctly
 without any network I/O.
 """
-
 import pytest
 
-from caldav.operations.base import (
-    PropertyData,
-    QuerySpec,
-    extract_resource_type,
-    get_property_value,
-    is_calendar_resource,
-    is_collection_resource,
-    normalize_href,
-)
+from caldav.operations.base import extract_resource_type
+from caldav.operations.base import get_property_value
+from caldav.operations.base import is_calendar_resource
+from caldav.operations.base import is_collection_resource
+from caldav.operations.base import normalize_href
+from caldav.operations.base import PropertyData
+from caldav.operations.base import QuerySpec
 
 
 class TestQuerySpec:
@@ -63,7 +60,10 @@ class TestPropertyData:
         """PropertyData can store arbitrary properties."""
         data = PropertyData(
             href="/cal/",
-            properties={"{DAV:}displayname": "My Calendar", "{DAV:}resourcetype": ["collection"]},
+            properties={
+                "{DAV:}displayname": "My Calendar",
+                "{DAV:}resourcetype": ["collection"],
+            },
             status=200,
         )
         assert data.properties["{DAV:}displayname"] == "My Calendar"
@@ -97,7 +97,12 @@ class TestExtractResourceType:
 
     def test_extract_list(self):
         """Extract list of resource types."""
-        props = {"{DAV:}resourcetype": ["{DAV:}collection", "{urn:ietf:params:xml:ns:caldav}calendar"]}
+        props = {
+            "{DAV:}resourcetype": [
+                "{DAV:}collection",
+                "{urn:ietf:params:xml:ns:caldav}calendar",
+            ]
+        }
         result = extract_resource_type(props)
         assert "{DAV:}collection" in result
         assert "{urn:ietf:params:xml:ns:caldav}calendar" in result
@@ -126,7 +131,12 @@ class TestIsCalendarResource:
 
     def test_is_calendar(self):
         """Detect calendar resource."""
-        props = {"{DAV:}resourcetype": ["{DAV:}collection", "{urn:ietf:params:xml:ns:caldav}calendar"]}
+        props = {
+            "{DAV:}resourcetype": [
+                "{DAV:}collection",
+                "{urn:ietf:params:xml:ns:caldav}calendar",
+            ]
+        }
         assert is_calendar_resource(props) is True
 
     def test_is_not_calendar(self):

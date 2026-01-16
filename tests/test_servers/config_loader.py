@@ -4,13 +4,16 @@ Configuration loader for test servers.
 This module provides functions for loading test server configuration
 from YAML/JSON files, with fallback to the legacy conf_private.py.
 """
-
 import os
 import warnings
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
 
-from caldav.config import read_config, expand_env_vars
+from caldav.config import expand_env_vars
+from caldav.config import read_config
 
 # Default config file locations (in priority order)
 DEFAULT_CONFIG_LOCATIONS = [
@@ -146,7 +149,15 @@ def _convert_conf_private_to_config(conf_private: Any) -> Dict[str, Dict[str, An
             result[server_name]["enabled"] = getattr(conf_private, attr)
 
     # Handle host/port overrides
-    for server_name in ("radicale", "xandikos", "baikal", "nextcloud", "cyrus", "sogo", "bedework"):
+    for server_name in (
+        "radicale",
+        "xandikos",
+        "baikal",
+        "nextcloud",
+        "cyrus",
+        "sogo",
+        "bedework",
+    ):
         host_attr = f"{server_name}_host"
         port_attr = f"{server_name}_port"
 

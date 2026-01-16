@@ -14,7 +14,8 @@ from typing import Any
 import pytest
 import pytest_asyncio
 
-from .test_servers import TestServer, get_available_servers
+from .test_servers import get_available_servers
+from .test_servers import TestServer
 
 
 def _async_delay_decorator(f, t=20):
@@ -208,7 +209,9 @@ class AsyncFunctionalTestsBaseClass:
         from caldav.async_collection import AsyncCalendarSet, AsyncPrincipal
         from caldav.lib.error import AuthorizationError, MkcalendarError, NotFoundError
 
-        calendar_name = f"async-principal-test-{datetime.now().strftime('%Y%m%d%H%M%S%f')}"
+        calendar_name = (
+            f"async-principal-test-{datetime.now().strftime('%Y%m%d%H%M%S%f')}"
+        )
         calendar = None
 
         # Try principal-based calendar creation first (works for Baikal, Xandikos)

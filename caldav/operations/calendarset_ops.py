@@ -5,12 +5,14 @@ This module contains pure functions for CalendarSet operations like
 extracting calendar IDs and building calendar URLs. Both sync and async
 clients use these same functions.
 """
-
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Any, List, Optional, Tuple
+from typing import Any
+from typing import List
+from typing import Optional
+from typing import Tuple
 from urllib.parse import quote
 
 log = logging.getLogger("caldav")

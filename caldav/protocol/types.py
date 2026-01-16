@@ -4,10 +4,13 @@ Core protocol types for Sans-I/O CalDAV implementation.
 These dataclasses represent HTTP requests and responses at the protocol level,
 independent of any I/O implementation.
 """
-
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from dataclasses import field
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
 
 
 class DAVMethod(Enum):

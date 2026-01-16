@@ -4,7 +4,10 @@ import os
 import re
 import sys
 from fnmatch import fnmatch
-from typing import Any, Dict, Optional, Union
+from typing import Any
+from typing import Dict
+from typing import Optional
+from typing import Union
 
 """
 This configuration parsing code was just copied from my plann library (and will be removed from there at some point in the future).  Test coverage is poor as for now.
@@ -339,7 +342,9 @@ def _get_test_server_config(
             for section_name in cfg:
                 section_data = config_section(cfg, section_name)
                 if section_data.get("testing_allowed"):
-                    logging.info(f"Using test server from config section: {section_name}")
+                    logging.info(
+                        f"Using test server from config section: {section_name}"
+                    )
                     return _extract_conn_params_from_section(section_data)
 
     # 2. Fall back to built-in test servers from tests/conf.py
@@ -420,7 +425,9 @@ def _get_builtin_test_server(
         sys.path = original_path
 
 
-def _extract_conn_params_from_section(section_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+def _extract_conn_params_from_section(
+    section_data: Dict[str, Any]
+) -> Optional[Dict[str, Any]]:
     """Extract connection parameters from a config section dict."""
     conn_params: Dict[str, Any] = {}
     for k in section_data:

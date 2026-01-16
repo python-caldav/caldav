@@ -4,11 +4,11 @@ Embedded test server implementations.
 This module provides test server implementations for servers that run
 in-process: Radicale and Xandikos.
 """
-
 import socket
 import tempfile
 import threading
-from typing import Any, Optional
+from typing import Any
+from typing import Optional
 
 try:
     import niquests as requests
@@ -80,10 +80,12 @@ class RadicaleTestServer(EmbeddedTestServer):
 
         # Configure Radicale
         configuration = radicale.config.load("")
-        configuration.update({
-            "storage": {"filesystem_folder": self.serverdir.name},
-            "auth": {"type": "none"},
-        })
+        configuration.update(
+            {
+                "storage": {"filesystem_folder": self.serverdir.name},
+                "auth": {"type": "none"},
+            }
+        )
 
         # Create shutdown socket pair
         self.shutdown_socket, self.shutdown_socket_out = socket.socketpair()

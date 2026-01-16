@@ -4,24 +4,26 @@ Pure functions for parsing CalDAV XML responses.
 All functions in this module are pure - they take XML bytes in and return
 structured data out, with no side effects or I/O.
 """
-
 import logging
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Tuple
+from typing import Union
 from urllib.parse import unquote
 
 from lxml import etree
 from lxml.etree import _Element
 
-from caldav.elements import cdav, dav
+from .types import CalendarQueryResult
+from .types import MultistatusResponse
+from .types import PropfindResult
+from .types import SyncCollectionResult
+from caldav.elements import cdav
+from caldav.elements import dav
 from caldav.lib import error
 from caldav.lib.url import URL
-
-from .types import (
-    CalendarQueryResult,
-    MultistatusResponse,
-    PropfindResult,
-    SyncCollectionResult,
-)
 
 log = logging.getLogger(__name__)
 
@@ -378,11 +380,15 @@ def _element_to_value(elem: _Element) -> Any:
 
     # calendar-user-address-set: extract href texts
     if tag == cdav.CalendarUserAddressSet.tag:
-        return [child.text for child in elem if child.tag == dav.Href.tag and child.text]
+        return [
+            child.text for child in elem if child.tag == dav.Href.tag and child.text
+        ]
 
     # calendar-home-set: extract href text (usually single)
     if tag == cdav.CalendarHomeSet.tag:
-        hrefs = [child.text for child in elem if child.tag == dav.Href.tag and child.text]
+        hrefs = [
+            child.text for child in elem if child.tag == dav.Href.tag and child.text
+        ]
         return hrefs[0] if len(hrefs) == 1 else hrefs
 
     # resourcetype: extract child tag names (e.g., collection, calendar)
