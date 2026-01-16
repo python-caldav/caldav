@@ -38,6 +38,7 @@ Modules:
     principal_ops: Principal operations (discovery, calendar home set)
     calendarset_ops: CalendarSet operations (list calendars, make calendar)
     calendar_ops: Calendar operations (search, multiget, sync)
+    search_ops: Search operations (query building, filtering, strategy)
 """
 from caldav.operations.base import extract_resource_type
 from caldav.operations.base import get_property_value
@@ -97,6 +98,15 @@ from caldav.operations.principal_ops import PrincipalData
 from caldav.operations.principal_ops import sanitize_calendar_home_set_url
 from caldav.operations.principal_ops import should_update_client_base_url
 from caldav.operations.principal_ops import sort_calendar_user_addresses
+from caldav.operations.search_ops import build_search_xml_query
+from caldav.operations.search_ops import collation_to_caldav
+from caldav.operations.search_ops import determine_post_filter_needed
+from caldav.operations.search_ops import filter_search_results
+from caldav.operations.search_ops import get_explicit_contains_properties
+from caldav.operations.search_ops import needs_pending_todo_multi_search
+from caldav.operations.search_ops import SearchStrategy
+from caldav.operations.search_ops import should_remove_category_filter
+from caldav.operations.search_ops import should_remove_property_filters_for_combined
 
 __all__ = [
     # Base types
@@ -164,4 +174,14 @@ __all__ = [
     "should_skip_calendar_self_reference",
     "process_report_results",
     "build_calendar_object_url",
+    # Search operations
+    "SearchStrategy",
+    "build_search_xml_query",
+    "filter_search_results",
+    "collation_to_caldav",
+    "determine_post_filter_needed",
+    "should_remove_category_filter",
+    "get_explicit_contains_properties",
+    "should_remove_property_filters_for_combined",
+    "needs_pending_todo_multi_search",
 ]
