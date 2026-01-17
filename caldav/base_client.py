@@ -36,6 +36,20 @@ class BaseDAVClient(ABC):
     auth: Optional[Any] = None
     auth_type: Optional[str] = None
     features: Optional["FeatureSet"] = None
+    url: Any = None  # URL object, set by subclasses
+
+    def _make_absolute_url(self, url: str) -> str:
+        """Make a URL absolute by joining with the client's base URL if needed.
+
+        Args:
+            url: URL string, possibly relative (e.g., "/calendars/user/")
+
+        Returns:
+            Absolute URL string.
+        """
+        if url and not url.startswith("http"):
+            return str(self.url.join(url))
+        return url
 
     def extract_auth_types(self, header: str) -> set[str]:
         """Extract authentication types from WWW-Authenticate header.

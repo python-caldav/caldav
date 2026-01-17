@@ -492,8 +492,7 @@ class DAVClient(BaseDAVClient):
             return []
 
         # Make URL absolute if relative
-        if not calendar_home_url.startswith("http"):
-            calendar_home_url = str(self.url.join(calendar_home_url))
+        calendar_home_url = self._make_absolute_url(calendar_home_url)
 
         # Fetch calendars via PROPFIND
         response = self.propfind(
