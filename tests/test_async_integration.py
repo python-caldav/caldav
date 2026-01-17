@@ -112,9 +112,6 @@ class AsyncFunctionalTestsBaseClass:
     # Server configuration - set by dynamic class generation
     server: TestServer
 
-    # Class-level tracking for patched methods
-    _original_search = None
-
     @pytest.fixture(scope="class")
     def test_server(self) -> TestServer:
         """Get the test server for this class."""
@@ -125,22 +122,23 @@ class AsyncFunctionalTestsBaseClass:
         server.stop()
 
     @pytest_asyncio.fixture
-    async def async_client(self, test_server: TestServer) -> Any:
+    async def async_client(self, test_server: TestServer, monkeypatch: Any) -> Any:
         """Create an async client connected to the test server."""
         from caldav.aio import AsyncCalendar
 
         client = await test_server.get_async_client()
 
         # Apply search-cache delay if needed (similar to sync tests)
+        # Use monkeypatch so it's automatically reverted after the test
+        # (AsyncCalendar is an alias for Calendar, so we must restore it)
         search_cache_config = client.features.is_supported("search-cache", dict)
         if search_cache_config.get("behaviour") == "delay":
             delay = search_cache_config.get("delay", 1.5)
-            # Only wrap once - store original and check before wrapping
-            if AsyncFunctionalTestsBaseClass._original_search is None:
-                AsyncFunctionalTestsBaseClass._original_search = AsyncCalendar.search
-                AsyncCalendar.search = _async_delay_decorator(
-                    AsyncFunctionalTestsBaseClass._original_search, t=delay
-                )
+            monkeypatch.setattr(
+                AsyncCalendar,
+                "search",
+                _async_delay_decorator(AsyncCalendar.search, t=delay),
+            )
 
         yield client
         await client.close()
