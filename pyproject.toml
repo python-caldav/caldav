@@ -75,6 +75,7 @@ Changelog = "https://github.com/python-caldav/caldav/blob/master/CHANGELOG.md"
 test = [
   "vobject",
   "pytest",
+  "pytest-asyncio",
   "coverage",
   "manuel",
   "proxy.py",
