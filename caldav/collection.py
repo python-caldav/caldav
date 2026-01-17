@@ -1383,9 +1383,8 @@ class Calendar(DAVObject):
         if sort_key:
             sort_keys = (sort_key,)
 
-        # Delegate to client for dual-mode support
-        if self.is_async_client:
-            return self.client.get_todos(self, include_completed=include_completed)
+        # Use search() for both sync and async - this ensures any
+        # delay decorators applied to search() are respected
         return self.search(
             todo=True, include_completed=include_completed, sort_keys=sort_keys
         )
@@ -1509,9 +1508,8 @@ class Calendar(DAVObject):
         Example (async):
             events = await calendar.events()
         """
-        # Delegate to client for dual-mode support
-        if self.is_async_client:
-            return self.client.get_events(self)
+        # Use search() for both sync and async - this ensures any
+        # delay decorators applied to search() are respected
         return self.search(comp_class=Event)
 
     def _generate_fake_sync_token(self, objects: List["CalendarObjectResource"]) -> str:
