@@ -146,7 +146,7 @@ class CalendarObjectResource(DAVObject):
 
         WARNING: this method is likely to be deprecated and parts of
         it moved to the icalendar library.  If you decide to use it,
-        please put caldav<3.0 in the requirements.
+        please put caldav<4.0 in the requirements.
         """
         i = self.icalendar_component
         ## TODO: are those lines useful for anything?
