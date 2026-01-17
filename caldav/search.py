@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 from dataclasses import field
 from dataclasses import replace
@@ -29,6 +31,7 @@ from .operations.search_ops import should_remove_category_filter
 from .operations.search_ops import should_remove_property_filters_for_combined
 
 if TYPE_CHECKING:
+    from .elements import cdav
     from .collection import Calendar as AsyncCalendar
     from .calendarobjectresource import (
         CalendarObjectResource as AsyncCalendarObjectResource,
