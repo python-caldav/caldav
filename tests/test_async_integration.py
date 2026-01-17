@@ -162,33 +162,37 @@ class AsyncFunctionalTestsBaseClass:
 
     @pytest_asyncio.fixture
     async def async_calendar(self, async_client: Any) -> Any:
-        """Create a test calendar and clean up afterwards."""
-        from caldav.aio import AsyncCalendarSet, AsyncPrincipal
-        from caldav.lib.error import AuthorizationError, MkcalendarError, NotFoundError
+        """Create a test calendar or use an existing one if creation not supported."""
+        from caldav.aio import AsyncPrincipal
+        from caldav.lib.error import AuthorizationError, NotFoundError
+
+        from .fixture_helpers import get_or_create_test_calendar
 
         calendar_name = f"async-test-{datetime.now().strftime('%Y%m%d%H%M%S%f')}"
-        calendar = None
 
-        # Try principal-based calendar creation first (works for Baikal, Xandikos)
+        # Try to get principal for calendar operations
+        principal = None
         try:
             principal = await AsyncPrincipal.create(async_client)
-            calendar = await principal.make_calendar(name=calendar_name)
-        except (NotFoundError, AuthorizationError, MkcalendarError):
-            # Fall back to direct calendar creation (works for Radicale)
+        except (NotFoundError, AuthorizationError):
             pass
 
+        # Use shared helper for calendar setup
+        calendar, created = await get_or_create_test_calendar(
+            async_client, principal, calendar_name=calendar_name
+        )
+
         if calendar is None:
-            # Fall back to creating calendar at client URL
-            calendar_home = AsyncCalendarSet(client=async_client, url=async_client.url)
-            calendar = await calendar_home.make_calendar(name=calendar_name)
+            pytest.skip("Could not create or find a calendar for testing")
 
         yield calendar
 
-        # Cleanup
-        try:
-            await calendar.delete()
-        except Exception:
-            pass
+        # Only cleanup if we created the calendar
+        if created:
+            try:
+                await calendar.delete()
+            except Exception:
+                pass
 
     # ==================== Test Methods ====================
 
@@ -223,9 +227,12 @@ class AsyncFunctionalTestsBaseClass:
             pass
 
         if calendar is None:
-            # Fall back to creating calendar at client URL
-            calendar_home = AsyncCalendarSet(client=async_client, url=async_client.url)
-            calendar = await calendar_home.make_calendar(name=calendar_name)
+            # Try creating calendar at client URL
+            try:
+                calendar_home = AsyncCalendarSet(client=async_client, url=async_client.url)
+                calendar = await calendar_home.make_calendar(name=calendar_name)
+            except MkcalendarError:
+                pytest.skip("Server does not support MKCALENDAR")
 
         assert calendar is not None
         assert calendar.url is not None
