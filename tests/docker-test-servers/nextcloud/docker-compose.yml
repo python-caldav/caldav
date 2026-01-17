@@ -13,8 +13,18 @@ services:
     # The standard entrypoint copies as root causing permission issues on tmpfs
     entrypoint: >
       /bin/bash -c '
+        set -e
+
+        # Ensure base directory has correct ownership (for tmpfs mount)
+        chown www-data:www-data /var/www/html
+        chmod 755 /var/www/html
+
         # Copy nextcloud files with proper ownership
         rsync -rlD --delete --chown=www-data:www-data /usr/src/nextcloud/ /var/www/html/
+
+        # Explicitly set config directory permissions after rsync
+        mkdir -p /var/www/html/config
+        chown -R www-data:www-data /var/www/html/config
         chmod 770 /var/www/html/config
 
         # Run installation as www-data if not already installed
