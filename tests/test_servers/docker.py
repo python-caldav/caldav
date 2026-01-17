@@ -57,9 +57,7 @@ class NextcloudTestServer(DockerTestServer):
         config.setdefault("host", os.environ.get("NEXTCLOUD_HOST", "localhost"))
         config.setdefault("port", int(os.environ.get("NEXTCLOUD_PORT", "8801")))
         config.setdefault("username", os.environ.get("NEXTCLOUD_USERNAME", "testuser"))
-        config.setdefault(
-            "password", os.environ.get("NEXTCLOUD_PASSWORD", "testpass")
-        )
+        config.setdefault("password", os.environ.get("NEXTCLOUD_PASSWORD", "testpass"))
         super().__init__(config)
 
     def _default_port(self) -> int:

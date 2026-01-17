@@ -180,7 +180,9 @@ class CalendarSet(DAVObject):
           Calendar(...)-object
         """
         if self.is_async_client:
-            return self._async_make_calendar(name, cal_id, supported_calendar_component_set, method)
+            return self._async_make_calendar(
+                name, cal_id, supported_calendar_component_set, method
+            )
 
         return Calendar(
             self.client,
@@ -398,7 +400,9 @@ class Principal(DAVObject):
         For async clients, returns a coroutine that must be awaited.
         """
         if self.is_async_client:
-            return self._async_make_calendar(name, cal_id, supported_calendar_component_set, method)
+            return self._async_make_calendar(
+                name, cal_id, supported_calendar_component_set, method
+            )
 
         return self.calendar_home_set.make_calendar(
             name,
@@ -605,7 +609,9 @@ class Calendar(DAVObject):
         For async clients, returns a coroutine that must be awaited.
         """
         if self.is_async_client:
-            return self._async_create(name, id, supported_calendar_component_set, method)
+            return self._async_create(
+                name, id, supported_calendar_component_set, method
+            )
 
         if id is None:
             id = str(uuid.uuid1())
@@ -736,7 +742,9 @@ class Calendar(DAVObject):
                 await self._async_set_properties([display_name])
             except Exception:
                 try:
-                    current_display_name = await self._async_get_property(dav.DisplayName())
+                    current_display_name = await self._async_get_property(
+                        dav.DisplayName()
+                    )
                     error.assert_(current_display_name == name)
                 except:
                     log.warning(
@@ -792,6 +800,7 @@ class Calendar(DAVObject):
                     return
                 except error.DeleteError:
                     import asyncio
+
                     await asyncio.sleep(0.3)
             # If still failing after retries, fall through to wipe
 
@@ -1103,7 +1112,9 @@ class Calendar(DAVObject):
         For async clients, returns a coroutine that must be awaited.
         """
         if self.is_async_client:
-            return self._async_request_report_build_resultlist(xml, comp_class, props, no_calendardata)
+            return self._async_request_report_build_resultlist(
+                xml, comp_class, props, no_calendardata
+            )
 
         matches = []
         if props is None:

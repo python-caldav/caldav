@@ -6,11 +6,16 @@ functionality for both sync (DAVClient) and async (AsyncDAVClient) clients.
 """
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, Mapping, Optional
+from abc import ABC
+from abc import abstractmethod
+from typing import Any
+from typing import Mapping
+from typing import Optional
+from typing import TYPE_CHECKING
 
 from caldav.lib import error
-from caldav.lib.auth import extract_auth_types, select_auth_type
+from caldav.lib.auth import extract_auth_types
+from caldav.lib.auth import select_auth_type
 
 if TYPE_CHECKING:
     from caldav.compatibility_hints import FeatureSet

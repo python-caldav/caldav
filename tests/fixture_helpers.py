@@ -5,7 +5,8 @@ This module provides common logic for setting up test calendars,
 ensuring consistent behavior and safeguards across sync and async tests.
 """
 import inspect
-from typing import Any, Optional
+from typing import Any
+from typing import Optional
 
 
 async def _maybe_await(result: Any) -> Any:

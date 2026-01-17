@@ -235,7 +235,9 @@ class DAVObject:
         For async clients, returns a coroutine that must be awaited.
         """
         if self.is_async_client:
-            return self._async_query(root, depth, query_method, url, expected_return_value)
+            return self._async_query(
+                root, depth, query_method, url, expected_return_value
+            )
 
         body = ""
         if root:
@@ -379,7 +381,9 @@ class DAVObject:
         For async clients, returns a coroutine that must be awaited.
         """
         if self.is_async_client:
-            return self._async_get_properties(props, depth, parse_response_xml, parse_props)
+            return self._async_get_properties(
+                props, depth, parse_response_xml, parse_props
+            )
 
         from .collection import (
             Principal,

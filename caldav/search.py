@@ -543,7 +543,11 @@ class CalDAVSearcher(Searcher):
         """
         # Import unified types at runtime to avoid circular imports
         # These work with both sync and async clients
-        from .calendarobjectresource import Event as AsyncEvent, Journal as AsyncJournal, Todo as AsyncTodo
+        from .calendarobjectresource import (
+            Event as AsyncEvent,
+            Journal as AsyncJournal,
+            Todo as AsyncTodo,
+        )
 
         if xml and (isinstance(xml, str) or "calendar-query" in xml.tag):
             raise NotImplementedError(
@@ -581,7 +585,11 @@ class CalDAVSearcher(Searcher):
         """
         # Import unified types at runtime to avoid circular imports
         # These work with both sync and async clients
-        from .calendarobjectresource import Event as AsyncEvent, Journal as AsyncJournal, Todo as AsyncTodo
+        from .calendarobjectresource import (
+            Event as AsyncEvent,
+            Journal as AsyncJournal,
+            Todo as AsyncTodo,
+        )
 
         ## Handle servers with broken component-type filtering (e.g., Bedework)
         comp_type_support = calendar.client.features.is_supported(
@@ -806,6 +814,7 @@ class CalDAVSearcher(Searcher):
                 # load() may return self (sync) or coroutine (async) depending on state
                 result = o.load(only_if_unloaded=True)
                 import inspect
+
                 if inspect.isawaitable(result):
                     await result
                 obj2.append(o)
@@ -828,6 +837,7 @@ class CalDAVSearcher(Searcher):
                 # load() may return self (sync) or coroutine (async) depending on state
                 result = obj.load(only_if_unloaded=True)
                 import inspect
+
                 if inspect.isawaitable(result):
                     await result
             except Exception:

@@ -227,7 +227,9 @@ class AsyncFunctionalTestsBaseClass:
         if calendar is None:
             # Try creating calendar at client URL
             try:
-                calendar_home = AsyncCalendarSet(client=async_client, url=async_client.url)
+                calendar_home = AsyncCalendarSet(
+                    client=async_client, url=async_client.url
+                )
                 calendar = await calendar_home.make_calendar(name=calendar_name)
             except MkcalendarError:
                 pytest.skip("Server does not support MKCALENDAR")
