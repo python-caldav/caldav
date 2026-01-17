@@ -216,7 +216,7 @@ test-servers:
     host: ${NEXTCLOUD_HOST:-localhost}
     port: ${NEXTCLOUD_PORT:-8801}
     username: ${NEXTCLOUD_USERNAME:-testuser}
-    password: ${NEXTCLOUD_PASSWORD:-TestPassword123!}
+    password: ${NEXTCLOUD_PASSWORD:-testpass}
 
   cyrus:
     type: docker

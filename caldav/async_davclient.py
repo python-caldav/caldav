@@ -974,6 +974,10 @@ class AsyncDAVClient(BaseDAVClient):
         if not calendar_home_url:
             return []
 
+        # Make URL absolute if relative
+        if not calendar_home_url.startswith("http"):
+            calendar_home_url = str(self.url.join(calendar_home_url))
+
         # Fetch calendars via PROPFIND
         response = await self.propfind(
             calendar_home_url,

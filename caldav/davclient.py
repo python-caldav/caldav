@@ -491,6 +491,10 @@ class DAVClient(BaseDAVClient):
         if not calendar_home_url:
             return []
 
+        # Make URL absolute if relative
+        if not calendar_home_url.startswith("http"):
+            calendar_home_url = str(self.url.join(calendar_home_url))
+
         # Fetch calendars via PROPFIND
         response = self.propfind(
             calendar_home_url,
@@ -684,20 +688,20 @@ class DAVClient(BaseDAVClient):
         return support_list is not None and "calendar-auto-schedule" in support_list
 
     def propfind(
-        self, url: Optional[str] = None, props: str = "", depth: int = 0
+        self,
+        url: Optional[str] = None,
+        props=None,
+        depth: int = 0,
     ) -> DAVResponse:
         """
         Send a propfind request.
-
-        DEMONSTRATION WRAPPER: This method now delegates to AsyncDAVClient
-        via asyncio.run(), showing the async-first architecture works.
 
         Parameters
         ----------
         url : URL
             url for the root of the propfind.
-        props : xml
-            properties we want
+        props : str or List[str]
+            XML body string (old interface) or list of property names (new interface).
         depth : int
             maximum recursion depth
 
@@ -705,9 +709,19 @@ class DAVClient(BaseDAVClient):
         -------
         DAVResponse
         """
+        from caldav.protocol.xml_builders import build_propfind_body
+
+        # Handle both old interface (props=xml_string) and new interface (props=list)
+        body = ""
+        if props is not None:
+            if isinstance(props, list):
+                body = build_propfind_body(props).decode("utf-8")
+            else:
+                body = props  # Old interface: props is XML string
+
         # Use sync path with protocol layer parsing
         headers = {"Depth": str(depth)}
-        response = self.request(url or str(self.url), "PROPFIND", props, headers)
+        response = self.request(url or str(self.url), "PROPFIND", body, headers)
 
         # Parse response using protocol layer
         if response.status in (200, 207) and response._raw:

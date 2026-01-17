@@ -9,10 +9,28 @@ services:
       - NEXTCLOUD_ADMIN_USER=admin
       - NEXTCLOUD_ADMIN_PASSWORD=admin
       - NEXTCLOUD_TRUSTED_DOMAINS=localhost
-    # Fix ownership race condition: entrypoint creates files as root,
-    # but installation runs as www-data. Wrap the entrypoint to fix permissions.
-    entrypoint: ["/bin/bash", "-c", "/entrypoint.sh apache2-foreground & PID=$$!; sleep 3; chown -R www-data:www-data /var/www/html/config 2>/dev/null || true; wait $$PID"]
+    # Custom entrypoint: copy files with proper ownership, run installation, start apache
+    # The standard entrypoint copies as root causing permission issues on tmpfs
+    entrypoint: >
+      /bin/bash -c '
+        # Copy nextcloud files with proper ownership
+        rsync -rlD --delete --chown=www-data:www-data /usr/src/nextcloud/ /var/www/html/
+        chmod 770 /var/www/html/config
+
+        # Run installation as www-data if not already installed
+        if [ ! -f /var/www/html/config/config.php ] || ! grep -q "installed.*=>.*true" /var/www/html/config/config.php 2>/dev/null; then
+          echo "Running Nextcloud installation..."
+          su -s /bin/bash www-data -c "php /var/www/html/occ maintenance:install \
+            --database=sqlite \
+            --admin-user=admin \
+            --admin-pass=admin"
+          # Set trusted domains
+          su -s /bin/bash www-data -c "php /var/www/html/occ config:system:set trusted_domains 0 --value=localhost"
+        fi
+
+        # Start apache
+        exec apache2-foreground
+      '
     tmpfs:
       # Make the container truly ephemeral - data is lost on restart
-      # uid/gid 33 is www-data in the Nextcloud container
-      - /var/www/html:size=2g,uid=33,gid=33
+      - /var/www/html:size=2g

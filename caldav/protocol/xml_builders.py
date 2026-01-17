@@ -381,6 +381,10 @@ def _prop_name_to_element(
         "schedule-outbox-url": cdav.ScheduleOutboxURL,
     }
 
+    # Strip Clark notation namespace prefix if present (e.g., "{DAV:}displayname" -> "displayname")
+    if name.startswith("{") and "}" in name:
+        name = name.split("}", 1)[1]
+
     name_lower = name.lower().replace("_", "-")
 
     # Check DAV properties
