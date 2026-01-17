@@ -252,26 +252,8 @@ class BaseDAVResponse:
             href = unquote(URL(href).path)
         return (cast(str, href), propstats, status)
 
-    def find_objects_and_props(self) -> Dict[str, Dict[str, _Element]]:
-        """Check the response from the server, check that it is on an expected format,
-        find hrefs and props from it and check statuses delivered.
-
-        The parsed data will be put into self.objects, a dict {href:
-        {proptag: prop_element}}.  Further parsing of the prop_element
-        has to be done by the caller.
-
-        self.sync_token will be populated if found, self.objects will be populated.
-
-        .. deprecated::
-            Use ``response.results`` instead, which provides pre-parsed property values.
-            This method will be removed in a future version.
-        """
-        warnings.warn(
-            "find_objects_and_props() is deprecated. Use response.results instead, "
-            "which provides pre-parsed property values from the protocol layer.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+    def _find_objects_and_props(self) -> Dict[str, Dict[str, _Element]]:
+        """Internal implementation of find_objects_and_props without deprecation warning."""
         self.objects: Dict[str, Dict[str, _Element]] = {}
         self.statuses: Dict[str, str] = {}
 
@@ -316,6 +298,28 @@ class BaseDAVResponse:
                 error.assert_(cnt == len(propstat))
 
         return self.objects
+
+    def find_objects_and_props(self) -> Dict[str, Dict[str, _Element]]:
+        """Check the response from the server, check that it is on an expected format,
+        find hrefs and props from it and check statuses delivered.
+
+        The parsed data will be put into self.objects, a dict {href:
+        {proptag: prop_element}}.  Further parsing of the prop_element
+        has to be done by the caller.
+
+        self.sync_token will be populated if found, self.objects will be populated.
+
+        .. deprecated::
+            Use ``response.results`` instead, which provides pre-parsed property values.
+            This method will be removed in a future version.
+        """
+        warnings.warn(
+            "find_objects_and_props() is deprecated. Use response.results instead, "
+            "which provides pre-parsed property values from the protocol layer.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._find_objects_and_props()
 
     def _expand_simple_prop(
         self,
@@ -379,7 +383,7 @@ class BaseDAVResponse:
         multi_value_props = multi_value_props or []
 
         if not hasattr(self, "objects"):
-            self.find_objects_and_props()
+            self._find_objects_and_props()
         for href in self.objects:
             props_found = self.objects[href]
             for prop in props:

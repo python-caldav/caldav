@@ -138,3 +138,16 @@ indent-style = "space"
 
 [tool.ruff.lint.isort]
 known-first-party = ["caldav"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "strict"
+filterwarnings = [
+    # Ignore deprecation warnings from external libraries
+    "ignore:.*asyncio.iscoroutinefunction.*:DeprecationWarning:niquests",
+    # Ignore our own intentional deprecation warnings in tests
+    # (tests use deprecated APIs to verify they still work)
+    "ignore:tests.conf is deprecated:DeprecationWarning",
+    "ignore:tests.conf.client\\(\\) is deprecated:DeprecationWarning",
+    # Ignore resource warnings from radicale (upstream issue)
+    "ignore:unclosed scandir iterator:ResourceWarning:radicale",
+]
