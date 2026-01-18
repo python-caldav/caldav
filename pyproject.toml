@@ -59,6 +59,8 @@ dependencies = [
   "icalendar>6.0.0",
   "icalendar-searcher>=1.0.0,<2",
   "dnspython",
+  "python-dateutil",
+  "PyYAML",
 ]
 dynamic = ["version"]
 
@@ -80,6 +82,7 @@ test = [
   "radicale",
   "pyfakefs",
   #"caldav_server_tester"
+  "deptry>=0.24.0; python_version >= '3.10'",
 ]
 [tool.setuptools_scm]
 write_to = "caldav/_version.py"
@@ -91,3 +94,9 @@ include-package-data = true
 [tool.setuptools.packages.find]
 exclude = ["tests"]
 namespaces = false
+
+[tool.deptry]
+ignore = ["DEP002"]  # Test dependencies (pytest, coverage, etc.) are not imported in main code
+
+[tool.deptry.per_rule_ignores]
+DEP001 = ["conf"]  # Local test configuration file, not a package
