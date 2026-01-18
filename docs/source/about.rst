@@ -127,7 +127,7 @@ Notable classes and workflow
 
 * You'd always start by initiating a :class:`caldav.davclient.DAVClient`
   object, this object holds the authentication details for the
-  server.  In 2.0 there is a function :class:`caldav.davclient.get_davclient` that can be used.
+  server.  In 2.0 the function :func:`caldav.get_davclient` was added as the recommended way to get a client.
 
 * From the client object one can get hold of a
   :class:`caldav.collection.Principal` object representing the logged-in

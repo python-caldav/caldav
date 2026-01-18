@@ -15,7 +15,7 @@ from allauth.socialaccount.models import SocialApp
 from allauth.socialaccount.models import SocialToken
 from google.oauth2.credentials import Credentials
 
-from caldav.davclient import get_davclient
+from caldav import get_davclient
 from caldav.requests import HTTPBearerAuth
 
 

@@ -44,7 +44,7 @@ This gives users ample time to migrate without breaking existing code.
 
 ```python
 # Recommended (sync):
-from caldav.davclient import get_davclient
+from caldav import get_davclient
 with get_davclient(url="...", username="...", password="...") as client:
     ...
 
@@ -301,7 +301,7 @@ All tests in `tests/test_caldav.py` etc. must continue to pass with sync wrapper
 
 ### Sync (Backward Compatible):
 ```python
-from caldav.davclient import get_davclient
+from caldav import get_davclient
 
 with get_davclient(url="...", username="...", password="...") as client:
     principal = client.principal()

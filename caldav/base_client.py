@@ -179,7 +179,7 @@ def get_davclient(
 
     Example (sync)::
 
-        from caldav.davclient import get_davclient
+        from caldav import get_davclient
         client = get_davclient(url="https://caldav.example.com", username="user", password="pass")
 
     Example (async)::

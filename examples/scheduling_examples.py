@@ -12,7 +12,7 @@ from icalendar import Calendar
 from icalendar import Event
 
 from caldav import error
-from caldav.davclient import get_davclient
+from caldav import get_davclient
 
 
 ###############

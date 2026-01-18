@@ -10,7 +10,7 @@ from google.oauth2 import service_account
 from google_auth_oauthlib.flow import InstalledAppFlow
 from requests.auth import AuthBase
 
-from caldav.davclient import get_davclient
+from caldav import get_davclient
 
 
 SERVICE_ACCOUNT_FILE = "service.json"

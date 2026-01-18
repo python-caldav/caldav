@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import json
 
-from caldav.davclient import get_davclient
+from caldav import get_davclient
 
 ## Code contributed by Крылов Александр.
 ## Minor changes by Tobias Brox.

@@ -29,10 +29,10 @@ def get_davclient(
 
 **Documentation (docs/source/tutorial.rst)**:
 - ALL examples use `get_davclient()` ✓
-- **Recommended pattern**: `from caldav.davclient import get_davclient`
+- **Recommended pattern**: `from caldav import get_davclient`
 
 ```python
-from caldav.davclient import get_davclient
+from caldav import get_davclient
 
 with get_davclient() as client:
     principal = client.principal()
@@ -132,7 +132,7 @@ Currently not exported:
 from caldav import get_davclient  # ImportError!
 
 # Must use:
-from caldav.davclient import get_davclient
+from caldav import get_davclient
 ```
 
 ## Usage Statistics

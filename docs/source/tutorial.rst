@@ -35,7 +35,7 @@ function, go from there to get a
 
 .. code-block:: python
 
-    from caldav.davclient import get_davclient
+    from caldav import get_davclient
     from caldav.lib.error import NotFoundError
 
     with get_davclient() as client:
@@ -57,7 +57,7 @@ be the correct one.  To filter there are parameters ``name`` and
 
 .. code-block:: python
 
-    from caldav.davclient import get_davclient
+    from caldav import get_davclient
     from caldav.lib.error import NotFoundError
 
     with get_davclient() as client:
@@ -72,7 +72,7 @@ to go through the principal object.
 
 .. code-block:: python
 
-    from caldav.davclient import get_davclient
+    from caldav import get_davclient
 
     with get_davclient() as client:
         my_calendar = client.calendar(url="/dav/calendars/mycalendar")
@@ -83,7 +83,7 @@ For servers that supports it, it may be useful to create a dedicated test calend
 
 .. code-block:: python
 
-    from caldav.davclient import get_davclient
+    from caldav import get_davclient
     import datetime
 
     with get_davclient() as client:
@@ -100,7 +100,7 @@ You have icalendar code and want to put it into the calendar?  Easy!
 
 .. code-block:: python
 
-    from caldav.davclient import get_davclient
+    from caldav import get_davclient
 
     with get_davclient() as client:
         my_principal = client.principal()
@@ -123,7 +123,7 @@ The best way of getting information out from the calendar is to use the search. 
 
 .. code-block:: python
 
-    from caldav.davclient import get_davclient
+    from caldav import get_davclient
     from datetime import date
 
     with get_davclient() as client:
@@ -157,7 +157,7 @@ The ``data`` property delivers the icalendar data as a string.  It can be modifi
 
 .. code-block:: python
 
-    from caldav.davclient import get_davclient
+    from caldav import get_davclient
     from datetime import date
 
     with get_davclient() as client:
@@ -204,7 +204,7 @@ wants easy access to the event data, the
 
 .. code-block:: python
 
-    from caldav.davclient import get_davclient
+    from caldav import get_davclient
     from datetime import date
 
     with get_davclient() as client:
@@ -235,7 +235,7 @@ Usually tasks and journals can be applied directly to the same calendar as the e
 
 .. code-block:: python
 
-    from caldav.davclient import get_davclient
+    from caldav import get_davclient
     from datetime import date
 
     with get_davclient() as client:

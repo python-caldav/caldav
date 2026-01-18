@@ -12,7 +12,7 @@ from datetime import datetime
 sys.path.insert(0, "..")
 sys.path.insert(0, ".")
 
-from caldav.davclient import get_davclient
+from caldav import get_davclient
 from caldav.search import CalDAVSearcher
 
 

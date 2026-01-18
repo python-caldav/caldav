@@ -4,7 +4,7 @@ Example usage of RFC6764 service discovery in python-caldav
 
 This script demonstrates how the RFC6764 integration works.
 """
-from caldav.davclient import get_davclient
+from caldav import get_davclient
 
 # Example 1: Automatic RFC6764 discovery with email address
 # Username is automatically extracted from the email address

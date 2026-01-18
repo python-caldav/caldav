@@ -8,7 +8,7 @@ sys.path.insert(0, "..")
 sys.path.insert(0, ".")
 
 import caldav
-from caldav.davclient import get_davclient
+from caldav import get_davclient
 
 ## Connection parameters can be set in a configuration file or passed
 ## as environmental variables.  The format of the configuration file

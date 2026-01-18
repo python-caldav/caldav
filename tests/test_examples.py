@@ -3,7 +3,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-from caldav.davclient import get_davclient
+from caldav import get_davclient
 
 # Get the project root directory (parent of tests/)
 _PROJECT_ROOT = Path(__file__).parent.parent

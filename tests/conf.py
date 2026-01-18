@@ -685,10 +685,10 @@ def client(
     idx=None, name=None, setup=lambda conn: None, teardown=lambda conn: None, **kwargs
 ):
     """
-    DEPRECATED: Use caldav.davclient.get_davclient() or test_servers.get_sync_client() instead.
+    DEPRECATED: Use caldav.get_davclient() or test_servers.get_sync_client() instead.
     """
     warnings.warn(
-        "tests.conf.client() is deprecated. Use caldav.davclient.get_davclient() "
+        "tests.conf.client() is deprecated. Use caldav.get_davclient() "
         "or test_servers.TestServer.get_sync_client() instead.",
         DeprecationWarning,
         stacklevel=2,

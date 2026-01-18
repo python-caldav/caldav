@@ -47,7 +47,7 @@ from caldav.compatibility_hints import (
 )  ## TEMP - should be removed in the future
 from caldav.davclient import DAVClient
 from caldav.davclient import DAVResponse
-from caldav.davclient import get_davclient
+from caldav import get_davclient
 from caldav.elements import cdav
 from caldav.elements import dav
 from caldav.elements import ical
