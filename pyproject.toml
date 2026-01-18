@@ -71,9 +71,6 @@ Documentation = "https://caldav.readthedocs.io/"
 Changelog = "https://github.com/python-caldav/caldav/blob/master/CHANGELOG.md"
 
 [project.optional-dependencies]
-async = [
-  "httpx",
-]
 test = [
   "vobject",
   "pytest",

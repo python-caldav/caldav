@@ -6,7 +6,7 @@ As of v3.0, **niquests** is the only required HTTP library dependency. It suppor
 
 Fallbacks are available:
 * **Sync client**: Falls back to `requests` if niquests is not installed
-* **Async client**: Uses `httpx` if installed (`pip install caldav[async]`), otherwise uses niquests
+* **Async client**: Uses `httpx` if installed, otherwise uses niquests
 
 If you prefer not to use niquests, you can replace it with the original `requests` library for sync operations. See [HTTP Library Configuration](docs/source/http-libraries.rst) for details.
 
