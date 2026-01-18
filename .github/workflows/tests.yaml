@@ -144,7 +144,7 @@ jobs:
           docker exec ${{ job.services.nextcloud.id }} php occ app:disable password_policy || true
 
           # Create test user
-          docker exec -e OC_PASS="TestPassword123!" ${{ job.services.nextcloud.id }} php occ user:add --password-from-env --display-name="Test User" testuser || echo "User may already exist"
+          docker exec -e OC_PASS="testpass" ${{ job.services.nextcloud.id }} php occ user:add --password-from-env --display-name="Test User" testuser || echo "User may already exist"
 
           # Enable calendar and contacts apps
           docker exec ${{ job.services.nextcloud.id }} php occ app:enable calendar || true
