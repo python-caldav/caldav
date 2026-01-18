@@ -24,11 +24,19 @@ if TYPE_CHECKING:
 # Try httpx first (preferred), fall back to niquests
 _USE_HTTPX = False
 _USE_NIQUESTS = False
+_H2_AVAILABLE = False
 
 try:
     import httpx
 
     _USE_HTTPX = True
+    # Check if h2 is available for HTTP/2 support
+    try:
+        import h2  # noqa: F401
+
+        _H2_AVAILABLE = True
+    except ImportError:
+        pass
 except ImportError:
     pass
 
@@ -184,10 +192,13 @@ class AsyncDAVClient(BaseDAVClient):
         self._ssl_cert = ssl_cert
         self._timeout = timeout
 
-        # Create async client with HTTP/2 if supported
+        # Create async client with HTTP/2 if supported and h2 package is available
         # Note: Client is created lazily or recreated when settings change
         try:
-            self._http2 = self.features.is_supported("http.multiplexing")
+            # Only enable HTTP/2 if the server supports it AND h2 is installed
+            self._http2 = self.features.is_supported("http.multiplexing") and (
+                _H2_AVAILABLE or _USE_NIQUESTS
+            )
         except (TypeError, AttributeError):
             self._http2 = False
         self._create_session()
