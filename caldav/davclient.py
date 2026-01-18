@@ -750,19 +750,22 @@ class DAVClient(BaseDAVClient):
         """
         return self.request(url, "PROPPATCH", body)
 
-    def report(self, url: str, query: str = "", depth: int = 0) -> DAVResponse:
+    def report(
+        self, url: str, query: str = "", depth: Optional[int] = 0
+    ) -> DAVResponse:
         """
         Send a report request.
 
         Args:
             url: url for the root of the propfind.
             query: XML request
-            depth: maximum recursion depth
+            depth: maximum recursion depth. None means don't send Depth header
+                (required for calendar-multiget per RFC 4791 section 7.9).
 
         Returns
             DAVResponse
         """
-        headers = {"Depth": str(depth)}
+        headers = {"Depth": str(depth)} if depth is not None else {}
         return self.request(url, "REPORT", query, headers)
 
     def mkcol(self, url: str, body: str, dummy: None = None) -> DAVResponse:

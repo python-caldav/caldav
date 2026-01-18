@@ -996,7 +996,9 @@ class Calendar(DAVObject):
             + prop
             + [dav.Href(value=u.path) for u in event_urls]
         )
-        response = self._query(root, 1, "report")
+        # RFC 4791 section 7.9: "the 'Depth' header MUST be ignored by the
+        # server and SHOULD NOT be sent by the client" for calendar-multiget
+        response = self._query(root, None, "report")
         results = response.expand_simple_props([cdav.CalendarData()])
         if raise_notfound:
             for href in response.statuses:

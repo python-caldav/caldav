@@ -575,7 +575,7 @@ class AsyncDAVClient(BaseDAVClient):
         self,
         url: Optional[str] = None,
         body: str = "",
-        depth: int = 0,
+        depth: Optional[int] = 0,
         headers: Optional[Mapping[str, str]] = None,
     ) -> AsyncDAVResponse:
         """
@@ -584,7 +584,8 @@ class AsyncDAVClient(BaseDAVClient):
         Args:
             url: Target URL (defaults to self.url).
             body: XML report request.
-            depth: Maximum recursion depth.
+            depth: Maximum recursion depth. None means don't send Depth header
+                (required for calendar-multiget per RFC 4791 section 7.9).
             headers: Additional headers.
 
         Returns:
