@@ -14,7 +14,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python: ${{ github.event_name == 'pull_request' && fromJSON('["3.9", "3.14"]') || fromJSON('["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]') }}
+        python: ${{ github.event_name == 'pull_request' && fromJSON('["3.10", "3.14"]') || fromJSON('["3.10", "3.11", "3.12", "3.13", "3.14"]') }}
     services:
       baikal:
         image: ckulka/baikal:nginx
@@ -349,3 +349,27 @@ jobs:
           "
       - name: Run async tests with niquests
         run: pytest tests/test_async_davclient.py -v
+  sync-requests:
+    # Test that sync code works with requests when niquests is not installed
+    name: sync (requests fallback)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies with requests instead of niquests
+        run: |
+          pip install --editable .[test]
+          pip uninstall -y niquests
+          pip install requests
+      - name: Verify requests is used
+        run: |
+          python -c "
+          from caldav.davclient import _USE_REQUESTS, _USE_NIQUESTS
+          assert _USE_REQUESTS, 'requests should be available'
+          assert not _USE_NIQUESTS, 'niquests should not be available'
+          print('✓ Using requests for sync HTTP')
+          "
+      - name: Run sync tests with requests
+        run: pytest tests/test_caldav.py -v -k "LocalRadicale" --ignore=tests/test_async_integration.py

@@ -1,12 +1,16 @@
 # Changelog
 
-## IMPORTANT - niquests vs requests - flapping changeset
+## HTTP Library Dependencies
 
-The requests library is stagnant, from 2.0.0 niquests has been in use.  It's a very tiny changeset, which resolved three github issues (and created a new one - see https://github.com/python-caldav/caldav/issues/564), fixed support for HTTP/2 and may open the door for an upcoming async proejct.  While I haven't looked much "under the bonnet", niquests seems to be a major upgrade of requests.  However, the niquest author has apparently failed cooperating well with some significant parts of the python community, so niquests pulls in a lot of other forked libraries as for now.  Shortly after releasing 2.0 I was requested to revert back to requests and release 2.0.1.  After 2.0.1, the library has been fixed so that it will always use niquests if niquests is available, and requests if niquests is not available.
+As of v3.0, **niquests** is the only required HTTP library dependency. It supports both sync and async operations, as well as HTTP/2 and HTTP/3.
 
-You are encouraged to make an informed decision on weather you are most comfortable with the stable but stagnant requests, or the niquests fork.  I hope to settle down on some final decision when I'm starting to work on 3.0 (which will support async requests).  httpx may be an option.  **Your opinion is valuable for me**.  Feel free to comment on https://github.com/python-caldav/caldav/issues/457,  https://github.com/python-caldav/caldav/issues/530 or https://github.com/jawah/niquests/issues/267 - if you have a github account, and if not you can reach out at python-http@plann.no.
+Fallbacks are available:
+* **Sync client**: Falls back to `requests` if niquests is not installed
+* **Async client**: Uses `httpx` if installed (`pip install caldav[async]`), otherwise uses niquests
 
-So far the most common recommendation seems to be to go for httpx.  See also https://github.com/python-caldav/caldav/pull/565
+If you prefer not to use niquests, you can replace it with the original `requests` library for sync operations. See [HTTP Library Configuration](docs/source/http-libraries.rst) for details.
+
+Historical context: The transition from requests to niquests was discussed in https://github.com/python-caldav/caldav/issues/457
 
 ## Meta
 
@@ -20,12 +24,11 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 
 ### Highlights
 
-Version 3.0 introduces **full async support** using a Sans-I/O architecture. The same domain objects (Calendar, Event, Todo, etc.) now work with both synchronous and asynchronous clients. The async implementation uses httpx for HTTP/2 support and connection pooling.
+Version 3.0 introduces **full async support** using a Sans-I/O architecture. The same domain objects (Calendar, Event, Todo, etc.) now work with both synchronous and asynchronous clients. The async client uses niquests by default; httpx is also supported for projects that already have it as a dependency (`pip install caldav[async]`).
 
 ### Breaking Changes
 
-* **New dependency: httpx** - The async client requires httpx. For sync-only usage, the library continues to work with niquests/requests.
-* **Minimum Python version**: Python 3.10+ is now required.
+* **Minimum Python version**: Python 3.10+ is now required (was 3.8+).
 
 ### Added
 

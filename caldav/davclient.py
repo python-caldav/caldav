@@ -19,16 +19,24 @@ from typing import TYPE_CHECKING
 from typing import Union
 from urllib.parse import unquote
 
+# Try niquests first (preferred), fall back to requests
+_USE_NIQUESTS = False
+_USE_REQUESTS = False
+
 try:
     import niquests as requests
     from niquests.auth import AuthBase
     from niquests.models import Response
     from niquests.structures import CaseInsensitiveDict
+
+    _USE_NIQUESTS = True
 except ImportError:
     import requests
     from requests.auth import AuthBase
     from requests.models import Response
     from requests.structures import CaseInsensitiveDict
+
+    _USE_REQUESTS = True
 
 from lxml import etree
 

@@ -15,6 +15,7 @@ Contents
    async
    howtos
    performance
+   http-libraries
    reference
    examples
    contact

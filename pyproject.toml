@@ -36,12 +36,12 @@ license-files = ["COPYING.*"]
 description = "CalDAV (RFC4791) client library"
 keywords = []
 readme = "README.md"
+requires-python = ">=3.10"
 classifiers = [
   "Development Status :: 4 - Beta",
   "Intended Audience :: Developers",
   "Operating System :: OS Independent",
   "Programming Language :: Python",
-  "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
@@ -54,7 +54,6 @@ classifiers = [
 dependencies = [
   "lxml",
   "niquests",
-  "httpx",
   "recurring-ical-events>=2.0.0",
   "typing_extensions;python_version<'3.11'",
   "icalendar>6.0.0",
@@ -72,6 +71,9 @@ Documentation = "https://caldav.readthedocs.io/"
 Changelog = "https://github.com/python-caldav/caldav/blob/master/CHANGELOG.md"
 
 [project.optional-dependencies]
+async = [
+  "httpx",
+]
 test = [
   "vobject",
   "pytest",
@@ -83,6 +85,7 @@ test = [
   "xandikos>=0.2.12",
   "radicale",
   "pyfakefs",
+  "httpx",
   #"caldav_server_tester"
   "deptry>=0.24.0; python_version >= '3.10'",
 ]
@@ -105,7 +108,7 @@ DEP001 = ["conf"]  # Local test configuration file, not a package
 
 [tool.ruff]
 line-length = 100
-target-version = "py39"
+target-version = "py310"
 
 # Only apply Ruff to new async files added after v2.2.2
 # This allows gradual adoption without reformatting the entire codebase
