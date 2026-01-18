@@ -6,12 +6,14 @@ like extracting calendar IDs and resolving calendar URLs.
 """
 import pytest
 
-from caldav.operations.calendarset_ops import CalendarInfo
-from caldav.operations.calendarset_ops import extract_calendar_id_from_url
-from caldav.operations.calendarset_ops import find_calendar_by_id
-from caldav.operations.calendarset_ops import find_calendar_by_name
-from caldav.operations.calendarset_ops import process_calendar_list
-from caldav.operations.calendarset_ops import resolve_calendar_url
+from caldav.operations.calendarset_ops import (
+    CalendarInfo,
+    _extract_calendar_id_from_url as extract_calendar_id_from_url,
+    _find_calendar_by_id as find_calendar_by_id,
+    _find_calendar_by_name as find_calendar_by_name,
+    _process_calendar_list as process_calendar_list,
+    _resolve_calendar_url as resolve_calendar_url,
+)
 
 
 class TestExtractCalendarIdFromUrl:

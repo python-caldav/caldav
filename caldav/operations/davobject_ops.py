@@ -18,9 +18,9 @@ from typing import Tuple
 from urllib.parse import quote
 from urllib.parse import unquote
 
-from caldav.operations.base import extract_resource_type
-from caldav.operations.base import is_calendar_resource
-from caldav.operations.base import normalize_href
+from caldav.operations.base import _extract_resource_type as extract_resource_type
+from caldav.operations.base import _is_calendar_resource as is_calendar_resource
+from caldav.operations.base import _normalize_href as normalize_href
 from caldav.operations.base import PropertyData
 from caldav.operations.base import QuerySpec
 
@@ -59,7 +59,7 @@ class PropertiesResult:
     matched_path: str
 
 
-def build_children_query(url: str) -> ChildrenQuery:
+def _build_children_query(url: str) -> ChildrenQuery:
     """
     Build query for listing children of a collection.
 
@@ -72,7 +72,7 @@ def build_children_query(url: str) -> ChildrenQuery:
     return ChildrenQuery(url=url)
 
 
-def process_children_response(
+def _process_children_response(
     properties_by_href: Dict[str, Dict[str, Any]],
     parent_url: str,
     filter_type: Optional[str] = None,
@@ -157,7 +157,7 @@ def _canonical_path(url: str) -> str:
     return path.rstrip("/")
 
 
-def find_object_properties(
+def _find_object_properties(
     properties_by_href: Dict[str, Dict[str, Any]],
     object_url: str,
     is_principal: bool = False,
@@ -256,7 +256,7 @@ def _extract_path(url: str) -> str:
     return urlparse(url).path
 
 
-def convert_protocol_results_to_properties(
+def _convert_protocol_results_to_properties(
     results: List[Any],  # List[PropfindResult]
     requested_props: Optional[List[str]] = None,
 ) -> Dict[str, Dict[str, Any]]:
@@ -284,7 +284,7 @@ def convert_protocol_results_to_properties(
     return properties
 
 
-def validate_delete_response(status: int) -> None:
+def _validate_delete_response(status: int) -> None:
     """
     Validate DELETE response status.
 
@@ -299,7 +299,7 @@ def validate_delete_response(status: int) -> None:
         raise ValueError(f"Delete failed with status {status}")
 
 
-def validate_proppatch_response(status: int) -> None:
+def _validate_proppatch_response(status: int) -> None:
     """
     Validate PROPPATCH response status.
 

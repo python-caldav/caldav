@@ -24,7 +24,7 @@ class PrincipalData:
     calendar_user_addresses: List[str]
 
 
-def sanitize_calendar_home_set_url(url: Optional[str]) -> Optional[str]:
+def _sanitize_calendar_home_set_url(url: Optional[str]) -> Optional[str]:
     """
     Sanitize calendar home set URL, handling server quirks.
 
@@ -48,7 +48,7 @@ def sanitize_calendar_home_set_url(url: Optional[str]) -> Optional[str]:
     return url
 
 
-def sort_calendar_user_addresses(addresses: List[Any]) -> List[Any]:
+def _sort_calendar_user_addresses(addresses: List[Any]) -> List[Any]:
     """
     Sort calendar user addresses by preference.
 
@@ -64,7 +64,7 @@ def sort_calendar_user_addresses(addresses: List[Any]) -> List[Any]:
     return sorted(addresses, key=lambda x: -int(x.get("preferred", 0)))
 
 
-def extract_calendar_user_addresses(addresses: List[Any]) -> List[Optional[str]]:
+def _extract_calendar_user_addresses(addresses: List[Any]) -> List[Optional[str]]:
     """
     Extract calendar user address strings from XML elements.
 
@@ -74,11 +74,11 @@ def extract_calendar_user_addresses(addresses: List[Any]) -> List[Optional[str]]
     Returns:
         List of address strings (sorted by preference)
     """
-    sorted_addresses = sort_calendar_user_addresses(addresses)
+    sorted_addresses = _sort_calendar_user_addresses(addresses)
     return [x.text for x in sorted_addresses]
 
 
-def create_vcal_address(
+def _create_vcal_address(
     display_name: Optional[str],
     address: str,
     calendar_user_type: Optional[str] = None,
@@ -105,7 +105,7 @@ def create_vcal_address(
     return vcal_addr
 
 
-def should_update_client_base_url(
+def _should_update_client_base_url(
     calendar_home_set_url: Optional[str],
     client_hostname: Optional[str],
 ) -> bool:

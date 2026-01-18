@@ -28,7 +28,7 @@ from caldav.lib.url import URL
 log = logging.getLogger(__name__)
 
 
-def parse_multistatus(
+def _parse_multistatus(
     body: bytes,
     huge_tree: bool = False,
 ) -> MultistatusResponse:
@@ -78,7 +78,7 @@ def parse_multistatus(
     return MultistatusResponse(responses=responses, sync_token=sync_token)
 
 
-def parse_propfind_response(
+def _parse_propfind_response(
     body: bytes,
     status_code: int = 207,
     huge_tree: bool = False,
@@ -103,11 +103,11 @@ def parse_propfind_response(
     if not body:
         return []
 
-    result = parse_multistatus(body, huge_tree=huge_tree)
+    result = _parse_multistatus(body, huge_tree=huge_tree)
     return result.responses
 
 
-def parse_calendar_query_response(
+def _parse_calendar_query_response(
     body: bytes,
     status_code: int = 207,
     huge_tree: bool = False,
@@ -169,7 +169,7 @@ def parse_calendar_query_response(
     return results
 
 
-def parse_sync_collection_response(
+def _parse_sync_collection_response(
     body: bytes,
     status_code: int = 207,
     huge_tree: bool = False,
@@ -246,7 +246,7 @@ def parse_sync_collection_response(
     )
 
 
-def parse_calendar_multiget_response(
+def _parse_calendar_multiget_response(
     body: bytes,
     status_code: int = 207,
     huge_tree: bool = False,

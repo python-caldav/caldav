@@ -28,7 +28,7 @@ class CalendarInfo:
     resource_types: List[str]
 
 
-def extract_calendar_id_from_url(url: str) -> Optional[str]:
+def _extract_calendar_id_from_url(url: str) -> Optional[str]:
     """
     Extract calendar ID from a calendar URL.
 
@@ -53,7 +53,7 @@ def extract_calendar_id_from_url(url: str) -> Optional[str]:
     return None
 
 
-def process_calendar_list(
+def _process_calendar_list(
     children_data: List[Tuple[str, List[str], Optional[str]]],
 ) -> List[CalendarInfo]:
     """
@@ -68,7 +68,7 @@ def process_calendar_list(
     """
     calendars = []
     for c_url, c_types, c_name in children_data:
-        cal_id = extract_calendar_id_from_url(c_url)
+        cal_id = _extract_calendar_id_from_url(c_url)
         if not cal_id:
             continue
         calendars.append(
@@ -82,7 +82,7 @@ def process_calendar_list(
     return calendars
 
 
-def resolve_calendar_url(
+def _resolve_calendar_url(
     cal_id: str,
     parent_url: str,
     client_base_url: str,
@@ -145,7 +145,7 @@ def _join_url(base: str, path: str) -> str:
     return f"{base}/{path}"
 
 
-def find_calendar_by_name(
+def _find_calendar_by_name(
     calendars: List[CalendarInfo],
     name: str,
 ) -> Optional[CalendarInfo]:
@@ -165,7 +165,7 @@ def find_calendar_by_name(
     return None
 
 
-def find_calendar_by_id(
+def _find_calendar_by_id(
     calendars: List[CalendarInfo],
     cal_id: str,
 ) -> Optional[CalendarInfo]:

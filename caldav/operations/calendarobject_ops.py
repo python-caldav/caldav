@@ -46,12 +46,12 @@ class CalendarObjectData:
     data: Optional[str]
 
 
-def generate_uid() -> str:
+def _generate_uid() -> str:
     """Generate a new UID for a calendar object."""
     return str(uuid.uuid1())
 
 
-def generate_url(parent_url: str, uid: str) -> str:
+def _generate_url(parent_url: str, uid: str) -> str:
     """
     Generate a URL for a calendar object based on its UID.
 
@@ -71,7 +71,7 @@ def generate_url(parent_url: str, uid: str) -> str:
     return f"{parent_url}{quoted_uid}.ics"
 
 
-def extract_uid_from_path(path: str) -> Optional[str]:
+def _extract_uid_from_path(path: str) -> Optional[str]:
     """
     Extract UID from a .ics file path.
 
@@ -89,7 +89,7 @@ def extract_uid_from_path(path: str) -> Optional[str]:
     return None
 
 
-def find_id_and_path(
+def _find_id_and_path(
     component: Any,  # icalendar component
     given_id: Optional[str] = None,
     given_path: Optional[str] = None,
@@ -126,11 +126,11 @@ def find_id_and_path(
 
     if not uid and given_path and given_path.endswith(".ics"):
         # Extract from path
-        uid = extract_uid_from_path(given_path)
+        uid = _extract_uid_from_path(given_path)
 
     if not uid:
         # Generate new UID
-        uid = generate_uid()
+        uid = _generate_uid()
 
     # Set UID in component (remove old one first)
     if "UID" in component:
@@ -146,7 +146,7 @@ def find_id_and_path(
     return uid, path
 
 
-def get_duration(
+def _get_duration(
     component: Any,  # icalendar component
     end_param: str = "DTEND",
 ) -> timedelta:
@@ -189,7 +189,7 @@ def get_duration(
     return timedelta(0)
 
 
-def get_due(component: Any) -> Optional[datetime]:
+def _get_due(component: Any) -> Optional[datetime]:
     """
     Get due date from a VTODO component.
 
@@ -210,7 +210,7 @@ def get_due(component: Any) -> Optional[datetime]:
     return None
 
 
-def set_duration(
+def _set_duration(
     component: Any,  # icalendar component
     duration: timedelta,
     movable_attr: str = "DTSTART",
@@ -246,7 +246,7 @@ def set_duration(
         component.add("DURATION", duration)
 
 
-def is_task_pending(component: Any) -> bool:
+def _is_task_pending(component: Any) -> bool:
     """
     Check if a VTODO component is pending (not completed).
 
@@ -269,7 +269,7 @@ def is_task_pending(component: Any) -> bool:
     return True
 
 
-def mark_task_completed(
+def _mark_task_completed(
     component: Any,  # icalendar VTODO component
     completion_timestamp: Optional[datetime] = None,
 ) -> None:
@@ -290,7 +290,7 @@ def mark_task_completed(
     component.add("COMPLETED", completion_timestamp)
 
 
-def mark_task_uncompleted(component: Any) -> None:
+def _mark_task_uncompleted(component: Any) -> None:
     """
     Mark a VTODO component as not completed.
 
@@ -304,7 +304,7 @@ def mark_task_uncompleted(component: Any) -> None:
     component.pop("COMPLETED", None)
 
 
-def calculate_next_recurrence(
+def _calculate_next_recurrence(
     component: Any,  # icalendar VTODO component
     completion_timestamp: Optional[datetime] = None,
     rrule: Optional[Any] = None,
@@ -347,7 +347,7 @@ def calculate_next_recurrence(
             else:
                 dtstart = completion_timestamp or datetime.now(timezone.utc)
         else:
-            duration = get_duration(component, "DUE")
+            duration = _get_duration(component, "DUE")
             dtstart = (completion_timestamp or datetime.now(timezone.utc)) - duration
 
     # Normalize to UTC for comparison
@@ -366,7 +366,7 @@ def calculate_next_recurrence(
     return rrule_obj.after(ts)
 
 
-def reduce_rrule_count(component: Any) -> bool:
+def _reduce_rrule_count(component: Any) -> bool:
     """
     Reduce the COUNT in an RRULE by 1.
 
@@ -394,7 +394,7 @@ def reduce_rrule_count(component: Any) -> bool:
     return True
 
 
-def is_calendar_data_loaded(
+def _is_calendar_data_loaded(
     data: Optional[str],
     vobject_instance: Any,
     icalendar_instance: Any,
@@ -415,7 +415,7 @@ def is_calendar_data_loaded(
     )
 
 
-def has_calendar_component(data: Optional[str]) -> bool:
+def _has_calendar_component(data: Optional[str]) -> bool:
     """
     Check if data contains VEVENT, VTODO, or VJOURNAL.
 
@@ -435,7 +435,7 @@ def has_calendar_component(data: Optional[str]) -> bool:
     ) > 0
 
 
-def get_non_timezone_subcomponents(
+def _get_non_timezone_subcomponents(
     icalendar_instance: Any,
 ) -> List[Any]:
     """
@@ -454,7 +454,7 @@ def get_non_timezone_subcomponents(
     ]
 
 
-def get_primary_component(icalendar_instance: Any) -> Optional[Any]:
+def _get_primary_component(icalendar_instance: Any) -> Optional[Any]:
     """
     Get the primary (non-timezone) component from a calendar.
 
@@ -467,7 +467,7 @@ def get_primary_component(icalendar_instance: Any) -> Optional[Any]:
     Returns:
         The primary component (VEVENT, VTODO, VJOURNAL, or VFREEBUSY)
     """
-    components = get_non_timezone_subcomponents(icalendar_instance)
+    components = _get_non_timezone_subcomponents(icalendar_instance)
     if not components:
         return None
 
@@ -481,7 +481,7 @@ def get_primary_component(icalendar_instance: Any) -> Optional[Any]:
     return None
 
 
-def copy_component_with_new_uid(
+def _copy_component_with_new_uid(
     component: Any,
     new_uid: Optional[str] = None,
 ) -> Any:
@@ -497,11 +497,11 @@ def copy_component_with_new_uid(
     """
     new_comp = component.copy()
     new_comp.pop("UID", None)
-    new_comp.add("UID", new_uid or generate_uid())
+    new_comp.add("UID", new_uid or _generate_uid())
     return new_comp
 
 
-def get_reverse_reltype(reltype: str) -> Optional[str]:
+def _get_reverse_reltype(reltype: str) -> Optional[str]:
     """
     Get the reverse relation type for a given relation type.
 
@@ -514,7 +514,7 @@ def get_reverse_reltype(reltype: str) -> Optional[str]:
     return RELTYPE_REVERSE_MAP.get(reltype.upper())
 
 
-def extract_relations(
+def _extract_relations(
     component: Any,
     reltypes: Optional[set] = None,
 ) -> Dict[str, set]:

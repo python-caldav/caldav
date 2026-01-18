@@ -114,7 +114,8 @@ class CalendarSet(DAVObject):
 
     async def _async_calendars(self) -> List["Calendar"]:
         """Async implementation of calendars() using the client."""
-        from caldav.operations import is_calendar_resource, extract_calendar_id_from_url
+        from caldav.operations.base import _is_calendar_resource as is_calendar_resource
+        from caldav.operations.calendarset_ops import _extract_calendar_id_from_url as extract_calendar_id_from_url
 
         # Fetch calendars via PROPFIND
         response = await self.client.propfind(

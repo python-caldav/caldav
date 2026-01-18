@@ -11,25 +11,27 @@ from datetime import timezone
 import icalendar
 import pytest
 
-from caldav.operations.calendarobject_ops import calculate_next_recurrence
-from caldav.operations.calendarobject_ops import copy_component_with_new_uid
-from caldav.operations.calendarobject_ops import extract_relations
-from caldav.operations.calendarobject_ops import extract_uid_from_path
-from caldav.operations.calendarobject_ops import find_id_and_path
-from caldav.operations.calendarobject_ops import generate_uid
-from caldav.operations.calendarobject_ops import generate_url
-from caldav.operations.calendarobject_ops import get_due
-from caldav.operations.calendarobject_ops import get_duration
-from caldav.operations.calendarobject_ops import get_non_timezone_subcomponents
-from caldav.operations.calendarobject_ops import get_primary_component
-from caldav.operations.calendarobject_ops import get_reverse_reltype
-from caldav.operations.calendarobject_ops import has_calendar_component
-from caldav.operations.calendarobject_ops import is_calendar_data_loaded
-from caldav.operations.calendarobject_ops import is_task_pending
-from caldav.operations.calendarobject_ops import mark_task_completed
-from caldav.operations.calendarobject_ops import mark_task_uncompleted
-from caldav.operations.calendarobject_ops import reduce_rrule_count
-from caldav.operations.calendarobject_ops import set_duration
+from caldav.operations.calendarobject_ops import (
+    _calculate_next_recurrence as calculate_next_recurrence,
+    _copy_component_with_new_uid as copy_component_with_new_uid,
+    _extract_relations as extract_relations,
+    _extract_uid_from_path as extract_uid_from_path,
+    _find_id_and_path as find_id_and_path,
+    _generate_uid as generate_uid,
+    _generate_url as generate_url,
+    _get_due as get_due,
+    _get_duration as get_duration,
+    _get_non_timezone_subcomponents as get_non_timezone_subcomponents,
+    _get_primary_component as get_primary_component,
+    _get_reverse_reltype as get_reverse_reltype,
+    _has_calendar_component as has_calendar_component,
+    _is_calendar_data_loaded as is_calendar_data_loaded,
+    _is_task_pending as is_task_pending,
+    _mark_task_completed as mark_task_completed,
+    _mark_task_uncompleted as mark_task_uncompleted,
+    _reduce_rrule_count as reduce_rrule_count,
+    _set_duration as set_duration,
+)
 
 
 class TestGenerateUid:

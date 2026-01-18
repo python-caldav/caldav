@@ -8,22 +8,26 @@ from datetime import datetime
 
 import pytest
 
-from caldav.protocol import build_calendar_multiget_body
-from caldav.protocol import build_calendar_query_body
-from caldav.protocol import build_mkcalendar_body
-from caldav.protocol import build_propfind_body
-from caldav.protocol import build_sync_collection_body
 from caldav.protocol import CalendarQueryResult
 from caldav.protocol import DAVMethod
 from caldav.protocol import DAVRequest
 from caldav.protocol import DAVResponse
 from caldav.protocol import MultistatusResponse
-from caldav.protocol import parse_calendar_query_response
-from caldav.protocol import parse_multistatus
-from caldav.protocol import parse_propfind_response
-from caldav.protocol import parse_sync_collection_response
 from caldav.protocol import PropfindResult
 from caldav.protocol import SyncCollectionResult
+from caldav.protocol.xml_builders import (
+    _build_calendar_multiget_body as build_calendar_multiget_body,
+    _build_calendar_query_body as build_calendar_query_body,
+    _build_mkcalendar_body as build_mkcalendar_body,
+    _build_propfind_body as build_propfind_body,
+    _build_sync_collection_body as build_sync_collection_body,
+)
+from caldav.protocol.xml_parsers import (
+    _parse_calendar_query_response as parse_calendar_query_response,
+    _parse_multistatus as parse_multistatus,
+    _parse_propfind_response as parse_propfind_response,
+    _parse_sync_collection_response as parse_sync_collection_response,
+)
 
 
 class TestDAVTypes:

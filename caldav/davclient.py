@@ -489,7 +489,8 @@ class DAVClient(BaseDAVClient):
             for cal in calendars:
                 print(f"Calendar: {cal.name}")
         """
-        from caldav.operations import is_calendar_resource, extract_calendar_id_from_url
+        from caldav.operations.base import _is_calendar_resource as is_calendar_resource
+        from caldav.operations.calendarset_ops import _extract_calendar_id_from_url as extract_calendar_id_from_url
 
         if principal is None:
             principal = self.principal()
@@ -549,7 +550,7 @@ class DAVClient(BaseDAVClient):
         Returns:
             Calendar home set URL or None
         """
-        from caldav.operations import sanitize_calendar_home_set_url
+        from caldav.operations.principal_ops import _sanitize_calendar_home_set_url as sanitize_calendar_home_set_url
 
         # Try to get from principal properties
         response = self.propfind(
@@ -716,13 +717,13 @@ class DAVClient(BaseDAVClient):
         -------
         DAVResponse
         """
-        from caldav.protocol.xml_builders import build_propfind_body
+        from caldav.protocol.xml_builders import _build_propfind_body
 
         # Handle both old interface (props=xml_string) and new interface (props=list)
         body = ""
         if props is not None:
             if isinstance(props, list):
-                body = build_propfind_body(props).decode("utf-8")
+                body = _build_propfind_body(props).decode("utf-8")
             else:
                 body = props  # Old interface: props is XML string
 
@@ -732,14 +733,14 @@ class DAVClient(BaseDAVClient):
 
         # Parse response using protocol layer
         if response.status in (200, 207) and response._raw:
-            from caldav.protocol.xml_parsers import parse_propfind_response
+            from caldav.protocol.xml_parsers import _parse_propfind_response
 
             raw_bytes = (
                 response._raw
                 if isinstance(response._raw, bytes)
                 else response._raw.encode("utf-8")
             )
-            response.results = parse_propfind_response(
+            response.results = _parse_propfind_response(
                 raw_bytes, response.status, response.huge_tree
             )
         return response

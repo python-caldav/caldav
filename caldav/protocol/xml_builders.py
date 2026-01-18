@@ -18,7 +18,7 @@ from caldav.elements import dav
 from caldav.elements.base import BaseElement
 
 
-def build_propfind_body(
+def _build_propfind_body(
     props: Optional[List[str]] = None,
     allprop: bool = False,
 ) -> bytes:
@@ -48,7 +48,7 @@ def build_propfind_body(
     return etree.tostring(propfind.xmlelement(), encoding="utf-8", xml_declaration=True)
 
 
-def build_proppatch_body(
+def _build_proppatch_body(
     set_props: Optional[Dict[str, Any]] = None,
 ) -> bytes:
     """
@@ -77,7 +77,7 @@ def build_proppatch_body(
     )
 
 
-def build_calendar_query_body(
+def _build_calendar_query_body(
     start: Optional[datetime] = None,
     end: Optional[datetime] = None,
     expand: bool = False,
@@ -164,7 +164,7 @@ def build_calendar_query_body(
     )
 
 
-def build_calendar_multiget_body(
+def _build_calendar_multiget_body(
     hrefs: List[str],
     include_data: bool = True,
 ) -> bytes:
@@ -194,7 +194,7 @@ def build_calendar_multiget_body(
     return etree.tostring(multiget.xmlelement(), encoding="utf-8", xml_declaration=True)
 
 
-def build_sync_collection_body(
+def _build_sync_collection_body(
     sync_token: Optional[str] = None,
     props: Optional[List[str]] = None,
     sync_level: str = "1",
@@ -243,7 +243,7 @@ def build_sync_collection_body(
     )
 
 
-def build_freebusy_query_body(
+def _build_freebusy_query_body(
     start: datetime,
     end: datetime,
 ) -> bytes:
@@ -262,7 +262,7 @@ def build_freebusy_query_body(
     return etree.tostring(root.xmlelement(), encoding="utf-8", xml_declaration=True)
 
 
-def build_mkcalendar_body(
+def _build_mkcalendar_body(
     displayname: Optional[str] = None,
     description: Optional[str] = None,
     timezone: Optional[str] = None,
@@ -308,7 +308,7 @@ def build_mkcalendar_body(
     )
 
 
-def build_mkcol_body(
+def _build_mkcol_body(
     displayname: Optional[str] = None,
     resource_types: Optional[List[BaseElement]] = None,
 ) -> bytes:

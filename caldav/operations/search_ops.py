@@ -9,7 +9,7 @@ Key functions:
 - build_search_xml_query(): Build CalDAV REPORT XML query
 - filter_search_results(): Client-side filtering of search results
 - determine_search_strategy(): Analyze server features and return search plan
-- collation_to_caldav(): Map collation enum to CalDAV identifier
+- _collation_to_caldav(): Map collation enum to CalDAV identifier
 """
 from copy import deepcopy
 from dataclasses import dataclass
@@ -35,7 +35,7 @@ if TYPE_CHECKING:
     from icalendar_searcher import Searcher
 
 
-def collation_to_caldav(collation: Collation, case_sensitive: bool = True) -> str:
+def _collation_to_caldav(collation: Collation, case_sensitive: bool = True) -> str:
     """Map icalendar-searcher Collation enum to CalDAV collation identifier.
 
     CalDAV supports collation identifiers from RFC 4790. The default is "i;ascii-casemap"
@@ -98,7 +98,7 @@ class SearchStrategy:
     retry_with_comptypes: bool = False
 
 
-def determine_post_filter_needed(
+def _determine_post_filter_needed(
     searcher: "Searcher",
     features: "FeatureSet",
     comp_type_support: Optional[str],
@@ -143,7 +143,7 @@ def determine_post_filter_needed(
     return post_filter, hacks
 
 
-def should_remove_category_filter(
+def _should_remove_category_filter(
     searcher: "Searcher",
     features: "FeatureSet",
     post_filter: Optional[bool],
@@ -163,7 +163,7 @@ def should_remove_category_filter(
     )
 
 
-def get_explicit_contains_properties(
+def _get_explicit_contains_properties(
     searcher: "Searcher",
     features: "FeatureSet",
     post_filter: Optional[bool],
@@ -184,7 +184,7 @@ def get_explicit_contains_properties(
     ]
 
 
-def should_remove_property_filters_for_combined(
+def _should_remove_property_filters_for_combined(
     searcher: "Searcher",
     features: "FeatureSet",
 ) -> bool:
@@ -197,7 +197,7 @@ def should_remove_property_filters_for_combined(
     return bool((searcher.start or searcher.end) and searcher._property_filters)
 
 
-def needs_pending_todo_multi_search(
+def _needs_pending_todo_multi_search(
     searcher: "Searcher",
     features: "FeatureSet",
 ) -> bool:
@@ -221,7 +221,7 @@ def needs_pending_todo_multi_search(
     )
 
 
-def filter_search_results(
+def _filter_search_results(
     objects: List["CalendarObjectResource"],
     searcher: "Searcher",
     post_filter: Optional[bool] = None,
@@ -286,7 +286,7 @@ def filter_search_results(
     return result
 
 
-def build_search_xml_query(
+def _build_search_xml_query(
     searcher: "Searcher",
     server_expand: bool = False,
     props: Optional[List[Any]] = None,
@@ -441,7 +441,7 @@ def build_search_xml_query(
                     case_sensitive = searcher._property_case_sensitive.get(
                         property, True
                     )
-                    collation_str = collation_to_caldav(
+                    collation_str = _collation_to_caldav(
                         searcher._property_collation[property], case_sensitive
                     )
 

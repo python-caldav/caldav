@@ -6,13 +6,15 @@ without any network I/O.
 """
 import pytest
 
-from caldav.operations.base import extract_resource_type
-from caldav.operations.base import get_property_value
-from caldav.operations.base import is_calendar_resource
-from caldav.operations.base import is_collection_resource
-from caldav.operations.base import normalize_href
-from caldav.operations.base import PropertyData
-from caldav.operations.base import QuerySpec
+from caldav.operations.base import (
+    _extract_resource_type as extract_resource_type,
+    _get_property_value as get_property_value,
+    _is_calendar_resource as is_calendar_resource,
+    _is_collection_resource as is_collection_resource,
+    _normalize_href as normalize_href,
+    PropertyData,
+    QuerySpec,
+)
 
 
 class TestQuerySpec:

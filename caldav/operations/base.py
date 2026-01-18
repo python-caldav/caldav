@@ -71,7 +71,7 @@ class PropertyData:
     status: int = 200
 
 
-def normalize_href(href: str, base_url: Optional[str] = None) -> str:
+def _normalize_href(href: str, base_url: Optional[str] = None) -> str:
     """
     Normalize an href to a consistent format.
 
@@ -103,7 +103,7 @@ def normalize_href(href: str, base_url: Optional[str] = None) -> str:
     return href
 
 
-def extract_resource_type(properties: Dict[str, Any]) -> List[str]:
+def _extract_resource_type(properties: Dict[str, Any]) -> List[str]:
     """
     Extract resource types from properties dict.
 
@@ -125,7 +125,7 @@ def extract_resource_type(properties: Dict[str, Any]) -> List[str]:
         return [rt] if rt else []
 
 
-def is_calendar_resource(properties: Dict[str, Any]) -> bool:
+def _is_calendar_resource(properties: Dict[str, Any]) -> bool:
     """
     Check if properties indicate a calendar resource.
 
@@ -135,12 +135,12 @@ def is_calendar_resource(properties: Dict[str, Any]) -> bool:
     Returns:
         True if this is a calendar collection
     """
-    resource_types = extract_resource_type(properties)
+    resource_types = _extract_resource_type(properties)
     calendar_tag = "{urn:ietf:params:xml:ns:caldav}calendar"
     return calendar_tag in resource_types
 
 
-def is_collection_resource(properties: Dict[str, Any]) -> bool:
+def _is_collection_resource(properties: Dict[str, Any]) -> bool:
     """
     Check if properties indicate a collection resource.
 
@@ -150,12 +150,12 @@ def is_collection_resource(properties: Dict[str, Any]) -> bool:
     Returns:
         True if this is a collection
     """
-    resource_types = extract_resource_type(properties)
+    resource_types = _extract_resource_type(properties)
     collection_tag = "{DAV:}collection"
     return collection_tag in resource_types
 
 
-def get_property_value(
+def _get_property_value(
     properties: Dict[str, Any],
     prop_name: str,
     default: Any = None,

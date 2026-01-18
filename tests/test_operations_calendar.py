@@ -6,16 +6,18 @@ like component detection, sync tokens, and result processing.
 """
 import pytest
 
-from caldav.operations.calendar_ops import build_calendar_object_url
-from caldav.operations.calendar_ops import CalendarObjectInfo
-from caldav.operations.calendar_ops import detect_component_type
-from caldav.operations.calendar_ops import detect_component_type_from_icalendar
-from caldav.operations.calendar_ops import detect_component_type_from_string
-from caldav.operations.calendar_ops import generate_fake_sync_token
-from caldav.operations.calendar_ops import is_fake_sync_token
-from caldav.operations.calendar_ops import normalize_result_url
-from caldav.operations.calendar_ops import process_report_results
-from caldav.operations.calendar_ops import should_skip_calendar_self_reference
+from caldav.operations.calendar_ops import (
+    _build_calendar_object_url as build_calendar_object_url,
+    CalendarObjectInfo,
+    _detect_component_type as detect_component_type,
+    _detect_component_type_from_icalendar as detect_component_type_from_icalendar,
+    _detect_component_type_from_string as detect_component_type_from_string,
+    _generate_fake_sync_token as generate_fake_sync_token,
+    _is_fake_sync_token as is_fake_sync_token,
+    _normalize_result_url as normalize_result_url,
+    _process_report_results as process_report_results,
+    _should_skip_calendar_self_reference as should_skip_calendar_self_reference,
+)
 
 
 class TestDetectComponentTypeFromString:
