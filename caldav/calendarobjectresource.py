@@ -48,14 +48,8 @@ if TYPE_CHECKING:
 
     from .davclient import DAVClient
 
-if sys.version_info < (3, 9):
-    from typing import Callable, Container, Iterable, Iterator, Sequence
-
-    from typing_extensions import DefaultDict, Literal
-else:
-    from collections import defaultdict as DefaultDict
-    from collections.abc import Callable, Container, Iterable, Iterator, Sequence
-    from typing import Literal
+from collections.abc import Callable, Container, Iterable, Iterator, Sequence
+from typing import DefaultDict, Literal
 
 if sys.version_info < (3, 11):
     from typing_extensions import Self

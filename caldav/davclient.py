@@ -55,10 +55,7 @@ from caldav.objects import log
 from caldav.requests import HTTPBearerAuth
 from caldav.response import BaseDAVResponse
 
-if sys.version_info < (3, 9):
-    from collections.abc import Iterable, Mapping
-else:
-    from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping
 
 if sys.version_info < (3, 11):
     from typing_extensions import Self

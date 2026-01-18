@@ -10,7 +10,6 @@ There are also some Mailbox classes to deal with RFC6638.
 A SynchronizableCalendarObjectCollection contains a local copy of objects from a calendar on the server.
 """
 import logging
-import sys
 import uuid
 import warnings
 from datetime import datetime
@@ -41,18 +40,8 @@ if TYPE_CHECKING:
 
     from .davclient import DAVClient
 
-if sys.version_info < (3, 9):
-    from collections.abc import Iterable, Iterator, Sequence
-
-    from typing_extensions import Literal
-else:
-    from collections.abc import Iterable, Iterator, Sequence
-    from typing import Literal
-
-if sys.version_info < (3, 11):
-    pass
-else:
-    pass
+from collections.abc import Iterable, Iterator, Sequence
+from typing import Literal
 
 from .calendarobjectresource import (
     CalendarObjectResource,
@@ -1083,7 +1072,7 @@ class Calendar(DAVObject):
         ## for backward compatibility - expand should be false
         ## in an open-ended date search, otherwise true
         if expand == "maybe":
-            expand = end
+            expand = (start is not None and end is not None)
 
         if compfilter == "VEVENT":
             comp_class = Event
@@ -1303,17 +1292,12 @@ class Calendar(DAVObject):
         ## The logic below will massage the parameters in ``searchargs``
         ## and put them into the CalDAVSearcher object.
 
-        if searchargs.get("expand", True) not in (True, False):
-            warnings.warn(
-                "in cal.search(), expand should be a bool",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            if searchargs["expand"] == "client":
-                searchargs["expand"] = True
-            if searchargs["expand"] == "server":
-                server_expand = True
-                searchargs["expand"] = False
+        ## In caldav 1, expand could be set to True, False, "server" or "client".
+        ## in caldav 2, the extra argument `server_expand` was introduced
+        ## and usage of "server"/"client" was deprecated.
+        ## In caldav 3, the support for "server" or "client" will be shedded.
+        ## For server-side expansion, set `expand=True, server_expand=True`
+        assert isinstance(searchargs.get("expand", True), bool)
 
         ## Transfer all the arguments to CalDAVSearcher
         my_searcher = CalDAVSearcher()

@@ -2595,7 +2595,7 @@ END:VCALENDAR
             start=datetime(1997, 4, 14),
             end=datetime(2015, 5, 14),
             todo=True,
-            expand="client",
+            expand=True,
             split_expanded=False,
             include_completed=True,
         )
@@ -2603,7 +2603,7 @@ END:VCALENDAR
             start=datetime(1997, 4, 14),
             end=datetime(2015, 5, 14),
             todo=True,
-            expand="client",
+            expand=True,
             split_expanded=False,
             include_completed=True,
         )
@@ -3216,7 +3216,7 @@ END:VCALENDAR
             event=True,
             start=datetime(2008, 11, 1, 17, 00, 00),
             end=datetime(2008, 11, 3, 17, 00, 00),
-            expand="server",
+            server_expand=True,
         )
         assert len(r1) == 1
         assert len(r2) == 1
@@ -3286,7 +3286,7 @@ END:VCALENDAR
             start=datetime(2024, 3, 31, 0, 0),
             end=datetime(2024, 5, 4, 0, 0, 0),
             event=True,
-            expand="server",
+            server_expand=True,
         )
 
         assert len(r) == 2

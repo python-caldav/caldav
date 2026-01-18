@@ -408,7 +408,7 @@ class TestCalDAV:
         assert len(mytasks) == 1
         mytasks = calendar.search(
             todo=True,
-            expand="client",
+            expand=True,
             start=datetime(2025, 5, 5),
             end=datetime(2025, 6, 5),
         )
@@ -417,7 +417,7 @@ class TestCalDAV:
         ## It should not include the COMPLETED recurrences
         mytasks = calendar.search(
             todo=True,
-            expand="client",
+            expand=True,
             start=datetime(2025, 1, 1),
             end=datetime(2025, 6, 5),
             ## TODO - TEMP workaround for compatibility issues!  post_filter should not be needed!
