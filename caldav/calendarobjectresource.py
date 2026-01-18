@@ -146,7 +146,7 @@ class CalendarObjectResource(DAVObject):
 
         WARNING: this method is likely to be deprecated and parts of
         it moved to the icalendar library.  If you decide to use it,
-        please put caldav<3.0 in the requirements.
+        please put caldav<4.0 in the requirements.
         """
         i = self.icalendar_component
         ## TODO: are those lines useful for anything?
@@ -673,13 +673,27 @@ class CalendarObjectResource(DAVObject):
     def load(self, only_if_unloaded: bool = False) -> Self:
         """
         (Re)load the object from the caldav server.
+
+        For sync clients, loads and returns self.
+        For async clients, returns a coroutine that must be awaited.
+
+        Example (sync):
+            obj.load()
+
+        Example (async):
+            await obj.load()
         """
+        # Check if already loaded BEFORE delegating to async
+        # This avoids returning a coroutine when no work is needed
         if only_if_unloaded and self.is_loaded():
             return self
 
+        # Dual-mode support: async clients return a coroutine
+        if self.is_async_client:
+            return self._async_load(only_if_unloaded=only_if_unloaded)
+
         if self.url is None:
             raise ValueError("Unexpected value None for self.url")
-
         if self.client is None:
             raise ValueError("Unexpected value None for self.client")
 
@@ -687,11 +701,39 @@ class CalendarObjectResource(DAVObject):
             r = self.client.request(str(self.url))
             if r.status and r.status == 404:
                 raise error.NotFoundError(errmsg(r))
-            self.data = r.raw
+            self.data = r.raw  # type: ignore
         except error.NotFoundError:
             raise
-        except:
+        except Exception:
             return self.load_by_multiget()
+
+        if "Etag" in r.headers:
+            self.props[dav.GetEtag.tag] = r.headers["Etag"]
+        if "Schedule-Tag" in r.headers:
+            self.props[cdav.ScheduleTag.tag] = r.headers["Schedule-Tag"]
+        return self
+
+    async def _async_load(self, only_if_unloaded: bool = False) -> Self:
+        """Async implementation of load."""
+        if only_if_unloaded and self.is_loaded():
+            return self
+
+        if self.url is None:
+            raise ValueError("Unexpected value None for self.url")
+        if self.client is None:
+            raise ValueError("Unexpected value None for self.client")
+
+        try:
+            r = await self.client.request(str(self.url))
+            if r.status and r.status == 404:
+                raise error.NotFoundError(errmsg(r))
+            self.data = r.raw  # type: ignore
+        except error.NotFoundError:
+            raise
+        except Exception:
+            # Note: load_by_multiget is sync-only, not supported in async mode yet
+            raise
+
         if "Etag" in r.headers:
             self.props[dav.GetEtag.tag] = r.headers["Etag"]
         if "Schedule-Tag" in r.headers:
@@ -787,10 +829,37 @@ class CalendarObjectResource(DAVObject):
             else:
                 raise error.PutError(errmsg(r))
 
+    async def _async_put(self, retry_on_failure=True):
+        """Async version of _put for async clients."""
+        r = await self.client.put(
+            str(self.url),
+            str(self.data),
+            {"Content-Type": 'text/calendar; charset="utf-8"'},
+        )
+        if r.status == 302:
+            path = [x[1] for x in r.headers if x[0] == "location"][0]
+            self.url = URL.objectify(path)
+        elif r.status not in (204, 201):
+            if retry_on_failure:
+                try:
+                    import vobject
+                except ImportError:
+                    retry_on_failure = False
+            if retry_on_failure:
+                self.vobject_instance
+                return await self._async_put(False)
+            else:
+                raise error.PutError(errmsg(r))
+
     def _create(self, id=None, path=None, retry_on_failure=True) -> None:
         ## TODO: Find a better method name
         self._find_id_path(id=id, path=path)
         self._put()
+
+    async def _async_create(self, id=None, path=None) -> None:
+        """Async version of _create for async clients."""
+        self._find_id_path(id=id, path=path)
+        await self._async_put()
 
     def _generate_url(self):
         ## See https://github.com/python-caldav/caldav/issues/143 for the rationale behind double-quoting slashes
@@ -887,79 +956,88 @@ class CalendarObjectResource(DAVObject):
          * self
 
         """
-        ## Rather than passing the icalendar data verbatimely, we're
-        ## efficiently running the icalendar code through the icalendar
-        ## library.  This may cause data modifications and may "unfix"
-        ## https://github.com/python-caldav/caldav/issues/43
-        ## TODO: think more about this
-        if not obj_type:
-            obj_type = self.__class__.__name__.lower()
+        # Early return if there's no data (no-op case)
         if (
             self._vobject_instance is None
             and self._data is None
             and self._icalendar_instance is None
         ):
-            ## TODO: This makes no sense.  We should probably raise an error.
-            ## But the behaviour should be officially deprecated first.
             return self
 
-        path = self.url.path if self.url else None
-
+        # Helper function to get the full object by UID
         def get_self():
-            self.id = self.id or self.icalendar_component.get("uid")
-            if self.id:
+            from caldav.lib import error
+
+            uid = self.id or self.icalendar_component.get("uid")
+            if uid and self.parent:
                 try:
-                    if obj_type:
-                        return getattr(self.parent, "%s_by_uid" % obj_type)(self.id)
+                    if not obj_type:
+                        _obj_type = self.__class__.__name__.lower()
                     else:
-                        return self.parent.object_by_uid(self.id)
+                        _obj_type = obj_type
+                    if _obj_type:
+                        method_name = f"{_obj_type}_by_uid"
+                        if hasattr(self.parent, method_name):
+                            return getattr(self.parent, method_name)(uid)
+                    if hasattr(self.parent, "object_by_uid"):
+                        return self.parent.object_by_uid(uid)
                 except error.NotFoundError:
                     return None
             return None
 
+        # Handle no_overwrite/no_create validation BEFORE async delegation
+        # This must be done here because it requires collection methods (event_by_uid, etc.)
+        # which are sync and can't be called from async context (nested event loop issue)
         if no_overwrite or no_create:
-            ## SECURITY TODO: path names on the server does not
-            ## necessarily map cleanly to UUIDs.  We need to do quite
-            ## some refactoring here to ensure all corner cases are
-            ## covered.  Doing a GET first to check if the resource is
-            ## found and then a PUT also gives a potential race
-            ## condition.  (Possibly the API gives no safe way to ensure
-            ## a unique new calendar item is created to the server without
-            ## overwriting old stuff or vice versa - it seems silly to me
-            ## to do a PUT instead of POST when creating new data).
-            ## TODO: the "find id"-logic is duplicated in _create,
-            ## should be refactored
+            from caldav.lib import error
+
+            if not obj_type:
+                obj_type = self.__class__.__name__.lower()
+
+            # Determine the ID
+            uid = self.id or self.icalendar_component.get("uid")
+
+            # Check if object exists using parent collection methods
             existing = get_self()
-            if not self.id and no_create:
+
+            # Validate constraints
+            if not uid and no_create:
                 raise error.ConsistencyError("no_create flag was set, but no ID given")
             if no_overwrite and existing:
                 raise error.ConsistencyError(
                     "no_overwrite flag was set, but object already exists"
                 )
-
             if no_create and not existing:
                 raise error.ConsistencyError(
-                    "no_create flag was set, but object does not exists"
+                    "no_create flag was set, but object does not exist"
                 )
 
-        ## Save a single recurrence-id and all calendars servers seems
-        ## to overwrite the full object, effectively deleting the
-        ## RRULE.  I can't find this behaviour specified in the RFC.
-        ## That's probably not what the caller intended intended.
+        # Handle recurrence instances BEFORE async delegation
+        # When saving a single recurrence instance, we need to:
+        # - Get the full recurring event from the server
+        # - Add/update the recurrence instance in the event's subcomponents
+        # - Save the full event back
+        # This prevents overwriting the entire recurring event with just one instance
         if (
             only_this_recurrence or all_recurrences
         ) and "RECURRENCE-ID" in self.icalendar_component:
-            obj = get_self()  ## get the full object, not only the recurrence
+            import icalendar
+            from caldav.lib import error
+
+            obj = get_self()  # Get the full object, not only the recurrence
+            if obj is None:
+                raise error.NotFoundError("Could not find parent recurring event")
+
             ici = obj.icalendar_instance  # ical instance
+
             if all_recurrences:
-                occ = obj.icalendar_component  ## original calendar component
-                ncc = self.icalendar_component.copy()  ## new calendar component
+                occ = obj.icalendar_component  # original calendar component
+                ncc = self.icalendar_component.copy()  # new calendar component
                 for prop in ["exdate", "exrule", "rdate", "rrule"]:
                     if prop in occ:
                         ncc[prop] = occ[prop]
 
-                ## dtstart_diff = how much we've moved the time
-                ## TODO: we may easily have timezone problems here and events shifting some hours ...
+                # dtstart_diff = how much we've moved the time
                 dtstart_diff = (
                     ncc.start.astimezone() - ncc["recurrence-id"].dt.astimezone()
                 )
@@ -973,27 +1051,23 @@ class CalendarObjectResource(DAVObject):
                 ncc.pop("recurrence-id")
                 s = ici.subcomponents
 
-                ## Replace the "root" subcomponent
-                comp_idxes = (
+                # Replace the "root" subcomponent
+                comp_idxes = [
                     i
                     for i in range(0, len(s))
                     if not isinstance(s[i], icalendar.Timezone)
-                )
-                comp_idx = next(comp_idxes)
+                ]
+                comp_idx = comp_idxes[0]
                 s[comp_idx] = ncc
 
-                ## The recurrence-ids of all objects has to be
-                ## recalculated (this is probably not quite right.  If
-                ## we move the time of a daily meeting from 8 to 10,
-                ## then we need to do this.  If we move the date of
-                ## the first instance, then probably we shouldn't
-                ## ... oh well ... so many complications)
+                # The recurrence-ids of all objects has to be recalculated
                 if dtstart_diff:
-                    for i in comp_idxes:
+                    for i in comp_idxes[1:]:
                         rid = s[i].pop("recurrence-id")
                         s[i].add("recurrence-id", rid.dt + dtstart_diff)
 
                 return obj.save(increase_seqno=increase_seqno)
+
             if only_this_recurrence:
                 existing_idx = [
                     i
@@ -1008,12 +1082,24 @@ class CalendarObjectResource(DAVObject):
                     ici.add_component(self.icalendar_component)
                 return obj.save(increase_seqno=increase_seqno)
 
-        if "SEQUENCE" in self.icalendar_component:
+        # Handle SEQUENCE increment
+        if increase_seqno and "SEQUENCE" in self.icalendar_component:
             seqno = self.icalendar_component.pop("SEQUENCE", None)
             if seqno is not None:
                 self.icalendar_component.add("SEQUENCE", seqno + 1)
 
+        path = self.url.path if self.url else None
+
+        # Dual-mode support: async clients return a coroutine
+        if self.is_async_client:
+            return self._async_save_final(path)
+
         self._create(id=self.id, path=path)
+        return self
+
+    async def _async_save_final(self, path) -> Self:
+        """Async helper for the final save operation."""
+        await self._async_create(id=self.id, path=path)
         return self
 
     def is_loaded(self):
@@ -1030,7 +1116,7 @@ class CalendarObjectResource(DAVObject):
             or self._icalendar_instance
         )
 
-    def has_component(self):
+    def has_component(self) -> bool:
         """
         Returns True if there exists a VEVENT, VTODO or VJOURNAL in the data.
         Returns False if it's only a VFREEBUSY, VTIMEZONE or unknown components.
@@ -1040,14 +1126,16 @@ class CalendarObjectResource(DAVObject):
 
         Used internally after search to remove empty search results (sometimes Google return such)
         """
-        return (
+        if not (
             self._data
             or self._vobject_instance
             or (self._icalendar_instance and self.icalendar_component)
-        ) and self.data.count("BEGIN:VEVENT") + self.data.count(
-            "BEGIN:VTODO"
-        ) + self.data.count(
-            "BEGIN:VJOURNAL"
+        ):
+            return False
+        return (
+            self.data.count("BEGIN:VEVENT")
+            + self.data.count("BEGIN:VTODO")
+            + self.data.count("BEGIN:VJOURNAL")
         ) > 0
 
     def __str__(self) -> str:

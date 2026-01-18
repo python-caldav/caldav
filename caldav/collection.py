@@ -13,7 +13,6 @@ import logging
 import sys
 import uuid
 import warnings
-from dataclasses import dataclass
 from datetime import datetime
 from time import sleep
 from typing import Any
@@ -29,10 +28,9 @@ from urllib.parse import SplitResult
 from urllib.parse import unquote
 
 import icalendar
-from icalendar.caselessdict import CaselessDict
 
 try:
-    from typing import ClassVar, Optional, Union, Type
+    from typing import Optional, Type, Union
 
     TimeStamp = Optional[Union[date, datetime]]
 except:
@@ -44,30 +42,28 @@ if TYPE_CHECKING:
     from .davclient import DAVClient
 
 if sys.version_info < (3, 9):
-    from typing import Callable, Container, Iterable, Iterator, Sequence
+    from collections.abc import Iterable, Iterator, Sequence
 
-    from typing_extensions import DefaultDict, Literal
+    from typing_extensions import Literal
 else:
-    from collections import defaultdict as DefaultDict
-    from collections.abc import Callable, Container, Iterable, Iterator, Sequence
+    from collections.abc import Iterable, Iterator, Sequence
     from typing import Literal
 
 if sys.version_info < (3, 11):
-    from typing_extensions import Self
+    pass
 else:
-    from typing import Self
+    pass
 
-from .calendarobjectresource import CalendarObjectResource
-from .calendarobjectresource import Event
-from .calendarobjectresource import FreeBusy
-from .calendarobjectresource import Journal
-from .calendarobjectresource import Todo
+from .calendarobjectresource import (
+    CalendarObjectResource,
+    Event,
+    FreeBusy,
+    Journal,
+    Todo,
+)
 from .davobject import DAVObject
-from .elements.cdav import CalendarData
-from .elements import cdav
-from .elements import dav
-from .lib import error
-from .lib import vcal
+from .elements import cdav, dav
+from .lib import error, vcal
 from .lib.python_utilities import to_wire
 from .lib.url import URL
 
@@ -84,18 +80,30 @@ class CalendarSet(DAVObject):
         """
         List all calendar collections in this set.
 
+        For sync clients, returns a list of Calendar objects directly.
+        For async clients, returns a coroutine that must be awaited.
+
         Returns:
          * [Calendar(), ...]
-        """
-        cals = []
 
+        Example (sync):
+            calendars = calendar_set.calendars()
+
+        Example (async):
+            calendars = await calendar_set.calendars()
+        """
+        # Delegate to client for dual-mode support
+        if self.is_async_client:
+            return self._async_calendars()
+
+        cals = []
         data = self.children(cdav.Calendar.tag)
         for c_url, c_type, c_name in data:
             try:
                 cal_id = c_url.split("/")[-2]
                 if not cal_id:
                     continue
-            except:
+            except Exception:
                 log.error(f"Calendar {c_name} has unexpected url {c_url}")
                 cal_id = None
             cals.append(
@@ -104,12 +112,55 @@ class CalendarSet(DAVObject):
 
         return cals
 
+    async def _async_calendars(self) -> List["Calendar"]:
+        """Async implementation of calendars() using the client."""
+        from caldav.operations import is_calendar_resource, extract_calendar_id_from_url
+
+        # Fetch calendars via PROPFIND
+        response = await self.client.propfind(
+            str(self.url),
+            props=[
+                "{DAV:}resourcetype",
+                "{DAV:}displayname",
+                "{urn:ietf:params:xml:ns:caldav}supported-calendar-component-set",
+                "{http://apple.com/ns/ical/}calendar-color",
+                "{http://calendarserver.org/ns/}getctag",
+            ],
+            depth=1,
+        )
+
+        # Process results to extract calendars
+        calendars = []
+        for result in response.results or []:
+            # Check if this is a calendar resource
+            if not is_calendar_resource(result.properties):
+                continue
+
+            # Extract calendar info
+            url = result.href
+            name = result.properties.get("{DAV:}displayname")
+            cal_id = extract_calendar_id_from_url(url)
+
+            if not cal_id:
+                continue
+
+            cal = Calendar(
+                client=self.client,
+                url=url,
+                name=name,
+                id=cal_id,
+                parent=self,
+            )
+            calendars.append(cal)
+
+        return calendars
+
     def make_calendar(
         self,
         name: Optional[str] = None,
         cal_id: Optional[str] = None,
         supported_calendar_component_set: Optional[Any] = None,
-        method=None,
+        method: Optional[str] = None,
     ) -> "Calendar":
         """
         Utility method for creating a new calendar.
@@ -121,10 +172,18 @@ class CalendarSet(DAVObject):
            (EVENT, VTODO, VFREEBUSY, VJOURNAL) the calendar should handle.
            Should be set to ['VTODO'] when creating a task list in Zimbra -
            in most other cases the default will be OK.
+          method: 'mkcalendar' or 'mkcol' - usually auto-detected
+
+        For async clients, returns a coroutine that must be awaited.
 
         Returns:
           Calendar(...)-object
         """
+        if self.is_async_client:
+            return self._async_make_calendar(
+                name, cal_id, supported_calendar_component_set, method
+            )
+
         return Calendar(
             self.client,
             name=name,
@@ -132,6 +191,23 @@ class CalendarSet(DAVObject):
             id=cal_id,
             supported_calendar_component_set=supported_calendar_component_set,
         ).save(method=method)
+
+    async def _async_make_calendar(
+        self,
+        name: Optional[str] = None,
+        cal_id: Optional[str] = None,
+        supported_calendar_component_set: Optional[Any] = None,
+        method: Optional[str] = None,
+    ) -> "Calendar":
+        """Async implementation of make_calendar."""
+        calendar = Calendar(
+            self.client,
+            name=name,
+            parent=self,
+            id=cal_id,
+            supported_calendar_component_set=supported_calendar_component_set,
+        )
+        return await calendar._async_save(method=method)
 
     def calendar(
         self, name: Optional[str] = None, cal_id: Optional[str] = None
@@ -147,6 +223,7 @@ class CalendarSet(DAVObject):
         Returns:
           Calendar(...)-object
         """
+        # For name-based lookup, use calendars() which already uses async delegation
         if name and not cal_id:
             for calendar in self.calendars():
                 display_name = calendar.get_display_name()
@@ -154,7 +231,7 @@ class CalendarSet(DAVObject):
                     return calendar
         if name and not cal_id:
             raise error.NotFoundError(
-                "No calendar with name %s found under %s" % (name, self.url)
+                f"No calendar with name {name} found under {self.url}"
             )
         if not cal_id and not name:
             cals = self.calendars()
@@ -211,8 +288,8 @@ class Principal(DAVObject):
         self,
         client: Optional["DAVClient"] = None,
         url: Union[str, ParseResult, SplitResult, URL, None] = None,
-        calendar_home_set: URL = None,
-        **kwargs,  ## to be passed to super.__init__
+        calendar_home_set: Optional[URL] = None,
+        **kwargs: Any,
     ) -> None:
         """
         Returns a Principal.
@@ -244,6 +321,71 @@ class Principal(DAVObject):
 
             self.url = self.client.url.join(URL.objectify(cup))
 
+    @classmethod
+    async def create(
+        cls,
+        client: "DAVClient",
+        url: Union[str, ParseResult, SplitResult, URL, None] = None,
+        calendar_home_set: Optional[URL] = None,
+    ) -> "Principal":
+        """
+        Create a Principal, discovering URL if not provided.
+
+        This is the recommended way to create a Principal with async clients
+        as it handles async URL discovery.
+
+        For sync clients, you can use the regular constructor: Principal(client)
+
+        Args:
+            client: A DAVClient or AsyncDAVClient instance
+            url: The principal URL (if known)
+            calendar_home_set: The calendar home set URL (if known)
+
+        Returns:
+            Principal with URL discovered if not provided
+
+        Example (async):
+            principal = await Principal.create(async_client)
+        """
+        # Create principal without URL discovery (pass url even if None to skip sync discovery)
+        principal = cls(
+            client=client,
+            url=url or client.url,
+            calendar_home_set=calendar_home_set,
+        )
+
+        if url is None:
+            # Async URL discovery
+            cup = await principal._async_get_property(dav.CurrentUserPrincipal())
+            if cup is None:
+                log.warning("calendar server lacking a feature:")
+                log.warning("current-user-principal property not found")
+                log.warning(f"assuming {client.url} is the principal URL")
+            else:
+                principal.url = client.url.join(URL.objectify(cup))
+
+        return principal
+
+    async def _async_get_property(self, prop):
+        """Async version of get_property for use with async clients."""
+        if self.url is None:
+            raise ValueError("Unexpected value None for self.url")
+
+        response = await self.client.propfind(
+            str(self.url),
+            props=[prop.tag if hasattr(prop, "tag") else str(prop)],
+            depth=0,
+        )
+
+        if response.results:
+            for result in response.results:
+                value = result.properties.get(
+                    prop.tag if hasattr(prop, "tag") else str(prop)
+                )
+                if value is not None:
+                    return value
+        return None
+
     def make_calendar(
         self,
         name: Optional[str] = None,
@@ -254,13 +396,51 @@ class Principal(DAVObject):
         """
         Convenience method, bypasses the self.calendar_home_set object.
         See CalendarSet.make_calendar for details.
+
+        For async clients, returns a coroutine that must be awaited.
         """
+        if self.is_async_client:
+            return self._async_make_calendar(
+                name, cal_id, supported_calendar_component_set, method
+            )
+
         return self.calendar_home_set.make_calendar(
             name,
             cal_id,
             supported_calendar_component_set=supported_calendar_component_set,
             method=method,
         )
+
+    async def _async_make_calendar(
+        self,
+        name: Optional[str] = None,
+        cal_id: Optional[str] = None,
+        supported_calendar_component_set: Optional[Any] = None,
+        method=None,
+    ) -> "Calendar":
+        """Async implementation of make_calendar."""
+        calendar_home_set = await self._async_get_calendar_home_set()
+        return await calendar_home_set._async_make_calendar(
+            name,
+            cal_id,
+            supported_calendar_component_set=supported_calendar_component_set,
+            method=method,
+        )
+
+    async def _async_get_calendar_home_set(self) -> "CalendarSet":
+        """Async helper to get the calendar home set."""
+        if self._calendar_home_set:
+            return self._calendar_home_set
+
+        calendar_home_set_url = await self._async_get_property(cdav.CalendarHomeSet())
+        if (
+            calendar_home_set_url is not None
+            and "@" in calendar_home_set_url
+            and "://" not in calendar_home_set_url
+        ):
+            calendar_home_set_url = quote(calendar_home_set_url)
+        self.calendar_home_set = calendar_home_set_url
+        return self._calendar_home_set
 
     def calendar(
         self,
@@ -340,8 +520,18 @@ class Principal(DAVObject):
     def calendars(self) -> List["Calendar"]:
         """
         Return the principal's calendars.
+
+        For sync clients, returns a list of Calendar objects directly.
+        For async clients, returns a coroutine that must be awaited.
+
+        Example (sync):
+            calendars = principal.calendars()
+
+        Example (async):
+            calendars = await principal.calendars()
         """
-        return self.calendar_home_set.calendars()
+        # Delegate to client for dual-mode support
+        return self.client.get_calendars(self)
 
     def freebusy_request(self, dtstart, dtend, attendees):
         """Sends a freebusy-request for some attendee to the server
@@ -415,7 +605,14 @@ class Calendar(DAVObject):
     ) -> None:
         """
         Create a new calendar with display name `name` in `parent`.
+
+        For async clients, returns a coroutine that must be awaited.
         """
+        if self.is_async_client:
+            return self._async_create(
+                name, id, supported_calendar_component_set, method
+            )
+
         if id is None:
             id = str(uuid.uuid1())
         self.id = id
@@ -458,8 +655,6 @@ class Calendar(DAVObject):
                 sccs += cdav.Comp(scc)
             prop += sccs
         if method == "mkcol":
-            from caldav.lib.debug import printxml
-
             prop += dav.ResourceType() + [dav.Collection(), cdav.Calendar()]
 
         set = dav.Set() + prop
@@ -478,7 +673,7 @@ class Calendar(DAVObject):
         if name:
             try:
                 self.set_properties([display_name])
-            except Exception as e:
+            except Exception:
                 ## TODO: investigate.  Those asserts break.
                 try:
                     current_display_name = self.get_display_name()
@@ -489,7 +684,82 @@ class Calendar(DAVObject):
                         exc_info=True,
                     )
 
+    async def _async_create(
+        self, name=None, id=None, supported_calendar_component_set=None, method=None
+    ) -> None:
+        """Async implementation of _create."""
+        if id is None:
+            id = str(uuid.uuid1())
+        self.id = id
+
+        if method is None:
+            if self.client:
+                supported = self.client.features.is_supported(
+                    "create-calendar", return_type=dict
+                )
+                if supported["support"] not in ("full", "fragile", "quirk"):
+                    raise error.MkcalendarError(
+                        "Creation of calendars (allegedly) not supported on this server"
+                    )
+                if (
+                    supported["support"] == "quirk"
+                    and supported["behaviour"] == "mkcol-required"
+                ):
+                    method = "mkcol"
+                else:
+                    method = "mkcalendar"
+            else:
+                method = "mkcalendar"
+
+        path = self.parent.url.join(id + "/")
+        self.url = path
+
+        prop = dav.Prop()
+        if name:
+            display_name = dav.DisplayName(name)
+            prop += [
+                display_name,
+            ]
+        if supported_calendar_component_set:
+            sccs = cdav.SupportedCalendarComponentSet()
+            for scc in supported_calendar_component_set:
+                sccs += cdav.Comp(scc)
+            prop += sccs
+        if method == "mkcol":
+            prop += dav.ResourceType() + [dav.Collection(), cdav.Calendar()]
+
+        set = dav.Set() + prop
+
+        mkcol = (dav.Mkcol() if method == "mkcol" else cdav.Mkcalendar()) + set
+
+        await self._async_query(
+            root=mkcol, query_method=method, url=path, expected_return_value=201
+        )
+
+        # COMPATIBILITY ISSUE - try to set display name explicitly
+        if name:
+            try:
+                await self._async_set_properties([display_name])
+            except Exception:
+                try:
+                    current_display_name = await self._async_get_property(
+                        dav.DisplayName()
+                    )
+                    error.assert_(current_display_name == name)
+                except:
+                    log.warning(
+                        "calendar server does not support display name on calendar?  Ignoring",
+                        exc_info=True,
+                    )
+
     def delete(self):
+        """Delete the calendar.
+
+        For async clients, returns a coroutine that must be awaited.
+        """
+        if self.is_async_client:
+            return self._async_calendar_delete()
+
         ## TODO: remove quirk handling from the functional tests
         ## TODO: this needs test code
         quirk_info = self.client.features.is_supported("delete-calendar", dict)
@@ -514,6 +784,44 @@ class Calendar(DAVObject):
         else:
             super().delete()
 
+    async def _async_calendar_delete(self):
+        """Async implementation of Calendar.delete().
+
+        Note: Server quirk handling (fragile/wipe modes) is simplified for async.
+        Most modern servers support proper calendar deletion.
+        """
+        quirk_info = self.client.features.is_supported("delete-calendar", dict)
+
+        # For fragile servers, try simple delete first
+        if quirk_info["support"] == "fragile":
+            for _ in range(0, 5):
+                try:
+                    await self._async_delete()
+                    return
+                except error.DeleteError:
+                    import asyncio
+
+                    await asyncio.sleep(0.3)
+            # If still failing after retries, fall through to wipe
+
+        if quirk_info["support"] in ("unsupported", "fragile"):
+            # Need to delete all objects first
+            # Use the async client's get_events method
+            try:
+                events = await self.client.get_events(self)
+                for event in events:
+                    await event._async_delete()
+            except Exception:
+                pass  # Best effort
+            try:
+                todos = await self.client.get_todos(self)
+                for todo in todos:
+                    await todo._async_delete()
+            except Exception:
+                pass  # Best effort
+
+        await self._async_delete()
+
     def get_supported_components(self) -> List[Any]:
         """
         returns a list of component types supported by the calendar, in
@@ -524,6 +832,18 @@ class Calendar(DAVObject):
 
         props = [cdav.SupportedCalendarComponentSet()]
         response = self.get_properties(props, parse_response_xml=False)
+
+        # Use protocol layer results if available
+        if response.results:
+            for result in response.results:
+                components = result.properties.get(
+                    cdav.SupportedCalendarComponentSet().tag
+                )
+                if components:
+                    return components
+            return []
+
+        # Fallback for mocked responses without protocol parsing
         response_list = response.find_objects_and_props()
         prop = response_list[unquote(self.url.path)][
             cdav.SupportedCalendarComponentSet().tag
@@ -635,12 +955,25 @@ class Calendar(DAVObject):
         The save method for a calendar is only used to create it, for now.
         We know we have to create it when we don't have a url.
 
+        For async clients, returns a coroutine that must be awaited.
+
         Returns:
          * self
         """
+        if self.is_async_client:
+            return self._async_save(method)
+
         if self.url is None:
             self._create(
                 id=self.id, name=self.name, method=method, **self.extra_init_options
+            )
+        return self
+
+    async def _async_save(self, method=None):
+        """Async implementation of save."""
+        if self.url is None:
+            await self._async_create(
+                name=self.name, id=self.id, method=method, **self.extra_init_options
             )
         return self
 
@@ -663,7 +996,9 @@ class Calendar(DAVObject):
             + prop
             + [dav.Href(value=u.path) for u in event_urls]
         )
-        response = self._query(root, 1, "report")
+        # RFC 4791 section 7.9: "the 'Depth' header MUST be ignored by the
+        # server and SHOULD NOT be sent by the client" for calendar-multiget
+        response = self._query(root, None, "report")
         results = response.expand_simple_props([cdav.CalendarData()])
         if raise_notfound:
             for href in response.statuses:
@@ -775,7 +1110,14 @@ class Calendar(DAVObject):
         """
         Takes some input XML, does a report query on a calendar object
         and returns the resource objects found.
+
+        For async clients, returns a coroutine that must be awaited.
         """
+        if self.is_async_client:
+            return self._async_request_report_build_resultlist(
+                xml, comp_class, props, no_calendardata
+            )
+
         matches = []
         if props is None:
             props_ = [cdav.CalendarData()]
@@ -802,6 +1144,46 @@ class Calendar(DAVObject):
                 # Quote when result is not a full URL
                 url = quote(r)
             ## icloud hack - icloud returns the calendar URL as well as the calendar item URLs
+            if self.url.join(url) == self.url:
+                continue
+            matches.append(
+                comp_class_(
+                    self.client,
+                    url=self.url.join(url),
+                    data=cdata,
+                    parent=self,
+                    props=pdata,
+                )
+            )
+        return (response, matches)
+
+    async def _async_request_report_build_resultlist(
+        self, xml, comp_class=None, props=None, no_calendardata=False
+    ):
+        """Async implementation of _request_report_build_resultlist."""
+        matches = []
+        if props is None:
+            props_ = [cdav.CalendarData()]
+        else:
+            props_ = [cdav.CalendarData()] + props
+        response = await self._async_query(xml, 1, "report")
+        results = response.expand_simple_props(props_)
+        for r in results:
+            pdata = results[r]
+            if cdav.CalendarData.tag in pdata:
+                cdata = pdata.pop(cdav.CalendarData.tag)
+                comp_class_ = (
+                    self._calendar_comp_class_by_data(cdata)
+                    if comp_class is None
+                    else comp_class
+                )
+            else:
+                cdata = None
+            if comp_class_ is None:
+                comp_class_ = CalendarObjectResource
+            url = URL(r)
+            if url.hostname is None:
+                url = quote(r)
             if self.url.join(url) == self.url:
                 continue
             matches.append(
@@ -962,6 +1344,12 @@ class Calendar(DAVObject):
         if not xml and filters:
             xml = filters
 
+        # For async clients, use async_search
+        if self.is_async_client:
+            return my_searcher.async_search(
+                self, server_expand, split_expanded, props, xml, post_filter, _hacks
+            )
+
         return my_searcher.search(
             self, server_expand, split_expanded, props, xml, post_filter, _hacks
         )
@@ -991,14 +1379,25 @@ class Calendar(DAVObject):
         """
         Fetches a list of todo events (this is a wrapper around search).
 
+        For sync clients, returns a list of Todo objects directly.
+        For async clients, returns a coroutine that must be awaited.
+
         Args:
           sort_keys: use this field in the VTODO for sorting (iterable of lower case string, i.e. ('priority','due')).
           include_completed: boolean - by default, only pending tasks are listed
           sort_key: DEPRECATED, for backwards compatibility with version 0.4.
+
+        Example (sync):
+            todos = calendar.todos()
+
+        Example (async):
+            todos = await calendar.todos()
         """
         if sort_key:
             sort_keys = (sort_key,)
 
+        # Use search() for both sync and async - this ensures any
+        # delay decorators applied to search() are respected
         return self.search(
             todo=True, include_completed=include_completed, sort_keys=sort_keys
         )
@@ -1110,9 +1509,20 @@ class Calendar(DAVObject):
         """
         List all events from the calendar.
 
+        For sync clients, returns a list of Event objects directly.
+        For async clients, returns a coroutine that must be awaited.
+
         Returns:
          * [Event(), ...]
+
+        Example (sync):
+            events = calendar.events()
+
+        Example (async):
+            events = await calendar.events()
         """
+        # Use search() for both sync and async - this ensures any
+        # delay decorators applied to search() are respected
         return self.search(comp_class=Event)
 
     def _generate_fake_sync_token(self, objects: List["CalendarObjectResource"]) -> str:
@@ -1360,8 +1770,7 @@ class ScheduleMailbox(Calendar):
                 # we ignore the type here as this is defined in sub-classes only; require more changes to
                 # properly fix in a future revision
                 raise error.NotFoundError(
-                    "principal has no %s.  %s"
-                    % (str(self.findprop()), error.ERR_FRAGMENT)  # type: ignore
+                    "principal has no %s.  %s" % (str(self.findprop()), error.ERR_FRAGMENT)  # type: ignore
                 )
 
     def get_items(self):
