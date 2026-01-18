@@ -168,7 +168,7 @@ This setup uses the `pmietlicki/sogo:latest` Docker image. There is no official 
 ## More Information
 
 - [SOGo Website](https://www.sogo.nu/)
-- [SOGo Documentation](https://www.sogo.nu/support/documentation.html)
+- [SOGo Documentation](https://www.sogo.nu/support.html)
 - [Docker Image Used](https://hub.docker.com/r/pmietlicki/sogo)
 - [Docker Image Source](https://github.com/pmietlicki/docker-sogo)
 - [SOGo GitHub (Official)](https://github.com/Alinto/sogo)
