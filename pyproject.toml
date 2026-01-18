@@ -54,6 +54,7 @@ classifiers = [
 dependencies = [
   "lxml",
   "niquests",
+  "httpx",
   "recurring-ical-events>=2.0.0",
   "typing_extensions;python_version<'3.11'",
   "icalendar>6.0.0",
@@ -74,6 +75,7 @@ Changelog = "https://github.com/python-caldav/caldav/blob/master/CHANGELOG.md"
 test = [
   "vobject",
   "pytest",
+  "pytest-asyncio",
   "coverage",
   "manuel",
   "proxy.py",
@@ -100,3 +102,54 @@ ignore = ["DEP002"]  # Test dependencies (pytest, coverage, etc.) are not import
 
 [tool.deptry.per_rule_ignores]
 DEP001 = ["conf"]  # Local test configuration file, not a package
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+# Only apply Ruff to new async files added after v2.2.2
+# This allows gradual adoption without reformatting the entire codebase
+include = [
+    "caldav/aio.py",
+    "caldav/async_davclient.py",
+    "tests/test_async_davclient.py",
+]
+
+[tool.ruff.lint]
+# Based on icalendar-searcher config
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "W",    # pycodestyle warnings
+    "I",    # isort
+    "UP",   # pyupgrade (modernize code)
+    "B",    # flake8-bugbear (find bugs)
+    "ANN",  # type annotations
+]
+ignore = [
+    "E501",    # Line too long (formatter handles this)
+    "ANN401",  # Any type (sometimes necessary)
+]
+
+[tool.ruff.format]
+# Use Ruff's formatter (Black-compatible)
+quote-style = "double"
+indent-style = "space"
+
+[tool.ruff.lint.isort]
+known-first-party = ["caldav"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "strict"
+filterwarnings = [
+    # Ignore deprecation warnings from external libraries
+    "ignore:.*asyncio.iscoroutinefunction.*:DeprecationWarning:niquests",
+    # Ignore our own intentional deprecation warnings in tests
+    # (tests use deprecated APIs to verify they still work)
+    "ignore:tests.conf is deprecated:DeprecationWarning",
+    "ignore:tests.conf.client\\(\\) is deprecated:DeprecationWarning",
+    # Ignore resource warnings from radicale (upstream issue)
+    "ignore:unclosed scandir iterator:ResourceWarning:radicale",
+    # Ignore Radicale shutdown race condition (server works fine, error is during cleanup)
+    "ignore:Exception in thread.*serve.*:pytest.PytestUnhandledThreadExceptionWarning",
+]

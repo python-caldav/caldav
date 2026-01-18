@@ -781,9 +781,16 @@ class RepeatedFunctionalTestsBaseClass:
         logging.debug("############################")
         self._cleanup("post")
         logging.debug("############## test teardown_method almost done")
-        self.caldav.teardown(self.caldav)
+        try:
+            self.caldav.teardown()
+        except TypeError:
+            self.caldav.teardown(self.caldav)
+        # Close the client to release resources (event loop, connections)
+        self.caldav.__exit__(None, None, None)
 
     def _cleanup(self, mode=None):
+        if self.cleanup_regime == "none":
+            return  ## no cleanup for ephemeral servers
         if self.cleanup_regime in ("pre", "post") and self.cleanup_regime != mode:
             return
         if not self.is_supported("save-load"):
@@ -901,7 +908,7 @@ class RepeatedFunctionalTestsBaseClass:
     def testCheckCompatibility(self, request) -> None:
         try:
             from caldav_server_tester import ServerQuirkChecker
-        except:
+        except ImportError:
             pytest.skip("caldav_server_tester is not installed")
 
         # Use pdb debug mode if pytest was run with --pdb, otherwise use logging
@@ -1115,10 +1122,9 @@ END:VCALENDAR
     def testCreateDeleteCalendar(self):
         self.skip_unless_support("create-calendar")
         self.skip_unless_support("delete-calendar")
-        if not self.check_compatibility_flag(
-            "unique_calendar_ids"
-        ) and self.cleanup_regime in ("light", "pre"):
-            self._teardownCalendar(cal_id=self.testcal_id)
+        # Always try to delete the calendar first in case a previous test run
+        # was interrupted and left the calendar behind
+        self._teardownCalendar(cal_id=self.testcal_id)
         c = self.principal.make_calendar(name="Yep", cal_id=self.testcal_id)
 
         assert c.url is not None

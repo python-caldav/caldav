@@ -1,18 +1,23 @@
 import os
 import sys
 from datetime import datetime
+from pathlib import Path
 
 from caldav.davclient import get_davclient
+
+# Get the project root directory (parent of tests/)
+_PROJECT_ROOT = Path(__file__).parent.parent
 
 
 class TestExamples:
     def setup_method(self):
         os.environ["PYTHON_CALDAV_USE_TEST_SERVER"] = "1"
-        sys.path.insert(0, ".")
-        sys.path.insert(1, "..")
+        # Add project root to find examples/ - avoid adding ".." which can
+        # cause namespace package conflicts with local directories
+        sys.path.insert(0, str(_PROJECT_ROOT))
 
     def teardown_method(self):
-        sys.path = sys.path[2:]
+        sys.path.remove(str(_PROJECT_ROOT))
         del os.environ["PYTHON_CALDAV_USE_TEST_SERVER"]
 
     def test_get_events_example(self):
