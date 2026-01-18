@@ -16,12 +16,59 @@ Changelogs prior to v1.2 is pruned, but available in the v1.2 release
 
 This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html), though some earlier releases may be incompatible with the SemVer standard.
 
-## [Unreleased]
+## [Unreleased] - v3.0
+
+### Highlights
+
+Version 3.0 introduces **full async support** using a Sans-I/O architecture. The same domain objects (Calendar, Event, Todo, etc.) now work with both synchronous and asynchronous clients. The async implementation uses httpx for HTTP/2 support and connection pooling.
+
+### Breaking Changes
+
+* **New dependency: httpx** - The async client requires httpx. For sync-only usage, the library continues to work with niquests/requests.
+* **Minimum Python version**: Python 3.10+ is now required.
 
 ### Added
 
+* **Full async API** - New `AsyncDAVClient` and async-compatible domain objects:
+  ```python
+  from caldav.aio import AsyncDAVClient, AsyncPrincipal
+
+  async with AsyncDAVClient(url="...", username="...", password="...") as client:
+      principal = await AsyncPrincipal.create(client)
+      calendars = await principal.calendars()
+      for cal in calendars:
+          events = await cal.events()
+  ```
+
+* **Sans-I/O architecture** - Internal refactoring separates protocol logic from I/O:
+  - Protocol layer (`caldav/protocol/`): Pure functions for XML building/parsing
+  - Operations layer (`caldav/operations/`): High-level CalDAV operations
+  - This enables code reuse between sync and async implementations
+
+* **Unified test server framework** - New `tests/test_servers/` module provides:
+  - Common interface for embedded servers (Radicale, Xandikos)
+  - Docker-based test servers (Baikal, Nextcloud, Cyrus, SOGo, Bedework)
+  - YAML-based server configuration
+
+* **HTTP/2 support** - When the `h2` package is installed, the async client uses HTTP/2 with connection multiplexing.
+
 * Added deptry for dependency verification in CI
 * Added python-dateutil and PyYAML as explicit dependencies (were transitive)
+* Added pytest-asyncio for async test support
+
+### Fixed
+
+* **RFC 4791 compliance**: Don't send Depth header for calendar-multiget REPORT (servers must ignore it per §7.9)
+* Fixed HTTP/2 initialization when h2 package is not installed
+* Fixed Python 3.9 compatibility in search.py (forward reference annotations)
+* Fixed async/sync test isolation (search method patch was leaking between tests)
+* Fixed Nextcloud Docker test server tmpfs permissions race condition
+
+### Changed
+
+* Sync client (`DAVClient`) now shares common code with async client via `BaseDAVClient`
+* Response handling unified in `BaseDAVResponse` class
+* Test configuration supports both legacy `tests/conf.py` and new server framework
 
 ## [2.2.3] - [2025-12-06]
 
@@ -447,7 +494,7 @@ Since the roadmap was made, the maintainer has spent 39 hours working on the Cal
 * Search method has some logic handling non-conformant servers (loading data from the server if the search response didn't include the icalendar data, ignoring trash from the Google server when it returns data without a VTODO/VEVENT/VJOURNAL component), but it was inside an if-statement and applied only if Expanded-flag was set to True.  Moved the logic out of the if, so it always applies.
 * Revisited a problem that Google sometimes delivers junk when doing searches - credits to github user @zhwei in https://github.com/python-caldav/caldav/pull/366
 * There were some compatibility-logic loading objects if the server does not deliver icalendar data (as it's suppsoed to do according to the RFC), but only if passing the `expand`-flag to the `search`-method.  Fixed that it loads regardless of weather `expand` is set or not.  Also in https://github.com/python-caldav/caldav/pull/366
-* Tests - lots of work getting as much test code as possible to pass on different servers, and now testing also for Python 3.12 - ref https://github.com/python-caldav/caldav/pull/368 https://github.com/python-caldav/caldav/issues/360 https://github.com/python-caldav/caldav/pull/447 https://github.com/python-caldav/caldav/pull/369 https://github.com/python-caldav/caldav/pull/370  https://github.com/python-caldav/caldav/pull/441 https://github.com/python-caldav/caldav/pull/443a
+* Tests - lots of work getting as much test code as possible to pass on different servers, and now testing also for Python 3.12 - ref https://github.com/python-caldav/caldav/pull/368 https://github.com/python-caldav/caldav/issues/360 https://github.com/python-caldav/caldav/pull/447 https://github.com/python-caldav/caldav/pull/369 https://github.com/python-caldav/caldav/pull/370  https://github.com/python-caldav/caldav/pull/441 https://github.com/python-caldav/caldav/pull/443
 * The vcal fixup method was converting implicit dates into timestamps in the COMPLETED property, as it should be a timestamp according to the RFC - however, the regexp failed on explicit dates.  Now it will take explicit dates too.  https://github.com/python-caldav/caldav/pull/387
 * Code cleanups and modernizing the code - https://github.com/python-caldav/caldav/pull/404 https://github.com/python-caldav/caldav/pull/405 https://github.com/python-caldav/caldav/pull/406 https://github.com/python-caldav/caldav/pull/407 https://github.com/python-caldav/caldav/pull/408 https://github.com/python-caldav/caldav/pull/409 https://github.com/python-caldav/caldav/pull/412 https://github.com/python-caldav/caldav/pull/414 https://github.com/python-caldav/caldav/pull/415 https://github.com/python-caldav/caldav/pull/418 https://github.com/python-caldav/caldav/pull/419 https://github.com/python-caldav/caldav/pull/417 https://github.com/python-caldav/caldav/pull/421 https://github.com/python-caldav/caldav/pull/423 https://github.com/python-caldav/caldav/pull/430 https://github.com/python-caldav/caldav/pull/431 https://github.com/python-caldav/caldav/pull/440 https://github.com/python-caldav/caldav/pull/365
 * Doc - improved examples, https://github.com/python-caldav/caldav/pull/427
