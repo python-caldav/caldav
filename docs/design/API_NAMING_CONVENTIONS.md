@@ -13,6 +13,7 @@ The caldav library maintains backward compatibility while introducing cleaner AP
 | Recommended | Legacy | Notes |
 |-------------|--------|-------|
 | `get_principal()` | `principal()` | Returns the Principal object for the authenticated user |
+| `search_principals(name=None)` | `principals(name=None)` | Search for principals on the server |
 
 **Example:**
 ```python
@@ -84,6 +85,7 @@ events = calendar.date_search(
 ### Deprecated in 3.0 (will be removed in 4.0)
 
 - `Calendar.date_search()` - use `Calendar.search()` instead
+- `DAVClient.principals()` - use `DAVClient.search_principals()` instead
 - `CalendarObjectResource.expand_rrule()` - expansion is handled by `search(expand=True)`
 - `CalendarObjectResource.split_expanded()` - expansion is handled by `search(expand=True)`
 
@@ -92,6 +94,7 @@ events = calendar.date_search(
 The following methods are considered "legacy" but will continue to work. New code should prefer the recommended alternatives:
 
 - `DAVClient.principal()` - use `get_principal()` instead
+- `DAVClient.principals()` - use `search_principals()` instead (deprecated with warning)
 - `DAVClient.check_dav_support()` - use `supports_dav()` instead
 - `DAVClient.check_cdav_support()` - use `supports_caldav()` instead
 - `DAVClient.check_scheduling_support()` - use `supports_scheduling()` instead

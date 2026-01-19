@@ -1130,6 +1130,163 @@ class AsyncDAVClient(BaseDAVClient):
         results = await searcher.async_search(calendar, **kwargs)
         return results
 
+    async def search_principals(self, name: Optional[str] = None) -> list["Principal"]:
+        """
+        Search for principals on the server.
+
+        Instead of returning the current logged-in principal, this method
+        attempts to query for all principals (or principals matching a name).
+        This may or may not work depending on the permissions and
+        implementation of the calendar server.
+
+        Args:
+            name: Optional name filter to search for specific principals
+
+        Returns:
+            List of Principal objects found on the server
+
+        Raises:
+            ReportError: If the server doesn't support principal search
+        """
+        from caldav.collection import CalendarSet, Principal
+        from caldav.elements import cdav, dav
+        from lxml import etree
+
+        if name:
+            name_filter = [
+                dav.PropertySearch()
+                + [dav.Prop() + [dav.DisplayName()]]
+                + dav.Match(value=name)
+            ]
+        else:
+            name_filter = []
+
+        query = (
+            dav.PrincipalPropertySearch()
+            + name_filter
+            + [dav.Prop(), cdav.CalendarHomeSet(), dav.DisplayName()]
+        )
+        response = await self.report(str(self.url), etree.tostring(query.xmlelement()))
+
+        if response.status >= 300:
+            raise error.ReportError(
+                f"{response.status} {response.reason} - {response.raw}"
+            )
+
+        principal_dict = response.find_objects_and_props()
+        ret = []
+        for x in principal_dict:
+            p = principal_dict[x]
+            if dav.DisplayName.tag not in p:
+                continue
+            pname = p[dav.DisplayName.tag].text
+            error.assert_(not p[dav.DisplayName.tag].getchildren())
+            error.assert_(not p[dav.DisplayName.tag].items())
+            chs = p[cdav.CalendarHomeSet.tag]
+            error.assert_(not chs.items())
+            error.assert_(not chs.text)
+            chs_href = chs.getchildren()
+            error.assert_(len(chs_href) == 1)
+            error.assert_(not chs_href[0].items())
+            error.assert_(not chs_href[0].getchildren())
+            chs_url = chs_href[0].text
+            calendar_home_set = CalendarSet(client=self, url=chs_url)
+            ret.append(
+                Principal(
+                    client=self, url=x, name=pname, calendar_home_set=calendar_home_set
+                )
+            )
+        return ret
+
+    async def principals(self, name: Optional[str] = None) -> list["Principal"]:
+        """
+        Deprecated. Use :meth:`search_principals` instead.
+
+        This method searches for principals on the server.
+        """
+        import warnings
+
+        warnings.warn(
+            "principals() is deprecated, use search_principals() instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return await self.search_principals(name=name)
+
+    async def principal(self) -> "Principal":
+        """
+        Legacy method. Use :meth:`get_principal` for new code.
+
+        Returns the Principal object for the authenticated user.
+        """
+        return await self.get_principal()
+
+    def calendar(self, **kwargs: Any) -> "Calendar":
+        """Returns a calendar object.
+
+        Typically, a URL should be given as a named parameter (url)
+
+        No network traffic will be initiated by this method.
+
+        If you don't know the URL of the calendar, use
+        ``await client.get_principal().calendars()`` instead, or
+        ``await client.get_calendars()``
+        """
+        from caldav.collection import Calendar
+
+        return Calendar(client=self, **kwargs)
+
+    async def check_dav_support(self) -> Optional[str]:
+        """
+        Check if the server supports DAV.
+
+        Returns the DAV header from an OPTIONS request, or None if not supported.
+        """
+        response = await self.options(str(self.url))
+        return response.headers.get("DAV")
+
+    async def check_cdav_support(self) -> bool:
+        """
+        Check if the server supports CalDAV.
+
+        Returns True if the server indicates CalDAV support in DAV header.
+        """
+        dav_header = await self.check_dav_support()
+        return dav_header is not None and "calendar-access" in dav_header
+
+    async def check_scheduling_support(self) -> bool:
+        """
+        Check if the server supports RFC6638 scheduling.
+
+        Returns True if the server indicates scheduling support in DAV header.
+        """
+        dav_header = await self.check_dav_support()
+        return dav_header is not None and "calendar-auto-schedule" in dav_header
+
+    async def supports_dav(self) -> Optional[str]:
+        """
+        Check if the server supports DAV.
+
+        This is an alias for :meth:`check_dav_support`.
+        """
+        return await self.check_dav_support()
+
+    async def supports_caldav(self) -> bool:
+        """
+        Check if the server supports CalDAV.
+
+        This is an alias for :meth:`check_cdav_support`.
+        """
+        return await self.check_cdav_support()
+
+    async def supports_scheduling(self) -> bool:
+        """
+        Check if the server supports RFC6638 scheduling.
+
+        This is an alias for :meth:`check_scheduling_support`.
+        """
+        return await self.check_scheduling_support()
+
 
 # ==================== Factory Function ====================
 

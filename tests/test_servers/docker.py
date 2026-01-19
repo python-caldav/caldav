@@ -14,6 +14,8 @@ try:
 except ImportError:
     import requests  # type: ignore
 
+from caldav import compatibility_hints
+
 from .base import DEFAULT_HTTP_TIMEOUT, DockerTestServer
 from .registry import register_server_class
 
@@ -33,6 +35,9 @@ class BaikalTestServer(DockerTestServer):
         config.setdefault("port", int(os.environ.get("BAIKAL_PORT", "8800")))
         config.setdefault("username", os.environ.get("BAIKAL_USERNAME", "testuser"))
         config.setdefault("password", os.environ.get("BAIKAL_PASSWORD", "testpass"))
+        # Set up Baikal-specific compatibility hints
+        if "features" not in config:
+            config["features"] = compatibility_hints.baikal.copy()
         super().__init__(config)
 
     def _default_port(self) -> int:
@@ -58,6 +63,9 @@ class NextcloudTestServer(DockerTestServer):
         config.setdefault("port", int(os.environ.get("NEXTCLOUD_PORT", "8801")))
         config.setdefault("username", os.environ.get("NEXTCLOUD_USERNAME", "testuser"))
         config.setdefault("password", os.environ.get("NEXTCLOUD_PASSWORD", "testpass"))
+        # Set up Nextcloud-specific compatibility hints
+        if "features" not in config:
+            config["features"] = compatibility_hints.nextcloud.copy()
         super().__init__(config)
 
     def _default_port(self) -> int:
@@ -91,6 +99,9 @@ class CyrusTestServer(DockerTestServer):
         config.setdefault("port", int(os.environ.get("CYRUS_PORT", "8802")))
         config.setdefault("username", os.environ.get("CYRUS_USERNAME", "user1"))
         config.setdefault("password", os.environ.get("CYRUS_PASSWORD", "x"))
+        # Set up Cyrus-specific compatibility hints
+        if "features" not in config:
+            config["features"] = compatibility_hints.cyrus.copy()
         super().__init__(config)
 
     def _default_port(self) -> int:
@@ -128,6 +139,9 @@ class SOGoTestServer(DockerTestServer):
         config.setdefault("port", int(os.environ.get("SOGO_PORT", "8803")))
         config.setdefault("username", os.environ.get("SOGO_USERNAME", "testuser"))
         config.setdefault("password", os.environ.get("SOGO_PASSWORD", "testpass"))
+        # Set up SOGo-specific compatibility hints
+        if "features" not in config:
+            config["features"] = compatibility_hints.sogo.copy()
         super().__init__(config)
 
     def _default_port(self) -> int:
@@ -165,8 +179,9 @@ class BedeworkTestServer(DockerTestServer):
         config.setdefault("port", int(os.environ.get("BEDEWORK_PORT", "8804")))
         config.setdefault("username", os.environ.get("BEDEWORK_USERNAME", "vbede"))
         config.setdefault("password", os.environ.get("BEDEWORK_PASSWORD", "bedework"))
-        # Bedework has a search cache that requires delays
-        config.setdefault("features", "bedework")
+        # Set up Bedework-specific compatibility hints
+        if "features" not in config:
+            config["features"] = compatibility_hints.bedework.copy()
         super().__init__(config)
 
     def _default_port(self) -> int:

@@ -35,6 +35,7 @@ Version 3.0 introduces **full async support** using a Sans-I/O architecture. The
 
 The following are deprecated and emit `DeprecationWarning`:
 * `calendar.date_search()` - use `calendar.search()` instead
+* `client.principals()` - use `client.search_principals()` instead
 * `obj.split_expanded` - may be removed in a future version
 * `obj.expand_rrule` - may be removed in a future version
 * `.instance` property on calendar objects - use `.vobject_instance` or `.icalendar_instance`

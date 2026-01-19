@@ -377,9 +377,23 @@ class DAVClient(BaseDAVClient):
         """
         self.session.close()
 
-    def principals(self, name=None):
+    def search_principals(self, name=None):
         """
-        Instead of returning the current logged-in principal, it attempts to query for all principals. This may or may not work dependent on the permissions and implementation of the calendar server.
+        Search for principals on the server.
+
+        Instead of returning the current logged-in principal, this method
+        attempts to query for all principals (or principals matching a name).
+        This may or may not work depending on the permissions and
+        implementation of the calendar server.
+
+        Args:
+            name: Optional name filter to search for specific principals
+
+        Returns:
+            List of Principal objects found on the server
+
+        Raises:
+            ReportError: If the server doesn't support principal search
         """
         if name:
             name_filter = [
@@ -429,6 +443,19 @@ class DAVClient(BaseDAVClient):
                 )
             )
         return ret
+
+    def principals(self, name=None):
+        """
+        Deprecated. Use :meth:`search_principals` instead.
+
+        This method searches for principals on the server.
+        """
+        warnings.warn(
+            "principals() is deprecated, use search_principals() instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.search_principals(name=name)
 
     def principal(self, *largs, **kwargs):
         """
