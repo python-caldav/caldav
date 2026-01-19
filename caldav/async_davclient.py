@@ -1185,3 +1185,125 @@ async def get_davclient(probe: bool = True, **kwargs: Any) -> AsyncDAVClient:
             ) from e
 
     return client
+
+
+async def get_calendars(
+    calendar_url: Optional[Any] = None,
+    calendar_name: Optional[Any] = None,
+    raise_errors: bool = False,
+    **kwargs: Any,
+) -> list["Calendar"]:
+    """
+    Get calendars from a CalDAV server asynchronously.
+
+    This is the async version of :func:`caldav.get_calendars`.
+
+    Args:
+        calendar_url: URL(s) or ID(s) of specific calendars to fetch.
+        calendar_name: Name(s) of specific calendars to fetch by display name.
+        raise_errors: If True, raise exceptions on errors; if False, log and skip.
+        **kwargs: Connection parameters (url, username, password, etc.)
+
+    Returns:
+        List of Calendar objects matching the criteria.
+
+    Example::
+
+        from caldav.async_davclient import get_calendars
+
+        calendars = await get_calendars(url="...", username="...", password="...")
+    """
+    from caldav.base_client import _normalize_to_list
+
+    def _try(coro_result, errmsg):
+        """Handle errors based on raise_errors flag."""
+        if coro_result is None:
+            log.error(f"Problems fetching calendar information: {errmsg}")
+            if raise_errors:
+                raise ValueError(errmsg)
+        return coro_result
+
+    try:
+        client = await get_davclient(probe=True, **kwargs)
+    except Exception as e:
+        if raise_errors:
+            raise
+        log.error(f"Failed to create async client: {e}")
+        return []
+
+    try:
+        principal = await client.get_principal()
+        if not principal:
+            _try(None, "getting principal")
+            return []
+
+        calendars = []
+        calendar_urls = _normalize_to_list(calendar_url)
+        calendar_names = _normalize_to_list(calendar_name)
+
+        # Fetch specific calendars by URL/ID
+        for cal_url in calendar_urls:
+            if "/" in str(cal_url):
+                calendar = principal.calendar(cal_url=cal_url)
+            else:
+                calendar = principal.calendar(cal_id=cal_url)
+
+            try:
+                display_name = await calendar.get_display_name()
+                if display_name is not None:
+                    calendars.append(calendar)
+            except Exception as e:
+                log.error(f"Problems fetching calendar {cal_url}: {e}")
+                if raise_errors:
+                    raise
+
+        # Fetch specific calendars by name
+        for cal_name in calendar_names:
+            try:
+                calendar = await principal.calendar(name=cal_name)
+                if calendar:
+                    calendars.append(calendar)
+            except Exception as e:
+                log.error(f"Problems fetching calendar by name '{cal_name}': {e}")
+                if raise_errors:
+                    raise
+
+        # If no specific calendars requested, get all calendars
+        if not calendars and not calendar_urls and not calendar_names:
+            try:
+                all_cals = await principal.calendars()
+                if all_cals:
+                    calendars = all_cals
+            except Exception as e:
+                log.error(f"Problems fetching all calendars: {e}")
+                if raise_errors:
+                    raise
+
+        return calendars
+
+    finally:
+        # Don't close the client - let the caller manage its lifecycle
+        pass
+
+
+async def get_calendar(**kwargs: Any) -> Optional["Calendar"]:
+    """
+    Get a single calendar from a CalDAV server asynchronously.
+
+    This is a convenience function for the common case where only one
+    calendar is needed. It returns the first matching calendar or None.
+
+    Args:
+        Same as :func:`get_calendars`.
+
+    Returns:
+        A single Calendar object, or None if no calendars found.
+
+    Example::
+
+        from caldav.async_davclient import get_calendar
+
+        calendar = await get_calendar(calendar_name="Work", url="...", ...)
+    """
+    calendars = await get_calendars(**kwargs)
+    return calendars[0] if calendars else None

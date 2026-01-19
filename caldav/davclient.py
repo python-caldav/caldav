@@ -47,6 +47,7 @@ from caldav.collection import Calendar, CalendarSet, Principal
 from caldav.compatibility_hints import FeatureSet
 from caldav.elements import cdav, dav
 from caldav.base_client import BaseDAVClient
+from caldav.base_client import get_calendars as _base_get_calendars
 from caldav.base_client import get_davclient as _base_get_davclient
 from caldav.lib import error
 from caldav.lib.python_utilities import to_normal_str, to_wire
@@ -1003,25 +1004,64 @@ class DAVClient(BaseDAVClient):
         return response
 
 
-def auto_calendars(
-    config_file: str = None,
-    config_section: str = "default",
-    testconfig: bool = False,
-    environment: bool = True,
-    config_data: dict = None,
-    config_name: str = None,
-) -> Iterable["Calendar"]:
+def get_calendars(**kwargs) -> List["Calendar"]:
     """
-    This will replace plann.lib.findcalendars()
+    Get calendars from a CalDAV server with configuration from multiple sources.
+
+    This is a convenience wrapper around :func:`caldav.base_client.get_calendars`
+    that uses DAVClient.
+
+    Args:
+        calendar_url: URL(s) or ID(s) of specific calendars to fetch.
+        calendar_name: Name(s) of specific calendars to fetch by display name.
+        check_config_file: Whether to look for config files (default: True).
+        config_file: Explicit path to config file.
+        config_section: Section name in config file.
+        testconfig: Whether to use test server configuration.
+        environment: Whether to read from environment variables (default: True).
+        name: Name of test server to use (for testconfig).
+        raise_errors: If True, raise exceptions on errors; if False, log and skip.
+        **config_data: Connection parameters (url, username, password, etc.)
+
+    Returns:
+        List of Calendar objects matching the criteria.
+
+    Example::
+
+        from caldav import get_calendars
+
+        # Get all calendars
+        calendars = get_calendars(url="https://...", username="...", password="...")
+
+        # Get specific calendar by name
+        calendars = get_calendars(calendar_name="Work", url="...", ...)
     """
-    raise NotImplementedError("auto_calendars not implemented yet")
+    return _base_get_calendars(DAVClient, **kwargs)
 
 
-def auto_calendar(*largs, **kwargs) -> Iterable["Calendar"]:
+def get_calendar(**kwargs) -> Optional["Calendar"]:
     """
-    Alternative to auto_calendars - in most use cases, one calendar suffices
+    Get a single calendar from a CalDAV server.
+
+    This is a convenience function for the common case where only one
+    calendar is needed. It returns the first matching calendar or None.
+
+    Args:
+        Same as :func:`get_calendars`.
+
+    Returns:
+        A single Calendar object, or None if no calendars found.
+
+    Example::
+
+        from caldav import get_calendar
+
+        calendar = get_calendar(calendar_name="Work", url="...", ...)
+        if calendar:
+            events = calendar.events()
     """
-    return next(auto_calendars(*largs, **kwargs), None)
+    calendars = _base_get_calendars(DAVClient, **kwargs)
+    return calendars[0] if calendars else None
 
 
 def get_davclient(**kwargs) -> Optional["DAVClient"]:

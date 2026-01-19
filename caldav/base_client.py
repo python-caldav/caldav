@@ -147,6 +147,141 @@ class BaseDAVClient(ABC):
         pass
 
 
+def _normalize_to_list(obj: Any) -> list:
+    """Convert a string or None to a list for uniform handling."""
+    if not obj:
+        return []
+    if isinstance(obj, (str, bytes)):
+        return [obj]
+    return list(obj)
+
+
+def get_calendars(
+    client_class: type,
+    calendar_url: Optional[Any] = None,
+    calendar_name: Optional[Any] = None,
+    check_config_file: bool = True,
+    config_file: Optional[str] = None,
+    config_section: Optional[str] = None,
+    testconfig: bool = False,
+    environment: bool = True,
+    name: Optional[str] = None,
+    raise_errors: bool = False,
+    **config_data,
+) -> list["Calendar"]:
+    """
+    Get calendars from a CalDAV server with configuration from multiple sources.
+
+    This function creates a client, connects to the server, and returns
+    calendar objects based on the specified criteria. Configuration is read
+    from various sources (explicit parameters, environment variables, config files).
+
+    Args:
+        client_class: The client class to use (DAVClient or AsyncDAVClient).
+        calendar_url: URL(s) or ID(s) of specific calendars to fetch.
+            Can be a string or list of strings. If the value contains '/',
+            it's treated as a URL; otherwise as a calendar ID.
+        calendar_name: Name(s) of specific calendars to fetch by display name.
+            Can be a string or list of strings.
+        check_config_file: Whether to look for config files (default: True).
+        config_file: Explicit path to config file.
+        config_section: Section name in config file (default: "default").
+        testconfig: Whether to use test server configuration.
+        environment: Whether to read from environment variables (default: True).
+        name: Name of test server to use (for testconfig).
+        raise_errors: If True, raise exceptions on errors; if False, log and skip.
+        **config_data: Connection parameters (url, username, password, etc.)
+
+    Returns:
+        List of Calendar objects matching the criteria.
+        If no calendar_url or calendar_name specified, returns all calendars.
+
+    Example::
+
+        from caldav import DAVClient
+        from caldav.base_client import get_calendars
+
+        # Get all calendars
+        calendars = get_calendars(DAVClient, url="https://...", username="...", password="...")
+
+        # Get specific calendars by name
+        calendars = get_calendars(DAVClient, calendar_name=["Work", "Personal"], ...)
+
+        # Get specific calendar by URL or ID
+        calendars = get_calendars(DAVClient, calendar_url="/calendars/user/work/", ...)
+    """
+    import logging
+
+    log = logging.getLogger("caldav")
+
+    def _try(meth, kwargs, errmsg):
+        """Try a method call, handling errors based on raise_errors flag."""
+        try:
+            ret = meth(**kwargs)
+            if ret is None:
+                raise ValueError(f"Method returned None: {errmsg}")
+            return ret
+        except Exception as e:
+            log.error(f"Problems fetching calendar information: {errmsg} - {e}")
+            if raise_errors:
+                raise
+            return None
+
+    # Get client using existing config infrastructure
+    client = get_davclient(
+        client_class=client_class,
+        check_config_file=check_config_file,
+        config_file=config_file,
+        config_section=config_section,
+        testconfig=testconfig,
+        environment=environment,
+        name=name,
+        **config_data,
+    )
+
+    if client is None:
+        if raise_errors:
+            raise ValueError("Could not create DAV client - no configuration found")
+        return []
+
+    # Get principal
+    principal = _try(client.principal, {}, "getting principal")
+    if not principal:
+        return []
+
+    calendars = []
+    calendar_urls = _normalize_to_list(calendar_url)
+    calendar_names = _normalize_to_list(calendar_name)
+
+    # Fetch specific calendars by URL/ID
+    for cal_url in calendar_urls:
+        if "/" in str(cal_url):
+            calendar = principal.calendar(cal_url=cal_url)
+        else:
+            calendar = principal.calendar(cal_id=cal_url)
+
+        # Verify the calendar exists by trying to get its display name
+        if _try(calendar.get_display_name, {}, f"calendar {cal_url}"):
+            calendars.append(calendar)
+
+    # Fetch specific calendars by name
+    for cal_name in calendar_names:
+        calendar = _try(
+            principal.calendar,
+            {"name": cal_name},
+            f"calendar by name '{cal_name}'",
+        )
+        if calendar:
+            calendars.append(calendar)
+
+    # If no specific calendars requested, get all calendars
+    if not calendars and not calendar_urls and not calendar_names:
+        all_cals = _try(principal.calendars, {}, "getting all calendars")
+        if all_cals:
+            calendars = all_cals
+
+    return calendars
+    
 def get_davclient(
     client_class: type,
     check_config_file: bool = True,
