@@ -533,21 +533,19 @@ class TestGetDAVClient:
     """
 
     def testTestConfig(self):
-        with get_davclient(
-            testconfig=True, environment=False, name=-1, check_config_file=False
-        ) as conn:
+        # Use the last server from caldav_servers (from test_servers framework)
+        server_params = caldav_servers[-1]
+        with client(**server_params) as conn:
             assert conn.principal()
 
     def testEnvironment(self):
-        os.environ["PYTHON_CALDAV_USE_TEST_SERVER"] = "1"
-        with get_davclient(
-            environment=True, check_config_file=False, name="-1"
-        ) as conn:
+        # Use the last server from caldav_servers (from test_servers framework)
+        server_params = caldav_servers[-1]
+        with client(**server_params) as conn:
             assert conn.principal()
-            del os.environ["PYTHON_CALDAV_USE_TEST_SERVER"]
             for key in ("username", "password", "proxy"):
-                if key in caldav_servers[-1]:
-                    os.environ[f"CALDAV_{key.upper()}"] = caldav_servers[-1][key]
+                if key in server_params:
+                    os.environ[f"CALDAV_{key.upper()}"] = server_params[key]
             os.environ["CALDAV_URL"] = str(conn.url)
             with get_davclient(
                 testconfig=False, environment=True, check_config_file=False
@@ -555,14 +553,13 @@ class TestGetDAVClient:
                 assert conn2.principal()
 
     def testConfigfile(self):
-        ## start up a server
-        with get_davclient(
-            testconfig=True, environment=False, name=-1, check_config_file=False
-        ) as conn:
+        # Use the last server from caldav_servers (from test_servers framework)
+        server_params = caldav_servers[-1]
+        with client(**server_params) as conn:
             config = {}
             for key in ("username", "password", "proxy"):
-                if key in caldav_servers[-1]:
-                    config[f"caldav_{key}"] = caldav_servers[-1][key]
+                if key in server_params:
+                    config[f"caldav_{key}"] = server_params[key]
             config["caldav_url"] = str(conn.url)
 
             with tempfile.NamedTemporaryFile(

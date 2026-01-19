@@ -49,11 +49,11 @@ Additionally, direct `DAVClient()` instantiation should migrate to `get_davclien
 
 * **Full async API** - New `AsyncDAVClient` and async-compatible domain objects:
   ```python
-  from caldav.aio import AsyncDAVClient, AsyncPrincipal
+  from caldav.async_davclient import get_davclient
 
-  async with AsyncDAVClient(url="...", username="...", password="...") as client:
-      principal = await AsyncPrincipal.create(client)
-      calendars = await principal.calendars()
+  async with await get_davclient(url="...", username="...", password="...") as client:
+      principal = await client.get_principal()
+      calendars = await client.get_calendars()
       for cal in calendars:
           events = await cal.events()
   ```
