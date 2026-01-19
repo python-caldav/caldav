@@ -2547,9 +2547,13 @@ END:VCALENDAR
         event.delete()
         todo_obj.delete()
 
+    @pytest.mark.filterwarnings("ignore:use `calendar.search:DeprecationWarning")
     def testTodoDatesearch(self):
         """
-        Let's see how the date search method works for todo events
+        Let's see how the date search method works for todo events.
+
+        Note: This test intentionally uses the deprecated date_search method
+        to ensure backward compatibility.
         """
         self.skip_unless_support("save-load.todo")
         self.skip_unless_support("search.time-range.todo")
@@ -3081,11 +3085,15 @@ END:VCALENDAR
             with pytest.raises(error.NotFoundError):
                 c.event_by_uid("20010712T182145Z-123401@example.com")
 
+    @pytest.mark.filterwarnings("ignore:use `calendar.search:DeprecationWarning")
     def testDateSearchAndFreeBusy(self):
         """
         Verifies that date search works with a non-recurring event
         Also verifies that it's possible to change a date of a
-        non-recurring event
+        non-recurring event.
+
+        Note: This test intentionally uses the deprecated date_search method
+        to ensure backward compatibility.
         """
         self.skip_unless_support("save-load.event")
         self.skip_unless_support("search")
@@ -3168,11 +3176,15 @@ END:VCALENDAR
         ## (TODO: move it to some other test)
         e.data = icalendar.Calendar.from_ical(ev2)
 
+    @pytest.mark.filterwarnings("ignore:use `calendar.search:DeprecationWarning")
     def testRecurringDateSearch(self):
         """
         This is more sanity testing of the server side than testing of the
         library per se.  How will it behave if we serve it a recurring
         event?
+
+        Note: This test intentionally uses the deprecated date_search method
+        to ensure backward compatibility.
         """
         self.skip_unless_support("save-load.event")
         self.skip_unless_support("search.recurrences.includes-implicit.event")
