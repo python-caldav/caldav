@@ -33,7 +33,6 @@ import vobject
 from proxy.http.proxy import HttpProxyBasePlugin
 
 from .conf import caldav_servers
-from .conf import client
 from .conf import radicale_host
 from .conf import radicale_port
 from .conf import rfc6638_users
@@ -42,6 +41,7 @@ from .conf import test_xandikos
 from .conf import xandikos_host
 from .conf import xandikos_port
 from caldav import get_davclient
+from caldav.davclient import CONNKEYS
 from caldav.compatibility_hints import FeatureSet
 from caldav.compatibility_hints import (
     incompatibility_description,
@@ -66,6 +66,55 @@ from caldav.objects import Todo
 from caldav.search import CalDAVSearcher
 
 log = logging.getLogger("caldav")
+
+
+def _make_client(
+    idx=None, name=None, setup=lambda conn: None, teardown=lambda conn: None, **kwargs
+):
+    """
+    Create a DAVClient from server parameters.
+
+    This is a test helper that creates a DAVClient instance from either:
+    - An index into caldav_servers list
+    - A server name to look up in caldav_servers
+    - Direct connection parameters
+
+    It filters out non-connection parameters and attaches setup/teardown
+    callbacks to the client.
+    """
+    kwargs_ = kwargs.copy()
+    no_args = not any(x for x in kwargs if kwargs[x] is not None)
+
+    if idx is None and name is None and no_args and caldav_servers:
+        return _make_client(idx=0)
+    elif idx is not None and no_args and caldav_servers:
+        return _make_client(**caldav_servers[idx])
+    elif name is not None and no_args and caldav_servers:
+        for s in caldav_servers:
+            if s["name"] == name:
+                return _make_client(**s)
+        return None
+    elif no_args:
+        return None
+
+    # Filter out non-connection parameters
+    for bad_param in ("incompatibilities", "backwards_compatibility_url", "principal_url", "enable"):
+        kwargs_.pop(bad_param, None)
+
+    for kw in list(kwargs_.keys()):
+        if kw not in CONNKEYS:
+            log.debug(f"Ignoring non-connection parameter: {kw}")
+            kwargs_.pop(kw)
+
+    conn = DAVClient(**kwargs_)
+    conn.setup = setup
+    conn.teardown = teardown
+    conn.server_name = name
+    return conn
+
+
+# Alias for backward compatibility within tests
+client = _make_client
 
 
 ev1 = """BEGIN:VCALENDAR
