@@ -105,6 +105,34 @@ def _create_vcal_address(
     return vcal_addr
 
 
+def _extract_calendar_home_set_from_results(
+    results: Optional[List[Any]],
+) -> Optional[str]:
+    """
+    Extract calendar-home-set URL from PROPFIND results.
+
+    This pure function processes propfind results to find the
+    calendar-home-set property, handling URL sanitization.
+
+    Args:
+        results: List of PropfindResult objects from parse_propfind_response
+
+    Returns:
+        Calendar home set URL, or None if not found
+    """
+    if not results:
+        return None
+
+    for result in results:
+        home_set = result.properties.get(
+            "{urn:ietf:params:xml:ns:caldav}calendar-home-set"
+        )
+        if home_set:
+            return _sanitize_calendar_home_set_url(home_set)
+
+    return None
+
+
 def _should_update_client_base_url(
     calendar_home_set_url: Optional[str],
     client_hostname: Optional[str],

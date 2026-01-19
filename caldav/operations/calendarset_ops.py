@@ -183,3 +183,46 @@ def _find_calendar_by_id(
         if cal.cal_id == cal_id:
             return cal
     return None
+
+
+def _extract_calendars_from_propfind_results(
+    results: Optional[List[Any]],
+) -> List[CalendarInfo]:
+    """
+    Extract calendar information from PROPFIND results.
+
+    This pure function processes propfind results to identify calendar
+    resources and extract their metadata.
+
+    Args:
+        results: List of PropfindResult objects from parse_propfind_response
+
+    Returns:
+        List of CalendarInfo objects for calendar resources found
+    """
+    from caldav.operations.base import _is_calendar_resource as is_calendar_resource
+
+    calendars = []
+    for result in results or []:
+        # Check if this is a calendar resource
+        if not is_calendar_resource(result.properties):
+            continue
+
+        # Extract calendar info
+        url = result.href
+        name = result.properties.get("{DAV:}displayname")
+        cal_id = _extract_calendar_id_from_url(url)
+
+        if not cal_id:
+            continue
+
+        calendars.append(
+            CalendarInfo(
+                url=url,
+                cal_id=cal_id,
+                name=name,
+                resource_types=result.properties.get("{DAV:}resourcetype", []),
+            )
+        )
+
+    return calendars

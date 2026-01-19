@@ -494,9 +494,8 @@ class DAVClient(BaseDAVClient):
             for cal in calendars:
                 print(f"Calendar: {cal.name}")
         """
-        from caldav.operations.base import _is_calendar_resource as is_calendar_resource
         from caldav.operations.calendarset_ops import (
-            _extract_calendar_id_from_url as extract_calendar_id_from_url,
+            _extract_calendars_from_propfind_results as extract_calendars,
         )
 
         if principal is None:
@@ -513,40 +512,18 @@ class DAVClient(BaseDAVClient):
         # Fetch calendars via PROPFIND
         response = self.propfind(
             calendar_home_url,
-            props=[
-                "{DAV:}resourcetype",
-                "{DAV:}displayname",
-                "{urn:ietf:params:xml:ns:caldav}supported-calendar-component-set",
-                "{http://apple.com/ns/ical/}calendar-color",
-                "{http://calendarserver.org/ns/}getctag",
-            ],
+            props=self.CALENDAR_LIST_PROPS,
             depth=1,
         )
 
-        # Process results to extract calendars
-        calendars = []
-        for result in response.results or []:
-            # Check if this is a calendar resource
-            if not is_calendar_resource(result.properties):
-                continue
+        # Process results using shared helper
+        calendar_infos = extract_calendars(response.results)
 
-            # Extract calendar info
-            url = result.href
-            name = result.properties.get("{DAV:}displayname")
-            cal_id = extract_calendar_id_from_url(url)
-
-            if not cal_id:
-                continue
-
-            cal = Calendar(
-                client=self,
-                url=url,
-                name=name,
-                id=cal_id,
-            )
-            calendars.append(cal)
-
-        return calendars
+        # Convert CalendarInfo objects to Calendar objects
+        return [
+            Calendar(client=self, url=info.url, name=info.name, id=info.cal_id)
+            for info in calendar_infos
+        ]
 
     def _get_calendar_home_set(self, principal: Principal) -> Optional[str]:
         """Get the calendar-home-set URL for a principal.
@@ -558,25 +535,17 @@ class DAVClient(BaseDAVClient):
             Calendar home set URL or None
         """
         from caldav.operations.principal_ops import (
-            _sanitize_calendar_home_set_url as sanitize_calendar_home_set_url,
+            _extract_calendar_home_set_from_results as extract_home_set,
         )
 
         # Try to get from principal properties
         response = self.propfind(
             str(principal.url),
-            props=["{urn:ietf:params:xml:ns:caldav}calendar-home-set"],
+            props=self.CALENDAR_HOME_SET_PROPS,
             depth=0,
         )
 
-        if response.results:
-            for result in response.results:
-                home_set = result.properties.get(
-                    "{urn:ietf:params:xml:ns:caldav}calendar-home-set"
-                )
-                if home_set:
-                    return sanitize_calendar_home_set_url(home_set)
-
-        return None
+        return extract_home_set(response.results)
 
     def get_events(
         self,

@@ -35,6 +35,16 @@ class BaseDAVClient(ABC):
     - Common properties (username, password, auth_type, etc.)
     """
 
+    # Property lists for PROPFIND requests - shared between sync and async
+    CALENDAR_HOME_SET_PROPS = ["{urn:ietf:params:xml:ns:caldav}calendar-home-set"]
+    CALENDAR_LIST_PROPS = [
+        "{DAV:}resourcetype",
+        "{DAV:}displayname",
+        "{urn:ietf:params:xml:ns:caldav}supported-calendar-component-set",
+        "{http://apple.com/ns/ical/}calendar-color",
+        "{http://calendarserver.org/ns/}getctag",
+    ]
+
     # Common attributes that subclasses will set
     username: Optional[str] = None
     password: Optional[str] = None
