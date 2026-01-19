@@ -692,6 +692,19 @@ class DAVClient(BaseDAVClient):
         support_list = self.check_dav_support()
         return support_list is not None and "calendar-auto-schedule" in support_list
 
+    # Aliases for API consistency with AsyncDAVClient
+    def supports_dav(self) -> Optional[str]:
+        """Alias for check_dav_support() for API consistency."""
+        return self.check_dav_support()
+
+    def supports_caldav(self) -> bool:
+        """Alias for check_cdav_support() for API consistency."""
+        return self.check_cdav_support()
+
+    def supports_scheduling(self) -> bool:
+        """Alias for check_scheduling_support() for API consistency."""
+        return self.check_scheduling_support()
+
     def propfind(
         self,
         url: Optional[str] = None,
