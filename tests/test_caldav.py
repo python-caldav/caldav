@@ -32,15 +32,29 @@ import pytest
 import vobject
 from proxy.http.proxy import HttpProxyBasePlugin
 
-from .conf import caldav_servers
-from .conf import radicale_host
-from .conf import radicale_port
-from .conf import rfc6638_users
-from .conf import test_radicale
-from .conf import test_xandikos
-from .conf import xandikos_host
-from .conf import xandikos_port
+from .test_servers import get_registry
+from .test_servers.config_loader import load_test_server_config
 from caldav import get_davclient
+
+# Get server configuration from the test_servers framework
+_registry = get_registry()
+caldav_servers = _registry.get_caldav_servers_list()
+
+# Check which embedded servers are available
+_radicale_server = _registry.get("Radicale")
+_xandikos_server = _registry.get("Xandikos")
+
+test_radicale = _radicale_server is not None
+test_xandikos = _xandikos_server is not None
+
+radicale_host = _radicale_server.host if _radicale_server else "localhost"
+radicale_port = _radicale_server.port if _radicale_server else 5232
+xandikos_host = _xandikos_server.host if _xandikos_server else "localhost"
+xandikos_port = _xandikos_server.port if _xandikos_server else 8993
+
+# RFC6638 users for scheduling tests - loaded from config file
+_config = load_test_server_config()
+rfc6638_users = _config.get("rfc6638_users", [])
 from caldav.davclient import CONNKEYS
 from caldav.compatibility_hints import FeatureSet
 from caldav.compatibility_hints import (

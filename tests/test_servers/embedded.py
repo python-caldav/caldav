@@ -15,6 +15,8 @@ try:
 except ImportError:
     import requests  # type: ignore
 
+from caldav import compatibility_hints
+
 from .base import EmbeddedTestServer
 from .registry import register_server_class
 
@@ -35,6 +37,13 @@ class RadicaleTestServer(EmbeddedTestServer):
         config.setdefault("port", 5232)
         config.setdefault("username", "user1")
         config.setdefault("password", "")
+        # Set up Radicale-specific compatibility hints
+        if "features" not in config:
+            features = compatibility_hints.radicale.copy()
+            host = config.get("host", "localhost")
+            port = config.get("port", 5232)
+            features["auto-connect.url"]["domain"] = f"{host}:{port}"
+            config["features"] = features
         super().__init__(config)
 
         # Server state
@@ -155,6 +164,13 @@ class XandikosTestServer(EmbeddedTestServer):
         config.setdefault("host", "localhost")
         config.setdefault("port", 8993)
         config.setdefault("username", "sometestuser")
+        # Set up Xandikos-specific compatibility hints
+        if "features" not in config:
+            features = compatibility_hints.xandikos.copy()
+            host = config.get("host", "localhost")
+            port = config.get("port", 8993)
+            features["auto-connect.url"]["domain"] = f"{host}:{port}"
+            config["features"] = features
         super().__init__(config)
 
         # Server state

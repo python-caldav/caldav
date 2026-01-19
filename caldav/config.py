@@ -314,7 +314,6 @@ def _get_test_server_config(
 
     Priority:
     1. Config file sections with 'testing_allowed: true'
-    2. Built-in test servers from tests/conf.py (radicale, xandikos, docker)
 
     Args:
         name: Specific config section or test server name/index to use.
