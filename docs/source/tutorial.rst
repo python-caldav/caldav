@@ -26,6 +26,53 @@ When you've run the tutorial as intended, I recommend going through the examples
 * You will need to revert all changes done.  The code examples below does not do any cleanup.  If your calendar server supports creating and deleting calendars, then it should be easy enough: ```my_new_calendar.delete()``` inside the with-block.  Events also has a ``.delete()``-method.  Beware that there is no ``undo``.  You're adviced to have a local backup of your calendars.  I'll probably write a HOWTO on that one day.
 * Usage of a context manager is considered best practice, but not really needed - you may skip the with-statement and write just ``client = get_davclient()``.  This will make it easier to test code from the python shell.
 
+Quick Start: Getting Calendars Directly
+---------------------------------------
+
+As of 3.0, there are convenience functions to get calendars directly
+without manually creating a client and principal:
+
+.. code-block:: python
+
+    from caldav import get_calendars, get_calendar
+
+    # Get all calendars
+    calendars = get_calendars(
+        url="https://caldav.example.com/",
+        username="alice",
+        password="secret"
+    )
+    for cal in calendars:
+        print(f"Found calendar: {cal.name}")
+
+    # Get a specific calendar by name
+    work_calendar = get_calendar(
+        url="https://caldav.example.com/",
+        username="alice",
+        password="secret",
+        calendar_name="Work"
+    )
+
+    # Get calendars by URL or ID
+    calendars = get_calendars(
+        url="https://caldav.example.com/",
+        username="alice",
+        password="secret",
+        calendar_url="/calendars/alice/personal/"  # or just "personal"
+    )
+
+These functions also support reading configuration from environment
+variables (``CALDAV_URL``, ``CALDAV_USERNAME``, ``CALDAV_PASSWORD``)
+or config files, so you can simply call:
+
+.. code-block:: python
+
+    from caldav import get_calendars
+    calendars = get_calendars()  # Uses env vars or config file
+
+The Traditional Approach
+------------------------
+
 As of 2.0, it's recommended to start initiating a
 :class:`caldav.davclient.DAVClient` object using the ``get_davclient``
 function, go from there to get a

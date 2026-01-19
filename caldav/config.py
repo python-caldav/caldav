@@ -347,82 +347,8 @@ def _get_test_server_config(
                     )
                     return _extract_conn_params_from_section(section_data)
 
-    # 2. Fall back to built-in test servers from tests/conf.py
-    return _get_builtin_test_server(name, environment)
-
-
-def _get_builtin_test_server(
-    name: Optional[str], environment: bool
-) -> Optional[Dict[str, Any]]:
-    """
-    Get connection parameters from built-in test servers (tests/conf.py).
-
-    This supports radicale, xandikos, and docker-based test servers.
-    """
-    # Save current sys.path
-    original_path = sys.path.copy()
-
-    try:
-        sys.path.insert(0, "tests")
-        sys.path.insert(1, ".")
-
-        try:
-            from conf import client
-        except (ImportError, ModuleNotFoundError) as e:
-            logging.debug(f"Could not import tests/conf.py: {e}")
-            return None
-        except Exception as e:
-            # Handle other import errors (e.g., syntax errors, missing dependencies)
-            logging.warning(f"Error importing tests/conf.py: {e}")
-            return None
-
-        # Parse server selection
-        idx: Optional[int] = None
-
-        # If name is provided and can be parsed as int, use it as idx
-        if name is not None:
-            try:
-                idx = int(name)
-                name = None
-            except (ValueError, TypeError):
-                pass
-
-        # Also check environment variables if environment=True
-        if environment:
-            if idx is None:
-                idx_str = os.environ.get("PYTHON_CALDAV_TEST_SERVER_IDX")
-                if idx_str:
-                    try:
-                        idx = int(idx_str)
-                    except (ValueError, TypeError):
-                        pass
-            if name is None:
-                name = os.environ.get("PYTHON_CALDAV_TEST_SERVER_NAME")
-
-        conn = client(idx, name)
-        if conn is None:
-            return None
-
-        # Extract connection parameters from DAVClient object
-        conn_params: Dict[str, Any] = {}
-        for key in CONNKEYS:
-            if hasattr(conn, key):
-                value = getattr(conn, key)
-                if value is not None:
-                    conn_params[key] = value
-
-        # The client may have setup/teardown - store them too
-        if hasattr(conn, "setup"):
-            conn_params["_setup"] = conn.setup
-        if hasattr(conn, "teardown"):
-            conn_params["_teardown"] = conn.teardown
-        if hasattr(conn, "server_name"):
-            conn_params["_server_name"] = conn.server_name
-
-        return conn_params
-
-    finally:
-        sys.path = original_path
+    # No built-in test server fallback - use config files or environment variables
+    return None
 
 
 def _extract_conn_params_from_section(
