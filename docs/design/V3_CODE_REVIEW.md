@@ -14,45 +14,32 @@ The codebase is in good shape for a v3.0 release. The Sans-I/O architecture is w
 
 ## Duplicated Code
 
-### Critical Duplications Between Sync and Async Clients
+### Addressed Duplications (January 2026)
+
+The following duplications have been consolidated:
+
+| Code Section | Status | Solution |
+|--------------|--------|----------|
+| `_get_calendar_home_set()` | ✅ Fixed | Extracted to `_extract_calendar_home_set_from_results()` in principal_ops.py |
+| `get_calendars()` result processing | ✅ Fixed | Extracted to `_extract_calendars_from_propfind_results()` in calendarset_ops.py |
+| Property lists for PROPFIND | ✅ Fixed | Moved to `BaseDAVClient.CALENDAR_LIST_PROPS` and `CALENDAR_HOME_SET_PROPS` |
+
+### Remaining Duplications
 
 | Code Section | Location (Sync) | Location (Async) | Duplication % | Lines |
 |--------------|-----------------|------------------|---------------|-------|
-| `_get_calendar_home_set()` | davclient.py:551-579 | async_davclient.py:1022-1050 | 100% | ~29 |
-| `get_calendars()` | davclient.py:580-720 | async_davclient.py:1051-1190 | 95% | ~140 |
 | `propfind()` response parsing | davclient.py:280-320 | async_davclient.py:750-790 | 90% | ~40 |
 | Auth type extraction | davclient.py:180-210 | async_davclient.py:420-450 | 100% | ~30 |
 
-**Total estimated duplicated lines:** ~240 lines
+**Remaining estimated duplicated lines:** ~70 lines (down from ~240)
 
-### Recommendation
+### Future Refactoring Opportunities
 
-Extract shared logic to the operations layer or a shared utilities module. The Protocol layer already handles XML building/parsing - the remaining duplication is primarily in:
-1. Property extraction from parsed responses
-2. Calendar filtering logic
-3. URL construction helpers
+The remaining duplication is in areas that are harder to consolidate due to sync/async differences:
+1. HTTP response handling (different response object types)
+2. Auth negotiation (requires I/O)
 
-### Potential Refactoring
-
-```python
-# caldav/operations/calendar_discovery.py (proposed)
-def filter_calendars_from_propfind(
-    propfind_results: list[PropfindResult],
-    calendar_home_url: str,
-) -> list[dict]:
-    """
-    Filter PROPFIND results to only calendars.
-    Pure function - no I/O, can be used by sync and async.
-    """
-    calendars = []
-    for result in propfind_results:
-        if is_calendar_resource(result.properties):
-            calendars.append({
-                "url": result.href,
-                "properties": result.properties,
-            })
-    return calendars
-```
+These could potentially be addressed with a more sophisticated abstraction, but the current level is acceptable.
 
 ---
 
