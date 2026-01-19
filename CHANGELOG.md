@@ -2,7 +2,7 @@
 
 ## HTTP Library Dependencies
 
-As of v3.0, **niquests** is the only required HTTP library dependency. It supports both sync and async operations, as well as HTTP/2 and HTTP/3.
+As of v3.x, **niquests** is the only required HTTP library dependency. It supports both sync and async operations, as well as HTTP/2 and HTTP/3.
 
 Fallbacks are available:
 * **Sync client**: Falls back to `requests` if niquests is not installed
@@ -28,8 +28,10 @@ Version 3.0 introduces **full async support** using a Sans-I/O architecture. The
 
 ### Breaking Changes
 
+(Be aware that the last minor-versions also tagged some Potentially Breaking Changes)
+
 * **Minimum Python version**: Python 3.10+ is now required (was 3.8+).
-* Legacy `tests/conf.py` has been removed - use `tests/test_servers/` framework instead
+* **Test Server Configuration**: `tests/conf.py` has been removed and `conf_private.py` will be ignored.  See the Test Framework section below.
 
 ### Deprecated
 
@@ -70,8 +72,6 @@ Additionally, direct `DAVClient()` instantiation should migrate to `get_davclien
 * RFC 4791 compliance: Don't send Depth header for calendar-multiget REPORT (clients SHOULD NOT send it, but servers MUST ignore it per §7.9)
 * Fixed HTTP/2 initialization when h2 package is not installed
 * Fixed Python 3.9 compatibility in search.py (forward reference annotations)
-* Fixed async/sync test isolation (search method patch was leaking between tests)
-* Fixed Nextcloud Docker test server tmpfs permissions race condition
 
 ### Changed
 
@@ -81,13 +81,10 @@ Additionally, direct `DAVClient()` instantiation should migrate to `get_davclien
 
 ### Test Framework
 
+* Fixed Nextcloud Docker test server tmpfs permissions race condition
 * Added deptry for dependency verification in CI
-* **Unified test server framework** - New `tests/test_servers/` module provides:
-  - Common interface for embedded servers (Radicale, Xandikos)
-  - Docker-based test servers (Baikal, Nextcloud, Cyrus, SOGo, Bedework)
-  - YAML-based server configuration (see `tests/test_servers/__init__.py` for usage)
+* The test server framework has been refactored with a new `tests/test_servers/` module.  It provides **YAML-based server configuration**: see `tests/test_servers/__init__.py` for usage
 * Added pytest-asyncio for async test support
-
 
 ### GitHub Pull Requests Merged
 
@@ -309,7 +306,7 @@ I'm working on a [caldav compatibility checker](https://github.com/tobixen/calda
 
 As always, the new release comes with quite some bugfixes, compatibility fixes and workarounds improving the support for various calendar servers observed in the wild.
 
-### Breaking Changes
+### Potentially Breaking Changes
 
 * As mentioned above, if you maintain a file `tests/conf_private.py`, chances are that your test runs will break.  Does anyone except me maintain a `tests/conf_private.py`-file?  Please reach out by email, GitHub issues or GitHub discussions.
 

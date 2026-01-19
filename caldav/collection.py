@@ -552,7 +552,7 @@ class Principal(DAVObject):
             caldavobj.data,
             headers={"Content-Type": "text/calendar; charset=utf-8"},
         )
-        return response.find_objects_and_props()
+        return response._find_objects_and_props()
 
     def calendar_user_address_set(self) -> List[Optional[str]]:
         """
@@ -862,7 +862,7 @@ class Calendar(DAVObject):
             return []
 
         # Fallback for mocked responses without protocol parsing
-        response_list = response.find_objects_and_props()
+        response_list = response._find_objects_and_props()
         prop = response_list[unquote(self.url.path)][
             cdav.SupportedCalendarComponentSet().tag
         ]

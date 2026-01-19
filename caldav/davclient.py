@@ -419,7 +419,7 @@ class DAVClient(BaseDAVClient):
                 f"{response.status} {response.reason} - {response.raw}"
             )
 
-        principal_dict = response.find_objects_and_props()
+        principal_dict = response._find_objects_and_props()
         ret = []
         for x in principal_dict:
             p = principal_dict[x]

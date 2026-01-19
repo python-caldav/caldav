@@ -400,8 +400,8 @@ class DAVObject:
                 result_props.update(result.properties)
                 properties[result.href] = result_props
         elif not parse_props:
-            # Caller wants raw XML elements - use deprecated method
-            properties = response.find_objects_and_props()
+            # Caller wants raw XML elements - use internal method
+            properties = response._find_objects_and_props()
         else:
             # Fallback to expand_simple_props for mocked responses
             properties = response.expand_simple_props(props)
@@ -463,8 +463,8 @@ class DAVObject:
                 result_props.update(result.properties)
                 properties[result.href] = result_props
         elif not parse_props:
-            # Caller wants raw XML elements - use deprecated method
-            properties = response.find_objects_and_props()
+            # Caller wants raw XML elements - use internal method
+            properties = response._find_objects_and_props()
         else:
             # Fallback to expand_simple_props for mocked responses
             properties = response.expand_simple_props(props)
