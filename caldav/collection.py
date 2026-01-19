@@ -1034,30 +1034,33 @@ class Calendar(DAVObject):
         verify_expand: bool = False,
     ) -> Sequence["CalendarObjectResource"]:
         # type (TimeStamp, TimeStamp, str, str) -> CalendarObjectResource
-        """Deprecated.  Use self.search() instead.
+        """
+        .. deprecated:: 3.0
+            Use :meth:`search` instead. This method will be removed in 4.0.
 
         Search events by date in the calendar.
 
-        Args
-         start : defaults to datetime.today().
-         end : same as above.
-         compfilter : defaults to events only.  Set to None to fetch all calendar components.
-         expand : should recurrent events be expanded?  (to preserve backward-compatibility the default "maybe" will be changed into True unless the date_search is open-ended)
-         verify_expand : not in use anymore, but kept for backward compatibility
+        Args:
+            start: Start of the date range to search.
+            end: End of the date range (optional for open-ended search).
+            compfilter: Component type to search for. Defaults to "VEVENT".
+                Set to None to fetch all calendar components.
+            expand: Should recurrent events be expanded? Default "maybe"
+                becomes True unless the search is open-ended.
+            verify_expand: Not in use anymore, kept for backward compatibility.
 
         Returns:
-         * [CalendarObjectResource(), ...]
+            List of CalendarObjectResource objects matching the search.
 
-        Recurring events are expanded if they are occurring during the
-        specified time frame and if an end timestamp is given.
+        Example (migrate to search)::
 
-        Note that this is a deprecated method.  The `search` method is
-        nearly equivalent.  Differences: default for ``compfilter`` is
-        to search for all objects, default for ``expand`` is
-        ``False``, and it has a different default
-        ``split_expanded=True``.
+            # Legacy (deprecated):
+            events = calendar.date_search(start, end, expand=True)
+
+            # Recommended:
+            events = calendar.search(start=start, end=end, event=True, expand=True)
         """
-        ## date_search will probably disappear in 3.0
+        ## date_search will be removed in 4.0
         warnings.warn(
             "use `calendar.search rather than `calendar.date_search`",
             DeprecationWarning,

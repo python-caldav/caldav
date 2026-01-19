@@ -53,26 +53,22 @@ Analysis of `get_davclient()` factory function vs direct `DAVClient()` instantia
 ### [TODO.md](TODO.md)
 Known issues and remaining work items.
 
-## API Design Analysis
+## API Design
 
-These documents contain design rationale for API decisions that remain relevant:
+### [API_NAMING_CONVENTIONS.md](API_NAMING_CONVENTIONS.md)
+**API naming conventions** - Guide to recommended vs legacy method names:
+- Which methods to use in new code
+- Migration guide from legacy methods
+- Deprecation timeline
 
-### [API_ANALYSIS.md](API_ANALYSIS.md)
-Analysis of DAVClient API inconsistencies and improvement recommendations:
-- Parameter naming standardization (`body` vs `props`/`query`)
-- URL parameter handling (optional vs required)
-- Method naming conventions
+### Historical API Analysis
 
-### [URL_AND_METHOD_RESEARCH.md](URL_AND_METHOD_RESEARCH.md)
-Research on URL parameter semantics:
-- Why query methods (`propfind`, `report`) have optional URL
-- Why resource methods (`put`, `delete`) require explicit URL
+These documents contain design rationale for API decisions:
 
-### [ELIMINATE_METHOD_WRAPPERS_ANALYSIS.md](ELIMINATE_METHOD_WRAPPERS_ANALYSIS.md)
-Analysis of `_query()` method and HTTP wrappers - decision to keep them for mocking and discoverability.
-
-### [METHOD_GENERATION_ANALYSIS.md](METHOD_GENERATION_ANALYSIS.md)
-Analysis of manual vs generated HTTP method wrappers - decision to use manual implementation.
+- [API_ANALYSIS.md](API_ANALYSIS.md) - API inconsistency analysis and improvement recommendations
+- [URL_AND_METHOD_RESEARCH.md](URL_AND_METHOD_RESEARCH.md) - URL parameter semantics research
+- [ELIMINATE_METHOD_WRAPPERS_ANALYSIS.md](ELIMINATE_METHOD_WRAPPERS_ANALYSIS.md) - Decision to keep method wrappers
+- [METHOD_GENERATION_ANALYSIS.md](METHOD_GENERATION_ANALYSIS.md) - Decision to use manual implementation
 
 ## Code Style
 

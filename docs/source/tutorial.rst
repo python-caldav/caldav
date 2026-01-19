@@ -30,8 +30,7 @@ As of 2.0, it's recommended to start initiating a
 :class:`caldav.davclient.DAVClient` object using the ``get_davclient``
 function, go from there to get a
 :class:`caldav.collection.Principal`-object, and from there find a
-:class:`caldav.collection.Calendar`-object.  (I'm planning to add a
-``get_calendar`` in version 3.0).  This is how to do it:
+:class:`caldav.collection.Calendar`-object.  This is how to do it:
 
 .. code-block:: python
 
@@ -39,7 +38,7 @@ function, go from there to get a
     from caldav.lib.error import NotFoundError
 
     with get_davclient() as client:
-        my_principal = client.principal()
+        my_principal = client.get_principal()
         try:
             my_calendar = my_principal.calendar()
             print(f"A calendar was found at URL {my_calendar.url}")
@@ -61,7 +60,7 @@ be the correct one.  To filter there are parameters ``name`` and
     from caldav.lib.error import NotFoundError
 
     with get_davclient() as client:
-        my_principal = client.principal()
+        my_principal = client.get_principal()
         try:
             my_calendar = my_principal.calendar(name="My Calendar")
         except NotFoundError:
@@ -87,7 +86,7 @@ For servers that supports it, it may be useful to create a dedicated test calend
     import datetime
 
     with get_davclient() as client:
-        my_principal = client.principal()
+        my_principal = client.get_principal()
         my_new_calendar = my_principal.make_calendar(name="Test calendar")
         may17 = my_new_calendar.save_event(
             dtstart=datetime.datetime(2020,5,17,8),
@@ -103,7 +102,7 @@ You have icalendar code and want to put it into the calendar?  Easy!
     from caldav import get_davclient
 
     with get_davclient() as client:
-        my_principal = client.principal()
+        my_principal = client.get_principal()
         my_new_calendar = my_principal.make_calendar(name="Test calendar")
         may17 = my_new_calendar.save_event("""BEGIN:VCALENDAR
     VERSION:2.0
@@ -127,7 +126,7 @@ The best way of getting information out from the calendar is to use the search. 
     from datetime import date
 
     with get_davclient() as client:
-        my_principal = client.principal()
+        my_principal = client.get_principal()
         my_new_calendar = my_principal.make_calendar(name="Test calendar")
         my_new_calendar.save_event(
             dtstart=datetime.datetime(2023,5,17,8),
@@ -161,7 +160,7 @@ The ``data`` property delivers the icalendar data as a string.  It can be modifi
     from datetime import date
 
     with get_davclient() as client:
-        my_principal = client.principal()
+        my_principal = client.get_principal()
         my_new_calendar = my_principal.make_calendar(name="Test calendar")
         my_new_calendar.save_event(
             dtstart=datetime.datetime(2023,5,17,8),
@@ -208,7 +207,7 @@ wants easy access to the event data, the
     from datetime import date
 
     with get_davclient() as client:
-        my_principal = client.principal()
+        my_principal = client.get_principal()
         my_new_calendar = my_principal.make_calendar(name="Test calendar")
         my_new_calendar.save_event(
             dtstart=datetime.datetime(2023,5,17,8),
@@ -239,7 +238,7 @@ Usually tasks and journals can be applied directly to the same calendar as the e
     from datetime import date
 
     with get_davclient() as client:
-        my_principal = client.principal()
+        my_principal = client.get_principal()
         my_new_calendar = my_principal.make_calendar(
             name="Test calendar", supported_calendar_component_set=['VTODO'])
         my_new_calendar.save_todo(

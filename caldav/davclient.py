@@ -431,6 +431,8 @@ class DAVClient(BaseDAVClient):
 
     def principal(self, *largs, **kwargs):
         """
+        Legacy method. Use :meth:`get_principal` for new code.
+
         Convenience method, it gives a bit more object-oriented feel to
         write client.principal() than Principal(client).
 
@@ -461,10 +463,16 @@ class DAVClient(BaseDAVClient):
     def get_principal(self) -> Principal:
         """Get the principal (user) for this CalDAV connection.
 
-        This is an alias for principal() for API consistency with AsyncDAVClient.
+        This is the recommended method for new code. It provides API
+        consistency between sync and async clients.
 
         Returns:
             Principal object for the authenticated user.
+
+        Example::
+
+            principal = client.get_principal()
+            calendars = principal.calendars()
         """
         return self.principal()
 
@@ -665,7 +673,10 @@ class DAVClient(BaseDAVClient):
 
     def check_dav_support(self) -> Optional[str]:
         """
-        Does a probe towards the server and returns True if it says it supports RFC4918 / DAV
+        Legacy method. Use :meth:`supports_dav` for new code.
+
+        Does a probe towards the server and returns the DAV header if it
+        says it supports RFC4918 / DAV, or None otherwise.
         """
         try:
             ## SOGo does not return the full capability list on the caldav
@@ -680,29 +691,73 @@ class DAVClient(BaseDAVClient):
 
     def check_cdav_support(self) -> bool:
         """
-        Does a probe towards the server and returns True if it says it supports RFC4791 / CalDAV
+        Legacy method. Use :meth:`supports_caldav` for new code.
+
+        Does a probe towards the server and returns True if it says it
+        supports RFC4791 / CalDAV.
         """
         support_list = self.check_dav_support()
         return support_list is not None and "calendar-access" in support_list
 
     def check_scheduling_support(self) -> bool:
         """
-        Does a probe towards the server and returns True if it says it supports RFC6833 / CalDAV Scheduling
+        Legacy method. Use :meth:`supports_scheduling` for new code.
+
+        Does a probe towards the server and returns True if it says it
+        supports RFC6638 / CalDAV Scheduling.
         """
         support_list = self.check_dav_support()
         return support_list is not None and "calendar-auto-schedule" in support_list
 
-    # Aliases for API consistency with AsyncDAVClient
+    # Recommended methods for capability checks (API consistency with AsyncDAVClient)
+
     def supports_dav(self) -> Optional[str]:
-        """Alias for check_dav_support() for API consistency."""
+        """Check if the server supports WebDAV (RFC4918).
+
+        This is the recommended method for new code. It provides API
+        consistency between sync and async clients.
+
+        Returns:
+            The DAV header value if supported, None otherwise.
+
+        Example::
+
+            if client.supports_dav():
+                print("Server supports WebDAV")
+        """
         return self.check_dav_support()
 
     def supports_caldav(self) -> bool:
-        """Alias for check_cdav_support() for API consistency."""
+        """Check if the server supports CalDAV (RFC4791).
+
+        This is the recommended method for new code. It provides API
+        consistency between sync and async clients.
+
+        Returns:
+            True if the server supports CalDAV, False otherwise.
+
+        Example::
+
+            if client.supports_caldav():
+                calendars = client.get_calendars()
+        """
         return self.check_cdav_support()
 
     def supports_scheduling(self) -> bool:
-        """Alias for check_scheduling_support() for API consistency."""
+        """Check if the server supports CalDAV Scheduling (RFC6638).
+
+        This is the recommended method for new code. It provides API
+        consistency between sync and async clients.
+
+        Returns:
+            True if the server supports CalDAV Scheduling, False otherwise.
+
+        Example::
+
+            if client.supports_scheduling():
+                # Server supports free-busy lookups and scheduling
+                pass
+        """
         return self.check_scheduling_support()
 
     def propfind(
