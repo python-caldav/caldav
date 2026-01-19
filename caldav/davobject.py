@@ -73,7 +73,6 @@ class DAVObject:
         client: Optional["DAVClient"] = None,
         url: Union[str, ParseResult, SplitResult, URL, None] = None,
         parent: Optional["DAVObject"] = None,
-        name: Optional[str] = None,
         id: Optional[str] = None,
         props=None,
         **extra,
@@ -85,16 +84,14 @@ class DAVObject:
           client: A DAVClient instance
           url: The url for this object.  May be a full URL or a relative URL.
           parent: The parent object - used when creating objects
-          name: A displayname - to be removed at some point, see https://github.com/python-caldav/caldav/issues/128 for details
-          props: a dict with known properties for this object
           id: The resource id (UID for an Event)
+          props: a dict with known properties for this object
         """
 
         if client is None and parent is not None:
             client = parent.client
         self.client = client
         self.parent = parent
-        self.name = name
         self.id = id
         self.props = props or {}
         self.extra_init_options = extra

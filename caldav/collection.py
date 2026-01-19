@@ -590,6 +590,30 @@ class Calendar(DAVObject):
     https://tools.ietf.org/html/rfc4791#section-5.3.1
     """
 
+    def __init__(
+        self,
+        client: Optional["DAVClient"] = None,
+        url: Union[str, ParseResult, SplitResult, URL, None] = None,
+        parent: Optional["DAVObject"] = None,
+        name: Optional[str] = None,
+        id: Optional[str] = None,
+        props=None,
+        **extra,
+    ) -> None:
+        """
+        Initialize a Calendar object.
+
+        Args:
+            client: A DAVClient instance
+            url: The url for this calendar. May be a full URL or a relative URL.
+            parent: The parent object (typically a CalendarSet or Principal)
+            name: The display name for the calendar
+            id: The calendar id (used when creating new calendars)
+            props: A dict with known properties for this calendar
+        """
+        super().__init__(client=client, url=url, parent=parent, id=id, props=props, **extra)
+        self.name = name
+
     def _create(
         self, name=None, id=None, supported_calendar_component_set=None, method=None
     ) -> None:
