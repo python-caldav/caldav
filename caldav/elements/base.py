@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import sys
+from collections.abc import Iterable
 from typing import ClassVar
 from typing import List
 from typing import Optional
@@ -10,8 +11,6 @@ from lxml.etree import _Element
 
 from caldav.lib.namespace import nsmap
 from caldav.lib.python_utilities import to_unicode
-
-from collections.abc import Iterable
 
 if sys.version_info < (3, 11):
     from typing_extensions import Self

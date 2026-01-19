@@ -780,8 +780,8 @@ class TestAsyncCalendarObjectResource:
         from caldav.aio import (
             AsyncCalendarObjectResource,
             AsyncEvent,
-            AsyncTodo,
             AsyncJournal,
+            AsyncTodo,
         )
 
         # Verify has_component exists on all async calendar object classes

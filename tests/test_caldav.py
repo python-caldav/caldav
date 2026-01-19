@@ -41,13 +41,13 @@ from .conf import test_radicale
 from .conf import test_xandikos
 from .conf import xandikos_host
 from .conf import xandikos_port
+from caldav import get_davclient
 from caldav.compatibility_hints import FeatureSet
 from caldav.compatibility_hints import (
     incompatibility_description,
 )  ## TEMP - should be removed in the future
 from caldav.davclient import DAVClient
 from caldav.davclient import DAVResponse
-from caldav import get_davclient
 from caldav.elements import cdav
 from caldav.elements import dav
 from caldav.elements import ical

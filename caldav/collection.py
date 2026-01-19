@@ -104,7 +104,9 @@ class CalendarSet(DAVObject):
     async def _async_calendars(self) -> List["Calendar"]:
         """Async implementation of calendars() using the client."""
         from caldav.operations.base import _is_calendar_resource as is_calendar_resource
-        from caldav.operations.calendarset_ops import _extract_calendar_id_from_url as extract_calendar_id_from_url
+        from caldav.operations.calendarset_ops import (
+            _extract_calendar_id_from_url as extract_calendar_id_from_url,
+        )
 
         # Fetch calendars via PROPFIND
         response = await self.client.propfind(
@@ -611,7 +613,9 @@ class Calendar(DAVObject):
             id: The calendar id (used when creating new calendars)
             props: A dict with known properties for this calendar
         """
-        super().__init__(client=client, url=url, parent=parent, id=id, props=props, **extra)
+        super().__init__(
+            client=client, url=url, parent=parent, id=id, props=props, **extra
+        )
         self.name = name
 
     def _create(
@@ -1099,7 +1103,7 @@ class Calendar(DAVObject):
         ## for backward compatibility - expand should be false
         ## in an open-ended date search, otherwise true
         if expand == "maybe":
-            expand = (start is not None and end is not None)
+            expand = start is not None and end is not None
 
         if compfilter == "VEVENT":
             comp_class = Event

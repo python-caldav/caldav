@@ -495,7 +495,9 @@ class DAVClient(BaseDAVClient):
                 print(f"Calendar: {cal.name}")
         """
         from caldav.operations.base import _is_calendar_resource as is_calendar_resource
-        from caldav.operations.calendarset_ops import _extract_calendar_id_from_url as extract_calendar_id_from_url
+        from caldav.operations.calendarset_ops import (
+            _extract_calendar_id_from_url as extract_calendar_id_from_url,
+        )
 
         if principal is None:
             principal = self.principal()
@@ -555,7 +557,9 @@ class DAVClient(BaseDAVClient):
         Returns:
             Calendar home set URL or None
         """
-        from caldav.operations.principal_ops import _sanitize_calendar_home_set_url as sanitize_calendar_home_set_url
+        from caldav.operations.principal_ops import (
+            _sanitize_calendar_home_set_url as sanitize_calendar_home_set_url,
+        )
 
         # Try to get from principal properties
         response = self.propfind(

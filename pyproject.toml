@@ -101,7 +101,7 @@ namespaces = false
 ignore = ["DEP002"]  # Test dependencies (pytest, coverage, etc.) are not imported in main code
 
 [tool.deptry.per_rule_ignores]
-DEP001 = ["conf"]  # Local test configuration file, not a package
+DEP001 = ["conf", "h2"]  # conf: Local test config, h2: Optional HTTP/2 support
 
 [tool.ruff]
 line-length = 100

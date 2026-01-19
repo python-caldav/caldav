@@ -23,12 +23,22 @@ from .collection import Calendar
 from .lib import error
 from .operations.search_ops import _build_search_xml_query
 from .operations.search_ops import _collation_to_caldav as collation_to_caldav
-from .operations.search_ops import _determine_post_filter_needed as determine_post_filter_needed
+from .operations.search_ops import (
+    _determine_post_filter_needed as determine_post_filter_needed,
+)
 from .operations.search_ops import _filter_search_results as filter_search_results
-from .operations.search_ops import _get_explicit_contains_properties as get_explicit_contains_properties
-from .operations.search_ops import _needs_pending_todo_multi_search as needs_pending_todo_multi_search
-from .operations.search_ops import _should_remove_category_filter as should_remove_category_filter
-from .operations.search_ops import _should_remove_property_filters_for_combined as should_remove_property_filters_for_combined
+from .operations.search_ops import (
+    _get_explicit_contains_properties as get_explicit_contains_properties,
+)
+from .operations.search_ops import (
+    _needs_pending_todo_multi_search as needs_pending_todo_multi_search,
+)
+from .operations.search_ops import (
+    _should_remove_category_filter as should_remove_category_filter,
+)
+from .operations.search_ops import (
+    _should_remove_property_filters_for_combined as should_remove_property_filters_for_combined,
+)
 
 if TYPE_CHECKING:
     from .elements import cdav

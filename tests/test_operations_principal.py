@@ -6,14 +6,20 @@ like URL sanitization and vCalAddress creation.
 """
 import pytest
 
+from caldav.operations.principal_ops import _create_vcal_address as create_vcal_address
 from caldav.operations.principal_ops import (
-    _create_vcal_address as create_vcal_address,
     _extract_calendar_user_addresses as extract_calendar_user_addresses,
-    PrincipalData,
+)
+from caldav.operations.principal_ops import (
     _sanitize_calendar_home_set_url as sanitize_calendar_home_set_url,
+)
+from caldav.operations.principal_ops import (
     _should_update_client_base_url as should_update_client_base_url,
+)
+from caldav.operations.principal_ops import (
     _sort_calendar_user_addresses as sort_calendar_user_addresses,
 )
+from caldav.operations.principal_ops import PrincipalData
 
 
 class TestSanitizeCalendarHomeSetUrl:

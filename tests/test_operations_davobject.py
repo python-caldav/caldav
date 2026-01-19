@@ -8,18 +8,28 @@ import pytest
 
 from caldav.operations.davobject_ops import (
     _build_children_query as build_children_query,
-    CALDAV_CALENDAR,
-    ChildData,
-    ChildrenQuery,
+)
+from caldav.operations.davobject_ops import (
     _convert_protocol_results_to_properties as convert_protocol_results_to_properties,
-    DAV_DISPLAYNAME,
-    DAV_RESOURCETYPE,
+)
+from caldav.operations.davobject_ops import (
     _find_object_properties as find_object_properties,
+)
+from caldav.operations.davobject_ops import (
     _process_children_response as process_children_response,
-    PropertiesResult,
+)
+from caldav.operations.davobject_ops import (
     _validate_delete_response as validate_delete_response,
+)
+from caldav.operations.davobject_ops import (
     _validate_proppatch_response as validate_proppatch_response,
 )
+from caldav.operations.davobject_ops import CALDAV_CALENDAR
+from caldav.operations.davobject_ops import ChildData
+from caldav.operations.davobject_ops import ChildrenQuery
+from caldav.operations.davobject_ops import DAV_DISPLAYNAME
+from caldav.operations.davobject_ops import DAV_RESOURCETYPE
+from caldav.operations.davobject_ops import PropertiesResult
 
 
 class TestBuildChildrenQuery:

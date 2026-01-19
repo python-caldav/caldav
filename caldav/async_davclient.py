@@ -5,16 +5,12 @@ Async-first DAVClient implementation for the caldav library.
 This module provides the core async CalDAV/WebDAV client functionality.
 For sync usage, see the davclient.py wrapper.
 """
-import logging
 import sys
-import warnings
 from collections.abc import Mapping
 from types import TracebackType
 from typing import Any
-from typing import List
 from typing import Optional
 from typing import TYPE_CHECKING
-from typing import Union
 from urllib.parse import unquote
 
 if TYPE_CHECKING:
@@ -66,21 +62,18 @@ from caldav.lib.python_utilities import to_normal_str, to_wire
 from caldav.lib.url import URL
 from caldav.objects import log
 from caldav.protocol.types import (
-    PropfindResult,
     CalendarQueryResult,
-    SyncCollectionResult,
+    PropfindResult,
 )
 from caldav.protocol.xml_builders import (
-    _build_propfind_body,
-    _build_calendar_query_body,
     _build_calendar_multiget_body,
+    _build_calendar_query_body,
+    _build_propfind_body,
     _build_sync_collection_body,
-    _build_mkcalendar_body,
-    _build_proppatch_body,
 )
 from caldav.protocol.xml_parsers import (
-    _parse_propfind_response,
     _parse_calendar_query_response,
+    _parse_propfind_response,
     _parse_sync_collection_response,
 )
 from caldav.requests import HTTPBearerAuth
@@ -107,8 +100,8 @@ class AsyncDAVResponse(BaseDAVResponse):
     """
 
     # Protocol-based parsed results (new interface)
-    results: Optional[List[Union[PropfindResult, CalendarQueryResult]]] = None
-    sync_token: Optional[str] = None
+    results: list[PropfindResult | CalendarQueryResult] | None = None
+    sync_token: str | None = None
 
     def __init__(
         self, response: Any, davclient: Optional["AsyncDAVClient"] = None
@@ -131,24 +124,24 @@ class AsyncDAVClient(BaseDAVClient):
             principal = await client.get_principal()
     """
 
-    proxy: Optional[str] = None
+    proxy: str | None = None
     url: URL = None
     huge_tree: bool = False
 
     def __init__(
         self,
-        url: Optional[str] = "",
-        proxy: Optional[str] = None,
-        username: Optional[str] = None,
-        password: Optional[str] = None,
-        auth: Optional[Any] = None,  # httpx.Auth or niquests.auth.AuthBase
-        auth_type: Optional[str] = None,
-        timeout: Optional[int] = None,
-        ssl_verify_cert: Union[bool, str] = True,
-        ssl_cert: Union[str, tuple[str, str], None] = None,
-        headers: Optional[Mapping[str, str]] = None,
+        url: str | None = "",
+        proxy: str | None = None,
+        username: str | None = None,
+        password: str | None = None,
+        auth: Any | None = None,  # httpx.Auth or niquests.auth.AuthBase
+        auth_type: str | None = None,
+        timeout: int | None = None,
+        ssl_verify_cert: bool | str = True,
+        ssl_cert: str | tuple[str, str] | None = None,
+        headers: Mapping[str, str] | None = None,
         huge_tree: bool = False,
-        features: Union[FeatureSet, dict, str, None] = None,
+        features: FeatureSet | dict | str | None = None,
         enable_rfc6764: bool = True,
         require_tls: bool = True,
     ) -> None:
@@ -281,9 +274,9 @@ class AsyncDAVClient(BaseDAVClient):
 
     async def __aexit__(
         self,
-        exc_type: Optional[type],
-        exc_val: Optional[BaseException],
-        exc_tb: Optional[TracebackType],
+        exc_type: type | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
     ) -> None:
         """Async context manager exit."""
         await self.close()
@@ -299,8 +292,8 @@ class AsyncDAVClient(BaseDAVClient):
     @staticmethod
     def _build_method_headers(
         method: str,
-        depth: Optional[int] = None,
-        extra_headers: Optional[Mapping[str, str]] = None,
+        depth: int | None = None,
+        extra_headers: Mapping[str, str] | None = None,
     ) -> dict[str, str]:
         """
         Build headers for WebDAV methods.
@@ -334,7 +327,7 @@ class AsyncDAVClient(BaseDAVClient):
         url: str,
         method: str = "GET",
         body: str = "",
-        headers: Optional[Mapping[str, str]] = None,
+        headers: Mapping[str, str] | None = None,
     ) -> AsyncDAVResponse:
         """
         Send an async HTTP request.
@@ -530,11 +523,11 @@ class AsyncDAVClient(BaseDAVClient):
 
     async def propfind(
         self,
-        url: Optional[str] = None,
+        url: str | None = None,
         body: str = "",
         depth: int = 0,
-        headers: Optional[Mapping[str, str]] = None,
-        props: Optional[List[str]] = None,
+        headers: Mapping[str, str] | None = None,
+        props: list[str] | None = None,
     ) -> AsyncDAVResponse:
         """
         Send a PROPFIND request.
@@ -573,10 +566,10 @@ class AsyncDAVClient(BaseDAVClient):
 
     async def report(
         self,
-        url: Optional[str] = None,
+        url: str | None = None,
         body: str = "",
-        depth: Optional[int] = 0,
-        headers: Optional[Mapping[str, str]] = None,
+        depth: int | None = 0,
+        headers: Mapping[str, str] | None = None,
     ) -> AsyncDAVResponse:
         """
         Send a REPORT request.
@@ -596,8 +589,8 @@ class AsyncDAVClient(BaseDAVClient):
 
     async def options(
         self,
-        url: Optional[str] = None,
-        headers: Optional[Mapping[str, str]] = None,
+        url: str | None = None,
+        headers: Mapping[str, str] | None = None,
     ) -> AsyncDAVResponse:
         """
         Send an OPTIONS request.
@@ -617,7 +610,7 @@ class AsyncDAVClient(BaseDAVClient):
         self,
         url: str,
         body: str = "",
-        headers: Optional[Mapping[str, str]] = None,
+        headers: Mapping[str, str] | None = None,
     ) -> AsyncDAVResponse:
         """
         Send a PROPPATCH request.
@@ -637,7 +630,7 @@ class AsyncDAVClient(BaseDAVClient):
         self,
         url: str,
         body: str = "",
-        headers: Optional[Mapping[str, str]] = None,
+        headers: Mapping[str, str] | None = None,
     ) -> AsyncDAVResponse:
         """
         Send a MKCOL request.
@@ -659,7 +652,7 @@ class AsyncDAVClient(BaseDAVClient):
         self,
         url: str,
         body: str = "",
-        headers: Optional[Mapping[str, str]] = None,
+        headers: Mapping[str, str] | None = None,
     ) -> AsyncDAVResponse:
         """
         Send a MKCALENDAR request.
@@ -679,7 +672,7 @@ class AsyncDAVClient(BaseDAVClient):
         self,
         url: str,
         body: str,
-        headers: Optional[Mapping[str, str]] = None,
+        headers: Mapping[str, str] | None = None,
     ) -> AsyncDAVResponse:
         """
         Send a PUT request.
@@ -698,7 +691,7 @@ class AsyncDAVClient(BaseDAVClient):
         self,
         url: str,
         body: str,
-        headers: Optional[Mapping[str, str]] = None,
+        headers: Mapping[str, str] | None = None,
     ) -> AsyncDAVResponse:
         """
         Send a POST request.
@@ -716,7 +709,7 @@ class AsyncDAVClient(BaseDAVClient):
     async def delete(
         self,
         url: str,
-        headers: Optional[Mapping[str, str]] = None,
+        headers: Mapping[str, str] | None = None,
     ) -> AsyncDAVResponse:
         """
         Send a DELETE request.
@@ -735,15 +728,15 @@ class AsyncDAVClient(BaseDAVClient):
 
     async def calendar_query(
         self,
-        url: Optional[str] = None,
-        start: Optional[Any] = None,
-        end: Optional[Any] = None,
+        url: str | None = None,
+        start: Any | None = None,
+        end: Any | None = None,
         event: bool = False,
         todo: bool = False,
         journal: bool = False,
         expand: bool = False,
         depth: int = 1,
-        headers: Optional[Mapping[str, str]] = None,
+        headers: Mapping[str, str] | None = None,
     ) -> AsyncDAVResponse:
         """
         Execute a calendar-query REPORT to search for calendar objects.
@@ -762,7 +755,6 @@ class AsyncDAVClient(BaseDAVClient):
         Returns:
             AsyncDAVResponse with results containing List[CalendarQueryResult].
         """
-        from datetime import datetime
 
         body, _ = _build_calendar_query_body(
             start=start,
@@ -793,10 +785,10 @@ class AsyncDAVClient(BaseDAVClient):
 
     async def calendar_multiget(
         self,
-        url: Optional[str] = None,
-        hrefs: Optional[List[str]] = None,
+        url: str | None = None,
+        hrefs: list[str] | None = None,
         depth: int = 1,
-        headers: Optional[Mapping[str, str]] = None,
+        headers: Mapping[str, str] | None = None,
     ) -> AsyncDAVResponse:
         """
         Execute a calendar-multiget REPORT to fetch specific calendar objects.
@@ -832,11 +824,11 @@ class AsyncDAVClient(BaseDAVClient):
 
     async def sync_collection(
         self,
-        url: Optional[str] = None,
-        sync_token: Optional[str] = None,
-        props: Optional[List[str]] = None,
+        url: str | None = None,
+        sync_token: str | None = None,
+        props: list[str] | None = None,
         depth: int = 1,
-        headers: Optional[Mapping[str, str]] = None,
+        headers: Mapping[str, str] | None = None,
     ) -> AsyncDAVResponse:
         """
         Execute a sync-collection REPORT for efficient synchronization.
@@ -875,7 +867,7 @@ class AsyncDAVClient(BaseDAVClient):
 
     # ==================== Authentication Helpers ====================
 
-    def build_auth_object(self, auth_types: Optional[list[str]] = None) -> None:
+    def build_auth_object(self, auth_types: list[str] | None = None) -> None:
         """Build authentication object for the httpx/niquests library.
 
         Uses shared auth type selection logic from BaseDAVClient, then
@@ -927,10 +919,6 @@ class AsyncDAVClient(BaseDAVClient):
         from caldav.collection import Principal
 
         # Use operations layer for discovery logic
-        from caldav.operations.principal_ops import (
-            _sanitize_calendar_home_set_url as sanitize_calendar_home_set_url,
-            _should_update_client_base_url as should_update_client_base_url,
-        )
 
         # Fetch current-user-principal
         response = await self.propfind(
@@ -957,7 +945,7 @@ class AsyncDAVClient(BaseDAVClient):
 
     async def get_calendars(
         self, principal: Optional["Principal"] = None
-    ) -> List["Calendar"]:
+    ) -> list["Calendar"]:
         """Get all calendars for the given principal.
 
         This method fetches calendars from the principal's calendar-home-set
@@ -975,9 +963,7 @@ class AsyncDAVClient(BaseDAVClient):
             for cal in calendars:
                 print(f"Calendar: {cal.name}")
         """
-        from caldav.collection import Calendar, Principal
-        from caldav.operations import CalendarInfo
-        from caldav.operations.calendarset_ops import _process_calendar_list as process_calendar_list
+        from caldav.collection import Calendar
 
         if principal is None:
             principal = await self.get_principal()
@@ -1005,7 +991,9 @@ class AsyncDAVClient(BaseDAVClient):
 
         # Process results to extract calendars
         from caldav.operations.base import _is_calendar_resource as is_calendar_resource
-        from caldav.operations.calendarset_ops import _extract_calendar_id_from_url as extract_calendar_id_from_url
+        from caldav.operations.calendarset_ops import (
+            _extract_calendar_id_from_url as extract_calendar_id_from_url,
+        )
 
         calendars = []
         for result in response.results or []:
@@ -1031,7 +1019,7 @@ class AsyncDAVClient(BaseDAVClient):
 
         return calendars
 
-    async def _get_calendar_home_set(self, principal: "Principal") -> Optional[str]:
+    async def _get_calendar_home_set(self, principal: "Principal") -> str | None:
         """Get the calendar-home-set URL for a principal.
 
         Args:
@@ -1040,7 +1028,9 @@ class AsyncDAVClient(BaseDAVClient):
         Returns:
             Calendar home set URL or None
         """
-        from caldav.operations.principal_ops import _sanitize_calendar_home_set_url as sanitize_calendar_home_set_url
+        from caldav.operations.principal_ops import (
+            _sanitize_calendar_home_set_url as sanitize_calendar_home_set_url,
+        )
 
         # Try to get from principal properties
         response = await self.propfind(
@@ -1062,9 +1052,9 @@ class AsyncDAVClient(BaseDAVClient):
     async def get_events(
         self,
         calendar: "Calendar",
-        start: Optional[Any] = None,
-        end: Optional[Any] = None,
-    ) -> List["Event"]:
+        start: Any | None = None,
+        end: Any | None = None,
+    ) -> list["Event"]:
         """Get events from a calendar.
 
         This is a convenience method that searches for VEVENT objects in the
@@ -1092,7 +1082,7 @@ class AsyncDAVClient(BaseDAVClient):
         self,
         calendar: "Calendar",
         include_completed: bool = False,
-    ) -> List["Todo"]:
+    ) -> list["Todo"]:
         """Get todos from a calendar.
 
         Args:
@@ -1112,12 +1102,12 @@ class AsyncDAVClient(BaseDAVClient):
         event: bool = False,
         todo: bool = False,
         journal: bool = False,
-        start: Optional[Any] = None,
-        end: Optional[Any] = None,
-        include_completed: Optional[bool] = None,
+        start: Any | None = None,
+        end: Any | None = None,
+        include_completed: bool | None = None,
         expand: bool = False,
         **kwargs: Any,
-    ) -> List["CalendarObjectResource"]:
+    ) -> list["CalendarObjectResource"]:
         """Search a calendar for events, todos, or journals.
 
         This method provides a clean interface to calendar search using the
