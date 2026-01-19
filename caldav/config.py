@@ -243,7 +243,7 @@ def get_connection_params(
 
     # 2. Test server configuration
     if testconfig or (environment and os.environ.get("PYTHON_CALDAV_USE_TEST_SERVER")):
-        conn = _get_test_server_config(name, environment)
+        conn = _get_test_server_config(name, environment, config_file)
         if conn is not None:
             return conn
         # In test mode, don't fall through to regular config - return None
@@ -307,7 +307,7 @@ def _get_file_config(
 
 
 def _get_test_server_config(
-    name: Optional[str], environment: bool
+    name: Optional[str], environment: bool, config_file: Optional[str] = None
 ) -> Optional[Dict[str, Any]]:
     """
     Get connection parameters for test server.
@@ -319,6 +319,7 @@ def _get_test_server_config(
         name: Specific config section or test server name/index to use.
               Can be a config section name, test server name, or numeric index.
         environment: Whether to check environment variables for server selection.
+        config_file: Explicit config file path to check.
 
     Returns:
         Connection parameters dict, or None if no test server configured.
@@ -328,7 +329,7 @@ def _get_test_server_config(
         name = os.environ.get("PYTHON_CALDAV_TEST_SERVER_NAME")
 
     # 1. Try config file with testing_allowed flag
-    cfg = read_config(None)  # Use default config file locations
+    cfg = read_config(config_file)  # Use explicit file or default locations
     if cfg:
         # If name is specified, check if it's a config section with testing_allowed
         if name is not None and not isinstance(name, int):

@@ -533,27 +533,53 @@ class TestGetDAVClient:
     """
 
     def testTestConfig(self):
-        # Use the last server from caldav_servers (from test_servers framework)
+        """Test that get_davclient(testconfig=True) finds config with testing_allowed."""
+        # Start a test server using test_servers framework
         server_params = caldav_servers[-1]
         with client(**server_params) as conn:
-            assert conn.principal()
+            # Create a config file with testing_allowed: true
+            config = {"testing_allowed": True}
+            for key in ("username", "password", "proxy"):
+                if key in server_params:
+                    config[f"caldav_{key}"] = server_params[key]
+            config["caldav_url"] = str(conn.url)
+
+            with tempfile.NamedTemporaryFile(
+                delete=True, encoding="utf-8", mode="w", suffix=".json"
+            ) as tmp:
+                json.dump({"test_server": config}, tmp)
+                tmp.flush()
+                os.fsync(tmp.fileno())
+                # Test that get_davclient finds it with testconfig=True
+                with get_davclient(
+                    config_file=tmp.name, testconfig=True, environment=False
+                ) as conn2:
+                    assert conn2.principal()
 
     def testEnvironment(self):
-        # Use the last server from caldav_servers (from test_servers framework)
+        """Test that get_davclient() reads from environment variables."""
+        # Start a test server using test_servers framework
         server_params = caldav_servers[-1]
         with client(**server_params) as conn:
-            assert conn.principal()
+            # Set environment variables
             for key in ("username", "password", "proxy"):
                 if key in server_params:
                     os.environ[f"CALDAV_{key.upper()}"] = server_params[key]
             os.environ["CALDAV_URL"] = str(conn.url)
-            with get_davclient(
-                testconfig=False, environment=True, check_config_file=False
-            ) as conn2:
-                assert conn2.principal()
+            try:
+                # Test that get_davclient finds it via environment
+                with get_davclient(
+                    testconfig=False, environment=True, check_config_file=False
+                ) as conn2:
+                    assert conn2.principal()
+            finally:
+                # Clean up environment variables
+                for key in ("URL", "USERNAME", "PASSWORD", "PROXY"):
+                    os.environ.pop(f"CALDAV_{key}", None)
 
     def testConfigfile(self):
-        # Use the last server from caldav_servers (from test_servers framework)
+        """Test that get_davclient() reads from config file."""
+        # Start a test server using test_servers framework
         server_params = caldav_servers[-1]
         with client(**server_params) as conn:
             config = {}
