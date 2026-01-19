@@ -58,6 +58,8 @@ Version 3.0 introduces **full async support** using a Sans-I/O architecture. The
 * Added deptry for dependency verification in CI
 * Added python-dateutil and PyYAML as explicit dependencies (were transitive)
 * Added pytest-asyncio for async test support
+* Added API consistency aliases: `client.supports_dav()`, `client.supports_caldav()`, `client.supports_scheduling()` as alternatives to the `check_*_support()` methods
+* `Calendar` class now accepts a `name` parameter in its constructor, addressing a long-standing API inconsistency (https://github.com/python-caldav/caldav/issues/128)
 
 ### Fixed
 
