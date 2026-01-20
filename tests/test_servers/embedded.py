@@ -74,6 +74,7 @@ class RadicaleTestServer(EmbeddedTestServer):
     def start(self) -> None:
         """Start the Radicale server in a background thread."""
         if self._started or self.is_accessible():
+            self._started = True  # Mark as started even if already running
             return
 
         try:
@@ -130,9 +131,17 @@ class RadicaleTestServer(EmbeddedTestServer):
             pass  # Ignore errors, the collection might already exist
 
         self._started = True
+        self._started_by_us = True
 
     def stop(self) -> None:
-        """Stop the Radicale server and cleanup."""
+        """Stop the Radicale server and cleanup.
+
+        Only stops the server if it was started by us (not externally).
+        """
+        if not self._started_by_us:
+            # Server was already running - don't stop it
+            return
+
         if self.shutdown_socket:
             self.shutdown_socket.close()
             self.shutdown_socket = None
@@ -147,6 +156,7 @@ class RadicaleTestServer(EmbeddedTestServer):
             self.serverdir = None
 
         self._started = False
+        self._started_by_us = False
 
 
 class XandikosTestServer(EmbeddedTestServer):
@@ -201,6 +211,7 @@ class XandikosTestServer(EmbeddedTestServer):
     def start(self) -> None:
         """Start the Xandikos server."""
         if self._started or self.is_accessible():
+            self._started = True  # Mark as started even if already running
             return
 
         try:
@@ -253,9 +264,17 @@ class XandikosTestServer(EmbeddedTestServer):
         # Wait for server to be ready
         self._wait_for_startup()
         self._started = True
+        self._started_by_us = True
 
     def stop(self) -> None:
-        """Stop the Xandikos server and cleanup."""
+        """Stop the Xandikos server and cleanup.
+
+        Only stops the server if it was started by us (not externally).
+        """
+        if not self._started_by_us:
+            # Server was already running - don't stop it
+            return
+
         if self.xapp_loop:
             self.xapp_loop.call_soon_threadsafe(self.xapp_loop.stop)
 
@@ -292,6 +311,7 @@ class XandikosTestServer(EmbeddedTestServer):
         self.xapp_runner = None
         self.xapp = None
         self._started = False
+        self._started_by_us = False
 
 
 # Register server classes

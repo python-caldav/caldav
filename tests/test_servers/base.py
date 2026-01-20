@@ -55,6 +55,7 @@ class TestServer(ABC):
             "name", self.__class__.__name__.replace("TestServer", "")
         )
         self._started = False
+        self._started_by_us = False  # Track if we started the server or it was already running
 
     @property
     @abstractmethod
@@ -302,6 +303,9 @@ class DockerTestServer(TestServer):
         """
         Start the Docker container if not already running.
 
+        If the server is already running (either from a previous test run or
+        started externally), it will be reused without restarting.
+
         Raises:
             RuntimeError: If Docker is not available or container fails to start
         """
@@ -310,6 +314,7 @@ class DockerTestServer(TestServer):
 
         if self._started or self.is_accessible():
             self._started = True  # Mark as started even if already running
+            # Don't set _started_by_us - we didn't start it this time
             print(f"[OK] {self.name} is already running")
             return
 
@@ -333,6 +338,7 @@ class DockerTestServer(TestServer):
             if self.is_accessible():
                 print(f"[OK] {self.name} is ready")
                 self._started = True
+                self._started_by_us = True  # We actually started this server
                 return
             time.sleep(1)
 
@@ -341,11 +347,21 @@ class DockerTestServer(TestServer):
         )
 
     def stop(self) -> None:
-        """Stop the Docker container and cleanup."""
+        """Stop the Docker container and cleanup.
+
+        Only stops the server if it was started by us (not externally).
+        This allows running servers to be reused across test runs.
+        """
         import subprocess
+
+        if not self._started_by_us:
+            # Server was already running before we started - don't stop it
+            print(f"[OK] {self.name} was already running - leaving it running")
+            return
 
         stop_script = self.docker_dir / "stop.sh"
         if stop_script.exists():
+            print(f"Stopping {self.name}...")
             subprocess.run(
                 [str(stop_script)],
                 cwd=self.docker_dir,
@@ -353,6 +369,7 @@ class DockerTestServer(TestServer):
                 capture_output=True,
             )
         self._started = False
+        self._started_by_us = False
 
     def is_accessible(self) -> bool:
         """Check if the Docker container is accessible."""
@@ -392,6 +409,7 @@ class ExternalTestServer(TestServer):
     def stop(self) -> None:
         """External servers stay running - nothing to do."""
         self._started = False
+        self._started_by_us = False
 
     def is_accessible(self) -> bool:
         """Check if the external server is accessible."""
