@@ -73,7 +73,12 @@ class RadicaleTestServer(EmbeddedTestServer):
 
     def start(self) -> None:
         """Start the Radicale server in a background thread."""
-        if self._started or self.is_accessible():
+        # Only check is_accessible() if we haven't been started before.
+        # After stop() is called, the port might still respond briefly,
+        # so we can't trust is_accessible() in that case.
+        if self._started:
+            return
+        if not hasattr(self, '_was_stopped') and self.is_accessible():
             return
 
         try:
@@ -147,6 +152,7 @@ class RadicaleTestServer(EmbeddedTestServer):
             self.serverdir = None
 
         self._started = False
+        self._was_stopped = True  # Mark that we've been stopped at least once
 
 
 class XandikosTestServer(EmbeddedTestServer):
@@ -200,7 +206,12 @@ class XandikosTestServer(EmbeddedTestServer):
 
     def start(self) -> None:
         """Start the Xandikos server."""
-        if self._started or self.is_accessible():
+        # Only check is_accessible() if we haven't been started before.
+        # After stop() is called, the port might still respond briefly,
+        # so we can't trust is_accessible() in that case.
+        if self._started:
+            return
+        if not hasattr(self, '_was_stopped') and self.is_accessible():
             return
 
         try:
@@ -256,33 +267,30 @@ class XandikosTestServer(EmbeddedTestServer):
 
     def stop(self) -> None:
         """Stop the Xandikos server and cleanup."""
-        if self.xapp_loop:
+        import asyncio
+
+        if self.xapp_loop and self.xapp_runner:
+            # Clean shutdown: first cleanup the aiohttp runner (stops accepting
+            # connections and waits for in-flight requests), then stop the loop.
+            # This must be done from within the event loop thread.
+            async def cleanup_and_stop() -> None:
+                await self.xapp_runner.cleanup()
+                self.xapp_loop.stop()
+
+            try:
+                asyncio.run_coroutine_threadsafe(
+                    cleanup_and_stop(), self.xapp_loop
+                ).result(timeout=10)
+            except Exception:
+                # Fallback: force stop if cleanup fails
+                if self.xapp_loop:
+                    self.xapp_loop.call_soon_threadsafe(self.xapp_loop.stop)
+        elif self.xapp_loop:
             self.xapp_loop.call_soon_threadsafe(self.xapp_loop.stop)
-
-            # Send a dummy request to unblock the event loop if needed
-            def silly_request() -> None:
-                try:
-                    requests.get(f"http://{self.host}:{self.port}", timeout=1)
-                except Exception:
-                    pass
-
-            threading.Thread(target=silly_request).start()
 
         if self.thread:
             self.thread.join(timeout=5)
             self.thread = None
-
-        if self.xapp_loop and self.xapp_runner:
-            # Cleanup the runner
-            import asyncio
-
-            try:
-                # Create a new loop just for cleanup since the old one is stopped
-                cleanup_loop = asyncio.new_event_loop()
-                cleanup_loop.run_until_complete(self.xapp_runner.cleanup())
-                cleanup_loop.close()
-            except Exception:
-                pass
 
         if self.serverdir:
             self.serverdir.__exit__(None, None, None)
@@ -292,6 +300,7 @@ class XandikosTestServer(EmbeddedTestServer):
         self.xapp_runner = None
         self.xapp = None
         self._started = False
+        self._was_stopped = True  # Mark that we've been stopped at least once
 
 
 # Register server classes
