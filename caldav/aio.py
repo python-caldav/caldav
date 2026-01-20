@@ -9,9 +9,9 @@ Use this for new async code:
 
     async with aio.AsyncDAVClient(url=..., username=..., password=...) as client:
         principal = await client.get_principal()
-        calendars = await principal.calendars()
+        calendars = await principal.get_calendars()
         for cal in calendars:
-            events = await cal.events()
+            events = await cal.get_events()
 
 For backward-compatible sync code, continue using:
 

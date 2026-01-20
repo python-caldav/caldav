@@ -46,7 +46,7 @@ def run_examples():
         my_principal = client.principal()
 
         ## The principals calendars can be fetched like this:
-        calendars = my_principal.calendars()
+        calendars = my_principal.get_calendars()
 
         ## print out some information
         print_calendars_demo(calendars)
@@ -205,15 +205,15 @@ def search_calendar_demo(calendar):
     ## This those should also work:
     print("Getting all objects from the calendar")
     all_objects = calendar.objects()
-    # updated_objects = calendar.objects_by_sync_token(some_sync_token)
+    # updated_objects = calendar.get_objects_by_sync_token(some_sync_token)
     # some_object = calendar.get_object_by_uid(some_uid)
     # some_event = calendar.get_event_by_uid(some_uid)
     print("Getting all children from the calendar")
     children = calendar.children()
     print("Getting all events from the calendar")
-    events = calendar.events()
+    events = calendar.get_events()
     print("Getting all todos from the calendar")
-    tasks = calendar.todos()
+    tasks = calendar.get_todos()
     assert len(events) + len(tasks) == len(all_objects)
     print(
         f"Found {len(events)} events and {len(tasks)} tasks which is {len(all_objects)}"
@@ -229,11 +229,11 @@ def search_calendar_demo(calendar):
 
     ## They will then disappear from the task list
     print("Getting remaining todos")
-    assert not calendar.todos()
+    assert not calendar.get_todos()
     print("There are no todos")
 
     ## But they are not deleted
-    assert len(calendar.todos(include_completed=True)) == 1
+    assert len(calendar.get_todos(include_completed=True)) == 1
 
     ## Let's delete it completely
     print("Deleting it completely")
@@ -334,7 +334,7 @@ def calendar_by_url_demo(client, url):
     ## No network traffic will be initiated by this:
     calendar = client.calendar(url=url)
     ## At the other hand, this will cause network activity:
-    events = calendar.events()
+    events = calendar.get_events()
     ## We should still have only one event in the calendar
     assert len(events) == 1
 

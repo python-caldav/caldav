@@ -78,6 +78,16 @@ See https://github.com/python-caldav/caldav/issues/71 for rationale.
 | `get_journal_by_uid(uid)` | `journal_by_uid(uid)` | `journal_by_uid` is deprecated |
 | `get_object_by_uid(uid)` | `object_by_uid(uid)` | `object_by_uid` is deprecated |
 
+### Listing Objects
+
+| Recommended | Legacy | Notes |
+|-------------|--------|-------|
+| `principal.get_calendars()` | `principal.calendars()` | `calendars` is deprecated |
+| `calendar.get_events()` | `calendar.events()` | `events` is deprecated |
+| `calendar.get_todos()` | `calendar.todos()` | `todos` is deprecated |
+| `calendar.get_journals()` | `calendar.journals()` | `journals` is deprecated |
+| `calendar.get_objects_by_sync_token()` | `calendar.objects_by_sync_token()` | `objects_by_sync_token` is deprecated |
+
 ### Search Methods
 
 | Recommended | Legacy | Notes |
@@ -128,6 +138,11 @@ The following methods are considered "legacy" but will continue to work. New cod
 - `Calendar.todo_by_uid()` - use `get_todo_by_uid()` instead
 - `Calendar.journal_by_uid()` - use `get_journal_by_uid()` instead
 - `Calendar.object_by_uid()` - use `get_object_by_uid()` instead
+- `Principal.calendars()` - use `get_calendars()` instead
+- `Calendar.events()` - use `get_events()` instead
+- `Calendar.todos()` - use `get_todos()` instead
+- `Calendar.journals()` - use `get_journals()` instead
+- `Calendar.objects_by_sync_token()` - use `get_objects_by_sync_token()` instead
 
 ## Rationale
 

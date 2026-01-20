@@ -36,7 +36,7 @@ from caldav import get_davclient
 
 with get_davclient() as client:
     principal = client.principal()
-    calendars = principal.calendars()
+    calendars = principal.get_calendars()
 ```
 
 **Examples (examples/*.py)**:

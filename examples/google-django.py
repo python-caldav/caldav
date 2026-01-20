@@ -52,8 +52,8 @@ def sync_calendar(user, calendar_id):
 
     # Access calendar
     principal = client.principal()
-    calendar = principal.calendars()[0]
+    calendar = principal.get_calendars()[0]
 
     # Now you can work with events
-    events = calendar.events()
+    events = calendar.get_events()
     # ...etc

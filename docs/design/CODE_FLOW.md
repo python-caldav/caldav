@@ -48,7 +48,7 @@ from caldav import DAVClient
 
 client = DAVClient(url="https://server/dav/", username="user", password="pass")
 principal = client.principal()
-calendars = principal.calendars()
+calendars = principal.get_calendars()
 ```
 
 **Internal Flow:**
@@ -57,7 +57,7 @@ calendars = principal.calendars()
 1. client.principal()
    └─► Principal(client=self, url=self.url)
 
-2. principal.calendars()
+2. principal.get_calendars()
    │
    ├─► _get_calendar_home_set()
    │   ├─► Protocol: build_propfind_body(["{DAV:}current-user-principal"])
@@ -77,7 +77,7 @@ calendars = principal.calendars()
 
 **Key Files:**
 - `caldav/davclient.py:DAVClient.principal()` (line ~470)
-- `caldav/collection.py:Principal.calendars()` (line ~290)
+- `caldav/collection.py:Principal.get_calendars()` (line ~290)
 - `caldav/protocol/xml_builders.py:_build_propfind_body()`
 - `caldav/protocol/xml_parsers.py:_parse_propfind_response()`
 
@@ -89,7 +89,7 @@ from caldav.aio import AsyncDAVClient
 
 async with AsyncDAVClient(url="https://server/dav/", username="user", password="pass") as client:
     principal = await client.principal()
-    calendars = await principal.calendars()
+    calendars = await principal.get_calendars()
 ```
 
 **Internal Flow:**
@@ -99,7 +99,7 @@ async with AsyncDAVClient(url="https://server/dav/", username="user", password="
    └─► Principal(client=self, url=self.url)
        (Principal detects async client, enables async mode)
 
-2. await principal.calendars()
+2. await principal.get_calendars()
    │
    ├─► await _get_calendar_home_set()
    │   ├─► Protocol: build_propfind_body(...)  # Same as sync
@@ -195,16 +195,16 @@ events = calendar.search(
 **User Code:**
 ```python
 # Initial sync
-sync_token, items = calendar.objects_by_sync_token()
+sync_token, items = calendar.get_objects_by_sync_token()
 
 # Incremental sync
-sync_token, changed, deleted = calendar.objects_by_sync_token(sync_token=sync_token)
+sync_token, changed, deleted = calendar.get_objects_by_sync_token(sync_token=sync_token)
 ```
 
 **Internal Flow:**
 
 ```
-1. calendar.objects_by_sync_token(sync_token=None)
+1. calendar.get_objects_by_sync_token(sync_token=None)
    │
    ├─► Protocol: build_sync_collection_body(sync_token="")
    │
@@ -216,7 +216,7 @@ sync_token, changed, deleted = calendar.objects_by_sync_token(sync_token=sync_to
    │
    └─► Returns: (new_sync_token, [objects...])
 
-2. calendar.objects_by_sync_token(sync_token="token-123")
+2. calendar.get_objects_by_sync_token(sync_token="token-123")
    │
    ├─► Protocol: build_sync_collection_body(sync_token="token-123")
    │
@@ -229,7 +229,7 @@ sync_token, changed, deleted = calendar.objects_by_sync_token(sync_token=sync_to
 ```
 
 **Key Files:**
-- `caldav/collection.py:Calendar.objects_by_sync_token()` (line ~560)
+- `caldav/collection.py:Calendar.get_objects_by_sync_token()` (line ~560)
 - `caldav/protocol/xml_builders.py:_build_sync_collection_body()`
 - `caldav/protocol/xml_parsers.py:_parse_sync_collection_response()`
 

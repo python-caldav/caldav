@@ -129,13 +129,13 @@ class TestSyncTokenFallback:
         self.mock_client.features.is_supported.return_value = {"support": "unsupported"}
 
         # First call: get initial state
-        result1 = self.calendar.objects_by_sync_token(
+        result1 = self.calendar.get_objects_by_sync_token(
             sync_token=None, load_objects=False
         )
         initial_token = result1.sync_token
 
         # Second call: with same token, should return empty
-        result2 = self.calendar.objects_by_sync_token(
+        result2 = self.calendar.get_objects_by_sync_token(
             sync_token=initial_token, load_objects=False
         )
 
@@ -152,7 +152,7 @@ class TestSyncTokenFallback:
 
         self.mock_client.features.is_supported.return_value = {"support": "unsupported"}
 
-        result1 = self.calendar.objects_by_sync_token(
+        result1 = self.calendar.get_objects_by_sync_token(
             sync_token=None, load_objects=False
         )
         initial_token = result1.sync_token
@@ -165,7 +165,7 @@ class TestSyncTokenFallback:
         mock_search.return_value = [obj1_modified, obj2_same]
 
         # Second call: with old token, should detect change and return all objects
-        result2 = self.calendar.objects_by_sync_token(
+        result2 = self.calendar.get_objects_by_sync_token(
             sync_token=initial_token, load_objects=False
         )
 
@@ -211,7 +211,7 @@ class TestSyncTokenFallback:
 
         self.mock_client.features.is_supported.return_value = {"support": "unsupported"}
 
-        result1 = self.calendar.objects_by_sync_token(
+        result1 = self.calendar.get_objects_by_sync_token(
             sync_token=None, load_objects=False
         )
         initial_token = result1.sync_token
@@ -246,7 +246,7 @@ class TestSyncTokenFallback:
         mock_query_props.return_value = mock_response2
 
         # Second call: should detect change via ETags
-        result2 = self.calendar.objects_by_sync_token(
+        result2 = self.calendar.get_objects_by_sync_token(
             sync_token=initial_token, load_objects=False
         )
 

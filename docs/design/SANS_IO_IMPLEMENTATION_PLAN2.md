@@ -35,7 +35,7 @@ Extend the Sans-I/O pattern to high-level classes, resulting in:
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                       Public API                             │
-│  Sync:  client.principal().calendars()[0].events()          │
+│  Sync:  client.principal().get_calendars()[0].get_events()          │
 │  Async: await client.get_principal() → get_calendars → ...  │
 ├─────────────────────────────────────────────────────────────┤
 │              Domain Objects (data containers)                │
@@ -196,7 +196,7 @@ class Calendar:
 ### 4. Async API is Client-Centric (Cleaner)
 
 ```python
-# Async users call client methods directly - no Calendar.events()
+# Async users call client methods directly - no Calendar.get_events()
 
 async with AsyncDAVClient(url=...) as client:
     principal = await client.get_principal()
@@ -346,8 +346,8 @@ from caldav.aio import AsyncDAVClient
 
 async with AsyncDAVClient(url=...) as client:
     principal = await client.get_principal()
-    calendars = await principal.calendars()  # Works with same Calendar class
-    events = await calendars[0].events()     # Async iteration
+    calendars = await principal.get_calendars()  # Works with same Calendar class
+    events = await calendars[0].get_events()     # Async iteration
 ```
 
 Domain objects (Calendar, Event, etc.) work with both sync and async clients.
@@ -412,8 +412,8 @@ from caldav import DAVClient
 
 client = DAVClient(url=..., username=..., password=...)
 principal = client.principal()
-calendars = principal.calendars()
-events = calendars[0].events()
+calendars = principal.get_calendars()
+events = calendars[0].get_events()
 
 # All existing code continues to work unchanged
 ```
@@ -424,8 +424,8 @@ events = calendars[0].events()
 from caldav.aio import AsyncDAVClient, AsyncPrincipal
 async with AsyncDAVClient(...) as client:
     principal = await AsyncPrincipal.create(client)
-    calendars = await principal.calendars()
-    events = await calendars[0].events()
+    calendars = await principal.get_calendars()
+    events = await calendars[0].get_events()
 
 # After (new async API - client-centric, cleaner)
 from caldav.aio import AsyncDAVClient
@@ -470,7 +470,7 @@ async with AsyncDAVClient(...) as client:
 
 ## Design Decisions (Resolved)
 
-1. **Domain object style:** Keep current class style for backward compat. Sync API has convenience methods (`calendar.events()`), async API uses client methods directly.
+1. **Domain object style:** Keep current class style for backward compat. Sync API has convenience methods (`calendar.get_events()`), async API uses client methods directly.
 
 2. **Sync/async bridging:** Not needed! True Sans-I/O means both clients use the same operations layer independently - no bridging required.
 

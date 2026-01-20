@@ -48,7 +48,7 @@ def example_get_calendar_by_name():
     if calendar:
         print(f"Found: {calendar.name}")
         # Now you can work with events
-        events = calendar.events()
+        events = calendar.get_events()
         print(f"  Contains {len(events)} events")
     else:
         print("Calendar 'Work' not found")

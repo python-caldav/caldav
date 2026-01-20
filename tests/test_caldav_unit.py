@@ -605,7 +605,7 @@ class TestCalDAV:
             client,
             url="/17149682/calendars/testcalendar-485d002e-31b9-4147-a334-1d71503a4e2c/",
         )
-        assert len(calendar.events()) == 0
+        assert len(calendar.get_events()) == 0
 
     def test_get_calendars(self):
         xml = """
@@ -675,7 +675,7 @@ class TestCalDAV:
 """
         client = MockedDAVClient(xml)
         calendar_home_set = CalendarSet(client, url="/dav/tobias%40redpill-linpro.com/")
-        assert len(calendar_home_set.calendars()) == 1
+        assert len(calendar_home_set.get_calendars()) == 1
 
         def test_supported_components(self):
             xml = """

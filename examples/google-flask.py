@@ -95,12 +95,12 @@ def serve_calendar_ics(calendar_name):
         # connect to the calendar using CalDAV
         client = get_davclient(url=calendar_url, auth=HTTPBearerAuth(access_token))
         principal = client.principal()
-        calendars = principal.calendars()
+        calendars = principal.get_calendars()
 
         # fetch events from the first calendar (usually the only one)
         calendar = calendars[0]
         ics_data = ""
-        for event in calendar.events():
+        for event in calendar.get_events():
             ics_data += event.data
 
         # serve the calendar as an ICS file

@@ -624,7 +624,7 @@ class CalendarObjectResource(DAVObject):
     def _reply_to_invite_request(self, partstat, calendar) -> None:
         error.assert_(self.is_invite_request())
         if not calendar:
-            calendar = self.client.principal().calendars()[0]
+            calendar = self.client.principal().get_calendars()[0]
         ## we need to modify the icalendar code, update our own participant status
         self.icalendar_instance.pop("METHOD")
         self.change_attendee_status(partstat=partstat)

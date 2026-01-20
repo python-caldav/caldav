@@ -66,7 +66,7 @@ async def get_or_create_test_calendar(
 
         if principal is not None:
             try:
-                calendars = await _maybe_await(principal.calendars())
+                calendars = await _maybe_await(principal.get_calendars())
             except (error.NotFoundError, error.AuthorizationError):
                 pass
 

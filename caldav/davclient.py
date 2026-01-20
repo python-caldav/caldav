@@ -481,7 +481,7 @@ class DAVClient(BaseDAVClient):
 
         If you don't know the URL of the calendar, use
         client.principal().calendar(...) instead, or
-        client.principal().calendars()
+        client.principal().get_calendars()
         """
         return Calendar(client=self, **kwargs)
 
@@ -500,7 +500,7 @@ class DAVClient(BaseDAVClient):
         Example::
 
             principal = client.get_principal()
-            calendars = principal.calendars()
+            calendars = principal.get_calendars()
         """
         return self.principal()
 
@@ -1085,7 +1085,7 @@ def get_calendar(**kwargs) -> Optional["Calendar"]:
 
         calendar = get_calendar(calendar_name="Work", url="...", ...)
         if calendar:
-            events = calendar.events()
+            events = calendar.get_events()
     """
     calendars = _base_get_calendars(DAVClient, **kwargs)
     return calendars[0] if calendars else None

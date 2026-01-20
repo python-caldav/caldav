@@ -22,10 +22,10 @@ The async API is available through the ``caldav.aio`` module:
     async def main():
         async with aio.get_async_davclient() as client:
             principal = await client.principal()
-            calendars = await principal.calendars()
+            calendars = await principal.get_calendars()
             for cal in calendars:
                 print(f"Calendar: {cal.name}")
-                events = await cal.events()
+                events = await cal.get_events()
                 print(f"  {len(events)} events")
 
     asyncio.run(main())
@@ -114,10 +114,10 @@ concurrently:
     async def fetch_all_events():
         async with aio.get_async_davclient() as client:
             principal = await client.principal()
-            calendars = await principal.calendars()
+            calendars = await principal.get_calendars()
 
             # Fetch events from all calendars in parallel
-            tasks = [cal.events() for cal in calendars]
+            tasks = [cal.get_events() for cal in calendars]
             results = await asyncio.gather(*tasks)
 
             for cal, events in zip(calendars, results):
@@ -159,13 +159,13 @@ The async API closely mirrors the sync API. Here are the key differences:
 
        # Sync
        principal = client.principal()
-       calendars = principal.calendars()
-       events = calendar.events()
+       calendars = principal.get_calendars()
+       events = calendar.get_events()
 
        # Async
        principal = await client.principal()
-       calendars = await principal.calendars()
-       events = await calendar.events()
+       calendars = await principal.get_calendars()
+       events = await calendar.get_events()
 
 4. **Property access for cached data remains sync:**
 
@@ -192,14 +192,14 @@ All methods that perform I/O are ``async`` and must be awaited:
 
 **AsyncPrincipal:**
 
-* ``await principal.calendars()`` - List all calendars
+* ``await principal.get_calendars()`` - List all calendars
 * ``await principal.make_calendar(name=...)`` - Create a calendar
 * ``await principal.calendar(name=...)`` - Find a calendar
 
 **AsyncCalendar:**
 
-* ``await calendar.events()`` - Get all events
-* ``await calendar.todos()`` - Get all todos
+* ``await calendar.get_events()`` - Get all events
+* ``await calendar.get_todos()`` - Get all todos
 * ``await calendar.search(...)`` - Search for objects
 * ``await calendar.add_event(...)`` - Create an event
 * ``await calendar.add_todo(...)`` - Create a todo

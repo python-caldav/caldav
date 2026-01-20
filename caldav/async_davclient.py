@@ -1229,7 +1229,7 @@ class AsyncDAVClient(BaseDAVClient):
         No network traffic will be initiated by this method.
 
         If you don't know the URL of the calendar, use
-        ``await client.get_principal().calendars()`` instead, or
+        ``await client.get_principal().get_calendars()`` instead, or
         ``await client.get_calendars()``
         """
         from caldav.collection import Calendar
@@ -1428,7 +1428,7 @@ async def get_calendars(
         # If no specific calendars requested, get all calendars
         if not calendars and not calendar_urls and not calendar_names:
             try:
-                all_cals = await principal.calendars()
+                all_cals = await principal.get_calendars()
                 if all_cals:
                     calendars = all_cals
             except Exception as e:

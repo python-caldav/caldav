@@ -21,7 +21,7 @@ class TestRadicale:
         self.calendar = caldav.objects.Calendar(self.client, URL)
 
     def test_eventslist(self):
-        events = self.calendar.events()
+        events = self.calendar.get_events()
         assert len(events) == 2
 
         summaries, dtstart = set(), set()
@@ -42,5 +42,5 @@ class TestTryton:
         self.calendar = caldav.objects.Calendar(self.client, URL)
 
     def test_eventslist(self):
-        events = self.calendar.events()
+        events = self.calendar.get_events()
         assert len(events) == 1

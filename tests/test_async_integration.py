@@ -202,7 +202,7 @@ class AsyncFunctionalTestsBaseClass:
         # Use calendar set at client URL to get calendars
         # This bypasses principal discovery which some servers don't support
         calendar_home = AsyncCalendarSet(client=async_client, url=async_client.url)
-        calendars = await calendar_home.calendars()
+        calendars = await calendar_home.get_calendars()
         assert isinstance(calendars, list)
 
     @pytest.mark.asyncio
@@ -311,7 +311,7 @@ class AsyncFunctionalTestsBaseClass:
         await add_event(async_calendar, ev2)
 
         # Get all events
-        events = await async_calendar.events()
+        events = await async_calendar.get_events()
 
         assert len(events) >= 2
         assert all(isinstance(e, AsyncEvent) for e in events)
@@ -325,7 +325,7 @@ class AsyncFunctionalTestsBaseClass:
         await add_todo(async_calendar, todo1)
 
         # Get all pending todos
-        todos = await async_calendar.todos()
+        todos = await async_calendar.get_todos()
 
         assert len(todos) >= 1
         assert all(isinstance(t, AsyncTodo) for t in todos)

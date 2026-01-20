@@ -17,7 +17,7 @@ from caldav import get_davclient
 
 with get_davclient() as client:
     principal = client.principal()
-    calendars = principal.calendars()
+    calendars = principal.get_calendars()
     for cal in calendars:
         print(f"Calendar: {cal.name}")
 ```
@@ -33,7 +33,7 @@ from caldav import aio
 async def main():
     async with aio.get_async_davclient() as client:
         principal = await client.principal()
-        calendars = await principal.calendars()
+        calendars = await principal.get_calendars()
         for cal in calendars:
             print(f"Calendar: {cal.name}")
 

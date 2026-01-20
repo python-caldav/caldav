@@ -11,9 +11,9 @@ The async API is available through the caldav.aio module:
 
     async with aio.AsyncDAVClient(url=..., username=..., password=...) as client:
         principal = await client.principal()
-        calendars = await principal.calendars()
+        calendars = await principal.get_calendars()
         for cal in calendars:
-            events = await cal.events()
+            events = await cal.get_events()
 
 To run this example:
 
@@ -48,7 +48,7 @@ async def run_examples():
         my_principal = await client.principal()
 
         # Fetch the principal's calendars
-        calendars = await my_principal.calendars()
+        calendars = await my_principal.get_calendars()
 
         # Print calendar information
         await print_calendars_demo(calendars)
@@ -177,10 +177,10 @@ async def search_calendar_demo(calendar):
 
     # Get all objects from the calendar
     print("Getting all events from the calendar")
-    events = await calendar.events()
+    events = await calendar.get_events()
 
     print("Getting all todos from the calendar")
-    tasks = await calendar.todos()
+    tasks = await calendar.get_todos()
 
     print(f"Found {len(events)} events and {len(tasks)} tasks")
 
@@ -190,11 +190,11 @@ async def search_calendar_demo(calendar):
         await tasks[0].complete()
 
         # Completed tasks disappear from the regular list
-        remaining_tasks = await calendar.todos()
+        remaining_tasks = await calendar.get_todos()
         print(f"Remaining incomplete tasks: {len(remaining_tasks)}")
 
         # But they're not deleted - can still find with include_completed
-        all_tasks = await calendar.todos(include_completed=True)
+        all_tasks = await calendar.get_todos(include_completed=True)
         print(f"All tasks (including completed): {len(all_tasks)}")
 
         # Delete the task completely
@@ -248,7 +248,7 @@ async def calendar_by_url_demo(client, url):
     calendar = client.calendar(url=url)
 
     # This will cause network activity
-    events = await calendar.events()
+    events = await calendar.get_events()
     print(f"Calendar has {len(events)} event(s)")
 
     if events:
@@ -269,14 +269,14 @@ async def parallel_operations_demo():
     """
     async with aio.get_async_davclient() as client:
         principal = await client.principal()
-        calendars = await principal.calendars()
+        calendars = await principal.get_calendars()
 
         if len(calendars) >= 2:
             # Fetch events from multiple calendars in parallel
             print("Fetching events from multiple calendars in parallel...")
             results = await asyncio.gather(
-                calendars[0].events(),
-                calendars[1].events(),
+                calendars[0].get_events(),
+                calendars[1].get_events(),
             )
             for i, events in enumerate(results):
                 print(f"Calendar {i}: {len(events)} events")

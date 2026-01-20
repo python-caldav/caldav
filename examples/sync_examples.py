@@ -26,7 +26,7 @@ save_sync_token_to_database(my_events.sync_token)
 # (... some time later ...)
 
 sync_token = load_sync_token_from_database()
-my_updated_events = my_calendar.objects_by_sync_token(sync_token, load_objects=True)
+my_updated_events = my_calendar.get_objects_by_sync_token(sync_token, load_objects=True)
 for event in my_updated_events:
     if event.data is None:
         delete_event_from_database(event)

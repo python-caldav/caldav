@@ -276,7 +276,7 @@ def get_calendars(
 
     # If no specific calendars requested, get all calendars
     if not calendars and not calendar_urls and not calendar_names:
-        all_cals = _try(principal.calendars, {}, "getting all calendars")
+        all_cals = _try(principal.get_calendars, {}, "getting all calendars")
         if all_cals:
             calendars = all_cals
 

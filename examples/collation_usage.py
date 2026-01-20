@@ -23,7 +23,7 @@ def run_examples():
     print("=" * 80)
 
     with get_davclient() as client:
-        calendar = client.principal().calendars()[0]
+        calendar = client.principal().get_calendars()[0]
 
         # Create some test events with different cases
         print("\nCreating test events...")

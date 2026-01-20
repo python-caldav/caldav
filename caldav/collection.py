@@ -65,7 +65,7 @@ class CalendarSet(DAVObject):
     A CalendarSet is a set of calendars.
     """
 
-    def calendars(self) -> List["Calendar"]:
+    def get_calendars(self) -> List["Calendar"]:
         """
         List all calendar collections in this set.
 
@@ -76,10 +76,10 @@ class CalendarSet(DAVObject):
          * [Calendar(), ...]
 
         Example (sync):
-            calendars = calendar_set.calendars()
+            calendars = calendar_set.get_calendars()
 
         Example (async):
-            calendars = await calendar_set.calendars()
+            calendars = await calendar_set.get_calendars()
         """
         # Delegate to client for dual-mode support
         if self.is_async_client:
@@ -146,6 +146,14 @@ class CalendarSet(DAVObject):
             calendars.append(cal)
 
         return calendars
+
+    def calendars(self) -> List["Calendar"]:
+        """
+        Deprecated: Use :meth:`get_calendars` instead.
+
+        This method is an alias kept for backwards compatibility.
+        """
+        return self.get_calendars()
 
     def make_calendar(
         self,
@@ -217,7 +225,7 @@ class CalendarSet(DAVObject):
         """
         # For name-based lookup, use calendars() which already uses async delegation
         if name and not cal_id:
-            for calendar in self.calendars():
+            for calendar in self.get_calendars():
                 display_name = calendar.get_display_name()
                 if display_name == name:
                     return calendar
@@ -226,7 +234,7 @@ class CalendarSet(DAVObject):
                 f"No calendar with name {name} found under {self.url}"
             )
         if not cal_id and not name:
-            cals = self.calendars()
+            cals = self.get_calendars()
             if not cals:
                 raise error.NotFoundError("no calendars found")
             return cals[0]
@@ -501,7 +509,7 @@ class Principal(DAVObject):
                 ## TODO:
                 ## Here be dragons.  sanitized_url will be the root
                 ## of all future objects derived from client.  Changing
-                ## the client.url root by doing a principal.calendars()
+                ## the client.url root by doing a principal.get_calendars()
                 ## is an unacceptable side effect and may be a cause of
                 ## incompatibilities with icloud.  Do more research!
                 self.client.url = sanitized_url
@@ -509,7 +517,7 @@ class Principal(DAVObject):
             self.client, self.client.url.join(sanitized_url)
         )
 
-    def calendars(self) -> List["Calendar"]:
+    def get_calendars(self) -> List["Calendar"]:
         """
         Return the principal's calendars.
 
@@ -517,13 +525,21 @@ class Principal(DAVObject):
         For async clients, returns a coroutine that must be awaited.
 
         Example (sync):
-            calendars = principal.calendars()
+            calendars = principal.get_calendars()
 
         Example (async):
-            calendars = await principal.calendars()
+            calendars = await principal.get_calendars()
         """
         # Delegate to client for dual-mode support
         return self.client.get_calendars(self)
+
+    def calendars(self) -> List["Calendar"]:
+        """
+        Deprecated: Use :meth:`get_calendars` instead.
+
+        This method is an alias kept for backwards compatibility.
+        """
+        return self.get_calendars()
 
     def freebusy_request(self, dtstart, dtend, attendees):
         """Sends a freebusy-request for some attendee to the server
@@ -790,7 +806,7 @@ class Calendar(DAVObject):
                 except error.DeleteError:
                     pass
                 try:
-                    x = self.events()
+                    x = self.get_events()
                     sleep(0.3)
                 except error.NotFoundError:
                     wipe = False
@@ -1422,14 +1438,14 @@ class Calendar(DAVObject):
         response = self._query(root, 1, "report")
         return FreeBusy(self, response.raw)
 
-    def todos(
+    def get_todos(
         self,
         sort_keys: Sequence[str] = ("due", "priority"),
         include_completed: bool = False,
         sort_key: Optional[str] = None,
     ) -> List["Todo"]:
         """
-        Fetches a list of todo events (this is a wrapper around search).
+        Fetches a list of todo items (this is a wrapper around search).
 
         For sync clients, returns a list of Todo objects directly.
         For async clients, returns a coroutine that must be awaited.
@@ -1440,10 +1456,10 @@ class Calendar(DAVObject):
           sort_key: DEPRECATED, for backwards compatibility with version 0.4.
 
         Example (sync):
-            todos = calendar.todos()
+            todos = calendar.get_todos()
 
         Example (async):
-            todos = await calendar.todos()
+            todos = await calendar.get_todos()
         """
         if sort_key:
             sort_keys = (sort_key,)
@@ -1453,6 +1469,14 @@ class Calendar(DAVObject):
         return self.search(
             todo=True, include_completed=include_completed, sort_keys=sort_keys
         )
+
+    def todos(self, *largs, **kwargs) -> List["Todo"]:
+        """
+        Deprecated: Use :meth:`get_todos` instead.
+
+        This method is an alias kept for backwards compatibility.
+        """
+        return self.get_todos(*largs, **kwargs)
 
     def _calendar_comp_class_by_data(self, data):
         """
@@ -1600,7 +1624,7 @@ class Calendar(DAVObject):
     # alias for backward compatibility
     event = event_by_uid
 
-    def events(self) -> List["Event"]:
+    def get_events(self) -> List["Event"]:
         """
         List all events from the calendar.
 
@@ -1611,14 +1635,22 @@ class Calendar(DAVObject):
          * [Event(), ...]
 
         Example (sync):
-            events = calendar.events()
+            events = calendar.get_events()
 
         Example (async):
-            events = await calendar.events()
+            events = await calendar.get_events()
         """
         # Use search() for both sync and async - this ensures any
         # delay decorators applied to search() are respected
         return self.search(comp_class=Event)
+
+    def events(self) -> List["Event"]:
+        """
+        Deprecated: Use :meth:`get_events` instead.
+
+        This method is an alias kept for backwards compatibility.
+        """
+        return self.get_events()
 
     def _generate_fake_sync_token(self, objects: List["CalendarObjectResource"]) -> str:
         """
@@ -1645,13 +1677,13 @@ class Calendar(DAVObject):
         hash_value = hashlib.md5(combined.encode()).hexdigest()
         return f"fake-{hash_value}"
 
-    def objects_by_sync_token(
+    def get_objects_by_sync_token(
         self,
         sync_token: Optional[Any] = None,
         load_objects: bool = False,
         disable_fallback: bool = False,
     ) -> "SynchronizableCalendarObjectCollection":
-        """objects_by_sync_token aka objects
+        """get_objects_by_sync_token aka get_objects
 
         Do a sync-collection report, ref RFC 6578 and
         https://github.com/python-caldav/caldav/issues/87
@@ -1800,9 +1832,18 @@ class Calendar(DAVObject):
             calendar=self, objects=all_objects, sync_token=fake_sync_token
         )
 
-    objects = objects_by_sync_token
+    def objects_by_sync_token(self, *largs, **kwargs) -> "SynchronizableCalendarObjectCollection":
+        """
+        Deprecated: Use :meth:`get_objects_by_sync_token` instead.
 
-    def journals(self) -> List["Journal"]:
+        This method is an alias kept for backwards compatibility.
+        """
+        return self.get_objects_by_sync_token(*largs, **kwargs)
+
+    objects = objects_by_sync_token
+    get_objects = get_objects_by_sync_token
+
+    def get_journals(self) -> List["Journal"]:
         """
         List all journals from the calendar.
 
@@ -1810,6 +1851,14 @@ class Calendar(DAVObject):
          * [Journal(), ...]
         """
         return self.search(comp_class=Journal)
+
+    def journals(self) -> List["Journal"]:
+        """
+        Deprecated: Use :meth:`get_journals` instead.
+
+        This method is an alias kept for backwards compatibility.
+        """
+        return self.get_journals()
 
 
 class ScheduleMailbox(Calendar):
@@ -1965,7 +2014,7 @@ class SynchronizableCalendarObjectCollection:
         if not is_fake_token:
             ## Try to use real sync tokens
             try:
-                updates = self.calendar.objects_by_sync_token(
+                updates = self.calendar.get_objects_by_sync_token(
                     self.sync_token, load_objects=False
                 )
 

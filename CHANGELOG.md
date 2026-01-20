@@ -54,6 +54,11 @@ The following are deprecated but do not yet emit warnings:
 * `calendar.todo_by_uid()` - use `calendar.get_todo_by_uid()` instead
 * `calendar.journal_by_uid()` - use `calendar.get_journal_by_uid()` instead
 * `calendar.object_by_uid()` - use `calendar.get_object_by_uid()` instead
+* `principal.calendars()` - use `principal.get_calendars()` instead
+* `calendar.events()` - use `calendar.get_events()` instead
+* `calendar.todos()` - use `calendar.get_todos()` instead
+* `calendar.journals()` - use `calendar.get_journals()` instead
+* `calendar.objects_by_sync_token()` - use `calendar.get_objects_by_sync_token()` instead
 
 Additionally, direct `DAVClient()` instantiation should migrate to `get_davclient()` factory method (see `docs/design/API_NAMING_CONVENTIONS.md`)
 
@@ -67,7 +72,7 @@ Additionally, direct `DAVClient()` instantiation should migrate to `get_davclien
       principal = await client.get_principal()
       calendars = await client.get_calendars()
       for cal in calendars:
-          events = await cal.events()
+          events = await cal.get_events()
   ```
 
 * **Sans-I/O architecture** - Internal refactoring separates protocol logic from I/O:
