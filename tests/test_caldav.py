@@ -1842,6 +1842,11 @@ END:VCALENDAR""",
                     log.info(
                         f"  URL: {e.url}, Summary: {e.icalendar_component.get('summary')}"
                     )
+                # This violates RFC 5545 - UIDs should be unique within a calendar
+                pytest.xfail(
+                    f"Server {getattr(self.caldav, 'server_name', 'unknown')} "
+                    "allows duplicate UIDs on same calendar - violates RFC 5545"
+                )
             elif len(events_with_uid) == 0:
                 log.warning("WARNING: No events found with this UID!")
             else:
