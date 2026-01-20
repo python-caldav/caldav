@@ -241,6 +241,13 @@ def get_connection_params(
         if conn_params.get("url"):
             return conn_params
 
+    # Check for config file path from environment early (needed for test server config too)
+    if environment:
+        if not config_file:
+            config_file = os.environ.get("CALDAV_CONFIG_FILE")
+        if not config_section:
+            config_section = os.environ.get("CALDAV_CONFIG_SECTION")
+
     # 2. Test server configuration
     if testconfig or (environment and os.environ.get("PYTHON_CALDAV_USE_TEST_SERVER")):
         conn = _get_test_server_config(name, environment, config_file)
@@ -259,12 +266,6 @@ def get_connection_params(
         conn_params = _get_env_config()
         if conn_params:
             return conn_params
-
-        # Also check for config file path from environment
-        if not config_file:
-            config_file = os.environ.get("CALDAV_CONFIG_FILE")
-        if not config_section:
-            config_section = os.environ.get("CALDAV_CONFIG_SECTION")
 
     # 4. Config file
     if check_config_file:
@@ -357,15 +358,18 @@ def _extract_conn_params_from_section(
     """Extract connection parameters from a config section dict."""
     conn_params: Dict[str, Any] = {}
     for k in section_data:
-        if k.startswith("caldav_") and section_data[k]:
-            key = k[7:]
-            # Map common aliases
-            if key == "pass":
-                key = "password"
-            elif key == "user":
-                key = "username"
-            if key in CONNKEYS:
-                conn_params[key] = expand_env_vars(section_data[k])
+        if k.startswith("caldav_"):
+            # Check for non-None value (empty string is valid for password)
+            value = section_data[k]
+            if value is not None:
+                key = k[7:]
+                # Map common aliases
+                if key == "pass":
+                    key = "password"
+                elif key == "user":
+                    key = "username"
+                if key in CONNKEYS:
+                    conn_params[key] = expand_env_vars(value)
         elif k == "features" and section_data[k]:
             conn_params["features"] = section_data[k]
 

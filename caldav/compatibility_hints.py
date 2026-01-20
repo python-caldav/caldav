@@ -217,6 +217,9 @@ class FeatureSet:
         "principal-search.list-all": {
             "description": "Server allows listing all principals without a name filter. Often blocked for privacy/security reasons"
         },
+        "wrong-password-check": {
+            "description": "Server rejects requests with wrong password by returning an authorization error. Some servers may not properly reject wrong passwords in certain configurations."
+        },
         "save": {},
         "save.duplicate-uid": {},
         "save.duplicate-uid.cross-calendar": {
@@ -1008,6 +1011,8 @@ cyrus = {
         'support': 'fragile',
         'behaviour': 'Deleting a recently created calendar fails'},
     'save.duplicate-uid.cross-calendar': {'support': 'ungraceful'},
+    # Cyrus may not properly reject wrong passwords in some configurations
+    'wrong-password-check': {'support': 'unsupported'},
     'old_flags': []
 }
 

@@ -2179,6 +2179,7 @@ END:VCALENDAR
             client(**connect_params2).principal()
 
     def testWrongPassword(self):
+        self.skip_unless_support("wrong-password-check")
         if (
             not "password" in self.server_params
             or not self.server_params["password"]
