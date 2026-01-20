@@ -7,8 +7,9 @@ from pathlib import Path
 
 import pytest
 
+from .test_caldav import caldav_servers
+from .test_caldav import client
 from caldav import get_davclient
-from .test_caldav import caldav_servers, client
 
 # Get the project root directory (parent of tests/)
 _PROJECT_ROOT = Path(__file__).parent.parent

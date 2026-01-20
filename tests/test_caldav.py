@@ -112,7 +112,12 @@ def _make_client(
         return None
 
     # Filter out non-connection parameters
-    for bad_param in ("incompatibilities", "backwards_compatibility_url", "principal_url", "enable"):
+    for bad_param in (
+        "incompatibilities",
+        "backwards_compatibility_url",
+        "principal_url",
+        "enable",
+    ):
         kwargs_.pop(bad_param, None)
 
     for kw in list(kwargs_.keys()):
@@ -561,9 +566,9 @@ class TestGetDAVClient:
         # Start a test server using test_servers framework
         server_params = caldav_servers[-1]
         with client(**server_params) as conn:
-            # Set environment variables
+            # Set environment variables (only if value is not None)
             for key in ("username", "password", "proxy"):
-                if key in server_params:
+                if key in server_params and server_params[key] is not None:
                     os.environ[f"CALDAV_{key.upper()}"] = server_params[key]
             os.environ["CALDAV_URL"] = str(conn.url)
             try:
