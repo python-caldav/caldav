@@ -6,6 +6,14 @@ test servers (Radicale, Xandikos, Docker containers) for both sync
 and async tests.
 
 Usage:
+    from tests.test_servers import client_context
+
+    # Simple: get a running server with get_davclient() support
+    with client_context() as client:
+        principal = client.principal()
+        # get_davclient() also works within this context
+
+    # Or use the lower-level APIs:
     from tests.test_servers import get_available_servers, ServerRegistry
 
     for server in get_available_servers():
@@ -23,11 +31,16 @@ from .base import STARTUP_POLL_INTERVAL
 from .base import TestServer
 from .config_loader import create_example_config
 from .config_loader import load_test_server_config
+from .helpers import client_context
+from .helpers import has_test_servers
 from .registry import get_available_servers
 from .registry import get_registry
 from .registry import ServerRegistry
 
 __all__ = [
+    # High-level helpers
+    "client_context",
+    "has_test_servers",
     # Base classes
     "TestServer",
     "EmbeddedTestServer",
