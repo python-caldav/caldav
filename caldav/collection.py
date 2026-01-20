@@ -967,10 +967,42 @@ class Calendar(DAVObject):
 
     ## Deprecated aliases - use add_* instead
     ## These will be removed in a future version
-    save_object = add_object
-    save_event = add_event
-    save_todo = add_todo
-    save_journal = add_journal
+
+    def save_object(self, *largs, **kwargs) -> "CalendarResourceObject":
+        """
+        Deprecated: Use :meth:`add_object` instead.
+
+        This method is an alias kept for backwards compatibility.
+        See https://github.com/python-caldav/caldav/issues/71
+        """
+        return self.add_object(*largs, **kwargs)
+
+    def save_event(self, *largs, **kwargs) -> "Event":
+        """
+        Deprecated: Use :meth:`add_event` instead.
+
+        This method is an alias kept for backwards compatibility.
+        See https://github.com/python-caldav/caldav/issues/71
+        """
+        return self.add_event(*largs, **kwargs)
+
+    def save_todo(self, *largs, **kwargs) -> "Todo":
+        """
+        Deprecated: Use :meth:`add_todo` instead.
+
+        This method is an alias kept for backwards compatibility.
+        See https://github.com/python-caldav/caldav/issues/71
+        """
+        return self.add_todo(*largs, **kwargs)
+
+    def save_journal(self, *largs, **kwargs) -> "Journal":
+        """
+        Deprecated: Use :meth:`add_journal` instead.
+
+        This method is an alias kept for backwards compatibility.
+        See https://github.com/python-caldav/caldav/issues/71
+        """
+        return self.add_journal(*largs, **kwargs)
 
     def save(self, method=None):
         """
