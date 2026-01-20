@@ -125,7 +125,7 @@ def add_stuff_to_calendar_demo(calendar):
     """
     ## Add an event with some certain attributes
     print("Saving an event")
-    may_event = calendar.save_event(
+    may_event = calendar.add_event(
         dtstart=datetime(2020, 5, 17, 6),
         dtend=datetime(2020, 5, 18, 1),
         summary="Do the needful",
@@ -143,7 +143,7 @@ def add_stuff_to_calendar_demo(calendar):
     ## Note that this may break on your server:
     ## * not all servers accepts tasks and events mixed on the same calendar.
     ## * not all servers accepts tasks at all
-    dec_task = calendar.save_todo(
+    dec_task = calendar.add_todo(
         ical_fragment="""DTSTART;VALUE=DATE:20201213
 DUE;VALUE=DATE:20201220
 SUMMARY:Chop down a tree and drag it into the living room
@@ -315,7 +315,7 @@ def read_modify_event_demo(event):
     event.save()
 
     ## NOTE: always use event.save() for updating events and
-    ## calendar.save_event(data) for creating a new event.
+    ## calendar.add_event(data) for creating a new event.
     ## This may break:
     # event.save(event.data)
     ## ref https://github.com/python-caldav/caldav/issues/153

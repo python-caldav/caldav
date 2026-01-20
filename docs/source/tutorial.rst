@@ -135,7 +135,7 @@ For servers that supports it, it may be useful to create a dedicated test calend
     with get_davclient() as client:
         my_principal = client.get_principal()
         my_new_calendar = my_principal.make_calendar(name="Test calendar")
-        may17 = my_new_calendar.save_event(
+        may17 = my_new_calendar.add_event(
             dtstart=datetime.datetime(2020,5,17,8),
             dtend=datetime.datetime(2020,5,18,1),
             uid="may17",
@@ -151,7 +151,7 @@ You have icalendar code and want to put it into the calendar?  Easy!
     with get_davclient() as client:
         my_principal = client.get_principal()
         my_new_calendar = my_principal.make_calendar(name="Test calendar")
-        may17 = my_new_calendar.save_event("""BEGIN:VCALENDAR
+        may17 = my_new_calendar.add_event("""BEGIN:VCALENDAR
     VERSION:2.0
     PRODID:-//Example Corp.//CalDAV Client//EN
     BEGIN:VEVENT
@@ -175,7 +175,7 @@ The best way of getting information out from the calendar is to use the search. 
     with get_davclient() as client:
         my_principal = client.get_principal()
         my_new_calendar = my_principal.make_calendar(name="Test calendar")
-        my_new_calendar.save_event(
+        my_new_calendar.add_event(
             dtstart=datetime.datetime(2023,5,17,8),
             dtend=datetime.datetime(2023,5,18,1),
             uid="may17",
@@ -209,7 +209,7 @@ The ``data`` property delivers the icalendar data as a string.  It can be modifi
     with get_davclient() as client:
         my_principal = client.get_principal()
         my_new_calendar = my_principal.make_calendar(name="Test calendar")
-        my_new_calendar.save_event(
+        my_new_calendar.add_event(
             dtstart=datetime.datetime(2023,5,17,8),
             dtend=datetime.datetime(2023,5,18,1),
             uid="may17",
@@ -256,7 +256,7 @@ wants easy access to the event data, the
     with get_davclient() as client:
         my_principal = client.get_principal()
         my_new_calendar = my_principal.make_calendar(name="Test calendar")
-        my_new_calendar.save_event(
+        my_new_calendar.add_event(
             dtstart=datetime.datetime(2023,5,17,8),
             dtend=datetime.datetime(2023,5,18,1),
             uid="may17",
@@ -288,7 +288,7 @@ Usually tasks and journals can be applied directly to the same calendar as the e
         my_principal = client.get_principal()
         my_new_calendar = my_principal.make_calendar(
             name="Test calendar", supported_calendar_component_set=['VTODO'])
-        my_new_calendar.save_todo(
+        my_new_calendar.add_todo(
             summary="prepare for the Norwegian national day", due=date(2025,5,16))
 
         my_tasks = my_new_calendar.search(

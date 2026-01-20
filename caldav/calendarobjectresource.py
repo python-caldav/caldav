@@ -7,7 +7,7 @@ FreeBusy is also defined as a Calendar Object Resource in the RFC, and it is a b
 
 Alarms and Time zone objects does not have any class as for now.  Those are typically subcomponents of an event/task/journal component.
 
-Users of the library should not need to construct any of those objects.  To add new content to the calendar, use ``calendar.save_event``, ``calendar.save_todo`` or ``calendar.save_journal``.  Those methods will return a CalendarObjectResource.
+Users of the library should not need to construct any of those objects.  To add new content to the calendar, use ``calendar.add_event``, ``calendar.add_todo`` or ``calendar.add_journal``.  Those methods will return a CalendarObjectResource.  To update an existing object, use ``event.save()``.
 """
 import logging
 import re
@@ -630,7 +630,7 @@ class CalendarObjectResource(DAVObject):
         self.change_attendee_status(partstat=partstat)
         self.get_property(cdav.ScheduleTag(), use_cached=True)
         try:
-            calendar.save_event(self.data)
+            calendar.add_event(self.data)
         except Exception:
             ## TODO - TODO - TODO
             ## RFC6638 does not seem to be very clear (or

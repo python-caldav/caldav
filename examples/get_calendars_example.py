@@ -142,7 +142,7 @@ def example_working_with_events():
         return
 
     # Create an event
-    event = calendar.save_event(
+    event = calendar.add_event(
         dtstart=datetime.datetime.now() + datetime.timedelta(days=1),
         dtend=datetime.datetime.now() + datetime.timedelta(days=1, hours=1),
         summary="Meeting created via get_calendar()",

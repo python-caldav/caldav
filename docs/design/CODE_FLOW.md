@@ -118,7 +118,7 @@ async with AsyncDAVClient(url="https://server/dav/", username="user", password="
 
 **User Code (Sync):**
 ```python
-calendar.save_event(
+calendar.add_event(
     dtstart=datetime(2024, 6, 15, 10, 0),
     dtend=datetime(2024, 6, 15, 11, 0),
     summary="Meeting"
@@ -127,7 +127,7 @@ calendar.save_event(
 
 **User Code (Async):**
 ```python
-await calendar.save_event(
+await calendar.add_event(
     dtstart=datetime(2024, 6, 15, 10, 0),
     dtend=datetime(2024, 6, 15, 11, 0),
     summary="Meeting"
@@ -137,7 +137,7 @@ await calendar.save_event(
 **Internal Flow:**
 
 ```
-1. calendar.save_event(dtstart, dtend, summary, ...)
+1. calendar.add_event(dtstart, dtend, summary, ...)
    │
    ├─► Build iCalendar data (icalendar library)
    │   └─► VCALENDAR with VEVENT component
@@ -151,7 +151,7 @@ await calendar.save_event(
 ```
 
 **Key Files:**
-- `caldav/collection.py:Calendar.save_event()` (line ~880)
+- `caldav/collection.py:Calendar.add_event()` (line ~880)
 - `caldav/objects/base.py:CalendarObjectResource.save()` (line ~230)
 
 ## Flow 4: Searching for Events

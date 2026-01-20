@@ -870,7 +870,7 @@ class Calendar(DAVObject):
 
     def save_with_invites(self, ical: str, attendees, **attendeeoptions) -> None:
         """
-        sends a schedule request to the server.  Equivalent with save_event, save_todo, etc,
+        sends a schedule request to the server.  Equivalent with add_event, add_todo, etc,
         but the attendees will be added to the ical object before sending it to the server.
         """
         ## TODO: consolidate together with save_*
@@ -894,7 +894,7 @@ class Calendar(DAVObject):
             return vcal.create_ical(objtype=objtype, **ical_data)
         return ical
 
-    def save_object(
+    def add_object(
         self,
         ## TODO: this should be made optional.  The class may be given in the ical object.
         ## TODO: also, accept a string.
@@ -905,22 +905,25 @@ class Calendar(DAVObject):
         no_create: bool = False,
         **ical_data,
     ) -> "CalendarResourceObject":
-        """Add a new event to the calendar, with the given ical.
+        """Add a new calendar object (event, todo, journal) to the calendar.
+
+        This method is for adding new content to the calendar.  To update
+        an existing object, fetch it first and use ``object.save()``.
 
         Args:
           objclass: Event, Journal or Todo
           ical: ical object (text, icalendar or vobject instance)
           no_overwrite: existing calendar objects should not be overwritten
           no_create: don't create a new object, existing calendar objects should be updated
-          dt_start: properties to be inserted into the icalendar object
-        , dt_end: properties to be inserted into the icalendar object
+          dtstart: properties to be inserted into the icalendar object
+          dtend: properties to be inserted into the icalendar object
           summary: properties to be inserted into the icalendar object
           alarm_trigger: when given, one alarm will be added
           alarm_action: when given, one alarm will be added
           alarm_attach: when given, one alarm will be added
 
         Note that the list of parameters going into the icalendar
-        object and alamrs is not complete.  Refer to the RFC or the
+        object and alarms is not complete.  Refer to the RFC or the
         icalendar library for a full list of properties.
         """
         o = objclass(
@@ -938,35 +941,36 @@ class Calendar(DAVObject):
             o._handle_reverse_relations(fix=True)
         return o
 
-    ## TODO: maybe we should deprecate those three
-    def save_event(self, *largs, **kwargs) -> "Event":
+    def add_event(self, *largs, **kwargs) -> "Event":
         """
-        Returns ``self.save_object(Event, ...)`` - see :class:`save_object`
-        """
-        return self.save_object(Event, *largs, **kwargs)
+        Add an event to the calendar.
 
-    def save_todo(self, *largs, **kwargs) -> "Todo":
+        Returns ``self.add_object(Event, ...)`` - see :meth:`add_object`
         """
-        Returns ``self.save_object(Todo, ...)`` - so see :class:`save_object`
-        """
-        return self.save_object(Todo, *largs, **kwargs)
+        return self.add_object(Event, *largs, **kwargs)
 
-    def save_journal(self, *largs, **kwargs) -> "Journal":
+    def add_todo(self, *largs, **kwargs) -> "Todo":
         """
-        Returns ``self.save_object(Journal, ...)`` - so see :class:`save_object`
+        Add a todo/task to the calendar.
+
+        Returns ``self.add_object(Todo, ...)`` - see :meth:`add_object`
         """
-        return self.save_object(Journal, *largs, **kwargs)
+        return self.add_object(Todo, *largs, **kwargs)
 
-    ## legacy aliases
-    ## TODO: should be deprecated
+    def add_journal(self, *largs, **kwargs) -> "Journal":
+        """
+        Add a journal entry to the calendar.
 
-    ## TODO: think more through this - is `save_foo` better than `add_foo`?
-    ## `save_foo` should not be used for updating existing content on the
-    ## calendar!
-    add_object = save_object
-    add_event = save_event
-    add_todo = save_todo
-    add_journal = save_journal
+        Returns ``self.add_object(Journal, ...)`` - see :meth:`add_object`
+        """
+        return self.add_object(Journal, *largs, **kwargs)
+
+    ## Deprecated aliases - use add_* instead
+    ## These will be removed in a future version
+    save_object = add_object
+    save_event = add_event
+    save_todo = add_todo
+    save_journal = add_journal
 
     def save(self, method=None):
         """

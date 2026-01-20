@@ -112,7 +112,7 @@ caldata2.add_component(event)
 ## There are two ways to send calendar invites:
 
 ## * Add Attendee-lines and an Organizer-line to the event data, and
-##   then use calendar.save_event(caldata) ... see RFC6638, appendix B.1
+##   then use calendar.add_event(caldata) ... see RFC6638, appendix B.1
 ##   for an example.
 
 ## * Use convenience-method calendar.save_with_invites(caldata, attendees).

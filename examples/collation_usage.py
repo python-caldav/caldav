@@ -27,17 +27,17 @@ def run_examples():
 
         # Create some test events with different cases
         print("\nCreating test events...")
-        calendar.save_event(
+        calendar.add_event(
             dtstart=datetime(2025, 6, 1, 10, 0),
             dtend=datetime(2025, 6, 1, 11, 0),
             summary="Team Meeting",
         )
-        calendar.save_event(
+        calendar.add_event(
             dtstart=datetime(2025, 6, 2, 14, 0),
             dtend=datetime(2025, 6, 2, 15, 0),
             summary="team meeting",
         )
-        calendar.save_event(
+        calendar.add_event(
             dtstart=datetime(2025, 6, 3, 9, 0),
             dtend=datetime(2025, 6, 3, 10, 0),
             summary="MEETING with clients",

@@ -113,7 +113,7 @@ async def add_stuff_to_calendar_demo(calendar):
     """
     # Add an event with some attributes
     print("Saving an event")
-    may_event = await calendar.save_event(
+    may_event = await calendar.add_event(
         dtstart=datetime(2020, 5, 17, 6),
         dtend=datetime(2020, 5, 18, 1),
         summary="Do the needful",
@@ -125,7 +125,7 @@ async def add_stuff_to_calendar_demo(calendar):
     acceptable_component_types = await calendar.get_supported_components()
     if "VTODO" in acceptable_component_types:
         print("Tasks are supported by your calendar, saving one")
-        dec_task = await calendar.save_todo(
+        dec_task = await calendar.add_todo(
             ical_fragment="""DTSTART;VALUE=DATE:20201213
 DUE;VALUE=DATE:20201220
 SUMMARY:Chop down a tree and drag it into the living room

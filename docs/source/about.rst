@@ -88,8 +88,8 @@ depend on another library for that.
 RFC 5545 describes the icalendar format.  Constructing or parsing
 icalendar data was considered out of the scope of this library, but we
 do make exceptions - like, there is a method to complete a task - it
-involves editing the icalendar data, and now the ``save_event``,
-``save_todo`` and ``save_journal`` methods are able to construct icalendar
+involves editing the icalendar data, and now the ``add_event``,
+``add_todo`` and ``add_journal`` methods are able to construct icalendar
 data if needed.
 
 There exists two libraries supporting RFC 5545, vobject and icalendar.

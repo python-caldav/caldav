@@ -82,8 +82,8 @@ END:VTODO
 END:VCALENDAR"""
 
 
-async def save_event(calendar: Any, data: str) -> Any:
-    """Helper to save an event to a calendar."""
+async def add_event(calendar: Any, data: str) -> Any:
+    """Helper to add an event to a calendar."""
     from caldav.aio import AsyncEvent
 
     event = AsyncEvent(parent=calendar, data=data)
@@ -91,8 +91,8 @@ async def save_event(calendar: Any, data: str) -> Any:
     return event
 
 
-async def save_todo(calendar: Any, data: str) -> Any:
-    """Helper to save a todo to a calendar."""
+async def add_todo(calendar: Any, data: str) -> Any:
+    """Helper to add a todo to a calendar."""
     from caldav.aio import AsyncTodo
 
     todo = AsyncTodo(parent=calendar, data=data)
@@ -246,8 +246,8 @@ class AsyncFunctionalTestsBaseClass:
         from caldav.aio import AsyncEvent
 
         # Add test events
-        await save_event(async_calendar, ev1)
-        await save_event(async_calendar, ev2)
+        await add_event(async_calendar, ev1)
+        await add_event(async_calendar, ev2)
 
         # Search for all events
         events = await async_calendar.search(event=True)
@@ -259,7 +259,7 @@ class AsyncFunctionalTestsBaseClass:
     async def test_search_events_by_date_range(self, async_calendar: Any) -> None:
         """Test searching for events in a date range."""
         # Add test event
-        await save_event(async_calendar, ev1)
+        await add_event(async_calendar, ev1)
 
         # Search for events in the date range
         events = await async_calendar.search(
@@ -277,8 +277,8 @@ class AsyncFunctionalTestsBaseClass:
         from caldav.aio import AsyncTodo
 
         # Add pending and completed todos
-        await save_todo(async_calendar, todo1)
-        await save_todo(async_calendar, todo2)
+        await add_todo(async_calendar, todo1)
+        await add_todo(async_calendar, todo2)
 
         # Search for pending todos only (default)
         todos = await async_calendar.search(todo=True, include_completed=False)
@@ -292,8 +292,8 @@ class AsyncFunctionalTestsBaseClass:
     async def test_search_todos_all(self, async_calendar: Any) -> None:
         """Test searching for all todos including completed."""
         # Add pending and completed todos
-        await save_todo(async_calendar, todo1)
-        await save_todo(async_calendar, todo2)
+        await add_todo(async_calendar, todo1)
+        await add_todo(async_calendar, todo2)
 
         # Search for all todos
         todos = await async_calendar.search(todo=True, include_completed=True)
@@ -307,8 +307,8 @@ class AsyncFunctionalTestsBaseClass:
         from caldav.aio import AsyncEvent
 
         # Add test events
-        await save_event(async_calendar, ev1)
-        await save_event(async_calendar, ev2)
+        await add_event(async_calendar, ev1)
+        await add_event(async_calendar, ev2)
 
         # Get all events
         events = await async_calendar.events()
@@ -322,7 +322,7 @@ class AsyncFunctionalTestsBaseClass:
         from caldav.aio import AsyncTodo
 
         # Add test todos
-        await save_todo(async_calendar, todo1)
+        await add_todo(async_calendar, todo1)
 
         # Get all pending todos
         todos = await async_calendar.todos()

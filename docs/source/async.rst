@@ -81,7 +81,7 @@ Example: Working with Calendars
             )
 
             # Add an event
-            event = await my_calendar.save_event(
+            event = await my_calendar.add_event(
                 dtstart=datetime(2025, 6, 15, 10, 0),
                 dtend=datetime(2025, 6, 15, 11, 0),
                 summary="Team meeting"
@@ -201,8 +201,8 @@ All methods that perform I/O are ``async`` and must be awaited:
 * ``await calendar.events()`` - Get all events
 * ``await calendar.todos()`` - Get all todos
 * ``await calendar.search(...)`` - Search for objects
-* ``await calendar.save_event(...)`` - Create an event
-* ``await calendar.save_todo(...)`` - Create a todo
+* ``await calendar.add_event(...)`` - Create an event
+* ``await calendar.add_todo(...)`` - Create a todo
 * ``await calendar.event_by_uid(uid)`` - Find event by UID
 * ``await calendar.delete()`` - Delete the calendar
 * ``await calendar.get_supported_components()`` - Get supported types

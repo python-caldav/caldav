@@ -33,7 +33,7 @@ class TestExamples:
     def test_get_events_example(self):
         with get_davclient() as dav_client:
             mycal = dav_client.principal().make_calendar(name="Test calendar")
-            mycal.save_event(
+            mycal.add_event(
                 dtstart=datetime(2025, 5, 3, 10),
                 dtend=datetime(2025, 5, 3, 11),
                 summary="testevent",
