@@ -56,6 +56,28 @@ These methods use the recommended naming and are available in both sync and asyn
 
 ## Calendar Methods
 
+### Adding Objects
+
+| Recommended | Legacy | Notes |
+|-------------|--------|-------|
+| `add_event(...)` | `save_event(...)` | `save_event` is deprecated; use `add_event` for adding new events |
+| `add_todo(...)` | `save_todo(...)` | `save_todo` is deprecated; use `add_todo` for adding new todos |
+| `add_journal(...)` | `save_journal(...)` | `save_journal` is deprecated; use `add_journal` for adding new journals |
+| `add_object(...)` | `save_object(...)` | `save_object` is deprecated; use `add_object` for adding new objects |
+
+**Note:** These methods are for *adding* new content to the calendar. To update an existing object, fetch it first and use `object.save()`.
+
+See https://github.com/python-caldav/caldav/issues/71 for rationale.
+
+### Getting Objects by UID
+
+| Recommended | Legacy | Notes |
+|-------------|--------|-------|
+| `get_event_by_uid(uid)` | `event_by_uid(uid)` | `event_by_uid` is deprecated |
+| `get_todo_by_uid(uid)` | `todo_by_uid(uid)` | `todo_by_uid` is deprecated |
+| `get_journal_by_uid(uid)` | `journal_by_uid(uid)` | `journal_by_uid` is deprecated |
+| `get_object_by_uid(uid)` | `object_by_uid(uid)` | `object_by_uid` is deprecated |
+
 ### Search Methods
 
 | Recommended | Legacy | Notes |
@@ -98,6 +120,14 @@ The following methods are considered "legacy" but will continue to work. New cod
 - `DAVClient.check_dav_support()` - use `supports_dav()` instead
 - `DAVClient.check_cdav_support()` - use `supports_caldav()` instead
 - `DAVClient.check_scheduling_support()` - use `supports_scheduling()` instead
+- `Calendar.save_event()` - use `add_event()` instead (see issue #71)
+- `Calendar.save_todo()` - use `add_todo()` instead (see issue #71)
+- `Calendar.save_journal()` - use `add_journal()` instead (see issue #71)
+- `Calendar.save_object()` - use `add_object()` instead (see issue #71)
+- `Calendar.event_by_uid()` - use `get_event_by_uid()` instead
+- `Calendar.todo_by_uid()` - use `get_todo_by_uid()` instead
+- `Calendar.journal_by_uid()` - use `get_journal_by_uid()` instead
+- `Calendar.object_by_uid()` - use `get_object_by_uid()` instead
 
 ## Rationale
 

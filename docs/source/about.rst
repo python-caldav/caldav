@@ -201,7 +201,7 @@ Here are some known issues:
 
   * Some problems observed with the propfind method
 
-  * object_by_uid does not work (and my object_by_uid follows the example in the RFC)
+  * get_object_by_uid does not work (and my get_object_by_uid follows the example in the RFC)
 
 * Google seems to be the new Microsoft, according to the issue
   tracker it seems like their CalDAV-support is rather lacking.  At least they have a list ... https://developers.google.com/calendar/caldav/v2/guide

@@ -279,7 +279,7 @@ class CalendarObjectResource(DAVObject):
         else:
             uid = other
             if set_reverse:
-                other = self.parent.object_by_uid(uid)
+                other = self.parent.get_object_by_uid(uid)
         if set_reverse:
             ## TODO: special handling of NEXT/FIRST.
             ## STARTTOFINISH does not have any equivalent "reverse".
@@ -364,7 +364,7 @@ class CalendarObjectResource(DAVObject):
 
                 for obj in uids:
                     try:
-                        reltype_set.add(self.parent.object_by_uid(obj))
+                        reltype_set.add(self.parent.get_object_by_uid(obj))
                     except error.NotFoundError:
                         if not ignore_missing:
                             raise
@@ -970,17 +970,17 @@ class CalendarObjectResource(DAVObject):
                     else:
                         _obj_type = obj_type
                     if _obj_type:
-                        method_name = f"{_obj_type}_by_uid"
+                        method_name = f"get_{_obj_type}_by_uid"
                         if hasattr(self.parent, method_name):
                             return getattr(self.parent, method_name)(uid)
-                    if hasattr(self.parent, "object_by_uid"):
-                        return self.parent.object_by_uid(uid)
+                    if hasattr(self.parent, "get_object_by_uid"):
+                        return self.parent.get_object_by_uid(uid)
                 except error.NotFoundError:
                     return None
             return None
 
         # Handle no_overwrite/no_create validation BEFORE async delegation
-        # This must be done here because it requires collection methods (event_by_uid, etc.)
+        # This must be done here because it requires collection methods (get_event_by_uid, etc.)
         # which are sync and can't be called from async context (nested event loop issue)
         if no_overwrite or no_create:
             from caldav.lib import error

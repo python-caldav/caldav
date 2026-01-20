@@ -41,7 +41,7 @@ E   <s:message>An exception occurred while executing a query: SQLSTATE[23000]:
 **Test steps**:
 1. Created event with UID `test-uid-reuse-hypothesis-12345` ✓
 2. Deleted the event ✓
-3. Confirmed deletion with `event_by_uid()` (throws NotFoundError) ✓
+3. Confirmed deletion with `get_event_by_uid()` (throws NotFoundError) ✓
 4. Attempted to create new event with same UID → **FAILED with UNIQUE constraint** ✗
 
 **Error received**:
@@ -81,7 +81,7 @@ oc_calendarobjects.calendarid, oc_calendarobjects.calendartype, oc_calendarobjec
 
 ### Known Limitations (to be addressed in Phase 3)
 - AsyncPrincipal not implemented → path matching warnings for Principal objects
-- Async collection methods (event_by_uid, etc.) not implemented → no_create/no_overwrite validation done in sync wrapper
+- Async collection methods (get_event_by_uid, etc.) not implemented → no_create/no_overwrite validation done in sync wrapper
 - Recurrence handling done in sync wrapper → will move to async in Phase 3
 
 ### Known Test Limitations

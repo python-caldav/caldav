@@ -901,7 +901,7 @@ class RepeatedFunctionalTestsBaseClass:
             for cal in self.calendars_used:
                 for uid in uids_used:
                     try:
-                        obj = self._fixCalendar().object_by_uid(uid)
+                        obj = self._fixCalendar().get_object_by_uid(uid)
                         obj.delete()
                     except error.NotFoundError:
                         pass
@@ -1092,7 +1092,7 @@ END:VCALENDAR
 """
         )
 
-        object_by_id = cal.object_by_uid("test1", comp_class=Event)
+        object_by_id = cal.get_object_by_uid("test1", comp_class=Event)
         instance = object_by_id.icalendar_instance
         events = [
             event
@@ -1100,7 +1100,7 @@ END:VCALENDAR
             if isinstance(event, icalendar.Event)
         ]
         assert len(events) == 2
-        object_by_id = cal.object_by_uid("test1", comp_class=None)
+        object_by_id = cal.get_object_by_uid("test1", comp_class=None)
         instance = object_by_id.icalendar_instance
         events = [
             event
@@ -1244,7 +1244,7 @@ END:VCALENDAR
         )
         event.save()
         self.skip_unless_support("search.text.by-uid")
-        event = c.event_by_uid("test1")
+        event = c.get_event_by_uid("test1")
         ## TODO: work in progress ... see https://github.com/python-caldav/caldav/issues/399
 
     def testMultiGet(self):
@@ -1408,12 +1408,12 @@ END:VCALENDAR
         self.skip_unless_support("search.text.by-uid")
         c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
         c.add_todo(summary="Some test task with a well-known uid", uid="well_known_1")
-        foo = c.object_by_uid("well_known_1")
+        foo = c.get_object_by_uid("well_known_1")
         assert foo.component["summary"] == "Some test task with a well-known uid"
         with pytest.raises(error.NotFoundError):
-            foo = c.object_by_uid("well_known")
+            foo = c.get_object_by_uid("well_known")
         with pytest.raises(error.NotFoundError):
-            foo = c.object_by_uid("well_known_10")
+            foo = c.get_object_by_uid("well_known_10")
 
     def testObjectBySyncToken(self):
         """
@@ -2241,9 +2241,9 @@ END:VCALENDAR
             uid="ctuid5",
         )
 
-        parent_ = c.event_by_uid(parent.id)
-        child_ = c.event_by_uid(child.id)
-        grandparent_ = c.event_by_uid(grandparent.id)
+        parent_ = c.get_event_by_uid(parent.id)
+        child_ = c.get_event_by_uid(child.id)
+        grandparent_ = c.get_event_by_uid(grandparent.id)
 
         rt = grandparent_.icalendar_component["RELATED-TO"]
         if isinstance(rt, list):
@@ -2465,7 +2465,7 @@ END:VCALENDAR
         journals = c.journals()
         assert len(journals) == 1
         self.skip_unless_support("search.text.by-uid")
-        j1_ = c.journal_by_uid(j1.id)
+        j1_ = c.get_journal_by_uid(j1.id)
         j1_.icalendar_instance
         journals[0].icalendar_instance
         assert j1_.data == journals[0].data
@@ -2824,7 +2824,7 @@ END:VCALENDAR
         todos = c.todos(include_completed=True)
         assert len(todos) == 3
         if self.is_supported("search.text.by-uid"):
-            t3_ = c.todo_by_uid(t3.id)
+            t3_ = c.get_todo_by_uid(t3.id)
             assert (
                 t3_.vobject_instance.vtodo.summary == t3.vobject_instance.vtodo.summary
             )
@@ -3068,7 +3068,7 @@ END:VCALENDAR
             assert e2.vobject_instance.vevent.uid == e1.vobject_instance.vevent.uid
             assert e2.url == e1.url
         if self.is_supported("search.text.by-uid"):
-            e3 = c.event_by_uid("20010712T182145Z-123401@example.com")
+            e3 = c.get_event_by_uid("20010712T182145Z-123401@example.com")
             assert e3.vobject_instance.vevent.uid == e1.vobject_instance.vevent.uid
             assert e3.url == e1.url
 
@@ -3080,10 +3080,10 @@ END:VCALENDAR
             assert e4.vobject_instance.vevent.uid == e1.vobject_instance.vevent.uid
 
         with pytest.raises(error.NotFoundError):
-            c.event_by_uid("0")
+            c.get_event_by_uid("0")
         c.add_event(evr)
         with pytest.raises(error.NotFoundError):
-            c.event_by_uid("0")
+            c.get_event_by_uid("0")
 
     def testCreateOverwriteDeleteEvent(self):
         """
@@ -3094,7 +3094,7 @@ END:VCALENDAR
         c = self._fixCalendar()
         assert c.url is not None
 
-        # attempts on updating/overwriting a non-existing event should fail (unless object_by_uid_is_broken):
+        # attempts on updating/overwriting a non-existing event should fail (unless get_object_by_uid_is_broken):
         if self.is_supported("search.text.by-uid"):
             with pytest.raises(error.ConsistencyError):
                 c.add_event(ev1, no_create=True)
@@ -3116,9 +3116,9 @@ END:VCALENDAR
         if not self.check_compatibility_flag("event_by_url_is_broken"):
             assert c.event_by_url(e1.url).url == e1.url
         if self.is_supported("search.text.by-uid"):
-            assert c.event_by_uid(e1.id).url == e1.url
+            assert c.get_event_by_uid(e1.id).url == e1.url
 
-        ## no_create will not work unless object_by_uid works
+        ## no_create will not work unless get_object_by_uid works
         no_create = self.is_supported("search.text.by-uid")
 
         ## add same event again.  As it has same uid, it should be overwritten
@@ -3149,7 +3149,7 @@ END:VCALENDAR
                 e3 = c.event_by_url(e1.url)
                 assert e3.vobject_instance.vevent.summary.value == "Bastille Day Party!"
 
-        ## "no_overwrite" should throw a ConsistencyError.  But it depends on object_by_uid.
+        ## "no_overwrite" should throw a ConsistencyError.  But it depends on get_object_by_uid.
         if self.is_supported("search.text.by-uid"):
             with pytest.raises(error.ConsistencyError):
                 c.add_event(ev1, no_overwrite=True)
@@ -3175,7 +3175,7 @@ END:VCALENDAR
                 c.event_by_url(e2.url)
         if not self.check_compatibility_flag("event_by_url_is_broken"):
             with pytest.raises(error.NotFoundError):
-                c.event_by_uid("20010712T182145Z-123401@example.com")
+                c.get_event_by_uid("20010712T182145Z-123401@example.com")
 
     @pytest.mark.filterwarnings("ignore:use `calendar.search:DeprecationWarning")
     def testDateSearchAndFreeBusy(self):

@@ -156,7 +156,7 @@ class FeatureSet:
             "description": "Substring search for category should work according to the RFC.  I.e., search for mil should match family,finance",
         },
         "search.text.by-uid": {
-            "description": "The server supports searching for objects by UID property. When unsupported, calendar.object_by_uid(uid) will not work.  This may be removed in the feature - the checker-script is not checking the right thing (check TODO-comments), probably search by uid is no special case for any server implementations"
+            "description": "The server supports searching for objects by UID property. When unsupported, calendar.get_object_by_uid(uid) will not work.  This may be removed in the feature - the checker-script is not checking the right thing (check TODO-comments), probably search by uid is no special case for any server implementations"
         },
         "search.recurrences": {
             "description": "Support for recurrences in search"
@@ -1026,7 +1026,7 @@ cyrus = {
 #    "no_freebusy_rfc4791",
 #    'no_recurring',
 #    'propfind_allprop_failure',
-#    'object_by_uid_is_broken'
+#    'get_object_by_uid_is_broken'
 #]
 
 davical = {

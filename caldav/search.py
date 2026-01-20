@@ -497,7 +497,7 @@ class CalDAVSearcher(Searcher):
                     )
                 raise
 
-            ## Some things, like `calendar.object_by_uid`, should always work, no matter if `davclient.compatibility_hints` is correctly configured or not
+            ## Some things, like `calendar.get_object_by_uid`, should always work, no matter if `davclient.compatibility_hints` is correctly configured or not
             if not objects and not self.comp_class and _hacks == "insist":
                 return self._search_with_comptypes(
                     calendar,

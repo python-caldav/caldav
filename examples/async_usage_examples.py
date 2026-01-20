@@ -236,7 +236,7 @@ async def read_modify_event_demo(event):
 
     # Verify the data was saved correctly
     calendar = event.parent
-    same_event = await calendar.event_by_uid(uid)
+    same_event = await calendar.get_event_by_uid(uid)
     print(f"Event summary after save: {same_event.component['summary']}")
 
 

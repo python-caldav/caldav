@@ -203,7 +203,7 @@ All methods that perform I/O are ``async`` and must be awaited:
 * ``await calendar.search(...)`` - Search for objects
 * ``await calendar.add_event(...)`` - Create an event
 * ``await calendar.add_todo(...)`` - Create a todo
-* ``await calendar.event_by_uid(uid)`` - Find event by UID
+* ``await calendar.get_event_by_uid(uid)`` - Find event by UID
 * ``await calendar.delete()`` - Delete the calendar
 * ``await calendar.get_supported_components()`` - Get supported types
 

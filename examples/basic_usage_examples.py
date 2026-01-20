@@ -206,8 +206,8 @@ def search_calendar_demo(calendar):
     print("Getting all objects from the calendar")
     all_objects = calendar.objects()
     # updated_objects = calendar.objects_by_sync_token(some_sync_token)
-    # some_object = calendar.object_by_uid(some_uid)
-    # some_event = calendar.event_by_uid(some_uid)
+    # some_object = calendar.get_object_by_uid(some_uid)
+    # some_event = calendar.get_event_by_uid(some_uid)
     print("Getting all children from the calendar")
     children = calendar.children()
     print("Getting all events from the calendar")
@@ -322,7 +322,7 @@ def read_modify_event_demo(event):
 
     ## Finally, let's verify that the correct data was saved
     calendar = event.parent
-    same_event = calendar.event_by_uid(uid)
+    same_event = calendar.get_event_by_uid(uid)
     assert same_event.component["summary"] == "Norwegian national day celebrations"
 
 

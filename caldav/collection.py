@@ -1496,22 +1496,22 @@ class Calendar(DAVObject):
         """
         return Event(url=href, data=data, parent=self).load()
 
-    def object_by_uid(
+    def get_object_by_uid(
         self,
         uid: str,
         comp_filter: Optional[cdav.CompFilter] = None,
         comp_class: Optional["CalendarObjectResource"] = None,
     ) -> "Event":
         """
-        Get one event from the calendar.
+        Get one calendar object from the calendar by UID.
 
         Args:
-         uid: the event uid
+         uid: the object uid
          comp_class: filter by component type (Event, Todo, Journal)
          comp_filter: for backward compatibility.  Don't use!
 
         Returns:
-         Event() or None
+         CalendarObjectResource (Event, Todo, or Journal)
         """
         ## late import to avoid cyclic dependencies
         from .search import CalDAVSearcher
@@ -1536,23 +1536,66 @@ class Calendar(DAVObject):
         error.assert_(len(items_found) == 1)
         return items_found[0]
 
-    def todo_by_uid(self, uid: str) -> "CalendarObjectResource":
+    def get_todo_by_uid(self, uid: str) -> "CalendarObjectResource":
         """
-        Returns the task with the given uid (wraps around :class:`object_by_uid`)
+        Get a task/todo from the calendar by UID.
+
+        Returns the task with the given uid.
+        See :meth:`get_object_by_uid` for more details.
         """
-        return self.object_by_uid(uid, comp_filter=cdav.CompFilter("VTODO"))
+        return self.get_object_by_uid(uid, comp_filter=cdav.CompFilter("VTODO"))
+
+    def get_event_by_uid(self, uid: str) -> "CalendarObjectResource":
+        """
+        Get an event from the calendar by UID.
+
+        Returns the event with the given uid.
+        See :meth:`get_object_by_uid` for more details.
+        """
+        return self.get_object_by_uid(uid, comp_filter=cdav.CompFilter("VEVENT"))
+
+    def get_journal_by_uid(self, uid: str) -> "CalendarObjectResource":
+        """
+        Get a journal entry from the calendar by UID.
+
+        Returns the journal with the given uid.
+        See :meth:`get_object_by_uid` for more details.
+        """
+        return self.get_object_by_uid(uid, comp_filter=cdav.CompFilter("VJOURNAL"))
+
+    ## Deprecated aliases - use get_*_by_uid instead
+
+    def object_by_uid(self, *largs, **kwargs) -> "CalendarObjectResource":
+        """
+        Deprecated: Use :meth:`get_object_by_uid` instead.
+
+        This method is an alias kept for backwards compatibility.
+        """
+        return self.get_object_by_uid(*largs, **kwargs)
 
     def event_by_uid(self, uid: str) -> "CalendarObjectResource":
         """
-        Returns the event with the given uid (wraps around :class:`object_by_uid`)
+        Deprecated: Use :meth:`get_event_by_uid` instead.
+
+        This method is an alias kept for backwards compatibility.
         """
-        return self.object_by_uid(uid, comp_filter=cdav.CompFilter("VEVENT"))
+        return self.get_event_by_uid(uid)
+
+    def todo_by_uid(self, uid: str) -> "CalendarObjectResource":
+        """
+        Deprecated: Use :meth:`get_todo_by_uid` instead.
+
+        This method is an alias kept for backwards compatibility.
+        """
+        return self.get_todo_by_uid(uid)
 
     def journal_by_uid(self, uid: str) -> "CalendarObjectResource":
         """
-        Returns the journal with the given uid (wraps around :class:`object_by_uid`)
+        Deprecated: Use :meth:`get_journal_by_uid` instead.
+
+        This method is an alias kept for backwards compatibility.
         """
-        return self.object_by_uid(uid, comp_filter=cdav.CompFilter("VJOURNAL"))
+        return self.get_journal_by_uid(uid)
 
     # alias for backward compatibility
     event = event_by_uid

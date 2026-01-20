@@ -43,6 +43,18 @@ The following are deprecated and emit `DeprecationWarning`:
 * `.instance` property on calendar objects - use `.vobject_instance` or `.icalendar_instance`
 * `response.find_objects_and_props()` - use `response.results` instead
 
+The following are deprecated but do not yet emit warnings (see https://github.com/python-caldav/caldav/issues/71):
+* `calendar.save_event()` - use `calendar.add_event()` instead
+* `calendar.save_todo()` - use `calendar.add_todo()` instead
+* `calendar.save_journal()` - use `calendar.add_journal()` instead
+* `calendar.save_object()` - use `calendar.add_object()` instead
+
+The following are deprecated but do not yet emit warnings:
+* `calendar.event_by_uid()` - use `calendar.get_event_by_uid()` instead
+* `calendar.todo_by_uid()` - use `calendar.get_todo_by_uid()` instead
+* `calendar.journal_by_uid()` - use `calendar.get_journal_by_uid()` instead
+* `calendar.object_by_uid()` - use `calendar.get_object_by_uid()` instead
+
 Additionally, direct `DAVClient()` instantiation should migrate to `get_davclient()` factory method (see `docs/design/API_NAMING_CONVENTIONS.md`)
 
 ### Added
