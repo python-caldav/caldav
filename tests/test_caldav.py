@@ -1752,6 +1752,116 @@ END:VCALENDAR
             self._teardownCalendar(cal_id=self.testcal_id)
             self._teardownCalendar(cal_id=self.testcal_id2)
 
+    def testSaveSameUidDifferentUrl(self):
+        """
+        Test saving an event with the same UID but to a different URL.
+
+        This is an investigative test to understand server behavior when:
+        1. An event is created with save_event (server assigns URL based on UID)
+        2. The same event (same UID) is saved again but to a different URL
+
+        Expected behaviors (varies by server):
+        - Server updates the original event (desired behavior)
+        - Server throws an error (acceptable)
+        - Server creates two events with same UID (worst case, unlikely)
+        """
+        self.skip_unless_support("save-load.event")
+        from caldav.objects import Event
+
+        c = self._fixCalendar()
+
+        # Step 1: Create an event normally
+        uid = "test-same-uid-different-url"
+        e1 = c.save_event(
+            uid=uid,
+            dtstart=datetime(2025, 6, 15, 10, 0, 0),
+            dtend=datetime(2025, 6, 15, 11, 0, 0),
+            summary="Original Event",
+        )
+        original_url = e1.url
+        log.info(f"Original event saved at URL: {original_url}")
+
+        # Helper to find events by UID (need to check icalendar_component)
+        def find_events_by_uid(events, target_uid):
+            result = []
+            for e in events:
+                e.load()  # Need to load to access icalendar_component
+                if str(e.icalendar_component.get("uid")) == target_uid:
+                    result.append(e)
+            return result
+
+        # Verify the event exists
+        events_before = c.events()
+        assert len(find_events_by_uid(events_before, uid)) == 1
+
+        # Step 2: Create an Event object with the same UID but a different URL
+        different_url = c.url.join(f"{uid}-modified.ics")
+        log.info(f"Attempting to save same UID to different URL: {different_url}")
+
+        e2 = Event(
+            client=self.caldav,
+            url=different_url,
+            parent=c,
+            data=f"""BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//Test//EN
+BEGIN:VEVENT
+UID:{uid}
+DTSTAMP:20250615T100000Z
+DTSTART:20250615T100000Z
+DTEND:20250615T110000Z
+SUMMARY:Modified Event
+END:VEVENT
+END:VCALENDAR""",
+        )
+
+        # Step 3: Try to save and observe the behavior
+        try:
+            e2.save()
+            log.info(f"Save succeeded. Event URL after save: {e2.url}")
+
+            # Check what happened
+            events_after = c.events()
+            events_with_uid = find_events_by_uid(events_after, uid)
+            log.info(f"Events with UID '{uid}': {len(events_with_uid)}")
+
+            if len(events_with_uid) == 1:
+                # Server updated the original or redirected to it
+                e = events_with_uid[0]
+                summary = e.icalendar_component.get("summary")
+                log.info(f"Single event found, summary: {summary}")
+                if str(summary) == "Modified Event":
+                    log.info("SUCCESS: Server updated the original event")
+                else:
+                    log.info(
+                        "Server kept original event (possibly ignored the new save)"
+                    )
+            elif len(events_with_uid) == 2:
+                log.warning("WARNING: Server created two events with the same UID!")
+                for e in events_with_uid:
+                    log.info(
+                        f"  URL: {e.url}, Summary: {e.icalendar_component.get('summary')}"
+                    )
+            elif len(events_with_uid) == 0:
+                log.warning("WARNING: No events found with this UID!")
+            else:
+                log.warning(f"Unexpected: {len(events_with_uid)} events with same UID")
+
+        except Exception as ex:
+            log.info(
+                f"Save raised an exception (may be expected): {type(ex).__name__}: {ex}"
+            )
+            # This is acceptable behavior - server rejected the conflicting save
+            # Verify original event is still there and unchanged
+            events_after = c.events()
+            events_with_uid = find_events_by_uid(events_after, uid)
+            assert len(events_with_uid) == 1, "Original event should still exist"
+            assert (
+                str(events_with_uid[0].icalendar_component.get("summary"))
+                == "Original Event"
+            ), "Original event should be unchanged"
+            log.info("Original event is intact after failed save attempt")
+
     def testCreateCalendarAndEventFromVobject(self):
         self.skip_unless_support("save-load.event")
         c = self._fixCalendar()
