@@ -169,7 +169,14 @@ class TestServer(ABC):
             "password": self.password,
             "features": self.features,
         }
-        if not self._started:
+        # Check if server is already running (either started by us or externally)
+        already_running = self._started or self.is_accessible()
+        if already_running:
+            # Server is already running - mark as started but don't add teardown
+            # to avoid stopping a server that was running before tests started
+            self._started = True
+        else:
+            # Server needs to be started - add setup/teardown callbacks
             params["setup"] = lambda _: self.start()
             params["teardown"] = lambda _: self.stop()
         return params
@@ -302,6 +309,7 @@ class DockerTestServer(TestServer):
         import time
 
         if self._started or self.is_accessible():
+            self._started = True  # Mark as started even if already running
             print(f"[OK] {self.name} is already running")
             return
 
