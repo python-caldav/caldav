@@ -170,6 +170,23 @@ class DataStrategy(ABC):
         return None
 
 
+class NoDataStrategy(DataStrategy):
+    """Null Object pattern - no data loaded yet."""
+
+    def get_data(self) -> str:
+        return ""
+
+    def get_icalendar_copy(self) -> icalendar.Calendar:
+        return icalendar.Calendar()
+
+    def get_vobject_copy(self):
+        import vobject
+        return vobject.iCalendar()
+
+    def get_uid(self) -> Optional[str]:
+        return None
+
+
 class RawDataStrategy(DataStrategy):
     """Strategy when we have raw string data."""
 
@@ -246,22 +263,22 @@ class CalendarObjectResource:
         if data:
             self._strategy = RawDataStrategy(data)
         else:
-            self._strategy = None
+            self._strategy = NoDataStrategy()  # Null Object pattern
         ...
 
     def _switch_strategy(self, new_strategy: DataStrategy) -> None:
         """Internal: switch to a new strategy."""
         self._strategy = new_strategy
 
-    # Read-only access
-    def get_data(self) -> Optional[str]:
-        return self._strategy.get_data() if self._strategy else None
+    # Read-only access (Null Object pattern eliminates None checks)
+    def get_data(self) -> str:
+        return self._strategy.get_data()
 
-    def get_icalendar(self) -> Optional[icalendar.Calendar]:
-        return self._strategy.get_icalendar_copy() if self._strategy else None
+    def get_icalendar(self) -> icalendar.Calendar:
+        return self._strategy.get_icalendar_copy()
 
     def get_vobject(self):
-        return self._strategy.get_vobject_copy() if self._strategy else None
+        return self._strategy.get_vobject_copy()
 
     # Write access
     def set_data(self, data: str) -> None:
@@ -438,8 +455,268 @@ event.set_vobject(my_vobject)
 
 5. **Thread safety?** The current design is not thread-safe. Should it be?
 
+## Alternative: Borrowing Pattern with Context Managers
+
+*Suggested by @niccokunzmann in issue #613*
+
+A cleaner approach inspired by Rust's borrowing semantics: use context managers
+to explicitly "borrow" a representation for editing.
+
+### Concept
+
+```python
+# Explicit borrowing with context managers
+with my_event.icalendar_instance as calendar:
+    calendar.subcomponents[0]['summary'] = 'New Summary'
+    # Exclusive access - can't access vobject here
+
+# Changes committed, can now use other representations
+with my_event.vobject_instance as vobj:
+    # verification, etc.
+```
+
+### Benefits
+
+1. **Clear ownership scope** - The `with` block clearly defines when you have edit access
+2. **Prevents concurrent access** - Accessing another representation while one is borrowed raises an error
+3. **Pythonic** - Context managers are idiomatic Python
+4. **Explicit commit point** - Changes are committed when exiting the context
+
+### State Machine
+
+This is more of a **State pattern** than a Strategy pattern:
+
+```
+                     ┌──────────────────────────────────────────────────────┐
+                     │                                                      │
+                     ▼                                                      │
+              ┌─────────────┐                                               │
+              │  ReadOnly   │◄──────────────────────────────────────────────┤
+              │   State     │                                               │
+              └──────┬──────┘                                               │
+                     │                                                      │
+      ┌──────────────┼──────────────┐                                       │
+      │              │              │                                       │
+      │ with         │ with         │ with                                  │
+      │ .data        │ .icalendar   │ .vobject                              │
+      ▼              ▼              ▼                                       │
+┌───────────┐ ┌─────────────┐ ┌─────────────┐                               │
+│  Editing  │ │  Editing    │ │  Editing    │                               │
+│  Data     │ │  Icalendar  │ │  Vobject    │                               │
+│  (noop)   │ │  State      │ │  State      │                               │
+└─────┬─────┘ └──────┬──────┘ └──────┬──────┘                               │
+      │              │               │                                      │
+      │ exit         │ exit          │ exit                                 │
+      │ context      │ context       │ context                              │
+      │              │               │                                      │
+      └──────────────┴───────────────┴──────────────────────────────────────┘
+```
+
+### Implementation Sketch
+
+```python
+class CalendarObjectResource:
+    _state: 'DataState'
+    _borrowed: bool = False
+
+    def __init__(self, data: Optional[str] = None):
+        self._state = RawDataState(data) if data else NoDataState()
+        self._borrowed = False
+
+    @contextmanager
+    def icalendar_instance(self):
+        """Borrow the icalendar object for editing."""
+        if self._borrowed:
+            raise RuntimeError("Already borrowed - cannot access another representation")
+
+        # Switch to icalendar state if needed
+        if not isinstance(self._state, IcalendarState):
+            cal = self._state.get_icalendar_copy()
+            self._state = IcalendarState(cal)
+
+        self._borrowed = True
+        try:
+            yield self._state.get_authoritative_icalendar()
+        finally:
+            self._borrowed = False
+
+    @contextmanager
+    def vobject_instance(self):
+        """Borrow the vobject object for editing."""
+        if self._borrowed:
+            raise RuntimeError("Already borrowed - cannot access another representation")
+
+        # Switch to vobject state if needed
+        if not isinstance(self._state, VobjectState):
+            vobj = self._state.get_vobject_copy()
+            self._state = VobjectState(vobj)
+
+        self._borrowed = True
+        try:
+            yield self._state.get_authoritative_vobject()
+        finally:
+            self._borrowed = False
+
+    @contextmanager
+    def data(self):
+        """Borrow the data (read-only, strings are immutable)."""
+        if self._borrowed:
+            raise RuntimeError("Already borrowed - cannot access another representation")
+
+        self._borrowed = True
+        try:
+            yield self._state.get_data()
+        finally:
+            self._borrowed = False
+
+    # Read-only access (always safe, no borrowing needed)
+    def get_data(self) -> str:
+        return self._state.get_data()
+
+    def get_icalendar(self) -> icalendar.Calendar:
+        return self._state.get_icalendar_copy()
+
+    def get_vobject(self):
+        return self._state.get_vobject_copy()
+
+
+class DataState(ABC):
+    """Abstract state for calendar data."""
+
+    @abstractmethod
+    def get_data(self) -> str:
+        pass
+
+    @abstractmethod
+    def get_icalendar_copy(self) -> icalendar.Calendar:
+        pass
+
+    @abstractmethod
+    def get_vobject_copy(self):
+        pass
+
+
+class NoDataState(DataState):
+    """Null Object pattern - no data loaded yet."""
+
+    def get_data(self) -> str:
+        return ""
+
+    def get_icalendar_copy(self) -> icalendar.Calendar:
+        return icalendar.Calendar()
+
+    def get_vobject_copy(self):
+        import vobject
+        return vobject.iCalendar()
+
+
+class RawDataState(DataState):
+    """State when raw string data is the source of truth."""
+
+    def __init__(self, data: str):
+        self._data = data
+
+    def get_data(self) -> str:
+        return self._data
+
+    def get_icalendar_copy(self) -> icalendar.Calendar:
+        return icalendar.Calendar.from_ical(self._data)
+
+    def get_vobject_copy(self):
+        import vobject
+        return vobject.readOne(self._data)
+
+
+class IcalendarState(DataState):
+    """State when icalendar object is the source of truth."""
+
+    def __init__(self, calendar: icalendar.Calendar):
+        self._calendar = calendar
+
+    def get_data(self) -> str:
+        return self._calendar.to_ical().decode('utf-8')
+
+    def get_icalendar_copy(self) -> icalendar.Calendar:
+        return icalendar.Calendar.from_ical(self.get_data())
+
+    def get_authoritative_icalendar(self) -> icalendar.Calendar:
+        return self._calendar
+
+    def get_vobject_copy(self):
+        import vobject
+        return vobject.readOne(self.get_data())
+
+
+class VobjectState(DataState):
+    """State when vobject object is the source of truth."""
+
+    def __init__(self, vobj):
+        self._vobject = vobj
+
+    def get_data(self) -> str:
+        return self._vobject.serialize()
+
+    def get_icalendar_copy(self) -> icalendar.Calendar:
+        return icalendar.Calendar.from_ical(self.get_data())
+
+    def get_vobject_copy(self):
+        import vobject
+        return vobject.readOne(self.get_data())
+
+    def get_authoritative_vobject(self):
+        return self._vobject
+```
+
+### Usage Examples with Borrowing
+
+```python
+# Read-only access (always safe, no borrowing)
+summary = event.get_icalendar().subcomponents[0]['summary']
+
+# Editing with explicit borrowing
+with event.icalendar_instance as cal:
+    cal.subcomponents[0]['summary'] = 'New Summary'
+    # Can NOT access event.vobject_instance here - will raise RuntimeError
+
+event.save()
+
+# Now can use vobject
+with event.vobject_instance as vobj:
+    print(vobj.vevent.summary.value)
+
+# Nested borrowing of same type works (with refcounting)
+with event.icalendar_instance as cal:
+    # some function that also needs icalendar
+    def helper(evt):
+        with evt.icalendar_instance as inner_cal:  # Works - same type
+            return inner_cal.subcomponents[0]['uid']
+    uid = helper(event)
+```
+
+### Comparison: Edit Methods vs Borrowing
+
+| Aspect | edit_*() methods | with borrowing |
+|--------|------------------|----------------|
+| Ownership scope | Implicit (until next edit) | Explicit (with block) |
+| Concurrent access | Silently replaces | Raises error |
+| Pythonic | Less | More |
+| Backward compatible | Easier | Harder |
+| Thread safety | None | Could add locking |
+
+## Recommendation
+
+The **borrowing pattern with context managers** is the cleaner long-term solution,
+but requires more breaking changes. For 3.0, consider:
+
+1. Add `get_*()` methods for safe read-only access (non-breaking)
+2. Add context manager support for `icalendar_instance` / `vobject_instance` (additive)
+3. Deprecate direct property access for editing
+4. In 4.0, make context managers the only way to edit
+
 ## Related Work
 
 - Python's `io.BytesIO` / `io.StringIO` - similar "view" concept
 - Django's `QuerySet` - lazy evaluation with clear ownership
 - SQLAlchemy's Unit of Work - tracks dirty objects
+- Rust's borrowing and ownership - inspiration for the context manager approach
+- Python's `threading.Lock` - context manager for exclusive access
