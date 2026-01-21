@@ -10,8 +10,8 @@ Configuration can come from:
 2. Environment variables (CALDAV_URL, CALDAV_USERNAME, CALDAV_PASSWORD)
 3. Config files (~/.config/caldav/config.yaml)
 """
-
-from caldav import get_calendars, get_calendar
+from caldav import get_calendar
+from caldav import get_calendars
 
 
 def example_get_all_calendars():

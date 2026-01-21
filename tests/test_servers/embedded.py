@@ -78,7 +78,7 @@ class RadicaleTestServer(EmbeddedTestServer):
         # so we can't trust is_accessible() in that case.
         if self._started:
             return
-        if not hasattr(self, '_was_stopped') and self.is_accessible():
+        if not hasattr(self, "_was_stopped") and self.is_accessible():
             return
 
         try:
@@ -211,7 +211,7 @@ class XandikosTestServer(EmbeddedTestServer):
         # so we can't trust is_accessible() in that case.
         if self._started:
             return
-        if not hasattr(self, '_was_stopped') and self.is_accessible():
+        if not hasattr(self, "_was_stopped") and self.is_accessible():
             return
 
         try:

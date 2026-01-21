@@ -55,7 +55,9 @@ class TestServer(ABC):
             "name", self.__class__.__name__.replace("TestServer", "")
         )
         self._started = False
-        self._started_by_us = False  # Track if we started the server or it was already running
+        self._started_by_us = (
+            False  # Track if we started the server or it was already running
+        )
 
     @property
     @abstractmethod

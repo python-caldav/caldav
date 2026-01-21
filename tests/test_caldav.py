@@ -1221,13 +1221,17 @@ END:VCALENDAR
         assert c.url is not None
         events = c.get_events()
         assert len(events) == 0
-        events = self.principal.calendar(name="Yep", cal_id=self.testcal_id).get_events()
+        events = self.principal.calendar(
+            name="Yep", cal_id=self.testcal_id
+        ).get_events()
         assert len(events) == 0
         c.delete()
 
         if self.is_supported("create-calendar.auto"):
             with pytest.raises(self._notFound()):
-                self.principal.calendar(name="Yapp", cal_id="shouldnotexist").get_events()
+                self.principal.calendar(
+                    name="Yapp", cal_id="shouldnotexist"
+                ).get_events()
 
     def testChangeAttendeeStatusWithEmailGiven(self):
         self.skip_unless_support("save-load.event")
@@ -1471,7 +1475,9 @@ END:VCALENDAR
             time.sleep(1)
 
         ## running sync_token again with the new token should return 0 hits
-        my_changed_objects = c.get_objects_by_sync_token(sync_token=my_objects.sync_token)
+        my_changed_objects = c.get_objects_by_sync_token(
+            sync_token=my_objects.sync_token
+        )
         if not is_fragile:
             assert len(list(my_changed_objects)) == 0
 
@@ -2921,9 +2927,7 @@ END:VCALENDAR
         c = self._fixCalendar(name="Yølp", cal_id=self.testcal_id)
 
         # add event
-        e1 = c.add_event(
-            ev1.replace("Bastille Day Party", "Bringebærsyltetøyfestival")
-        )
+        e1 = c.add_event(ev1.replace("Bastille Day Party", "Bringebærsyltetøyfestival"))
 
         # fetch it back
         events = c.get_events()

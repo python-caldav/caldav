@@ -281,7 +281,8 @@ def get_calendars(
             calendars = all_cals
 
     return calendars
-    
+
+
 def get_davclient(
     client_class: type,
     check_config_file: bool = True,

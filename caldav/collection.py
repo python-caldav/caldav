@@ -1832,7 +1832,9 @@ class Calendar(DAVObject):
             calendar=self, objects=all_objects, sync_token=fake_sync_token
         )
 
-    def objects_by_sync_token(self, *largs, **kwargs) -> "SynchronizableCalendarObjectCollection":
+    def objects_by_sync_token(
+        self, *largs, **kwargs
+    ) -> "SynchronizableCalendarObjectCollection":
         """
         Deprecated: Use :meth:`get_objects_by_sync_token` instead.
 
