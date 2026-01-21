@@ -372,4 +372,4 @@ jobs:
           print('✓ Using requests for sync HTTP')
           "
       - name: Run sync tests with requests
-        run: pytest tests/test_caldav.py -v -k "LocalRadicale" --ignore=tests/test_async_integration.py
+        run: pytest tests/test_caldav.py -v -k "Radicale" --ignore=tests/test_async_integration.py
