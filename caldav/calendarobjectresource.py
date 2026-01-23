@@ -1126,22 +1126,11 @@ class CalendarObjectResource(DAVObject):
         Returns True if there exists a VEVENT, VTODO or VJOURNAL in the data.
         Returns False if it's only a VFREEBUSY, VTIMEZONE or unknown components.
 
-        TODO: Bad side-effect: converts to data - any icalendar instances coupled to the object
-        will be decoupled.
-
         Used internally after search to remove empty search results (sometimes Google return such)
         """
-        if not (
-            self._data
-            or self._vobject_instance
-            or (self._icalendar_instance and self.icalendar_component)
-        ):
+        if not self._has_data():
             return False
-        return (
-            self.data.count("BEGIN:VEVENT")
-            + self.data.count("BEGIN:VTODO")
-            + self.data.count("BEGIN:VJOURNAL")
-        ) > 0
+        return self._get_component_type_cheap() is not None
 
     def __str__(self) -> str:
         return "%s: %s" % (self.__class__.__name__, self.url)
