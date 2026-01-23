@@ -145,12 +145,9 @@ filterwarnings = [
     # Ignore deprecation warnings from external libraries - https://github.com/jawah/niquests/pull/327 https://github.com/jawah/niquests/issues/326
     "ignore:.*asyncio.iscoroutinefunction.*:DeprecationWarning:niquests",
 
-    # Ignore our own intentional deprecation warnings in tests
-    # (tests use deprecated APIs to verify they still work)
-    ## (nothing here?)
-
+    ## Those disappeared just as I was to do some research on it?  TODO - try to reproduce
     # Ignore resource warnings from radicale (upstream issue)
-    "ignore:unclosed scandir iterator:ResourceWarning:radicale",
+    #    "ignore:unclosed scandir iterator:ResourceWarning:radicale",
     # Ignore Radicale shutdown race condition (server works fine, error is during cleanup)
-    "ignore:Exception in thread.*serve.*:pytest.PytestUnhandledThreadExceptionWarning",
+    #    "ignore:Exception in thread.*serve.*:pytest.PytestUnhandledThreadExceptionWarning",
 ]
