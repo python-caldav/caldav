@@ -56,6 +56,13 @@ if sys.version_info < (3, 11):
 else:
     from typing import Self
 
+from contextlib import contextmanager
+
+from .datastate import DataState
+from .datastate import IcalendarState
+from .datastate import NoDataState
+from .datastate import RawDataState
+from .datastate import VobjectState
 from .davobject import DAVObject
 from .elements.cdav import CalendarData
 from .elements import cdav
@@ -110,6 +117,10 @@ class CalendarObjectResource(DAVObject):
     _vobject_instance = None
     _icalendar_instance = None
     _data = None
+
+    # New state management (issue #613)
+    _state: Optional[DataState] = None
+    _borrowed: bool = False
 
     def __init__(
         self,
@@ -1276,6 +1287,151 @@ class CalendarObjectResource(DAVObject):
         _set_icalendar_instance,
         doc="icalendar instance of the object",
     )
+
+    ## ===================================================================
+    ## New API for safe data access (issue #613)
+    ## ===================================================================
+
+    def _ensure_state(self) -> DataState:
+        """Ensure we have a DataState object, migrating from legacy attributes if needed."""
+        if self._state is not None:
+            return self._state
+
+        # Migrate from legacy attributes
+        if self._icalendar_instance is not None:
+            self._state = IcalendarState(self._icalendar_instance)
+        elif self._vobject_instance is not None:
+            self._state = VobjectState(self._vobject_instance)
+        elif self._data is not None:
+            self._state = RawDataState(to_normal_str(self._data))
+        else:
+            self._state = NoDataState()
+
+        return self._state
+
+    def get_data(self) -> str:
+        """Get raw iCalendar data as string.
+
+        This is always safe to call and returns the current data without
+        side effects. If the current representation is a parsed object,
+        it will be serialized.
+
+        Returns:
+            The iCalendar data as a string, or empty string if no data.
+        """
+        return self._ensure_state().get_data()
+
+    def get_icalendar_instance(self) -> icalendar.Calendar:
+        """Get a COPY of the icalendar object for read-only access.
+
+        This is safe for inspection - modifications to the returned object
+        will NOT be saved. For editing, use edit_icalendar_instance().
+
+        Returns:
+            A copy of the icalendar.Calendar object.
+        """
+        return self._ensure_state().get_icalendar_copy()
+
+    def get_vobject_instance(self) -> "vobject.base.Component":
+        """Get a COPY of the vobject object for read-only access.
+
+        This is safe for inspection - modifications to the returned object
+        will NOT be saved. For editing, use edit_vobject_instance().
+
+        Returns:
+            A copy of the vobject component.
+        """
+        return self._ensure_state().get_vobject_copy()
+
+    @contextmanager
+    def edit_icalendar_instance(self):
+        """Context manager to borrow the icalendar object for editing.
+
+        Usage::
+
+            with event.edit_icalendar_instance() as cal:
+                cal.subcomponents[0]['SUMMARY'] = 'New Summary'
+            event.save()
+
+        While inside the context, the icalendar object is the authoritative
+        source. Accessing other representations (vobject) while borrowed
+        will raise RuntimeError.
+
+        Yields:
+            The authoritative icalendar.Calendar object.
+
+        Raises:
+            RuntimeError: If another representation is currently borrowed.
+        """
+        if self._borrowed:
+            raise RuntimeError(
+                "Cannot borrow icalendar - another representation is already borrowed. "
+                "Complete the current edit before starting another."
+            )
+
+        state = self._ensure_state()
+
+        # Switch to icalendar state if not already
+        if not isinstance(state, IcalendarState):
+            cal = state.get_icalendar_copy()
+            self._state = IcalendarState(cal)
+            # Clear legacy attributes
+            self._data = None
+            self._vobject_instance = None
+            self._icalendar_instance = cal
+
+        self._borrowed = True
+        try:
+            yield self._state.get_authoritative_icalendar()
+        finally:
+            self._borrowed = False
+
+    @contextmanager
+    def edit_vobject_instance(self):
+        """Context manager to borrow the vobject object for editing.
+
+        Usage::
+
+            with event.edit_vobject_instance() as vobj:
+                vobj.vevent.summary.value = 'New Summary'
+            event.save()
+
+        While inside the context, the vobject object is the authoritative
+        source. Accessing other representations (icalendar) while borrowed
+        will raise RuntimeError.
+
+        Yields:
+            The authoritative vobject component.
+
+        Raises:
+            RuntimeError: If another representation is currently borrowed.
+        """
+        if self._borrowed:
+            raise RuntimeError(
+                "Cannot borrow vobject - another representation is already borrowed. "
+                "Complete the current edit before starting another."
+            )
+
+        state = self._ensure_state()
+
+        # Switch to vobject state if not already
+        if not isinstance(state, VobjectState):
+            vobj = state.get_vobject_copy()
+            self._state = VobjectState(vobj)
+            # Clear legacy attributes
+            self._data = None
+            self._icalendar_instance = None
+            self._vobject_instance = vobj
+
+        self._borrowed = True
+        try:
+            yield self._state.get_authoritative_vobject()
+        finally:
+            self._borrowed = False
+
+    ## ===================================================================
+    ## End of new API (issue #613)
+    ## ===================================================================
 
     def get_duration(self) -> timedelta:
         """According to the RFC, either DURATION or DUE should be set

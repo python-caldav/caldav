@@ -1213,6 +1213,59 @@ END:VCALENDAR
         target.icalendar_component = icalendar.Todo.from_ical(todo).subcomponents[0]
         assert len(target.icalendar_instance.subcomponents) == 1
 
+    def testNewDataAPI(self):
+        """Test the new safe data access API (issue #613).
+
+        The new API provides:
+        - get_data() / get_icalendar_instance() / get_vobject_instance() for read-only access
+        - edit_icalendar_instance() / edit_vobject_instance() context managers for editing
+        """
+        cal_url = "http://me:hunter2@calendar.example:80/"
+        client = DAVClient(url=cal_url)
+        event = Event(client, data=ev1)
+
+        # Test get_data() returns string
+        data = event.get_data()
+        assert isinstance(data, str)
+        assert "Bastille Day Party" in data
+
+        # Test get_icalendar_instance() returns a COPY
+        ical1 = event.get_icalendar_instance()
+        ical2 = event.get_icalendar_instance()
+        assert ical1 is not ical2  # Different objects (copies)
+
+        # Modifying the copy should NOT affect the original
+        for comp in ical1.subcomponents:
+            if comp.name == "VEVENT":
+                comp["SUMMARY"] = "Modified in copy"
+        assert "Modified in copy" not in event.get_data()
+
+        # Test get_vobject_instance() returns a COPY
+        vobj1 = event.get_vobject_instance()
+        vobj2 = event.get_vobject_instance()
+        assert vobj1 is not vobj2  # Different objects (copies)
+
+        # Test edit_icalendar_instance() context manager
+        with event.edit_icalendar_instance() as cal:
+            for comp in cal.subcomponents:
+                if comp.name == "VEVENT":
+                    comp["SUMMARY"] = "Edited Summary"
+
+        # Changes should be reflected
+        assert "Edited Summary" in event.get_data()
+
+        # Test edit_vobject_instance() context manager
+        with event.edit_vobject_instance() as vobj:
+            vobj.vevent.summary.value = "Vobject Edit"
+
+        assert "Vobject Edit" in event.get_data()
+
+        # Test that nested borrowing of different types raises error
+        with event.edit_icalendar_instance() as cal:
+            with pytest.raises(RuntimeError):
+                with event.edit_vobject_instance() as vobj:
+                    pass
+
     def testTodoDuration(self):
         cal_url = "http://me:hunter2@calendar.example:80/"
         client = DAVClient(url=cal_url)
