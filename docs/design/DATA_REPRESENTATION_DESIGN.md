@@ -2,7 +2,28 @@
 
 **Issue**: https://github.com/python-caldav/caldav/issues/613
 
-**Status**: Draft / Under Discussion
+**Status**: Implemented in v3.0-dev
+
+## Implementation Summary
+
+The core API has been implemented in `caldav/calendarobjectresource.py` with supporting
+state classes in `caldav/datastate.py`:
+
+**New Public API:**
+- `get_data()` - Returns string, no side effects
+- `get_icalendar_instance()` - Returns a COPY (safe for read-only)
+- `get_vobject_instance()` - Returns a COPY (safe for read-only)
+- `edit_icalendar_instance()` - Context manager for borrowing (exclusive editing)
+- `edit_vobject_instance()` - Context manager for borrowing (exclusive editing)
+
+**Internal Optimizations:**
+- `_get_uid_cheap()` - Get UID without format conversion
+- `_get_component_type_cheap()` - Get VEVENT/VTODO/VJOURNAL without parsing
+- `_has_data()` - Check data existence without conversion
+- `has_component()` - Optimized to use cheap accessors
+
+**Legacy properties** (`data`, `icalendar_instance`, `vobject_instance`) continue to work
+for backward compatibility.
 
 ## Problem Statement
 
