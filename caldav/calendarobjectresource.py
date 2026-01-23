@@ -1429,6 +1429,27 @@ class CalendarObjectResource(DAVObject):
         finally:
             self._borrowed = False
 
+    # --- Internal cheap accessors (no state changes) ---
+
+    def _get_uid_cheap(self) -> Optional[str]:
+        """Get UID without triggering format conversions.
+
+        This is for internal use where we just need to peek at the UID
+        without needing to modify anything.
+        """
+        return self._ensure_state().get_uid()
+
+    def _get_component_type_cheap(self) -> Optional[str]:
+        """Get component type (VEVENT/VTODO/VJOURNAL) without parsing.
+
+        This is for internal use to quickly determine the type.
+        """
+        return self._ensure_state().get_component_type()
+
+    def _has_data(self) -> bool:
+        """Check if we have any data without triggering conversions."""
+        return self._ensure_state().has_data()
+
     ## ===================================================================
     ## End of new API (issue #613)
     ## ===================================================================

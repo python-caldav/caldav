@@ -67,6 +67,17 @@ class DataState(ABC):
                 return str(comp["UID"])
         return None
 
+    def get_component_type(self) -> Optional[str]:
+        """Get the component type (VEVENT, VTODO, VJOURNAL) without full parsing.
+
+        Default implementation parses the data, but subclasses can optimize.
+        """
+        cal = self.get_icalendar_copy()
+        for comp in cal.subcomponents:
+            if comp.name in ("VEVENT", "VTODO", "VJOURNAL"):
+                return comp.name
+        return None
+
     def has_data(self) -> bool:
         """Check if this state has any data."""
         return True
@@ -91,6 +102,9 @@ class NoDataState(DataState):
         return vobject.iCalendar()
 
     def get_uid(self) -> Optional[str]:
+        return None
+
+    def get_component_type(self) -> Optional[str]:
         return None
 
     def has_data(self) -> bool:
@@ -125,6 +139,16 @@ class RawDataState(DataState):
             return match.group(1).strip()
         # Fall back to parsing if regex fails (e.g., folded lines)
         return super().get_uid()
+
+    def get_component_type(self) -> Optional[str]:
+        # Optimization: use simple string search
+        if "BEGIN:VEVENT" in self._data:
+            return "VEVENT"
+        elif "BEGIN:VTODO" in self._data:
+            return "VTODO"
+        elif "BEGIN:VJOURNAL" in self._data:
+            return "VJOURNAL"
+        return None
 
 
 class IcalendarState(DataState):
@@ -162,6 +186,12 @@ class IcalendarState(DataState):
         for comp in self._calendar.subcomponents:
             if comp.name in ("VEVENT", "VTODO", "VJOURNAL") and "UID" in comp:
                 return str(comp["UID"])
+        return None
+
+    def get_component_type(self) -> Optional[str]:
+        for comp in self._calendar.subcomponents:
+            if comp.name in ("VEVENT", "VTODO", "VJOURNAL"):
+                return comp.name
         return None
 
 
@@ -206,4 +236,13 @@ class VobjectState(DataState):
                 return str(self._vobject.vjournal.uid.value)
         except AttributeError:
             pass
+        return None
+
+    def get_component_type(self) -> Optional[str]:
+        if hasattr(self._vobject, "vevent"):
+            return "VEVENT"
+        elif hasattr(self._vobject, "vtodo"):
+            return "VTODO"
+        elif hasattr(self._vobject, "vjournal"):
+            return "VJOURNAL"
         return None
