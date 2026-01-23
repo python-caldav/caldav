@@ -2667,10 +2667,11 @@ END:VCALENDAR
         todos = c.get_todos()
         assert len(todos) == 6
 
-        notodos = c.date_search(  # default compfilter is events
-            start=datetime(1997, 4, 14), end=datetime(2015, 5, 14), expand=False
-        )
-        assert not notodos
+        with pytest.deprecated_call():
+            notodos = c.date_search(  # default compfilter is events
+                start=datetime(1997, 4, 14), end=datetime(2015, 5, 14), expand=False
+            )
+            assert not notodos
 
         # Now, this is interesting.
         # t1 has due set but not dtstart set
@@ -2679,12 +2680,13 @@ END:VCALENDAR
         # t5 has dtstart and due set prior to the search window
         # t6 has dtstart and due set prior to the search window, but is yearly recurring.
         # What will a date search yield?
-        todos1 = c.date_search(
-            start=datetime(1997, 4, 14),
-            end=datetime(2015, 5, 14),
-            compfilter="VTODO",
-            expand=True,
-        )
+        with pytest.deprecated_call():
+            todos1 = c.date_search(
+                start=datetime(1997, 4, 14),
+                end=datetime(2015, 5, 14),
+                compfilter="VTODO",
+                expand=True,
+            )
         todos2 = c.search(
             start=datetime(1997, 4, 14),
             end=datetime(2015, 5, 14),
@@ -2752,7 +2754,8 @@ END:VCALENDAR
             ## todo4 is server side expand, may work dependent on server
 
         ## exercise the default for expand (maybe -> False for open-ended search)
-        todos1 = c.date_search(start=datetime(2025, 4, 14), compfilter="VTODO")
+        with pytest.deprecated_call():
+            todos1 = c.date_search(start=datetime(2025, 4, 14), compfilter="VTODO")
         todos2 = c.search(
             start=datetime(2025, 4, 14), todo=True, include_completed=True
         )
@@ -3201,15 +3204,17 @@ END:VCALENDAR
         ## just a sanity check to increase coverage (ref
         ## https://github.com/python-caldav/caldav/issues/93) -
         ## expand=False and no end date given is no-no
-        with pytest.raises(error.DAVError):
-            c.date_search(datetime(2006, 7, 13, 17, 00, 00), expand=True)
+        with pytest.deprecated_call():
+            with pytest.raises(error.DAVError):
+                c.date_search(datetime(2006, 7, 13, 17, 00, 00), expand=True)
 
         # .. and search for it.
-        r1 = c.date_search(
-            datetime(2006, 7, 13, 17, 00, 00),
-            datetime(2006, 7, 15, 17, 00, 00),
-            expand=False,
-        )
+        with pytest.deprecated_call():
+            r1 = c.date_search(
+                datetime(2006, 7, 13, 17, 00, 00),
+                datetime(2006, 7, 15, 17, 00, 00),
+                expand=False,
+            )
         r2 = c.search(
             event=True,
             start=datetime(2006, 7, 13, 17, 00, 00),
@@ -3234,11 +3239,12 @@ END:VCALENDAR
         # The timestamp should change.
         e.data = ev2
         e.save()
-        r1 = c.date_search(
-            datetime(2006, 7, 13, 17, 00, 00),
-            datetime(2006, 7, 15, 17, 00, 00),
-            expand=False,
-        )
+        with pytest.deprecated_call():
+            r1 = c.date_search(
+                datetime(2006, 7, 13, 17, 00, 00),
+                datetime(2006, 7, 15, 17, 00, 00),
+                expand=False,
+            )
         r2 = c.search(
             event=True,
             start=datetime(2006, 7, 13, 17, 00, 00),
@@ -3247,16 +3253,18 @@ END:VCALENDAR
         )
         assert len(r1) == 0
         assert len(r2) == 0
-        r1 = c.date_search(
-            datetime(2007, 7, 13, 17, 00, 00),
-            datetime(2007, 7, 15, 17, 00, 00),
-            expand=False,
-        )
-        assert len(r1) == 1
+        with pytest.deprecated_call():
+            r1 = c.date_search(
+                datetime(2007, 7, 13, 17, 00, 00),
+                datetime(2007, 7, 15, 17, 00, 00),
+                expand=False,
+            )
+            assert len(r1) == 1
 
         # date search without closing date should also find it
-        r = c.date_search(datetime(2007, 7, 13, 17, 00, 00), expand=False)
-        assert len(r) == 1
+        with pytest.deprecated_call():
+            r = c.date_search(datetime(2007, 7, 13, 17, 00, 00), expand=False)
+            assert len(r) == 1
 
         # Lets try a freebusy request as well
         self.skip_unless_support("freebusy-query.rfc4791")
@@ -3290,11 +3298,12 @@ END:VCALENDAR
         e = c.add_event(evr)
 
         ## Without "expand", we should still find it when searching over 2008 ...
-        r = c.date_search(
-            datetime(2008, 11, 1, 17, 00, 00),
-            datetime(2008, 11, 3, 17, 00, 00),
-            expand=False,
-        )
+        with pytest.deprecated_call():
+            r = c.date_search(
+                datetime(2008, 11, 1, 17, 00, 00),
+                datetime(2008, 11, 3, 17, 00, 00),
+                expand=False,
+            )
         r2 = c.search(
             event=True,
             start=datetime(2008, 11, 1, 17, 00, 00),
@@ -3306,11 +3315,12 @@ END:VCALENDAR
 
         ## With expand=True, we should find one occurrence
         ## legacy method name
-        r1 = c.date_search(
-            datetime(2008, 11, 1, 17, 00, 00),
-            datetime(2008, 11, 3, 17, 00, 00),
-            expand=True,
-        )
+        with pytest.deprecated_call():
+            r1 = c.date_search(
+                datetime(2008, 11, 1, 17, 00, 00),
+                datetime(2008, 11, 3, 17, 00, 00),
+                expand=True,
+            )
         ## server expansion, with client side fallback
         r2 = c.search(
             event=True,
@@ -3337,11 +3347,12 @@ END:VCALENDAR
             assert r4[0].data.count("DTSTART;VALUE=DATE:2008") == 1
 
         ## With expand=True and searching over two recurrences ...
-        r1 = c.date_search(
-            datetime(2008, 11, 1, 17, 00, 00),
-            datetime(2009, 11, 3, 17, 00, 00),
-            expand=True,
-        )
+        with pytest.deprecated_call():
+            r1 = c.date_search(
+                datetime(2008, 11, 1, 17, 00, 00),
+                datetime(2009, 11, 3, 17, 00, 00),
+                expand=True,
+            )
         r2 = c.search(
             event=True,
             start=datetime(2008, 11, 1, 17, 00, 00),

@@ -535,10 +535,11 @@ class TestCalDAV:
         calendar = Calendar(
             client, url="/principals/calendar/home@petroski.example.com/963/"
         )
-        results = calendar.date_search(
-            datetime(2021, 2, 1), datetime(2021, 2, 7), expand=False
-        )
-        assert len(results) == 3
+        with pytest.deprecated_call():
+            results = calendar.date_search(
+                datetime(2021, 2, 1), datetime(2021, 2, 7), expand=False
+            )
+            assert len(results) == 3
 
     def testCalendar(self):
         """
@@ -1204,8 +1205,9 @@ END:VCALENDAR
         target = Event(client, data=evr)
 
         ## Creating some dummy data such that the target has more than one subcomponent
-        target.expand_rrule(start=datetime(1996, 10, 10), end=datetime(1999, 12, 12))
-        assert len(target.icalendar_instance.subcomponents) == 3
+        with pytest.deprecated_call():
+            target.expand_rrule(start=datetime(1996, 10, 10), end=datetime(1999, 12, 12))
+            assert len(target.icalendar_instance.subcomponents) == 3
 
         ## The following should not fail within _set_icalendar_component
         target.icalendar_component = icalendar.Todo.from_ical(todo).subcomponents[0]
