@@ -1694,3 +1694,57 @@ END:VCALENDAR
             url == "https://ecloud.global/remote.php/dav"
         ), f"Expected 'https://ecloud.global/remote.php/dav', got '{url}'"
         assert discovered_username is None
+
+    def testSearcherMethod(self):
+        """Test that calendar.searcher() returns a properly configured CalDAVSearcher.
+
+        This tests issue #590 - the new API for creating search objects.
+        """
+        from caldav.search import CalDAVSearcher
+
+        client = MockedDAVClient(recurring_task_response)
+        calendar = Calendar(client, url="/calendar/issue491/")
+
+        # Test basic searcher creation
+        searcher = calendar.searcher(event=True)
+        assert isinstance(searcher, CalDAVSearcher)
+        assert searcher._calendar is calendar
+        assert searcher.event is True
+
+        # Test with multiple parameters
+        searcher = calendar.searcher(
+            todo=True,
+            start=datetime(2025, 1, 1),
+            end=datetime(2025, 12, 31),
+            expand=True,
+        )
+        assert searcher.todo is True
+        assert searcher.start == datetime(2025, 1, 1)
+        assert searcher.end == datetime(2025, 12, 31)
+        assert searcher.expand is True
+
+        # Test with sort keys
+        searcher = calendar.searcher(sort_keys=["due", "priority"], sort_reverse=True)
+        assert len(searcher._sort_keys) == 2
+
+        # Test with property filters
+        searcher = calendar.searcher(summary="meeting", location="office")
+        assert "summary" in searcher._property_filters
+        assert "location" in searcher._property_filters
+
+        # Test with no_* filters (undef operator goes to _property_operator, not _property_filters)
+        searcher = calendar.searcher(no_summary=True)
+        assert searcher._property_operator.get("summary") == "undef"
+
+        # Test that search() works without calendar argument
+        # Note: post_filter is a parameter to search(), not the searcher
+        mytasks = calendar.searcher(todo=True, expand=False).search(post_filter=True)
+        assert len(mytasks) == 1
+
+    def testSearcherWithoutCalendar(self):
+        """Test that CalDAVSearcher.search() raises ValueError without calendar."""
+        from caldav.search import CalDAVSearcher
+
+        searcher = CalDAVSearcher(event=True)
+        with pytest.raises(ValueError, match="No calendar provided"):
+            searcher.search()

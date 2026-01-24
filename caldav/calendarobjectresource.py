@@ -170,6 +170,9 @@ class CalendarObjectResource(DAVObject):
             if id and self._get_component_type_cheap():
                 old_id = self.icalendar_component.pop("UID", None)
                 self.icalendar_component.add("UID", id)
+                # Clear raw data and update state to use the modified icalendar instance
+                self._data = None
+                self._state = IcalendarState(self._icalendar_instance)
 
     def set_end(self, end, move_dtstart=False):
         """The RFC specifies that a VEVENT/VTODO cannot have both

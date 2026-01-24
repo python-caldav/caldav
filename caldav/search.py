@@ -72,16 +72,17 @@ class CalDAVSearcher(Searcher):
     search queries, as well as allowing for more complex searches.
 
     A search may be performed by first setting up a CalDAVSearcher,
-    populate it with filter options, and then initiate the search from
-    he CalDAVSearcher.  Something like this (see the doc in the base
-    class):
+    populate it with filter options, and then initiate the search.
+    The recommended approach (as of 3.0) is to create the searcher
+    from a calendar:
 
-    ``ComponentSearchFilter(from=..., to=...).search(calendar)``
+    ``searcher = calendar.searcher(event=True, start=..., end=...)``
+    ``searcher.add_property_filter("SUMMARY", "meeting")``
+    ``results = searcher.search()``
 
-    However, for simple searches, the old way to
-    do it will always work:
+    For simple searches, the direct method call still works:
 
-    ``calendar.search(from=..., to=..., ...)``
+    ``calendar.search(event=True, start=..., end=..., ...)``
 
     The ``todo``, ``event`` and ``journal`` parameters are booleans
     for filtering the component type.  It's currently recommended to
@@ -102,6 +103,7 @@ class CalDAVSearcher(Searcher):
 
     comp_class: Optional["CalendarObjectResource"] = None
     _explicit_operators: set = field(default_factory=set)
+    _calendar: Optional["Calendar"] = field(default=None, repr=False)
 
     def add_property_filter(
         self,
@@ -213,7 +215,7 @@ class CalDAVSearcher(Searcher):
     ## TODO: refactor, split more logic out in smaller methods
     def search(
         self,
-        calendar: Calendar,
+        calendar: Calendar = None,
         server_expand: bool = False,
         split_expanded: bool = True,
         props: Optional[List[cdav.CalendarData]] = None,
@@ -226,9 +228,10 @@ class CalDAVSearcher(Searcher):
         Only CalDAV-specific parameters goes to this method.  Those
         parameters are pretty obscure - mostly for power users and
         internal usage.  Unless you have some very special needs, the
-        recommendation is to not pass anything but the calendar.
+        recommendation is to not pass anything.
 
-        :param calendar: Calendar to be searched
+        :param calendar: Calendar to be searched (optional if searcher was created
+                        from a calendar via ``calendar.searcher()``)
         :param server_expand: Ask the CalDAV server to expand recurrences
         :param split_expanded: Don't collect a recurrence set in one ical calendar
         :param props: CalDAV properties to send in the query
@@ -254,9 +257,14 @@ class CalDAVSearcher(Searcher):
         objects.  If you don't know what you're doing, then leave this
         flag on.
 
-        Use ``searcher.search(calendar)`` to apply the search on a caldav server.
-
         """
+        if calendar is None:
+            calendar = self._calendar
+        if calendar is None:
+            raise ValueError(
+                "No calendar provided. Either pass a calendar to search() or "
+                "create the searcher via calendar.searcher()"
+            )
         ## Handle servers with broken component-type filtering (e.g., Bedework)
         ## Such servers may misclassify component types in responses
         comp_type_support = calendar.client.features.is_supported(
@@ -579,7 +587,7 @@ class CalDAVSearcher(Searcher):
 
     async def async_search(
         self,
-        calendar: "AsyncCalendar",
+        calendar: "AsyncCalendar" = None,
         server_expand: bool = False,
         split_expanded: bool = True,
         props: Optional[List[cdav.CalendarData]] = None,
@@ -594,6 +602,14 @@ class CalDAVSearcher(Searcher):
 
         See the sync search() method for full documentation.
         """
+        if calendar is None:
+            calendar = self._calendar
+        if calendar is None:
+            raise ValueError(
+                "No calendar provided. Either pass a calendar to async_search() or "
+                "create the searcher via calendar.searcher()"
+            )
+
         # Import unified types at runtime to avoid circular imports
         # These work with both sync and async clients
         from .calendarobjectresource import (

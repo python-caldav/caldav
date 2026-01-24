@@ -39,6 +39,7 @@ if TYPE_CHECKING:
     from icalendar import vCalAddress
 
     from .davclient import DAVClient
+    from .search import CalDAVSearcher
 
 from collections.abc import Iterable, Iterator, Sequence
 from typing import Literal
@@ -1269,6 +1270,58 @@ class Calendar(DAVObject):
                 )
             )
         return (response, matches)
+
+    def searcher(self, **searchargs) -> "CalDAVSearcher":
+        """Create a searcher object for building complex search queries.
+
+        This is the recommended way to perform advanced searches. The
+        returned searcher can have filters added, and then be executed:
+
+        .. code-block:: python
+
+            searcher = calendar.searcher(event=True, start=..., end=...)
+            searcher.add_property_filter("SUMMARY", "meeting")
+            results = searcher.search()
+
+        For simple searches, use :meth:`search` directly instead.
+
+        :param searchargs: Search parameters (same as for :meth:`search`)
+        :return: A CalDAVSearcher bound to this calendar
+
+        See :class:`caldav.search.CalDAVSearcher` for available filter methods.
+        """
+        from .search import CalDAVSearcher
+
+        my_searcher = CalDAVSearcher()
+        my_searcher._calendar = self
+
+        for key in searchargs:
+            assert key[0] != "_"  ## not allowed
+            alias = key
+            if key == "class_":  ## because class is a reserved word
+                alias = "class"
+            if key == "no_category":
+                alias = "no_categories"
+            if key == "no_class_":
+                alias = "no_class"
+            if key == "sort_keys":
+                sort_reverse = searchargs.get("sort_reverse", False)
+                if isinstance(searchargs["sort_keys"], str):
+                    searchargs["sort_keys"] = [searchargs["sort_keys"]]
+                for sortkey in searchargs["sort_keys"]:
+                    my_searcher.add_sort_key(sortkey, sort_reverse)
+            elif key == "sort_reverse":
+                pass  # handled with sort_keys
+            elif key == "comp_class" or key in my_searcher.__dataclass_fields__:
+                setattr(my_searcher, key, searchargs[key])
+            elif alias.startswith("no_"):
+                my_searcher.add_property_filter(
+                    alias[3:], searchargs[key], operator="undef"
+                )
+            else:
+                my_searcher.add_property_filter(alias, searchargs[key])
+
+        return my_searcher
 
     def search(
         self,
