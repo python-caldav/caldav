@@ -234,19 +234,11 @@ without expand set and with different years, print out
 you want to edit the full series!
 
 The code above is far from "best practice".  You should not try to
-parse or modify ``event.data``.  Best current practice is to use the
-icalendar library for that.  You can access the data thorugh an
-:class:`icalendar.cal.Calendar`-object at ``myevent.icalendar_instance``.
-(in 3.0, probably ``myevent.instance`` will work out without yielding
-a ``DeprecationWarning``).
+parse or modify ``event.data`` directly.  Use the icalendar library instead.
 
-Most of the time every event one gets out from the search contains one
-*component* - and it will always be like that when using
-``expand=True``.  To ease things out for users of the library that
-wants easy access to the event data, the
-``my_events[9].icalendar_component`` property will give a
-:class:`icalendar.cal.Event`-object.  From 2.0 also accessible simply as
-``my_events[0].component``:
+Most events contain one *component* (always true when using ``expand=True``).
+The ``event.component`` property gives easy access to the
+:class:`icalendar.cal.Event`-object.  To edit, use ``edit_icalendar_instance()``:
 
 .. code-block:: python
 
@@ -270,12 +262,11 @@ wants easy access to the event data, the
 
         assert len(my_events) == 1
         print(f"Event starts at {my_events[0].component.start}")
-        my_events[0].component['summary'] = "Norwegian national day celebrations"
+        with my_events[0].edit_icalendar_instance() as cal:
+            cal.subcomponents[0]['summary'] = "Norwegian national day celebrations"
         my_events[0].save()
 
-There is a danger to this - there is one (and only one) exception when an event contains more than one component.  If you've been observant and followed all the steps in this tutorial very carefully, you should have spotted it.
-
-How to do operations on components and instances in the vobject and icalendar library is outside the scope of this tutorial.
+How to do operations on components in the icalendar library is outside the scope of this tutorial.
 
 Usually tasks and journals can be applied directly to the same calendar as the events - but some implementations (notably Zimbra) has "task lists" and "calendars" as distinct entities.  To create a task list, there is a parameter ``supported_calendar_component_set`` that can be set to ``['VTODO']``.  Here is a quick example that features a task:
 

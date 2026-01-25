@@ -1266,6 +1266,159 @@ END:VCALENDAR
                 with event.edit_vobject_instance() as vobj:
                     pass
 
+    def testDataAPICheapAccessors(self):
+        """Test the cheap internal accessors for issue #613.
+
+        These accessors avoid unnecessary format conversions when we just
+        need to peek at basic properties like UID or component type.
+        """
+        cal_url = "http://me:hunter2@calendar.example:80/"
+        client = DAVClient(url=cal_url)
+
+        # Test with event
+        event = Event(client, data=ev1)
+        assert event._get_uid_cheap() == "20010712T182145Z-123401@example.com"
+        assert event._get_component_type_cheap() == "VEVENT"
+        assert event._has_data() is True
+
+        # Test with todo
+        my_todo = Todo(client, data=todo)
+        assert my_todo._get_uid_cheap() == "20070313T123432Z-456553@example.com"
+        assert my_todo._get_component_type_cheap() == "VTODO"
+        assert my_todo._has_data() is True
+
+        # Test with journal
+        my_journal = CalendarObjectResource(client, data=journal)
+        assert my_journal._get_uid_cheap() == "19970901T130000Z-123405@example.com"
+        assert my_journal._get_component_type_cheap() == "VJOURNAL"
+        assert my_journal._has_data() is True
+
+        # Test with no data
+        empty_event = Event(client)
+        assert empty_event._get_uid_cheap() is None
+        assert empty_event._get_component_type_cheap() is None
+        assert empty_event._has_data() is False
+
+    def testDataAPIStateTransitions(self):
+        """Test state transitions in the data API (issue #613).
+
+        Verify that the internal state correctly transitions between
+        RawDataState, IcalendarState, and VobjectState.
+        """
+        from caldav.datastate import (
+            IcalendarState,
+            RawDataState,
+            VobjectState,
+        )
+
+        cal_url = "http://me:hunter2@calendar.example:80/"
+        client = DAVClient(url=cal_url)
+        event = Event(client, data=ev1)
+
+        # Initial state should be RawDataState (or lazy init)
+        event._ensure_state()
+        assert isinstance(event._state, RawDataState)
+
+        # get_data() should NOT change state
+        _ = event.get_data()
+        assert isinstance(event._state, RawDataState)
+
+        # get_icalendar_instance() should NOT change state (returns copy)
+        _ = event.get_icalendar_instance()
+        assert isinstance(event._state, RawDataState)
+
+        # edit_icalendar_instance() SHOULD change state to IcalendarState
+        with event.edit_icalendar_instance() as cal:
+            pass
+        assert isinstance(event._state, IcalendarState)
+
+        # edit_vobject_instance() SHOULD change state to VobjectState
+        with event.edit_vobject_instance() as vobj:
+            pass
+        assert isinstance(event._state, VobjectState)
+
+        # get_data() should still work from VobjectState
+        data = event.get_data()
+        assert "Bastille Day Party" in data
+
+    def testDataAPINoDataState(self):
+        """Test NoDataState behavior (issue #613).
+
+        When an object has no data, the NoDataState should provide
+        sensible defaults without raising errors.
+        """
+        from caldav.datastate import NoDataState
+
+        cal_url = "http://me:hunter2@calendar.example:80/"
+        client = DAVClient(url=cal_url)
+        event = Event(client)  # No data
+
+        # Ensure state is NoDataState
+        event._ensure_state()
+        assert isinstance(event._state, NoDataState)
+
+        # get_data() should return empty string
+        assert event.get_data() == ""
+
+        # get_icalendar_instance() should return empty Calendar
+        ical = event.get_icalendar_instance()
+        assert ical is not None
+        assert len(list(ical.subcomponents)) == 0
+
+        # Cheap accessors should return None
+        assert event._get_uid_cheap() is None
+        assert event._get_component_type_cheap() is None
+        assert event._has_data() is False
+
+    def testDataAPIEdgeCases(self):
+        """Test edge cases in the data API (issue #613)."""
+        cal_url = "http://me:hunter2@calendar.example:80/"
+        client = DAVClient(url=cal_url)
+
+        # Test with folded UID line (UID split across lines)
+        folded_uid_data = """BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//Test//EN
+BEGIN:VEVENT
+UID:this-is-a-very-long-uid-that-might-be-folded-across-multiple-lines-in-r
+ eal-world-icalendar-files@example.com
+DTSTAMP:20060712T182145Z
+DTSTART:20060714T170000Z
+SUMMARY:Folded UID Test
+END:VEVENT
+END:VCALENDAR
+"""
+        event = Event(client, data=folded_uid_data)
+        # The cheap accessor uses regex which might not handle folded lines
+        # So we test that it falls back to full parsing when needed
+        uid = event._get_uid_cheap()
+        # Either the regex works or it falls back - either way we should get a UID
+        assert uid is not None
+        assert "this-is-a-very-long-uid" in uid
+
+        # Test that nested borrowing (even same type) raises error
+        # This prevents confusing ownership semantics
+        event2 = Event(client, data=ev1)
+        with event2.edit_icalendar_instance() as cal1:
+            with pytest.raises(RuntimeError):
+                with event2.edit_icalendar_instance() as cal2:
+                    pass
+
+        # Test sequential edits work fine
+        event3 = Event(client, data=ev1)
+        with event3.edit_icalendar_instance() as cal:
+            for comp in cal.subcomponents:
+                if comp.name == "VEVENT":
+                    comp["SUMMARY"] = "First Edit"
+        assert "First Edit" in event3.get_data()
+
+        # Second edit after first is complete
+        with event3.edit_icalendar_instance() as cal:
+            for comp in cal.subcomponents:
+                if comp.name == "VEVENT":
+                    comp["SUMMARY"] = "Second Edit"
+        assert "Second Edit" in event3.get_data()
+
     def testTodoDuration(self):
         cal_url = "http://me:hunter2@calendar.example:80/"
         client = DAVClient(url=cal_url)

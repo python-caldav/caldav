@@ -249,78 +249,69 @@ def read_modify_event_demo(event):
     `search_calendar_demo`.  The event needs some editing, which will
     be done below.  Keep in mind that the differences between an
     Event, a Todo and a Journal is small, everything that is done to
-    he event here could as well be done towards a task.
+    the event here could as well be done towards a task.
     """
-    ## The objects (events, journals and tasks) comes with some properties that
-    ## can be used for inspecting the data and modifying it.
+    ## =========================================================
+    ## RECOMMENDED: Safe data access API (3.0+)
+    ## =========================================================
+    ## As of caldav 3.0, use context managers to "borrow" objects for editing.
+    ## This prevents confusing side effects where accessing one representation
+    ## can invalidate references to another.
 
-    ## event.data is the raw data, as a string, with unix linebreaks
-    print("here comes some icalendar data:")
-    print(event.data)
+    ## For READ-ONLY access, use get_* methods (returns copies):
+    print("here comes some icalendar data (using get_data):")
+    print(event.get_data())
 
-    ## event.wire_data is the raw data as a byte string with CRLN linebreaks
-    assert len(event.wire_data) >= len(event.data)
+    ## For READ-ONLY inspection of icalendar object:
+    ical_copy = event.get_icalendar_instance()
+    for comp in ical_copy.subcomponents:
+        if comp.name == "VEVENT":
+            print(f"Event UID: {comp['UID']}")
+            uid = str(comp["UID"])
 
-    ## Two libraries exists to handle icalendar data - vobject and
-    ## icalendar.  The caldav library traditionally supported the
-    ## first one, but icalendar is more popular.
+    ## For EDITING, use context managers:
+    print("Editing the event using edit_icalendar_instance()...")
+    with event.edit_icalendar_instance() as cal:
+        for comp in cal.subcomponents:
+            if comp.name == "VEVENT":
+                comp["SUMMARY"] = "norwegian national day celebratiuns"
 
-    ## Here is an example
-    ## on how to modify the summary using vobject:
-    event.vobject_instance.vevent.summary.value = "norwegian national day celebratiuns"
+    ## Or edit using vobject:
+    print("Editing with vobject using edit_vobject_instance()...")
+    with event.edit_vobject_instance() as vobj:
+        vobj.vevent.summary.value = vobj.vevent.summary.value.replace(
+            "celebratiuns", "celebrations"
+        )
 
-    ## event.icalendar_instance gives an icalendar instance - which
-    ## normally would be one icalendar calendar object containing one
-    ## subcomponent.  Quite often the fourth property,
-    ## icalendar_component (now available just as .component) is
-    ## preferable - it gives us the component - but be aware that if
-    ## the server returns a recurring events with exceptions,
-    ## event.icalendar_component will ignore all the exceptions.
-    uid = event.component["uid"]
+    ## Modify the start time using icalendar
+    with event.edit_icalendar_instance() as cal:
+        for comp in cal.subcomponents:
+            if comp.name == "VEVENT":
+                dtstart = comp.get("dtstart")
+                if dtstart:
+                    comp["dtstart"].dt = dtstart.dt + timedelta(seconds=3600)
+                ## Fix the casing
+                comp["SUMMARY"] = str(comp["SUMMARY"]).replace("norwegian", "Norwegian")
 
-    ## Let's correct that typo using the icalendar library.
-    event.component["summary"] = event.component["summary"].replace(
-        "celebratiuns", "celebrations"
-    )
-
-    ## timestamps (DTSTAMP, DTSTART, DTEND for events, DUE for tasks,
-    ## etc) can be fetched using the icalendar library like this:
-    dtstart = event.component.get("dtstart")
-
-    ## but, dtstart is not a python datetime - it's a vDatetime from
-    ## the icalendar package.  If you want it as a python datetime,
-    ## use the .dt property.  (In this case dtstart is set - and it's
-    ## pretty much mandatory for events - but the code here is robust
-    ## enough to handle cases where it's undefined):
-    dtstart_dt = dtstart and dtstart.dt
-
-    ## We can modify it:
-    if dtstart:
-        event.component["dtstart"].dt = dtstart.dt + timedelta(seconds=3600)
-
-    ## And finally, get the casing correct
-    event.data = event.data.replace("norwegian", "Norwegian")
-
-    ## Note that this is not quite thread-safe:
-    icalendar_component = event.component
-    ## accessing the data (and setting it) will "disconnect" the
-    ## icalendar_component from the event
-    event.data = event.data
-    ## So this will not affect the event anymore:
-    icalendar_component["summary"] = "do the needful"
-    assert not "do the needful" in event.data
-
-    ## The mofifications are still only saved locally in memory -
-    ## let's save it to the server:
+    ## Save to server
     event.save()
 
-    ## NOTE: always use event.save() for updating events and
-    ## calendar.add_event(data) for creating a new event.
-    ## This may break:
-    # event.save(event.data)
-    ## ref https://github.com/python-caldav/caldav/issues/153
+    ## =========================================================
+    ## LEGACY: Property-based access (still works, but be careful)
+    ## =========================================================
+    ## The old property access still works for backward compatibility:
+    ##   event.data, event.icalendar_instance, event.vobject_instance
+    ##
+    ## WARNING: These have confusing side effects! Accessing one
+    ## can disconnect your references to another:
+    ##
+    ##   component = event.component
+    ##   event.data = event.data  # This disconnects 'component'!
+    ##   component["summary"] = "new"  # This won't be saved!
+    ##
+    ## Use the context managers above instead for safe editing.
 
-    ## Finally, let's verify that the correct data was saved
+    ## Verify the correct data was saved
     calendar = event.parent
     same_event = calendar.get_event_by_uid(uid)
     assert same_event.component["summary"] == "Norwegian national day celebrations"

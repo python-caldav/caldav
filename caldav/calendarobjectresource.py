@@ -286,7 +286,8 @@ class CalendarObjectResource(DAVObject):
             if other.id:
                 uid = other.id
             else:
-                uid = other.icalendar_component["uid"]
+                # Use cheap accessor to avoid format conversion (issue #613)
+                uid = other._get_uid_cheap() or other.icalendar_component["uid"]
         else:
             uid = other
             if set_reverse:
@@ -400,7 +401,9 @@ class CalendarObjectResource(DAVObject):
         other_relations = other.get_relatives(
             fetch_objects=False, reltypes={revreltype}
         )
-        if not str(self.icalendar_component["uid"]) in other_relations[revreltype]:
+        # Use cheap accessor to avoid format conversion (issue #613)
+        my_uid = self._get_uid_cheap() or str(self.icalendar_component["uid"])
+        if my_uid not in other_relations[revreltype]:
             ## I don't remember why we need to return a tuple
             ## but it's propagated through the "public" methods, so we'll
             ## have to leave it like this.
@@ -871,7 +874,8 @@ class CalendarObjectResource(DAVObject):
         ## TODO: should try to wrap my head around issues that arises when id contains weird characters.  maybe it's
         ## better to generate a new uuid here, particularly if id is in some unexpected format.
         if not self.id:
-            self.id = self._get_icalendar_component(assert_one=False)["UID"]
+            # Use cheap accessor to avoid format conversion (issue #613)
+            self.id = self._get_uid_cheap() or self._get_icalendar_component(assert_one=False)["UID"]
         return self.parent.url.join(quote(self.id.replace("/", "%2F")) + ".ics")
 
     def change_attendee_status(self, attendee: Optional[Any] = None, **kwargs) -> None:
@@ -1112,14 +1116,13 @@ class CalendarObjectResource(DAVObject):
         object is considered not to be loaded if it contains no data
         but just the URL.
 
-        TOOD: bad side effect, converts the data to a string,
-        potentially breaking couplings
+        Optimized to use cheap accessors (issue #613).
         """
-        return (
-            (self._data and self._data.count("BEGIN:") > 1)
-            or self._vobject_instance
-            or self._icalendar_instance
-        )
+        # Use the state pattern to check for data without side effects
+        if not self._has_data():
+            return False
+        # Check if there's an actual component (not just empty VCALENDAR)
+        return self._get_component_type_cheap() is not None
 
     def has_component(self) -> bool:
         """

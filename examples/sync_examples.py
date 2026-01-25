@@ -12,7 +12,9 @@ my_events = my_calendar.objects(load_objects=True)
 # (... some time later ...)
 my_events.sync()
 for event in my_events:
-    print(event.icalendar.subcomponents[0]["SUMMARY"])
+    # Use get_icalendar_instance() for read-only access (returns a copy)
+    ical = event.get_icalendar_instance()
+    print(ical.subcomponents[0]["SUMMARY"])
 
 ## USE CASE #2, approach #1: We want to load all objects from the
 ## remote caldav server and insert them into a database.  Later we
