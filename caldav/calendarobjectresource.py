@@ -122,6 +122,33 @@ class CalendarObjectResource(DAVObject):
     _state: Optional[DataState] = None
     _borrowed: bool = False
 
+    @property
+    def id(self) -> Optional[str]:
+        """Returns the UID of the calendar object.
+
+        Extracts the UID from the calendar data using cheap accessors
+        that avoid unnecessary parsing (issue #515, #613).
+        Falls back to direct icalendar parsing if the cheap accessor fails.
+        Does not trigger a load from the server.
+        """
+        uid = self._get_uid_cheap()
+        if uid is None and self._icalendar_instance:
+            # Fallback: look in icalendar instance directly (without triggering load)
+            for comp in self._icalendar_instance.subcomponents:
+                if comp.name in ("VEVENT", "VTODO", "VJOURNAL") and "UID" in comp:
+                    uid = str(comp["UID"])
+                    break
+        return uid
+
+    @id.setter
+    def id(self, value: Optional[str]) -> None:
+        """Setter exists for compatibility with parent class __init__.
+
+        The actual UID is stored in the calendar data, not separately.
+        Setting this is a no-op - modify the icalendar data directly.
+        """
+        pass
+
     def __init__(
         self,
         client: Optional["DAVClient"] = None,
@@ -140,7 +167,7 @@ class CalendarObjectResource(DAVObject):
         )
         if data is not None:
             self.data = data
-            if id:
+            if id and self._get_component_type_cheap():
                 old_id = self.icalendar_component.pop("UID", None)
                 self.icalendar_component.add("UID", id)
 
@@ -803,8 +830,6 @@ class CalendarObjectResource(DAVObject):
         i.pop("UID", None)
         i.add("UID", id)
 
-        self.id = id
-
         for x in self.icalendar_instance.subcomponents:
             if not isinstance(x, icalendar.Timezone):
                 error.assert_(x.get("UID", None) == self.id)
@@ -873,9 +898,6 @@ class CalendarObjectResource(DAVObject):
         ## See https://github.com/python-caldav/caldav/issues/143 for the rationale behind double-quoting slashes
         ## TODO: should try to wrap my head around issues that arises when id contains weird characters.  maybe it's
         ## better to generate a new uuid here, particularly if id is in some unexpected format.
-        if not self.id:
-            # Use cheap accessor to avoid format conversion (issue #613)
-            self.id = self._get_uid_cheap() or self._get_icalendar_component(assert_one=False)["UID"]
         return self.parent.url.join(quote(self.id.replace("/", "%2F")) + ".ics")
 
     def change_attendee_status(self, attendee: Optional[Any] = None, **kwargs) -> None:
@@ -1192,6 +1214,8 @@ class CalendarObjectResource(DAVObject):
         self._vobject_instance = inst
         self._data = None
         self._icalendar_instance = None
+        # Keep _state in sync with _vobject_instance
+        self._state = VobjectState(inst)
         return self
 
     def _get_vobject_instance(self) -> Optional["vobject.base.Component"]:
@@ -1263,6 +1287,8 @@ class CalendarObjectResource(DAVObject):
         self._icalendar_instance = inst
         self._data = None
         self._vobject_instance = None
+        # Keep _state in sync with _icalendar_instance
+        self._state = IcalendarState(inst)
         return self
 
     def _get_icalendar_instance(self):
