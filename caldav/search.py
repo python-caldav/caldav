@@ -39,9 +39,9 @@ from .operations.search_ops import (
 from .operations.search_ops import (
     _should_remove_property_filters_for_combined as should_remove_property_filters_for_combined,
 )
+from .elements import cdav
 
 if TYPE_CHECKING:
-    from .elements import cdav
     from .collection import Calendar as AsyncCalendar
     from .calendarobjectresource import (
         CalendarObjectResource as AsyncCalendarObjectResource,
