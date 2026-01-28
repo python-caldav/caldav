@@ -4,16 +4,11 @@ Tests for CalendarObjectResource operations module.
 These tests verify the Sans-I/O business logic for calendar objects
 without any network I/O.
 """
-from datetime import datetime
-from datetime import timedelta
-from datetime import timezone
+
+from datetime import datetime, timedelta, timezone
 
 import icalendar
-import pytest
 
-from caldav.operations.calendarobject_ops import (
-    _calculate_next_recurrence as calculate_next_recurrence,
-)
 from caldav.operations.calendarobject_ops import (
     _copy_component_with_new_uid as copy_component_with_new_uid,
 )

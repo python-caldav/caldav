@@ -9,37 +9,25 @@ Alarms and Time zone objects does not have any class as for now.  Those are typi
 
 Users of the library should not need to construct any of those objects.  To add new content to the calendar, use ``calendar.add_event``, ``calendar.add_todo`` or ``calendar.add_journal``.  Those methods will return a CalendarObjectResource.  To update an existing object, use ``event.save()``.
 """
+
 import logging
 import re
 import sys
 import uuid
 import warnings
 from collections import defaultdict
-from datetime import datetime
-from datetime import timedelta
-from datetime import timezone
-from typing import Any
-from typing import List
-from typing import Optional
-from typing import Set
-from typing import Tuple
-from typing import TYPE_CHECKING
-from typing import TypeVar
-from typing import Union
-from urllib.parse import ParseResult
-from urllib.parse import quote
-from urllib.parse import SplitResult
-from urllib.parse import unquote
+from datetime import datetime, timedelta, timezone
+from typing import TYPE_CHECKING, Any, Optional
+from urllib.parse import ParseResult, SplitResult, quote
 
 import icalendar
 from dateutil.rrule import rrulestr
-from icalendar import vCalAddress
-from icalendar import vText
+from icalendar import vCalAddress, vText
 
 try:
-    from typing import ClassVar, Optional, Union, Type
+    from typing import ClassVar, Optional
 
-    TimeStamp = Optional[Union[date, datetime]]
+    TimeStamp = Optional[date | datetime]
 except:
     pass
 
@@ -48,8 +36,8 @@ if TYPE_CHECKING:
 
     from .davclient import DAVClient
 
-from collections.abc import Callable, Container, Iterable, Iterator, Sequence
-from typing import DefaultDict, Literal
+from collections.abc import Callable, Container
+from typing import Literal
 
 if sys.version_info < (3, 11):
     from typing_extensions import Self
@@ -58,21 +46,12 @@ else:
 
 from contextlib import contextmanager
 
-from .datastate import DataState
-from .datastate import IcalendarState
-from .datastate import NoDataState
-from .datastate import RawDataState
-from .datastate import VobjectState
+from .datastate import DataState, IcalendarState, NoDataState, RawDataState, VobjectState
 from .davobject import DAVObject
-from .elements.cdav import CalendarData
-from .elements import cdav
-from .elements import dav
-from .lib import error
-from .lib import vcal
+from .elements import cdav, dav
+from .lib import error, vcal
 from .lib.error import errmsg
-from .lib.python_utilities import to_normal_str
-from .lib.python_utilities import to_unicode
-from .lib.python_utilities import to_wire
+from .lib.python_utilities import to_normal_str, to_unicode, to_wire
 from .lib.url import URL
 
 log = logging.getLogger("caldav")
@@ -119,11 +98,11 @@ class CalendarObjectResource(DAVObject):
     _data = None
 
     # New state management (issue #613)
-    _state: Optional[DataState] = None
+    _state: DataState | None = None
     _borrowed: bool = False
 
     @property
-    def id(self) -> Optional[str]:
+    def id(self) -> str | None:
         """Returns the UID of the calendar object.
 
         Extracts the UID from the calendar data using cheap accessors
@@ -141,7 +120,7 @@ class CalendarObjectResource(DAVObject):
         return uid
 
     @id.setter
-    def id(self, value: Optional[str]) -> None:
+    def id(self, value: str | None) -> None:
         """Setter exists for compatibility with parent class __init__.
 
         The actual UID is stored in the calendar data, not separately.
@@ -152,11 +131,11 @@ class CalendarObjectResource(DAVObject):
     def __init__(
         self,
         client: Optional["DAVClient"] = None,
-        url: Union[str, ParseResult, SplitResult, URL, None] = None,
-        data: Optional[Any] = None,
-        parent: Optional[Any] = None,
-        id: Optional[Any] = None,
-        props: Optional[Any] = None,
+        url: str | ParseResult | SplitResult | URL | None = None,
+        data: Any | None = None,
+        parent: Any | None = None,
+        id: Any | None = None,
+        props: Any | None = None,
     ) -> None:
         """
         CalendarObjectResource has an additional parameter for its constructor:
@@ -210,7 +189,7 @@ class CalendarObjectResource(DAVObject):
         ## TODO: what if walk returns more than one vevent?
         self.icalendar_component.add("organizer", principal.get_vcal_address())
 
-    def split_expanded(self) -> List[Self]:
+    def split_expanded(self) -> list[Self]:
         """This was used internally for processing search results.
         Library users probably don't need to care about this one.
 
@@ -244,9 +223,7 @@ class CalendarObjectResource(DAVObject):
             ret.append(obj)
         return ret
 
-    def expand_rrule(
-        self, start: datetime, end: datetime, include_completed: bool = True
-    ) -> None:
+    def expand_rrule(self, start: datetime, end: datetime, include_completed: bool = True) -> None:
         """This method will transform the calendar content of the
         event and expand the calendar data from a "master copy" with
         RRULE set and into a "recurrence set" with RECURRENCE-ID set
@@ -280,11 +257,7 @@ class CalendarObjectResource(DAVObject):
         recurrence_properties = {"exdate", "exrule", "rdate", "rrule"}
 
         error.assert_(
-            not any(
-                x
-                for x in recurrings
-                if not recurrence_properties.isdisjoint(set(x.keys()))
-            )
+            not any(x for x in recurrings if not recurrence_properties.isdisjoint(set(x.keys())))
         )
 
         calendar = self.icalendar_instance
@@ -330,9 +303,7 @@ class CalendarObjectResource(DAVObject):
 
         existing_relation = self.icalendar_component.get("related-to", None)
         existing_relations = (
-            existing_relation
-            if isinstance(existing_relation, list)
-            else [existing_relation]
+            existing_relation if isinstance(existing_relation, list) else [existing_relation]
         )
         for rel in existing_relations:
             if rel == uid:
@@ -355,11 +326,11 @@ class CalendarObjectResource(DAVObject):
     ## plann project, it is extensively tested in plann.
     def get_relatives(
         self,
-        reltypes: Optional[Container[str]] = None,
-        relfilter: Optional[Callable[[Any], bool]] = None,
+        reltypes: Container[str] | None = None,
+        relfilter: Callable[[Any], bool] | None = None,
         fetch_objects: bool = True,
         ignore_missing: bool = True,
-    ) -> DefaultDict[str, Set[str]]:
+    ) -> defaultdict[str, set[str]]:
         """
         By default, loads all objects pointed to by the RELATED-TO
         property and loads the related objects.
@@ -400,9 +371,7 @@ class CalendarObjectResource(DAVObject):
                     raise ValueError("Unexpected value None for self.parent")
 
                 if not isinstance(self.parent, Calendar):
-                    raise ValueError(
-                        "self.parent expected to be of type Calendar but it is not"
-                    )
+                    raise ValueError("self.parent expected to be of type Calendar but it is not")
 
                 for obj in uids:
                     try:
@@ -419,18 +388,14 @@ class CalendarObjectResource(DAVObject):
         ## TODO: handle RFC9253 better!  Particularly next/first-lists
         reverse_reltype = self.RELTYPE_REVERSE_MAP.get(reltype)
         if not reverse_reltype:
-            logging.error(
-                "Reltype %s not supported in object uid %s" % (reltype, self.id)
-            )
+            logging.error("Reltype %s not supported in object uid %s" % (reltype, self.id))
             return
         other.set_relation(self, reverse_reltype, other)
 
     def _verify_reverse_relation(self, other, reltype) -> tuple:
         revreltype = self.RELTYPE_REVERSE_MAP[reltype]
         ## TODO: special case FIRST/NEXT needs special handling
-        other_relations = other.get_relatives(
-            fetch_objects=False, reltypes={revreltype}
-        )
+        other_relations = other.get_relatives(fetch_objects=False, reltypes={revreltype})
         # Use cheap accessor to avoid format conversion (issue #613)
         my_uid = self._get_uid_cheap() or str(self.icalendar_component["uid"])
         if my_uid not in other_relations[revreltype]:
@@ -472,7 +437,7 @@ class CalendarObjectResource(DAVObject):
                     self._set_reverse_relation(other, reltype)
         return ret
 
-    def check_reverse_relations(self, pdb: bool = False) -> List[tuple]:
+    def check_reverse_relations(self, pdb: bool = False) -> list[tuple]:
         """
         Will verify that for all the objects we point at though
         the RELATED-TO property, the other object points back to us as
@@ -561,9 +526,7 @@ class CalendarObjectResource(DAVObject):
 
     get_dtend = get_due
 
-    def add_attendee(
-        self, attendee, no_default_parameters: bool = False, **parameters
-    ) -> None:
+    def add_attendee(self, attendee, no_default_parameters: bool = False, **parameters) -> None:
         """
         For the current (event/todo/journal), add an attendee.
 
@@ -656,7 +619,7 @@ class CalendarObjectResource(DAVObject):
         """
         self._reply_to_invite_request("DECLINED", calendar)
 
-    def tentatively_accept_invite(self, calendar: Optional[Any] = None) -> None:
+    def tentatively_accept_invite(self, calendar: Any | None = None) -> None:
         """
         Tentatively accept an invite - to be used on an invite object.
         """
@@ -690,7 +653,7 @@ class CalendarObjectResource(DAVObject):
             else:
                 self.save()
 
-    def copy(self, keep_uid: bool = False, new_parent: Optional[Any] = None) -> Self:
+    def copy(self, keep_uid: bool = False, new_parent: Any | None = None) -> Self:
         """
         Events, todos etc can be copied within the same calendar, to another
         calendar or even to another caldav server
@@ -846,9 +809,7 @@ class CalendarObjectResource(DAVObject):
 
     def _put(self, retry_on_failure=True):
         ## SECURITY TODO: we should probably have a check here to verify that no such object exists already
-        r = self.client.put(
-            self.url, self.data, {"Content-Type": 'text/calendar; charset="utf-8"'}
-        )
+        r = self.client.put(self.url, self.data, {"Content-Type": 'text/calendar; charset="utf-8"'})
         if r.status == 302:
             path = [x[1] for x in r.headers if x[0] == "location"][0]
         elif r.status not in (204, 201):
@@ -903,7 +864,7 @@ class CalendarObjectResource(DAVObject):
         ## better to generate a new uuid here, particularly if id is in some unexpected format.
         return self.parent.url.join(quote(self.id.replace("/", "%2F")) + ".ics")
 
-    def change_attendee_status(self, attendee: Optional[Any] = None, **kwargs) -> None:
+    def change_attendee_status(self, attendee: Any | None = None, **kwargs) -> None:
         """
         Updates the attendee-line according to the arguments received
         """
@@ -927,9 +888,7 @@ class CalendarObjectResource(DAVObject):
                 except error.NotFoundError:
                     pass
             if not cnt:
-                raise error.NotFoundError(
-                    "Principal %s is not invited to event" % str(attendee)
-                )
+                raise error.NotFoundError("Principal %s is not invited to event" % str(attendee))
             error.assert_(cnt == 1)
             return
 
@@ -950,7 +909,7 @@ class CalendarObjectResource(DAVObject):
         self,
         no_overwrite: bool = False,
         no_create: bool = False,
-        obj_type: Optional[str] = None,
+        obj_type: str | None = None,
         increase_seqno: bool = True,
         if_schedule_tag_match: bool = False,
         only_this_recurrence: bool = True,
@@ -1038,13 +997,9 @@ class CalendarObjectResource(DAVObject):
             if not uid and no_create:
                 raise error.ConsistencyError("no_create flag was set, but no ID given")
             if no_overwrite and existing:
-                raise error.ConsistencyError(
-                    "no_overwrite flag was set, but object already exists"
-                )
+                raise error.ConsistencyError("no_overwrite flag was set, but object already exists")
             if no_create and not existing:
-                raise error.ConsistencyError(
-                    "no_create flag was set, but object does not exist"
-                )
+                raise error.ConsistencyError("no_create flag was set, but object does not exist")
 
         # Handle recurrence instances BEFORE async delegation
         # When saving a single recurrence instance, we need to:
@@ -1056,6 +1011,7 @@ class CalendarObjectResource(DAVObject):
             only_this_recurrence or all_recurrences
         ) and "RECURRENCE-ID" in self.icalendar_component:
             import icalendar
+
             from caldav.lib import error
 
             obj = get_self()  # Get the full object, not only the recurrence
@@ -1072,9 +1028,7 @@ class CalendarObjectResource(DAVObject):
                         ncc[prop] = occ[prop]
 
                 # dtstart_diff = how much we've moved the time
-                dtstart_diff = (
-                    ncc.start.astimezone() - ncc["recurrence-id"].dt.astimezone()
-                )
+                dtstart_diff = ncc.start.astimezone() - ncc["recurrence-id"].dt.astimezone()
                 new_duration = ncc.duration
                 ncc.pop("dtstart")
                 ncc.add("dtstart", occ.start + dtstart_diff)
@@ -1087,9 +1041,7 @@ class CalendarObjectResource(DAVObject):
 
                 # Replace the "root" subcomponent
                 comp_idxes = [
-                    i
-                    for i in range(0, len(s))
-                    if not isinstance(s[i], icalendar.Timezone)
+                    i for i in range(0, len(s)) if not isinstance(s[i], icalendar.Timezone)
                 ]
                 comp_idx = comp_idxes[0]
                 s[comp_idx] = ncc
@@ -1298,9 +1250,7 @@ class CalendarObjectResource(DAVObject):
         if not self._icalendar_instance:
             if not self.data:
                 return None
-            self.icalendar_instance = icalendar.Calendar.from_ical(
-                to_unicode(self.data)
-            )
+            self.icalendar_instance = icalendar.Calendar.from_ical(to_unicode(self.data))
         return self._icalendar_instance
 
     icalendar_instance: Any = property(
@@ -1452,7 +1402,7 @@ class CalendarObjectResource(DAVObject):
 
     # --- Internal cheap accessors (no state changes) ---
 
-    def _get_uid_cheap(self) -> Optional[str]:
+    def _get_uid_cheap(self) -> str | None:
         """Get UID without triggering format conversions.
 
         This is for internal use where we just need to peek at the UID
@@ -1460,7 +1410,7 @@ class CalendarObjectResource(DAVObject):
         """
         return self._ensure_state().get_uid()
 
-    def _get_component_type_cheap(self) -> Optional[str]:
+    def _get_component_type_cheap(self) -> str | None:
         """Get component type (VEVENT/VTODO/VJOURNAL) without parsing.
 
         This is for internal use to quickly determine the type.
@@ -1559,8 +1509,8 @@ class FreeBusy(CalendarObjectResource):
         self,
         parent,
         data,
-        url: Union[str, ParseResult, SplitResult, URL, None] = None,
-        id: Optional[Any] = None,
+        url: str | ParseResult | SplitResult | URL | None = None,
+        id: Any | None = None,
     ) -> None:
         CalendarObjectResource.__init__(
             self, client=parent.client, url=url, data=data, parent=parent, id=id
@@ -1660,9 +1610,7 @@ class Todo(CalendarObjectResource):
         if not rrule:
             rrule = i["RRULE"]
         if not dtstart:
-            if by is True or (
-                by is None and any((x for x in rrule if x.startswith("BY")))
-            ):
+            if by is True or (by is None and any(x for x in rrule if x.startswith("BY"))):
                 if "DTSTART" in i:
                     dtstart = i["DTSTART"].dt
                 else:
@@ -1753,9 +1701,7 @@ class Todo(CalendarObjectResource):
             ## We copy the original one
             just_completed = orig.copy()
             just_completed.pop("RRULE")
-            just_completed.add(
-                "RECURRENCE-ID", orig.get("DTSTART", completion_timestamp)
-            )
+            just_completed.add("RECURRENCE-ID", orig.get("DTSTART", completion_timestamp))
             seqno = just_completed.pop("SEQUENCE", 0)
             just_completed.add("SEQUENCE", seqno + 1)
             recurrences.append(just_completed)
@@ -1795,9 +1741,7 @@ class Todo(CalendarObjectResource):
             if count is not None and count[0] <= len(
                 [x for x in recurrences if not self.is_pending(x)]
             ):
-                self._complete_ical(
-                    recurrences[0], completion_timestamp=completion_timestamp
-                )
+                self._complete_ical(recurrences[0], completion_timestamp=completion_timestamp)
                 self.save(increase_seqno=False)
                 return
 
@@ -1814,7 +1758,7 @@ class Todo(CalendarObjectResource):
 
     def complete(
         self,
-        completion_timestamp: Optional[datetime] = None,
+        completion_timestamp: datetime | None = None,
         handle_rrule: bool = False,
         rrule_mode: Literal["safe", "this_and_future"] = "safe",
     ) -> None:
@@ -1839,9 +1783,7 @@ class Todo(CalendarObjectResource):
             completion_timestamp = datetime.now(timezone.utc)
 
         if "RRULE" in self.icalendar_component and handle_rrule:
-            return getattr(self, "_complete_recurring_%s" % rrule_mode)(
-                completion_timestamp
-            )
+            return getattr(self, "_complete_recurring_%s" % rrule_mode)(completion_timestamp)
         self._complete_ical(completion_timestamp=completion_timestamp)
         self.save()
 
@@ -1853,7 +1795,7 @@ class Todo(CalendarObjectResource):
         i.add("STATUS", "COMPLETED")
         i.add("COMPLETED", completion_timestamp)
 
-    def is_pending(self, i=None) -> Optional[bool]:
+    def is_pending(self, i=None) -> bool | None:
         if i is None:
             i = self.icalendar_component
         if i.get("COMPLETED", None) is not None:

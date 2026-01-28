@@ -3,15 +3,12 @@ This code was provided by Bo Lopker in https://github.com/python-caldav/caldav/i
 
 The code has not been tested by the caldav maintainer
 """
-import json
 
 from google.auth.transport.requests import Request
 from google.oauth2 import service_account
-from google_auth_oauthlib.flow import InstalledAppFlow
 from requests.auth import AuthBase
 
 from caldav import get_davclient
-
 
 SERVICE_ACCOUNT_FILE = "service.json"
 
@@ -27,9 +24,7 @@ class OAuth(AuthBase):
 
 SCOPES = ["https://www.googleapis.com/auth/calendar"]
 
-creds = service_account.Credentials.from_service_account_file(
-    SERVICE_ACCOUNT_FILE, scopes=SCOPES
-)
+creds = service_account.Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
 creds.refresh(Request())
 
 calid = "{ID}@group.calendar.google.com"

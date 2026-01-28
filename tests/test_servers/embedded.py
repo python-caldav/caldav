@@ -4,11 +4,11 @@ Embedded test server implementations.
 This module provides test server implementations for servers that run
 in-process: Radicale and Xandikos.
 """
+
 import socket
 import tempfile
 import threading
 from typing import Any
-from typing import Optional
 
 try:
     import niquests as requests
@@ -31,7 +31,7 @@ class RadicaleTestServer(EmbeddedTestServer):
 
     name = "LocalRadicale"
 
-    def __init__(self, config: Optional[dict[str, Any]] = None) -> None:
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
         config = config or {}
         config.setdefault("host", "localhost")
         config.setdefault("port", 5232)
@@ -47,10 +47,10 @@ class RadicaleTestServer(EmbeddedTestServer):
         super().__init__(config)
 
         # Server state
-        self.serverdir: Optional[tempfile.TemporaryDirectory] = None
-        self.shutdown_socket: Optional[socket.socket] = None
-        self.shutdown_socket_out: Optional[socket.socket] = None
-        self.thread: Optional[threading.Thread] = None
+        self.serverdir: tempfile.TemporaryDirectory | None = None
+        self.shutdown_socket: socket.socket | None = None
+        self.shutdown_socket_out: socket.socket | None = None
+        self.thread: threading.Thread | None = None
 
     def _default_port(self) -> int:
         return 5232
@@ -165,7 +165,7 @@ class XandikosTestServer(EmbeddedTestServer):
 
     name = "LocalXandikos"
 
-    def __init__(self, config: Optional[dict[str, Any]] = None) -> None:
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
         config = config or {}
         config.setdefault("host", "localhost")
         config.setdefault("port", 8993)
@@ -180,11 +180,11 @@ class XandikosTestServer(EmbeddedTestServer):
         super().__init__(config)
 
         # Server state
-        self.serverdir: Optional[tempfile.TemporaryDirectory] = None
-        self.xapp_loop: Optional[Any] = None
-        self.xapp_runner: Optional[Any] = None
-        self.xapp: Optional[Any] = None
-        self.thread: Optional[threading.Thread] = None
+        self.serverdir: tempfile.TemporaryDirectory | None = None
+        self.xapp_loop: Any | None = None
+        self.xapp_runner: Any | None = None
+        self.xapp: Any | None = None
+        self.thread: threading.Thread | None = None
 
     def _default_port(self) -> int:
         return 8993
@@ -233,9 +233,7 @@ class XandikosTestServer(EmbeddedTestServer):
         backend.create_principal(f"/{self.username}/", create_defaults=True)
 
         # Create the Xandikos app with the backend
-        mainapp = XandikosApp(
-            backend, current_user_principal=self.username, strict=True
-        )
+        mainapp = XandikosApp(backend, current_user_principal=self.username, strict=True)
 
         # Create aiohttp handler
         async def xandikos_handler(request: web.Request) -> web.Response:
@@ -278,9 +276,9 @@ class XandikosTestServer(EmbeddedTestServer):
                 self.xapp_loop.stop()
 
             try:
-                asyncio.run_coroutine_threadsafe(
-                    cleanup_and_stop(), self.xapp_loop
-                ).result(timeout=10)
+                asyncio.run_coroutine_threadsafe(cleanup_and_stop(), self.xapp_loop).result(
+                    timeout=10
+                )
             except Exception:
                 # Fallback: force stop if cleanup fails
                 if self.xapp_loop:

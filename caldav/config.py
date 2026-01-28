@@ -2,12 +2,8 @@ import json
 import logging
 import os
 import re
-import sys
 from fnmatch import fnmatch
 from typing import Any
-from typing import Dict
-from typing import Optional
-from typing import Union
 
 """
 This configuration parsing code was just copied from my plann library (and will be removed from there at some point in the future).  Test coverage is poor as for now.
@@ -43,11 +39,9 @@ def expand_config_section(config, section="default", blacklist=None):
                 blacklist = set()
             blacklist.add(section)
             for subsection in config[section]["contains"]:
-                if not subsection in results and not subsection in blacklist:
-                    for recursivesubsection in expand_config_section(
-                        config, subsection, blacklist
-                    ):
-                        if not recursivesubsection in results:
+                if subsection not in results and subsection not in blacklist:
+                    for recursivesubsection in expand_config_section(config, subsection, blacklist):
+                        if recursivesubsection not in results:
                             results.append(recursivesubsection)
             return results
         else:
@@ -191,13 +185,13 @@ CONNKEYS = frozenset(
 
 def get_connection_params(
     check_config_file: bool = True,
-    config_file: Optional[str] = None,
-    config_section: Optional[str] = None,
+    config_file: str | None = None,
+    config_section: str | None = None,
     testconfig: bool = False,
     environment: bool = True,
-    name: Optional[str] = None,
+    name: str | None = None,
     **explicit_params: Any,
-) -> Optional[Dict[str, Any]]:
+) -> dict[str, Any] | None:
     """
     Get connection parameters from multiple sources.
 
@@ -276,9 +270,9 @@ def get_connection_params(
     return None
 
 
-def _get_env_config() -> Optional[Dict[str, Any]]:
+def _get_env_config() -> dict[str, Any] | None:
     """Extract connection parameters from CALDAV_* environment variables."""
-    conf: Dict[str, Any] = {}
+    conf: dict[str, Any] = {}
     for env_key in os.environ:
         if env_key.startswith("CALDAV_") and not env_key.startswith("CALDAV_CONFIG"):
             key = env_key[7:].lower()
@@ -292,9 +286,7 @@ def _get_env_config() -> Optional[Dict[str, Any]]:
     return conf if conf else None
 
 
-def _get_file_config(
-    file_path: Optional[str], section_name: Optional[str]
-) -> Optional[Dict[str, Any]]:
+def _get_file_config(file_path: str | None, section_name: str | None) -> dict[str, Any] | None:
     """Extract connection parameters from config file."""
     if not section_name:
         section_name = "default"
@@ -308,8 +300,8 @@ def _get_file_config(
 
 
 def _get_test_server_config(
-    name: Optional[str], environment: bool, config_file: Optional[str] = None
-) -> Optional[Dict[str, Any]]:
+    name: str | None, environment: bool, config_file: str | None = None
+) -> dict[str, Any] | None:
     """
     Get connection parameters for test server.
 
@@ -343,20 +335,16 @@ def _get_test_server_config(
             for section_name in cfg:
                 section_data = config_section(cfg, section_name)
                 if section_data.get("testing_allowed"):
-                    logging.info(
-                        f"Using test server from config section: {section_name}"
-                    )
+                    logging.info(f"Using test server from config section: {section_name}")
                     return _extract_conn_params_from_section(section_data)
 
     # No built-in test server fallback - use config files or environment variables
     return None
 
 
-def _extract_conn_params_from_section(
-    section_data: Dict[str, Any]
-) -> Optional[Dict[str, Any]]:
+def _extract_conn_params_from_section(section_data: dict[str, Any]) -> dict[str, Any] | None:
     """Extract connection parameters from a config section dict."""
-    conn_params: Dict[str, Any] = {}
+    conn_params: dict[str, Any] = {}
     for k in section_data:
         if k.startswith("caldav_"):
             # Check for non-None value (empty string is valid for password)

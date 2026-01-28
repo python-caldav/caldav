@@ -10,15 +10,13 @@ This creates a database with:
 Usage:
     python create_baikal_db.py
 """
+
 import hashlib
-import os
 import sqlite3
 from pathlib import Path
 
 
-def create_baikal_db(
-    db_path: Path, username: str = "testuser", password: str = "testpass"
-) -> None:
+def create_baikal_db(db_path: Path, username: str = "testuser", password: str = "testpass") -> None:
     """Create a Baikal SQLite database with a test user using official schema."""
 
     # Ensure directory exists
@@ -192,9 +190,7 @@ CREATE TABLE users (
     realm = "BaikalDAV"
     ha1 = hashlib.md5(f"{username}:{realm}:{password}".encode()).hexdigest()
 
-    cursor.execute(
-        "INSERT INTO users (username, digesta1) VALUES (?, ?)", (username, ha1)
-    )
+    cursor.execute("INSERT INTO users (username, digesta1) VALUES (?, ?)", (username, ha1))
 
     # Create principal for user
     principal_uri = f"principals/{username}"
@@ -333,7 +329,7 @@ def create_baikal_yaml(yaml_path: Path) -> None:
     # Admin password hash (MD5 of 'admin')
     admin_hash = "21232f297a57a5a743894a0e4a801fc3"
 
-    yaml_content = """system:
+    yaml_content = f"""system:
   configured_version: '0.10.1'
   timezone: 'UTC'
   card_enabled: true
@@ -353,9 +349,7 @@ database:
   mysql_dbname: 'baikal'
   mysql_username: 'baikal'
   mysql_password: 'baikal'
-""".format(
-        admin_hash=admin_hash
-    )
+"""
 
     yaml_path.write_text(yaml_content)
     print(f"✓ Created Baikal YAML config at {yaml_path}")

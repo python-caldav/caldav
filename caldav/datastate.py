@@ -6,12 +6,11 @@ representations of calendar data (raw string, icalendar object, vobject object).
 
 See https://github.com/python-caldav/caldav/issues/613 for design discussion.
 """
+
 from __future__ import annotations
 
 import re
-from abc import ABC
-from abc import abstractmethod
-from typing import Optional
+from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
 import icalendar
@@ -47,7 +46,7 @@ class DataState(ABC):
         pass
 
     @abstractmethod
-    def get_vobject_copy(self) -> "vobject.base.Component":
+    def get_vobject_copy(self) -> vobject.base.Component:
         """Get a fresh copy of the vobject object.
 
         This is safe for read-only access - modifications won't affect
@@ -55,7 +54,7 @@ class DataState(ABC):
         """
         pass
 
-    def get_uid(self) -> Optional[str]:
+    def get_uid(self) -> str | None:
         """Extract UID without full parsing if possible.
 
         Default implementation parses the data, but subclasses can optimize.
@@ -66,7 +65,7 @@ class DataState(ABC):
                 return str(comp["UID"])
         return None
 
-    def get_component_type(self) -> Optional[str]:
+    def get_component_type(self) -> str | None:
         """Get the component type (VEVENT, VTODO, VJOURNAL) without full parsing.
 
         Default implementation parses the data, but subclasses can optimize.
@@ -95,15 +94,15 @@ class NoDataState(DataState):
     def get_icalendar_copy(self) -> icalendar.Calendar:
         return icalendar.Calendar()
 
-    def get_vobject_copy(self) -> "vobject.base.Component":
+    def get_vobject_copy(self) -> vobject.base.Component:
         import vobject
 
         return vobject.iCalendar()
 
-    def get_uid(self) -> Optional[str]:
+    def get_uid(self) -> str | None:
         return None
 
-    def get_component_type(self) -> Optional[str]:
+    def get_component_type(self) -> str | None:
         return None
 
     def has_data(self) -> bool:
@@ -126,12 +125,12 @@ class RawDataState(DataState):
     def get_icalendar_copy(self) -> icalendar.Calendar:
         return icalendar.Calendar.from_ical(self._data)
 
-    def get_vobject_copy(self) -> "vobject.base.Component":
+    def get_vobject_copy(self) -> vobject.base.Component:
         import vobject
 
         return vobject.readOne(self._data)
 
-    def get_uid(self) -> Optional[str]:
+    def get_uid(self) -> str | None:
         # Optimization: use regex instead of full parsing
         match = re.search(r"^UID:(.+)$", self._data, re.MULTILINE)
         if match:
@@ -139,7 +138,7 @@ class RawDataState(DataState):
         # Fall back to parsing if regex fails (e.g., folded lines)
         return super().get_uid()
 
-    def get_component_type(self) -> Optional[str]:
+    def get_component_type(self) -> str | None:
         # Optimization: use simple string search
         if "BEGIN:VEVENT" in self._data:
             return "VEVENT"
@@ -176,18 +175,18 @@ class IcalendarState(DataState):
         """
         return self._calendar
 
-    def get_vobject_copy(self) -> "vobject.base.Component":
+    def get_vobject_copy(self) -> vobject.base.Component:
         import vobject
 
         return vobject.readOne(self.get_data())
 
-    def get_uid(self) -> Optional[str]:
+    def get_uid(self) -> str | None:
         for comp in self._calendar.subcomponents:
             if comp.name in ("VEVENT", "VTODO", "VJOURNAL") and "UID" in comp:
                 return str(comp["UID"])
         return None
 
-    def get_component_type(self) -> Optional[str]:
+    def get_component_type(self) -> str | None:
         for comp in self._calendar.subcomponents:
             if comp.name in ("VEVENT", "VTODO", "VJOURNAL"):
                 return comp.name
@@ -203,7 +202,7 @@ class VobjectState(DataState):
     - User modifies the vobject object
     """
 
-    def __init__(self, vobj: "vobject.base.Component"):
+    def __init__(self, vobj: vobject.base.Component):
         self._vobject = vobj
 
     def get_data(self) -> str:
@@ -212,19 +211,19 @@ class VobjectState(DataState):
     def get_icalendar_copy(self) -> icalendar.Calendar:
         return icalendar.Calendar.from_ical(self.get_data())
 
-    def get_vobject_copy(self) -> "vobject.base.Component":
+    def get_vobject_copy(self) -> vobject.base.Component:
         import vobject
 
         return vobject.readOne(self.get_data())
 
-    def get_authoritative_vobject(self) -> "vobject.base.Component":
+    def get_authoritative_vobject(self) -> vobject.base.Component:
         """Returns THE vobject object (not a copy).
 
         This is the authoritative object - modifications will be saved.
         """
         return self._vobject
 
-    def get_uid(self) -> Optional[str]:
+    def get_uid(self) -> str | None:
         # vobject uses different attribute access
         try:
             if hasattr(self._vobject, "vevent"):
@@ -237,7 +236,7 @@ class VobjectState(DataState):
             pass
         return None
 
-    def get_component_type(self) -> Optional[str]:
+    def get_component_type(self) -> str | None:
         if hasattr(self._vobject, "vevent"):
             return "VEVENT"
         elif hasattr(self._vobject, "vtodo"):

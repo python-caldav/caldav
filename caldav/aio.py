@@ -25,21 +25,19 @@ return coroutines that must be awaited.
 The Async* aliases are kept for backward compatibility but now point to the
 unified dual-mode classes.
 """
+
 # Import the async client (this is truly async)
-from caldav.async_davclient import AsyncDAVClient
-from caldav.async_davclient import AsyncDAVResponse
+from caldav.async_davclient import AsyncDAVClient, AsyncDAVResponse
 from caldav.async_davclient import get_davclient as get_async_davclient
-from caldav.calendarobjectresource import CalendarObjectResource
-from caldav.calendarobjectresource import Event
-from caldav.calendarobjectresource import FreeBusy
-from caldav.calendarobjectresource import Journal
-from caldav.calendarobjectresource import Todo
-from caldav.collection import Calendar
-from caldav.collection import CalendarSet
-from caldav.collection import Principal
-from caldav.collection import ScheduleInbox
-from caldav.collection import ScheduleMailbox
-from caldav.collection import ScheduleOutbox
+from caldav.calendarobjectresource import CalendarObjectResource, Event, FreeBusy, Journal, Todo
+from caldav.collection import (
+    Calendar,
+    CalendarSet,
+    Principal,
+    ScheduleInbox,
+    ScheduleMailbox,
+    ScheduleOutbox,
+)
 from caldav.davobject import DAVObject
 
 # Import unified dual-mode domain classes

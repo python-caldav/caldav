@@ -306,12 +306,12 @@ class FeatureSet:
                 continue
             feature_info = self.find_feature(feature)
             value = feature_set[feature]
-            if not feature in self._server_features:
+            if feature not in self._server_features:
                 self._server_features[feature] = {}
             server_node = self._server_features[feature]
             if isinstance(value, bool):
                 server_node['support'] = "full" if value else "unsupported"
-            elif isinstance(value, str) and not 'support' in server_node:
+            elif isinstance(value, str) and 'support' not in server_node:
                 server_node['support'] = value
             elif isinstance(value, dict):
                 server_node.update(value)
@@ -373,7 +373,7 @@ class FeatureSet:
                             dont_collapse = True
                             break
                     if not dont_collapse:
-                        if not parent in self._server_features:
+                        if parent not in self._server_features:
                             self._server_features[parent] = {}
                         for sub in parent_info['subfeatures']:
                             self._server_features.pop(f"{parent}.{sub}")
@@ -413,7 +413,7 @@ class FeatureSet:
         while True:
             if feature_ in self._server_features:
                 return self._convert_node(self._server_features[feature_], feature_info, return_type, accept_fragile)
-            if not '.' in feature_:
+            if '.' not in feature_:
                 if not return_defaults:
                     return None
                 # Before returning default, check if we have subfeatures with explicit values
@@ -518,11 +518,11 @@ class FeatureSet:
         (this is very simple now - used to be a hierarchy dict to be traversed)
         """
         assert feature in cls.FEATURES ## A feature in the configured feature-list does not exist.  TODO ... raise a better exception?
-        if not 'name' in cls.FEATURES[feature]:
+        if 'name' not in cls.FEATURES[feature]:
             cls.FEATURES[feature]['name'] = feature
-        if '.' in feature and not 'parent' in cls.FEATURES[feature]:
+        if '.' in feature and 'parent' not in cls.FEATURES[feature]:
             cls.FEATURES[feature]['parent'] = cls.find_feature(feature[:feature.rfind('.')])
-        if not 'subfeatures' in cls.FEATURES[feature]:
+        if 'subfeatures' not in cls.FEATURES[feature]:
             tree = cls.feature_tree()
             for x in feature.split('.'):
                 tree = tree[x]
@@ -535,7 +535,7 @@ class FeatureSet:
             node = target
             path = feat.split('.')
             for part in path:
-                if not part in node:
+                if part not in node:
                     node[part] = {}
                 node = node[part]
         return target
@@ -824,10 +824,6 @@ nextcloud = {
         'behaviour': "deleting a calendar moves it to a trashbin, thrashbin has to be manually 'emptied' from the web-ui before the namespace is freed up",
         'support': 'fragile',
     },
-    'search.comp-type-optional': {
-        'support': 'ungraceful',
-    },
-    "search.combined-is-logical-and": {"support": "unsupported"},
     'search.recurrences.includes-implicit.todo': {'support': 'unsupported'},
     #'save-load.todo.mixed-calendar': {'support': 'unsupported'}, ## Why?  It started complaining about this just recently.
     'principal-search.by-name': {'support': 'unsupported'},
@@ -863,7 +859,6 @@ zimbra = {
     #'search.text': 'unsupported', ## weeeird ... it wasn't like this before
     'search.text.substring': {'support': 'unsupported'},
     'search.text.category': {'support': 'ungraceful'},
-    'search.is-not-defined':  {'support': 'unsupported'},
     'search.recurrences.expanded.todo': { "support": "unsupported" },
     'search.comp-type-optional': {'support': 'fragile'}, ## TODO: more research on this, looks like a bug in the checker,
     'search.time-range.alarm': {'support': 'unsupported'},

@@ -5,24 +5,13 @@ This module contains pure functions for DAVObject operations like
 getting/setting properties, listing children, and deleting resources.
 Both sync and async clients use these same functions.
 """
+
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from dataclasses import field
 from typing import Any
-from typing import Dict
-from typing import List
-from typing import Optional
-from typing import Tuple
-from urllib.parse import quote
-from urllib.parse import unquote
-
-from caldav.operations.base import _extract_resource_type as extract_resource_type
-from caldav.operations.base import _is_calendar_resource as is_calendar_resource
-from caldav.operations.base import _normalize_href as normalize_href
-from caldav.operations.base import PropertyData
-from caldav.operations.base import QuerySpec
+from urllib.parse import quote, unquote
 
 log = logging.getLogger("caldav")
 
@@ -39,7 +28,7 @@ class ChildrenQuery:
 
     url: str
     depth: int = 1
-    props: Tuple[str, ...] = (DAV_DISPLAYNAME, DAV_RESOURCETYPE)
+    props: tuple[str, ...] = (DAV_DISPLAYNAME, DAV_RESOURCETYPE)
 
 
 @dataclass
@@ -47,15 +36,15 @@ class ChildData:
     """Data for a child resource."""
 
     url: str
-    resource_types: List[str]
-    display_name: Optional[str]
+    resource_types: list[str]
+    display_name: str | None
 
 
 @dataclass
 class PropertiesResult:
     """Result of extracting properties for a specific object."""
 
-    properties: Dict[str, Any]
+    properties: dict[str, Any]
     matched_path: str
 
 
@@ -73,11 +62,11 @@ def _build_children_query(url: str) -> ChildrenQuery:
 
 
 def _process_children_response(
-    properties_by_href: Dict[str, Dict[str, Any]],
+    properties_by_href: dict[str, dict[str, Any]],
     parent_url: str,
-    filter_type: Optional[str] = None,
+    filter_type: str | None = None,
     is_calendar_set: bool = False,
-) -> List[ChildData]:
+) -> list[ChildData]:
     """
     Process PROPFIND response into list of children.
 
@@ -158,7 +147,7 @@ def _canonical_path(url: str) -> str:
 
 
 def _find_object_properties(
-    properties_by_href: Dict[str, Dict[str, Any]],
+    properties_by_href: dict[str, dict[str, Any]],
     object_url: str,
     is_principal: bool = False,
 ) -> PropertiesResult:
@@ -179,11 +168,7 @@ def _find_object_properties(
     Raises:
         ValueError: If no matching properties found
     """
-    path = (
-        unquote(object_url)
-        if "://" not in object_url
-        else unquote(_extract_path(object_url))
-    )
+    path = unquote(object_url) if "://" not in object_url else unquote(_extract_path(object_url))
 
     # Try with and without trailing slash
     if path.endswith("/"):
@@ -208,9 +193,7 @@ def _find_object_properties(
 
     # Try full URL as key
     if object_url in properties_by_href:
-        return PropertiesResult(
-            properties=properties_by_href[object_url], matched_path=object_url
-        )
+        return PropertiesResult(properties=properties_by_href[object_url], matched_path=object_url)
 
     # iCloud workaround - /principal/ path
     if "/principal/" in properties_by_href and path.endswith("/principal/"):
@@ -236,14 +219,11 @@ def _find_object_properties(
             f"Path expected: {path}, path found: {only_path}. "
             "Continuing, probably everything will be fine"
         )
-        return PropertiesResult(
-            properties=properties_by_href[only_path], matched_path=only_path
-        )
+        return PropertiesResult(properties=properties_by_href[only_path], matched_path=only_path)
 
     # No match found
     raise ValueError(
-        f"Could not find properties for {path}. "
-        f"Available paths: {list(properties_by_href.keys())}"
+        f"Could not find properties for {path}. Available paths: {list(properties_by_href.keys())}"
     )
 
 
@@ -257,9 +237,9 @@ def _extract_path(url: str) -> str:
 
 
 def _convert_protocol_results_to_properties(
-    results: List[Any],  # List[PropfindResult]
-    requested_props: Optional[List[str]] = None,
-) -> Dict[str, Dict[str, Any]]:
+    results: list[Any],  # List[PropfindResult]
+    requested_props: list[str] | None = None,
+) -> dict[str, dict[str, Any]]:
     """
     Convert protocol layer results to the {href: {tag: value}} format.
 

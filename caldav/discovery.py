@@ -35,13 +35,10 @@ SECURITY CONSIDERATIONS:
 
 See: https://datatracker.ietf.org/doc/html/rfc6764
 """
+
 import logging
 from dataclasses import dataclass
-from typing import List
-from typing import Optional
-from typing import Tuple
-from urllib.parse import urljoin
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 import dns.exception
 import dns.resolver
@@ -74,7 +71,7 @@ class ServiceInfo:
     priority: int = 0
     weight: int = 0
     source: str = "unknown"  # 'srv', 'txt', 'well-known', 'manual'
-    username: Optional[str] = None  # Extracted from email address if provided
+    username: str | None = None  # Extracted from email address if provided
 
     def __str__(self) -> str:
         return f"ServiceInfo(url={self.url}, source={self.source}, priority={self.priority}, username={self.username})"
@@ -122,7 +119,7 @@ def _is_subdomain_or_same(discovered_domain: str, original_domain: str) -> bool:
     return False
 
 
-def _extract_domain(identifier: str) -> Tuple[str, Optional[str]]:
+def _extract_domain(identifier: str) -> tuple[str, str | None]:
     """
     Extract domain and optional username from an email address or URL.
 
@@ -156,7 +153,7 @@ def _extract_domain(identifier: str) -> Tuple[str, Optional[str]]:
     return (identifier.strip(), None)
 
 
-def _parse_txt_record(txt_data: str) -> Optional[str]:
+def _parse_txt_record(txt_data: str) -> str | None:
     """
     Parse TXT record data to extract the path attribute.
 
@@ -186,7 +183,7 @@ def _parse_txt_record(txt_data: str) -> Optional[str]:
 
 def _srv_lookup(
     domain: str, service_type: str, use_tls: bool = True
-) -> List[Tuple[str, int, int, int]]:
+) -> list[tuple[str, int, int, int]]:
     """
     Perform DNS SRV record lookup.
 
@@ -216,9 +213,7 @@ def _srv_lookup(
             priority = int(rdata.priority)
             weight = int(rdata.weight)
 
-            log.debug(
-                f"Found SRV record: {hostname}:{port} (priority={priority}, weight={weight})"
-            )
+            log.debug(f"Found SRV record: {hostname}:{port} (priority={priority}, weight={weight})")
             results.append((hostname, port, priority, weight))
 
         # Sort by priority (lower is better), then by weight (for weighted random selection)
@@ -234,7 +229,7 @@ def _srv_lookup(
         return []
 
 
-def _txt_lookup(domain: str, service_type: str, use_tls: bool = True) -> Optional[str]:
+def _txt_lookup(domain: str, service_type: str, use_tls: bool = True) -> str | None:
     """
     Perform DNS TXT record lookup to find the service path.
 
@@ -257,10 +252,7 @@ def _txt_lookup(domain: str, service_type: str, use_tls: bool = True) -> Optiona
         for rdata in answers:
             # TXT records can have multiple strings; join them
             txt_data = "".join(
-                [
-                    s.decode("utf-8") if isinstance(s, bytes) else s
-                    for s in rdata.strings
-                ]
+                [s.decode("utf-8") if isinstance(s, bytes) else s for s in rdata.strings]
             )
             log.debug(f"Found TXT record: {txt_data}")
 
@@ -280,7 +272,7 @@ def _txt_lookup(domain: str, service_type: str, use_tls: bool = True) -> Optiona
 
 def _well_known_lookup(
     domain: str, service_type: str, timeout: int = 10, ssl_verify_cert: bool = True
-) -> Optional[ServiceInfo]:
+) -> ServiceInfo | None:
     """
     Try to discover service via Well-Known URI (RFC 5785).
 
@@ -368,7 +360,7 @@ def discover_service(
     ssl_verify_cert: bool = True,
     prefer_tls: bool = True,
     require_tls: bool = True,
-) -> Optional[ServiceInfo]:
+) -> ServiceInfo | None:
     """
     Discover CalDAV or CardDAV service for a domain or email address.
 
@@ -491,9 +483,7 @@ def discover_service(
     if well_known_info:
         # Preserve username from email address
         well_known_info.username = username
-        log.info(
-            f"Discovered {service_type} service via well-known URI: {well_known_info.url}"
-        )
+        log.info(f"Discovered {service_type} service via well-known URI: {well_known_info.url}")
         return well_known_info
 
     # All discovery methods failed
@@ -507,7 +497,7 @@ def discover_caldav(
     ssl_verify_cert: bool = True,
     prefer_tls: bool = True,
     require_tls: bool = True,
-) -> Optional[ServiceInfo]:
+) -> ServiceInfo | None:
     """
     Convenience function to discover CalDAV service.
 
@@ -537,7 +527,7 @@ def discover_carddav(
     ssl_verify_cert: bool = True,
     prefer_tls: bool = True,
     require_tls: bool = True,
-) -> Optional[ServiceInfo]:
+) -> ServiceInfo | None:
     """
     Convenience function to discover CardDAV service.
 

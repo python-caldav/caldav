@@ -7,24 +7,18 @@ Both sync and async clients use these same functions.
 
 These functions work on icalendar component objects or raw data strings.
 """
+
 from __future__ import annotations
 
 import re
 import uuid
 from dataclasses import dataclass
-from datetime import datetime
-from datetime import timedelta
-from datetime import timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
-from typing import Dict
-from typing import List
-from typing import Optional
-from typing import Tuple
 from urllib.parse import quote
 
 import icalendar
 from dateutil.rrule import rrulestr
-
 
 # Relation type reverse mapping (RFC 9253)
 RELTYPE_REVERSE_MAP = {
@@ -40,10 +34,10 @@ RELTYPE_REVERSE_MAP = {
 class CalendarObjectData:
     """Data extracted from a calendar object."""
 
-    uid: Optional[str]
-    url: Optional[str]
-    etag: Optional[str]
-    data: Optional[str]
+    uid: str | None
+    url: str | None
+    etag: str | None
+    data: str | None
 
 
 def _generate_uid() -> str:
@@ -71,7 +65,7 @@ def _generate_url(parent_url: str, uid: str) -> str:
     return f"{parent_url}{quoted_uid}.ics"
 
 
-def _extract_uid_from_path(path: str) -> Optional[str]:
+def _extract_uid_from_path(path: str) -> str | None:
     """
     Extract UID from a .ics file path.
 
@@ -91,10 +85,10 @@ def _extract_uid_from_path(path: str) -> Optional[str]:
 
 def _find_id_and_path(
     component: Any,  # icalendar component
-    given_id: Optional[str] = None,
-    given_path: Optional[str] = None,
-    existing_id: Optional[str] = None,
-) -> Tuple[str, str]:
+    given_id: str | None = None,
+    given_path: str | None = None,
+    existing_id: str | None = None,
+) -> tuple[str, str]:
     """
     Determine the UID and path for a calendar object.
 
@@ -189,7 +183,7 @@ def _get_duration(
     return timedelta(0)
 
 
-def _get_due(component: Any) -> Optional[datetime]:
+def _get_due(component: Any) -> datetime | None:
     """
     Get due date from a VTODO component.
 
@@ -271,7 +265,7 @@ def _is_task_pending(component: Any) -> bool:
 
 def _mark_task_completed(
     component: Any,  # icalendar VTODO component
-    completion_timestamp: Optional[datetime] = None,
+    completion_timestamp: datetime | None = None,
 ) -> None:
     """
     Mark a VTODO component as completed.
@@ -306,12 +300,12 @@ def _mark_task_uncompleted(component: Any) -> None:
 
 def _calculate_next_recurrence(
     component: Any,  # icalendar VTODO component
-    completion_timestamp: Optional[datetime] = None,
-    rrule: Optional[Any] = None,
-    dtstart: Optional[datetime] = None,
-    use_fixed_deadlines: Optional[bool] = None,
+    completion_timestamp: datetime | None = None,
+    rrule: Any | None = None,
+    dtstart: datetime | None = None,
+    use_fixed_deadlines: bool | None = None,
     ignore_count: bool = True,
-) -> Optional[datetime]:
+) -> datetime | None:
     """
     Calculate the next DTSTART for a recurring task after completion.
 
@@ -395,7 +389,7 @@ def _reduce_rrule_count(component: Any) -> bool:
 
 
 def _is_calendar_data_loaded(
-    data: Optional[str],
+    data: str | None,
     vobject_instance: Any,
     icalendar_instance: Any,
 ) -> bool:
@@ -410,12 +404,10 @@ def _is_calendar_data_loaded(
     Returns:
         True if data is loaded
     """
-    return bool(
-        (data and data.count("BEGIN:") > 1) or vobject_instance or icalendar_instance
-    )
+    return bool((data and data.count("BEGIN:") > 1) or vobject_instance or icalendar_instance)
 
 
-def _has_calendar_component(data: Optional[str]) -> bool:
+def _has_calendar_component(data: str | None) -> bool:
     """
     Check if data contains VEVENT, VTODO, or VJOURNAL.
 
@@ -429,15 +421,13 @@ def _has_calendar_component(data: Optional[str]) -> bool:
         return False
 
     return (
-        data.count("BEGIN:VEVENT")
-        + data.count("BEGIN:VTODO")
-        + data.count("BEGIN:VJOURNAL")
+        data.count("BEGIN:VEVENT") + data.count("BEGIN:VTODO") + data.count("BEGIN:VJOURNAL")
     ) > 0
 
 
 def _get_non_timezone_subcomponents(
     icalendar_instance: Any,
-) -> List[Any]:
+) -> list[Any]:
     """
     Get all subcomponents except VTIMEZONE.
 
@@ -447,14 +437,10 @@ def _get_non_timezone_subcomponents(
     Returns:
         List of non-timezone subcomponents
     """
-    return [
-        x
-        for x in icalendar_instance.subcomponents
-        if not isinstance(x, icalendar.Timezone)
-    ]
+    return [x for x in icalendar_instance.subcomponents if not isinstance(x, icalendar.Timezone)]
 
 
-def _get_primary_component(icalendar_instance: Any) -> Optional[Any]:
+def _get_primary_component(icalendar_instance: Any) -> Any | None:
     """
     Get the primary (non-timezone) component from a calendar.
 
@@ -483,7 +469,7 @@ def _get_primary_component(icalendar_instance: Any) -> Optional[Any]:
 
 def _copy_component_with_new_uid(
     component: Any,
-    new_uid: Optional[str] = None,
+    new_uid: str | None = None,
 ) -> Any:
     """
     Create a copy of a component with a new UID.
@@ -501,7 +487,7 @@ def _copy_component_with_new_uid(
     return new_comp
 
 
-def _get_reverse_reltype(reltype: str) -> Optional[str]:
+def _get_reverse_reltype(reltype: str) -> str | None:
     """
     Get the reverse relation type for a given relation type.
 
@@ -516,8 +502,8 @@ def _get_reverse_reltype(reltype: str) -> Optional[str]:
 
 def _extract_relations(
     component: Any,
-    reltypes: Optional[set] = None,
-) -> Dict[str, set]:
+    reltypes: set | None = None,
+) -> dict[str, set]:
     """
     Extract RELATED-TO relations from a component.
 

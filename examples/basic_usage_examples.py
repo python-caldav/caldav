@@ -1,7 +1,5 @@
 import sys
-from datetime import date
-from datetime import datetime
-from datetime import timedelta
+from datetime import date, datetime, timedelta
 
 ## We'll try to use the local caldav library, not the system-installed
 sys.path.insert(0, "..")
@@ -59,9 +57,7 @@ def run_examples():
         ## * server may not support it (it's not mandatory in the CalDAV RFC)
         ## * principal may not have the permission to create calendars
         ## * some cloud providers have a global namespace
-        my_new_calendar = my_principal.make_calendar(
-            name="Test calendar from caldav examples"
-        )
+        my_new_calendar = my_principal.make_calendar(name="Test calendar from caldav examples")
 
         ## Let's add some events to our newly created calendar
         add_stuff_to_calendar_demo(my_new_calendar)
@@ -107,9 +103,7 @@ def find_delete_calendar_demo(my_principal, calendar_name):
         ## This will raise a NotFoundError if calendar does not exist
         demo_calendar = my_principal.calendar(name=calendar_name)
         assert demo_calendar
-        print(
-            f"We found an existing calendar with name {calendar_name}, now deleting it"
-        )
+        print(f"We found an existing calendar with name {calendar_name}, now deleting it")
         demo_calendar.delete()
     except caldav.error.NotFoundError:
         ## Calendar was not found
@@ -215,9 +209,7 @@ def search_calendar_demo(calendar):
     print("Getting all todos from the calendar")
     tasks = calendar.get_todos()
     assert len(events) + len(tasks) == len(all_objects)
-    print(
-        f"Found {len(events)} events and {len(tasks)} tasks which is {len(all_objects)}"
-    )
+    print(f"Found {len(events)} events and {len(tasks)} tasks which is {len(all_objects)}")
     assert len(children) == len(all_objects)
     print(f"Found {len(children)} children which is also {len(all_objects)}")
     ## TODO: Some of those should probably be deprecated.

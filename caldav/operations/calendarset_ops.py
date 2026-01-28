@@ -5,14 +5,12 @@ This module contains pure functions for CalendarSet operations like
 extracting calendar IDs and building calendar URLs. Both sync and async
 clients use these same functions.
 """
+
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
 from typing import Any
-from typing import List
-from typing import Optional
-from typing import Tuple
 from urllib.parse import quote
 
 log = logging.getLogger("caldav")
@@ -23,12 +21,12 @@ class CalendarInfo:
     """Data for a calendar extracted from PROPFIND response."""
 
     url: str
-    cal_id: Optional[str]
-    name: Optional[str]
-    resource_types: List[str]
+    cal_id: str | None
+    name: str | None
+    resource_types: list[str]
 
 
-def _extract_calendar_id_from_url(url: str) -> Optional[str]:
+def _extract_calendar_id_from_url(url: str) -> str | None:
     """
     Extract calendar ID from a calendar URL.
 
@@ -54,8 +52,8 @@ def _extract_calendar_id_from_url(url: str) -> Optional[str]:
 
 
 def _process_calendar_list(
-    children_data: List[Tuple[str, List[str], Optional[str]]],
-) -> List[CalendarInfo]:
+    children_data: list[tuple[str, list[str], str | None]],
+) -> list[CalendarInfo]:
     """
     Process children data into CalendarInfo objects.
 
@@ -146,9 +144,9 @@ def _join_url(base: str, path: str) -> str:
 
 
 def _find_calendar_by_name(
-    calendars: List[CalendarInfo],
+    calendars: list[CalendarInfo],
     name: str,
-) -> Optional[CalendarInfo]:
+) -> CalendarInfo | None:
     """
     Find a calendar by display name.
 
@@ -166,9 +164,9 @@ def _find_calendar_by_name(
 
 
 def _find_calendar_by_id(
-    calendars: List[CalendarInfo],
+    calendars: list[CalendarInfo],
     cal_id: str,
-) -> Optional[CalendarInfo]:
+) -> CalendarInfo | None:
     """
     Find a calendar by ID.
 
@@ -186,8 +184,8 @@ def _find_calendar_by_id(
 
 
 def _extract_calendars_from_propfind_results(
-    results: Optional[List[Any]],
-) -> List[CalendarInfo]:
+    results: list[Any] | None,
+) -> list[CalendarInfo]:
     """
     Extract calendar information from PROPFIND results.
 

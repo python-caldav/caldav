@@ -4,8 +4,8 @@ Tests for the Principal operations module.
 These tests verify the Sans-I/O business logic for Principal operations
 like URL sanitization and vCalAddress creation.
 """
-import pytest
 
+from caldav.operations.principal_ops import PrincipalData
 from caldav.operations.principal_ops import _create_vcal_address as create_vcal_address
 from caldav.operations.principal_ops import (
     _extract_calendar_user_addresses as extract_calendar_user_addresses,
@@ -19,7 +19,6 @@ from caldav.operations.principal_ops import (
 from caldav.operations.principal_ops import (
     _sort_calendar_user_addresses as sort_calendar_user_addresses,
 )
-from caldav.operations.principal_ops import PrincipalData
 
 
 class TestSanitizeCalendarHomeSetUrl:

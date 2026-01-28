@@ -4,19 +4,14 @@ Server registry for test server discovery and management.
 This module provides a registry for discovering and managing test servers.
 It supports automatic detection of available servers and lazy initialization.
 """
-from typing import Dict
-from typing import List
-from typing import Optional
-from typing import Type
 
 from .base import TestServer
 
-
 # Server class registry - maps type names to server classes
-_SERVER_CLASSES: Dict[str, Type[TestServer]] = {}
+_SERVER_CLASSES: dict[str, type[TestServer]] = {}
 
 
-def register_server_class(type_name: str, server_class: Type[TestServer]) -> None:
+def register_server_class(type_name: str, server_class: type[TestServer]) -> None:
     """
     Register a server class for a given type name.
 
@@ -27,7 +22,7 @@ def register_server_class(type_name: str, server_class: Type[TestServer]) -> Non
     _SERVER_CLASSES[type_name] = server_class
 
 
-def get_server_class(type_name: str) -> Optional[Type[TestServer]]:
+def get_server_class(type_name: str) -> type[TestServer] | None:
     """
     Get the server class for a given type name.
 
@@ -58,7 +53,7 @@ class ServerRegistry:
     """
 
     def __init__(self) -> None:
-        self._servers: Dict[str, TestServer] = {}
+        self._servers: dict[str, TestServer] = {}
 
     def register(self, server: TestServer) -> None:
         """
@@ -69,7 +64,7 @@ class ServerRegistry:
         """
         self._servers[server.name] = server
 
-    def unregister(self, name: str) -> Optional[TestServer]:
+    def unregister(self, name: str) -> TestServer | None:
         """
         Unregister a test server by name.
 
@@ -81,7 +76,7 @@ class ServerRegistry:
         """
         return self._servers.pop(name, None)
 
-    def get(self, name: str) -> Optional[TestServer]:
+    def get(self, name: str) -> TestServer | None:
         """
         Get a test server by name.
 
@@ -93,7 +88,7 @@ class ServerRegistry:
         """
         return self._servers.get(name)
 
-    def all_servers(self) -> List[TestServer]:
+    def all_servers(self) -> list[TestServer]:
         """
         Get all registered test servers.
 
@@ -102,7 +97,7 @@ class ServerRegistry:
         """
         return list(self._servers.values())
 
-    def enabled_servers(self) -> List[TestServer]:
+    def enabled_servers(self) -> list[TestServer]:
         """
         Get all enabled test servers.
 
@@ -111,7 +106,7 @@ class ServerRegistry:
         """
         return [s for s in self._servers.values() if s.config.get("enabled", True)]
 
-    def load_from_config(self, config: Dict) -> None:
+    def load_from_config(self, config: dict) -> None:
         """
         Load servers from a configuration dict.
 
@@ -190,8 +185,9 @@ class ServerRegistry:
 
     def _discover_docker_servers(self) -> None:
         """Discover available Docker servers."""
-        from .base import DockerTestServer
         from pathlib import Path
+
+        from .base import DockerTestServer
 
         if not DockerTestServer.verify_docker():
             return
@@ -210,7 +206,7 @@ class ServerRegistry:
                 if server_class is not None and server_name not in self._servers:
                     self.register(server_class({"docker_dir": str(server_dir)}))
 
-    def get_caldav_servers_list(self) -> List[Dict]:
+    def get_caldav_servers_list(self) -> list[dict]:
         """
         Return list compatible with current caldav_servers format.
 
@@ -223,7 +219,7 @@ class ServerRegistry:
 
 
 # Global registry instance
-_global_registry: Optional[ServerRegistry] = None
+_global_registry: ServerRegistry | None = None
 
 
 def get_registry() -> ServerRegistry:
@@ -242,7 +238,7 @@ def get_registry() -> ServerRegistry:
     return _global_registry
 
 
-def get_available_servers() -> List[TestServer]:
+def get_available_servers() -> list[TestServer]:
     """
     Get all available test servers.
 

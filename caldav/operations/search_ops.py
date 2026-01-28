@@ -11,28 +11,22 @@ Key functions:
 - determine_search_strategy(): Analyze server features and return search plan
 - _collation_to_caldav(): Map collation enum to CalDAV identifier
 """
+
 from copy import deepcopy
-from dataclasses import dataclass
-from dataclasses import field
-from typing import Any
-from typing import List
-from typing import Optional
-from typing import Set
-from typing import Tuple
-from typing import TYPE_CHECKING
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any
 
 from icalendar import Timezone
 from icalendar_searcher.collation import Collation
 
-from caldav.elements import cdav
-from caldav.elements import dav
+from caldav.elements import cdav, dav
 from caldav.lib import error
 
 if TYPE_CHECKING:
-    from caldav.calendarobjectresource import CalendarObjectResource
-    from caldav.calendarobjectresource import Event, Todo, Journal
-    from caldav.compatibility_hints import FeatureSet
     from icalendar_searcher import Searcher
+
+    from caldav.calendarobjectresource import CalendarObjectResource
+    from caldav.compatibility_hints import FeatureSet
 
 
 def _collation_to_caldav(collation: Collation, case_sensitive: bool = True) -> str:
@@ -77,16 +71,16 @@ class SearchStrategy:
     """
 
     # Whether to apply client-side post-filtering
-    post_filter: Optional[bool] = None
+    post_filter: bool | None = None
 
     # Hack mode for server compatibility
-    hacks: Optional[str] = None
+    hacks: str | None = None
 
     # Whether to split expanded recurrences into separate objects
     split_expanded: bool = True
 
     # Properties to remove from server query (for client-side filtering)
-    remove_properties: Set[str] = field(default_factory=set)
+    remove_properties: set[str] = field(default_factory=set)
 
     # Whether category filters should be removed (server doesn't support them)
     remove_category_filter: bool = False
@@ -101,10 +95,10 @@ class SearchStrategy:
 def _determine_post_filter_needed(
     searcher: "Searcher",
     features: "FeatureSet",
-    comp_type_support: Optional[str],
-    current_hacks: Optional[str],
-    current_post_filter: Optional[bool],
-) -> Tuple[Optional[bool], Optional[str]]:
+    comp_type_support: str | None,
+    current_hacks: str | None,
+    current_post_filter: bool | None,
+) -> tuple[bool | None, str | None]:
     """Determine if post-filtering is needed based on searcher state and server features.
 
     Returns (post_filter, hacks) tuple with potentially updated values.
@@ -146,7 +140,7 @@ def _determine_post_filter_needed(
 def _should_remove_category_filter(
     searcher: "Searcher",
     features: "FeatureSet",
-    post_filter: Optional[bool],
+    post_filter: bool | None,
 ) -> bool:
     """Check if category filters should be removed from server query.
 
@@ -155,10 +149,7 @@ def _should_remove_category_filter(
     """
     return (
         not features.is_supported("search.text.category")
-        and (
-            "categories" in searcher._property_filters
-            or "category" in searcher._property_filters
-        )
+        and ("categories" in searcher._property_filters or "category" in searcher._property_filters)
         and post_filter is not False
     )
 
@@ -166,8 +157,8 @@ def _should_remove_category_filter(
 def _get_explicit_contains_properties(
     searcher: "Searcher",
     features: "FeatureSet",
-    post_filter: Optional[bool],
-) -> List[str]:
+    post_filter: bool | None,
+) -> list[str]:
     """Get list of properties with explicit 'contains' operator that server doesn't support.
 
     These properties should be removed from server query and applied client-side.
@@ -179,8 +170,7 @@ def _get_explicit_contains_properties(
     return [
         prop
         for prop in searcher._property_operator
-        if prop in explicit_operators
-        and searcher._property_operator[prop] == "contains"
+        if prop in explicit_operators and searcher._property_operator[prop] == "contains"
     ]
 
 
@@ -214,20 +204,18 @@ def _needs_pending_todo_multi_search(
         and features.is_supported("search.combined-is-logical-and")
         and (
             not features.is_supported("search.recurrences.includes-implicit.todo")
-            or features.is_supported(
-                "search.recurrences.includes-implicit.todo.pending"
-            )
+            or features.is_supported("search.recurrences.includes-implicit.todo.pending")
         )
     )
 
 
 def _filter_search_results(
-    objects: List["CalendarObjectResource"],
+    objects: list["CalendarObjectResource"],
     searcher: "Searcher",
-    post_filter: Optional[bool] = None,
+    post_filter: bool | None = None,
     split_expanded: bool = True,
     server_expand: bool = False,
-) -> List["CalendarObjectResource"]:
+) -> list["CalendarObjectResource"]:
     """Apply client-side filtering and handle recurrence expansion/splitting.
 
     This is a Sans-I/O function - it only processes data without network I/O.
@@ -257,9 +245,7 @@ def _filter_search_results(
                 continue
         else:
             filtered = [
-                x
-                for x in o.icalendar_instance.subcomponents
-                if not isinstance(x, Timezone)
+                x for x in o.icalendar_instance.subcomponents if not isinstance(x, Timezone)
             ]
 
         i = o.icalendar_instance
@@ -289,10 +275,10 @@ def _filter_search_results(
 def _build_search_xml_query(
     searcher: "Searcher",
     server_expand: bool = False,
-    props: Optional[List[Any]] = None,
+    props: list[Any] | None = None,
     filters: Any = None,
-    _hacks: Optional[str] = None,
-) -> Tuple[Any, Optional[type]]:
+    _hacks: str | None = None,
+) -> tuple[Any, type | None]:
     """Build a CalDAV calendar-query XML request.
 
     This is a Sans-I/O function - it only builds XML without network I/O.
@@ -305,7 +291,7 @@ def _build_search_xml_query(
     :return: Tuple of (xml_element, comp_class)
     """
     # Import here to avoid circular imports at module level
-    from caldav.calendarobjectresource import Event, Todo, Journal
+    from caldav.calendarobjectresource import Event, Journal, Todo
 
     # With dual-mode classes, Async* are now aliases to the sync classes
     # Keep the aliases for backward compatibility in type checks
@@ -364,8 +350,7 @@ def _build_search_xml_query(
 
     if searcher.alarm_start or searcher.alarm_end:
         filters.append(
-            cdav.CompFilter("VALARM")
-            + cdav.TimeRange(searcher.alarm_start, searcher.alarm_end)
+            cdav.CompFilter("VALARM") + cdav.TimeRange(searcher.alarm_start, searcher.alarm_end)
         )
 
     # Map component flags/classes to comp_filter
@@ -376,9 +361,7 @@ def _build_search_xml_query(
     ]
 
     for flag, comp_name, sync_class, async_class in comp_mappings:
-        comp_classes = (
-            (sync_class,) if async_class is None else (sync_class, async_class)
-        )
+        comp_classes = (sync_class,) if async_class is None else (sync_class, async_class)
         flagged = getattr(searcher, flag, False)
 
         if flagged:
@@ -438,9 +421,7 @@ def _build_search_xml_query(
                     hasattr(searcher, "_property_collation")
                     and property in searcher._property_collation
                 ):
-                    case_sensitive = searcher._property_case_sensitive.get(
-                        property, True
-                    )
+                    case_sensitive = searcher._property_case_sensitive.get(property, True)
                     collation_str = _collation_to_caldav(
                         searcher._property_collation[property], case_sensitive
                     )

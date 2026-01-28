@@ -4,10 +4,9 @@ Docker-based test server implementations.
 This module provides test server implementations for servers that run
 in Docker containers: Baikal, Nextcloud, Cyrus, SOGo, and Bedework.
 """
+
 import os
 from typing import Any
-from typing import Dict
-from typing import Optional
 
 try:
     import niquests as requests
@@ -29,7 +28,7 @@ class BaikalTestServer(DockerTestServer):
 
     name = "Baikal"
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
         config = config or {}
         config.setdefault("host", os.environ.get("BAIKAL_HOST", "localhost"))
         config.setdefault("port", int(os.environ.get("BAIKAL_PORT", "8800")))
@@ -57,7 +56,7 @@ class NextcloudTestServer(DockerTestServer):
 
     name = "Nextcloud"
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
         config = config or {}
         config.setdefault("host", os.environ.get("NEXTCLOUD_HOST", "localhost"))
         config.setdefault("port", int(os.environ.get("NEXTCLOUD_PORT", "8801")))
@@ -93,7 +92,7 @@ class CyrusTestServer(DockerTestServer):
 
     name = "Cyrus"
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
         config = config or {}
         config.setdefault("host", os.environ.get("CYRUS_HOST", "localhost"))
         config.setdefault("port", int(os.environ.get("CYRUS_PORT", "8802")))
@@ -133,7 +132,7 @@ class SOGoTestServer(DockerTestServer):
 
     name = "SOGo"
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
         config = config or {}
         config.setdefault("host", os.environ.get("SOGO_HOST", "localhost"))
         config.setdefault("port", int(os.environ.get("SOGO_PORT", "8803")))
@@ -173,7 +172,7 @@ class BedeworkTestServer(DockerTestServer):
 
     name = "Bedework"
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
         config = config or {}
         config.setdefault("host", os.environ.get("BEDEWORK_HOST", "localhost"))
         config.setdefault("port", int(os.environ.get("BEDEWORK_PORT", "8804")))
@@ -214,7 +213,7 @@ class DavicalTestServer(DockerTestServer):
 
     name = "Davical"
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
         config = config or {}
         config.setdefault("host", os.environ.get("DAVICAL_HOST", "localhost"))
         config.setdefault("port", int(os.environ.get("DAVICAL_PORT", "8805")))

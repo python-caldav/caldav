@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- encoding: utf-8 -*-
 """
 Unit tests for compatibility_hints module.
 
@@ -7,7 +6,6 @@ Rule: None of the tests in this file should initiate any internet
 communication, and there should be no dependencies on a working caldav
 server for the tests in this file.
 """
-import pytest
 
 from caldav.compatibility_hints import FeatureSet
 
@@ -33,9 +31,7 @@ class TestFeatureSetCollapse:
         assert "search.recurrences.expanded.todo" not in fs._server_features
         assert "search.recurrences.expanded.exception" not in fs._server_features
         assert "search.recurrences.expanded" in fs._server_features
-        assert fs._server_features["search.recurrences.expanded"] == {
-            "support": "unsupported"
-        }
+        assert fs._server_features["search.recurrences.expanded"] == {"support": "unsupported"}
 
     def test_collapse_different_values_no_collapse(self) -> None:
         """When subfeatures have different values, they should NOT collapse"""

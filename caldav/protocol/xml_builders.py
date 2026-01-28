@@ -4,22 +4,18 @@ Pure functions for building CalDAV XML request bodies.
 All functions in this module are pure - they take data in and return XML out,
 with no side effects or I/O.
 """
+
 from datetime import datetime
 from typing import Any
-from typing import Dict
-from typing import List
-from typing import Optional
-from typing import Tuple
 
 from lxml import etree
 
-from caldav.elements import cdav
-from caldav.elements import dav
+from caldav.elements import cdav, dav
 from caldav.elements.base import BaseElement
 
 
 def _build_propfind_body(
-    props: Optional[List[str]] = None,
+    props: list[str] | None = None,
     allprop: bool = False,
 ) -> bytes:
     """
@@ -49,7 +45,7 @@ def _build_propfind_body(
 
 
 def _build_proppatch_body(
-    set_props: Optional[Dict[str, Any]] = None,
+    set_props: dict[str, Any] | None = None,
 ) -> bytes:
     """
     Build PROPPATCH request body for setting properties.
@@ -72,22 +68,20 @@ def _build_proppatch_body(
             set_element = dav.Set() + (dav.Prop() + set_elements)
             propertyupdate += set_element
 
-    return etree.tostring(
-        propertyupdate.xmlelement(), encoding="utf-8", xml_declaration=True
-    )
+    return etree.tostring(propertyupdate.xmlelement(), encoding="utf-8", xml_declaration=True)
 
 
 def _build_calendar_query_body(
-    start: Optional[datetime] = None,
-    end: Optional[datetime] = None,
+    start: datetime | None = None,
+    end: datetime | None = None,
     expand: bool = False,
-    comp_filter: Optional[str] = None,
+    comp_filter: str | None = None,
     event: bool = False,
     todo: bool = False,
     journal: bool = False,
-    props: Optional[List[BaseElement]] = None,
-    filters: Optional[List[BaseElement]] = None,
-) -> Tuple[bytes, Optional[str]]:
+    props: list[BaseElement] | None = None,
+    filters: list[BaseElement] | None = None,
+) -> tuple[bytes, str | None]:
     """
     Build calendar-query REPORT request body.
 
@@ -118,7 +112,7 @@ def _build_calendar_query_body(
         data += cdav.Expand(start, end)
 
     # Build props
-    props_list: List[BaseElement] = [data]
+    props_list: list[BaseElement] = [data]
     if props:
         props_list.extend(props)
     prop = dav.Prop() + props_list
@@ -137,7 +131,7 @@ def _build_calendar_query_body(
             comp_type = "VJOURNAL"
 
     # Build filter list
-    filter_list: List[BaseElement] = []
+    filter_list: list[BaseElement] = []
     if filters:
         filter_list.extend(filters)
 
@@ -165,7 +159,7 @@ def _build_calendar_query_body(
 
 
 def _build_calendar_multiget_body(
-    hrefs: List[str],
+    hrefs: list[str],
     include_data: bool = True,
 ) -> bytes:
     """
@@ -180,7 +174,7 @@ def _build_calendar_multiget_body(
     Returns:
         UTF-8 encoded XML bytes
     """
-    elements: List[BaseElement] = []
+    elements: list[BaseElement] = []
 
     if include_data:
         prop = dav.Prop() + cdav.CalendarData()
@@ -195,8 +189,8 @@ def _build_calendar_multiget_body(
 
 
 def _build_sync_collection_body(
-    sync_token: Optional[str] = None,
-    props: Optional[List[str]] = None,
+    sync_token: str | None = None,
+    props: list[str] | None = None,
     sync_level: str = "1",
 ) -> bytes:
     """
@@ -213,7 +207,7 @@ def _build_sync_collection_body(
     Returns:
         UTF-8 encoded XML bytes
     """
-    elements: List[BaseElement] = []
+    elements: list[BaseElement] = []
 
     # Sync token (empty for initial sync)
     token_elem = dav.SyncToken(sync_token or "")
@@ -238,9 +232,7 @@ def _build_sync_collection_body(
 
     sync_collection = dav.SyncCollection() + elements
 
-    return etree.tostring(
-        sync_collection.xmlelement(), encoding="utf-8", xml_declaration=True
-    )
+    return etree.tostring(sync_collection.xmlelement(), encoding="utf-8", xml_declaration=True)
 
 
 def _build_freebusy_query_body(
@@ -263,10 +255,10 @@ def _build_freebusy_query_body(
 
 
 def _build_mkcalendar_body(
-    displayname: Optional[str] = None,
-    description: Optional[str] = None,
-    timezone: Optional[str] = None,
-    supported_components: Optional[List[str]] = None,
+    displayname: str | None = None,
+    description: str | None = None,
+    timezone: str | None = None,
+    supported_components: list[str] | None = None,
 ) -> bytes:
     """
     Build MKCALENDAR request body.
@@ -303,14 +295,12 @@ def _build_mkcalendar_body(
     set_elem = dav.Set() + prop
     mkcalendar = cdav.Mkcalendar() + set_elem
 
-    return etree.tostring(
-        mkcalendar.xmlelement(), encoding="utf-8", xml_declaration=True
-    )
+    return etree.tostring(mkcalendar.xmlelement(), encoding="utf-8", xml_declaration=True)
 
 
 def _build_mkcol_body(
-    displayname: Optional[str] = None,
-    resource_types: Optional[List[BaseElement]] = None,
+    displayname: str | None = None,
+    resource_types: list[BaseElement] | None = None,
 ) -> bytes:
     """
     Build MKCOL (extended) request body.
@@ -344,9 +334,7 @@ def _build_mkcol_body(
 # Property name to element mapping
 
 
-def _prop_name_to_element(
-    name: str, value: Optional[Any] = None
-) -> Optional[BaseElement]:
+def _prop_name_to_element(name: str, value: Any | None = None) -> BaseElement | None:
     """
     Convert property name string to element object.
 
@@ -358,7 +346,7 @@ def _prop_name_to_element(
         BaseElement instance or None if unknown property
     """
     # DAV properties (only those that exist in dav.py)
-    dav_props: Dict[str, Any] = {
+    dav_props: dict[str, Any] = {
         "displayname": dav.DisplayName,
         "resourcetype": dav.ResourceType,
         "getetag": dav.GetEtag,
@@ -369,7 +357,7 @@ def _prop_name_to_element(
     }
 
     # CalDAV properties
-    caldav_props: Dict[str, Any] = {
+    caldav_props: dict[str, Any] = {
         "calendar-data": cdav.CalendarData,
         "calendar-home-set": cdav.CalendarHomeSet,
         "calendar-user-address-set": cdav.CalendarUserAddressSet,

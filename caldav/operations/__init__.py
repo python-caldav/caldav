@@ -32,14 +32,12 @@ Modules:
     calendar_ops: Calendar operations (search, multiget, sync)
     search_ops: Search operations (query building, filtering, strategy)
 """
-from caldav.operations.base import PropertyData
-from caldav.operations.base import QuerySpec
+
+from caldav.operations.base import PropertyData, QuerySpec
 from caldav.operations.calendar_ops import CalendarObjectInfo
 from caldav.operations.calendarobject_ops import CalendarObjectData
 from caldav.operations.calendarset_ops import CalendarInfo
-from caldav.operations.davobject_ops import ChildData
-from caldav.operations.davobject_ops import ChildrenQuery
-from caldav.operations.davobject_ops import PropertiesResult
+from caldav.operations.davobject_ops import ChildData, ChildrenQuery, PropertiesResult
 from caldav.operations.principal_ops import PrincipalData
 from caldav.operations.search_ops import SearchStrategy
 

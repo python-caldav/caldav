@@ -1,54 +1,24 @@
 import logging
-from copy import deepcopy
-from dataclasses import dataclass
-from dataclasses import field
-from dataclasses import replace
-from datetime import datetime
-from typing import Any
-from typing import List
-from typing import Optional
-from typing import TYPE_CHECKING
-from typing import Union
+from dataclasses import dataclass, field, replace
+from typing import TYPE_CHECKING, Any, Optional
 
-from icalendar import Timezone
 from icalendar.prop import TypesFactory
 from icalendar_searcher import Searcher
 from icalendar_searcher.collation import Collation
 
-from .calendarobjectresource import CalendarObjectResource
-from .calendarobjectresource import Event
-from .calendarobjectresource import Journal
-from .calendarobjectresource import Todo
+from .calendarobjectresource import CalendarObjectResource, Event, Journal, Todo
 from .collection import Calendar
+from .elements import cdav
 from .lib import error
 from .operations.search_ops import _build_search_xml_query
 from .operations.search_ops import _collation_to_caldav as collation_to_caldav
-from .operations.search_ops import (
-    _determine_post_filter_needed as determine_post_filter_needed,
-)
 from .operations.search_ops import _filter_search_results as filter_search_results
-from .operations.search_ops import (
-    _get_explicit_contains_properties as get_explicit_contains_properties,
-)
-from .operations.search_ops import (
-    _needs_pending_todo_multi_search as needs_pending_todo_multi_search,
-)
-from .operations.search_ops import (
-    _should_remove_category_filter as should_remove_category_filter,
-)
-from .operations.search_ops import (
-    _should_remove_property_filters_for_combined as should_remove_property_filters_for_combined,
-)
-from .elements import cdav
 
 if TYPE_CHECKING:
-    from .collection import Calendar as AsyncCalendar
     from .calendarobjectresource import (
         CalendarObjectResource as AsyncCalendarObjectResource,
-        Event as AsyncEvent,
-        Journal as AsyncJournal,
-        Todo as AsyncTodo,
     )
+    from .collection import Calendar as AsyncCalendar
 
 TypesFactory = TypesFactory()
 
@@ -110,8 +80,8 @@ class CalDAVSearcher(Searcher):
         value: Any,
         operator: str = None,
         case_sensitive: bool = True,
-        collation: Optional[Collation] = None,
-        locale: Optional[str] = None,
+        collation: Collation | None = None,
+        locale: str | None = None,
     ) -> None:
         """Adds a filter for some specific iCalendar property.
 
@@ -168,9 +138,7 @@ class CalDAVSearcher(Searcher):
         if operator is not None:
             # Base class lowercases the key, so we need to as well
             self._explicit_operators.add(key.lower())
-            super().add_property_filter(
-                key, value, operator, case_sensitive, collation, locale
-            )
+            super().add_property_filter(key, value, operator, case_sensitive, collation, locale)
         else:
             # operator not specified - don't pass it, let base class use default
             # Don't track as explicit
@@ -187,11 +155,11 @@ class CalDAVSearcher(Searcher):
         calendar: Calendar,
         server_expand: bool = False,
         split_expanded: bool = True,
-        props: Optional[List[cdav.CalendarData]] = None,
+        props: list[cdav.CalendarData] | None = None,
         xml: str = None,
         _hacks: str = None,
         post_filter: bool = None,
-    ) -> List[CalendarObjectResource]:
+    ) -> list[CalendarObjectResource]:
         """
         Internal method - does three searches, one for each comp class (event, journal, todo).
         """
@@ -217,11 +185,11 @@ class CalDAVSearcher(Searcher):
         calendar: Calendar = None,
         server_expand: bool = False,
         split_expanded: bool = True,
-        props: Optional[List[cdav.CalendarData]] = None,
+        props: list[cdav.CalendarData] | None = None,
         xml: str = None,
         post_filter=None,
         _hacks: str = None,
-    ) -> List[CalendarObjectResource]:
+    ) -> list[CalendarObjectResource]:
         """Do the search on a CalDAV calendar.
 
         Only CalDAV-specific parameters goes to this method.  Those
@@ -266,9 +234,7 @@ class CalDAVSearcher(Searcher):
             )
         ## Handle servers with broken component-type filtering (e.g., Bedework)
         ## Such servers may misclassify component types in responses
-        comp_type_support = calendar.client.features.is_supported(
-            "search.comp-type", str
-        )
+        comp_type_support = calendar.client.features.is_supported("search.comp-type", str)
         if (
             (self.comp_class or self.todo or self.event or self.journal)
             and comp_type_support == "broken"
@@ -303,10 +269,7 @@ class CalDAVSearcher(Searcher):
         things = [f"_property_{thing}" for thing in things]
         if (
             not calendar.client.features.is_supported("search.text.category")
-            and (
-                "categories" in self._property_filters
-                or "category" in self._property_filters
-            )
+            and ("categories" in self._property_filters or "category" in self._property_filters)
             and post_filter is not False
         ):
             replacements = {}
@@ -328,8 +291,7 @@ class CalDAVSearcher(Searcher):
             explicit_contains = [
                 prop
                 for prop in self._property_operator
-                if prop in self._explicit_operators
-                and self._property_operator[prop] == "contains"
+                if prop in self._explicit_operators and self._property_operator[prop] == "contains"
             ]
             if explicit_contains:
                 # Remove explicit substring filters from server query,
@@ -341,12 +303,8 @@ class CalDAVSearcher(Searcher):
                         replacements[thing].pop(prop, None)
                 # Also need to preserve the _explicit_operators set but remove these properties
                 clone = replace(self, **replacements)
-                clone._explicit_operators = self._explicit_operators - set(
-                    explicit_contains
-                )
-                objects = clone.search(
-                    calendar, server_expand, split_expanded, props, xml
-                )
+                clone._explicit_operators = self._explicit_operators - set(explicit_contains)
+                objects = clone.search(calendar, server_expand, split_expanded, props, xml)
                 return self.filter(
                     objects,
                     post_filter=True,
@@ -363,12 +321,8 @@ class CalDAVSearcher(Searcher):
                     for thing in things:
                         replacements[thing] = {}
                     clone = replace(self, **replacements)
-                    objects = clone.search(
-                        calendar, server_expand, split_expanded, props, xml
-                    )
-                    return self.filter(
-                        objects, post_filter, split_expanded, server_expand
-                    )
+                    objects = clone.search(calendar, server_expand, split_expanded, props, xml)
+                    return self.filter(objects, post_filter, split_expanded, server_expand)
 
         ## special compatibility-case when searching for pending todos
         if self.todo and self.include_completed is False:
@@ -408,9 +362,7 @@ class CalDAVSearcher(Searcher):
             clone.expand = False
             if (
                 calendar.client.features.is_supported("search.text")
-                and calendar.client.features.is_supported(
-                    "search.combined-is-logical-and"
-                )
+                and calendar.client.features.is_supported("search.combined-is-logical-and")
                 and (
                     not calendar.client.features.is_supported(
                         "search.recurrences.includes-implicit.todo"
@@ -458,9 +410,7 @@ class CalDAVSearcher(Searcher):
 
             ## Now the xml variable may be either a full query or a filter
             ## and it may be either a string or an object.
-            if not xml or (
-                not isinstance(xml, str) and not xml.tag.endswith("calendar-query")
-            ):
+            if not xml or (not isinstance(xml, str) and not xml.tag.endswith("calendar-query")):
                 (xml, self.comp_class) = self.build_search_xml_query(
                     server_expand, props=props, filters=xml, _hacks=_hacks
                 )
@@ -492,7 +442,7 @@ class CalDAVSearcher(Searcher):
                 if (
                     calendar.client.features.backward_compatibility_mode
                     and not self.comp_class
-                    and not "400" in err.reason
+                    and "400" not in err.reason
                 ):
                     return self._search_with_comptypes(
                         calendar,
@@ -551,11 +501,11 @@ class CalDAVSearcher(Searcher):
         calendar: "AsyncCalendar",
         server_expand: bool = False,
         split_expanded: bool = True,
-        props: Optional[List[cdav.CalendarData]] = None,
+        props: list[cdav.CalendarData] | None = None,
         xml: str = None,
         _hacks: str = None,
         post_filter: bool = None,
-    ) -> List["AsyncCalendarObjectResource"]:
+    ) -> list["AsyncCalendarObjectResource"]:
         """
         Internal async method - does three searches, one for each comp class.
         """
@@ -563,7 +513,11 @@ class CalDAVSearcher(Searcher):
         # These work with both sync and async clients
         from .calendarobjectresource import (
             Event as AsyncEvent,
+        )
+        from .calendarobjectresource import (
             Journal as AsyncJournal,
+        )
+        from .calendarobjectresource import (
             Todo as AsyncTodo,
         )
 
@@ -571,7 +525,7 @@ class CalDAVSearcher(Searcher):
             raise NotImplementedError(
                 "full xml given, and it has to be patched to include comp_type"
             )
-        objects: List["AsyncCalendarObjectResource"] = []
+        objects: list[AsyncCalendarObjectResource] = []
 
         assert self.event is None and self.todo is None and self.journal is None
 
@@ -589,11 +543,11 @@ class CalDAVSearcher(Searcher):
         calendar: "AsyncCalendar" = None,
         server_expand: bool = False,
         split_expanded: bool = True,
-        props: Optional[List[cdav.CalendarData]] = None,
+        props: list[cdav.CalendarData] | None = None,
         xml: str = None,
         post_filter=None,
         _hacks: str = None,
-    ) -> List["AsyncCalendarObjectResource"]:
+    ) -> list["AsyncCalendarObjectResource"]:
         """Async version of search() - does the search on an AsyncCalendar.
 
         This method mirrors the sync search() method but uses async HTTP operations.
@@ -613,14 +567,16 @@ class CalDAVSearcher(Searcher):
         # These work with both sync and async clients
         from .calendarobjectresource import (
             Event as AsyncEvent,
+        )
+        from .calendarobjectresource import (
             Journal as AsyncJournal,
+        )
+        from .calendarobjectresource import (
             Todo as AsyncTodo,
         )
 
         ## Handle servers with broken component-type filtering (e.g., Bedework)
-        comp_type_support = calendar.client.features.is_supported(
-            "search.comp-type", str
-        )
+        comp_type_support = calendar.client.features.is_supported("search.comp-type", str)
         if (
             (self.comp_class or self.todo or self.event or self.journal)
             and comp_type_support == "broken"
@@ -655,10 +611,7 @@ class CalDAVSearcher(Searcher):
         things = [f"_property_{thing}" for thing in things]
         if (
             not calendar.client.features.is_supported("search.text.category")
-            and (
-                "categories" in self._property_filters
-                or "category" in self._property_filters
-            )
+            and ("categories" in self._property_filters or "category" in self._property_filters)
             and post_filter is not False
         ):
             replacements = {}
@@ -667,9 +620,7 @@ class CalDAVSearcher(Searcher):
                 replacements[thing].pop("categories", None)
                 replacements[thing].pop("category", None)
             clone = replace(self, **replacements)
-            objects = await clone.async_search(
-                calendar, server_expand, split_expanded, props, xml
-            )
+            objects = await clone.async_search(calendar, server_expand, split_expanded, props, xml)
             return self.filter(objects, post_filter, split_expanded, server_expand)
 
         ## special compatibility-case for servers that do not support substring search
@@ -680,8 +631,7 @@ class CalDAVSearcher(Searcher):
             explicit_contains = [
                 prop
                 for prop in self._property_operator
-                if prop in self._explicit_operators
-                and self._property_operator[prop] == "contains"
+                if prop in self._explicit_operators and self._property_operator[prop] == "contains"
             ]
             if explicit_contains:
                 replacements = {}
@@ -690,9 +640,7 @@ class CalDAVSearcher(Searcher):
                     for prop in explicit_contains:
                         replacements[thing].pop(prop, None)
                 clone = replace(self, **replacements)
-                clone._explicit_operators = self._explicit_operators - set(
-                    explicit_contains
-                )
+                clone._explicit_operators = self._explicit_operators - set(explicit_contains)
                 objects = await clone.async_search(
                     calendar, server_expand, split_expanded, props, xml
                 )
@@ -714,9 +662,7 @@ class CalDAVSearcher(Searcher):
                     objects = await clone.async_search(
                         calendar, server_expand, split_expanded, props, xml
                     )
-                    return self.filter(
-                        objects, post_filter, split_expanded, server_expand
-                    )
+                    return self.filter(objects, post_filter, split_expanded, server_expand)
 
         ## special compatibility-case when searching for pending todos
         if self.todo and self.include_completed is False:
@@ -725,9 +671,7 @@ class CalDAVSearcher(Searcher):
             clone.expand = False
             if (
                 calendar.client.features.is_supported("search.text")
-                and calendar.client.features.is_supported(
-                    "search.combined-is-logical-and"
-                )
+                and calendar.client.features.is_supported("search.combined-is-logical-and")
                 and (
                     not calendar.client.features.is_supported(
                         "search.recurrences.includes-implicit.todo"
@@ -737,7 +681,7 @@ class CalDAVSearcher(Searcher):
                     )
                 )
             ):
-                matches: List["AsyncCalendarObjectResource"] = []
+                matches: list[AsyncCalendarObjectResource] = []
                 for hacks in (
                     "ignore_completed1",
                     "ignore_completed2",
@@ -761,7 +705,7 @@ class CalDAVSearcher(Searcher):
                     xml=xml,
                     _hacks=_hacks,
                 )
-            objects: List["AsyncCalendarObjectResource"] = []
+            objects: list[AsyncCalendarObjectResource] = []
             match_set = set()
             for item in matches:
                 if item.url not in match_set:
@@ -770,9 +714,7 @@ class CalDAVSearcher(Searcher):
         else:
             orig_xml = xml
 
-            if not xml or (
-                not isinstance(xml, str) and not xml.tag.endswith("calendar-query")
-            ):
+            if not xml or (not isinstance(xml, str) and not xml.tag.endswith("calendar-query")):
                 (xml, self.comp_class) = self.build_search_xml_query(
                     server_expand, props=props, filters=xml, _hacks=_hacks
                 )
@@ -834,7 +776,7 @@ class CalDAVSearcher(Searcher):
                     post_filter,
                 )
 
-        obj2: List["AsyncCalendarObjectResource"] = []
+        obj2: list[AsyncCalendarObjectResource] = []
         for o in objects:
             try:
                 # load() may return self (sync) or coroutine (async) depending on state
@@ -873,11 +815,11 @@ class CalDAVSearcher(Searcher):
 
     def filter(
         self,
-        objects: List[CalendarObjectResource],
-        post_filter: Optional[bool] = None,
+        objects: list[CalendarObjectResource],
+        post_filter: bool | None = None,
         split_expanded: bool = True,
         server_expand: bool = False,
-    ) -> List[CalendarObjectResource]:
+    ) -> list[CalendarObjectResource]:
         """Apply client-side filtering and handle recurrence expansion/splitting.
 
         This method delegates to the operations layer filter_search_results().
@@ -897,9 +839,7 @@ class CalDAVSearcher(Searcher):
             server_expand=server_expand,
         )
 
-    def build_search_xml_query(
-        self, server_expand=False, props=None, filters=None, _hacks=None
-    ):
+    def build_search_xml_query(self, server_expand=False, props=None, filters=None, _hacks=None):
         """Build a CalDAV calendar-query XML request.
 
         Delegates to the operations layer for the actual XML building.

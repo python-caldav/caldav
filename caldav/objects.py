@@ -11,6 +11,7 @@ Logic has been split out:
 * Event/Todo/Journal/FreeBusy -> calendarobjectresource.py
 * Everything else (mostly collection objects) -> collection.py
 """
+
 ## For backward compatibility
 from .calendarobjectresource import *
 from .collection import *

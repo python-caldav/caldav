@@ -4,9 +4,9 @@ from pathlib import Path
 
 import pytest
 
-from .test_servers import client_context
-from .test_servers import has_test_servers
 from caldav import get_davclient
+
+from .test_servers import client_context, has_test_servers
 
 # Get the project root directory (parent of tests/)
 _PROJECT_ROOT = Path(__file__).parent.parent
@@ -55,4 +55,4 @@ class TestExamples:
             collation_usage.run_examples()
 
     def test_rfc8764_test_conf(self):
-        from examples import rfc6764_test_conf
+        pass

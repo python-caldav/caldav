@@ -11,15 +11,11 @@ Design principles:
 - Request specs describe WHAT to request, not HOW
 - Response processors transform parsed data into domain-friendly formats
 """
+
 from __future__ import annotations
 
-from dataclasses import dataclass
-from dataclasses import field
+from dataclasses import dataclass, field
 from typing import Any
-from typing import Dict
-from typing import List
-from typing import Optional
-from typing import Sequence
 
 from caldav.lib.url import URL
 
@@ -44,9 +40,9 @@ class QuerySpec:
     method: str = "PROPFIND"
     depth: int = 0
     props: tuple[str, ...] = ()
-    body: Optional[bytes] = None
+    body: bytes | None = None
 
-    def with_url(self, new_url: str) -> "QuerySpec":
+    def with_url(self, new_url: str) -> QuerySpec:
         """Return a copy with a different URL."""
         return QuerySpec(
             url=new_url,
@@ -67,11 +63,11 @@ class PropertyData:
     """
 
     href: str
-    properties: Dict[str, Any] = field(default_factory=dict)
+    properties: dict[str, Any] = field(default_factory=dict)
     status: int = 200
 
 
-def _normalize_href(href: str, base_url: Optional[str] = None) -> str:
+def _normalize_href(href: str, base_url: str | None = None) -> str:
     """
     Normalize an href to a consistent format.
 
@@ -103,7 +99,7 @@ def _normalize_href(href: str, base_url: Optional[str] = None) -> str:
     return href
 
 
-def _extract_resource_type(properties: Dict[str, Any]) -> List[str]:
+def _extract_resource_type(properties: dict[str, Any]) -> list[str]:
     """
     Extract resource types from properties dict.
 
@@ -125,7 +121,7 @@ def _extract_resource_type(properties: Dict[str, Any]) -> List[str]:
         return [rt] if rt else []
 
 
-def _is_calendar_resource(properties: Dict[str, Any]) -> bool:
+def _is_calendar_resource(properties: dict[str, Any]) -> bool:
     """
     Check if properties indicate a calendar resource.
 
@@ -140,7 +136,7 @@ def _is_calendar_resource(properties: Dict[str, Any]) -> bool:
     return calendar_tag in resource_types
 
 
-def _is_collection_resource(properties: Dict[str, Any]) -> bool:
+def _is_collection_resource(properties: dict[str, Any]) -> bool:
     """
     Check if properties indicate a collection resource.
 
@@ -156,7 +152,7 @@ def _is_collection_resource(properties: Dict[str, Any]) -> bool:
 
 
 def _get_property_value(
-    properties: Dict[str, Any],
+    properties: dict[str, Any],
     prop_name: str,
     default: Any = None,
 ) -> Any:

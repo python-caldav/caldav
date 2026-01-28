@@ -4,9 +4,9 @@ Shared test fixture helpers for both sync and async tests.
 This module provides common logic for setting up test calendars,
 ensuring consistent behavior and safeguards across sync and async tests.
 """
+
 import inspect
 from typing import Any
-from typing import Optional
 
 
 async def _maybe_await(result: Any) -> Any:
@@ -20,7 +20,7 @@ async def get_or_create_test_calendar(
     client: Any,
     principal: Any,
     calendar_name: str = "pythoncaldav-test",
-    cal_id: Optional[str] = None,
+    cal_id: str | None = None,
 ) -> tuple[Any, bool]:
     """
     Get or create a test calendar, with fallback to existing calendars.

@@ -1,16 +1,14 @@
 #!/usr/bin/env python
-# -*- encoding: utf-8 -*-
 """
 Tests for caldav.search.CalDAVSearcher collation support
 
 Tests that verify collation attributes are correctly passed from
 icalendar-searcher to CalDAV XML queries.
 """
-import pytest
+
 from icalendar_searcher.collation import Collation
 
-from caldav.search import _collation_to_caldav
-from caldav.search import CalDAVSearcher
+from caldav.search import CalDAVSearcher, _collation_to_caldav
 
 
 def test_collation_to_caldav_simple_case_sensitive() -> None:
@@ -20,10 +18,7 @@ def test_collation_to_caldav_simple_case_sensitive() -> None:
 
 def test_collation_to_caldav_simple_case_insensitive() -> None:
     """Test mapping from Collation.SIMPLE (case-insensitive) to CalDAV i;ascii-casemap."""
-    assert (
-        _collation_to_caldav(Collation.SIMPLE, case_sensitive=False)
-        == "i;ascii-casemap"
-    )
+    assert _collation_to_caldav(Collation.SIMPLE, case_sensitive=False) == "i;ascii-casemap"
 
 
 def test_collation_to_caldav_unicode_case_sensitive() -> None:
@@ -33,10 +28,7 @@ def test_collation_to_caldav_unicode_case_sensitive() -> None:
 
 def test_collation_to_caldav_unicode_case_insensitive() -> None:
     """Test mapping from Collation.UNICODE (case-insensitive) to CalDAV i;unicode-casemap."""
-    assert (
-        _collation_to_caldav(Collation.UNICODE, case_sensitive=False)
-        == "i;unicode-casemap"
-    )
+    assert _collation_to_caldav(Collation.UNICODE, case_sensitive=False) == "i;unicode-casemap"
 
 
 def test_collation_to_caldav_locale() -> None:
@@ -73,9 +65,7 @@ def test_build_search_xml_query_case_insensitive_collation() -> None:
 def test_build_search_xml_query_explicit_simple_case_sensitive_collation() -> None:
     """Test that build_search_xml_query respects explicit SIMPLE collation with case_sensitive=True."""
     searcher = CalDAVSearcher(event=True)
-    searcher.add_property_filter(
-        "SUMMARY", "test", collation=Collation.SIMPLE, case_sensitive=True
-    )
+    searcher.add_property_filter("SUMMARY", "test", collation=Collation.SIMPLE, case_sensitive=True)
 
     xml, comp_class = searcher.build_search_xml_query()
     xml_str = str(xml)
@@ -115,9 +105,7 @@ def test_build_search_xml_query_unicode_collation() -> None:
 def test_build_search_xml_query_locale_collation() -> None:
     """Test that build_search_xml_query falls back to i;ascii-casemap for LOCALE collation."""
     searcher = CalDAVSearcher(event=True)
-    searcher.add_property_filter(
-        "SUMMARY", "test", collation=Collation.LOCALE, locale="de_DE"
-    )
+    searcher.add_property_filter("SUMMARY", "test", collation=Collation.LOCALE, locale="de_DE")
 
     xml, comp_class = searcher.build_search_xml_query()
     xml_str = str(xml)
@@ -130,9 +118,7 @@ def test_build_search_xml_query_multiple_properties_different_collations() -> No
     """Test that different properties can have different collations."""
     searcher = CalDAVSearcher(event=True)
     searcher.add_property_filter("SUMMARY", "test", case_sensitive=True)  # Binary
-    searcher.add_property_filter(
-        "LOCATION", "room", case_sensitive=False
-    )  # Case-insensitive
+    searcher.add_property_filter("LOCATION", "room", case_sensitive=False)  # Case-insensitive
 
     xml, comp_class = searcher.build_search_xml_query()
     xml_str = str(xml)
@@ -146,9 +132,7 @@ def test_build_search_xml_query_collation_with_case_sensitive() -> None:
     """Test that case_sensitive parameter works with explicit collation."""
     searcher = CalDAVSearcher(event=True)
     # SIMPLE collation with case_sensitive=True should use i;octet
-    searcher.add_property_filter(
-        "SUMMARY", "test", case_sensitive=True, collation=Collation.SIMPLE
-    )
+    searcher.add_property_filter("SUMMARY", "test", case_sensitive=True, collation=Collation.SIMPLE)
 
     xml, comp_class = searcher.build_search_xml_query()
     xml_str = str(xml)

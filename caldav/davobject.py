@@ -1,33 +1,21 @@
 import logging
 import sys
-from typing import Any
-from typing import List
-from typing import Optional
-from typing import Tuple
-from typing import TYPE_CHECKING
-from typing import TypeVar
-from typing import Union
-from urllib.parse import ParseResult
-from urllib.parse import quote
-from urllib.parse import SplitResult
-from urllib.parse import unquote
+from typing import TYPE_CHECKING, Any, Optional, TypeVar
+from urllib.parse import ParseResult, SplitResult, quote, unquote
 
 from lxml import etree
 
 try:
-    from typing import ClassVar, Optional, Union, Type
+    from typing import Optional
 
-    TimeStamp = Optional[Union[date, datetime]]
+    TimeStamp = Optional[date | datetime]
 except:
     pass
 
 if TYPE_CHECKING:
-    from icalendar import vCalAddress
-
     from .davclient import DAVClient
 
-from collections.abc import Callable, Container, Iterable, Iterator, Sequence
-from typing import DefaultDict, Literal
+from collections.abc import Sequence
 
 if sys.version_info < (3, 11):
     from typing_extensions import Self
@@ -62,18 +50,18 @@ class DAVObject:
     and an absolute or relative URL, or from the parent object.
     """
 
-    id: Optional[str] = None
-    url: Optional[URL] = None
+    id: str | None = None
+    url: URL | None = None
     client: Optional["DAVClient"] = None
     parent: Optional["DAVObject"] = None
-    name: Optional[str] = None
+    name: str | None = None
 
     def __init__(
         self,
         client: Optional["DAVClient"] = None,
-        url: Union[str, ParseResult, SplitResult, URL, None] = None,
+        url: str | ParseResult | SplitResult | URL | None = None,
         parent: Optional["DAVObject"] = None,
-        id: Optional[str] = None,
+        id: str | None = None,
         props=None,
         **extra,
     ) -> None:
@@ -121,7 +109,7 @@ class DAVObject:
         # Use string check to avoid circular imports
         return type(self.client).__name__ == "AsyncDAVClient"
 
-    def children(self, type: Optional[str] = None) -> List[Tuple[URL, Any, Any]]:
+    def children(self, type: str | None = None) -> list[tuple[URL, Any, Any]]:
         """List children, using a propfind (resourcetype) on the parent object,
         at depth = 1.
 
@@ -148,9 +136,7 @@ class DAVObject:
         multiprops = [dav.ResourceType()]
         props_multiprops = props + multiprops
         response = self._query_properties(props_multiprops, depth)
-        properties = response.expand_simple_props(
-            props=props, multi_value_props=multiprops
-        )
+        properties = response.expand_simple_props(props=props, multi_value_props=multiprops)
 
         for path in properties:
             resource_types = properties[path][dav.ResourceType.tag]
@@ -177,9 +163,7 @@ class DAVObject:
         ## the properties we've already fetched
         return c
 
-    def _query_properties(
-        self, props: Optional[Sequence[BaseElement]] = None, depth: int = 0
-    ):
+    def _query_properties(self, props: Sequence[BaseElement] | None = None, depth: int = 0):
         """
         This is an internal method for doing a propfind query.  It's a
         result of code-refactoring work, attempting to consolidate
@@ -199,7 +183,7 @@ class DAVObject:
         return self._query(root, depth)
 
     async def _async_query_properties(
-        self, props: Optional[Sequence[BaseElement]] = None, depth: int = 0
+        self, props: Sequence[BaseElement] | None = None, depth: int = 0
     ):
         """Async implementation of _query_properties."""
         root = None
@@ -226,9 +210,7 @@ class DAVObject:
         For async clients, returns a coroutine that must be awaited.
         """
         if self.is_async_client:
-            return self._async_query(
-                root, depth, query_method, url, expected_return_value
-            )
+            return self._async_query(root, depth, query_method, url, expected_return_value)
 
         body = ""
         if root:
@@ -252,17 +234,9 @@ class DAVObject:
             ## COMPATIBILITY HACK - see https://github.com/python-caldav/caldav/issues/309
             ## TODO: server quirks!
             body = to_wire(body)
-            if (
-                ret.status == 500
-                and b"D:getetag" not in body
-                and b"<C:calendar-data" in body
-            ):
-                body = body.replace(
-                    b"<C:calendar-data", b"<D:getetag/><C:calendar-data"
-                )
-                return self._query(
-                    body, depth, query_method, url, expected_return_value
-                )
+            if ret.status == 500 and b"D:getetag" not in body and b"<C:calendar-data" in body:
+                body = body.replace(b"<C:calendar-data", b"<D:getetag/><C:calendar-data")
+                return self._query(body, depth, query_method, url, expected_return_value)
             raise error.exception_by_method[query_method](errmsg(ret))
         return ret
 
@@ -296,14 +270,8 @@ class DAVObject:
         ) or ret.status >= 400:
             ## COMPATIBILITY HACK - see https://github.com/python-caldav/caldav/issues/309
             body = to_wire(body)
-            if (
-                ret.status == 500
-                and b"D:getetag" not in body
-                and b"<C:calendar-data" in body
-            ):
-                body = body.replace(
-                    b"<C:calendar-data", b"<D:getetag/><C:calendar-data"
-                )
+            if ret.status == 500 and b"D:getetag" not in body and b"<C:calendar-data" in body:
+                body = body.replace(b"<C:calendar-data", b"<D:getetag/><C:calendar-data")
                 return await self._async_query(
                     body, depth, query_method, url, expected_return_value
                 )
@@ -312,7 +280,7 @@ class DAVObject:
 
     def get_property(
         self, prop: BaseElement, use_cached: bool = False, **passthrough
-    ) -> Optional[str]:
+    ) -> str | None:
         """
         Wrapper for the :class:`get_properties`, when only one property is wanted
 
@@ -337,7 +305,7 @@ class DAVObject:
 
     async def _async_get_property(
         self, prop: BaseElement, use_cached: bool = False, **passthrough
-    ) -> Optional[str]:
+    ) -> str | None:
         """Async implementation of get_property."""
         if use_cached:
             if prop.tag in self.props:
@@ -347,7 +315,7 @@ class DAVObject:
 
     def get_properties(
         self,
-        props: Optional[Sequence[BaseElement]] = None,
+        props: Sequence[BaseElement] | None = None,
         depth: int = 0,
         parse_response_xml: bool = True,
         parse_props: bool = True,
@@ -372,9 +340,7 @@ class DAVObject:
         For async clients, returns a coroutine that must be awaited.
         """
         if self.is_async_client:
-            return self._async_get_properties(
-                props, depth, parse_response_xml, parse_props
-            )
+            return self._async_get_properties(props, depth, parse_response_xml, parse_props)
 
         from .collection import (
             Principal,
@@ -433,7 +399,7 @@ class DAVObject:
 
     async def _async_get_properties(
         self,
-        props: Optional[Sequence[BaseElement]] = None,
+        props: Sequence[BaseElement] | None = None,
         depth: int = 0,
         parse_response_xml: bool = True,
         parse_props: bool = True,
@@ -494,7 +460,7 @@ class DAVObject:
         self.props.update(rc)
         return rc
 
-    def set_properties(self, props: Optional[Any] = None) -> Self:
+    def set_properties(self, props: Any | None = None) -> Self:
         """
         Set properties (PROPPATCH) for this object.
 
@@ -537,7 +503,7 @@ class DAVObject:
 
         return self
 
-    async def _async_set_properties(self, props: Optional[Any] = None) -> Self:
+    async def _async_set_properties(self, props: Any | None = None) -> Self:
         """Async implementation of set_properties."""
         props = [] if props is None else props
         prop = dav.Prop() + props
@@ -620,9 +586,7 @@ class DAVObject:
 
     def __str__(self) -> str:
         try:
-            return (
-                str(self.get_property(dav.DisplayName(), use_cached=True)) or self.url
-            )
+            return str(self.get_property(dav.DisplayName(), use_cached=True)) or self.url
         except:
             return str(self.url)
 

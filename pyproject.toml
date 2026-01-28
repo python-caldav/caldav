@@ -107,16 +107,7 @@ DEP001 = ["conf", "h2"]  # conf: Local test config, h2: Optional HTTP/2 support
 line-length = 100
 target-version = "py310"
 
-# Only apply Ruff to new async files added after v2.2.2
-# This allows gradual adoption without reformatting the entire codebase
-include = [
-    "caldav/aio.py",
-    "caldav/async_davclient.py",
-    "tests/test_async_davclient.py",
-]
-
 [tool.ruff.lint]
-# Based on icalendar-searcher config
 select = [
     "E",    # pycodestyle errors
     "F",    # pyflakes
@@ -124,15 +115,37 @@ select = [
     "I",    # isort
     "UP",   # pyupgrade (modernize code)
     "B",    # flake8-bugbear (find bugs)
-    "ANN",  # type annotations
 ]
 ignore = [
     "E501",    # Line too long (formatter handles this)
-    "ANN401",  # Any type (sometimes necessary)
+    "E402",    # Module level import not at top of file (common with conditional imports)
+    "E721",    # Type comparisons (isinstance is not always better)
+    "E722",    # Bare except (TODO: fix these gradually)
+    "E731",    # Lambda assignments (sometimes clearer than def)
+    "B007",    # Unused loop variable (often intentional)
+    "B011",    # assert False (used as unreachable markers)
+    "B018",    # Useless expression (often intentional in tests)
+    "B026",    # Star-arg after keyword (legacy pattern)
+    "B028",    # stacklevel in warnings (not critical)
+    "B904",    # raise from (TODO: fix gradually)
+    "F401",    # Unused imports (many are for re-export or conditional)
+    "F403",    # Star imports (legacy, TODO: fix gradually)
+    "F821",    # Undefined names (often in TYPE_CHECKING blocks or docstrings)
+    "F841",    # Unused variables (often intentional, e.g. unpacking)
+    "UP008",   # super() style (existing code uses explicit form)
+    "UP031",   # %-format (existing code uses it extensively)
+    "UP036",   # Outdated version blocks (will clean up when dropping old Python)
+    "UP045",   # X | None vs Optional (both are fine)
 ]
 
+[tool.ruff.lint.per-file-ignores]
+# Examples and docs may have undefined names for illustration
+"examples/*.py" = ["F821"]
+"docs/**/*.py" = ["F821"]
+# Tests may use assertions and have unusual patterns
+"tests/*.py" = ["B011", "B017"]
+
 [tool.ruff.format]
-# Use Ruff's formatter (Black-compatible)
 quote-style = "double"
 indent-style = "space"
 

@@ -7,16 +7,12 @@ for XML building and response parsing.
 
 For async code, use: from caldav import aio
 """
+
 import logging
 import sys
 import warnings
 from types import TracebackType
-from typing import Any
-from typing import List
-from typing import Optional
-from typing import Tuple
-from typing import TYPE_CHECKING
-from typing import Union
+from typing import TYPE_CHECKING, Any, Optional
 from urllib.parse import unquote
 
 # Try niquests first (preferred), fall back to requests
@@ -38,25 +34,27 @@ except ImportError:
 
     _USE_REQUESTS = True
 
+from collections.abc import Mapping
+
 from lxml import etree
 
 import caldav.compatibility_hints
 from caldav import __version__
-
-from caldav.collection import Calendar, CalendarSet, Principal
-from caldav.compatibility_hints import FeatureSet
-from caldav.elements import cdav, dav
 from caldav.base_client import BaseDAVClient
 from caldav.base_client import get_calendars as _base_get_calendars
 from caldav.base_client import get_davclient as _base_get_davclient
+from caldav.collection import Calendar, CalendarSet, Principal
+from caldav.compatibility_hints import FeatureSet
+
+# Re-export CONNKEYS for backward compatibility
+from caldav.config import CONNKEYS  # noqa: F401
+from caldav.elements import cdav, dav
 from caldav.lib import error
 from caldav.lib.python_utilities import to_normal_str, to_wire
 from caldav.lib.url import URL
 from caldav.objects import log
 from caldav.requests import HTTPBearerAuth
 from caldav.response import BaseDAVResponse
-
-from collections.abc import Iterable, Mapping
 
 if sys.version_info < (3, 11):
     from typing_extensions import Self
@@ -85,7 +83,6 @@ environmental variables, a configuration file or test configuration.
 
 ## TODO: this is also declared in davclient.DAVClient.__init__(...)
 # Import CONNKEYS from config to avoid duplication
-from caldav.config import CONNKEYS
 
 
 def _auto_url(
@@ -133,9 +130,7 @@ def _auto_url(
             service_info = discover_caldav(
                 identifier=url,
                 timeout=timeout,
-                ssl_verify_cert=ssl_verify_cert
-                if isinstance(ssl_verify_cert, bool)
-                else True,
+                ssl_verify_cert=ssl_verify_cert if isinstance(ssl_verify_cert, bool) else True,
                 require_tls=require_tls,
             )
             if service_info:
@@ -143,9 +138,7 @@ def _auto_url(
                     f"RFC6764 discovered service: {service_info.url} (source: {service_info.source})"
                 )
                 if service_info.username:
-                    log.debug(
-                        f"Username discovered from email: {service_info.username}"
-                    )
+                    log.debug(f"Username discovered from email: {service_info.username}")
                 return (service_info.url, service_info.username)
         except DiscoveryError as e:
             log.debug(f"RFC6764 discovery failed: {e}")
@@ -171,8 +164,8 @@ class DAVResponse(BaseDAVResponse):
     """
 
     # Protocol-layer parsed results (new interface, replaces find_objects_and_props())
-    results: Optional[List] = None
-    sync_token: Optional[str] = None
+    results: list | None = None
+    sync_token: str | None = None
 
     def __init__(
         self,
@@ -193,24 +186,24 @@ class DAVClient(BaseDAVClient):
     the constructor (__init__), the principal method and the calendar method.
     """
 
-    proxy: Optional[str] = None
+    proxy: str | None = None
     url: URL = None
     huge_tree: bool = False
 
     def __init__(
         self,
-        url: Optional[str] = "",
-        proxy: Optional[str] = None,
-        username: Optional[str] = None,
-        password: Optional[str] = None,
-        auth: Optional[AuthBase] = None,
-        auth_type: Optional[str] = None,
-        timeout: Optional[int] = None,
-        ssl_verify_cert: Union[bool, str] = True,
-        ssl_cert: Union[str, Tuple[str, str], None] = None,
+        url: str | None = "",
+        proxy: str | None = None,
+        username: str | None = None,
+        password: str | None = None,
+        auth: AuthBase | None = None,
+        auth_type: str | None = None,
+        timeout: int | None = None,
+        ssl_verify_cert: bool | str = True,
+        ssl_cert: str | tuple[str, str] | None = None,
         headers: Mapping[str, str] = None,
         huge_tree: bool = False,
-        features: Union[FeatureSet, dict, str] = None,
+        features: FeatureSet | dict | str = None,
         enable_rfc6764: bool = True,
         require_tls: bool = True,
     ) -> None:
@@ -359,9 +352,9 @@ class DAVClient(BaseDAVClient):
 
     def __exit__(
         self,
-        exc_type: Optional[BaseException] = None,
-        exc_value: Optional[BaseException] = None,
-        traceback: Optional[TracebackType] = None,
+        exc_type: BaseException | None = None,
+        exc_value: BaseException | None = None,
+        traceback: TracebackType | None = None,
     ) -> None:
         self.close()
         ## Used for tests, to tear down a temporarily test server
@@ -397,9 +390,7 @@ class DAVClient(BaseDAVClient):
         """
         if name:
             name_filter = [
-                dav.PropertySearch()
-                + [dav.Prop() + [dav.DisplayName()]]
-                + dav.Match(value=name)
+                dav.PropertySearch() + [dav.Prop() + [dav.DisplayName()]] + dav.Match(value=name)
             ]
         else:
             name_filter = []
@@ -415,9 +406,7 @@ class DAVClient(BaseDAVClient):
         ## for now we're just treating it in the same way as 4xx and 5xx -
         ## probably the server did not support the operation
         if response.status >= 300:
-            raise error.ReportError(
-                f"{response.status} {response.reason} - {response.raw}"
-            )
+            raise error.ReportError(f"{response.status} {response.reason} - {response.raw}")
 
         principal_dict = response._find_objects_and_props()
         ret = []
@@ -438,9 +427,7 @@ class DAVClient(BaseDAVClient):
             chs_url = chs_href[0].text
             calendar_home_set = CalendarSet(client=self, url=chs_url)
             ret.append(
-                Principal(
-                    client=self, url=x, name=name, calendar_home_set=calendar_home_set
-                )
+                Principal(client=self, url=x, name=name, calendar_home_set=calendar_home_set)
             )
         return ret
 
@@ -504,7 +491,7 @@ class DAVClient(BaseDAVClient):
         """
         return self.principal()
 
-    def get_calendars(self, principal: Optional[Principal] = None) -> List[Calendar]:
+    def get_calendars(self, principal: Principal | None = None) -> list[Calendar]:
         """Get all calendars for the given principal.
 
         This method fetches calendars from the principal's calendar-home-set
@@ -553,7 +540,7 @@ class DAVClient(BaseDAVClient):
             for info in calendar_infos
         ]
 
-    def _get_calendar_home_set(self, principal: Principal) -> Optional[str]:
+    def _get_calendar_home_set(self, principal: Principal) -> str | None:
         """Get the calendar-home-set URL for a principal.
 
         Args:
@@ -578,9 +565,9 @@ class DAVClient(BaseDAVClient):
     def get_events(
         self,
         calendar: Calendar,
-        start: Optional[Any] = None,
-        end: Optional[Any] = None,
-    ) -> List["Event"]:
+        start: Any | None = None,
+        end: Any | None = None,
+    ) -> list["Event"]:
         """Get events from a calendar.
 
         This is a convenience method that searches for VEVENT objects in the
@@ -608,7 +595,7 @@ class DAVClient(BaseDAVClient):
         self,
         calendar: Calendar,
         include_completed: bool = False,
-    ) -> List["Todo"]:
+    ) -> list["Todo"]:
         """Get todos from a calendar.
 
         Args:
@@ -618,9 +605,7 @@ class DAVClient(BaseDAVClient):
         Returns:
             List of Todo objects.
         """
-        return self.search_calendar(
-            calendar, todo=True, include_completed=include_completed
-        )
+        return self.search_calendar(calendar, todo=True, include_completed=include_completed)
 
     def search_calendar(
         self,
@@ -628,12 +613,12 @@ class DAVClient(BaseDAVClient):
         event: bool = False,
         todo: bool = False,
         journal: bool = False,
-        start: Optional[Any] = None,
-        end: Optional[Any] = None,
-        include_completed: Optional[bool] = None,
+        start: Any | None = None,
+        end: Any | None = None,
+        include_completed: bool | None = None,
         expand: bool = False,
         **kwargs: Any,
-    ) -> List["CalendarObjectResource"]:
+    ) -> list["CalendarObjectResource"]:
         """Search a calendar for events, todos, or journals.
 
         This method provides a clean interface to calendar search.
@@ -672,7 +657,7 @@ class DAVClient(BaseDAVClient):
             **kwargs,
         )
 
-    def check_dav_support(self) -> Optional[str]:
+    def check_dav_support(self) -> str | None:
         """
         Legacy method. Use :meth:`supports_dav` for new code.
 
@@ -712,7 +697,7 @@ class DAVClient(BaseDAVClient):
 
     # Recommended methods for capability checks (API consistency with AsyncDAVClient)
 
-    def supports_dav(self) -> Optional[str]:
+    def supports_dav(self) -> str | None:
         """Check if the server supports WebDAV (RFC4918).
 
         This is the recommended method for new code. It provides API
@@ -763,7 +748,7 @@ class DAVClient(BaseDAVClient):
 
     def propfind(
         self,
-        url: Optional[str] = None,
+        url: str | None = None,
         props=None,
         depth: int = 0,
     ) -> DAVResponse:
@@ -802,9 +787,7 @@ class DAVClient(BaseDAVClient):
             from caldav.protocol.xml_parsers import _parse_propfind_response
 
             raw_bytes = (
-                response._raw
-                if isinstance(response._raw, bytes)
-                else response._raw.encode("utf-8")
+                response._raw if isinstance(response._raw, bytes) else response._raw.encode("utf-8")
             )
             response.results = _parse_propfind_response(
                 raw_bytes, response.status, response.huge_tree
@@ -825,9 +808,7 @@ class DAVClient(BaseDAVClient):
         """
         return self.request(url, "PROPPATCH", body)
 
-    def report(
-        self, url: str, query: str = "", depth: Optional[int] = 0
-    ) -> DAVResponse:
+    def report(self, url: str, query: str = "", depth: int | None = 0) -> DAVResponse:
         """
         Send a report request.
 
@@ -880,17 +861,13 @@ class DAVClient(BaseDAVClient):
         """
         return self.request(url, "MKCALENDAR", body)
 
-    def put(
-        self, url: str, body: str, headers: Mapping[str, str] = None
-    ) -> DAVResponse:
+    def put(self, url: str, body: str, headers: Mapping[str, str] = None) -> DAVResponse:
         """
         Send a put request.
         """
         return self.request(url, "PUT", body, headers)
 
-    def post(
-        self, url: str, body: str, headers: Mapping[str, str] = None
-    ) -> DAVResponse:
+    def post(self, url: str, body: str, headers: Mapping[str, str] = None) -> DAVResponse:
         """
         Send a POST request.
         """
@@ -908,7 +885,7 @@ class DAVClient(BaseDAVClient):
         """
         return self.request(url, "OPTIONS", "")
 
-    def build_auth_object(self, auth_types: Optional[List[str]] = None) -> None:
+    def build_auth_object(self, auth_types: list[str] | None = None) -> None:
         """Build authentication object for the requests/niquests library.
 
         Uses shared auth type selection logic from BaseDAVClient, then
@@ -1004,8 +981,7 @@ class DAVClient(BaseDAVClient):
             and "WWW-Authenticate" in r_headers
             and not self.auth
             and self.username is not None
-            and self.password
-            is not None  # Empty password OK, but None means not configured
+            and self.password is not None  # Empty password OK, but None means not configured
         ):
             auth_types = self.extract_auth_types(r_headers["WWW-Authenticate"])
             self.build_auth_object(auth_types)
@@ -1031,7 +1007,7 @@ class DAVClient(BaseDAVClient):
         return response
 
 
-def get_calendars(**kwargs) -> List["Calendar"]:
+def get_calendars(**kwargs) -> list["Calendar"]:
     """
     Get calendars from a CalDAV server with configuration from multiple sources.
 

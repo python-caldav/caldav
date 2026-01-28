@@ -6,6 +6,7 @@ This example shows how to perform text searches on calendar events with
 different case sensitivity settings. The collation settings are automatically
 passed to the CalDAV server.
 """
+
 import sys
 from datetime import datetime
 
@@ -89,10 +90,8 @@ def run_examples():
         searcher.add_property_filter("LOCATION", "room", case_sensitive=False)
 
         events = searcher.search(calendar)
-        print(
-            f"Found {len(events)} event(s) with 'meeting' (case-sensitive) in summary"
-        )
-        print(f"  AND 'room' (case-insensitive) in location")
+        print(f"Found {len(events)} event(s) with 'meeting' (case-sensitive) in summary")
+        print("  AND 'room' (case-insensitive) in location")
         for event in events:
             comp = event.icalendar_component
             print(f"  - {comp.get('SUMMARY', 'N/A')} @ {comp.get('LOCATION', 'N/A')}")
@@ -100,12 +99,8 @@ def run_examples():
     print("\n" + "=" * 80)
     print("Summary:")
     print("- By default, searches are case-sensitive")
-    print(
-        "- For case-insensitive searches, use CalDAVSearcher with case_sensitive=False"
-    )
-    print(
-        "- The CalDAVSearcher API allows mixing case sensitivities on different properties"
-    )
+    print("- For case-insensitive searches, use CalDAVSearcher with case_sensitive=False")
+    print("- The CalDAVSearcher API allows mixing case sensitivities on different properties")
     print("=" * 80)
 
 

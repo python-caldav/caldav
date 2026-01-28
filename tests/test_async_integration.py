@@ -6,6 +6,7 @@ These tests verify that the async API works correctly with real CalDAV servers.
 They run against all available servers (Radicale, Xandikos, Docker servers)
 using the same dynamic class generation pattern as the sync tests.
 """
+
 import asyncio
 from datetime import datetime
 from functools import wraps
@@ -14,8 +15,7 @@ from typing import Any
 import pytest
 import pytest_asyncio
 
-from .test_servers import get_available_servers
-from .test_servers import TestServer
+from .test_servers import TestServer, get_available_servers
 
 
 def _async_delay_decorator(f, t=20):
@@ -211,9 +211,7 @@ class AsyncFunctionalTestsBaseClass:
         from caldav.aio import AsyncCalendarSet, AsyncPrincipal
         from caldav.lib.error import AuthorizationError, MkcalendarError, NotFoundError
 
-        calendar_name = (
-            f"async-principal-test-{datetime.now().strftime('%Y%m%d%H%M%S%f')}"
-        )
+        calendar_name = f"async-principal-test-{datetime.now().strftime('%Y%m%d%H%M%S%f')}"
         calendar = None
 
         # Try principal-based calendar creation first (works for Baikal, Xandikos)
@@ -227,9 +225,7 @@ class AsyncFunctionalTestsBaseClass:
         if calendar is None:
             # Try creating calendar at client URL
             try:
-                calendar_home = AsyncCalendarSet(
-                    client=async_client, url=async_client.url
-                )
+                calendar_home = AsyncCalendarSet(client=async_client, url=async_client.url)
                 calendar = await calendar_home.make_calendar(name=calendar_name)
             except MkcalendarError:
                 pytest.skip("Server does not support MKCALENDAR")

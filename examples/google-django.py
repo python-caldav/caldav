@@ -11,8 +11,8 @@ Contributed by Abe Hanoka in https://github.com/python-caldav/caldav/issues/119#
 
 This code is not tested by the caldav library maintainer.
 """
-from allauth.socialaccount.models import SocialApp
-from allauth.socialaccount.models import SocialToken
+
+from allauth.socialaccount.models import SocialApp, SocialToken
 from google.oauth2.credentials import Credentials
 
 from caldav import get_davclient

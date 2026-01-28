@@ -4,13 +4,10 @@ Core protocol types for Sans-I/O CalDAV implementation.
 These dataclasses represent HTTP requests and responses at the protocol level,
 independent of any I/O implementation.
 """
-from dataclasses import dataclass
-from dataclasses import field
+
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
-from typing import Dict
-from typing import List
-from typing import Optional
 
 
 class DAVMethod(Enum):
@@ -48,8 +45,8 @@ class DAVRequest:
 
     method: DAVMethod
     url: str
-    headers: Dict[str, str] = field(default_factory=dict)
-    body: Optional[bytes] = None
+    headers: dict[str, str] = field(default_factory=dict)
+    body: bytes | None = None
 
     def with_header(self, name: str, value: str) -> "DAVRequest":
         """Return new request with additional header."""
@@ -86,7 +83,7 @@ class DAVResponse:
     """
 
     status: int
-    headers: Dict[str, str]
+    headers: dict[str, str]
     body: bytes
 
     @property
@@ -138,7 +135,7 @@ class PropfindResult:
     """
 
     href: str
-    properties: Dict[str, Any] = field(default_factory=dict)
+    properties: dict[str, Any] = field(default_factory=dict)
     status: int = 200
 
 
@@ -155,8 +152,8 @@ class CalendarQueryResult:
     """
 
     href: str
-    etag: Optional[str] = None
-    calendar_data: Optional[str] = None
+    etag: str | None = None
+    calendar_data: str | None = None
     status: int = 200
 
 
@@ -169,8 +166,8 @@ class MultiGetResult:
     """
 
     href: str
-    etag: Optional[str] = None
-    calendar_data: Optional[str] = None
+    etag: str | None = None
+    calendar_data: str | None = None
     status: int = 200
 
 
@@ -185,9 +182,9 @@ class SyncCollectionResult:
         sync_token: New sync token for next sync
     """
 
-    changed: List[CalendarQueryResult] = field(default_factory=list)
-    deleted: List[str] = field(default_factory=list)
-    sync_token: Optional[str] = None
+    changed: list[CalendarQueryResult] = field(default_factory=list)
+    deleted: list[str] = field(default_factory=list)
+    sync_token: str | None = None
 
 
 @dataclass
@@ -202,8 +199,8 @@ class MultistatusResponse:
         sync_token: Sync token if present (for sync-collection)
     """
 
-    responses: List[PropfindResult] = field(default_factory=list)
-    sync_token: Optional[str] = None
+    responses: list[PropfindResult] = field(default_factory=list)
+    sync_token: str | None = None
 
 
 @dataclass
@@ -219,9 +216,9 @@ class PrincipalInfo:
     """
 
     url: str
-    calendar_home_set: Optional[str] = None
-    displayname: Optional[str] = None
-    calendar_user_address_set: List[str] = field(default_factory=list)
+    calendar_home_set: str | None = None
+    displayname: str | None = None
+    calendar_user_address_set: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -239,8 +236,8 @@ class CalendarInfo:
     """
 
     url: str
-    displayname: Optional[str] = None
-    description: Optional[str] = None
-    color: Optional[str] = None
-    supported_components: List[str] = field(default_factory=list)
-    ctag: Optional[str] = None
+    displayname: str | None = None
+    description: str | None = None
+    color: str | None = None
+    supported_components: list[str] = field(default_factory=list)
+    ctag: str | None = None

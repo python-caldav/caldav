@@ -4,16 +4,12 @@ Configuration loader for test servers.
 This module provides functions for loading test server configuration
 from YAML/JSON files, with fallback to the legacy conf_private.py.
 """
-import os
+
 import warnings
 from pathlib import Path
 from typing import Any
-from typing import Dict
-from typing import List
-from typing import Optional
 
-from caldav.config import expand_env_vars
-from caldav.config import read_config
+from caldav.config import expand_env_vars, read_config
 
 # Default config file locations (in priority order)
 DEFAULT_CONFIG_LOCATIONS = [
@@ -25,8 +21,8 @@ DEFAULT_CONFIG_LOCATIONS = [
 
 
 def load_test_server_config(
-    config_file: Optional[str] = None,
-) -> Dict[str, Dict[str, Any]]:
+    config_file: str | None = None,
+) -> dict[str, dict[str, Any]]:
     """
     Load test server configuration from file.
 
@@ -71,7 +67,7 @@ def load_test_server_config(
     return _load_from_conf_private()
 
 
-def _load_from_conf_private() -> Dict[str, Dict[str, Any]]:
+def _load_from_conf_private() -> dict[str, dict[str, Any]]:
     """
     Load configuration from legacy conf_private.py.
 
@@ -106,7 +102,7 @@ def _load_from_conf_private() -> Dict[str, Dict[str, Any]]:
         sys.path = original_path
 
 
-def _convert_conf_private_to_config(conf_private: Any) -> Dict[str, Dict[str, Any]]:
+def _convert_conf_private_to_config(conf_private: Any) -> dict[str, dict[str, Any]]:
     """
     Convert conf_private.py format to new config format.
 
@@ -116,13 +112,13 @@ def _convert_conf_private_to_config(conf_private: Any) -> Dict[str, Dict[str, An
     Returns:
         Dict mapping server names to their configuration dicts
     """
-    result: Dict[str, Dict[str, Any]] = {}
+    result: dict[str, dict[str, Any]] = {}
 
     # Convert caldav_servers list
     if hasattr(conf_private, "caldav_servers"):
         for i, server in enumerate(conf_private.caldav_servers):
             name = server.get("name", f"server_{i}")
-            config: Dict[str, Any] = {
+            config: dict[str, Any] = {
                 "type": "external",
                 "enabled": server.get("enable", True),
             }

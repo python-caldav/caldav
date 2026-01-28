@@ -4,8 +4,8 @@ Tests for the Calendar operations module.
 These tests verify the Sans-I/O business logic for Calendar operations
 like component detection, sync tokens, and result processing.
 """
-import pytest
 
+from caldav.operations.calendar_ops import CalendarObjectInfo
 from caldav.operations.calendar_ops import (
     _build_calendar_object_url as build_calendar_object_url,
 )
@@ -29,7 +29,6 @@ from caldav.operations.calendar_ops import (
 from caldav.operations.calendar_ops import (
     _should_skip_calendar_self_reference as should_skip_calendar_self_reference,
 )
-from caldav.operations.calendar_ops import CalendarObjectInfo
 
 
 class TestDetectComponentTypeFromString:
@@ -47,9 +46,7 @@ class TestDetectComponentTypeFromString:
 
     def test_detects_vjournal(self):
         """Detects VJOURNAL component."""
-        data = (
-            "BEGIN:VCALENDAR\nBEGIN:VJOURNAL\nSUMMARY:Note\nEND:VJOURNAL\nEND:VCALENDAR"
-        )
+        data = "BEGIN:VCALENDAR\nBEGIN:VJOURNAL\nSUMMARY:Note\nEND:VJOURNAL\nEND:VCALENDAR"
         assert detect_component_type_from_string(data) == "Journal"
 
     def test_detects_vfreebusy(self):
@@ -64,9 +61,7 @@ class TestDetectComponentTypeFromString:
 
     def test_handles_whitespace(self):
         """Handles lines with extra whitespace."""
-        data = (
-            "BEGIN:VCALENDAR\n  BEGIN:VEVENT  \nSUMMARY:Test\nEND:VEVENT\nEND:VCALENDAR"
-        )
+        data = "BEGIN:VCALENDAR\n  BEGIN:VEVENT  \nSUMMARY:Test\nEND:VEVENT\nEND:VCALENDAR"
         assert detect_component_type_from_string(data) == "Event"
 
 
@@ -212,28 +207,17 @@ class TestShouldSkipCalendarSelfReference:
 
     def test_skips_exact_match(self):
         """Skips when URLs match exactly."""
-        assert (
-            should_skip_calendar_self_reference("/calendars/work/", "/calendars/work/")
-            is True
-        )
+        assert should_skip_calendar_self_reference("/calendars/work/", "/calendars/work/") is True
 
     def test_skips_trailing_slash_difference(self):
         """Skips when URLs differ only by trailing slash."""
-        assert (
-            should_skip_calendar_self_reference("/calendars/work", "/calendars/work/")
-            is True
-        )
-        assert (
-            should_skip_calendar_self_reference("/calendars/work/", "/calendars/work")
-            is True
-        )
+        assert should_skip_calendar_self_reference("/calendars/work", "/calendars/work/") is True
+        assert should_skip_calendar_self_reference("/calendars/work/", "/calendars/work") is True
 
     def test_does_not_skip_different_urls(self):
         """Does not skip different URLs."""
         assert (
-            should_skip_calendar_self_reference(
-                "/calendars/work/event.ics", "/calendars/work/"
-            )
+            should_skip_calendar_self_reference("/calendars/work/event.ics", "/calendars/work/")
             is False
         )
 
@@ -291,31 +275,23 @@ class TestBuildCalendarObjectUrl:
 
     def test_builds_url(self):
         """Builds calendar object URL from calendar URL and ID."""
-        result = build_calendar_object_url(
-            "https://example.com/calendars/work/", "event123"
-        )
+        result = build_calendar_object_url("https://example.com/calendars/work/", "event123")
         assert result == "https://example.com/calendars/work/event123.ics"
 
     def test_handles_trailing_slash(self):
         """Handles calendar URL with or without trailing slash."""
-        result = build_calendar_object_url(
-            "https://example.com/calendars/work", "event123"
-        )
+        result = build_calendar_object_url("https://example.com/calendars/work", "event123")
         assert result == "https://example.com/calendars/work/event123.ics"
 
     def test_doesnt_double_ics(self):
         """Doesn't add .ics if already present."""
-        result = build_calendar_object_url(
-            "https://example.com/calendars/work/", "event123.ics"
-        )
+        result = build_calendar_object_url("https://example.com/calendars/work/", "event123.ics")
         assert result == "https://example.com/calendars/work/event123.ics"
         assert ".ics.ics" not in result
 
     def test_quotes_special_chars(self):
         """Quotes special characters in object ID."""
-        result = build_calendar_object_url(
-            "https://example.com/calendars/", "event with spaces"
-        )
+        result = build_calendar_object_url("https://example.com/calendars/", "event with spaces")
         assert "%20" in result
 
 

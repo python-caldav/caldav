@@ -5,12 +5,11 @@ This module contains pure functions for Principal operations like
 URL sanitization and vCalAddress creation. Both sync and async clients
 use these same functions.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any
-from typing import List
-from typing import Optional
 from urllib.parse import quote
 
 
@@ -18,13 +17,13 @@ from urllib.parse import quote
 class PrincipalData:
     """Data extracted from a principal."""
 
-    url: Optional[str]
-    display_name: Optional[str]
-    calendar_home_set_url: Optional[str]
-    calendar_user_addresses: List[str]
+    url: str | None
+    display_name: str | None
+    calendar_home_set_url: str | None
+    calendar_user_addresses: list[str]
 
 
-def _sanitize_calendar_home_set_url(url: Optional[str]) -> Optional[str]:
+def _sanitize_calendar_home_set_url(url: str | None) -> str | None:
     """
     Sanitize calendar home set URL, handling server quirks.
 
@@ -48,7 +47,7 @@ def _sanitize_calendar_home_set_url(url: Optional[str]) -> Optional[str]:
     return url
 
 
-def _sort_calendar_user_addresses(addresses: List[Any]) -> List[Any]:
+def _sort_calendar_user_addresses(addresses: list[Any]) -> list[Any]:
     """
     Sort calendar user addresses by preference.
 
@@ -64,7 +63,7 @@ def _sort_calendar_user_addresses(addresses: List[Any]) -> List[Any]:
     return sorted(addresses, key=lambda x: -int(x.get("preferred", 0)))
 
 
-def _extract_calendar_user_addresses(addresses: List[Any]) -> List[Optional[str]]:
+def _extract_calendar_user_addresses(addresses: list[Any]) -> list[str | None]:
     """
     Extract calendar user address strings from XML elements.
 
@@ -79,9 +78,9 @@ def _extract_calendar_user_addresses(addresses: List[Any]) -> List[Optional[str]
 
 
 def _create_vcal_address(
-    display_name: Optional[str],
+    display_name: str | None,
     address: str,
-    calendar_user_type: Optional[str] = None,
+    calendar_user_type: str | None = None,
 ) -> Any:
     """
     Create an icalendar vCalAddress object from principal properties.
@@ -106,8 +105,8 @@ def _create_vcal_address(
 
 
 def _extract_calendar_home_set_from_results(
-    results: Optional[List[Any]],
-) -> Optional[str]:
+    results: list[Any] | None,
+) -> str | None:
     """
     Extract calendar-home-set URL from PROPFIND results.
 
@@ -124,9 +123,7 @@ def _extract_calendar_home_set_from_results(
         return None
 
     for result in results:
-        home_set = result.properties.get(
-            "{urn:ietf:params:xml:ns:caldav}calendar-home-set"
-        )
+        home_set = result.properties.get("{urn:ietf:params:xml:ns:caldav}calendar-home-set")
         if home_set:
             return _sanitize_calendar_home_set_url(home_set)
 
@@ -134,8 +131,8 @@ def _extract_calendar_home_set_from_results(
 
 
 def _should_update_client_base_url(
-    calendar_home_set_url: Optional[str],
-    client_hostname: Optional[str],
+    calendar_home_set_url: str | None,
+    client_hostname: str | None,
 ) -> bool:
     """
     Check if client base URL should be updated for load-balanced systems.

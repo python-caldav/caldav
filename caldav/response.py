@@ -4,17 +4,11 @@ Base class for DAV response parsing.
 This module contains the shared logic between DAVResponse (sync) and
 AsyncDAVResponse (async) to eliminate code duplication.
 """
+
 import logging
 import warnings
 from collections.abc import Iterable
-from typing import Any
-from typing import cast
-from typing import Dict
-from typing import List
-from typing import Optional
-from typing import Tuple
-from typing import TYPE_CHECKING
-from typing import Union
+from typing import TYPE_CHECKING, Any, cast
 from urllib.parse import unquote
 
 from lxml import etree
@@ -43,7 +37,7 @@ class BaseDAVResponse:
     """
 
     # These attributes should be set by subclass __init__
-    tree: Optional[_Element] = None
+    tree: _Element | None = None
     headers: Any = None
     status: int = 0
     _raw: Any = ""
@@ -102,9 +96,7 @@ class BaseDAVResponse:
                 # We'll try to parse the content as XML no matter the content type.
                 self.tree = etree.XML(
                     self._raw,
-                    parser=etree.XMLParser(
-                        remove_blank_text=True, huge_tree=self.huge_tree
-                    ),
+                    parser=etree.XMLParser(remove_blank_text=True, huge_tree=self.huge_tree),
                 )
             except Exception:
                 # Content wasn't XML.  What does the content-type say?
@@ -151,7 +143,7 @@ class BaseDAVResponse:
             self._raw = etree.tostring(cast(_Element, self.tree), pretty_print=True)
         return to_normal_str(self._raw)
 
-    def _strip_to_multistatus(self) -> Union[_Element, List[_Element]]:
+    def _strip_to_multistatus(self) -> _Element | list[_Element]:
         """
         The general format of inbound data is something like this:
 
@@ -197,17 +189,15 @@ class BaseDAVResponse:
         ):
             raise error.ResponseError(status)
 
-    def _parse_response(
-        self, response: _Element
-    ) -> Tuple[str, List[_Element], Optional[Any]]:
+    def _parse_response(self, response: _Element) -> tuple[str, list[_Element], Any | None]:
         """
         One response should contain one or zero status children, one
         href tag and zero or more propstats.  Find them, assert there
         isn't more in the response and return those three fields
         """
         status = None
-        href: Optional[str] = None
-        propstats: List[_Element] = []
+        href: str | None = None
+        propstats: list[_Element] = []
         check_404 = False  ## special for purelymail
         error.assert_(response.tag == dav.Response.tag)
         for elem in response:
@@ -231,9 +221,7 @@ class BaseDAVResponse:
                 ## mode I want to be sure we do not toss away any data
                 children = elem.getchildren()
                 error.assert_(len(children) == 1)
-                error.assert_(
-                    children[0].tag == "{https://purelymail.com}does-not-exist"
-                )
+                error.assert_(children[0].tag == "{https://purelymail.com}does-not-exist")
                 check_404 = True
             else:
                 ## i.e. purelymail may contain one more tag, <error>...</error>
@@ -252,10 +240,10 @@ class BaseDAVResponse:
             href = unquote(URL(href).path)
         return (cast(str, href), propstats, status)
 
-    def _find_objects_and_props(self) -> Dict[str, Dict[str, _Element]]:
+    def _find_objects_and_props(self) -> dict[str, dict[str, _Element]]:
         """Internal implementation of find_objects_and_props without deprecation warning."""
-        self.objects: Dict[str, Dict[str, _Element]] = {}
-        self.statuses: Dict[str, str] = {}
+        self.objects: dict[str, dict[str, _Element]] = {}
+        self.statuses: dict[str, str] = {}
 
         if "Schedule-Tag" in self.headers:
             self.schedule_tag = self.headers["Schedule-Tag"]
@@ -299,7 +287,7 @@ class BaseDAVResponse:
 
         return self.objects
 
-    def find_objects_and_props(self) -> Dict[str, Dict[str, _Element]]:
+    def find_objects_and_props(self) -> dict[str, dict[str, _Element]]:
         """Check the response from the server, check that it is on an expected format,
         find hrefs and props from it and check statuses delivered.
 
@@ -324,11 +312,11 @@ class BaseDAVResponse:
     def _expand_simple_prop(
         self,
         proptag: str,
-        props_found: Dict[str, _Element],
+        props_found: dict[str, _Element],
         multi_value_allowed: bool = False,
-        xpath: Optional[str] = None,
-    ) -> Union[str, List[str], None]:
-        values: List[str] = []
+        xpath: str | None = None,
+    ) -> str | list[str] | None:
+        values: list[str] = []
         if proptag in props_found:
             prop_xml = props_found[proptag]
             for item in prop_xml.items():
@@ -367,10 +355,10 @@ class BaseDAVResponse:
     ## TODO: word "expand" does not feel quite right.
     def expand_simple_props(
         self,
-        props: Optional[Iterable[BaseElement]] = None,
-        multi_value_props: Optional[Iterable[Any]] = None,
-        xpath: Optional[str] = None,
-    ) -> Dict[str, Dict[str, str]]:
+        props: Iterable[BaseElement] | None = None,
+        multi_value_props: Iterable[Any] | None = None,
+        xpath: str | None = None,
+    ) -> dict[str, dict[str, str]]:
         """
         The find_objects_and_props() will stop at the xml element
         below the prop tag.  This method will expand those props into
@@ -390,9 +378,7 @@ class BaseDAVResponse:
                 if prop.tag is None:
                     continue
 
-                props_found[prop.tag] = self._expand_simple_prop(
-                    prop.tag, props_found, xpath=xpath
-                )
+                props_found[prop.tag] = self._expand_simple_prop(prop.tag, props_found, xpath=xpath)
             for prop in multi_value_props:
                 if prop.tag is None:
                     continue
@@ -401,4 +387,4 @@ class BaseDAVResponse:
                     prop.tag, props_found, xpath=xpath, multi_value_allowed=True
                 )
         # _Element objects in self.objects are parsed to str, thus the need to cast the return
-        return cast(Dict[str, Dict[str, str]], self.objects)
+        return cast(dict[str, dict[str, str]], self.objects)

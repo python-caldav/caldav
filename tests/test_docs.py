@@ -5,8 +5,7 @@ import manuel.doctest
 import manuel.testing
 import pytest
 
-from .test_servers import client_context
-from .test_servers import has_test_servers
+from .test_servers import client_context, has_test_servers
 
 m = manuel.codeblock.Manuel()
 m += manuel.doctest.Manuel()

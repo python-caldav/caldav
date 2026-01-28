@@ -10,11 +10,11 @@ except ModuleNotFoundError:
     warnings.warn(
         "You need to install the `build` package and do a `python -m build` to get caldav.__version__ set correctly"
     )
-from .davclient import DAVClient, get_davclient, get_calendars, get_calendar
-from .search import CalDAVSearcher
+from .davclient import DAVClient, get_calendar, get_calendars, get_davclient
 
 ## TODO: this should go away in some future version of the library.
 from .objects import *
+from .search import CalDAVSearcher
 
 ## We should consider if the NullHandler-logic below is needed or not, and
 ## if there are better alternatives?

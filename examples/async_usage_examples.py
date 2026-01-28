@@ -22,11 +22,10 @@ To run this example:
         CALDAV_URL=https://caldav.example.com/ \
     python ./examples/async_usage_examples.py
 """
+
 import asyncio
 import sys
-from datetime import date
-from datetime import datetime
-from datetime import timedelta
+from datetime import date, datetime, timedelta
 
 # Use local caldav library, not system-installed
 sys.path.insert(0, "..")
@@ -54,14 +53,10 @@ async def run_examples():
         await print_calendars_demo(calendars)
 
         # Clean up from previous runs if needed
-        await find_delete_calendar_demo(
-            my_principal, "Test calendar from async examples"
-        )
+        await find_delete_calendar_demo(my_principal, "Test calendar from async examples")
 
         # Create a new calendar to play with
-        my_new_calendar = await my_principal.make_calendar(
-            name="Test calendar from async examples"
-        )
+        my_new_calendar = await my_principal.make_calendar(name="Test calendar from async examples")
 
         # Add some events to our newly created calendar
         await add_stuff_to_calendar_demo(my_new_calendar)
@@ -219,9 +214,7 @@ async def read_modify_event_demo(event):
     uid = event.component["uid"]
 
     # Fix the typo using icalendar
-    event.component["summary"] = event.component["summary"].replace(
-        "celebratiuns", "celebrations"
-    )
+    event.component["summary"] = event.component["summary"].replace("celebratiuns", "celebrations")
 
     # Modify timestamps
     dtstart = event.component.get("dtstart")

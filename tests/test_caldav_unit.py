@@ -1,42 +1,33 @@
 #!/usr/bin/env python
-# -*- encoding: utf-8 -*-
 """
 Rule: None of the tests in this file should initiate any internet
 communication, and there should be no dependencies on a working caldav
 server for the tests in this file.  We use the Mock class when needed
 to emulate server communication.
 """
+
 import pickle
-from datetime import date
-from datetime import datetime
-from datetime import timedelta
+from datetime import date, datetime, timedelta
 from unittest import mock
 from urllib.parse import urlparse
 
 import icalendar
 import lxml.etree
 import pytest
-import vobject
 
-import caldav
-from caldav import Calendar
-from caldav import CalendarObjectResource
-from caldav import CalendarSet
-from caldav import DAVObject
-from caldav import Event
-from caldav import FreeBusy
-from caldav import Journal
-from caldav import Principal
-from caldav import Todo
-from caldav.davclient import DAVClient
-from caldav.davclient import DAVResponse
-from caldav.elements import cdav
-from caldav.elements import dav
-from caldav.elements import ical
+from caldav import (
+    Calendar,
+    CalendarObjectResource,
+    CalendarSet,
+    Event,
+    Journal,
+    Principal,
+    Todo,
+)
+from caldav.davclient import DAVClient, DAVResponse
+from caldav.elements import cdav, dav
 from caldav.lib import error
-from caldav.lib import url
-from caldav.lib.python_utilities import to_normal_str
-from caldav.lib.python_utilities import to_wire
+from caldav.lib.python_utilities import to_normal_str, to_wire
 from caldav.lib.url import URL
 
 ## Note on the imports - those two lines are equivalent:
@@ -298,9 +289,7 @@ class MockedDAVClient(DAVClient):
 
     def __init__(self, xml_returned):
         self.xml_returned = xml_returned
-        DAVClient.__init__(
-            self, url="https://somwhere.in.the.universe.example/some/caldav/root"
-        )
+        DAVClient.__init__(self, url="https://somwhere.in.the.universe.example/some/caldav/root")
 
     def request(self, *largs, **kwargs):
         return MockedDAVResponse(self.xml_returned)
@@ -327,8 +316,8 @@ class TestCalDAV:
         assert response.tree is None
 
         response = client.put(
-            "/foo/møøh/bar".encode("utf-8"),
-            "bringebærsyltetøy 北京 пиво".encode("utf-8"),
+            "/foo/møøh/bar".encode(),
+            "bringebærsyltetøy 北京 пиво".encode(),
             {},
         )
         assert response.status == 200
@@ -474,9 +463,7 @@ class TestCalDAV:
         mocked_davresponse = DAVResponse(mocked_response)
         client.propfind = mock.MagicMock(return_value=mocked_davresponse)
         bernards_calendars = principal.calendar_home_set
-        assert bernards_calendars.url == URL(
-            "http://cal.example.com/home/bernard/calendars/"
-        )
+        assert bernards_calendars.url == URL("http://cal.example.com/home/bernard/calendars/")
 
     def _load(self, only_if_unloaded=True):
         self.data = todo6
@@ -532,13 +519,9 @@ class TestCalDAV:
 </multistatus></xml>
 """
         client = MockedDAVClient(xml)
-        calendar = Calendar(
-            client, url="/principals/calendar/home@petroski.example.com/963/"
-        )
+        calendar = Calendar(client, url="/principals/calendar/home@petroski.example.com/963/")
         with pytest.deprecated_call():
-            results = calendar.date_search(
-                datetime(2021, 2, 1), datetime(2021, 2, 7), expand=False
-            )
+            results = calendar.date_search(datetime(2021, 2, 1), datetime(2021, 2, 7), expand=False)
             assert len(results) == 3
 
     def testCalendar(self):
@@ -721,14 +704,10 @@ class TestCalDAV:
   </response>
 </multistatus>
 """
-        expected_result = {
-            "/": {"{DAV:}current-user-principal": "/17149682/principal/"}
-        }
+        expected_result = {"/": {"{DAV:}current-user-principal": "/17149682/principal/"}}
 
         assert (
-            MockedDAVResponse(xml).expand_simple_props(
-                props=[dav.CurrentUserPrincipal()]
-            )
+            MockedDAVResponse(xml).expand_simple_props(props=[dav.CurrentUserPrincipal()])
             == expected_result
         )
 
@@ -762,14 +741,10 @@ class TestCalDAV:
 </multistatus>
 """
         expected_result = {
-            "/principals/users/frank/": {
-                "{DAV:}current-user-principal": "/principals/users/frank/"
-            }
+            "/principals/users/frank/": {"{DAV:}current-user-principal": "/principals/users/frank/"}
         }
         assert (
-            MockedDAVResponse(xml).expand_simple_props(
-                props=[dav.CurrentUserPrincipal()]
-            )
+            MockedDAVResponse(xml).expand_simple_props(props=[dav.CurrentUserPrincipal()])
             == expected_result
         )
 
@@ -811,13 +786,9 @@ class TestCalDAV:
     </propstat>
   </response>
 </multistatus>"""
-        expected_result = {
-            "/": {"{DAV:}current-user-principal": "/17149682/principal/"}
-        }
+        expected_result = {"/": {"{DAV:}current-user-principal": "/17149682/principal/"}}
         assert (
-            MockedDAVResponse(xml).expand_simple_props(
-                props=[dav.CurrentUserPrincipal()]
-            )
+            MockedDAVResponse(xml).expand_simple_props(props=[dav.CurrentUserPrincipal()])
             == expected_result
         )
 
@@ -1059,8 +1030,7 @@ ATTACH;VALUE=BINARY;ENCODING=BASE64;FMTTYPE=image/jpeg;
  X-FILENAME=image001.jpg;X-ORACLE-FILENAME=image001.jpg:
 """
         xml += (
-            "gIyIoLTkwKCo2KyIjM4444449QEBAJjBGS0U+Sjk/QD3/2wBDAQsLCw8NDx0QEB09KSMpPT09\n"
-            * 153490
+            "gIyIoLTkwKCo2KyIjM4444449QEBAJjBGS0U+Sjk/QD3/2wBDAQsLCw8NDx0QEB09KSMpPT09\n" * 153490
         )
         xml += """
  /Z
@@ -1169,9 +1139,7 @@ END:VCALENDAR
         assert my_event.vobject_instance.vevent.summary.value == "yet another summary"
         ## Now the data has been converted from string to vobject to string to icalendar to string to vobject and ... will the string still match the original?
         lines_now = my_event.data.strip().split("\n")
-        lines_orig = (
-            ev1.replace("Bastille Day Party", "yet another summary").strip().split("\n")
-        )
+        lines_orig = ev1.replace("Bastille Day Party", "yet another summary").strip().split("\n")
         lines_now.sort()
         lines_orig.sort()
         assert lines_now == lines_orig
@@ -1185,9 +1153,7 @@ END:VCALENDAR
         assert my_event.vobject_instance.vevent.summary.value == "yet another summary"
         ## will the string still match the original?
         lines_now = my_event.data.strip().split("\n")
-        lines_orig = (
-            ev1.replace("Bastille Day Party", "yet another summary").strip().split("\n")
-        )
+        lines_orig = ev1.replace("Bastille Day Party", "yet another summary").strip().split("\n")
         lines_now.sort()
         lines_orig.sort()
         assert lines_now == lines_orig
@@ -1206,9 +1172,7 @@ END:VCALENDAR
 
         ## Creating some dummy data such that the target has more than one subcomponent
         with pytest.deprecated_call():
-            target.expand_rrule(
-                start=datetime(1996, 10, 10), end=datetime(1999, 12, 12)
-            )
+            target.expand_rrule(start=datetime(1996, 10, 10), end=datetime(1999, 12, 12))
             assert len(target.icalendar_instance.subcomponents) == 3
 
         ## The following should not fail within _set_icalendar_component
@@ -1443,24 +1407,24 @@ END:VCALENDAR
 
         ## set_due has "only" one if, so two code paths, one where dtstart is actually moved and one where it isn't
         my_todo2.set_due(some_date, move_dtstart=True)
-        assert my_todo2.icalendar_instance.subcomponents[0][
-            "DTSTART"
-        ].dt == some_date - timedelta(days=6)
+        assert my_todo2.icalendar_instance.subcomponents[0]["DTSTART"].dt == some_date - timedelta(
+            days=6
+        )
 
         ## set_duration at the other hand has 5 code paths ...
         ## 1) DTSTART set, DTSTART as the movable component
         my_todo1.set_duration(timedelta(1))
         assert my_todo1.get_due() == some_date
-        assert my_todo1.icalendar_instance.subcomponents[0][
-            "DTSTART"
-        ].dt == some_date - timedelta(1)
+        assert my_todo1.icalendar_instance.subcomponents[0]["DTSTART"].dt == some_date - timedelta(
+            1
+        )
 
         ## 2) DUE and DTSTART set, DUE as the movable component
         my_todo1.set_duration(timedelta(2), movable_attr="DUE")
         assert my_todo1.get_due() == some_date + timedelta(days=1)
-        assert my_todo1.icalendar_instance.subcomponents[0][
-            "DTSTART"
-        ].dt == some_date - timedelta(1)
+        assert my_todo1.icalendar_instance.subcomponents[0]["DTSTART"].dt == some_date - timedelta(
+            1
+        )
 
         ## 3) DUE set, DTSTART not set
         dtstart = my_todo1.icalendar_instance.subcomponents[0].pop("DTSTART").dt
@@ -1486,12 +1450,12 @@ END:VCALENDAR
         assert my_todo2.component.end == orig_end
 
         ## 7) DURATION set, but neither DTSTART nor DTEND
-        assert not "DTSTART" in my_todo4.component
-        assert not "DUE" in my_todo4.component
+        assert "DTSTART" not in my_todo4.component
+        assert "DUE" not in my_todo4.component
         assert my_todo4.component["duration"].dt == timedelta(5)
         my_todo4.set_duration(timedelta(2))
-        assert not "DTSTART" in my_todo4.component
-        assert not "DUE" in my_todo4.component
+        assert "DTSTART" not in my_todo4.component
+        assert "DUE" not in my_todo4.component
         assert my_todo4.component["duration"].dt == timedelta(2)
 
     def testURL(self):
@@ -1535,9 +1499,7 @@ END:VCALENDAR
         assert url7 == "http://foo:bar@www.example.com:8080/bar"
         assert url8 == url1
         assert url9 == url7
-        assert (
-            urlA == "http://foo:bar@www.example.com:8080/caldav.php/someuser/calendar"
-        )
+        assert urlA == "http://foo:bar@www.example.com:8080/caldav.php/someuser/calendar"
         assert urlB == url1
         with pytest.raises(ValueError):
             url1.join("http://www.google.com")
@@ -1558,9 +1520,7 @@ END:VCALENDAR
         assert url7 == "http://foo:bar@www.example.com:8080/bar"
         assert url8 == url1
         assert url9 == url7
-        assert (
-            urlA == "http://foo:bar@www.example.com:8080/caldav.php/someuser/calendar"
-        )
+        assert urlA == "http://foo:bar@www.example.com:8080/caldav.php/someuser/calendar"
         assert urlB == url1
         with pytest.raises(ValueError):
             url1.join("http://www.google.com")
@@ -1602,9 +1562,7 @@ END:VCALENDAR
         filter = cdav.Filter().append(
             cdav.CompFilter("VCALENDAR").append(
                 cdav.CompFilter("VEVENT").append(
-                    cdav.PropFilter("UID").append(
-                        [cdav.TextMatch("pouet", negate=True)]
-                    )
+                    cdav.PropFilter("UID").append([cdav.TextMatch("pouet", negate=True)])
                 )
             )
         )
@@ -1631,9 +1589,7 @@ END:VCALENDAR
             assert calendar._calendar_comp_class_by_data(ical) == class_
             if ical != "random rantings" and ical:
                 assert (
-                    calendar._calendar_comp_class_by_data(
-                        icalendar.Calendar.from_ical(ical)
-                    )
+                    calendar._calendar_comp_class_by_data(icalendar.Calendar.from_ical(ical))
                     == class_
                 )
 
@@ -1653,9 +1609,7 @@ END:VCALENDAR
         with DAVClient(url=cal_url) as client:
             assert client.extract_auth_types("Basic\n") == {"basic"}
             assert client.extract_auth_types("Basic") == {"basic"}
-            assert client.extract_auth_types('Basic Realm=foo;charset="UTF-8"') == {
-                "basic"
-            }
+            assert client.extract_auth_types('Basic Realm=foo;charset="UTF-8"') == {"basic"}
             assert client.extract_auth_types("Basic,dIGEST Realm=foo") == {
                 "basic",
                 "digest",
@@ -1680,8 +1634,8 @@ END:VCALENDAR
         4. Result: https://tobixen@e.email/remote.php/dav (wrong!)
            Should be: https://ecloud.global/remote.php/dav
         """
-        from caldav.davclient import _auto_url
         from caldav.compatibility_hints import ecloud
+        from caldav.davclient import _auto_url
 
         # Test with email username and no URL - should use ecloud domain from hints
         # RFC6764 is enabled by default, which triggers the bug
@@ -1692,9 +1646,9 @@ END:VCALENDAR
             enable_rfc6764=True,  # Default behavior - this triggers the bug
         )
 
-        assert (
-            url == "https://ecloud.global/remote.php/dav"
-        ), f"Expected 'https://ecloud.global/remote.php/dav', got '{url}'"
+        assert url == "https://ecloud.global/remote.php/dav", (
+            f"Expected 'https://ecloud.global/remote.php/dav', got '{url}'"
+        )
         assert discovered_username is None
 
     def testSearcherMethod(self):

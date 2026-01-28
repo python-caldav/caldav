@@ -6,12 +6,9 @@ This module provides abstract base classes for different types of test servers:
 - EmbeddedTestServer: For servers that run in-process (Radicale, Xandikos)
 - DockerTestServer: For servers that run in Docker containers
 """
-from abc import ABC
-from abc import abstractmethod
+
+from abc import ABC, abstractmethod
 from typing import Any
-from typing import Dict
-from typing import List
-from typing import Optional
 
 try:
     import niquests as requests
@@ -42,7 +39,7 @@ class TestServer(ABC):
     name: str = "TestServer"
     server_type: str = "abstract"
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
         """
         Initialize a test server.
 
@@ -51,13 +48,9 @@ class TestServer(ABC):
                     Common keys: host, port, username, password, features
         """
         self.config = config or {}
-        self.name = self.config.get(
-            "name", self.__class__.__name__.replace("TestServer", "")
-        )
+        self.name = self.config.get("name", self.__class__.__name__.replace("TestServer", ""))
         self._started = False
-        self._started_by_us = (
-            False  # Track if we started the server or it was already running
-        )
+        self._started_by_us = False  # Track if we started the server or it was already running
 
     @property
     @abstractmethod
@@ -66,12 +59,12 @@ class TestServer(ABC):
         pass
 
     @property
-    def username(self) -> Optional[str]:
+    def username(self) -> str | None:
         """Return the username for authentication."""
         return self.config.get("username")
 
     @property
-    def password(self) -> Optional[str]:
+    def password(self) -> str | None:
         """Return the password for authentication."""
         return self.config.get("password")
 
@@ -155,7 +148,7 @@ class TestServer(ABC):
             probe=False,  # We already checked accessibility
         )
 
-    def get_server_params(self) -> Dict[str, Any]:
+    def get_server_params(self) -> dict[str, Any]:
         """
         Get parameters dict compatible with current caldav_servers format.
 
@@ -165,7 +158,7 @@ class TestServer(ABC):
         Returns:
             Dict with keys: name, url, username, password, features, setup, teardown
         """
-        params: Dict[str, Any] = {
+        params: dict[str, Any] = {
             "name": self.name,
             "url": self.url,
             "username": self.username,
@@ -203,7 +196,7 @@ class EmbeddedTestServer(TestServer):
 
     server_type = "embedded"
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
         super().__init__(config)
         self.host = self.config.get("host", "localhost")
         self.port = self.config.get("port", self._default_port())
@@ -233,9 +226,7 @@ class EmbeddedTestServer(TestServer):
                 return
             time.sleep(STARTUP_POLL_INTERVAL)
 
-        raise RuntimeError(
-            f"{self.name} failed to start after {MAX_STARTUP_WAIT_SECONDS} seconds"
-        )
+        raise RuntimeError(f"{self.name} failed to start after {MAX_STARTUP_WAIT_SECONDS} seconds")
 
 
 class DockerTestServer(TestServer):
@@ -253,7 +244,7 @@ class DockerTestServer(TestServer):
 
     server_type = "docker"
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
         super().__init__(config)
         self.host = self.config.get("host", "localhost")
         self.port = self.config.get("port", self._default_port())
@@ -344,9 +335,7 @@ class DockerTestServer(TestServer):
                 return
             time.sleep(1)
 
-        raise RuntimeError(
-            f"{self.name} failed to start after {MAX_STARTUP_WAIT_SECONDS}s"
-        )
+        raise RuntimeError(f"{self.name} failed to start after {MAX_STARTUP_WAIT_SECONDS}s")
 
     def stop(self) -> None:
         """Stop the Docker container and cleanup.
@@ -392,7 +381,7 @@ class ExternalTestServer(TestServer):
 
     server_type = "external"
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
         super().__init__(config)
         self._url = self.config.get("url", "")
 
@@ -403,9 +392,7 @@ class ExternalTestServer(TestServer):
     def start(self) -> None:
         """External servers are already running - nothing to do."""
         if not self.is_accessible():
-            raise RuntimeError(
-                f"External server {self.name} at {self.url} is not accessible"
-            )
+            raise RuntimeError(f"External server {self.name} at {self.url} is not accessible")
         self._started = True
 
     def stop(self) -> None:

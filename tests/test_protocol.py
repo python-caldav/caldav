@@ -4,17 +4,18 @@ Unit tests for Sans-I/O protocol layer.
 These tests verify protocol logic without any HTTP mocking required.
 All tests are pure - they test data transformations only.
 """
+
 from datetime import datetime
 
 import pytest
 
-from caldav.protocol import CalendarQueryResult
-from caldav.protocol import DAVMethod
-from caldav.protocol import DAVRequest
-from caldav.protocol import DAVResponse
-from caldav.protocol import MultistatusResponse
-from caldav.protocol import PropfindResult
-from caldav.protocol import SyncCollectionResult
+from caldav.protocol import (
+    DAVMethod,
+    DAVRequest,
+    DAVResponse,
+    MultistatusResponse,
+    SyncCollectionResult,
+)
 from caldav.protocol.xml_builders import (
     _build_calendar_multiget_body as build_calendar_multiget_body,
 )
@@ -310,9 +311,7 @@ END:VCALENDAR</C:calendar-data>
         assert "{urn:ietf:params:xml:ns:caldav}calendar" in resourcetype
 
         # supported-calendar-component-set - list of component names
-        components = props[
-            "{urn:ietf:params:xml:ns:caldav}supported-calendar-component-set"
-        ]
+        components = props["{urn:ietf:params:xml:ns:caldav}supported-calendar-component-set"]
         assert components == ["VEVENT", "VTODO", "VJOURNAL"]
 
         # calendar-home-set - extracted href

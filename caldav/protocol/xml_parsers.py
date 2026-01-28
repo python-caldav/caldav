@@ -4,26 +4,19 @@ Pure functions for parsing CalDAV XML responses.
 All functions in this module are pure - they take XML bytes in and return
 structured data out, with no side effects or I/O.
 """
+
 import logging
 from typing import Any
-from typing import Dict
-from typing import List
-from typing import Optional
-from typing import Tuple
-from typing import Union
 from urllib.parse import unquote
 
 from lxml import etree
 from lxml.etree import _Element
 
-from .types import CalendarQueryResult
-from .types import MultistatusResponse
-from .types import PropfindResult
-from .types import SyncCollectionResult
-from caldav.elements import cdav
-from caldav.elements import dav
+from caldav.elements import cdav, dav
 from caldav.lib import error
 from caldav.lib.url import URL
+
+from .types import CalendarQueryResult, MultistatusResponse, PropfindResult, SyncCollectionResult
 
 log = logging.getLogger(__name__)
 
@@ -49,8 +42,8 @@ def _parse_multistatus(
     parser = etree.XMLParser(huge_tree=huge_tree)
     tree = etree.fromstring(body, parser)
 
-    responses: List[PropfindResult] = []
-    sync_token: Optional[str] = None
+    responses: list[PropfindResult] = []
+    sync_token: str | None = None
 
     # Strip to multistatus content
     response_elements = _strip_to_multistatus(tree)
@@ -82,7 +75,7 @@ def _parse_propfind_response(
     body: bytes,
     status_code: int = 207,
     huge_tree: bool = False,
-) -> List[PropfindResult]:
+) -> list[PropfindResult]:
     """
     Parse a PROPFIND response.
 
@@ -111,7 +104,7 @@ def _parse_calendar_query_response(
     body: bytes,
     status_code: int = 207,
     huge_tree: bool = False,
-) -> List[CalendarQueryResult]:
+) -> list[CalendarQueryResult]:
     """
     Parse a calendar-query REPORT response.
 
@@ -132,7 +125,7 @@ def _parse_calendar_query_response(
     parser = etree.XMLParser(huge_tree=huge_tree)
     tree = etree.fromstring(body, parser)
 
-    results: List[CalendarQueryResult] = []
+    results: list[CalendarQueryResult] = []
     response_elements = _strip_to_multistatus(tree)
 
     for elem in response_elements:
@@ -142,8 +135,8 @@ def _parse_calendar_query_response(
         href, propstats, status = _parse_response_element(elem)
         status_code_elem = _status_to_code(status) if status else 200
 
-        calendar_data: Optional[str] = None
-        etag: Optional[str] = None
+        calendar_data: str | None = None
+        etag: str | None = None
 
         # Extract properties from propstats
         for propstat in propstats:
@@ -194,9 +187,9 @@ def _parse_sync_collection_response(
     parser = etree.XMLParser(huge_tree=huge_tree)
     tree = etree.fromstring(body, parser)
 
-    changed: List[CalendarQueryResult] = []
-    deleted: List[str] = []
-    sync_token: Optional[str] = None
+    changed: list[CalendarQueryResult] = []
+    deleted: list[str] = []
+    sync_token: str | None = None
 
     response_elements = _strip_to_multistatus(tree)
 
@@ -216,8 +209,8 @@ def _parse_sync_collection_response(
             deleted.append(href)
             continue
 
-        calendar_data: Optional[str] = None
-        etag: Optional[str] = None
+        calendar_data: str | None = None
+        etag: str | None = None
 
         for propstat in propstats:
             prop = propstat.find(dav.Prop.tag)
@@ -250,7 +243,7 @@ def _parse_calendar_multiget_response(
     body: bytes,
     status_code: int = 207,
     huge_tree: bool = False,
-) -> List[CalendarQueryResult]:
+) -> list[CalendarQueryResult]:
     """
     Parse a calendar-multiget REPORT response.
 
@@ -270,7 +263,7 @@ def _parse_calendar_multiget_response(
 # Helper functions
 
 
-def _strip_to_multistatus(tree: _Element) -> Union[_Element, List[_Element]]:
+def _strip_to_multistatus(tree: _Element) -> _Element | list[_Element]:
     """
     Strip outer elements to get to the multistatus content.
 
@@ -292,16 +285,16 @@ def _strip_to_multistatus(tree: _Element) -> Union[_Element, List[_Element]]:
 
 def _parse_response_element(
     response: _Element,
-) -> Tuple[str, List[_Element], Optional[str]]:
+) -> tuple[str, list[_Element], str | None]:
     """
     Parse a single DAV:response element.
 
     Returns:
         Tuple of (href, propstat elements list, status string)
     """
-    status: Optional[str] = None
-    href: Optional[str] = None
-    propstats: List[_Element] = []
+    status: str | None = None
+    href: str | None = None
+    propstats: list[_Element] = []
 
     for elem in response:
         if elem.tag == dav.Status.tag:
@@ -322,7 +315,7 @@ def _parse_response_element(
     return (href or "", propstats, status)
 
 
-def _extract_properties(propstats: List[_Element]) -> Dict[str, Any]:
+def _extract_properties(propstats: list[_Element]) -> dict[str, Any]:
     """
     Extract properties from propstat elements into a dict.
 
@@ -332,7 +325,7 @@ def _extract_properties(propstats: List[_Element]) -> Dict[str, Any]:
     Returns:
         Dict mapping property tag to value (text or element)
     """
-    properties: Dict[str, Any] = {}
+    properties: dict[str, Any] = {}
 
     for propstat in propstats:
         # Check status - skip 404 properties
@@ -380,15 +373,11 @@ def _element_to_value(elem: _Element) -> Any:
 
     # calendar-user-address-set: extract href texts
     if tag == cdav.CalendarUserAddressSet.tag:
-        return [
-            child.text for child in elem if child.tag == dav.Href.tag and child.text
-        ]
+        return [child.text for child in elem if child.tag == dav.Href.tag and child.text]
 
     # calendar-home-set: extract href text (usually single)
     if tag == cdav.CalendarHomeSet.tag:
-        hrefs = [
-            child.text for child in elem if child.tag == dav.Href.tag and child.text
-        ]
+        hrefs = [child.text for child in elem if child.tag == dav.Href.tag and child.text]
         return hrefs[0] if len(hrefs) == 1 else hrefs
 
     # resourcetype: extract child tag names (e.g., collection, calendar)
@@ -423,7 +412,7 @@ def _element_to_value(elem: _Element) -> Any:
     return elem
 
 
-def _validate_status(status: Optional[str]) -> None:
+def _validate_status(status: str | None) -> None:
     """
     Validate a status string like "HTTP/1.1 404 Not Found".
 
@@ -443,7 +432,7 @@ def _validate_status(status: Optional[str]) -> None:
         raise error.ResponseError(status)
 
 
-def _status_to_code(status: Optional[str]) -> int:
+def _status_to_code(status: str | None) -> int:
     """
     Extract status code from status string like "HTTP/1.1 200 OK".
 

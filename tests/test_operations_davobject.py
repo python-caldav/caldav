@@ -4,8 +4,14 @@ Tests for the DAVObject operations module.
 These tests verify the Sans-I/O business logic for DAVObject operations
 like getting properties, listing children, and delete validation.
 """
+
 import pytest
 
+from caldav.operations.davobject_ops import (
+    CALDAV_CALENDAR,
+    DAV_DISPLAYNAME,
+    DAV_RESOURCETYPE,
+)
 from caldav.operations.davobject_ops import (
     _build_children_query as build_children_query,
 )
@@ -24,12 +30,6 @@ from caldav.operations.davobject_ops import (
 from caldav.operations.davobject_ops import (
     _validate_proppatch_response as validate_proppatch_response,
 )
-from caldav.operations.davobject_ops import CALDAV_CALENDAR
-from caldav.operations.davobject_ops import ChildData
-from caldav.operations.davobject_ops import ChildrenQuery
-from caldav.operations.davobject_ops import DAV_DISPLAYNAME
-from caldav.operations.davobject_ops import DAV_RESOURCETYPE
-from caldav.operations.davobject_ops import PropertiesResult
 
 
 class TestBuildChildrenQuery:
@@ -79,9 +79,7 @@ class TestProcessChildrenResponse:
                 DAV_DISPLAYNAME: "Other Collection",
             },
         }
-        children = process_children_response(
-            props, "/calendars/", filter_type=CALDAV_CALENDAR
-        )
+        children = process_children_response(props, "/calendars/", filter_type=CALDAV_CALENDAR)
         assert len(children) == 1
         assert children[0].display_name == "Work Calendar"
 

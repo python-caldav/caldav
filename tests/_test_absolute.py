@@ -1,4 +1,3 @@
-# encoding: utf-8
 import datetime
 
 import caldav
@@ -7,13 +6,11 @@ import caldav
 class TestRadicale:
     SUMMARIES = set(
         (
-            "Godspeed You! Black Emperor at " "Cirque Royal / Koninklijk Circus",
+            "Godspeed You! Black Emperor at Cirque Royal / Koninklijk Circus",
             "Standard - GBA",
         )
     )
-    DTSTART = set(
-        (datetime.datetime(2011, 3, 4, 20, 0), datetime.datetime(2011, 1, 15, 20, 0))
-    )
+    DTSTART = set((datetime.datetime(2011, 3, 4, 20, 0), datetime.datetime(2011, 1, 15, 20, 0)))
 
     def setup(self):
         URL = "http://localhost:8080/nicoe/perso/"

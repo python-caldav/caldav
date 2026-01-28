@@ -4,18 +4,14 @@ Base class for DAV clients.
 This module contains the BaseDAVClient class which provides shared
 functionality for both sync (DAVClient) and async (AsyncDAVClient) clients.
 """
+
 from __future__ import annotations
 
-from abc import ABC
-from abc import abstractmethod
-from typing import Any
-from typing import Mapping
-from typing import Optional
-from typing import TYPE_CHECKING
+from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING, Any
 
 from caldav.lib import error
-from caldav.lib.auth import extract_auth_types
-from caldav.lib.auth import select_auth_type
+from caldav.lib.auth import extract_auth_types, select_auth_type
 
 if TYPE_CHECKING:
     from caldav.compatibility_hints import FeatureSet
@@ -46,11 +42,11 @@ class BaseDAVClient(ABC):
     ]
 
     # Common attributes that subclasses will set
-    username: Optional[str] = None
-    password: Optional[str] = None
-    auth: Optional[Any] = None
-    auth_type: Optional[str] = None
-    features: Optional["FeatureSet"] = None
+    username: str | None = None
+    password: str | None = None
+    auth: Any | None = None
+    auth_type: str | None = None
+    features: FeatureSet | None = None
     url: Any = None  # URL object, set by subclasses
 
     def _make_absolute_url(self, url: str) -> str:
@@ -84,9 +80,7 @@ class BaseDAVClient(ABC):
         """
         return extract_auth_types(header)
 
-    def _select_auth_type(
-        self, auth_types: Optional[list[str]] = None
-    ) -> Optional[str]:
+    def _select_auth_type(self, auth_types: list[str] | None = None) -> str | None:
         """
         Select the best authentication type from available options.
 
@@ -134,7 +128,7 @@ class BaseDAVClient(ABC):
         return auth_type
 
     @abstractmethod
-    def build_auth_object(self, auth_types: Optional[list[str]] = None) -> None:
+    def build_auth_object(self, auth_types: list[str] | None = None) -> None:
         """
         Build authentication object based on configured credentials.
 
@@ -158,17 +152,17 @@ def _normalize_to_list(obj: Any) -> list:
 
 def get_calendars(
     client_class: type,
-    calendar_url: Optional[Any] = None,
-    calendar_name: Optional[Any] = None,
+    calendar_url: Any | None = None,
+    calendar_name: Any | None = None,
     check_config_file: bool = True,
-    config_file: Optional[str] = None,
-    config_section: Optional[str] = None,
+    config_file: str | None = None,
+    config_section: str | None = None,
     testconfig: bool = False,
     environment: bool = True,
-    name: Optional[str] = None,
+    name: str | None = None,
     raise_errors: bool = False,
     **config_data,
-) -> list["Calendar"]:
+) -> list[Calendar]:
     """
     Get calendars from a CalDAV server with configuration from multiple sources.
 
@@ -286,13 +280,13 @@ def get_calendars(
 def get_davclient(
     client_class: type,
     check_config_file: bool = True,
-    config_file: Optional[str] = None,
-    config_section: Optional[str] = None,
+    config_file: str | None = None,
+    config_section: str | None = None,
     testconfig: bool = False,
     environment: bool = True,
-    name: Optional[str] = None,
+    name: str | None = None,
     **config_data,
-) -> Optional[Any]:
+) -> Any | None:
     """
     Get a DAV client instance with configuration from multiple sources.
 

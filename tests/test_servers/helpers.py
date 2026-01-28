@@ -4,18 +4,19 @@ Helper functions for test server management.
 Provides convenient context managers for tests that need a running server
 with get_davclient() support.
 """
+
 import json
 import os
 import tempfile
 from contextlib import contextmanager
-from typing import Optional
+
+from caldav import DAVClient
 
 from .registry import get_registry
-from caldav import DAVClient
 
 
 @contextmanager
-def client_context(server_index: int = 0, server_name: Optional[str] = None):
+def client_context(server_index: int = 0, server_name: str | None = None):
     """
     Context manager that provides a running test server and configured environment.
 

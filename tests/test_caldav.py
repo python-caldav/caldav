@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- encoding: utf-8 -*-
 """
 Tests here communicate with third party servers and/or
 internal ad-hoc instances of Xandikos and Radicale, dependent on the
@@ -7,22 +6,17 @@ configuration in conf_private.py.
 Tests that do not require communication with a working caldav server
 belong in test_caldav_unit.py
 """
+
 import codecs
-import copy
 import json
 import logging
 import os
 import random
 import sys
 import tempfile
-import threading
 import time
 import uuid
-from collections import namedtuple
-from datetime import date
-from datetime import datetime
-from datetime import timedelta
-from datetime import timezone
+from datetime import date, datetime, timedelta, timezone
 from unittest import mock
 from urllib.parse import urlparse
 
@@ -32,9 +26,10 @@ import pytest
 import vobject
 from proxy.http.proxy import HttpProxyBasePlugin
 
+from caldav import get_davclient
+
 from .test_servers import get_registry
 from .test_servers.config_loader import load_test_server_config
-from caldav import get_davclient
 
 # Get server configuration from the test_servers framework
 _registry = get_registry()
@@ -55,28 +50,14 @@ xandikos_port = _xandikos_server.port if _xandikos_server else 8993
 # RFC6638 users for scheduling tests - loaded from config file
 _config = load_test_server_config()
 rfc6638_users = _config.get("rfc6638_users", [])
-from caldav.davclient import CONNKEYS
-from caldav.compatibility_hints import FeatureSet
 from caldav.compatibility_hints import (
     incompatibility_description,
 )  ## TEMP - should be removed in the future
-from caldav.davclient import DAVClient
-from caldav.davclient import DAVResponse
-from caldav.elements import cdav
-from caldav.elements import dav
-from caldav.elements import ical
+from caldav.davclient import CONNKEYS, DAVClient, DAVResponse
+from caldav.elements import cdav, dav, ical
 from caldav.lib import error
-from caldav.lib import url
-from caldav.lib.python_utilities import to_local
-from caldav.lib.python_utilities import to_str
-from caldav.lib.url import URL
-from caldav.objects import Calendar
-from caldav.objects import CalendarSet
-from caldav.objects import DAVObject
-from caldav.objects import Event
-from caldav.objects import FreeBusy
-from caldav.objects import Principal
-from caldav.objects import Todo
+from caldav.lib.python_utilities import to_local, to_str
+from caldav.objects import Calendar, DAVObject, Event, FreeBusy, Principal, Todo
 from caldav.search import CalDAVSearcher
 
 log = logging.getLogger("caldav")
@@ -593,9 +574,7 @@ class TestGetDAVClient:
                     config[f"caldav_{key}"] = server_params[key]
             config["caldav_url"] = str(conn.url)
 
-            with tempfile.NamedTemporaryFile(
-                delete=True, encoding="utf-8", mode="w"
-            ) as tmp:
+            with tempfile.NamedTemporaryFile(delete=True, encoding="utf-8", mode="w") as tmp:
                 json.dump({"default": config}, tmp)
                 tmp.flush()
                 os.fsync(tmp.fileno())
@@ -697,12 +676,8 @@ class TestScheduling:
         ## out existing stuff from new stuff
         if len(self.principals) < 2:
             pytest.skip("need 2 principals to do the invite and respond test")
-        inbox_items = set(
-            [x.url for x in self.principals[0].schedule_inbox().get_items()]
-        )
-        inbox_items.update(
-            set([x.url for x in self.principals[1].schedule_inbox().get_items()])
-        )
+        inbox_items = set([x.url for x in self.principals[0].schedule_inbox().get_items()])
+        inbox_items.update(set([x.url for x in self.principals[1].schedule_inbox().get_items()]))
 
         ## self.principal[0] is the organizer, and invites self.principal[1]
         organizers_calendar = self._getCalendar(0)
@@ -719,7 +694,7 @@ class TestScheduling:
         ## principals[1] should have one new inbox item
         new_inbox_items = []
         for item in self.principals[1].schedule_inbox().get_items():
-            if not item.url in inbox_items:
+            if item.url not in inbox_items:
                 new_inbox_items.append(item)
         assert len(new_inbox_items) == 1
         ## ... and the new inbox item should be an invite request
@@ -735,7 +710,7 @@ class TestScheduling:
         ## calendar invite was accepted
         new_inbox_items = []
         for item in self.principals[0].schedule_inbox().get_items():
-            if not item.url in inbox_items:
+            if item.url not in inbox_items:
                 new_inbox_items.append(item)
         assert len(new_inbox_items) == 1
         assert new_inbox_items[0].is_invite_reply()
@@ -819,9 +794,7 @@ class RepeatedFunctionalTestsBaseClass:
         if "cleanup" in self.server_params:
             self.cleanup_regime = self.server_params["cleanup"]
 
-        if self.cleanup_regime != "wipe-calendar" and (
-            not self.is_supported("create-calendar")
-        ):
+        if self.cleanup_regime != "wipe-calendar" and (not self.is_supported("create-calendar")):
             self.cleanup_regime = "thorough"
 
         ## verify that all old flags are valid
@@ -845,9 +818,7 @@ class RepeatedFunctionalTestsBaseClass:
             Calendar.search = _delay_decorator(Calendar.search, t=foo["delay"])
 
         if False and self.check_compatibility_flag("no-current-user-principal"):
-            self.principal = Principal(
-                client=self.caldav, url=self.server_params["principal_url"]
-            )
+            self.principal = Principal(client=self.caldav, url=self.server_params["principal_url"])
         else:
             self.principal = self.caldav.principal()
 
@@ -862,10 +833,7 @@ class RepeatedFunctionalTestsBaseClass:
         logging.debug("##############################")
 
     def teardown_method(self):
-        if (
-            self.is_supported("search-cache", dict).get("behaviour", "normal")
-            != "normal"
-        ):
+        if self.is_supported("search-cache", dict).get("behaviour", "normal") != "normal":
             Calendar.search = Calendar._search
         logging.debug("############################")
         logging.debug("############## test teardown_method")
@@ -894,10 +862,7 @@ class RepeatedFunctionalTestsBaseClass:
                         x.delete()
                 except error.NotFoundError:
                     pass
-        elif (
-            not self.is_supported("create-calendar")
-            or self.cleanup_regime == "thorough"
-        ):
+        elif not self.is_supported("create-calendar") or self.cleanup_regime == "thorough":
             for cal in self.calendars_used:
                 for uid in uids_used:
                     try:
@@ -906,9 +871,7 @@ class RepeatedFunctionalTestsBaseClass:
                     except error.NotFoundError:
                         pass
                     except:
-                        logging.error(
-                            "Something went kaboom while deleting event", exc_info=True
-                        )
+                        logging.error("Something went kaboom while deleting event", exc_info=True)
             return
         for cal in self.calendars_used:
             cal.delete()
@@ -972,7 +935,7 @@ class RepeatedFunctionalTestsBaseClass:
 
             return self._default_calendar
         else:
-            if not "name" in kwargs:
+            if "name" not in kwargs:
                 if not self.check_compatibility_flag(
                     "unique_calendar_ids"
                 ) and self.cleanup_regime in ("light", "pre"):
@@ -981,7 +944,7 @@ class RepeatedFunctionalTestsBaseClass:
                     kwargs["name"] = None
                 else:
                     kwargs["name"] = "Yep"
-            if not "cal_id" in kwargs:
+            if "cal_id" not in kwargs:
                 kwargs["cal_id"] = self.testcal_id
             try:
                 ret = self.principal.make_calendar(**kwargs)
@@ -1030,9 +993,9 @@ class RepeatedFunctionalTestsBaseClass:
                 "server-peculiarity",
             ):
                 continue
-            assert (
-                expectation == observation
-            ), f"expectation is {expectation}, observation is {observation} for {feature}"
+            assert expectation == observation, (
+                f"expectation is {expectation}, observation is {observation} for {feature}"
+            )
 
     def testSupport(self):
         """
@@ -1094,19 +1057,11 @@ END:VCALENDAR
 
         object_by_id = cal.get_object_by_uid("test1", comp_class=Event)
         instance = object_by_id.icalendar_instance
-        events = [
-            event
-            for event in instance.subcomponents
-            if isinstance(event, icalendar.Event)
-        ]
+        events = [event for event in instance.subcomponents if isinstance(event, icalendar.Event)]
         assert len(events) == 2
         object_by_id = cal.get_object_by_uid("test1", comp_class=None)
         instance = object_by_id.icalendar_instance
-        events = [
-            event
-            for event in instance.subcomponents
-            if isinstance(event, icalendar.Event)
-        ]
+        events = [event for event in instance.subcomponents if isinstance(event, icalendar.Event)]
         assert len(events) == 2
 
     def testPropfind(self):
@@ -1208,7 +1163,7 @@ END:VCALENDAR
         all_principals = self.caldav.principals()
         assert isinstance(all_principals, list)
         if all_principals:
-            assert all((isinstance(x, Principal) for x in all_principals))
+            assert all(isinstance(x, Principal) for x in all_principals)
 
     def testCreateDeleteCalendar(self):
         self.skip_unless_support("create-calendar")
@@ -1221,17 +1176,13 @@ END:VCALENDAR
         assert c.url is not None
         events = c.get_events()
         assert len(events) == 0
-        events = self.principal.calendar(
-            name="Yep", cal_id=self.testcal_id
-        ).get_events()
+        events = self.principal.calendar(name="Yep", cal_id=self.testcal_id).get_events()
         assert len(events) == 0
         c.delete()
 
         if self.is_supported("create-calendar.auto"):
             with pytest.raises(self._notFound()):
-                self.principal.calendar(
-                    name="Yapp", cal_id="shouldnotexist"
-                ).get_events()
+                self.principal.calendar(name="Yapp", cal_id="shouldnotexist").get_events()
 
     def testChangeAttendeeStatusWithEmailGiven(self):
         self.skip_unless_support("save-load.event")
@@ -1243,9 +1194,7 @@ END:VCALENDAR
             dtend=datetime(2015, 10, 10, 9, 7, 6),
             ical_fragment="ATTENDEE;ROLE=OPT-PARTICIPANT;PARTSTAT=TENTATIVE:MAILTO:testuser@example.com",
         )
-        event.change_attendee_status(
-            attendee="testuser@example.com", PARTSTAT="ACCEPTED"
-        )
+        event.change_attendee_status(attendee="testuser@example.com", PARTSTAT="ACCEPTED")
         event.save()
         self.skip_unless_support("search.text.by-uid")
         event = c.get_event_by_uid("test1")
@@ -1475,9 +1424,7 @@ END:VCALENDAR
             time.sleep(1)
 
         ## running sync_token again with the new token should return 0 hits
-        my_changed_objects = c.get_objects_by_sync_token(
-            sync_token=my_objects.sync_token
-        )
+        my_changed_objects = c.get_objects_by_sync_token(sync_token=my_objects.sync_token)
         if not is_fragile:
             assert len(list(my_changed_objects)) == 0
 
@@ -1509,9 +1456,7 @@ END:VCALENDAR
             time.sleep(1)
 
         ## Re-running objects_by_sync_token, and no objects should be returned
-        my_changed_objects = c.get_objects_by_sync_token(
-            sync_token=my_changed_objects.sync_token
-        )
+        my_changed_objects = c.get_objects_by_sync_token(sync_token=my_changed_objects.sync_token)
 
         if not is_fragile:
             assert len(list(my_changed_objects)) == 0
@@ -1522,9 +1467,7 @@ END:VCALENDAR
         obj3 = c.add_event(ev3)
         if is_time_based:
             time.sleep(1)
-        my_changed_objects = c.get_objects_by_sync_token(
-            sync_token=my_changed_objects.sync_token
-        )
+        my_changed_objects = c.get_objects_by_sync_token(sync_token=my_changed_objects.sync_token)
         if not is_fragile:
             assert len(list(my_changed_objects)) == 1
 
@@ -1532,9 +1475,7 @@ END:VCALENDAR
             time.sleep(1)
 
         ## Re-running objects_by_sync_token, and no objects should be returned
-        my_changed_objects = c.get_objects_by_sync_token(
-            sync_token=my_changed_objects.sync_token
-        )
+        my_changed_objects = c.get_objects_by_sync_token(sync_token=my_changed_objects.sync_token)
         if not is_fragile:
             assert len(list(my_changed_objects)) == 0
 
@@ -1557,9 +1498,7 @@ END:VCALENDAR
         assert list(my_changed_objects)[0].data is None
 
         ## Re-running objects_by_sync_token, and no objects should be returned
-        my_changed_objects = c.get_objects_by_sync_token(
-            sync_token=my_changed_objects.sync_token
-        )
+        my_changed_objects = c.get_objects_by_sync_token(sync_token=my_changed_objects.sync_token)
         if not is_fragile:
             assert len(list(my_changed_objects)) == 0
 
@@ -1664,7 +1603,7 @@ END:VCALENDAR
         if not is_fragile:
             assert len(list(updated)) == 0
             assert len(list(deleted)) == 1
-        assert not obj.url in my_objects.objects_by_url()
+        assert obj.url not in my_objects.objects_by_url()
 
         if is_time_based:
             time.sleep(1)
@@ -1678,9 +1617,10 @@ END:VCALENDAR
     def testLoadEvent(self):
         self.skip_unless_support("save-load.event")
         self.skip_unless_support("create-calendar")
-        if not self.check_compatibility_flag(
-            "unique_calendar_ids"
-        ) and self.cleanup_regime in ("light", "pre"):
+        if not self.check_compatibility_flag("unique_calendar_ids") and self.cleanup_regime in (
+            "light",
+            "pre",
+        ):
             self._teardownCalendar(cal_id=self.testcal_id)
             self._teardownCalendar(cal_id=self.testcal_id2)
         c1 = self._fixCalendar(name="Yep", cal_id=self.testcal_id)
@@ -1701,9 +1641,10 @@ END:VCALENDAR
     def testCopyEvent(self):
         self.skip_unless_support("save-load.event")
         self.skip_unless_support("create-calendar")
-        if not self.check_compatibility_flag(
-            "unique_calendar_ids"
-        ) and self.cleanup_regime in ("light", "pre"):
+        if not self.check_compatibility_flag("unique_calendar_ids") and self.cleanup_regime in (
+            "light",
+            "pre",
+        ):
             self._teardownCalendar(cal_id=self.testcal_id)
             self._teardownCalendar(cal_id=self.testcal_id2)
 
@@ -1737,10 +1678,7 @@ END:VCALENDAR
             ## the copy in the other calendar as a distinct entity, even
             ## if the uid is the same.
             assert e1.vobject_instance.vevent.summary.value == "Bastille Day Party"
-            assert (
-                c2.get_events()[0].vobject_instance.vevent.uid
-                == e1.vobject_instance.vevent.uid
-            )
+            assert c2.get_events()[0].vobject_instance.vevent.uid == e1.vobject_instance.vevent.uid
 
         ## Duplicate the event in the same calendar, with same uid -
         ## this makes no sense, there won't be any duplication
@@ -1827,9 +1765,7 @@ END:VCALENDAR
 
         ## Search for misc text fields
         ## UID is a special case, supported by almost all servers
-        some_events = c.search(
-            comp_class=Event, uid="19970901T130000Z-123403@example.com"
-        )
+        some_events = c.search(comp_class=Event, uid="19970901T130000Z-123403@example.com")
         if self.is_supported("search.text"):
             assert len(some_events) == 1
 
@@ -1869,9 +1805,7 @@ END:VCALENDAR
 
         ## It will not match if categories field is set to "PERSONAL,ANNIVERSARY,SPECIAL OCCASION"
         ## It may not match since the above is to be considered equivalent to the raw data entered.
-        some_events = c.search(
-            comp_class=Event, category="ANNIVERSARY,PERSONAL,SPECIAL OCCASION"
-        )
+        some_events = c.search(comp_class=Event, category="ANNIVERSARY,PERSONAL,SPECIAL OCCASION")
         assert len(some_events) in (0, 1)
         some_events = c.search(comp_class=Event, category="PERSON")
         if self.is_supported("search.text.substring") and self.is_supported(
@@ -1912,9 +1846,7 @@ END:VCALENDAR
             assert len(some_events) in (0, 2)
         ## substring search not offered => implicit substring search is ignored.
         ## EXCEPT if text search is not offered - then the filtering logic will be done client-side
-        if not self.is_supported("search.text.substring") and self.is_supported(
-            "search.text"
-        ):
+        if not self.is_supported("search.text.substring") and self.is_supported("search.text"):
             assert len(some_events) == 0
         else:
             assert len(some_events) == 2
@@ -1933,26 +1865,17 @@ END:VCALENDAR
         ## Even sorting should work out
         all_events = c.search(sort_keys=("summary", "dtstamp"))
         assert len(all_events) == 3
-        assert (
-            all_events[0].vobject_instance.vevent.summary.value
-            == "Bastille Day Jitsi Party"
-        )
+        assert all_events[0].vobject_instance.vevent.summary.value == "Bastille Day Jitsi Party"
 
         ## Sorting by upper case should also wor
         all_events = c.search(sort_keys=("SUMMARY", "DTSTAMP"))
         assert len(all_events) == 3
-        assert (
-            all_events[0].vobject_instance.vevent.summary.value
-            == "Bastille Day Jitsi Party"
-        )
+        assert all_events[0].vobject_instance.vevent.summary.value == "Bastille Day Jitsi Party"
 
         ## Sorting in reverse order should work also
         all_events = c.search(sort_keys=("SUMMARY", "DTSTAMP"), sort_reverse=True)
         assert len(all_events) == 3
-        assert (
-            all_events[0].vobject_instance.vevent.summary.value
-            == "Our Blissful Anniversary"
-        )
+        assert all_events[0].vobject_instance.vevent.summary.value == "Our Blissful Anniversary"
 
         ## A more robust check for the sort key
         all_events = c.search(sort_keys=("DTSTART",))
@@ -2165,7 +2088,7 @@ END:VCALENDAR
 
     def testWrongAuthType(self):
         if (
-            not "password" in self.server_params
+            "password" not in self.server_params
             or not self.server_params["password"]
             or self.server_params["password"] == "any-password-seems-to-work"
         ):
@@ -2192,7 +2115,7 @@ END:VCALENDAR
     def testWrongPassword(self):
         self.skip_unless_support("wrong-password-check")
         if (
-            not "password" in self.server_params
+            "password" not in self.server_params
             or not self.server_params["password"]
             or self.server_params["password"] == "any-password-seems-to-work"
         ):
@@ -2203,9 +2126,7 @@ END:VCALENDAR
         for delme in ("setup", "teardown", "name"):
             if delme in connect_params:
                 connect_params.pop(delme)
-        connect_params["password"] = (
-            codecs.encode(connect_params["password"], "rot13") + "!"
-        )
+        connect_params["password"] = codecs.encode(connect_params["password"], "rot13") + "!"
         with pytest.raises(error.AuthorizationError):
             client(**connect_params).principal()
 
@@ -2260,9 +2181,7 @@ END:VCALENDAR
         rt = parent_.icalendar_component["RELATED-TO"]
         assert len(rt) == 2
         assert set([str(rt[0]), str(rt[1])]) == set([grandparent.id, child.id])
-        assert set([rt[0].params["RELTYPE"], rt[1].params["RELTYPE"]]) == set(
-            ["CHILD", "PARENT"]
-        )
+        assert set([rt[0].params["RELTYPE"], rt[1].params["RELTYPE"]]) == set(["CHILD", "PARENT"])
         rt = child_.icalendar_component["RELATED-TO"]
         if isinstance(rt, list):
             assert len(rt) == 1
@@ -2326,13 +2245,7 @@ END:VCALENDAR
         foo = another_parent.get_relatives(reltypes={"CHILD", "PARENT"})
         bar = another_child.get_relatives(reltypes={"CHILD", "PARENT"})
         assert (
-            sum(
-                [
-                    len(x.get("CHILD", set())) + len(x.get("PARENT", set()))
-                    for x in [foo, bar]
-                ]
-            )
-            == 2
+            sum([len(x.get("CHILD", set())) + len(x.get("PARENT", set())) for x in [foo, bar]]) == 2
         )
         assert [str(obj.component["UID"]) for obj in foo["CHILD"]] == ["ctuid4"]
         assert [str(obj.component["UID"]) for obj in bar["PARENT"]] == ["ctuid5"]
@@ -2353,18 +2266,14 @@ END:VCALENDAR
 
         ## setting the due should ... set the due (surprise, surprise)
         some_todo.set_due(datetime(2022, 12, 26, 20, 10, tzinfo=utc))
-        assert some_todo.icalendar_component["DUE"].dt == datetime(
-            2022, 12, 26, 20, 10, tzinfo=utc
-        )
+        assert some_todo.icalendar_component["DUE"].dt == datetime(2022, 12, 26, 20, 10, tzinfo=utc)
         assert some_todo.icalendar_component["DTSTART"].dt == datetime(
             2022, 12, 26, 19, 15, tzinfo=utc
         )
 
         ## move_dtstart causes the duration to be unchanged
         some_todo.set_due(datetime(2022, 12, 26, 20, 20, tzinfo=utc), move_dtstart=True)
-        assert some_todo.icalendar_component["DUE"].dt == datetime(
-            2022, 12, 26, 20, 20, tzinfo=utc
-        )
+        assert some_todo.icalendar_component["DUE"].dt == datetime(2022, 12, 26, 20, 20, tzinfo=utc)
         assert some_todo.icalendar_component["DTSTART"].dt == datetime(
             2022, 12, 26, 19, 25, tzinfo=utc
         )
@@ -2376,9 +2285,7 @@ END:VCALENDAR
             summary="Some other task",
             uid="ctuid2",
         )
-        some_other_todo.set_due(
-            datetime(2022, 12, 26, 19, 45, tzinfo=utc), move_dtstart=True
-        )
+        some_other_todo.set_due(datetime(2022, 12, 26, 19, 45, tzinfo=utc), move_dtstart=True)
         assert some_other_todo.icalendar_component["DUE"].dt == datetime(
             2022, 12, 26, 19, 45, tzinfo=utc
         )
@@ -2410,9 +2317,7 @@ END:VCALENDAR
             move_dtstart=True,
             check_dependent=True,
         )
-        assert some_todo.icalendar_component["DUE"].dt == datetime(
-            2022, 12, 26, 20, 30, tzinfo=utc
-        )
+        assert some_todo.icalendar_component["DUE"].dt == datetime(2022, 12, 26, 20, 30, tzinfo=utc)
         assert some_todo.icalendar_component["DTSTART"].dt == datetime(
             2022, 12, 26, 19, 35, tzinfo=utc
         )
@@ -2451,9 +2356,7 @@ END:VCALENDAR
             move_dtstart=True,
             check_dependent=True,
         )
-        assert some_todo.icalendar_component["DUE"].dt == datetime(
-            2022, 12, 26, 20, 31, tzinfo=utc
-        )
+        assert some_todo.icalendar_component["DUE"].dt == datetime(2022, 12, 26, 20, 31, tzinfo=utc)
         assert some_todo.icalendar_component["DTSTART"].dt == datetime(
             2022, 12, 26, 19, 36, tzinfo=utc
         )
@@ -2519,9 +2422,7 @@ END:VCALENDAR
         assert len(todos) == 1
         assert len(todos2) == 1
 
-        t3 = c.add_todo(
-            summary="mop the floor", categories=["housework"], priority=4, uid="ctuid1"
-        )
+        t3 = c.add_todo(summary="mop the floor", categories=["housework"], priority=4, uid="ctuid1")
         assert len(c.get_todos()) == 2
 
         # adding a todo without a UID, it should also work (library will add the missing UID)
@@ -2746,9 +2647,7 @@ END:VCALENDAR
             assert len([x for x in todos1 if "DTSTART:20020415T1330" in x.data]) == 1
             assert len([x for x in todos2 if "DTSTART:20020415T1330" in x.data]) == 1
             if self.is_supported("search.recurrences.expanded.todo"):
-                assert (
-                    len([x for x in todos4 if "DTSTART:20020415T1330" in x.data]) == 1
-                )
+                assert len([x for x in todos4 if "DTSTART:20020415T1330" in x.data]) == 1
             ## todo3 is client side expand, should always work
             assert len([x for x in todos3 if "DTSTART:20020415T1330" in x.data]) == 1
             ## todo4 is server side expand, may work dependent on server
@@ -2756,9 +2655,7 @@ END:VCALENDAR
         ## exercise the default for expand (maybe -> False for open-ended search)
         with pytest.deprecated_call():
             todos1 = c.date_search(start=datetime(2025, 4, 14), compfilter="VTODO")
-        todos2 = c.search(
-            start=datetime(2025, 4, 14), todo=True, include_completed=True
-        )
+        todos2 = c.search(start=datetime(2025, 4, 14), todo=True, include_completed=True)
         todos3 = c.search(start=datetime(2025, 4, 14), todo=True)
 
         assert isinstance(todos1[0], Todo)
@@ -2778,9 +2675,7 @@ END:VCALENDAR
             urls_found.remove(t6.url)
         if not self.check_compatibility_flag(
             "vtodo_datesearch_nodtstart_task_is_skipped"
-        ) and not self.check_compatibility_flag(
-            "vtodo_datesearch_notime_task_is_skipped"
-        ):
+        ) and not self.check_compatibility_flag("vtodo_datesearch_notime_task_is_skipped"):
             urls_found.remove(t4.url)
         if self.check_compatibility_flag("vtodo_no_due_infinite_duration"):
             urls_found.remove(t1.url)
@@ -2834,13 +2729,9 @@ END:VCALENDAR
         assert len(todos) == 3
         if self.is_supported("search.text.by-uid"):
             t3_ = c.get_todo_by_uid(t3.id)
-            assert (
-                t3_.vobject_instance.vtodo.summary == t3.vobject_instance.vtodo.summary
-            )
+            assert t3_.vobject_instance.vtodo.summary == t3.vobject_instance.vtodo.summary
             assert t3_.vobject_instance.vtodo.uid == t3.vobject_instance.vtodo.uid
-            assert (
-                t3_.vobject_instance.vtodo.dtstart == t3.vobject_instance.vtodo.dtstart
-            )
+            assert t3_.vobject_instance.vtodo.dtstart == t3.vobject_instance.vtodo.dtstart
 
         t2.delete()
 
@@ -2922,9 +2813,10 @@ END:VCALENDAR
         # TODO: split up in creating a calendar with non-ascii name
         # and an event with non-ascii description
         self.skip_unless_support("create-calendar")
-        if not self.check_compatibility_flag(
-            "unique_calendar_ids"
-        ) and self.cleanup_regime in ("light", "pre"):
+        if not self.check_compatibility_flag("unique_calendar_ids") and self.cleanup_regime in (
+            "light",
+            "pre",
+        ):
             self._teardownCalendar(cal_id=self.testcal_id)
 
         c = self._fixCalendar(name="Yølp", cal_id=self.testcal_id)
@@ -2953,16 +2845,15 @@ END:VCALENDAR
     def testUnicodeEvent(self):
         self.skip_unless_support("save-load.event")
         self.skip_unless_support("create-calendar")
-        if not self.check_compatibility_flag(
-            "unique_calendar_ids"
-        ) and self.cleanup_regime in ("light", "pre"):
+        if not self.check_compatibility_flag("unique_calendar_ids") and self.cleanup_regime in (
+            "light",
+            "pre",
+        ):
             self._teardownCalendar(cal_id=self.testcal_id)
         c = self._fixCalendar(name="Yølp", cal_id=self.testcal_id)
 
         # add event
-        e1 = c.add_event(
-            to_str(ev1.replace("Bastille Day Party", "Bringebærsyltetøyfestival"))
-        )
+        e1 = c.add_event(to_str(ev1.replace("Bastille Day Party", "Bringebærsyltetøyfestival")))
 
         # c.get_events() should give a full list of events
         events = c.get_events()
@@ -2991,17 +2882,18 @@ END:VCALENDAR
 
         # Creating a new calendar with different ID but with existing name
         # TODO: why do we do this?
-        if not self.check_compatibility_flag(
-            "unique_calendar_ids"
-        ) and self.cleanup_regime in ("light", "pre"):
+        if not self.check_compatibility_flag("unique_calendar_ids") and self.cleanup_regime in (
+            "light",
+            "pre",
+        ):
             self._teardownCalendar(cal_id=self.testcal_id2)
         cc = self._fixCalendar(name="Yep", cal_id=self.testcal_id2)
         try:
             cc.delete()
         except error.DeleteError:
-            if not self.is_supported(
-                "delete-calendar"
-            ) or self.check_compatibility_flag("unique_calendar_ids"):
+            if not self.is_supported("delete-calendar") or self.check_compatibility_flag(
+                "unique_calendar_ids"
+            ):
                 raise
 
         c.set_properties(
@@ -3424,9 +3316,7 @@ END:VCALENDAR
             # Order is not guaranteed by the spec, so collect the dates and verify both are present
             recurrence_ids = []
             for event in r:
-                assert isinstance(
-                    event.icalendar_component["RECURRENCE-ID"], icalendar.vDDDTypes
-                )
+                assert isinstance(event.icalendar_component["RECURRENCE-ID"], icalendar.vDDDTypes)
                 ## TODO: xandikos returns a datetime without a tzinfo, radicale returns a datetime with tzinfo=UTC, but perhaps other calendar servers returns the timestamp converted to localtime?
                 recurrence_ids.append(
                     event.icalendar_component["RECURRENCE-ID"].dt.replace(tzinfo=None)
@@ -3614,9 +3504,7 @@ class TestProxy(proxy.TestCase):
             principal = conn.principal()
 
     def testWithProxyParamsWithoutScheme(self):
-        with client(
-            proxy=f"localhost:{self.PROXY.flags.port}", **self.server_params
-        ) as conn:
+        with client(proxy=f"localhost:{self.PROXY.flags.port}", **self.server_params) as conn:
             principal = conn.principal()
 
     ## TODO: figure out how to test this properly.

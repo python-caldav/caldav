@@ -5,12 +5,11 @@ Async-first DAVClient implementation for the caldav library.
 This module provides the core async CalDAV/WebDAV client functionality.
 For sync usage, see the davclient.py wrapper.
 """
+
 import sys
 from collections.abc import Mapping
 from types import TracebackType
-from typing import Any
-from typing import Optional
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Optional
 from urllib.parse import unquote
 
 if TYPE_CHECKING:
@@ -103,9 +102,7 @@ class AsyncDAVResponse(BaseDAVResponse):
     results: list[PropfindResult | CalendarQueryResult] | None = None
     sync_token: str | None = None
 
-    def __init__(
-        self, response: Any, davclient: Optional["AsyncDAVClient"] = None
-    ) -> None:
+    def __init__(self, response: Any, davclient: Optional["AsyncDAVClient"] = None) -> None:
         """Initialize from httpx.Response or niquests.Response."""
         self._init_from_response(response, davclient)
 
@@ -255,9 +252,7 @@ class AsyncDAVClient(BaseDAVClient):
             self.session = httpx.AsyncClient(
                 http2=self._http2 or False,
                 proxy=self._proxy,
-                verify=self._ssl_verify_cert
-                if self._ssl_verify_cert is not None
-                else True,
+                verify=self._ssl_verify_cert if self._ssl_verify_cert is not None else True,
                 cert=self._ssl_cert,
                 timeout=self._timeout,
             )
@@ -403,9 +398,7 @@ class AsyncDAVClient(BaseDAVClient):
                         if t in ["basic", "digest", "bearer"]
                     ]
                     if auth_types:
-                        msg += "\nSupported authentication types: {}".format(
-                            ", ".join(auth_types)
-                        )
+                        msg += "\nSupported authentication types: {}".format(", ".join(auth_types))
                 log.warning(msg)
             response = AsyncDAVResponse(r, self)
         except Exception:
@@ -435,9 +428,7 @@ class AsyncDAVClient(BaseDAVClient):
                     cert=self.ssl_cert,
                 )
             reason = r.reason_phrase if _USE_HTTPX else r.reason
-            log.debug(
-                f"auth type detection: server responded with {r.status_code} {reason}"
-            )
+            log.debug(f"auth type detection: server responded with {r.status_code} {reason}")
             if r.status_code == 401 and r.headers.get("WWW-Authenticate"):
                 auth_types = self.extract_auth_types(r.headers["WWW-Authenticate"])
                 self.build_auth_object(auth_types)
@@ -454,8 +445,7 @@ class AsyncDAVClient(BaseDAVClient):
             and "WWW-Authenticate" in r.headers
             and not self.auth
             and self.username is not None
-            and self.password
-            is not None  # Empty password OK, but None means not configured
+            and self.password is not None  # Empty password OK, but None means not configured
         ):
             auth_types = self.extract_auth_types(r.headers["WWW-Authenticate"])
             self.build_auth_object(auth_types)
@@ -478,10 +468,7 @@ class AsyncDAVClient(BaseDAVClient):
         ):
             # Handle HTTP/2 issue (matches original sync client)
             # Most likely wrong username/password combo, but could be an HTTP/2 problem
-            if (
-                self.features.is_supported("http.multiplexing", return_defaults=False)
-                is None
-            ):
+            if self.features.is_supported("http.multiplexing", return_defaults=False) is None:
                 await self.close()  # Uses correct close method for httpx/niquests
                 self._http2 = False
                 self._create_session()
@@ -547,16 +534,12 @@ class AsyncDAVClient(BaseDAVClient):
             body = _build_propfind_body(props).decode("utf-8")
 
         final_headers = self._build_method_headers("PROPFIND", depth, headers)
-        response = await self.request(
-            url or str(self.url), "PROPFIND", body, final_headers
-        )
+        response = await self.request(url or str(self.url), "PROPFIND", body, final_headers)
 
         # Parse response using protocol layer
         if response.status in (200, 207) and response._raw:
             raw_bytes = (
-                response._raw
-                if isinstance(response._raw, bytes)
-                else response._raw.encode("utf-8")
+                response._raw if isinstance(response._raw, bytes) else response._raw.encode("utf-8")
             )
             response.results = _parse_propfind_response(
                 raw_bytes, response.status, response.huge_tree
@@ -773,9 +756,7 @@ class AsyncDAVClient(BaseDAVClient):
         # Parse response using protocol layer
         if response.status in (200, 207) and response._raw:
             raw_bytes = (
-                response._raw
-                if isinstance(response._raw, bytes)
-                else response._raw.encode("utf-8")
+                response._raw if isinstance(response._raw, bytes) else response._raw.encode("utf-8")
             )
             response.results = _parse_calendar_query_response(
                 raw_bytes, response.status, response.huge_tree
@@ -812,9 +793,7 @@ class AsyncDAVClient(BaseDAVClient):
         # Parse response using protocol layer
         if response.status in (200, 207) and response._raw:
             raw_bytes = (
-                response._raw
-                if isinstance(response._raw, bytes)
-                else response._raw.encode("utf-8")
+                response._raw if isinstance(response._raw, bytes) else response._raw.encode("utf-8")
             )
             response.results = _parse_calendar_query_response(
                 raw_bytes, response.status, response.huge_tree
@@ -853,9 +832,7 @@ class AsyncDAVClient(BaseDAVClient):
         # Parse response using protocol layer
         if response.status in (200, 207) and response._raw:
             raw_bytes = (
-                response._raw
-                if isinstance(response._raw, bytes)
-                else response._raw.encode("utf-8")
+                response._raw if isinstance(response._raw, bytes) else response._raw.encode("utf-8")
             )
             sync_result = _parse_sync_collection_response(
                 raw_bytes, response.status, response.huge_tree
@@ -943,9 +920,7 @@ class AsyncDAVClient(BaseDAVClient):
         principal = Principal(client=self, url=principal_url)
         return principal
 
-    async def get_calendars(
-        self, principal: Optional["Principal"] = None
-    ) -> list["Calendar"]:
+    async def get_calendars(self, principal: Optional["Principal"] = None) -> list["Calendar"]:
         """Get all calendars for the given principal.
 
         This method fetches calendars from the principal's calendar-home-set
@@ -1060,9 +1035,7 @@ class AsyncDAVClient(BaseDAVClient):
         Returns:
             List of Todo objects.
         """
-        return await self.search_calendar(
-            calendar, todo=True, include_completed=include_completed
-        )
+        return await self.search_calendar(calendar, todo=True, include_completed=include_completed)
 
     async def search_calendar(
         self,
@@ -1130,7 +1103,7 @@ class AsyncDAVClient(BaseDAVClient):
         results = await searcher.async_search(calendar, **kwargs)
         return results
 
-    async def search_principals(self, name: Optional[str] = None) -> list["Principal"]:
+    async def search_principals(self, name: str | None = None) -> list["Principal"]:
         """
         Search for principals on the server.
 
@@ -1148,15 +1121,14 @@ class AsyncDAVClient(BaseDAVClient):
         Raises:
             ReportError: If the server doesn't support principal search
         """
+        from lxml import etree
+
         from caldav.collection import CalendarSet, Principal
         from caldav.elements import cdav, dav
-        from lxml import etree
 
         if name:
             name_filter = [
-                dav.PropertySearch()
-                + [dav.Prop() + [dav.DisplayName()]]
-                + dav.Match(value=name)
+                dav.PropertySearch() + [dav.Prop() + [dav.DisplayName()]] + dav.Match(value=name)
             ]
         else:
             name_filter = []
@@ -1169,9 +1141,7 @@ class AsyncDAVClient(BaseDAVClient):
         response = await self.report(str(self.url), etree.tostring(query.xmlelement()))
 
         if response.status >= 300:
-            raise error.ReportError(
-                f"{response.status} {response.reason} - {response.raw}"
-            )
+            raise error.ReportError(f"{response.status} {response.reason} - {response.raw}")
 
         principal_dict = response._find_objects_and_props()
         ret = []
@@ -1192,13 +1162,11 @@ class AsyncDAVClient(BaseDAVClient):
             chs_url = chs_href[0].text
             calendar_home_set = CalendarSet(client=self, url=chs_url)
             ret.append(
-                Principal(
-                    client=self, url=x, name=pname, calendar_home_set=calendar_home_set
-                )
+                Principal(client=self, url=x, name=pname, calendar_home_set=calendar_home_set)
             )
         return ret
 
-    async def principals(self, name: Optional[str] = None) -> list["Principal"]:
+    async def principals(self, name: str | None = None) -> list["Principal"]:
         """
         Deprecated. Use :meth:`search_principals` instead.
 
@@ -1236,7 +1204,7 @@ class AsyncDAVClient(BaseDAVClient):
 
         return Calendar(client=self, **kwargs)
 
-    async def check_dav_support(self) -> Optional[str]:
+    async def check_dav_support(self) -> str | None:
         """
         Check if the server supports DAV.
 
@@ -1263,7 +1231,7 @@ class AsyncDAVClient(BaseDAVClient):
         dav_header = await self.check_dav_support()
         return dav_header is not None and "calendar-auto-schedule" in dav_header
 
-    async def supports_dav(self) -> Optional[str]:
+    async def supports_dav(self) -> str | None:
         """
         Check if the server supports DAV.
 
@@ -1329,24 +1297,20 @@ async def get_davclient(probe: bool = True, **kwargs: Any) -> AsyncDAVClient:
             # Check for DAV support
             dav_header = response.headers.get("DAV", "")
             if not dav_header:
-                log.warning(
-                    "Server did not return DAV header - may not be a DAV server"
-                )
+                log.warning("Server did not return DAV header - may not be a DAV server")
             else:
                 log.debug(f"Server DAV capabilities: {dav_header}")
 
         except Exception as e:
             await client.close()
-            raise error.DAVError(
-                f"Failed to connect to CalDAV server at {client.url}: {e}"
-            ) from e
+            raise error.DAVError(f"Failed to connect to CalDAV server at {client.url}: {e}") from e
 
     return client
 
 
 async def get_calendars(
-    calendar_url: Optional[Any] = None,
-    calendar_name: Optional[Any] = None,
+    calendar_url: Any | None = None,
+    calendar_name: Any | None = None,
     raise_errors: bool = False,
     **kwargs: Any,
 ) -> list["Calendar"]:
