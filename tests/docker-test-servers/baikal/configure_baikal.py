@@ -14,6 +14,7 @@ Environment Variables:
     BAIKAL_USERNAME: Test user username (default: testuser)
     BAIKAL_PASSWORD: Test user password (default: testpass)
 """
+
 import hashlib
 import os
 import sqlite3
@@ -152,8 +153,8 @@ def main() -> int:
     print("2. Mount a pre-configured volume with config and database")
     print("3. Use the web interface for initial setup")
     print("\nExample for docker exec:")
-    print(f"  docker cp scripts/configure_baikal.py baikal-test:/tmp/")
-    print(f"  docker exec baikal-test python3 /tmp/configure_baikal.py")
+    print("  docker cp scripts/configure_baikal.py baikal-test:/tmp/")
+    print("  docker exec baikal-test python3 /tmp/configure_baikal.py")
     print("=" * 70 + "\n")
 
     return 0

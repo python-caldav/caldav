@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- encoding: utf-8 -*-
 """
 Tests for caldav.search.CalDAVSearcher.filter method
 
@@ -8,20 +7,16 @@ communication. We use mocked client objects as needed.
 
 Disclaimer: AI-generated tests
 """
-from datetime import datetime
-from datetime import timedelta
-from datetime import timezone
+
+from datetime import datetime, timezone
 from unittest import mock
 
 import icalendar
 import pytest
 
-from caldav import Event
-from caldav import Journal
-from caldav import Todo
+from caldav import Event, Journal, Todo
 from caldav.davclient import DAVClient
 from caldav.search import CalDAVSearcher
-
 
 # Example icalendar data for testing
 SIMPLE_EVENT = """BEGIN:VCALENDAR
@@ -180,21 +175,15 @@ class TestCalDAVSearcherFilterBasic:
     def test_filter_with_empty_list_returns_empty(self, mock_client: DAVClient) -> None:
         """Filtering an empty list should return an empty list."""
         searcher = CalDAVSearcher()
-        result = searcher.filter(
-            [], post_filter=False, split_expanded=False, server_expand=False
-        )
+        result = searcher.filter([], post_filter=False, split_expanded=False, server_expand=False)
 
         assert result == []
 
-    def test_filter_preserves_object_types(
-        self, mock_client: DAVClient, mock_url: str
-    ) -> None:
+    def test_filter_preserves_object_types(self, mock_client: DAVClient, mock_url: str) -> None:
         """Filter should work with Event, Todo, and Journal objects."""
         event = Event(client=mock_client, url=mock_url + "/event", data=SIMPLE_EVENT)
         todo = Todo(client=mock_client, url=mock_url + "/todo", data=SIMPLE_TODO)
-        journal = Journal(
-            client=mock_client, url=mock_url + "/journal", data=SIMPLE_JOURNAL
-        )
+        journal = Journal(client=mock_client, url=mock_url + "/journal", data=SIMPLE_JOURNAL)
 
         objects = [event, todo, journal]
         searcher = CalDAVSearcher()
@@ -271,12 +260,8 @@ class TestCalDAVSearcherFilterPostFilter:
             end=datetime(2024, 6, 30, tzinfo=timezone.utc),
         )
 
-        todo1 = Todo(
-            client=mock_client, url=mock_url + "/1", data=SIMPLE_TODO
-        )  # NEEDS-ACTION
-        todo2 = Todo(
-            client=mock_client, url=mock_url + "/2", data=COMPLETED_TODO
-        )  # COMPLETED
+        todo1 = Todo(client=mock_client, url=mock_url + "/1", data=SIMPLE_TODO)  # NEEDS-ACTION
+        todo2 = Todo(client=mock_client, url=mock_url + "/2", data=COMPLETED_TODO)  # COMPLETED
 
         objects = [todo1, todo2]
         result = searcher.filter(
@@ -349,9 +334,7 @@ class TestCalDAVSearcherFilterExpand:
             end=datetime(2024, 6, 30, tzinfo=timezone.utc),
         )
 
-        event = Event(
-            client=mock_client, url=mock_url, data=RECURRING_EVENT_WITH_TIMEZONE
-        )
+        event = Event(client=mock_client, url=mock_url, data=RECURRING_EVENT_WITH_TIMEZONE)
 
         objects = [event]
         result = searcher.filter(
@@ -364,9 +347,7 @@ class TestCalDAVSearcherFilterExpand:
         # Each split event should have timezone information preserved
         for evt in result:
             tz_components = [
-                c
-                for c in evt.icalendar_instance.subcomponents
-                if isinstance(c, icalendar.Timezone)
+                c for c in evt.icalendar_instance.subcomponents if isinstance(c, icalendar.Timezone)
             ]
             assert len(tz_components) == 1
             assert tz_components[0].get("TZID") == "America/New_York"
@@ -439,9 +420,7 @@ class TestCalDAVSearcherFilterServerExpand:
 class TestCalDAVSearcherFilterRecurringTodos:
     """Tests for recurring todo handling in filter."""
 
-    def test_filter_recurring_todo_with_expand(
-        self, mock_client: DAVClient, mock_url: str
-    ) -> None:
+    def test_filter_recurring_todo_with_expand(self, mock_client: DAVClient, mock_url: str) -> None:
         """Recurring todos should be expanded when expand=True."""
         searcher = CalDAVSearcher(
             expand=True,
@@ -449,9 +428,7 @@ class TestCalDAVSearcherFilterRecurringTodos:
             end=datetime(2024, 6, 30, tzinfo=timezone.utc),
         )
 
-        todo = Todo(
-            client=mock_client, url=mock_url, data=RECURRING_TODO
-        )  # FREQ=DAILY;COUNT=5
+        todo = Todo(client=mock_client, url=mock_url, data=RECURRING_TODO)  # FREQ=DAILY;COUNT=5
 
         objects = [todo]
         result = searcher.filter(
@@ -491,9 +468,7 @@ class TestCalDAVSearcherFilterRecurringTodos:
 class TestCalDAVSearcherFilterEdgeCases:
     """Tests for edge cases and combinations of parameters."""
 
-    def test_filter_with_all_params_false(
-        self, mock_client: DAVClient, mock_url: str
-    ) -> None:
+    def test_filter_with_all_params_false(self, mock_client: DAVClient, mock_url: str) -> None:
         """When all filter params are False/None, objects should pass through."""
         searcher = CalDAVSearcher()
 
@@ -604,9 +579,7 @@ class TestCalDAVSearcherFilterEdgeCases:
         )
         searcher.add_property_filter("SUMMARY", "Standup", operator="contains")
 
-        event = Event(
-            client=mock_client, url=mock_url, data=RECURRING_EVENT
-        )  # "Weekly Standup"
+        event = Event(client=mock_client, url=mock_url, data=RECURRING_EVENT)  # "Weekly Standup"
 
         objects = [event]
         result = searcher.filter(
@@ -638,9 +611,7 @@ class TestCalDAVSearcherFilterIntegration:
 
         # Step 2: Client-side filter with server_expand=True
         objects = [event]
-        result = searcher.filter(
-            objects, post_filter=True, split_expanded=True, server_expand=True
-        )
+        result = searcher.filter(objects, post_filter=True, split_expanded=True, server_expand=True)
 
         # Should handle both server expansion and client-side filtering
         assert len(result) >= 1
@@ -658,9 +629,7 @@ class TestCalDAVSearcherFilterIntegration:
         event1 = Event(
             client=mock_client, url=mock_url + "/1", data=RECURRING_EVENT
         )  # Weekly, 3 times
-        event2 = Event(
-            client=mock_client, url=mock_url + "/2", data=SIMPLE_EVENT
-        )  # No recurrence
+        event2 = Event(client=mock_client, url=mock_url + "/2", data=SIMPLE_EVENT)  # No recurrence
 
         objects = [event1, event2]
         result = searcher.filter(

@@ -5,25 +5,21 @@ https://github.com/python-caldav/caldav/issues/119#issuecomment-2561980368
 
 This code has not been tested by the maintainer of the caldav library.
 """
+
 import os
 
-from flask import Flask
-from flask import jsonify
-from flask import Response
+from flask import Flask, Response, jsonify
 from google.oauth2.credentials import Credentials
 
-from caldav.davclient import get_davclient
+from caldav import get_davclient
 from caldav.requests import HTTPBearerAuth
-
 
 app = Flask(__name__)
 
 # Constants
 CREDENTIALS_FILE = "credentials.json"
 TOKEN_FILE = "token.json"
-CALDAV_URL_TEMPLATE = (
-    "https://apidata.googleusercontent.com/caldav/v2/{calendar_id}/user"
-)
+CALDAV_URL_TEMPLATE = "https://apidata.googleusercontent.com/caldav/v2/{calendar_id}/user"
 
 # Cache to store calendar summaries and IDs
 CALENDAR_CACHE = {}
@@ -95,12 +91,12 @@ def serve_calendar_ics(calendar_name):
         # connect to the calendar using CalDAV
         client = get_davclient(url=calendar_url, auth=HTTPBearerAuth(access_token))
         principal = client.principal()
-        calendars = principal.calendars()
+        calendars = principal.get_calendars()
 
         # fetch events from the first calendar (usually the only one)
         calendar = calendars[0]
         ics_data = ""
-        for event in calendar.events():
+        for event in calendar.get_events():
             ics_data += event.data
 
         # serve the calendar as an ICS file

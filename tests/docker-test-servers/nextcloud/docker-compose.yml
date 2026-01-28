@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   nextcloud:
     image: nextcloud:latest
@@ -11,3 +9,38 @@ services:
       - NEXTCLOUD_ADMIN_USER=admin
       - NEXTCLOUD_ADMIN_PASSWORD=admin
       - NEXTCLOUD_TRUSTED_DOMAINS=localhost
+    # Custom entrypoint: copy files with proper ownership, run installation, start apache
+    # The standard entrypoint copies as root causing permission issues on tmpfs
+    entrypoint: >
+      /bin/bash -c '
+        set -e
+
+        # Ensure base directory has correct ownership (for tmpfs mount)
+        chown www-data:www-data /var/www/html
+        chmod 755 /var/www/html
+
+        # Copy nextcloud files with proper ownership
+        rsync -rlD --delete --chown=www-data:www-data /usr/src/nextcloud/ /var/www/html/
+
+        # Explicitly set config directory permissions after rsync
+        mkdir -p /var/www/html/config
+        chown -R www-data:www-data /var/www/html/config
+        chmod 770 /var/www/html/config
+
+        # Run installation as www-data if not already installed
+        if [ ! -f /var/www/html/config/config.php ] || ! grep -q "installed.*=>.*true" /var/www/html/config/config.php 2>/dev/null; then
+          echo "Running Nextcloud installation..."
+          su -s /bin/bash www-data -c "php /var/www/html/occ maintenance:install \
+            --database=sqlite \
+            --admin-user=admin \
+            --admin-pass=admin"
+          # Set trusted domains
+          su -s /bin/bash www-data -c "php /var/www/html/occ config:system:set trusted_domains 0 --value=localhost"
+        fi
+
+        # Start apache
+        exec apache2-foreground
+      '
+    tmpfs:
+      # Make the container truly ephemeral - data is lost on restart
+      - /var/www/html:size=2g

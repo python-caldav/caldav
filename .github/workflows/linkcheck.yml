@@ -1,0 +1,18 @@
+name: Link check
+
+on: [push, pull_request]
+
+jobs:
+  linkcheck:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Check links with Lychee
+      uses: lycheeverse/lychee-action@v2
+      with:
+        fail: true
+        args: >-
+          --timeout 10
+          --max-retries 2
+          '**/*.md'
+          '**/*.rst'

@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 import logging
 from collections import defaultdict
-from typing import Dict
-from typing import Optional
 
 from caldav import __version__
 
@@ -50,9 +48,7 @@ def assert_(condition: object) -> None:
         assert condition
     except AssertionError:
         if debugmode == "PRODUCTION":
-            log.error(
-                "Deviation from expectations found.  %s" % ERR_FRAGMENT, exc_info=True
-            )
+            log.error("Deviation from expectations found.  %s" % ERR_FRAGMENT, exc_info=True)
         elif debugmode == "DEBUG_PDB":
             log.error("Deviation from expectations found.  Dropping into debugger")
             import pdb
@@ -66,10 +62,10 @@ ERR_FRAGMENT: str = "Please consider raising an issue at https://github.com/pyth
 
 
 class DAVError(Exception):
-    url: Optional[str] = None
+    url: str | None = None
     reason: str = "no reason"
 
-    def __init__(self, url: Optional[str] = None, reason: Optional[str] = None) -> None:
+    def __init__(self, url: str | None = None, reason: str | None = None) -> None:
         if url:
             self.url = url
         if reason:
@@ -137,7 +133,7 @@ class ResponseError(DAVError):
     pass
 
 
-exception_by_method: Dict[str, DAVError] = defaultdict(lambda: DAVError)
+exception_by_method: dict[str, DAVError] = defaultdict(lambda: DAVError)
 for method in (
     "delete",
     "put",

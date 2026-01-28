@@ -1,14 +1,12 @@
 import sys
-from datetime import date
-from datetime import datetime
-from datetime import timedelta
+from datetime import date, datetime, timedelta
 
 ## We'll try to use the local caldav library, not the system-installed
 sys.path.insert(0, "..")
 sys.path.insert(0, ".")
 
 import caldav
-from caldav.davclient import get_davclient
+from caldav import get_davclient
 
 ## Connection parameters can be set in a configuration file or passed
 ## as environmental variables.  The format of the configuration file
@@ -46,7 +44,7 @@ def run_examples():
         my_principal = client.principal()
 
         ## The principals calendars can be fetched like this:
-        calendars = my_principal.calendars()
+        calendars = my_principal.get_calendars()
 
         ## print out some information
         print_calendars_demo(calendars)
@@ -59,9 +57,7 @@ def run_examples():
         ## * server may not support it (it's not mandatory in the CalDAV RFC)
         ## * principal may not have the permission to create calendars
         ## * some cloud providers have a global namespace
-        my_new_calendar = my_principal.make_calendar(
-            name="Test calendar from caldav examples"
-        )
+        my_new_calendar = my_principal.make_calendar(name="Test calendar from caldav examples")
 
         ## Let's add some events to our newly created calendar
         add_stuff_to_calendar_demo(my_new_calendar)
@@ -107,9 +103,7 @@ def find_delete_calendar_demo(my_principal, calendar_name):
         ## This will raise a NotFoundError if calendar does not exist
         demo_calendar = my_principal.calendar(name=calendar_name)
         assert demo_calendar
-        print(
-            f"We found an existing calendar with name {calendar_name}, now deleting it"
-        )
+        print(f"We found an existing calendar with name {calendar_name}, now deleting it")
         demo_calendar.delete()
     except caldav.error.NotFoundError:
         ## Calendar was not found
@@ -125,7 +119,7 @@ def add_stuff_to_calendar_demo(calendar):
     """
     ## Add an event with some certain attributes
     print("Saving an event")
-    may_event = calendar.save_event(
+    may_event = calendar.add_event(
         dtstart=datetime(2020, 5, 17, 6),
         dtend=datetime(2020, 5, 18, 1),
         summary="Do the needful",
@@ -143,7 +137,7 @@ def add_stuff_to_calendar_demo(calendar):
     ## Note that this may break on your server:
     ## * not all servers accepts tasks and events mixed on the same calendar.
     ## * not all servers accepts tasks at all
-    dec_task = calendar.save_todo(
+    dec_task = calendar.add_todo(
         ical_fragment="""DTSTART;VALUE=DATE:20201213
 DUE;VALUE=DATE:20201220
 SUMMARY:Chop down a tree and drag it into the living room
@@ -205,19 +199,17 @@ def search_calendar_demo(calendar):
     ## This those should also work:
     print("Getting all objects from the calendar")
     all_objects = calendar.objects()
-    # updated_objects = calendar.objects_by_sync_token(some_sync_token)
-    # some_object = calendar.object_by_uid(some_uid)
-    # some_event = calendar.event_by_uid(some_uid)
+    # updated_objects = calendar.get_objects_by_sync_token(some_sync_token)
+    # some_object = calendar.get_object_by_uid(some_uid)
+    # some_event = calendar.get_event_by_uid(some_uid)
     print("Getting all children from the calendar")
     children = calendar.children()
     print("Getting all events from the calendar")
-    events = calendar.events()
+    events = calendar.get_events()
     print("Getting all todos from the calendar")
-    tasks = calendar.todos()
+    tasks = calendar.get_todos()
     assert len(events) + len(tasks) == len(all_objects)
-    print(
-        f"Found {len(events)} events and {len(tasks)} tasks which is {len(all_objects)}"
-    )
+    print(f"Found {len(events)} events and {len(tasks)} tasks which is {len(all_objects)}")
     assert len(children) == len(all_objects)
     print(f"Found {len(children)} children which is also {len(all_objects)}")
     ## TODO: Some of those should probably be deprecated.
@@ -229,11 +221,11 @@ def search_calendar_demo(calendar):
 
     ## They will then disappear from the task list
     print("Getting remaining todos")
-    assert not calendar.todos()
+    assert not calendar.get_todos()
     print("There are no todos")
 
     ## But they are not deleted
-    assert len(calendar.todos(include_completed=True)) == 1
+    assert len(calendar.get_todos(include_completed=True)) == 1
 
     ## Let's delete it completely
     print("Deleting it completely")
@@ -249,80 +241,71 @@ def read_modify_event_demo(event):
     `search_calendar_demo`.  The event needs some editing, which will
     be done below.  Keep in mind that the differences between an
     Event, a Todo and a Journal is small, everything that is done to
-    he event here could as well be done towards a task.
+    the event here could as well be done towards a task.
     """
-    ## The objects (events, journals and tasks) comes with some properties that
-    ## can be used for inspecting the data and modifying it.
+    ## =========================================================
+    ## RECOMMENDED: Safe data access API (3.0+)
+    ## =========================================================
+    ## As of caldav 3.0, use context managers to "borrow" objects for editing.
+    ## This prevents confusing side effects where accessing one representation
+    ## can invalidate references to another.
 
-    ## event.data is the raw data, as a string, with unix linebreaks
-    print("here comes some icalendar data:")
-    print(event.data)
+    ## For READ-ONLY access, use get_* methods (returns copies):
+    print("here comes some icalendar data (using get_data):")
+    print(event.get_data())
 
-    ## event.wire_data is the raw data as a byte string with CRLN linebreaks
-    assert len(event.wire_data) >= len(event.data)
+    ## For READ-ONLY inspection of icalendar object:
+    ical_copy = event.get_icalendar_instance()
+    for comp in ical_copy.subcomponents:
+        if comp.name == "VEVENT":
+            print(f"Event UID: {comp['UID']}")
+            uid = str(comp["UID"])
 
-    ## Two libraries exists to handle icalendar data - vobject and
-    ## icalendar.  The caldav library traditionally supported the
-    ## first one, but icalendar is more popular.
+    ## For EDITING, use context managers:
+    print("Editing the event using edit_icalendar_instance()...")
+    with event.edit_icalendar_instance() as cal:
+        for comp in cal.subcomponents:
+            if comp.name == "VEVENT":
+                comp["SUMMARY"] = "norwegian national day celebratiuns"
 
-    ## Here is an example
-    ## on how to modify the summary using vobject:
-    event.vobject_instance.vevent.summary.value = "norwegian national day celebratiuns"
+    ## Or edit using vobject:
+    print("Editing with vobject using edit_vobject_instance()...")
+    with event.edit_vobject_instance() as vobj:
+        vobj.vevent.summary.value = vobj.vevent.summary.value.replace(
+            "celebratiuns", "celebrations"
+        )
 
-    ## event.icalendar_instance gives an icalendar instance - which
-    ## normally would be one icalendar calendar object containing one
-    ## subcomponent.  Quite often the fourth property,
-    ## icalendar_component (now available just as .component) is
-    ## preferable - it gives us the component - but be aware that if
-    ## the server returns a recurring events with exceptions,
-    ## event.icalendar_component will ignore all the exceptions.
-    uid = event.component["uid"]
+    ## Modify the start time using icalendar
+    with event.edit_icalendar_instance() as cal:
+        for comp in cal.subcomponents:
+            if comp.name == "VEVENT":
+                dtstart = comp.get("dtstart")
+                if dtstart:
+                    comp["dtstart"].dt = dtstart.dt + timedelta(seconds=3600)
+                ## Fix the casing
+                comp["SUMMARY"] = str(comp["SUMMARY"]).replace("norwegian", "Norwegian")
 
-    ## Let's correct that typo using the icalendar library.
-    event.component["summary"] = event.component["summary"].replace(
-        "celebratiuns", "celebrations"
-    )
-
-    ## timestamps (DTSTAMP, DTSTART, DTEND for events, DUE for tasks,
-    ## etc) can be fetched using the icalendar library like this:
-    dtstart = event.component.get("dtstart")
-
-    ## but, dtstart is not a python datetime - it's a vDatetime from
-    ## the icalendar package.  If you want it as a python datetime,
-    ## use the .dt property.  (In this case dtstart is set - and it's
-    ## pretty much mandatory for events - but the code here is robust
-    ## enough to handle cases where it's undefined):
-    dtstart_dt = dtstart and dtstart.dt
-
-    ## We can modify it:
-    if dtstart:
-        event.component["dtstart"].dt = dtstart.dt + timedelta(seconds=3600)
-
-    ## And finally, get the casing correct
-    event.data = event.data.replace("norwegian", "Norwegian")
-
-    ## Note that this is not quite thread-safe:
-    icalendar_component = event.component
-    ## accessing the data (and setting it) will "disconnect" the
-    ## icalendar_component from the event
-    event.data = event.data
-    ## So this will not affect the event anymore:
-    icalendar_component["summary"] = "do the needful"
-    assert not "do the needful" in event.data
-
-    ## The mofifications are still only saved locally in memory -
-    ## let's save it to the server:
+    ## Save to server
     event.save()
 
-    ## NOTE: always use event.save() for updating events and
-    ## calendar.save_event(data) for creating a new event.
-    ## This may break:
-    # event.save(event.data)
-    ## ref https://github.com/python-caldav/caldav/issues/153
+    ## =========================================================
+    ## LEGACY: Property-based access (still works, but be careful)
+    ## =========================================================
+    ## The old property access still works for backward compatibility:
+    ##   event.data, event.icalendar_instance, event.vobject_instance
+    ##
+    ## WARNING: These have confusing side effects! Accessing one
+    ## can disconnect your references to another:
+    ##
+    ##   component = event.component
+    ##   event.data = event.data  # This disconnects 'component'!
+    ##   component["summary"] = "new"  # This won't be saved!
+    ##
+    ## Use the context managers above instead for safe editing.
 
-    ## Finally, let's verify that the correct data was saved
+    ## Verify the correct data was saved
     calendar = event.parent
-    same_event = calendar.event_by_uid(uid)
+    same_event = calendar.get_event_by_uid(uid)
     assert same_event.component["summary"] == "Norwegian national day celebrations"
 
 
@@ -334,7 +317,7 @@ def calendar_by_url_demo(client, url):
     ## No network traffic will be initiated by this:
     calendar = client.calendar(url=url)
     ## At the other hand, this will cause network activity:
-    events = calendar.events()
+    events = calendar.get_events()
     ## We should still have only one event in the calendar
     assert len(events) == 1
 

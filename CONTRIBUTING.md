@@ -4,7 +4,7 @@ Contributions are mostly welcome.  If the length of this text scares you, then I
 
 ## Usage of AI and other tools
 
-A separate [AI POLICY](AI_POLICY.md) has been made.  The gist of it, be transparent and inform if your contribution was a result of clever tool usage and/or AI-usage, don't submit code if you don't understand the code yourself, and you are supposed to contribute value to the project.  If you're too lazy to read the AI Policy, then at least have a chat with the AI to work out if your contribution is within the policy or not.
+A separate [AI POLICY](AI-POLICY.md) has been made.  The gist of it, be transparent and inform if your contribution was a result of clever tool usage and/or AI-usage, don't submit code if you don't understand the code yourself, and you are supposed to contribute value to the project.  If you're too lazy to read the AI Policy, then at least have a chat with the AI to work out if your contribution is within the policy or not.
 
 ## GitHub
 

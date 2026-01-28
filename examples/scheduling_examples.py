@@ -4,16 +4,11 @@
 ## or scheduling-help@plann.no
 import sys
 import uuid
-from datetime import datetime
-from datetime import timedelta
-from datetime import timezone
+from datetime import datetime, timedelta, timezone
 
-from icalendar import Calendar
-from icalendar import Event
+from icalendar import Calendar, Event
 
-from caldav import error
-from caldav.davclient import get_davclient
-
+from caldav import error, get_davclient
 
 ###############
 ### SETUP START
@@ -45,9 +40,7 @@ class TestUser:
         calendar_id = "schedulingtestcalendar%i" % i
         calendar_name = "calendar #%i for scheduling demo" % i
         self.cleanup(calendar_name, calendar_id)
-        self.calendar = self.principal.make_calendar(
-            name=calendar_name, cal_id=calendar_id
-        )
+        self.calendar = self.principal.make_calendar(name=calendar_name, cal_id=calendar_id)
 
     def cleanup(self, calendar_name, calendar_id):
         ## Cleanup from earlier runs
@@ -112,7 +105,7 @@ caldata2.add_component(event)
 ## There are two ways to send calendar invites:
 
 ## * Add Attendee-lines and an Organizer-line to the event data, and
-##   then use calendar.save_event(caldata) ... see RFC6638, appendix B.1
+##   then use calendar.add_event(caldata) ... see RFC6638, appendix B.1
 ##   for an example.
 
 ## * Use convenience-method calendar.save_with_invites(caldata, attendees).
@@ -144,12 +137,8 @@ attendees.append(("Some Other Random Guy", "some-other-random-guy@example.com"))
 print("Sending a calendar invite")
 organizer.calendar.save_with_invites(caldata, attendees=attendees)
 
-print(
-    "Storing another calendar event with the same participants, but without sending out emails"
-)
-organizer.calendar.save_with_invites(
-    caldata2, attendees=attendees, schedule_agent="NONE"
-)
+print("Storing another calendar event with the same participants, but without sending out emails")
+organizer.calendar.save_with_invites(caldata2, attendees=attendees, schedule_agent="NONE")
 
 ## There are some attendee parameters that may be set (TODO: add
 ## example code), the convenience method above will use sensible
