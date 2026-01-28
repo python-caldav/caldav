@@ -1206,7 +1206,9 @@ END:VCALENDAR
 
         ## Creating some dummy data such that the target has more than one subcomponent
         with pytest.deprecated_call():
-            target.expand_rrule(start=datetime(1996, 10, 10), end=datetime(1999, 12, 12))
+            target.expand_rrule(
+                start=datetime(1996, 10, 10), end=datetime(1999, 12, 12)
+            )
             assert len(target.icalendar_instance.subcomponents) == 3
 
         ## The following should not fail within _set_icalendar_component

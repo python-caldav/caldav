@@ -6,14 +6,13 @@ representations of calendar data (raw string, icalendar object, vobject object).
 
 See https://github.com/python-caldav/caldav/issues/613 for design discussion.
 """
-
 from __future__ import annotations
 
 import re
 from abc import ABC
 from abc import abstractmethod
-from typing import TYPE_CHECKING
 from typing import Optional
+from typing import TYPE_CHECKING
 
 import icalendar
 
