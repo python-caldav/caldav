@@ -166,4 +166,7 @@ filterwarnings = [
     # https://github.com/Kozea/Radicale/issues/1972
     "ignore:unclosed.*:ResourceWarning",
     "ignore:Exception ignored.*:pytest.PytestUnraisableExceptionWarning",
+
+    # Radicale uses deprecated importlib.abc.Traversable (Python 3.14 removal)
+    "ignore:.*importlib.abc.Traversable.*:DeprecationWarning",
 ]
