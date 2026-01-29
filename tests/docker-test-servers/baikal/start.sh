@@ -10,20 +10,25 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-echo "Creating container (not started yet)..."
-docker-compose up --no-start
+echo "Creating and starting container..."
+docker-compose up -d
 
-echo "Copying pre-configured files into container..."
-docker cp Specific/. baikal-test:/var/www/baikal/Specific/
-docker cp config/. baikal-test:/var/www/baikal/config/
+echo "Waiting for container to be fully started..."
+sleep 2
 
-echo "Starting Baikal (entrypoint will fix permissions)..."
-docker start baikal-test
+echo "Copying pre-configured files into container (after tmpfs mounts are active)..."
+# Use tar to preserve directory structure and permissions when copying to tmpfs
+tar -C Specific -c . | docker exec -i baikal-test tar -C /var/www/baikal/Specific -x
+tar -C config -c . | docker exec -i baikal-test tar -C /var/www/baikal/config -x
+
+echo "Fixing permissions..."
+docker exec baikal-test chown -R nginx:nginx /var/www/baikal/Specific /var/www/baikal/config
+docker exec baikal-test chmod -R 770 /var/www/baikal/Specific
 
 echo ""
 echo "Waiting for Baikal to be ready..."
 sleep 5
-timeout 60 bash -c 'until curl -f http://localhost:8800/dav.php/ 2>/dev/null; do echo -n "."; sleep 2; done' || {
+timeout 60 bash -c 'until curl -s -o /dev/null -w "%{http_code}" http://localhost:8800/dav.php/ | grep -q "^[234]"; do echo -n "."; sleep 2; done' || {
     echo ""
     echo "Error: Baikal did not become ready in time"
     echo "Check logs with: docker-compose logs baikal"

@@ -8,3 +8,7 @@ services:
       - "8800:80"
     environment:
       - BAIKAL_SERVERNAME=localhost
+    tmpfs:
+      # Make the container truly ephemeral - data is lost on restart
+      - /var/www/baikal/Specific:size=100m
+      - /var/www/baikal/config:size=10m

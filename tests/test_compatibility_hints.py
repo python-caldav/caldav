@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- encoding: utf-8 -*-
 """
 Unit tests for compatibility_hints module.
 
@@ -7,7 +6,6 @@ Rule: None of the tests in this file should initiate any internet
 communication, and there should be no dependencies on a working caldav
 server for the tests in this file.
 """
-import pytest
 
 from caldav.compatibility_hints import FeatureSet
 
@@ -33,9 +31,7 @@ class TestFeatureSetCollapse:
         assert "search.recurrences.expanded.todo" not in fs._server_features
         assert "search.recurrences.expanded.exception" not in fs._server_features
         assert "search.recurrences.expanded" in fs._server_features
-        assert fs._server_features["search.recurrences.expanded"] == {
-            "support": "unsupported"
-        }
+        assert fs._server_features["search.recurrences.expanded"] == {"support": "unsupported"}
 
     def test_collapse_different_values_no_collapse(self) -> None:
         """When subfeatures have different values, they should NOT collapse"""
@@ -241,3 +237,53 @@ class TestFeatureSetCollapse:
         # even if the behaviour message is different.
         assert "principal-search.list-all" not in fs._server_features
         assert "principal-search" in fs._server_features
+
+    def test_independent_subfeature_not_derived(self) -> None:
+        """Test that independent subfeatures (with explicit defaults) don't affect parent derivation"""
+        fs = FeatureSet()
+
+        # Scenario: create-calendar.auto is set to unsupported, but it's an independent
+        # feature (has explicit default) and should NOT cause create-calendar to be
+        # derived as unsupported
+        fs._server_features = {
+            "create-calendar.auto": {"support": "unsupported"},
+        }
+
+        # create-calendar should return its default (full), NOT derive from .auto
+        result = fs.is_supported("create-calendar", return_type=dict)
+        assert result == {"support": "full"}, (
+            f"create-calendar should default to 'full' when only independent "
+            f"subfeature .auto is set, but got {result}"
+        )
+
+        # Verify that the independent subfeature itself is still accessible
+        auto_result = fs.is_supported("create-calendar.auto", return_type=dict)
+        assert auto_result == {"support": "unsupported"}
+
+    def test_hierarchical_vs_independent_subfeatures(self) -> None:
+        """Test that hierarchical subfeatures derive parent, but independent ones don't"""
+        fs = FeatureSet()
+
+        # Hierarchical subfeatures: principal-search.by-name and principal-search.list-all
+        # These should cause parent to derive to "unknown" when mixed
+        fs.set_feature("principal-search.by-name", {"support": "unknown"})
+        fs.set_feature("principal-search.list-all", {"support": "unsupported"})
+
+        # Should derive to "unknown" due to mixed hierarchical subfeatures
+        result = fs.is_supported("principal-search", return_type=dict)
+        assert result == {"support": "unknown"}, (
+            f"principal-search should derive to 'unknown' from mixed hierarchical "
+            f"subfeatures, but got {result}"
+        )
+
+        # Now test independent subfeature: create-calendar.auto
+        # This should NOT affect create-calendar parent
+        fs2 = FeatureSet()
+        fs2.set_feature("create-calendar.auto", {"support": "unsupported"})
+
+        # Should return default, NOT derive from independent subfeature
+        result2 = fs2.is_supported("create-calendar", return_type=dict)
+        assert result2 == {"support": "full"}, (
+            f"create-calendar should default to 'full' ignoring independent "
+            f"subfeature .auto, but got {result2}"
+        )

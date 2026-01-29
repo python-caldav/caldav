@@ -2,8 +2,7 @@ import datetime
 
 import tzlocal
 
-from caldav.elements.cdav import _to_utc_date_string
-from caldav.elements.cdav import CalendarQuery
+from caldav.elements.cdav import CalendarQuery, _to_utc_date_string
 
 try:
     import zoneinfo
@@ -16,7 +15,7 @@ SOMEWHERE_REMOTE = zoneinfo.ZoneInfo("Brazil/DeNoronha")  # UTC-2 and no DST
 def test_element():
     cq = CalendarQuery()
     assert str(cq).startswith("<?xml")
-    assert not "xml" in repr(cq)
+    assert "xml" not in repr(cq)
     assert "CalendarQuery" in repr(cq)
     assert "calendar-query" in str(cq)
 
