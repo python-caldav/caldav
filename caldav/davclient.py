@@ -1,62 +1,69 @@
 #!/usr/bin/env python
+"""
+Sync CalDAV client using niquests or requests library.
+
+This module provides the traditional synchronous API with protocol layer
+for XML building and response parsing.
+
+For async code, use: from caldav import aio
+"""
+
 import logging
-import os
 import sys
 import warnings
 from types import TracebackType
-from typing import Any
-from typing import cast
-from typing import Dict
-from typing import List
-from typing import Optional
-from typing import Tuple
-from typing import TYPE_CHECKING
-from typing import Union
+from typing import TYPE_CHECKING, Any, Optional
 from urllib.parse import unquote
 
+# Try niquests first (preferred), fall back to requests
+_USE_NIQUESTS = False
+_USE_REQUESTS = False
 
 try:
     import niquests as requests
     from niquests.auth import AuthBase
     from niquests.models import Response
     from niquests.structures import CaseInsensitiveDict
+
+    _USE_NIQUESTS = True
 except ImportError:
     import requests
     from requests.auth import AuthBase
     from requests.models import Response
     from requests.structures import CaseInsensitiveDict
 
-from lxml import etree
-from lxml.etree import _Element
+    _USE_REQUESTS = True
 
-from .elements.base import BaseElement
-from caldav import __version__
-from caldav.collection import Calendar
-from caldav.collection import CalendarSet
-from caldav.collection import Principal
+from collections.abc import Mapping
+
+from lxml import etree
+
 import caldav.compatibility_hints
+from caldav import __version__
+from caldav.base_client import BaseDAVClient
+from caldav.base_client import get_calendars as _base_get_calendars
+from caldav.base_client import get_davclient as _base_get_davclient
+from caldav.collection import Calendar, CalendarSet, Principal
 from caldav.compatibility_hints import FeatureSet
-from caldav.elements import cdav
-from caldav.elements import dav
+
+# Re-export CONNKEYS for backward compatibility
+from caldav.config import CONNKEYS  # noqa: F401
+from caldav.elements import cdav, dav
 from caldav.lib import error
-from caldav.lib.python_utilities import to_normal_str
-from caldav.lib.python_utilities import to_wire
+from caldav.lib.python_utilities import to_normal_str, to_wire
 from caldav.lib.url import URL
 from caldav.objects import log
 from caldav.requests import HTTPBearerAuth
-
-if TYPE_CHECKING:
-    pass
-
-if sys.version_info < (3, 9):
-    from typing import Iterable, Mapping
-else:
-    from collections.abc import Iterable, Mapping
+from caldav.response import BaseDAVResponse
 
 if sys.version_info < (3, 11):
     from typing_extensions import Self
 else:
     from typing import Self
+
+if TYPE_CHECKING:
+    from caldav.calendarobjectresource import CalendarObjectResource, Event, Todo
+
 
 """
 The ``DAVClient`` class handles the basic communication with a
@@ -75,26 +82,7 @@ environmental variables, a configuration file or test configuration.
 """
 
 ## TODO: this is also declared in davclient.DAVClient.__init__(...)
-## TODO: it should be consolidated, duplication is a bad thing
-## TODO: and it's almost certain that we'll forget to update this list
-CONNKEYS = set(
-    (
-        "url",
-        "proxy",
-        "username",
-        "password",
-        "timeout",
-        "headers",
-        "huge_tree",
-        "ssl_verify_cert",
-        "ssl_cert",
-        "auth",
-        "auth_type",
-        "features",
-        "enable_rfc6764",
-        "require_tls",
-    )
-)
+# Import CONNKEYS from config to avoid duplication
 
 
 def _auto_url(
@@ -136,15 +124,13 @@ def _auto_url(
 
     # Try RFC6764 discovery first if enabled and we have a bare domain/email
     if enable_rfc6764 and url:
-        from caldav.discovery import discover_caldav, DiscoveryError
+        from caldav.discovery import DiscoveryError, discover_caldav
 
         try:
             service_info = discover_caldav(
                 identifier=url,
                 timeout=timeout,
-                ssl_verify_cert=ssl_verify_cert
-                if isinstance(ssl_verify_cert, bool)
-                else True,
+                ssl_verify_cert=ssl_verify_cert if isinstance(ssl_verify_cert, bool) else True,
                 require_tls=require_tls,
             )
             if service_info:
@@ -152,9 +138,7 @@ def _auto_url(
                     f"RFC6764 discovered service: {service_info.url} (source: {service_info.source})"
                 )
                 if service_info.username:
-                    log.debug(
-                        f"Username discovered from email: {service_info.username}"
-                    )
+                    log.debug(f"Username discovered from email: {service_info.username}")
                 return (service_info.url, service_info.username)
         except DiscoveryError as e:
             log.debug(f"RFC6764 discovery failed: {e}")
@@ -171,7 +155,7 @@ def _auto_url(
     return (url, None)
 
 
-class DAVResponse:
+class DAVResponse(BaseDAVResponse):
     """
     This class is a response from a DAV request.  It is instantiated from
     the DAVClient class.  End users of the library should not need to
@@ -179,348 +163,21 @@ class DAVResponse:
     it tries to parse it into `self.tree`
     """
 
-    raw = ""
-    reason: str = ""
-    tree: Optional[_Element] = None
-    headers: CaseInsensitiveDict = None
-    status: int = 0
-    davclient = None
-    huge_tree: bool = False
+    # Protocol-layer parsed results (new interface, replaces find_objects_and_props())
+    results: list | None = None
+    sync_token: str | None = None
 
     def __init__(
-        self, response: Response, davclient: Optional["DAVClient"] = None
-    ) -> None:
-        self.headers = response.headers
-        self.status = response.status_code
-        log.debug("response headers: " + str(self.headers))
-        log.debug("response status: " + str(self.status))
-
-        self._raw = response.content
-        self.davclient = davclient
-        if davclient:
-            self.huge_tree = davclient.huge_tree
-
-        content_type = self.headers.get("Content-Type", "")
-        xml = ["text/xml", "application/xml"]
-        no_xml = ["text/plain", "text/calendar", "application/octet-stream"]
-        expect_xml = any((content_type.startswith(x) for x in xml))
-        expect_no_xml = any((content_type.startswith(x) for x in no_xml))
-        if (
-            content_type
-            and not expect_xml
-            and not expect_no_xml
-            and response.status_code < 400
-            and response.text
-        ):
-            error.weirdness(f"Unexpected content type: {content_type}")
-        try:
-            content_length = int(self.headers["Content-Length"])
-        except:
-            content_length = -1
-        if content_length == 0 or not self._raw:
-            self._raw = ""
-            self.tree = None
-            log.debug("No content delivered")
-        else:
-            ## For really huge objects we should pass the object as a stream to the
-            ## XML parser, like this:
-            # self.tree = etree.parse(response.raw, parser=etree.XMLParser(remove_blank_text=True))
-            ## However, we would also need to decompress on the fly.  I won't bother now.
-            try:
-                ## https://github.com/python-caldav/caldav/issues/142
-                ## We cannot trust the content=type (iCloud, OX and others).
-                ## We'll try to parse the content as XML no matter
-                ## the content type given.
-                self.tree = etree.XML(
-                    self._raw,
-                    parser=etree.XMLParser(
-                        remove_blank_text=True, huge_tree=self.huge_tree
-                    ),
-                )
-            except:
-                ## Content wasn't XML.  What does the content-type say?
-                ## expect_no_xml means text/plain or text/calendar
-                ## expect_no_xml -> ok, pass on, with debug logging
-                ## expect_xml means text/xml or application/xml
-                ## expect_xml -> raise an error
-                ## anything else (text/plain, text/html, ''),
-                ## log an info message and continue (some servers return HTML error pages)
-                if not expect_no_xml or log.level <= logging.DEBUG:
-                    if not expect_no_xml:
-                        _log = logging.info
-                    else:
-                        _log = logging.debug
-                        ## The statement below may not be true.
-                        ## We may be expecting something else
-                    _log(
-                        "Expected some valid XML from the server, but got this: \n"
-                        + str(self._raw),
-                        exc_info=True,
-                    )
-                if expect_xml:
-                    raise
-            else:
-                if log.level <= logging.DEBUG:
-                    log.debug(etree.tostring(self.tree, pretty_print=True))
-
-        ## this if will always be true as for now, see other comments on streaming.
-        if hasattr(self, "_raw"):
-            log.debug(self._raw)
-            # ref https://github.com/python-caldav/caldav/issues/112 stray CRs may cause problems
-            if isinstance(self._raw, bytes):
-                self._raw = self._raw.replace(b"\r\n", b"\n")
-            elif isinstance(self._raw, str):
-                self._raw = self._raw.replace("\r\n", "\n")
-        self.status = response.status_code
-        ## ref https://github.com/python-caldav/caldav/issues/81,
-        ## incidents with a response without a reason has been
-        ## observed
-        try:
-            self.reason = response.reason
-        except AttributeError:
-            self.reason = ""
-
-    @property
-    def raw(self) -> str:
-        ## TODO: this should not really be needed?
-        if not hasattr(self, "_raw"):
-            self._raw = etree.tostring(cast(_Element, self.tree), pretty_print=True)
-        return to_normal_str(self._raw)
-
-    def _strip_to_multistatus(self):
-        """
-        The general format of inbound data is something like this:
-
-        <xml><multistatus>
-            <response>(...)</response>
-            <response>(...)</response>
-            (...)
-        </multistatus></xml>
-
-        but sometimes the multistatus and/or xml element is missing in
-        self.tree.  We don't want to bother with the multistatus and
-        xml tags, we just want the response list.
-
-        An "Element" in the lxml library is a list-like object, so we
-        should typically return the element right above the responses.
-        If there is nothing but a response, return it as a list with
-        one element.
-
-        (The equivalent of this method could probably be found with a
-        simple XPath query, but I'm not much into XPath)
-        """
-        tree = self.tree
-        if tree.tag == "xml" and tree[0].tag == dav.MultiStatus.tag:
-            return tree[0]
-        if tree.tag == dav.MultiStatus.tag:
-            return self.tree
-        return [self.tree]
-
-    def validate_status(self, status: str) -> None:
-        """
-        status is a string like "HTTP/1.1 404 Not Found".  200, 207 and
-        404 are considered good statuses.  The SOGo caldav server even
-        returns "201 created" when doing a sync-report, to indicate
-        that a resource was created after the last sync-token.  This
-        makes sense to me, but I've only seen it from SOGo, and it's
-        not in accordance with the examples in rfc6578.
-        """
-        if (
-            " 200 " not in status
-            and " 201 " not in status
-            and " 207 " not in status
-            and " 404 " not in status
-        ):
-            raise error.ResponseError(status)
-
-    def _parse_response(self, response) -> Tuple[str, List[_Element], Optional[Any]]:
-        """
-        One response should contain one or zero status children, one
-        href tag and zero or more propstats.  Find them, assert there
-        isn't more in the response and return those three fields
-        """
-        status = None
-        href: Optional[str] = None
-        propstats: List[_Element] = []
-        check_404 = False  ## special for purelymail
-        error.assert_(response.tag == dav.Response.tag)
-        for elem in response:
-            if elem.tag == dav.Status.tag:
-                error.assert_(not status)
-                status = elem.text
-                error.assert_(status)
-                self.validate_status(status)
-            elif elem.tag == dav.Href.tag:
-                assert not href
-                # Fix for https://github.com/python-caldav/caldav/issues/471
-                # Confluence server quotes the user email twice. We unquote it manually.
-                if "%2540" in elem.text:
-                    elem.text = elem.text.replace("%2540", "%40")
-                href = unquote(elem.text)
-            elif elem.tag == dav.PropStat.tag:
-                propstats.append(elem)
-            elif elem.tag == "{DAV:}error":
-                ## This happens with purelymail on a 404.
-                ## This code is mostly moot, but in debug
-                ## mode I want to be sure we do not toss away any data
-                children = elem.getchildren()
-                error.assert_(len(children) == 1)
-                error.assert_(
-                    children[0].tag == "{https://purelymail.com}does-not-exist"
-                )
-                check_404 = True
-            else:
-                ## i.e. purelymail may contain one more tag, <error>...</error>
-                ## This is probably not a breach of the standard.  It may
-                ## probably be ignored.  But it's something we may want to
-                ## know.
-                error.weirdness("unexpected element found in response", elem)
-        error.assert_(href)
-        if check_404:
-            error.assert_("404" in status)
-        ## TODO: is this safe/sane?
-        ## Ref https://github.com/python-caldav/caldav/issues/435 the paths returned may be absolute URLs,
-        ## but the caller expects them to be paths.  Could we have issues when a server has same path
-        ## but different URLs for different elements?  Perhaps href should always be made into an URL-object?
-        if ":" in href:
-            href = unquote(URL(href).path)
-        return (cast(str, href), propstats, status)
-
-    def find_objects_and_props(self) -> Dict[str, Dict[str, _Element]]:
-        """Check the response from the server, check that it is on an expected format,
-        find hrefs and props from it and check statuses delivered.
-
-        The parsed data will be put into self.objects, a dict {href:
-        {proptag: prop_element}}.  Further parsing of the prop_element
-        has to be done by the caller.
-
-        self.sync_token will be populated if found, self.objects will be populated.
-        """
-        self.objects: Dict[str, Dict[str, _Element]] = {}
-        self.statuses: Dict[str, str] = {}
-
-        if "Schedule-Tag" in self.headers:
-            self.schedule_tag = self.headers["Schedule-Tag"]
-
-        responses = self._strip_to_multistatus()
-        for r in responses:
-            if r.tag == dav.SyncToken.tag:
-                self.sync_token = r.text
-                continue
-            error.assert_(r.tag == dav.Response.tag)
-
-            (href, propstats, status) = self._parse_response(r)
-            ## I would like to do this assert here ...
-            # error.assert_(not href in self.objects)
-            ## but then there was https://github.com/python-caldav/caldav/issues/136
-            if href not in self.objects:
-                self.objects[href] = {}
-                self.statuses[href] = status
-
-            ## The properties may be delivered either in one
-            ## propstat with multiple props or in multiple
-            ## propstat
-            for propstat in propstats:
-                cnt = 0
-                status = propstat.find(dav.Status.tag)
-                error.assert_(status is not None)
-                if status is not None and status.text is not None:
-                    error.assert_(len(status) == 0)
-                    cnt += 1
-                    self.validate_status(status.text)
-                    ## if a prop was not found, ignore it
-                    if " 404 " in status.text:
-                        continue
-                for prop in propstat.iterfind(dav.Prop.tag):
-                    cnt += 1
-                    for theprop in prop:
-                        self.objects[href][theprop.tag] = theprop
-
-                ## there shouldn't be any more elements except for status and prop
-                error.assert_(cnt == len(propstat))
-
-        return self.objects
-
-    def _expand_simple_prop(
-        self, proptag, props_found, multi_value_allowed=False, xpath=None
-    ):
-        values = []
-        if proptag in props_found:
-            prop_xml = props_found[proptag]
-            for item in prop_xml.items():
-                if proptag == "{urn:ietf:params:xml:ns:caldav}calendar-data":
-                    if (
-                        item[0].lower().endswith("content-type")
-                        and item[1].lower() == "text/calendar"
-                    ):
-                        continue
-                    if item[0].lower().endswith("version") and item[1] in ("2", "2.0"):
-                        continue
-                log.error(
-                    f"If you see this, please add a report at https://github.com/python-caldav/caldav/issues/209 - in _expand_simple_prop, dealing with {proptag}, extra item found: {'='.join(item)}."
-                )
-            if not xpath and len(prop_xml) == 0:
-                if prop_xml.text:
-                    values.append(prop_xml.text)
-            else:
-                _xpath = xpath if xpath else ".//*"
-                leafs = prop_xml.findall(_xpath)
-                values = []
-                for leaf in leafs:
-                    error.assert_(not leaf.items())
-                    if leaf.text:
-                        values.append(leaf.text)
-                    else:
-                        values.append(leaf.tag)
-        if multi_value_allowed:
-            return values
-        else:
-            if not values:
-                return None
-            error.assert_(len(values) == 1)
-            return values[0]
-
-    ## TODO: word "expand" does not feel quite right.
-    def expand_simple_props(
         self,
-        props: Iterable[BaseElement] = None,
-        multi_value_props: Iterable[Any] = None,
-        xpath: Optional[str] = None,
-    ) -> Dict[str, Dict[str, str]]:
-        """
-        The find_objects_and_props() will stop at the xml element
-        below the prop tag.  This method will expand those props into
-        text.
+        response: Response,
+        davclient: Optional["DAVClient"] = None,
+    ) -> None:
+        self._init_from_response(response, davclient)
 
-        Executes find_objects_and_props if not run already, then
-        modifies and returns self.objects.
-        """
-        props = props or []
-        multi_value_props = multi_value_props or []
-
-        if not hasattr(self, "objects"):
-            self.find_objects_and_props()
-        for href in self.objects:
-            props_found = self.objects[href]
-            for prop in props:
-                if prop.tag is None:
-                    continue
-
-                props_found[prop.tag] = self._expand_simple_prop(
-                    prop.tag, props_found, xpath=xpath
-                )
-            for prop in multi_value_props:
-                if prop.tag is None:
-                    continue
-
-                props_found[prop.tag] = self._expand_simple_prop(
-                    prop.tag, props_found, xpath=xpath, multi_value_allowed=True
-                )
-        # _Element objects in self.objects are parsed to str, thus the need to cast the return
-        return cast(Dict[str, Dict[str, str]], self.objects)
+    # Response parsing methods are inherited from BaseDAVResponse
 
 
-class DAVClient:
+class DAVClient(BaseDAVClient):
     """
     Basic client for webdav, uses the niquests lib; gives access to
     low-level operations towards the caldav server.
@@ -529,24 +186,24 @@ class DAVClient:
     the constructor (__init__), the principal method and the calendar method.
     """
 
-    proxy: Optional[str] = None
+    proxy: str | None = None
     url: URL = None
     huge_tree: bool = False
 
     def __init__(
         self,
-        url: Optional[str] = "",
-        proxy: Optional[str] = None,
-        username: Optional[str] = None,
-        password: Optional[str] = None,
-        auth: Optional[AuthBase] = None,
-        auth_type: Optional[str] = None,
-        timeout: Optional[int] = None,
-        ssl_verify_cert: Union[bool, str] = True,
-        ssl_cert: Union[str, Tuple[str, str], None] = None,
+        url: str | None = "",
+        proxy: str | None = None,
+        username: str | None = None,
+        password: str | None = None,
+        auth: AuthBase | None = None,
+        auth_type: str | None = None,
+        timeout: int | None = None,
+        ssl_verify_cert: bool | str = True,
+        ssl_cert: str | tuple[str, str] | None = None,
         headers: Mapping[str, str] = None,
         huge_tree: bool = False,
-        features: Union[FeatureSet, dict, str] = None,
+        features: FeatureSet | dict | str = None,
         enable_rfc6764: bool = True,
         require_tls: bool = True,
     ) -> None:
@@ -689,15 +346,15 @@ class DAVClient:
         if hasattr(self, "setup"):
             try:
                 self.setup()
-            except:
+            except TypeError:
                 self.setup(self)
         return self
 
     def __exit__(
         self,
-        exc_type: Optional[BaseException] = None,
-        exc_value: Optional[BaseException] = None,
-        traceback: Optional[TracebackType] = None,
+        exc_type: BaseException | None = None,
+        exc_value: BaseException | None = None,
+        traceback: TracebackType | None = None,
     ) -> None:
         self.close()
         ## Used for tests, to tear down a temporarily test server
@@ -709,19 +366,31 @@ class DAVClient:
 
     def close(self) -> None:
         """
-        Closes the DAVClient's session object
+        Closes the DAVClient's session object.
         """
         self.session.close()
 
-    def principals(self, name=None):
+    def search_principals(self, name=None):
         """
-        Instead of returning the current logged-in principal, it attempts to query for all principals. This may or may not work dependent on the permissions and implementation of the calendar server.
+        Search for principals on the server.
+
+        Instead of returning the current logged-in principal, this method
+        attempts to query for all principals (or principals matching a name).
+        This may or may not work depending on the permissions and
+        implementation of the calendar server.
+
+        Args:
+            name: Optional name filter to search for specific principals
+
+        Returns:
+            List of Principal objects found on the server
+
+        Raises:
+            ReportError: If the server doesn't support principal search
         """
         if name:
             name_filter = [
-                dav.PropertySearch()
-                + [dav.Prop() + [dav.DisplayName()]]
-                + dav.Match(value=name)
+                dav.PropertySearch() + [dav.Prop() + [dav.DisplayName()]] + dav.Match(value=name)
             ]
         else:
             name_filter = []
@@ -737,15 +406,13 @@ class DAVClient:
         ## for now we're just treating it in the same way as 4xx and 5xx -
         ## probably the server did not support the operation
         if response.status >= 300:
-            raise error.ReportError(
-                f"{response.status} {response.reason} - {response.raw}"
-            )
+            raise error.ReportError(f"{response.status} {response.reason} - {response.raw}")
 
-        principal_dict = response.find_objects_and_props()
+        principal_dict = response._find_objects_and_props()
         ret = []
         for x in principal_dict:
             p = principal_dict[x]
-            if not dav.DisplayName.tag in p:
+            if dav.DisplayName.tag not in p:
                 continue
             name = p[dav.DisplayName.tag].text
             error.assert_(not p[dav.DisplayName.tag].getchildren())
@@ -760,14 +427,27 @@ class DAVClient:
             chs_url = chs_href[0].text
             calendar_home_set = CalendarSet(client=self, url=chs_url)
             ret.append(
-                Principal(
-                    client=self, url=x, name=name, calendar_home_set=calendar_home_set
-                )
+                Principal(client=self, url=x, name=name, calendar_home_set=calendar_home_set)
             )
         return ret
 
+    def principals(self, name=None):
+        """
+        Deprecated. Use :meth:`search_principals` instead.
+
+        This method searches for principals on the server.
+        """
+        warnings.warn(
+            "principals() is deprecated, use search_principals() instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.search_principals(name=name)
+
     def principal(self, *largs, **kwargs):
         """
+        Legacy method. Use :meth:`get_principal` for new code.
+
         Convenience method, it gives a bit more object-oriented feel to
         write client.principal() than Principal(client).
 
@@ -788,13 +468,201 @@ class DAVClient:
 
         If you don't know the URL of the calendar, use
         client.principal().calendar(...) instead, or
-        client.principal().calendars()
+        client.principal().get_calendars()
         """
         return Calendar(client=self, **kwargs)
 
-    def check_dav_support(self) -> Optional[str]:
+    # ==================== High-Level Methods ====================
+    # These methods mirror the async API for consistency.
+
+    def get_principal(self) -> Principal:
+        """Get the principal (user) for this CalDAV connection.
+
+        This is the recommended method for new code. It provides API
+        consistency between sync and async clients.
+
+        Returns:
+            Principal object for the authenticated user.
+
+        Example::
+
+            principal = client.get_principal()
+            calendars = principal.get_calendars()
         """
-        Does a probe towards the server and returns True if it says it supports RFC4918 / DAV
+        return self.principal()
+
+    def get_calendars(self, principal: Principal | None = None) -> list[Calendar]:
+        """Get all calendars for the given principal.
+
+        This method fetches calendars from the principal's calendar-home-set
+        and returns a list of Calendar objects.
+
+        Args:
+            principal: Principal object (if None, fetches principal first)
+
+        Returns:
+            List of Calendar objects.
+
+        Example:
+            principal = client.get_principal()
+            calendars = client.get_calendars(principal)
+            for cal in calendars:
+                print(f"Calendar: {cal.name}")
+        """
+        from caldav.operations.calendarset_ops import (
+            _extract_calendars_from_propfind_results as extract_calendars,
+        )
+
+        if principal is None:
+            principal = self.principal()
+
+        # Get calendar-home-set from principal
+        calendar_home_url = self._get_calendar_home_set(principal)
+        if not calendar_home_url:
+            return []
+
+        # Make URL absolute if relative
+        calendar_home_url = self._make_absolute_url(calendar_home_url)
+
+        # Fetch calendars via PROPFIND
+        response = self.propfind(
+            calendar_home_url,
+            props=self.CALENDAR_LIST_PROPS,
+            depth=1,
+        )
+
+        # Process results using shared helper
+        calendar_infos = extract_calendars(response.results)
+
+        # Convert CalendarInfo objects to Calendar objects
+        return [
+            Calendar(client=self, url=info.url, name=info.name, id=info.cal_id)
+            for info in calendar_infos
+        ]
+
+    def _get_calendar_home_set(self, principal: Principal) -> str | None:
+        """Get the calendar-home-set URL for a principal.
+
+        Args:
+            principal: Principal object
+
+        Returns:
+            Calendar home set URL or None
+        """
+        from caldav.operations.principal_ops import (
+            _extract_calendar_home_set_from_results as extract_home_set,
+        )
+
+        # Try to get from principal properties
+        response = self.propfind(
+            str(principal.url),
+            props=self.CALENDAR_HOME_SET_PROPS,
+            depth=0,
+        )
+
+        return extract_home_set(response.results)
+
+    def get_events(
+        self,
+        calendar: Calendar,
+        start: Any | None = None,
+        end: Any | None = None,
+    ) -> list["Event"]:
+        """Get events from a calendar.
+
+        This is a convenience method that searches for VEVENT objects in the
+        calendar, optionally filtered by date range.
+
+        Args:
+            calendar: Calendar to search
+            start: Start of date range (optional)
+            end: End of date range (optional)
+
+        Returns:
+            List of Event objects.
+
+        Example:
+            from datetime import datetime
+            events = client.get_events(
+                calendar,
+                start=datetime(2024, 1, 1),
+                end=datetime(2024, 12, 31)
+            )
+        """
+        return self.search_calendar(calendar, event=True, start=start, end=end)
+
+    def get_todos(
+        self,
+        calendar: Calendar,
+        include_completed: bool = False,
+    ) -> list["Todo"]:
+        """Get todos from a calendar.
+
+        Args:
+            calendar: Calendar to search
+            include_completed: Whether to include completed todos
+
+        Returns:
+            List of Todo objects.
+        """
+        return self.search_calendar(calendar, todo=True, include_completed=include_completed)
+
+    def search_calendar(
+        self,
+        calendar: Calendar,
+        event: bool = False,
+        todo: bool = False,
+        journal: bool = False,
+        start: Any | None = None,
+        end: Any | None = None,
+        include_completed: bool | None = None,
+        expand: bool = False,
+        **kwargs: Any,
+    ) -> list["CalendarObjectResource"]:
+        """Search a calendar for events, todos, or journals.
+
+        This method provides a clean interface to calendar search.
+
+        Args:
+            calendar: Calendar to search
+            event: Search for events (VEVENT)
+            todo: Search for todos (VTODO)
+            journal: Search for journals (VJOURNAL)
+            start: Start of date range
+            end: End of date range
+            include_completed: Include completed todos (default: False for todos)
+            expand: Expand recurring events
+            **kwargs: Additional search parameters
+
+        Returns:
+            List of Event/Todo/Journal objects.
+
+        Example:
+            # Get all events in January 2024
+            events = client.search_calendar(
+                calendar,
+                event=True,
+                start=datetime(2024, 1, 1),
+                end=datetime(2024, 1, 31),
+            )
+        """
+        return calendar.search(
+            event=event,
+            todo=todo,
+            journal=journal,
+            start=start,
+            end=end,
+            include_completed=include_completed,
+            expand=expand,
+            **kwargs,
+        )
+
+    def check_dav_support(self) -> str | None:
+        """
+        Legacy method. Use :meth:`supports_dav` for new code.
+
+        Does a probe towards the server and returns the DAV header if it
+        says it supports RFC4918 / DAV, or None otherwise.
         """
         try:
             ## SOGo does not return the full capability list on the caldav
@@ -809,20 +677,80 @@ class DAVClient:
 
     def check_cdav_support(self) -> bool:
         """
-        Does a probe towards the server and returns True if it says it supports RFC4791 / CalDAV
+        Legacy method. Use :meth:`supports_caldav` for new code.
+
+        Does a probe towards the server and returns True if it says it
+        supports RFC4791 / CalDAV.
         """
         support_list = self.check_dav_support()
         return support_list is not None and "calendar-access" in support_list
 
     def check_scheduling_support(self) -> bool:
         """
-        Does a probe towards the server and returns True if it says it supports RFC6833 / CalDAV Scheduling
+        Legacy method. Use :meth:`supports_scheduling` for new code.
+
+        Does a probe towards the server and returns True if it says it
+        supports RFC6638 / CalDAV Scheduling.
         """
         support_list = self.check_dav_support()
         return support_list is not None and "calendar-auto-schedule" in support_list
 
+    # Recommended methods for capability checks (API consistency with AsyncDAVClient)
+
+    def supports_dav(self) -> str | None:
+        """Check if the server supports WebDAV (RFC4918).
+
+        This is the recommended method for new code. It provides API
+        consistency between sync and async clients.
+
+        Returns:
+            The DAV header value if supported, None otherwise.
+
+        Example::
+
+            if client.supports_dav():
+                print("Server supports WebDAV")
+        """
+        return self.check_dav_support()
+
+    def supports_caldav(self) -> bool:
+        """Check if the server supports CalDAV (RFC4791).
+
+        This is the recommended method for new code. It provides API
+        consistency between sync and async clients.
+
+        Returns:
+            True if the server supports CalDAV, False otherwise.
+
+        Example::
+
+            if client.supports_caldav():
+                calendars = client.get_calendars()
+        """
+        return self.check_cdav_support()
+
+    def supports_scheduling(self) -> bool:
+        """Check if the server supports CalDAV Scheduling (RFC6638).
+
+        This is the recommended method for new code. It provides API
+        consistency between sync and async clients.
+
+        Returns:
+            True if the server supports CalDAV Scheduling, False otherwise.
+
+        Example::
+
+            if client.supports_scheduling():
+                # Server supports free-busy lookups and scheduling
+                pass
+        """
+        return self.check_scheduling_support()
+
     def propfind(
-        self, url: Optional[str] = None, props: str = "", depth: int = 0
+        self,
+        url: str | None = None,
+        props=None,
+        depth: int = 0,
     ) -> DAVResponse:
         """
         Send a propfind request.
@@ -831,8 +759,8 @@ class DAVClient:
         ----------
         url : URL
             url for the root of the propfind.
-        props : xml
-            properties we want
+        props : str or List[str]
+            XML body string (old interface) or list of property names (new interface).
         depth : int
             maximum recursion depth
 
@@ -840,9 +768,31 @@ class DAVClient:
         -------
         DAVResponse
         """
-        return self.request(
-            url or str(self.url), "PROPFIND", props, {"Depth": str(depth)}
-        )
+        from caldav.protocol.xml_builders import _build_propfind_body
+
+        # Handle both old interface (props=xml_string) and new interface (props=list)
+        body = ""
+        if props is not None:
+            if isinstance(props, list):
+                body = _build_propfind_body(props).decode("utf-8")
+            else:
+                body = props  # Old interface: props is XML string
+
+        # Use sync path with protocol layer parsing
+        headers = {"Depth": str(depth)}
+        response = self.request(url or str(self.url), "PROPFIND", body, headers)
+
+        # Parse response using protocol layer
+        if response.status in (200, 207) and response._raw:
+            from caldav.protocol.xml_parsers import _parse_propfind_response
+
+            raw_bytes = (
+                response._raw if isinstance(response._raw, bytes) else response._raw.encode("utf-8")
+            )
+            response.results = _parse_propfind_response(
+                raw_bytes, response.status, response.huge_tree
+            )
+        return response
 
     def proppatch(self, url: str, body: str, dummy: None = None) -> DAVResponse:
         """
@@ -858,24 +808,21 @@ class DAVClient:
         """
         return self.request(url, "PROPPATCH", body)
 
-    def report(self, url: str, query: str = "", depth: int = 0) -> DAVResponse:
+    def report(self, url: str, query: str = "", depth: int | None = 0) -> DAVResponse:
         """
         Send a report request.
 
         Args:
             url: url for the root of the propfind.
             query: XML request
-            depth: maximum recursion depth
+            depth: maximum recursion depth. None means don't send Depth header
+                (required for calendar-multiget per RFC 4791 section 7.9).
 
         Returns
             DAVResponse
         """
-        return self.request(
-            url,
-            "REPORT",
-            query,
-            {"Depth": str(depth), "Content-Type": 'application/xml; charset="utf-8"'},
-        )
+        headers = {"Depth": str(depth)} if depth is not None else {}
+        return self.request(url, "REPORT", query, headers)
 
     def mkcol(self, url: str, body: str, dummy: None = None) -> DAVResponse:
         """
@@ -914,79 +861,54 @@ class DAVClient:
         """
         return self.request(url, "MKCALENDAR", body)
 
-    def put(
-        self, url: str, body: str, headers: Mapping[str, str] = None
-    ) -> DAVResponse:
+    def put(self, url: str, body: str, headers: Mapping[str, str] = None) -> DAVResponse:
         """
         Send a put request.
         """
-        return self.request(url, "PUT", body, headers or {})
+        return self.request(url, "PUT", body, headers)
 
-    def post(
-        self, url: str, body: str, headers: Mapping[str, str] = None
-    ) -> DAVResponse:
+    def post(self, url: str, body: str, headers: Mapping[str, str] = None) -> DAVResponse:
         """
         Send a POST request.
         """
-        return self.request(url, "POST", body, headers or {})
+        return self.request(url, "POST", body, headers)
 
     def delete(self, url: str) -> DAVResponse:
         """
         Send a delete request.
         """
-        return self.request(url, "DELETE")
+        return self.request(url, "DELETE", "")
 
     def options(self, url: str) -> DAVResponse:
         """
         Send an options request.
         """
-        return self.request(url, "OPTIONS")
+        return self.request(url, "OPTIONS", "")
 
-    def extract_auth_types(self, header: str):
-        """This is probably meant for internal usage.  It takes the
-        headers it got from the server and figures out what
-        authentication types the server supports
-        """
-        # https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/WWW-Authenticate#syntax
-        return {h.split()[0] for h in header.lower().split(",")}
+    def build_auth_object(self, auth_types: list[str] | None = None) -> None:
+        """Build authentication object for the requests/niquests library.
 
-    def build_auth_object(self, auth_types: Optional[List[str]] = None):
-        """Fixes self.auth.  If ``self.auth_type`` is given, then
-        insist on using this one.  If not, then assume auth_types to
-        be a list of acceptable auth types and choose the most
-        appropriate one (prefer digest or basic if username is given,
-        and bearer if password is given).
+        Uses shared auth type selection logic from BaseDAVClient, then
+        creates the appropriate auth object for this HTTP library.
 
         Args:
-            auth_types - A list/tuple of acceptable auth_types
+            auth_types: List of acceptable auth types from server.
         """
-        auth_type = self.auth_type
-        if not auth_type and not auth_types:
-            raise error.AuthorizationError(
-                "No auth-type given.  This shouldn't happen.  Raise an issue at https://github.com/python-caldav/caldav/issues/ or by email noauthtype@plann.no"
-            )
-        if auth_types and auth_type and auth_type not in auth_types:
-            raise error.AuthorizationError(
-                reason=f"Configuration specifies to use {auth_type}, but server only accepts {auth_types}"
-            )
-        if not auth_type and auth_types:
-            if self.username and "digest" in auth_types:
-                auth_type = "digest"
-            elif self.username and "basic" in auth_types:
-                auth_type = "basic"
-            elif self.password and "bearer" in auth_types:
-                auth_type = "bearer"
-            elif "bearer" in auth_types:
-                raise error.AuthorizationError(
-                    reason="Server provides bearer auth, but no password given.  The bearer token should be configured as password"
-                )
+        # Use shared selection logic
+        auth_type = self._select_auth_type(auth_types)
 
+        # Decode password if it's bytes (HTTPDigestAuth needs string)
+        password = self.password
+        if isinstance(password, bytes):
+            password = password.decode("utf-8")
+
+        # Create auth object for requests/niquests
         if auth_type == "digest":
-            self.auth = requests.auth.HTTPDigestAuth(self.username, self.password)
+            self.auth = requests.auth.HTTPDigestAuth(self.username, password)
         elif auth_type == "basic":
-            self.auth = requests.auth.HTTPBasicAuth(self.username, self.password)
+            self.auth = requests.auth.HTTPBasicAuth(self.username, password)
         elif auth_type == "bearer":
-            self.auth = HTTPBearerAuth(self.password)
+            self.auth = HTTPBearerAuth(password)
 
     def request(
         self,
@@ -996,7 +918,30 @@ class DAVClient:
         headers: Mapping[str, str] = None,
     ) -> DAVResponse:
         """
-        Actually sends the request, and does the authentication
+        Send a generic HTTP request.
+
+        Uses the sync session directly for all operations.
+
+        Args:
+            url: The URL to request
+            method: HTTP method (GET, PUT, DELETE, etc.)
+            body: Request body
+            headers: Optional headers dict
+
+        Returns:
+            DAVResponse
+        """
+        return self._sync_request(url, method, body, headers)
+
+    def _sync_request(
+        self,
+        url: str,
+        method: str = "GET",
+        body: str = "",
+        headers: Mapping[str, str] = None,
+    ) -> DAVResponse:
+        """
+        Sync HTTP request implementation with auth negotiation.
         """
         headers = headers or {}
 
@@ -1014,74 +959,29 @@ class DAVClient:
             log.debug("using proxy - %s" % (proxies))
 
         log.debug(
-            "sending request - method={0}, url={1}, headers={2}\nbody:\n{3}".format(
-                method, str(url_obj), combined_headers, to_normal_str(body)
-            )
+            f"sending request - method={method}, url={str(url_obj)}, headers={combined_headers}\nbody:\n{to_normal_str(body)}"
         )
 
-        try:
-            r = self.session.request(
-                method,
-                str(url_obj),
-                data=to_wire(body),
-                headers=combined_headers,
-                proxies=proxies,
-                auth=self.auth,
-                timeout=self.timeout,
-                verify=self.ssl_verify_cert,
-                cert=self.ssl_cert,
-            )
-            log.debug("server responded with %i %s" % (r.status_code, r.reason))
-            if (
-                r.status_code == 401
-                and "text/html" in self.headers.get("Content-Type", "")
-                and not self.auth
-            ):
-                # The server can return HTML on 401 sometimes (ie. it's behind a proxy)
-                # The user can avoid logging errors by setting the authentication type by themselves.
-                msg = (
-                    "No authentication object was provided. "
-                    "HTML was returned when probing the server for supported authentication types. "
-                    "To avoid logging errors, consider passing the auth_type connection parameter"
-                )
-                if r.headers.get("WWW-Authenticate"):
-                    auth_types = [
-                        t
-                        for t in self.extract_auth_types(r.headers["WWW-Authenticate"])
-                        if t in ["basic", "digest", "bearer"]
-                    ]
-                    if auth_types:
-                        msg += "\nSupported authentication types: %s" % (
-                            ", ".join(auth_types)
-                        )
-                log.warning(msg)
-            response = DAVResponse(r, self)
-        except:
-            ## this is a workaround needed due to some weird server
-            ## that would just abort the connection rather than send a
-            ## 401 when an unauthenticated request with a body was
-            ## sent to the server - ref https://github.com/python-caldav/caldav/issues/158
-            if self.auth or not self.password:
-                raise
-            r = self.session.request(
-                method="GET",
-                url=str(url_obj),
-                headers=combined_headers,
-                proxies=proxies,
-                timeout=self.timeout,
-                verify=self.ssl_verify_cert,
-                cert=self.ssl_cert,
-            )
-            if not r.status_code == 401:
-                raise
+        r = self.session.request(
+            method,
+            str(url_obj),
+            data=to_wire(body),
+            headers=combined_headers,
+            proxies=proxies,
+            auth=self.auth,
+            timeout=self.timeout,
+            verify=self.ssl_verify_cert,
+            cert=self.ssl_cert,
+        )
 
-        ## Returned headers
+        # Handle 401 responses for auth negotiation
         r_headers = CaseInsensitiveDict(r.headers)
         if (
             r.status_code == 401
             and "WWW-Authenticate" in r_headers
             and not self.auth
-            and (self.username or self.password)
+            and self.username is not None
+            and self.password is not None  # Empty password OK, but None means not configured
         ):
             auth_types = self.extract_auth_types(r_headers["WWW-Authenticate"])
             self.build_auth_object(auth_types)
@@ -1092,220 +992,88 @@ class DAVClient:
                     "supported authentication methods: basic, digest, bearer"
                 )
 
-            return self.request(url, method, body, headers)
+            # Retry request with authentication
+            return self._sync_request(url, method, body, headers)
 
-        elif (
-            r.status_code == 401
-            and "WWW-Authenticate" in r_headers
-            and self.auth
-            and self.password
-            and isinstance(self.password, bytes)
-        ):
-            ## TODO: this has become a mess and should be refactored.
-            ## (Arguably, this logic doesn't belong here at all.
-            ## with niquests it's possible to just pass the username
-            ## and password, maybe we should try that?)
-
-            ## Most likely we're here due to wrong username/password
-            ## combo, but it could also be a multiplexing problem.
-            if (
-                self.features.is_supported("http.multiplexing", return_defaults=False)
-                is None
-            ):
-                self.session = requests.Session()
-                self.features.set_feature("http.multiplexing", "unknown")
-                ## If this one also fails, we give up
-                ret = self.request(str(url_obj), method, body, headers)
-                self.features.set_feature("http.multiplexing", False)
-                return ret
-
-            ## Most likely we're here due to wrong username/password
-            ## combo, but it could also be charset problems.  Some
-            ## (ancient) servers don't like UTF-8 binary auth with
-            ## Digest authentication.  An example are old SabreDAV
-            ## based servers.  Not sure about UTF-8 and Basic Auth,
-            ## but likely the same.  so retry if password is a bytes
-            ## sequence and not a string (see commit 13a4714, which
-            ## introduced this regression)
-
-            auth_types = self.extract_auth_types(r_headers["WWW-Authenticate"])
-            self.password = self.password.decode()
-            self.build_auth_object(auth_types)
-
-            self.username = None
-            self.password = None
-
-            return self.request(str(url_obj), method, body, headers)
-
-        if error.debug_dump_communication:
-            import datetime
-            from tempfile import NamedTemporaryFile
-
-            with NamedTemporaryFile(prefix="caldavcomm", delete=False) as commlog:
-                commlog.write(b"=" * 80 + b"\n")
-                commlog.write(f"{datetime.datetime.now():%FT%H:%M:%S}".encode("utf-8"))
-                commlog.write(b"\n====>\n")
-                commlog.write(f"{method} {url}\n".encode("utf-8"))
-                commlog.write(
-                    b"\n".join(to_wire(f"{x}: {headers[x]}") for x in headers)
-                )
-                commlog.write(b"\n\n")
-                commlog.write(to_wire(body))
-                commlog.write(b"<====\n")
-                commlog.write(f"{response.status} {response.reason}".encode("utf-8"))
-                commlog.write(
-                    b"\n".join(
-                        to_wire(f"{x}: {response.headers[x]}") for x in response.headers
-                    )
-                )
-                commlog.write(b"\n\n")
-                ct = response.headers.get("Content-Type", "")
-                if response.tree is not None:
-                    commlog.write(
-                        to_wire(etree.tostring(response.tree, pretty_print=True))
-                    )
-                else:
-                    commlog.write(to_wire(response._raw))
-                commlog.write(b"\n")
-
-        # this is an error condition that should be raised to the application
-        if (
-            response.status == requests.codes.forbidden
-            or response.status == requests.codes.unauthorized
-        ):
+        # Raise AuthorizationError for 401/403 after auth attempt
+        if r.status_code in (401, 403):
             try:
-                reason = response.reason
+                reason = r.reason
             except AttributeError:
                 reason = "None given"
             raise error.AuthorizationError(url=str(url_obj), reason=reason)
 
+        response = DAVResponse(r, self)
         return response
 
 
-def auto_calendars(
-    config_file: str = None,
-    config_section: str = "default",
-    testconfig: bool = False,
-    environment: bool = True,
-    config_data: dict = None,
-    config_name: str = None,
-) -> Iterable["Calendar"]:
+def get_calendars(**kwargs) -> list["Calendar"]:
     """
-    This will replace plann.lib.findcalendars()
+    Get calendars from a CalDAV server with configuration from multiple sources.
+
+    This is a convenience wrapper around :func:`caldav.base_client.get_calendars`
+    that uses DAVClient.
+
+    Args:
+        calendar_url: URL(s) or ID(s) of specific calendars to fetch.
+        calendar_name: Name(s) of specific calendars to fetch by display name.
+        check_config_file: Whether to look for config files (default: True).
+        config_file: Explicit path to config file.
+        config_section: Section name in config file.
+        testconfig: Whether to use test server configuration.
+        environment: Whether to read from environment variables (default: True).
+        name: Name of test server to use (for testconfig).
+        raise_errors: If True, raise exceptions on errors; if False, log and skip.
+        **config_data: Connection parameters (url, username, password, etc.)
+
+    Returns:
+        List of Calendar objects matching the criteria.
+
+    Example::
+
+        from caldav import get_calendars
+
+        # Get all calendars
+        calendars = get_calendars(url="https://...", username="...", password="...")
+
+        # Get specific calendar by name
+        calendars = get_calendars(calendar_name="Work", url="...", ...)
     """
-    raise NotImplementedError("auto_calendars not implemented yet")
+    return _base_get_calendars(DAVClient, **kwargs)
 
 
-def auto_calendar(*largs, **kwargs) -> Iterable["Calendar"]:
+def get_calendar(**kwargs) -> Optional["Calendar"]:
     """
-    Alternative to auto_calendars - in most use cases, one calendar suffices
+    Get a single calendar from a CalDAV server.
+
+    This is a convenience function for the common case where only one
+    calendar is needed. It returns the first matching calendar or None.
+
+    Args:
+        Same as :func:`get_calendars`.
+
+    Returns:
+        A single Calendar object, or None if no calendars found.
+
+    Example::
+
+        from caldav import get_calendar
+
+        calendar = get_calendar(calendar_name="Work", url="...", ...)
+        if calendar:
+            events = calendar.get_events()
     """
-    return next(auto_calendars(*largs, **kwargs), None)
+    calendars = _base_get_calendars(DAVClient, **kwargs)
+    return calendars[0] if calendars else None
 
 
-def auto_conn(*largs, config_data: dict = None, **kwargs):
-    """A quite stubbed verison of get_davclient was included in the
-    v1.5-release as auto_conn, but renamed a few days later.  Probably
-    nobody except my caldav tester project uses auto_conn, but as a
-    thumb of rule anything released should stay "deprecated" for at
-    least one major release before being removed.
-
-    TODO: remove in version 3.0
+def get_davclient(**kwargs) -> Optional["DAVClient"]:
     """
-    warnings.warn(
-        "auto_conn was renamed get_davclient",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    if config_data:
-        kwargs.update(config_data)
-    return get_davclient(*largs, **kwargs)
+    Get a DAVClient instance with configuration from multiple sources.
 
+    See :func:`caldav.base_client.get_davclient` for full documentation.
 
-def get_davclient(
-    check_config_file: bool = True,
-    config_file: str = None,
-    config_section: str = None,
-    testconfig: bool = False,
-    environment: bool = True,
-    name: str = None,
-    **config_data,
-) -> "DAVClient":
+    Returns:
+        DAVClient instance, or None if no configuration is found.
     """
-    This function will yield a DAVClient object.  It will not try to
-    connect (see auto_calendars for that).  It will read configuration
-    from various sources, dependent on the parameters given, in this
-    order:
-
-    * Data from the parameters given
-    * Environment variables prepended with `CALDAV_`, like `CALDAV_URL`, `CALDAV_USERNAME`, `CALDAV_PASSWORD`.
-    * Environment variables `PYTHON_CALDAV_USE_TEST_SERVER` and `CALDAV_CONFIG_FILE` will be honored if environment is set
-    * Data from `./tests/conf.py` or `./conf.py` (this includes the possibility to spin up a test server)
-    * Configuration file.  Documented in the plann project as for now.  (TODO - move it)
-    """
-    if config_data:
-        return DAVClient(**config_data)
-
-    if testconfig or (environment and os.environ.get("PYTHON_CALDAV_USE_TEST_SERVER")):
-        sys.path.insert(0, "tests")
-        sys.path.insert(1, ".")
-        ## TODO: move the code from client into here
-        try:
-            from conf import client
-
-            idx = os.environ.get("PYTHON_CALDAV_TEST_SERVER_IDX")
-            try:
-                idx = int(idx)
-            except (ValueError, TypeError):
-                idx = None
-            name = name or os.environ.get("PYTHON_CALDAV_TEST_SERVER_NAME")
-            if name and not idx:
-                try:
-                    idx = int(name)
-                    name = None
-                except ValueError:
-                    pass
-            conn = client(idx, name)
-            if conn:
-                return conn
-        except ImportError:
-            pass
-        finally:
-            sys.path = sys.path[2:]
-
-    if environment:
-        conf = {}
-        for conf_key in (
-            x
-            for x in os.environ
-            if x.startswith("CALDAV_") and not x.startswith("CALDAV_CONFIG")
-        ):
-            conf[conf_key[7:].lower()] = os.environ[conf_key]
-        if conf:
-            return DAVClient(**conf)
-        if not config_file:
-            config_file = os.environ.get("CALDAV_CONFIG_FILE")
-        if not config_section:
-            config_section = os.environ.get("CALDAV_CONFIG_SECTION")
-
-    if check_config_file:
-        ## late import in 2.0, as the config stuff isn't properly tested
-        from . import config
-
-        if not config_section:
-            config_section = "default"
-
-        cfg = config.read_config(config_file)
-        if cfg:
-            section = config.config_section(cfg, config_section)
-            conn_params = {}
-            for k in section:
-                if k.startswith("caldav_") and section[k]:
-                    key = k[7:]
-                    if key == "pass":
-                        key = "password"
-                    if key == "user":
-                        key = "username"
-                    conn_params[key] = section[k]
-            if conn_params:
-                return DAVClient(**conn_params)
+    return _base_get_davclient(DAVClient, **kwargs)
