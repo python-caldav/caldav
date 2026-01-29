@@ -1,14 +1,11 @@
 #!/usr/bin/env python
 import logging
-from datetime import datetime
-from datetime import timezone
+from datetime import datetime, timezone
 from typing import ClassVar
-from typing import Optional
 
-from .base import BaseElement
-from .base import NamedBaseElement
-from .base import ValuedBaseElement
 from caldav.lib.namespace import ns
+
+from .base import BaseElement, NamedBaseElement, ValuedBaseElement
 
 utc_tz = timezone.utc
 
@@ -33,14 +30,10 @@ def _to_utc_date_string(ts):
             mindate = datetime.min.replace(tzinfo=utc_tz)
             maxdate = datetime.max.replace(tzinfo=utc_tz)
             if mindate + ts.tzinfo.utcoffset(ts) > ts:
-                logging.error(
-                    "Cannot coerce datetime %s to UTC. Changed to min-date.", ts
-                )
+                logging.error("Cannot coerce datetime %s to UTC. Changed to min-date.", ts)
                 ts = mindate
             elif ts > maxdate - ts.tzinfo.utcoffset(ts):
-                logging.error(
-                    "Cannot coerce datetime %s to UTC. Changed to max-date.", ts
-                )
+                logging.error("Cannot coerce datetime %s to UTC. Changed to max-date.", ts)
                 ts = maxdate
             else:
                 ts = ts.astimezone(utc_tz)
@@ -108,9 +101,7 @@ class TextMatch(ValuedBaseElement):
 class TimeRange(BaseElement):
     tag: ClassVar[str] = ns("C", "time-range")
 
-    def __init__(
-        self, start: Optional[datetime] = None, end: Optional[datetime] = None
-    ) -> None:
+    def __init__(self, start: datetime | None = None, end: datetime | None = None) -> None:
         ## start and end should be an icalendar "date with UTC time",
         ## ref https://tools.ietf.org/html/rfc4791#section-9.9
         super(TimeRange, self).__init__()
@@ -136,9 +127,7 @@ class CalendarData(BaseElement):
 class Expand(BaseElement):
     tag: ClassVar[str] = ns("C", "expand")
 
-    def __init__(
-        self, start: Optional[datetime], end: Optional[datetime] = None
-    ) -> None:
+    def __init__(self, start: datetime | None, end: datetime | None = None) -> None:
         super(Expand, self).__init__()
 
         if self.attributes is None:
