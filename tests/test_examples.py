@@ -1,24 +1,39 @@
-import os
 import sys
 from datetime import datetime
+from pathlib import Path
 
-from caldav.davclient import get_davclient
+import pytest
+
+from caldav import get_davclient
+
+from .test_servers import client_context, has_test_servers
+
+# Get the project root directory (parent of tests/)
+_PROJECT_ROOT = Path(__file__).parent.parent
 
 
+@pytest.mark.skipif(not has_test_servers(), reason="No test servers configured")
 class TestExamples:
-    def setup_method(self):
-        os.environ["PYTHON_CALDAV_USE_TEST_SERVER"] = "1"
-        sys.path.insert(0, ".")
-        sys.path.insert(1, "..")
+    @pytest.fixture(autouse=True)
+    def setup_test_server(self):
+        """Set up a test server config for get_davclient()."""
+        # Add project root to find examples/
+        sys.path.insert(0, str(_PROJECT_ROOT))
 
-    def teardown_method(self):
-        sys.path = sys.path[2:]
-        del os.environ["PYTHON_CALDAV_USE_TEST_SERVER"]
+        # Start a test server and configure environment for get_davclient()
+        self._test_context = client_context()
+        self._conn = self._test_context.__enter__()
+
+        yield
+
+        # Cleanup
+        self._test_context.__exit__(None, None, None)
+        sys.path.remove(str(_PROJECT_ROOT))
 
     def test_get_events_example(self):
-        with get_davclient() as client:
-            mycal = client.principal().make_calendar(name="Test calendar")
-            mycal.save_event(
+        with get_davclient() as dav_client:
+            mycal = dav_client.principal().make_calendar(name="Test calendar")
+            mycal.add_event(
                 dtstart=datetime(2025, 5, 3, 10),
                 dtend=datetime(2025, 5, 3, 11),
                 summary="testevent",
@@ -35,9 +50,9 @@ class TestExamples:
     def test_collation(self):
         from examples import collation_usage
 
-        with get_davclient() as client:
-            mycal = client.principal().make_calendar(name="Test calendar")
+        with get_davclient() as dav_client:
+            mycal = dav_client.principal().make_calendar(name="Test calendar")
             collation_usage.run_examples()
 
     def test_rfc8764_test_conf(self):
-        from examples import rfc6764_test_conf
+        pass

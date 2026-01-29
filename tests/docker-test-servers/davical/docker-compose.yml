@@ -1,0 +1,18 @@
+services:
+  davical:
+    image: tuxnvape/davical-standalone:latest
+    container_name: davical-test
+    ports:
+      - "8805:80"
+    environment:
+      - POSTGRES_PASSWORD=davical
+      - DAVICAL_ADMIN_PASS=testpass
+    tmpfs:
+      # Make the container ephemeral - data is lost on restart
+      - /var/lib/postgresql/data:size=500m
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/davical/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s

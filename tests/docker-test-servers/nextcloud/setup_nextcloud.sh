@@ -6,7 +6,7 @@ set -e
 
 CONTAINER_NAME="nextcloud-test"
 TEST_USER="testuser"
-TEST_PASSWORD="TestPassword123!"
+TEST_PASSWORD="testpass"
 
 echo "Waiting for Nextcloud to be ready..."
 max_attempts=60
