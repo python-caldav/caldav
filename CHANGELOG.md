@@ -20,8 +20,29 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 
 ### Added
 
-* Added deptry for dependency verification in CI
+* `get_davclient` is now exported from the `caldav` package, allowing `from caldav import get_davclient`.  https://github.com/python-caldav/caldav/issues/612
 * Added python-dateutil and PyYAML as explicit dependencies (were transitive)
+
+### Fixed
+
+* Fixed potential IndexError in URL path joining when path is empty
+
+### Changed
+
+* Updated example files to use the recommended `get_davclient()` factory function instead of `DAVClient()` directly
+
+### Test Framework
+
+* Added deptry for dependency verification in CI
+
+### GitHub Pull Requests Merged
+
+* #607 - Add deptry for dependency verification
+* #605 - Update examples to use get_davclient() instead of DAVClient()
+
+### GitHub Issues Closed
+
+* #612 - Export get_davclient from caldav package
 
 ## [2.2.3] - [2025-12-06]
 
