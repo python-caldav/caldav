@@ -248,13 +248,16 @@ def _start_or_stop_server(name, action, timeout=60):
             time.sleep(1)
 
     raise RuntimeError(
-        f"{name} is still not accessible after {timeout}s, needs manual investigation.  Tried to run {start_script} in directory {dir}"
+        f"{name} is still not accessible after {timeout}s, needs manual investigation.  Tried to run {script} in directory {dir}"
     )
 
 
 ## wrapper
 def _conf_method(name, action):
-    return lambda: _start_or_stop_server(name, action)
+    def _start_or_stop(dummy_self=None):
+        _start_or_stop_server(name, action)
+
+    return _start_or_stop
 
 
 def _add_conf(name, url, username, password, extra_params={}):
