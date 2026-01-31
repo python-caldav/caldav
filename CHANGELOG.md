@@ -26,6 +26,7 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 ### Fixed
 
 * Fixed potential IndexError in URL path joining when path is empty
+* Fixed NameError in search.py caused by missing import of `logging` module, which was masking actual errors when handling malformed iCalendar data.  https://github.com/python-caldav/caldav/issues/614
 
 ### Changed
 
@@ -43,6 +44,7 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 ### GitHub Issues Closed
 
 * #612 - Export get_davclient from caldav package
+* #614 - Missing import logging in search.py causes NameError masking actual errors
 
 ## [2.2.3] - [2025-12-06]
 
