@@ -26,20 +26,66 @@ When you've run the tutorial as intended, I recommend going through the examples
 * You will need to revert all changes done.  The code examples below does not do any cleanup.  If your calendar server supports creating and deleting calendars, then it should be easy enough: ```my_new_calendar.delete()``` inside the with-block.  Events also has a ``.delete()``-method.  Beware that there is no ``undo``.  You're adviced to have a local backup of your calendars.  I'll probably write a HOWTO on that one day.
 * Usage of a context manager is considered best practice, but not really needed - you may skip the with-statement and write just ``client = get_davclient()``.  This will make it easier to test code from the python shell.
 
+Quick Start: Getting Calendars Directly
+---------------------------------------
+
+As of 3.0, there are convenience functions to get calendars directly
+without manually creating a client and principal:
+
+.. code-block:: python
+
+    from caldav import get_calendars, get_calendar
+
+    # Get all calendars
+    calendars = get_calendars(
+        url="https://caldav.example.com/",
+        username="alice",
+        password="secret"
+    )
+    for cal in calendars:
+        print(f"Found calendar: {cal.name}")
+
+    # Get a specific calendar by name
+    work_calendar = get_calendar(
+        url="https://caldav.example.com/",
+        username="alice",
+        password="secret",
+        calendar_name="Work"
+    )
+
+    # Get calendars by URL or ID
+    calendars = get_calendars(
+        url="https://caldav.example.com/",
+        username="alice",
+        password="secret",
+        calendar_url="/calendars/alice/personal/"  # or just "personal"
+    )
+
+These functions also support reading configuration from environment
+variables (``CALDAV_URL``, ``CALDAV_USERNAME``, ``CALDAV_PASSWORD``)
+or config files, so you can simply call:
+
+.. code-block:: python
+
+    from caldav import get_calendars
+    calendars = get_calendars()  # Uses env vars or config file
+
+The Traditional Approach
+------------------------
+
 As of 2.0, it's recommended to start initiating a
 :class:`caldav.davclient.DAVClient` object using the ``get_davclient``
 function, go from there to get a
 :class:`caldav.collection.Principal`-object, and from there find a
-:class:`caldav.collection.Calendar`-object.  (I'm planning to add a
-``get_calendar`` in version 3.0).  This is how to do it:
+:class:`caldav.collection.Calendar`-object.  This is how to do it:
 
 .. code-block:: python
 
-    from caldav.davclient import get_davclient
+    from caldav import get_davclient
     from caldav.lib.error import NotFoundError
 
     with get_davclient() as client:
-        my_principal = client.principal()
+        my_principal = client.get_principal()
         try:
             my_calendar = my_principal.calendar()
             print(f"A calendar was found at URL {my_calendar.url}")
@@ -57,11 +103,11 @@ be the correct one.  To filter there are parameters ``name`` and
 
 .. code-block:: python
 
-    from caldav.davclient import get_davclient
+    from caldav import get_davclient
     from caldav.lib.error import NotFoundError
 
     with get_davclient() as client:
-        my_principal = client.principal()
+        my_principal = client.get_principal()
         try:
             my_calendar = my_principal.calendar(name="My Calendar")
         except NotFoundError:
@@ -72,7 +118,7 @@ to go through the principal object.
 
 .. code-block:: python
 
-    from caldav.davclient import get_davclient
+    from caldav import get_davclient
 
     with get_davclient() as client:
         my_calendar = client.calendar(url="/dav/calendars/mycalendar")
@@ -83,13 +129,13 @@ For servers that supports it, it may be useful to create a dedicated test calend
 
 .. code-block:: python
 
-    from caldav.davclient import get_davclient
+    from caldav import get_davclient
     import datetime
 
     with get_davclient() as client:
-        my_principal = client.principal()
+        my_principal = client.get_principal()
         my_new_calendar = my_principal.make_calendar(name="Test calendar")
-        may17 = my_new_calendar.save_event(
+        may17 = my_new_calendar.add_event(
             dtstart=datetime.datetime(2020,5,17,8),
             dtend=datetime.datetime(2020,5,18,1),
             uid="may17",
@@ -100,12 +146,12 @@ You have icalendar code and want to put it into the calendar?  Easy!
 
 .. code-block:: python
 
-    from caldav.davclient import get_davclient
+    from caldav import get_davclient
 
     with get_davclient() as client:
-        my_principal = client.principal()
+        my_principal = client.get_principal()
         my_new_calendar = my_principal.make_calendar(name="Test calendar")
-        may17 = my_new_calendar.save_event("""BEGIN:VCALENDAR
+        may17 = my_new_calendar.add_event("""BEGIN:VCALENDAR
     VERSION:2.0
     PRODID:-//Example Corp.//CalDAV Client//EN
     BEGIN:VEVENT
@@ -123,13 +169,13 @@ The best way of getting information out from the calendar is to use the search. 
 
 .. code-block:: python
 
-    from caldav.davclient import get_davclient
+    from caldav import get_davclient
     from datetime import date
 
     with get_davclient() as client:
-        my_principal = client.principal()
+        my_principal = client.get_principal()
         my_new_calendar = my_principal.make_calendar(name="Test calendar")
-        my_new_calendar.save_event(
+        my_new_calendar.add_event(
             dtstart=datetime.datetime(2023,5,17,8),
             dtend=datetime.datetime(2023,5,18,1),
             uid="may17",
@@ -157,13 +203,13 @@ The ``data`` property delivers the icalendar data as a string.  It can be modifi
 
 .. code-block:: python
 
-    from caldav.davclient import get_davclient
+    from caldav import get_davclient
     from datetime import date
 
     with get_davclient() as client:
-        my_principal = client.principal()
+        my_principal = client.get_principal()
         my_new_calendar = my_principal.make_calendar(name="Test calendar")
-        my_new_calendar.save_event(
+        my_new_calendar.add_event(
             dtstart=datetime.datetime(2023,5,17,8),
             dtend=datetime.datetime(2023,5,18,1),
             uid="may17",
@@ -188,29 +234,21 @@ without expand set and with different years, print out
 you want to edit the full series!
 
 The code above is far from "best practice".  You should not try to
-parse or modify ``event.data``.  Best current practice is to use the
-icalendar library for that.  You can access the data thorugh an
-:class:`icalendar.cal.Calendar`-object at ``myevent.icalendar_instance``.
-(in 3.0, probably ``myevent.instance`` will work out without yielding
-a ``DeprecationWarning``).
+parse or modify ``event.data`` directly.  Use the icalendar library instead.
 
-Most of the time every event one gets out from the search contains one
-*component* - and it will always be like that when using
-``expand=True``.  To ease things out for users of the library that
-wants easy access to the event data, the
-``my_events[9].icalendar_component`` property will give a
-:class:`icalendar.cal.Event`-object.  From 2.0 also accessible simply as
-``my_events[0].component``:
+Most events contain one *component* (always true when using ``expand=True``).
+The ``event.component`` property gives easy access to the
+:class:`icalendar.cal.Event`-object.  To edit, use ``edit_icalendar_instance()``:
 
 .. code-block:: python
 
-    from caldav.davclient import get_davclient
+    from caldav import get_davclient
     from datetime import date
 
     with get_davclient() as client:
-        my_principal = client.principal()
+        my_principal = client.get_principal()
         my_new_calendar = my_principal.make_calendar(name="Test calendar")
-        my_new_calendar.save_event(
+        my_new_calendar.add_event(
             dtstart=datetime.datetime(2023,5,17,8),
             dtend=datetime.datetime(2023,5,18,1),
             uid="may17",
@@ -224,25 +262,24 @@ wants easy access to the event data, the
 
         assert len(my_events) == 1
         print(f"Event starts at {my_events[0].component.start}")
-        my_events[0].component['summary'] = "Norwegian national day celebrations"
+        with my_events[0].edit_icalendar_instance() as cal:
+            cal.subcomponents[0]['summary'] = "Norwegian national day celebrations"
         my_events[0].save()
 
-There is a danger to this - there is one (and only one) exception when an event contains more than one component.  If you've been observant and followed all the steps in this tutorial very carefully, you should have spotted it.
-
-How to do operations on components and instances in the vobject and icalendar library is outside the scope of this tutorial.
+How to do operations on components in the icalendar library is outside the scope of this tutorial.
 
 Usually tasks and journals can be applied directly to the same calendar as the events - but some implementations (notably Zimbra) has "task lists" and "calendars" as distinct entities.  To create a task list, there is a parameter ``supported_calendar_component_set`` that can be set to ``['VTODO']``.  Here is a quick example that features a task:
 
 .. code-block:: python
 
-    from caldav.davclient import get_davclient
+    from caldav import get_davclient
     from datetime import date
 
     with get_davclient() as client:
-        my_principal = client.principal()
+        my_principal = client.get_principal()
         my_new_calendar = my_principal.make_calendar(
             name="Test calendar", supported_calendar_component_set=['VTODO'])
-        my_new_calendar.save_todo(
+        my_new_calendar.add_todo(
             summary="prepare for the Norwegian national day", due=date(2025,5,16))
 
         my_tasks = my_new_calendar.search(

@@ -6,13 +6,14 @@ This example shows how to perform text searches on calendar events with
 different case sensitivity settings. The collation settings are automatically
 passed to the CalDAV server.
 """
+
 import sys
 from datetime import datetime
 
 sys.path.insert(0, "..")
 sys.path.insert(0, ".")
 
-from caldav.davclient import get_davclient
+from caldav import get_davclient
 from caldav.search import CalDAVSearcher
 
 
@@ -23,21 +24,21 @@ def run_examples():
     print("=" * 80)
 
     with get_davclient() as client:
-        calendar = client.principal().calendars()[0]
+        calendar = client.principal().get_calendars()[0]
 
         # Create some test events with different cases
         print("\nCreating test events...")
-        calendar.save_event(
+        calendar.add_event(
             dtstart=datetime(2025, 6, 1, 10, 0),
             dtend=datetime(2025, 6, 1, 11, 0),
             summary="Team Meeting",
         )
-        calendar.save_event(
+        calendar.add_event(
             dtstart=datetime(2025, 6, 2, 14, 0),
             dtend=datetime(2025, 6, 2, 15, 0),
             summary="team meeting",
         )
-        calendar.save_event(
+        calendar.add_event(
             dtstart=datetime(2025, 6, 3, 9, 0),
             dtend=datetime(2025, 6, 3, 10, 0),
             summary="MEETING with clients",
@@ -89,10 +90,8 @@ def run_examples():
         searcher.add_property_filter("LOCATION", "room", case_sensitive=False)
 
         events = searcher.search(calendar)
-        print(
-            f"Found {len(events)} event(s) with 'meeting' (case-sensitive) in summary"
-        )
-        print(f"  AND 'room' (case-insensitive) in location")
+        print(f"Found {len(events)} event(s) with 'meeting' (case-sensitive) in summary")
+        print("  AND 'room' (case-insensitive) in location")
         for event in events:
             comp = event.icalendar_component
             print(f"  - {comp.get('SUMMARY', 'N/A')} @ {comp.get('LOCATION', 'N/A')}")
@@ -100,12 +99,8 @@ def run_examples():
     print("\n" + "=" * 80)
     print("Summary:")
     print("- By default, searches are case-sensitive")
-    print(
-        "- For case-insensitive searches, use CalDAVSearcher with case_sensitive=False"
-    )
-    print(
-        "- The CalDAVSearcher API allows mixing case sensitivities on different properties"
-    )
+    print("- For case-insensitive searches, use CalDAVSearcher with case_sensitive=False")
+    print("- The CalDAVSearcher API allows mixing case sensitivities on different properties")
     print("=" * 80)
 
 
