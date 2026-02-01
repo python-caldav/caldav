@@ -27,6 +27,15 @@ TypesFactory = TypesFactory()
 _collation_to_caldav = collation_to_caldav
 
 
+# Property filter attribute names used for cloning searchers with modified filters
+_PROPERTY_FILTER_ATTRS = (
+    "_property_filters",
+    "_property_operator",
+    "_property_locale",
+    "_property_collation",
+)
+
+
 @dataclass
 class CalDAVSearcher(Searcher):
     """The baseclass (which is generic, and not CalDAV-specific)
@@ -150,6 +159,36 @@ class CalDAVSearcher(Searcher):
                 locale=locale,
             )
 
+    def _clone_without_filters(
+        self,
+        filters_to_remove: list[str] | None = None,
+        clear_all_filters: bool = False,
+    ) -> "CalDAVSearcher":
+        """Create a clone of this searcher with specified property filters removed.
+
+        This is used for compatibility workarounds where we need to remove certain
+        filters from the server query and apply them client-side instead.
+
+        :param filters_to_remove: List of property filter keys to remove (e.g., ["categories", "category"])
+        :param clear_all_filters: If True, remove all property filters
+        :return: Cloned searcher with filters removed
+        """
+        replacements = {}
+        for attr in _PROPERTY_FILTER_ATTRS:
+            if clear_all_filters:
+                replacements[attr] = {}
+            elif filters_to_remove:
+                replacements[attr] = getattr(self, attr).copy()
+                for key in filters_to_remove:
+                    replacements[attr].pop(key, None)
+            else:
+                continue
+        clone = replace(self, **replacements)
+        # Update _explicit_operators if we removed specific filters
+        if filters_to_remove and not clear_all_filters:
+            clone._explicit_operators = self._explicit_operators - set(filters_to_remove)
+        return clone
+
     def _search_with_comptypes(
         self,
         calendar: Calendar,
@@ -265,19 +304,12 @@ class CalDAVSearcher(Searcher):
 
         ## special compatbility-case for servers that does not
         ## support category search properly
-        things = ("filters", "operator", "locale", "collation")
-        things = [f"_property_{thing}" for thing in things]
         if (
             not calendar.client.features.is_supported("search.text.category")
             and ("categories" in self._property_filters or "category" in self._property_filters)
             and post_filter is not False
         ):
-            replacements = {}
-            for thing in things:
-                replacements[thing] = getattr(self, thing).copy()
-                replacements[thing].pop("categories", None)
-                replacements[thing].pop("category", None)
-            clone = replace(self, **replacements)
+            clone = self._clone_without_filters(["categories", "category"])
             objects = clone.search(calendar, server_expand, split_expanded, props, xml)
             return self.filter(objects, post_filter, split_expanded, server_expand)
 
@@ -296,14 +328,7 @@ class CalDAVSearcher(Searcher):
             if explicit_contains:
                 # Remove explicit substring filters from server query,
                 # will be applied client-side instead
-                replacements = {}
-                for thing in things:
-                    replacements[thing] = getattr(self, thing).copy()
-                    for prop in explicit_contains:
-                        replacements[thing].pop(prop, None)
-                # Also need to preserve the _explicit_operators set but remove these properties
-                clone = replace(self, **replacements)
-                clone._explicit_operators = self._explicit_operators - set(explicit_contains)
+                clone = self._clone_without_filters(explicit_contains)
                 objects = clone.search(calendar, server_expand, split_expanded, props, xml)
                 return self.filter(
                     objects,
@@ -317,10 +342,7 @@ class CalDAVSearcher(Searcher):
         if not calendar.client.features.is_supported("search.combined-is-logical-and"):
             if self.start or self.end:
                 if self._property_filters:
-                    replacements = {}
-                    for thing in things:
-                        replacements[thing] = {}
-                    clone = replace(self, **replacements)
+                    clone = self._clone_without_filters(clear_all_filters=True)
                     objects = clone.search(calendar, server_expand, split_expanded, props, xml)
                     return self.filter(objects, post_filter, split_expanded, server_expand)
 
@@ -607,19 +629,12 @@ class CalDAVSearcher(Searcher):
 
         ## special compatibility-case for servers that does not
         ## support category search properly
-        things = ("filters", "operator", "locale", "collation")
-        things = [f"_property_{thing}" for thing in things]
         if (
             not calendar.client.features.is_supported("search.text.category")
             and ("categories" in self._property_filters or "category" in self._property_filters)
             and post_filter is not False
         ):
-            replacements = {}
-            for thing in things:
-                replacements[thing] = getattr(self, thing).copy()
-                replacements[thing].pop("categories", None)
-                replacements[thing].pop("category", None)
-            clone = replace(self, **replacements)
+            clone = self._clone_without_filters(["categories", "category"])
             objects = await clone.async_search(calendar, server_expand, split_expanded, props, xml)
             return self.filter(objects, post_filter, split_expanded, server_expand)
 
@@ -634,13 +649,7 @@ class CalDAVSearcher(Searcher):
                 if prop in self._explicit_operators and self._property_operator[prop] == "contains"
             ]
             if explicit_contains:
-                replacements = {}
-                for thing in things:
-                    replacements[thing] = getattr(self, thing).copy()
-                    for prop in explicit_contains:
-                        replacements[thing].pop(prop, None)
-                clone = replace(self, **replacements)
-                clone._explicit_operators = self._explicit_operators - set(explicit_contains)
+                clone = self._clone_without_filters(explicit_contains)
                 objects = await clone.async_search(
                     calendar, server_expand, split_expanded, props, xml
                 )
@@ -655,10 +664,7 @@ class CalDAVSearcher(Searcher):
         if not calendar.client.features.is_supported("search.combined-is-logical-and"):
             if self.start or self.end:
                 if self._property_filters:
-                    replacements = {}
-                    for thing in things:
-                        replacements[thing] = {}
-                    clone = replace(self, **replacements)
+                    clone = self._clone_without_filters(clear_all_filters=True)
                     objects = await clone.async_search(
                         calendar, server_expand, split_expanded, props, xml
                     )
