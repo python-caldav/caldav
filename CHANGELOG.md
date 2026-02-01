@@ -16,7 +16,9 @@ Changelogs prior to v1.2 is pruned, but available in the v1.2 release
 
 This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html), though some earlier releases may be incompatible with the SemVer standard.
 
-## [Unreleased]
+## [2.2.6] - [2026-02-01]
+
+(2.2.4 is without niquests in the dependencies.  2.2.5 is with niquests.  2.2.6 is with niquests and a tiny CHANGELOG-fix)
 
 ### Added
 
