@@ -1,5 +1,6 @@
 import logging
 import sys
+import warnings
 from typing import TYPE_CHECKING, Any, Optional, TypeVar
 from urllib.parse import ParseResult, SplitResult, quote, unquote
 
@@ -54,7 +55,6 @@ class DAVObject:
     url: URL | None = None
     client: Optional["DAVClient"] = None
     parent: Optional["DAVObject"] = None
-    name: str | None = None
 
     def __init__(
         self,
@@ -63,6 +63,7 @@ class DAVObject:
         parent: Optional["DAVObject"] = None,
         id: str | None = None,
         props=None,
+        name: str | None = None,
         **extra,
     ) -> None:
         """
@@ -74,6 +75,7 @@ class DAVObject:
           parent: The parent object - used when creating objects
           id: The resource id (UID for an Event)
           props: a dict with known properties for this object
+          name: Display name (deprecated, use props={'{DAV:}displayname': name})
         """
 
         if client is None and parent is not None:
@@ -83,6 +85,10 @@ class DAVObject:
         self.id = id
         self.props = props or {}
         self.extra_init_options = extra
+
+        # Store name in props cache as displayname
+        if name is not None:
+            self.props["{DAV:}displayname"] = name
         # url may be a path relative to the caldav root
         if client and url:
             self.url = client.url.join(url)
@@ -583,6 +589,21 @@ class DAVObject:
         Get display name (calendar, principal, ...more?)
         """
         return self.get_property(dav.DisplayName(), use_cached=True)
+
+    @property
+    def name(self) -> str | None:
+        """
+        Display name of this DAV object.
+
+        .. deprecated:: 3.0
+            Use :meth:`get_display_name` instead.
+        """
+        warnings.warn(
+            "The 'name' attribute is deprecated. Use get_display_name() instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.get_display_name()
 
     def __str__(self) -> str:
         try:
