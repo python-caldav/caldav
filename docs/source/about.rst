@@ -88,8 +88,8 @@ depend on another library for that.
 RFC 5545 describes the icalendar format.  Constructing or parsing
 icalendar data was considered out of the scope of this library, but we
 do make exceptions - like, there is a method to complete a task - it
-involves editing the icalendar data, and now the ``save_event``,
-``save_todo`` and ``save_journal`` methods are able to construct icalendar
+involves editing the icalendar data, and now the ``add_event``,
+``add_todo`` and ``add_journal`` methods are able to construct icalendar
 data if needed.
 
 There exists two libraries supporting RFC 5545, vobject and icalendar.
@@ -127,7 +127,7 @@ Notable classes and workflow
 
 * You'd always start by initiating a :class:`caldav.davclient.DAVClient`
   object, this object holds the authentication details for the
-  server.  In 2.0 there is a function :class:`caldav.davclient.get_davclient` that can be used.
+  server.  In 2.0 the function :func:`caldav.get_davclient` was added as the recommended way to get a client.
 
 * From the client object one can get hold of a
   :class:`caldav.collection.Principal` object representing the logged-in
@@ -201,7 +201,7 @@ Here are some known issues:
 
   * Some problems observed with the propfind method
 
-  * object_by_uid does not work (and my object_by_uid follows the example in the RFC)
+  * get_object_by_uid does not work (and my get_object_by_uid follows the example in the RFC)
 
 * Google seems to be the new Microsoft, according to the issue
   tracker it seems like their CalDAV-support is rather lacking.  At least they have a list ... https://developers.google.com/calendar/caldav/v2/guide
@@ -270,6 +270,11 @@ tox should also work:
 
 It will run some unit tests and some functional tests.  You may want to add your own
 private servers into tests/conf_private.py, see tests/conf_private.py.EXAMPLE
+
+Niquests vs Requests vs HTTPX
+=============================
+
+By default, CalDAV depends on the niquests library.  Some people are not happy with that, there exists fallbacks to utilize httpx and requests.  See the :doc:`http-libraries` document.
 
 Documentation
 =============

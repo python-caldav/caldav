@@ -94,7 +94,8 @@ class FeatureSet:
         },
         "http": { },
         "http.multiplexing": {
-            "description": "chulka/baikal:nginx is having Problems with using HTTP/2 with multiplexing, ref https://github.com/python-caldav/caldav/issues/564.  I haven't (yet) been able to reproduce this locally, so no check for this yet.  We'll define it as fragile in the radicale config as for now"
+            "description": "chulka/baikal:nginx is having Problems with using HTTP/2 with multiplexing, ref https://github.com/python-caldav/caldav/issues/564.  I haven't (yet) been able to reproduce this locally, so no check for this yet.  Due to caution and friendly advice from the niquests team, the default now is to NOT support http multiplexing.",
+            "default": { "support": "fragile" },
         },
         "save-load": {
             "description": "it's possible to save and load objects to the calendar"
@@ -107,6 +108,9 @@ class FeatureSet:
         "save-load.todo.recurrences.count": {"description": "The server will receive and store a recurring task with a count set in the RRULE"},
         "save-load.todo.mixed-calendar": {"description": "The same calendar may contain both events and tasks (Zimbra only allows tasks to be placed on special task lists)"},
         "save-load.journal": {"description": "The server will even accept journals"},
+        "save-load.reuse-deleted-uid": {
+            "description": "After deleting an event, the server allows creating a new event with the same UID. When 'broken', the server keeps deleted events in a trashbin with a soft-delete flag, causing unique constraint violations on UID reuse. See https://github.com/nextcloud/server/issues/30096"
+        },
         "save-load.event.timezone": {
             "description": "The server accepts events with non-UTC timezone information. When unsupported or broken, the server may reject events with timezone data (e.g., return 403 Forbidden). Related to GitHub issue https://github.com/python-caldav/caldav/issues/372."
         },
@@ -153,7 +157,7 @@ class FeatureSet:
             "description": "Substring search for category should work according to the RFC.  I.e., search for mil should match family,finance",
         },
         "search.text.by-uid": {
-            "description": "The server supports searching for objects by UID property. When unsupported, calendar.object_by_uid(uid) will not work.  This may be removed in the feature - the checker-script is not checking the right thing (check TODO-comments), probably search by uid is no special case for any server implementations"
+            "description": "The server supports searching for objects by UID property. When unsupported, calendar.get_object_by_uid(uid) will not work.  This may be removed in the feature - the checker-script is not checking the right thing (check TODO-comments), probably search by uid is no special case for any server implementations"
         },
         "search.recurrences": {
             "description": "Support for recurrences in search"
@@ -214,6 +218,9 @@ class FeatureSet:
         "principal-search.list-all": {
             "description": "Server allows listing all principals without a name filter. Often blocked for privacy/security reasons"
         },
+        "wrong-password-check": {
+            "description": "Server rejects requests with wrong password by returning an authorization error. Some servers may not properly reject wrong passwords in certain configurations."
+        },
         "save": {},
         "save.duplicate-uid": {},
         "save.duplicate-uid.cross-calendar": {
@@ -257,6 +264,9 @@ class FeatureSet:
         """
         if isinstance(feature_set_dict, FeatureSet):
             self._server_features = copy.deepcopy(feature_set_dict._server_features)
+            self.backward_compatibility_mode = feature_set_dict.backward_compatibility_mode
+            self._old_flags = copy.copy(feature_set_dict._old_flags) if hasattr(feature_set_dict, '_old_flags') else []
+            return
 
         ## TODO: copy the FEATURES dict, or just the feature_set dict?
         ## (anyways, that is an internal design decision that may be
@@ -297,12 +307,12 @@ class FeatureSet:
                 continue
             feature_info = self.find_feature(feature)
             value = feature_set[feature]
-            if not feature in self._server_features:
+            if feature not in self._server_features:
                 self._server_features[feature] = {}
             server_node = self._server_features[feature]
             if isinstance(value, bool):
                 server_node['support'] = "full" if value else "unsupported"
-            elif isinstance(value, str) and not 'support' in server_node:
+            elif isinstance(value, str) and 'support' not in server_node:
                 server_node['support'] = value
             elif isinstance(value, dict):
                 server_node.update(value)
@@ -364,7 +374,7 @@ class FeatureSet:
                             dont_collapse = True
                             break
                     if not dont_collapse:
-                        if not parent in self._server_features:
+                        if parent not in self._server_features:
                             self._server_features[parent] = {}
                         for sub in parent_info['subfeatures']:
                             self._server_features.pop(f"{parent}.{sub}")
@@ -404,11 +414,69 @@ class FeatureSet:
         while True:
             if feature_ in self._server_features:
                 return self._convert_node(self._server_features[feature_], feature_info, return_type, accept_fragile)
-            if not '.' in feature_:
+            if '.' not in feature_:
                 if not return_defaults:
                     return None
+                # Before returning default, check if we have subfeatures with explicit values
+                # If subfeatures exist and have mixed support levels, we should derive the parent status
+                derived = self._derive_from_subfeatures(feature_, feature_info, return_type, accept_fragile)
+                if derived is not None:
+                    return derived
                 return self._convert_node(self._default(feature_info), feature_info, return_type, accept_fragile)
             feature_ = feature_[:feature_.rfind('.')]
+
+    def _derive_from_subfeatures(self, feature, feature_info, return_type, accept_fragile=False):
+        """
+        Derive parent feature status from explicitly set subfeatures.
+
+        Logic:
+        - Only consider subfeatures WITHOUT explicit defaults (those are independent features)
+        - If all relevant subfeatures have the same status → use that status
+        - If subfeatures have mixed statuses → return "unknown"
+          (since we can't definitively determine the parent's status)
+
+        Returns None if no relevant subfeatures are explicitly set.
+        """
+        if 'subfeatures' not in feature_info or not feature_info['subfeatures']:
+            return None
+
+        # Collect statuses from explicitly set subfeatures (excluding independent ones)
+        subfeature_statuses = []
+        for sub in feature_info['subfeatures']:
+            subfeature_key = f"{feature}.{sub}"
+            if subfeature_key in self._server_features:
+                # Skip subfeatures with explicit defaults - they represent independent behaviors
+                # not hierarchical components of the parent feature
+                try:
+                    subfeature_info = self.find_feature(subfeature_key)
+                    if 'default' in subfeature_info:
+                        # This subfeature has an explicit default, meaning it's independent
+                        continue
+                except:
+                    # If we can't find the feature info, include it conservatively
+                    pass
+
+                sub_dict = self._server_features[subfeature_key]
+                # Extract the support level (or enable/behaviour/observed)
+                status = sub_dict.get('support', sub_dict.get('enable', sub_dict.get('behaviour', sub_dict.get('observed'))))
+                if status:
+                    subfeature_statuses.append(status)
+
+        # If no relevant subfeatures are explicitly set, return None (use default)
+        if not subfeature_statuses:
+            return None
+
+        # Check if all subfeatures have the same status
+        if all(status == subfeature_statuses[0] for status in subfeature_statuses):
+            # All same - use that status
+            derived_status = subfeature_statuses[0]
+        else:
+            # Mixed statuses - we don't have complete/consistent information
+            derived_status = 'unknown'
+
+        # Create a node dict with the derived status
+        derived_node = {'support': derived_status}
+        return self._convert_node(derived_node, feature_info, return_type, accept_fragile)
 
     def _convert_node(self, node, feature_info, return_type, accept_fragile=False):
         """
@@ -451,11 +519,11 @@ class FeatureSet:
         (this is very simple now - used to be a hierarchy dict to be traversed)
         """
         assert feature in cls.FEATURES ## A feature in the configured feature-list does not exist.  TODO ... raise a better exception?
-        if not 'name' in cls.FEATURES[feature]:
+        if 'name' not in cls.FEATURES[feature]:
             cls.FEATURES[feature]['name'] = feature
-        if '.' in feature and not 'parent' in cls.FEATURES[feature]:
+        if '.' in feature and 'parent' not in cls.FEATURES[feature]:
             cls.FEATURES[feature]['parent'] = cls.find_feature(feature[:feature.rfind('.')])
-        if not 'subfeatures' in cls.FEATURES[feature]:
+        if 'subfeatures' not in cls.FEATURES[feature]:
             tree = cls.feature_tree()
             for x in feature.split('.'):
                 tree = tree[x]
@@ -468,7 +536,7 @@ class FeatureSet:
             node = target
             path = feat.split('.')
             for part in path:
-                if not part in node:
+                if part not in node:
                     node[part] = {}
                 node = node[part]
         return target
@@ -707,7 +775,10 @@ xandikos_v0_3 = {
     ]
 }
 
-xandikos=xandikos_v0_3
+xandikos_main = xandikos_v0_3.copy()
+xandikos_main.pop('search.recurrences.expanded.todo')
+
+xandikos = xandikos_main
 
 ## This seems to work as of version 3.5.4 of Radicale.
 ## There is much development going on at Radicale as of summar 2025,
@@ -715,7 +786,7 @@ xandikos=xandikos_v0_3
 radicale = {
     "search.text.case-sensitive":  {"support": "unsupported"},
     "search.is-not-defined": {"support": "fragile", "behaviour": "seems to work for categories but not for dtend"},
-    "search.recurrences.includes-implicit.todo.pending": {"support": "unsupported"},
+    "search.recurrences.includes-implicit.todo.pending": {"support": "fragile", "behaviour": "inconsistent results between runs"},
     "search.recurrences.expanded.todo": {"support": "unsupported"},
     "search.recurrences.expanded.exception": {"support": "unsupported"},
     'principal-search': {'support': 'unknown', 'behaviour': 'No display name available - cannot test'},
@@ -754,10 +825,6 @@ nextcloud = {
         'behaviour': "deleting a calendar moves it to a trashbin, thrashbin has to be manually 'emptied' from the web-ui before the namespace is freed up",
         'support': 'fragile',
     },
-    'search.comp-type-optional': {
-        'support': 'ungraceful',
-    },
-    "search.combined-is-logical-and": {"support": "unsupported"},
     'search.recurrences.includes-implicit.todo': {'support': 'unsupported'},
     #'save-load.todo.mixed-calendar': {'support': 'unsupported'}, ## Why?  It started complaining about this just recently.
     'principal-search.by-name': {'support': 'unsupported'},
@@ -793,7 +860,6 @@ zimbra = {
     #'search.text': 'unsupported', ## weeeird ... it wasn't like this before
     'search.text.substring': {'support': 'unsupported'},
     'search.text.category': {'support': 'ungraceful'},
-    'search.is-not-defined':  {'support': 'unsupported'},
     'search.recurrences.expanded.todo': { "support": "unsupported" },
     'search.comp-type-optional': {'support': 'fragile'}, ## TODO: more research on this, looks like a bug in the checker,
     'search.time-range.alarm': {'support': 'unsupported'},
@@ -837,6 +903,8 @@ bedework = {
     'propfind_allprop_failure',
     'duplicates_not_allowed',
     ],
+    # Ephemeral Docker container: wipe objects (delete-calendar not supported)
+    'test-calendar': {'cleanup-regime': 'wipe-calendar'},
     'auto-connect.url': {'basepath': '/ucaldav/'},
     "save-load.journal": {
         "support": "ungraceful"
@@ -933,11 +1001,14 @@ cyrus = {
     "search.recurrences.expanded.exception": {"support": "unsupported"},
     'search.time-range.alarm': {'support': 'unsupported'},
     'principal-search': {'support': 'ungraceful'},
-    "test-calendar": {"cleanup-regime": "pre"},
+    # Ephemeral Docker container: wipe objects but keep calendar (avoids UID conflicts)
+    "test-calendar": {"cleanup-regime": "wipe-calendar"},
     'delete-calendar': {
         'support': 'fragile',
         'behaviour': 'Deleting a recently created calendar fails'},
     'save.duplicate-uid.cross-calendar': {'support': 'ungraceful'},
+    # Cyrus may not properly reject wrong passwords in some configurations
+    'wrong-password-check': {'support': 'unsupported'},
     'old_flags': []
 }
 
@@ -951,11 +1022,13 @@ cyrus = {
 #    "no_freebusy_rfc4791",
 #    'no_recurring',
 #    'propfind_allprop_failure',
-#    'object_by_uid_is_broken'
+#    'get_object_by_uid_is_broken'
 #]
 
 davical = {
-
+    # Disable HTTP/2 multiplexing - davical doesn't support it well and niquests
+    # lazy responses cause MultiplexingError when accessing status_code
+    "http.multiplexing": { "support": "unsupported" },
     "search.comp-type-optional": { "support": "fragile" },
     "search.recurrences.expanded.todo": { "support": "unsupported" },
     "search.recurrences.expanded.exception": { "support": "unsupported" },
@@ -1021,6 +1094,8 @@ sogo = {
         "support": "ungraceful",
         "behaviour": "Search by name failed: ReportError at '501 Not Implemented - <?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\n<body><h3>An error occurred during object publishing</h3><p>did not find the specified REPORT</p></body>\n</html>\n', reason no reason",
     },
+    # Ephemeral Docker container: wipe objects (delete-calendar fragile)
+    'test-calendar': {'cleanup-regime': 'wipe-calendar'},
 
 }
 ## Old notes for sogo (todo - incorporate them in the structure above)

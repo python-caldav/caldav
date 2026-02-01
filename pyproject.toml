@@ -36,12 +36,12 @@ license-files = ["COPYING.*"]
 description = "CalDAV (RFC4791) client library"
 keywords = []
 readme = "README.md"
+requires-python = ">=3.10"
 classifiers = [
   "Development Status :: 4 - Beta",
   "Intended Audience :: Developers",
   "Operating System :: OS Independent",
   "Programming Language :: Python",
-  "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
@@ -74,6 +74,7 @@ Changelog = "https://github.com/python-caldav/caldav/blob/master/CHANGELOG.md"
 test = [
   "vobject",
   "pytest",
+  "pytest-asyncio",
   "coverage",
   "manuel",
   "proxy.py",
@@ -81,6 +82,7 @@ test = [
   "xandikos>=0.2.12",
   "radicale",
   "pyfakefs",
+  "httpx",
   #"caldav_server_tester"
   "deptry>=0.24.0; python_version >= '3.10'",
 ]
@@ -99,4 +101,74 @@ namespaces = false
 ignore = ["DEP002"]  # Test dependencies (pytest, coverage, etc.) are not imported in main code
 
 [tool.deptry.per_rule_ignores]
-DEP001 = ["conf"]  # Local test configuration file, not a package
+DEP001 = ["conf", "h2"]  # conf: Local test config, h2: Optional HTTP/2 support
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "W",    # pycodestyle warnings
+    "I",    # isort
+    "UP",   # pyupgrade (modernize code)
+    "B",    # flake8-bugbear (find bugs)
+]
+ignore = [
+    "E501",    # Line too long (formatter handles this)
+    "E402",    # Module level import not at top of file (common with conditional imports)
+    "E721",    # Type comparisons (isinstance is not always better)
+    "E722",    # Bare except (TODO: fix these gradually)
+    "E731",    # Lambda assignments (sometimes clearer than def)
+    "B007",    # Unused loop variable (often intentional)
+    "B011",    # assert False (used as unreachable markers)
+    "B018",    # Useless expression (often intentional in tests)
+    "B026",    # Star-arg after keyword (legacy pattern)
+    "B028",    # stacklevel in warnings (not critical)
+    "B904",    # raise from (TODO: fix gradually)
+    "F401",    # Unused imports (many are for re-export or conditional)
+    "F403",    # Star imports (legacy, TODO: fix gradually)
+    "F821",    # Undefined names (often in TYPE_CHECKING blocks or docstrings)
+    "F841",    # Unused variables (often intentional, e.g. unpacking)
+    "UP007",   # Optional[X] vs X | None (used in try/except for backwards compat)
+    "UP008",   # super() style (existing code uses explicit form)
+    "UP031",   # %-format (existing code uses it extensively)
+    "UP036",   # Outdated version blocks (will clean up when dropping old Python)
+    "UP038",   # isinstance tuple vs | (used in try/except for backwards compat)
+    "UP045",   # X | None vs Optional (both are fine)
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Examples and docs may have undefined names for illustration
+"examples/*.py" = ["F821"]
+"docs/**/*.py" = ["F821"]
+# Tests may use assertions and have unusual patterns
+"tests/*.py" = ["B011", "B017"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.ruff.lint.isort]
+known-first-party = ["caldav"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "strict"
+filterwarnings = [
+    # Treat all warnings as errors by default
+    "error",
+
+    # Ignore deprecation warnings from external libraries we can't control
+    # https://github.com/jawah/niquests/pull/327 https://github.com/jawah/niquests/issues/326
+    "ignore:.*asyncio.iscoroutinefunction.*:DeprecationWarning:niquests",
+
+    # Radicale upstream bugs: unclosed resources during server shutdown
+    # https://github.com/Kozea/Radicale/issues/1972
+    "ignore:unclosed.*:ResourceWarning",
+    "ignore:Exception ignored.*:pytest.PytestUnraisableExceptionWarning",
+
+    # Radicale uses deprecated importlib.abc.Traversable (Python 3.14 removal)
+    "ignore:.*importlib.abc.Traversable.*:DeprecationWarning",
+]
