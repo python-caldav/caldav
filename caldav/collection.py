@@ -599,12 +599,13 @@ class Calendar(DAVObject):
             client: A DAVClient instance
             url: The url for this calendar. May be a full URL or a relative URL.
             parent: The parent object (typically a CalendarSet or Principal)
-            name: The display name for the calendar
+            name: The display name for the calendar (stored in props cache)
             id: The calendar id (used when creating new calendars)
             props: A dict with known properties for this calendar
         """
-        super().__init__(client=client, url=url, parent=parent, id=id, props=props, **extra)
-        self.name = name
+        super().__init__(
+            client=client, url=url, parent=parent, id=id, props=props, name=name, **extra
+        )
 
     def _create(
         self, name=None, id=None, supported_calendar_component_set=None, method=None
@@ -986,14 +987,18 @@ class Calendar(DAVObject):
             return self._async_save(method)
 
         if self.url is None:
-            self._create(id=self.id, name=self.name, method=method, **self.extra_init_options)
+            # Get display name from props cache
+            display_name = self.props.get("{DAV:}displayname")
+            self._create(id=self.id, name=display_name, method=method, **self.extra_init_options)
         return self
 
     async def _async_save(self, method=None):
         """Async implementation of save."""
         if self.url is None:
+            # Get display name from props cache
+            display_name = self.props.get("{DAV:}displayname")
             await self._async_create(
-                name=self.name, id=self.id, method=method, **self.extra_init_options
+                name=display_name, id=self.id, method=method, **self.extra_init_options
             )
         return self
 
