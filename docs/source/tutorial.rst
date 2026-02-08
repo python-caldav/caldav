@@ -23,7 +23,7 @@ When you've run the tutorial as intended, I recommend going through the examples
 
 * Set the environment variables ``CALDAV_URL``, ``CALDAV_USER`` and ``CALDAV_PASSWORD`` to point to your personal calendar server.
 * Be aware that different calendar servers may behave differently.  For instance, not all of them allows you to create a calendar.  Some are even read-only.
-* You will need to revert all changes done.  The code examples below does not do any cleanup.  If your calendar server supports creating and deleting calendars, then it should be easy enough: ``my_new_calendar.delete()`` inside the with-block.  Events also has a ``.delete()``-method.  Beware that there is no ``undo``.  You're adviced to have a local backup of your calendars.  I'll probably write a HOWTO on that one day.
+* You will need to revert all changes done.  The code examples below does not do any cleanup.  If your calendar server supports creating and deleting calendars, then it should be easy enough: ``my_new_calendar.delete()`` inside the with-block.  Events also has a ``.delete()``-method.  Beware that there is no ``undo``.  You're advised to have a local backup of your calendars.  I'll probably write a HOWTO on that one day.
 * Usage of a context manager is considered best practice, but not really needed - you may skip the with-statement and write just ``client = get_davclient()``.  This will make it easier to test code from the python shell.
 
 Quick Start: Getting Calendars Directly
