@@ -125,7 +125,7 @@ to go through the principal object.
 
 Note that in the example above, no communication is done.  If the URL is wrong, you will only know it when trying to save or get objects from the server!
 
-For servers that supports it, it may be useful to create a dedicated test calendar – that way you can test freely without risking to mess up your calendar events.  Let's populate it with an event while we're at it:
+For servers that support it, it may be useful to create a dedicated test calendar – that way you can test freely without risking to mess up your calendar events.  Let's populate it with an event while we're at it:
 
 .. code-block:: python
 
@@ -165,7 +165,7 @@ You have icalendar code and want to put it into the calendar?  Easy!
     END:VCALENDAR
     """)
 
-The best way of getting information out from the calendar is to use the search.  Currently most of the logic is done on the server side – and the different calendar servers tends to give different results given the same data and search query.  In future versions of the CalDAV library the intention is to do more workarounds and logic on the client side, allowing for more consistent results across different servers.
+The best way of getting information out from the calendar is to use the search.  Currently most of the logic is done on the server side – and the different calendar servers tend to give different results given the same data and search query.  In future versions of the CalDAV library the intention is to do more workarounds and logic on the client side, allowing for more consistent results across different servers.
 
 .. code-block:: python
 
@@ -197,7 +197,7 @@ The best way of getting information out from the calendar is to use the search. 
 
 Without ``event=True`` explicitly set, all kinds of objects *should* be returned.  Unfortunately many servers returns nothing – so as of 2.0, it's important to always specify if you want events, tasks or journals.  In future versions of CalDAV there will be workarounds for this so ``event=True`` can be safely skipped, regardless what server is used.
 
-The return type is a list of objects of the type :class:`caldav.calendarobjectresource.Event` – for tasks and jornals there are similar classes Todo and Journal.
+The return type is a list of objects of the type :class:`caldav.calendarobjectresource.Event` – for tasks and journals there are similar classes Todo and Journal.
 
 The ``data`` property delivers the icalendar data as a string.  It can be modified:
 
@@ -268,7 +268,7 @@ The ``event.component`` property gives easy access to the
 
 How to do operations on components in the icalendar library is outside the scope of this tutorial.
 
-Usually tasks and journals can be applied directly to the same calendar as the events – but some implementations (notably Zimbra) has "task lists" and "calendars" as distinct entities.  To create a task list, there is a parameter ``supported_calendar_component_set`` that can be set to ``['VTODO']``.  Here is a quick example that features a task:
+Usually tasks and journals can be applied directly to the same calendar as the events – but some implementations (notably Zimbra) have "task lists" and "calendars" as distinct entities.  To create a task list, there is a parameter ``supported_calendar_component_set`` that can be set to ``['VTODO']``.  Here is a quick example that features a task:
 
 .. code-block:: python
 
