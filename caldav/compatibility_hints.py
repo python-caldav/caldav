@@ -1241,7 +1241,8 @@ posteo = {
     "save.duplicate-uid.cross-calendar": { "support": "unknown" },
     'search.comp-type-optional': {'support': 'ungraceful'},
     'search.text.case-sensitive': {'support': 'unsupported'},
-    'search.time-range.todo': {'support': 'unsupported'},
+    ## search.time-range.todo was previously unsupported on posteo but
+    ## is now observed as working (as of 2026-02)
     'search.recurrences.expanded.todo': {'support': 'unsupported'},
     'search.recurrences.expanded.exception': {'support': 'unsupported'},
     'search.recurrences.includes-implicit.todo': {'support': 'unsupported'},
