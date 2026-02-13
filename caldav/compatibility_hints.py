@@ -925,6 +925,7 @@ zimbra = {
     'sync-token': {'support': 'fragile'},
     #'search.text': 'unsupported', ## weeeird ... it wasn't like this before
     'search.is-not-defined': {'support': 'unsupported'},
+    'search.text.substring': {'support': 'unsupported'},
     'search.text.category': {'support': 'ungraceful'},
     'search.recurrences.expanded.todo': { "support": "unsupported" },
     'search.comp-type-optional': {'support': 'fragile'}, ## TODO: more research on this, looks like a bug in the checker,
