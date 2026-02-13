@@ -59,11 +59,15 @@ This Cyrus instance comes **pre-configured** with:
 
 ## Disabling Cyrus Tests
 
-If you want to skip Cyrus tests, create `tests/conf_private.py`:
+If you want to skip Cyrus tests, set `enabled: false` for the `cyrus` entry in `tests/caldav_test_servers.yaml`:
 
-```python
-test_cyrus = False
+```yaml
+cyrus:
+  type: docker
+  enabled: false
 ```
+
+Or use the environment variable: `TEST_CYRUS=false`.
 
 Or simply don't install Docker - the tests will automatically skip Cyrus if Docker is not available.
 

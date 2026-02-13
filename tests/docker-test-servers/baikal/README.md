@@ -54,11 +54,15 @@ This Baikal instance comes **pre-configured** with:
 
 ## Disabling Baikal Tests
 
-If you want to skip Baikal tests, create `tests/conf_private.py`:
+If you want to skip Baikal tests, set `enabled: false` for the `baikal` entry in `tests/caldav_test_servers.yaml`:
 
-```python
-test_baikal = False
+```yaml
+baikal:
+  type: docker
+  enabled: false
 ```
+
+Or use the environment variable: `TEST_BAIKAL=false`.
 
 Or simply don't install Docker - the tests will automatically skip Baikal if Docker is not available.
 
@@ -93,20 +97,17 @@ You can add more secrets in GitHub Actions settings for credentials.
 
 ### Test Configuration
 
-The test suite will automatically detect and use Baikal if configured. Configuration is in:
-- `tests/conf_baikal.py` - Baikal-specific configuration
-- `tests/conf.py` - Main test configuration (add Baikal to `caldav_servers` list)
+The test suite will automatically detect and use Baikal if configured. Configuration is in `tests/caldav_test_servers.yaml` (copy from `tests/caldav_test_servers.yaml.example` and customize).
 
-To enable Baikal testing, add to `tests/conf_private.py`:
+To enable Baikal testing, set `enabled: true` (or `enabled: auto` to auto-detect Docker availability) in the YAML config:
 
-```python
-from tests.conf_baikal import get_baikal_config
-
-# Add Baikal to test servers if available
-baikal_conf = get_baikal_config()
-if baikal_conf:
-    caldav_servers.append(baikal_conf)
+```yaml
+baikal:
+  type: docker
+  enabled: true
 ```
+
+Or use the environment variable: `TEST_BAIKAL=true`.
 
 ## Troubleshooting
 

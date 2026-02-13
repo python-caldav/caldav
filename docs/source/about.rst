@@ -269,7 +269,7 @@ tox should also work:
   $ tox -e py
 
 It will run some unit tests and some functional tests.  You may want to add your own
-private servers into tests/conf_private.py, see tests/conf_private.py.EXAMPLE
+private servers into tests/caldav_test_servers.yaml, see tests/caldav_test_servers.yaml.example
 
 Niquests vs Requests vs HTTPX
 =============================

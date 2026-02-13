@@ -2,7 +2,7 @@
 """
 Tests here communicate with third party servers and/or
 internal ad-hoc instances of Xandikos and Radicale, dependent on the
-configuration in conf_private.py.
+configuration in caldav_test_servers.yaml (see caldav_test_servers.yaml.example).
 Tests that do not require communication with a working caldav server
 belong in test_caldav_unit.py
 """
