@@ -241,6 +241,9 @@ class FeatureSet:
         "principal-search.list-all": {
             "description": "Server allows listing all principals without a name filter. Often blocked for privacy/security reasons"
         },
+        "wrong-password-check": {
+            "description": "Server rejects requests with wrong password by returning an authorization error. Some servers may not properly reject wrong passwords in certain configurations."
+        },
         "save": {},
         "save.duplicate-uid": {},
         "save.duplicate-uid.cross-calendar": {
@@ -465,6 +468,11 @@ class FeatureSet:
             if '.' not in feature_:
                 if not return_defaults:
                     return None
+                # Before returning default, check if we have subfeatures with explicit values
+                # If subfeatures exist and have mixed support levels, we should derive the parent status
+                derived = self._derive_from_subfeatures(feature_, feature_info, return_type, accept_fragile)
+                if derived is not None:
+                    return derived
                 return self._convert_node(self._default(feature_info), feature_info, return_type, accept_fragile)
             feature_ = feature_[:feature_.rfind('.')]
 

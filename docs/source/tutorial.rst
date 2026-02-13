@@ -86,7 +86,7 @@ Create a test calendar and add an event:
     import datetime
 
     with get_davclient() as client:
-        my_principal = client.principal()
+        my_principal = client.get_principal()
         my_new_calendar = my_principal.make_calendar(name="Test calendar")
         may17 = my_new_calendar.add_event(
             dtstart=datetime.datetime(2020,5,17,8),
@@ -102,7 +102,7 @@ Add an event from icalendar data:
     from caldav import get_davclient
 
     with get_davclient() as client:
-        my_principal = client.principal()
+        my_principal = client.get_principal()
         my_new_calendar = my_principal.make_calendar(name="Test calendar")
         may17 = my_new_calendar.add_event("""BEGIN:VCALENDAR
     VERSION:2.0
@@ -130,7 +130,7 @@ Use search to find events, tasks, or journals:
     import datetime
 
     with get_davclient() as client:
-        my_principal = client.principal()
+        my_principal = client.get_principal()
         my_new_calendar = my_principal.make_calendar(name="Test calendar")
         my_new_calendar.add_event(
             dtstart=datetime.datetime(2023,5,17,8),
@@ -164,7 +164,7 @@ The ``data`` property contains icalendar data as a string:
     import datetime
 
     with get_davclient() as client:
-        my_principal = client.principal()
+        my_principal = client.get_principal()
         my_new_calendar = my_principal.make_calendar(name="Test calendar")
         my_new_calendar.add_event(
             dtstart=datetime.datetime(2023,5,17,8),
@@ -193,7 +193,7 @@ property gives access to the :class:`icalendar.cal.Event` object:
     import datetime
 
     with get_davclient() as client:
-        my_principal = client.principal()
+        my_principal = client.get_principal()
         my_new_calendar = my_principal.make_calendar(name="Test calendar")
         my_new_calendar.add_event(
             dtstart=datetime.datetime(2023,5,17,8),
@@ -225,7 +225,7 @@ Create a task list and work with tasks:
     from datetime import date
 
     with get_davclient() as client:
-        my_principal = client.principal()
+        my_principal = client.get_principal()
         my_new_calendar = my_principal.make_calendar(
             name="Test calendar", supported_calendar_component_set=['VTODO'])
         my_new_calendar.add_todo(
