@@ -240,7 +240,15 @@ def _filter_search_results(
     result = []
     for o in objects:
         if searcher.expand or post_filter:
-            filtered = searcher.check_component(o, expand_only=not post_filter)
+            try:
+                filtered = searcher.check_component(o, expand_only=not post_filter)
+            except ValueError:
+                ## Server returned data with invalid recurrence structure
+                ## (e.g. after compatibility hacks stripped DURATION).
+                ## Include the object unfiltered rather than crashing.
+                filtered = [
+                    x for x in o.icalendar_instance.subcomponents if not isinstance(x, Timezone)
+                ]
             if not filtered:
                 continue
         else:

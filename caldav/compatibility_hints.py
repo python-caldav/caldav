@@ -1241,8 +1241,14 @@ posteo = {
     "save.duplicate-uid.cross-calendar": { "support": "unknown" },
     'search.comp-type-optional': {'support': 'ungraceful'},
     'search.text.case-sensitive': {'support': 'unsupported'},
+    ## Text search precondition check returns unexpected results on posteo
+    ## (possibly stale data on non-deletable calendar), so substring support
+    ## cannot be reliably determined.
+    'search.text.substring': {'support': 'unknown'},
     ## search.time-range.todo was previously unsupported on posteo but
-    ## is now observed as working (as of 2026-02)
+    ## is now observed as working for recent dates (as of 2026-02).
+    ## Old dates (year 2000) still don't work.
+    'search.time-range.todo.old-dates': {'support': 'unsupported'},
     'search.recurrences.expanded.todo': {'support': 'unsupported'},
     'search.recurrences.expanded.exception': {'support': 'unsupported'},
     'search.recurrences.includes-implicit.todo': {'support': 'unsupported'},
@@ -1321,15 +1327,21 @@ purelymail = {
     'save-load.get-by-url': {'support': 'unknown'},
     'save-load.todo': {'support': 'ungraceful'},
     'search.comp-type-optional': {'support': 'ungraceful'},
-    ## The search features below were previously observed as supported.
-    ## This may be a server-side regression, or the 160s cache delay may
-    ## not be enough.  If search starts working again, consider marking
-    ## these as 'fragile' rather than removing the hints entirely.
+    ## The search features below are unreliable on purelymail, likely due
+    ## to the 160s search-cache delay.  Results flip between unsupported
+    ## and ungraceful across runs.  Marked fragile so the checker skips them.
+    ## was: (default, i.e. full) - observed ungraceful 2026-02
+    'search.is-not-defined': {'support': 'fragile'},
     'search.time-range.alarm': {'support': 'unsupported'},
-    'search.time-range.event': {'support': 'unsupported'},
-    'search.time-range.todo': {'support': 'ungraceful'},
+    ## was: unsupported - observed ungraceful 2026-02
+    'search.time-range.event': {'support': 'fragile'},
+    ## was: ungraceful - observed unsupported 2026-02 (for .old-dates)
+    'search.time-range.todo': {'support': 'fragile'},
     'search.text.case-sensitive': {'support': 'unsupported'},
     'search.text.case-insensitive': {'support': 'unsupported'},
+    ## was: (default, i.e. full) - observed unknown 2026-02
+    ## Search-cache delay makes substring check unreliable
+    'search.text.substring': {'support': 'unknown'},
     'search.text.category': {'support': 'unsupported'},
     'search.recurrences.expanded': {'support': 'unsupported'},
     'search.recurrences.includes-implicit': {'support': 'unsupported'},
