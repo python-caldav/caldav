@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- encoding: utf-8 -*-
 """
 Tests for substring search workaround for servers that don't support it.
 
@@ -7,7 +6,6 @@ This test verifies that when a server doesn't support substring search
 and the user explicitly requests it with operator="contains", the search
 falls back to fetching all objects and filtering client-side.
 """
-import pytest
 
 from caldav.search import CalDAVSearcher
 

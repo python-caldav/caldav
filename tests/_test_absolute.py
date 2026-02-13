@@ -1,4 +1,3 @@
-# encoding: utf-8
 import datetime
 
 import caldav
@@ -7,21 +6,19 @@ import caldav
 class TestRadicale:
     SUMMARIES = set(
         (
-            "Godspeed You! Black Emperor at " "Cirque Royal / Koninklijk Circus",
+            "Godspeed You! Black Emperor at Cirque Royal / Koninklijk Circus",
             "Standard - GBA",
         )
     )
-    DTSTART = set(
-        (datetime.datetime(2011, 3, 4, 20, 0), datetime.datetime(2011, 1, 15, 20, 0))
-    )
+    DTSTART = set((datetime.datetime(2011, 3, 4, 20, 0), datetime.datetime(2011, 1, 15, 20, 0)))
 
     def setup(self):
         URL = "http://localhost:8080/nicoe/perso/"
         self.client = caldav.DAVClient(URL)
-        self.calendar = caldav.objects.Calendar(self.client, URL)
+        self.calendar = caldav.Calendar(self.client, URL)
 
     def test_eventslist(self):
-        events = self.calendar.events()
+        events = self.calendar.get_events()
         assert len(events) == 2
 
         summaries, dtstart = set(), set()
@@ -39,8 +36,8 @@ class TestTryton:
     def setup(self):
         URL = "http://admin:admin@localhost:9080/caldav/Calendars/Test"
         self.client = caldav.DAVClient(URL)
-        self.calendar = caldav.objects.Calendar(self.client, URL)
+        self.calendar = caldav.Calendar(self.client, URL)
 
     def test_eventslist(self):
-        events = self.calendar.events()
+        events = self.calendar.get_events()
         assert len(events) == 1

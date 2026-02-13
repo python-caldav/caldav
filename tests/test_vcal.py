@@ -1,9 +1,6 @@
 #!/usr/bin/env python
 import re
-import uuid
-from datetime import datetime
-from datetime import timedelta
-from datetime import timezone
+from datetime import datetime, timedelta, timezone
 from unittest import TestCase
 
 import icalendar
@@ -11,10 +8,8 @@ import pytest
 import vobject
 
 from caldav.lib import vcal
-from caldav.lib.python_utilities import to_normal_str
-from caldav.lib.python_utilities import to_wire
+from caldav.lib.python_utilities import to_normal_str, to_wire
 from caldav.lib.vcal import create_ical
-from caldav.lib.vcal import fix
 
 utc = timezone.utc
 
@@ -351,9 +346,7 @@ END:VCALENDAR"""
 
             # Verify it matches the expected format (YYYYMMDDTHHMMSSZ)
             dtstamp_match = re.search(r"DTSTAMP:(\d{8}T\d{6}Z)", fixed)
-            assert (
-                dtstamp_match is not None
-            ), f"DTSTAMP should be in correct format in:\n{fixed}"
+            assert dtstamp_match is not None, f"DTSTAMP should be in correct format in:\n{fixed}"
 
             if ical.count("BEGIN:VEVENT") == 2:
                 assert fixed.count("DTSTAMP:") == 2
