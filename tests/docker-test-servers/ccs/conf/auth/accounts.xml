@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Minimal accounts for caldav library test suite.
+  Based on Apple ccs-calendarserver test accounts (Apache 2.0 license).
+-->
+<!DOCTYPE accounts SYSTEM "accounts.dtd">
+
+<directory realm="Test Realm">
+  <record>
+    <uid>0C8BDE62-E600-4696-83D3-8B5ECABDFD2E</uid>
+    <guid>0C8BDE62-E600-4696-83D3-8B5ECABDFD2E</guid>
+    <short-name>admin</short-name>
+    <password>admin</password>
+    <full-name>Super User</full-name>
+    <email>admin@example.com</email>
+  </record>
+  <record type="user">
+    <uid>10000000-0000-0000-0000-000000000001</uid>
+    <guid>10000000-0000-0000-0000-000000000001</guid>
+    <short-name>user01</short-name>
+    <password>user01</password>
+    <full-name>User 01</full-name>
+    <email>user01@example.com</email>
+  </record>
+  <record type="user">
+    <uid>10000000-0000-0000-0000-000000000002</uid>
+    <guid>10000000-0000-0000-0000-000000000002</guid>
+    <short-name>user02</short-name>
+    <password>user02</password>
+    <full-name>User 02</full-name>
+    <email>user02@example.com</email>
+  </record>
+</directory>

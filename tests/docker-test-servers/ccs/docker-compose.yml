@@ -1,0 +1,17 @@
+services:
+  ccs:
+    image: pluies/ccs-calendarserver:latest
+    container_name: ccs-test
+    ports:
+      - "8807:8008"
+    volumes:
+      - ./conf:/opt/ccs/conf:ro
+    command: ./bin/run -n -c /opt/ccs/conf/caldavd.plist
+    tmpfs:
+      - /opt/ccs/data:size=200m
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8008/"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
