@@ -1,63 +1,51 @@
+import inspect
 import logging
-from copy import deepcopy
-from dataclasses import dataclass
-from dataclasses import field
-from dataclasses import replace
-from datetime import datetime
-from typing import Any
-from typing import List
-from typing import Optional
+from dataclasses import dataclass, field, replace
+from enum import Enum, auto
+from typing import TYPE_CHECKING, Any, Optional
 
-from icalendar import Timezone
 from icalendar.prop import TypesFactory
 from icalendar_searcher import Searcher
 from icalendar_searcher.collation import Collation
-from lxml import etree
 
-from .calendarobjectresource import CalendarObjectResource
-from .calendarobjectresource import Event
-from .calendarobjectresource import Journal
-from .calendarobjectresource import Todo
+from .calendarobjectresource import CalendarObjectResource, Event, Journal, Todo
 from .collection import Calendar
 from .elements import cdav
-from .elements import dav
-from .elements.base import BaseElement
 from .lib import error
+from .operations.search_ops import _build_search_xml_query
+from .operations.search_ops import _collation_to_caldav as collation_to_caldav
+from .operations.search_ops import _filter_search_results as filter_search_results
+
+if TYPE_CHECKING:
+    from .calendarobjectresource import (
+        CalendarObjectResource as AsyncCalendarObjectResource,
+    )
+    from .collection import Calendar as AsyncCalendar
 
 TypesFactory = TypesFactory()
 
 
-def _collation_to_caldav(collation: Collation, case_sensitive: bool = True) -> str:
-    """Map icalendar-searcher Collation enum to CalDAV collation identifier.
+# Re-export for backward compatibility
+_collation_to_caldav = collation_to_caldav
 
-    CalDAV supports collation identifiers from RFC 4790. The default is "i;ascii-casemap"
-    and servers must support at least "i;ascii-casemap" and "i;octet".
 
-    :param collation: icalendar-searcher Collation enum value
-    :param case_sensitive: Whether the collation should be case-sensitive
-    :return: CalDAV collation identifier string
-    """
-    if collation == Collation.SIMPLE:
-        # SIMPLE collation maps to CalDAV's basic collations
-        if case_sensitive:
-            return "i;octet"
-        else:
-            return "i;ascii-casemap"
-    elif collation == Collation.UNICODE:
-        # Unicode Collation Algorithm - not all servers support this
-        # Note: "i;unicode-casemap" is case-insensitive by definition
-        # For case-sensitive Unicode, we fall back to i;octet (binary)
-        if case_sensitive:
-            return "i;octet"
-        else:
-            return "i;unicode-casemap"
-    elif collation == Collation.LOCALE:
-        # Locale-specific collation - not widely supported in CalDAV
-        # Fallback to i;ascii-casemap as most servers don't support locale-specific collations
-        return "i;ascii-casemap"
-    else:
-        # Default to binary/octet for unknown collations
-        return "i;octet"
+# Property filter attribute names used for cloning searchers with modified filters
+_PROPERTY_FILTER_ATTRS = (
+    "_property_filters",
+    "_property_operator",
+    "_property_locale",
+    "_property_collation",
+)
+
+
+class SearchAction(Enum):
+    """Actions yielded by the search generator to be executed by sync/async wrappers."""
+
+    RECURSIVE_SEARCH = auto()  # (clone, calendar, args) -> do recursive search
+    SEARCH_WITH_COMPTYPES = auto()  # (args) -> search with all comp types
+    REQUEST_REPORT = auto()  # (xml, comp_class, props) -> make CalDAV request
+    LOAD_OBJECT = auto()  # (obj) -> load object data
+    RETURN = auto()  # (result) -> return this value
 
 
 @dataclass
@@ -74,16 +62,17 @@ class CalDAVSearcher(Searcher):
     search queries, as well as allowing for more complex searches.
 
     A search may be performed by first setting up a CalDAVSearcher,
-    populate it with filter options, and then initiate the search from
-    he CalDAVSearcher.  Something like this (see the doc in the base
-    class):
+    populate it with filter options, and then initiate the search.
+    The recommended approach (as of 3.0) is to create the searcher
+    from a calendar:
 
-    ``ComponentSearchFilter(from=..., to=...).search(calendar)``
+    ``searcher = calendar.searcher(event=True, start=..., end=...)``
+    ``searcher.add_property_filter("SUMMARY", "meeting")``
+    ``results = searcher.search()``
 
-    However, for simple searches, the old way to
-    do it will always work:
+    For simple searches, the direct method call still works:
 
-    ``calendar.search(from=..., to=..., ...)``
+    ``calendar.search(event=True, start=..., end=..., ...)``
 
     The ``todo``, ``event`` and ``journal`` parameters are booleans
     for filtering the component type.  It's currently recommended to
@@ -104,6 +93,7 @@ class CalDAVSearcher(Searcher):
 
     comp_class: Optional["CalendarObjectResource"] = None
     _explicit_operators: set = field(default_factory=set)
+    _calendar: Optional["Calendar"] = field(default=None, repr=False)
 
     def add_property_filter(
         self,
@@ -111,8 +101,8 @@ class CalDAVSearcher(Searcher):
         value: Any,
         operator: str = None,
         case_sensitive: bool = True,
-        collation: Optional[Collation] = None,
-        locale: Optional[str] = None,
+        collation: Collation | None = None,
+        locale: str | None = None,
     ) -> None:
         """Adds a filter for some specific iCalendar property.
 
@@ -169,9 +159,7 @@ class CalDAVSearcher(Searcher):
         if operator is not None:
             # Base class lowercases the key, so we need to as well
             self._explicit_operators.add(key.lower())
-            super().add_property_filter(
-                key, value, operator, case_sensitive, collation, locale
-            )
+            super().add_property_filter(key, value, operator, case_sensitive, collation, locale)
         else:
             # operator not specified - don't pass it, let base class use default
             # Don't track as explicit
@@ -183,54 +171,322 @@ class CalDAVSearcher(Searcher):
                 locale=locale,
             )
 
-    def _search_with_comptypes(
+    def _clone_without_filters(
+        self,
+        filters_to_remove: list[str] | None = None,
+        clear_all_filters: bool = False,
+    ) -> "CalDAVSearcher":
+        """Create a clone of this searcher with specified property filters removed.
+
+        This is used for compatibility workarounds where we need to remove certain
+        filters from the server query and apply them client-side instead.
+
+        :param filters_to_remove: List of property filter keys to remove (e.g., ["categories", "category"])
+        :param clear_all_filters: If True, remove all property filters
+        :return: Cloned searcher with filters removed
+        """
+        replacements = {}
+        for attr in _PROPERTY_FILTER_ATTRS:
+            if clear_all_filters:
+                replacements[attr] = {}
+            elif filters_to_remove:
+                replacements[attr] = getattr(self, attr).copy()
+                for key in filters_to_remove:
+                    replacements[attr].pop(key, None)
+            else:
+                continue
+        clone = replace(self, **replacements)
+        # Update _explicit_operators if we removed specific filters
+        if filters_to_remove and not clear_all_filters:
+            clone._explicit_operators = self._explicit_operators - set(filters_to_remove)
+        return clone
+
+    def _search_impl(
         self,
         calendar: Calendar,
-        server_expand: bool = False,
-        split_expanded: bool = True,
-        props: Optional[List[cdav.CalendarData]] = None,
-        xml: str = None,
-        _hacks: str = None,
-        post_filter: bool = None,
-    ) -> List[CalendarObjectResource]:
+        server_expand: bool,
+        split_expanded: bool,
+        props: list[cdav.CalendarData] | None,
+        xml: str | None,
+        post_filter: bool | None,
+        _hacks: str | None,
+    ):
+        """Core search implementation as a generator yielding actions.
+
+        This generator contains all the search logic and yields (action, data) tuples
+        that the caller (sync or async) executes. Results are sent back via .send().
+
+        Yields:
+            Tuples of (SearchAction, data) where data depends on action type
         """
-        Internal method - does three searches, one for each comp class (event, journal, todo).
-        """
-        if xml and (isinstance(xml, str) or "calendar-query" in xml.tag):
-            raise NotImplementedError(
-                "full xml given, and it has to be patched to include comp_type"
+        if calendar is None:
+            calendar = self._calendar
+        if calendar is None:
+            raise ValueError(
+                "No calendar provided. Either pass a calendar to search() or "
+                "create the searcher via calendar.searcher()"
             )
-        objects = []
 
-        assert self.event is None and self.todo is None and self.journal is None
+        ## Handle servers with broken component-type filtering (e.g., Bedework)
+        comp_type_support = calendar.client.features.is_supported("search.comp-type", str)
+        no_comp_filter = (
+            (self.comp_class or self.todo or self.event or self.journal)
+            and comp_type_support == "broken"
+            and post_filter is not False
+        )
+        if no_comp_filter:
+            if not _hacks:
+                _hacks = "no_comp_filter"
+            post_filter = True
 
-        for comp_class in (Event, Todo, Journal):
-            clone = replace(self)
-            clone.comp_class = comp_class
-            objects += clone.search(
-                calendar, server_expand, split_expanded, props, xml, post_filter, _hacks
+        ## Setting default value for post_filter
+        if post_filter is None and (
+            (self.todo and not self.include_completed)
+            or self.expand
+            or "categories" in self._property_filters
+            or "category" in self._property_filters
+            or not calendar.client.features.is_supported("search.text.case-sensitive")
+            or not calendar.client.features.is_supported("search.time-range.accurate")
+        ):
+            post_filter = True
+
+        ## split_expanded should only take effect on expanded data
+        if not self.expand and not server_expand:
+            split_expanded = False
+
+        if self.expand or server_expand:
+            if not self.start or not self.end:
+                raise error.ReportError("can't expand without a date range")
+
+        ## special compatbility-case for servers that does not
+        ## support category search properly
+        if (
+            not calendar.client.features.is_supported("search.text.category")
+            and ("categories" in self._property_filters or "category" in self._property_filters)
+            and post_filter is not False
+        ):
+            clone = self._clone_without_filters(["categories", "category"])
+            objects = yield (
+                SearchAction.RECURSIVE_SEARCH,
+                (clone, calendar, server_expand, split_expanded, props, xml, None, None),
             )
-        return self.sort(objects)
+            yield (
+                SearchAction.RETURN,
+                self.filter(objects, post_filter, split_expanded, server_expand),
+            )
+            return
 
-    ## TODO: refactor, split more logic out in smaller methods
+        ## special compatibility-case for servers that do not support substring search
+        if (
+            not calendar.client.features.is_supported("search.text.substring")
+            and post_filter is not False
+        ):
+            explicit_contains = [
+                prop
+                for prop in self._property_operator
+                if prop in self._explicit_operators and self._property_operator[prop] == "contains"
+            ]
+            if explicit_contains:
+                clone = self._clone_without_filters(explicit_contains)
+                objects = yield (
+                    SearchAction.RECURSIVE_SEARCH,
+                    (clone, calendar, server_expand, split_expanded, props, xml, None, None),
+                )
+                yield (
+                    SearchAction.RETURN,
+                    self.filter(
+                        objects,
+                        post_filter=True,
+                        split_expanded=split_expanded,
+                        server_expand=server_expand,
+                    ),
+                )
+                return
+
+        ## special compatibility-case for servers that does not
+        ## support combined searches very well
+        if not calendar.client.features.is_supported("search.combined-is-logical-and"):
+            if self.start or self.end:
+                if self._property_filters:
+                    clone = self._clone_without_filters(clear_all_filters=True)
+                    objects = yield (
+                        SearchAction.RECURSIVE_SEARCH,
+                        (clone, calendar, server_expand, split_expanded, props, xml, None, None),
+                    )
+                    yield (
+                        SearchAction.RETURN,
+                        self.filter(objects, post_filter, split_expanded, server_expand),
+                    )
+                    return
+
+        ## There are two ways to get the pending tasks - we can
+        ## ask the server to filter them out, or we can do it
+        ## client side.
+
+        ## If the server does not support combined searches, then it's
+        ## safest to do it client-side.
+
+        ## There is a special case (observed with radicale as of
+        ## 2025-11) where future recurrences of a task does not
+        ## match when doing a server-side filtering, so for this
+        ## case we also do client-side filtering (but the
+        ## "feature"
+        ## search.recurrences.includes-implicit.todo.pending will
+        ## not be supported if the feature
+        ## "search.recurrences.includes-implicit.todo" is not
+        ## supported ... hence the weird or below)
+
+        ## To be completely sure to get all pending tasks, for all
+        ## server implementations and for all valid icalendar
+        ## objects, we send three different searches to the
+        ## server.  This is probably bloated, and may in many
+        ## cases be more expensive than to ask for all tasks.  At
+        ## the other hand, for a well-used and well-handled old
+        ## todo-list, there may be a small set of pending tasks
+        ## and heaps of done tasks.
+
+        ## TODO: consider if not ignore_completed3 is sufficient,
+        ## then the recursive part of the query here is moot, and
+        ## we wouldn't waste so much time on repeated queries
+        if self.todo and self.include_completed is False:
+            clone = replace(self, include_completed=True)
+            clone.include_completed = True
+            clone.expand = False
+
+            if (
+                not no_comp_filter
+                and calendar.client.features.is_supported("search.text")
+                and calendar.client.features.is_supported("search.combined-is-logical-and")
+                and (
+                    not calendar.client.features.is_supported(
+                        "search.recurrences.includes-implicit.todo"
+                    )
+                    or calendar.client.features.is_supported(
+                        "search.recurrences.includes-implicit.todo.pending"
+                    )
+                )
+            ):
+                matches = []
+                for hacks in ("ignore_completed1", "ignore_completed2", "ignore_completed3"):
+                    result = yield (
+                        SearchAction.RECURSIVE_SEARCH,
+                        (clone, calendar, server_expand, False, props, xml, None, hacks),
+                    )
+                    matches.extend(result)
+            else:
+                matches = yield (
+                    SearchAction.RECURSIVE_SEARCH,
+                    (clone, calendar, server_expand, False, props, xml, None, _hacks),
+                )
+
+            # Deduplicate by URL
+            objects = []
+            match_set = set()
+            for item in matches:
+                if item.url not in match_set:
+                    match_set.add(item.url)
+                    objects.append(item)
+        else:
+            orig_xml = xml
+
+            if not xml or (not isinstance(xml, str) and not xml.tag.endswith("calendar-query")):
+                (xml, self.comp_class) = self.build_search_xml_query(
+                    server_expand, props=props, filters=xml, _hacks=_hacks
+                )
+
+            if not self.comp_class and not calendar.client.features.is_supported(
+                "search.comp-type-optional"
+            ):
+                if self.include_completed is None:
+                    self.include_completed = True
+
+                result = yield (
+                    SearchAction.SEARCH_WITH_COMPTYPES,
+                    (calendar, server_expand, split_expanded, props, orig_xml, _hacks, post_filter),
+                )
+                yield (SearchAction.RETURN, result)
+                return
+
+            try:
+                response, objects = yield (
+                    SearchAction.REQUEST_REPORT,
+                    (calendar, xml, self.comp_class, props),
+                )
+            except error.ReportError as err:
+                if (
+                    calendar.client.features.backward_compatibility_mode
+                    and not self.comp_class
+                    and "400" not in err.reason
+                ):
+                    result = yield (
+                        SearchAction.SEARCH_WITH_COMPTYPES,
+                        (
+                            calendar,
+                            server_expand,
+                            split_expanded,
+                            props,
+                            orig_xml,
+                            _hacks,
+                            post_filter,
+                        ),
+                    )
+                    yield (SearchAction.RETURN, result)
+                    return
+                raise
+
+            if not objects and not self.comp_class and _hacks == "insist":
+                result = yield (
+                    SearchAction.SEARCH_WITH_COMPTYPES,
+                    (calendar, server_expand, split_expanded, props, orig_xml, _hacks, post_filter),
+                )
+                yield (SearchAction.RETURN, result)
+                return
+
+        # Post-process: load objects
+        obj2 = []
+        for o in objects:
+            try:
+                yield (SearchAction.LOAD_OBJECT, o)
+                obj2.append(o)
+            except Exception:
+                logging.error(
+                    "Server does not want to reveal details about the calendar object",
+                    exc_info=True,
+                )
+        objects = obj2
+
+        # Google sometimes returns empty objects
+        objects = [o for o in objects if o.has_component()]
+        objects = self.filter(objects, post_filter, split_expanded, server_expand)
+
+        # Partial workaround for https://github.com/python-caldav/caldav/issues/201
+        for obj in objects:
+            try:
+                yield (SearchAction.LOAD_OBJECT, obj)
+            except Exception:
+                pass
+
+        yield (SearchAction.RETURN, self.sort(objects))
+
     def search(
         self,
-        calendar: Calendar,
+        calendar: Calendar = None,
         server_expand: bool = False,
         split_expanded: bool = True,
-        props: Optional[List[cdav.CalendarData]] = None,
+        props: list[cdav.CalendarData] | None = None,
         xml: str = None,
         post_filter=None,
         _hacks: str = None,
-    ) -> List[CalendarObjectResource]:
+    ) -> list[CalendarObjectResource]:
         """Do the search on a CalDAV calendar.
 
         Only CalDAV-specific parameters goes to this method.  Those
         parameters are pretty obscure - mostly for power users and
         internal usage.  Unless you have some very special needs, the
-        recommendation is to not pass anything but the calendar.
+        recommendation is to not pass anything.
 
-        :param calendar: Calendar to be searched
+        :param calendar: Calendar to be searched (optional if searcher was created
+                        from a calendar via ``calendar.searcher()``)
         :param server_expand: Ask the CalDAV server to expand recurrences
         :param split_expanded: Don't collect a recurrence set in one ical calendar
         :param props: CalDAV properties to send in the query
@@ -256,528 +512,195 @@ class CalDAVSearcher(Searcher):
         objects.  If you don't know what you're doing, then leave this
         flag on.
 
-        Use ``searcher.search(calendar)`` to apply the search on a caldav server.
-
         """
-        ## Handle servers with broken component-type filtering (e.g., Bedework)
-        ## Such servers may misclassify component types in responses
-        comp_type_support = calendar.client.features.is_supported(
-            "search.comp-type", str
+        gen = self._search_impl(
+            calendar, server_expand, split_expanded, props, xml, post_filter, _hacks
         )
-        if (
-            (self.comp_class or self.todo or self.event or self.journal)
-            and comp_type_support == "broken"
-            and not _hacks
-            and post_filter is not False
-        ):
-            _hacks = "no_comp_filter"
-            post_filter = True
+        result = None
 
-        ## Setting default value for post_filter
-        if post_filter is None and (
-            (self.todo and not self.include_completed)
-            or self.expand
-            or "categories" in self._property_filters
-            or "category" in self._property_filters
-            or not calendar.client.features.is_supported("search.text.case-sensitive")
-            or not calendar.client.features.is_supported("search.time-range.accurate")
-        ):
-            post_filter = True
+        try:
+            action, data = gen.send(result)
+        except StopIteration:
+            return []
 
-        ## split_expanded should only take effect on expanded data
-        if not self.expand and not server_expand:
-            split_expanded = False
+        while True:
+            try:
+                if action == SearchAction.RECURSIVE_SEARCH:
+                    clone, cal, srv_exp, spl_exp, prp, xm, pf, hk = data
+                    result = clone.search(cal, srv_exp, spl_exp, prp, xm, pf, hk)
+                elif action == SearchAction.SEARCH_WITH_COMPTYPES:
+                    cal, srv_exp, spl_exp, prp, xm, hk, pf = data
+                    result = self._search_with_comptypes(cal, srv_exp, spl_exp, prp, xm, hk, pf)
+                elif action == SearchAction.REQUEST_REPORT:
+                    cal, xm, comp_cls, prp = data
+                    result = cal._request_report_build_resultlist(xm, comp_cls, props=prp)
+                elif action == SearchAction.LOAD_OBJECT:
+                    data.load(only_if_unloaded=True)
+                    result = None
+                elif action == SearchAction.RETURN:
+                    return data
 
-        if self.expand or server_expand:
-            if not self.start or not self.end:
-                raise error.ReportError("can't expand without a date range")
+                action, data = gen.send(result)
+            except StopIteration:
+                return []
 
-        ## special compatbility-case for servers that does not
-        ## support category search properly
-        things = ("filters", "operator", "locale", "collation")
-        things = [f"_property_{thing}" for thing in things]
-        if (
-            not calendar.client.features.is_supported("search.text.category")
-            and (
-                "categories" in self._property_filters
-                or "category" in self._property_filters
+    def _search_with_comptypes(
+        self,
+        calendar: Calendar,
+        server_expand: bool = False,
+        split_expanded: bool = True,
+        props: list[cdav.CalendarData] | None = None,
+        xml: str = None,
+        _hacks: str = None,
+        post_filter: bool = None,
+    ) -> list[CalendarObjectResource]:
+        """
+        Internal method - does three searches, one for each comp class (event, journal, todo).
+        """
+        if xml and (isinstance(xml, str) or "calendar-query" in xml.tag):
+            raise NotImplementedError(
+                "full xml given, and it has to be patched to include comp_type"
             )
-            and post_filter is not False
-        ):
-            replacements = {}
-            for thing in things:
-                replacements[thing] = getattr(self, thing).copy()
-                replacements[thing].pop("categories", None)
-                replacements[thing].pop("category", None)
-            clone = replace(self, **replacements)
-            objects = clone.search(calendar, server_expand, split_expanded, props, xml)
-            return self.filter(objects, post_filter, split_expanded, server_expand)
+        objects = []
 
-        ## special compatibility-case for servers that do not support substring search
-        ## Only applies when user explicitly requested substring search with operator="contains"
-        if (
-            not calendar.client.features.is_supported("search.text.substring")
-            and post_filter is not False
-        ):
-            # Check if any property has explicitly specified operator="contains"
-            explicit_contains = [
-                prop
-                for prop in self._property_operator
-                if prop in self._explicit_operators
-                and self._property_operator[prop] == "contains"
-            ]
-            if explicit_contains:
-                # Remove explicit substring filters from server query,
-                # will be applied client-side instead
-                replacements = {}
-                for thing in things:
-                    replacements[thing] = getattr(self, thing).copy()
-                    for prop in explicit_contains:
-                        replacements[thing].pop(prop, None)
-                # Also need to preserve the _explicit_operators set but remove these properties
-                clone = replace(self, **replacements)
-                clone._explicit_operators = self._explicit_operators - set(
-                    explicit_contains
-                )
-                objects = clone.search(
-                    calendar, server_expand, split_expanded, props, xml
-                )
-                return self.filter(
-                    objects,
-                    post_filter=True,
-                    split_expanded=split_expanded,
-                    server_expand=server_expand,
-                )
+        assert self.event is None and self.todo is None and self.journal is None
 
-        ## special compatibility-case for servers that does not
-        ## support combined searches very well
-        if not calendar.client.features.is_supported("search.combined-is-logical-and"):
-            if self.start or self.end:
-                if self._property_filters:
-                    replacements = {}
-                    for thing in things:
-                        replacements[thing] = {}
-                    clone = replace(self, **replacements)
-                    objects = clone.search(
-                        calendar, server_expand, split_expanded, props, xml
-                    )
-                    return self.filter(
-                        objects, post_filter, split_expanded, server_expand
-                    )
+        for comp_class in (Event, Todo, Journal):
+            clone = replace(self)
+            clone.comp_class = comp_class
+            objects += clone.search(
+                calendar, server_expand, split_expanded, props, xml, post_filter, _hacks
+            )
+        return self.sort(objects)
 
-        ## special compatibility-case when searching for pending todos
-        if self.todo and not self.include_completed:
-            ## There are two ways to get the pending tasks - we can
-            ## ask the server to filter them out, or we can do it
-            ## client side.
+    async def async_search(
+        self,
+        calendar: "AsyncCalendar" = None,
+        server_expand: bool = False,
+        split_expanded: bool = True,
+        props: list[cdav.CalendarData] | None = None,
+        xml: str = None,
+        post_filter=None,
+        _hacks: str = None,
+    ) -> list["AsyncCalendarObjectResource"]:
+        """Async version of search() - does the search on an AsyncCalendar.
 
-            ## If the server does not support combined searches, then it's
-            ## safest to do it client-side.
+        This method mirrors the sync search() method but uses async HTTP operations.
+        All the same compatibility logic is applied.
 
-            ## There is a special case (observed with radicale as of
-            ## 2025-11) where future recurrences of a task does not
-            ## match when doing a server-side filtering, so for this
-            ## case we also do client-side filtering (but the
-            ## "feature"
-            ## search.recurrences.includes-implicit.todo.pending will
-            ## not be supported if the feature
-            ## "search.recurrences.includes-implicit.todo" is not
-            ## supported ... hence the weird or below)
+        See the sync search() method for full documentation.
+        """
+        gen = self._search_impl(
+            calendar, server_expand, split_expanded, props, xml, post_filter, _hacks
+        )
+        result = None
 
-            ## To be completely sure to get all pending tasks, for all
-            ## server implementations and for all valid icalendar
-            ## objects, we send three different searches to the
-            ## server.  This is probably bloated, and may in many
-            ## cases be more expensive than to ask for all tasks.  At
-            ## the other hand, for a well-used and well-handled old
-            ## todo-list, there may be a small set of pending tasks
-            ## and heaps of done tasks.
+        try:
+            action, data = gen.send(result)
+        except StopIteration:
+            return []
 
-            ## TODO: consider if not ignore_completed3 is sufficient,
-            ## then the recursive part of the query here is moot, and
-            ## we wouldn't waste so much time on repeated queries
-            clone = replace(self, include_completed=True)
-            clone.include_completed = True
-            ## No point with expanding in the subqueries - the expand logic will be handled
-            ## further down.  We leave server_expand as it is, though.
-            clone.expand = False
-            if (
-                calendar.client.features.is_supported("search.text")
-                and calendar.client.features.is_supported(
-                    "search.combined-is-logical-and"
-                )
-                and (
-                    not calendar.client.features.is_supported(
-                        "search.recurrences.includes-implicit.todo"
-                    )
-                    or calendar.client.features.is_supported(
-                        "search.recurrences.includes-implicit.todo.pending"
-                    )
-                )
-            ):
-                matches = []
-                for hacks in (
-                    "ignore_completed1",
-                    "ignore_completed2",
-                    "ignore_completed3",
-                ):
-                    ## The algorithm below does not handle recurrence split gently
-                    matches.extend(
-                        clone.search(
-                            calendar,
-                            server_expand,
-                            split_expanded=False,
-                            props=props,
-                            xml=xml,
-                            _hacks=hacks,
-                        )
-                    )
-            else:
-                ## The algorithm below does not handle recurrence split gently
-                matches = clone.search(
-                    calendar,
-                    server_expand,
-                    split_expanded=False,
-                    props=props,
-                    xml=xml,
-                    _hacks=_hacks,
-                )
-            objects = []
-            match_set = set()
-            for item in matches:
-                if item.url not in match_set:
-                    match_set.add(item.url)
-                    objects.append(item)
-        else:
-            orig_xml = xml
-
-            ## Now the xml variable may be either a full query or a filter
-            ## and it may be either a string or an object.
-            if not xml or (
-                not isinstance(xml, str) and not xml.tag.endswith("calendar-query")
-            ):
-                (xml, self.comp_class) = self.build_search_xml_query(
-                    server_expand, props=props, filters=xml, _hacks=_hacks
-                )
-
-            if not self.comp_class and not calendar.client.features.is_supported(
-                "search.comp-type-optional"
-            ):
-                if self.include_completed is None:
-                    self.include_completed = True
-
-                return self._search_with_comptypes(
-                    calendar,
-                    server_expand,
-                    split_expanded,
-                    props,
-                    orig_xml,
-                    post_filter,
-                    _hacks,
-                )
-
+        while True:
             try:
-                (response, objects) = calendar._request_report_build_resultlist(
-                    xml, self.comp_class, props=props
-                )
-
-            except error.ReportError as err:
-                ## This is only for backward compatibility.
-                ## Partial fix https://github.com/python-caldav/caldav/issues/401
-                if (
-                    calendar.client.features.backward_compatibility_mode
-                    and not self.comp_class
-                    and not "400" in err.reason
-                ):
-                    return self._search_with_comptypes(
-                        calendar,
-                        server_expand,
-                        split_expanded,
-                        props,
-                        orig_xml,
-                        post_filter,
-                        _hacks,
+                if action == SearchAction.RECURSIVE_SEARCH:
+                    clone, cal, srv_exp, spl_exp, prp, xm, pf, hk = data
+                    result = await clone.async_search(cal, srv_exp, spl_exp, prp, xm, pf, hk)
+                elif action == SearchAction.SEARCH_WITH_COMPTYPES:
+                    cal, srv_exp, spl_exp, prp, xm, hk, pf = data
+                    result = await self._async_search_with_comptypes(
+                        cal, srv_exp, spl_exp, prp, xm, hk, pf
                     )
-                raise
+                elif action == SearchAction.REQUEST_REPORT:
+                    cal, xm, comp_cls, prp = data
+                    result = await cal._request_report_build_resultlist(xm, comp_cls, props=prp)
+                elif action == SearchAction.LOAD_OBJECT:
+                    load_result = data.load(only_if_unloaded=True)
+                    if inspect.isawaitable(load_result):
+                        await load_result
+                    result = None
+                elif action == SearchAction.RETURN:
+                    return data
 
-            ## Some things, like `calendar.object_by_uid`, should always work, no matter if `davclient.compatibility_hints` is correctly configured or not
-            if not objects and not self.comp_class and _hacks == "insist":
-                return self._search_with_comptypes(
-                    calendar,
-                    server_expand,
-                    split_expanded,
-                    props,
-                    orig_xml,
-                    post_filter,
-                    _hacks,
-                )
+                action, data = gen.send(result)
+            except StopIteration:
+                return []
 
-        obj2 = []
+    async def _async_search_with_comptypes(
+        self,
+        calendar: "AsyncCalendar",
+        server_expand: bool = False,
+        split_expanded: bool = True,
+        props: list[cdav.CalendarData] | None = None,
+        xml: str = None,
+        _hacks: str = None,
+        post_filter: bool = None,
+    ) -> list["AsyncCalendarObjectResource"]:
+        """
+        Internal async method - does three searches, one for each comp class.
+        """
+        if xml and (isinstance(xml, str) or "calendar-query" in xml.tag):
+            raise NotImplementedError(
+                "full xml given, and it has to be patched to include comp_type"
+            )
+        objects: list[AsyncCalendarObjectResource] = []
 
-        for o in objects:
-            ## This would not be needed if the servers would follow the standard ...
-            ## TODO: use calendar.calendar_multiget - see https://github.com/python-caldav/caldav/issues/487
-            try:
-                o.load(only_if_unloaded=True)
-                obj2.append(o)
-            except:
-                logging.error(
-                    "Server does not want to reveal details about the calendar object",
-                    exc_info=True,
-                )
-                pass
-        objects = obj2
+        assert self.event is None and self.todo is None and self.journal is None
 
-        ## Google sometimes returns empty objects
-        objects = [o for o in objects if o.has_component()]
-        objects = self.filter(objects, post_filter, split_expanded, server_expand)
-
-        ## partial workaround for https://github.com/python-caldav/caldav/issues/201
-        for obj in objects:
-            try:
-                obj.load(only_if_unloaded=True)
-            except:
-                pass
-
+        for comp_class in (Event, Todo, Journal):
+            clone = replace(self)
+            clone.comp_class = comp_class
+            results = await clone.async_search(
+                calendar, server_expand, split_expanded, props, xml, post_filter, _hacks
+            )
+            objects.extend(results)
         return self.sort(objects)
 
     def filter(
         self,
-        objects: List[CalendarObjectResource],
-        post_filter: Optional[bool] = None,
+        objects: list[CalendarObjectResource],
+        post_filter: bool | None = None,
         split_expanded: bool = True,
         server_expand: bool = False,
-    ) -> List[CalendarObjectResource]:
+    ) -> list[CalendarObjectResource]:
         """Apply client-side filtering and handle recurrence expansion/splitting.
 
-        This method performs client-side filtering of calendar objects, handles
-        recurrence expansion, and splits expanded recurrences into separate objects
-        when requested.
+        This method delegates to the operations layer filter_search_results().
+        See that function for full documentation.
 
         :param objects: List of Event/Todo/Journal objects to filter
-        :param post_filter: Whether to apply the searcher's filter logic.
-            - True: Always apply filters (check_component)
-            - False: Never apply filters, only handle splitting
-            - None: Use default behavior (depends on self.expand and other flags)
-        :param split_expanded: Whether to split recurrence sets into multiple
-            separate CalendarObjectResource objects. If False, a recurrence set
-            will be contained in a single object with multiple subcomponents.
-        :param server_expand: Indicates that the server was supposed to expand
-            recurrences. If True and split_expanded is True, splitting will be
-            performed even without self.expand being set.
+        :param post_filter: Whether to apply the searcher's filter logic
+        :param split_expanded: Whether to split recurrence sets into separate objects
+        :param server_expand: Whether server was asked to expand recurrences
         :return: Filtered and/or split list of CalendarObjectResource objects
-
-        The method handles:
-        - Client-side filtering when server returns too many results
-        - Exact match filtering (== operator)
-        - Recurrence expansion via self.check_component
-        - Splitting expanded recurrences into separate objects
-        - Preserving VTIMEZONE components when splitting
         """
-        if post_filter or self.expand or (split_expanded and server_expand):
-            objects_ = objects
-            objects = []
-            for o in objects_:
-                if self.expand or post_filter:
-                    filtered = self.check_component(o, expand_only=not post_filter)
-                    if not filtered:
-                        continue
-                else:
-                    filtered = [
-                        x
-                        for x in o.icalendar_instance.subcomponents
-                        if not isinstance(x, Timezone)
-                    ]
-                i = o.icalendar_instance
-                tz_ = [x for x in i.subcomponents if isinstance(x, Timezone)]
-                i.subcomponents = tz_
-                for comp in filtered:
-                    if isinstance(comp, Timezone):
-                        continue
-                    if split_expanded:
-                        new_obj = o.copy(keep_uid=True)
-                        new_i = new_obj.icalendar_instance
-                        new_i.subcomponents = []
-                        for tz in tz_:
-                            new_i.add_component(tz)
-                        objects.append(new_obj)
-                    else:
-                        new_i = i
-                    new_i.add_component(comp)
-                if not (split_expanded):
-                    objects.append(o)
-        return objects
+        return filter_search_results(
+            objects=objects,
+            searcher=self,
+            post_filter=post_filter,
+            split_expanded=split_expanded,
+            server_expand=server_expand,
+        )
 
-    def build_search_xml_query(
-        self, server_expand=False, props=None, filters=None, _hacks=None
-    ):
-        """This method will produce a caldav search query as an etree object.
+    def build_search_xml_query(self, server_expand=False, props=None, filters=None, _hacks=None):
+        """Build a CalDAV calendar-query XML request.
 
-        It is primarily to be used from the search method.  See the
-        documentation for the search method for more information.
+        Delegates to the operations layer for the actual XML building.
+        This method updates self.comp_class as a side effect based on
+        the search parameters.
+
+        :param server_expand: Ask server to expand recurrences
+        :param props: Additional CalDAV properties to request
+        :param filters: Pre-built filter elements (or None to build from self)
+        :param _hacks: Compatibility hack mode
+        :return: Tuple of (xml_element, comp_class)
         """
-        # those xml elements are weird.  (a+b)+c != a+(b+c).  First makes b and c as list members of a, second makes c an element in b which is an element of a.
-        # First objective is to let this take over all xml search query building and see that the current tests pass.
-        # ref https://www.ietf.org/rfc/rfc4791.txt, section 7.8.9 for how to build a todo-query
-        # We'll play with it and don't mind it's getting ugly and don't mind that the test coverage is lacking.
-        # we'll refactor and create some unit tests later, as well as ftests for complicated queries.
-
-        # build the request
-        data = cdav.CalendarData()
-        if server_expand:
-            if not self.start or not self.end:
-                raise error.ReportError("can't expand without a date range")
-            data += cdav.Expand(self.start, self.end)
-        if props is None:
-            props_ = [data]
-        else:
-            props_ = [data] + props
-        prop = dav.Prop() + props_
-        vcalendar = cdav.CompFilter("VCALENDAR")
-
-        comp_filter = None
-
-        if filters:
-            ## It's disgraceful - `somexml = xml + [ more_elements ]` will alter xml,
-            ## and there exists no `xml.copy`
-            ## Hence, we need to import the deepcopy tool ...
-            filters = deepcopy(filters)
-            if filters.tag == cdav.CompFilter.tag:
-                comp_filter = filters
-                filters = []
-
-        else:
-            filters = []
-
-        vNotCompleted = cdav.TextMatch("COMPLETED", negate=True)
-        vNotCancelled = cdav.TextMatch("CANCELLED", negate=True)
-        vNeedsAction = cdav.TextMatch("NEEDS-ACTION")
-        vStatusNotCompleted = cdav.PropFilter("STATUS") + vNotCompleted
-        vStatusNotCancelled = cdav.PropFilter("STATUS") + vNotCancelled
-        vStatusNeedsAction = cdav.PropFilter("STATUS") + vNeedsAction
-        vStatusNotDefined = cdav.PropFilter("STATUS") + cdav.NotDefined()
-        vNoCompleteDate = cdav.PropFilter("COMPLETED") + cdav.NotDefined()
-        if _hacks == "ignore_completed1":
-            ## This query is quite much in line with https://tools.ietf.org/html/rfc4791#section-7.8.9
-            filters.extend([vNoCompleteDate, vStatusNotCompleted, vStatusNotCancelled])
-        elif _hacks == "ignore_completed2":
-            ## some server implementations (i.e. NextCloud
-            ## and Baikal) will yield "false" on a negated TextMatch
-            ## if the field is not defined.  Hence, for those
-            ## implementations we need to turn back and ask again
-            ## ... do you have any VTODOs for us where the STATUS
-            ## field is not defined? (ref
-            ## https://github.com/python-caldav/caldav/issues/14)
-            filters.extend([vNoCompleteDate, vStatusNotDefined])
-        elif _hacks == "ignore_completed3":
-            ## ... and considering recurring tasks we really need to
-            ## look a third time as well, this time for any task with
-            ## the NEEDS-ACTION status set (do we need the first go?
-            ## NEEDS-ACTION or no status set should cover them all?)
-            filters.extend([vStatusNeedsAction])
-
-        if self.start or self.end:
-            filters.append(cdav.TimeRange(self.start, self.end))
-
-        if self.alarm_start or self.alarm_end:
-            filters.append(
-                cdav.CompFilter("VALARM")
-                + cdav.TimeRange(self.alarm_start, self.alarm_end)
-            )
-
-        ## I've designed this badly, at different places the caller
-        ## may pass the component type either as boolean flags:
-        ##   `search(event=True, ...)`
-        ## as a component class:
-        ##   `search(comp_class=caldav.calendarobjectresource.Event)`
-        ## or as a component filter:
-        ##   `search(filters=cdav.CompFilter('VEVENT'), ...)`
-        ## The only thing I don't support is the component name ('VEVENT').
-        ## Anyway, this code section ensures both comp_filter and comp_class
-        ## is given.  Or at least, it tries to ensure it.
-        for flag, comp_name, comp_class_ in (
-            ("event", "VEVENT", Event),
-            ("todo", "VTODO", Todo),
-            ("journal", "VJOURNAL", Journal),
-        ):
-            flagged = getattr(self, flag)
-            if flagged:
-                ## event/journal/todo is set, we adjust comp_class accordingly
-                if self.comp_class is not None and self.comp_class is not comp_class_:
-                    raise error.ConsistencyError(
-                        f"inconsistent search parameters - comp_class = {self.comp_class}, want {comp_class_}"
-                    )
-                self.comp_class = comp_class_
-
-            if comp_filter and comp_filter.attributes["name"] == comp_name:
-                self.comp_class = comp_class_
-                if flag == "todo" and not self.todo and self.include_completed is None:
-                    self.include_completed = True
-                setattr(self, flag, True)
-
-            if self.comp_class == comp_class_:
-                if comp_filter:
-                    assert comp_filter.attributes["name"] == comp_name
-                else:
-                    comp_filter = cdav.CompFilter(comp_name)
-                setattr(self, flag, True)
-
-        if self.comp_class and not comp_filter:
-            raise error.ConsistencyError(
-                f"unsupported comp class {self.comp_class} for search"
-            )
-
-        ## Special hack for bedework.
-        ## If asked for todos, we should NOT give any comp_filter to the server,
-        ## we should rather ask for everything, and then do client-side filtering
-        if _hacks == "no_comp_filter":
-            comp_filter = None
-            self.comp_class = None
-
-        for property in self._property_operator:
-            if self._property_operator[property] == "undef":
-                match = cdav.NotDefined()
-                filters.append(cdav.PropFilter(property.upper()) + match)
-            else:
-                value = self._property_filters[property]
-                property_ = property.upper()
-                if property.lower() == "category":
-                    property_ = "CATEGORIES"
-                if property.lower() == "categories":
-                    values = value.cats
-                else:
-                    values = [value]
-
-                for value in values:
-                    if hasattr(value, "to_ical"):
-                        value = value.to_ical()
-
-                    # Get collation setting for this property if available
-                    collation_str = "i;octet"  # Default to binary
-                    if (
-                        hasattr(self, "_property_collation")
-                        and property in self._property_collation
-                    ):
-                        case_sensitive = self._property_case_sensitive.get(
-                            property, True
-                        )
-                        collation_str = _collation_to_caldav(
-                            self._property_collation[property], case_sensitive
-                        )
-
-                    match = cdav.TextMatch(value, collation=collation_str)
-                    filters.append(cdav.PropFilter(property_) + match)
-
-        if comp_filter and filters:
-            comp_filter += filters
-            vcalendar += comp_filter
-        elif comp_filter:
-            vcalendar += comp_filter
-        elif filters:
-            vcalendar += filters
-
-        filter = cdav.Filter() + vcalendar
-
-        root = cdav.CalendarQuery() + [prop, filter]
-
-        return (root, self.comp_class)
+        xml, comp_class = _build_search_xml_query(
+            searcher=self,
+            server_expand=server_expand,
+            props=props,
+            filters=filters,
+            _hacks=_hacks,
+        )
+        # Update self.comp_class from the result (side effect for compatibility)
+        self.comp_class = comp_class
+        return (xml, comp_class)
