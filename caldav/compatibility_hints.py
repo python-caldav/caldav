@@ -916,7 +916,10 @@ ecloud = nextcloud | {
 zimbra = {
     'auto-connect.url': {'basepath': '/dav/'},
     'delete-calendar': {'support': 'fragile', 'behaviour': 'may move to trashbin instead of deleting immediately'},
-    'save-load.get-by-url': {'support': 'unsupported'},
+    ## save-load.get-by-url was unsupported in older Zimbra versions (GET to
+    ## valid calendar object URLs returned 404), but works in zimbra/zcs-foss:latest
+    ## Zimbra treats same-UID events across calendars as aliases of the same event
+    'save.duplicate-uid.cross-calendar': {'support': 'unsupported'},
     'search.recurrences.expanded.exception': {'support': 'unsupported'}, ## TODO: verify
     'create-calendar.set-displayname': {'support': 'unsupported'},
     'save-load.todo.mixed-calendar': {'support': 'unsupported'},
@@ -943,7 +946,7 @@ zimbra = {
     ## earlier versions of Zimbra display-name could be changed, but
     ## then the calendar would not be available on the old URL
     ## anymore)
-    'event_by_url_is_broken',
+    ## 'event_by_url_is_broken' removed - works in zimbra/zcs-foss:latest
     'no_delete_event',
     'vtodo_datesearch_notime_task_is_skipped',
     'no_relships',
@@ -1070,6 +1073,8 @@ cyrus = {
     "search.recurrences.expanded.exception": {"support": "unsupported"},
     "search.time-range.alarm": {"support": "ungraceful"},
     'principal-search': {'support': 'ungraceful'},
+    # Cyrus enforces unique UIDs across all calendars for a user
+    "save.duplicate-uid.cross-calendar": {"support": "unsupported"},
     # Ephemeral Docker container: wipe objects but keep calendar (avoids UID conflicts)
     "test-calendar": {"cleanup-regime": "wipe-calendar"},
     'delete-calendar': {
