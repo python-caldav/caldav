@@ -15,7 +15,7 @@ The config file has to be valid json or yaml (support for toml and Apple pkl may
 
 The config file is expected to be divided in sections, where each section can describe locations and credentials to a CalDAV server, a CalDAV calendar or a collection of calendars/servers.  As of version 2.0, only the first is supported.
 
-A config section can be given either through parameters to :class:`caldav.davclient.get_davclient` or by enviornment variable ``CALDAV_CONFIG_SECTION``.  If no section is given, the ``default`` section is used.
+A config section can be given either through parameters to :func:`caldav.get_davclient` or by enviornment variable ``CALDAV_CONFIG_SECTION``.  If no section is given, the ``default`` section is used.
 
 Connection parameters
 =====================

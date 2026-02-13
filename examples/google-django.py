@@ -11,11 +11,11 @@ Contributed by Abe Hanoka in https://github.com/python-caldav/caldav/issues/119#
 
 This code is not tested by the caldav library maintainer.
 """
-from allauth.socialaccount.models import SocialApp
-from allauth.socialaccount.models import SocialToken
+
+from allauth.socialaccount.models import SocialApp, SocialToken
 from google.oauth2.credentials import Credentials
 
-from caldav.davclient import get_davclient
+from caldav import get_davclient
 from caldav.requests import HTTPBearerAuth
 
 
@@ -52,8 +52,8 @@ def sync_calendar(user, calendar_id):
 
     # Access calendar
     principal = client.principal()
-    calendar = principal.calendars()[0]
+    calendar = principal.get_calendars()[0]
 
     # Now you can work with events
-    events = calendar.events()
+    events = calendar.get_events()
     # ...etc

@@ -5,6 +5,7 @@ This script will run through all domains found in:
  * compatibility_hints
 ... and check if they support the RFC.
 """
+
 from sys import path
 
 path.insert(0, "..")
@@ -15,9 +16,9 @@ try:
     from tests.conf_private import caldav_servers
 except:
     caldav_servers = []
+from caldav import compatibility_hints
 from caldav.discovery import discover_caldav
 from caldav.lib.url import URL
-from caldav import compatibility_hints
 
 urls = []
 domains = []

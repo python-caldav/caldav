@@ -4,7 +4,8 @@ Example usage of RFC6764 service discovery in python-caldav
 
 This script demonstrates how the RFC6764 integration works.
 """
-from caldav.davclient import get_davclient
+
+from caldav import get_davclient
 
 # Example 1: Automatic RFC6764 discovery with email address
 # Username is automatically extracted from the email address
@@ -42,9 +43,7 @@ print("\n")
 print("Example 3: Using bare domain (RFC6764 discovery enabled by default)")
 print("-" * 70)
 try:
-    client = get_davclient(
-        url="calendar.example.com", username="user", password="password"
-    )
+    client = get_davclient(url="calendar.example.com", username="user", password="password")
     print(f"Client URL after discovery: {client.url}")
 except Exception as e:
     print(f"Discovery failed (expected for example.com): {e}")
@@ -71,9 +70,7 @@ print("\n")
 # Example 5: Full URL bypasses discovery
 print("Example 5: Full URL (RFC6764 discovery automatically skipped)")
 print("-" * 70)
-client = get_davclient(
-    url="https://caldav.example.com/dav/", username="user", password="password"
-)
+client = get_davclient(url="https://caldav.example.com/dav/", username="user", password="password")
 print(f"Client URL (no discovery needed): {client.url}")
 
 print("\n")
