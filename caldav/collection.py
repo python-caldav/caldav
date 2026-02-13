@@ -663,6 +663,20 @@ class Calendar(DAVObject):
 
         r = self._query(root=mkcol, query_method=method, url=path, expected_return_value=201)
 
+        # Some servers (e.g. GMX) use an internal canonical URL that
+        # differs from the client-constructed URL (e.g. UUID-based path
+        # vs username-based path).  Check the PROPFIND response for the
+        # server-reported href, which may differ from our PUT URL.
+        try:
+            propfind = self._query(depth=0, url=path)
+            if propfind.results:
+                server_href = propfind.results[0].href
+                server_url = path.join(server_href)
+                if server_url.path and server_url.path != path.path:
+                    self.url = server_url
+        except Exception:
+            pass
+
         # COMPATIBILITY ISSUE
         # name should already be set, but we've seen caldav servers failing
         # on setting the DisplayName on calendar creation
@@ -728,6 +742,17 @@ class Calendar(DAVObject):
         await self._async_query(
             root=mkcol, query_method=method, url=path, expected_return_value=201
         )
+
+        # Check for server-reported canonical URL (see sync _create)
+        try:
+            propfind = await self._async_query(depth=0, url=path)
+            if propfind.results:
+                server_href = propfind.results[0].href
+                server_url = path.join(server_href)
+                if server_url.path and server_url.path != path.path:
+                    self.url = server_url
+        except Exception:
+            pass
 
         # COMPATIBILITY ISSUE - try to set display name explicitly
         if name:
