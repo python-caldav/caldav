@@ -1,19 +1,10 @@
 #!/usr/bin/env python
 import sys
 import urllib.parse
-from typing import Any
-from typing import cast
-from typing import Optional
-from typing import Union
-from urllib.parse import ParseResult
-from urllib.parse import quote
-from urllib.parse import SplitResult
-from urllib.parse import unquote
-from urllib.parse import urlparse
-from urllib.parse import urlunparse
+from typing import Any, cast
+from urllib.parse import ParseResult, SplitResult, quote, unquote, urlparse, urlunparse
 
-from caldav.lib.python_utilities import to_normal_str
-from caldav.lib.python_utilities import to_unicode
+from caldav.lib.python_utilities import to_normal_str, to_unicode
 
 if sys.version_info < (3, 11):
     from typing_extensions import Self
@@ -51,9 +42,9 @@ class URL:
 
     """
 
-    def __init__(self, url: Union[str, ParseResult, SplitResult]) -> None:
+    def __init__(self, url: str | ParseResult | SplitResult) -> None:
         if isinstance(url, ParseResult) or isinstance(url, SplitResult):
-            self.url_parsed: Optional[Union[ParseResult, SplitResult]] = url
+            self.url_parsed: ParseResult | SplitResult | None = url
             self.url_raw = None
         else:
             self.url_raw = url
@@ -78,12 +69,13 @@ class URL:
         return str(me) == str(other)
 
     def __hash__(self) -> int:
-        return hash(str(self))
+        # Must use canonical form to match __eq__ behavior
+        return hash(str(self.canonical()))
 
     # TODO: better naming?  Will return url if url is already a URL
     # object, else will instantiate a new URL object
     @classmethod
-    def objectify(self, url: Union[Self, str, ParseResult, SplitResult]) -> "URL":
+    def objectify(self, url: Self | str | ParseResult | SplitResult) -> "URL":
         if url is None or isinstance(url, URL):
             return url
         else:
@@ -132,8 +124,7 @@ class URL:
         return URL.objectify(
             ParseResult(
                 self.scheme,
-                "%s:%s"
-                % (self.hostname, self.port or {"https": 443, "http": 80}[self.scheme]),
+                "%s:%s" % (self.hostname, self.port or {"https": 443, "http": 80}[self.scheme]),
                 self.path.replace("//", "/"),
                 self.params,
                 self.query,
@@ -208,6 +199,6 @@ class URL:
         )
 
 
-def make(url: Union[URL, str, ParseResult, SplitResult]) -> URL:
+def make(url: URL | str | ParseResult | SplitResult) -> URL:
     """Backward compatibility"""
     return URL.objectify(url)

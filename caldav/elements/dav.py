@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 from typing import ClassVar
 
-from .base import BaseElement
-from .base import ValuedBaseElement
 from caldav.lib.namespace import ns
+
+from .base import BaseElement, ValuedBaseElement
 
 
 # Operations

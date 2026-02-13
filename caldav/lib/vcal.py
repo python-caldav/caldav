@@ -77,9 +77,7 @@ def fix(event):
 
     ## TODO: add ^ before COMPLETED and CREATED?
     ## 1) Add an arbitrary time if completed is given as date
-    fixed = re.sub(
-        r"COMPLETED(?:;VALUE=DATE)?:(\d+)\s", r"COMPLETED:\g<1>T120000Z", event
-    )
+    fixed = re.sub(r"COMPLETED(?:;VALUE=DATE)?:(\d+)\s", r"COMPLETED:\g<1>T120000Z", event)
 
     ## 2) CREATED timestamps prior to epoch does not make sense,
     ## change from year 0001 to epoch.
@@ -91,23 +89,16 @@ def fix(event):
 
     ## 6) add DTSTAMP if not given
     ## (corner case that DTSTAMP is given in one but not all the recurrences is ignored)
-    if not "\nDTSTAMP:" in fixed:
+    if "\nDTSTAMP:" not in fixed:
         assert "\nEND" in fixed
-        dtstamp = datetime.datetime.now(tz=datetime.timezone.utc).strftime(
-            "%Y%m%dT%H%M%SZ"
-        )
-        fixed = re.sub(
-            "(\nEND:(VTODO|VEVENT|VJOURNAL))", f"\nDTSTAMP:{dtstamp}\\1", fixed
-        )
+        dtstamp = datetime.datetime.now(tz=datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        fixed = re.sub("(\nEND:(VTODO|VEVENT|VJOURNAL))", f"\nDTSTAMP:{dtstamp}\\1", fixed)
 
     ## 3 fix duplicated DTSTAMP ... and ...
     ## 5 prepare to remove DURATION or DTEND/DUE if both DURATION and
     ## DTEND/DUE is set.
     ## remove duplication of DTSTAMP
-    fixed2 = (
-        "\n".join(filter(LineFilterDiscardingDuplicates(), fixed.strip().split("\n")))
-        + "\n"
-    )
+    fixed2 = "\n".join(filter(LineFilterDiscardingDuplicates(), fixed.strip().split("\n"))) + "\n"
 
     if fixed2 != event:
         ## This obscure code will ensure efficient rate-limiting of the error
@@ -132,9 +123,7 @@ def fix(event):
         try:
             import difflib
 
-            diff = list(
-                difflib.unified_diff(event.split("\n"), fixed2.split("\n"), lineterm="")
-            )
+            diff = list(difflib.unified_diff(event.split("\n"), fixed2.split("\n"), lineterm=""))
         except:
             diff = ["Original: ", event, "Modified: ", fixed2]
 
@@ -206,9 +195,7 @@ def create_ical(ical_fragment=None, objtype=None, language="en_DK", **props):
     else:
         if not ical_fragment.strip().startswith("BEGIN:VCALENDAR"):
             ical_fragment = (
-                "BEGIN:VCALENDAR\n"
-                + to_normal_str(ical_fragment.strip())
-                + "\nEND:VCALENDAR\n"
+                "BEGIN:VCALENDAR\n" + to_normal_str(ical_fragment.strip()) + "\nEND:VCALENDAR\n"
             )
         my_instance = icalendar.Calendar.from_ical(ical_fragment)
         component = my_instance.subcomponents[0]
@@ -241,6 +228,9 @@ def create_ical(ical_fragment=None, objtype=None, language="en_DK", **props):
             elif prop.startswith("alarm_"):
                 alarm[prop[6:]] = props[prop]
             else:
+                # Remove existing property to avoid duplicates when
+                # overriding values from an ical_fragment
+                component.pop(prop, None)
                 component.add(prop, props[prop])
     if alarm:
         add_alarm(my_instance, alarm)
