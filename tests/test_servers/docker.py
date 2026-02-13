@@ -97,7 +97,9 @@ class CyrusTestServer(DockerTestServer):
         config.setdefault("host", os.environ.get("CYRUS_HOST", "localhost"))
         config.setdefault("port", int(os.environ.get("CYRUS_PORT", "8802")))
         config.setdefault("username", os.environ.get("CYRUS_USERNAME", "user1"))
-        config.setdefault("password", os.environ.get("CYRUS_PASSWORD", "x"))
+        config.setdefault(
+            "password", os.environ.get("CYRUS_PASSWORD", "any-password-seems-to-work")
+        )
         # Set up Cyrus-specific compatibility hints
         if "features" not in config:
             config["features"] = compatibility_hints.cyrus.copy()
