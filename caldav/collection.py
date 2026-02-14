@@ -665,17 +665,38 @@ class Calendar(DAVObject):
 
         # Some servers (e.g. GMX) use an internal canonical URL that
         # differs from the client-constructed URL (e.g. UUID-based path
-        # vs username-based path).  Check the PROPFIND response for the
-        # server-reported href, which may differ from our PUT URL.
+        # vs username-based path).  Discover the server's canonical URL.
         try:
-            propfind = self._query(depth=0, url=path)
-            if propfind.results:
-                server_href = propfind.results[0].href
-                server_url = path.join(server_href)
-                if server_url.path and server_url.path != path.path:
+            # Check Location/Content-Location header first (standard mechanism)
+            location = r.headers.get("Location") or r.headers.get("Content-Location")
+            if location:
+                server_url = self.client.url.join(location)
+                if server_url.canonical() != path.canonical():
+                    log.debug("MKCALENDAR Location header gives canonical URL: %s", server_url)
                     self.url = server_url
+            else:
+                # List parent's children and find our calendar by cal_id or name
+                name_match = None
+                for child_url, child_type, child_name in self.parent.children(cdav.Calendar.tag):
+                    child_url_str = str(child_url)
+                    # Best match: cal_id found in URL
+                    if id and id in child_url_str:
+                        server_url = self.client.url.join(child_url)
+                        if server_url.canonical() != path.canonical():
+                            log.debug("Canonical calendar URL (by id): %s", server_url)
+                            self.url = server_url
+                        name_match = None
+                        break
+                    # Fallback: match by display name (less reliable)
+                    if name and child_name == name and name_match is None:
+                        name_match = child_url
+                if name_match is not None:
+                    server_url = self.client.url.join(name_match)
+                    if server_url.canonical() != path.canonical():
+                        log.debug("Canonical calendar URL (by name): %s", server_url)
+                        self.url = server_url
         except Exception:
-            pass
+            log.debug("Could not discover canonical calendar URL", exc_info=True)
 
         # COMPATIBILITY ISSUE
         # name should already be set, but we've seen caldav servers failing
@@ -739,20 +760,40 @@ class Calendar(DAVObject):
 
         mkcol = (dav.Mkcol() if method == "mkcol" else cdav.Mkcalendar()) + set
 
-        await self._async_query(
+        r = await self._async_query(
             root=mkcol, query_method=method, url=path, expected_return_value=201
         )
 
-        # Check for server-reported canonical URL (see sync _create)
+        # Discover canonical URL (see sync _create for detailed comments)
         try:
-            propfind = await self._async_query(depth=0, url=path)
-            if propfind.results:
-                server_href = propfind.results[0].href
-                server_url = path.join(server_href)
-                if server_url.path and server_url.path != path.path:
+            location = r.headers.get("Location") or r.headers.get("Content-Location")
+            if location:
+                server_url = self.client.url.join(location)
+                if server_url.canonical() != path.canonical():
+                    log.debug("MKCALENDAR Location header gives canonical URL: %s", server_url)
                     self.url = server_url
+            else:
+                name_match = None
+                propfind = await self._async_query(depth=1, url=self.parent.url)
+                for result in propfind.results or []:
+                    result_href = result.href
+                    if id and id in result_href:
+                        server_url = self.client.url.join(result_href)
+                        if server_url.canonical() != path.canonical():
+                            log.debug("Canonical calendar URL (by id): %s", server_url)
+                            self.url = server_url
+                        name_match = None
+                        break
+                    result_name = result.properties.get("{DAV:}displayname")
+                    if name and result_name == name and name_match is None:
+                        name_match = result_href
+                if name_match is not None:
+                    server_url = self.client.url.join(name_match)
+                    if server_url.canonical() != path.canonical():
+                        log.debug("Canonical calendar URL (by name): %s", server_url)
+                        self.url = server_url
         except Exception:
-            pass
+            log.debug("Could not discover canonical calendar URL", exc_info=True)
 
         # COMPATIBILITY ISSUE - try to set display name explicitly
         if name:
