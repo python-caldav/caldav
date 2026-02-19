@@ -72,6 +72,12 @@ class JMAPClient:
         else:
             self._auth = self._build_auth(auth_type)
 
+    def __enter__(self) -> JMAPClient:
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        return None
+
     def _build_auth(self, auth_type: str | None):
         """Select and construct the auth object.
 
