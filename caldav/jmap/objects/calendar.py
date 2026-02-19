@@ -35,7 +35,7 @@ class JMAPCalendar:
     is_visible: bool = True
 
     @classmethod
-    def from_jmap(cls, data: dict) -> "JMAPCalendar":
+    def from_jmap(cls, data: dict) -> JMAPCalendar:
         """Construct a JMAPCalendar from a raw JMAP Calendar JSON dict.
 
         Unknown keys in ``data`` are silently ignored so that forward
