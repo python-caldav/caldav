@@ -395,6 +395,7 @@ class TestJMAPClient:
 
     def test_build_auth_bearer_when_no_username(self):
         from caldav.requests import HTTPBearerAuth
+
         client = JMAPClient(url="http://x", password="token")
         assert isinstance(client._auth, HTTPBearerAuth)
 
@@ -404,8 +405,8 @@ class TestJMAPClient:
 
     def test_build_auth_explicit_bearer_type(self):
         from caldav.requests import HTTPBearerAuth
-        client = JMAPClient(url="http://x", username="u", password="token",
-                            auth_type="bearer")
+
+        client = JMAPClient(url="http://x", username="u", password="token", auth_type="bearer")
         assert isinstance(client._auth, HTTPBearerAuth)
 
     def test_build_auth_unsupported_type_raises(self):
@@ -454,11 +455,7 @@ class TestJMAPClient:
             client._request([("Calendar/get", {"accountId": _USERNAME, "ids": None}, "c0")])
 
     def test_request_raises_method_error_on_error_response(self, monkeypatch):
-        error_response = {
-            "methodResponses": [
-                ["error", {"type": "unknownMethod"}, "c0"]
-            ]
-        }
+        error_response = {"methodResponses": [["error", {"type": "unknownMethod"}, "c0"]]}
         client = _make_client_with_mocked_session(monkeypatch, error_response)
         with pytest.raises(JMAPMethodError) as exc_info:
             client._request([("Calendar/get", {"accountId": _USERNAME}, "c0")])
