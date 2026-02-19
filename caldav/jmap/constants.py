@@ -1,15 +1,15 @@
 """
-JMAP capability URN constants (RFC 8620, JMAP Calendars spec, RFC 9553).
+JMAP capability URN constants.
 
 All JMAP capability strings are defined here so they are never duplicated
 across the package. Every other module should import from this file.
 """
 
-#: Core JMAP capability — required in every ``using`` declaration.
+#: Core JMAP capability (RFC 8620) — required in every ``using`` declaration.
 CORE_CAPABILITY = "urn:ietf:params:jmap:core"
 
-#: RFC 8620 JMAP Calendars capability.
+#: JMAP Calendars capability (JMAP Calendars specification).
 CALENDAR_CAPABILITY = "urn:ietf:params:jmap:calendars"
 
-#: RFC 9553 JMAP Tasks capability.
+#: JMAP Tasks capability (JMAP Tasks specification).
 TASK_CAPABILITY = "urn:ietf:params:jmap:tasks"

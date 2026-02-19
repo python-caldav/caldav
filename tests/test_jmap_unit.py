@@ -464,3 +464,32 @@ class TestJMAPClient:
         with pytest.raises(JMAPMethodError) as exc_info:
             client._request([("Calendar/get", {"accountId": _USERNAME}, "c0")])
         assert exc_info.value.error_type == "unknownMethod"
+
+
+# ---------------------------------------------------------------------------
+# get_jmap_client factory
+# ---------------------------------------------------------------------------
+
+from caldav.jmap import get_jmap_client
+
+
+class TestGetJMAPClient:
+    def test_returns_client_with_explicit_params(self):
+        client = get_jmap_client(url=_JMAP_URL, username=_USERNAME, password=_PASSWORD)
+        assert isinstance(client, JMAPClient)
+        assert client.url == _JMAP_URL
+
+    def test_returns_none_when_no_config(self, monkeypatch):
+        monkeypatch.delenv("CALDAV_URL", raising=False)
+        client = get_jmap_client(check_config_file=False, environment=False)
+        assert client is None
+
+    def test_strips_caldav_only_keys(self, monkeypatch):
+        client = get_jmap_client(
+            url=_JMAP_URL,
+            username=_USERNAME,
+            password=_PASSWORD,
+            ssl_verify_cert=True,
+        )
+        assert isinstance(client, JMAPClient)
+        assert not hasattr(client, "ssl_verify_cert")
