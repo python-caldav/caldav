@@ -389,6 +389,10 @@ def _make_client_with_mocked_session(monkeypatch, api_response_json):
 
 
 class TestJMAPClient:
+    def test_context_manager(self):
+        with JMAPClient(url="http://x", username="u", password="p") as client:
+            assert isinstance(client, JMAPClient)
+
     def test_build_auth_basic_when_username_given(self):
         client = JMAPClient(url="http://x", username="u", password="p")
         assert isinstance(client._auth, HTTPBasicAuth)
