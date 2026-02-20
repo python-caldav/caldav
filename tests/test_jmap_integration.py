@@ -23,10 +23,6 @@ from caldav.jmap import JMAPClient
 from caldav.jmap.constants import CALENDAR_CAPABILITY
 from caldav.jmap.session import fetch_session
 
-# ---------------------------------------------------------------------------
-# Skip the whole module if Cyrus is not reachable
-# ---------------------------------------------------------------------------
-
 CYRUS_HOST = "localhost"
 CYRUS_PORT = 8802
 JMAP_URL = f"http://{CYRUS_HOST}:{CYRUS_PORT}/.well-known/jmap"
@@ -50,10 +46,6 @@ pytestmark = pytest.mark.skipif(
     "start it with: docker-compose -f tests/docker-test-servers/cyrus/docker-compose.yml up -d",
 )
 
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
-
 
 @pytest.fixture(scope="module")
 def client():
@@ -63,11 +55,6 @@ def client():
 @pytest.fixture(scope="module")
 def session():
     return fetch_session(JMAP_URL, auth=HTTPBasicAuth(CYRUS_USERNAME, CYRUS_PASSWORD))
-
-
-# ---------------------------------------------------------------------------
-# Session
-# ---------------------------------------------------------------------------
 
 
 class TestJMAPSessionIntegration:
@@ -80,11 +67,6 @@ class TestJMAPSessionIntegration:
 
     def test_session_has_calendar_capability(self, session):
         assert CALENDAR_CAPABILITY in session.account_capabilities
-
-
-# ---------------------------------------------------------------------------
-# Calendar listing
-# ---------------------------------------------------------------------------
 
 
 class TestJMAPCalendarListIntegration:
