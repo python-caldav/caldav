@@ -53,16 +53,15 @@ class JMAPCalendar:
         )
 
     def to_jmap(self) -> dict:
-        """Serialise to a JMAP Calendar JSON dict.
+        """Serialise to a JMAP Calendar JSON dict for ``Calendar/set``.
 
-        Only includes fields that are non-None so that the output can be
-        used directly in ``Calendar/set`` create/update patches.
+        ``id`` and ``myRights`` are intentionally excluded — both are
+        server-set and must not appear in create or update payloads.
+        Optional fields are included only when they hold a non-default value.
         """
         d: dict = {
-            "id": self.id,
             "name": self.name,
             "isSubscribed": self.is_subscribed,
-            "myRights": self.my_rights,
             "sortOrder": self.sort_order,
             "isVisible": self.is_visible,
         }

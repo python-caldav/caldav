@@ -268,9 +268,14 @@ class TestJMAPCalendar:
     def test_to_jmap_includes_required_fields(self):
         cal = JMAPCalendar.from_jmap(_CALENDAR_JSON_MINIMAL)
         d = cal.to_jmap()
-        assert d["id"] == "cal2"
         assert d["name"] == "Work"
         assert "isSubscribed" in d
+
+    def test_to_jmap_excludes_server_set_fields(self):
+        cal = JMAPCalendar.from_jmap(_CALENDAR_JSON_FULL)
+        d = cal.to_jmap()
+        assert "id" not in d
+        assert "myRights" not in d
 
     def test_to_jmap_omits_none_optional_fields(self):
         cal = JMAPCalendar.from_jmap(_CALENDAR_JSON_MINIMAL)
@@ -493,3 +498,372 @@ class TestGetJMAPClient:
         )
         assert isinstance(client, JMAPClient)
         assert not hasattr(client, "ssl_verify_cert")
+
+
+# ---------------------------------------------------------------------------
+# CalendarEvent domain object
+# ---------------------------------------------------------------------------
+
+from caldav.jmap.objects.event import JMAPEvent
+
+_EVENT_JSON_FULL = {
+    "id": "ev1",
+    "uid": "abc123@example.com",
+    "calendarIds": {"cal1": True},
+    "title": "Team standup",
+    "start": "2024-06-15T09:00:00",
+    "timeZone": "Europe/Berlin",
+    "duration": "PT30M",
+    "showWithoutTime": False,
+    "description": "Daily sync",
+    "locations": {"loc1": {"name": "Room A"}},
+    "virtualLocations": {"vl1": {"name": "Zoom", "uri": "https://zoom.us/j/123"}},
+    "links": {"lnk1": {"href": "https://example.com/doc.pdf", "rel": "enclosure"}},
+    "keywords": {"standup": True, "work": True},
+    "participants": {
+        "p1": {"name": "Alice", "email": "alice@example.com", "roles": {"owner": True}},
+        "p2": {"name": "Bob", "email": "bob@example.com", "roles": {"attendee": True}},
+    },
+    "recurrenceRules": [{"frequency": "weekly", "byDay": [{"day": "mo"}]}],
+    "excludedRecurrenceRules": [],
+    "recurrenceOverrides": {"2024-06-22T09:00:00": None},
+    "alerts": {"al1": {"trigger": "-PT15M", "action": "display"}},
+    "useDefaultAlerts": False,
+    "sequence": 3,
+    "freeBusyStatus": "busy",
+    "privacy": "private",
+    "color": "#ff6b6b",
+    "isDraft": False,
+    "priority": 5,
+}
+
+_EVENT_JSON_MINIMAL = {
+    "id": "ev2",
+    "uid": "def456@example.com",
+    "calendarIds": {"cal1": True},
+    "title": "Dentist",
+    "start": "2024-07-01T14:00:00",
+}
+
+
+class TestJMAPEvent:
+    def test_from_jmap_full(self):
+        ev = JMAPEvent.from_jmap(_EVENT_JSON_FULL)
+        assert ev.id == "ev1"
+        assert ev.uid == "abc123@example.com"
+        assert ev.calendar_ids == {"cal1": True}
+        assert ev.title == "Team standup"
+        assert ev.start == "2024-06-15T09:00:00"
+        assert ev.time_zone == "Europe/Berlin"
+        assert ev.duration == "PT30M"
+        assert ev.show_without_time is False
+        assert ev.description == "Daily sync"
+        assert ev.locations == {"loc1": {"name": "Room A"}}
+        assert ev.virtual_locations == {"vl1": {"name": "Zoom", "uri": "https://zoom.us/j/123"}}
+        assert ev.links == {"lnk1": {"href": "https://example.com/doc.pdf", "rel": "enclosure"}}
+        assert ev.keywords == {"standup": True, "work": True}
+        assert ev.participants["p1"]["roles"] == {"owner": True}
+        assert ev.recurrence_rules == [{"frequency": "weekly", "byDay": [{"day": "mo"}]}]
+        assert ev.recurrence_overrides == {"2024-06-22T09:00:00": None}
+        assert ev.alerts == {"al1": {"trigger": "-PT15M", "action": "display"}}
+        assert ev.use_default_alerts is False
+        assert ev.sequence == 3
+        assert ev.free_busy_status == "busy"
+        assert ev.privacy == "private"
+        assert ev.color == "#ff6b6b"
+        assert ev.is_draft is False
+        assert ev.priority == 5
+
+    def test_from_jmap_minimal_uses_defaults(self):
+        ev = JMAPEvent.from_jmap(_EVENT_JSON_MINIMAL)
+        assert ev.id == "ev2"
+        assert ev.uid == "def456@example.com"
+        assert ev.calendar_ids == {"cal1": True}
+        assert ev.title == "Dentist"
+        assert ev.start == "2024-07-01T14:00:00"
+        assert ev.time_zone is None
+        assert ev.duration == "P0D"
+        assert ev.show_without_time is False
+        assert ev.description is None
+        assert ev.locations == {}
+        assert ev.virtual_locations == {}
+        assert ev.links == {}
+        assert ev.keywords == {}
+        assert ev.participants == {}
+        assert ev.recurrence_rules == []
+        assert ev.excluded_recurrence_rules == []
+        assert ev.recurrence_overrides == {}
+        assert ev.alerts == {}
+        assert ev.use_default_alerts is False
+        assert ev.sequence == 0
+        assert ev.free_busy_status == "busy"
+        assert ev.privacy is None
+        assert ev.color is None
+        assert ev.is_draft is False
+        assert ev.priority == 0
+
+    def test_from_jmap_raises_when_required_field_missing(self):
+        for missing_key in ("id", "uid", "calendarIds", "title", "start"):
+            data = dict(_EVENT_JSON_MINIMAL)
+            del data[missing_key]
+            with pytest.raises(KeyError):
+                JMAPEvent.from_jmap(data)
+
+    def test_from_jmap_ignores_unknown_keys(self):
+        data = dict(_EVENT_JSON_MINIMAL)
+        data["unknownFutureField"] = "ignored"
+        ev = JMAPEvent.from_jmap(data)
+        assert ev.id == "ev2"
+
+    def test_to_jmap_excludes_id(self):
+        ev = JMAPEvent.from_jmap(_EVENT_JSON_MINIMAL)
+        d = ev.to_jmap()
+        assert "id" not in d
+
+    def test_to_jmap_includes_required_fields(self):
+        ev = JMAPEvent.from_jmap(_EVENT_JSON_MINIMAL)
+        d = ev.to_jmap()
+        assert d["uid"] == "def456@example.com"
+        assert d["calendarIds"] == {"cal1": True}
+        assert d["title"] == "Dentist"
+        assert d["start"] == "2024-07-01T14:00:00"
+        assert d["duration"] == "P0D"
+        assert "showWithoutTime" in d
+        assert "sequence" in d
+        assert "freeBusyStatus" in d
+        assert "useDefaultAlerts" in d
+
+    def test_to_jmap_omits_none_optional_fields(self):
+        ev = JMAPEvent.from_jmap(_EVENT_JSON_MINIMAL)
+        d = ev.to_jmap()
+        assert "timeZone" not in d
+        assert "description" not in d
+        assert "privacy" not in d
+        assert "color" not in d
+        assert "isDraft" not in d
+
+    def test_to_jmap_omits_empty_collections(self):
+        ev = JMAPEvent.from_jmap(_EVENT_JSON_MINIMAL)
+        d = ev.to_jmap()
+        assert "locations" not in d
+        assert "virtualLocations" not in d
+        assert "links" not in d
+        assert "keywords" not in d
+        assert "participants" not in d
+        assert "recurrenceRules" not in d
+        assert "excludedRecurrenceRules" not in d
+        assert "recurrenceOverrides" not in d
+        assert "alerts" not in d
+
+    def test_to_jmap_includes_optional_when_set(self):
+        ev = JMAPEvent.from_jmap(_EVENT_JSON_FULL)
+        d = ev.to_jmap()
+        assert d["timeZone"] == "Europe/Berlin"
+        assert d["description"] == "Daily sync"
+        assert d["locations"] == {"loc1": {"name": "Room A"}}
+        assert d["participants"]["p1"]["roles"] == {"owner": True}
+        assert d["recurrenceRules"] == [{"frequency": "weekly", "byDay": [{"day": "mo"}]}]
+        assert d["alerts"] == {"al1": {"trigger": "-PT15M", "action": "display"}}
+        assert d["privacy"] == "private"
+        assert d["color"] == "#ff6b6b"
+
+    def test_to_jmap_isDraft_included_when_true(self):
+        data = dict(_EVENT_JSON_MINIMAL)
+        data["isDraft"] = True
+        ev = JMAPEvent.from_jmap(data)
+        d = ev.to_jmap()
+        assert d["isDraft"] is True
+
+    def test_to_jmap_isDraft_omitted_when_false(self):
+        ev = JMAPEvent.from_jmap(_EVENT_JSON_MINIMAL)
+        d = ev.to_jmap()
+        assert "isDraft" not in d
+
+    def test_participant_roles_is_map_not_list(self):
+        ev = JMAPEvent.from_jmap(_EVENT_JSON_FULL)
+        roles = ev.participants["p1"]["roles"]
+        assert isinstance(roles, dict)
+        assert roles.get("owner") is True
+
+    def test_recurrence_overrides_null_value_preserved(self):
+        ev = JMAPEvent.from_jmap(_EVENT_JSON_FULL)
+        assert ev.recurrence_overrides["2024-06-22T09:00:00"] is None
+
+    def test_alert_trigger_is_string(self):
+        ev = JMAPEvent.from_jmap(_EVENT_JSON_FULL)
+        trigger = ev.alerts["al1"]["trigger"]
+        assert isinstance(trigger, str)
+        assert trigger == "-PT15M"
+
+
+# ---------------------------------------------------------------------------
+# CalendarEvent method builders and parsers
+# ---------------------------------------------------------------------------
+
+from caldav.jmap.methods.event import (
+    build_event_changes,
+    build_event_get,
+    build_event_query,
+    build_event_query_changes,
+    build_event_set_create,
+    build_event_set_destroy,
+    build_event_set_update,
+    parse_event_get,
+    parse_event_query,
+    parse_event_set,
+)
+
+
+class TestEventMethodBuilders:
+    def test_build_event_get_structure(self):
+        method, args, call_id = build_event_get("u1")
+        assert method == "CalendarEvent/get"
+        assert args["accountId"] == "u1"
+        assert args["ids"] is None
+        assert isinstance(call_id, str)
+
+    def test_build_event_get_with_ids(self):
+        _, args, _ = build_event_get("u1", ids=["ev1", "ev2"])
+        assert args["ids"] == ["ev1", "ev2"]
+
+    def test_build_event_get_with_properties(self):
+        _, args, _ = build_event_get("u1", properties=["id", "title", "start"])
+        assert args["properties"] == ["id", "title", "start"]
+
+    def test_build_event_get_no_properties_key_when_not_set(self):
+        _, args, _ = build_event_get("u1")
+        assert "properties" not in args
+
+    def test_parse_event_get_returns_events(self):
+        response_args = {"list": [_EVENT_JSON_FULL, _EVENT_JSON_MINIMAL]}
+        events = parse_event_get(response_args)
+        assert len(events) == 2
+        assert isinstance(events[0], JMAPEvent)
+        assert events[0].id == "ev1"
+        assert events[1].id == "ev2"
+
+    def test_parse_event_get_empty_list(self):
+        assert parse_event_get({"list": []}) == []
+
+    def test_parse_event_get_missing_list_key(self):
+        assert parse_event_get({}) == []
+
+    def test_build_event_changes_structure(self):
+        method, args, call_id = build_event_changes("u1", "state-abc")
+        assert method == "CalendarEvent/changes"
+        assert args["accountId"] == "u1"
+        assert args["sinceState"] == "state-abc"
+        assert isinstance(call_id, str)
+
+    def test_build_event_changes_with_max_changes(self):
+        _, args, _ = build_event_changes("u1", "state-abc", max_changes=50)
+        assert args["maxChanges"] == 50
+
+    def test_build_event_changes_no_max_changes_key_when_not_set(self):
+        _, args, _ = build_event_changes("u1", "state-abc")
+        assert "maxChanges" not in args
+
+    def test_build_event_query_structure(self):
+        method, args, call_id = build_event_query("u1")
+        assert method == "CalendarEvent/query"
+        assert args["accountId"] == "u1"
+        assert args["position"] == 0
+        assert isinstance(call_id, str)
+
+    def test_build_event_query_with_filter(self):
+        f = {"after": "2024-01-01T00:00:00Z", "before": "2024-12-31T23:59:59Z"}
+        _, args, _ = build_event_query("u1", filter=f)
+        assert args["filter"] == f
+
+    def test_build_event_query_with_sort(self):
+        s = [{"property": "start", "isAscending": True}]
+        _, args, _ = build_event_query("u1", sort=s)
+        assert args["sort"] == s
+
+    def test_build_event_query_with_limit(self):
+        _, args, _ = build_event_query("u1", limit=100)
+        assert args["limit"] == 100
+
+    def test_build_event_query_no_optional_keys_when_not_set(self):
+        _, args, _ = build_event_query("u1")
+        assert "filter" not in args
+        assert "sort" not in args
+        assert "limit" not in args
+
+    def test_parse_event_query_returns_ids_state_total(self):
+        response_args = {
+            "ids": ["ev1", "ev2", "ev3"],
+            "queryState": "qstate-1",
+            "total": 10,
+        }
+        ids, query_state, total = parse_event_query(response_args)
+        assert ids == ["ev1", "ev2", "ev3"]
+        assert query_state == "qstate-1"
+        assert total == 10
+
+    def test_parse_event_query_total_defaults_to_ids_length(self):
+        response_args = {"ids": ["ev1", "ev2"], "queryState": "q1"}
+        ids, _, total = parse_event_query(response_args)
+        assert total == 2
+
+    def test_parse_event_query_empty_response(self):
+        ids, query_state, total = parse_event_query({})
+        assert ids == []
+        assert query_state == ""
+        assert total == 0
+
+    def test_build_event_query_changes_structure(self):
+        method, args, call_id = build_event_query_changes("u1", "qstate-1")
+        assert method == "CalendarEvent/queryChanges"
+        assert args["accountId"] == "u1"
+        assert args["sinceQueryState"] == "qstate-1"
+        assert isinstance(call_id, str)
+
+    def test_build_event_query_changes_with_filter_and_sort(self):
+        f = {"calendarIds": {"cal1": True}}
+        s = [{"property": "start", "isAscending": True}]
+        _, args, _ = build_event_query_changes("u1", "qstate-1", filter=f, sort=s)
+        assert args["filter"] == f
+        assert args["sort"] == s
+
+    def test_build_event_set_create_structure(self):
+        ev = JMAPEvent.from_jmap(_EVENT_JSON_MINIMAL)
+        method, args, call_id = build_event_set_create("u1", {"new-1": ev})
+        assert method == "CalendarEvent/set"
+        assert "create" in args
+        assert "new-1" in args["create"]
+        assert "id" not in args["create"]["new-1"]
+
+    def test_build_event_set_update_structure(self):
+        method, args, call_id = build_event_set_update("u1", {"ev1": {"title": "Updated title"}})
+        assert method == "CalendarEvent/set"
+        assert args["update"] == {"ev1": {"title": "Updated title"}}
+
+    def test_build_event_set_destroy_structure(self):
+        method, args, call_id = build_event_set_destroy("u1", ["ev1", "ev2"])
+        assert method == "CalendarEvent/set"
+        assert args["destroy"] == ["ev1", "ev2"]
+
+    def test_parse_event_set_created(self):
+        response_args = {
+            "created": {"new-1": {"id": "server-ev-99", "uid": "def456@example.com"}},
+            "updated": None,
+            "destroyed": None,
+        }
+        created, updated, destroyed = parse_event_set(response_args)
+        assert created["new-1"]["id"] == "server-ev-99"
+        assert updated == {}
+        assert destroyed == []
+
+    def test_parse_event_set_destroyed(self):
+        response_args = {"created": None, "updated": None, "destroyed": ["ev1", "ev2"]}
+        created, updated, destroyed = parse_event_set(response_args)
+        assert created == {}
+        assert updated == {}
+        assert destroyed == ["ev1", "ev2"]
+
+    def test_parse_event_set_empty_response(self):
+        created, updated, destroyed = parse_event_set({})
+        assert created == {}
+        assert updated == {}
+        assert destroyed == []
