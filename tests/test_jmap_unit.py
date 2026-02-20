@@ -695,6 +695,56 @@ class TestJMAPEvent:
         assert isinstance(trigger, str)
         assert trigger == "-PT15M"
 
+    def test_from_jmap_null_fields_coerced_to_defaults(self):
+        # Cyrus returns null for optional collection fields instead of omitting them
+        data = {
+            "id": "ev1",
+            "uid": "uid1",
+            "calendarIds": {"Default": True},
+            "title": "Test",
+            "start": "2024-06-15T10:00:00",
+            "keywords": None,
+            "locations": None,
+            "participants": None,
+            "alerts": None,
+            "recurrenceRules": None,
+            "excludedRecurrenceRules": None,
+            "recurrenceOverrides": None,
+        }
+        ev = JMAPEvent.from_jmap(data)
+        assert ev.keywords == {}
+        assert ev.locations == {}
+        assert ev.participants == {}
+        assert ev.alerts == {}
+        assert ev.recurrence_rules == []
+        assert ev.excluded_recurrence_rules == []
+        assert ev.recurrence_overrides == {}
+
+    def test_from_jmap_explicit_empty_collections_are_empty(self):
+        # Server sending empty {} / [] is semantically identical to null for optional fields
+        data = {
+            "id": "ev1",
+            "uid": "uid1",
+            "calendarIds": {"Default": True},
+            "title": "Test",
+            "start": "2024-06-15T10:00:00",
+            "keywords": {},
+            "locations": {},
+            "participants": {},
+            "alerts": {},
+            "recurrenceRules": [],
+            "excludedRecurrenceRules": [],
+            "recurrenceOverrides": {},
+        }
+        ev = JMAPEvent.from_jmap(data)
+        assert ev.keywords == {}
+        assert ev.locations == {}
+        assert ev.participants == {}
+        assert ev.alerts == {}
+        assert ev.recurrence_rules == []
+        assert ev.excluded_recurrence_rules == []
+        assert ev.recurrence_overrides == {}
+
 
 # ---------------------------------------------------------------------------
 # CalendarEvent method builders and parsers
@@ -850,20 +900,644 @@ class TestEventMethodBuilders:
             "updated": None,
             "destroyed": None,
         }
-        created, updated, destroyed = parse_event_set(response_args)
+        created, updated, destroyed, not_created, not_updated, not_destroyed = parse_event_set(
+            response_args
+        )
         assert created["new-1"]["id"] == "server-ev-99"
         assert updated == {}
         assert destroyed == []
+        assert not_created == {}
+        assert not_updated == {}
+        assert not_destroyed == {}
 
     def test_parse_event_set_destroyed(self):
         response_args = {"created": None, "updated": None, "destroyed": ["ev1", "ev2"]}
-        created, updated, destroyed = parse_event_set(response_args)
+        created, updated, destroyed, not_created, not_updated, not_destroyed = parse_event_set(
+            response_args
+        )
         assert created == {}
         assert updated == {}
         assert destroyed == ["ev1", "ev2"]
+        assert not_created == {}
 
     def test_parse_event_set_empty_response(self):
-        created, updated, destroyed = parse_event_set({})
+        created, updated, destroyed, not_created, not_updated, not_destroyed = parse_event_set({})
         assert created == {}
         assert updated == {}
         assert destroyed == []
+        assert not_created == {}
+        assert not_updated == {}
+        assert not_destroyed == {}
+
+    def test_parse_event_set_partial_failure(self):
+        # notCreated/notUpdated/notDestroyed carry SetError objects for failed operations
+        response_args = {
+            "created": {"new-1": {"id": "server-ev-99"}},
+            "notCreated": {"new-2": {"type": "invalidArguments", "description": "bad uid"}},
+            "notDestroyed": {"ev-old": {"type": "notFound"}},
+        }
+        created, updated, destroyed, not_created, not_updated, not_destroyed = parse_event_set(
+            response_args
+        )
+        assert "new-1" in created
+        assert not_created["new-2"]["type"] == "invalidArguments"
+        assert not_destroyed["ev-old"]["type"] == "notFound"
+
+
+# ===========================================================================
+# iCalendar ↔ JSCalendar conversion layer
+# ===========================================================================
+
+from datetime import date, datetime, timedelta, timezone
+
+import icalendar as _icalendar
+
+from caldav.jmap.convert import ical_to_jscal, jscal_to_ical
+from caldav.jmap.convert._utils import (
+    _duration_to_timedelta,
+    _format_local_dt,
+    _timedelta_to_duration,
+)
+
+# ---------------------------------------------------------------------------
+# Shared iCal fixtures
+# ---------------------------------------------------------------------------
+
+
+def _make_ical(extra_lines: str = "", uid: str = "test-uid@example.com") -> str:
+    return (
+        "BEGIN:VCALENDAR\r\n"
+        "VERSION:2.0\r\n"
+        "PRODID:-//Test//Test//EN\r\n"
+        "BEGIN:VEVENT\r\n"
+        f"UID:{uid}\r\n"
+        "DTSTAMP:20240101T000000Z\r\n" + extra_lines + "END:VEVENT\r\n"
+        "END:VCALENDAR\r\n"
+    )
+
+
+def _minimal_jscal(**kwargs) -> dict:
+    base = {
+        "uid": "test-uid@example.com",
+        "title": "Test Event",
+        "start": "2024-06-15T10:00:00",
+        "timeZone": "Europe/Berlin",
+        "duration": "PT1H",
+    }
+    base.update(kwargs)
+    return base
+
+
+# ---------------------------------------------------------------------------
+# TestUtils — shared utility functions
+# ---------------------------------------------------------------------------
+
+
+class TestUtils:
+    def test_timedelta_to_duration_hours(self):
+        assert _timedelta_to_duration(timedelta(hours=1, minutes=30)) == "PT1H30M"
+
+    def test_timedelta_to_duration_days(self):
+        assert _timedelta_to_duration(timedelta(days=1)) == "P1D"
+
+    def test_timedelta_to_duration_mixed(self):
+        assert _timedelta_to_duration(timedelta(days=1, hours=2)) == "P1DT2H"
+
+    def test_timedelta_to_duration_zero(self):
+        assert _timedelta_to_duration(timedelta(0)) == "P0D"
+
+    def test_timedelta_to_duration_negative(self):
+        assert _timedelta_to_duration(timedelta(seconds=-900)) == "-PT15M"
+
+    def test_duration_to_timedelta_hours(self):
+        assert _duration_to_timedelta("PT1H30M") == timedelta(hours=1, minutes=30)
+
+    def test_duration_to_timedelta_days(self):
+        assert _duration_to_timedelta("P1D") == timedelta(days=1)
+
+    def test_duration_to_timedelta_zero(self):
+        assert _duration_to_timedelta("P0D") == timedelta(0)
+
+    def test_duration_to_timedelta_negative(self):
+        assert _duration_to_timedelta("-PT15M") == timedelta(seconds=-900)
+
+    def test_duration_round_trip(self):
+        td = timedelta(days=2, hours=3, minutes=45, seconds=30)
+        assert _duration_to_timedelta(_timedelta_to_duration(td)) == td
+
+    def test_format_local_dt_utc(self):
+        dt = datetime(2024, 6, 15, 9, 0, 0, tzinfo=timezone.utc)
+        assert _format_local_dt(dt) == "2024-06-15T09:00:00Z"
+
+    def test_format_local_dt_naive(self):
+        dt = datetime(2024, 6, 15, 9, 0, 0)
+        assert _format_local_dt(dt) == "2024-06-15T09:00:00"
+
+    def test_format_local_dt_date(self):
+        d = date(2024, 6, 15)
+        assert _format_local_dt(d) == "2024-06-15T00:00:00"
+
+
+# ---------------------------------------------------------------------------
+# TestIcalToJscal
+# ---------------------------------------------------------------------------
+
+
+class TestIcalToJscal:
+    def test_minimal_event(self):
+        ical = _make_ical("DTSTART:20240615T100000Z\r\nDURATION:PT1H\r\nSUMMARY:Test Event\r\n")
+        result = ical_to_jscal(ical)
+        assert result["uid"] == "test-uid@example.com"
+        assert result["title"] == "Test Event"
+        assert result["start"] == "2024-06-15T10:00:00Z"
+        assert result["duration"] == "PT1H"
+
+    def test_all_day_event(self):
+        ical = _make_ical(
+            "DTSTART;VALUE=DATE:20240615\r\nDTEND;VALUE=DATE:20240616\r\nSUMMARY:All Day\r\n"
+        )
+        result = ical_to_jscal(ical)
+        assert result["start"] == "2024-06-15T00:00:00"
+        assert result["showWithoutTime"] is True
+        assert "timeZone" not in result
+        assert result["duration"] == "P1D"
+
+    def test_timezone_aware_event(self):
+        ical = _make_ical(
+            "DTSTART;TZID=America/New_York:20240615T100000\r\nDURATION:PT1H\r\nSUMMARY:TZ Event\r\n"
+        )
+        result = ical_to_jscal(ical)
+        assert result["start"] == "2024-06-15T10:00:00"
+        assert result["timeZone"] == "America/New_York"
+        assert "showWithoutTime" not in result
+
+    def test_utc_event(self):
+        ical = _make_ical("DTSTART:20240615T100000Z\r\nDURATION:PT30M\r\nSUMMARY:UTC Event\r\n")
+        result = ical_to_jscal(ical)
+        assert result["start"].endswith("Z")
+        assert "timeZone" not in result
+
+    def test_duration_from_dtend(self):
+        ical = _make_ical(
+            "DTSTART:20240615T100000Z\r\nDTEND:20240615T113000Z\r\nSUMMARY:DTEND Event\r\n"
+        )
+        result = ical_to_jscal(ical)
+        assert result["duration"] == "PT1H30M"
+
+    def test_duration_explicit(self):
+        ical = _make_ical(
+            "DTSTART:20240615T100000Z\r\nDURATION:P1DT2H\r\nSUMMARY:Duration Event\r\n"
+        )
+        result = ical_to_jscal(ical)
+        assert result["duration"] == "P1DT2H"
+
+    def test_duration_zero_when_missing(self):
+        ical = _make_ical("DTSTART:20240615T100000Z\r\nSUMMARY:No Duration\r\n")
+        result = ical_to_jscal(ical)
+        assert result["duration"] == "P0D"
+
+    def test_categories_to_keywords(self):
+        ical = _make_ical(
+            "DTSTART:20240615T100000Z\r\nSUMMARY:Cat Event\r\nCATEGORIES:work,standup\r\n"
+        )
+        result = ical_to_jscal(ical)
+        assert "keywords" in result
+        assert result["keywords"].get("work") is True
+        assert result["keywords"].get("standup") is True
+
+    def test_categories_multiple_lines(self):
+        # Two separate CATEGORIES lines — icalendar returns a list of vCategory objects
+        ical = _make_ical(
+            "DTSTART:20240615T100000Z\r\nSUMMARY:Cat Event\r\n"
+            "CATEGORIES:Work\r\nCATEGORIES:Standup\r\n"
+        )
+        result = ical_to_jscal(ical)
+        assert "keywords" in result
+        assert result["keywords"].get("Work") is True
+        assert result["keywords"].get("Standup") is True
+
+    def test_location_string(self):
+        ical = _make_ical(
+            "DTSTART:20240615T100000Z\r\nSUMMARY:Located Event\r\nLOCATION:Conference Room A\r\n"
+        )
+        result = ical_to_jscal(ical)
+        assert "locations" in result
+        locs = result["locations"]
+        assert len(locs) == 1
+        first_loc = next(iter(locs.values()))
+        assert first_loc["name"] == "Conference Room A"
+
+    def test_priority(self):
+        ical = _make_ical("DTSTART:20240615T100000Z\r\nSUMMARY:Priority Event\r\nPRIORITY:5\r\n")
+        result = ical_to_jscal(ical)
+        assert result["priority"] == 5
+
+    def test_class_private(self):
+        ical = _make_ical("DTSTART:20240615T100000Z\r\nSUMMARY:Private Event\r\nCLASS:PRIVATE\r\n")
+        result = ical_to_jscal(ical)
+        assert result["privacy"] == "private"
+
+    def test_class_confidential(self):
+        ical = _make_ical(
+            "DTSTART:20240615T100000Z\r\nSUMMARY:Confidential Event\r\nCLASS:CONFIDENTIAL\r\n"
+        )
+        result = ical_to_jscal(ical)
+        assert result["privacy"] == "secret"
+
+    def test_transp_transparent(self):
+        ical = _make_ical(
+            "DTSTART:20240615T100000Z\r\nSUMMARY:Free Event\r\nTRANSP:TRANSPARENT\r\n"
+        )
+        result = ical_to_jscal(ical)
+        assert result["freeBusyStatus"] == "free"
+
+    def test_rrule_weekly(self):
+        ical = _make_ical(
+            "DTSTART;TZID=Europe/Berlin:20240617T140000\r\n"
+            "DURATION:PT1H\r\n"
+            "SUMMARY:Team Meeting\r\n"
+            "RRULE:FREQ=WEEKLY;BYDAY=MO,WE\r\n"
+        )
+        result = ical_to_jscal(ical)
+        assert "recurrenceRules" in result
+        rule = result["recurrenceRules"][0]
+        assert rule["@type"] == "RecurrenceRule"
+        assert rule["frequency"] == "weekly"
+        assert rule["interval"] == 1
+        assert rule["rscale"] == "gregorian"
+        days = [d["day"] for d in rule["byDay"]]
+        assert "mo" in days
+        assert "we" in days
+
+    def test_exdate(self):
+        ical = _make_ical(
+            "DTSTART;TZID=Europe/Berlin:20240617T140000\r\n"
+            "DURATION:PT1H\r\n"
+            "SUMMARY:Recurring\r\n"
+            "RRULE:FREQ=WEEKLY\r\n"
+            "EXDATE;TZID=Europe/Berlin:20240624T140000\r\n"
+        )
+        result = ical_to_jscal(ical)
+        assert "recurrenceOverrides" in result
+        overrides = result["recurrenceOverrides"]
+        assert any(v == {"excluded": True} for v in overrides.values())
+
+    def test_valarm_relative(self):
+        ical = _make_ical(
+            "DTSTART:20240615T100000Z\r\n"
+            "SUMMARY:Alarm Event\r\n"
+            "BEGIN:VALARM\r\n"
+            "ACTION:DISPLAY\r\n"
+            "TRIGGER:-PT15M\r\n"
+            "DESCRIPTION:Reminder\r\n"
+            "END:VALARM\r\n"
+        )
+        result = ical_to_jscal(ical)
+        assert "alerts" in result
+        alert = next(iter(result["alerts"].values()))
+        assert alert["trigger"] == "-PT15M"
+        assert alert["action"] == "display"
+
+    def test_valarm_absolute(self):
+        ical = _make_ical(
+            "DTSTART:20240615T100000Z\r\n"
+            "SUMMARY:Abs Alarm Event\r\n"
+            "BEGIN:VALARM\r\n"
+            "ACTION:DISPLAY\r\n"
+            "TRIGGER;VALUE=DATE-TIME:20240615T093000Z\r\n"
+            "DESCRIPTION:Reminder\r\n"
+            "END:VALARM\r\n"
+        )
+        result = ical_to_jscal(ical)
+        assert "alerts" in result
+        alert = next(iter(result["alerts"].values()))
+        assert alert["trigger"].endswith("Z")
+
+    def test_organizer_attendee(self):
+        ical = _make_ical(
+            "DTSTART:20240615T100000Z\r\n"
+            "SUMMARY:Meeting\r\n"
+            "ORGANIZER;CN=Alice:mailto:alice@example.com\r\n"
+            "ATTENDEE;CN=Bob;PARTSTAT=ACCEPTED:mailto:bob@example.com\r\n"
+        )
+        result = ical_to_jscal(ical)
+        assert "participants" in result
+        participants = result["participants"]
+        # Find organizer
+        organizer = next(
+            (p for p in participants.values() if p.get("roles", {}).get("owner")), None
+        )
+        assert organizer is not None
+        assert organizer["roles"].get("organizer") is True
+        # Find attendee
+        attendee = next(
+            (p for p in participants.values() if p.get("roles", {}).get("attendee")), None
+        )
+        assert attendee is not None
+
+    def test_attendee_partstat(self):
+        ical = _make_ical(
+            "DTSTART:20240615T100000Z\r\n"
+            "SUMMARY:Meeting\r\n"
+            "ATTENDEE;PARTSTAT=DECLINED:mailto:bob@example.com\r\n"
+        )
+        result = ical_to_jscal(ical)
+        attendee = next(iter(result["participants"].values()))
+        assert attendee["participationStatus"] == "declined"
+
+    def test_calendar_id_set(self):
+        ical = _make_ical("DTSTART:20240615T100000Z\r\nSUMMARY:Cal Event\r\n")
+        result = ical_to_jscal(ical, calendar_id="Default")
+        assert result["calendarIds"] == {"Default": True}
+
+    def test_no_calendar_id_omits_key(self):
+        ical = _make_ical("DTSTART:20240615T100000Z\r\nSUMMARY:No Cal\r\n")
+        result = ical_to_jscal(ical)
+        assert "calendarIds" not in result
+
+    def test_floating_datetime(self):
+        ical = _make_ical("DTSTART:20240615T100000\r\nDURATION:PT1H\r\nSUMMARY:Floating\r\n")
+        result = ical_to_jscal(ical)
+        assert result["start"] == "2024-06-15T10:00:00"
+        assert "timeZone" not in result
+        assert result.get("showWithoutTime") is not True
+
+    def test_recurrence_id_child_vevent(self):
+        ical = (
+            "BEGIN:VCALENDAR\r\n"
+            "VERSION:2.0\r\n"
+            "PRODID:-//Test//Test//EN\r\n"
+            "BEGIN:VEVENT\r\n"
+            "UID:recur-uid@example.com\r\n"
+            "DTSTAMP:20240101T000000Z\r\n"
+            "DTSTART:20240617T140000Z\r\n"
+            "DURATION:PT1H\r\n"
+            "SUMMARY:Weekly Meeting\r\n"
+            "RRULE:FREQ=WEEKLY\r\n"
+            "END:VEVENT\r\n"
+            "BEGIN:VEVENT\r\n"
+            "UID:recur-uid@example.com\r\n"
+            "DTSTAMP:20240101T000000Z\r\n"
+            "RECURRENCE-ID:20240624T140000Z\r\n"
+            "DTSTART:20240624T160000Z\r\n"
+            "DURATION:PT2H\r\n"
+            "SUMMARY:Rescheduled Meeting\r\n"
+            "END:VEVENT\r\n"
+            "END:VCALENDAR\r\n"
+        )
+        result = ical_to_jscal(ical)
+        assert "recurrenceOverrides" in result
+        overrides = result["recurrenceOverrides"]
+        assert len(overrides) == 1
+        key = next(iter(overrides))
+        patch = overrides[key]
+        assert isinstance(patch, dict)
+        assert patch.get("excluded") is not True
+        assert patch.get("title") == "Rescheduled Meeting"
+
+    def test_color_and_sequence(self):
+        ical = _make_ical(
+            "DTSTART:20240615T100000Z\r\nSUMMARY:Colored\r\nCOLOR:red\r\nSEQUENCE:3\r\n"
+        )
+        result = ical_to_jscal(ical)
+        assert result.get("color") == "red"
+        assert result.get("sequence") == 3
+
+    def test_rrule_missing_freq_raises(self):
+        ical = _make_ical("DTSTART:20240615T100000Z\r\nSUMMARY:Bad RRULE\r\nRRULE:INTERVAL=2\r\n")
+        with pytest.raises((ValueError, Exception)):
+            ical_to_jscal(ical)
+
+
+# ---------------------------------------------------------------------------
+# TestJscalToIcal
+# ---------------------------------------------------------------------------
+
+
+class TestJscalToIcal:
+    def test_minimal_event(self):
+        jscal = _minimal_jscal()
+        result = jscal_to_ical(jscal)
+        assert "BEGIN:VCALENDAR" in result
+        assert "BEGIN:VEVENT" in result
+        assert "SUMMARY:Test Event" in result
+        assert "UID:test-uid@example.com" in result
+
+    def test_all_day_event(self):
+        jscal = _minimal_jscal(
+            start="2024-06-15T00:00:00",
+            showWithoutTime=True,
+            duration="P1D",
+        )
+        del jscal["timeZone"]
+        result = jscal_to_ical(jscal)
+        assert "DTSTART;VALUE=DATE:20240615" in result
+
+    def test_timezone_aware_event(self):
+        jscal = _minimal_jscal(start="2024-06-15T10:00:00", timeZone="Europe/Berlin")
+        result = jscal_to_ical(jscal)
+        assert "DTSTART;TZID=Europe/Berlin:" in result
+
+    def test_utc_event(self):
+        jscal = _minimal_jscal(start="2024-06-15T10:00:00Z")
+        del jscal["timeZone"]
+        result = jscal_to_ical(jscal)
+        assert "20240615T100000Z" in result
+
+    def test_duration(self):
+        jscal = _minimal_jscal(duration="PT2H30M")
+        result = jscal_to_ical(jscal)
+        assert "DURATION:PT2H30M" in result
+
+    def test_keywords_to_categories(self):
+        jscal = _minimal_jscal(keywords={"work": True, "standup": True})
+        result = jscal_to_ical(jscal)
+        assert "CATEGORIES" in result
+        assert "work" in result or "standup" in result
+
+    def test_location(self):
+        jscal = _minimal_jscal(locations={"loc1": {"name": "Room A"}})
+        result = jscal_to_ical(jscal)
+        assert "LOCATION:Room A" in result
+
+    def test_priority(self):
+        jscal = _minimal_jscal(priority=5)
+        result = jscal_to_ical(jscal)
+        assert "PRIORITY:5" in result
+
+    def test_privacy_private(self):
+        jscal = _minimal_jscal(privacy="private")
+        result = jscal_to_ical(jscal)
+        assert "CLASS:PRIVATE" in result
+
+    def test_privacy_secret(self):
+        jscal = _minimal_jscal(privacy="secret")
+        result = jscal_to_ical(jscal)
+        assert "CLASS:CONFIDENTIAL" in result
+
+    def test_free_busy_free(self):
+        jscal = _minimal_jscal(freeBusyStatus="free")
+        result = jscal_to_ical(jscal)
+        assert "TRANSP:TRANSPARENT" in result
+
+    def test_rrule(self):
+        jscal = _minimal_jscal(
+            recurrenceRules=[
+                {
+                    "@type": "RecurrenceRule",
+                    "frequency": "weekly",
+                    "interval": 1,
+                    "byDay": [{"@type": "NDay", "day": "mo"}],
+                    "rscale": "gregorian",
+                    "skip": "omit",
+                    "firstDayOfWeek": "mo",
+                }
+            ]
+        )
+        result = jscal_to_ical(jscal)
+        assert "RRULE" in result
+        assert "FREQ=WEEKLY" in result
+        assert "BYDAY=MO" in result
+
+    def test_exdate_from_overrides(self):
+        jscal = _minimal_jscal(
+            recurrenceRules=[{"frequency": "weekly", "@type": "RecurrenceRule"}],
+            recurrenceOverrides={"2024-06-22T10:00:00": {"excluded": True}},
+        )
+        result = jscal_to_ical(jscal)
+        assert "EXDATE" in result
+
+    def test_alert_relative(self):
+        jscal = _minimal_jscal(alerts={"al1": {"trigger": "-PT15M", "action": "display"}})
+        result = jscal_to_ical(jscal)
+        assert "BEGIN:VALARM" in result
+        assert "TRIGGER:-PT15M" in result
+
+    def test_participants_organizer(self):
+        jscal = _minimal_jscal(
+            participants={
+                "p1": {
+                    "roles": {"owner": True, "organizer": True},
+                    "name": "Alice",
+                    "email": "alice@example.com",
+                    "sendTo": {"imip": "mailto:alice@example.com"},
+                }
+            }
+        )
+        result = jscal_to_ical(jscal)
+        assert "ORGANIZER" in result
+        assert "alice@example.com" in result
+
+    def test_sequence_emitted(self):
+        result = jscal_to_ical(_minimal_jscal(sequence=5))
+        assert "SEQUENCE:5" in result
+
+    def test_color_emitted(self):
+        result = jscal_to_ical(_minimal_jscal(color="blue"))
+        assert "COLOR:blue" in result
+
+    def test_exrule_from_excluded_recurrence_rules(self):
+        jscal = _minimal_jscal(
+            recurrenceRules=[{"@type": "RecurrenceRule", "frequency": "weekly"}],
+            excludedRecurrenceRules=[
+                {"@type": "RecurrenceRule", "frequency": "weekly", "byDay": [{"day": "mo"}]}
+            ],
+        )
+        assert "EXRULE" in jscal_to_ical(jscal)
+
+    def test_recurrence_override_patch_becomes_child_vevent(self):
+        jscal = _minimal_jscal(
+            start="2024-06-17T14:00:00Z",
+            recurrenceRules=[{"@type": "RecurrenceRule", "frequency": "weekly"}],
+            recurrenceOverrides={
+                "2024-06-24T14:00:00Z": {"title": "Rescheduled", "start": "2024-06-24T16:00:00Z"}
+            },
+        )
+        del jscal["timeZone"]
+        result = jscal_to_ical(jscal)
+        assert result.count("BEGIN:VEVENT") == 2
+        assert "RECURRENCE-ID" in result
+        assert "Rescheduled" in result
+
+    def test_floating_datetime_emitted(self):
+        jscal = {
+            "uid": "float-uid@example.com",
+            "title": "Floating",
+            "start": "2024-06-15T10:00:00",
+            "duration": "PT1H",
+        }
+        result = jscal_to_ical(jscal)
+        assert "DTSTART:20240615T100000" in result
+        assert "TZID" not in result
+
+
+# ---------------------------------------------------------------------------
+# TestRoundTrip
+# ---------------------------------------------------------------------------
+
+
+class TestRoundTrip:
+    def _key_fields_survive(self, original_ical: str) -> dict:
+        """ical → jscal → ical → parse back and check."""
+        jscal = ical_to_jscal(original_ical)
+        round_tripped = jscal_to_ical(jscal)
+        cal = _icalendar.Calendar.from_ical(round_tripped)
+        event = next(c for c in cal.subcomponents if isinstance(c, _icalendar.Event))
+        return {"jscal": jscal, "ical": round_tripped, "event": event}
+
+    def test_basic_event_round_trip(self):
+        ical = _make_ical("DTSTART:20240615T100000Z\r\nDURATION:PT1H\r\nSUMMARY:Basic Event\r\n")
+        ctx = self._key_fields_survive(ical)
+        assert str(ctx["event"]["SUMMARY"]) == "Basic Event"
+        assert ctx["jscal"]["title"] == "Basic Event"
+        assert ctx["jscal"]["duration"] == "PT1H"
+
+    def test_all_day_round_trip(self):
+        ical = _make_ical(
+            "DTSTART;VALUE=DATE:20240615\r\nDTEND;VALUE=DATE:20240616\r\nSUMMARY:All Day Event\r\n"
+        )
+        ctx = self._key_fields_survive(ical)
+        assert ctx["jscal"]["showWithoutTime"] is True
+        assert ctx["jscal"]["duration"] == "P1D"
+
+    def test_recurring_event_round_trip(self):
+        ical = _make_ical(
+            "DTSTART;TZID=Europe/Berlin:20240617T140000\r\n"
+            "DURATION:PT1H\r\n"
+            "SUMMARY:Weekly\r\n"
+            "RRULE:FREQ=WEEKLY;COUNT=4\r\n"
+        )
+        ctx = self._key_fields_survive(ical)
+        assert "recurrenceRules" in ctx["jscal"]
+        assert ctx["jscal"]["recurrenceRules"][0]["frequency"] == "weekly"
+        assert "RRULE" in ctx["ical"]
+
+    def test_with_alert_round_trip(self):
+        ical = _make_ical(
+            "DTSTART:20240615T100000Z\r\n"
+            "DURATION:PT1H\r\n"
+            "SUMMARY:Alert Event\r\n"
+            "BEGIN:VALARM\r\n"
+            "ACTION:DISPLAY\r\n"
+            "TRIGGER:-PT15M\r\n"
+            "DESCRIPTION:Reminder\r\n"
+            "END:VALARM\r\n"
+        )
+        ctx = self._key_fields_survive(ical)
+        assert "alerts" in ctx["jscal"]
+        alert = next(iter(ctx["jscal"]["alerts"].values()))
+        assert alert["trigger"] == "-PT15M"
+        assert "BEGIN:VALARM" in ctx["ical"]
+
+    def test_with_attendees_round_trip(self):
+        ical = _make_ical(
+            "DTSTART:20240615T100000Z\r\n"
+            "DURATION:PT1H\r\n"
+            "SUMMARY:Meeting\r\n"
+            "ORGANIZER;CN=Alice:mailto:alice@example.com\r\n"
+            "ATTENDEE;CN=Bob;PARTSTAT=ACCEPTED:mailto:bob@example.com\r\n"
+        )
+        ctx = self._key_fields_survive(ical)
+        assert "participants" in ctx["jscal"]
+        assert len(ctx["jscal"]["participants"]) >= 1
+        assert "alice@example.com" in ctx["ical"] or "ORGANIZER" in ctx["ical"]
