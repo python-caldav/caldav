@@ -74,6 +74,35 @@ def build_event_changes(
     return ("CalendarEvent/changes", args, "ev-changes-0")
 
 
+def parse_event_changes(
+    response_args: dict,
+) -> tuple[str, str, bool, list[str], list[str], list[str]]:
+    """Parse the arguments dict from a ``CalendarEvent/changes`` response.
+
+    Args:
+        response_args: The second element of a ``methodResponses`` entry
+            whose method name is ``"CalendarEvent/changes"``.
+
+    Returns:
+        A 6-tuple ``(old_state, new_state, has_more_changes, created, updated, destroyed)``:
+
+        - ``old_state``: Echo of the ``sinceState`` argument.
+        - ``new_state``: State string to store as the next sync token.
+        - ``has_more_changes``: True if the server capped the response.
+        - ``created``: IDs of newly created events.
+        - ``updated``: IDs of modified events.
+        - ``destroyed``: IDs of deleted events.
+    """
+    return (
+        response_args.get("oldState", ""),
+        response_args.get("newState", ""),
+        response_args.get("hasMoreChanges", False),
+        response_args.get("created") or [],
+        response_args.get("updated") or [],
+        response_args.get("destroyed") or [],
+    )
+
+
 def build_event_query(
     account_id: str,
     filter: dict | None = None,
