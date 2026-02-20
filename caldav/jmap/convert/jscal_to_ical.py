@@ -11,6 +11,7 @@ or produced by ical_to_jscal). Returns a VCALENDAR string.
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import icalendar
 from icalendar import vCalAddress, vText
@@ -73,6 +74,16 @@ def _start_to_dtstart(
     if time_zone:
 
         def _add_dtstart_tzid_passthrough():
+            dtstart = icalendar.vDatetime(dt_naive)
+            dtstart.params["TZID"] = time_zone
+    if time_zone:
+        try:
+            tz = ZoneInfo(time_zone)
+            dt = dt_naive.replace(tzinfo=tz)
+            component.add("dtstart", dt)
+        except ZoneInfoNotFoundError:
+            # Non-IANA TZID (e.g. "Eastern Standard Time") — pass through as-is
+            # so the consuming calendar client can resolve it.
             dtstart = icalendar.vDatetime(dt_naive)
             dtstart.params["TZID"] = time_zone
             component.add("dtstart", dtstart)
