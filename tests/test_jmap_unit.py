@@ -14,18 +14,10 @@ try:
 except ImportError:
     from requests.auth import HTTPBasicAuth  # type: ignore[no-redef]
 
-# ---------------------------------------------------------------------------
-# Shared test fixtures (module-level constants — not hardcoded inline)
-# ---------------------------------------------------------------------------
-
 _JMAP_URL = "http://localhost:8802/.well-known/jmap"
 _API_URL = "http://localhost:8802/jmap/api"
 _USERNAME = "user1"
 _PASSWORD = "x"
-
-# ---------------------------------------------------------------------------
-# Error hierarchy
-# ---------------------------------------------------------------------------
 
 from caldav.jmap.error import (
     JMAPAuthError,
@@ -88,10 +80,6 @@ class TestJMAPErrorHierarchy:
         with pytest.raises(AuthorizationError):
             raise JMAPAuthError()
 
-
-# ---------------------------------------------------------------------------
-# Session establishment
-# ---------------------------------------------------------------------------
 
 from caldav.jmap.constants import CALENDAR_CAPABILITY, TASK_CAPABILITY
 from caldav.jmap.session import Session, fetch_session
@@ -219,10 +207,6 @@ class TestFetchSession:
         assert session.account_id == "user_calendar"
 
 
-# ---------------------------------------------------------------------------
-# Calendar domain object
-# ---------------------------------------------------------------------------
-
 from caldav.jmap.objects.calendar import JMAPCalendar
 
 _CALENDAR_JSON_FULL = {
@@ -300,10 +284,6 @@ class TestJMAPCalendar:
             JMAPCalendar.from_jmap({"id": "cal3"})
 
 
-# ---------------------------------------------------------------------------
-# Calendar method builders and parsers
-# ---------------------------------------------------------------------------
-
 from caldav.jmap.methods.calendar import (
     build_calendar_changes,
     build_calendar_get,
@@ -354,10 +334,6 @@ class TestCalendarMethodBuilders:
         assert args["sinceState"] == "state-abc"
         assert isinstance(call_id, str)
 
-
-# ---------------------------------------------------------------------------
-# JMAPClient
-# ---------------------------------------------------------------------------
 
 from caldav.jmap.client import JMAPClient
 
@@ -471,10 +447,6 @@ class TestJMAPClient:
         assert exc_info.value.error_type == "unknownMethod"
 
 
-# ---------------------------------------------------------------------------
-# get_jmap_client factory
-# ---------------------------------------------------------------------------
-
 from caldav.jmap import get_jmap_client
 
 
@@ -499,10 +471,6 @@ class TestGetJMAPClient:
         assert isinstance(client, JMAPClient)
         assert not hasattr(client, "ssl_verify_cert")
 
-
-# ---------------------------------------------------------------------------
-# CalendarEvent domain object
-# ---------------------------------------------------------------------------
 
 from caldav.jmap.objects.event import JMAPEvent
 
@@ -746,10 +714,6 @@ class TestJMAPEvent:
         assert ev.recurrence_overrides == {}
 
 
-# ---------------------------------------------------------------------------
-# CalendarEvent method builders and parsers
-# ---------------------------------------------------------------------------
-
 from caldav.jmap.methods.event import (
     build_event_changes,
     build_event_get,
@@ -971,10 +935,6 @@ from caldav.jmap.convert._utils import (
     _timedelta_to_duration,
 )
 
-# ---------------------------------------------------------------------------
-# Shared iCal fixtures
-# ---------------------------------------------------------------------------
-
 
 def _make_ical(extra_lines: str = "", uid: str = "test-uid@example.com") -> str:
     return (
@@ -998,11 +958,6 @@ def _minimal_jscal(**kwargs) -> dict:
     }
     base.update(kwargs)
     return base
-
-
-# ---------------------------------------------------------------------------
-# TestUtils — shared utility functions
-# ---------------------------------------------------------------------------
 
 
 class TestUtils:
@@ -1048,11 +1003,6 @@ class TestUtils:
     def test_format_local_dt_date(self):
         d = date(2024, 6, 15)
         assert _format_local_dt(d) == "2024-06-15T00:00:00"
-
-
-# ---------------------------------------------------------------------------
-# TestIcalToJscal
-# ---------------------------------------------------------------------------
 
 
 class TestIcalToJscal:
@@ -1321,11 +1271,6 @@ class TestIcalToJscal:
             ical_to_jscal(ical)
 
 
-# ---------------------------------------------------------------------------
-# TestJscalToIcal
-# ---------------------------------------------------------------------------
-
-
 class TestJscalToIcal:
     def test_minimal_event(self):
         jscal = _minimal_jscal()
@@ -1481,11 +1426,6 @@ class TestJscalToIcal:
         result = jscal_to_ical(jscal)
         assert "DTSTART:20240615T100000" in result
         assert "TZID" not in result
-
-
-# ---------------------------------------------------------------------------
-# TestRoundTrip
-# ---------------------------------------------------------------------------
 
 
 class TestRoundTrip:
