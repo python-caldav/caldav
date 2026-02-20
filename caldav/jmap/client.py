@@ -24,10 +24,12 @@ from caldav.jmap.convert import ical_to_jscal, jscal_to_ical
 from caldav.jmap.error import JMAPAuthError, JMAPMethodError
 from caldav.jmap.methods.calendar import build_calendar_get, parse_calendar_get
 from caldav.jmap.methods.event import (
+    build_event_changes,
     build_event_get,
     build_event_query,
     build_event_set_destroy,
     build_event_set_update,
+    parse_event_changes,
     parse_event_set,
 )
 from caldav.jmap.objects.calendar import JMAPCalendar
@@ -347,6 +349,85 @@ class JMAPClient:
                 return [jscal_to_ical(item) for item in resp_args.get("list", [])]
 
         return []
+
+    def get_sync_token(self) -> str:
+        """Return the current CalendarEvent state string for use as a sync token.
+
+        Calls ``CalendarEvent/get`` with an empty ID list — no event data is
+        transferred, only the ``state`` field from the response.
+
+        Returns:
+            Opaque state string. Pass to :meth:`get_objects_by_sync_token` to
+            retrieve only what changed since this point.
+        """
+        session = self._get_session()
+        call = build_event_get(session.account_id, ids=[])
+        responses = self._request([call])
+        for method_name, resp_args, _ in responses:
+            if method_name == "CalendarEvent/get":
+                return resp_args.get("state", "")
+        raise JMAPMethodError(url=session.api_url, reason="No CalendarEvent/get response")
+
+    def get_objects_by_sync_token(self, sync_token: str) -> tuple[list[str], list[str], list[str]]:
+        """Fetch events changed since a previous sync token.
+
+        Calls ``CalendarEvent/changes`` to discover which events were created,
+        modified, or destroyed since ``sync_token`` was issued. Created and
+        modified events are returned as iCalendar strings; destroyed events are
+        returned as IDs (the objects no longer exist on the server).
+
+        Args:
+            sync_token: A state string previously returned by :meth:`get_sync_token`
+                or by a prior call to this method.
+
+        Returns:
+            A 3-tuple ``(added, modified, deleted)``:
+
+            - ``added``: iCalendar strings for newly created events.
+            - ``modified``: iCalendar strings for updated events.
+            - ``deleted``: Event IDs that were destroyed.
+
+        Raises:
+            JMAPMethodError: If the server reports ``hasMoreChanges: true``.
+        """
+        session = self._get_session()
+        changes_call = build_event_changes(session.account_id, sync_token)
+        responses = self._request([changes_call])
+
+        created_ids: list[str] = []
+        updated_ids: list[str] = []
+        destroyed: list[str] = []
+
+        for method_name, resp_args, _ in responses:
+            if method_name == "CalendarEvent/changes":
+                _, _, has_more, created_ids, updated_ids, destroyed = parse_event_changes(resp_args)
+                if has_more:
+                    raise JMAPMethodError(
+                        url=session.api_url,
+                        reason=(
+                            "CalendarEvent/changes response was truncated by the server "
+                            "(hasMoreChanges=true). Call get_sync_token() to obtain a "
+                            "fresh baseline and re-sync."
+                        ),
+                        error_type="serverPartialFail",
+                    )
+
+        fetch_ids = created_ids + updated_ids
+        if not fetch_ids:
+            return [], [], destroyed
+
+        get_call = build_event_get(session.account_id, ids=fetch_ids)
+        get_responses = self._request([get_call])
+
+        events_by_id: dict[str, str] = {}
+        for method_name, resp_args, _ in get_responses:
+            if method_name == "CalendarEvent/get":
+                for item in resp_args.get("list", []):
+                    events_by_id[item["id"]] = jscal_to_ical(item)
+
+        added = [events_by_id[i] for i in created_ids if i in events_by_id]
+        modified = [events_by_id[i] for i in updated_ids if i in events_by_id]
+        return added, modified, destroyed
 
     def delete_event(self, event_id: str) -> None:
         """Delete a calendar event.
