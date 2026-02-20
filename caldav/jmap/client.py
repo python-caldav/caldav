@@ -25,6 +25,7 @@ from caldav.jmap.error import JMAPAuthError, JMAPMethodError
 from caldav.jmap.methods.calendar import build_calendar_get, parse_calendar_get
 from caldav.jmap.methods.event import (
     build_event_get,
+    build_event_query,
     build_event_set_destroy,
     build_event_set_update,
     parse_event_set,
@@ -292,6 +293,60 @@ class JMAPClient:
                 return
 
         raise JMAPMethodError(url=session.api_url, reason="No CalendarEvent/set response")
+
+    def search_events(
+        self,
+        calendar_id: str | None = None,
+        start: str | None = None,
+        end: str | None = None,
+        text: str | None = None,
+    ) -> list[str]:
+        """Search for calendar events and return them as iCalendar strings.
+
+        All parameters are optional; omitting all returns every event in the account.
+        Results are fetched in a single batched JMAP request using a result reference
+        from ``CalendarEvent/query`` into ``CalendarEvent/get``.
+
+        Args:
+            calendar_id: Limit results to this calendar.
+            start: Only events ending after this datetime (``YYYY-MM-DDTHH:MM:SS``).
+            end: Only events starting before this datetime (``YYYY-MM-DDTHH:MM:SS``).
+            text: Free-text search across title, description, locations, and participants.
+
+        Returns:
+            List of VCALENDAR strings for all matching events.
+        """
+        session = self._get_session()
+        filter_dict: dict = {}
+        if calendar_id is not None:
+            filter_dict["inCalendars"] = [calendar_id]
+        if start is not None:
+            filter_dict["after"] = start
+        if end is not None:
+            filter_dict["before"] = end
+        if text is not None:
+            filter_dict["text"] = text
+
+        query_call = build_event_query(session.account_id, filter=filter_dict or None)
+        get_call = (
+            "CalendarEvent/get",
+            {
+                "accountId": session.account_id,
+                "#ids": {
+                    "resultOf": "ev-query-0",
+                    "name": "CalendarEvent/query",
+                    "path": "/ids",
+                },
+            },
+            "ev-get-1",
+        )
+        responses = self._request([query_call, get_call])
+
+        for method_name, resp_args, _ in responses:
+            if method_name == "CalendarEvent/get":
+                return [jscal_to_ical(item) for item in resp_args.get("list", [])]
+
+        return []
 
     def delete_event(self, event_id: str) -> None:
         """Delete a calendar event.
