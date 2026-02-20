@@ -128,7 +128,9 @@ def _jscal_rrule_to_rrule(rule: dict) -> dict:
 
     by_month = rule.get("byMonth", [])
     if by_month:
-        ical_rule["BYMONTH"] = [m if isinstance(m, int) else int(str(m).rstrip("L")) for m in by_month]
+        ical_rule["BYMONTH"] = [
+            m if isinstance(m, int) else int(str(m).rstrip("L")) for m in by_month
+        ]
 
     by_month_day = rule.get("byMonthDay", [])
     if by_month_day:
