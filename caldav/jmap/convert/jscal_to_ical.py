@@ -167,18 +167,21 @@ def _jscal_rrule_to_rrule(rule: dict) -> dict:
     return ical_rule
 
 
+def _participant_imip(p: dict) -> str:
+    send_to = p.get("sendTo", {})
+    imip = send_to.get("imip") or send_to.get("other") or p.get("email", "")
+    if imip and not imip.startswith("mailto:"):
+        imip = f"mailto:{imip}"
+    return imip
+
+
 def _participant_to_organizer(p: dict) -> vCalAddress | None:
     """Build a vCalAddress for ORGANIZER, or None if this participant is not an organizer."""
     roles = p.get("roles", {})
     if not (roles.get("owner") or roles.get("organizer")):
         return None
 
-    send_to = p.get("sendTo", {})
-    imip = send_to.get("imip") or send_to.get("other") or p.get("email", "")
-    if imip and not imip.startswith("mailto:"):
-        imip = f"mailto:{imip}"
-
-    addr = vCalAddress(imip)
+    addr = vCalAddress(_participant_imip(p))
     name = p.get("name")
     if name:
         addr.params["CN"] = vText(name)
@@ -188,20 +191,13 @@ def _participant_to_organizer(p: dict) -> vCalAddress | None:
 def _participant_to_attendee(p: dict) -> vCalAddress | None:
     """Build a vCalAddress for ATTENDEE, or None if participant is purely an organizer."""
     roles = p.get("roles", {})
-    # If only owner/organizer with no attendee/chair role, don't emit an ATTENDEE line
     has_attendee_role = any(
         roles.get(r) for r in ("attendee", "chair", "informational", "optional")
     )
-    # If owner-only (pure organizer), skip
     if not has_attendee_role and (roles.get("owner") or roles.get("organizer")):
         return None
 
-    send_to = p.get("sendTo", {})
-    imip = send_to.get("imip") or send_to.get("other") or p.get("email", "")
-    if imip and not imip.startswith("mailto:"):
-        imip = f"mailto:{imip}"
-
-    addr = vCalAddress(imip)
+    addr = vCalAddress(_participant_imip(p))
     name = p.get("name")
     if name:
         addr.params["CN"] = vText(name)
