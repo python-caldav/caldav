@@ -179,10 +179,6 @@ class JMAPClient:
 
         return method_responses
 
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
-
     def get_calendars(self) -> list[JMAPCalendar]:
         """Fetch all calendars for the authenticated account.
 
