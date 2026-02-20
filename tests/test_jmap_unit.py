@@ -93,7 +93,7 @@ class TestJMAPErrorHierarchy:
 # Session establishment
 # ---------------------------------------------------------------------------
 
-from caldav.jmap.constants import CALENDAR_CAPABILITY
+from caldav.jmap.constants import CALENDAR_CAPABILITY, TASK_CAPABILITY
 from caldav.jmap.session import Session, fetch_session
 
 # Minimal valid Session JSON fixture
@@ -763,6 +763,17 @@ from caldav.jmap.methods.event import (
     parse_event_query,
     parse_event_set,
 )
+from caldav.jmap.methods.task import (
+    build_task_get,
+    build_task_list_get,
+    build_task_set_create,
+    build_task_set_destroy,
+    build_task_set_update,
+    parse_task_get,
+    parse_task_list_get,
+    parse_task_set,
+)
+from caldav.jmap.objects.task import JMAPTask, JMAPTaskList
 
 
 class TestEventMethodBuilders:
@@ -1878,3 +1889,373 @@ class TestJMAPClientSync:
         assert created == ["ev1"]
         assert updated == ["ev2"]
         assert destroyed == ["ev3"]
+
+
+class TestJMAPTaskList:
+    _FULL = {
+        "id": "tl1",
+        "name": "Work Tasks",
+        "description": "All work-related tasks",
+        "color": "#0000ff",
+        "isSubscribed": True,
+        "myRights": {"mayReadItems": True, "mayWriteAll": True},
+        "sortOrder": 1,
+        "timeZone": "Europe/Berlin",
+        "role": "inbox",
+    }
+
+    def test_from_jmap_required_fields(self):
+        tl = JMAPTaskList.from_jmap({"id": "tl1", "name": "My Tasks"})
+        assert tl.id == "tl1"
+        assert tl.name == "My Tasks"
+
+    def test_from_jmap_optional_defaults(self):
+        tl = JMAPTaskList.from_jmap({"id": "tl1", "name": "My Tasks"})
+        assert tl.description is None
+        assert tl.color is None
+        assert tl.is_subscribed is True
+        assert tl.my_rights == {}
+        assert tl.sort_order == 0
+        assert tl.time_zone is None
+        assert tl.role is None
+
+    def test_from_jmap_full(self):
+        tl = JMAPTaskList.from_jmap(self._FULL)
+        assert tl.description == "All work-related tasks"
+        assert tl.color == "#0000ff"
+        assert tl.sort_order == 1
+        assert tl.time_zone == "Europe/Berlin"
+        assert tl.role == "inbox"
+
+    def test_to_jmap_excludes_server_set_fields(self):
+        tl = JMAPTaskList.from_jmap(self._FULL)
+        d = tl.to_jmap()
+        assert "id" not in d
+        assert "myRights" not in d
+
+    def test_to_jmap_includes_required_fields(self):
+        tl = JMAPTaskList.from_jmap({"id": "tl1", "name": "My Tasks"})
+        d = tl.to_jmap()
+        assert d["name"] == "My Tasks"
+        assert "isSubscribed" in d
+        assert "sortOrder" in d
+
+    def test_to_jmap_omits_none_optionals(self):
+        tl = JMAPTaskList.from_jmap({"id": "tl1", "name": "My Tasks"})
+        d = tl.to_jmap()
+        assert "description" not in d
+        assert "color" not in d
+        assert "timeZone" not in d
+        assert "role" not in d
+
+
+class TestJMAPTask:
+    _FULL = {
+        "id": "task1",
+        "uid": "uid-123@example.com",
+        "taskListId": "tl1",
+        "title": "Buy groceries",
+        "description": "Milk and eggs",
+        "start": "2026-02-20T09:00:00",
+        "due": "2026-02-20T18:00:00",
+        "timeZone": "Europe/Berlin",
+        "estimatedDuration": "PT1H",
+        "percentComplete": 50,
+        "progress": "in-process",
+        "progressUpdated": "2026-02-20T10:00:00Z",
+        "priority": 1,
+        "isDraft": False,
+        "keywords": {"urgent": True},
+        "color": "red",
+        "privacy": "private",
+    }
+
+    def test_from_jmap_required_fields(self):
+        task = JMAPTask.from_jmap({"id": "t1", "uid": "u1", "taskListId": "tl1"})
+        assert task.id == "t1"
+        assert task.uid == "u1"
+        assert task.task_list_id == "tl1"
+
+    def test_from_jmap_optional_defaults(self):
+        task = JMAPTask.from_jmap({"id": "t1", "uid": "u1", "taskListId": "tl1"})
+        assert task.title == ""
+        assert task.description is None
+        assert task.start is None
+        assert task.due is None
+        assert task.time_zone is None
+        assert task.estimated_duration is None
+        assert task.percent_complete == 0
+        assert task.progress == "needs-action"
+        assert task.priority == 0
+        assert task.is_draft is False
+        assert task.keywords == {}
+        assert task.recurrence_rules == []
+        assert task.recurrence_overrides == {}
+        assert task.alerts == {}
+        assert task.participants == {}
+        assert task.color is None
+        assert task.privacy is None
+
+    def test_from_jmap_full(self):
+        task = JMAPTask.from_jmap(self._FULL)
+        assert task.title == "Buy groceries"
+        assert task.percent_complete == 50
+        assert task.progress == "in-process"
+        assert task.estimated_duration == "PT1H"
+        assert task.time_zone == "Europe/Berlin"
+        assert task.keywords == {"urgent": True}
+
+    def test_to_jmap_includes_type_discriminator(self):
+        task = JMAPTask.from_jmap({"id": "t1", "uid": "u1", "taskListId": "tl1"})
+        assert task.to_jmap()["@type"] == "Task"
+
+    def test_to_jmap_excludes_id(self):
+        task = JMAPTask.from_jmap(self._FULL)
+        assert "id" not in task.to_jmap()
+
+    def test_to_jmap_omits_none_optionals(self):
+        task = JMAPTask.from_jmap({"id": "t1", "uid": "u1", "taskListId": "tl1"})
+        d = task.to_jmap()
+        assert "description" not in d
+        assert "start" not in d
+        assert "due" not in d
+        assert "timeZone" not in d
+        assert "estimatedDuration" not in d
+        assert "color" not in d
+        assert "privacy" not in d
+
+    def test_to_jmap_includes_task_list_id(self):
+        task = JMAPTask.from_jmap({"id": "t1", "uid": "u1", "taskListId": "tl1"})
+        assert task.to_jmap()["taskListId"] == "tl1"
+
+
+class TestTaskMethodBuilders:
+    def test_build_task_list_get_structure(self):
+        method, args, call_id = build_task_list_get("u1")
+        assert method == "TaskList/get"
+        assert args["accountId"] == "u1"
+        assert args["ids"] is None
+        assert call_id == "tasklist-get-0"
+
+    def test_build_task_get_structure(self):
+        method, args, call_id = build_task_get("u1")
+        assert method == "Task/get"
+        assert args["accountId"] == "u1"
+        assert args["ids"] is None
+        assert call_id == "task-get-0"
+
+    def test_build_task_get_with_ids(self):
+        _, args, _ = build_task_get("u1", ids=["t1", "t2"])
+        assert args["ids"] == ["t1", "t2"]
+
+    def test_build_task_set_create_structure(self):
+        task = JMAPTask(id="", uid="u1", task_list_id="tl1", title="Test")
+        method, args, call_id = build_task_set_create("acct1", {"new-0": task})
+        assert method == "Task/set"
+        assert "create" in args
+        assert "@type" in args["create"]["new-0"]
+        assert call_id == "task-set-create-0"
+
+    def test_build_task_set_update_structure(self):
+        method, args, call_id = build_task_set_update("acct1", {"t1": {"title": "New"}})
+        assert method == "Task/set"
+        assert args["update"] == {"t1": {"title": "New"}}
+        assert call_id == "task-set-update-0"
+
+    def test_build_task_set_destroy_structure(self):
+        method, args, call_id = build_task_set_destroy("acct1", ["t1"])
+        assert method == "Task/set"
+        assert args["destroy"] == ["t1"]
+        assert call_id == "task-set-destroy-0"
+
+    def test_parse_task_list_get_returns_tasklists(self):
+        resp_args = {"list": [{"id": "tl1", "name": "Work"}, {"id": "tl2", "name": "Home"}]}
+        results = parse_task_list_get(resp_args)
+        assert len(results) == 2
+        assert all(isinstance(r, JMAPTaskList) for r in results)
+        assert results[0].name == "Work"
+
+    def test_parse_task_get_returns_tasks(self):
+        resp_args = {
+            "list": [
+                {"id": "t1", "uid": "uid-1", "taskListId": "tl1", "title": "Buy milk"},
+                {"id": "t2", "uid": "uid-2", "taskListId": "tl1", "title": "Call dentist"},
+            ]
+        }
+        results = parse_task_get(resp_args)
+        assert len(results) == 2
+        assert all(isinstance(r, JMAPTask) for r in results)
+        assert results[0].title == "Buy milk"
+
+    def test_parse_task_set_all_fields(self):
+        resp_args = {
+            "created": {"new-0": {"id": "t1"}},
+            "updated": {"t2": None},
+            "destroyed": ["t3"],
+            "notCreated": {"new-1": {"type": "invalidArguments"}},
+            "notUpdated": {},
+            "notDestroyed": {},
+        }
+        created, updated, destroyed, not_created, not_updated, not_destroyed = parse_task_set(
+            resp_args
+        )
+        assert created == {"new-0": {"id": "t1"}}
+        assert destroyed == ["t3"]
+        assert not_created == {"new-1": {"type": "invalidArguments"}}
+
+
+class TestJMAPClientTasks:
+    _MINIMAL_TASK = {
+        "id": "task1",
+        "uid": "uid-task-1@example.com",
+        "taskListId": "tl1",
+        "title": "Buy groceries",
+        "percentComplete": 0,
+        "progress": "needs-action",
+        "priority": 0,
+    }
+
+    _MINIMAL_TASKLIST = {
+        "id": "tl1",
+        "name": "My Tasks",
+    }
+
+    def _set_response(self, **kwargs):
+        return {"methodResponses": [["Task/set", kwargs, "task-set-create-0"]]}
+
+    def _get_response(self, items):
+        return {
+            "methodResponses": [
+                [
+                    "Task/get",
+                    {"accountId": _USERNAME, "list": items, "notFound": []},
+                    "task-get-0",
+                ]
+            ]
+        }
+
+    def _tasklist_response(self, items):
+        return {
+            "methodResponses": [
+                [
+                    "TaskList/get",
+                    {"accountId": _USERNAME, "list": items, "notFound": []},
+                    "tasklist-get-0",
+                ]
+            ]
+        }
+
+    def _make_mock(self, resp_json):
+        m = MagicMock()
+        m.status_code = 200
+        m.json.return_value = resp_json
+        m.raise_for_status = MagicMock()
+        return m
+
+    def _make_client(self):
+        client = JMAPClient(url=_JMAP_URL, username=_USERNAME, password=_PASSWORD)
+        client._session_cache = Session(api_url=_API_URL, account_id=_USERNAME, state="state-abc")
+        return client
+
+    def test_get_task_lists_returns_list(self, monkeypatch):
+        resp = self._tasklist_response([self._MINIMAL_TASKLIST])
+        monkeypatch.setattr(
+            "caldav.jmap.client.requests.post", lambda *a, **kw: self._make_mock(resp)
+        )
+        result = self._make_client().get_task_lists()
+        assert len(result) == 1
+        assert isinstance(result[0], JMAPTaskList)
+        assert result[0].name == "My Tasks"
+
+    def test_create_task_returns_server_id(self, monkeypatch):
+        resp = self._set_response(created={"new-0": {"id": "sv-task-1"}})
+        monkeypatch.setattr(
+            "caldav.jmap.client.requests.post", lambda *a, **kw: self._make_mock(resp)
+        )
+        task_id = self._make_client().create_task("tl1", "Buy groceries")
+        assert task_id == "sv-task-1"
+
+    def test_create_task_passes_task_list_id(self, monkeypatch):
+        captured = {}
+        resp = self._set_response(created={"new-0": {"id": "sv-task-1"}})
+
+        def capturing_post(*args, **kwargs):
+            captured["json"] = kwargs.get("json", {})
+            return self._make_mock(resp)
+
+        monkeypatch.setattr("caldav.jmap.client.requests.post", capturing_post)
+        self._make_client().create_task("my-list", "Test Task")
+        create_args = captured["json"]["methodCalls"][0][1]
+        assert create_args["create"]["new-0"]["taskListId"] == "my-list"
+
+    def test_create_task_raises_on_failure(self, monkeypatch):
+        resp = self._set_response(notCreated={"new-0": {"type": "invalidArguments"}})
+        monkeypatch.setattr(
+            "caldav.jmap.client.requests.post", lambda *a, **kw: self._make_mock(resp)
+        )
+        with pytest.raises(JMAPMethodError) as exc_info:
+            self._make_client().create_task("tl1", "Test")
+        assert exc_info.value.error_type == "invalidArguments"
+
+    def test_get_task_returns_task_object(self, monkeypatch):
+        resp = self._get_response([self._MINIMAL_TASK])
+        monkeypatch.setattr(
+            "caldav.jmap.client.requests.post", lambda *a, **kw: self._make_mock(resp)
+        )
+        task = self._make_client().get_task("task1")
+        assert isinstance(task, JMAPTask)
+        assert task.title == "Buy groceries"
+
+    def test_get_task_raises_on_not_found(self, monkeypatch):
+        resp = self._get_response([])
+        monkeypatch.setattr(
+            "caldav.jmap.client.requests.post", lambda *a, **kw: self._make_mock(resp)
+        )
+        with pytest.raises(JMAPMethodError) as exc_info:
+            self._make_client().get_task("missing")
+        assert exc_info.value.error_type == "notFound"
+
+    def test_update_task_success(self, monkeypatch):
+        resp = self._set_response(updated={"task1": None})
+        monkeypatch.setattr(
+            "caldav.jmap.client.requests.post", lambda *a, **kw: self._make_mock(resp)
+        )
+        self._make_client().update_task("task1", {"title": "Updated"})
+
+    def test_update_task_raises_on_failure(self, monkeypatch):
+        resp = self._set_response(notUpdated={"task1": {"type": "notFound"}})
+        monkeypatch.setattr(
+            "caldav.jmap.client.requests.post", lambda *a, **kw: self._make_mock(resp)
+        )
+        with pytest.raises(JMAPMethodError) as exc_info:
+            self._make_client().update_task("task1", {"title": "X"})
+        assert exc_info.value.error_type == "notFound"
+
+    def test_delete_task_success(self, monkeypatch):
+        resp = self._set_response(destroyed=["task1"])
+        monkeypatch.setattr(
+            "caldav.jmap.client.requests.post", lambda *a, **kw: self._make_mock(resp)
+        )
+        self._make_client().delete_task("task1")
+
+    def test_delete_task_raises_on_failure(self, monkeypatch):
+        resp = self._set_response(notDestroyed={"task1": {"type": "notFound"}})
+        monkeypatch.setattr(
+            "caldav.jmap.client.requests.post", lambda *a, **kw: self._make_mock(resp)
+        )
+        with pytest.raises(JMAPMethodError) as exc_info:
+            self._make_client().delete_task("task1")
+        assert exc_info.value.error_type == "notFound"
+
+    def test_task_requests_use_task_capability(self, monkeypatch):
+        captured = {}
+        resp = self._tasklist_response([self._MINIMAL_TASKLIST])
+
+        def capturing_post(*args, **kwargs):
+            captured["json"] = kwargs.get("json", {})
+            return self._make_mock(resp)
+
+        monkeypatch.setattr("caldav.jmap.client.requests.post", capturing_post)
+        self._make_client().get_task_lists()
+        assert TASK_CAPABILITY in captured["json"]["using"]
+        assert CALENDAR_CAPABILITY not in captured["json"]["using"]
