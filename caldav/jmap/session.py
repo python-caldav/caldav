@@ -41,7 +41,7 @@ class Session:
     raw: dict = field(default_factory=dict)
 
 
-def fetch_session(url: str, auth) -> Session:
+def fetch_session(url: str, auth, timeout: int = 30) -> Session:
     """Fetch and parse the JMAP Session object.
 
     Performs a GET request to ``url`` (expected to be ``/.well-known/jmap``
@@ -61,7 +61,7 @@ def fetch_session(url: str, auth) -> Session:
         JMAPCapabilityError: If no account advertises the calendars capability.
         requests.HTTPError: For other non-2xx responses.
     """
-    response = requests.get(url, auth=auth, headers={"Accept": "application/json"})
+    response = requests.get(url, auth=auth, headers={"Accept": "application/json"}, timeout=timeout)
 
     if response.status_code in (401, 403):
         raise JMAPAuthError(
