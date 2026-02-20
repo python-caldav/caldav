@@ -11,6 +11,7 @@ Credentials are sent upfront on every request. A 401/403 is a hard failure.
 from __future__ import annotations
 
 import logging
+import uuid
 
 try:
     import niquests as requests
@@ -19,7 +20,7 @@ except ImportError:
     import requests  # type: ignore[no-redef]
     from requests.auth import HTTPBasicAuth  # type: ignore[no-redef]
 
-from caldav.jmap.constants import CALENDAR_CAPABILITY, CORE_CAPABILITY
+from caldav.jmap.constants import CALENDAR_CAPABILITY, CORE_CAPABILITY, TASK_CAPABILITY
 from caldav.jmap.convert import ical_to_jscal, jscal_to_ical
 from caldav.jmap.error import JMAPAuthError, JMAPMethodError
 from caldav.jmap.methods.calendar import build_calendar_get, parse_calendar_get
@@ -32,13 +33,24 @@ from caldav.jmap.methods.event import (
     parse_event_changes,
     parse_event_set,
 )
+from caldav.jmap.methods.task import (
+    build_task_get,
+    build_task_list_get,
+    build_task_set_create,
+    build_task_set_destroy,
+    build_task_set_update,
+    parse_task_list_get,
+    parse_task_set,
+)
 from caldav.jmap.objects.calendar import JMAPCalendar
+from caldav.jmap.objects.task import JMAPTask, JMAPTaskList
 from caldav.jmap.session import Session, fetch_session
 from caldav.requests import HTTPBearerAuth
 
 log = logging.getLogger("caldav.jmap")
 
 _DEFAULT_USING = [CORE_CAPABILITY, CALENDAR_CAPABILITY]
+_TASK_USING = [CORE_CAPABILITY, TASK_CAPABILITY]
 
 
 class JMAPClient:
@@ -130,7 +142,7 @@ class JMAPClient:
     def _raise_set_error(self, session: Session, err: dict) -> None:
         raise JMAPMethodError(
             url=session.api_url,
-            reason=f"CalendarEvent/set failed: {err}",
+            reason=f"set failed: {err}",
             error_type=err.get("type", "serverError"),
         )
 
@@ -140,11 +152,13 @@ class JMAPClient:
             self._session_cache = fetch_session(self.url, auth=self._auth, timeout=self.timeout)
         return self._session_cache
 
-    def _request(self, method_calls: list[tuple]) -> list:
+    def _request(self, method_calls: list[tuple], using: list[str] | None = None) -> list:
         """POST a batch of JMAP method calls and return the methodResponses.
 
         Args:
             method_calls: List of 3-tuples ``(method_name, args_dict, call_id)``.
+            using: Capability URN list for the ``using`` field. Defaults to
+                ``_DEFAULT_USING`` (core + calendars).
 
         Returns:
             List of 3-tuples ``(method_name, response_args, call_id)`` from
@@ -158,7 +172,7 @@ class JMAPClient:
         session = self._get_session()
 
         payload = {
-            "using": _DEFAULT_USING,
+            "using": using if using is not None else _DEFAULT_USING,
             "methodCalls": list(method_calls),
         }
 
@@ -450,3 +464,129 @@ class JMAPClient:
                 return
 
         raise JMAPMethodError(url=session.api_url, reason="No CalendarEvent/set response")
+
+    def get_task_lists(self) -> list[JMAPTaskList]:
+        """Fetch all task lists for the authenticated account.
+
+        Returns:
+            List of :class:`~caldav.jmap.objects.task.JMAPTaskList` objects.
+        """
+        session = self._get_session()
+        call = build_task_list_get(session.account_id)
+        responses = self._request([call], using=_TASK_USING)
+
+        for method_name, resp_args, _ in responses:
+            if method_name == "TaskList/get":
+                return parse_task_list_get(resp_args)
+
+        return []
+
+    def create_task(self, task_list_id: str, title: str, **kwargs) -> str:
+        """Create a task in a task list.
+
+        Args:
+            task_list_id: The JMAP task list ID to create the task in.
+            title: Task title (maps to VTODO ``SUMMARY``).
+            **kwargs: Optional task fields: ``description``, ``due``, ``start``,
+                ``time_zone``, ``estimated_duration``, ``percent_complete``,
+                ``progress``, ``priority``.
+
+        Returns:
+            The server-assigned JMAP task ID.
+
+        Raises:
+            JMAPMethodError: If the server rejects the create request.
+        """
+        session = self._get_session()
+        task = JMAPTask(
+            id="",
+            uid=str(uuid.uuid4()),
+            task_list_id=task_list_id,
+            title=title,
+            **kwargs,
+        )
+        call = build_task_set_create(session.account_id, {"new-0": task})
+        responses = self._request([call], using=_TASK_USING)
+
+        for method_name, resp_args, _ in responses:
+            if method_name == "Task/set":
+                created, _, _, not_created, _, _ = parse_task_set(resp_args)
+                if "new-0" in not_created:
+                    self._raise_set_error(session, not_created["new-0"])
+                return created["new-0"]["id"]
+
+        raise JMAPMethodError(url=session.api_url, reason="No Task/set response")
+
+    def get_task(self, task_id: str) -> JMAPTask:
+        """Fetch a task by ID.
+
+        Args:
+            task_id: The JMAP task ID to retrieve.
+
+        Returns:
+            A :class:`~caldav.jmap.objects.task.JMAPTask` object.
+
+        Raises:
+            JMAPMethodError: If the task is not found.
+        """
+        session = self._get_session()
+        call = build_task_get(session.account_id, ids=[task_id])
+        responses = self._request([call], using=_TASK_USING)
+
+        for method_name, resp_args, _ in responses:
+            if method_name == "Task/get":
+                items = resp_args.get("list", [])
+                if not items:
+                    raise JMAPMethodError(
+                        url=session.api_url,
+                        reason=f"Task not found: {task_id}",
+                        error_type="notFound",
+                    )
+                return JMAPTask.from_jmap(items[0])
+
+        raise JMAPMethodError(url=session.api_url, reason="No Task/get response")
+
+    def update_task(self, task_id: str, patch: dict) -> None:
+        """Update a task with a partial patch.
+
+        Args:
+            task_id: The JMAP task ID to update.
+            patch: Partial patch dict mapping property names to new values.
+
+        Raises:
+            JMAPMethodError: If the server rejects the update.
+        """
+        session = self._get_session()
+        call = build_task_set_update(session.account_id, {task_id: patch})
+        responses = self._request([call], using=_TASK_USING)
+
+        for method_name, resp_args, _ in responses:
+            if method_name == "Task/set":
+                _, _, _, _, not_updated, _ = parse_task_set(resp_args)
+                if task_id in not_updated:
+                    self._raise_set_error(session, not_updated[task_id])
+                return
+
+        raise JMAPMethodError(url=session.api_url, reason="No Task/set response")
+
+    def delete_task(self, task_id: str) -> None:
+        """Delete a task.
+
+        Args:
+            task_id: The JMAP task ID to delete.
+
+        Raises:
+            JMAPMethodError: If the server rejects the delete.
+        """
+        session = self._get_session()
+        call = build_task_set_destroy(session.account_id, [task_id])
+        responses = self._request([call], using=_TASK_USING)
+
+        for method_name, resp_args, _ in responses:
+            if method_name == "Task/set":
+                _, _, _, _, _, not_destroyed = parse_task_set(resp_args)
+                if task_id in not_destroyed:
+                    self._raise_set_error(session, not_destroyed[task_id])
+                return
+
+        raise JMAPMethodError(url=session.api_url, reason="No Task/set response")
