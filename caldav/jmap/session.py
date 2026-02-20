@@ -8,6 +8,7 @@ information needed to make subsequent API calls.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from urllib.parse import urljoin
 
 try:
     import niquests as requests
@@ -78,6 +79,10 @@ def fetch_session(url: str, auth) -> Session:
             url=url,
             reason="Session response missing 'apiUrl'",
         )
+
+    # RFC 8620 §2 says apiUrl SHOULD be absolute, but some servers (e.g. Cyrus)
+    # return a relative path. Resolve it against the session endpoint URL.
+    api_url = urljoin(url, api_url)
 
     state = data.get("state", "")
     server_capabilities = data.get("capabilities", {})
