@@ -134,7 +134,7 @@ class JMAPClient:
     def _get_session(self) -> Session:
         """Return the cached Session, fetching it on first call."""
         if self._session_cache is None:
-            self._session_cache = fetch_session(self.url, auth=self._auth)
+            self._session_cache = fetch_session(self.url, auth=self._auth, timeout=self.timeout)
         return self._session_cache
 
     def _request(self, method_calls: list[tuple]) -> list:
