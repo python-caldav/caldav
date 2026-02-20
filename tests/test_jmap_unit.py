@@ -1589,8 +1589,6 @@ class TestJMAPClientEvents:
         resp = self._set_response(created={"new-0": {"id": "sv-2"}})
         client = _make_client_with_mocked_session(monkeypatch, resp)
 
-        original_post = __import__("caldav.jmap.client", fromlist=["requests"]).requests.post
-
         def capturing_post(*args, **kwargs):
             captured["json"] = kwargs.get("json", {})
             mock_resp = MagicMock()
