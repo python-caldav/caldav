@@ -5,7 +5,7 @@ Rule: zero network calls, zero Docker dependency, all tests are fast.
 External HTTP is mocked via unittest.mock wherever needed.
 """
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -2199,3 +2199,475 @@ class TestJMAPClientTasks:
         self._make_client().get_task_lists()
         assert TASK_CAPABILITY in captured["json"]["using"]
         assert CALENDAR_CAPABILITY not in captured["json"]["using"]
+
+
+from caldav.jmap.async_client import AsyncJMAPClient
+
+
+class TestAsyncJMAPClient:
+    _MINIMAL_ICAL = "\r\n".join(
+        [
+            "BEGIN:VCALENDAR",
+            "VERSION:2.0",
+            "BEGIN:VEVENT",
+            "UID:async-test-uid@example.com",
+            "SUMMARY:Async Test Event",
+            "DTSTART:20260101T100000Z",
+            "DTEND:20260101T110000Z",
+            "END:VEVENT",
+            "END:VCALENDAR",
+        ]
+    )
+
+    _RAW_EVENT = {
+        "id": "ev-async-1",
+        "uid": "async-test-uid@example.com",
+        "calendarIds": {"cal1": True},
+        "title": "Async Test Event",
+        "start": "2026-01-01T10:00:00",
+        "duration": "PT1H",
+    }
+
+    _MINIMAL_TASK = {
+        "id": "task-async-1",
+        "uid": "uid-async-task@example.com",
+        "taskListId": "tl1",
+        "title": "Async Task",
+        "percentComplete": 0,
+        "progress": "needs-action",
+        "priority": 0,
+    }
+
+    _MINIMAL_TASKLIST = {"id": "tl1", "name": "Async Tasks"}
+
+    def _make_client(self):
+        client = AsyncJMAPClient(url=_JMAP_URL, username=_USERNAME, password=_PASSWORD)
+        client._session_cache = Session(api_url=_API_URL, account_id=_USERNAME, state="state-async")
+        return client
+
+    def _make_mock_response(self, resp_json):
+        m = MagicMock()
+        m.status_code = 200
+        m.json.return_value = resp_json
+        m.raise_for_status = MagicMock()
+        return m
+
+    def _patch_async_session(self, monkeypatch, resp_json):
+        mock_resp = self._make_mock_response(resp_json)
+        mock_http = MagicMock()
+        mock_http.__aenter__ = AsyncMock(return_value=mock_http)
+        mock_http.__aexit__ = AsyncMock(return_value=None)
+        mock_http.post = AsyncMock(return_value=mock_resp)
+        monkeypatch.setattr("caldav.jmap.async_client.AsyncSession", lambda: mock_http)
+        return mock_http
+
+    def _calendar_get_resp(self, items):
+        return {
+            "methodResponses": [
+                [
+                    "Calendar/get",
+                    {"accountId": _USERNAME, "list": items, "notFound": []},
+                    "cal-get-0",
+                ]
+            ]
+        }
+
+    def _event_set_resp(self, **kwargs):
+        return {"methodResponses": [["CalendarEvent/set", kwargs, "ev-set-0"]]}
+
+    def _event_get_resp(self, items):
+        return {
+            "methodResponses": [
+                [
+                    "CalendarEvent/get",
+                    {"accountId": _USERNAME, "list": items, "notFound": []},
+                    "ev-get-0",
+                ]
+            ]
+        }
+
+    def _query_get_resp(self, items):
+        return {
+            "methodResponses": [
+                [
+                    "CalendarEvent/query",
+                    {"ids": [i["id"] for i in items], "queryState": "qs-1", "total": len(items)},
+                    "ev-query-0",
+                ],
+                [
+                    "CalendarEvent/get",
+                    {"accountId": _USERNAME, "list": items, "notFound": []},
+                    "ev-get-1",
+                ],
+            ]
+        }
+
+    def _changes_resp(self, created=None, updated=None, destroyed=None, has_more=False):
+        return {
+            "methodResponses": [
+                [
+                    "CalendarEvent/changes",
+                    {
+                        "accountId": _USERNAME,
+                        "oldState": "state-1",
+                        "newState": "state-2",
+                        "hasMoreChanges": has_more,
+                        "created": created or [],
+                        "updated": updated or [],
+                        "destroyed": destroyed or [],
+                    },
+                    "ev-changes-0",
+                ]
+            ]
+        }
+
+    def _task_set_resp(self, **kwargs):
+        return {"methodResponses": [["Task/set", kwargs, "task-set-0"]]}
+
+    def _task_get_resp(self, items):
+        return {
+            "methodResponses": [
+                [
+                    "Task/get",
+                    {"accountId": _USERNAME, "list": items, "notFound": []},
+                    "task-get-0",
+                ]
+            ]
+        }
+
+    def _tasklist_resp(self, items):
+        return {
+            "methodResponses": [
+                [
+                    "TaskList/get",
+                    {"accountId": _USERNAME, "list": items, "notFound": []},
+                    "tasklist-get-0",
+                ]
+            ]
+        }
+
+    @pytest.mark.asyncio
+    async def test_context_manager(self):
+        async with AsyncJMAPClient(url=_JMAP_URL, username=_USERNAME, password=_PASSWORD) as client:
+            assert isinstance(client, AsyncJMAPClient)
+
+    @pytest.mark.asyncio
+    async def test_get_calendars_returns_list(self, monkeypatch):
+        cal = {"id": "cal1", "name": "Personal", "isSubscribed": True, "myRights": {}}
+        self._patch_async_session(monkeypatch, self._calendar_get_resp([cal]))
+        result = await self._make_client().get_calendars()
+        assert len(result) == 1
+        assert isinstance(result[0], JMAPCalendar)
+        assert result[0].name == "Personal"
+
+    @pytest.mark.asyncio
+    async def test_create_event_returns_id(self, monkeypatch):
+        resp = self._event_set_resp(created={"new-0": {"id": "ev-new-1"}}, notCreated={})
+        self._patch_async_session(monkeypatch, resp)
+        event_id = await self._make_client().create_event("cal1", self._MINIMAL_ICAL)
+        assert event_id == "ev-new-1"
+
+    @pytest.mark.asyncio
+    async def test_create_event_raises_on_failure(self, monkeypatch):
+        resp = self._event_set_resp(created={}, notCreated={"new-0": {"type": "invalidArguments"}})
+        self._patch_async_session(monkeypatch, resp)
+        with pytest.raises(JMAPMethodError) as exc_info:
+            await self._make_client().create_event("cal1", self._MINIMAL_ICAL)
+        assert exc_info.value.error_type == "invalidArguments"
+
+    @pytest.mark.asyncio
+    async def test_get_event_returns_ical(self, monkeypatch):
+        self._patch_async_session(monkeypatch, self._event_get_resp([self._RAW_EVENT]))
+        result = await self._make_client().get_event("ev-async-1")
+        assert "VCALENDAR" in result
+        assert "Async Test Event" in result
+
+    @pytest.mark.asyncio
+    async def test_get_event_raises_on_not_found(self, monkeypatch):
+        self._patch_async_session(monkeypatch, self._event_get_resp([]))
+        with pytest.raises(JMAPMethodError) as exc_info:
+            await self._make_client().get_event("missing")
+        assert exc_info.value.error_type == "notFound"
+
+    @pytest.mark.asyncio
+    async def test_update_event_success(self, monkeypatch):
+        resp = self._event_set_resp(updated={"ev-async-1": None}, notUpdated={})
+        self._patch_async_session(monkeypatch, resp)
+        await self._make_client().update_event("ev-async-1", self._MINIMAL_ICAL)
+
+    @pytest.mark.asyncio
+    async def test_update_event_raises_on_failure(self, monkeypatch):
+        resp = self._event_set_resp(updated={}, notUpdated={"ev-async-1": {"type": "notFound"}})
+        self._patch_async_session(monkeypatch, resp)
+        with pytest.raises(JMAPMethodError) as exc_info:
+            await self._make_client().update_event("ev-async-1", self._MINIMAL_ICAL)
+        assert exc_info.value.error_type == "notFound"
+
+    @pytest.mark.asyncio
+    async def test_delete_event_success(self, monkeypatch):
+        resp = self._event_set_resp(destroyed=["ev-async-1"], notDestroyed={})
+        self._patch_async_session(monkeypatch, resp)
+        await self._make_client().delete_event("ev-async-1")
+
+    @pytest.mark.asyncio
+    async def test_delete_event_raises_on_failure(self, monkeypatch):
+        resp = self._event_set_resp(destroyed=[], notDestroyed={"ev-async-1": {"type": "notFound"}})
+        self._patch_async_session(monkeypatch, resp)
+        with pytest.raises(JMAPMethodError) as exc_info:
+            await self._make_client().delete_event("ev-async-1")
+        assert exc_info.value.error_type == "notFound"
+
+    @pytest.mark.asyncio
+    async def test_search_events_returns_ical_list(self, monkeypatch):
+        event2 = {**self._RAW_EVENT, "id": "ev-async-2", "title": "Another"}
+        self._patch_async_session(monkeypatch, self._query_get_resp([self._RAW_EVENT, event2]))
+        results = await self._make_client().search_events()
+        assert len(results) == 2
+        assert all("VCALENDAR" in r for r in results)
+
+    @pytest.mark.asyncio
+    async def test_search_events_empty_result(self, monkeypatch):
+        self._patch_async_session(monkeypatch, self._query_get_resp([]))
+        assert await self._make_client().search_events() == []
+
+    @pytest.mark.asyncio
+    async def test_get_sync_token_returns_state(self, monkeypatch):
+        resp = {
+            "methodResponses": [
+                [
+                    "CalendarEvent/get",
+                    {"accountId": _USERNAME, "state": "tok-async-1", "list": [], "notFound": []},
+                    "ev-get-0",
+                ]
+            ]
+        }
+        self._patch_async_session(monkeypatch, resp)
+        token = await self._make_client().get_sync_token()
+        assert token == "tok-async-1"
+
+    @pytest.mark.asyncio
+    async def test_get_objects_no_changes(self, monkeypatch):
+        mock_http = MagicMock()
+        mock_http.__aenter__ = AsyncMock(return_value=mock_http)
+        mock_http.__aexit__ = AsyncMock(return_value=None)
+        mock_http.post = AsyncMock(return_value=self._make_mock_response(self._changes_resp()))
+        monkeypatch.setattr("caldav.jmap.async_client.AsyncSession", lambda: mock_http)
+        added, modified, deleted = await self._make_client().get_objects_by_sync_token("state-1")
+        assert added == [] and modified == [] and deleted == []
+
+    @pytest.mark.asyncio
+    async def test_get_objects_deleted_returns_ids(self, monkeypatch):
+        mock_http = MagicMock()
+        mock_http.__aenter__ = AsyncMock(return_value=mock_http)
+        mock_http.__aexit__ = AsyncMock(return_value=None)
+        mock_http.post = AsyncMock(
+            return_value=self._make_mock_response(self._changes_resp(destroyed=["ev1"]))
+        )
+        monkeypatch.setattr("caldav.jmap.async_client.AsyncSession", lambda: mock_http)
+        added, modified, deleted = await self._make_client().get_objects_by_sync_token("state-1")
+        assert deleted == ["ev1"] and added == [] and modified == []
+
+    @pytest.mark.asyncio
+    async def test_get_objects_added_returns_ical(self, monkeypatch):
+        mock_http = MagicMock()
+        mock_http.__aenter__ = AsyncMock(return_value=mock_http)
+        mock_http.__aexit__ = AsyncMock(return_value=None)
+        mock_http.post = AsyncMock(
+            side_effect=[
+                self._make_mock_response(self._changes_resp(created=["ev-async-1"])),
+                self._make_mock_response(self._event_get_resp([self._RAW_EVENT])),
+            ]
+        )
+        monkeypatch.setattr("caldav.jmap.async_client.AsyncSession", lambda: mock_http)
+        added, modified, deleted = await self._make_client().get_objects_by_sync_token("state-1")
+        assert len(added) == 1
+        assert "VCALENDAR" in added[0]
+        assert modified == [] and deleted == []
+
+    @pytest.mark.asyncio
+    async def test_get_task_lists_returns_list(self, monkeypatch):
+        self._patch_async_session(monkeypatch, self._tasklist_resp([self._MINIMAL_TASKLIST]))
+        result = await self._make_client().get_task_lists()
+        assert len(result) == 1
+        assert isinstance(result[0], JMAPTaskList)
+        assert result[0].name == "Async Tasks"
+
+    @pytest.mark.asyncio
+    async def test_create_task_returns_id(self, monkeypatch):
+        resp = self._task_set_resp(created={"new-0": {"id": "task-new-1"}}, notCreated={})
+        self._patch_async_session(monkeypatch, resp)
+        task_id = await self._make_client().create_task("tl1", "Async Task")
+        assert task_id == "task-new-1"
+
+    @pytest.mark.asyncio
+    async def test_get_task_returns_task(self, monkeypatch):
+        self._patch_async_session(monkeypatch, self._task_get_resp([self._MINIMAL_TASK]))
+        result = await self._make_client().get_task("task-async-1")
+        assert isinstance(result, JMAPTask)
+        assert result.title == "Async Task"
+
+    @pytest.mark.asyncio
+    async def test_get_task_raises_on_not_found(self, monkeypatch):
+        self._patch_async_session(monkeypatch, self._task_get_resp([]))
+        with pytest.raises(JMAPMethodError) as exc_info:
+            await self._make_client().get_task("missing")
+        assert exc_info.value.error_type == "notFound"
+
+    @pytest.mark.asyncio
+    async def test_update_task_success(self, monkeypatch):
+        resp = self._task_set_resp(updated={"task-async-1": None}, notUpdated={})
+        self._patch_async_session(monkeypatch, resp)
+        await self._make_client().update_task("task-async-1", {"title": "Updated"})
+
+    @pytest.mark.asyncio
+    async def test_update_task_raises_on_failure(self, monkeypatch):
+        resp = self._task_set_resp(updated={}, notUpdated={"task-async-1": {"type": "notFound"}})
+        self._patch_async_session(monkeypatch, resp)
+        with pytest.raises(JMAPMethodError) as exc_info:
+            await self._make_client().update_task("task-async-1", {"title": "X"})
+        assert exc_info.value.error_type == "notFound"
+
+    @pytest.mark.asyncio
+    async def test_delete_task_success(self, monkeypatch):
+        resp = self._task_set_resp(destroyed=["task-async-1"], notDestroyed={})
+        self._patch_async_session(monkeypatch, resp)
+        await self._make_client().delete_task("task-async-1")
+
+    @pytest.mark.asyncio
+    async def test_delete_task_raises_on_failure(self, monkeypatch):
+        resp = self._task_set_resp(
+            destroyed=[], notDestroyed={"task-async-1": {"type": "notFound"}}
+        )
+        self._patch_async_session(monkeypatch, resp)
+        with pytest.raises(JMAPMethodError) as exc_info:
+            await self._make_client().delete_task("task-async-1")
+        assert exc_info.value.error_type == "notFound"
+
+    @pytest.mark.asyncio
+    async def test_task_requests_use_task_capability(self, monkeypatch):
+        captured = {}
+        mock_resp = self._make_mock_response(self._tasklist_resp([self._MINIMAL_TASKLIST]))
+        mock_http = MagicMock()
+        mock_http.__aenter__ = AsyncMock(return_value=mock_http)
+        mock_http.__aexit__ = AsyncMock(return_value=None)
+
+        async def capturing_post(*args, **kwargs):
+            captured["json"] = kwargs.get("json", {})
+            return mock_resp
+
+        mock_http.post = capturing_post
+        monkeypatch.setattr("caldav.jmap.async_client.AsyncSession", lambda: mock_http)
+        await self._make_client().get_task_lists()
+        assert TASK_CAPABILITY in captured["json"]["using"]
+        assert CALENDAR_CAPABILITY not in captured["json"]["using"]
+
+    def _capturing_async_session(self, monkeypatch, resp_json):
+        captured = {}
+        mock_resp = self._make_mock_response(resp_json)
+        mock_http = MagicMock()
+        mock_http.__aenter__ = AsyncMock(return_value=mock_http)
+        mock_http.__aexit__ = AsyncMock(return_value=None)
+
+        async def capturing_post(*args, **kwargs):
+            captured["json"] = kwargs.get("json", {})
+            return mock_resp
+
+        mock_http.post = capturing_post
+        monkeypatch.setattr("caldav.jmap.async_client.AsyncSession", lambda: mock_http)
+        return self._make_client(), captured
+
+    @pytest.mark.asyncio
+    async def test_create_event_passes_calendar_id(self, monkeypatch):
+        resp = self._event_set_resp(created={"new-0": {"id": "ev-new-1"}}, notCreated={})
+        client, captured = self._capturing_async_session(monkeypatch, resp)
+        await client.create_event("my-cal", self._MINIMAL_ICAL)
+        create_args = captured["json"]["methodCalls"][0][1]
+        new_event = create_args["create"]["new-0"]
+        assert "my-cal" in new_event.get("calendarIds", {})
+
+    @pytest.mark.asyncio
+    async def test_update_event_drops_uid_from_patch(self, monkeypatch):
+        resp = self._event_set_resp(updated={"ev-async-1": None}, notUpdated={})
+        client, captured = self._capturing_async_session(monkeypatch, resp)
+        await client.update_event("ev-async-1", self._MINIMAL_ICAL)
+        update_args = captured["json"]["methodCalls"][0][1]
+        patch = update_args["update"]["ev-async-1"]
+        assert "uid" not in patch
+
+    @pytest.mark.asyncio
+    async def test_search_events_passes_calendar_id_filter(self, monkeypatch):
+        client, captured = self._capturing_async_session(
+            monkeypatch, self._query_get_resp([self._RAW_EVENT])
+        )
+        await client.search_events(calendar_id="my-cal")
+        query_args = captured["json"]["methodCalls"][0][1]
+        assert query_args["filter"]["inCalendars"] == ["my-cal"]
+
+    @pytest.mark.asyncio
+    async def test_search_events_passes_date_range_filter(self, monkeypatch):
+        client, captured = self._capturing_async_session(
+            monkeypatch, self._query_get_resp([self._RAW_EVENT])
+        )
+        await client.search_events(start="2026-01-01T00:00:00", end="2026-12-31T23:59:59")
+        query_args = captured["json"]["methodCalls"][0][1]
+        assert query_args["filter"]["after"] == "2026-01-01T00:00:00"
+        assert query_args["filter"]["before"] == "2026-12-31T23:59:59"
+
+    @pytest.mark.asyncio
+    async def test_search_events_passes_text_filter(self, monkeypatch):
+        client, captured = self._capturing_async_session(
+            monkeypatch, self._query_get_resp([self._RAW_EVENT])
+        )
+        await client.search_events(text="standup")
+        query_args = captured["json"]["methodCalls"][0][1]
+        assert query_args["filter"]["text"] == "standup"
+
+    @pytest.mark.asyncio
+    async def test_search_events_no_filter_when_no_args(self, monkeypatch):
+        client, captured = self._capturing_async_session(
+            monkeypatch, self._query_get_resp([self._RAW_EVENT])
+        )
+        await client.search_events()
+        query_args = captured["json"]["methodCalls"][0][1]
+        assert "filter" not in query_args
+
+    @pytest.mark.asyncio
+    async def test_get_sync_token_sends_empty_ids(self, monkeypatch):
+        resp = {
+            "methodResponses": [
+                [
+                    "CalendarEvent/get",
+                    {"accountId": _USERNAME, "state": "tok-1", "list": [], "notFound": []},
+                    "ev-get-0",
+                ]
+            ]
+        }
+        client, captured = self._capturing_async_session(monkeypatch, resp)
+        await client.get_sync_token()
+        assert captured["json"]["methodCalls"][0][1]["ids"] == []
+
+    @pytest.mark.asyncio
+    async def test_get_objects_modified_returns_ical(self, monkeypatch):
+        mock_http = MagicMock()
+        mock_http.__aenter__ = AsyncMock(return_value=mock_http)
+        mock_http.__aexit__ = AsyncMock(return_value=None)
+        mock_http.post = AsyncMock(
+            side_effect=[
+                self._make_mock_response(self._changes_resp(updated=["ev-async-1"])),
+                self._make_mock_response(self._event_get_resp([self._RAW_EVENT])),
+            ]
+        )
+        monkeypatch.setattr("caldav.jmap.async_client.AsyncSession", lambda: mock_http)
+        added, modified, deleted = await self._make_client().get_objects_by_sync_token("state-1")
+        assert len(modified) == 1
+        assert "VCALENDAR" in modified[0]
+        assert added == [] and deleted == []
+
+    @pytest.mark.asyncio
+    async def test_create_task_passes_task_list_id(self, monkeypatch):
+        resp = self._task_set_resp(created={"new-0": {"id": "task-new-1"}}, notCreated={})
+        client, captured = self._capturing_async_session(monkeypatch, resp)
+        await client.create_task("tl-target", "My Task")
+        create_args = captured["json"]["methodCalls"][0][1]
+        new_task = create_args["create"]["new-0"]
+        assert new_task["taskListId"] == "tl-target"

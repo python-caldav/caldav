@@ -12,8 +12,11 @@ from urllib.parse import urljoin
 
 try:
     import niquests as requests
+    from niquests import AsyncSession
 except ImportError:
     import requests  # type: ignore[no-redef]
+
+    AsyncSession = None  # type: ignore[assignment,misc]
 
 from caldav.jmap.constants import CALENDAR_CAPABILITY
 from caldav.jmap.error import JMAPAuthError, JMAPCapabilityError
@@ -41,38 +44,7 @@ class Session:
     raw: dict = field(default_factory=dict)
 
 
-def fetch_session(url: str, auth, timeout: int = 30) -> Session:
-    """Fetch and parse the JMAP Session object.
-
-    Performs a GET request to ``url`` (expected to be ``/.well-known/jmap``
-    or equivalent), authenticates with ``auth``, and returns a parsed
-    :class:`Session`.
-
-    Args:
-        url: Full URL to the JMAP session endpoint.
-        auth: A requests-compatible auth object (e.g. HTTPBasicAuth,
-              HTTPBearerAuth).
-
-    Returns:
-        Parsed :class:`Session` with ``api_url`` and ``account_id`` set.
-
-    Raises:
-        JMAPAuthError: If the server returns HTTP 401 or 403.
-        JMAPCapabilityError: If no account advertises the calendars capability.
-        requests.HTTPError: For other non-2xx responses.
-    """
-    response = requests.get(url, auth=auth, headers={"Accept": "application/json"}, timeout=timeout)
-
-    if response.status_code in (401, 403):
-        raise JMAPAuthError(
-            url=url,
-            reason=f"HTTP {response.status_code} from session endpoint",
-        )
-
-    response.raise_for_status()
-
-    data = response.json()
-
+def _parse_session_data(url: str, data: dict) -> Session:
     api_url = data.get("apiUrl")
     if not api_url:
         raise JMAPCapabilityError(
@@ -114,3 +86,54 @@ def fetch_session(url: str, auth, timeout: int = 30) -> Session:
         server_capabilities=server_capabilities,
         raw=data,
     )
+
+
+def fetch_session(url: str, auth, timeout: int = 30) -> Session:
+    """Fetch and parse the JMAP Session object.
+
+    Performs a GET request to ``url`` (expected to be ``/.well-known/jmap``
+    or equivalent), authenticates with ``auth``, and returns a parsed
+    :class:`Session`.
+
+    Args:
+        url: Full URL to the JMAP session endpoint.
+        auth: A requests-compatible auth object (e.g. HTTPBasicAuth,
+              HTTPBearerAuth).
+
+    Returns:
+        Parsed :class:`Session` with ``api_url`` and ``account_id`` set.
+
+    Raises:
+        JMAPAuthError: If the server returns HTTP 401 or 403.
+        JMAPCapabilityError: If no account advertises the calendars capability.
+        requests.HTTPError: For other non-2xx responses.
+    """
+    response = requests.get(url, auth=auth, headers={"Accept": "application/json"}, timeout=timeout)
+    if response.status_code in (401, 403):
+        raise JMAPAuthError(url=url, reason=f"HTTP {response.status_code} from session endpoint")
+    response.raise_for_status()
+    return _parse_session_data(url, response.json())
+
+
+async def async_fetch_session(url: str, auth, timeout: int = 30) -> Session:
+    """Async variant of :func:`fetch_session` using niquests.AsyncSession.
+
+    Args:
+        url: Full URL to the JMAP session endpoint.
+        auth: A niquests-compatible auth object.
+
+    Returns:
+        Parsed :class:`Session` with ``api_url`` and ``account_id`` set.
+
+    Raises:
+        JMAPAuthError: If the server returns HTTP 401 or 403.
+        JMAPCapabilityError: If no account advertises the calendars capability.
+    """
+    async with AsyncSession() as session:
+        response = await session.get(
+            url, auth=auth, headers={"Accept": "application/json"}, timeout=timeout
+        )
+    if response.status_code in (401, 403):
+        raise JMAPAuthError(url=url, reason=f"HTTP {response.status_code} from session endpoint")
+    response.raise_for_status()
+    return _parse_session_data(url, response.json())
