@@ -72,11 +72,6 @@ def _start_to_dtstart(
     dt_naive = datetime.strptime(start_str[:19], "%Y-%m-%dT%H:%M:%S")
 
     if time_zone:
-
-        def _add_dtstart_tzid_passthrough():
-            dtstart = icalendar.vDatetime(dt_naive)
-            dtstart.params["TZID"] = time_zone
-    if time_zone:
         try:
             tz = ZoneInfo(time_zone)
             dt = dt_naive.replace(tzinfo=tz)
@@ -87,18 +82,6 @@ def _start_to_dtstart(
             dtstart = icalendar.vDatetime(dt_naive)
             dtstart.params["TZID"] = time_zone
             component.add("dtstart", dtstart)
-
-        try:
-            import pytz  # type: ignore[import]
-
-            try:
-                tz = pytz.timezone(time_zone)
-                dt = tz.localize(dt_naive)
-                component.add("dtstart", dt)
-            except pytz.exceptions.UnknownTimeZoneError:
-                _add_dtstart_tzid_passthrough()
-        except ImportError:
-            _add_dtstart_tzid_passthrough()
     else:
         component.add("dtstart", dt_naive)
 
