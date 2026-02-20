@@ -1541,3 +1541,133 @@ class TestRoundTrip:
         assert "participants" in ctx["jscal"]
         assert len(ctx["jscal"]["participants"]) >= 1
         assert "alice@example.com" in ctx["ical"] or "ORGANIZER" in ctx["ical"]
+
+
+class TestJMAPClientEvents:
+    _MINIMAL_ICAL = (
+        "BEGIN:VCALENDAR\r\n"
+        "VERSION:2.0\r\n"
+        "BEGIN:VEVENT\r\n"
+        "UID:test-uid-123@example.com\r\n"
+        "DTSTART:20240615T090000Z\r\n"
+        "SUMMARY:Test Event\r\n"
+        "END:VEVENT\r\n"
+        "END:VCALENDAR\r\n"
+    )
+
+    def _set_response(self, **kwargs):
+        return {"methodResponses": [["CalendarEvent/set", kwargs, "ev-set-create-0"]]}
+
+    def _get_response(self, items):
+        return {
+            "methodResponses": [
+                [
+                    "CalendarEvent/get",
+                    {"accountId": _USERNAME, "list": items, "notFound": []},
+                    "ev-get-0",
+                ]
+            ]
+        }
+
+    def test_create_event_returns_server_id(self, monkeypatch):
+        resp = self._set_response(created={"new-0": {"id": "sv-1"}})
+        client = _make_client_with_mocked_session(monkeypatch, resp)
+        event_id = client.create_event("cal1", self._MINIMAL_ICAL)
+        assert event_id == "sv-1"
+
+    def test_create_event_raises_on_failure(self, monkeypatch):
+        resp = self._set_response(
+            notCreated={"new-0": {"type": "invalidArguments", "description": "bad"}}
+        )
+        client = _make_client_with_mocked_session(monkeypatch, resp)
+        with pytest.raises(JMAPMethodError) as exc_info:
+            client.create_event("cal1", self._MINIMAL_ICAL)
+        assert exc_info.value.error_type == "invalidArguments"
+
+    def test_create_event_passes_calendar_id(self, monkeypatch):
+        captured = {}
+        resp = self._set_response(created={"new-0": {"id": "sv-2"}})
+        client = _make_client_with_mocked_session(monkeypatch, resp)
+
+        original_post = __import__("caldav.jmap.client", fromlist=["requests"]).requests.post
+
+        def capturing_post(*args, **kwargs):
+            captured["json"] = kwargs.get("json", {})
+            mock_resp = MagicMock()
+            mock_resp.status_code = 200
+            mock_resp.json.return_value = resp
+            mock_resp.raise_for_status = MagicMock()
+            return mock_resp
+
+        monkeypatch.setattr("caldav.jmap.client.requests.post", capturing_post)
+        client.create_event("my-calendar", self._MINIMAL_ICAL)
+
+        method_calls = captured["json"]["methodCalls"]
+        create_args = method_calls[0][1]
+        event_payload = create_args["create"]["new-0"]
+        assert event_payload.get("calendarIds") == {"my-calendar": True}
+
+    def test_get_event_returns_ical(self, monkeypatch):
+        raw_event = {
+            "id": "ev1",
+            "uid": "test-uid@example.com",
+            "calendarIds": {"cal1": True},
+            "title": "Staff Meeting",
+            "start": "2024-06-15T09:00:00Z",
+            "duration": "PT1H",
+        }
+        client = _make_client_with_mocked_session(monkeypatch, self._get_response([raw_event]))
+        result = client.get_event("ev1")
+        assert "VCALENDAR" in result
+        assert "Staff Meeting" in result
+
+    def test_get_event_raises_on_not_found(self, monkeypatch):
+        client = _make_client_with_mocked_session(monkeypatch, self._get_response([]))
+        with pytest.raises(JMAPMethodError) as exc_info:
+            client.get_event("missing-id")
+        assert exc_info.value.error_type == "notFound"
+
+    def test_update_event_success(self, monkeypatch):
+        resp = self._set_response(updated={"ev1": None})
+        client = _make_client_with_mocked_session(monkeypatch, resp)
+        client.update_event("ev1", self._MINIMAL_ICAL)
+
+    def test_update_event_raises_on_failure(self, monkeypatch):
+        resp = self._set_response(notUpdated={"ev1": {"type": "notFound"}})
+        client = _make_client_with_mocked_session(monkeypatch, resp)
+        with pytest.raises(JMAPMethodError) as exc_info:
+            client.update_event("ev1", self._MINIMAL_ICAL)
+        assert exc_info.value.error_type == "notFound"
+
+    def test_update_event_drops_uid_from_patch(self, monkeypatch):
+        captured = {}
+        resp = self._set_response(updated={"ev1": None})
+        client = _make_client_with_mocked_session(monkeypatch, resp)
+
+        def capturing_post(*args, **kwargs):
+            captured["json"] = kwargs.get("json", {})
+            mock_resp = MagicMock()
+            mock_resp.status_code = 200
+            mock_resp.json.return_value = resp
+            mock_resp.raise_for_status = MagicMock()
+            return mock_resp
+
+        monkeypatch.setattr("caldav.jmap.client.requests.post", capturing_post)
+        client.update_event("ev1", self._MINIMAL_ICAL)
+
+        method_calls = captured["json"]["methodCalls"]
+        update_args = method_calls[0][1]
+        patch = update_args["update"]["ev1"]
+        assert "uid" not in patch
+
+    def test_delete_event_success(self, monkeypatch):
+        resp = self._set_response(destroyed=["ev1"])
+        client = _make_client_with_mocked_session(monkeypatch, resp)
+        client.delete_event("ev1")
+
+    def test_delete_event_raises_on_failure(self, monkeypatch):
+        resp = self._set_response(notDestroyed={"ev1": {"type": "notFound"}})
+        client = _make_client_with_mocked_session(monkeypatch, resp)
+        with pytest.raises(JMAPMethodError) as exc_info:
+            client.delete_event("ev1")
+        assert exc_info.value.error_type == "notFound"

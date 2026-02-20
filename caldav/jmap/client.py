@@ -20,15 +20,21 @@ except ImportError:
     from requests.auth import HTTPBasicAuth  # type: ignore[no-redef]
 
 from caldav.jmap.constants import CALENDAR_CAPABILITY, CORE_CAPABILITY
+from caldav.jmap.convert import ical_to_jscal, jscal_to_ical
 from caldav.jmap.error import JMAPAuthError, JMAPMethodError
 from caldav.jmap.methods.calendar import build_calendar_get, parse_calendar_get
+from caldav.jmap.methods.event import (
+    build_event_get,
+    build_event_set_destroy,
+    build_event_set_update,
+    parse_event_set,
+)
 from caldav.jmap.objects.calendar import JMAPCalendar
 from caldav.jmap.session import Session, fetch_session
 from caldav.requests import HTTPBearerAuth
 
 log = logging.getLogger("caldav.jmap")
 
-# Default capabilities declared in every API request
 _DEFAULT_USING = [CORE_CAPABILITY, CALENDAR_CAPABILITY]
 
 
@@ -118,6 +124,13 @@ class JMAPClient:
                 reason=f"Unsupported auth_type {effective_type!r}. Use 'basic' or 'bearer'.",
             )
 
+    def _raise_set_error(self, session: Session, err: dict) -> None:
+        raise JMAPMethodError(
+            url=session.api_url,
+            reason=f"CalendarEvent/set failed: {err}",
+            error_type=err.get("type", "serverError"),
+        )
+
     def _get_session(self) -> Session:
         """Return the cached Session, fetching it on first call."""
         if self._session_cache is None:
@@ -194,3 +207,110 @@ class JMAPClient:
                 return parse_calendar_get(resp_args)
 
         return []
+
+    def create_event(self, calendar_id: str, ical_str: str) -> str:
+        """Create a calendar event from an iCalendar string.
+
+        Args:
+            calendar_id: The JMAP calendar ID to create the event in.
+            ical_str: A VCALENDAR string representing the event.
+
+        Returns:
+            The server-assigned JMAP event ID.
+
+        Raises:
+            JMAPMethodError: If the server rejects the create request.
+        """
+        session = self._get_session()
+        jscal = ical_to_jscal(ical_str, calendar_id=calendar_id)
+        call = (
+            "CalendarEvent/set",
+            {"accountId": session.account_id, "create": {"new-0": jscal}},
+            "ev-set-create-0",
+        )
+        responses = self._request([call])
+
+        for method_name, resp_args, _ in responses:
+            if method_name == "CalendarEvent/set":
+                created, _, _, not_created, _, _ = parse_event_set(resp_args)
+                if "new-0" in not_created:
+                    self._raise_set_error(session, not_created["new-0"])
+                return created["new-0"]["id"]
+
+        raise JMAPMethodError(url=session.api_url, reason="No CalendarEvent/set response")
+
+    def get_event(self, event_id: str) -> str:
+        """Fetch a calendar event as an iCalendar string.
+
+        Args:
+            event_id: The JMAP event ID to retrieve.
+
+        Returns:
+            A VCALENDAR string for the event.
+
+        Raises:
+            JMAPMethodError: If the event is not found.
+        """
+        session = self._get_session()
+        call = build_event_get(session.account_id, ids=[event_id])
+        responses = self._request([call])
+
+        for method_name, resp_args, _ in responses:
+            if method_name == "CalendarEvent/get":
+                items = resp_args.get("list", [])
+                if not items:
+                    raise JMAPMethodError(
+                        url=session.api_url,
+                        reason=f"Event not found: {event_id}",
+                        error_type="notFound",
+                    )
+                return jscal_to_ical(items[0])
+
+        raise JMAPMethodError(url=session.api_url, reason="No CalendarEvent/get response")
+
+    def update_event(self, event_id: str, ical_str: str) -> None:
+        """Update a calendar event from an iCalendar string.
+
+        Args:
+            event_id: The JMAP event ID to update.
+            ical_str: A VCALENDAR string with the updated event data.
+
+        Raises:
+            JMAPMethodError: If the server rejects the update.
+        """
+        session = self._get_session()
+        patch = ical_to_jscal(ical_str)
+        patch.pop("uid", None)  # uid is server-immutable after creation; patch must omit it
+        call = build_event_set_update(session.account_id, {event_id: patch})
+        responses = self._request([call])
+
+        for method_name, resp_args, _ in responses:
+            if method_name == "CalendarEvent/set":
+                _, _, _, _, not_updated, _ = parse_event_set(resp_args)
+                if event_id in not_updated:
+                    self._raise_set_error(session, not_updated[event_id])
+                return
+
+        raise JMAPMethodError(url=session.api_url, reason="No CalendarEvent/set response")
+
+    def delete_event(self, event_id: str) -> None:
+        """Delete a calendar event.
+
+        Args:
+            event_id: The JMAP event ID to delete.
+
+        Raises:
+            JMAPMethodError: If the server rejects the delete.
+        """
+        session = self._get_session()
+        call = build_event_set_destroy(session.account_id, [event_id])
+        responses = self._request([call])
+
+        for method_name, resp_args, _ in responses:
+            if method_name == "CalendarEvent/set":
+                _, _, _, _, _, not_destroyed = parse_event_set(resp_args)
+                if event_id in not_destroyed:
+                    self._raise_set_error(session, not_destroyed[event_id])
+                return
+
+        raise JMAPMethodError(url=session.api_url, reason="No CalendarEvent/set response")
