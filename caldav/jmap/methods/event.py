@@ -228,7 +228,9 @@ def build_event_set_destroy(
     )
 
 
-def parse_event_set(response_args: dict) -> tuple[dict, dict, list[str]]:
+def parse_event_set(
+    response_args: dict,
+) -> tuple[dict, dict, list[str], dict, dict, list[str]]:
     """Parse the arguments dict from a ``CalendarEvent/set`` method response.
 
     Args:
@@ -236,17 +238,19 @@ def parse_event_set(response_args: dict) -> tuple[dict, dict, list[str]]:
             whose method name is ``"CalendarEvent/set"``.
 
     Returns:
-        A 3-tuple ``(created, updated, destroyed)``:
+        A 6-tuple ``(created, updated, destroyed, not_created, not_updated, not_destroyed)``:
 
-        - ``created``: Map of creation ID → server-assigned event dict
-          (includes the new ``id`` and any server-set properties).
-          Empty dict if no creates were requested or all failed.
-        - ``updated``: Map of event ID → ``null`` (per RFC 8620) or a
-          partial object with server-updated properties.
-          Empty dict if no updates were requested or all failed.
+        - ``created``: Map of creation ID → server-assigned event dict.
+        - ``updated``: Map of event ID → null or partial server-updated object.
         - ``destroyed``: List of successfully destroyed event IDs.
+        - ``not_created``: Map of creation ID → SetError dict for failed creates.
+        - ``not_updated``: Map of event ID → SetError dict for failed updates.
+        - ``not_destroyed``: Map of event ID → SetError dict for failed destroys.
     """
     created: dict = response_args.get("created") or {}
     updated: dict = response_args.get("updated") or {}
     destroyed: list[str] = response_args.get("destroyed") or []
-    return created, updated, destroyed
+    not_created: dict = response_args.get("notCreated") or {}
+    not_updated: dict = response_args.get("notUpdated") or {}
+    not_destroyed: dict = response_args.get("notDestroyed") or {}
+    return created, updated, destroyed, not_created, not_updated, not_destroyed
