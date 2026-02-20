@@ -230,7 +230,7 @@ def build_event_set_destroy(
 
 def parse_event_set(
     response_args: dict,
-) -> tuple[dict, dict, list[str], dict, dict, list[str]]:
+) -> tuple[dict, dict, list[str], dict, dict, dict]:
     """Parse the arguments dict from a ``CalendarEvent/set`` method response.
 
     Args:
