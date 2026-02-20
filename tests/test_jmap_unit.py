@@ -758,6 +758,7 @@ from caldav.jmap.methods.event import (
     build_event_set_create,
     build_event_set_destroy,
     build_event_set_update,
+    parse_event_changes,
     parse_event_get,
     parse_event_query,
     parse_event_set,
@@ -1731,3 +1732,149 @@ class TestJMAPClientEvents:
         client.search_events()
         query_args = captured["json"]["methodCalls"][0][1]
         assert "filter" not in query_args
+
+
+class TestJMAPClientSync:
+    _RAW_EVENT = {
+        "id": "ev1",
+        "uid": "test-uid@example.com",
+        "calendarIds": {"cal1": True},
+        "title": "Staff Meeting",
+        "start": "2026-01-15T09:00:00",
+        "duration": "PT1H",
+    }
+
+    def _changes_resp(
+        self,
+        created=None,
+        updated=None,
+        destroyed=None,
+        old_state="state-1",
+        new_state="state-2",
+        has_more=False,
+    ):
+        return {
+            "methodResponses": [
+                [
+                    "CalendarEvent/changes",
+                    {
+                        "accountId": _USERNAME,
+                        "oldState": old_state,
+                        "newState": new_state,
+                        "hasMoreChanges": has_more,
+                        "created": created or [],
+                        "updated": updated or [],
+                        "destroyed": destroyed or [],
+                    },
+                    "ev-changes-0",
+                ]
+            ]
+        }
+
+    def _get_resp_with_state(self, items, state="state-2"):
+        return {
+            "methodResponses": [
+                [
+                    "CalendarEvent/get",
+                    {"accountId": _USERNAME, "state": state, "list": items, "notFound": []},
+                    "ev-get-0",
+                ]
+            ]
+        }
+
+    def _make_mock(self, resp_json):
+        m = MagicMock()
+        m.status_code = 200
+        m.json.return_value = resp_json
+        m.raise_for_status = MagicMock()
+        return m
+
+    def _make_client(self):
+        client = JMAPClient(url=_JMAP_URL, username=_USERNAME, password=_PASSWORD)
+        client._session_cache = Session(api_url=_API_URL, account_id=_USERNAME, state="state-abc")
+        return client
+
+    def test_get_sync_token_returns_state(self, monkeypatch):
+        resp = self._get_resp_with_state([], state="tok-1")
+        monkeypatch.setattr(
+            "caldav.jmap.client.requests.post", lambda *a, **kw: self._make_mock(resp)
+        )
+        assert self._make_client().get_sync_token() == "tok-1"
+
+    def test_get_sync_token_sends_empty_ids(self, monkeypatch):
+        captured = {}
+        resp = self._get_resp_with_state([])
+
+        def capturing_post(*args, **kwargs):
+            captured["json"] = kwargs.get("json", {})
+            return self._make_mock(resp)
+
+        monkeypatch.setattr("caldav.jmap.client.requests.post", capturing_post)
+        self._make_client().get_sync_token()
+        assert captured["json"]["methodCalls"][0][1]["ids"] == []
+
+    def test_get_objects_no_changes(self, monkeypatch):
+        resp = self._changes_resp()
+        monkeypatch.setattr(
+            "caldav.jmap.client.requests.post", lambda *a, **kw: self._make_mock(resp)
+        )
+        added, modified, deleted = self._make_client().get_objects_by_sync_token("state-1")
+        assert added == [] and modified == [] and deleted == []
+
+    def test_get_objects_deleted_returns_ids(self, monkeypatch):
+        resp = self._changes_resp(destroyed=["ev1"])
+        monkeypatch.setattr(
+            "caldav.jmap.client.requests.post", lambda *a, **kw: self._make_mock(resp)
+        )
+        added, modified, deleted = self._make_client().get_objects_by_sync_token("state-1")
+        assert deleted == ["ev1"] and added == [] and modified == []
+
+    def test_get_objects_added_returns_ical(self, monkeypatch):
+        changes_resp = self._changes_resp(created=["ev1"])
+        get_resp = self._get_resp_with_state([self._RAW_EVENT])
+        mock_post = MagicMock(
+            side_effect=[self._make_mock(changes_resp), self._make_mock(get_resp)]
+        )
+        monkeypatch.setattr("caldav.jmap.client.requests.post", mock_post)
+        added, modified, deleted = self._make_client().get_objects_by_sync_token("state-1")
+        assert len(added) == 1
+        assert "VCALENDAR" in added[0]
+        assert modified == [] and deleted == []
+
+    def test_get_objects_modified_returns_ical(self, monkeypatch):
+        changes_resp = self._changes_resp(updated=["ev1"])
+        get_resp = self._get_resp_with_state([self._RAW_EVENT])
+        mock_post = MagicMock(
+            side_effect=[self._make_mock(changes_resp), self._make_mock(get_resp)]
+        )
+        monkeypatch.setattr("caldav.jmap.client.requests.post", mock_post)
+        added, modified, deleted = self._make_client().get_objects_by_sync_token("state-1")
+        assert len(modified) == 1
+        assert "VCALENDAR" in modified[0]
+        assert added == [] and deleted == []
+
+    def test_get_objects_has_more_raises(self, monkeypatch):
+        resp = self._changes_resp(created=["ev1"], has_more=True)
+        monkeypatch.setattr(
+            "caldav.jmap.client.requests.post", lambda *a, **kw: self._make_mock(resp)
+        )
+        with pytest.raises(JMAPMethodError) as exc_info:
+            self._make_client().get_objects_by_sync_token("state-1")
+        assert exc_info.value.error_type == "serverPartialFail"
+
+    def test_parse_event_changes_all_fields(self):
+        resp_args = {
+            "oldState": "s1",
+            "newState": "s2",
+            "hasMoreChanges": True,
+            "created": ["ev1"],
+            "updated": ["ev2"],
+            "destroyed": ["ev3"],
+        }
+        old, new, has_more, created, updated, destroyed = parse_event_changes(resp_args)
+        assert old == "s1"
+        assert new == "s2"
+        assert has_more is True
+        assert created == ["ev1"]
+        assert updated == ["ev2"]
+        assert destroyed == ["ev3"]
