@@ -1555,6 +1555,15 @@ class TestJMAPClientEvents:
         "END:VCALENDAR\r\n"
     )
 
+    _RAW_EVENT = {
+        "id": "ev1",
+        "uid": "test-uid@example.com",
+        "calendarIds": {"cal1": True},
+        "title": "Staff Meeting",
+        "start": "2024-06-15T09:00:00",
+        "duration": "PT1H",
+    }
+
     def _set_response(self, **kwargs):
         return {"methodResponses": [["CalendarEvent/set", kwargs, "ev-set-create-0"]]}
 
@@ -1585,19 +1594,8 @@ class TestJMAPClientEvents:
         assert exc_info.value.error_type == "invalidArguments"
 
     def test_create_event_passes_calendar_id(self, monkeypatch):
-        captured = {}
         resp = self._set_response(created={"new-0": {"id": "sv-2"}})
-        client = _make_client_with_mocked_session(monkeypatch, resp)
-
-        def capturing_post(*args, **kwargs):
-            captured["json"] = kwargs.get("json", {})
-            mock_resp = MagicMock()
-            mock_resp.status_code = 200
-            mock_resp.json.return_value = resp
-            mock_resp.raise_for_status = MagicMock()
-            return mock_resp
-
-        monkeypatch.setattr("caldav.jmap.client.requests.post", capturing_post)
+        client, captured = self._capturing_client(monkeypatch, resp)
         client.create_event("my-calendar", self._MINIMAL_ICAL)
 
         method_calls = captured["json"]["methodCalls"]
@@ -1638,19 +1636,8 @@ class TestJMAPClientEvents:
         assert exc_info.value.error_type == "notFound"
 
     def test_update_event_drops_uid_from_patch(self, monkeypatch):
-        captured = {}
         resp = self._set_response(updated={"ev1": None})
-        client = _make_client_with_mocked_session(monkeypatch, resp)
-
-        def capturing_post(*args, **kwargs):
-            captured["json"] = kwargs.get("json", {})
-            mock_resp = MagicMock()
-            mock_resp.status_code = 200
-            mock_resp.json.return_value = resp
-            mock_resp.raise_for_status = MagicMock()
-            return mock_resp
-
-        monkeypatch.setattr("caldav.jmap.client.requests.post", capturing_post)
+        client, captured = self._capturing_client(monkeypatch, resp)
         client.update_event("ev1", self._MINIMAL_ICAL)
 
         method_calls = captured["json"]["methodCalls"]
@@ -1669,3 +1656,78 @@ class TestJMAPClientEvents:
         with pytest.raises(JMAPMethodError) as exc_info:
             client.delete_event("ev1")
         assert exc_info.value.error_type == "notFound"
+
+    def _capturing_client(self, monkeypatch, resp):
+        """Return (client, captured) where captured["json"] is set on each POST."""
+        captured = {}
+        client = JMAPClient(url=_JMAP_URL, username=_USERNAME, password=_PASSWORD)
+        client._session_cache = Session(api_url=_API_URL, account_id=_USERNAME, state="state-abc")
+
+        def capturing_post(*args, **kwargs):
+            captured["json"] = kwargs.get("json", {})
+            mock_resp = MagicMock()
+            mock_resp.status_code = 200
+            mock_resp.json.return_value = resp
+            mock_resp.raise_for_status = MagicMock()
+            return mock_resp
+
+        monkeypatch.setattr("caldav.jmap.client.requests.post", capturing_post)
+        return client, captured
+
+    def _query_get_response(self, items):
+        return {
+            "methodResponses": [
+                [
+                    "CalendarEvent/query",
+                    {"ids": [i["id"] for i in items], "queryState": "qs-1", "total": len(items)},
+                    "ev-query-0",
+                ],
+                [
+                    "CalendarEvent/get",
+                    {"accountId": _USERNAME, "list": items, "notFound": []},
+                    "ev-get-1",
+                ],
+            ]
+        }
+
+    def test_search_events_returns_ical_list(self, monkeypatch):
+        event2 = {**self._RAW_EVENT, "id": "ev2", "title": "Standup"}
+        resp = self._query_get_response([self._RAW_EVENT, event2])
+        client = _make_client_with_mocked_session(monkeypatch, resp)
+        results = client.search_events()
+        assert len(results) == 2
+        assert all("VCALENDAR" in r for r in results)
+
+    def test_search_events_empty_result(self, monkeypatch):
+        resp = self._query_get_response([])
+        client = _make_client_with_mocked_session(monkeypatch, resp)
+        assert client.search_events() == []
+
+    def test_search_events_passes_calendar_id_filter(self, monkeypatch):
+        resp = self._query_get_response([self._RAW_EVENT])
+        client, captured = self._capturing_client(monkeypatch, resp)
+        client.search_events(calendar_id="my-cal")
+        query_args = captured["json"]["methodCalls"][0][1]
+        assert query_args["filter"]["inCalendars"] == ["my-cal"]
+
+    def test_search_events_passes_date_range_filter(self, monkeypatch):
+        resp = self._query_get_response([self._RAW_EVENT])
+        client, captured = self._capturing_client(monkeypatch, resp)
+        client.search_events(start="2024-01-01T00:00:00", end="2024-12-31T23:59:59")
+        query_args = captured["json"]["methodCalls"][0][1]
+        assert query_args["filter"]["after"] == "2024-01-01T00:00:00"
+        assert query_args["filter"]["before"] == "2024-12-31T23:59:59"
+
+    def test_search_events_passes_text_filter(self, monkeypatch):
+        resp = self._query_get_response([self._RAW_EVENT])
+        client, captured = self._capturing_client(monkeypatch, resp)
+        client.search_events(text="standup")
+        query_args = captured["json"]["methodCalls"][0][1]
+        assert query_args["filter"]["text"] == "standup"
+
+    def test_search_events_no_filter_when_no_args(self, monkeypatch):
+        resp = self._query_get_response([self._RAW_EVENT])
+        client, captured = self._capturing_client(monkeypatch, resp)
+        client.search_events()
+        query_args = captured["json"]["methodCalls"][0][1]
+        assert "filter" not in query_args
