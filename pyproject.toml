@@ -102,6 +102,7 @@ ignore = ["DEP002"]  # Test dependencies (pytest, coverage, etc.) are not import
 
 [tool.deptry.per_rule_ignores]
 DEP001 = ["conf", "h2"]  # conf: Local test config, h2: Optional HTTP/2 support
+DEP003 = ["pytz"]  # Optional timezone library; imported inside try/except with graceful fallback
 
 [tool.ruff]
 line-length = 100
