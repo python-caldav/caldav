@@ -19,3 +19,5 @@ Contents
    caldav/davobject
    caldav/collection
    caldav/calendarobjectresource
+   caldav/jmap_client
+   caldav/jmap_objects
