@@ -920,10 +920,6 @@ class TestEventMethodBuilders:
         assert not_destroyed["ev-old"]["type"] == "notFound"
 
 
-# ===========================================================================
-# iCalendar ↔ JSCalendar conversion layer
-# ===========================================================================
-
 from datetime import date, datetime, timedelta, timezone
 
 import icalendar as _icalendar

@@ -15,8 +15,7 @@ try:
     from niquests import AsyncSession
 except ImportError:
     import requests  # type: ignore[no-redef]
-
-    AsyncSession = None  # type: ignore[assignment,misc]
+    AsyncSession = None  # type: ignore[assignment,misc]  # async_fetch_session requires niquests
 
 from caldav.jmap.constants import CALENDAR_CAPABILITY
 from caldav.jmap.error import JMAPAuthError, JMAPCapabilityError
@@ -29,7 +28,8 @@ class Session:
     Attributes:
         api_url: URL to POST method calls to.
         account_id: The accountId to use for calendar method calls.
-            Chosen as the first account advertising the calendars capability.
+            Chosen from ``primaryAccounts`` if available, otherwise the first
+            account advertising the calendars capability.
         state: Current session state string.
         account_capabilities: Capabilities dict for the chosen account.
         server_capabilities: Server-level capabilities dict.
@@ -62,12 +62,20 @@ def _parse_session_data(url: str, data: dict) -> Session:
 
     account_id = None
     account_capabilities: dict = {}
-    for acct_id, acct_data in accounts.items():
+    primary_acct_id = data.get("primaryAccounts", {}).get(CALENDAR_CAPABILITY)
+    if primary_acct_id:
+        acct_data = accounts.get(primary_acct_id, {})
         caps = acct_data.get("accountCapabilities", {})
         if CALENDAR_CAPABILITY in caps:
-            account_id = acct_id
+            account_id = primary_acct_id
             account_capabilities = caps
-            break
+    if account_id is None:
+        for acct_id, acct_data in accounts.items():
+            caps = acct_data.get("accountCapabilities", {})
+            if CALENDAR_CAPABILITY in caps:
+                account_id = acct_id
+                account_capabilities = caps
+                break
 
     if account_id is None:
         raise JMAPCapabilityError(
