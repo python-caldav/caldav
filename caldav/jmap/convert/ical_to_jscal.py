@@ -54,8 +54,8 @@ def _dtstart_to_jscal(dtstart_prop) -> tuple[str, str | None, bool]:
         return f"{dt.isoformat()}T00:00:00", None, True
 
     if dt.tzinfo is not None and dt.utcoffset() == timedelta(0):
-        # UTC (Z suffix)
-        return dt.strftime("%Y-%m-%dT%H:%M:%SZ"), None, False
+        # UTC — JSCalendar start is LocalDateTime; express via timeZone="Etc/UTC"
+        return dt.strftime("%Y-%m-%dT%H:%M:%S"), "Etc/UTC", False
 
     if dt.tzinfo is not None:
         # Timezone-aware — prefer the TZID parameter (IANA name) over tzinfo repr
