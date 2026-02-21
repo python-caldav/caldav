@@ -16,7 +16,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import icalendar
 from icalendar import vCalAddress, vText
 
-from caldav.jmap.convert._utils import _duration_to_timedelta, _format_local_dt
+from caldav.jmap.convert._utils import _duration_to_timedelta
 from caldav.lib import vcal
 
 _PRIVACY_TO_CLASS = {
