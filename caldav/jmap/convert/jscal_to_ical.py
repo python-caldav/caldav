@@ -53,7 +53,7 @@ def _start_to_dtstart(
 ) -> None:
     """Add a DTSTART property to component from JSCalendar start fields.
 
-    Handles three cases:
+    Handles four cases:
     - All-day (showWithoutTime): VALUE=DATE
     - UTC (start ends with Z): UTC DATETIME
     - Timezone-aware: DATETIME;TZID=...
@@ -404,8 +404,6 @@ def jscal_to_ical(jscal: dict) -> str:
         if org and not organizer_added:
             event.add("organizer", org)
             organizer_added = True
-
-    for p in (jscal.get("participants") or {}).values():
         att = _participant_to_attendee(p)
         if att is not None:
             event.add("attendee", att)
