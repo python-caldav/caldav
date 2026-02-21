@@ -1011,7 +1011,8 @@ class TestIcalToJscal:
         result = ical_to_jscal(ical)
         assert result["uid"] == "test-uid@example.com"
         assert result["title"] == "Test Event"
-        assert result["start"] == "2024-06-15T10:00:00Z"
+        assert result["start"] == "2024-06-15T10:00:00"
+        assert result["timeZone"] == "Etc/UTC"
         assert result["duration"] == "PT1H"
 
     def test_all_day_event(self):
@@ -1036,8 +1037,8 @@ class TestIcalToJscal:
     def test_utc_event(self):
         ical = _make_ical("DTSTART:20240615T100000Z\r\nDURATION:PT30M\r\nSUMMARY:UTC Event\r\n")
         result = ical_to_jscal(ical)
-        assert result["start"].endswith("Z")
-        assert "timeZone" not in result
+        assert result["start"] == "2024-06-15T10:00:00"
+        assert result["timeZone"] == "Etc/UTC"
 
     def test_duration_from_dtend(self):
         ical = _make_ical(
