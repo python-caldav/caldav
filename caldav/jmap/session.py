@@ -15,6 +15,7 @@ try:
     from niquests import AsyncSession
 except ImportError:
     import requests  # type: ignore[no-redef]
+
     AsyncSession = None  # type: ignore[assignment,misc]  # async_fetch_session requires niquests
 
 from caldav.jmap.constants import CALENDAR_CAPABILITY
