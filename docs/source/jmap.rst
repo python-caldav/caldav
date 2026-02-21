@@ -287,7 +287,7 @@ Async API
 =========
 
 :class:`~caldav.jmap.async_client.AsyncJMAPClient` mirrors every method of
-:class:`~caldav.jmap.client.JMAPClient` as a coroutine.  It requires the
+:class:`~caldav.jmap.client.JMAPClient` as a coroutine.  Use it as an
 ``async with`` context manager (sync ``with`` is not supported):
 
 .. code-block:: python
