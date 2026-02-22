@@ -8,6 +8,7 @@ for XML building and response parsing.
 For async code, use: from caldav import aio
 """
 
+import time
 import logging
 import sys
 import warnings
@@ -208,6 +209,9 @@ class DAVClient(BaseDAVClient):
         features: FeatureSet | dict | str = None,
         enable_rfc6764: bool = True,
         require_tls: bool = True,
+        rate_limit_handle: bool = False,
+        rate_limit_default_sleep: int = None,
+        rate_limit_max_sleep: int = None,
     ) -> None:
         """
         Sets up a HTTPConnection object towards the server in the url.
@@ -245,6 +249,13 @@ class DAVClient(BaseDAVClient):
                        redirect to unencrypted HTTP. Set to False ONLY if you need to
                        support non-TLS servers and trust your DNS infrastructure.
                        This parameter has no effect if enable_rfc6764=False.
+          rate_limit_handle: boolean, a parameter that determines whether the rate limit response
+                             should be handled. Default: False.
+          rate_limit_default_sleep: integer, the default number of seconds to sleep if the server
+                                    response cannot be parsed, or if no retry-after is specified
+                                    and the HTTP response status code is 429. Default: None.
+          rate_limit_max_sleep: integer, the maximum number of seconds the script will sleep
+                                when encountering a rate limit. Default: None.
 
         The niquests library will honor a .netrc-file, if such a file exists
         username and password may be omitted.
@@ -342,6 +353,10 @@ class DAVClient(BaseDAVClient):
         log.debug("self.url: " + str(url))
 
         self._principal = None
+
+        self.rate_limit_handle = rate_limit_handle
+        self.rate_limit_default_sleep = rate_limit_default_sleep
+        self.rate_limit_max_sleep = rate_limit_max_sleep
 
     def __enter__(self) -> Self:
         ## Used for tests, to set up a temporarily test server
@@ -933,7 +948,22 @@ class DAVClient(BaseDAVClient):
         Returns:
             DAVResponse
         """
-        return self._sync_request(url, method, body, headers)
+        try:
+            return self._sync_request(url, method, body, headers)
+        except error.RateLimitError as e:
+            if self.rate_limit_handle:
+                retry_after_seconds = self.rate_limit_default_sleep
+                if e.retry_after_seconds is not None:
+                    retry_after_seconds = e.retry_after_seconds
+                retry_after_seconds = max(
+                    [retry_after_seconds or 0, self.rate_limit_max_sleep or 0]
+                )
+                if retry_after_seconds <= 0:
+                    raise e
+                time.sleep(retry_after_seconds)
+                return self._sync_request(url, method, body, headers)
+
+            raise e
 
     def _sync_request(
         self,
