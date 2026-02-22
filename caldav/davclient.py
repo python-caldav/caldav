@@ -1008,19 +1008,23 @@ class DAVClient(BaseDAVClient):
         r_headers = CaseInsensitiveDict(r.headers)
 
         # Handle 429, 503 responses for retry negotiation
-        if r.status_code in (429, 503) and "Retry-After" in r_headers:
-            retry_after = r_headers["Retry-After"]
-            if retry_after:
+        if r.status_code in (429, 503):
+            retry_after_header: Optional[str] = r_headers.get("Retry-After")
+            retry_after_value: Optional[str] = None
+            retry_seconds: Optional[float] = None
+            if retry_after_header:  # непустая строка
+                retry_after_value = retry_after_header
                 try:
-                    retry_seconds = int(retry_after)
+                    # пытаемся интерпретировать как целое число секунд
+                    retry_seconds = int(retry_after_header)
                 except ValueError:
                     try:
                         retry_date = parsedate_to_datetime(retry_after)
                         now = datetime.now(timezone.utc)
                         retry_seconds = max(0, (retry_date - now).total_seconds())
                     except:
-                        retry_seconds = None
-
+                        pass
+            if r.status_code == 429 or retry_after_header is not None:
                 raise error.RateLimitError(
                     f"Rate limited or service unavailable. Retry after: {retry_after}",
                     retry_after=retry_after,
