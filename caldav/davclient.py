@@ -8,15 +8,15 @@ for XML building and response parsing.
 For async code, use: from caldav import aio
 """
 
-import time
 import logging
 import sys
+import time
 import warnings
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, Optional
 from urllib.parse import unquote
-from email.utils import parsedate_to_datetime
-from datetime import datetime, timezone
 
 # Try niquests first (preferred), fall back to requests
 _USE_NIQUESTS = False
