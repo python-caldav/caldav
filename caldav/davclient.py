@@ -955,7 +955,7 @@ class DAVClient(BaseDAVClient):
                 retry_after_seconds = self.rate_limit_default_sleep
                 if e.retry_after_seconds is not None:
                     retry_after_seconds = e.retry_after_seconds
-                retry_after_seconds = max(
+                retry_after_seconds = min(
                     [retry_after_seconds or 0, self.rate_limit_max_sleep or 0]
                 )
                 if retry_after_seconds <= 0:
