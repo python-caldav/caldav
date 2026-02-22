@@ -243,7 +243,10 @@ def _alert_to_valarm(alert: dict) -> icalendar.Alarm:
         else:
             try:
                 td = _duration_to_timedelta(trigger_str)
-                alarm.add("trigger", td)
+                trigger = icalendar.vDuration(td)
+                if alert.get("relativeTo") == "end":
+                    trigger.params["RELATED"] = "END"
+                alarm.add("trigger", trigger)
             except ValueError:
                 alarm.add("trigger", timedelta(0))
     else:

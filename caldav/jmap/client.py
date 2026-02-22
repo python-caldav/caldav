@@ -254,6 +254,11 @@ class JMAPClient(_JMAPClientBase):
                 created, _, _, not_created, _, _ = parse_event_set(resp_args)
                 if "new-0" in not_created:
                     self._raise_set_error(session, not_created["new-0"])
+                if "new-0" not in created:
+                    raise JMAPMethodError(
+                        url=session.api_url,
+                        reason="CalendarEvent/set response missing created entry for new-0",
+                    )
                 return created["new-0"]["id"]
 
         raise JMAPMethodError(url=session.api_url, reason="No CalendarEvent/set response")

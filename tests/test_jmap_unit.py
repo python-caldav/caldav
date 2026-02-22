@@ -1172,6 +1172,20 @@ class TestIcalToJscal:
         alert = next(iter(result["alerts"].values()))
         assert alert["trigger"].endswith("Z")
 
+    def test_valarm_related_end(self):
+        ical = _make_ical(
+            "DTSTART:20240615T100000Z\r\n"
+            "SUMMARY:End Alarm Event\r\n"
+            "BEGIN:VALARM\r\n"
+            "ACTION:DISPLAY\r\n"
+            "TRIGGER;RELATED=END:-PT5M\r\n"
+            "END:VALARM\r\n"
+        )
+        result = ical_to_jscal(ical)
+        alert = next(iter(result["alerts"].values()))
+        assert alert["trigger"] == "-PT5M"
+        assert alert.get("relativeTo") == "end"
+
     def test_organizer_attendee(self):
         ical = _make_ical(
             "DTSTART:20240615T100000Z\r\n"
@@ -1367,6 +1381,14 @@ class TestJscalToIcal:
         assert "BEGIN:VALARM" in result
         assert "TRIGGER:-PT15M" in result
 
+    def test_alert_related_end(self):
+        jscal = _minimal_jscal(
+            alerts={"al1": {"trigger": "-PT5M", "action": "display", "relativeTo": "end"}}
+        )
+        result = jscal_to_ical(jscal)
+        assert "RELATED=END" in result
+        assert "-PT5M" in result
+
     def test_participants_organizer(self):
         jscal = _minimal_jscal(
             participants={
@@ -1541,6 +1563,12 @@ class TestJMAPClientEvents:
         with pytest.raises(JMAPMethodError) as exc_info:
             client.create_event("cal1", self._MINIMAL_ICAL)
         assert exc_info.value.error_type == "invalidArguments"
+
+    def test_create_event_raises_on_malformed_response(self, monkeypatch):
+        resp = self._set_response(created={}, notCreated={})
+        client = _make_client_with_mocked_session(monkeypatch, resp)
+        with pytest.raises(JMAPMethodError):
+            client.create_event("cal1", self._MINIMAL_ICAL)
 
     def test_create_event_passes_calendar_id(self, monkeypatch):
         resp = self._set_response(created={"new-0": {"id": "sv-2"}})

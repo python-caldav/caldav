@@ -230,6 +230,8 @@ def _valarm_to_alert(alarm) -> tuple[str, dict]:
         if isinstance(trigger_val, timedelta):
             # Relative trigger — convert to SignedDuration string
             alert["trigger"] = _timedelta_to_duration(trigger_val)
+            if str(trigger_prop.params.get("RELATED", "START")).upper() == "END":
+                alert["relativeTo"] = "end"
         elif isinstance(trigger_val, datetime):
             # Absolute trigger — UTCDateTime string
             alert["trigger"] = trigger_val.strftime("%Y-%m-%dT%H:%M:%SZ")
