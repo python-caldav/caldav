@@ -994,7 +994,8 @@ class DAVClient(BaseDAVClient):
 
                 raise error.RateLimitError(
                     f"Rate limited or service unavailable. Retry after: {retry_after}",
-                    retry_after=retry_seconds if retry_seconds is not None else retry_after,
+                    retry_after=retry_after,
+                    retry_after_seconds=retry_seconds
                 )
 
         # Handle 401 responses for auth negotiation
