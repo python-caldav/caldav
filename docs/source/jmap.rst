@@ -12,9 +12,9 @@ server supports.
 .. note::
 
    The JMAP client targets servers implementing
-   ``urn:ietf:params:jmap:calendars``.  Cyrus IMAP and Fastmail are known to work.
-   Task support (``urn:ietf:params:jmap:tasks``, RFC 9553) requires a separate
-   server capability; Cyrus does not implement it yet.
+   ``urn:ietf:params:jmap:calendars``.  Cyrus IMAP is the primary tested server.
+   Task support (``urn:ietf:params:jmap:tasks``) requires a separate server
+   capability; Cyrus does not implement it yet.
 
 Quick Start
 ===========
