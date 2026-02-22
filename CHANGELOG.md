@@ -76,11 +76,11 @@ Additionally, direct `DAVClient()` instantiation should migrate to `get_davclien
   - Full calendar + event CRUD (`create_event`, `get_event`, `update_event`,
     `delete_event`, `search_events`)
   - Incremental sync via `get_sync_token` / `get_objects_by_sync_token`
-  - Task CRUD (RFC 9553) via `create_task`, `get_task`, `update_task`, `delete_task`
+  - Task CRUD (draft-ietf-jmap-tasks) via `create_task`, `get_task`, `update_task`, `delete_task`
   - Bidirectional iCalendar ↔ JSCalendar conversion layer
   - `get_jmap_client()` factory reads from the same config sources as
     `get_davclient()` (env vars, config file)
-  - Tested against Cyrus IMAP and Fastmail
+  - Tested against Cyrus IMAP
 
 * **Full async API** - New `AsyncDAVClient` and async-compatible domain objects:
   ```python

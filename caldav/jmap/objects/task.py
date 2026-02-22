@@ -2,8 +2,8 @@
 JMAP Task and TaskList objects.
 
 Represents JMAP Task and TaskList resources as returned by ``Task/get`` and
-``TaskList/get``. Properties follow RFC 9553 (JMAP for Tasks) and RFC 8984
-(JSCalendar), extended with JMAP-specific additions.
+``TaskList/get``. Properties follow draft-ietf-jmap-tasks, which builds on
+RFC 8984 (JSCalendar), extended with JMAP-specific additions.
 """
 
 from __future__ import annotations
@@ -82,7 +82,7 @@ class JMAPTaskList:
 class JMAPTask:
     """A JMAP Task object.
 
-    Fields map to RFC 9553 (JMAP for Tasks) and RFC 8984 (JSCalendar Task).
+    Fields map to draft-ietf-jmap-tasks and RFC 8984 (JSCalendar Task).
     Only user-settable fields are stored; server-computed properties
     (``utcStart``, ``utcDue``) are not included.
 
