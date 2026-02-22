@@ -6,7 +6,7 @@ tuples that go into a ``methodCalls`` list, and parse the corresponding
 ``methodResponses`` entries.
 
 Method shapes follow RFC 8620 §3.3 (get), §3.5 (set); Task-specific
-properties are defined in RFC 9553 (JMAP for Tasks).
+properties are defined in draft-ietf-jmap-tasks (built on RFC 8984).
 """
 
 from __future__ import annotations
