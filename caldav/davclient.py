@@ -1012,10 +1012,9 @@ class DAVClient(BaseDAVClient):
             retry_after_header: Optional[str] = r_headers.get("Retry-After")
             retry_after_value: Optional[str] = None
             retry_seconds: Optional[float] = None
-            if retry_after_header:  # непустая строка
+            if retry_after_header:
                 retry_after_value = retry_after_header
                 try:
-                    # пытаемся интерпретировать как целое число секунд
                     retry_seconds = int(retry_after_header)
                 except ValueError:
                     try:
