@@ -975,9 +975,9 @@ class DAVClient(BaseDAVClient):
             verify=self.ssl_verify_cert,
             cert=self.ssl_cert,
         )
-        
+
         r_headers = CaseInsensitiveDict(r.headers)
-        
+
         # Handle 429, 503 responses for retry negotiation
         if r.status_code in (429, 503) and "Retry-After" in r_headers:
             retry_after = r_headers["Retry-After"]
@@ -995,7 +995,7 @@ class DAVClient(BaseDAVClient):
                 raise error.RateLimitError(
                     f"Rate limited or service unavailable. Retry after: {retry_after}",
                     retry_after=retry_after,
-                    retry_after_seconds=retry_seconds
+                    retry_after_seconds=retry_seconds,
                 )
 
         # Handle 401 responses for auth negotiation

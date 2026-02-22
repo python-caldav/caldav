@@ -132,8 +132,10 @@ class ConsistencyError(DAVError):
 class ResponseError(DAVError):
     pass
 
+
 class RateLimitError(CaldavError):
     """Returns in case 429 Too Many Requests or 503 Service Unavailable w Retry-After."""
+
     def __init__(self, msg, retry_after=None, retry_after_seconds=None):
         super().__init__(msg)
         self.retry_after = retry_after
