@@ -14,6 +14,8 @@ import warnings
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, Optional
 from urllib.parse import unquote
+from email.utils import parsedate_to_datetime
+from datetime import datetime, timezone
 
 # Try niquests first (preferred), fall back to requests
 _USE_NIQUESTS = False
@@ -973,9 +975,29 @@ class DAVClient(BaseDAVClient):
             verify=self.ssl_verify_cert,
             cert=self.ssl_cert,
         )
+        
+        r_headers = CaseInsensitiveDict(r.headers)
+        
+        # Handle 429, 503 responses for retry negotiation
+        if r.status_code in (429, 503) and "Retry-After" in r_headers:
+            retry_after = r_headers["Retry-After"]
+            if retry_after:
+                try:
+                    retry_seconds = int(retry_after)
+                except ValueError:
+                    try:
+                        retry_date = parsedate_to_datetime(retry_after)
+                        now = datetime.now(timezone.utc)
+                        retry_seconds = max(0, (retry_date - now).total_seconds())
+                    except:
+                        retry_seconds = None
+
+                raise error.RateLimitError(
+                    f"Rate limited or service unavailable. Retry after: {retry_after}",
+                    retry_after=retry_seconds if retry_seconds is not None else retry_after,
+                )
 
         # Handle 401 responses for auth negotiation
-        r_headers = CaseInsensitiveDict(r.headers)
         if (
             r.status_code == 401
             and "WWW-Authenticate" in r_headers
