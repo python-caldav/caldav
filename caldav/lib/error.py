@@ -133,7 +133,7 @@ class ResponseError(DAVError):
     pass
 
 
-class RateLimitError(CaldavError):
+class RateLimitError(DAVError):
     """Returns in case 429 Too Many Requests or 503 Service Unavailable w Retry-After."""
 
     def __init__(self, msg, retry_after=None, retry_after_seconds=None):
