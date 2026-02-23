@@ -133,6 +133,22 @@ class ResponseError(DAVError):
     pass
 
 
+class RateLimitError(DAVError):
+    """Raised when the server responds with 429 Too Many Requests or
+    503 Service Unavailable with a Retry-After header."""
+
+    def __init__(
+        self,
+        url: str | None = None,
+        reason: str | None = None,
+        retry_after: str | None = None,
+        retry_after_seconds: float | None = None,
+    ) -> None:
+        super().__init__(url=url, reason=reason)
+        self.retry_after = retry_after
+        self.retry_after_seconds = retry_after_seconds
+
+
 exception_by_method: dict[str, DAVError] = defaultdict(lambda: DAVError)
 for method in (
     "delete",

@@ -7,7 +7,7 @@ to emulate server communication.
 """
 
 import pickle
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from unittest import mock
 from urllib.parse import urlparse
 
@@ -1704,3 +1704,249 @@ END:VCALENDAR
         searcher = CalDAVSearcher(event=True)
         with pytest.raises(ValueError, match="No calendar provided"):
             searcher.search()
+
+    def testGetObjectByUidUsesSelfSearch(self):
+        """
+        get_object_by_uid() must call self.search() (Calendar.search) rather than
+        constructing a CalDAVSearcher directly.  This ensures that any
+        monkey-patching of Calendar.search - such as the search-cache delay for
+        servers with lazy search indexes (purelymail) - is also applied when
+        looking up objects by UID.
+
+        See also testObjectByUID in the integration tests for the exact-match
+        guarantee.
+        """
+        uid = "20010712T182145Z-123401@example.com"
+        # Build a minimal multistatus response containing ev1
+        xml_response = f"""<d:multistatus xmlns:d="DAV:" xmlns:cal="urn:ietf:params:xml:ns:caldav">
+  <d:response>
+    <d:href>/calendar/ev1.ics</d:href>
+    <d:propstat>
+      <d:prop>
+        <cal:calendar-data>{ev1}</cal:calendar-data>
+      </d:prop>
+      <d:status>HTTP/1.1 200 OK</d:status>
+    </d:propstat>
+  </d:response>
+</d:multistatus>"""
+        client = MockedDAVClient(xml_response)
+        calendar = Calendar(client, url="/calendar/")
+
+        # Patch Calendar.search to track calls, while still delegating to
+        # the original implementation.
+        search_calls = []
+        original_search = Calendar.search
+
+        def tracking_search(self_, *args, **kwargs):
+            search_calls.append((args, kwargs))
+            return original_search(self_, *args, **kwargs)
+
+        Calendar.search = tracking_search
+        try:
+            result = calendar.get_object_by_uid(uid, comp_class=Event)
+            assert result.id == uid
+            assert search_calls, "Calendar.search was not called by get_object_by_uid"
+        finally:
+            Calendar.search = original_search
+
+    def testGetObjectByUidExactMatch(self):
+        """
+        get_object_by_uid() must return only an object with the exact requested UID,
+        even if the server (doing a substring search) returns objects with UIDs
+        that merely contain the requested UID as a substring.
+        """
+        uid_exact = "20010712T182145Z-123401@example.com"
+        uid_superstring = "20010712T182145Z-123401@example.com-extra"
+        ev_superstring = f"""BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Example Corp.//CalDAV Client//EN
+BEGIN:VEVENT
+UID:{uid_superstring}
+DTSTAMP:20060712T182145Z
+DTSTART:20060714T170000Z
+DTEND:20060715T040000Z
+SUMMARY:Bastille Day Party extra
+END:VEVENT
+END:VCALENDAR
+"""
+        # Server returns both the exact-match event AND a superstring-UID event
+        # (simulating a server that does substring matching)
+        xml_response = f"""<d:multistatus xmlns:d="DAV:" xmlns:cal="urn:ietf:params:xml:ns:caldav">
+  <d:response>
+    <d:href>/calendar/ev1.ics</d:href>
+    <d:propstat>
+      <d:prop>
+        <cal:calendar-data>{ev1}</cal:calendar-data>
+      </d:prop>
+      <d:status>HTTP/1.1 200 OK</d:status>
+    </d:propstat>
+  </d:response>
+  <d:response>
+    <d:href>/calendar/ev_superstring.ics</d:href>
+    <d:propstat>
+      <d:prop>
+        <cal:calendar-data>{ev_superstring}</cal:calendar-data>
+      </d:prop>
+      <d:status>HTTP/1.1 200 OK</d:status>
+    </d:propstat>
+  </d:response>
+</d:multistatus>"""
+        client = MockedDAVClient(xml_response)
+        calendar = Calendar(client, url="/calendar/")
+
+        # Only the exact-UID match should be returned
+        result = calendar.get_object_by_uid(uid_exact)
+        assert result.id == uid_exact
+
+        # Searching for a UID that exists only as a substring of another should fail
+        with pytest.raises(error.NotFoundError):
+            calendar.get_object_by_uid("20010712T182145Z-123401@example.com-nope")
+
+
+class TestRateLimiting:
+    """
+    Unit tests for 429/503 rate-limit handling (issue #627).
+    No real server communication - uses mock.patch on the session.
+    """
+
+    def _make_response(self, status_code, headers=None):
+        """Build a minimal mock HTTP response."""
+        r = mock.MagicMock()
+        r.status_code = status_code
+        r.headers = headers or {}
+        r.reason = "Too Many Requests" if status_code == 429 else "Service Unavailable"
+        return r
+
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def test_429_no_retry_after_raises(self, mocked):
+        """429 without Retry-After header always raises RateLimitError with retry_after_seconds=None."""
+        mocked.return_value = self._make_response(429)
+        client = DAVClient(url="http://cal.example.com/")
+        with pytest.raises(error.RateLimitError) as exc_info:
+            client.request("/")
+        assert exc_info.value.retry_after is None
+        assert exc_info.value.retry_after_seconds is None
+
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def test_429_with_integer_retry_after(self, mocked):
+        """429 with integer Retry-After header parses the seconds correctly."""
+        mocked.return_value = self._make_response(429, {"Retry-After": "30"})
+        client = DAVClient(url="http://cal.example.com/")
+        with pytest.raises(error.RateLimitError) as exc_info:
+            client.request("/")
+        assert exc_info.value.retry_after == "30"
+        assert exc_info.value.retry_after_seconds == 30
+
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def test_429_with_http_date_retry_after(self, mocked):
+        """429 with HTTP-date Retry-After header computes seconds from now."""
+        from email.utils import format_datetime
+
+        future = datetime.now(timezone.utc) + timedelta(seconds=60)
+        retry_after_str = format_datetime(future)
+        mocked.return_value = self._make_response(429, {"Retry-After": retry_after_str})
+        client = DAVClient(url="http://cal.example.com/")
+        with pytest.raises(error.RateLimitError) as exc_info:
+            client.request("/")
+        assert exc_info.value.retry_after == retry_after_str
+        # Should be close to 60s (allow a few seconds tolerance)
+        assert exc_info.value.retry_after_seconds is not None
+        assert 55 <= exc_info.value.retry_after_seconds <= 65
+
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def test_429_with_unparseable_retry_after(self, mocked):
+        """429 with a garbled Retry-After header still raises; retry_after_seconds is None."""
+        mocked.return_value = self._make_response(429, {"Retry-After": "banana"})
+        client = DAVClient(url="http://cal.example.com/")
+        with pytest.raises(error.RateLimitError) as exc_info:
+            client.request("/")
+        assert exc_info.value.retry_after == "banana"
+        assert exc_info.value.retry_after_seconds is None
+
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def test_503_without_retry_after_does_not_raise_rate_limit(self, mocked):
+        """503 without Retry-After falls through as a normal (non-rate-limit) response."""
+        mocked.return_value = self._make_response(503)
+        client = DAVClient(url="http://cal.example.com/")
+        # Should NOT raise RateLimitError; returns a DAVResponse with status 503
+        response = client.request("/")
+        assert response.status == 503
+
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def test_503_with_retry_after_raises(self, mocked):
+        """503 with Retry-After header raises RateLimitError."""
+        mocked.return_value = self._make_response(503, {"Retry-After": "10"})
+        client = DAVClient(url="http://cal.example.com/")
+        with pytest.raises(error.RateLimitError) as exc_info:
+            client.request("/")
+        assert exc_info.value.retry_after_seconds == 10
+
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def test_rate_limit_handle_sleeps_and_retries(self, mocked):
+        """With rate_limit_handle=True the client sleeps then retries, returning the second response."""
+        ok_response = mock.MagicMock()
+        ok_response.status_code = 200
+        ok_response.headers = {}
+        mocked.side_effect = [
+            self._make_response(429, {"Retry-After": "5"}),
+            ok_response,
+        ]
+        client = DAVClient(url="http://cal.example.com/", rate_limit_handle=True)
+        with mock.patch("caldav.davclient.time.sleep") as mock_sleep:
+            response = client.request("/")
+        mock_sleep.assert_called_once_with(5)
+        assert response.status == 200
+        assert mocked.call_count == 2
+
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def test_rate_limit_handle_default_sleep_used_when_no_retry_after(self, mocked):
+        """With rate_limit_default_sleep set, that value is used when server omits Retry-After."""
+        ok_response = mock.MagicMock()
+        ok_response.status_code = 200
+        ok_response.headers = {}
+        mocked.side_effect = [
+            self._make_response(429),
+            ok_response,
+        ]
+        client = DAVClient(
+            url="http://cal.example.com/", rate_limit_handle=True, rate_limit_default_sleep=3
+        )
+        with mock.patch("caldav.davclient.time.sleep") as mock_sleep:
+            response = client.request("/")
+        mock_sleep.assert_called_once_with(3)
+        assert response.status == 200
+
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def test_rate_limit_handle_no_sleep_info_raises(self, mocked):
+        """rate_limit_handle=True but no Retry-After and no default sleep re-raises RateLimitError."""
+        mocked.return_value = self._make_response(429)
+        client = DAVClient(url="http://cal.example.com/", rate_limit_handle=True)
+        with pytest.raises(error.RateLimitError):
+            client.request("/")
+
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def test_rate_limit_max_sleep_caps_sleep_time(self, mocked):
+        """rate_limit_max_sleep caps the sleep even when server requests longer."""
+        ok_response = mock.MagicMock()
+        ok_response.status_code = 200
+        ok_response.headers = {}
+        mocked.side_effect = [
+            self._make_response(429, {"Retry-After": "3600"}),
+            ok_response,
+        ]
+        client = DAVClient(
+            url="http://cal.example.com/", rate_limit_handle=True, rate_limit_max_sleep=60
+        )
+        with mock.patch("caldav.davclient.time.sleep") as mock_sleep:
+            client.request("/")
+        mock_sleep.assert_called_once_with(60)
+
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def test_rate_limit_max_sleep_zero_raises(self, mocked):
+        """rate_limit_max_sleep=0 means never sleep, always raise."""
+        mocked.return_value = self._make_response(429, {"Retry-After": "30"})
+        client = DAVClient(
+            url="http://cal.example.com/", rate_limit_handle=True, rate_limit_max_sleep=0
+        )
+        with pytest.raises(error.RateLimitError):
+            client.request("/")

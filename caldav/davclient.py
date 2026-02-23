@@ -10,7 +10,10 @@ For async code, use: from caldav import aio
 
 import logging
 import sys
+import time
 import warnings
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, Optional
 from urllib.parse import unquote
@@ -206,6 +209,9 @@ class DAVClient(BaseDAVClient):
         features: FeatureSet | dict | str = None,
         enable_rfc6764: bool = True,
         require_tls: bool = True,
+        rate_limit_handle: bool = False,
+        rate_limit_default_sleep: Optional[int] = None,
+        rate_limit_max_sleep: Optional[int] = None,
     ) -> None:
         """
         Sets up a HTTPConnection object towards the server in the url.
@@ -243,6 +249,16 @@ class DAVClient(BaseDAVClient):
                        redirect to unencrypted HTTP. Set to False ONLY if you need to
                        support non-TLS servers and trust your DNS infrastructure.
                        This parameter has no effect if enable_rfc6764=False.
+          rate_limit_handle: boolean, whether to automatically sleep and retry when the server
+                             responds with 429 Too Many Requests or 503 Service Unavailable.
+                             Default: False (raise RateLimitError immediately).
+          rate_limit_default_sleep: int or None, fallback sleep duration in seconds when the
+                                    server's 429 response does not include a parseable Retry-After
+                                    header. None (default) means raise RateLimitError rather than
+                                    sleeping when no Retry-After is provided.
+          rate_limit_max_sleep: int or None, maximum number of seconds to sleep when rate limited,
+                                regardless of the server's Retry-After value. None (default) means
+                                there is no cap and the server-requested delay is respected as-is.
 
         The niquests library will honor a .netrc-file, if such a file exists
         username and password may be omitted.
@@ -340,6 +356,10 @@ class DAVClient(BaseDAVClient):
         log.debug("self.url: " + str(url))
 
         self._principal = None
+
+        self.rate_limit_handle = rate_limit_handle
+        self.rate_limit_default_sleep = rate_limit_default_sleep
+        self.rate_limit_max_sleep = rate_limit_max_sleep
 
     def __enter__(self) -> Self:
         ## Used for tests, to set up a temporarily test server
@@ -931,7 +951,24 @@ class DAVClient(BaseDAVClient):
         Returns:
             DAVResponse
         """
-        return self._sync_request(url, method, body, headers)
+        try:
+            return self._sync_request(url, method, body, headers)
+        except error.RateLimitError as e:
+            if not self.rate_limit_handle:
+                raise
+            retry_after_seconds = (
+                e.retry_after_seconds
+                if e.retry_after_seconds is not None
+                else self.rate_limit_default_sleep
+            )
+            if retry_after_seconds is None or retry_after_seconds <= 0:
+                raise
+            if self.rate_limit_max_sleep is not None:
+                retry_after_seconds = min(retry_after_seconds, self.rate_limit_max_sleep)
+            if retry_after_seconds <= 0:
+                raise
+            time.sleep(retry_after_seconds)
+            return self._sync_request(url, method, body, headers)
 
     def _sync_request(
         self,
@@ -974,8 +1011,31 @@ class DAVClient(BaseDAVClient):
             cert=self.ssl_cert,
         )
 
-        # Handle 401 responses for auth negotiation
         r_headers = CaseInsensitiveDict(r.headers)
+
+        # Handle 429/503 responses: raise RateLimitError so the caller can decide whether to retry
+        if r.status_code in (429, 503):
+            retry_after_header: Optional[str] = r_headers.get("Retry-After")
+            retry_seconds: Optional[float] = None
+            if retry_after_header:
+                try:
+                    retry_seconds = int(retry_after_header)
+                except ValueError:
+                    try:
+                        retry_date = parsedate_to_datetime(retry_after_header)
+                        now = datetime.now(timezone.utc)
+                        retry_seconds = max(0.0, (retry_date - now).total_seconds())
+                    except (ValueError, TypeError):
+                        pass
+            if r.status_code == 429 or retry_after_header is not None:
+                raise error.RateLimitError(
+                    url=str(url_obj),
+                    reason=f"Rate limited or service unavailable. Retry after: {retry_after_header}",
+                    retry_after=retry_after_header,
+                    retry_after_seconds=retry_seconds,
+                )
+
+        # Handle 401 responses for auth negotiation
         if (
             r.status_code == 401
             and "WWW-Authenticate" in r_headers

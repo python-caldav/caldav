@@ -98,6 +98,24 @@ Additionally, direct `DAVClient()` instantiation should migrate to `get_davclien
   searcher.add_filter(...)
   results = searcher.search()
   ```
+* **`get_calendars()` and `get_calendar()` context managers** -- Module-level factory functions that create a client, fetch calendars, and clean up on exit:
+  ```python
+  with get_calendars(url="...", username="...", password="...") as calendars:
+      for cal in calendars:
+          ...
+  ```
+* **Base+override feature profiles** -- YAML config now supports inheriting from base feature profiles:
+  ```yaml
+  my-server:
+      features:
+          base: nextcloud
+          search.comp-type: unsupported
+  ```
+* **Feature validation** -- `caldav.config` now validates feature configuration and raises errors on unknown feature names
+* **URL space validation** -- `caldav.lib.url` now validates that URLs don't contain unquoted spaces
+* **Fallback for missing calendar-home-set** -- Client falls back to principal URL when `calendar-home-set` property is not available
+* **Load fallback for changed URLs** -- `CalendarObjectResource.load()` falls back to UID-based lookup when servers change URLs after save
+* **Retry-After / rate-limit handling** (RFC 6585 / RFC 9110) -- `DAVClient` now exposes `rate_limit_handle`, `rate_limit_default_sleep`, and `rate_limit_max_sleep` parameters. When `rate_limit_handle=True` the client automatically sleeps and retries on 429 Too Many Requests and 503 Service Unavailable responses that carry a `Retry-After` header. When `rate_limit_handle=False` (default) a `RateLimitError` is raised immediately so callers can implement their own back-off strategy. https://github.com/python-caldav/caldav/issues/627
 
 ### Fixed
 
