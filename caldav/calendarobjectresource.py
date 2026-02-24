@@ -510,19 +510,10 @@ class CalendarObjectResource(DAVObject):
         """
         A VTODO may have due or duration set.  Return or calculate due.
 
-        WARNING: this method is likely to be deprecated and moved to
-        the icalendar library.  If you decide to use it, please put
-        caldav<3.0 in the requirements.
+        DEPRECATION WARNING: this method is likely to be removed in
+        caldav v3.0.  Use self.icalendar_component.end instead.
         """
-        i = self.icalendar_component
-        if "DUE" in i:
-            return i["DUE"].dt
-        elif "DTEND" in i:
-            return i["DTEND"].dt
-        elif "DURATION" in i and "DTSTART" in i:
-            return i["DTSTART"].dt + i["DURATION"].dt
-        else:
-            return None
+        return self.icalendar_component.end
 
     get_dtend = get_due
 
@@ -1426,7 +1417,11 @@ class CalendarObjectResource(DAVObject):
     ## ===================================================================
 
     def get_duration(self) -> timedelta:
-        """According to the RFC, either DURATION or DUE should be set
+        """
+        DEPRECATION WARNING: This method may be removed in version 3.0.
+        Use self.icalendar_component.duration instead.
+
+        According to the RFC, either DURATION or DUE should be set
         for a task, but never both - implicitly meaning that DURATION
         is the difference between DTSTART and DUE (personally I
         believe that's stupid.  If a task takes five minutes to
@@ -1442,31 +1437,8 @@ class CalendarObjectResource(DAVObject):
         TODO: should be fixed for Event class as well (only difference
         is that DTEND is used rather than DUE) and possibly also for
         Journal (defaults to one day, probably?)
-
-        WARNING: this method is likely to be deprecated and moved to
-        the icalendar library.  If you decide to use it, please put
-        caldav<3.0 in the requirements.
         """
-        i = self.icalendar_component
-        return self._get_duration(i)
-
-    def _get_duration(self, i):
-        if "DURATION" in i:
-            return i["DURATION"].dt
-        elif "DTSTART" in i and self._ENDPARAM in i:
-            end = i[self._ENDPARAM].dt
-            start = i["DTSTART"].dt
-            ## We do have a problem here if one is a date and the other is a
-            ## datetime.  This is NOT explicitly defined as a technical
-            ## breach in the RFC, so we need to work around it.
-            if isinstance(end, datetime) != isinstance(start, datetime):
-                start = datetime(start.year, start.month, start.day)
-                end = datetime(end.year, end.month, end.day)
-            return end - start
-        elif "DTSTART" in i and not isinstance(i["DTSTART"], datetime):
-            return timedelta(days=1)
-        else:
-            return timedelta(0)
+        return self.icalendar_component.duration
 
 
 class Event(CalendarObjectResource):
@@ -1616,7 +1588,7 @@ class Todo(CalendarObjectResource):
                 else:
                     dtstart = ts or datetime.now()
             else:
-                dtstart = ts or datetime.now() - self._get_duration(i)
+                dtstart = ts or datetime.now() - i.duration
         ## dtstart should be compared to the completion timestamp, which
         ## is set in UTC in the complete() method.  However, dtstart
         ## may be a naïve or a floating timestamp
@@ -1747,7 +1719,7 @@ class Todo(CalendarObjectResource):
 
         rrule = rrule2 or rrule
 
-        duration = self._get_duration(i=prev)
+        duration = prev.duration
         thisandfuture.pop("DTSTART", None)
         thisandfuture.pop("DUE", None)
         next_dtstart = self._next(i=prev, rrule=rrule, ts=completion_timestamp)
