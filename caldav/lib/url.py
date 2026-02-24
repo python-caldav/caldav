@@ -69,7 +69,8 @@ class URL:
         return str(me) == str(other)
 
     def __hash__(self) -> int:
-        return hash(str(self))
+        # Must use canonical form to match __eq__ behavior
+        return hash(str(self.canonical()))
 
     # TODO: better naming?  Will return url if url is already a URL
     # object, else will instantiate a new URL object

@@ -228,6 +228,9 @@ def create_ical(ical_fragment=None, objtype=None, language="en_DK", **props):
             elif prop.startswith("alarm_"):
                 alarm[prop[6:]] = props[prop]
             else:
+                # Remove existing property to avoid duplicates when
+                # overriding values from an ical_fragment
+                component.pop(prop, None)
                 component.add(prop, props[prop])
     if alarm:
         add_alarm(my_instance, alarm)

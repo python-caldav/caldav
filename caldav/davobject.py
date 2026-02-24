@@ -96,6 +96,7 @@ class DAVObject:
             self.url = None
         else:
             self.url = URL.objectify(url)
+        assert " " not in str(self.url)
 
     @property
     def canonical_url(self) -> str:
@@ -319,6 +320,63 @@ class DAVObject:
         foo = await self._async_get_properties([prop], **passthrough)
         return foo.get(prop.tag, None)
 
+    def _resolve_properties(self, properties: dict) -> dict:
+        """Resolve the correct property dict from a PROPFIND response.
+
+        Servers may return hrefs that don't exactly match the request-URI.
+        RFC 4918, Section 9.1: "Clients MUST be able to handle the case
+        where the href in the response does not match the request-URI."
+
+        This method handles various known mismatches (trailing slashes,
+        double slashes, iCloud quirks) and returns the resolved property
+        dict, also updating self.props as a side effect.
+        """
+        from .collection import (
+            Principal,
+        )  ## late import to avoid cyclic dependencies
+
+        if self.url is None:
+            raise ValueError("Unexpected value None for self.url")
+
+        path = unquote(self.url.path)
+        if path.endswith("/"):
+            exchange_path = path[:-1]
+        else:
+            exchange_path = path + "/"
+
+        if path in properties:
+            rc = properties[path]
+        elif exchange_path in properties:
+            if not isinstance(self, Principal):
+                log.warning(
+                    f"The path {path} was not found in the properties, but {exchange_path} was. "
+                    "This may indicate a server bug or a trailing slash issue."
+                )
+            rc = properties[exchange_path]
+        elif self.url in properties:
+            rc = properties[self.url]
+        elif "/principal/" in properties and path.endswith("/principal/"):
+            ## Workaround for a known iCloud bug - the properties key is
+            ## expected to be the same as the path, but iCloud returns /principal/
+            rc = properties["/principal/"]
+        elif "//" in path and path.replace("//", "/") in properties:
+            ## Workaround for double slashes in path (issue #302)
+            rc = properties[path.replace("//", "/")]
+        elif len(properties) == 1:
+            ## Ref https://github.com/python-caldav/caldav/issues/191
+            ## RFC 4918, Section 9.1: "Clients MUST be able to handle
+            ## the case where the href in the response does not match
+            ## the request-URI."  Accept whatever the server returns.
+            rc = list(properties.values())[0]
+        else:
+            log.warning(
+                f"Path handling problem. Path expected: {path}, "
+                f"paths found: {list(properties.keys())}"
+            )
+            error.assert_(False)
+        self.props.update(rc)
+        return rc
+
     def get_properties(
         self,
         props: Sequence[BaseElement] | None = None,
@@ -348,10 +406,6 @@ class DAVObject:
         if self.is_async_client:
             return self._async_get_properties(props, depth, parse_response_xml, parse_props)
 
-        from .collection import (
-            Principal,
-        )  ## late import to avoid cyclic dependencies
-
         rc = None
         response = self._query_properties(props, depth)
         if not parse_response_xml:
@@ -380,28 +434,7 @@ class DAVObject:
 
         error.assert_(properties)
 
-        if self.url is None:
-            raise ValueError("Unexpected value None for self.url")
-
-        path = unquote(self.url.path)
-        if path.endswith("/"):
-            exchange_path = path[:-1]
-        else:
-            exchange_path = path + "/"
-
-        if path in properties:
-            rc = properties[path]
-        elif exchange_path in properties:
-            if not isinstance(self, Principal):
-                log.warning(
-                    f"The path {path} was not found in the properties, but {exchange_path} was. "
-                    "This may indicate a server bug or a trailing slash issue."
-                )
-            rc = properties[exchange_path]
-        else:
-            error.assert_(False)
-        self.props.update(rc)
-        return rc
+        return self._resolve_properties(properties)
 
     async def _async_get_properties(
         self,
@@ -411,10 +444,6 @@ class DAVObject:
         parse_props: bool = True,
     ):
         """Async implementation of get_properties."""
-        from .collection import (
-            Principal,
-        )  ## late import to avoid cyclic dependencies
-
         rc = None
         response = await self._async_query_properties(props, depth)
         if not parse_response_xml:
@@ -443,28 +472,7 @@ class DAVObject:
 
         error.assert_(properties)
 
-        if self.url is None:
-            raise ValueError("Unexpected value None for self.url")
-
-        path = unquote(self.url.path)
-        if path.endswith("/"):
-            exchange_path = path[:-1]
-        else:
-            exchange_path = path + "/"
-
-        if path in properties:
-            rc = properties[path]
-        elif exchange_path in properties:
-            if not isinstance(self, Principal):
-                log.warning(
-                    f"The path {path} was not found in the properties, but {exchange_path} was. "
-                    "This may indicate a server bug or a trailing slash issue."
-                )
-            rc = properties[exchange_path]
-        else:
-            error.assert_(False)
-        self.props.update(rc)
-        return rc
+        return self._resolve_properties(properties)
 
     def set_properties(self, props: Any | None = None) -> Self:
         """

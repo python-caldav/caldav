@@ -1,3 +1,4 @@
+import copy
 import json
 import logging
 import os
@@ -103,26 +104,19 @@ def read_config(fn, interactive_error=False):
                 try:
                     with open(fn, "rb") as config_file:
                         return yaml.load(config_file, yaml.Loader)
-                except yaml.scanner.ScannerError:
-                    logging.error(
-                        f"config file {fn} exists but is neither valid json nor yaml.  Check the syntax."
-                    )
+                except (yaml.scanner.ScannerError, yaml.parser.ParserError) as e:
+                    # Re-raise YAML errors so they can be handled by caller
+                    raise ValueError(f"config file {fn} is neither valid JSON nor YAML: {e}") from e
             except ImportError:
-                logging.error(
-                    f"config file {fn} exists but is not valid json, and pyyaml is not installed."
-                )
+                raise ValueError(f"config file {fn} is not valid JSON, and pyyaml is not installed")
 
     except FileNotFoundError:
         ## File not found
-        logging.info("no config file found")
+        logging.debug(f"config file {fn} not found")
+        return {}
     except ValueError:
-        if interactive_error:
-            logging.error(
-                "error in config file.  Be aware that the interactive configuration will ignore and overwrite the current broken config file",
-                exc_info=True,
-            )
-        else:
-            logging.error("error in config file.  It will be ignored", exc_info=True)
+        # Re-raise ValueError so caller can handle config errors
+        raise
     return {}
 
 
@@ -160,6 +154,39 @@ def expand_env_vars(value: Any) -> Any:
     elif isinstance(value, list):
         return [expand_env_vars(v) for v in value]
     return value
+
+
+def resolve_features(features):
+    """Resolve a features specification into a dict suitable for FeatureSet.
+
+    Supports:
+    - None: returns None (backward compatibility mode)
+    - str: looks up a named profile from compatibility_hints
+      e.g. "synology" or "compatibility_hints.synology"
+    - dict with "base" key: loads a named profile and merges overrides
+      e.g. {"base": "synology", "search.is-not-defined": {"support": "fragile"}}
+    - dict without "base": used as-is
+    """
+    import caldav.compatibility_hints
+
+    if features is None:
+        return None
+    if isinstance(features, str):
+        feature_name = features
+        if feature_name.startswith("compatibility_hints."):
+            feature_name = feature_name[len("compatibility_hints.") :]
+        return getattr(caldav.compatibility_hints, feature_name)
+    if isinstance(features, dict) and "base" in features:
+        base_name = features["base"]
+        if isinstance(base_name, str):
+            if base_name.startswith("compatibility_hints."):
+                base_name = base_name[len("compatibility_hints.") :]
+            base_features = copy.deepcopy(getattr(caldav.compatibility_hints, base_name))
+            for key, value in features.items():
+                if key != "base":
+                    base_features[key] = value
+            return base_features
+    return features
 
 
 # Valid connection parameter keys for DAVClient
@@ -232,7 +259,11 @@ def get_connection_params(
     if explicit_params:
         # Filter to valid connection keys
         conn_params = {k: v for k, v in explicit_params.items() if k in CONNKEYS}
-        if conn_params.get("url"):
+        if conn_params.get("url") or conn_params.get("features"):
+            # Return when URL is given, or when features are given (the
+            # client constructor resolves URL from auto-connect.url hints
+            # via _auto_url()).  Don't fall through to env vars/config
+            # files when the caller explicitly provided connection info.
             return conn_params
 
     # Check for config file path from environment early (needed for test server config too)
@@ -359,6 +390,41 @@ def _extract_conn_params_from_section(section_data: dict[str, Any]) -> dict[str,
                 if key in CONNKEYS:
                     conn_params[key] = expand_env_vars(value)
         elif k == "features" and section_data[k]:
-            conn_params["features"] = section_data[k]
+            conn_params["features"] = resolve_features(section_data[k])
 
     return conn_params if conn_params.get("url") else None
+
+
+def get_all_test_servers(
+    config_file: str | None = None,
+) -> dict[str, dict[str, Any]]:
+    """
+    Get all test servers from config file.
+
+    Finds all sections with 'testing_allowed: true' and returns their
+    connection parameters.
+
+    Args:
+        config_file: Optional explicit path to config file.
+                    If None, searches default locations.
+
+    Returns:
+        Dict mapping section names to connection parameter dicts.
+        Each dict contains: url, username, password, features, etc.
+    """
+    cfg = read_config(config_file)
+    if not cfg:
+        return {}
+
+    result: dict[str, dict[str, Any]] = {}
+    for section_name in cfg:
+        section_data = config_section(cfg, section_name)
+        if section_data.get("testing_allowed"):
+            conn_params = _extract_conn_params_from_section(section_data)
+            if conn_params:
+                # Also copy the raw section data for keys not in CONNKEYS
+                # (e.g., testing_allowed itself, or custom keys)
+                conn_params["_raw_config"] = section_data
+                result[section_name] = conn_params
+
+    return result

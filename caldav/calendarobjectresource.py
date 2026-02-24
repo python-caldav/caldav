@@ -704,6 +704,28 @@ class CalendarObjectResource(DAVObject):
                 raise error.NotFoundError(errmsg(r))
             self.data = r.raw  # type: ignore
         except error.NotFoundError:
+            # Only attempt fallbacks if the object was previously loaded
+            # (has a UID), indicating the server may have changed the URL.
+            # Without a UID, the 404 is definitive.
+            uid = self.id
+            if uid:
+                # Fallback 1: try multiget (REPORT may work even when GET fails)
+                try:
+                    return self.load_by_multiget()
+                except Exception:
+                    pass
+                # Fallback 2: re-fetch by UID (server may have changed the URL)
+                if self.parent and hasattr(self.parent, "get_object_by_uid"):
+                    try:
+                        obj = self.parent.get_object_by_uid(uid)
+                        if obj:
+                            self.url = obj.url
+                            self.data = obj.data
+                            if hasattr(obj, "props"):
+                                self.props.update(obj.props)
+                            return self
+                    except error.NotFoundError:
+                        pass
             raise
         except Exception:
             return self.load_by_multiget()
@@ -730,6 +752,19 @@ class CalendarObjectResource(DAVObject):
                 raise error.NotFoundError(errmsg(r))
             self.data = r.raw  # type: ignore
         except error.NotFoundError:
+            # Fallback: re-fetch by UID (server may have changed the URL)
+            uid = self.id
+            if uid and self.parent and hasattr(self.parent, "get_object_by_uid"):
+                try:
+                    obj = await self.parent.get_object_by_uid(uid)
+                    if obj:
+                        self.url = obj.url
+                        self.data = obj.data
+                        if hasattr(obj, "props"):
+                            self.props.update(obj.props)
+                        return self
+                except error.NotFoundError:
+                    pass
             raise
         except Exception:
             # Note: load_by_multiget is sync-only, not supported in async mode yet
@@ -862,7 +897,9 @@ class CalendarObjectResource(DAVObject):
         ## See https://github.com/python-caldav/caldav/issues/143 for the rationale behind double-quoting slashes
         ## TODO: should try to wrap my head around issues that arises when id contains weird characters.  maybe it's
         ## better to generate a new uuid here, particularly if id is in some unexpected format.
-        return self.parent.url.join(quote(self.id.replace("/", "%2F")) + ".ics")
+        url = self.parent.url.join(quote(self.id.replace("/", "%2F")) + ".ics")
+        assert " " not in str(url)
+        return url
 
     def change_attendee_status(self, attendee: Any | None = None, **kwargs) -> None:
         """
@@ -950,11 +987,7 @@ class CalendarObjectResource(DAVObject):
 
         """
         # Early return if there's no data (no-op case)
-        if (
-            self._vobject_instance is None
-            and self._data is None
-            and self._icalendar_instance is None
-        ):
+        if not self.is_loaded():
             return self
 
         # Helper function to get the full object by UID

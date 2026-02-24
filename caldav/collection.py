@@ -421,6 +421,10 @@ class Principal(DAVObject):
         self.calendar_home_set = calendar_home_set_url
         return self._calendar_home_set
 
+    ## TODO: the parameter names name, cal_id and cal_url is quite inconsistent
+    ## I think it was made so to make sure the calendar URL was not mixed up
+    ## with the caldav base URL - but I still think we should reconsider this
+    ## parameter naming
     def calendar(
         self,
         name: str | None = None,
@@ -754,7 +758,7 @@ class Calendar(DAVObject):
         ## TODO: remove quirk handling from the functional tests
         ## TODO: this needs test code
         quirk_info = self.client.features.is_supported("delete-calendar", dict)
-        wipe = quirk_info["support"] in ("unsupported", "fragile")
+        wipe = not self.client.features.is_supported("delete-calendar")
         if quirk_info["support"] == "fragile":
             ## Do some retries on deleting the calendar
             for x in range(0, 20):
@@ -776,42 +780,31 @@ class Calendar(DAVObject):
             super().delete()
 
     async def _async_calendar_delete(self):
-        """Async implementation of Calendar.delete().
+        """Async implementation of Calendar.delete()."""
+        import asyncio
 
-        Note: Server quirk handling (fragile/wipe modes) is simplified for async.
-        Most modern servers support proper calendar deletion.
-        """
         quirk_info = self.client.features.is_supported("delete-calendar", dict)
+        wipe = not self.client.features.is_supported("delete-calendar")
 
-        # For fragile servers, try simple delete first
         if quirk_info["support"] == "fragile":
-            for _ in range(0, 5):
+            # Do some retries on deleting the calendar
+            for _ in range(0, 20):
                 try:
                     await self._async_delete()
-                    return
                 except error.DeleteError:
-                    import asyncio
-
+                    pass
+                try:
+                    await self.search(event=True)
                     await asyncio.sleep(0.3)
-            # If still failing after retries, fall through to wipe
+                except error.NotFoundError:
+                    wipe = False
+                    break
 
-        if quirk_info["support"] in ("unsupported", "fragile"):
-            # Need to delete all objects first
-            # Use the async client's get_events method
-            try:
-                events = await self.client.get_events(self)
-                for event in events:
-                    await event._async_delete()
-            except Exception:
-                pass  # Best effort
-            try:
-                todos = await self.client.get_todos(self)
-                for todo in todos:
-                    await todo._async_delete()
-            except Exception:
-                pass  # Best effort
-
-        await self._async_delete()
+        if wipe:
+            for obj in await self.search():
+                await obj._async_delete()
+        else:
+            await self._async_delete()
 
     def get_supported_components(self) -> list[Any]:
         """
@@ -1036,9 +1029,11 @@ class Calendar(DAVObject):
         """
         results = self._multiget(event_urls, raise_notfound=raise_notfound)
         for url, data in results:
+            # Quote path to handle servers returning unencoded spaces (e.g., Zimbra)
+            quoted_url = quote(unquote(str(url)), safe="/:@")
             yield self._calendar_comp_class_by_data(data)(
                 self.client,
-                url=self.url.join(url),
+                url=self.url.join(quoted_url),
                 data=data,
                 parent=self,
             )
@@ -1526,21 +1521,18 @@ class Calendar(DAVObject):
         Returns:
          CalendarObjectResource (Event, Todo, or Journal)
         """
-        ## late import to avoid cyclic dependencies
-        from .search import CalDAVSearcher
-
-        ## 2025-11: some logic validating the comp_filter and
-        ## comp_class has been removed, and replaced with the
-        ## recommendation not to use comp_filter.  We're still using
-        ## comp_filter internally, but it's OK, it doesn't need to be
-        ## validated.
-
-        ## Lots of old logic has been removed, the new search logic
-        ## can do the things for us:
-        searcher = CalDAVSearcher(comp_class=comp_class)
-        ## Default is substring
-        searcher.add_property_filter("uid", uid, "==")
-        items_found = searcher.search(self, xml=comp_filter, _hacks="insist", post_filter=True)
+        ## Use self.search() rather than CalDAVSearcher directly, so that any
+        ## monkey-patching of Calendar.search (e.g. the search-cache delay for
+        ## servers with lazy search indexes) is respected.  This mirrors the
+        ## pattern used in get_todos() and get_events().
+        ##
+        ## search(uid=...) does substring matching on the server side, so we
+        ## apply an exact match filter afterwards to preserve the semantics of
+        ## this method (see testObjectByUID).
+        items_found = self.search(
+            uid=uid, comp_class=comp_class, xml=comp_filter, post_filter=True, _hacks="insist"
+        )
+        items_found = [o for o in items_found if o.id == uid]
 
         if not items_found:
             raise error.NotFoundError("%s not found on server" % uid)
