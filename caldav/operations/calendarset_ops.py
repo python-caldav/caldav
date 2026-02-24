@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from typing import Any
-from urllib.parse import quote
+from urllib.parse import quote, unquote, urlparse, urlunparse
 
 log = logging.getLogger("caldav")
 
@@ -183,6 +183,25 @@ def _find_calendar_by_id(
     return None
 
 
+def _quote_url_path(url: str) -> str:
+    """
+    Quote the path component of a URL to handle spaces and special characters.
+
+    Some servers (e.g., Zimbra) return URLs with unencoded spaces in the path.
+    This function ensures the path is properly percent-encoded.
+
+    Args:
+        url: URL string that may contain unencoded characters in path
+
+    Returns:
+        URL with properly encoded path
+    """
+    parsed = urlparse(url)
+    # quote the path, but unquote first to avoid double-encoding
+    quoted_path = quote(unquote(parsed.path), safe="/@")
+    return urlunparse(parsed._replace(path=quoted_path))
+
+
 def _extract_calendars_from_propfind_results(
     results: list[Any] | None,
 ) -> list[CalendarInfo]:
@@ -206,8 +225,8 @@ def _extract_calendars_from_propfind_results(
         if not is_calendar_resource(result.properties):
             continue
 
-        # Extract calendar info
-        url = result.href
+        # Extract calendar info - quote URL path to handle spaces
+        url = _quote_url_path(result.href)
         name = result.properties.get("{DAV:}displayname")
         cal_id = _extract_calendar_id_from_url(url)
 

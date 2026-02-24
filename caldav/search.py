@@ -29,6 +29,25 @@ TypesFactory = TypesFactory()
 _collation_to_caldav = collation_to_caldav
 
 
+def _is_not_defined_supported(features: Any, prop: str) -> bool:
+    """Check if is-not-defined search is supported for a specific property.
+
+    Checks the property-specific sub-feature (e.g. search.is-not-defined.category
+    or search.is-not-defined.dtend) if one is defined, otherwise falls back to
+    the parent search.is-not-defined feature.
+
+    The ``categories`` → ``category`` mapping exists because the feature is named
+    after the singular form while the iCalendar property is plural.
+    """
+    from .compatibility_hints import FeatureSet
+
+    feature_prop = "category" if prop == "categories" else prop
+    sub_feature = f"search.is-not-defined.{feature_prop}"
+    if sub_feature in FeatureSet.FEATURES:
+        return features.is_supported(sub_feature)
+    return features.is_supported("search.is-not-defined")
+
+
 # Property filter attribute names used for cloning searchers with modified filters
 _PROPERTY_FILTER_ATTRS = (
     "_property_filters",
@@ -229,13 +248,14 @@ class CalDAVSearcher(Searcher):
 
         ## Handle servers with broken component-type filtering (e.g., Bedework)
         comp_type_support = calendar.client.features.is_supported("search.comp-type", str)
-        if (
+        no_comp_filter = (
             (self.comp_class or self.todo or self.event or self.journal)
             and comp_type_support == "broken"
-            and not _hacks
             and post_filter is not False
-        ):
-            _hacks = "no_comp_filter"
+        )
+        if no_comp_filter:
+            if not _hacks:
+                _hacks = "no_comp_filter"
             post_filter = True
 
         ## Setting default value for post_filter
@@ -257,6 +277,29 @@ class CalDAVSearcher(Searcher):
             if not self.start or not self.end:
                 raise error.ReportError("can't expand without a date range")
 
+        ## special compatibility-case for servers that do not support text search at all
+        ## (e.g. purelymail where both i;octet and i;ascii-casemap collations are unsupported).
+        ## Remove all text-value filters and rely on client-side post_filter instead.
+        if (
+            not calendar.client.features.is_supported("search.text")
+            and self._property_filters
+            and post_filter is not False
+        ):
+            text_filter_props = [
+                prop for prop, op in self._property_operator.items() if op != "undef"
+            ]
+            if text_filter_props:
+                clone = self._clone_without_filters(text_filter_props)
+                objects = yield (
+                    SearchAction.RECURSIVE_SEARCH,
+                    (clone, calendar, server_expand, split_expanded, props, xml, None, None),
+                )
+                yield (
+                    SearchAction.RETURN,
+                    self.filter(objects, post_filter, split_expanded, server_expand),
+                )
+                return
+
         ## special compatbility-case for servers that does not
         ## support category search properly
         if (
@@ -274,6 +317,31 @@ class CalDAVSearcher(Searcher):
                 self.filter(objects, post_filter, split_expanded, server_expand),
             )
             return
+
+        ## special compatibility-case for servers that do not support is-not-defined
+        ## for specific properties (e.g. search.is-not-defined.category or .dtend)
+        if post_filter is not False:
+            undef_props_without_support = [
+                prop
+                for prop, op in self._property_operator.items()
+                if op == "undef" and not _is_not_defined_supported(calendar.client.features, prop)
+            ]
+            if undef_props_without_support:
+                clone = self._clone_without_filters(undef_props_without_support)
+                objects = yield (
+                    SearchAction.RECURSIVE_SEARCH,
+                    (clone, calendar, server_expand, split_expanded, props, xml, None, None),
+                )
+                yield (
+                    SearchAction.RETURN,
+                    self.filter(
+                        objects,
+                        post_filter=True,
+                        split_expanded=split_expanded,
+                        server_expand=server_expand,
+                    ),
+                )
+                return
 
         ## special compatibility-case for servers that do not support substring search
         if (
@@ -353,7 +421,8 @@ class CalDAVSearcher(Searcher):
             clone.expand = False
 
             if (
-                calendar.client.features.is_supported("search.text")
+                not no_comp_filter
+                and calendar.client.features.is_supported("search.text")
                 and calendar.client.features.is_supported("search.combined-is-logical-and")
                 and (
                     not calendar.client.features.is_supported(
@@ -439,6 +508,35 @@ class CalDAVSearcher(Searcher):
                 )
                 yield (SearchAction.RETURN, result)
                 return
+
+            ## If _hacks=="insist" and still no results despite having text property
+            ## filters, the server may not support text search (e.g. purelymail,
+            ## CCS with i;octet collation).  Retry without the text filters and rely
+            ## on client-side post_filter (which is guaranteed True in get_object_by_uid).
+            if not objects and _hacks == "insist" and self._property_filters:
+                non_undef_filters = [
+                    prop for prop, op in self._property_operator.items() if op != "undef"
+                ]
+                if non_undef_filters:
+                    clone = self._clone_without_filters(non_undef_filters)
+                    result = yield (
+                        SearchAction.RECURSIVE_SEARCH,
+                        (
+                            clone,
+                            calendar,
+                            server_expand,
+                            split_expanded,
+                            props,
+                            orig_xml,
+                            None,
+                            None,
+                        ),
+                    )
+                    yield (
+                        SearchAction.RETURN,
+                        self.filter(result, post_filter, split_expanded, server_expand),
+                    )
+                    return
 
         # Post-process: load objects
         obj2 = []

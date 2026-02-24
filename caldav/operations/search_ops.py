@@ -240,7 +240,15 @@ def _filter_search_results(
     result = []
     for o in objects:
         if searcher.expand or post_filter:
-            filtered = searcher.check_component(o, expand_only=not post_filter)
+            try:
+                filtered = searcher.check_component(o, expand_only=not post_filter)
+            except ValueError:
+                ## Server returned data with invalid recurrence structure
+                ## (e.g. after compatibility hacks stripped DURATION).
+                ## Include the object unfiltered rather than crashing.
+                filtered = [
+                    x for x in o.icalendar_instance.subcomponents if not isinstance(x, Timezone)
+                ]
             if not filtered:
                 continue
         else:
@@ -392,9 +400,10 @@ def _build_search_xml_query(
         raise error.ConsistencyError(f"unsupported comp class {comp_class} for search")
 
     # Special hack for bedework - no comp_filter, do client-side filtering
+    # Keep comp_class so the caller knows what type to filter for client-side
+    # and to prevent _search_with_comptypes from being triggered again
     if _hacks == "no_comp_filter":
         comp_filter = None
-        comp_class = None
 
     # Add property filters
     for property in searcher._property_operator:
