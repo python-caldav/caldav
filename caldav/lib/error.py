@@ -1,6 +1,9 @@
 #!/usr/bin/env python
 import logging
 from collections import defaultdict
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
+from typing import Optional
 
 from caldav import __version__
 
@@ -147,6 +150,85 @@ class RateLimitError(DAVError):
         super().__init__(url=url, reason=reason)
         self.retry_after = retry_after
         self.retry_after_seconds = retry_after_seconds
+
+
+def parse_retry_after(retry_after_header: str) -> Optional[float]:
+    """Parse a Retry-After header value into seconds from now.
+
+    Handles both the integer-seconds form (RFC 7231 §7.1.3) and the HTTP-date
+    form.  Returns None if the value cannot be parsed.
+    """
+    try:
+        return float(int(retry_after_header))
+    except ValueError:
+        pass
+    try:
+        retry_date = parsedate_to_datetime(retry_after_header)
+        now = datetime.now(timezone.utc)
+        return max(0.0, (retry_date - now).total_seconds())
+    except (ValueError, TypeError):
+        return None
+
+
+def compute_sleep_seconds(
+    retry_after_seconds: Optional[float],
+    default_sleep: Optional[int],
+    max_sleep: Optional[int],
+) -> Optional[float]:
+    """Compute the effective sleep duration for rate-limit handling.
+
+    Returns None when there is no usable duration (meaning the caller should
+    re-raise the RateLimitError rather than sleeping).
+
+    Args:
+        retry_after_seconds: Parsed seconds from server Retry-After header,
+            or None if the server did not provide one.
+        default_sleep: Fallback duration when retry_after_seconds is None.
+            None means no fallback; re-raise.
+        max_sleep: Hard cap on sleep duration.  None means no cap; 0 means
+            never sleep.
+    """
+    effective: Optional[float] = (
+        retry_after_seconds
+        if retry_after_seconds is not None
+        else (float(default_sleep) if default_sleep is not None else None)
+    )
+    if effective is None or effective <= 0:
+        return None
+    if max_sleep is not None:
+        effective = min(effective, float(max_sleep))
+    if effective <= 0:
+        return None
+    return effective
+
+
+def raise_if_rate_limited(
+    status_code: int,
+    url: str,
+    retry_after_header: Optional[str],
+) -> None:
+    """Raise RateLimitError when the response indicates rate limiting.
+
+    Raises for:
+    - Any 429 response (regardless of Retry-After presence)
+    - 503 responses that include a Retry-After header
+
+    Args:
+        status_code: HTTP status code from the response.
+        url: Request URL (included in exception for context).
+        retry_after_header: Raw Retry-After header value, or None.
+    """
+    if status_code not in (429, 503):
+        return
+    if status_code != 429 and retry_after_header is None:
+        return
+    retry_seconds = parse_retry_after(retry_after_header) if retry_after_header else None
+    raise RateLimitError(
+        url=url,
+        reason=f"Rate limited or service unavailable. Retry after: {retry_after_header}",
+        retry_after=retry_after_header,
+        retry_after_seconds=retry_seconds,
+    )
 
 
 exception_by_method: dict[str, DAVError] = defaultdict(lambda: DAVError)

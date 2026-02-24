@@ -8,12 +8,11 @@ for XML building and response parsing.
 For async code, use: from caldav import aio
 """
 
+import copy
 import logging
 import sys
 import time
 import warnings
-from datetime import datetime, timezone
-from email.utils import parsedate_to_datetime
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, Optional
 from urllib.parse import unquote
@@ -53,11 +52,12 @@ from caldav.compatibility_hints import FeatureSet
 from caldav.config import CONNKEYS  # noqa: F401
 from caldav.elements import cdav, dav
 from caldav.lib import error
-from caldav.lib.python_utilities import to_normal_str, to_wire
+from caldav.lib.python_utilities import to_wire
 from caldav.lib.url import URL
-from caldav.objects import log
 from caldav.requests import HTTPBearerAuth
 from caldav.response import BaseDAVResponse
+
+log = logging.getLogger("caldav")
 
 if sys.version_info < (3, 11):
     from typing_extensions import Self
@@ -86,6 +86,8 @@ environmental variables, a configuration file or test configuration.
 
 ## TODO: this is also declared in davclient.DAVClient.__init__(...)
 # Import CONNKEYS from config to avoid duplication
+
+from caldav.config import resolve_features as _resolve_features
 
 
 def _auto_url(
@@ -274,8 +276,7 @@ class DAVClient(BaseDAVClient):
 
         ## Deprecation TODO: give a warning, user should use get_davclient or auto_calendar instead.  Probably.
 
-        if isinstance(features, str):
-            features = getattr(caldav.compatibility_hints, features)
+        features = _resolve_features(features)
         self.features = FeatureSet(features)
         self.huge_tree = huge_tree
 
@@ -527,7 +528,7 @@ class DAVClient(BaseDAVClient):
             principal = client.get_principal()
             calendars = client.get_calendars(principal)
             for cal in calendars:
-                print(f"Calendar: {cal.name}")
+                print(f"Calendar: {cal.get_display_name()}")
         """
         from caldav.operations.calendarset_ops import (
             _extract_calendars_from_propfind_results as extract_calendars,
@@ -539,7 +540,9 @@ class DAVClient(BaseDAVClient):
         # Get calendar-home-set from principal
         calendar_home_url = self._get_calendar_home_set(principal)
         if not calendar_home_url:
-            return []
+            # Fall back to the principal URL as calendar home
+            # (some servers like GMX don't support calendar-home-set)
+            calendar_home_url = str(principal.url)
 
         # Make URL absolute if relative
         calendar_home_url = self._make_absolute_url(calendar_home_url)
@@ -956,18 +959,14 @@ class DAVClient(BaseDAVClient):
         except error.RateLimitError as e:
             if not self.rate_limit_handle:
                 raise
-            retry_after_seconds = (
-                e.retry_after_seconds
-                if e.retry_after_seconds is not None
-                else self.rate_limit_default_sleep
+            sleep_seconds = error.compute_sleep_seconds(
+                e.retry_after_seconds,
+                self.rate_limit_default_sleep,
+                self.rate_limit_max_sleep,
             )
-            if retry_after_seconds is None or retry_after_seconds <= 0:
+            if sleep_seconds is None:
                 raise
-            if self.rate_limit_max_sleep is not None:
-                retry_after_seconds = min(retry_after_seconds, self.rate_limit_max_sleep)
-            if retry_after_seconds <= 0:
-                raise
-            time.sleep(retry_after_seconds)
+            time.sleep(sleep_seconds)
             return self._sync_request(url, method, body, headers)
 
     def _sync_request(
@@ -980,24 +979,12 @@ class DAVClient(BaseDAVClient):
         """
         Sync HTTP request implementation with auth negotiation.
         """
-        headers = headers or {}
-
-        combined_headers = self.headers.copy()
-        combined_headers.update(headers or {})
-        if (body is None or body == "") and "Content-Type" in combined_headers:
-            del combined_headers["Content-Type"]
-
-        # objectify the url
-        url_obj = URL.objectify(url)
+        url_obj, combined_headers = self._prepare_request(url, method, body, headers)
 
         proxies = None
         if self.proxy is not None:
             proxies = {url_obj.scheme: self.proxy}
             log.debug("using proxy - %s" % (proxies))
-
-        log.debug(
-            f"sending request - method={method}, url={str(url_obj)}, headers={combined_headers}\nbody:\n{to_normal_str(body)}"
-        )
 
         r = self.session.request(
             method,
@@ -1014,54 +1001,16 @@ class DAVClient(BaseDAVClient):
         r_headers = CaseInsensitiveDict(r.headers)
 
         # Handle 429/503 responses: raise RateLimitError so the caller can decide whether to retry
-        if r.status_code in (429, 503):
-            retry_after_header: Optional[str] = r_headers.get("Retry-After")
-            retry_seconds: Optional[float] = None
-            if retry_after_header:
-                try:
-                    retry_seconds = int(retry_after_header)
-                except ValueError:
-                    try:
-                        retry_date = parsedate_to_datetime(retry_after_header)
-                        now = datetime.now(timezone.utc)
-                        retry_seconds = max(0.0, (retry_date - now).total_seconds())
-                    except (ValueError, TypeError):
-                        pass
-            if r.status_code == 429 or retry_after_header is not None:
-                raise error.RateLimitError(
-                    url=str(url_obj),
-                    reason=f"Rate limited or service unavailable. Retry after: {retry_after_header}",
-                    retry_after=retry_after_header,
-                    retry_after_seconds=retry_seconds,
-                )
+        error.raise_if_rate_limited(r.status_code, str(url_obj), r_headers.get("Retry-After"))
 
-        # Handle 401 responses for auth negotiation
-        if (
-            r.status_code == 401
-            and "WWW-Authenticate" in r_headers
-            and not self.auth
-            and self.username is not None
-            and self.password is not None  # Empty password OK, but None means not configured
-        ):
-            auth_types = self.extract_auth_types(r_headers["WWW-Authenticate"])
-            self.build_auth_object(auth_types)
-
-            if not self.auth:
-                raise NotImplementedError(
-                    "The server does not provide any of the currently "
-                    "supported authentication methods: basic, digest, bearer"
-                )
-
-            # Retry request with authentication
+        # Handle 401: negotiate auth then retry
+        if self._should_negotiate_auth(r.status_code, r_headers):
+            self._build_auth_from_401(r_headers["WWW-Authenticate"])
             return self._sync_request(url, method, body, headers)
 
         # Raise AuthorizationError for 401/403 after auth attempt
         if r.status_code in (401, 403):
-            try:
-                reason = r.reason
-            except AttributeError:
-                reason = "None given"
-            raise error.AuthorizationError(url=str(url_obj), reason=reason)
+            self._raise_authorization_error(str(url_obj), r)
 
         response = DAVResponse(r, self)
         return response
@@ -1102,29 +1051,34 @@ def get_calendars(**kwargs) -> list["Calendar"]:
     return _base_get_calendars(DAVClient, **kwargs)
 
 
-def get_calendar(**kwargs) -> Optional["Calendar"]:
+def get_calendar(**kwargs) -> "CalendarResult":
     """
     Get a single calendar from a CalDAV server.
 
     This is a convenience function for the common case where only one
-    calendar is needed. It returns the first matching calendar or None.
+    calendar is needed. Returns a CalendarResult that can be used as a
+    context manager.
 
     Args:
         Same as :func:`get_calendars`.
 
     Returns:
-        A single Calendar object, or None if no calendars found.
+        CalendarResult wrapping a Calendar object (or None if not found).
+        Use as context manager to auto-close the connection.
 
     Example::
 
         from caldav import get_calendar
 
-        calendar = get_calendar(calendar_name="Work", url="...", ...)
-        if calendar:
-            events = calendar.get_events()
+        with get_calendar(calendar_name="Work", url="...", ...) as calendar:
+            if calendar:
+                events = calendar.date_search(start=..., end=...)
     """
+    from caldav.base_client import CalendarResult
+
     calendars = _base_get_calendars(DAVClient, **kwargs)
-    return calendars[0] if calendars else None
+    calendar = calendars[0] if calendars else None
+    return CalendarResult(calendar, client=calendars.client)
 
 
 def get_davclient(**kwargs) -> Optional["DAVClient"]:

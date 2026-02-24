@@ -6,6 +6,8 @@ This module provides the core async CalDAV/WebDAV client functionality.
 For sync usage, see the davclient.py wrapper.
 """
 
+import asyncio
+import logging
 import sys
 from collections.abc import Mapping
 from types import TracebackType
@@ -57,9 +59,8 @@ from caldav.base_client import BaseDAVClient
 from caldav.base_client import get_davclient as _base_get_davclient
 from caldav.compatibility_hints import FeatureSet
 from caldav.lib import error
-from caldav.lib.python_utilities import to_normal_str, to_wire
+from caldav.lib.python_utilities import to_wire
 from caldav.lib.url import URL
-from caldav.objects import log
 from caldav.protocol.types import (
     CalendarQueryResult,
     PropfindResult,
@@ -77,6 +78,8 @@ from caldav.protocol.xml_parsers import (
 )
 from caldav.requests import HTTPBearerAuth
 from caldav.response import BaseDAVResponse
+
+log = logging.getLogger("caldav")
 
 if sys.version_info < (3, 11):
     from typing_extensions import Self
@@ -141,6 +144,9 @@ class AsyncDAVClient(BaseDAVClient):
         features: FeatureSet | dict | str | None = None,
         enable_rfc6764: bool = True,
         require_tls: bool = True,
+        rate_limit_handle: bool = False,
+        rate_limit_default_sleep: Optional[int] = None,
+        rate_limit_max_sleep: Optional[int] = None,
     ) -> None:
         """
         Initialize an async DAV client.
@@ -160,13 +166,19 @@ class AsyncDAVClient(BaseDAVClient):
             features: FeatureSet for server compatibility workarounds.
             enable_rfc6764: Enable RFC6764 DNS-based service discovery.
             require_tls: Require TLS for discovered services (security consideration).
+            rate_limit_handle: When True, automatically sleep and retry on 429/503
+                responses. When False (default), raise RateLimitError immediately.
+            rate_limit_default_sleep: Fallback sleep seconds when the server's 429
+                response omits a Retry-After header. None (default) means raise
+                rather than sleeping when no Retry-After is provided.
+            rate_limit_max_sleep: Cap on sleep duration in seconds regardless of
+                server's Retry-After value. None (default) means no cap.
         """
         headers = headers or {}
 
-        if isinstance(features, str):
-            import caldav.compatibility_hints
+        from caldav.config import resolve_features
 
-            features = getattr(caldav.compatibility_hints, features)
+        features = resolve_features(features)
         if isinstance(features, FeatureSet):
             self.features = features
         else:
@@ -245,6 +257,10 @@ class AsyncDAVClient(BaseDAVClient):
             "User-Agent": f"caldav-async/{__version__}",
         }
         self.headers.update(headers)
+
+        self.rate_limit_handle = rate_limit_handle
+        self.rate_limit_default_sleep = rate_limit_default_sleep
+        self.rate_limit_max_sleep = rate_limit_max_sleep
 
     def _create_session(self) -> None:
         """Create or recreate the async HTTP client with current settings."""
@@ -325,30 +341,41 @@ class AsyncDAVClient(BaseDAVClient):
         headers: Mapping[str, str] | None = None,
     ) -> AsyncDAVResponse:
         """
-        Send an async HTTP request.
+        Send an async HTTP request, with optional rate-limit sleep-and-retry.
 
-        Args:
-            url: Request URL.
-            method: HTTP method.
-            body: Request body.
-            headers: Additional headers.
-
-        Returns:
-            AsyncDAVResponse object.
+        Catches RateLimitError from _async_request. When rate_limit_handle is
+        True and a usable sleep duration is available, sleeps then retries once.
+        Otherwise re-raises immediately.
         """
-        headers = headers or {}
+        try:
+            return await self._async_request(url, method, body, headers)
+        except error.RateLimitError as e:
+            if not self.rate_limit_handle:
+                raise
+            sleep_seconds = error.compute_sleep_seconds(
+                e.retry_after_seconds,
+                self.rate_limit_default_sleep,
+                self.rate_limit_max_sleep,
+            )
+            if sleep_seconds is None:
+                raise
+            await asyncio.sleep(sleep_seconds)
+            return await self._async_request(url, method, body, headers)
 
-        combined_headers = self.headers.copy()
-        combined_headers.update(headers)
-        if (body is None or body == "") and "Content-Type" in combined_headers:
-            del combined_headers["Content-Type"]
+    async def _async_request(
+        self,
+        url: str,
+        method: str = "GET",
+        body: str = "",
+        headers: Mapping[str, str] | None = None,
+    ) -> AsyncDAVResponse:
+        """
+        Async HTTP request implementation with auth negotiation.
 
-        # Objectify the URL
-        url_obj = URL.objectify(url)
-
-        log.debug(
-            f"sending request - method={method}, url={str(url_obj)}, headers={combined_headers}\nbody:\n{to_normal_str(body)}"
-        )
+        Handles connection-abort workaround, 429/503 rate-limit detection,
+        and 401 auth negotiation (including HTTP/2 fallback).
+        """
+        url_obj, combined_headers = self._prepare_request(url, method, body, headers)
 
         # Build request kwargs - different for httpx vs niquests
         if _USE_HTTPX:
@@ -437,71 +464,32 @@ class AsyncDAVClient(BaseDAVClient):
                 r = await self.session.request(**request_kwargs)
             response = AsyncDAVResponse(r, self)
 
-        # Handle 401 responses for auth negotiation (after try/except)
-        # This matches the original sync client's auth negotiation logic
-        # httpx headers are already case-insensitive
-        if (
-            r.status_code == 401
-            and "WWW-Authenticate" in r.headers
-            and not self.auth
-            and self.username is not None
-            and self.password is not None  # Empty password OK, but None means not configured
-        ):
-            auth_types = self.extract_auth_types(r.headers["WWW-Authenticate"])
-            self.build_auth_object(auth_types)
+        # Handle 429/503 rate-limit responses
+        error.raise_if_rate_limited(r.status_code, str(url_obj), r.headers.get("Retry-After"))
 
-            if not self.auth:
-                raise NotImplementedError(
-                    "The server does not provide any of the currently "
-                    "supported authentication methods: basic, digest, bearer"
-                )
-
-            # Retry request with authentication
-            return await self.request(url, method, body, headers)
+        # Handle 401: negotiate auth then retry
+        if self._should_negotiate_auth(r.status_code, r.headers):
+            self._build_auth_from_401(r.headers["WWW-Authenticate"])
+            return await self._async_request(url, method, body, headers)
 
         elif (
             r.status_code == 401
             and "WWW-Authenticate" in r.headers
             and self.auth
-            and self.password
-            and isinstance(self.password, bytes)
+            and self.features.is_supported("http.multiplexing", return_defaults=False) is None
         ):
-            # Handle HTTP/2 issue (matches original sync client)
-            # Most likely wrong username/password combo, but could be an HTTP/2 problem
-            if self.features.is_supported("http.multiplexing", return_defaults=False) is None:
-                await self.close()  # Uses correct close method for httpx/niquests
-                self._http2 = False
-                self._create_session()
-                # Set multiplexing to False BEFORE retry to prevent infinite loop
-                # If the retry succeeds, this was the right choice
-                # If it also fails with 401, it's not a multiplexing issue but an auth issue
-                self.features.set_feature("http.multiplexing", False)
-                # If this one also fails, we give up
-                ret = await self.request(str(url_obj), method, body, headers)
-                return ret
+            # Handle HTTP/2 multiplexing issue: most likely wrong username/password, but could
+            # be an HTTP/2 problem.  Retry with HTTP/2 disabled if multiplexing was auto-detected.
+            await self.close()
+            self._http2 = False
+            self._create_session()
+            # Set multiplexing to False BEFORE retry to prevent infinite loop
+            self.features.set_feature("http.multiplexing", False)
+            return await self._async_request(str(url_obj), method, body, headers)
 
-            # Most likely we're here due to wrong username/password combo,
-            # but it could also be charset problems. Some (ancient) servers
-            # don't like UTF-8 binary auth with Digest authentication.
-            # An example are old SabreDAV based servers. Not sure about UTF-8
-            # and Basic Auth, but likely the same. So retry if password is
-            # a bytes sequence and not a string.
-            auth_types = self.extract_auth_types(r.headers["WWW-Authenticate"])
-            self.password = self.password.decode()
-            self.build_auth_object(auth_types)
-
-            self.username = None
-            self.password = None
-
-            return await self.request(str(url_obj), method, body, headers)
-
-        # Raise AuthorizationError for 401/403 responses (matches original sync client)
+        # Raise AuthorizationError for 401/403 responses
         if response.status in (401, 403):
-            try:
-                reason = response.reason
-            except AttributeError:
-                reason = "None given"
-            raise error.AuthorizationError(url=str(url_obj), reason=reason)
+            self._raise_authorization_error(str(url_obj), response)
 
         return response
 
@@ -936,7 +924,7 @@ class AsyncDAVClient(BaseDAVClient):
             principal = await client.get_principal()
             calendars = await client.get_calendars(principal)
             for cal in calendars:
-                print(f"Calendar: {cal.name}")
+                print(f"Calendar: {cal.get_display_name()}")
         """
         from caldav.collection import Calendar
         from caldav.operations.calendarset_ops import (

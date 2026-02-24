@@ -7,14 +7,20 @@ functionality for both sync (DAVClient) and async (AsyncDAVClient) clients.
 
 from __future__ import annotations
 
+import logging
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any
+from collections.abc import Mapping
+from typing import TYPE_CHECKING, Any, NoReturn
 
 from caldav.lib import error
 from caldav.lib.auth import extract_auth_types, select_auth_type
+from caldav.lib.python_utilities import to_normal_str
+from caldav.lib.url import URL
 
 if TYPE_CHECKING:
     from caldav.compatibility_hints import FeatureSet
+
+log = logging.getLogger("caldav")
 
 
 class BaseDAVClient(ABC):
@@ -127,6 +133,66 @@ class BaseDAVClient(ABC):
 
         return auth_type
 
+    def _prepare_request(
+        self,
+        url: str,
+        method: str,
+        body: str,
+        headers: Mapping[str, str] | None,
+    ) -> tuple[URL, dict]:
+        """Combine headers, strip Content-Type for empty bodies, objectify URL, and log.
+
+        Returns:
+            (url_obj, combined_headers) ready to pass to the HTTP library.
+        """
+        headers = headers or {}
+        combined_headers = self.headers.copy()
+        combined_headers.update(headers)
+        if (body is None or body == "") and "Content-Type" in combined_headers:
+            del combined_headers["Content-Type"]
+        url_obj = URL.objectify(url)
+        log.debug(
+            f"sending request - method={method}, url={str(url_obj)}, "
+            f"headers={combined_headers}\nbody:\n{to_normal_str(body)}"
+        )
+        return url_obj, combined_headers
+
+    def _should_negotiate_auth(self, status_code: int, headers: Any) -> bool:
+        """Return True when a 401 response warrants auth negotiation.
+
+        True when: status is 401, WWW-Authenticate header present, no auth
+        object yet, and credentials are configured.
+        """
+        return (
+            status_code == 401
+            and "WWW-Authenticate" in headers
+            and not self.auth
+            and self.username is not None
+            and self.password is not None
+        )
+
+    def _build_auth_from_401(self, www_authenticate: str) -> None:
+        """Build auth object from a WWW-Authenticate header value.
+
+        Raises:
+            NotImplementedError: If the server offers no supported auth method.
+        """
+        auth_types = self.extract_auth_types(www_authenticate)
+        self.build_auth_object(auth_types)
+        if not self.auth:
+            raise NotImplementedError(
+                "The server does not provide any of the currently "
+                "supported authentication methods: basic, digest, bearer"
+            )
+
+    def _raise_authorization_error(self, url_str: str, reason_source: Any) -> NoReturn:
+        """Raise AuthorizationError, extracting reason from reason_source.reason."""
+        try:
+            reason = reason_source.reason
+        except AttributeError:
+            reason = "None given"
+        raise error.AuthorizationError(url=url_str, reason=reason)
+
     @abstractmethod
     def build_auth_object(self, auth_types: list[str] | None = None) -> None:
         """
@@ -139,6 +205,123 @@ class BaseDAVClient(ABC):
             auth_types: List of acceptable auth types from server.
         """
         pass
+
+
+class CalendarCollection(list):
+    """
+    A list of calendars that can be used as a context manager.
+
+    This class extends list to provide automatic cleanup of the underlying
+    DAV client connection when used with a `with` statement.
+
+    Example::
+
+        from caldav import get_calendars
+
+        # As context manager (recommended) - auto-closes connection
+        with get_calendars(url="...", username="...", password="...") as calendars:
+            for cal in calendars:
+                print(cal.get_display_name())
+
+        # Without context manager - must close manually
+        calendars = get_calendars(url="...", username="...", password="...")
+        # ... use calendars ...
+        if calendars:
+            calendars[0].client.close()
+    """
+
+    def __init__(self, calendars: list | None = None, client: Any = None):
+        super().__init__(calendars or [])
+        self._client = client
+
+    @property
+    def client(self):
+        """The underlying DAV client, if available."""
+        if self._client:
+            return self._client
+        # Fall back to getting client from first calendar
+        if self:
+            return self[0].client
+        return None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+        return False
+
+    def close(self):
+        """Close the underlying DAV client connection."""
+        if self._client:
+            self._client.close()
+        elif self:
+            self[0].client.close()
+
+
+class CalendarResult:
+    """
+    A single calendar result that can be used as a context manager.
+
+    This wrapper holds a single Calendar (or None) and provides automatic
+    cleanup of the underlying DAV client connection when used with a
+    `with` statement.
+
+    Example::
+
+        from caldav import get_calendar
+
+        # As context manager (recommended) - auto-closes connection
+        with get_calendar(calendar_name="Work", url="...") as calendar:
+            if calendar:
+                events = calendar.date_search(start=..., end=...)
+
+        # Without context manager
+        result = get_calendar(calendar_name="Work", url="...")
+        calendar = result.calendar  # or just use result directly
+        # ... use calendar ...
+        result.close()
+    """
+
+    def __init__(self, calendar: Any = None, client: Any = None):
+        self._calendar = calendar
+        self._client = client
+
+    @property
+    def calendar(self):
+        """The calendar, or None if not found."""
+        return self._calendar
+
+    @property
+    def client(self):
+        """The underlying DAV client."""
+        if self._client:
+            return self._client
+        if self._calendar:
+            return self._calendar.client
+        return None
+
+    def __enter__(self):
+        return self._calendar
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+        return False
+
+    def close(self):
+        """Close the underlying DAV client connection."""
+        client = self.client
+        if client:
+            client.close()
+
+    # Allow using the result directly as if it were the calendar
+    def __bool__(self):
+        return self._calendar is not None
+
+    def __getattr__(self, name):
+        if self._calendar is None:
+            raise AttributeError(f"No calendar found, cannot access '{name}'")
+        return getattr(self._calendar, name)
 
 
 def _normalize_to_list(obj: Any) -> list:
@@ -162,13 +345,16 @@ def get_calendars(
     name: str | None = None,
     raise_errors: bool = False,
     **config_data,
-) -> list[Calendar]:
+) -> CalendarCollection:
     """
     Get calendars from a CalDAV server with configuration from multiple sources.
 
     This function creates a client, connects to the server, and returns
     calendar objects based on the specified criteria. Configuration is read
     from various sources (explicit parameters, environment variables, config files).
+
+    The returned CalendarCollection can be used as a context manager to ensure
+    the underlying connection is properly closed.
 
     Args:
         client_class: The client class to use (DAVClient or AsyncDAVClient).
@@ -187,22 +373,20 @@ def get_calendars(
         **config_data: Connection parameters (url, username, password, etc.)
 
     Returns:
-        List of Calendar objects matching the criteria.
+        CalendarCollection of Calendar objects matching the criteria.
         If no calendar_url or calendar_name specified, returns all calendars.
 
     Example::
 
-        from caldav import DAVClient
-        from caldav.base_client import get_calendars
+        from caldav import get_calendars
 
-        # Get all calendars
-        calendars = get_calendars(DAVClient, url="https://...", username="...", password="...")
+        # As context manager (recommended)
+        with get_calendars(url="https://...", username="...", password="...") as calendars:
+            for cal in calendars:
+                print(cal.get_display_name())
 
-        # Get specific calendars by name
-        calendars = get_calendars(DAVClient, calendar_name=["Work", "Personal"], ...)
-
-        # Get specific calendar by URL or ID
-        calendars = get_calendars(DAVClient, calendar_url="/calendars/user/work/", ...)
+        # Without context manager - connection closed on garbage collection
+        calendars = get_calendars(url="https://...", username="...", password="...")
     """
     import logging
 
@@ -236,12 +420,12 @@ def get_calendars(
     if client is None:
         if raise_errors:
             raise ValueError("Could not create DAV client - no configuration found")
-        return []
+        return CalendarCollection()
 
     # Get principal
     principal = _try(client.principal, {}, "getting principal")
     if not principal:
-        return []
+        return CalendarCollection(client=client)
 
     calendars = []
     calendar_urls = _normalize_to_list(calendar_url)
@@ -274,7 +458,7 @@ def get_calendars(
         if all_cals:
             calendars = all_cals
 
-    return calendars
+    return CalendarCollection(calendars, client=client)
 
 
 def get_davclient(
