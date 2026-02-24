@@ -8,6 +8,28 @@ TODO: it should probably be split with the "feature definitions",
 "server implementation details" and "feature database logic" in three separate files.
 """
 import copy
+import warnings
+
+# Valid support levels for features
+VALID_SUPPORT_LEVELS = frozenset({
+    "full",        # Feature works as expected
+    "unsupported", # Feature not available (may be silently ignored)
+    "fragile",     # Sometimes works, sometimes not
+    "quirk",       # Supported but needs special handling
+    "broken",      # Server does unexpected things
+    "ungraceful",  # Server throws errors (actually most graceful for error handling)
+    "unknown",     # Not yet tested/determined
+})
+
+## TODO: this file should probably be split in two (or three) as there
+## are three different concerns in this file - the "feature
+## definitions", some code logic, and the "database" of known server
+## implementation compatibilities.
+
+## TODO: Lots of silly comments in the compatibility matrixes now as I
+## at one point managed to check out the wrong version of the
+## caldav_server_checker, and things got messy from there.  We should
+## double-check the values where there is any doubt, and clean up.
 
 ## NEW STYLE
 ## (we're gradually moving stuff from the good old
@@ -35,6 +57,8 @@ class FeatureSet:
      * server-observation - not features, but other facts found about the server
      * server-feature - some feature (preferably rooted with a pointer to some specific section of the RFC)
        * "support" -> "quirk" if we have a server-peculiarity where it's needed with special care to get the request through.
+
+    IMPORTANT NOTE: The dotted format sort of represents a hierarchy - say, one may have foo.bar and foo.zoo.  If foo has an explicit default given in the FEATURES below, it will be considered an independent feature, otherwise it will be considered to only exist to group bar and zoo together.  This matters if bar and zoo is not supported.  Without an explicit default below, the default for foo will also be "unsupported".
     """
     FEATURES = {
         "auto-connect": {
@@ -77,6 +101,7 @@ class FeatureSet:
             "description": "Deleting a calendar does not delete the objects, or perhaps create/delete of calendars does not work at all.  For each test run, every calendar resource object should be deleted for every test run",
         },
         "create-calendar": {
+            "default": { "support": "full" },
             "description": "RFC4791 says that \"support for MKCALENDAR on the server is only RECOMMENDED and not REQUIRED because some calendar stores only support one calendar per user (or principal), and those are typically pre-created for each account\".  Hence a conformant server may opt to not support creating calendars, this is often seen for cloud services (some services allows extra calendars to be made, but not through the CalDAV protocol).  (RFC4791 also says that the server MAY support MKCOL in section 8.5.2.  I do read it as MKCOL may be used for creating calendars - which is weird, since section 8.5.2 is titled \"external attachments\".  We should consider testing this as well)",
         },
         "create-calendar.auto": {
@@ -102,12 +127,18 @@ class FeatureSet:
         },
         "save-load.event": {"description": "it's possible to save and load events to the calendar"},
         "save-load.event.recurrences": {"description": "it's possible to save and load recurring events to the calendar - events with an RRULE property set, including recurrence sets"},
-        "save-load.event.recurrences.count": {"description": "The server will receive and store a recurring event with a count set in the RRULE"},
+        "save-load.event.recurrences.count": {"description": "The server will receive and store a recurring event with a count set in the RRULE", "default": {"support": "full"}},
         "save-load.todo": {"description": "it's possible to save and load tasks to the calendar"},
         "save-load.todo.recurrences": {"description": "it's possible to save and load recurring tasks to the calendar"},
-        "save-load.todo.recurrences.count": {"description": "The server will receive and store a recurring task with a count set in the RRULE"},
-        "save-load.todo.mixed-calendar": {"description": "The same calendar may contain both events and tasks (Zimbra only allows tasks to be placed on special task lists)"},
+        "save-load.todo.recurrences.count": {"description": "The server will receive and store a recurring task with a count set in the RRULE", "default": {"support": "full"}},
+        "save-load.todo.recurrences.thisandfuture": {"description": "Completing a recurring task with rrule_mode='thisandfuture' works (modifies RRULE and saves back to server)", "default": {"support": "full"}},
+        "save-load.todo.mixed-calendar": {"description": "The same calendar may contain both events and tasks (Zimbra only allows tasks to be placed on special task lists)", "default": {"support": "full"}},
         "save-load.journal": {"description": "The server will even accept journals"},
+        ## TODO: zimbra cannot mix events and tasks, but then davis surprised me by not allowing journals on the same calendar.  But this may be a miss in the checking script - it may be that mixing is allowed, but that the calendar has to be set up from scratch with explicit support for both VJOURNAL and other things
+        "save-load.journal.mixed-calendar": {"description": "The same calendar may contain events, tasks and journals (some servers require journals on a dedicated VJOURNAL calendar)", "default": {"support": "full"}},
+        "save-load.get-by-url": {
+            "description": "GET requests to calendar object resource URLs work correctly. When unsupported, the server returns 404 on GET even for valid object URLs. The client works around this by falling back to UID-based lookup.",
+        },
         "save-load.reuse-deleted-uid": {
             "description": "After deleting an event, the server allows creating a new event with the same UID. When 'broken', the server keeps deleted events in a trashbin with a soft-delete flag, causing unique constraint violations on UID reuse. See https://github.com/nextcloud/server/issues/30096"
         },
@@ -121,6 +152,7 @@ class FeatureSet:
             "description": "In all the search examples in the RFC, comptype is given during a search, the client specifies if it's event or tasks or journals that is wanted.  However, as I read the RFC this is not required.  If omitted, the server should deliver all objects.  Many servers will not return anything if the COMPTYPE filter is not set.  Other servers will return 404"
         },
         "search.comp-type": {
+            "type": "server-peculiarity",
             "description": "Server correctly filters calendar-query results by component type. When 'broken', server may misclassify component types (e.g., returning TODOs when VEVENTs are requested). The library will perform client-side filtering to work around this issue",
             "default": {"support": "full"}
         },
@@ -132,12 +164,21 @@ class FeatureSet:
             "description": "Time-range searches should only return events/todos that actually fall within the requested time range. Some servers incorrectly return recurring events whose recurrences fall outside (after) the search interval, or events with no recurrences in the requested time range at all. RFC4791 section 9.9 specifies that a VEVENT component overlaps a time range if the condition (start < search_end AND end > search_start) is true.",
             "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-9.9"],
         },
-        "search.time-range.todo": {"description": "basic time range searches for tasks works"},
-        "search.time-range.event": {"description": "basic time range searches for event works"},
+        "search.time-range.todo": {"description": "basic time range searches for tasks works", "default": {"support": "full"}},
+        "search.time-range.todo.old-dates": {"description": "time range searches for tasks with old dates (e.g. year 2000) work - some servers enforce a min-date-time restriction"},
+        "search.time-range.event": {"description": "basic time range searches for event works", "default": {"support": "full"}},
+        "search.time-range.event.old-dates": {"description": "time range searches for events with old dates (e.g. year 2000) work - some servers enforce a min-date-time restriction"},
         "search.time-range.journal": {"description": "basic time range searches for journal works"},
         "search.time-range.alarm": {"description": "Time range searches for alarms work. The server supports searching for events based on when their alarms trigger, as specified in RFC4791 section 9.9"},
         "search.is-not-defined": {
-            "description": "Supports searching for objects where properties is-not-defined according to rfc4791 section 9.7.4"
+            "description": "Supports searching for objects where properties is-not-defined according to rfc4791 section 9.7.4",
+            "default": {"support": "full"}
+        },
+        "search.is-not-defined.category": {
+            "description": "Supports searching for objects where the CATEGORIES property is not defined (RFC4791 section 9.7.4). Some servers support is-not-defined for other properties (e.g. CLASS) but silently return wrong results or nothing when applied to CATEGORIES"
+        },
+        "search.is-not-defined.dtend": {
+            "description": "Supports searching for objects where the DTEND property is not defined (RFC4791 section 9.7.4). Some servers support is-not-defined for some properties but not DTEND"
         },
         "search.text": {
             "description": "Search for text attributes should work"
@@ -170,7 +211,8 @@ class FeatureSet:
             "description": "tasks can also be recurring"
         },
         "search.recurrences.includes-implicit.todo.pending": {
-            "description": "a future recurrence of a pending task should always be pending and appear in searches for pending tasks"
+            "description": "a future recurrence of a pending task should always be pending and appear in searches for pending tasks",
+            "default": {"support": "full"},
         },
         "search.recurrences.includes-implicit.event": {
             "description": "support for events"
@@ -305,7 +347,16 @@ class FeatureSet:
             if feature == 'old_flags':
                 self._old_flags = feature_set[feature]
                 continue
-            feature_info = self.find_feature(feature)
+            try:
+                feature_info = self.find_feature(feature)
+            except (AssertionError, KeyError):
+                warnings.warn(
+                    f"Unknown feature '{feature}' in configuration. "
+                    "This might be a typo. Check caldav/compatibility_hints.py for valid features.",
+                    UserWarning,
+                    stacklevel=3,
+                )
+                feature_info = {}
             value = feature_set[feature]
             if feature not in self._server_features:
                 self._server_features[feature] = {}
@@ -313,13 +364,26 @@ class FeatureSet:
             if isinstance(value, bool):
                 server_node['support'] = "full" if value else "unsupported"
             elif isinstance(value, str) and 'support' not in server_node:
+                self._validate_support_level(value, feature)
                 server_node['support'] = value
             elif isinstance(value, dict):
+                if 'support' in value:
+                    self._validate_support_level(value['support'], feature)
                 server_node.update(value)
             else:
                 assert False
         if collapse:
             self.collapse()
+
+    def _validate_support_level(self, level, feature_name):
+        """Validate that a support level is valid, warn if not."""
+        if level not in VALID_SUPPORT_LEVELS:
+            warnings.warn(
+                f"Feature '{feature_name}' has invalid support level '{level}'. "
+                f"Valid levels: {', '.join(sorted(VALID_SUPPORT_LEVELS))}",
+                UserWarning,
+                stacklevel=4,
+            )
 
     def _collapse_key(self, feature_dict):
         """
@@ -414,16 +478,28 @@ class FeatureSet:
         while True:
             if feature_ in self._server_features:
                 return self._convert_node(self._server_features[feature_], feature_info, return_type, accept_fragile)
+            # Try deriving status from subfeatures at this level
+            current_info = feature_info if feature_ == feature else self.find_feature(feature_)
+            if 'default' not in current_info:
+                derived = self._derive_from_subfeatures(feature_, current_info, return_type, accept_fragile)
+                if derived is not None:
+                    return derived
             if '.' not in feature_:
                 if not return_defaults:
                     return None
-                # Before returning default, check if we have subfeatures with explicit values
-                # If subfeatures exist and have mixed support levels, we should derive the parent status
-                derived = self._derive_from_subfeatures(feature_, feature_info, return_type, accept_fragile)
-                if derived is not None:
-                    return derived
+                # For features WITHOUT an explicit default (i.e. pure grouping features),
+                # derive status from subfeatures.  Features WITH a default represent
+                # independent capabilities and their default should not be overridden
+                # by subfeature statuses (e.g. create-calendar is supported even if
+                # create-calendar.set-displayname is not).
+                if 'default' not in feature_info:
+                    derived = self._derive_from_subfeatures(feature_, feature_info, return_type, accept_fragile)
+                    if derived is not None:
+                        return derived
                 return self._convert_node(self._default(feature_info), feature_info, return_type, accept_fragile)
             feature_ = feature_[:feature_.rfind('.')]
+
+    _POSITIVE_STATUSES = frozenset({'full', 'quirk'})
 
     def _derive_from_subfeatures(self, feature, feature_info, return_type, accept_fragile=False):
         """
@@ -431,31 +507,35 @@ class FeatureSet:
 
         Logic:
         - Only consider subfeatures WITHOUT explicit defaults (those are independent features)
-        - If all relevant subfeatures have the same status → use that status
-        - If subfeatures have mixed statuses → return "unknown"
-          (since we can't definitively determine the parent's status)
+        - If ANY relevant subfeature has a positive status (full/quirk) → derive as that status
+          (any support means the parent has some support)
+        - If ALL relevant subfeatures are set AND all have the same negative status → use that status
+        - If only a PARTIAL set of subfeatures is configured with all negative statuses →
+          return None (incomplete information, fall through to default)
+        - Mixed statuses (some positive, some negative) → "unknown"
 
-        Returns None if no relevant subfeatures are explicitly set.
+        Returns None if no relevant subfeatures are explicitly set or if
+        derivation is inconclusive due to partial information.
         """
         if 'subfeatures' not in feature_info or not feature_info['subfeatures']:
             return None
 
-        # Collect statuses from explicitly set subfeatures (excluding independent ones)
+        # Count relevant subfeatures (those without explicit defaults) and collect statuses
+        total_relevant = 0
         subfeature_statuses = []
         for sub in feature_info['subfeatures']:
             subfeature_key = f"{feature}.{sub}"
-            if subfeature_key in self._server_features:
-                # Skip subfeatures with explicit defaults - they represent independent behaviors
-                # not hierarchical components of the parent feature
-                try:
-                    subfeature_info = self.find_feature(subfeature_key)
-                    if 'default' in subfeature_info:
-                        # This subfeature has an explicit default, meaning it's independent
-                        continue
-                except:
-                    # If we can't find the feature info, include it conservatively
-                    pass
+            # Skip subfeatures with explicit defaults - they represent independent behaviors
+            try:
+                subfeature_info = self.find_feature(subfeature_key)
+                if 'default' in subfeature_info:
+                    continue
+            except:
+                pass
 
+            total_relevant += 1
+
+            if subfeature_key in self._server_features:
                 sub_dict = self._server_features[subfeature_key]
                 # Extract the support level (or enable/behaviour/observed)
                 status = sub_dict.get('support', sub_dict.get('enable', sub_dict.get('behaviour', sub_dict.get('observed'))))
@@ -466,13 +546,26 @@ class FeatureSet:
         if not subfeature_statuses:
             return None
 
-        # Check if all subfeatures have the same status
-        if all(status == subfeature_statuses[0] for status in subfeature_statuses):
-            # All same - use that status
+        has_positive = any(s in self._POSITIVE_STATUSES for s in subfeature_statuses)
+        all_same = all(s == subfeature_statuses[0] for s in subfeature_statuses)
+        is_complete = len(subfeature_statuses) >= total_relevant
+
+        if has_positive:
+            if all_same:
+                derived_status = subfeature_statuses[0]
+            else:
+                # Mixed positive/negative → unknown
+                derived_status = 'unknown'
+        elif is_complete and all_same:
+            # All relevant subfeatures set, all the same negative status
             derived_status = subfeature_statuses[0]
-        else:
-            # Mixed statuses - we don't have complete/consistent information
+        elif is_complete:
+            # All relevant subfeatures set, mixed non-positive statuses
             derived_status = 'unknown'
+        else:
+            # Partial set with only non-positive statuses → inconclusive,
+            # the unset siblings might have different (positive) status
+            return None
 
         # Create a node dict with the derived status
         derived_node = {'support': derived_status}
@@ -776,7 +869,10 @@ xandikos_v0_3 = {
 }
 
 xandikos_main = xandikos_v0_3.copy()
-xandikos_main.pop('search.recurrences.expanded.todo')
+## woot ... a regression?
+## xandikos did support freebusy-query.rfc4791 for a while, now it trips on a traceback
+## TODO: do research into this and report
+#xandikos_main.pop('freebusy-query.rfc4791')
 
 xandikos = xandikos_main
 
@@ -784,13 +880,12 @@ xandikos = xandikos_main
 ## There is much development going on at Radicale as of summar 2025,
 ## so I'm expecting this list to shrink a lot soon.
 radicale = {
-    "search.text.case-sensitive":  {"support": "unsupported"},
-    "search.is-not-defined": {"support": "fragile", "behaviour": "seems to work for categories but not for dtend"},
+    "search.is-not-defined": {"support": "full"},
+    "search.text.case-sensitive": {"support": "unsupported"},
     "search.recurrences.includes-implicit.todo.pending": {"support": "fragile", "behaviour": "inconsistent results between runs"},
     "search.recurrences.expanded.todo": {"support": "unsupported"},
     "search.recurrences.expanded.exception": {"support": "unsupported"},
-    'principal-search': {'support': 'unknown', 'behaviour': 'No display name available - cannot test'},
-    'principal-search.list-all': {'support': 'unsupported'},
+    "principal-search": {"support": "unsupported"},
     ## this only applies for very simple installations
     "auto-connect.url": {"domain": "localhost", "scheme": "http", "basepath": "/"},
     ## freebusy is not supported yet, but on the long-term road map
@@ -814,7 +909,7 @@ nextcloud = {
     'auto-connect.url': {
         'basepath': '/remote.php/dav',
     },
-    'search.combined-is-logical-and': {'support': 'unsupported'},
+    ## I'm surprised, I'm quite sure this was reported ungraceful earlier.  Passed with caldav commit a98d50490b872e9b9d8e93e2e401c936ad193003, caldav server checker commit 3cae24cf99da1702b851b5a74a9b88c8e5317dad 2026-02-15.  The commit 3cae24cf99da1702b851b5a74a9b88c8e5317dad was however development done on the wrong branch and has been force-pushed awway.  It was again observed ungraceful at commits be26d42b1ca3ff3b4fd183761b4a9b024ce12b84 / 537a23b145487006bb987dee5ab9e00cdebb0492
     'search.comp-type-optional': {'support': 'ungraceful'},
     'search.recurrences.expanded.todo': {'support': 'unsupported'},
     'search.recurrences.expanded.exception': {'support': 'unsupported'}, ## TODO: verify
@@ -827,13 +922,17 @@ nextcloud = {
     },
     'search.recurrences.includes-implicit.todo': {'support': 'unsupported'},
     #'save-load.todo.mixed-calendar': {'support': 'unsupported'}, ## Why?  It started complaining about this just recently.
-    'principal-search.by-name': {'support': 'unsupported'},
-    'principal-search.list-all': {'support': 'ungraceful'},
+    'principal-search.by-name.self': {'support': 'unsupported'},
+    'principal-search': {'support': 'ungraceful'},
     'old_flags': ['unique_calendar_ids'],
+    ## I'm surprised, I'm quite sure this was passing earlier.  Caldav commit a98d50490b872e9b9d8e93e2e401c936ad193003, caldav server checker commit 3cae24cf99da1702b851b5a74a9b88c8e5317dad
+    'search.combined-is-logical-and': False
 }
 
 ## TODO: Latest - mismatch between config and test script in delete-calendar.free-namespace ... and create-calendar.set-displayname?
 ecloud = nextcloud | {
+    #'search.is-not-defined': {'support': 'unsupported'}, ## observed to work at 4bc0de765a2b53e6f223e0b9ac51c653bac11fb7 (caldav) / 3cae24cf99da1702b851b5a74a9b88c8e5317dad (server checker)
+    #'search.text.case-sensitive': {'support': 'unsupported'}, ## observed to work at 4bc0de765a2b53e6f223e0b9ac51c653bac11fb7 (caldav) / 3cae24cf99da1702b851b5a74a9b88c8e5317dad (server checker)
     ## TODO: this applies only to test runs, not to ordinary usage
     'rate-limit': {
         'enable': True,
@@ -851,21 +950,25 @@ ecloud = nextcloud | {
 ## Zimbra is not very good at it's caldav support
 zimbra = {
     'auto-connect.url': {'basepath': '/dav/'},
+    'delete-calendar': {'support': 'fragile', 'behaviour': 'may move to trashbin instead of deleting immediately'},
+    ## save-load.get-by-url was unsupported in older Zimbra versions (GET to
+    ## valid calendar object URLs returned 404), but works in zimbra/zcs-foss:latest
+    ## Zimbra treats same-UID events across calendars as aliases of the same event
+    'save.duplicate-uid.cross-calendar': {'support': 'unsupported'},
     'search.recurrences.expanded.exception': {'support': 'unsupported'}, ## TODO: verify
     'create-calendar.set-displayname': {'support': 'unsupported'},
     'save-load.todo.mixed-calendar': {'support': 'unsupported'},
     'save-load.todo.recurrences.count': {'support': 'unsupported'}, ## This is a new problem?
-    'save-load.journal': "ungraceful",
+    'save-load.journal': {'support': 'ungraceful'},
+    'sync-token': {'support': 'fragile'},
     'search.is-not-defined': {'support': 'unsupported'},
-    #'search.text': 'unsupported', ## weeeird ... it wasn't like this before
-    'search.text.substring': {'support': 'unsupported'},
+    'search.text': {'support': 'unsupported'},
+    # sometimes throws a 500
     'search.text.category': {'support': 'ungraceful'},
     'search.recurrences.expanded.todo': { "support": "unsupported" },
     'search.comp-type-optional': {'support': 'fragile'}, ## TODO: more research on this, looks like a bug in the checker,
     'search.time-range.alarm': {'support': 'unsupported'},
-    'sync-token': {'support': 'ungraceful'},
-    'principal-search': "ungraceful",
-    'save.duplicate-uid.cross-calendar': {'support': 'unsupported', "behaviour": "moved-instead-of-copied" },
+    'principal-search': "unsupported",
 
     "old_flags": [
     ## apparently, zimbra has no journal support
@@ -876,7 +979,7 @@ zimbra = {
     ## earlier versions of Zimbra display-name could be changed, but
     ## then the calendar would not be available on the old URL
     ## anymore)
-    'event_by_url_is_broken',
+    ## 'event_by_url_is_broken' removed - works in zimbra/zcs-foss:latest
     'no_delete_event',
     'vtodo_datesearch_notime_task_is_skipped',
     'no_relships',
@@ -889,12 +992,12 @@ zimbra = {
     "calendar_order",
     "calendar_color"
     ]
-    ## TODO: there may be more, it should be organized and moved here.
-    ## Search for 'zimbra' in the code repository!
 }
 
 bedework = {
     'search.comp-type': {'support': 'broken', 'behaviour': 'Server returns everything when searching for events and nothing when searching for todos'},
+    'search.comp-type-optional': {'support': 'ungraceful'},
+    #'search.time-range.event': {'support': 'unsupported'}, ## TODO: flapping??
     #"search.combined-is-logical-and": { "support": "unsupported" },
     ## TODO: play with this and see if it's needed
     'search-cache': {'behaviour': 'delay', 'delay': 1.5},
@@ -906,12 +1009,10 @@ bedework = {
     # Ephemeral Docker container: wipe objects (delete-calendar not supported)
     'test-calendar': {'cleanup-regime': 'wipe-calendar'},
     'auto-connect.url': {'basepath': '/ucaldav/'},
-    "save-load.journal": {
-        "support": "ungraceful"
-    },
-    "search.time-range.alarm": {
-        "support": "unsupported"
-    },
+    'save-load.journal': {'support': 'ungraceful'},
+    'save-load.todo.recurrences.thisandfuture': {'support': 'ungraceful'},
+    ## search.time-range.alarm: not checked by the server tester
+    'search.time-range.alarm': {'support': 'unsupported'},
     ## Huh?  Non-deterministic behaviour of the checking script?
     #"save.duplicate-uid.cross-calendar": {
     #    "support": "unsupported",
@@ -923,8 +1024,14 @@ bedework = {
     "search.time-range.todo": {
         "support": "unsupported"
     },
-    "search.text": {
+    "search.text.case-sensitive": {
         "support": "unsupported"
+    },
+    "search.text.case-insensitive": {
+        "support": "unsupported"
+    },
+    "search.text.category": {
+        "support": "ungraceful"
     },
     "search.is-not-defined": {
         "support": "fragile"
@@ -933,14 +1040,9 @@ bedework = {
         "support": "fragile",
         "behaviour": "sometimes the text search delivers everything, other times it doesn't deliver anything.  When the text search delivers everything, then the post-filtering will save the day"
     },
-    "search.time-range.accurate": {
-        "support": "unsupported"
-    },
-    "search.recurrences.includes-implicit.todo": {
-        "support": "unsupported"
-    },
-    "search.recurrences.includes-implicit.infinite-scope": {
-        "support": "unsupported"
+    "search.recurrences.includes-implicit": {
+        "support": "unsupported",
+        "behaviour": "cannot reliably test due to broken comp-type filtering"
     },
     "sync-token": {
         "support": "fragile"
@@ -952,63 +1054,66 @@ bedework = {
     "search.recurrences.expanded.event": {
         "support": "unsupported"
     },
-    ## It doesn't support expanding events, but it supports exapnding tasks!?
-    ## Or maybe there is a problem in the checker script?
-    ## TODO: look into this
-    #"search.recurrences.expanded.todo": True,
+    "search.recurrences.expanded.todo": {
+        "support": "unsupported"
+    },
     "principal-search": {
         "support": "ungraceful",
-    }
+    },
 }
 
 synology = {
     'principal-search': False,
-    'search.time-range.alarm': False,
     'sync-token': 'fragile',
     'delete-calendar': False,
     'search.comp-type-optional': 'fragile',
+    'search.is-not-defined': {'support': 'fragile', 'behaviour': 'works for CLASS but not for CATEGORIES'},
+    'search.text.case-sensitive': {'support': 'unsupported'},
+    'search.time-range.alarm': {'support': 'unsupported'},
     "search.recurrences.expanded.exception": False,
-     'old_flags': ['vtodo_datesearch_nodtstart_task_is_skipped'],
+    'old_flags': ['vtodo_datesearch_nodtstart_task_is_skipped'],
+    'test-calendar': {'cleanup-regime': 'wipe-calendar'},
 }
 
 baikal =  { ## version 0.10.1
     "http.multiplexing": "fragile", ## ref https://github.com/python-caldav/caldav/issues/564
-    "save-load.journal": {'support': 'ungraceful'},
-    #'search.comp-type-optional': {'support': 'ungraceful'}, ## Possibly this has been fixed?
+    'search.comp-type-optional': {'support': 'ungraceful'},
     'search.recurrences.expanded.todo': {'support': 'unsupported'},
     'search.recurrences.expanded.exception': {'support': 'unsupported'},
     'search.recurrences.includes-implicit.todo': {'support': 'unsupported'},
-    "search.combined-is-logical-and": {"support": "unsupported"},
-    'principal-search.by-name': {'support': 'unsupported'}, ## This is weird - I'm quite sure the tests were passing without this one some few days ago.
-    'principal-search.list-all': {'support': 'ungraceful'}, ## This is weird - I'm quite sure the tests were passing without this one some few days ago.
+    'save-load.journal.mixed-calendar': {'support': 'unsupported'},
+    'principal-search': {'support': 'ungraceful'},
+    'principal-search.by-name.self': {'support': 'unsupported'},
+    'principal-search.list-all': {'support': 'ungraceful'},
     #'sync-token.delete': {'support': 'unsupported'}, ## Perhaps on some older servers?
     'old_flags': [
         ## extra features not specified in RFC5545
         "calendar_order",
-        "calendar_color"
-    ]
+        "calendar_color",
+    ],
+    ## I'm surprised, I'm quite sure this was passing earlier.  Caldav commit a98d50490b872e9b9d8e93e2e401c936ad193003, caldav server checker commit 3cae24cf99da1702b851b5a74a9b88c8e5317dad
+    'search.combined-is-logical-and': False
 } ## TODO: testPrincipals, testWrongAuthType, testTodoDatesearch fails
 
 ## Some unknown version of baikal has this
 baikal_old = baikal | {
     'create-calendar': {'support': 'quirk', 'behaviour': 'mkcol-required'},
     'create-calendar.auto': {'support': 'unsupported'}, ## this is the default, but the "quirk" from create-calendar overwrites it.  Hm.
-
 }
 
 cyrus = {
     "search.comp-type-optional": {"support": "ungraceful"},
     "search.recurrences.expanded.exception": {"support": "unsupported"},
-    'search.time-range.alarm': {'support': 'unsupported'},
+    "search.time-range.alarm": {"support": "ungraceful"},
     'principal-search': {'support': 'ungraceful'},
+    # Cyrus enforces unique UIDs across all calendars for a user
+    "save.duplicate-uid.cross-calendar": {"support": "ungraceful"},
     # Ephemeral Docker container: wipe objects but keep calendar (avoids UID conflicts)
     "test-calendar": {"cleanup-regime": "wipe-calendar"},
     'delete-calendar': {
         'support': 'fragile',
         'behaviour': 'Deleting a recently created calendar fails'},
-    'save.duplicate-uid.cross-calendar': {'support': 'ungraceful'},
     # Cyrus may not properly reject wrong passwords in some configurations
-    'wrong-password-check': {'support': 'unsupported'},
     'old_flags': []
 }
 
@@ -1030,16 +1135,15 @@ davical = {
     # lazy responses cause MultiplexingError when accessing status_code
     "http.multiplexing": { "support": "unsupported" },
     "search.comp-type-optional": { "support": "fragile" },
-    "search.recurrences.expanded.todo": { "support": "unsupported" },
     "search.recurrences.expanded.exception": { "support": "unsupported" },
-    'search.time-range.alarm': {'support': 'unsupported'},
+    "search.time-range.alarm": { "support": "unsupported" },
     'sync-token': {'support': 'fragile'},
     'principal-search': {'support': 'unsupported'},
     'principal-search.list-all': {'support': 'unsupported'},
     "old_flags": [
         #'no_journal', ## it threw a 500 internal server error! ## for old versions
         #'nofreebusy', ## for old versions
-        'fragile_sync_tokens', ## no issue raised yet
+        ## 'fragile_sync_tokens' removed - covered by 'sync-token': {'support': 'fragile'}
         'vtodo_datesearch_nodtstart_task_is_skipped', ## no issue raised yet
         'date_todo_search_ignores_duration',
         'calendar_color',
@@ -1049,40 +1153,30 @@ davical = {
 }
 
 sogo = {
-    "save-load.journal": { "support": "ungraceful" },
-    'freebusy-query.rfc4791': {'support': 'ungraceful'},
-    "search.time-range.accurate": {
-        "support": "unsupported",
-        "description": "SOGo returns events/todos that fall outside the requested time range. For recurring events, it may return recurrences that start after the search interval ends, or events with no recurrences in the requested range at all."
+    ## I'm surprised, I'm quite sure this was passing earlier.  reported unsupported with caldav commit a98d50490b872e9b9d8e93e2e401c936ad193003, caldav server checker commit 3cae24cf99da1702b851b5a74a9b88c8e5317dad 2026-02-15
+    "search.text.category": False,
+    "search.time-range.event.old-dates": False,
+    "search.time-range.todo.old-dates": False,
+    "save-load.journal": {"support": "ungraceful"},
+    "search.is-not-defined": {"support": "unsupported"},
+    "search.text.case-sensitive": {
+        "support": "unsupported"
+    },
+    "search.text.case-insensitive": {
+        "support": "unsupported"
     },
     "search.time-range.alarm": {
         "support": "unsupported"
     },
-    "search.time-range.event": {
-        "support": "unsupported"
-    },
-    "search.time-range.todo": {
-        "support": "unsupported"
-    },
-    "search.text": {
-        "support": "unsupported"
-    },
-    "search.text.by-uid": True,
-    "search.is-not-defined": {
-        "support": "unsupported"
-    },
+    ## was unsupported.  reported ungraceful with caldav commit a98d50490b872e9b9d8e93e2e401c936ad193003, caldav server checker commit 3cae24cf99da1702b851b5a74a9b88c8e5317dad 2026-02-15
     "search.comp-type-optional": {
-        "support": "unsupported"
+        "support": "ungraceful"
     },
-    "search.recurrences.includes-implicit.todo": {
-        "support": "unsupported"
-    },
-    ## TODO: do some research into this, I think this is a bug in the checker script
-    "search.recurrences.includes-implicit.todo.pending": {
+    ## includes-implicit.todo has been observed as both supported and unsupported
+    ## across different test runs.  Other includes-implicit children are unsupported.
+    ## Marking the parent as fragile to avoid cascading derivation issues.
+    "search.recurrences.includes-implicit": {
         "support": "fragile"
-    },
-    "search.recurrences.includes-implicit.infinite-scope": {
-        "support": "unsupported"
     },
     "sync-token": {
         "support": "fragile"
@@ -1090,6 +1184,8 @@ sogo = {
     "search.recurrences.expanded": {
         "support": "unsupported"
     },
+    ## unsupported earlier, ungraceful at be26d42b1ca3ff3b4fd183761b4a9b024ce12b84 / 537a23b145487006bb987dee5ab9e00cdebb0492
+    "freebusy-query.rfc4791": {"support": "ungraceful"},
     "principal-search": {
         "support": "ungraceful",
         "behaviour": "Search by name failed: ReportError at '501 Not Implemented - <?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\n<body><h3>An error occurred during object publishing</h3><p>did not find the specified REPORT</p></body>\n</html>\n', reason no reason",
@@ -1140,7 +1236,7 @@ robur = {
         'basepath': '/principals/', # TODO: this seems fishy
     },
     "save-load.journal": { "support": "ungraceful" },
-    "delete-calendar": { "support": "fragile" },
+    "delete-calendar": { "support": "unsupported" },
     "search.is-not-defined": { "support": "unsupported" },
     "search.time-range.todo": { "support": "unsupported" },
     "search.time-range.alarm": {'support': 'unsupported'},
@@ -1158,9 +1254,9 @@ robur = {
         'no_scheduling',
         'no_supported_components_support',
         'no_relships',
-        'unique_calendar_ids',
     ],
-    "sync-token": False,
+    'test-calendar': {'cleanup-regime': 'wipe-calendar'},
+    "sync-token": {"support": "ungraceful"},
 }
 
 posteo = {
@@ -1170,15 +1266,29 @@ posteo = {
         'basepath': '/',
     },
     'create-calendar': {'support': 'unsupported'},
-    'save-load.journal': { "support": "ungraceful" },
+    'save-load.journal': {'support': 'unsupported'},
     ## TODO1: we should ignore cases where observations are unknown while configuration is known
     ## TODO2: there are more calendars available at the posteo account, so it should be possible to check this.
     "save.duplicate-uid.cross-calendar": { "support": "unknown" },
+    ## foo ... "full" observed for the next two, 70938dc1cbb6a839978eee4315699746d38ee5f0/3cae24cf99da1702b851b5a74a9b88c8e5317dad, 2026-02-17
+    ## bar ... 3cae24cf99da1702b851b5a74a9b88c8e5317dad was probably the rotten commit, ungraceful again in  be26d42b1ca3ff3b4fd183761b4a9b024ce12b84 / 537a23b145487006bb987dee5ab9e00cdebb0492
     'search.comp-type-optional': {'support': 'ungraceful'},
+    #'search.text.case-sensitive': {'support': 'unsupported'},
+    ## Comment from claude:
+    ## Text search precondition check returns unexpected results on posteo
+    ## (possibly stale data on non-deletable calendar), so substring support
+    ## cannot be reliably determined.
+    ## perhaps the stale data was deleted, because "full" observed, 70938dc1cbb6a839978eee4315699746d38ee5f0/3cae24cf99da1702b851b5a74a9b88c8e5317dad, 2026-02-17
+    #'search.text.substring': {'support': 'unknown'},
+    ## search.time-range.todo was previously unsupported on posteo but
+    ## is now observed as working for recent dates (as of 2026-02).
+    ## Old dates (year 2000) still don't work.
+    ## foo ... "full" observed, 70938dc1cbb6a839978eee4315699746d38ee5f0/3cae24cf99da1702b851b5a74a9b88c8e5317dad, 2026-02-17
+    #'search.time-range.todo.old-dates': {'support': 'unsupported'},
     'search.recurrences.expanded.todo': {'support': 'unsupported'},
     'search.recurrences.expanded.exception': {'support': 'unsupported'},
     'search.recurrences.includes-implicit.todo': {'support': 'unsupported'},
-    "search.combined-is-logical-and": {"support": "unsupported"},
+    'search.combined-is-logical-and': {'support': 'unsupported'},
     'sync-token': {'support': 'ungraceful'},
     'principal-search': {'support': 'unsupported'},
     'old_flags': [
@@ -1201,13 +1311,83 @@ posteo = {
 #    'no_relships', ## mail.ru recreates the icalendar content, and strips everything it doesn't know anyhting about, including relationship info
 #]
 
+## Davis uses sabre/dav (same backend as Baikal), so hints are similar.
+## TODO: consolidate, make a sabredav dict and let davis/baikal build on it
+davis = {
+    "search.recurrences.expanded.todo": {"support": "unsupported"},
+    "search.recurrences.expanded.exception": {"support": "unsupported"},
+    "search.recurrences.includes-implicit.todo": {"support": "unsupported"},
+    "principal-search.by-name.self": {"support": "unsupported"},
+    "principal-search": {"support": "ungraceful"},
+    "save-load.journal.mixed-calendar": {"support": "unsupported"},
+    "search.comp-type-optional": {"support": "ungraceful"},
+    "old_flags": [
+        "calendar_order",
+        "calendar_color",
+    ],
+    ## I'm surprised, I'm quite sure this was passing earlier.  Caldav commit a98d50490b872e9b9d8e93e2e401c936ad193003, caldav server checker commit 3cae24cf99da1702b851b5a74a9b88c8e5317dad
+    'search.combined-is-logical-and': False
+}
+
+## Apple CalendarServer (CCS) - archived 2019, Python 2/Twisted.
+## MKCALENDAR always creates VEVENT-only calendars; supported-calendar-component-set
+## cannot be changed.  The pre-provisioned "tasks" calendar supports VTODO only.
+## VJOURNAL is not supported at all.
+ccs = {
+    "save-load.journal": {"support": "unsupported"},
+    "save-load.todo.mixed-calendar": {"support": "unsupported"},
+    # CCS enforces unique UIDs across ALL calendars for a user
+    #"save.duplicate-uid.cross-calendar": {"support": "unsupported"},
+    ## "unsupported" observed earlier.  "ungraceful" at  be26d42b1ca3ff3b4fd183761b4a9b024ce12b84 / 537a23b145487006bb987dee5ab9e00cdebb0492 2026-02-19.
+    "save.duplicate-uid.cross-calendar": {"support": "ungraceful"},
+    # CCS rejects multi-instance VTODOs (thisandfuture recurring completion)
+    "save-load.todo.recurrences.thisandfuture": {"support": "unsupported"},
+    "search.time-range.event": {"support": "full"},
+    "search.time-range.event.old-dates": {"support": "ungraceful"},
+    "search.time-range.todo": {"support": "full"},
+    "search.time-range.todo.old-dates": {"support": "ungraceful"},
+    "search.comp-type-optional": {"support": "ungraceful"},
+    ## "full" observed, 70938dc1cbb6a839978eee4315699746d38ee5f0/3cae24cf99da1702b851b5a74a9b88c8e5317dad, 2026-02-17.
+    ## However, this may be due to mess with the caldav-server-checker branches.  "unsupported" again at be26d42b1ca3ff3b4fd183761b4a9b024ce12b84 / 537a23b145487006bb987dee5ab9e00cdebb0492
+    "search.text.case-sensitive": {"support": "unsupported"},
+    "search.time-range.alarm": {"support": "unsupported"},
+    "search.recurrences": {"support": "unsupported"},
+    "principal-search": {"support": "unsupported"},
+    # Ephemeral Docker container: wipe objects (avoids UID conflicts across calendars)
+    "test-calendar": {"cleanup-regime": "wipe-calendar"},
+    ## Did pass earlier, ungraceful at be26d42b1ca3ff3b4fd183761b4a9b024ce12b84 / 537a23b145487006bb987dee5ab9e00cdebb0492
+    'freebusy-query.rfc4791': {'support': 'ungraceful'},
+    "old_flags": [
+        "propfind_allprop_failure",
+    ],
+}
+
+## Lots of transient problems with purelymail
 purelymail = {
     ## Purelymail claims that the search indexes are "lazily" populated,
     ## so search works some minutes after the event was created/edited.
-    'search-cache': {'behaviour': 'delay', 'delay': 160},
+    'search-cache': {'behaviour': 'delay', 'delay': 180},
+    #'search-cache': {'behaviour': 'delay', 'delay': 0.3},
+    ## Hmmm .... weird, this is flapping in the caldav-server-tester?
     "create-calendar.auto": {"support": "full"},
+    ## 409 Conflict with <must-have-parent> when PUTting to a URL not under an existing calendar
+    #'save-load.get-by-url': {'support': 'unknown'},
+    #'save-load.todo': {'support': 'ungraceful'},
+    'search.comp-type-optional': {'support': 'unsupported'},
+    ## The search features below are unreliable on purelymail, likely due
+    ## to the 160s search-cache delay.  Results flip between unsupported
+    ## and ungraceful across runs.  Marked fragile so the checker skips them.
+    ## was: (default, i.e. full) - observed ungraceful 2026-02
+    'search.is-not-defined': {'support': 'fragile'},
     'search.time-range.alarm': {'support': 'unsupported'},
-    'principal-search': {'support': 'unsupported'},
+    ## was: unsupported - observed ungraceful 2026-02
+    'search.time-range.event': {'support': 'fragile'},
+    ## was: ungraceful - observed unsupported 2026-02 (for .old-dates)
+    'search.time-range.todo': {'support': 'fragile'},
+    'search.recurrences.expanded.exception': {'support': 'unsupported'},
+    'principal-search': {'support': 'ungraceful'},
+    'principal-search.by-name.self': {'support': 'ungraceful'},
+    'principal-search.list-all': {'support': 'ungraceful'},
     'auto-connect.url': {
         'basepath': '/webdav/',
         'domain': 'purelymail.com',
@@ -1227,17 +1407,36 @@ gmx = {
     'auto-connect.url': {
         'scheme': 'https',
         'domain': 'caldav.gmx.net',
-        ## This won't work yet.  I'm not able to connect with gmx at all now,
-        ## so unable to create a verified fix for it now
-        'basepath': '/begenda/dav/{username}/calendar', ## TODO: foobar
+        'basepath': '/begenda/dav/{username}/',
     },
-    'create-calendar': {'support': 'unsupported'},
+    'rate-limit': {
+        'enable': True,
+        'interval': 4,
+        'count': 1,
+    },
     'search.comp-type-optional': {'support': 'fragile', 'description': 'unexpected results from date-search without comp-type - but only sometimes - TODO: research more'},
     'search.recurrences.expanded': {'support': 'unsupported'},
-    'search.time-range.alarm': {'support': 'unsupported'},
-    'sync-token': {'support': 'unsupported'},
-    'principal-search': {'support': 'unsupported'},
-    'freebusy-query.rfc4791': {'support': 'unsupported'},
+    ## TODO: flapping between ungraceful and unsupported?
+    #'search.text.case-sensitive': {'support': 'ungraceful'},
+    'search.text.case-sensitive': {'support': 'unsupported'},
+    ## TODO: flapping between supported and unsupported?
+    #'search.text.case-insensitive': {'support': 'unsupported'},
+    ## TODO: flapping between unsupported and ungraceful?
+    #'sync-token': {'support': 'unsupported'},
+    'sync-token': {'support': 'ungraceful'},
+    'principal-search': {'support': 'ungraceful'},
+    'principal-search.by-name.self': {'support': 'unsupported'},
+    ## TODO: flapping ...?
+    #'freebusy-query.rfc4791': {'support': 'unsupported'},
+    'freebusy-query.rfc4791': {'support': 'ungraceful'},
+    ## flapping ...?
+    #'search.is-not-defined.category': {'support': 'unsupported'},
+    ## flapping ...?
+    #'search.is-not-defined.dtend': {'support': 'unsupported'},
+    'create-calendar': {'support': 'unknown' }, ## https://github.com/python-caldav/caldav/issues/624
+    ## was apparently observed working for a while, possibly due to the master/more_checks split-brain git branching incident in the server-checker project.
+    ## unsupported in be26d42b1ca3ff3b4fd183761b4a9b024ce12b84 / 537a23b145487006bb987dee5ab9e00cdebb0492 2026-02-19.  Supported when testing again short time after.  Either I'm confused or it's "fragile".
+    #'search.time-range.alarm': {'support': 'unsupported'},
     "old_flags":  [
         "no_scheduling_mailbox",
         #"text_search_is_case_insensitive",
