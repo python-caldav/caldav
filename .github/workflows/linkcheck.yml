@@ -12,7 +12,7 @@ jobs:
       with:
         fail: true
         args: >-
-          --timeout 10
-          --max-retries 2
+          --timeout 20
+          --max-retries 3
           '**/*.md'
           '**/*.rst'
