@@ -2,3 +2,5 @@ include COPYING.*
 include *.md
 recursive-include tests caldav
 exclude tests/conf_private.py
+exclude tests/caldav_test_servers.yaml
+exclude tests/tmp_caldav_test_servers.yaml

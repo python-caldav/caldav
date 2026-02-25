@@ -1,5 +1,42 @@
 # Known Issues and TODO Items
 
+## Calendar creation/location in integration tests
+
+* Currently there is quite some logic for the sync integration tests for fixing calendars (`test_caldav.py`).  All boilerplate should be moved to the `fixture_helper.py` file - or simply removed if it's irrelevant.
+* In the `fixture_helpers.py` there is an `aget_or_create_test_calendar` and a `get_or_create_test_calendar`.  There is quite much duplicated logic here.  Work should be done to consolidate common code.
+* If the default calendar already exists, make sure to delete and recreate or wipe it (dependent on relevant features supported/configured) to avoid pollution from old test runs fouling the new test run.
+
+## Calendar cleanup in integration tests
+
+Calendar cleanup in the integration tests is a bit of a mess and should be cleaned up.  Also, the sync and async integration code now have different code paths, that's not acceptable, that should be cleaned up.
+
+Currently unsupported scenarios:
+
+* Test run towards read-only calendars (there exists service providers that have a partial caldav interface for read-only access to a calendar) ... maybe a future feature, but as for now it doesn't really work out, so let's ignore this possibility as for now.
+* Test runs towards a calendar that already has data in it, and without deleting the data in the calendar.  I had the idea to allow this, but ... no, it doesn't work out, and let's keep it that way.  BUT: currently, for servers where calendars cannot be created, the test will take the first available calendar it finds and wipe it.  That's also not acceptable, not without the user explicitly confguring that this is OK.
+
+Server compatibility to consider:
+
+* Some servers disallows calendar creation.
+* On some servers calendar creation is not reliable (i.e. quota for how many calendars one can have.  Workaround: manual creation of test calendar and explicitly specifying what calendar to use in the configuration).
+* On some servers calendar deletion is not possible or not reliable.  (i.e. calendar "moved" to thrash bin rather than deleted).
+* On some servers, objects on the calendar are "sticky", not fully deleted (and is polluting the UID name space) even if the calendar is deleted. (perhaps due to the thrash-bin-issue above)
+* Sometimes separate calendars has to be used for tasks, events and journals.
+* In some situations the user may want to point testing towards one (or several) specific calendars - either due to the issues above or for other reasons
+
+There are also different modes of cleanup:
+
+* Wipe all "known objects", objects created by the tests (old "through" mode, it was needed for running tests towards existing production calendars without wiping the original content - but now I've decided not to support this.  It may be needed if having problems with "sticky" events, but probably better to just "wipe" the calendar).
+* Wiping the calendar after every test (like, take out the list of objects, and delete every single event - `[x.delete() for x in calendar.search()]`)
+* Deleting the whole calendar after every test.
+* Do the same before every test
+
+The first option is needed if one wants to run the tests towards a "live" calendar without deleting content on the live calendar.  Since this is anyway not supported, I think this code may as well be yanked out.
+
+Deleting a calendar is much faster than deleting every item on the calendar.  However, for "sticky" objects wiping is necessary.  For calendars not supporting calendar deletion, a "delete"-operation towards a calendar will automatically wipe it.
+
+Probably test cleanups should be done after the server run, but also before if needed.
+
 ## Nextcloud UNIQUE Constraint Violations
 
 **Status**: Known issue, needs upstream investigation

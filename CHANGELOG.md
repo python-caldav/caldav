@@ -18,12 +18,15 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 
 ### Highlights
 
-Version 3.0 should be fully backward-compatible with version 2.x - but there are massive code changes in version 3.0:
+There shouldn't be many breaking changes in version 3.0, but there are massive code changes in version 3.0:
 
-* "Black style" has been replaced with ruff.  This causes quite some changes in the code.
-* Version 3.0 introduces **full async support** using a Sans-I/O architecture. The same domain objects (Calendar, Event, Todo, etc.) now work with both synchronous and asynchronous clients. The async client uses niquests by default; httpx is also supported for projects that already have it as a dependency.
-* Quite some refactoring work has been done
-* Some work has been put down ensuring better consistency in the method names.  Version 3.0 should be backward-compatible with version 2.0, so the old methods still work, but are deprecated.
+* **Full async support** using a Sans-I/O architecture. The same domain objects (Calendar, Event, Todo, etc.) now work with both synchronous and asynchronous clients. The async client uses niquests by default; httpx is also supported for projects that already have it as a dependency.
+* **Sans-I/O architecture** -- internal refactoring separates protocol logic (XML building/parsing) from I/O into a layered architecture: protocol layer (`caldav/protocol/`), operations layer (`caldav/operations/`), and response handling (`caldav/response.py`). This enables code reuse between sync and async implementations and improves testability.
+* **Lazy imports** -- `import caldav` is now significantly faster due to PEP 562 lazy loading. Heavy dependencies (lxml, niquests, icalendar) are deferred until first use. (https://github.com/python-caldav/caldav/issue/621)
+* **API naming consistency** -- methods have been renamed for consistency. Server-fetching methods use `get_` prefix, capability checks use `supports_*()`. Old method names still work but are deprecated.
+* **Ruff replaces Black** -- code formatting now uses ruff instead of Black, causing cosmetic changes throughout the codebase.
+* **Expanded compatibility hints** -- server-specific workarounds added for Zimbra, Bedework, CCS (Apple CalendarServer), Davis, DAViCal, GMX, ecloud, Synology, Posteo, PurelyMail, and more.
+* Quite some other refactoring work has been done.
 
 ### Breaking Changes
 
@@ -31,6 +34,8 @@ Version 3.0 should be fully backward-compatible with version 2.x - but there are
 
 * **Minimum Python version**: Python 3.10+ is now required (was 3.8+).
 * **Test Server Configuration**: `tests/conf.py` has been removed and `conf_private.py` will be ignored.  See the Test Framework section below.
+* **`object.py` has been removed** as well as the `from caldav.object import *` in `caldav/__init__.py`.  Some classes etc may appear to be missing, but the most important ones should still exist directly in the `caldav.*` namespace.
+* **Config file parse errors now raise exceptions**: `caldav.config.read_config()` now raises `ValueError` on YAML/JSON parse errors instead of logging and returning an empty dict. This ensures config errors are detected early.
 
 ### Deprecated
 
@@ -69,7 +74,7 @@ Additionally, direct `DAVClient()` instantiation should migrate to `get_davclien
 
 ### Added
 
-* **Full async API** - New `AsyncDAVClient` and async-compatible domain objects:
+* **Full async API** -- New `AsyncDAVClient` and async-compatible domain objects:
   ```python
   from caldav.async_davclient import get_davclient
 
@@ -79,20 +84,25 @@ Additionally, direct `DAVClient()` instantiation should migrate to `get_davclien
       for cal in calendars:
           events = await cal.get_events()
   ```
-* **Sans-I/O architecture** - Internal refactoring separates protocol logic from I/O:
-  - Protocol layer (`caldav/protocol/`): Pure functions for XML building/parsing
-  - Operations layer (`caldav/operations/`): High-level CalDAV operations
-  - This enables code reuse between sync and async implementations
+* **Sans-I/O architecture** -- Internal refactoring separates protocol logic from I/O:
+  - Protocol layer (`caldav/protocol/`): Pure functions for XML building/parsing with typed dataclasses (DAVRequest, DAVResponse, PropfindResult, CalendarQueryResult)
+  - Operations layer (`caldav/operations/`): Sans-I/O business logic for CalDAV operations (properties, search, calendar management, principal discovery)
+  - Response layer (`caldav/response.py`): Shared `BaseDAVResponse` for sync/async
+  - Data state (`caldav/datastate.py`): Strategy pattern for managing data representations (raw string, icalendar, vobject) -- avoids unnecessary parse/serialize cycles
+* **Lazy imports (PEP 562)** -- `import caldav` is now fast. Heavy dependencies (lxml, niquests, icalendar) are deferred until first use. https://github.com/python-caldav/caldav/pull/621
+* **`DAVObject.name` deprecated** -- use `get_display_name()` instead. The old `.name` property now emits `DeprecationWarning`.
 * Added python-dateutil and PyYAML as explicit dependencies (were transitive)
 * Quite some methods have been renamed for consistency and to follow best current practices.  See the deprecation section.
 * `Calendar` class now accepts a `name` parameter in its constructor, addressing a long-standing API inconsistency (https://github.com/python-caldav/caldav/issues/128)
-* **Data representation API** - New efficient data access via `CalendarObjectResource` properties (https://github.com/python-caldav/caldav/issues/613):
-  - `.icalendar_instance` - parsed icalendar object (lazy loaded)
-  - `.vobject_instance` - parsed vobject object (lazy loaded)
-  - `.data` - raw iCalendar string
+* **Data representation API** -- New efficient data access via `CalendarObjectResource` properties (https://github.com/python-caldav/caldav/issues/613):
+  - `.icalendar_instance` -- parsed icalendar object (lazy loaded)
+  - `.vobject_instance` -- parsed vobject object (lazy loaded)
+  - `.data` -- raw iCalendar string
+  - Context managers `edit_icalendar_instance()` and `edit_vobject_instance()` for safe mutable access
+  - `get_data()`, `get_icalendar_instance()`, `get_vobject_instance()` return copies for read-only access
   - Internal `DataState` class manages caching between formats
-* **CalendarObjectResource.id property** - Returns the UID of calendar objects (https://github.com/python-caldav/caldav/issues/515)
-* **calendar.searcher() API** - Factory method for advanced search queries (https://github.com/python-caldav/caldav/issues/590):
+* **CalendarObjectResource.id property** -- Returns the UID of calendar objects (https://github.com/python-caldav/caldav/issues/515)
+* **calendar.searcher() API** -- Factory method for advanced search queries (https://github.com/python-caldav/caldav/issues/590):
   ```python
   searcher = calendar.searcher()
   searcher.add_filter(...)
@@ -120,22 +130,54 @@ Additionally, direct `DAVClient()` instantiation should migrate to `get_davclien
 ### Fixed
 
 * RFC 4791 compliance: Don't send Depth header for calendar-multiget REPORT (clients SHOULD NOT send it, but servers MUST ignore it per §7.9)
+* Fixed `ssl_verify_cert` not passed through in `get_sync_client` and `get_async_client`
+* Fixed `_derive_from_subfeatures` partial-config derivation bug
+* Fixed feature name parsing when names include `compatibility_hints.` prefix
+* Fixed recursive `_search_with_comptypes` when `search.comp-type` is broken
+* Fixed pending todo search on servers with broken comp-type filtering
+* Fixed URL path quoting when extracting calendars from PROPFIND results
+* Removed spurious warning on URL path mismatch, deduplicated `get_properties`
+* Fixed `create-calendar` feature incorrectly derived as unsupported
+* Fixed various async test issues (awaiting sync calls, missing feature checks, authorization error handling)
+* Fixed `search.category` features to use correct `search.text.category` names
 
 ### Changed
 
 * Sync client (`DAVClient`) now shares common code with async client via `BaseDAVClient`
 * Response handling unified in `BaseDAVResponse` class
+* Search refactored to use generator-based Sans-I/O pattern -- `_search_impl` yields `(SearchAction, data)` tuples consumed by sync or async wrappers
 * Test configuration migrated from legacy `tests/conf.py` to new `tests/test_servers/` framework
+* Configuration system expanded: `get_connection_params()` provides unified config discovery with clear priority (explicit params > test server config > env vars > config file)
+* `${VAR}` and `${VAR:-default}` environment variable expansion in config values
+* Ruff replaces Black for code formatting
+* `caldav/objects.py` backward-compatibility shim removed (imports go directly to submodules)
 
 ### Test Framework
 
-* Fixed Nextcloud Docker test server tmpfs permissions race condition
-* Added deptry for dependency verification in CI
-* The test server framework has been refactored with a new `tests/test_servers/` module.  It provides **YAML-based server configuration**: see `tests/test_servers/__init__.py` for usage
+* **New `tests/test_servers/` module** -- Complete rewrite of test infrastructure:
+  - `TestServer` base class hierarchy (EmbeddedTestServer, DockerTestServer, ExternalTestServer)
+  - YAML-based server configuration (`tests/caldav_test_servers.yaml.example`)
+  - `ServerRegistry` for server discovery and lifecycle management
+  - `client_context()` and `has_test_servers()` helpers
+* **New Docker test servers**: CCS (Apple CalendarServer), DAViCal, Davis, Zimbra
+* **Updated Docker configs**: Baikal, Cyrus, Nextcloud, SOGo
 * Added pytest-asyncio for async test support
+* Added deptry for dependency verification in CI
+* Added lychee link-check workflow
+* Added `convert_conf_private.py` migration tool for old config format
+* Removed `tests/conf.py`, `tests/conf_baikal.py`, `tests/conf_private.py.EXAMPLE`
+* **New test suites**:
+  - `test_async_davclient.py` (821 lines) -- Async client unit tests
+  - `test_async_integration.py` (466 lines) -- Async integration tests
+  - `test_operations_*.py` (6 files) -- Operations layer unit tests
+  - `test_protocol.py` (319 lines) -- Protocol layer unit tests
+  - `test_lazy_import.py` (141 lines) -- PEP 562 lazy import verification
+* Fixed Nextcloud Docker test server tmpfs permissions race condition
 
 ### GitHub Pull Requests Merged
 
+* #621 - Lazy-load heavy dependencies to speed up import caldav
+* #622 - Fix overlong inline literal, replace hyphens with en-dashes
 * #607 - Add deptry for dependency verification
 
 ### GitHub Issues Closed
@@ -148,7 +190,25 @@ Additionally, direct `DAVClient()` instantiation should migrate to `get_davclien
 
 ### Security
 
-Nothing to report.
+* UUID1 usage in UID generation (`calendarobject_ops.py`) may embed the host MAC address in calendar UIDs. Since calendar events are shared with third parties, this is a privacy concern. Planned fix: switch to UUID4.
+
+### Compatibility Hints Expanded
+
+Server-specific workarounds have been significantly expanded. Profiles added or updated for:
+
+* **Zimbra** -- search.is-not-defined, delete-calendar, recurrences.count, case-sensitive search
+* **Bedework** -- save-load.journal, save-load.todo.recurrences.thisandfuture, search.recurrences.expanded.todo, search.time-range.alarm
+* **CCS (Apple CalendarServer)** -- save-load.journal unsupported, various search hints
+* **Davis** -- principal-search at parent level, mixed-calendar features
+* **GMX** -- rate-limit, basepath correction
+* **ecloud** -- create-calendar unsupported, search.is-not-defined, case-sensitive
+* **Synology** -- is-not-defined, wipe-calendar cleanup
+* **SOGo** -- save-load.journal ungraceful, case-insensitive, delete-calendar
+* **Posteo** -- search.combined-is-logical-and unsupported
+* **PurelyMail** -- search.time-range.todo ungraceful
+* **DAViCal** -- various search and sync hints
+* **Xandikos** -- freebusy-query now supported in v0.3.3
+* **Baikal/Radicale** -- case-sensitive search, principal-search features
 
 ## [2.2.6] - [2026-02-01]
 

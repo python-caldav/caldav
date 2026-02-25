@@ -212,9 +212,6 @@ for inbox_item in organizer.principal.schedule_inbox().get_items():
 ## However, I will probably make a convenience method for doing the
 ## query, and leaving the parsing of the returned icalendar data to
 ## the user of the library:
-import pdb
-
-pdb.set_trace()
 some_data_returned = organizer.principal.freebusy_request(
     dtstart=datetime.now().astimezone(timezone.utc) + timedelta(days=399),
     dtend=datetime.now().astimezone(timezone.utc) + timedelta(days=399, hours=1),

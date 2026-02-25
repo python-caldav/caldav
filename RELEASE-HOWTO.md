@@ -45,5 +45,5 @@ This is most likely not complete, but should explain some of the "silly" steps a
 * Forgetting to add new files to the git repo
 * Having checked out a branch or tag or something, and tagging that as the new release rather than the latest HEAD.
 * Forgetting to push to pypi, or pushing something else than the tagged revision to pypi
-* Pushing out junk files in the pypi-release (i.e. .pyc-files, log files, temp files, `tests/conf_private.py`, etc
+* Pushing out junk files in the pypi-release (i.e. .pyc-files, log files, temp files, `tests/conf_private.py`, `tests/caldav_test_servers.yaml`, etc
 * Not adding the release to the "github releases" (I don't care much about this feature, but apparently some people check there to find the latest release version)
