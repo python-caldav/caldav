@@ -16,6 +16,7 @@ import pytest
 
 from caldav import Event, Journal, Todo
 from caldav.davclient import DAVClient
+from caldav.lib.url import URL
 from caldav.search import CalDAVSearcher
 
 # Example icalendar data for testing
@@ -143,7 +144,10 @@ END:VCALENDAR"""
 @pytest.fixture
 def mock_client() -> DAVClient:
     """Create a mocked DAV client for testing."""
-    return mock.Mock(spec=DAVClient)
+    client = mock.Mock(spec=DAVClient)
+    # mock_client.url needs to be a real URL object for URL.join() to work correctly
+    client.url = URL("https://calendar.example.com/calendars/user/")
+    return client
 
 
 @pytest.fixture
@@ -638,3 +642,190 @@ class TestCalDAVSearcherFilterIntegration:
 
         # 3 recurring + 1 simple = 4 total
         assert len(result) == 4
+
+
+EVENT_WITHOUT_CATEGORIES = SIMPLE_EVENT  # SIMPLE_EVENT has no CATEGORIES property
+
+# All-day recurring event with no DTEND (copied from RFC 5545 example used in test_caldav.py)
+RECURRING_EVENT_NO_DTEND = """BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Example Corp.//CalDAV Client//EN
+BEGIN:VEVENT
+UID:19970901T130000Z-123403@example.com
+DTSTAMP:19970901T130000Z
+DTSTART;VALUE=DATE:19971102
+SUMMARY:Our Blissful Anniversary
+CATEGORIES:ANNIVERSARY,PERSONAL
+RRULE:FREQ=YEARLY
+END:VEVENT
+END:VCALENDAR"""
+
+EVENT_WITH_DTEND = SIMPLE_EVENT  # has DTEND:20240615T150000Z
+
+
+class TestCalDAVSearcherIsNotDefined:
+    """Tests for the is-not-defined (undef) filter and workaround in CalDAVSearcher."""
+
+    def test_filter_undef_categories_keeps_events_without_categories(
+        self, mock_client: DAVClient, mock_url: str
+    ) -> None:
+        """The undef filter for categories should keep events without CATEGORIES
+        and filter out events that have CATEGORIES."""
+        event_without_cats = Event(
+            client=mock_client, url=mock_url + "/1", data=EVENT_WITHOUT_CATEGORIES
+        )
+        event_with_cats = Event(client=mock_client, url=mock_url + "/2", data=CATEGORIZED_EVENT)
+
+        searcher = CalDAVSearcher()
+        searcher.add_property_filter("categories", True, operator="undef")
+
+        result = searcher.filter(
+            [event_without_cats, event_with_cats],
+            post_filter=True,
+            split_expanded=False,
+            server_expand=False,
+        )
+
+        assert len(result) == 1
+        # The returned event should be the one without actual categories.
+        # Note: icalendar provides a default empty vCategory for any component, so
+        # we check the categories list is empty rather than checking .get() for None.
+        assert not list(result[0].icalendar_component.categories)
+
+    def test_filter_undef_categories_keeps_all_when_none_have_categories(
+        self, mock_client: DAVClient, mock_url: str
+    ) -> None:
+        """When no events have categories, undef filter should keep all events."""
+        event1 = Event(client=mock_client, url=mock_url + "/1", data=EVENT_WITHOUT_CATEGORIES)
+        event2 = Event(client=mock_client, url=mock_url + "/2", data=EVENT_WITHOUT_CATEGORIES)
+
+        searcher = CalDAVSearcher()
+        searcher.add_property_filter("categories", True, operator="undef")
+
+        result = searcher.filter(
+            [event1, event2],
+            post_filter=True,
+            split_expanded=False,
+            server_expand=False,
+        )
+
+        assert len(result) == 2
+
+    def test_filter_undef_categories_removes_all_when_all_have_categories(
+        self, mock_client: DAVClient, mock_url: str
+    ) -> None:
+        """When all events have categories, undef filter should remove all events."""
+        event1 = Event(client=mock_client, url=mock_url + "/1", data=CATEGORIZED_EVENT)
+        event2 = Event(client=mock_client, url=mock_url + "/2", data=CATEGORIZED_EVENT)
+
+        searcher = CalDAVSearcher()
+        searcher.add_property_filter("categories", True, operator="undef")
+
+        result = searcher.filter(
+            [event1, event2],
+            post_filter=True,
+            split_expanded=False,
+            server_expand=False,
+        )
+
+        assert len(result) == 0
+
+    def test_search_workaround_is_not_defined_category(
+        self, mock_client: DAVClient, mock_url: str
+    ) -> None:
+        """When search.is-not-defined.category is unsupported, search() should fetch
+        all events from the server and apply client-side category filtering."""
+        event_without_cats = Event(
+            client=mock_client, url=mock_url + "/1", data=EVENT_WITHOUT_CATEGORIES
+        )
+        event_with_cats = Event(client=mock_client, url=mock_url + "/2", data=CATEGORIZED_EVENT)
+
+        def mock_is_supported(feat, type_=bool):
+            if feat == "search.is-not-defined.category":
+                return False
+            if type_ == str:
+                return "full"
+            return True
+
+        mock_client.features.is_supported = mock.Mock(side_effect=mock_is_supported)
+        mock_client.features.backward_compatibility_mode = False
+
+        calendar = mock.Mock()
+        calendar.client = mock_client
+        # Server returns all events regardless of filter (simulating server without undef support)
+        calendar._request_report_build_resultlist.return_value = (
+            mock.Mock(),
+            [event_without_cats, event_with_cats],
+        )
+
+        searcher = CalDAVSearcher(event=True)
+        searcher.add_property_filter("categories", True, operator="undef")
+
+        result = searcher.search(calendar)
+
+        # Only event without categories should be returned
+        assert len(result) == 1
+        assert not list(result[0].icalendar_component.categories)
+
+    def test_filter_undef_dtend_keeps_events_without_dtend(
+        self, mock_client: DAVClient, mock_url: str
+    ) -> None:
+        """The undef filter for dtend should keep events without DTEND."""
+        event_with_dtend = Event(client=mock_client, url=mock_url + "/1", data=EVENT_WITH_DTEND)
+        event_without_dtend = Event(
+            client=mock_client, url=mock_url + "/2", data=RECURRING_EVENT_NO_DTEND
+        )
+
+        searcher = CalDAVSearcher()
+        searcher.add_property_filter("dtend", True, operator="undef")
+
+        result = searcher.filter(
+            [event_with_dtend, event_without_dtend],
+            post_filter=True,
+            split_expanded=False,
+            server_expand=False,
+        )
+
+        assert len(result) == 1
+        assert result[0].icalendar_component.get("DTEND") is None
+
+    def test_search_workaround_no_dtend_with_unsupported_feature(
+        self, mock_client: DAVClient, mock_url: str
+    ) -> None:
+        """When search.is-not-defined.dtend is unsupported, search() should fetch
+        all events and apply client-side filtering.
+
+        Recurring events without DTEND should be correctly returned even though
+        recurring_ical_events adds a computed DTEND during expansion.
+        """
+        event_with_dtend = Event(client=mock_client, url=mock_url + "/1", data=EVENT_WITH_DTEND)
+        # Recurring all-day event without explicit DTEND (expansion adds computed DTEND)
+        recurring_without_dtend = Event(
+            client=mock_client, url=mock_url + "/2", data=RECURRING_EVENT_NO_DTEND
+        )
+
+        def mock_is_supported(feat, type_=bool):
+            if feat == "search.is-not-defined.dtend":
+                return False
+            if type_ == str:
+                return "full"
+            return True
+
+        mock_client.features.is_supported = mock.Mock(side_effect=mock_is_supported)
+        mock_client.features.backward_compatibility_mode = False
+
+        calendar = mock.Mock()
+        calendar.client = mock_client
+        calendar._request_report_build_resultlist.return_value = (
+            mock.Mock(),
+            [event_with_dtend, recurring_without_dtend],
+        )
+
+        searcher = CalDAVSearcher(event=True)
+        searcher.add_property_filter("dtend", True, operator="undef")
+
+        result = searcher.search(calendar)
+
+        # Only the recurring event without DTEND should be returned
+        assert len(result) == 1
+        assert result[0].icalendar_component.get("DTEND") is None

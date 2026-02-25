@@ -2,12 +2,15 @@ import unittest
 
 import manuel.codeblock
 import manuel.doctest
+import manuel.ignore
 import manuel.testing
 import pytest
 
 from .test_servers import client_context, has_test_servers
 
-m = manuel.codeblock.Manuel()
+# manuel.ignore must be the base to process ignore directives first
+m = manuel.ignore.Manuel()
+m += manuel.codeblock.Manuel()
 m += manuel.doctest.Manuel()
 manueltest = manuel.testing.TestFactory(m)
 

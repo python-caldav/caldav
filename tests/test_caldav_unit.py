@@ -468,7 +468,7 @@ class TestCalDAV:
     def _load(self, only_if_unloaded=True):
         self.data = todo6
 
-    @mock.patch("caldav.objects.CalendarObjectResource.load", new=_load)
+    @mock.patch("caldav.calendarobjectresource.CalendarObjectResource.load", new=_load)
     def testDateSearch(self):
         """
         ## ref https://github.com/python-caldav/caldav/issues/133
@@ -1801,6 +1801,75 @@ END:VCALENDAR
         # Searching for a UID that exists only as a substring of another should fail
         with pytest.raises(error.NotFoundError):
             calendar.get_object_by_uid("20010712T182145Z-123401@example.com-nope")
+
+
+class TestRateLimitHelpers:
+    """Unit tests for the shared rate-limit helper functions in caldav.lib.error."""
+
+    def test_parse_retry_after_integer(self):
+        assert error.parse_retry_after("30") == 30.0
+
+    def test_parse_retry_after_zero(self):
+        assert error.parse_retry_after("0") == 0.0
+
+    def test_parse_retry_after_http_date(self):
+        from email.utils import format_datetime
+
+        future = datetime.now(timezone.utc) + timedelta(seconds=60)
+        result = error.parse_retry_after(format_datetime(future))
+        assert result is not None
+        assert 55 <= result <= 65
+
+    def test_parse_retry_after_unparseable(self):
+        assert error.parse_retry_after("banana") is None
+
+    def test_parse_retry_after_empty(self):
+        assert error.parse_retry_after("") is None
+
+    def test_compute_sleep_server_value_used(self):
+        assert error.compute_sleep_seconds(30.0, None, None) == 30.0
+
+    def test_compute_sleep_default_fallback(self):
+        assert error.compute_sleep_seconds(None, 5, None) == 5.0
+
+    def test_compute_sleep_server_overrides_default(self):
+        # Server-provided value takes priority over default
+        assert error.compute_sleep_seconds(10.0, 5, None) == 10.0
+
+    def test_compute_sleep_max_cap_applied(self):
+        assert error.compute_sleep_seconds(3600.0, None, 60) == 60.0
+
+    def test_compute_sleep_max_zero_returns_none(self):
+        assert error.compute_sleep_seconds(30.0, None, 0) is None
+
+    def test_compute_sleep_no_info_returns_none(self):
+        assert error.compute_sleep_seconds(None, None, None) is None
+
+    def test_compute_sleep_zero_seconds_returns_none(self):
+        assert error.compute_sleep_seconds(0.0, None, None) is None
+
+    def test_raise_if_rate_limited_429_no_header(self):
+        with pytest.raises(error.RateLimitError) as exc_info:
+            error.raise_if_rate_limited(429, "http://x/", None)
+        assert exc_info.value.retry_after is None
+        assert exc_info.value.retry_after_seconds is None
+
+    def test_raise_if_rate_limited_429_with_header(self):
+        with pytest.raises(error.RateLimitError) as exc_info:
+            error.raise_if_rate_limited(429, "http://x/", "30")
+        assert exc_info.value.retry_after == "30"
+        assert exc_info.value.retry_after_seconds == 30.0
+
+    def test_raise_if_rate_limited_503_with_header(self):
+        with pytest.raises(error.RateLimitError):
+            error.raise_if_rate_limited(503, "http://x/", "10")
+
+    def test_raise_if_rate_limited_503_no_header_does_not_raise(self):
+        # 503 without Retry-After should pass silently
+        error.raise_if_rate_limited(503, "http://x/", None)
+
+    def test_raise_if_rate_limited_200_does_not_raise(self):
+        error.raise_if_rate_limited(200, "http://x/", None)
 
 
 class TestRateLimiting:

@@ -819,3 +819,119 @@ END:VCALENDAR"""
         obj = AsyncCalendarObjectResource(client=None, data=data)
         # This should return False since there's no VEVENT/VTODO/VJOURNAL
         assert obj.has_component() is False
+
+
+class TestAsyncRateLimiting:
+    """
+    Unit tests for 429/503 rate-limit handling in AsyncDAVClient.
+    Mirrors TestRateLimiting in test_caldav_unit.py.
+    No real server communication.
+    """
+
+    def _make_response(self, status_code, headers=None):
+        resp = MagicMock()
+        resp.status_code = status_code
+        resp.headers = headers or {}
+        resp.reason = "Too Many Requests" if status_code == 429 else "Service Unavailable"
+        resp.reason_phrase = resp.reason
+        return resp
+
+    @pytest.mark.asyncio
+    async def test_429_no_retry_after_raises(self):
+        client = AsyncDAVClient(url="http://cal.example.com/")
+        client.session.request = AsyncMock(return_value=self._make_response(429))
+        with pytest.raises(error.RateLimitError) as exc_info:
+            await client.request("/")
+        assert exc_info.value.retry_after is None
+        assert exc_info.value.retry_after_seconds is None
+
+    @pytest.mark.asyncio
+    async def test_429_with_integer_retry_after(self):
+        client = AsyncDAVClient(url="http://cal.example.com/")
+        client.session.request = AsyncMock(
+            return_value=self._make_response(429, {"Retry-After": "30"})
+        )
+        with pytest.raises(error.RateLimitError) as exc_info:
+            await client.request("/")
+        assert exc_info.value.retry_after == "30"
+        assert exc_info.value.retry_after_seconds == 30.0
+
+    @pytest.mark.asyncio
+    async def test_503_without_retry_after_does_not_raise_rate_limit(self):
+        client = AsyncDAVClient(url="http://cal.example.com/")
+        client.session.request = AsyncMock(return_value=self._make_response(503))
+        # Should not raise RateLimitError; falls through as a normal 503 response
+        response = await client.request("/")
+        assert response.status == 503
+
+    @pytest.mark.asyncio
+    async def test_503_with_retry_after_raises(self):
+        client = AsyncDAVClient(url="http://cal.example.com/")
+        client.session.request = AsyncMock(
+            return_value=self._make_response(503, {"Retry-After": "10"})
+        )
+        with pytest.raises(error.RateLimitError) as exc_info:
+            await client.request("/")
+        assert exc_info.value.retry_after_seconds == 10.0
+
+    @pytest.mark.asyncio
+    async def test_rate_limit_handle_sleeps_and_retries(self):
+        ok_response = self._make_response(200)
+        client = AsyncDAVClient(url="http://cal.example.com/", rate_limit_handle=True)
+        client.session.request = AsyncMock(
+            side_effect=[
+                self._make_response(429, {"Retry-After": "5"}),
+                ok_response,
+            ]
+        )
+        with patch("caldav.async_davclient.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+            response = await client.request("/")
+        mock_sleep.assert_awaited_once_with(5.0)
+        assert response.status == 200
+        assert client.session.request.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_rate_limit_handle_default_sleep_used_when_no_retry_after(self):
+        ok_response = self._make_response(200)
+        client = AsyncDAVClient(
+            url="http://cal.example.com/", rate_limit_handle=True, rate_limit_default_sleep=3
+        )
+        client.session.request = AsyncMock(side_effect=[self._make_response(429), ok_response])
+        with patch("caldav.async_davclient.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+            response = await client.request("/")
+        mock_sleep.assert_awaited_once_with(3.0)
+        assert response.status == 200
+
+    @pytest.mark.asyncio
+    async def test_rate_limit_handle_no_sleep_info_raises(self):
+        client = AsyncDAVClient(url="http://cal.example.com/", rate_limit_handle=True)
+        client.session.request = AsyncMock(return_value=self._make_response(429))
+        with pytest.raises(error.RateLimitError):
+            await client.request("/")
+
+    @pytest.mark.asyncio
+    async def test_rate_limit_max_sleep_caps_sleep_time(self):
+        ok_response = self._make_response(200)
+        client = AsyncDAVClient(
+            url="http://cal.example.com/", rate_limit_handle=True, rate_limit_max_sleep=60
+        )
+        client.session.request = AsyncMock(
+            side_effect=[
+                self._make_response(429, {"Retry-After": "3600"}),
+                ok_response,
+            ]
+        )
+        with patch("caldav.async_davclient.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+            await client.request("/")
+        mock_sleep.assert_awaited_once_with(60.0)
+
+    @pytest.mark.asyncio
+    async def test_rate_limit_max_sleep_zero_raises(self):
+        client = AsyncDAVClient(
+            url="http://cal.example.com/", rate_limit_handle=True, rate_limit_max_sleep=0
+        )
+        client.session.request = AsyncMock(
+            return_value=self._make_response(429, {"Retry-After": "30"})
+        )
+        with pytest.raises(error.RateLimitError):
+            await client.request("/")

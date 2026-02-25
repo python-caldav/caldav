@@ -8,12 +8,14 @@ using the same dynamic class generation pattern as the sync tests.
 """
 
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from functools import wraps
 from typing import Any
 
 import pytest
 import pytest_asyncio
+
+from caldav.compatibility_hints import FeatureSet
 
 from .test_servers import TestServer, get_available_servers
 
@@ -34,52 +36,77 @@ def _async_delay_decorator(f, t=20):
     return wrapper
 
 
-# Test data
-ev1 = """BEGIN:VCALENDAR
+# Dynamic test data generators - use near-future dates to avoid
+# min-date-time restrictions on servers like CCS.
+_base_date = None
+
+
+def _get_base_date() -> datetime:
+    """Return a stable base date for the current test session (tomorrow at noon UTC)."""
+    global _base_date
+    if _base_date is None:
+        tomorrow = datetime.now(tz=timezone.utc).date() + timedelta(days=1)
+        _base_date = datetime(tomorrow.year, tomorrow.month, tomorrow.day, 12, 0, 0)
+    return _base_date
+
+
+def _fmt(dt: datetime) -> str:
+    return dt.strftime("%Y%m%dT%H%M%SZ")
+
+
+def make_event(uid: str, summary: str, dtstart: datetime, dtend: datetime) -> str:
+    return f"""BEGIN:VCALENDAR
 VERSION:2.0
 PRODID:-//Example Corp.//CalDAV Client//EN
 BEGIN:VEVENT
-UID:async-test-event-001@example.com
-DTSTAMP:20060712T182145Z
-DTSTART:20060714T170000Z
-DTEND:20060715T040000Z
-SUMMARY:Async Test Event
+UID:{uid}
+DTSTAMP:{_fmt(datetime.now(tz=timezone.utc))}
+DTSTART:{_fmt(dtstart)}
+DTEND:{_fmt(dtend)}
+SUMMARY:{summary}
 END:VEVENT
 END:VCALENDAR"""
 
-ev2 = """BEGIN:VCALENDAR
-VERSION:2.0
-PRODID:-//Example Corp.//CalDAV Client//EN
-BEGIN:VEVENT
-UID:async-test-event-002@example.com
-DTSTAMP:20060712T182145Z
-DTSTART:20060715T170000Z
-DTEND:20060716T040000Z
-SUMMARY:Second Async Test Event
-END:VEVENT
-END:VCALENDAR"""
 
-todo1 = """BEGIN:VCALENDAR
+def make_todo(uid: str, summary: str, status: str = "NEEDS-ACTION") -> str:
+    return f"""BEGIN:VCALENDAR
 VERSION:2.0
 PRODID:-//Example Corp.//CalDAV Client//EN
 BEGIN:VTODO
-UID:async-test-todo-001@example.com
-DTSTAMP:20060712T182145Z
-SUMMARY:Async Test Todo
-STATUS:NEEDS-ACTION
+UID:{uid}
+DTSTAMP:{_fmt(datetime.now(tz=timezone.utc))}
+SUMMARY:{summary}
+STATUS:{status}
 END:VTODO
 END:VCALENDAR"""
 
-todo2 = """BEGIN:VCALENDAR
-VERSION:2.0
-PRODID:-//Example Corp.//CalDAV Client//EN
-BEGIN:VTODO
-UID:async-test-todo-002@example.com
-DTSTAMP:20060712T182145Z
-SUMMARY:Completed Async Todo
-STATUS:COMPLETED
-END:VTODO
-END:VCALENDAR"""
+
+def ev1() -> str:
+    base = _get_base_date()
+    return make_event(
+        "async-test-event-001@example.com",
+        "Async Test Event",
+        base,
+        base + timedelta(hours=11),
+    )
+
+
+def ev2() -> str:
+    base = _get_base_date()
+    return make_event(
+        "async-test-event-002@example.com",
+        "Second Async Test Event",
+        base + timedelta(days=1),
+        base + timedelta(days=1, hours=11),
+    )
+
+
+def todo1() -> str:
+    return make_todo("async-test-todo-001@example.com", "Async Test Todo")
+
+
+def todo2() -> str:
+    return make_todo("async-test-todo-002@example.com", "Completed Async Todo", "COMPLETED")
 
 
 async def add_event(calendar: Any, data: str) -> Any:
@@ -111,6 +138,29 @@ class AsyncFunctionalTestsBaseClass:
 
     # Server configuration - set by dynamic class generation
     server: TestServer
+
+    @property
+    def _features(self):
+        """Cached FeatureSet from server config."""
+        if not hasattr(self.__class__, "_feature_set_cache"):
+            features = self.server.features
+            if isinstance(features, str):
+                import caldav.compatibility_hints
+
+                name = features
+                if name.startswith("compatibility_hints."):
+                    name = name[len("compatibility_hints.") :]
+                features = getattr(caldav.compatibility_hints, name)
+            self.__class__._feature_set_cache = FeatureSet(features)
+        return self.__class__._feature_set_cache
+
+    def is_supported(self, feature, return_type=bool, accept_fragile=False):
+        return self._features.is_supported(feature, return_type, accept_fragile=accept_fragile)
+
+    def skip_unless_support(self, feature):
+        if not self.is_supported(feature):
+            msg = self._features.find_feature(feature).get("description", feature)
+            pytest.skip("Test skipped due to server incompatibility issue: " + msg)
 
     @pytest.fixture(scope="class")
     def test_server(self) -> TestServer:
@@ -164,7 +214,7 @@ class AsyncFunctionalTestsBaseClass:
         from caldav.aio import AsyncPrincipal
         from caldav.lib.error import AuthorizationError, NotFoundError
 
-        from .fixture_helpers import get_or_create_test_calendar
+        from .fixture_helpers import aget_or_create_test_calendar
 
         calendar_name = f"async-test-{datetime.now().strftime('%Y%m%d%H%M%S%f')}"
 
@@ -176,12 +226,60 @@ class AsyncFunctionalTestsBaseClass:
             pass
 
         # Use shared helper for calendar setup
-        calendar, created = await get_or_create_test_calendar(
+        calendar, created = await aget_or_create_test_calendar(
             async_client, principal, calendar_name=calendar_name
         )
 
         if calendar is None:
             pytest.skip("Could not create or find a calendar for testing")
+
+        yield calendar
+
+        # Only cleanup if we created the calendar
+        if created:
+            try:
+                await calendar.delete()
+            except Exception:
+                pass
+
+    @pytest_asyncio.fixture
+    async def async_task_list(self, async_client: Any) -> Any:
+        """Create a task list for todo tests.
+
+        For servers that don't support mixed calendars (like Zimbra), todos must
+        be stored in a separate task list with supported_calendar_component_set=["VTODO"].
+        """
+        from caldav.aio import AsyncPrincipal
+        from caldav.lib.error import AuthorizationError, NotFoundError
+
+        from .fixture_helpers import aget_or_create_test_calendar
+
+        # Check if server supports mixed calendars
+        supports_mixed = True
+        if hasattr(async_client, "features") and async_client.features:
+            supports_mixed = async_client.features.is_supported("save-load.todo.mixed-calendar")
+
+        calendar_name = f"async-task-list-{datetime.now().strftime('%Y%m%d%H%M%S%f')}"
+
+        # Try to get principal for calendar operations
+        principal = None
+        try:
+            principal = await AsyncPrincipal.create(async_client)
+        except (NotFoundError, AuthorizationError):
+            pass
+
+        # For servers without mixed calendar support, create a dedicated task list
+        component_set = ["VTODO"] if not supports_mixed else None
+
+        calendar, created = await aget_or_create_test_calendar(
+            async_client,
+            principal,
+            calendar_name=calendar_name,
+            supported_calendar_component_set=component_set,
+        )
+
+        if calendar is None:
+            pytest.skip("Could not create or find a task list for testing")
 
         yield calendar
 
@@ -208,33 +306,47 @@ class AsyncFunctionalTestsBaseClass:
     @pytest.mark.asyncio
     async def test_principal_make_calendar(self, async_client: Any) -> None:
         """Test creating and deleting a calendar."""
+        self.skip_unless_support("create-calendar")
+
         from caldav.aio import AsyncCalendarSet, AsyncPrincipal
         from caldav.lib.error import AuthorizationError, MkcalendarError, NotFoundError
 
-        calendar_name = f"async-principal-test-{datetime.now().strftime('%Y%m%d%H%M%S%f')}"
-        calendar = None
+        from .fixture_helpers import cleanup_calendar_objects
 
-        # Try principal-based calendar creation first (works for Baikal, Xandikos)
+        cal_id = "pythoncaldav-async-test"
+        calendar = None
+        principal = None
+
+        # Try principal-based calendar creation (most servers)
         try:
             principal = await AsyncPrincipal.create(async_client)
-            calendar = await principal.make_calendar(name=calendar_name)
-        except (NotFoundError, AuthorizationError, MkcalendarError):
-            # Fall back to direct calendar creation (works for Radicale)
+            calendar = await principal.make_calendar(name="Async Test", cal_id=cal_id)
+        except (MkcalendarError, AuthorizationError):
+            # Calendar already exists from a previous run - reuse it
+            # (mirrors sync _fixCalendar_ pattern)
+            if principal is not None:
+                calendar = principal.calendar(cal_id=cal_id)
+        except NotFoundError:
+            # Principal discovery failed
             pass
 
         if calendar is None:
-            # Try creating calendar at client URL
+            # Fall back to CalendarSet at client URL (e.g. Radicale)
+            calendar_home = AsyncCalendarSet(client=async_client, url=async_client.url)
             try:
-                calendar_home = AsyncCalendarSet(client=async_client, url=async_client.url)
-                calendar = await calendar_home.make_calendar(name=calendar_name)
-            except MkcalendarError:
-                pytest.skip("Server does not support MKCALENDAR")
+                calendar = await calendar_home.make_calendar(name="Async Test", cal_id=cal_id)
+            except (MkcalendarError, AuthorizationError):
+                calendar = async_client.calendar(cal_id=cal_id)
 
         assert calendar is not None
         assert calendar.url is not None
 
-        # Clean up
-        await calendar.delete()
+        # Clean up based on server capabilities
+        if self.is_supported("delete-calendar"):
+            await calendar.delete()
+        else:
+            # Can't delete the calendar, just wipe its objects
+            await cleanup_calendar_objects(calendar)
 
     @pytest.mark.asyncio
     async def test_search_events(self, async_calendar: Any) -> None:
@@ -242,8 +354,8 @@ class AsyncFunctionalTestsBaseClass:
         from caldav.aio import AsyncEvent
 
         # Add test events
-        await add_event(async_calendar, ev1)
-        await add_event(async_calendar, ev2)
+        await add_event(async_calendar, ev1())
+        await add_event(async_calendar, ev2())
 
         # Search for all events
         events = await async_calendar.search(event=True)
@@ -255,29 +367,30 @@ class AsyncFunctionalTestsBaseClass:
     async def test_search_events_by_date_range(self, async_calendar: Any) -> None:
         """Test searching for events in a date range."""
         # Add test event
-        await add_event(async_calendar, ev1)
+        await add_event(async_calendar, ev1())
 
-        # Search for events in the date range
+        # Search for events in the date range (covers ev1's day)
+        base = _get_base_date()
         events = await async_calendar.search(
             event=True,
-            start=datetime(2006, 7, 14),
-            end=datetime(2006, 7, 16),
+            start=base - timedelta(hours=1),
+            end=base + timedelta(days=1),
         )
 
         assert len(events) >= 1
         assert "Async Test Event" in events[0].data
 
     @pytest.mark.asyncio
-    async def test_search_todos_pending(self, async_calendar: Any) -> None:
+    async def test_search_todos_pending(self, async_task_list: Any) -> None:
         """Test searching for pending todos."""
         from caldav.aio import AsyncTodo
 
         # Add pending and completed todos
-        await add_todo(async_calendar, todo1)
-        await add_todo(async_calendar, todo2)
+        await add_todo(async_task_list, todo1())
+        await add_todo(async_task_list, todo2())
 
         # Search for pending todos only (default)
-        todos = await async_calendar.search(todo=True, include_completed=False)
+        todos = await async_task_list.search(todo=True, include_completed=False)
 
         # Should only get the pending todo
         assert len(todos) >= 1
@@ -285,14 +398,14 @@ class AsyncFunctionalTestsBaseClass:
         assert any("NEEDS-ACTION" in t.data for t in todos)
 
     @pytest.mark.asyncio
-    async def test_search_todos_all(self, async_calendar: Any) -> None:
+    async def test_search_todos_all(self, async_task_list: Any) -> None:
         """Test searching for all todos including completed."""
         # Add pending and completed todos
-        await add_todo(async_calendar, todo1)
-        await add_todo(async_calendar, todo2)
+        await add_todo(async_task_list, todo1())
+        await add_todo(async_task_list, todo2())
 
         # Search for all todos
-        todos = await async_calendar.search(todo=True, include_completed=True)
+        todos = await async_task_list.search(todo=True, include_completed=True)
 
         # Should get both todos
         assert len(todos) >= 2
@@ -303,8 +416,8 @@ class AsyncFunctionalTestsBaseClass:
         from caldav.aio import AsyncEvent
 
         # Add test events
-        await add_event(async_calendar, ev1)
-        await add_event(async_calendar, ev2)
+        await add_event(async_calendar, ev1())
+        await add_event(async_calendar, ev2())
 
         # Get all events
         events = await async_calendar.get_events()
@@ -313,15 +426,15 @@ class AsyncFunctionalTestsBaseClass:
         assert all(isinstance(e, AsyncEvent) for e in events)
 
     @pytest.mark.asyncio
-    async def test_todos_method(self, async_calendar: Any) -> None:
+    async def test_todos_method(self, async_task_list: Any) -> None:
         """Test the todos() convenience method."""
         from caldav.aio import AsyncTodo
 
         # Add test todos
-        await add_todo(async_calendar, todo1)
+        await add_todo(async_task_list, todo1())
 
         # Get all pending todos
-        todos = await async_calendar.get_todos()
+        todos = await async_task_list.get_todos()
 
         assert len(todos) >= 1
         assert all(isinstance(t, AsyncTodo) for t in todos)

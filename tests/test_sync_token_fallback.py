@@ -22,6 +22,8 @@ class TestSyncTokenFallback:
         self.mock_client = Mock()
         self.mock_client.features = Mock()
         self.mock_client.features.is_supported = Mock(return_value={})
+        # mock_client.url needs to be a real URL for client.url.join() to work
+        self.mock_client.url = URL("http://example.com/")
 
         self.calendar = Calendar(client=self.mock_client, url=URL("http://example.com/calendar/"))
 
