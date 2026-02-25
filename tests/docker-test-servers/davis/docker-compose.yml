@@ -1,0 +1,27 @@
+services:
+  davis:
+    image: ghcr.io/tchapi/davis-standalone:latest
+    container_name: davis-test
+    ports:
+      - "8806:9000"
+    environment:
+      - APP_ENV=prod
+      - DATABASE_DRIVER=sqlite
+      - DATABASE_URL=sqlite:////data/davis-database.db
+      - ADMIN_LOGIN=admin
+      - ADMIN_PASSWORD=admin
+      - CALDAV_ENABLED=true
+      - CARDDAV_ENABLED=true
+      - WEBDAV_ENABLED=false
+      - AUTH_REALM=SabreDAV
+      - AUTH_METHOD=Basic
+      - APP_SECRET=testserversecret123
+      - INVITE_FROM_ADDRESS=test@example.com
+    tmpfs:
+      - /data:size=100m
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/dav/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s

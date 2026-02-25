@@ -61,12 +61,22 @@ class TestServer(ABC):
     @property
     def username(self) -> str | None:
         """Return the username for authentication."""
-        return self.config.get("username")
+        # Support both test config format and main caldav config format
+        return (
+            self.config.get("username")
+            or self.config.get("caldav_username")
+            or self.config.get("caldav_user")
+        )
 
     @property
     def password(self) -> str | None:
         """Return the password for authentication."""
-        return self.config.get("password")
+        # Support both test config format and main caldav config format
+        # Check explicitly for keys since empty string is valid
+        for key in ("password", "caldav_password", "caldav_pass"):
+            if key in self.config:
+                return self.config[key]
+        return None
 
     @property
     def features(self) -> Any:
@@ -74,9 +84,12 @@ class TestServer(ABC):
         Return compatibility features for this server.
 
         This can be a dict of feature flags or a reference to a
-        compatibility hints object.
+        compatibility hints object.  The "base" key (if present) is
+        resolved here via config.resolve_features().
         """
-        return self.config.get("features", [])
+        from caldav.config import resolve_features
+
+        return resolve_features(self.config.get("features", []))
 
     @abstractmethod
     def start(self) -> None:
@@ -120,11 +133,15 @@ class TestServer(ABC):
         """
         from caldav.davclient import DAVClient
 
-        client = DAVClient(
-            url=self.url,
-            username=self.username,
-            password=self.password,
-        )
+        kwargs: dict[str, Any] = {
+            "url": self.url,
+            "username": self.username,
+            "password": self.password,
+            "features": self.features,
+        }
+        if "ssl_verify_cert" in self.config:
+            kwargs["ssl_verify_cert"] = self.config["ssl_verify_cert"]
+        client = DAVClient(**kwargs)
         client.server_name = self.name
         # Attach no-op setup/teardown by default
         client.setup = lambda self_: None
@@ -140,13 +157,16 @@ class TestServer(ABC):
         """
         from caldav.aio import get_async_davclient
 
-        return await get_async_davclient(
-            url=self.url,
-            username=self.username,
-            password=self.password,
-            features=self.features,
-            probe=False,  # We already checked accessibility
-        )
+        kwargs: dict[str, Any] = {
+            "url": self.url,
+            "username": self.username,
+            "password": self.password,
+            "features": self.features,
+            "probe": False,  # We already checked accessibility
+        }
+        if "ssl_verify_cert" in self.config:
+            kwargs["ssl_verify_cert"] = self.config["ssl_verify_cert"]
+        return await get_async_davclient(**kwargs)
 
     def get_server_params(self) -> dict[str, Any]:
         """
@@ -165,6 +185,9 @@ class TestServer(ABC):
             "password": self.password,
             "features": self.features,
         }
+        # Pass through SSL verification setting if configured
+        if "ssl_verify_cert" in self.config:
+            params["ssl_verify_cert"] = self.config["ssl_verify_cert"]
         # Check if server is already running (either started by us or externally)
         already_running = self._started or self.is_accessible()
         if already_running:
@@ -377,22 +400,34 @@ class ExternalTestServer(TestServer):
 
     External servers are already running somewhere - we don't start or stop them.
     This is used for testing against real CalDAV servers configured by the user.
+
+    The URL can be provided directly via the 'url' config key, or constructed
+    from the 'auto-connect.url' feature (with domain, scheme, basepath keys).
     """
 
     server_type = "external"
 
     def __init__(self, config: dict[str, Any] | None = None) -> None:
         super().__init__(config)
-        self._url = self.config.get("url", "")
+        self._url = self._construct_url()
+
+    def _construct_url(self) -> str:
+        """Get explicit URL from config, if any.
+
+        URL resolution from features (auto-connect.url) is handled by
+        the DAVClient constructor via _auto_url() - not duplicated here.
+        """
+        return self.config.get("url") or self.config.get("caldav_url") or ""
 
     @property
     def url(self) -> str:
         return self._url
 
     def start(self) -> None:
-        """External servers are already running - nothing to do."""
-        if not self.is_accessible():
-            raise RuntimeError(f"External server {self.name} at {self.url} is not accessible")
+        """External servers are already running - just mark as started."""
+        # No accessibility check here - the caldav library handles URL
+        # normalization, RFC6764 discovery, and will provide proper error
+        # messages if the server is unreachable
         self._started = True
 
     def stop(self) -> None:
@@ -401,9 +436,20 @@ class ExternalTestServer(TestServer):
         self._started_by_us = False
 
     def is_accessible(self) -> bool:
-        """Check if the external server is accessible."""
-        try:
-            response = requests.get(self.url, timeout=DEFAULT_HTTP_TIMEOUT)
-            return response.status_code in (200, 401, 403, 404)
-        except Exception:
-            return False
+        """
+        External servers are assumed accessible.
+
+        The caldav library will handle connection errors with proper messages
+        if the server is actually unreachable.
+        """
+        return True
+
+
+# Deferred registration to avoid circular imports
+def _register_external_server() -> None:
+    from .registry import register_server_class
+
+    register_server_class("external", ExternalTestServer)
+
+
+_register_external_server()

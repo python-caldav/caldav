@@ -1,33 +1,41 @@
 """
 Configuration loader for test servers.
 
-This module provides functions for loading test server configuration
-from YAML/JSON files, with fallback to the legacy conf_private.py.
+This module loads test server configuration from:
+1. Test-specific config files (tests/caldav_test_servers.yaml)
+2. Main caldav config files with 'testing_allowed: true' sections
 """
 
-import warnings
 from pathlib import Path
 from typing import Any
 
-from caldav.config import expand_env_vars, read_config
+from caldav.config import expand_env_vars, get_all_test_servers, read_config
 
-# Default config file locations (in priority order)
-DEFAULT_CONFIG_LOCATIONS = [
-    "tests/test_servers.yaml",
-    "tests/test_servers.json",
+# Test-specific config file locations (don't need testing_allowed)
+TEST_CONFIG_LOCATIONS = [
+    "tests/caldav_test_servers.yaml",
+    "tests/caldav_test_servers.json",
     "~/.config/caldav/test_servers.yaml",
     "~/.config/caldav/test_servers.json",
 ]
+
+
+class ConfigParseError(Exception):
+    """Raised when a config file exists but cannot be parsed."""
+
+    pass
 
 
 def load_test_server_config(
     config_file: str | None = None,
 ) -> dict[str, dict[str, Any]]:
     """
-    Load test server configuration from file.
+    Load test server configuration.
 
-    Searches for config files in default locations and loads the first
-    one found. Falls back to conf_private.py with a deprecation warning.
+    Priority:
+    1. Explicit config_file argument
+    2. Test-specific config files (tests/caldav_test_servers.yaml, etc.)
+    3. Main caldav config sections with 'testing_allowed: true'
 
     Args:
         config_file: Optional explicit path to config file
@@ -36,214 +44,54 @@ def load_test_server_config(
         Dict mapping server names to their configuration dicts.
         Empty dict if no configuration found.
 
-    Example config file (YAML):
-        test-servers:
-          radicale:
-            type: embedded
-            enabled: true
-            port: 5232
-          baikal:
-            type: docker
-            enabled: ${TEST_BAIKAL:-auto}
-            url: http://localhost:8800/dav.php
+    Raises:
+        ConfigParseError: If a config file exists but cannot be parsed.
     """
     # Try explicit config file first
     if config_file:
-        cfg = read_config(config_file)
-        if cfg:
-            servers = cfg.get("test-servers", cfg)
-            return expand_env_vars(servers)
+        try:
+            return _load_config_file(config_file)
+        except ConfigParseError:
+            if Path(config_file).exists():
+                raise
+            # File doesn't exist - fall through to other locations
 
-    # Try default locations
-    for loc in DEFAULT_CONFIG_LOCATIONS:
+    # Try test-specific config files
+    for loc in TEST_CONFIG_LOCATIONS:
         path = Path(loc).expanduser()
         if path.exists():
-            cfg = read_config(str(path))
-            if cfg:
-                servers = cfg.get("test-servers", cfg)
-                return expand_env_vars(servers)
+            return _load_config_file(str(path))
 
-    # Fallback to conf_private.py with deprecation warning
-    return _load_from_conf_private()
+    # Try main caldav config (sections with testing_allowed)
+    servers = get_all_test_servers()
+    if servers:
+        # Add type: external for registry to use ExternalTestServer
+        for config in servers.values():
+            config.setdefault("type", "external")
+            config.setdefault("enabled", True)
+        return servers
+
+    return {}
 
 
-def _load_from_conf_private() -> dict[str, dict[str, Any]]:
-    """
-    Load configuration from legacy conf_private.py.
-
-    This provides backwards compatibility during migration to
-    the new YAML/JSON config format.
-
-    Returns:
-        Dict mapping server names to their configuration dicts.
-        Empty dict if conf_private.py not found.
-    """
-    import sys
-
-    original_path = sys.path.copy()
+def _load_config_file(path: str) -> dict[str, dict[str, Any]]:
+    """Load and parse a config file."""
     try:
-        sys.path.insert(0, "tests")
-        sys.path.insert(1, ".")
+        cfg = read_config(path)
+    except Exception as e:
+        raise ConfigParseError(f"Config file '{path}' exists but could not be parsed: {e}") from e
 
-        try:
-            import conf_private
+    if not cfg:
+        raise ConfigParseError(
+            f"Config file '{path}' exists but could not be parsed. Check the YAML/JSON syntax."
+        )
 
-            warnings.warn(
-                "conf_private.py is deprecated for test server configuration. "
-                "Please migrate to tests/test_servers.yaml. "
-                "See docs/testing.rst for the new format.",
-                DeprecationWarning,
-                stacklevel=3,
-            )
-            return _convert_conf_private_to_config(conf_private)
-        except ImportError:
-            return {}
-    finally:
-        sys.path = original_path
+    cfg = expand_env_vars(cfg)
 
+    # Unwrap the "test-servers" key if present (the example YAML
+    # uses this as a top-level namespace).  Also support configs
+    # where server dicts are at the top level directly.
+    if "test-servers" in cfg:
+        cfg = cfg["test-servers"]
 
-def _convert_conf_private_to_config(conf_private: Any) -> dict[str, dict[str, Any]]:
-    """
-    Convert conf_private.py format to new config format.
-
-    Args:
-        conf_private: The imported conf_private module
-
-    Returns:
-        Dict mapping server names to their configuration dicts
-    """
-    result: dict[str, dict[str, Any]] = {}
-
-    # Convert caldav_servers list
-    if hasattr(conf_private, "caldav_servers"):
-        for i, server in enumerate(conf_private.caldav_servers):
-            name = server.get("name", f"server_{i}")
-            config: dict[str, Any] = {
-                "type": "external",
-                "enabled": server.get("enable", True),
-            }
-            # Copy all other keys
-            for key, value in server.items():
-                if key not in ("enable", "name"):
-                    config[key] = value
-            result[name.lower().replace(" ", "_")] = config
-
-    # Handle boolean enable/disable switches
-    for attr in (
-        "test_radicale",
-        "test_xandikos",
-        "test_baikal",
-        "test_nextcloud",
-        "test_cyrus",
-        "test_sogo",
-        "test_bedework",
-    ):
-        if hasattr(conf_private, attr):
-            server_name = attr.replace("test_", "")
-            if server_name not in result:
-                result[server_name] = {"type": server_name}
-            result[server_name]["enabled"] = getattr(conf_private, attr)
-
-    # Handle host/port overrides
-    for server_name in (
-        "radicale",
-        "xandikos",
-        "baikal",
-        "nextcloud",
-        "cyrus",
-        "sogo",
-        "bedework",
-    ):
-        host_attr = f"{server_name}_host"
-        port_attr = f"{server_name}_port"
-
-        if hasattr(conf_private, host_attr):
-            if server_name not in result:
-                result[server_name] = {"type": server_name}
-            result[server_name]["host"] = getattr(conf_private, host_attr)
-
-        if hasattr(conf_private, port_attr):
-            if server_name not in result:
-                result[server_name] = {"type": server_name}
-            result[server_name]["port"] = getattr(conf_private, port_attr)
-
-    return result
-
-
-def create_example_config() -> str:
-    """
-    Generate an example config file content.
-
-    Returns:
-        YAML-formatted example configuration
-    """
-    return """# Test server configuration for caldav tests
-# This file replaces the legacy conf_private.py
-
-test-servers:
-  # Embedded servers (run in-process)
-  radicale:
-    type: embedded
-    enabled: true
-    host: ${RADICALE_HOST:-localhost}
-    port: ${RADICALE_PORT:-5232}
-    username: user1
-    password: ""
-
-  xandikos:
-    type: embedded
-    enabled: true
-    host: ${XANDIKOS_HOST:-localhost}
-    port: ${XANDIKOS_PORT:-8993}
-    username: sometestuser
-
-  # Docker servers (require docker-compose)
-  baikal:
-    type: docker
-    enabled: ${TEST_BAIKAL:-auto}  # "auto" means check if docker available
-    host: ${BAIKAL_HOST:-localhost}
-    port: ${BAIKAL_PORT:-8800}
-    username: ${BAIKAL_USERNAME:-testuser}
-    password: ${BAIKAL_PASSWORD:-testpass}
-
-  nextcloud:
-    type: docker
-    enabled: ${TEST_NEXTCLOUD:-auto}
-    host: ${NEXTCLOUD_HOST:-localhost}
-    port: ${NEXTCLOUD_PORT:-8801}
-    username: ${NEXTCLOUD_USERNAME:-testuser}
-    password: ${NEXTCLOUD_PASSWORD:-testpass}
-
-  cyrus:
-    type: docker
-    enabled: ${TEST_CYRUS:-auto}
-    host: ${CYRUS_HOST:-localhost}
-    port: ${CYRUS_PORT:-8802}
-    username: ${CYRUS_USERNAME:-testuser@test.local}
-    password: ${CYRUS_PASSWORD:-testpassword}
-
-  sogo:
-    type: docker
-    enabled: ${TEST_SOGO:-auto}
-    host: ${SOGO_HOST:-localhost}
-    port: ${SOGO_PORT:-8803}
-    username: ${SOGO_USERNAME:-testuser}
-    password: ${SOGO_PASSWORD:-testpassword}
-
-  bedework:
-    type: docker
-    enabled: ${TEST_BEDEWORK:-auto}
-    host: ${BEDEWORK_HOST:-localhost}
-    port: ${BEDEWORK_PORT:-8804}
-    username: ${BEDEWORK_USERNAME:-admin}
-    password: ${BEDEWORK_PASSWORD:-bedework}
-
-  # External/private servers (user-configured)
-  # Uncomment and configure for your own server:
-  # my-server:
-  #   type: external
-  #   enabled: true
-  #   url: ${CALDAV_URL}
-  #   username: ${CALDAV_USERNAME}
-  #   password: ${CALDAV_PASSWORD}
-"""
+    return cfg

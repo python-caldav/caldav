@@ -1,0 +1,272 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Minimal CalendarServer config for caldav library test suite.
+  Based on Apple ccs-calendarserver test config (Apache 2.0 license).
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+
+    <key>ServerHostName</key>
+    <string>localhost</string>
+
+    <key>EnableCalDAV</key>
+    <true/>
+
+    <key>EnableCardDAV</key>
+    <true/>
+
+    <key>SocketFiles</key>
+    <dict>
+      <key>Enabled</key>
+      <false/>
+    </dict>
+
+    <key>HTTPPort</key>
+    <integer>8008</integer>
+
+    <key>SSLPort</key>
+    <integer>0</integer>
+
+    <key>EnableSSL</key>
+    <false/>
+
+    <key>RedirectHTTPToHTTPS</key>
+    <false/>
+
+    <key>BindHTTPPorts</key>
+    <array>
+      <integer>8008</integer>
+    </array>
+
+    <key>ServerRoot</key>
+    <string>./data</string>
+
+    <key>DataRoot</key>
+    <string>Data</string>
+
+    <key>DatabaseRoot</key>
+    <string>Database</string>
+
+    <key>DocumentRoot</key>
+    <string>Documents</string>
+
+    <key>ConfigRoot</key>
+    <string>./conf</string>
+
+    <key>RunRoot</key>
+    <string>Logs/state</string>
+
+    <key>FailIfUpgradeNeeded</key>
+    <false/>
+
+    <key>UserQuota</key>
+    <integer>104857600</integer>
+
+    <key>MaxCollectionsPerHome</key>
+    <integer>50</integer>
+
+    <key>MaxResourcesPerCollection</key>
+    <integer>10000</integer>
+
+    <key>MaxResourceSize</key>
+    <integer>1048576</integer>
+
+    <key>DirectoryProxy</key>
+    <dict>
+      <key>Enabled</key>
+      <true/>
+    </dict>
+
+    <!-- XML File Directory Service -->
+    <key>DirectoryService</key>
+    <dict>
+      <key>type</key>
+      <string>xml</string>
+      <key>params</key>
+      <dict>
+        <key>xmlFile</key>
+        <string>./conf/auth/accounts.xml</string>
+      </dict>
+    </dict>
+
+    <key>DirectoryRealmName</key>
+    <string>Test Realm</string>
+
+    <key>ResourceService</key>
+    <dict>
+      <key>Enabled</key>
+      <true/>
+      <key>type</key>
+      <string>xml</string>
+      <key>params</key>
+      <dict>
+        <key>xmlFile</key>
+        <string>./conf/auth/resources.xml</string>
+      </dict>
+    </dict>
+
+    <key>AugmentService</key>
+    <dict>
+      <key>type</key>
+      <string>xml</string>
+      <key>params</key>
+      <dict>
+        <key>xmlFiles</key>
+        <array>
+          <string>./conf/auth/augments.xml</string>
+        </array>
+      </dict>
+    </dict>
+
+    <key>ProxyLoadFromFile</key>
+    <string>./conf/auth/proxies.xml</string>
+
+    <key>AdminPrincipals</key>
+    <array>
+      <string>/principals/__uids__/0C8BDE62-E600-4696-83D3-8B5ECABDFD2E/</string>
+    </array>
+
+    <key>EnableProxyPrincipals</key>
+    <true/>
+
+    <key>EnableAnonymousReadRoot</key>
+    <true/>
+
+    <key>EnablePrincipalListings</key>
+    <true/>
+
+    <key>Authentication</key>
+    <dict>
+      <key>Basic</key>
+      <dict>
+        <key>Enabled</key>
+        <true/>
+        <key>AllowedOverWireUnencrypted</key>
+        <true/>
+      </dict>
+      <key>Digest</key>
+      <dict>
+        <key>Enabled</key>
+        <false/>
+      </dict>
+      <key>Kerberos</key>
+      <dict>
+        <key>Enabled</key>
+        <false/>
+      </dict>
+      <key>Wiki</key>
+      <dict>
+        <key>Enabled</key>
+        <false/>
+      </dict>
+    </dict>
+
+    <key>LogRoot</key>
+    <string>Logs</string>
+
+    <key>DefaultLogLevel</key>
+    <string>info</string>
+
+    <key>ProcessType</key>
+    <string>Combined</string>
+
+    <key>MultiProcess</key>
+    <dict>
+      <key>ProcessCount</key>
+      <integer>0</integer>
+    </dict>
+
+    <key>Notifications</key>
+    <dict>
+      <key>Services</key>
+      <dict>
+        <key>AMP</key>
+        <dict>
+          <key>Enabled</key>
+          <false/>
+        </dict>
+      </dict>
+    </dict>
+
+    <key>Scheduling</key>
+    <dict>
+      <key>CalDAV</key>
+      <dict>
+        <key>OldDraftCompatibility</key>
+        <true/>
+        <key>ScheduleTagCompatibility</key>
+        <true/>
+        <key>EnablePrivateComments</key>
+        <true/>
+      </dict>
+      <key>iSchedule</key>
+      <dict>
+        <key>Enabled</key>
+        <false/>
+      </dict>
+      <key>iMIP</key>
+      <dict>
+        <key>Enabled</key>
+        <false/>
+      </dict>
+    </dict>
+
+    <key>FreeBusyURL</key>
+    <dict>
+      <key>Enabled</key>
+      <true/>
+      <key>TimePeriod</key>
+      <integer>14</integer>
+      <key>AnonymousAccess</key>
+      <false/>
+    </dict>
+
+    <key>EnableTimezoneService</key>
+    <true/>
+
+    <key>UsePackageTimezones</key>
+    <true/>
+
+    <key>Sharing</key>
+    <dict>
+      <key>Enabled</key>
+      <true/>
+      <key>Calendars</key>
+      <dict>
+        <key>Enabled</key>
+        <true/>
+      </dict>
+    </dict>
+
+    <key>EnableTrashCollection</key>
+    <false/>
+
+    <key>ResponseCompression</key>
+    <false/>
+
+    <key>Memcached</key>
+    <dict>
+      <key>MaxClients</key>
+      <integer>5</integer>
+      <key>memcached</key>
+      <string>memcached</string>
+    </dict>
+
+    <key>EnableResponseCache</key>
+    <true/>
+
+    <key>ResponseCacheTimeout</key>
+    <integer>30</integer>
+
+    <key>EnableSearchAddressBook</key>
+    <false/>
+
+    <key>DirectoryCaching</key>
+    <dict>
+      <key>CachingSeconds</key>
+      <integer>10</integer>
+    </dict>
+
+  </dict>
+</plist>

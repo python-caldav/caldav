@@ -1,20 +1,51 @@
 #!/usr/bin/env python3
 """
-Convert legacy conf_private.py to new test_servers.yaml format.
+Convert legacy conf_private.py to new caldav_test_servers.yaml format.
 
 Usage:
     python tests/tools/convert_conf_private.py [conf_private.py] [output.yaml]
 
 If no arguments given, looks for tests/conf_private.py and outputs to
-tests/test_servers.yaml.
+tests/caldav_test_servers.yaml.
 
 The old conf_private.py format is deprecated and will be removed in v3.0.
 """
 
 import argparse
+import stat
 import sys
 from pathlib import Path
 from typing import Any
+
+# Known feature preset names from compatibility_hints
+KNOWN_FEATURE_PRESETS = [
+    "fastmail",
+    "posteo",
+    "purelymail",
+    "gmx",
+    "icloud",
+    "google",
+    "yahoo",
+    "zoho",
+    "mailbox_org",
+]
+
+
+def get_feature_preset_name(features: Any) -> str | None:
+    """Check if features matches a known preset and return its name."""
+    try:
+        from caldav import compatibility_hints
+
+        # Check all dict attributes in compatibility_hints
+        for name in dir(compatibility_hints):
+            if name.startswith("_"):
+                continue
+            preset = getattr(compatibility_hints, name)
+            if isinstance(preset, dict) and features is preset:
+                return f"compatibility_hints.{name}"
+    except ImportError:
+        pass
+    return None
 
 
 def load_conf_private(path: Path) -> dict[str, Any]:
@@ -60,9 +91,13 @@ def convert_to_yaml_config(conf_private: Any) -> dict[str, Any]:
                 if old_key in server:
                     config[new_key] = server[old_key]
 
-            # Handle features list
+            # Handle features - check if it's a known preset
             if "features" in server:
-                config["features"] = server["features"]
+                preset_name = get_feature_preset_name(server["features"])
+                if preset_name:
+                    config["features"] = preset_name
+                else:
+                    config["features"] = server["features"]
 
             servers[key] = config
 
@@ -177,7 +212,9 @@ def format_value(value: Any) -> str:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Convert conf_private.py to test_servers.yaml")
+    parser = argparse.ArgumentParser(
+        description="Convert conf_private.py to caldav_test_servers.yaml"
+    )
     parser.add_argument(
         "input",
         nargs="?",
@@ -187,8 +224,8 @@ def main():
     parser.add_argument(
         "output",
         nargs="?",
-        default="tests/test_servers.yaml",
-        help="Output YAML file (default: tests/test_servers.yaml)",
+        default="tests/caldav_test_servers.yaml",
+        help="Output YAML file (default: tests/caldav_test_servers.yaml)",
     )
     parser.add_argument(
         "--dry-run",
@@ -207,7 +244,10 @@ def main():
             "\nIf you don't have a conf_private.py, copy the example instead:",
             file=sys.stderr,
         )
-        print("  cp tests/test_servers.yaml.example tests/test_servers.yaml", file=sys.stderr)
+        print(
+            "  cp tests/caldav_test_servers.yaml.example tests/caldav_test_servers.yaml",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     print(f"Loading {input_path}...")
@@ -230,7 +270,9 @@ def main():
         print(yaml_content)
     else:
         output_path.write_text(yaml_content)
-        print(f"Written to {output_path}")
+        # Set restrictive permissions since file may contain passwords
+        output_path.chmod(stat.S_IRUSR | stat.S_IWUSR)  # 0600
+        print(f"Written to {output_path} (mode 0600)")
         print(f"\nYou can now delete {input_path} (it's deprecated and will be ignored)")
 
 

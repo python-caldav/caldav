@@ -32,7 +32,7 @@ from .base import (
     ExternalTestServer,
     TestServer,
 )
-from .config_loader import create_example_config, load_test_server_config
+from .config_loader import ConfigParseError, load_test_server_config
 from .helpers import client_context, has_test_servers
 from .registry import ServerRegistry, get_available_servers, get_registry
 
@@ -51,7 +51,7 @@ __all__ = [
     "get_registry",
     # Config loading
     "load_test_server_config",
-    "create_example_config",
+    "ConfigParseError",
     # Constants
     "DEFAULT_HTTP_TIMEOUT",
     "MAX_STARTUP_WAIT_SECONDS",

@@ -2,7 +2,7 @@
 Docker-based test server implementations.
 
 This module provides test server implementations for servers that run
-in Docker containers: Baikal, Nextcloud, Cyrus, SOGo, and Bedework.
+in Docker containers: Baikal, Nextcloud, Cyrus, SOGo, Bedework, DAViCal, Davis, CCS, and Zimbra.
 """
 
 import os
@@ -97,7 +97,9 @@ class CyrusTestServer(DockerTestServer):
         config.setdefault("host", os.environ.get("CYRUS_HOST", "localhost"))
         config.setdefault("port", int(os.environ.get("CYRUS_PORT", "8802")))
         config.setdefault("username", os.environ.get("CYRUS_USERNAME", "user1"))
-        config.setdefault("password", os.environ.get("CYRUS_PASSWORD", "x"))
+        config.setdefault(
+            "password", os.environ.get("CYRUS_PASSWORD", "any-password-seems-to-work")
+        )
         # Set up Cyrus-specific compatibility hints
         if "features" not in config:
             config["features"] = compatibility_hints.cyrus.copy()
@@ -217,8 +219,10 @@ class DavicalTestServer(DockerTestServer):
         config = config or {}
         config.setdefault("host", os.environ.get("DAVICAL_HOST", "localhost"))
         config.setdefault("port", int(os.environ.get("DAVICAL_PORT", "8805")))
-        config.setdefault("username", os.environ.get("DAVICAL_USERNAME", "admin"))
+        config.setdefault("username", os.environ.get("DAVICAL_USERNAME", "testuser"))
         config.setdefault("password", os.environ.get("DAVICAL_PASSWORD", "testpass"))
+        if "features" not in config:
+            config["features"] = compatibility_hints.davical.copy()
         super().__init__(config)
 
     def _default_port(self) -> int:
@@ -226,17 +230,121 @@ class DavicalTestServer(DockerTestServer):
 
     @property
     def url(self) -> str:
-        return f"http://{self.host}:{self.port}/davical/caldav.php/{self.username}/"
+        return f"http://{self.host}:{self.port}/caldav.php/{self.username}/"
 
     def is_accessible(self) -> bool:
         """Check if DAViCal is accessible."""
         try:
             response = requests.request(
                 "PROPFIND",
-                f"http://{self.host}:{self.port}/davical/caldav.php/",
+                f"http://{self.host}:{self.port}/caldav.php/",
                 timeout=DEFAULT_HTTP_TIMEOUT,
             )
             return response.status_code in (200, 207, 401, 403, 404)
+        except Exception:
+            return False
+
+
+class DavisTestServer(DockerTestServer):
+    """
+    Davis CalDAV server in Docker.
+
+    Davis is a modern admin interface for sabre/dav, using Symfony 7.
+    The standalone image bundles PHP-FPM + Caddy with SQLite.
+    """
+
+    name = "Davis"
+
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
+        config = config or {}
+        config.setdefault("host", os.environ.get("DAVIS_HOST", "localhost"))
+        config.setdefault("port", int(os.environ.get("DAVIS_PORT", "8806")))
+        config.setdefault("username", os.environ.get("DAVIS_USERNAME", "testuser"))
+        config.setdefault("password", os.environ.get("DAVIS_PASSWORD", "testpass"))
+        if "features" not in config:
+            config["features"] = compatibility_hints.davis.copy()
+        super().__init__(config)
+
+    def _default_port(self) -> int:
+        return 8806
+
+    @property
+    def url(self) -> str:
+        return f"http://{self.host}:{self.port}/dav/"
+
+
+class CCSTestServer(DockerTestServer):
+    """
+    Apple CalendarServer (CCS) in Docker.
+
+    CCS is Apple's open-source CalDAV/CardDAV server (archived 2019).
+    Uses UID-based principal URLs and XML-based directory service.
+    """
+
+    name = "CCS"
+
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
+        config = config or {}
+        config.setdefault("host", os.environ.get("CCS_HOST", "localhost"))
+        config.setdefault("port", int(os.environ.get("CCS_PORT", "8807")))
+        config.setdefault("username", os.environ.get("CCS_USERNAME", "user01"))
+        config.setdefault("password", os.environ.get("CCS_PASSWORD", "user01"))
+        if "features" not in config:
+            config["features"] = compatibility_hints.ccs.copy()
+        super().__init__(config)
+
+    def _default_port(self) -> int:
+        return 8807
+
+    @property
+    def url(self) -> str:
+        return f"http://{self.host}:{self.port}/principals/"
+
+
+class ZimbraTestServer(DockerTestServer):
+    """
+    Zimbra Collaboration Suite CalDAV server in Docker.
+
+    Zimbra is a heavyweight server (~6GB RAM, ~10 min first startup).
+    Uses HTTPS with a self-signed certificate.
+    """
+
+    name = "Zimbra"
+
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
+        config = config or {}
+        config.setdefault("host", os.environ.get("ZIMBRA_HOST", "zimbra-docker.zimbra.io"))
+        config.setdefault("port", int(os.environ.get("ZIMBRA_PORT", "8808")))
+        config.setdefault(
+            "username",
+            os.environ.get("ZIMBRA_USERNAME", "testuser@zimbra.io"),
+        )
+        config.setdefault("password", os.environ.get("ZIMBRA_PASSWORD", "testpass"))
+        config.setdefault("ssl_verify_cert", False)
+        if "features" not in config:
+            config["features"] = compatibility_hints.zimbra.copy()
+        super().__init__(config)
+
+    def _default_port(self) -> int:
+        return 8808
+
+    @property
+    def url(self) -> str:
+        return f"https://{self.host}:{self.port}/dav/"
+
+    def is_accessible(self) -> bool:
+        """Check if Zimbra is accessible (HTTPS with self-signed cert)."""
+        import warnings
+
+        try:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", category=Warning)
+                response = requests.get(
+                    f"https://{self.host}:{self.port}/",
+                    timeout=DEFAULT_HTTP_TIMEOUT,
+                    verify=False,
+                )
+            return response.status_code in (200, 301, 302, 401, 403, 404)
         except Exception:
             return False
 
@@ -248,3 +356,6 @@ register_server_class("cyrus", CyrusTestServer)
 register_server_class("sogo", SOGoTestServer)
 register_server_class("bedework", BedeworkTestServer)
 register_server_class("davical", DavicalTestServer)
+register_server_class("davis", DavisTestServer)
+register_server_class("ccs", CCSTestServer)
+register_server_class("zimbra", ZimbraTestServer)

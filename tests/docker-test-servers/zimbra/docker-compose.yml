@@ -1,0 +1,26 @@
+services:
+  zimbra:
+    image: zimbra/zcs-foss:latest
+    container_name: zimbra-test
+    hostname: zimbra-docker
+    dns:
+      - 127.0.0.1
+      - 8.8.8.8
+    ports:
+      - "8808:443"
+    privileged: true
+    command: /zimbra/init
+    environment:
+      - ZIMBRA_HOST_NAME=zimbra-docker.zimbra.io
+      - ZIMBRA_DEFAULT_DOMAIN=zimbra.io
+      - TIME_ZONE_ID=UTC
+      - TZDATA_AREA=Etc
+      - TZDATA_ZONE=UTC
+      - ADMIN_PW=testpass123
+      - LDAP_ADMIN_PW=testpass123
+      - LDAP_AMAVIS_PW=testpass123
+      - LDAP_POSTFIX_PW=testpass123
+      - LDAP_REPLICATION_PW=testpass123
+      - LDAP_ROOT_PW=testpass123
+      - LDAP_BES_PW=testpass123
+      - LDAP_NGINX_PW=testpass123

@@ -1,0 +1,145 @@
+# Test server configuration for caldav tests
+#
+# Copy this file to caldav_test_servers.yaml and customize for your setup.
+# See tests/README.md for documentation.
+#
+# Environment variables can be used with ${VAR} or ${VAR:-default} syntax.
+
+test-servers:
+  # =========================================================================
+  # Embedded servers (run in-process, no external setup required)
+  # =========================================================================
+
+  radicale:
+    type: embedded
+    enabled: true
+    host: ${RADICALE_HOST:-localhost}
+    port: ${RADICALE_PORT:-5232}
+    username: user1
+    password: ""
+
+  xandikos:
+    type: embedded
+    enabled: true
+    host: ${XANDIKOS_HOST:-localhost}
+    port: ${XANDIKOS_PORT:-8993}
+    username: sometestuser
+    password: ""
+
+  # =========================================================================
+  # Docker servers (require docker-compose, see docker-test-servers/)
+  # =========================================================================
+  #
+  # Set enabled to:
+  #   - true: always enable
+  #   - false: always disable
+  #   - "auto": enable if docker is available (default for docker servers)
+
+  baikal:
+    type: docker
+    enabled: ${TEST_BAIKAL:-auto}
+    host: ${BAIKAL_HOST:-localhost}
+    port: ${BAIKAL_PORT:-8800}
+    username: ${BAIKAL_USERNAME:-testuser}
+    password: ${BAIKAL_PASSWORD:-testpass}
+    # Path within the CalDAV server
+    # path: /dav.php
+
+  nextcloud:
+    type: docker
+    enabled: ${TEST_NEXTCLOUD:-false}
+    host: ${NEXTCLOUD_HOST:-localhost}
+    port: ${NEXTCLOUD_PORT:-8801}
+    username: ${NEXTCLOUD_USERNAME:-testuser}
+    password: ${NEXTCLOUD_PASSWORD:-testpass}
+
+  cyrus:
+    type: docker
+    enabled: ${TEST_CYRUS:-false}
+    host: ${CYRUS_HOST:-localhost}
+    port: ${CYRUS_PORT:-8802}
+    username: ${CYRUS_USERNAME:-testuser@test.local}
+    password: ${CYRUS_PASSWORD:-testpassword}
+
+  sogo:
+    type: docker
+    enabled: ${TEST_SOGO:-false}
+    host: ${SOGO_HOST:-localhost}
+    port: ${SOGO_PORT:-8803}
+    username: ${SOGO_USERNAME:-testuser}
+    password: ${SOGO_PASSWORD:-testpassword}
+
+  bedework:
+    type: docker
+    enabled: ${TEST_BEDEWORK:-false}
+    host: ${BEDEWORK_HOST:-localhost}
+    port: ${BEDEWORK_PORT:-8804}
+    username: ${BEDEWORK_USERNAME:-admin}
+    password: ${BEDEWORK_PASSWORD:-bedework}
+
+  davical:
+    type: docker
+    enabled: ${TEST_DAVICAL:-false}
+    host: ${DAVICAL_HOST:-localhost}
+    port: ${DAVICAL_PORT:-8805}
+    username: ${DAVICAL_USERNAME:-testuser}
+    password: ${DAVICAL_PASSWORD:-testpass}
+
+  davis:
+    type: docker
+    enabled: ${TEST_DAVIS:-false}
+    host: ${DAVIS_HOST:-localhost}
+    port: ${DAVIS_PORT:-8806}
+    username: ${DAVIS_USERNAME:-testuser}
+    password: ${DAVIS_PASSWORD:-testpass}
+
+  ccs:
+    type: docker
+    enabled: ${TEST_CCS:-false}
+    host: ${CCS_HOST:-localhost}
+    port: ${CCS_PORT:-8807}
+    username: ${CCS_USERNAME:-user01}
+    password: ${CCS_PASSWORD:-user01}
+
+  zimbra:
+    type: docker
+    enabled: ${TEST_ZIMBRA:-false}
+    host: ${ZIMBRA_HOST:-zimbra-docker.zimbra.io}
+    port: ${ZIMBRA_PORT:-8808}
+    username: ${ZIMBRA_USERNAME:-testuser@zimbra.io}
+    password: ${ZIMBRA_PASSWORD:-testpass}
+
+  # =========================================================================
+  # External/private servers (your own CalDAV server)
+  # =========================================================================
+  #
+  # Uncomment and configure to test against your own server:
+
+  # my-server:
+  #   type: external
+  #   enabled: true
+  #   url: ${CALDAV_URL:-https://caldav.example.com/dav/}
+  #   username: ${CALDAV_USERNAME}
+  #   password: ${CALDAV_PASSWORD}
+  #   # Optional: SSL verification (default: true)
+  #   ssl_verify: true
+  #   # Optional: specify server limitations/features
+  #   features:
+  #     - no-expand        # Server doesn't support EXPAND
+  #     - no-sync-token    # Server doesn't support sync tokens
+  #     - no-freebusy      # Server doesn't support freebusy queries
+
+# =========================================================================
+# RFC6638 scheduling test users (optional)
+# =========================================================================
+#
+# For testing calendar scheduling (meeting invites, etc.), define
+# multiple users that can send invites to each other:
+
+# rfc6638_users:
+#   - url: https://caldav.example.com/dav/user1/
+#     username: user1
+#     password: pass1
+#   - url: https://caldav.example.com/dav/user2/
+#     username: user2
+#     password: pass2

@@ -7,7 +7,7 @@ services:
     ports:
       - "8802:8080"  # HTTP (CalDAV/CardDAV/JMAP)
       - "8143:8143"  # IMAP
-      - "8001:8001"  # Management API
+      - "18001:8001"  # Management API
     environment:
       - DEFAULTDOMAIN=example.com
       - SERVERNAME=cyrus-test

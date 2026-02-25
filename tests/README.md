@@ -39,8 +39,8 @@ pytest tests/test_caldav_unit.py
 Test configuration uses YAML or JSON files. The configuration loader searches
 these locations in order:
 
-1. `tests/test_servers.yaml`
-2. `tests/test_servers.json`
+1. `tests/caldav_test_servers.yaml`
+2. `tests/caldav_test_servers.json`
 3. `~/.config/caldav/test_servers.yaml`
 4. `~/.config/caldav/test_servers.json`
 
@@ -48,10 +48,15 @@ these locations in order:
 
 1. Copy the example configuration:
    ```bash
-   cp tests/test_servers.yaml.example tests/test_servers.yaml
+   cp tests/caldav_test_servers.yaml.example tests/caldav_test_servers.yaml
    ```
 
-2. Edit `test_servers.yaml` to enable/configure servers:
+2. If you want to populate it with private passwords, remember to protect it:
+   ```sh
+   chmod og-r tests/caldav_test_servers.yaml
+   ```
+
+3. Edit `caldav_test_servers.yaml` to enable/configure servers:
    ```yaml
    test-servers:
      radicale:
@@ -99,7 +104,7 @@ If you have an existing `conf_private.py`, a migration script is provided:
 python tests/tools/convert_conf_private.py
 ```
 
-This generates a `test_servers.yaml` from your existing configuration.
+This generates a `caldav_test_servers.yaml` from your existing configuration.
 The old `conf_private.py` format is deprecated and will be removed in v3.0.
 
 ## Test Server Types
@@ -213,7 +218,7 @@ coverage html  # Generate HTML report
 
 If you see warnings about no test servers being configured:
 
-1. Set up `test_servers.yaml` with your server details, or
+1. Set up `caldav_test_servers.yaml` with your server details, or
 2. Install embedded servers: `pip install radicale xandikos`, or
 3. Use the Docker test servers
 

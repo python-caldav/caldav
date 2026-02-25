@@ -1,18 +1,35 @@
 services:
+  db:
+    image: postgres:16-alpine
+    container_name: davical-db
+    environment:
+      - POSTGRES_PASSWORD=davical
+    tmpfs:
+      - /var/lib/postgresql/data:size=500m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
   davical:
     image: tuxnvape/davical-standalone:latest
     container_name: davical-test
     ports:
       - "8805:80"
     environment:
-      - POSTGRES_PASSWORD=davical
-      - DAVICAL_ADMIN_PASS=testpass
-    tmpfs:
-      # Make the container ephemeral - data is lost on restart
-      - /var/lib/postgresql/data:size=500m
+      - DBHOST=db
+      - PASSDAVDB=davical
+      - PGSQL_ROOT_PASS=davical
+      - ADMINDAVICALPASS=testpass
+      - TIME_ZONE=UTC
+    depends_on:
+      db:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost/davical/"]
       interval: 10s
       timeout: 5s
-      retries: 5
-      start_period: 30s
+      retries: 10
+      start_period: 45s

@@ -58,11 +58,15 @@ This SOGo instance comes **pre-configured** with:
 
 ## Disabling SOGo Tests
 
-If you want to skip SOGo tests, create `tests/conf_private.py`:
+If you want to skip SOGo tests, set `enabled: false` for the `sogo` entry in `tests/caldav_test_servers.yaml`:
 
-```python
-test_sogo = False
+```yaml
+sogo:
+  type: docker
+  enabled: false
 ```
+
+Or use the environment variable: `TEST_SOGO=false`.
 
 Or simply don't install Docker - the tests will automatically skip SOGo if Docker is not available.
 

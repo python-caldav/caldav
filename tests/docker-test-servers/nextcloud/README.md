@@ -60,11 +60,15 @@ This Nextcloud instance comes **pre-configured** with:
 
 ## Disabling Nextcloud Tests
 
-If you want to skip Nextcloud tests, create `tests/conf_private.py`:
+If you want to skip Nextcloud tests, set `enabled: false` for the `nextcloud` entry in `tests/caldav_test_servers.yaml`:
 
-```python
-test_nextcloud = False
+```yaml
+nextcloud:
+  type: docker
+  enabled: false
 ```
+
+Or use the environment variable: `TEST_NEXTCLOUD=false`.
 
 Or simply don't install Docker - the tests will automatically skip Nextcloud if Docker is not available.
 

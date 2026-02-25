@@ -15,7 +15,7 @@ class TestRadicale:
     def setup(self):
         URL = "http://localhost:8080/nicoe/perso/"
         self.client = caldav.DAVClient(URL)
-        self.calendar = caldav.objects.Calendar(self.client, URL)
+        self.calendar = caldav.Calendar(self.client, URL)
 
     def test_eventslist(self):
         events = self.calendar.get_events()
@@ -36,7 +36,7 @@ class TestTryton:
     def setup(self):
         URL = "http://admin:admin@localhost:9080/caldav/Calendars/Test"
         self.client = caldav.DAVClient(URL)
-        self.calendar = caldav.objects.Calendar(self.client, URL)
+        self.calendar = caldav.Calendar(self.client, URL)
 
     def test_eventslist(self):
         events = self.calendar.get_events()

@@ -118,8 +118,19 @@ class ServerRegistry:
 
         Args:
             config: Configuration dict
+
+        Raises:
+            ValueError: If a server configuration is invalid
         """
+        import warnings
+
         for name, server_config in config.items():
+            if not isinstance(server_config, dict):
+                raise ValueError(
+                    f"Server '{name}': configuration must be a dict, "
+                    f"got {type(server_config).__name__}"
+                )
+
             if not server_config.get("enabled", True):
                 continue
 
@@ -130,10 +141,23 @@ class ServerRegistry:
                 # Try to find by name if type not found
                 server_class = get_server_class(name)
 
-            if server_class is not None:
+            if server_class is None:
+                warnings.warn(
+                    f"Server '{name}': unknown type '{server_type}'. "
+                    f"Valid types: embedded, docker, external, radicale, xandikos, "
+                    f"baikal, nextcloud, cyrus, sogo, bedework. "
+                    f"Server will be skipped.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+                continue
+
+            try:
                 server_config["name"] = name
                 server = server_class(server_config)
                 self.register(server)
+            except Exception as e:
+                raise ValueError(f"Server '{name}': failed to create server instance: {e}") from e
 
     def auto_discover(self) -> None:
         """
@@ -226,15 +250,43 @@ def get_registry() -> ServerRegistry:
     """
     Get the global server registry instance.
 
-    Creates the registry on first call and runs auto-discovery.
+    Creates the registry on first call, runs auto-discovery, and loads
+    configuration from the config file (if present).
 
     Returns:
         The global ServerRegistry instance
+
+    Raises:
+        ConfigParseError: If the config file exists but cannot be parsed
+        ValueError: If the config has invalid server definitions
     """
     global _global_registry
     if _global_registry is None:
         _global_registry = ServerRegistry()
         _global_registry.auto_discover()
+
+        # Load configuration from config file
+        # Let ConfigParseError and ValueError propagate - these are real errors
+        from .config_loader import ConfigParseError, load_test_server_config
+
+        try:
+            config = load_test_server_config()
+            if config:
+                _global_registry.load_from_config(config)
+        except ConfigParseError:
+            # Re-raise config parse errors - these should fail loudly
+            raise
+        except Exception as e:
+            # Log unexpected errors but don't silently ignore them
+            import warnings
+
+            warnings.warn(
+                f"Failed to load test server configuration: {e}. "
+                "Check tests/caldav_test_servers.yaml for errors.",
+                UserWarning,
+                stacklevel=2,
+            )
+
     return _global_registry
 
 

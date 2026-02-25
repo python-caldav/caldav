@@ -1,36 +1,30 @@
 # DAViCal Test Server
 
-DAViCal is a CalDAV server that uses PostgreSQL as its backend. This Docker configuration provides a complete DAViCal server for testing.
+[DAViCal](https://www.davical.org/) is a CalDAV server that uses PostgreSQL as its backend. This Docker configuration provides a complete DAViCal server for testing.
 
 ## Quick Start
 
 ```bash
 cd tests/docker-test-servers/davical
-docker-compose up -d
+./start.sh
 ```
 
-Wait about 30 seconds for the database to initialize, then the server will be available.
+This will:
+1. Start PostgreSQL and DAViCal containers
+2. Wait for database initialization (~60s)
+3. Create a test user with CalDAV access
+4. Verify connectivity
 
 ## Configuration
 
-- **URL**: http://localhost:8805/davical/caldav.php
-- **Admin User**: admin
-- **Admin Password**: testpass (set via DAVICAL_ADMIN_PASS)
-
-## Creating Test Users
-
-After the server starts, you can create test users via the admin interface:
-
-1. Navigate to http://localhost:8805/davical/admin.php
-2. Login with admin / testpass
-3. Create a new user (e.g., testuser / testpass)
-
-Alternatively, the container may pre-create a test user depending on the image configuration.
+- **URL**: http://localhost:8805/caldav.php/
+- **Admin**: admin / testpass
+- **Test User**: testuser / testpass
 
 ## CalDAV Endpoints
 
-- **Principal URL**: `http://localhost:8805/davical/caldav.php/{username}/`
-- **Calendar Home**: `http://localhost:8805/davical/caldav.php/{username}/calendar/`
+- **Principal URL**: `http://localhost:8805/caldav.php/{username}/`
+- **Calendar Home**: `http://localhost:8805/caldav.php/{username}/calendar/` (auto-created on first MKCALENDAR)
 
 ## Environment Variables
 
@@ -38,12 +32,20 @@ Alternatively, the container may pre-create a test user depending on the image c
 |----------|---------|-------------|
 | `DAVICAL_HOST` | localhost | Server hostname |
 | `DAVICAL_PORT` | 8805 | HTTP port |
-| `DAVICAL_USERNAME` | admin | Test username |
+| `DAVICAL_USERNAME` | testuser | Test username |
 | `DAVICAL_PASSWORD` | testpass | Test password |
 
 ## Docker Image
 
-This configuration uses the [tuxnvape/davical-standalone](https://hub.docker.com/r/tuxnvape/davical-standalone) Docker image, which provides a complete DAViCal installation with PostgreSQL.
+Uses [tuxnvape/davical-standalone](https://hub.docker.com/r/tuxnvape/davical-standalone) with a separate [postgres:16-alpine](https://hub.docker.com/_/postgres) container. Despite the image name, it requires an external PostgreSQL service.
+
+## User Setup Details
+
+DAViCal stores users in PostgreSQL:
+- `usr` table: `(username, password, fullname, email)` — passwords are prefixed with `**`
+- `principal` table: `(type_id, user_no, displayname)` — type_id 1 = Person
+
+The `setup_davical.sh` script handles user creation automatically.
 
 ## Troubleshooting
 
@@ -53,13 +55,13 @@ Check if port 8805 is already in use:
 lsof -i :8805
 ```
 
-### Database initialization
-The first startup may take 30+ seconds while PostgreSQL initializes. Check logs:
+### Database initialization takes long
+The first startup takes ~60s for PostgreSQL initialization plus DAViCal schema setup. Check logs:
 ```bash
 docker-compose logs -f
 ```
 
 ### Testing connectivity
 ```bash
-curl -u admin:testpass http://localhost:8805/davical/caldav.php/admin/
+curl -X PROPFIND -H "Depth: 0" -u testuser:testpass http://localhost:8805/caldav.php/testuser/
 ```
