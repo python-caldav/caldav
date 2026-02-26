@@ -5,6 +5,9 @@
 **Branch:** v3.0-dev (119 commits since v2.2.6)
 **Scope:** All changes between tags v2.2.6 and HEAD
 
+> **Status update (commit ff6db30):** All "Must Fix" and "Should Fix" items from §8 have been
+> resolved. Remaining open items are v3.1+ and v4.0 work.
+
 ## Executive Summary
 
 The v3.0 release is a major architectural refactoring introducing Sans-I/O separation, full async support, and comprehensive API modernization -- all while maintaining backward compatibility with v2.x. The scope is large: 159 files changed, ~25,900 lines added, ~4,500 removed.
@@ -12,11 +15,11 @@ The v3.0 release is a major architectural refactoring introducing Sans-I/O separ
 **Overall assessment:** The architecture is well-designed and the codebase is in good shape for an alpha release. The Sans-I/O protocol layer is clean and testable. However, there are several bugs that should be fixed before a stable release, significant code duplication between sync/async paths (~650 lines), and some test coverage gaps.
 
 **Key findings:**
-- 3 bugs that will cause runtime errors
-- 1 security concern (UUID1 leaks MAC address in calendar UIDs)
+- ~~3 bugs that will cause runtime errors~~ **fixed**
+- ~~1 security concern (UUID1 leaks MAC address in calendar UIDs)~~ **fixed**
 - ~650 lines of sync/async duplication across domain objects
 - Test coverage gaps in discovery module and sync client unit tests
-- `breakpoint()` left in production code
+- ~~`breakpoint()` left in production code~~ **fixed**
 
 ---
 
@@ -30,12 +33,12 @@ The protocol layer separates XML construction/parsing from I/O. This is the stro
 |------|-------|--------|---------|
 | `types.py` | 243 | 9/10 | Frozen dataclasses: DAVRequest, DAVResponse, PropfindResult, CalendarQueryResult |
 | `xml_builders.py` | 428 | 7/10 | Pure functions building XML for PROPFIND, calendar-query, MKCALENDAR, etc. |
-| `xml_parsers.py` | 455 | 5/10 | Parse XML responses into typed results -- has a runtime bug |
+| `xml_parsers.py` | 455 | 5/10 | Parse XML responses into typed results |
 | `__init__.py` | 46 | 8/10 | Clean re-exports |
 
 **Issues found:**
 
-1. **BUG: NameError in `xml_parsers.py:260`** -- `parse_calendar_multiget_response()` calls `parse_calendar_query_response()` (no leading underscore), but only `_parse_calendar_query_response()` is defined. This will crash at runtime when calendar-multiget responses are parsed.
+1. ~~**BUG: NameError in `xml_parsers.py:260`**~~ **FIXED** -- `parse_calendar_multiget_response()` was calling `parse_calendar_query_response()` (missing leading underscore). Fixed by adding the `_` prefix.
 
 2. **Dead code in `xml_builders.py`** -- `_to_utc_date_string()` (line 401), `_build_freebusy_query_body()` (line 189), and `_build_mkcol_body()` (line 200) have zero callers.
 
@@ -59,11 +62,11 @@ Pure functions for CalDAV business logic. Well-structured but has some issues.
 
 **Issues found:**
 
-1. **SECURITY: UUID1 leaks MAC address (`calendarobject_ops.py:55`)** -- `uuid.uuid1()` embeds the host MAC address into generated calendar UIDs. Since calendar events are routinely shared, this is a privacy leak. Should use `uuid.uuid4()`.
+1. ~~**SECURITY: UUID1 leaks MAC address (`calendarobject_ops.py:55`)**~~ **FIXED** -- Replaced `uuid.uuid1()` with `uuid.uuid4()`.
 
 2. **`search_ops.py` mutates inputs (line 381-389)** -- `_build_search_xml_query` calls `setattr(searcher, flag, True)` on the passed-in searcher object. This violates the "pure functions" contract and causes side effects in callers.
 
-3. **MD5 in FIPS environments (`calendar_ops.py:132`)** -- `hashlib.md5()` without `usedforsecurity=False` will fail in FIPS-mode environments. Used for fake sync tokens, not for security.
+3. ~~**MD5 in FIPS environments (`calendar_ops.py:132`)**~~ **FIXED** -- Added `usedforsecurity=False` to both `calendar_ops.py` and `collection.py`.
 
 4. **Duplicate URL quoting** -- `quote(uid.replace("/", "%2F"))` pattern appears at both lines 62 and 138 in `calendarobject_ops.py`.
 
@@ -77,7 +80,7 @@ Pure functions for CalDAV business logic. Well-structured but has some issues.
 
 **Issues found:**
 
-1. **Unguarded index access (line 169)** -- `_strip_to_multistatus` accesses `tree[0]` without checking `len(tree) > 0` when `tree.tag == "xml"`. The equivalent code in `xml_parsers.py:279` does guard this.
+1. ~~**Unguarded index access (line 169)**~~ **FIXED** -- Added `len(tree) > 0` guard before `tree[0]` access in `_strip_to_multistatus`, matching the equivalent guard in `xml_parsers.py`.
 
 2. **Thread-unsafe** -- `self.objects`, `self.results`, `self._responses` are mutable instance state set during parsing. If a response object is shared between threads, results could be corrupt.
 
@@ -100,9 +103,9 @@ Pure functions for CalDAV business logic. Well-structured but has some issues.
 
 **Issues found:**
 
-1. **BUG: `HTTPBearerAuth` incompatible with httpx (line 862)** -- `HTTPBearerAuth` is a requests/niquests `AuthBase` subclass that implements `__call__(self, r)`. httpx uses a different auth protocol (`httpx.Auth` with `auth_flow`). Bearer auth will fail at runtime on the httpx code path.
+1. ~~**BUG: `HTTPBearerAuth` incompatible with httpx**~~ **FIXED** -- Added `_HttpxBearerAuth(httpx.Auth)` class with `auth_flow` generator inside the httpx import block. `build_auth_object` now uses it on the httpx path and falls back to `HTTPBearerAuth` for niquests.
 
-2. **BUG: Missing `url.unauth()` call** -- The sync client strips credentials from URLs at `davclient.py:342`, but the async client never does. Credentials embedded in URLs could leak in log messages.
+2. ~~**BUG: Missing `url.unauth()` call**~~ **FIXED** -- Added `self.url = self.url.unauth()` after credentials are extracted from the URL, matching the sync client behaviour.
 
 3. **`_auto_url` blocks the event loop** -- RFC6764 discovery performs synchronous DNS lookups and HTTP requests inside `AsyncDAVClient.__init__()`, which is called from `async get_davclient()`. This blocks the event loop.
 
@@ -118,7 +121,7 @@ Pure functions for CalDAV business logic. Well-structured but has some issues.
 
 **Issues found:**
 
-1. **Bare `except:` clauses (lines 367, 679)** -- Catches `SystemExit` and `KeyboardInterrupt`. Should be `except Exception:`.
+1. ~~**Bare `except:` clauses (lines 367, 679)**~~ **FIXED** -- Narrowed to `except TypeError` for the test teardown fallback (the expected exception when `teardown()` takes an argument), and `except Exception` for `check_dav_support` (which intentionally catches anything from principal lookup and falls back to root URL).
 
 2. **`NotImplementedError` for auth failures (line 996)** -- When no supported auth scheme is found, `NotImplementedError` is raised. Should be `AuthorizationError`.
 
@@ -153,7 +156,7 @@ Minor: `WWW-Authenticate` parsing (line 31) splits on commas, which fails for he
 **Rating: 7/10** -- Solid dual-mode foundation.
 
 **Issues:**
-1. **Production-unsafe assert (`line 99`)** -- `assert " " not in str(self.url)` will be silently removed with `-O`. Also passes when `url=None`.
+1. ~~**Production-unsafe assert (`line 99`)**~~ **FIXED** -- Replaced `assert " " not in str(self.url)` with an explicit `ValueError` (also fixed the `url=None` case that the assert silently passed).
 2. **Return type lies for async** -- Methods like `get_property()`, `get_properties()`, `delete()` return coroutines when used with async clients, but annotations say `str | None`, `dict`, `None`.
 3. **`set_properties` regression** -- Changed from per-property status checking to HTTP status-only checking, losing ability to detect partial PROPPATCH failures.
 
@@ -163,7 +166,7 @@ Minor: `WWW-Authenticate` parsing (line 31) splits on commas, which fails for he
 
 **Issues:**
 1. **Missing deprecation warnings** -- `calendars()`, `events()`, `todos()` etc. have docstring notes but no `warnings.warn()` calls (unlike `date_search` and `davobject.name` which do emit).
-2. **`_generate_fake_sync_token` uses MD5 (line 1655)** -- Same FIPS concern as calendar_ops.py.
+2. ~~**`_generate_fake_sync_token` uses MD5 (line 1655)**~~ **FIXED** -- Added `usedforsecurity=False`.
 3. **`Principal._async_get_property` overrides parent (line 352)** with incompatible implementation.
 
 ### 3.3 CalendarObjectResource (`caldav/calendarobjectresource.py`)
@@ -171,7 +174,7 @@ Minor: `WWW-Authenticate` parsing (line 31) splits on commas, which fails for he
 **Rating: 7/10** -- Good DataState integration but large (1,919 lines).
 
 **Issues:**
-1. **BUG: `_set_deprecated_vobject_instance` (line 1248)** -- Calls `self._get_vobject_instance(inst)` but `_get_vobject_instance` takes no arguments. Will raise `TypeError` when invoked via `event.instance = some_vobject`.
+1. ~~**BUG: `_set_deprecated_vobject_instance` (line 1248)**~~ **FIXED** -- Was calling `_get_vobject_instance(inst)` (getter, wrong number of arguments); fixed to call `_set_vobject_instance(inst)`.
 2. **`id` setter is a no-op (line 123)** -- `id` passed to constructor is silently ignored.
 3. **`_async_load` missing multiget fallback** -- Sync `load()` has `load_by_multiget()` fallback, async does not.
 4. **Dual data model risk** -- Old `_data`/`_vobject_instance`/`_icalendar_instance` coexist with new `_state`. Manual sync at lines 1206, 1279 could desynchronize.
@@ -203,7 +206,7 @@ Minor: `WWW-Authenticate` parsing (line 31) splits on commas, which fails for he
 **Rating: 7/10** -- Comprehensive server database.
 
 **Issues:**
-1. **`breakpoint()` in production code (line 443)** -- `FeatureSet._default()` has `breakpoint()` in the `else` branch. Will pause execution in production.
+1. ~~**`breakpoint()` in production code (line 443)**~~ **FIXED** -- Replaced with `raise ValueError(f"Unknown feature type: {feature_type!r}")`.
 2. **Deprecated `incompatibility_description` dict still present (lines 660-778)** -- Marked "TO BE REMOVED" with 30+ entries.
 3. **`# fmt: off` for entire 1,366-line file** -- Should scope it to just the dict definitions.
 
@@ -263,37 +266,37 @@ Minor: `WWW-Authenticate` parsing (line 31) splits on commas, which fails for he
 
 ## 7. Bugs Summary (Ordered by Severity)
 
-| # | Severity | Location | Description |
-|---|---|---|---|
-| 1 | HIGH | `xml_parsers.py:260` | NameError: calls `parse_calendar_query_response` (missing underscore) |
-| 2 | HIGH | `async_davclient.py:862` | `HTTPBearerAuth` incompatible with httpx -- bearer auth broken on httpx path |
-| 3 | MEDIUM | `calendarobjectresource.py:1248` | `_set_deprecated_vobject_instance` passes arg to no-arg getter |
-| 4 | MEDIUM | `compatibility_hints.py:443` | `breakpoint()` in production code path |
-| 5 | MEDIUM | `async_davclient.py` | Missing `url.unauth()` -- credential leak in logs |
-| 6 | MEDIUM | `calendarobject_ops.py:55` | UUID1 leaks MAC address in calendar UIDs |
-| 7 | LOW | `davclient.py:367,679` | Bare `except:` catches SystemExit/KeyboardInterrupt |
-| 8 | LOW | `response.py:169` | Unguarded `tree[0]` access |
-| 9 | LOW | `davobject.py:99` | Production-unsafe `assert` for URL validation |
+| # | Severity | Location | Description | Status |
+|---|---|---|---|---|
+| 1 | HIGH | `xml_parsers.py:260` | NameError: calls `parse_calendar_query_response` (missing underscore) | **FIXED** |
+| 2 | HIGH | `async_davclient.py` | `HTTPBearerAuth` incompatible with httpx -- bearer auth broken on httpx path | **FIXED** |
+| 3 | MEDIUM | `calendarobjectresource.py:1248` | `_set_deprecated_vobject_instance` passes arg to no-arg getter | **FIXED** |
+| 4 | MEDIUM | `compatibility_hints.py:443` | `breakpoint()` in production code path | **FIXED** |
+| 5 | MEDIUM | `async_davclient.py` | Missing `url.unauth()` -- credential leak in logs | **FIXED** |
+| 6 | MEDIUM | `calendarobject_ops.py:55` | UUID1 leaks MAC address in calendar UIDs | **FIXED** |
+| 7 | LOW | `davclient.py:367,679` | Bare `except:` catches SystemExit/KeyboardInterrupt | **FIXED** |
+| 8 | LOW | `response.py:169` | Unguarded `tree[0]` access | **FIXED** |
+| 9 | LOW | `davobject.py:99` | Production-unsafe `assert` for URL validation | **FIXED** |
 
 ---
 
 ## 8. Recommendations
 
-### For v3.0 Stable Release (Must Fix)
+### For v3.0 Stable Release (Must Fix) -- ALL DONE ✓
 
-1. Fix the NameError in `xml_parsers.py:260` (add underscore)
-2. Remove `breakpoint()` from `compatibility_hints.py:443`
-3. Fix `_set_deprecated_vobject_instance` to call setter not getter
-4. Replace `uuid.uuid1()` with `uuid.uuid4()` in `calendarobject_ops.py:55`
-5. Fix bare `except:` to `except Exception:` in `davclient.py`
-6. Add `url.unauth()` call to `AsyncDAVClient.__init__`
+1. ~~Fix the NameError in `xml_parsers.py:260` (add underscore)~~
+2. ~~Remove `breakpoint()` from `compatibility_hints.py:443`~~
+3. ~~Fix `_set_deprecated_vobject_instance` to call setter not getter~~
+4. ~~Replace `uuid.uuid1()` with `uuid.uuid4()` in `calendarobject_ops.py:55`~~
+5. ~~Fix bare `except:` to narrower exception types in `davclient.py`~~
+6. ~~Add `url.unauth()` call to `AsyncDAVClient.__init__`~~
 
-### For v3.0 Stable Release (Should Fix)
+### For v3.0 Stable Release (Should Fix) -- ALL DONE ✓
 
-7. Fix `HTTPBearerAuth` for httpx path (or document httpx+bearer as unsupported)
-8. Add guard for `tree[0]` access in `response.py:169`
-9. Replace production `assert` with proper validation in `davobject.py:99`
-10. Add `usedforsecurity=False` to MD5 calls for FIPS compliance
+7. ~~Fix `HTTPBearerAuth` for httpx path~~
+8. ~~Add guard for `tree[0]` access in `response.py:169`~~
+9. ~~Replace production `assert` with proper validation in `davobject.py:99`~~
+10. ~~Add `usedforsecurity=False` to MD5 calls for FIPS compliance~~
 
 ### For v3.1+
 
@@ -303,15 +306,17 @@ Minor: `WWW-Authenticate` parsing (line 31) splits on commas, which fails for he
 14. Add discovery module tests
 15. Add missing `warnings.warn()` to all deprecated methods
 16. Remove dead code in `xml_builders.py`
-17. Move `_auto_url` from `davclient.py` to shared module
+17. Move `_auto_url` from `davclient.py` to shared module (also fixes event-loop blocking in async client)
 18. Make `search_ops._build_search_xml_query` not mutate its input
+19. Fix `NotImplementedError` for auth failures in `davclient.py` -- raise `AuthorizationError` instead
+20. Fix `_auto_url` blocking the event loop in `AsyncDAVClient.__init__`
 
 ### For v4.0
 
-19. Address implicit data conversion side effects (issue #613)
-20. Consider splitting `collection.py` (2,054 lines) and `calendarobjectresource.py` (1,919 lines)
-21. Fix return type annotations for async-capable methods (use `@overload`)
-22. Remove `incompatibility_description` dict from compatibility_hints.py
+21. Address implicit data conversion side effects (issue #613)
+22. Consider splitting `collection.py` (2,054 lines) and `calendarobjectresource.py` (1,919 lines)
+23. Fix return type annotations for async-capable methods (use `@overload`)
+24. Remove `incompatibility_description` dict from compatibility_hints.py
 
 ---
 
