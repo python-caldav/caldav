@@ -37,9 +37,9 @@ The protocol layer separates XML construction/parsing from I/O. This is the stro
 
 | File | Lines | Rating | Purpose |
 |------|-------|--------|---------|
-| `types.py` | 243 | 9/10 | Frozen dataclasses: DAVRequest, DAVResponse, PropfindResult, CalendarQueryResult |
-| `xml_builders.py` | 428 | 7/10 | Pure functions building XML for PROPFIND, calendar-query, MKCALENDAR, etc. |
-| `xml_parsers.py` | 455 | 5/10 | Parse XML responses into typed results |
+| `types.py` | ~~243~~ 221 | 9/10 | Frozen dataclasses: DAVRequest, DAVResponse, PropfindResult, CalendarQueryResult |
+| `xml_builders.py` | ~~428~~ 346 | 7/10 | Pure functions building XML for PROPFIND, calendar-query, MKCALENDAR, etc. |
+| `xml_parsers.py` | ~~455~~ 467 | 6/10 | Parse XML responses into typed results |
 | `__init__.py` | 46 | 8/10 | Clean re-exports |
 
 **Issues found:**
@@ -241,9 +241,17 @@ Minor: `WWW-Authenticate` parsing (line 31) splits on commas, which fails for he
 | calendarobjectresource.py | 4 method pairs | ~100 | open |
 | search.py | 2 method pairs | ~50 | open |
 
-### 5.3 Protocol/Response Duplication
+### 5.3 Protocol/Response Duplication (partially resolved)
 
-`response.py` and `protocol/xml_parsers.py` share five pieces of nearly identical logic (multistatus stripping, status validation, response element parsing, `%2540` workaround, propstat loops).
+`response.py` and `protocol/xml_parsers.py` originally shared five pieces of nearly identical logic. Three have been consolidated:
+
+| Piece | Status |
+|---|---|
+| Multistatus stripping | **FIXED** — `response._strip_to_multistatus` now delegates to `xml_parsers._strip_to_multistatus` |
+| Status validation | **FIXED** — `response.validate_status` now delegates to `xml_parsers._validate_status` |
+| `%2540` Confluence workaround + absolute-URL-to-path | **FIXED** — extracted as `xml_parsers._normalize_href`; called from both `_parse_response_element` and `response._parse_response` |
+| Response element parsing (`_parse_response` vs `_parse_response_element`) | open — too much divergence in error handling to merge without risk |
+| Propstat loops (`_find_objects_and_props` vs `_extract_properties`) | open — `_find_objects_and_props` must return raw `_Element` objects for `expand_simple_props()`; merging requires a public API change |
 
 ---
 
@@ -307,11 +315,11 @@ Minor: `WWW-Authenticate` parsing (line 31) splits on commas, which fails for he
 ### For v3.1+
 
 11. ~~Reduce sync/async client duplication (`search_principals`, `get_events`, `get_todos`)~~ **DONE** — all three hoisted to `BaseDAVClient`; XML build/parse extracted to `_build_principal_search_query` / `_parse_principal_search_response`; `_build_xml_body` / `_build_propfind_root` helpers added to `DAVObject`; `CalendarSet.get_calendars` sync path migrated to protocol layer
-12. Consolidate `response.py` and `protocol/xml_parsers.py` duplication
+12. ~~Consolidate `response.py` and `protocol/xml_parsers.py` duplication~~ **PARTIALLY DONE** — three of five duplicated pieces consolidated (see §5.3); response-element parsing and propstat loops remain
 13. Add sync DAVClient unit tests mirroring async test structure
 14. Add discovery module tests
 15. Add missing `warnings.warn()` to all deprecated methods
-16. Remove dead code in `xml_builders.py`
+16. ~~Remove dead code in `xml_builders.py`~~ **DONE** — deleted `_build_freebusy_query_body`, `_build_mkcol_body`, `_to_utc_date_string`
 17. Move `_auto_url` from `davclient.py` to shared module (also fixes event-loop blocking in async client)
 18. Make `search_ops._build_search_xml_query` not mutate its input
 19. Fix `NotImplementedError` for auth failures in `davclient.py` -- raise `AuthorizationError` instead
@@ -332,13 +340,13 @@ Minor: `WWW-Authenticate` parsing (line 31) splits on commas, which fails for he
 |------|-------|---------|
 | `caldav/async_davclient.py` | 1,431 | Async HTTP client |
 | `caldav/base_client.py` | 480 | Shared client ABC |
-| `caldav/response.py` | 390 | Shared response parsing |
+| `caldav/response.py` | ~~390~~ 374 | Shared response parsing |
 | `caldav/datastate.py` | 246 | Data representation state machine |
 | `caldav/aio.py` | 93 | Async entry point |
 | `caldav/lib/auth.py` | 69 | Shared auth utilities |
-| `caldav/protocol/types.py` | 243 | Request/response dataclasses |
-| `caldav/protocol/xml_builders.py` | 428 | XML construction |
-| `caldav/protocol/xml_parsers.py` | 455 | XML parsing |
+| `caldav/protocol/types.py` | ~~243~~ 221 | Request/response dataclasses |
+| `caldav/protocol/xml_builders.py` | ~~428~~ 346 | XML construction |
+| `caldav/protocol/xml_parsers.py` | ~~455~~ 467 | XML parsing |
 | `caldav/operations/base.py` | 189 | Query specifications |
 | `caldav/operations/search_ops.py` | 445 | Search query building |
 | `caldav/operations/calendarobject_ops.py` | 531 | Calendar object ops |
