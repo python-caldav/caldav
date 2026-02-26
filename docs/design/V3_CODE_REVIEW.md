@@ -10,6 +10,9 @@
 >
 > **Status update (commit f7c51c9):** Recommendation 11 largely addressed — sync/async
 > duplication reduced by ~177 lines across five files (see §5 for details).
+>
+> **Status update (commit ad042bb):** §1.1 issues 2, 3, 4 fixed (dead code deleted,
+> CalendarInfo collision resolved, response/xml_parsers duplication reduced).
 
 ## Executive Summary
 
@@ -43,11 +46,11 @@ The protocol layer separates XML construction/parsing from I/O. This is the stro
 
 1. ~~**BUG: NameError in `xml_parsers.py:260`**~~ **FIXED** -- `parse_calendar_multiget_response()` was calling `parse_calendar_query_response()` (missing leading underscore). Fixed by adding the `_` prefix.
 
-2. **Dead code in `xml_builders.py`** -- `_to_utc_date_string()` (line 401), `_build_freebusy_query_body()` (line 189), and `_build_mkcol_body()` (line 200) have zero callers.
+2. ~~**Dead code in `xml_builders.py`**~~ **FIXED** -- Deleted `_build_freebusy_query_body`, `_build_mkcol_body`, and `_to_utc_date_string` (the last was a never-wired duplicate of the real `_to_utc_date_string` in `elements/cdav.py`).
 
-3. **`CalendarInfo` name collision** -- `protocol/types.py:149` and `operations/calendarset_ops.py:24` define different dataclasses named `CalendarInfo` with different fields. Both are exported from their respective `__init__.py`.
+3. ~~**`CalendarInfo` name collision**~~ **FIXED** -- Deleted `CalendarInfo` from `protocol/types.py` (it was never instantiated); the canonical one in `operations/calendarset_ops.py` is unaffected.
 
-4. **Heavy duplication with `response.py`** -- Multistatus stripping, status validation, response element parsing, and the Confluence `%2540` workaround are duplicated nearly verbatim between `xml_parsers.py` and `response.py`.
+4. ~~**Heavy duplication with `response.py`**~~ **PARTIALLY FIXED** -- Extracted `_normalize_href()` (Confluence %2540 fix + absolute-URL-to-path) into `xml_parsers.py`; `response.py._strip_to_multistatus` and `validate_status` now delegate to their `xml_parsers` counterparts. The propstat-loop duplication (`_find_objects_and_props` vs `_extract_properties`) is intentionally left: converging them requires changing the return type of the public `expand_simple_props()` API.
 
 ### 1.2 Operations Layer (`caldav/operations/`)
 
@@ -79,7 +82,7 @@ Pure functions for CalDAV business logic. Well-structured but has some issues.
 
 ### 1.4 Response Handling (`caldav/response.py`)
 
-**Rating: 6/10** -- `BaseDAVResponse` provides shared XML parsing for sync/async clients, but has significant duplication with the protocol layer and thread-unsafe mutable state.
+**Rating: 7/10** -- `BaseDAVResponse` provides shared XML parsing for sync/async clients. The main duplication with the protocol layer has been reduced; remaining open item is thread-unsafe mutable state.
 
 **Issues found:**
 
