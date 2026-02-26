@@ -193,6 +193,67 @@ class BaseDAVClient(ABC):
             reason = "None given"
         raise error.AuthorizationError(url=url_str, reason=reason)
 
+    def _build_principal_search_query(self, name: str | None) -> bytes:
+        """Build the XML body for a principal-property-search REPORT."""
+        from lxml import etree
+
+        from caldav.elements import cdav, dav
+
+        name_filter = (
+            [dav.PropertySearch() + [dav.Prop() + [dav.DisplayName()]] + dav.Match(value=name)]
+            if name
+            else []
+        )
+        query = (
+            dav.PrincipalPropertySearch()
+            + name_filter
+            + [dav.Prop(), cdav.CalendarHomeSet(), dav.DisplayName()]
+        )
+        return etree.tostring(query.xmlelement())
+
+    def _parse_principal_search_response(self, principal_dict: dict) -> list:
+        """Parse principal-property-search REPORT results into Principal objects."""
+        from caldav.collection import CalendarSet, Principal
+        from caldav.elements import cdav, dav
+
+        ret = []
+        for x in principal_dict:
+            p = principal_dict[x]
+            if dav.DisplayName.tag not in p:
+                continue
+            name = p[dav.DisplayName.tag].text
+            error.assert_(not p[dav.DisplayName.tag].getchildren())
+            error.assert_(not p[dav.DisplayName.tag].items())
+            chs = p[cdav.CalendarHomeSet.tag]
+            error.assert_(not chs.items())
+            error.assert_(not chs.text)
+            chs_href = chs.getchildren()
+            error.assert_(len(chs_href) == 1)
+            error.assert_(not chs_href[0].items())
+            error.assert_(not chs_href[0].getchildren())
+            chs_url = chs_href[0].text
+            calendar_home_set = CalendarSet(client=self, url=chs_url)
+            ret.append(
+                Principal(client=self, url=x, name=name, calendar_home_set=calendar_home_set)
+            )
+        return ret
+
+    def get_events(self, calendar: Any, start: Any = None, end: Any = None) -> Any:
+        """Get events from a calendar, optionally filtered by date range.
+
+        For sync clients returns a list directly.
+        For async clients returns a coroutine that must be awaited.
+        """
+        return self.search_calendar(calendar, event=True, start=start, end=end)
+
+    def get_todos(self, calendar: Any, include_completed: bool = False) -> Any:
+        """Get todos from a calendar.
+
+        For sync clients returns a list directly.
+        For async clients returns a coroutine that must be awaited.
+        """
+        return self.search_calendar(calendar, todo=True, include_completed=include_completed)
+
     @abstractmethod
     def build_auth_object(self, auth_types: list[str] | None = None) -> None:
         """

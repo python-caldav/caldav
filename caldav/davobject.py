@@ -171,6 +171,26 @@ class DAVObject:
         ## the properties we've already fetched
         return c
 
+    def _build_xml_body(self, root) -> bytes | str:
+        """Serialize a DAV element (or raw bytes/str) to a request body."""
+        if root:
+            if hasattr(root, "xmlelement"):
+                return etree.tostring(
+                    root.xmlelement(),
+                    encoding="utf-8",
+                    xml_declaration=True,
+                    pretty_print=error.debug_dump_communication,
+                )
+            return root
+        return ""
+
+    def _build_propfind_root(self, props):
+        """Build a Propfind XML element from a list of props, or return None."""
+        if props is not None and len(props) > 0:
+            prop = dav.Prop() + props
+            return dav.Propfind() + prop
+        return None
+
     def _query_properties(self, props: Sequence[BaseElement] | None = None, depth: int = 0):
         """
         This is an internal method for doing a propfind query.  It's a
@@ -182,25 +202,13 @@ class DAVObject:
         if self.is_async_client:
             return self._async_query_properties(props, depth)
 
-        root = None
-        # build the propfind request
-        if props is not None and len(props) > 0:
-            prop = dav.Prop() + props
-            root = dav.Propfind() + prop
-
-        return self._query(root, depth)
+        return self._query(self._build_propfind_root(props), depth)
 
     async def _async_query_properties(
         self, props: Sequence[BaseElement] | None = None, depth: int = 0
     ):
         """Async implementation of _query_properties."""
-        root = None
-        # build the propfind request
-        if props is not None and len(props) > 0:
-            prop = dav.Prop() + props
-            root = dav.Propfind() + prop
-
-        return await self._async_query(root, depth)
+        return await self._async_query(self._build_propfind_root(props), depth)
 
     def _query(
         self,
@@ -220,17 +228,7 @@ class DAVObject:
         if self.is_async_client:
             return self._async_query(root, depth, query_method, url, expected_return_value)
 
-        body = ""
-        if root:
-            if hasattr(root, "xmlelement"):
-                body = etree.tostring(
-                    root.xmlelement(),
-                    encoding="utf-8",
-                    xml_declaration=True,
-                    pretty_print=error.debug_dump_communication,
-                )
-            else:
-                body = root
+        body = self._build_xml_body(root)
         if url is None:
             url = self.url
         ret = getattr(self.client, query_method)(url, body, depth)
@@ -257,17 +255,7 @@ class DAVObject:
         expected_return_value=None,
     ):
         """Async implementation of _query."""
-        body = ""
-        if root:
-            if hasattr(root, "xmlelement"):
-                body = etree.tostring(
-                    root.xmlelement(),
-                    encoding="utf-8",
-                    xml_declaration=True,
-                    pretty_print=error.debug_dump_communication,
-                )
-            else:
-                body = root
+        body = self._build_xml_body(root)
         if url is None:
             url = self.url
         ret = await getattr(self.client, query_method)(url, body, depth)
@@ -493,18 +481,7 @@ class DAVObject:
         prop = dav.Prop() + props
         set_elem = dav.Set() + prop
         root = dav.PropertyUpdate() + set_elem
-
-        body = ""
-        if root:
-            if hasattr(root, "xmlelement"):
-                body = etree.tostring(
-                    root.xmlelement(),
-                    encoding="utf-8",
-                    xml_declaration=True,
-                    pretty_print=error.debug_dump_communication,
-                )
-            else:
-                body = root
+        body = self._build_xml_body(root)
 
         if self.url is None:
             raise ValueError("Unexpected value None for self.url")
@@ -524,18 +501,7 @@ class DAVObject:
         prop = dav.Prop() + props
         set_elem = dav.Set() + prop
         root = dav.PropertyUpdate() + set_elem
-
-        body = ""
-        if root:
-            if hasattr(root, "xmlelement"):
-                body = etree.tostring(
-                    root.xmlelement(),
-                    encoding="utf-8",
-                    xml_declaration=True,
-                    pretty_print=error.debug_dump_communication,
-                )
-            else:
-                body = root
+        body = self._build_xml_body(root)
 
         if self.url is None:
             raise ValueError("Unexpected value None for self.url")

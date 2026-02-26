@@ -409,48 +409,14 @@ class DAVClient(BaseDAVClient):
         Raises:
             ReportError: If the server doesn't support principal search
         """
-        if name:
-            name_filter = [
-                dav.PropertySearch() + [dav.Prop() + [dav.DisplayName()]] + dav.Match(value=name)
-            ]
-        else:
-            name_filter = []
-
-        query = (
-            dav.PrincipalPropertySearch()
-            + name_filter
-            + [dav.Prop(), cdav.CalendarHomeSet(), dav.DisplayName()]
-        )
-        response = self.report(self.url, etree.tostring(query.xmlelement()))
-
+        body = self._build_principal_search_query(name)
+        response = self.report(self.url, body)
         ## Possibly we should follow redirects (response status 3xx), but as
         ## for now we're just treating it in the same way as 4xx and 5xx -
         ## probably the server did not support the operation
         if response.status >= 300:
             raise error.ReportError(f"{response.status} {response.reason} - {response.raw}")
-
-        principal_dict = response._find_objects_and_props()
-        ret = []
-        for x in principal_dict:
-            p = principal_dict[x]
-            if dav.DisplayName.tag not in p:
-                continue
-            name = p[dav.DisplayName.tag].text
-            error.assert_(not p[dav.DisplayName.tag].getchildren())
-            error.assert_(not p[dav.DisplayName.tag].items())
-            chs = p[cdav.CalendarHomeSet.tag]
-            error.assert_(not chs.items())
-            error.assert_(not chs.text)
-            chs_href = chs.getchildren()
-            error.assert_(len(chs_href) == 1)
-            error.assert_(not chs_href[0].items())
-            error.assert_(not chs_href[0].getchildren())
-            chs_url = chs_href[0].text
-            calendar_home_set = CalendarSet(client=self, url=chs_url)
-            ret.append(
-                Principal(client=self, url=x, name=name, calendar_home_set=calendar_home_set)
-            )
-        return ret
+        return self._parse_principal_search_response(response._find_objects_and_props())
 
     def principals(self, name=None):
         """
@@ -584,51 +550,6 @@ class DAVClient(BaseDAVClient):
         )
 
         return extract_home_set(response.results)
-
-    def get_events(
-        self,
-        calendar: Calendar,
-        start: Any | None = None,
-        end: Any | None = None,
-    ) -> list["Event"]:
-        """Get events from a calendar.
-
-        This is a convenience method that searches for VEVENT objects in the
-        calendar, optionally filtered by date range.
-
-        Args:
-            calendar: Calendar to search
-            start: Start of date range (optional)
-            end: End of date range (optional)
-
-        Returns:
-            List of Event objects.
-
-        Example:
-            from datetime import datetime
-            events = client.get_events(
-                calendar,
-                start=datetime(2024, 1, 1),
-                end=datetime(2024, 12, 31)
-            )
-        """
-        return self.search_calendar(calendar, event=True, start=start, end=end)
-
-    def get_todos(
-        self,
-        calendar: Calendar,
-        include_completed: bool = False,
-    ) -> list["Todo"]:
-        """Get todos from a calendar.
-
-        Args:
-            calendar: Calendar to search
-            include_completed: Whether to include completed todos
-
-        Returns:
-            List of Todo objects.
-        """
-        return self.search_calendar(calendar, todo=True, include_completed=include_completed)
 
     def search_calendar(
         self,

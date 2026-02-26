@@ -58,6 +58,18 @@ class CalendarSet(DAVObject):
     A CalendarSet is a set of calendars.
     """
 
+    def _calendars_from_results(self, results) -> list["Calendar"]:
+        """Convert PropfindResult list into Calendar objects."""
+        from caldav.operations.calendarset_ops import (
+            _extract_calendars_from_propfind_results,
+        )
+
+        calendar_infos = _extract_calendars_from_propfind_results(results)
+        return [
+            Calendar(client=self.client, url=info.url, name=info.name, id=info.cal_id, parent=self)
+            for info in calendar_infos
+        ]
+
     def get_calendars(self) -> list["Calendar"]:
         """
         List all calendar collections in this set.
@@ -74,69 +86,20 @@ class CalendarSet(DAVObject):
         Example (async):
             calendars = await calendar_set.get_calendars()
         """
-        # Delegate to client for dual-mode support
         if self.is_async_client:
             return self._async_calendars()
 
-        cals = []
-        data = self.children(cdav.Calendar.tag)
-        for c_url, c_type, c_name in data:
-            try:
-                cal_id = c_url.split("/")[-2]
-                if not cal_id:
-                    continue
-            except Exception:
-                log.error(f"Calendar {c_name} has unexpected url {c_url}")
-                cal_id = None
-            cals.append(Calendar(self.client, id=cal_id, url=c_url, parent=self, name=c_name))
-
-        return cals
+        response = self.client.propfind(
+            str(self.url), props=self.client.CALENDAR_LIST_PROPS, depth=1
+        )
+        return self._calendars_from_results(response.results)
 
     async def _async_calendars(self) -> list["Calendar"]:
-        """Async implementation of calendars() using the client."""
-        from caldav.operations.base import _is_calendar_resource as is_calendar_resource
-        from caldav.operations.calendarset_ops import (
-            _extract_calendar_id_from_url as extract_calendar_id_from_url,
-        )
-
-        # Fetch calendars via PROPFIND
+        """Async implementation of get_calendars()."""
         response = await self.client.propfind(
-            str(self.url),
-            props=[
-                "{DAV:}resourcetype",
-                "{DAV:}displayname",
-                "{urn:ietf:params:xml:ns:caldav}supported-calendar-component-set",
-                "{http://apple.com/ns/ical/}calendar-color",
-                "{http://calendarserver.org/ns/}getctag",
-            ],
-            depth=1,
+            str(self.url), props=self.client.CALENDAR_LIST_PROPS, depth=1
         )
-
-        # Process results to extract calendars
-        calendars = []
-        for result in response.results or []:
-            # Check if this is a calendar resource
-            if not is_calendar_resource(result.properties):
-                continue
-
-            # Extract calendar info
-            url = result.href
-            name = result.properties.get("{DAV:}displayname")
-            cal_id = extract_calendar_id_from_url(url)
-
-            if not cal_id:
-                continue
-
-            cal = Calendar(
-                client=self.client,
-                url=url,
-                name=name,
-                id=cal_id,
-                parent=self,
-            )
-            calendars.append(cal)
-
-        return calendars
+        return self._calendars_from_results(response.results)
 
     def calendars(self) -> list["Calendar"]:
         """

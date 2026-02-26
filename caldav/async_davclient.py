@@ -996,51 +996,6 @@ class AsyncDAVClient(BaseDAVClient):
 
         return extract_home_set(response.results)
 
-    async def get_events(
-        self,
-        calendar: "Calendar",
-        start: Any | None = None,
-        end: Any | None = None,
-    ) -> list["Event"]:
-        """Get events from a calendar.
-
-        This is a convenience method that searches for VEVENT objects in the
-        calendar, optionally filtered by date range.
-
-        Args:
-            calendar: Calendar to search
-            start: Start of date range (optional)
-            end: End of date range (optional)
-
-        Returns:
-            List of Event objects.
-
-        Example:
-            from datetime import datetime
-            events = await client.get_events(
-                calendar,
-                start=datetime(2024, 1, 1),
-                end=datetime(2024, 12, 31)
-            )
-        """
-        return await self.search_calendar(calendar, event=True, start=start, end=end)
-
-    async def get_todos(
-        self,
-        calendar: "Calendar",
-        include_completed: bool = False,
-    ) -> list["Todo"]:
-        """Get todos from a calendar.
-
-        Args:
-            calendar: Calendar to search
-            include_completed: Whether to include completed todos
-
-        Returns:
-            List of Todo objects.
-        """
-        return await self.search_calendar(calendar, todo=True, include_completed=include_completed)
-
     async def search_calendar(
         self,
         calendar: "Calendar",
@@ -1125,50 +1080,11 @@ class AsyncDAVClient(BaseDAVClient):
         Raises:
             ReportError: If the server doesn't support principal search
         """
-        from lxml import etree
-
-        from caldav.collection import CalendarSet, Principal
-        from caldav.elements import cdav, dav
-
-        if name:
-            name_filter = [
-                dav.PropertySearch() + [dav.Prop() + [dav.DisplayName()]] + dav.Match(value=name)
-            ]
-        else:
-            name_filter = []
-
-        query = (
-            dav.PrincipalPropertySearch()
-            + name_filter
-            + [dav.Prop(), cdav.CalendarHomeSet(), dav.DisplayName()]
-        )
-        response = await self.report(str(self.url), etree.tostring(query.xmlelement()))
-
+        body = self._build_principal_search_query(name)
+        response = await self.report(str(self.url), body)
         if response.status >= 300:
             raise error.ReportError(f"{response.status} {response.reason} - {response.raw}")
-
-        principal_dict = response._find_objects_and_props()
-        ret = []
-        for x in principal_dict:
-            p = principal_dict[x]
-            if dav.DisplayName.tag not in p:
-                continue
-            pname = p[dav.DisplayName.tag].text
-            error.assert_(not p[dav.DisplayName.tag].getchildren())
-            error.assert_(not p[dav.DisplayName.tag].items())
-            chs = p[cdav.CalendarHomeSet.tag]
-            error.assert_(not chs.items())
-            error.assert_(not chs.text)
-            chs_href = chs.getchildren()
-            error.assert_(len(chs_href) == 1)
-            error.assert_(not chs_href[0].items())
-            error.assert_(not chs_href[0].getchildren())
-            chs_url = chs_href[0].text
-            calendar_home_set = CalendarSet(client=self, url=chs_url)
-            ret.append(
-                Principal(client=self, url=x, name=pname, calendar_home_set=calendar_home_set)
-            )
-        return ret
+        return self._parse_principal_search_response(response._find_objects_and_props())
 
     async def principals(self, name: str | None = None) -> list["Principal"]:
         """
