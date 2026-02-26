@@ -263,6 +263,25 @@ def _parse_calendar_multiget_response(
 # Helper functions
 
 
+def _normalize_href(text: str) -> str:
+    """
+    Normalize an href string from a DAV response element.
+
+    Handles the Confluence double-encoding bug (%2540 → %40) and converts
+    absolute URLs to path-only strings so callers always work with paths.
+    """
+    # Fix for https://github.com/python-caldav/caldav/issues/471
+    # Confluence server quotes the user email twice.
+    if "%2540" in text:
+        text = text.replace("%2540", "%40")
+    href = unquote(text)
+    # Ref https://github.com/python-caldav/caldav/issues/435
+    # Some servers return absolute URLs; convert to path.
+    if ":" in href:
+        href = unquote(URL(href).path)
+    return href
+
+
 def _strip_to_multistatus(tree: _Element) -> _Element | list[_Element]:
     """
     Strip outer elements to get to the multistatus content.
@@ -301,14 +320,7 @@ def _parse_response_element(
             status = elem.text
             _validate_status(status)
         elif elem.tag == dav.Href.tag:
-            # Fix for double-encoded URLs (e.g., Confluence)
-            text = elem.text or ""
-            if "%2540" in text:
-                text = text.replace("%2540", "%40")
-            href = unquote(text)
-            # Convert absolute URLs to paths
-            if ":" in href:
-                href = unquote(URL(href).path)
+            href = _normalize_href(elem.text or "")
         elif elem.tag == dav.PropStat.tag:
             propstats.append(elem)
 

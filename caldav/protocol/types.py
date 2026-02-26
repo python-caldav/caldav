@@ -219,25 +219,3 @@ class PrincipalInfo:
     calendar_home_set: str | None = None
     displayname: str | None = None
     calendar_user_address_set: list[str] = field(default_factory=list)
-
-
-@dataclass
-class CalendarInfo:
-    """
-    Information about a calendar collection.
-
-    Attributes:
-        url: Calendar URL
-        displayname: Display name
-        description: Calendar description
-        color: Calendar color (vendor extension)
-        supported_components: List of supported component types (VEVENT, VTODO, etc.)
-        ctag: Calendar CTag for change detection
-    """
-
-    url: str
-    displayname: str | None = None
-    description: str | None = None
-    color: str | None = None
-    supported_components: list[str] = field(default_factory=list)
-    ctag: str | None = None

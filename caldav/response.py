@@ -9,7 +9,6 @@ import logging
 import warnings
 from collections.abc import Iterable
 from typing import TYPE_CHECKING, Any, cast
-from urllib.parse import unquote
 
 from lxml import etree
 from lxml.etree import _Element
@@ -18,7 +17,13 @@ from caldav.elements import dav
 from caldav.elements.base import BaseElement
 from caldav.lib import error
 from caldav.lib.python_utilities import to_normal_str
-from caldav.lib.url import URL
+from caldav.protocol.xml_parsers import (
+    _normalize_href,
+    _validate_status,
+)
+from caldav.protocol.xml_parsers import (
+    _strip_to_multistatus as _proto_strip,
+)
 
 if TYPE_CHECKING:
     # Protocol for HTTP response objects (works with httpx, niquests, requests)
@@ -165,12 +170,7 @@ class BaseDAVResponse:
         (The equivalent of this method could probably be found with a
         simple XPath query, but I'm not much into XPath)
         """
-        tree = self.tree
-        if tree.tag == "xml" and len(tree) > 0 and tree[0].tag == dav.MultiStatus.tag:
-            return tree[0]
-        if tree.tag == dav.MultiStatus.tag:
-            return self.tree
-        return [self.tree]
+        return _proto_strip(self.tree)
 
     def validate_status(self, status: str) -> None:
         """
@@ -181,13 +181,7 @@ class BaseDAVResponse:
         makes sense to me, but I've only seen it from SOGo, and it's
         not in accordance with the examples in rfc6578.
         """
-        if (
-            " 200 " not in status
-            and " 201 " not in status
-            and " 207 " not in status
-            and " 404 " not in status
-        ):
-            raise error.ResponseError(status)
+        _validate_status(status)
 
     def _parse_response(self, response: _Element) -> tuple[str, list[_Element], Any | None]:
         """
@@ -208,11 +202,7 @@ class BaseDAVResponse:
                 self.validate_status(status)
             elif elem.tag == dav.Href.tag:
                 assert not href
-                # Fix for https://github.com/python-caldav/caldav/issues/471
-                # Confluence server quotes the user email twice. We unquote it manually.
-                if "%2540" in elem.text:
-                    elem.text = elem.text.replace("%2540", "%40")
-                href = unquote(elem.text)
+                href = _normalize_href(elem.text or "")
             elif elem.tag == dav.PropStat.tag:
                 propstats.append(elem)
             elif elem.tag == "{DAV:}error":
@@ -232,12 +222,6 @@ class BaseDAVResponse:
         error.assert_(href)
         if check_404:
             error.assert_("404" in status)
-        ## TODO: is this safe/sane?
-        ## Ref https://github.com/python-caldav/caldav/issues/435 the paths returned may be absolute URLs,
-        ## but the caller expects them to be paths.  Could we have issues when a server has same path
-        ## but different URLs for different elements?  Perhaps href should always be made into an URL-object?
-        if ":" in href:
-            href = unquote(URL(href).path)
         return (cast(str, href), propstats, status)
 
     def _find_objects_and_props(self) -> dict[str, dict[str, _Element]]:

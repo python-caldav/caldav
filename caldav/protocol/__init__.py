@@ -17,7 +17,6 @@ details and should not be used directly. Use the client methods instead.
 """
 
 from .types import (
-    CalendarInfo,
     CalendarQueryResult,
     DAVMethod,
     DAVRequest,
@@ -36,7 +35,6 @@ __all__ = [
     "DAVRequest",
     "DAVResponse",
     # Result types
-    "CalendarInfo",
     "CalendarQueryResult",
     "MultiGetResult",
     "MultistatusResponse",

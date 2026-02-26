@@ -235,25 +235,6 @@ def _build_sync_collection_body(
     return etree.tostring(sync_collection.xmlelement(), encoding="utf-8", xml_declaration=True)
 
 
-def _build_freebusy_query_body(
-    start: datetime,
-    end: datetime,
-) -> bytes:
-    """
-    Build free-busy-query REPORT request body.
-
-    Args:
-        start: Start of free-busy period
-        end: End of free-busy period
-
-    Returns:
-        UTF-8 encoded XML bytes
-    """
-    root = cdav.FreeBusyQuery() + [cdav.TimeRange(start, end)]
-
-    return etree.tostring(root.xmlelement(), encoding="utf-8", xml_declaration=True)
-
-
 def _build_mkcalendar_body(
     displayname: str | None = None,
     description: str | None = None,
@@ -296,39 +277,6 @@ def _build_mkcalendar_body(
     mkcalendar = cdav.Mkcalendar() + set_elem
 
     return etree.tostring(mkcalendar.xmlelement(), encoding="utf-8", xml_declaration=True)
-
-
-def _build_mkcol_body(
-    displayname: str | None = None,
-    resource_types: list[BaseElement] | None = None,
-) -> bytes:
-    """
-    Build MKCOL (extended) request body.
-
-    Args:
-        displayname: Collection display name
-        resource_types: List of resource type elements
-
-    Returns:
-        UTF-8 encoded XML bytes
-    """
-    prop = dav.Prop()
-
-    if displayname:
-        prop += dav.DisplayName(displayname)
-
-    if resource_types:
-        rt = dav.ResourceType()
-        for rt_elem in resource_types:
-            rt += rt_elem
-        prop += rt
-    else:
-        prop += dav.ResourceType() + dav.Collection()
-
-    set_elem = dav.Set() + prop
-    mkcol = dav.Mkcol() + set_elem
-
-    return etree.tostring(mkcol.xmlelement(), encoding="utf-8", xml_declaration=True)
 
 
 # Property name to element mapping
@@ -396,33 +344,3 @@ def _prop_name_to_element(name: str, value: Any | None = None) -> BaseElement | 
         return cls()
 
     return None
-
-
-def _to_utc_date_string(ts: datetime) -> str:
-    """
-    Convert datetime to UTC date string for CalDAV.
-
-    Args:
-        ts: datetime object (may or may not have timezone)
-
-    Returns:
-        UTC date string in format YYYYMMDDTHHMMSSZ
-    """
-    from datetime import timezone
-
-    utc_tz = timezone.utc
-
-    if ts.tzinfo is None:
-        # Assume local time, convert to UTC
-        try:
-            ts = ts.astimezone(utc_tz)
-        except Exception:
-            # For very old Python versions or edge cases
-            import tzlocal
-
-            ts = ts.replace(tzinfo=tzlocal.get_localzone())
-            ts = ts.astimezone(utc_tz)
-    else:
-        ts = ts.astimezone(utc_tz)
-
-    return ts.strftime("%Y%m%dT%H%M%SZ")
