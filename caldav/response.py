@@ -166,7 +166,7 @@ class BaseDAVResponse:
         simple XPath query, but I'm not much into XPath)
         """
         tree = self.tree
-        if tree.tag == "xml" and tree[0].tag == dav.MultiStatus.tag:
+        if tree.tag == "xml" and len(tree) > 0 and tree[0].tag == dav.MultiStatus.tag:
             return tree[0]
         if tree.tag == dav.MultiStatus.tag:
             return self.tree

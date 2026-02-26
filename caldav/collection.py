@@ -1653,7 +1653,7 @@ class Calendar(DAVObject):
                 etags.append(str(obj.url.canonical()))
         etags.sort()  ## Consistent ordering
         combined = "|".join(etags)
-        hash_value = hashlib.md5(combined.encode()).hexdigest()
+        hash_value = hashlib.md5(combined.encode(), usedforsecurity=False).hexdigest()
         return f"fake-{hash_value}"
 
     def get_objects_by_sync_token(

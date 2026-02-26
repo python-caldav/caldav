@@ -129,7 +129,7 @@ def _generate_fake_sync_token(etags_and_urls: list[tuple[str | None, str]]) -> s
 
     parts.sort()  # Consistent ordering
     combined = "|".join(parts)
-    hash_value = hashlib.md5(combined.encode()).hexdigest()
+    hash_value = hashlib.md5(combined.encode(), usedforsecurity=False).hexdigest()
     return f"fake-{hash_value}"
 
 

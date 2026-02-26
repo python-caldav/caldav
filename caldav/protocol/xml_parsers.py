@@ -257,7 +257,7 @@ def _parse_calendar_multiget_response(
     Returns:
         List of CalendarQueryResult with calendar data
     """
-    return parse_calendar_query_response(body, status_code, huge_tree)
+    return _parse_calendar_query_response(body, status_code, huge_tree)
 
 
 # Helper functions

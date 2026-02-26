@@ -96,7 +96,8 @@ class DAVObject:
             self.url = None
         else:
             self.url = URL.objectify(url)
-        assert " " not in str(self.url)
+        if self.url is not None and " " in str(self.url):
+            raise ValueError(f"URL must not contain spaces: {self.url!r}")
 
     @property
     def canonical_url(self) -> str:

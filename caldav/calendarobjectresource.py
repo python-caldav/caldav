@@ -1245,7 +1245,7 @@ class CalendarObjectResource(DAVObject):
             DeprecationWarning,
             stacklevel=2,
         )
-        return self._get_vobject_instance(inst)
+        return self._set_vobject_instance(inst)
 
     vobject_instance: "vobject.base.VBase" = property(
         _get_vobject_instance,

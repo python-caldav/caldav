@@ -462,7 +462,7 @@ class FeatureSet:
         elif feature_type in ('tests-behaviour', 'client-hints'):
             return { }
         else:
-            breakpoint()
+            raise ValueError(f"Unknown feature type: {feature_type!r}")
 
     def is_supported(self, feature, return_type=bool, return_defaults=True, accept_fragile=False):
         """Work in progress

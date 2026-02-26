@@ -42,7 +42,7 @@ class CalendarObjectData:
 
 def _generate_uid() -> str:
     """Generate a new UID for a calendar object."""
-    return str(uuid.uuid1())
+    return str(uuid.uuid4())
 
 
 def _generate_url(parent_url: str, uid: str) -> str:

@@ -382,7 +382,7 @@ class DAVClient(BaseDAVClient):
         if hasattr(self, "teardown"):
             try:
                 self.teardown()
-            except:
+            except TypeError:
                 self.teardown(self)
 
     def close(self) -> None:
@@ -694,7 +694,7 @@ class DAVClient(BaseDAVClient):
             ## element that should come with caldav extras.
             ## Anyway, packing this into a try-except in case it fails.
             response = self.options(self.principal().url)
-        except:
+        except Exception:
             response = self.options(str(self.url))
         return response.headers.get("DAV", None)
 

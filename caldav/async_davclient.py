@@ -34,6 +34,17 @@ try:
         _H2_AVAILABLE = True
     except ImportError:
         pass
+
+    class _HttpxBearerAuth(httpx.Auth):
+        """httpx-compatible bearer token auth."""
+
+        def __init__(self, password: str) -> None:
+            self.password = password
+
+        def auth_flow(self, request):
+            request.headers["Authorization"] = f"Bearer {self.password}"
+            yield request
+
 except ImportError:
     pass
 
@@ -237,6 +248,8 @@ class AsyncDAVClient(BaseDAVClient):
         # Use explicit None check to preserve empty strings (needed for servers with no auth)
         self.username = username if username is not None else url_username
         self.password = password if password is not None else url_password
+        # Strip credentials from stored URL to avoid leaking them in log messages
+        self.url = self.url.unauth()
 
         # Setup authentication
         self.auth = auth
@@ -846,7 +859,10 @@ class AsyncDAVClient(BaseDAVClient):
 
         # Build auth object - use appropriate classes for httpx or niquests
         if auth_type == "bearer":
-            self.auth = HTTPBearerAuth(self.password)
+            if _USE_HTTPX:
+                self.auth = _HttpxBearerAuth(self.password)
+            else:
+                self.auth = HTTPBearerAuth(self.password)
         elif auth_type == "digest":
             if _USE_HTTPX:
                 self.auth = httpx.DigestAuth(self.username, self.password)
