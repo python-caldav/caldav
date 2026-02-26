@@ -171,7 +171,7 @@ Minor: `WWW-Authenticate` parsing (line 31) splits on commas, which fails for he
 **Rating: 6/10** -- Functional but at 2,054 lines is the largest file and could benefit from extraction.
 
 **Issues:**
-1. **Missing deprecation warnings** -- `calendars()`, `events()`, `todos()` etc. have docstring notes but no `warnings.warn()` calls (unlike `date_search` and `davobject.name` which do emit).
+1. **Missing deprecation warnings** -- `calendars()`, `events()`, `todos()` etc. have docstring notes but no `warnings.warn()` calls (unlike `date_search` and `davobject.name` which do emit). *Comment:* This is intentional.  Those are "core features" that was suddenly changed between v2 and v3 - we want people to upgrade to v3 without getting a lot of deprecation warnings thrown in their face.  Those warnings will be added in v4.
 2. ~~**`_generate_fake_sync_token` uses MD5 (line 1655)**~~ **FIXED** -- Added `usedforsecurity=False`.
 3. **`Principal._async_get_property` overrides parent (line 352)** with incompatible implementation.
 
