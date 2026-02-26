@@ -4,7 +4,8 @@ JMAP
 
 The caldav library includes a JMAP client for servers that speak
 `RFC 8620 <https://www.rfc-editor.org/rfc/rfc8620>`_ (JMAP Core) and
-`RFC 8984 <https://www.rfc-editor.org/rfc/rfc8984>`_ (JMAP Calendars).
+the JMAP Calendars protocol (``urn:ietf:params:jmap:calendars``), which uses
+`RFC 8984 <https://www.rfc-editor.org/rfc/rfc8984>`_ (JSCalendar) as its data format.
 It covers calendar listing, event CRUD, incremental sync, and task CRUD — the same
 operations as the CalDAV client — so the choice of protocol comes down to what the
 server supports.
@@ -107,9 +108,11 @@ Working with Events
 Events are passed as iCalendar strings — the same format used by the CalDAV client
 — so existing iCalendar-producing code works unchanged.
 
-To create an event, pass a VCALENDAR string and the target calendar ID:
+The calendar-scoped API mirrors :class:`caldav.collection.Calendar`:
 
 .. code-block:: python
+
+    cal = calendars[0]
 
     ical = (
         "BEGIN:VCALENDAR\r\n"
@@ -123,16 +126,19 @@ To create an event, pass a VCALENDAR string and the target calendar ID:
         "END:VEVENT\r\n"
         "END:VCALENDAR\r\n"
     )
-    calendar_id = calendars[0].id
-    event_id = client.create_event(calendar_id, ical)
 
-The return value is the server-assigned JMAP event ID (a string).  You can fetch the
-event back as a VCALENDAR string, update it by passing a new VCALENDAR string, or
-delete it:
+    # Add an event to this calendar — returns the server-assigned JMAP event ID
+    event_id = cal.add_event(ical)
+
+    # Look up an event by its iCalendar UID — returns a VCALENDAR string
+    ical_str = cal.get_object_by_uid("meeting-2026-01-15@example.com")
+
+If you already have a JMAP event ID (from :meth:`~caldav.jmap.client.JMAPClient.get_sync_token`
+results, for example), you can also use the lower-level client methods directly:
 
 .. code-block:: python
 
-    # Fetch — returns a VCALENDAR string
+    # Fetch by JMAP event ID — returns a VCALENDAR string
     ical_str = client.get_event(event_id)
 
     # Update — pass a complete VCALENDAR string with the changes applied
@@ -145,27 +151,32 @@ delete it:
 Searching Events
 ================
 
+Use :meth:`~caldav.jmap.objects.calendar.JMAPCalendar.search` on a calendar object,
+mirroring the CalDAV :meth:`caldav.collection.Calendar.search` interface:
+
 .. code-block:: python
 
-    # All events in a specific calendar
-    results = client.search_events(calendar_id=calendar_id)
+    cal = calendars[0]
+
+    # All events in this calendar
+    results = cal.search(event=True)
 
     # Time-range filter: events that overlap [start, end)
     #   start — only events ending after this datetime
     #   end   — only events starting before this datetime
-    results = client.search_events(
-        calendar_id=calendar_id,
+    results = cal.search(
+        event=True,
         start="2026-01-01T00:00:00",
         end="2026-02-01T00:00:00",
     )
 
     # Free-text search across title, description, locations, and participants
-    results = client.search_events(text="standup")
+    results = cal.search(text="standup")
 
     for ical_str in results:
         print(ical_str)
 
-All parameters are optional; omitting all returns every event visible to the account.
+All parameters are optional; omitting all returns every event in the calendar.
 Results are returned as a list of VCALENDAR strings.  The search uses a single batched
 JMAP request (``CalendarEvent/query`` + result reference into ``CalendarEvent/get``),
 so only one HTTP round-trip is made regardless of how many events match.
@@ -234,7 +245,7 @@ Tasks
 =====
 
 Task support requires a server implementing ``urn:ietf:params:jmap:tasks``
-(RFC 9553).  If the server does not support this capability,
+(the JMAP Tasks specification).  If the server does not support this capability,
 :meth:`~caldav.jmap.client.JMAPClient.get_task_lists` will raise
 :class:`~caldav.jmap.error.JMAPMethodError`.
 
@@ -305,6 +316,13 @@ Async API
             for cal in calendars:
                 print(cal.name)
 
+            # Calendar-scoped methods return coroutines when the calendar
+            # was obtained from an async client
+            cal = calendars[0]
+            results = await cal.search(event=True)
+            ical_str = await cal.get_object_by_uid("some-uid@example.com")
+            event_id = await cal.add_event(ical)
+
     asyncio.run(main())
 
 All methods — event CRUD, search, sync, and task operations — are available as
@@ -363,6 +381,27 @@ With the file in place, no arguments are needed:
 .. code-block:: python
 
     client = get_jmap_client()
+
+JMAP and CalDAV settings can coexist in the same file using separate named sections:
+
+.. code-block:: yaml
+
+   ---
+   default:
+       caldav_url: https://caldav.example.com
+       caldav_username: alice
+       caldav_password: secret
+
+   jmap:
+       caldav_url: https://jmap.example.com/.well-known/jmap
+       caldav_username: alice
+       caldav_password: secret
+       protocol: jmap
+
+.. code-block:: python
+
+    from caldav.jmap import get_jmap_client
+    client = get_jmap_client(config_section="jmap")
 
 See :doc:`configfile` for file locations, section inheritance, and other options.
 

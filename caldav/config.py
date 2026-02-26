@@ -179,6 +179,7 @@ CONNKEYS = frozenset(
         "features",
         "enable_rfc6764",
         "require_tls",
+        "protocol",
     ]
 )
 

@@ -20,6 +20,8 @@ except ImportError:
     import requests  # type: ignore[no-redef]
     from requests.auth import HTTPBasicAuth  # type: ignore[no-redef]
 
+import icalendar
+
 from caldav.jmap.constants import CALENDAR_CAPABILITY, CORE_CAPABILITY, TASK_CAPABILITY
 from caldav.jmap.convert import ical_to_jscal, jscal_to_ical
 from caldav.jmap.error import JMAPAuthError, JMAPMethodError
@@ -223,7 +225,11 @@ class JMAPClient(_JMAPClientBase):
 
         for method_name, resp_args, _ in responses:
             if method_name == "Calendar/get":
-                return parse_calendar_get(resp_args)
+                calendars = parse_calendar_get(resp_args)
+                for cal in calendars:
+                    cal._client = self
+                    cal._is_async = False
+                return calendars
 
         return []
 
@@ -317,28 +323,13 @@ class JMAPClient(_JMAPClientBase):
 
         raise JMAPMethodError(url=session.api_url, reason="No CalendarEvent/set response")
 
-    def search_events(
+    def _search(
         self,
         calendar_id: str | None = None,
         start: str | None = None,
         end: str | None = None,
         text: str | None = None,
     ) -> list[str]:
-        """Search for calendar events and return them as iCalendar strings.
-
-        All parameters are optional; omitting all returns every event in the account.
-        Results are fetched in a single batched JMAP request using a result reference
-        from ``CalendarEvent/query`` into ``CalendarEvent/get``.
-
-        Args:
-            calendar_id: Limit results to this calendar.
-            start: Only events ending after this datetime (``YYYY-MM-DDTHH:MM:SS``).
-            end: Only events starting before this datetime (``YYYY-MM-DDTHH:MM:SS``).
-            text: Free-text search across title, description, locations, and participants.
-
-        Returns:
-            List of VCALENDAR strings for all matching events.
-        """
         session = self._get_session()
         filter_dict: dict = {}
         if calendar_id is not None:
@@ -370,6 +361,30 @@ class JMAPClient(_JMAPClientBase):
                 return [jscal_to_ical(item) for item in resp_args.get("list", [])]
 
         return []
+
+    def search_events(
+        self,
+        calendar_id: str | None = None,
+        start: str | None = None,
+        end: str | None = None,
+        text: str | None = None,
+    ) -> list[str]:
+        """Search for calendar events and return them as iCalendar strings.
+
+        All parameters are optional; omitting all returns every event in the account.
+        Results are fetched in a single batched JMAP request using a result reference
+        from ``CalendarEvent/query`` into ``CalendarEvent/get``.
+
+        Args:
+            calendar_id: Limit results to this calendar.
+            start: Only events ending after this datetime (``YYYY-MM-DDTHH:MM:SS``).
+            end: Only events starting before this datetime (``YYYY-MM-DDTHH:MM:SS``).
+            text: Free-text search across title, description, locations, and participants.
+
+        Returns:
+            List of VCALENDAR strings for all matching events.
+        """
+        return self._search(calendar_id=calendar_id, start=start, end=end, text=text)
 
     def get_sync_token(self) -> str:
         """Return the current CalendarEvent state string for use as a sync token.
@@ -471,6 +486,23 @@ class JMAPClient(_JMAPClientBase):
                 return
 
         raise JMAPMethodError(url=session.api_url, reason="No CalendarEvent/set response")
+
+    def _get_object_by_uid(self, uid: str, calendar_id: str | None = None) -> str:
+        for event_ical in self._search(calendar_id=calendar_id):
+            try:
+                cal = icalendar.Calendar.from_ical(event_ical)
+                for component in cal.walk():
+                    if component.name in ("VEVENT", "VTODO", "VJOURNAL"):
+                        component_uid = component.get("UID")
+                        if component_uid is not None and str(component_uid) == uid:
+                            return event_ical
+            except ValueError:
+                log.debug("Skipping unparseable iCalendar string during UID lookup")
+                continue
+
+        raise JMAPMethodError(
+            url=self._get_session().api_url, reason=f"No calendar object found with UID: {uid}"
+        )
 
     def get_task_lists(self) -> list[JMAPTaskList]:
         """Fetch all task lists for the authenticated account.
