@@ -7,6 +7,9 @@
 
 > **Status update (commit ff6db30):** All "Must Fix" and "Should Fix" items from §8 have been
 > resolved. Remaining open items are v3.1+ and v4.0 work.
+>
+> **Status update (commit f7c51c9):** Recommendation 11 largely addressed — sync/async
+> duplication reduced by ~177 lines across five files (see §5 for details).
 
 ## Executive Summary
 
@@ -17,7 +20,7 @@ The v3.0 release is a major architectural refactoring introducing Sans-I/O separ
 **Key findings:**
 - ~~3 bugs that will cause runtime errors~~ **fixed**
 - ~~1 security concern (UUID1 leaks MAC address in calendar UIDs)~~ **fixed**
-- ~650 lines of sync/async duplication across domain objects
+- ~~650 lines of sync/async duplication across domain objects~~ reduced to ~475 lines (commit f7c51c9)
 - Test coverage gaps in discovery module and sync client unit tests
 - ~~`breakpoint()` left in production code~~ **fixed**
 
@@ -214,26 +217,26 @@ Minor: `WWW-Authenticate` parsing (line 31) splits on commas, which fails for he
 
 ## 5. Code Duplication Analysis
 
-### 5.1 Sync/Async Client Duplication (~70 lines)
+### 5.1 Sync/Async Client Duplication (~30 lines remaining)
 
-| Code Section | davclient.py | async_davclient.py | Similarity |
+| Code Section | davclient.py | async_davclient.py | Similarity | Status |
+|---|---|---|---|---|
+| `search_principals` | 376-435 | 1107-1168 | ~95% (copy-paste + await) | **FIXED** — build/parse hoisted to `BaseDAVClient` |
+| `_get_calendar_home_set` | 548-568 | 974-994 | ~95% | open |
+| `get_events` | 570-597 | 996-1023 | ~95% | **FIXED** — hoisted to `BaseDAVClient` |
+| `get_todos` | 599-613 | 1025-1039 | ~95% | **FIXED** — hoisted to `BaseDAVClient` |
+| `propfind` response parsing | 280-320 | 750-790 | ~90% | open |
+| Auth type extraction | 180-210 | 420-450 | ~100% | already in `BaseDAVClient` |
+| Factory functions | 1015-1078 | 1312-1431 | ~80% | open |
+
+### 5.2 Domain Object Async/Sync Duplication (~445 lines remaining)
+
+| File | Duplicated pairs | Approx. lines | Notes |
 |---|---|---|---|
-| `search_principals` | 376-435 | 1107-1168 | ~95% (copy-paste + await) |
-| `_get_calendar_home_set` | 548-568 | 974-994 | ~95% |
-| `get_events` | 570-597 | 996-1023 | ~95% |
-| `get_todos` | 599-613 | 1025-1039 | ~95% |
-| `propfind` response parsing | 280-320 | 750-790 | ~90% |
-| Auth type extraction | 180-210 | 420-450 | ~100% |
-| Factory functions | 1015-1078 | 1312-1431 | ~80% |
-
-### 5.2 Domain Object Async/Sync Duplication (~580 lines)
-
-| File | Duplicated pairs | Approx. lines |
-|---|---|---|
-| davobject.py | 6 method pairs | ~180 |
-| collection.py | 8 method pairs | ~250 |
-| calendarobjectresource.py | 4 method pairs | ~100 |
-| search.py | 2 method pairs | ~50 |
+| davobject.py | 6 method pairs | ~~180~~ ~140 | `_build_xml_body` / `_build_propfind_root` extracted; `_query`/`_async_query` and `set_properties`/`_async_set_properties` shortened; `_query_properties`/`_async_query_properties` each now 1 line |
+| collection.py | 8 method pairs | ~~250~~ ~215 | `CalendarSet.get_calendars` sync migrated to protocol layer; shared `_calendars_from_results` eliminates 30+ lines of duplication |
+| calendarobjectresource.py | 4 method pairs | ~100 | open |
+| search.py | 2 method pairs | ~50 | open |
 
 ### 5.3 Protocol/Response Duplication
 
@@ -300,7 +303,7 @@ Minor: `WWW-Authenticate` parsing (line 31) splits on commas, which fails for he
 
 ### For v3.1+
 
-11. Reduce sync/async client duplication (move `search_principals`, `get_events`, `get_todos` to operations layer)
+11. ~~Reduce sync/async client duplication (`search_principals`, `get_events`, `get_todos`)~~ **DONE** — all three hoisted to `BaseDAVClient`; XML build/parse extracted to `_build_principal_search_query` / `_parse_principal_search_response`; `_build_xml_body` / `_build_propfind_root` helpers added to `DAVObject`; `CalendarSet.get_calendars` sync path migrated to protocol layer
 12. Consolidate `response.py` and `protocol/xml_parsers.py` duplication
 13. Add sync DAVClient unit tests mirroring async test structure
 14. Add discovery module tests
