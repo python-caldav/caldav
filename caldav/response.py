@@ -224,6 +224,8 @@ class BaseDAVResponse:
             error.assert_("404" in status)
         return (cast(str, href), propstats, status)
 
+    ## TODO: there is currently quite some overlapping with the protocol.xml_parsers
+    ## we should refactor
     def _find_objects_and_props(self) -> dict[str, dict[str, _Element]]:
         """Internal implementation of find_objects_and_props without deprecation warning."""
         self.objects: dict[str, dict[str, _Element]] = {}
@@ -337,7 +339,11 @@ class BaseDAVResponse:
             return values[0]
 
     ## TODO: word "expand" does not feel quite right.
-    def expand_simple_props(
+    ## TODO: I'm considering to deprecate this in v4
+    def expand_simple_props(self, *largs, **kwargs) -> dict[str, dict[str, str]]:
+        return self._expand_simple_props(*largs, **kwargs)
+
+    def _expand_simple_props(
         self,
         props: Iterable[BaseElement] | None = None,
         multi_value_props: Iterable[Any] | None = None,

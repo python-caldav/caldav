@@ -109,6 +109,14 @@ test-servers:
     username: ${ZIMBRA_USERNAME:-testuser@zimbra.io}
     password: ${ZIMBRA_PASSWORD:-testpass}
 
+  stalwart:
+    type: docker
+    enabled: ${TEST_STALWART:-false}
+    host: ${STALWART_HOST:-localhost}
+    port: ${STALWART_PORT:-8809}
+    username: ${STALWART_USERNAME:-testuser}
+    password: ${STALWART_PASSWORD:-testpass}
+
   # =========================================================================
   # External/private servers (your own CalDAV server)
   # =========================================================================

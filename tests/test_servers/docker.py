@@ -2,7 +2,7 @@
 Docker-based test server implementations.
 
 This module provides test server implementations for servers that run
-in Docker containers: Baikal, Nextcloud, Cyrus, SOGo, Bedework, DAViCal, Davis, CCS, and Zimbra.
+in Docker containers: Baikal, Nextcloud, Cyrus, SOGo, Bedework, DAViCal, Davis, CCS, Zimbra, and Stalwart.
 """
 
 import os
@@ -349,6 +349,35 @@ class ZimbraTestServer(DockerTestServer):
             return False
 
 
+class StalwartTestServer(DockerTestServer):
+    """
+    Stalwart all-in-one mail & collaboration server in Docker.
+
+    Stalwart added CalDAV/CardDAV support in 2024/2025. Uses plain HTTP on
+    port 8080 for both the admin interface and CalDAV access. Calendar home
+    for a user is at /dav/cal/<username>/.
+    """
+
+    name = "Stalwart"
+
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
+        config = config or {}
+        config.setdefault("host", os.environ.get("STALWART_HOST", "localhost"))
+        config.setdefault("port", int(os.environ.get("STALWART_PORT", "8809")))
+        config.setdefault("username", os.environ.get("STALWART_USERNAME", "testuser"))
+        config.setdefault("password", os.environ.get("STALWART_PASSWORD", "testpass"))
+        if "features" not in config:
+            config["features"] = compatibility_hints.stalwart.copy()
+        super().__init__(config)
+
+    def _default_port(self) -> int:
+        return 8809
+
+    @property
+    def url(self) -> str:
+        return f"http://{self.host}:{self.port}/dav/cal/{self.username}/"
+
+
 # Register server classes
 register_server_class("baikal", BaikalTestServer)
 register_server_class("nextcloud", NextcloudTestServer)
@@ -359,3 +388,4 @@ register_server_class("davical", DavicalTestServer)
 register_server_class("davis", DavisTestServer)
 register_server_class("ccs", CCSTestServer)
 register_server_class("zimbra", ZimbraTestServer)
+register_server_class("stalwart", StalwartTestServer)

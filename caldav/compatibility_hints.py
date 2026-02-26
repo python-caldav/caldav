@@ -1362,6 +1362,13 @@ ccs = {
     ],
 }
 
+## Stalwart - all-in-one mail & collaboration server (CalDAV added 2024/2025)
+## https://stalw.art/
+## CalDAV served at /dav/cal/<username>/ over HTTP on port 8080.
+## Feature support mostly unknown until tested; starting with empty hints.
+stalwart = {
+}
+
 ## Lots of transient problems with purelymail
 purelymail = {
     ## Purelymail claims that the search indexes are "lazily" populated,

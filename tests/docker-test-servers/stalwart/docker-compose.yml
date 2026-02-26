@@ -1,0 +1,18 @@
+services:
+  stalwart:
+    image: stalwartlabs/stalwart:latest
+    container_name: stalwart-test
+    ports:
+      - "8809:8080"
+    environment:
+      - STALWART_ADMIN_PASSWORD=adminpass
+    tmpfs:
+      - /opt/stalwart/data:size=500m
+      - /opt/stalwart/logs:size=50m
+      - /opt/stalwart/etc:size=10m
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+      start_period: 25s
