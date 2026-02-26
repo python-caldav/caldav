@@ -283,6 +283,126 @@ class TestJMAPCalendar:
         with pytest.raises(KeyError):
             JMAPCalendar.from_jmap({"id": "cal3"})
 
+    _RAW_EVENT = {
+        "id": "ev1",
+        "uid": "test-uid@example.com",
+        "calendarIds": {"cal1": True},
+        "title": "Staff Meeting",
+        "start": "2026-01-15T09:00:00",
+        "duration": "PT1H",
+    }
+
+    def _query_get_response(self, items):
+        return {
+            "methodResponses": [
+                [
+                    "CalendarEvent/query",
+                    {"ids": [i["id"] for i in items], "queryState": "qs-1", "total": len(items)},
+                    "ev-query-0",
+                ],
+                [
+                    "CalendarEvent/get",
+                    {"accountId": _USERNAME, "list": items, "notFound": []},
+                    "ev-get-1",
+                ],
+            ]
+        }
+
+    def _set_response(self, created=None, notCreated=None):
+        return {
+            "methodResponses": [
+                [
+                    "CalendarEvent/set",
+                    {
+                        "accountId": _USERNAME,
+                        "created": created or {},
+                        "updated": {},
+                        "destroyed": [],
+                        "notCreated": notCreated or {},
+                        "notUpdated": {},
+                        "notDestroyed": {},
+                    },
+                    "ev-set-create-0",
+                ]
+            ]
+        }
+
+    def _capturing_calendar(self, monkeypatch, resp, calendar_id="cal1"):
+        captured = {}
+        client = JMAPClient(url=_JMAP_URL, username=_USERNAME, password=_PASSWORD)
+        client._session_cache = Session(api_url=_API_URL, account_id=_USERNAME, state="state-abc")
+
+        def capturing_post(*args, **kwargs):
+            captured["json"] = kwargs.get("json", {})
+            mock_resp = MagicMock()
+            mock_resp.status_code = 200
+            mock_resp.json.return_value = resp
+            mock_resp.raise_for_status = MagicMock()
+            return mock_resp
+
+        monkeypatch.setattr("caldav.jmap.client.requests.post", capturing_post)
+        cal = JMAPCalendar(id=calendar_id, name="Test")
+        cal._client = client
+        cal._is_async = False
+        return cal, captured
+
+    def test_calendar_search_returns_ical_list(self, monkeypatch):
+        event2 = {**self._RAW_EVENT, "id": "ev2", "title": "Standup"}
+        resp = self._query_get_response([self._RAW_EVENT, event2])
+        cal = _make_calendar_with_client(monkeypatch, resp)
+        results = cal.search(event=True)
+        assert len(results) == 2
+        assert all("VCALENDAR" in r for r in results)
+
+    def test_calendar_search_passes_calendar_id_filter(self, monkeypatch):
+        resp = self._query_get_response([self._RAW_EVENT])
+        cal, captured = self._capturing_calendar(monkeypatch, resp, calendar_id="my-cal")
+        cal.search(event=True)
+        query_args = captured["json"]["methodCalls"][0][1]
+        assert query_args["filter"]["inCalendars"] == ["my-cal"]
+
+    def test_calendar_search_with_date_range(self, monkeypatch):
+        resp = self._query_get_response([self._RAW_EVENT])
+        cal, captured = self._capturing_calendar(monkeypatch, resp)
+        cal.search(start="2026-01-01T00:00:00", end="2026-12-31T23:59:59")
+        query_args = captured["json"]["methodCalls"][0][1]
+        assert query_args["filter"]["after"] == "2026-01-01T00:00:00"
+        assert query_args["filter"]["before"] == "2026-12-31T23:59:59"
+
+    def test_calendar_search_with_text(self, monkeypatch):
+        resp = self._query_get_response([self._RAW_EVENT])
+        cal, captured = self._capturing_calendar(monkeypatch, resp)
+        cal.search(text="standup")
+        query_args = captured["json"]["methodCalls"][0][1]
+        assert query_args["filter"]["text"] == "standup"
+
+    def test_calendar_get_object_by_uid_found(self, monkeypatch):
+        resp = self._query_get_response([self._RAW_EVENT])
+        cal = _make_calendar_with_client(monkeypatch, resp)
+        result = cal.get_object_by_uid("test-uid@example.com")
+        assert "VCALENDAR" in result
+        assert "Staff Meeting" in result
+
+    def test_calendar_get_object_by_uid_not_found(self, monkeypatch):
+        resp = self._query_get_response([self._RAW_EVENT])
+        cal = _make_calendar_with_client(monkeypatch, resp)
+        with pytest.raises(JMAPMethodError):
+            cal.get_object_by_uid("nonexistent-uid@example.com")
+
+    def test_calendar_add_event_delegates_to_create_event(self, monkeypatch):
+        _MINIMAL_ICAL = (
+            "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\n"
+            "UID:test@example.com\r\nSUMMARY:Test\r\n"
+            "DTSTART:20260115T090000Z\r\nDTEND:20260115T100000Z\r\n"
+            "END:VEVENT\r\nEND:VCALENDAR\r\n"
+        )
+        resp = self._set_response(created={"new-0": {"id": "sv-cal-1"}})
+        cal, captured = self._capturing_calendar(monkeypatch, resp, calendar_id="my-calendar")
+        cal.add_event(_MINIMAL_ICAL)
+        create_args = captured["json"]["methodCalls"][0][1]
+        event_payload = create_args["create"]["new-0"]
+        assert event_payload.get("calendarIds") == {"my-calendar": True}
+
 
 from caldav.jmap.methods.calendar import (
     build_calendar_changes,
@@ -367,6 +487,15 @@ def _make_client_with_mocked_session(monkeypatch, api_response_json):
     mock_resp.raise_for_status = MagicMock()
     monkeypatch.setattr("caldav.jmap.client.requests.post", lambda *a, **kw: mock_resp)
     return client
+
+
+def _make_calendar_with_client(monkeypatch, api_response_json, calendar_id="cal1"):
+    """Return a JMAPCalendar backed by a fully mocked JMAPClient."""
+    client = _make_client_with_mocked_session(monkeypatch, api_response_json)
+    cal = JMAPCalendar(id=calendar_id, name="Test")
+    cal._client = client
+    cal._is_async = False
+    return cal
 
 
 class TestJMAPClient:
