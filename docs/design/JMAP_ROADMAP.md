@@ -37,18 +37,25 @@ dataclass objects with `id`, `name`, `description`, `color`, `is_subscribed`,
 
 ### Events — CRUD, search, incremental sync
 
-| Client method | JMAP call |
-|---------------|-----------|
-| `create_event(calendar_id, ical_str)` → event_id | `CalendarEvent/set` (create) |
-| `get_event(event_id)` → ical_str | `CalendarEvent/get` |
-| `update_event(event_id, ical_str)` | `CalendarEvent/set` (update patch; `uid` stripped as it's server-immutable post-creation) |
-| `delete_event(event_id)` | `CalendarEvent/set` (destroy) |
-| `search_events(calendar_id, start, end, text)` → list[ical_str] | `CalendarEvent/query` + result reference into `CalendarEvent/get` in one round-trip |
-| `get_sync_token()` → state | `CalendarEvent/get` with empty ids list (no event data transferred, only state) |
-| `get_objects_by_sync_token(token)` → (added, modified, deleted) | `CalendarEvent/changes` + `CalendarEvent/get` for changed ids |
+The calendar-scoped methods mirror `caldav.collection.Calendar` exactly:
+
+| Calendar method | Client method | JMAP call |
+|-----------------|---------------|-----------|
+| `cal.add_event(ical_str)` → event_id | `create_event(calendar_id, ical_str)` | `CalendarEvent/set` (create) |
+| `cal.get_object_by_uid(uid)` → ical_str | — | `CalendarEvent/query` + `CalendarEvent/get` (fetches all events in calendar, scans locally for UID match; see limitation below) |
+| `cal.search(event=True, start=, end=, text=)` → list[ical_str] | `search_events(calendar_id, start, end, text)` | `CalendarEvent/query` + result reference into `CalendarEvent/get` in one round-trip |
+| — | `get_event(event_id)` → ical_str | `CalendarEvent/get` — lower-level, takes JMAP event ID directly |
+| — | `update_event(event_id, ical_str)` | `CalendarEvent/set` (update patch; `uid` stripped as it's server-immutable post-creation) |
+| — | `delete_event(event_id)` | `CalendarEvent/set` (destroy) |
+| — | `get_sync_token()` → state | `CalendarEvent/get` with empty ids list (no event data transferred, only state) |
+| — | `get_objects_by_sync_token(token)` → (added, modified, deleted) | `CalendarEvent/changes` + `CalendarEvent/get` for changed ids |
 
 Events go in and come out as iCalendar strings. Conversion to/from JSCalendar
 happens inside the library.
+
+`get_object_by_uid` currently fetches all events in the calendar and scans them
+locally for a matching UID. `CalendarEvent/query` has a `uid` filter that would
+make this a single targeted lookup — not yet wired.
 
 One notable detail in `get_objects_by_sync_token`: if the server sets
 `hasMoreChanges: true`, the client raises `JMAPMethodError` rather than silently
@@ -118,7 +125,7 @@ catches `DAVError` catches JMAP errors without modification.
 
 ### Tests
 
-257 unit tests, zero network calls. They cover session parsing (including
+264 unit tests, zero network calls. They cover session parsing (including
 Cyrus-specific relative `apiUrl`), method builders and response parsers, all
 iCalendar ↔ JSCalendar conversion paths including recurrence, participants,
 alarms, and timezone edge cases, and both sync and async client paths via mocks.
@@ -217,20 +224,23 @@ cross-account.
 
 ### CalendarEvent/query — partial coverage
 
-`search_events()` works but only uses a subset of `CalendarEvent/query`'s
-`FilterCondition`.
+`cal.search()` works but only uses a subset of `CalendarEvent/query`'s
+`FilterCondition`. The lower-level `search_events()` on the client exposes the
+same filters.
 
-Currently exposed: `inCalendars` (via `calendar_id`), `after` (via `start`),
-`before` (via `end`), `text`.
+Currently exposed: `inCalendars` (automatically scoped when called via
+`cal.search()`; also available as `calendar_id` on `search_events()`), `after`
+(via `start`), `before` (via `end`), `text`.
 
 Not yet exposed:
 
+- `uid` — exact UID lookup; wiring this would replace the current linear scan in
+  `get_object_by_uid` with a single targeted query
 - `hasKeyword` / `notKeyword` — filter by category/tag
 - `isUndecided` / `isRejected` — filter by current user's RSVP status ("events
   you haven't responded to" is a very common UI need)
 - `participantIs` — filter to events where a given email has a specific role
 - `hasAttachment` — filter to events with blob links
-- `uid` — exact UID lookup
 
 The query + result-reference pattern already batches everything into one
 round-trip regardless of filter complexity, so adding more filter options is
@@ -431,8 +441,13 @@ unlock integration testing for almost every unimplemented feature in this librar
 ### Fastmail
 
 **Not tested.** Fastmail runs Cyrus as its backend and layers its own JMAP
-extensions. A paid account is required; automated testing isn't feasible. Fastmail
-has been an early adopter and driver of the JMAP Calendars specification.
+extensions. A paid account is required; automated testing isn't feasible.
+
+As of early 2026, Fastmail exposes JMAP for mail only —
+`urn:ietf:params:jmap:calendars` is not in their public API. Calendar access is
+CalDAV only. Their documentation says JMAP calendar access will open once the
+spec is published as an RFC. So: blocked on draft-ietf-jmap-calendars clearing
+the RFC Editor queue.
 
 ### Apple iCloud Calendar
 
@@ -497,20 +512,22 @@ wired.
 
 ### Richer event search
 
-The `search_events()` API exposes only `calendar_id`, `start`, `end`, `text`.
+The `cal.search()` API (and its lower-level `search_events()` counterpart on the
+client) currently exposes only `calendar_id`, `start`, `end`, `text`.
 The `build_event_query()` function already accepts an arbitrary filter dict — the
 client method just needs to expose more of it.
 
-A fluent builder analogous to `CalDAVSearcher` is the right API shape:
+A fluent builder analogous to `CalDAVSearcher` is the right eventual API shape
+(not yet implemented — `cal.search()` currently takes keyword args only):
 
 ```python
+# future
 events = (
-    client.search_events()
-          .in_calendar(calendar_id)
-          .after("2026-01-01T00:00:00")
-          .has_keyword("work")
-          .is_undecided()
-          .fetch()
+    cal.search()
+       .after("2026-01-01T00:00:00")
+       .has_keyword("work")
+       .is_undecided()
+       .fetch()
 )
 ```
 
@@ -547,8 +564,8 @@ Once `draft-ietf-calext-jscalendar-icalendar` is published (WG milestone Jul
 2026), the conversion layer should be audited. Fields currently unhandled that
 will have well-defined mappings:
 
-- `CONFERENCE` (RFC 7986) → `virtualLocations` — Stalwart and Fastmail both use
-  this in practice; worth prioritizing
+- `CONFERENCE` (RFC 7986) → `virtualLocations` — Stalwart uses this in practice;
+  worth prioritizing
 - `RELATED-TO` → `relatedTo` — needs only the `RELTYPE` parameter mapped
 - `ATTACH` with URI → `links` — straightforward once blob support is in place
 - `RDATE` → `recurrenceOverrides` — the draft may define a conversion via
@@ -557,8 +574,8 @@ will have well-defined mappings:
 Also: the new iCalendar extensions draft
 (`draft-ietf-calext-icalendar-jscalendar-extensions`) introduces `COORDINATES`
 (replacing `GEO`) and `SHOW-WITHOUT-TIME` as a proper iCalendar property.
-Once those properties appear in real-world data from Stalwart and Fastmail, the
-conversion layer should handle them. `SHOW-WITHOUT-TIME` is particularly
+Once those properties appear in real-world data from Stalwart, the conversion
+layer should handle them. `SHOW-WITHOUT-TIME` is particularly
 relevant since the library already maps the JSCalendar `showWithoutTime` field —
 the new iCalendar property is the round-trip complement.
 
@@ -622,24 +639,25 @@ their address book when building event participant lists.
 
 ### Unified protocol-agnostic client
 
-The long-term goal: a single `get_calendar_client(url, username, password)` that
-discovers whether the server speaks CalDAV or JMAP and returns the right client
-transparently.
+Not in scope for `python-caldav`. Making `get_davclient()` return JMAP clients
+would create a hard-to-reverse public API commitment before JMAP Calendars has
+even been published as an RFC, and it would tangle the two protocol libraries
+together. The right home is a future higher-level `calendaring-client` library
+that wraps both `DAVClient` and `JMAPClient` once the spec stabilises.
 
 ```python
+# future, in a separate library
 client = get_calendar_client(url="https://cal.example.com", username="alice", password="s3cr3t")
-calendars = client.get_calendars()  # works with either protocol
+calendars = client.get_calendars()  # works regardless of protocol
 ```
 
-The two clients already share method names and signatures. The main design
-problem is that JMAP events are identified by opaque server-assigned IDs while
-CalDAV events use URLs, and this difference leaks through at the CRUD layer.
+The groundwork is already there. Both clients now share the same calendar-scoped
+method names — `get_calendars()`, `cal.search()`, `cal.get_object_by_uid()`,
+`cal.add_event()` — which is what makes unification tractable at all. The main
+remaining design problem is that JMAP events are identified by opaque
+server-assigned IDs while CalDAV events use URLs; this leaks through at the CRUD
+layer and needs a clean abstraction.
 
 Discovery: RFC 6764 DNS-SRV handles CalDAV. JMAP uses `/.well-known/jmap` (RFC
-8620 §2.2) and optionally a `_jmap._tcp` DNS SRV record. A unified client would
-probe both in parallel and use whichever responds first.
-
-The protocol-agnostic client is also where the library's long-term positioning
-matters: as JMAP Calendars moves from the RFC Editor queue to an actual RFC
-number, JMAP becomes a first-class peer to CalDAV rather than an experimental
-add-on.
+8620 §2.2) and optionally a `_jmap._tcp` SRV record. A unified client would probe
+both and use whichever responds.
