@@ -45,6 +45,16 @@ def _generate_uid() -> str:
     return str(uuid.uuid4())
 
 
+def _quote_uid(uid: str) -> str:
+    """
+    URL-quote a UID for use in a CalDAV object URL.
+
+    Slashes are double-quoted (replaced with %2F before percent-encoding)
+    per https://github.com/python-caldav/caldav/issues/143.
+    """
+    return quote(uid.replace("/", "%2F"))
+
+
 def _generate_url(parent_url: str, uid: str) -> str:
     """
     Generate a URL for a calendar object based on its UID.
@@ -58,8 +68,7 @@ def _generate_url(parent_url: str, uid: str) -> str:
     Returns:
         Full URL for the calendar object
     """
-    # Double-quote slashes per https://github.com/python-caldav/caldav/issues/143
-    quoted_uid = quote(uid.replace("/", "%2F"))
+    quoted_uid = _quote_uid(uid)
     if not parent_url.endswith("/"):
         parent_url += "/"
     return f"{parent_url}{quoted_uid}.ics"
@@ -135,7 +144,7 @@ def _find_id_and_path(
     if given_path:
         path = given_path
     else:
-        path = quote(uid.replace("/", "%2F")) + ".ics"
+        path = _quote_uid(uid) + ".ics"
 
     return uid, path
 

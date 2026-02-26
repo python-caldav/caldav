@@ -74,7 +74,7 @@ Pure functions for CalDAV business logic. Well-structured but has some issues.
 
 3. ~~**MD5 in FIPS environments (`calendar_ops.py:132`)**~~ **FIXED** -- Added `usedforsecurity=False` to both `calendar_ops.py` and `collection.py`.
 
-4. **Duplicate URL quoting** -- `quote(uid.replace("/", "%2F"))` pattern appears at both lines 62 and 138 in `calendarobject_ops.py`.
+4. ~~**Duplicate URL quoting**~~ **FIXED** -- Extracted `_quote_uid()` helper in `calendarobject_ops.py`; both `_generate_url` and `_find_id_and_path` now call it instead of repeating the pattern inline.
 
 ### 1.3 Data State Management (`caldav/datastate.py`)
 
