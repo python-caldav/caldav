@@ -155,7 +155,7 @@ class AsyncDAVClient(BaseDAVClient):
         features: FeatureSet | dict | str | None = None,
         enable_rfc6764: bool = True,
         require_tls: bool = True,
-        rate_limit_handle: bool = False,
+        rate_limit_handle: Optional[bool] = None,
         rate_limit_default_sleep: Optional[int] = None,
         rate_limit_max_sleep: Optional[int] = None,
     ) -> None:
@@ -178,7 +178,8 @@ class AsyncDAVClient(BaseDAVClient):
             enable_rfc6764: Enable RFC6764 DNS-based service discovery.
             require_tls: Require TLS for discovered services (security consideration).
             rate_limit_handle: When True, automatically sleep and retry on 429/503
-                responses. When False (default), raise RateLimitError immediately.
+                responses. When None (default), auto-detected from server features.
+                When False, raise RateLimitError immediately.
             rate_limit_default_sleep: Fallback sleep seconds when the server's 429
                 response omits a Retry-After header. None (default) means raise
                 rather than sleeping when no Retry-After is provided.
@@ -271,6 +272,16 @@ class AsyncDAVClient(BaseDAVClient):
         }
         self.headers.update(headers)
 
+        rate_limit = self.features.is_supported("rate-limit", dict)
+        if rate_limit_handle is None:
+            if rate_limit and rate_limit.get("enable"):
+                rate_limit_handle = True
+                if "default_sleep" in rate_limit:
+                    rate_limit_default_sleep = rate_limit["default_sleep"]
+                if "max_sleep" in rate_limit:
+                    rate_limit_max_sleep = rate_limit["max_sleep"]
+            else:
+                rate_limit_handle = False
         self.rate_limit_handle = rate_limit_handle
         self.rate_limit_default_sleep = rate_limit_default_sleep
         self.rate_limit_max_sleep = rate_limit_max_sleep
@@ -352,13 +363,16 @@ class AsyncDAVClient(BaseDAVClient):
         method: str = "GET",
         body: str = "",
         headers: Mapping[str, str] | None = None,
+        rate_limit_time_slept: float = 0,
     ) -> AsyncDAVResponse:
         """
         Send an async HTTP request, with optional rate-limit sleep-and-retry.
 
         Catches RateLimitError from _async_request. When rate_limit_handle is
-        True and a usable sleep duration is available, sleeps then retries once.
-        Otherwise re-raises immediately.
+        True and a usable sleep duration is available, sleeps then retries with
+        adaptive backoff (each retry adds half the already-slept time). Stops
+        retrying when rate_limit_max_sleep is exceeded or no sleep duration is
+        available. Otherwise re-raises immediately.
         """
         try:
             return await self._async_request(url, method, body, headers)
@@ -370,10 +384,17 @@ class AsyncDAVClient(BaseDAVClient):
                 self.rate_limit_default_sleep,
                 self.rate_limit_max_sleep,
             )
-            if sleep_seconds is None:
+            if rate_limit_time_slept:
+                sleep_seconds += rate_limit_time_slept / 2
+            if sleep_seconds is None or (
+                self.rate_limit_max_sleep is not None
+                and rate_limit_time_slept > self.rate_limit_max_sleep
+            ):
                 raise
             await asyncio.sleep(sleep_seconds)
-            return await self._async_request(url, method, body, headers)
+            return await self.request(
+                url, method, body, headers, rate_limit_time_slept + sleep_seconds
+            )
 
     async def _async_request(
         self,

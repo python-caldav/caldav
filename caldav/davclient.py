@@ -211,7 +211,7 @@ class DAVClient(BaseDAVClient):
         features: FeatureSet | dict | str = None,
         enable_rfc6764: bool = True,
         require_tls: bool = True,
-        rate_limit_handle: bool = False,
+        rate_limit_handle: Optional[bool] = None,
         rate_limit_default_sleep: Optional[int] = None,
         rate_limit_max_sleep: Optional[int] = None,
     ) -> None:
@@ -358,6 +358,16 @@ class DAVClient(BaseDAVClient):
 
         self._principal = None
 
+        rate_limit = self.features.is_supported("rate-limit", dict)
+        if rate_limit_handle is None:
+            if rate_limit and rate_limit.get("enable"):
+                rate_limit_handle = True
+                if "default_sleep" in rate_limit:
+                    rate_limit_default_sleep = rate_limit["default_sleep"]
+                if "max_sleep" in rate_limit:
+                    rate_limit_max_sleep = rate_limit["max_sleep"]
+            else:
+                rate_limit_handle = False
         self.rate_limit_handle = rate_limit_handle
         self.rate_limit_default_sleep = rate_limit_default_sleep
         self.rate_limit_max_sleep = rate_limit_max_sleep
@@ -860,6 +870,7 @@ class DAVClient(BaseDAVClient):
         method: str = "GET",
         body: str = "",
         headers: Mapping[str, str] = None,
+        rate_limit_time_slept=0,
     ) -> DAVResponse:
         """
         Send a generic HTTP request.
@@ -885,10 +896,15 @@ class DAVClient(BaseDAVClient):
                 self.rate_limit_default_sleep,
                 self.rate_limit_max_sleep,
             )
-            if sleep_seconds is None:
+            if rate_limit_time_slept:
+                sleep_seconds += rate_limit_time_slept / 2
+            if sleep_seconds is None or (
+                self.rate_limit_max_sleep is not None
+                and rate_limit_time_slept > self.rate_limit_max_sleep
+            ):
                 raise
             time.sleep(sleep_seconds)
-            return self._sync_request(url, method, body, headers)
+            return self.request(url, method, body, headers, rate_limit_time_slept + sleep_seconds)
 
     def _sync_request(
         self,

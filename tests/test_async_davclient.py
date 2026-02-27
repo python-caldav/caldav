@@ -935,3 +935,37 @@ class TestAsyncRateLimiting:
         )
         with pytest.raises(error.RateLimitError):
             await client.request("/")
+
+    @pytest.mark.asyncio
+    async def test_rate_limit_adaptive_sleep_increases_on_repeated_retries(self):
+        """On repeated 429s the sleep grows: first sleep uses Retry-After, second adds half of already-slept."""
+        ok_response = self._make_response(200)
+        client = AsyncDAVClient(url="http://cal.example.com/", rate_limit_handle=True)
+        client.session.request = AsyncMock(
+            side_effect=[
+                self._make_response(429, {"Retry-After": "4"}),
+                self._make_response(429, {"Retry-After": "4"}),
+                ok_response,
+            ]
+        )
+        with patch("caldav.async_davclient.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+            response = await client.request("/")
+        assert mock_sleep.call_count == 2
+        sleeps = [c.args[0] for c in mock_sleep.call_args_list]
+        assert sleeps[0] == 4.0
+        assert sleeps[1] == 6.0  # 4 + 4/2
+        assert response.status == 200
+        assert client.session.request.call_count == 3
+
+    @pytest.mark.asyncio
+    async def test_rate_limit_max_sleep_stops_adaptive_retries(self):
+        """When accumulated sleep exceeds rate_limit_max_sleep, retrying stops."""
+        client = AsyncDAVClient(
+            url="http://cal.example.com/", rate_limit_handle=True, rate_limit_max_sleep=5
+        )
+        client.session.request = AsyncMock(
+            return_value=self._make_response(429, {"Retry-After": "4"})
+        )
+        with patch("caldav.async_davclient.asyncio.sleep", new_callable=AsyncMock):
+            with pytest.raises(error.RateLimitError):
+                await client.request("/")

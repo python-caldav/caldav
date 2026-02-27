@@ -2019,3 +2019,34 @@ class TestRateLimiting:
         )
         with pytest.raises(error.RateLimitError):
             client.request("/")
+
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def test_rate_limit_adaptive_sleep_increases_on_repeated_retries(self, mocked):
+        """On repeated 429s the sleep grows: first sleep uses Retry-After, second adds half of already-slept."""
+        ok_response = mock.MagicMock()
+        ok_response.status_code = 200
+        ok_response.headers = {}
+        mocked.side_effect = [
+            self._make_response(429, {"Retry-After": "4"}),
+            self._make_response(429, {"Retry-After": "4"}),
+            ok_response,
+        ]
+        client = DAVClient(url="http://cal.example.com/", rate_limit_handle=True)
+        with mock.patch("caldav.davclient.time.sleep") as mock_sleep:
+            response = client.request("/")
+        assert mock_sleep.call_count == 2
+        assert mock_sleep.call_args_list[0] == mock.call(4.0)
+        assert mock_sleep.call_args_list[1] == mock.call(6.0)  # 4 + 4/2
+        assert response.status == 200
+        assert mocked.call_count == 3
+
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def test_rate_limit_max_sleep_stops_adaptive_retries(self, mocked):
+        """When accumulated sleep exceeds rate_limit_max_sleep, retrying stops."""
+        mocked.return_value = self._make_response(429, {"Retry-After": "4"})
+        client = DAVClient(
+            url="http://cal.example.com/", rate_limit_handle=True, rate_limit_max_sleep=5
+        )
+        with mock.patch("caldav.davclient.time.sleep"):
+            with pytest.raises(error.RateLimitError):
+                client.request("/")
