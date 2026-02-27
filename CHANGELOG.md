@@ -12,6 +12,29 @@ Changelogs prior to v2.0 is pruned, but was available in the v2.x releases
 
 This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html), though for pre-releases PEP 440 takes precedence.
 
+## [Unreleased]
+
+### Breaking Changes
+
+* The icalendar dependency is updated from 6 to 7 - not because 3.0 depends on icalendar7, but because I'm planning to use icalendar7-features in some upcoming 3.x.  If this causes problems for you, just reach out and I will downgrade the dependency, release a new 3.0.1, and possibly procrastinate the icalendar7-stuff until 4.0.
+
+### Added
+
+* **Stalwart CalDAV server** added to Docker test server framework.
+* **Async multiget fallback in `_async_load()`** -- `CalendarObjectResource._async_load()` now has the same two-stage fallback as sync `load()`: on a 404, first tries calendar-multiget REPORT, then re-fetches by UID. Previously the async path only had the UID re-fetch fallback.
+
+### Fixed
+
+* Fixed two bugs in `DAVClient` rate-limit auto-detection: (1) `is_supported('rate-limit', dict)` returns `{'enable': False}` (a truthy dict) for unconfigured clients, causing rate-limiting to be enabled unintentionally; (2) crash (`TypeError: '>' not supported between 'int' and 'NoneType'`) when `rate_limit_max_sleep` is `None` and a 429 is received.
+* Fixed `AsyncDAVClient` rate-limit handling to be fully symmetric with the sync client: same `Optional[bool]` default, same features-based auto-detect, same adaptive backoff accumulating sleep time across retries.
+* Fixed `Principal._async_get_property()` override having an incompatible signature (missing `use_cached` and `**passthrough`) and reimplementing PROPFIND logic already handled correctly by the parent `DAVObject._async_get_property()`. The override has been removed.
+* Fixed inconsistent URL quoting for calendar object UIDs containing slashes -- both `_generate_url()` and `_find_id_and_path()` in `calendarobject_ops.py` now share a single `_quote_uid()` helper (related to https://github.com/python-caldav/caldav/issues/143).
+* Fixed `expand_simple_props()` return value handling.
+
+### Test Framework
+
+* Added async rate-limit unit tests matching the sync test suite.
+
 ## [3.0.0a2] - 2026-02-25 (Alpha Release)
 
 **This is an alpha release for testing purposes.** Please report issues at https://github.com/python-caldav/caldav/issues
