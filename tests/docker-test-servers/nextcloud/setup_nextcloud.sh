@@ -38,7 +38,7 @@ echo "Enabling contacts app..."
 docker exec $CONTAINER_NAME php occ app:enable contacts || true
 
 echo "Disabling rate limiting for testing..."
-docker exec $CONTAINER_NAME php occ config:system:set ratelimit.enabled --value=false --type=boolean || true
+#docker exec $CONTAINER_NAME php occ config:system:set ratelimit.enabled --value=false --type=boolean || true
 docker exec $CONTAINER_NAME php occ app:disable bruteforcesettings || true
 docker exec $CONTAINER_NAME php occ config:system:set auth.bruteforce.protection.enabled --value=false --type=boolean || true
 

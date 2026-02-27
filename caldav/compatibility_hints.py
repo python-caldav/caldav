@@ -84,7 +84,7 @@ class FeatureSet:
             "description": "Principal has one or more calendars.  Some servers and providers comes with a pre-defined calendar for each user, for other servers a calendar has to be explicitly created (supported means there exists a calendar - it may be because the calendar was already provisioned together with the principal, or it may be because a calendar was created manually, the checks can't see the difference)"},
         "rate-limit": {
             "type": "client-feature",
-            "description": "client (or test code) must not send requests too fast",
+            "description": "client (or test code) must sleep a bit between requests.  Pro-active rate limiting is done through interval and count, server-flagged rate-limiting is controlled through default_sleep/max_sleep",
             "extra_keys": {
                 "interval": "Rate limiting window, in seconds",
                 "count": "Max number of requests to send within the interval",
@@ -938,9 +938,11 @@ ecloud = nextcloud | {
     ## TODO: this applies only to test runs, not to ordinary usage
     'rate-limit': {
         'enable': True,
-        'interval': 10,
+        'interval': 2,
         'count': 1,
-        'description': "It's needed to manually empty trashbin frequently when running tests.  Since this oepration takes some time and/or there are some caches, it's needed to run tests slowly, even when hammering the 'empty thrashbin' frequently",
+        'default_sleep': 2,
+        'max_sleep': 30,
+        'description': "It's needed to manually empty trashbin frequently when running tests.  Since this operation takes some time and/or there are some caches, it's needed to run tests slowly, even when hammering the 'empty thrashbin' frequently",
     },
     'auto-connect.url': {
         'basepath': '/remote.php/dav',
@@ -1357,7 +1359,8 @@ ccs = {
 ## Feature support mostly unknown until tested; starting with empty hints.
 stalwart = {
     'rate-limit': {
-        'default_sleep': 8,
+        'enable': True,
+        'default_sleep': 3,
         'max_sleep': 60
     },
     'create-calendar.auto': True,
@@ -1415,8 +1418,10 @@ gmx = {
     },
     'rate-limit': {
         'enable': True,
-        'interval': 4,
+        'interval': 1,
         'count': 1,
+        'default_sleep': 4,
+        'max_sleep': 30
     },
     'search.comp-type-optional': {'support': 'fragile', 'description': 'unexpected results from date-search without comp-type - but only sometimes - TODO: research more'},
     'search.recurrences.expanded': {'support': 'unsupported'},
