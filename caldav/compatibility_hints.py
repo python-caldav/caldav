@@ -940,8 +940,8 @@ ecloud = nextcloud | {
         'enable': True,
         'interval': 2,
         'count': 1,
-        'default_sleep': 2,
-        'max_sleep': 30,
+        'default_sleep': 4,
+        'max_sleep': 120,
         'description': "It's needed to manually empty trashbin frequently when running tests.  Since this operation takes some time and/or there are some caches, it's needed to run tests slowly, even when hammering the 'empty thrashbin' frequently",
     },
     'auto-connect.url': {
