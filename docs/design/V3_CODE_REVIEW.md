@@ -178,7 +178,7 @@ Minor: `WWW-Authenticate` parsing (line 31) splits on commas, which fails for he
 **Issues:**
 1. **Missing deprecation warnings** -- `calendars()`, `events()`, `todos()` etc. have docstring notes but no `warnings.warn()` calls (unlike `date_search` and `davobject.name` which do emit). *Comment:* This is intentional.  Those are "core features" that was suddenly changed between v2 and v3 - we want people to upgrade to v3 without getting a lot of deprecation warnings thrown in their face.  Those warnings will be added in v4.
 2. ~~**`_generate_fake_sync_token` uses MD5 (line 1655)**~~ **FIXED** -- Added `usedforsecurity=False`.
-3. **`Principal._async_get_property` overrides parent (line 352)** with incompatible implementation.
+3. ~~**`Principal._async_get_property` overrides parent (line 352)** with incompatible implementation.~~ **FIXED** -- Deleted the override; parent `DAVObject._async_get_property` handles it correctly.
 
 ### 3.3 CalendarObjectResource (`caldav/calendarobjectresource.py`)
 
@@ -187,7 +187,7 @@ Minor: `WWW-Authenticate` parsing (line 31) splits on commas, which fails for he
 **Issues:**
 1. ~~**BUG: `_set_deprecated_vobject_instance` (line 1248)**~~ **FIXED** -- Was calling `_get_vobject_instance(inst)` (getter, wrong number of arguments); fixed to call `_set_vobject_instance(inst)`.
 2. **`id` setter is a no-op (line 123)** -- Intentional design: UID lives in the iCalendar data, not as a separate field. The setter exists to satisfy the parent class `__init__` without side effects; removing it would cause silent writes that don't take effect. Not a bug.
-3. **`_async_load` missing multiget fallback** -- Sync `load()` has `load_by_multiget()` fallback, async does not.
+3. ~~**`_async_load` missing multiget fallback**~~ **FIXED** -- Added `_async_multiget()` to `Calendar` and `_async_load_by_multiget()` to `CalendarObjectResource`; `_async_load` now has the same fallback chain as sync `load()`.
 4. **Dual data model risk** -- Old `_data`/`_vobject_instance`/`_icalendar_instance` coexist with new `_state`. Manual sync at lines 1206, 1279 could desynchronize.
 
 ### 3.4 Search (`caldav/search.py`)

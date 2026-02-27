@@ -312,24 +312,6 @@ class Principal(DAVObject):
 
         return principal
 
-    async def _async_get_property(self, prop):
-        """Async version of get_property for use with async clients."""
-        if self.url is None:
-            raise ValueError("Unexpected value None for self.url")
-
-        response = await self.client.propfind(
-            str(self.url),
-            props=[prop.tag if hasattr(prop, "tag") else str(prop)],
-            depth=0,
-        )
-
-        if response.results:
-            for result in response.results:
-                value = result.properties.get(prop.tag if hasattr(prop, "tag") else str(prop))
-                if value is not None:
-                    return value
-        return None
-
     def make_calendar(
         self,
         name: str | None = None,
@@ -1000,6 +982,24 @@ class Calendar(DAVObject):
                 data=data,
                 parent=self,
             )
+
+    async def _async_multiget(
+        self, event_urls: Iterable[URL], raise_notfound: bool = False
+    ) -> list[tuple[str, str]]:
+        """Async version of _multiget — returns a list of (url, data) tuples."""
+        if self.url is None:
+            raise ValueError("Unexpected value None for self.url")
+
+        prop = dav.Prop() + cdav.CalendarData()
+        root = cdav.CalendarMultiGet() + prop + [dav.Href(value=u.path) for u in event_urls]
+        response = await self._async_query(root, None, "report")
+        results = response.expand_simple_props([cdav.CalendarData()])
+        if raise_notfound:
+            for href in response.statuses:
+                status = response.statuses[href]
+                if status and "404" in status:
+                    raise error.NotFoundError(f"Status {status} in {href}")
+        return [(r, results[r][cdav.CalendarData.tag]) for r in results]
 
     def calendar_multiget(self, *largs, **kwargs):
         """

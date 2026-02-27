@@ -753,28 +753,44 @@ class CalendarObjectResource(DAVObject):
                 raise error.NotFoundError(errmsg(r))
             self.data = r.raw  # type: ignore
         except error.NotFoundError:
-            # Fallback: re-fetch by UID (server may have changed the URL)
             uid = self.id
-            if uid and self.parent and hasattr(self.parent, "get_object_by_uid"):
+            if uid:
+                # Fallback 1: try multiget (REPORT may work even when GET fails)
                 try:
-                    obj = await self.parent.get_object_by_uid(uid)
-                    if obj:
-                        self.url = obj.url
-                        self.data = obj.data
-                        if hasattr(obj, "props"):
-                            self.props.update(obj.props)
-                        return self
-                except error.NotFoundError:
+                    return await self._async_load_by_multiget()
+                except Exception:
                     pass
+                # Fallback 2: re-fetch by UID (server may have changed the URL)
+                if self.parent and hasattr(self.parent, "get_object_by_uid"):
+                    try:
+                        obj = await self.parent.get_object_by_uid(uid)
+                        if obj:
+                            self.url = obj.url
+                            self.data = obj.data
+                            if hasattr(obj, "props"):
+                                self.props.update(obj.props)
+                            return self
+                    except error.NotFoundError:
+                        pass
             raise
         except Exception:
-            # Note: load_by_multiget is sync-only, not supported in async mode yet
-            raise
+            return await self._async_load_by_multiget()
 
         if "Etag" in r.headers:
             self.props[dav.GetEtag.tag] = r.headers["Etag"]
         if "Schedule-Tag" in r.headers:
             self.props[cdav.ScheduleTag.tag] = r.headers["Schedule-Tag"]
+        return self
+
+    async def _async_load_by_multiget(self) -> Self:
+        """Async implementation of load_by_multiget."""
+        error.assert_(self.url)
+        items = await self.parent._async_multiget(event_urls=[self.url], raise_notfound=True)
+        if not items:
+            raise error.NotFoundError(self.url)
+        _url, self.data = items[0]
+        error.assert_(self.data)
+        error.assert_(len(items) == 1)
         return self
 
     def load_by_multiget(self) -> Self:
