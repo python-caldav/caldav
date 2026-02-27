@@ -113,13 +113,16 @@ Pure functions for CalDAV business logic. Well-structured but has some issues.
 
 2. ~~**BUG: Missing `url.unauth()` call**~~ **FIXED** -- Added `self.url = self.url.unauth()` after credentials are extracted from the URL, matching the sync client behaviour.
 
-3. **`_auto_url` blocks the event loop** -- RFC6764 discovery performs synchronous DNS lookups and HTTP requests inside `AsyncDAVClient.__init__()`, which is called from `async get_davclient()`. This blocks the event loop.
+3. ~~**Rate-limit handling asymmetry**~~ **FIXED** -- `AsyncDAVClient.request()` now has `rate_limit_time_slept: float = 0`, the same adaptive backoff loop as the sync client (each retry adds half the already-slept time), and the same features-based auto-detect of `rate_limit_handle`. Retries recursively via `self.request()` instead of calling `_async_request()` directly.
 
-4. **Sync import dependency** -- `async_davclient.py:198` imports from `caldav.davclient`, pulling the sync HTTP stack into async contexts. `_auto_url` should live in `caldav/config.py` or `caldav/discovery.py`.
+4. **`_auto_url` blocks the event loop** -- RFC6764 discovery performs synchronous DNS lookups and HTTP requests inside `AsyncDAVClient.__init__()`, which is called from `async get_davclient()`. This blocks the event loop.
 
-5. **Password encoding asymmetry** -- Sync client encodes password to bytes eagerly (`davclient.py:329`), async does not. This creates different code paths for auth building.
+5. **Sync import dependency** -- `async_davclient.py:198` imports from `caldav.davclient`, pulling the sync HTTP stack into async contexts. `_auto_url` should live in `caldav/config.py` or `caldav/discovery.py`.
 
-6. **Response parsing boilerplate** -- The pattern `if response.status in (200, 207) and response._raw: ...` is repeated in ~5 methods. Should be a helper.
+6. **Password encoding asymmetry** -- Sync client encodes password to bytes eagerly (`davclient.py:329`), async does not. This creates different code paths for auth building.
+
+7. **Response parsing boilerplate** -- The pattern `if response.status in (200, 207) and response._raw: ...` is repeated in ~5 methods. Should be a helper.
+
 
 ### 2.3 Sync Client (`caldav/davclient.py`)
 
@@ -129,11 +132,13 @@ Pure functions for CalDAV business logic. Well-structured but has some issues.
 
 1. ~~**Bare `except:` clauses (lines 367, 679)**~~ **FIXED** -- Narrowed to `except TypeError` for the test teardown fallback (the expected exception when `teardown()` takes an argument), and `except Exception` for `check_dav_support` (which intentionally catches anything from principal lookup and falls back to root URL).
 
-2. **`NotImplementedError` for auth failures (line 996)** -- When no supported auth scheme is found, `NotImplementedError` is raised. Should be `AuthorizationError`.
+2. ~~**Rate-limit auto-detect always enabled**~~ **FIXED** -- `is_supported('rate-limit', dict)` returns `{'enable': False}` (a truthy non-empty dict) for any unconfigured client; the `if rate_limit:` check was incorrectly auto-enabling rate limiting for everyone. Changed to `if rate_limit and rate_limit.get('enable'):`. Also fixed a `TypeError` crash when `rate_limit_max_sleep is None` and the `>` comparison was attempted.
 
-3. **Type annotation gaps** -- Multiple `headers: Mapping[str, str] = None` parameters where `None` is not in the union type.
+3. **`NotImplementedError` for auth failures (line 996)** -- When no supported auth scheme is found, `NotImplementedError` is raised. Should be `AuthorizationError`.
 
-4. **`propfind` API divergence** -- Sync version (line 754) takes `props=None` which can be either XML string or property list. Async version (line 512) has separate `body` and `props` parameters.
+4. **Type annotation gaps** -- Multiple `headers: Mapping[str, str] = None` parameters where `None` is not in the union type.
+
+5. **`propfind` API divergence** -- Sync version (line 754) takes `props=None` which can be either XML string or property list. Async version (line 512) has separate `body` and `props` parameters.
 
 ### 2.4 Lazy Imports (`caldav/__init__.py`)
 
@@ -261,10 +266,10 @@ Minor: `WWW-Authenticate` parsing (line 31) splits on commas, which fails for he
 |---|---|---|---|
 | `caldav/protocol/` | Excellent | 9/10 | Pure unit tests in test_protocol.py |
 | `caldav/operations/` | Excellent | 9/10 | 6 dedicated test files |
-| `caldav/async_davclient.py` | Good | 8/10 | test_async_davclient.py (821 lines) |
+| `caldav/async_davclient.py` | Good | 8/10 | test_async_davclient.py; adaptive rate-limit tests added |
 | `caldav/datastate.py` | Good | 7/10 | Covered through calendarobject tests |
 | `caldav/search.py` | Good | 7/10 | test_search.py + integration tests |
-| `caldav/davclient.py` | Poor | 4/10 | Only integration tests, no unit tests |
+| `caldav/davclient.py` | Low | 5/10 | Rate-limit unit tests added to test_caldav_unit.py; rest still integration-only |
 | `caldav/collection.py` | Moderate | 6/10 | Integration tests cover most paths |
 | `caldav/discovery.py` | None | 0/10 | Zero dedicated tests |
 | `caldav/config.py` | Poor | 3/10 | Module docstring says "test coverage is poor" |
