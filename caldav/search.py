@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     )
     from .collection import Calendar as AsyncCalendar
 
-TypesFactory = TypesFactory()
+_icalendar_types = TypesFactory()
 
 
 # Re-export for backward compatibility

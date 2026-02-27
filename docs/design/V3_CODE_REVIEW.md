@@ -134,7 +134,7 @@ Pure functions for CalDAV business logic. Well-structured but has some issues.
 
 2. ~~**Rate-limit auto-detect always enabled**~~ **FIXED** -- `is_supported('rate-limit', dict)` returns `{'enable': False}` (a truthy non-empty dict) for any unconfigured client; the `if rate_limit:` check was incorrectly auto-enabling rate limiting for everyone. Changed to `if rate_limit and rate_limit.get('enable'):`. Also fixed a `TypeError` crash when `rate_limit_max_sleep is None` and the `>` comparison was attempted.
 
-3. **`NotImplementedError` for auth failures (line 996)** -- When no supported auth scheme is found, `NotImplementedError` is raised. Should be `AuthorizationError`.
+3. ~~**`NotImplementedError` for auth failures (line 996)**~~ **ALREADY FIXED** -- Code already calls `self._raise_authorization_error()` which raises `AuthorizationError`. Issue was stale at time of review.
 
 4. **Type annotation gaps** -- Multiple `headers: Mapping[str, str] = None` parameters where `None` is not in the union type.
 
@@ -186,7 +186,7 @@ Minor: `WWW-Authenticate` parsing (line 31) splits on commas, which fails for he
 
 **Issues:**
 1. ~~**BUG: `_set_deprecated_vobject_instance` (line 1248)**~~ **FIXED** -- Was calling `_get_vobject_instance(inst)` (getter, wrong number of arguments); fixed to call `_set_vobject_instance(inst)`.
-2. **`id` setter is a no-op (line 123)** -- `id` passed to constructor is silently ignored.
+2. **`id` setter is a no-op (line 123)** -- Intentional design: UID lives in the iCalendar data, not as a separate field. The setter exists to satisfy the parent class `__init__` without side effects; removing it would cause silent writes that don't take effect. Not a bug.
 3. **`_async_load` missing multiget fallback** -- Sync `load()` has `load_by_multiget()` fallback, async does not.
 4. **Dual data model risk** -- Old `_data`/`_vobject_instance`/`_icalendar_instance` coexist with new `_state`. Manual sync at lines 1206, 1279 could desynchronize.
 
@@ -218,7 +218,7 @@ Minor: `WWW-Authenticate` parsing (line 31) splits on commas, which fails for he
 
 **Issues:**
 1. ~~**`breakpoint()` in production code (line 443)**~~ **FIXED** -- Replaced with `raise ValueError(f"Unknown feature type: {feature_type!r}")`.
-2. **Deprecated `incompatibility_description` dict still present (lines 660-778)** -- Marked "TO BE REMOVED" with 30+ entries.
+2. **`incompatibility_description` dict still present (lines 660-778)** -- Marked "TO BE REMOVED" but still referenced by `test_caldav.py` (lines 722, 727, 754). Cannot be deleted until the test code is updated.
 3. **`# fmt: off` for entire 1,366-line file** -- Should scope it to just the dict definitions.
 
 ---

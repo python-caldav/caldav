@@ -88,7 +88,7 @@ def read_config(fn, interactive_error=False):
             cfg = read_config(config_file)
             if cfg:
                 return cfg
-        return None
+        return {}
 
     ## This can probably be refactored into fewer lines ...
     try:
