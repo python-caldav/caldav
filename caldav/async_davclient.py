@@ -967,12 +967,20 @@ class AsyncDAVClient(BaseDAVClient):
         from caldav.operations.calendarset_ops import (
             _extract_calendars_from_propfind_results as extract_calendars,
         )
+        from caldav.operations.principal_ops import (
+            _extract_calendar_home_set_from_results as extract_home_set,
+        )
 
         if principal is None:
             principal = await self.get_principal()
 
         # Get calendar-home-set from principal
-        calendar_home_url = await self._get_calendar_home_set(principal)
+        response = await self.propfind(
+            str(principal.url),
+            props=self.CALENDAR_HOME_SET_PROPS,
+            depth=0,
+        )
+        calendar_home_url = extract_home_set(response.results)
         if not calendar_home_url:
             return []
 
@@ -994,28 +1002,6 @@ class AsyncDAVClient(BaseDAVClient):
             Calendar(client=self, url=info.url, name=info.name, id=info.cal_id)
             for info in calendar_infos
         ]
-
-    async def _get_calendar_home_set(self, principal: "Principal") -> str | None:
-        """Get the calendar-home-set URL for a principal.
-
-        Args:
-            principal: Principal object
-
-        Returns:
-            Calendar home set URL or None
-        """
-        from caldav.operations.principal_ops import (
-            _extract_calendar_home_set_from_results as extract_home_set,
-        )
-
-        # Try to get from principal properties
-        response = await self.propfind(
-            str(principal.url),
-            props=self.CALENDAR_HOME_SET_PROPS,
-            depth=0,
-        )
-
-        return extract_home_set(response.results)
 
     async def search_calendar(
         self,
