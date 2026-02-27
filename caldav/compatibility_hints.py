@@ -88,6 +88,8 @@ class FeatureSet:
             "extra_keys": {
                 "interval": "Rate limiting window, in seconds",
                 "count": "Max number of requests to send within the interval",
+                "max_sleep": "Max sleep when hitting a 429 or 503 with retry-after, in seconds",
+                "default_sleep": "Sleep for this long when hitting a 429, in seconds"
             }},
         "search-cache": {
             "type": "server-peculiarity",
@@ -951,8 +953,7 @@ ecloud = nextcloud | {
 zimbra = {
     'auto-connect.url': {'basepath': '/dav/'},
     'delete-calendar': {'support': 'fragile', 'behaviour': 'may move to trashbin instead of deleting immediately'},
-    ## save-load.get-by-url was unsupported in older Zimbra versions (GET to
-    ## valid calendar object URLs returned 404), but works in zimbra/zcs-foss:latest
+    'save-load.get-by-url': {'support': 'fragile', 'behaviour': '404 most of the time - but sometimes 200.  Weird, should be investigated more'},
     ## Zimbra treats same-UID events across calendars as aliases of the same event
     'save.duplicate-uid.cross-calendar': {'support': 'unsupported'},
     'search.recurrences.expanded.exception': {'support': 'unsupported'}, ## TODO: verify
@@ -1024,21 +1025,9 @@ bedework = {
     "search.time-range.todo": {
         "support": "unsupported"
     },
-    "search.text.case-sensitive": {
-        "support": "unsupported"
-    },
-    "search.text.case-insensitive": {
-        "support": "unsupported"
-    },
-    "search.text.category": {
-        "support": "ungraceful"
-    },
+    "search.text": False, ## sometimes ungraceful
     "search.is-not-defined": {
         "support": "fragile"
-    },
-    "search.text.by-uid": {
-        "support": "fragile",
-        "behaviour": "sometimes the text search delivers everything, other times it doesn't deliver anything.  When the text search delivers everything, then the post-filtering will save the day"
     },
     "search.recurrences.includes-implicit": {
         "support": "unsupported",
@@ -1367,6 +1356,14 @@ ccs = {
 ## CalDAV served at /dav/cal/<username>/ over HTTP on port 8080.
 ## Feature support mostly unknown until tested; starting with empty hints.
 stalwart = {
+    'rate-limit': {
+        'default_sleep': 8,
+        'max_sleep': 60
+    },
+    'create-calendar.auto': True,
+    'principal-search': {'support': 'ungraceful'},
+    'search.recurrences.expanded.exception': False,
+    'search.time-range.alarm': False,
 }
 
 ## Lots of transient problems with purelymail
