@@ -18,7 +18,7 @@ import warnings
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any, Optional
-from urllib.parse import ParseResult, SplitResult, quote
+from urllib.parse import ParseResult, SplitResult
 
 import icalendar
 from dateutil.rrule import rrulestr
@@ -53,6 +53,7 @@ from .lib import error, vcal
 from .lib.error import errmsg
 from .lib.python_utilities import to_normal_str, to_unicode, to_wire
 from .lib.url import URL
+from .operations.calendarobject_ops import _quote_uid
 
 log = logging.getLogger("caldav")
 
@@ -897,7 +898,7 @@ class CalendarObjectResource(DAVObject):
         ## See https://github.com/python-caldav/caldav/issues/143 for the rationale behind double-quoting slashes
         ## TODO: should try to wrap my head around issues that arises when id contains weird characters.  maybe it's
         ## better to generate a new uuid here, particularly if id is in some unexpected format.
-        url = self.parent.url.join(quote(self.id.replace("/", "%2F")) + ".ics")
+        url = self.parent.url.join(_quote_uid(self.id) + ".ics")
         assert " " not in str(url)
         return url
 
