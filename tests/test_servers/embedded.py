@@ -215,7 +215,7 @@ class XandikosTestServer(EmbeddedTestServer):
             return
 
         try:
-            from xandikos.web import XandikosApp, XandikosBackend
+            from xandikos.web import SingleUserFilesystemBackend, XandikosApp
         except ImportError as e:
             raise RuntimeError("Xandikos is not installed") from e
 
@@ -228,7 +228,7 @@ class XandikosTestServer(EmbeddedTestServer):
         self.serverdir.__enter__()
 
         # Create backend and configure principal (following conf.py pattern)
-        backend = XandikosBackend(path=self.serverdir.name)
+        backend = SingleUserFilesystemBackend(self.serverdir.name)
         backend._mark_as_principal(f"/{self.username}/")
         backend.create_principal(f"/{self.username}/", create_defaults=True)
 
