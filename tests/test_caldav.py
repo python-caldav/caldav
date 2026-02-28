@@ -762,7 +762,7 @@ class RepeatedFunctionalTestsBaseClass:
 
         foo = self.is_supported("rate-limit", dict)
         if foo.get("enable"):
-            rate_delay = foo["interval"] / foo["count"]
+            rate_delay = foo.get("interval", 0) / foo.get("count", 1)
             self.caldav.request = _delay_decorator(self.caldav.request, t=rate_delay)
         foo = self.is_supported("search-cache", dict)
         if foo.get("behaviour") == "delay":
