@@ -79,7 +79,7 @@ test = [
   "manuel",
   "proxy.py",
   "tzlocal",
-  "xandikos>=0.2.12",
+  "xandikos>=0.3.4",
   "radicale",
   "pyfakefs",
   "httpx",
