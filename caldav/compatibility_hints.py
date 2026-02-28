@@ -1418,7 +1418,7 @@ gmx = {
     },
     'rate-limit': {
         'enable': True,
-        'interval': 1,
+        'interval': 2,
         'count': 1,
         'default_sleep': 4,
         'max_sleep': 30
