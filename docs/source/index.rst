@@ -18,6 +18,7 @@ Contents
    about
    tutorial
    async
+   jmap
    howtos
    performance
    reference

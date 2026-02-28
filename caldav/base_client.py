@@ -592,6 +592,9 @@ def get_davclient(
     setup_func = conn_params.pop("_setup", None)
     teardown_func = conn_params.pop("_teardown", None)
     server_name = conn_params.pop("_server_name", None)
+    # Remove protocol field — present when config file has both CalDAV and JMAP sections,
+    # or when the caller passes protocol="jmap"/"caldav". DAVClient doesn't accept it.
+    conn_params.pop("protocol", None)
 
     # Create client
     client = client_class(**conn_params)

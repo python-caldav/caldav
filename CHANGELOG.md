@@ -186,6 +186,19 @@ Additionally, direct `DAVClient()` instantiation should migrate to `get_davclien
 
 ### Added
 
+* **JMAP calendar client** — new `caldav.jmap` package providing a JMAP client
+  for servers implementing RFC 8620 (JMAP Core) and RFC 8984 (JMAP Calendars).
+  Features:
+  - Synchronous `JMAPClient` and asynchronous `AsyncJMAPClient` with mirrored APIs
+  - Full calendar + event CRUD (`create_event`, `get_event`, `update_event`,
+    `delete_event`, `search_events`)
+  - Incremental sync via `get_sync_token` / `get_objects_by_sync_token`
+  - Task CRUD (draft-ietf-jmap-tasks) via `create_task`, `get_task`, `update_task`, `delete_task`
+  - Bidirectional iCalendar ↔ JSCalendar conversion layer
+  - `get_jmap_client()` factory reads from the same config sources as
+    `get_davclient()` (env vars, config file)
+  - Tested against Cyrus IMAP
+
 * **Full async API** - New `AsyncDAVClient` and async-compatible domain objects:
   ```python
   from caldav.async_davclient import get_davclient
