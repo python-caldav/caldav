@@ -14,10 +14,6 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 
 ## [Unreleased]
 
-### Breaking Changes
-
-* The icalendar dependency is updated from 6 to 7 - not because 3.0 depends on icalendar7, but because I'm planning to use icalendar7-features in some upcoming 3.x.  If this causes problems for you, just reach out and I will downgrade the dependency, release a new 3.0.1, and possibly procrastinate the icalendar7-stuff until 4.0.
-
 ### Added
 
 * **Stalwart CalDAV server** added to Docker test server framework.
