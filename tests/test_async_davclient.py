@@ -843,24 +843,22 @@ END:VCALENDAR"""
         clients, so add_object() must await it instead of doing o.url on the
         coroutine object.
         """
+        import inspect
+
         from caldav.aio import AsyncEvent
         from caldav.collection import Calendar
 
         client = AsyncDAVClient(url="https://caldav.example.com/dav/")
-        # Mock _async_create so no real HTTP happens
-        AsyncEvent._async_create = AsyncMock()
-
         calendar = Calendar(client=client, url="https://caldav.example.com/dav/calendars/test/")
 
-        result = calendar.add_event(self.SIMPLE_EVENT)
-        # With an async client, add_event must return a coroutine
-        import inspect
-
-        assert inspect.isawaitable(result), (
-            "add_event() should return a coroutine when using AsyncDAVClient, "
-            "got %r instead" % result
-        )
-        event = await result
+        with patch.object(AsyncEvent, "_async_create", new_callable=AsyncMock):
+            result = calendar.add_event(self.SIMPLE_EVENT)
+            # With an async client, add_event must return a coroutine
+            assert inspect.isawaitable(result), (
+                "add_event() should return a coroutine when using AsyncDAVClient, "
+                "got %r instead" % result
+            )
+            event = await result
         assert isinstance(event, AsyncEvent)
 
     @pytest.mark.asyncio
@@ -870,10 +868,10 @@ END:VCALENDAR"""
         from caldav.collection import Calendar
 
         client = AsyncDAVClient(url="https://caldav.example.com/dav/")
-        AsyncEvent._async_create = AsyncMock()
-
         calendar = Calendar(client=client, url="https://caldav.example.com/dav/calendars/test/")
-        event = await calendar.add_event(self.SIMPLE_EVENT)
+
+        with patch.object(AsyncEvent, "_async_create", new_callable=AsyncMock):
+            event = await calendar.add_event(self.SIMPLE_EVENT)
         # Should have a URL set (or None, but not crash)
         _ = event.url  # must not raise AttributeError
 
