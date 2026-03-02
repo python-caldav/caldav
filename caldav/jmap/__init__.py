@@ -35,6 +35,8 @@ from caldav.jmap.error import (
     JMAPError,
     JMAPMethodError,
 )
+from caldav.jmap.objects.calendar import JMAPCalendar
+from caldav.jmap.objects.calendar_object import JMAPCalendarObject
 
 _JMAP_KEYS = {"url", "username", "password", "auth", "auth_type", "timeout"}
 
@@ -95,4 +97,6 @@ __all__ = [
     "JMAPCapabilityError",
     "JMAPAuthError",
     "JMAPMethodError",
+    "JMAPCalendar",
+    "JMAPCalendarObject",
 ]

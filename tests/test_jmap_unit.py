@@ -208,6 +208,7 @@ class TestFetchSession:
 
 
 from caldav.jmap.objects.calendar import JMAPCalendar
+from caldav.jmap.objects.calendar_object import JMAPCalendarObject
 
 _CALENDAR_JSON_FULL = {
     "id": "cal1",
@@ -350,14 +351,16 @@ class TestJMAPCalendar:
         event2 = {**self._RAW_EVENT, "id": "ev2", "title": "Standup"}
         resp = self._query_get_response([self._RAW_EVENT, event2])
         cal = _make_calendar_with_client(monkeypatch, resp)
-        results = cal.search(event=True)
+        results = cal.search()
         assert len(results) == 2
-        assert all("VCALENDAR" in r for r in results)
+        assert all(isinstance(r, JMAPCalendarObject) for r in results)
+        assert all(r.parent is cal for r in results)
+        assert results[0].id == "ev1"
 
     def test_calendar_search_passes_calendar_id_filter(self, monkeypatch):
         resp = self._query_get_response([self._RAW_EVENT])
         cal, captured = self._capturing_calendar(monkeypatch, resp, calendar_id="my-cal")
-        cal.search(event=True)
+        cal.search()
         query_args = captured["json"]["methodCalls"][0][1]
         assert query_args["filter"]["inCalendars"] == ["my-cal"]
 
@@ -368,6 +371,16 @@ class TestJMAPCalendar:
         query_args = captured["json"]["methodCalls"][0][1]
         assert query_args["filter"]["after"] == "2026-01-01T00:00:00"
         assert query_args["filter"]["before"] == "2026-12-31T23:59:59"
+
+    def test_calendar_search_ignores_unknown_params(self, monkeypatch):
+        """Verify that unknown search parameters are silently ignored."""
+        resp = self._query_get_response([self._RAW_EVENT])
+        cal, captured = self._capturing_calendar(monkeypatch, resp)
+        # Should not raise an error even with legacy/unknown parameters
+        cal.search(event=True, todo=False, unknown_param="value")
+        query_args = captured["json"]["methodCalls"][0][1]
+        # Should only contain the calendar filter, no unknown params
+        assert query_args["filter"] == {"inCalendars": [cal.id]}
 
     def test_calendar_search_with_text(self, monkeypatch):
         resp = self._query_get_response([self._RAW_EVENT])
@@ -380,8 +393,10 @@ class TestJMAPCalendar:
         resp = self._query_get_response([self._RAW_EVENT])
         cal = _make_calendar_with_client(monkeypatch, resp)
         result = cal.get_object_by_uid("test-uid@example.com")
-        assert "VCALENDAR" in result
-        assert "Staff Meeting" in result
+        assert isinstance(result, JMAPCalendarObject)
+        assert result.id == "ev1"
+        assert result.get_data()["title"] == "Staff Meeting"
+        assert result.parent is cal
 
     def test_calendar_get_object_by_uid_not_found(self, monkeypatch):
         resp = self._query_get_response([self._RAW_EVENT])
@@ -402,6 +417,73 @@ class TestJMAPCalendar:
         create_args = captured["json"]["methodCalls"][0][1]
         event_payload = create_args["create"]["new-0"]
         assert event_payload.get("calendarIds") == {"my-calendar": True}
+
+
+_MINIMAL_JSCAL_DICT = {
+    "id": "ev-obj-1",
+    "uid": "obj-uid@example.com",
+    "calendarIds": {"cal1": True},
+    "title": "Object Test Event",
+    "start": "2026-03-01T10:00:00",
+    "timeZone": "Europe/Berlin",
+    "duration": "PT1H",
+}
+
+
+class TestJMAPCalendarObject:
+    def test_id_from_data(self):
+        obj = JMAPCalendarObject(data=_MINIMAL_JSCAL_DICT, parent=None)
+        assert obj.id == "ev-obj-1"
+
+    def test_get_data_returns_dict(self):
+        obj = JMAPCalendarObject(data=_MINIMAL_JSCAL_DICT, parent=None)
+        assert obj.get_data() is _MINIMAL_JSCAL_DICT
+
+    def test_get_icalendar_instance_returns_calendar(self):
+        import icalendar
+
+        obj = JMAPCalendarObject(data=_MINIMAL_JSCAL_DICT, parent=None)
+        cal = obj.get_icalendar_instance()
+        assert isinstance(cal, icalendar.Calendar)
+
+    def test_get_icalendar_instance_is_cached(self):
+        obj = JMAPCalendarObject(data=_MINIMAL_JSCAL_DICT, parent=None)
+        assert obj.get_icalendar_instance() is obj.get_icalendar_instance()
+
+    def test_edit_icalendar_instance_yields_calendar(self):
+        import icalendar
+
+        obj = JMAPCalendarObject(data=_MINIMAL_JSCAL_DICT, parent=None)
+        with obj.edit_icalendar_instance() as cal:
+            assert isinstance(cal, icalendar.Calendar)
+
+    def test_save_calls_update_event(self):
+        mock_client = MagicMock()
+        mock_parent = MagicMock()
+        mock_parent._is_async = False
+        mock_parent._client = mock_client
+
+        obj = JMAPCalendarObject(data=_MINIMAL_JSCAL_DICT, parent=mock_parent)
+        with obj.edit_icalendar_instance():
+            pass
+        obj.save()
+
+        mock_client.update_event.assert_called_once()
+        call_args = mock_client.update_event.call_args
+        assert call_args[0][0] == "ev-obj-1"
+        assert isinstance(call_args[0][1], str)
+
+    def test_save_raises_without_parent(self):
+        obj = JMAPCalendarObject(data=_MINIMAL_JSCAL_DICT, parent=None)
+        with pytest.raises(JMAPMethodError, match="no parent calendar"):
+            obj.save()
+
+    def test_save_raises_for_async_parent(self):
+        mock_parent = MagicMock()
+        mock_parent._is_async = True
+        obj = JMAPCalendarObject(data=_MINIMAL_JSCAL_DICT, parent=mock_parent)
+        with pytest.raises(RuntimeError):
+            obj.save()
 
 
 from caldav.jmap._methods.calendar import (
@@ -1488,8 +1570,10 @@ class TestJMAPClientEvents:
         }
         client = _make_client_with_mocked_session(monkeypatch, self._get_response([raw_event]))
         result = client.get_event("ev1")
-        assert "VCALENDAR" in result
-        assert "Staff Meeting" in result
+        assert isinstance(result, JMAPCalendarObject)
+        assert result.id == "ev1"
+        assert result.get_data()["title"] == "Staff Meeting"
+        assert result.parent is None
 
     def test_get_event_raises_on_not_found(self, monkeypatch):
         client = _make_client_with_mocked_session(monkeypatch, self._get_response([]))
@@ -1570,7 +1654,8 @@ class TestJMAPClientEvents:
         client = _make_client_with_mocked_session(monkeypatch, resp)
         results = client.search_events()
         assert len(results) == 2
-        assert all("VCALENDAR" in r for r in results)
+        assert all(isinstance(r, JMAPCalendarObject) for r in results)
+        assert all(r.parent is None for r in results)
 
     def test_search_events_empty_result(self, monkeypatch):
         resp = self._query_get_response([])
@@ -1711,7 +1796,8 @@ class TestJMAPClientSync:
         monkeypatch.setattr("caldav.jmap.client.requests.post", mock_post)
         added, modified, deleted = self._make_client().get_objects_by_sync_token("state-1")
         assert len(added) == 1
-        assert "VCALENDAR" in added[0]
+        assert isinstance(added[0], JMAPCalendarObject)
+        assert added[0].id == "ev1"
         assert modified == [] and deleted == []
 
     def test_get_objects_modified_returns_ical(self, monkeypatch):
@@ -1723,7 +1809,8 @@ class TestJMAPClientSync:
         monkeypatch.setattr("caldav.jmap.client.requests.post", mock_post)
         added, modified, deleted = self._make_client().get_objects_by_sync_token("state-1")
         assert len(modified) == 1
-        assert "VCALENDAR" in modified[0]
+        assert isinstance(modified[0], JMAPCalendarObject)
+        assert modified[0].id == "ev1"
         assert added == [] and deleted == []
 
     def test_get_objects_has_more_raises(self, monkeypatch):
@@ -2163,8 +2250,10 @@ class TestAsyncJMAPClient:
     async def test_get_event_returns_ical(self, monkeypatch):
         self._patch_async_session(monkeypatch, self._event_get_resp([self._RAW_EVENT]))
         result = await self._make_client().get_event("ev-async-1")
-        assert "VCALENDAR" in result
-        assert "Async Test Event" in result
+        assert isinstance(result, JMAPCalendarObject)
+        assert result.id == "ev-async-1"
+        assert result.get_data()["title"] == "Async Test Event"
+        assert result.parent is None
 
     @pytest.mark.asyncio
     async def test_get_event_raises_on_not_found(self, monkeypatch):
@@ -2207,7 +2296,8 @@ class TestAsyncJMAPClient:
         self._patch_async_session(monkeypatch, self._query_get_resp([self._RAW_EVENT, event2]))
         results = await self._make_client().search_events()
         assert len(results) == 2
-        assert all("VCALENDAR" in r for r in results)
+        assert all(isinstance(r, JMAPCalendarObject) for r in results)
+        assert all(r.parent is None for r in results)
 
     @pytest.mark.asyncio
     async def test_search_events_empty_result(self, monkeypatch):
@@ -2265,7 +2355,8 @@ class TestAsyncJMAPClient:
         monkeypatch.setattr("caldav.jmap.async_client.AsyncSession", lambda: mock_http)
         added, modified, deleted = await self._make_client().get_objects_by_sync_token("state-1")
         assert len(added) == 1
-        assert "VCALENDAR" in added[0]
+        assert isinstance(added[0], JMAPCalendarObject)
+        assert added[0].id == "ev-async-1"
         assert modified == [] and deleted == []
 
     @pytest.mark.asyncio
@@ -2444,7 +2535,8 @@ class TestAsyncJMAPClient:
         monkeypatch.setattr("caldav.jmap.async_client.AsyncSession", lambda: mock_http)
         added, modified, deleted = await self._make_client().get_objects_by_sync_token("state-1")
         assert len(modified) == 1
-        assert "VCALENDAR" in modified[0]
+        assert isinstance(modified[0], JMAPCalendarObject)
+        assert modified[0].id == "ev-async-1"
         assert added == [] and deleted == []
 
     @pytest.mark.asyncio
