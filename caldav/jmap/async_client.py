@@ -13,11 +13,8 @@ import uuid
 import icalendar
 from niquests import AsyncSession
 
-from caldav.jmap.client import _DEFAULT_USING, _TASK_USING, _JMAPClientBase
-from caldav.jmap.convert import ical_to_jscal, jscal_to_ical
-from caldav.jmap.error import JMAPAuthError, JMAPMethodError
-from caldav.jmap.methods.calendar import build_calendar_get, parse_calendar_get
-from caldav.jmap.methods.event import (
+from caldav.jmap._methods.calendar import build_calendar_get, parse_calendar_get
+from caldav.jmap._methods.event import (
     build_event_changes,
     build_event_get,
     build_event_query,
@@ -26,7 +23,7 @@ from caldav.jmap.methods.event import (
     parse_event_changes,
     parse_event_set,
 )
-from caldav.jmap.methods.task import (
+from caldav.jmap._methods.task import (
     build_task_get,
     build_task_list_get,
     build_task_set_create,
@@ -35,6 +32,9 @@ from caldav.jmap.methods.task import (
     parse_task_list_get,
     parse_task_set,
 )
+from caldav.jmap.client import _DEFAULT_USING, _TASK_USING, _JMAPClientBase
+from caldav.jmap.convert import ical_to_jscal, jscal_to_ical
+from caldav.jmap.error import JMAPAuthError, JMAPMethodError
 from caldav.jmap.objects.calendar import JMAPCalendar
 from caldav.jmap.session import Session, async_fetch_session
 

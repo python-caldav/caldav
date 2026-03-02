@@ -404,7 +404,7 @@ class TestJMAPCalendar:
         assert event_payload.get("calendarIds") == {"my-calendar": True}
 
 
-from caldav.jmap.methods.calendar import (
+from caldav.jmap._methods.calendar import (
     build_calendar_changes,
     build_calendar_get,
     parse_calendar_get,
@@ -601,7 +601,7 @@ class TestGetJMAPClient:
         assert not hasattr(client, "ssl_verify_cert")
 
 
-from caldav.jmap.methods.event import (
+from caldav.jmap._methods.event import (
     build_event_changes,
     build_event_get,
     build_event_query,
@@ -614,7 +614,7 @@ from caldav.jmap.methods.event import (
     parse_event_query,
     parse_event_set,
 )
-from caldav.jmap.methods.task import (
+from caldav.jmap._methods.task import (
     build_task_get,
     build_task_list_get,
     build_task_set_create,
