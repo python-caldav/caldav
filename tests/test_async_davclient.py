@@ -821,6 +821,61 @@ END:VCALENDAR"""
         assert obj.has_component() is False
 
 
+class TestAsyncCalendarAddObject:
+    """Tests for Calendar.add_object/add_event/add_todo with async clients (issue #631)."""
+
+    SIMPLE_EVENT = """BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//Test//EN
+BEGIN:VEVENT
+UID:test-async-add-event@example.com
+DTSTART:20200101T100000Z
+DTEND:20200101T110000Z
+SUMMARY:Test Async Add Event
+END:VEVENT
+END:VCALENDAR"""
+
+    @pytest.mark.asyncio
+    async def test_add_event_returns_coroutine_with_async_client(self) -> None:
+        """Calendar.add_event() must be awaitable when using AsyncDAVClient.
+
+        Regression test for issue #631: o.save() returns a coroutine for async
+        clients, so add_object() must await it instead of doing o.url on the
+        coroutine object.
+        """
+        import inspect
+
+        from caldav.aio import AsyncEvent
+        from caldav.collection import Calendar
+
+        client = AsyncDAVClient(url="https://caldav.example.com/dav/")
+        calendar = Calendar(client=client, url="https://caldav.example.com/dav/calendars/test/")
+
+        with patch.object(AsyncEvent, "_async_create", new_callable=AsyncMock):
+            result = calendar.add_event(self.SIMPLE_EVENT)
+            # With an async client, add_event must return a coroutine
+            assert inspect.isawaitable(result), (
+                "add_event() should return a coroutine when using AsyncDAVClient, "
+                "got %r instead" % result
+            )
+            event = await result
+        assert isinstance(event, AsyncEvent)
+
+    @pytest.mark.asyncio
+    async def test_add_event_result_has_url(self) -> None:
+        """Awaiting add_event() with async client returns an Event with a URL."""
+        from caldav.aio import AsyncEvent
+        from caldav.collection import Calendar
+
+        client = AsyncDAVClient(url="https://caldav.example.com/dav/")
+        calendar = Calendar(client=client, url="https://caldav.example.com/dav/calendars/test/")
+
+        with patch.object(AsyncEvent, "_async_create", new_callable=AsyncMock):
+            event = await calendar.add_event(self.SIMPLE_EVENT)
+        # Should have a URL set (or None, but not crash)
+        _ = event.url  # must not raise AttributeError
+
+
 class TestAsyncRateLimiting:
     """
     Unit tests for 429/503 rate-limit handling in AsyncDAVClient.

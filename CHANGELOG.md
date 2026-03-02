@@ -14,10 +14,6 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 
 ## [Unreleased]
 
-### Breaking Changes
-
-* The icalendar dependency is updated from 6 to 7 - not because 3.0 depends on icalendar7, but because I'm planning to use icalendar7-features in some upcoming 3.x.  If this causes problems for you, just reach out and I will downgrade the dependency, release a new 3.0.1, and possibly procrastinate the icalendar7-stuff until 4.0.
-
 ### Added
 
 * **Stalwart CalDAV server** added to Docker test server framework.
@@ -30,10 +26,17 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 * Fixed `Principal._async_get_property()` override having an incompatible signature (missing `use_cached` and `**passthrough`) and reimplementing PROPFIND logic already handled correctly by the parent `DAVObject._async_get_property()`. The override has been removed.
 * Fixed inconsistent URL quoting for calendar object UIDs containing slashes -- both `_generate_url()` and `_find_id_and_path()` in `calendarobject_ops.py` now share a single `_quote_uid()` helper (related to https://github.com/python-caldav/caldav/issues/143).
 * Fixed `expand_simple_props()` return value handling.
+* Fixed `Calendar.add_object()` (and `add_event()` / `add_todo()`) not being awaitable when using `AsyncDAVClient` -- `save()` returns a coroutine for async clients, but the code was calling it without `await`, making the method uncallable in async contexts.  https://github.com/python-caldav/caldav/issues/631
+
+### Added (compatibility)
+
+* New feature flag `save-load.event.recurrences.exception` to express whether the server stores master+exception VEVENTs as a single calendar object (per RFC) or splits them into separate objects. When a server stores them separately, `expand=True` searches now automatically fall back to server-side `CALDAV:expand` (when supported), since client-side expansion of the master alone would otherwise yield duplicate occurrences.
+* Added Stalwart compatibility hints: `search.recurrences.includes-implicit.event` (fragile — broken for all-day/VALUE=DATE events), `search.recurrences.includes-implicit.todo` (fragile), `search.recurrences.expanded.exception` (unsupported), `save-load.event.recurrences.exception` (unsupported — exceptions stored as separate objects), `vtodo_datesearch_nodtstart_task_is_skipped` and `no_search_openended` old-flags.
 
 ### Test Framework
 
 * Added async rate-limit unit tests matching the sync test suite.
+* caldav-server-tester: `CheckRecurrenceSearch` now also verifies implicit recurrence support for all-day (VALUE=DATE) recurring events, marking the feature as `fragile` (with behaviour description) when only datetime recurring events work.
 
 ## [3.0.0a2] - 2026-02-25 (Alpha Release)
 
