@@ -11,8 +11,6 @@ properties are defined in draft-ietf-jmap-tasks (built on RFC 8984).
 
 from __future__ import annotations
 
-from caldav.jmap.objects.task import JMAPTask, JMAPTaskList
-
 
 def build_task_list_get(
     account_id: str,
@@ -36,7 +34,7 @@ def build_task_list_get(
     return ("TaskList/get", args, "tasklist-get-0")
 
 
-def parse_task_list_get(response_args: dict) -> list[JMAPTaskList]:
+def parse_task_list_get(response_args: dict) -> list[dict]:
     """Parse the arguments dict from a ``TaskList/get`` method response.
 
     Args:
@@ -44,10 +42,10 @@ def parse_task_list_get(response_args: dict) -> list[JMAPTaskList]:
             whose method name is ``"TaskList/get"``.
 
     Returns:
-        List of :class:`~caldav.jmap.objects.task.JMAPTaskList` objects.
+        List of raw JMAP TaskList dicts as returned by the server.
         Returns an empty list if ``"list"`` is absent or empty.
     """
-    return [JMAPTaskList.from_jmap(item) for item in response_args.get("list", [])]
+    return list(response_args.get("list", []))
 
 
 def build_task_get(
@@ -71,7 +69,7 @@ def build_task_get(
     return ("Task/get", args, "task-get-0")
 
 
-def parse_task_get(response_args: dict) -> list[JMAPTask]:
+def parse_task_get(response_args: dict) -> list[dict]:
     """Parse the arguments dict from a ``Task/get`` method response.
 
     Args:
@@ -79,21 +77,21 @@ def parse_task_get(response_args: dict) -> list[JMAPTask]:
             whose method name is ``"Task/get"``.
 
     Returns:
-        List of :class:`~caldav.jmap.objects.task.JMAPTask` objects.
+        List of raw JMAP Task dicts as returned by the server.
         Returns an empty list if ``"list"`` is absent or empty.
     """
-    return [JMAPTask.from_jmap(item) for item in response_args.get("list", [])]
+    return list(response_args.get("list", []))
 
 
 def build_task_set_create(
     account_id: str,
-    tasks: dict[str, JMAPTask],
+    tasks: dict[str, dict],
 ) -> tuple:
     """Build a ``Task/set`` method call for creating tasks.
 
     Args:
         account_id: The JMAP accountId.
-        tasks: Map of client-assigned creation ID → :class:`JMAPTask`.
+        tasks: Map of client-assigned creation ID → JMAP Task dict.
 
     Returns:
         A 3-tuple ``("Task/set", arguments_dict, call_id)``.
@@ -102,7 +100,7 @@ def build_task_set_create(
         "Task/set",
         {
             "accountId": account_id,
-            "create": {cid: task.to_jmap() for cid, task in tasks.items()},
+            "create": dict(tasks),
         },
         "task-set-create-0",
     )

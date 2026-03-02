@@ -12,8 +12,6 @@ defined in the JMAP Calendars specification.
 
 from __future__ import annotations
 
-from caldav.jmap.objects.event import JMAPEvent
-
 
 def build_event_get(
     account_id: str,
@@ -37,7 +35,7 @@ def build_event_get(
     return ("CalendarEvent/get", args, "ev-get-0")
 
 
-def parse_event_get(response_args: dict) -> list[JMAPEvent]:
+def parse_event_get(response_args: dict) -> list[dict]:
     """Parse the arguments dict from a ``CalendarEvent/get`` method response.
 
     Args:
@@ -45,10 +43,10 @@ def parse_event_get(response_args: dict) -> list[JMAPEvent]:
             whose method name is ``"CalendarEvent/get"``.
 
     Returns:
-        List of :class:`~caldav.jmap.objects.event.JMAPEvent` objects.
+        List of raw JSCalendar dicts as returned by the server.
         Returns an empty list if ``"list"`` is absent or empty.
     """
-    return [JMAPEvent.from_jmap(item) for item in response_args.get("list", [])]
+    return list(response_args.get("list", []))
 
 
 def build_event_changes(
@@ -190,13 +188,13 @@ def build_event_query_changes(
 
 def build_event_set_create(
     account_id: str,
-    events: dict[str, JMAPEvent],
+    events: dict[str, dict],
 ) -> tuple:
     """Build a ``CalendarEvent/set`` method call for creating events.
 
     Args:
         account_id: The JMAP accountId.
-        events: Map of client-assigned creation ID → :class:`JMAPEvent`.
+        events: Map of client-assigned creation ID → JSCalendar dict.
             The creation IDs are ephemeral — they are used to correlate
             server responses with individual creation requests within the
             same batch call.
@@ -208,7 +206,7 @@ def build_event_set_create(
         "CalendarEvent/set",
         {
             "accountId": account_id,
-            "create": {cid: ev.to_jmap() for cid, ev in events.items()},
+            "create": dict(events),
         },
         "ev-set-create-0",
     )

@@ -283,7 +283,7 @@ def jscal_to_ical(jscal: dict) -> str:
     EXDATE properties; patch dicts become child VEVENTs with RECURRENCE-ID.
 
     Args:
-        jscal: A JSCalendar CalendarEvent dict (raw, not a JMAPEvent dataclass).
+        jscal: A raw JSCalendar CalendarEvent dict as returned by ``CalendarEvent/get``.
 
     Returns:
         An iCalendar VCALENDAR string, normalised by ``vcal.fix()``.

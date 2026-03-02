@@ -36,7 +36,6 @@ from caldav.jmap.methods.task import (
     parse_task_set,
 )
 from caldav.jmap.objects.calendar import JMAPCalendar
-from caldav.jmap.objects.task import JMAPTask, JMAPTaskList
 from caldav.jmap.session import Session, async_fetch_session
 
 log = logging.getLogger("caldav.jmap")
@@ -427,11 +426,11 @@ class AsyncJMAPClient(_JMAPClientBase):
             url=session.api_url, reason=f"No calendar object found with UID: {uid}"
         )
 
-    async def get_task_lists(self) -> list[JMAPTaskList]:
+    async def get_task_lists(self) -> list[dict]:
         """Fetch all task lists for the authenticated account.
 
         Returns:
-            List of :class:`~caldav.jmap.objects.task.JMAPTaskList` objects.
+            List of raw JMAP TaskList dicts as returned by the server.
         """
         session = await self._get_session()
         call = build_task_list_get(session.account_id)
@@ -449,9 +448,9 @@ class AsyncJMAPClient(_JMAPClientBase):
         Args:
             task_list_id: The JMAP task list ID to create the task in.
             title: Task title (maps to VTODO ``SUMMARY``).
-            **kwargs: Optional task fields: ``description``, ``due``, ``start``,
-                ``time_zone``, ``estimated_duration``, ``percent_complete``,
-                ``progress``, ``priority``.
+            **kwargs: Optional JMAP Task fields using wire names: ``description``,
+                ``due``, ``start``, ``timeZone``, ``estimatedDuration``,
+                ``percentComplete``, ``progress``, ``priority``.
 
         Returns:
             The server-assigned JMAP task ID.
@@ -460,14 +459,17 @@ class AsyncJMAPClient(_JMAPClientBase):
             JMAPMethodError: If the server rejects the create request.
         """
         session = await self._get_session()
-        task = JMAPTask(
-            id="",
-            uid=str(uuid.uuid4()),
-            task_list_id=task_list_id,
-            title=title,
-            **kwargs,
-        )
-        call = build_task_set_create(session.account_id, {"new-0": task})
+        task_dict = {
+            "@type": "Task",
+            "uid": str(uuid.uuid4()),
+            "taskListId": task_list_id,
+            "title": title,
+            "percentComplete": 0,
+            "progress": "needs-action",
+            "priority": 0,
+        }
+        task_dict.update(kwargs)
+        call = build_task_set_create(session.account_id, {"new-0": task_dict})
         responses = await self._request([call], using=_TASK_USING)
 
         for method_name, resp_args, _ in responses:
@@ -479,14 +481,14 @@ class AsyncJMAPClient(_JMAPClientBase):
 
         raise JMAPMethodError(url=session.api_url, reason="No Task/set response")
 
-    async def get_task(self, task_id: str) -> JMAPTask:
+    async def get_task(self, task_id: str) -> dict:
         """Fetch a task by ID.
 
         Args:
             task_id: The JMAP task ID to retrieve.
 
         Returns:
-            A :class:`~caldav.jmap.objects.task.JMAPTask` object.
+            Raw JMAP Task dict as returned by the server.
 
         Raises:
             JMAPMethodError: If the task is not found.
@@ -504,7 +506,7 @@ class AsyncJMAPClient(_JMAPClientBase):
                         reason=f"Task not found: {task_id}",
                         error_type="notFound",
                     )
-                return JMAPTask.from_jmap(items[0])
+                return items[0]
 
         raise JMAPMethodError(url=session.api_url, reason="No Task/get response")
 

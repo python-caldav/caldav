@@ -5,7 +5,7 @@ Public API:
     ical_to_jscal(ical_str, calendar_id=None) -> dict
 
 The output dict is a raw JSCalendar CalendarEvent object suitable for passing
-directly to CalendarEvent/set, or to JMAPEvent.from_jmap() to get a dataclass.
+directly to CalendarEvent/set.
 """
 
 from __future__ import annotations
@@ -218,7 +218,7 @@ def _valarm_to_alert(alarm) -> tuple[str, dict]:
     """Convert a VALARM component to a (alert_id, Alert dict) tuple.
 
     Trigger is emitted as a plain SignedDuration string (e.g. "-PT15M") or
-    UTCDateTime string — matching the JMAPEvent.alerts docstring convention.
+    UTCDateTime string per the JSCalendar Alert spec (RFC 8984 §4.5.2).
     """
     alert_id = str(uuid.uuid4())
     action = str(alarm.get("ACTION", "display")).lower()
@@ -290,8 +290,7 @@ def ical_to_jscal(ical_str: str, calendar_id: str | None = None) -> dict:
             ``CalendarEvent/set`` (the server needs to know which calendar).
 
     Returns:
-        Raw JSCalendar dict suitable for passing to ``JMAPEvent.from_jmap()``
-        or directly to ``CalendarEvent/set``.
+        Raw JSCalendar dict suitable for passing directly to ``CalendarEvent/set``.
 
     Raises:
         ValueError: If no VEVENT component is found.

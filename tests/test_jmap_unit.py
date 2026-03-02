@@ -601,248 +601,6 @@ class TestGetJMAPClient:
         assert not hasattr(client, "ssl_verify_cert")
 
 
-from caldav.jmap.objects.event import JMAPEvent
-
-_EVENT_JSON_FULL = {
-    "id": "ev1",
-    "uid": "abc123@example.com",
-    "calendarIds": {"cal1": True},
-    "title": "Team standup",
-    "start": "2024-06-15T09:00:00",
-    "timeZone": "Europe/Berlin",
-    "duration": "PT30M",
-    "showWithoutTime": False,
-    "description": "Daily sync",
-    "locations": {"loc1": {"name": "Room A"}},
-    "virtualLocations": {"vl1": {"name": "Zoom", "uri": "https://zoom.us/j/123"}},
-    "links": {"lnk1": {"href": "https://example.com/doc.pdf", "rel": "enclosure"}},
-    "keywords": {"standup": True, "work": True},
-    "participants": {
-        "p1": {"name": "Alice", "email": "alice@example.com", "roles": {"owner": True}},
-        "p2": {"name": "Bob", "email": "bob@example.com", "roles": {"attendee": True}},
-    },
-    "recurrenceRules": [{"frequency": "weekly", "byDay": [{"day": "mo"}]}],
-    "excludedRecurrenceRules": [],
-    "recurrenceOverrides": {"2024-06-22T09:00:00": None},
-    "alerts": {"al1": {"trigger": "-PT15M", "action": "display"}},
-    "useDefaultAlerts": False,
-    "sequence": 3,
-    "freeBusyStatus": "busy",
-    "privacy": "private",
-    "color": "#ff6b6b",
-    "isDraft": False,
-    "priority": 5,
-}
-
-_EVENT_JSON_MINIMAL = {
-    "id": "ev2",
-    "uid": "def456@example.com",
-    "calendarIds": {"cal1": True},
-    "title": "Dentist",
-    "start": "2024-07-01T14:00:00",
-}
-
-
-class TestJMAPEvent:
-    def test_from_jmap_full(self):
-        ev = JMAPEvent.from_jmap(_EVENT_JSON_FULL)
-        assert ev.id == "ev1"
-        assert ev.uid == "abc123@example.com"
-        assert ev.calendar_ids == {"cal1": True}
-        assert ev.title == "Team standup"
-        assert ev.start == "2024-06-15T09:00:00"
-        assert ev.time_zone == "Europe/Berlin"
-        assert ev.duration == "PT30M"
-        assert ev.show_without_time is False
-        assert ev.description == "Daily sync"
-        assert ev.locations == {"loc1": {"name": "Room A"}}
-        assert ev.virtual_locations == {"vl1": {"name": "Zoom", "uri": "https://zoom.us/j/123"}}
-        assert ev.links == {"lnk1": {"href": "https://example.com/doc.pdf", "rel": "enclosure"}}
-        assert ev.keywords == {"standup": True, "work": True}
-        assert ev.participants["p1"]["roles"] == {"owner": True}
-        assert ev.recurrence_rules == [{"frequency": "weekly", "byDay": [{"day": "mo"}]}]
-        assert ev.recurrence_overrides == {"2024-06-22T09:00:00": None}
-        assert ev.alerts == {"al1": {"trigger": "-PT15M", "action": "display"}}
-        assert ev.use_default_alerts is False
-        assert ev.sequence == 3
-        assert ev.free_busy_status == "busy"
-        assert ev.privacy == "private"
-        assert ev.color == "#ff6b6b"
-        assert ev.is_draft is False
-        assert ev.priority == 5
-
-    def test_from_jmap_minimal_uses_defaults(self):
-        ev = JMAPEvent.from_jmap(_EVENT_JSON_MINIMAL)
-        assert ev.id == "ev2"
-        assert ev.uid == "def456@example.com"
-        assert ev.calendar_ids == {"cal1": True}
-        assert ev.title == "Dentist"
-        assert ev.start == "2024-07-01T14:00:00"
-        assert ev.time_zone is None
-        assert ev.duration == "P0D"
-        assert ev.show_without_time is False
-        assert ev.description is None
-        assert ev.locations == {}
-        assert ev.virtual_locations == {}
-        assert ev.links == {}
-        assert ev.keywords == {}
-        assert ev.participants == {}
-        assert ev.recurrence_rules == []
-        assert ev.excluded_recurrence_rules == []
-        assert ev.recurrence_overrides == {}
-        assert ev.alerts == {}
-        assert ev.use_default_alerts is False
-        assert ev.sequence == 0
-        assert ev.free_busy_status == "busy"
-        assert ev.privacy is None
-        assert ev.color is None
-        assert ev.is_draft is False
-        assert ev.priority == 0
-
-    def test_from_jmap_raises_when_required_field_missing(self):
-        for missing_key in ("id", "uid", "calendarIds", "title", "start"):
-            data = dict(_EVENT_JSON_MINIMAL)
-            del data[missing_key]
-            with pytest.raises(KeyError):
-                JMAPEvent.from_jmap(data)
-
-    def test_from_jmap_ignores_unknown_keys(self):
-        data = dict(_EVENT_JSON_MINIMAL)
-        data["unknownFutureField"] = "ignored"
-        ev = JMAPEvent.from_jmap(data)
-        assert ev.id == "ev2"
-
-    def test_to_jmap_excludes_id(self):
-        ev = JMAPEvent.from_jmap(_EVENT_JSON_MINIMAL)
-        d = ev.to_jmap()
-        assert "id" not in d
-
-    def test_to_jmap_includes_required_fields(self):
-        ev = JMAPEvent.from_jmap(_EVENT_JSON_MINIMAL)
-        d = ev.to_jmap()
-        assert d["uid"] == "def456@example.com"
-        assert d["calendarIds"] == {"cal1": True}
-        assert d["title"] == "Dentist"
-        assert d["start"] == "2024-07-01T14:00:00"
-        assert d["duration"] == "P0D"
-        assert "showWithoutTime" in d
-        assert "sequence" in d
-        assert "freeBusyStatus" in d
-        assert "useDefaultAlerts" in d
-
-    def test_to_jmap_omits_none_optional_fields(self):
-        ev = JMAPEvent.from_jmap(_EVENT_JSON_MINIMAL)
-        d = ev.to_jmap()
-        assert "timeZone" not in d
-        assert "description" not in d
-        assert "privacy" not in d
-        assert "color" not in d
-        assert "isDraft" not in d
-
-    def test_to_jmap_omits_empty_collections(self):
-        ev = JMAPEvent.from_jmap(_EVENT_JSON_MINIMAL)
-        d = ev.to_jmap()
-        assert "locations" not in d
-        assert "virtualLocations" not in d
-        assert "links" not in d
-        assert "keywords" not in d
-        assert "participants" not in d
-        assert "recurrenceRules" not in d
-        assert "excludedRecurrenceRules" not in d
-        assert "recurrenceOverrides" not in d
-        assert "alerts" not in d
-
-    def test_to_jmap_includes_optional_when_set(self):
-        ev = JMAPEvent.from_jmap(_EVENT_JSON_FULL)
-        d = ev.to_jmap()
-        assert d["timeZone"] == "Europe/Berlin"
-        assert d["description"] == "Daily sync"
-        assert d["locations"] == {"loc1": {"name": "Room A"}}
-        assert d["participants"]["p1"]["roles"] == {"owner": True}
-        assert d["recurrenceRules"] == [{"frequency": "weekly", "byDay": [{"day": "mo"}]}]
-        assert d["alerts"] == {"al1": {"trigger": "-PT15M", "action": "display"}}
-        assert d["privacy"] == "private"
-        assert d["color"] == "#ff6b6b"
-
-    def test_to_jmap_isDraft_included_when_true(self):
-        data = dict(_EVENT_JSON_MINIMAL)
-        data["isDraft"] = True
-        ev = JMAPEvent.from_jmap(data)
-        d = ev.to_jmap()
-        assert d["isDraft"] is True
-
-    def test_to_jmap_isDraft_omitted_when_false(self):
-        ev = JMAPEvent.from_jmap(_EVENT_JSON_MINIMAL)
-        d = ev.to_jmap()
-        assert "isDraft" not in d
-
-    def test_participant_roles_is_map_not_list(self):
-        ev = JMAPEvent.from_jmap(_EVENT_JSON_FULL)
-        roles = ev.participants["p1"]["roles"]
-        assert isinstance(roles, dict)
-        assert roles.get("owner") is True
-
-    def test_recurrence_overrides_null_value_preserved(self):
-        ev = JMAPEvent.from_jmap(_EVENT_JSON_FULL)
-        assert ev.recurrence_overrides["2024-06-22T09:00:00"] is None
-
-    def test_alert_trigger_is_string(self):
-        ev = JMAPEvent.from_jmap(_EVENT_JSON_FULL)
-        trigger = ev.alerts["al1"]["trigger"]
-        assert isinstance(trigger, str)
-        assert trigger == "-PT15M"
-
-    def test_from_jmap_null_fields_coerced_to_defaults(self):
-        # Cyrus returns null for optional collection fields instead of omitting them
-        data = {
-            "id": "ev1",
-            "uid": "uid1",
-            "calendarIds": {"Default": True},
-            "title": "Test",
-            "start": "2024-06-15T10:00:00",
-            "keywords": None,
-            "locations": None,
-            "participants": None,
-            "alerts": None,
-            "recurrenceRules": None,
-            "excludedRecurrenceRules": None,
-            "recurrenceOverrides": None,
-        }
-        ev = JMAPEvent.from_jmap(data)
-        assert ev.keywords == {}
-        assert ev.locations == {}
-        assert ev.participants == {}
-        assert ev.alerts == {}
-        assert ev.recurrence_rules == []
-        assert ev.excluded_recurrence_rules == []
-        assert ev.recurrence_overrides == {}
-
-    def test_from_jmap_explicit_empty_collections_are_empty(self):
-        # Server sending empty {} / [] is semantically identical to null for optional fields
-        data = {
-            "id": "ev1",
-            "uid": "uid1",
-            "calendarIds": {"Default": True},
-            "title": "Test",
-            "start": "2024-06-15T10:00:00",
-            "keywords": {},
-            "locations": {},
-            "participants": {},
-            "alerts": {},
-            "recurrenceRules": [],
-            "excludedRecurrenceRules": [],
-            "recurrenceOverrides": {},
-        }
-        ev = JMAPEvent.from_jmap(data)
-        assert ev.keywords == {}
-        assert ev.locations == {}
-        assert ev.participants == {}
-        assert ev.alerts == {}
-        assert ev.recurrence_rules == []
-        assert ev.excluded_recurrence_rules == []
-        assert ev.recurrence_overrides == {}
-
-
 from caldav.jmap.methods.event import (
     build_event_changes,
     build_event_get,
@@ -866,7 +624,6 @@ from caldav.jmap.methods.task import (
     parse_task_list_get,
     parse_task_set,
 )
-from caldav.jmap.objects.task import JMAPTask, JMAPTaskList
 
 
 class TestEventMethodBuilders:
@@ -890,12 +647,18 @@ class TestEventMethodBuilders:
         assert "properties" not in args
 
     def test_parse_event_get_returns_events(self):
-        response_args = {"list": [_EVENT_JSON_FULL, _EVENT_JSON_MINIMAL]}
+        event_dict = {
+            "id": "ev1",
+            "uid": "abc@example.com",
+            "calendarIds": {"cal1": True},
+            "title": "Test",
+            "start": "2024-01-01T09:00:00",
+        }
+        response_args = {"list": [event_dict]}
         events = parse_event_get(response_args)
-        assert len(events) == 2
-        assert isinstance(events[0], JMAPEvent)
-        assert events[0].id == "ev1"
-        assert events[1].id == "ev2"
+        assert len(events) == 1
+        assert isinstance(events[0], dict)
+        assert events[0]["id"] == "ev1"
 
     def test_parse_event_get_empty_list(self):
         assert parse_event_get({"list": []}) == []
@@ -982,7 +745,12 @@ class TestEventMethodBuilders:
         assert args["sort"] == s
 
     def test_build_event_set_create_structure(self):
-        ev = JMAPEvent.from_jmap(_EVENT_JSON_MINIMAL)
+        ev = {
+            "uid": "abc@example.com",
+            "calendarIds": {"cal1": True},
+            "title": "Test",
+            "start": "2024-01-01T09:00:00",
+        }
         method, args, call_id = build_event_set_create("u1", {"new-1": ev})
         assert method == "CalendarEvent/set"
         assert "create" in args
@@ -1985,144 +1753,6 @@ class TestJMAPClientSync:
         assert destroyed == ["ev3"]
 
 
-class TestJMAPTaskList:
-    _FULL = {
-        "id": "tl1",
-        "name": "Work Tasks",
-        "description": "All work-related tasks",
-        "color": "#0000ff",
-        "isSubscribed": True,
-        "myRights": {"mayReadItems": True, "mayWriteAll": True},
-        "sortOrder": 1,
-        "timeZone": "Europe/Berlin",
-        "role": "inbox",
-    }
-
-    def test_from_jmap_required_fields(self):
-        tl = JMAPTaskList.from_jmap({"id": "tl1", "name": "My Tasks"})
-        assert tl.id == "tl1"
-        assert tl.name == "My Tasks"
-
-    def test_from_jmap_optional_defaults(self):
-        tl = JMAPTaskList.from_jmap({"id": "tl1", "name": "My Tasks"})
-        assert tl.description is None
-        assert tl.color is None
-        assert tl.is_subscribed is True
-        assert tl.my_rights == {}
-        assert tl.sort_order == 0
-        assert tl.time_zone is None
-        assert tl.role is None
-
-    def test_from_jmap_full(self):
-        tl = JMAPTaskList.from_jmap(self._FULL)
-        assert tl.description == "All work-related tasks"
-        assert tl.color == "#0000ff"
-        assert tl.sort_order == 1
-        assert tl.time_zone == "Europe/Berlin"
-        assert tl.role == "inbox"
-
-    def test_to_jmap_excludes_server_set_fields(self):
-        tl = JMAPTaskList.from_jmap(self._FULL)
-        d = tl.to_jmap()
-        assert "id" not in d
-        assert "myRights" not in d
-
-    def test_to_jmap_includes_required_fields(self):
-        tl = JMAPTaskList.from_jmap({"id": "tl1", "name": "My Tasks"})
-        d = tl.to_jmap()
-        assert d["name"] == "My Tasks"
-        assert "isSubscribed" in d
-        assert "sortOrder" in d
-
-    def test_to_jmap_omits_none_optionals(self):
-        tl = JMAPTaskList.from_jmap({"id": "tl1", "name": "My Tasks"})
-        d = tl.to_jmap()
-        assert "description" not in d
-        assert "color" not in d
-        assert "timeZone" not in d
-        assert "role" not in d
-
-
-class TestJMAPTask:
-    _FULL = {
-        "id": "task1",
-        "uid": "uid-123@example.com",
-        "taskListId": "tl1",
-        "title": "Buy groceries",
-        "description": "Milk and eggs",
-        "start": "2026-02-20T09:00:00",
-        "due": "2026-02-20T18:00:00",
-        "timeZone": "Europe/Berlin",
-        "estimatedDuration": "PT1H",
-        "percentComplete": 50,
-        "progress": "in-process",
-        "progressUpdated": "2026-02-20T10:00:00Z",
-        "priority": 1,
-        "isDraft": False,
-        "keywords": {"urgent": True},
-        "color": "red",
-        "privacy": "private",
-    }
-
-    def test_from_jmap_required_fields(self):
-        task = JMAPTask.from_jmap({"id": "t1", "uid": "u1", "taskListId": "tl1"})
-        assert task.id == "t1"
-        assert task.uid == "u1"
-        assert task.task_list_id == "tl1"
-
-    def test_from_jmap_optional_defaults(self):
-        task = JMAPTask.from_jmap({"id": "t1", "uid": "u1", "taskListId": "tl1"})
-        assert task.title == ""
-        assert task.description is None
-        assert task.start is None
-        assert task.due is None
-        assert task.time_zone is None
-        assert task.estimated_duration is None
-        assert task.percent_complete == 0
-        assert task.progress == "needs-action"
-        assert task.priority == 0
-        assert task.is_draft is False
-        assert task.keywords == {}
-        assert task.recurrence_rules == []
-        assert task.recurrence_overrides == {}
-        assert task.alerts == {}
-        assert task.participants == {}
-        assert task.color is None
-        assert task.privacy is None
-
-    def test_from_jmap_full(self):
-        task = JMAPTask.from_jmap(self._FULL)
-        assert task.title == "Buy groceries"
-        assert task.percent_complete == 50
-        assert task.progress == "in-process"
-        assert task.estimated_duration == "PT1H"
-        assert task.time_zone == "Europe/Berlin"
-        assert task.keywords == {"urgent": True}
-
-    def test_to_jmap_includes_type_discriminator(self):
-        task = JMAPTask.from_jmap({"id": "t1", "uid": "u1", "taskListId": "tl1"})
-        assert task.to_jmap()["@type"] == "Task"
-
-    def test_to_jmap_excludes_id(self):
-        task = JMAPTask.from_jmap(self._FULL)
-        assert "id" not in task.to_jmap()
-
-    def test_to_jmap_omits_none_optionals(self):
-        task = JMAPTask.from_jmap({"id": "t1", "uid": "u1", "taskListId": "tl1"})
-        d = task.to_jmap()
-        assert "description" not in d
-        assert "start" not in d
-        assert "due" not in d
-        assert "timeZone" not in d
-        assert "estimatedDuration" not in d
-        assert "color" not in d
-        assert "privacy" not in d
-
-    def test_to_jmap_includes_task_list_id(self):
-        task = JMAPTask.from_jmap({"id": "t1", "uid": "u1", "taskListId": "tl1"})
-        assert task.to_jmap()["taskListId"] == "tl1"
-
-
 class TestTaskMethodBuilders:
     def test_build_task_list_get_structure(self):
         method, args, call_id = build_task_list_get("u1")
@@ -2143,7 +1773,7 @@ class TestTaskMethodBuilders:
         assert args["ids"] == ["t1", "t2"]
 
     def test_build_task_set_create_structure(self):
-        task = JMAPTask(id="", uid="u1", task_list_id="tl1", title="Test")
+        task = {"@type": "Task", "uid": "uid-1", "taskListId": "tl1", "title": "Buy milk"}
         method, args, call_id = build_task_set_create("acct1", {"new-0": task})
         assert method == "Task/set"
         assert "create" in args
@@ -2166,8 +1796,8 @@ class TestTaskMethodBuilders:
         resp_args = {"list": [{"id": "tl1", "name": "Work"}, {"id": "tl2", "name": "Home"}]}
         results = parse_task_list_get(resp_args)
         assert len(results) == 2
-        assert all(isinstance(r, JMAPTaskList) for r in results)
-        assert results[0].name == "Work"
+        assert all(isinstance(r, dict) for r in results)
+        assert results[0]["name"] == "Work"
 
     def test_parse_task_get_returns_tasks(self):
         resp_args = {
@@ -2178,8 +1808,8 @@ class TestTaskMethodBuilders:
         }
         results = parse_task_get(resp_args)
         assert len(results) == 2
-        assert all(isinstance(r, JMAPTask) for r in results)
-        assert results[0].title == "Buy milk"
+        assert all(isinstance(r, dict) for r in results)
+        assert results[0]["title"] == "Buy milk"
 
     def test_parse_task_set_all_fields(self):
         resp_args = {
@@ -2258,8 +1888,8 @@ class TestJMAPClientTasks:
         )
         result = self._make_client().get_task_lists()
         assert len(result) == 1
-        assert isinstance(result[0], JMAPTaskList)
-        assert result[0].name == "My Tasks"
+        assert isinstance(result[0], dict)
+        assert result[0]["name"] == "My Tasks"
 
     def test_create_task_returns_server_id(self, monkeypatch):
         resp = self._set_response(created={"new-0": {"id": "sv-task-1"}})
@@ -2297,8 +1927,8 @@ class TestJMAPClientTasks:
             "caldav.jmap.client.requests.post", lambda *a, **kw: self._make_mock(resp)
         )
         task = self._make_client().get_task("task1")
-        assert isinstance(task, JMAPTask)
-        assert task.title == "Buy groceries"
+        assert isinstance(task, dict)
+        assert task["id"] == "task1"
 
     def test_get_task_raises_on_not_found(self, monkeypatch):
         resp = self._get_response([])
@@ -2643,8 +2273,8 @@ class TestAsyncJMAPClient:
         self._patch_async_session(monkeypatch, self._tasklist_resp([self._MINIMAL_TASKLIST]))
         result = await self._make_client().get_task_lists()
         assert len(result) == 1
-        assert isinstance(result[0], JMAPTaskList)
-        assert result[0].name == "Async Tasks"
+        assert isinstance(result[0], dict)
+        assert result[0]["name"] == "Async Tasks"
 
     @pytest.mark.asyncio
     async def test_create_task_returns_id(self, monkeypatch):
@@ -2657,8 +2287,8 @@ class TestAsyncJMAPClient:
     async def test_get_task_returns_task(self, monkeypatch):
         self._patch_async_session(monkeypatch, self._task_get_resp([self._MINIMAL_TASK]))
         result = await self._make_client().get_task("task-async-1")
-        assert isinstance(result, JMAPTask)
-        assert result.title == "Async Task"
+        assert isinstance(result, dict)
+        assert result["id"] == "task-async-1"
 
     @pytest.mark.asyncio
     async def test_get_task_raises_on_not_found(self, monkeypatch):
