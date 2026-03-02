@@ -130,6 +130,16 @@ class FeatureSet:
         "save-load.event": {"description": "it's possible to save and load events to the calendar"},
         "save-load.event.recurrences": {"description": "it's possible to save and load recurring events to the calendar - events with an RRULE property set, including recurrence sets"},
         "save-load.event.recurrences.count": {"description": "The server will receive and store a recurring event with a count set in the RRULE", "default": {"support": "full"}},
+        ## This was Claude's suggestion and it works as of today, the
+        ## "unsupported" description matches the behaviour of the Stalwart server.
+        ## Stalwart apparently (in a breach with the RFC) stores the exception
+        ## information as a separate CalendarObjectResource.
+        ## Currently the search logic will do server-side expansion
+        ## if this flag is set to "unsupported", which is the correct behaviour for Stalwart.
+        ## The problem is that logically, this feature would also be "unsupported" if the exception
+        ## information was simply discarded, and the current search behaviour would in
+        ## such a case be incorrect if the exception is simply discarded.
+        "save-load.event.recurrences.exception": {"description": "When a VCALENDAR containing a master VEVENT (with RRULE) and exception VEVENT(s) (with RECURRENCE-ID) is stored, the server keeps them together as a single calendar object resource. When unsupported, the server splits exception VEVENTs into separate calendar objects, making client-side expansion unreliable (the master expands without knowing about its exceptions)."},
         "save-load.todo": {"description": "it's possible to save and load tasks to the calendar"},
         "save-load.todo.recurrences": {"description": "it's possible to save and load recurring tasks to the calendar"},
         "save-load.todo.recurrences.count": {"description": "The server will receive and store a recurring task with a count set in the RRULE", "default": {"support": "full"}},
@@ -1014,6 +1024,7 @@ bedework = {
     'auto-connect.url': {'basepath': '/ucaldav/'},
     'save-load.journal': {'support': 'ungraceful'},
     'save-load.todo.recurrences.thisandfuture': {'support': 'ungraceful'},
+    'save-load.event.recurrences.exception': False,
     ## search.time-range.alarm: not checked by the server tester
     'search.time-range.alarm': {'support': 'unsupported'},
     ## Huh?  Non-deterministic behaviour of the checking script?
@@ -1365,8 +1376,27 @@ stalwart = {
     },
     'create-calendar.auto': True,
     'principal-search': {'support': 'ungraceful'},
-    'search.recurrences.expanded.exception': False,
     'search.time-range.alarm': False,
+    ## Stalwart supports implicit recurrence for datetime events but not for
+    ## all-day (VALUE=DATE) recurring events in time-range searches.
+    'search.recurrences.includes-implicit.event': {'support': 'fragile', 'behaviour': 'broken for all-day (VALUE=DATE) events'},
+    ## Stalwart returns the recurring todo in search results but doesn't return the
+    ## RRULE intact, so client-side expansion can't expand it to specific occurrences.
+    'search.recurrences.includes-implicit.todo': {'support': 'fragile'},
+    ## Stalwart doesn't handle exceptions properly in server-side CALDAV:expand:
+    ## returns 3 items instead of 2 for a recurring event with one exception
+    ## (the exception is stored as a separate object and returned twice).
+    'search.recurrences.expanded.exception': False,
+    ## Stalwart doesn't store master+exception VEVENTs correctly as a single resource
+    ## (returns 3 VEVENTs instead of 2 when the master+exception event is expanded).
+    ## Since server-side expansion is also broken, both paths give wrong results.
+    'save-load.event.recurrences.exception': {'support': 'unsupported'},
+    'old_flags': [
+        ## Stalwart does not return VTODO items without DTSTART in date searches
+        'vtodo_datesearch_nodtstart_task_is_skipped',
+        ## Stalwart does not return results for open-ended date searches on VTODOs
+        'no_search_openended',
+    ],
 }
 
 ## Lots of transient problems with purelymail
