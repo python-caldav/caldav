@@ -105,7 +105,7 @@ def parse_event_changes(
 
 def build_event_query(
     account_id: str,
-    filter: dict | None = None,
+    filter_condition: dict | None = None,
     sort: list[dict] | None = None,
     position: int = 0,
     limit: int | None = None,
@@ -114,7 +114,7 @@ def build_event_query(
 
     Args:
         account_id: The JMAP accountId to query.
-        filter: A ``FilterCondition`` or ``FilterOperator`` dict, e.g.
+        filter_condition: A ``FilterCondition`` or ``FilterOperator`` dict, e.g.
             ``{"after": "2024-01-01T00:00:00Z", "before": "2024-12-31T23:59:59Z"}``.
             ``None`` means no filter (return all events).
         sort: List of ``Comparator`` dicts, e.g.
@@ -127,8 +127,8 @@ def build_event_query(
         A 3-tuple ``("CalendarEvent/query", arguments_dict, call_id)``.
     """
     args: dict = {"accountId": account_id, "position": position}
-    if filter is not None:
-        args["filter"] = filter
+    if filter_condition is not None:
+        args["filter"] = filter_condition
     if sort is not None:
         args["sort"] = sort
     if limit is not None:
@@ -161,7 +161,7 @@ def parse_event_query(response_args: dict) -> tuple[list[str], str, int]:
 def build_event_query_changes(
     account_id: str,
     since_query_state: str,
-    filter: dict | None = None,
+    filter_condition: dict | None = None,
     sort: list[dict] | None = None,
     max_changes: int | None = None,
 ) -> tuple:
@@ -171,7 +171,7 @@ def build_event_query_changes(
         account_id: The JMAP accountId to query.
         since_query_state: The ``queryState`` string from a previous
             ``CalendarEvent/query`` or ``CalendarEvent/queryChanges`` response.
-        filter: Same filter as the original ``CalendarEvent/query`` call.
+        filter_condition: Same filter as the original ``CalendarEvent/query`` call.
         sort: Same sort as the original ``CalendarEvent/query`` call.
         max_changes: Optional upper bound on the number of changes returned.
 
@@ -179,8 +179,8 @@ def build_event_query_changes(
         A 3-tuple ``("CalendarEvent/queryChanges", arguments_dict, call_id)``.
     """
     args: dict = {"accountId": account_id, "sinceQueryState": since_query_state}
-    if filter is not None:
-        args["filter"] = filter
+    if filter_condition is not None:
+        args["filter"] = filter_condition
     if sort is not None:
         args["sort"] = sort
     if max_changes is not None:

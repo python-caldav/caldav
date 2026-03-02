@@ -25,9 +25,11 @@ from caldav.jmap._methods.event import (
     build_event_changes,
     build_event_get,
     build_event_query,
+    build_event_set_create,
     build_event_set_destroy,
     build_event_set_update,
     parse_event_changes,
+    parse_event_get,
     parse_event_set,
 )
 from caldav.jmap._methods.task import (
@@ -139,7 +141,7 @@ class _JMAPClientBase:
             filter_dict["before"] = end
         if text is not None:
             filter_dict["text"] = text
-        query_call = build_event_query(account_id, filter=filter_dict or None)
+        query_call = build_event_query(account_id, filter_condition=filter_dict or None)
         get_call = (
             "CalendarEvent/get",
             {
@@ -279,11 +281,7 @@ class JMAPClient(_JMAPClientBase):
         """
         session = self._get_session()
         jscal = ical_to_jscal(ical_str, calendar_id=calendar_id)
-        call = (
-            "CalendarEvent/set",
-            {"accountId": session.account_id, "create": {"new-0": jscal}},
-            "ev-set-create-0",
-        )
+        call = build_event_set_create(session.account_id, {"new-0": jscal})
         responses = self._request([call])
 
         for method_name, resp_args, _ in responses:
@@ -321,7 +319,7 @@ class JMAPClient(_JMAPClientBase):
 
         for method_name, resp_args, _ in responses:
             if method_name == "CalendarEvent/get":
-                items = resp_args.get("list", [])
+                items = parse_event_get(resp_args)
                 if not items:
                     raise JMAPMethodError(
                         url=session.api_url,
@@ -373,7 +371,7 @@ class JMAPClient(_JMAPClientBase):
             if method_name == "CalendarEvent/get":
                 return [
                     JMAPCalendarObject(data=item, parent=parent)
-                    for item in resp_args.get("list", [])
+                    for item in parse_event_get(resp_args)
                 ]
 
         return []
@@ -481,7 +479,7 @@ class JMAPClient(_JMAPClientBase):
         events_by_id: dict[str, JMAPCalendarObject] = {}
         for method_name, resp_args, _ in get_responses:
             if method_name == "CalendarEvent/get":
-                for item in resp_args.get("list", []):
+                for item in parse_event_get(resp_args):
                     events_by_id[item["id"]] = JMAPCalendarObject(data=item, parent=None)
 
         added = [events_by_id[i] for i in created_ids if i in events_by_id]
@@ -513,6 +511,7 @@ class JMAPClient(_JMAPClientBase):
     def _get_object_by_uid(
         self, uid: str, calendar_id: str | None = None, parent: JMAPCalendar | None = None
     ) -> JMAPCalendarObject:
+        # RFC 8984 FilterCondition has no uid field; UID matching is done client-side.
         for obj in self._search(calendar_id=calendar_id, parent=parent):
             if obj.data.get("uid") == uid:
                 return obj

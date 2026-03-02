@@ -85,7 +85,7 @@ class JMAPCalendar:
             d["color"] = self.color
         return d
 
-    def search(self, **searchargs) -> list[JMAPCalendarObject]:
+    def search(self, **searchargs):
         """Search for calendar objects in this calendar.
 
         Mirrors :meth:`caldav.collection.Calendar.search`. When called on an
@@ -137,7 +137,7 @@ class JMAPCalendar:
             parent=self,
         )
 
-    def get_object_by_uid(self, uid: str, comp_class=None) -> JMAPCalendarObject:
+    def get_object_by_uid(self, uid: str, comp_class=None):
         """Get a calendar object by its iCalendar UID.
 
         Mirrors :meth:`caldav.collection.Calendar.get_object_by_uid`. When

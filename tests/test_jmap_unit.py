@@ -772,7 +772,7 @@ class TestEventMethodBuilders:
 
     def test_build_event_query_with_filter(self):
         f = {"after": "2024-01-01T00:00:00Z", "before": "2024-12-31T23:59:59Z"}
-        _, args, _ = build_event_query("u1", filter=f)
+        _, args, _ = build_event_query("u1", filter_condition=f)
         assert args["filter"] == f
 
     def test_build_event_query_with_sort(self):
@@ -822,7 +822,7 @@ class TestEventMethodBuilders:
     def test_build_event_query_changes_with_filter_and_sort(self):
         f = {"calendarIds": {"cal1": True}}
         s = [{"property": "start", "isAscending": True}]
-        _, args, _ = build_event_query_changes("u1", "qstate-1", filter=f, sort=s)
+        _, args, _ = build_event_query_changes("u1", "qstate-1", filter_condition=f, sort=s)
         assert args["filter"] == f
         assert args["sort"] == s
 
