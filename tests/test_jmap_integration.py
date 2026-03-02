@@ -25,6 +25,7 @@ except ImportError:
 
 from caldav.jmap import AsyncJMAPClient, JMAPClient
 from caldav.jmap.constants import CALENDAR_CAPABILITY
+from caldav.jmap.convert import jscal_to_ical
 from caldav.jmap.error import JMAPMethodError
 from caldav.jmap.session import fetch_session
 
@@ -149,14 +150,15 @@ class TestJMAPCalendarListIntegration:
 
 class TestJMAPEventIntegration:
     def test_event_create_get(self, client, created_event_id):
-        ical = client.get_event(created_event_id)
+        obj = client.get_event(created_event_id)
+        ical = jscal_to_ical(obj.get_data())
         assert "BEGIN:VCALENDAR" in ical
         assert "Integration Test Event" in ical
 
     def test_event_update(self, client, created_event_id):
         client.update_event(created_event_id, _minimal_ical("Updated Title"))
-        fetched = client.get_event(created_event_id)
-        assert "Updated Title" in fetched
+        obj = client.get_event(created_event_id)
+        assert "Updated Title" in jscal_to_ical(obj.get_data())
 
     def test_event_delete(self, client, calendar_id):
         event_id = client.create_event(calendar_id, _minimal_ical("To Be Deleted"))
@@ -171,14 +173,14 @@ class TestJMAPEventIntegration:
             end="2026-06-02T00:00:00",
         )
         assert len(results) >= 1
-        assert any("Integration Test Event" in r for r in results)
+        assert any("Integration Test Event" in jscal_to_ical(r.get_data()) for r in results)
 
     def test_event_sync(self, client, calendar_id):
         token_before = client.get_sync_token()
         event_id = client.create_event(calendar_id, _minimal_ical("Sync Test Event"))
         try:
             added, _modified, _deleted = client.get_objects_by_sync_token(token_before)
-            assert any("Sync Test Event" in a for a in added)
+            assert any("Sync Test Event" in jscal_to_ical(a.get_data()) for a in added)
         finally:
             client.delete_event(event_id)
 
@@ -186,7 +188,7 @@ class TestJMAPEventIntegration:
         start = datetime(2026, 7, 15, 9, 0, 0, tzinfo=timezone.utc)
         event_id = client.create_event(calendar_id, _minimal_ical("Roundtrip Event", start=start))
         try:
-            fetched = client.get_event(event_id)
+            fetched = jscal_to_ical(client.get_event(event_id).get_data())
             assert "Roundtrip Event" in fetched
             assert "20260715" in fetched
         finally:
@@ -196,7 +198,8 @@ class TestJMAPEventIntegration:
 class TestAsyncJMAPEventIntegration:
     @pytest.mark.asyncio
     async def test_event_create_get(self, async_client, async_created_event_id):
-        ical = await async_client.get_event(async_created_event_id)
+        obj = await async_client.get_event(async_created_event_id)
+        ical = jscal_to_ical(obj.get_data())
         assert "BEGIN:VCALENDAR" in ical
         assert "Async Integration Test Event" in ical
 
@@ -205,8 +208,8 @@ class TestAsyncJMAPEventIntegration:
         await async_client.update_event(
             async_created_event_id, _minimal_ical("Async Updated Title")
         )
-        fetched = await async_client.get_event(async_created_event_id)
-        assert "Async Updated Title" in fetched
+        obj = await async_client.get_event(async_created_event_id)
+        assert "Async Updated Title" in jscal_to_ical(obj.get_data())
 
     @pytest.mark.asyncio
     async def test_event_delete(self, async_client, async_calendar_id):
@@ -227,7 +230,7 @@ class TestAsyncJMAPEventIntegration:
             end="2026-06-02T00:00:00",
         )
         assert len(results) >= 1
-        assert any("Async Integration Test Event" in r for r in results)
+        assert any("Async Integration Test Event" in jscal_to_ical(r.get_data()) for r in results)
 
     @pytest.mark.asyncio
     async def test_event_sync(self, async_client, async_calendar_id):
@@ -237,7 +240,7 @@ class TestAsyncJMAPEventIntegration:
         )
         try:
             added, _modified, _deleted = await async_client.get_objects_by_sync_token(token_before)
-            assert any("Async Sync Test Event" in a for a in added)
+            assert any("Async Sync Test Event" in jscal_to_ical(a.get_data()) for a in added)
         finally:
             await async_client.delete_event(event_id)
 
@@ -248,7 +251,7 @@ class TestAsyncJMAPEventIntegration:
             async_calendar_id, _minimal_ical("Async Roundtrip Event", start=start)
         )
         try:
-            fetched = await async_client.get_event(event_id)
+            fetched = jscal_to_ical((await async_client.get_event(event_id)).get_data())
             assert "Async Roundtrip Event" in fetched
             assert "20260715" in fetched
         finally:
