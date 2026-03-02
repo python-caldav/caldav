@@ -273,6 +273,17 @@ class CalDAVSearcher(Searcher):
         if not self.expand and not server_expand:
             split_expanded = False
 
+        ## If the server stores exception VEVENTs as separate calendar objects, client-side
+        ## expansion is unreliable (the master expands without knowing its exceptions, yielding
+        ## duplicate occurrences).  Fall back to server-side expansion when it handles exceptions.
+        if (
+            self.expand
+            and not server_expand
+            and not calendar.client.features.is_supported("save-load.event.recurrences.exception")
+            and calendar.client.features.is_supported("search.recurrences.expanded.exception")
+        ):
+            server_expand = True
+
         if self.expand or server_expand:
             if not self.start or not self.end:
                 raise error.ReportError("can't expand without a date range")

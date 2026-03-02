@@ -762,7 +762,7 @@ class RepeatedFunctionalTestsBaseClass:
 
         foo = self.is_supported("rate-limit", dict)
         if foo.get("enable"):
-            rate_delay = foo["interval"] / foo["count"]
+            rate_delay = foo.get("interval", 0) / foo.get("count", 1)
             self.caldav.request = _delay_decorator(self.caldav.request, t=rate_delay)
         foo = self.is_supported("search-cache", dict)
         if foo.get("behaviour") == "delay":
@@ -2642,9 +2642,9 @@ END:VCALENDAR
         todos2 = c.search(start=datetime(2025, 4, 14), todo=True, include_completed=True)
         todos3 = c.search(start=datetime(2025, 4, 14), todo=True)
 
-        assert isinstance(todos1[0], Todo)
-        assert isinstance(todos2[0], Todo)
         if not self.check_compatibility_flag("no_search_openended"):
+            assert isinstance(todos1[0], Todo)
+            assert isinstance(todos2[0], Todo)
             assert isinstance(todos3[0], Todo)
 
         ## * t6 should be returned, as it's a yearly task spanning over 2025
@@ -3283,12 +3283,19 @@ END:VCALENDAR
             server_expand=True,
         )
 
-        assert len(r) == 2
-        if self.is_supported("search.recurrences.expanded.event"):
-            assert len(rs) == 2
+        ## Only assert exact count and RRULE-free output when exception handling
+        ## is reliable (either client-side or server-side expansion works correctly).
+        if self.is_supported("save-load.event.recurrences.exception") or self.is_supported(
+            "search.recurrences.expanded.exception"
+        ):
+            assert len(r) == 2
+            assert "RRULE" not in r[0].data
+            assert "RRULE" not in r[1].data
 
-        assert "RRULE" not in r[0].data
-        assert "RRULE" not in r[1].data
+        if self.is_supported("search.recurrences.expanded.event") and self.is_supported(
+            "search.recurrences.expanded.exception"
+        ):
+            assert len(rs) == 2
 
         asserts_on_results = [r]
         if self.is_supported("search.recurrences.expanded.exception"):
