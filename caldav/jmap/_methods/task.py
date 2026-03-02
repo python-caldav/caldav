@@ -11,6 +11,8 @@ properties are defined in draft-ietf-jmap-tasks (built on RFC 8984).
 
 from __future__ import annotations
 
+from caldav.jmap._methods import parse_set_response
+
 
 def build_task_list_get(
     account_id: str,
@@ -151,24 +153,7 @@ def parse_task_set(
 ) -> tuple[dict, dict, list[str], dict, dict, dict]:
     """Parse the arguments dict from a ``Task/set`` method response.
 
-    Args:
-        response_args: The second element of a ``methodResponses`` entry
-            whose method name is ``"Task/set"``.
-
-    Returns:
-        A 6-tuple ``(created, updated, destroyed, not_created, not_updated, not_destroyed)``:
-
-        - ``created``: Map of creation ID → server-assigned task dict.
-        - ``updated``: Map of task ID → null or partial server-updated object.
-        - ``destroyed``: List of successfully destroyed task IDs.
-        - ``not_created``: Map of creation ID → SetError dict for failed creates.
-        - ``not_updated``: Map of task ID → SetError dict for failed updates.
-        - ``not_destroyed``: Map of task ID → SetError dict for failed destroys.
+    Returns a 6-tuple ``(created, updated, destroyed, not_created, not_updated, not_destroyed)``.
+    See :func:`caldav.jmap._methods.parse_set_response` for field semantics.
     """
-    created: dict = response_args.get("created") or {}
-    updated: dict = response_args.get("updated") or {}
-    destroyed: list[str] = response_args.get("destroyed") or []
-    not_created: dict = response_args.get("notCreated") or {}
-    not_updated: dict = response_args.get("notUpdated") or {}
-    not_destroyed: dict = response_args.get("notDestroyed") or {}
-    return created, updated, destroyed, not_created, not_updated, not_destroyed
+    return parse_set_response(response_args)

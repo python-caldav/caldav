@@ -11,6 +11,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import TYPE_CHECKING
 
+from caldav.jmap.objects.calendar_object import JMAPCalendarObject
+
 if TYPE_CHECKING:
     from caldav.jmap.async_client import AsyncJMAPClient
     from caldav.jmap.client import JMAPClient
@@ -83,17 +85,14 @@ class JMAPCalendar:
             d["color"] = self.color
         return d
 
-    def search(self, **searchargs) -> list[str]:
-        """Search for calendar objects and return them as iCalendar strings.
+    def search(self, **searchargs) -> list[JMAPCalendarObject]:
+        """Search for calendar objects in this calendar.
 
         Mirrors :meth:`caldav.collection.Calendar.search`. When called on an
         async-backed calendar, returns a coroutine that must be awaited.
 
         Accepted keyword arguments (all optional):
 
-        - ``event`` (bool): search for events (VEVENT components).
-        - ``todo`` (bool): search for tasks (VTODO). Note: requires server
-          JMAP Task capability; raises :class:`NotImplementedError` if absent.
         - ``start`` (datetime or str): only events ending after this time
           (maps to JMAP ``after`` filter).
         - ``end`` (datetime or str): only events starting before this time
@@ -101,10 +100,11 @@ class JMAPCalendar:
         - ``text`` (str): free-text search across title, description,
           locations, and participants.
 
-        Unknown searchargs keys are silently ignored for forward compatibility.
+        Unknown parameters are silently ignored for backward compatibility.
 
         Returns:
-            List of VCALENDAR strings for all matching objects.
+            List of :class:`~caldav.jmap.objects.calendar_object.JMAPCalendarObject`
+            for all matching objects.
         """
         if self._is_async:
             return self._async_search(**searchargs)
@@ -119,9 +119,10 @@ class JMAPCalendar:
             start=start,
             end=end,
             text=searchargs.get("text"),
+            parent=self,
         )
 
-    async def _async_search(self, **searchargs) -> list[str]:
+    async def _async_search(self, **searchargs) -> list[JMAPCalendarObject]:
         start = searchargs.get("start")
         end = searchargs.get("end")
         if isinstance(start, datetime):
@@ -133,9 +134,10 @@ class JMAPCalendar:
             start=start,
             end=end,
             text=searchargs.get("text"),
+            parent=self,
         )
 
-    def get_object_by_uid(self, uid: str, comp_class=None) -> str:
+    def get_object_by_uid(self, uid: str, comp_class=None) -> JMAPCalendarObject:
         """Get a calendar object by its iCalendar UID.
 
         Mirrors :meth:`caldav.collection.Calendar.get_object_by_uid`. When
@@ -149,17 +151,18 @@ class JMAPCalendar:
                 so this argument is currently ignored.
 
         Returns:
-            A VCALENDAR string for the matching object.
+            A :class:`~caldav.jmap.objects.calendar_object.JMAPCalendarObject`
+            for the matching object.
 
         Raises:
             JMAPMethodError: If no object with this UID is found.
         """
         if self._is_async:
             return self._async_get_object_by_uid(uid)
-        return self._client._get_object_by_uid(uid, calendar_id=self.id)
+        return self._client._get_object_by_uid(uid, calendar_id=self.id, parent=self)
 
-    async def _async_get_object_by_uid(self, uid: str) -> str:
-        return await self._client._get_object_by_uid(uid, calendar_id=self.id)
+    async def _async_get_object_by_uid(self, uid: str) -> JMAPCalendarObject:
+        return await self._client._get_object_by_uid(uid, calendar_id=self.id, parent=self)
 
     def add_event(self, ical_str: str) -> str:
         """Add an event to this calendar from an iCalendar string.
@@ -171,7 +174,10 @@ class JMAPCalendar:
             ical_str: A VCALENDAR string representing the event.
 
         Returns:
-            The server-assigned JMAP event ID.
+            The server-assigned JMAP event ID. Unlike the CalDAV equivalent,
+            this returns a string ID rather than a calendar object — the
+            ``CalendarEvent/set`` response does not include the full object,
+            so a follow-up GET would be required.
 
         Raises:
             JMAPMethodError: If the server rejects the create request.

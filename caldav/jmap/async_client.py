@@ -10,14 +10,12 @@ from __future__ import annotations
 import logging
 import uuid
 
-import icalendar
 from niquests import AsyncSession
 
 from caldav.jmap._methods.calendar import build_calendar_get, parse_calendar_get
 from caldav.jmap._methods.event import (
     build_event_changes,
     build_event_get,
-    build_event_query,
     build_event_set_destroy,
     build_event_set_update,
     parse_event_changes,
@@ -33,9 +31,10 @@ from caldav.jmap._methods.task import (
     parse_task_set,
 )
 from caldav.jmap.client import _DEFAULT_USING, _TASK_USING, _JMAPClientBase
-from caldav.jmap.convert import ical_to_jscal, jscal_to_ical
+from caldav.jmap.convert import ical_to_jscal
 from caldav.jmap.error import JMAPAuthError, JMAPMethodError
 from caldav.jmap.objects.calendar import JMAPCalendar
+from caldav.jmap.objects.calendar_object import JMAPCalendarObject
 from caldav.jmap.session import Session, async_fetch_session
 
 log = logging.getLogger("caldav.jmap")
@@ -188,14 +187,17 @@ class AsyncJMAPClient(_JMAPClientBase):
 
         raise JMAPMethodError(url=session.api_url, reason="No CalendarEvent/set response")
 
-    async def get_event(self, event_id: str) -> str:
+    async def get_event(self, event_id: str) -> JMAPCalendarObject:
         """Fetch a calendar event as an iCalendar string.
 
         Args:
             event_id: The JMAP event ID to retrieve.
 
         Returns:
-            A VCALENDAR string for the event.
+            A :class:`~caldav.jmap.objects.calendar_object.JMAPCalendarObject`
+            wrapping the raw JSCalendar dict.  ``parent`` is ``None`` since
+            no :class:`~caldav.jmap.objects.calendar.JMAPCalendar` is available
+            at the client level.
 
         Raises:
             JMAPMethodError: If the event is not found.
@@ -213,7 +215,7 @@ class AsyncJMAPClient(_JMAPClientBase):
                         reason=f"Event not found: {event_id}",
                         error_type="notFound",
                     )
-                return jscal_to_ical(items[0])
+                return JMAPCalendarObject(data=items[0], parent=None)
 
         raise JMAPMethodError(url=session.api_url, reason="No CalendarEvent/get response")
 
@@ -248,36 +250,18 @@ class AsyncJMAPClient(_JMAPClientBase):
         start: str | None = None,
         end: str | None = None,
         text: str | None = None,
-    ) -> list[str]:
+        parent: JMAPCalendar | None = None,
+    ) -> list[JMAPCalendarObject]:
         session = await self._get_session()
-        filter_dict: dict = {}
-        if calendar_id is not None:
-            filter_dict["inCalendars"] = [calendar_id]
-        if start is not None:
-            filter_dict["after"] = start
-        if end is not None:
-            filter_dict["before"] = end
-        if text is not None:
-            filter_dict["text"] = text
-
-        query_call = build_event_query(session.account_id, filter=filter_dict or None)
-        get_call = (
-            "CalendarEvent/get",
-            {
-                "accountId": session.account_id,
-                "#ids": {
-                    "resultOf": "ev-query-0",
-                    "name": "CalendarEvent/query",
-                    "path": "/ids",
-                },
-            },
-            "ev-get-1",
-        )
-        responses = await self._request([query_call, get_call])
+        calls = self._build_event_search_calls(session.account_id, calendar_id, start, end, text)
+        responses = await self._request(calls)
 
         for method_name, resp_args, _ in responses:
             if method_name == "CalendarEvent/get":
-                return [jscal_to_ical(item) for item in resp_args.get("list", [])]
+                return [
+                    JMAPCalendarObject(data=item, parent=parent)
+                    for item in resp_args.get("list", [])
+                ]
 
         return []
 
@@ -287,8 +271,8 @@ class AsyncJMAPClient(_JMAPClientBase):
         start: str | None = None,
         end: str | None = None,
         text: str | None = None,
-    ) -> list[str]:
-        """Search for calendar events and return them as iCalendar strings.
+    ) -> list[JMAPCalendarObject]:
+        """Search for calendar events.
 
         All parameters are optional; omitting all returns every event in the account.
         Results are fetched in a single batched JMAP request using a result reference
@@ -301,7 +285,9 @@ class AsyncJMAPClient(_JMAPClientBase):
             text: Free-text search across title, description, locations, and participants.
 
         Returns:
-            List of VCALENDAR strings for all matching events.
+            List of :class:`~caldav.jmap.objects.calendar_object.JMAPCalendarObject`
+            instances.  ``parent`` is ``None`` on these objects; use
+            :meth:`JMAPCalendar.search` if you need ``parent`` set.
         """
         return await self._search(calendar_id=calendar_id, start=start, end=end, text=text)
 
@@ -325,13 +311,14 @@ class AsyncJMAPClient(_JMAPClientBase):
 
     async def get_objects_by_sync_token(
         self, sync_token: str
-    ) -> tuple[list[str], list[str], list[str]]:
+    ) -> tuple[list[JMAPCalendarObject], list[JMAPCalendarObject], list[str]]:
         """Fetch events changed since a previous sync token.
 
         Calls ``CalendarEvent/changes`` to discover which events were created,
         modified, or destroyed since ``sync_token`` was issued. Created and
-        modified events are returned as iCalendar strings; destroyed events are
-        returned as IDs (the objects no longer exist on the server).
+        modified events are returned as
+        :class:`~caldav.jmap.objects.calendar_object.JMAPCalendarObject` instances;
+        destroyed events are returned as IDs (the objects no longer exist on the server).
 
         Args:
             sync_token: A state string previously returned by :meth:`get_sync_token`
@@ -340,8 +327,8 @@ class AsyncJMAPClient(_JMAPClientBase):
         Returns:
             A 3-tuple ``(added, modified, deleted)``:
 
-            - ``added``: iCalendar strings for newly created events.
-            - ``modified``: iCalendar strings for updated events.
+            - ``added``: objects for newly created events (``parent`` is ``None``).
+            - ``modified``: objects for updated events (``parent`` is ``None``).
             - ``deleted``: Event IDs that were destroyed.
 
         Raises:
@@ -376,11 +363,11 @@ class AsyncJMAPClient(_JMAPClientBase):
         get_call = build_event_get(session.account_id, ids=fetch_ids)
         get_responses = await self._request([get_call])
 
-        events_by_id: dict[str, str] = {}
+        events_by_id: dict[str, JMAPCalendarObject] = {}
         for method_name, resp_args, _ in get_responses:
             if method_name == "CalendarEvent/get":
                 for item in resp_args.get("list", []):
-                    events_by_id[item["id"]] = jscal_to_ical(item)
+                    events_by_id[item["id"]] = JMAPCalendarObject(data=item, parent=None)
 
         added = [events_by_id[i] for i in created_ids if i in events_by_id]
         modified = [events_by_id[i] for i in updated_ids if i in events_by_id]
@@ -408,19 +395,12 @@ class AsyncJMAPClient(_JMAPClientBase):
 
         raise JMAPMethodError(url=session.api_url, reason="No CalendarEvent/set response")
 
-    async def _get_object_by_uid(self, uid: str, calendar_id: str | None = None) -> str:
-        for event_ical in await self._search(calendar_id=calendar_id):
-            try:
-                cal = icalendar.Calendar.from_ical(event_ical)
-                for component in cal.walk():
-                    if component.name in ("VEVENT", "VTODO", "VJOURNAL"):
-                        component_uid = component.get("UID")
-                        if component_uid is not None and str(component_uid) == uid:
-                            return event_ical
-            except ValueError:
-                log.debug("Skipping unparseable iCalendar string during UID lookup")
-                continue
-
+    async def _get_object_by_uid(
+        self, uid: str, calendar_id: str | None = None, parent: JMAPCalendar | None = None
+    ) -> JMAPCalendarObject:
+        for obj in await self._search(calendar_id=calendar_id, parent=parent):
+            if obj.data.get("uid") == uid:
+                return obj
         session = await self._get_session()
         raise JMAPMethodError(
             url=session.api_url, reason=f"No calendar object found with UID: {uid}"
