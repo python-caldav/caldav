@@ -138,7 +138,7 @@ class JMAPTask:
 
     @classmethod
     def from_jmap(cls, data: dict) -> JMAPTask:
-        """Construct a JMAPTask from a raw JMAP Task JSON dict.
+        """Construct a JMAPTask from a JSCalendar Task object as returned by ``Task/get``.
 
         ``id``, ``uid``, and ``taskListId`` are required; a missing key raises
         ``KeyError``. Unknown keys are silently ignored for forward compatibility.
