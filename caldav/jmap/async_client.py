@@ -396,6 +396,7 @@ class AsyncJMAPClient(_JMAPClientBase):
     async def _get_object_by_uid(
         self, uid: str, calendar_id: str | None = None, parent: JMAPCalendar | None = None
     ) -> JMAPCalendarObject:
+        # RFC 8984 FilterCondition has no uid field; UID matching is done client-side.
         for obj in await self._search(calendar_id=calendar_id, parent=parent):
             if obj.data.get("uid") == uid:
                 return obj

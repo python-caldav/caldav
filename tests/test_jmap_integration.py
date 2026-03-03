@@ -1,17 +1,18 @@
 """
-Integration tests for the caldav.jmap package against a live Cyrus IMAP server.
+Integration tests for the caldav.jmap package against live JMAP servers.
 
-These tests require the Cyrus Docker container to be running:
-
+Cyrus (port 8802):
     docker-compose -f tests/docker-test-servers/cyrus/docker-compose.yml up -d
 
-If the server is not reachable on port 8802 the entire module is skipped
-automatically — no failure, no noise.
+Stalwart (port 8806):
+    docker-compose -f tests/docker-test-servers/stalwart/docker-compose.yml up -d
+    ./tests/docker-test-servers/stalwart/setup_stalwart.sh
 
-Cyrus JMAP endpoint: http://localhost:8802/.well-known/jmap
-Test credentials:    user1 / x
+Each server's test classes are skipped automatically when that server is not
+reachable — no failure, no noise.
 """
 
+import socket
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -31,23 +32,32 @@ from caldav.jmap.session import fetch_session
 
 CYRUS_HOST = "localhost"
 CYRUS_PORT = 8802
-JMAP_URL = f"http://{CYRUS_HOST}:{CYRUS_PORT}/.well-known/jmap"
+CYRUS_JMAP_URL = f"http://{CYRUS_HOST}:{CYRUS_PORT}/.well-known/jmap"
 CYRUS_USERNAME = "user1"
 CYRUS_PASSWORD = "x"
 
+STALWART_HOST = "localhost"
+STALWART_PORT = 8809
+STALWART_JMAP_URL = f"http://{STALWART_HOST}:{STALWART_PORT}/.well-known/jmap"
+STALWART_USERNAME = "testuser"
+STALWART_PASSWORD = "testpass"
 
-def _cyrus_reachable() -> bool:
-    import socket
 
+def _reachable(host: str, port: int) -> bool:
     try:
-        with socket.create_connection((CYRUS_HOST, CYRUS_PORT), timeout=2):
+        with socket.create_connection((host, port), timeout=2):
             return True
     except OSError:
         return False
 
 
+_cyrus_up = _reachable(CYRUS_HOST, CYRUS_PORT)
+_stalwart_up = _reachable(STALWART_HOST, STALWART_PORT)
+
+# Backward-compatible alias used by the module-level pytestmark below.
+# The mark only gates tests that don't carry their own skipif marker.
 pytestmark = pytest.mark.skipif(
-    not _cyrus_reachable(),
+    not _cyrus_up,
     reason=f"Cyrus Docker not reachable on {CYRUS_HOST}:{CYRUS_PORT} — "
     "start it with: docker-compose -f tests/docker-test-servers/cyrus/docker-compose.yml up -d",
 )
@@ -74,12 +84,12 @@ def _minimal_ical(title: str = "Test Event", start: datetime | None = None) -> s
 
 @pytest.fixture(scope="module")
 def client():
-    return JMAPClient(url=JMAP_URL, username=CYRUS_USERNAME, password=CYRUS_PASSWORD)
+    return JMAPClient(url=CYRUS_JMAP_URL, username=CYRUS_USERNAME, password=CYRUS_PASSWORD)
 
 
 @pytest.fixture(scope="module")
 def session():
-    return fetch_session(JMAP_URL, auth=HTTPBasicAuth(CYRUS_USERNAME, CYRUS_PASSWORD))
+    return fetch_session(CYRUS_JMAP_URL, auth=HTTPBasicAuth(CYRUS_USERNAME, CYRUS_PASSWORD))
 
 
 @pytest.fixture(scope="module")
@@ -101,7 +111,7 @@ def created_event_id(client, calendar_id):
 
 @pytest_asyncio.fixture
 async def async_client():
-    return AsyncJMAPClient(url=JMAP_URL, username=CYRUS_USERNAME, password=CYRUS_PASSWORD)
+    return AsyncJMAPClient(url=CYRUS_JMAP_URL, username=CYRUS_USERNAME, password=CYRUS_PASSWORD)
 
 
 @pytest_asyncio.fixture
@@ -119,6 +129,37 @@ async def async_created_event_id(async_client, async_calendar_id):
     yield event_id
     try:
         await async_client.delete_event(event_id)
+    except Exception:
+        pass
+
+
+_stalwart_skip = pytest.mark.skipif(
+    not _stalwart_up,
+    reason=f"Stalwart Docker not reachable on {STALWART_HOST}:{STALWART_PORT} — "
+    "start it with: cd tests/docker-test-servers/stalwart && ./start.sh",
+)
+
+
+@pytest.fixture(scope="module")
+def stalwart_client():
+    return JMAPClient(url=STALWART_JMAP_URL, username=STALWART_USERNAME, password=STALWART_PASSWORD)
+
+
+@pytest.fixture(scope="module")
+def stalwart_calendar_id(stalwart_client):
+    calendars = stalwart_client.get_calendars()
+    assert calendars, "Stalwart did not return any calendars for user1"
+    return calendars[0].id
+
+
+@pytest.fixture
+def stalwart_event_id(stalwart_client, stalwart_calendar_id):
+    event_id = stalwart_client.create_event(
+        stalwart_calendar_id, _minimal_ical("Stalwart Test Event")
+    )
+    yield event_id
+    try:
+        stalwart_client.delete_event(event_id)
     except Exception:
         pass
 
@@ -256,3 +297,60 @@ class TestAsyncJMAPEventIntegration:
             assert "20260715" in fetched
         finally:
             await async_client.delete_event(event_id)
+
+
+@_stalwart_skip
+class TestStalwartJMAPCalendarListIntegration:
+    def test_list_calendars_returns_list(self, stalwart_client):
+        calendars = stalwart_client.get_calendars()
+        assert isinstance(calendars, list)
+
+    def test_calendars_have_id_and_name(self, stalwart_client):
+        calendars = stalwart_client.get_calendars()
+        assert len(calendars) >= 1, "Expected at least one calendar on Stalwart for user1"
+        for cal in calendars:
+            assert cal.id, f"Calendar missing id: {cal}"
+            assert cal.name, f"Calendar has empty name: {cal}"
+
+
+@_stalwart_skip
+class TestStalwartJMAPEventIntegration:
+    def test_event_create_get(self, stalwart_client, stalwart_event_id):
+        obj = stalwart_client.get_event(stalwart_event_id)
+        ical = jscal_to_ical(obj.get_data())
+        assert "BEGIN:VCALENDAR" in ical
+        assert "Stalwart Test Event" in ical
+
+    def test_event_update(self, stalwart_client, stalwart_event_id):
+        stalwart_client.update_event(stalwart_event_id, _minimal_ical("Stalwart Updated Title"))
+        obj = stalwart_client.get_event(stalwart_event_id)
+        assert "Stalwart Updated Title" in jscal_to_ical(obj.get_data())
+
+    def test_event_delete(self, stalwart_client, stalwart_calendar_id):
+        event_id = stalwart_client.create_event(
+            stalwart_calendar_id, _minimal_ical("Stalwart To Be Deleted")
+        )
+        stalwart_client.delete_event(event_id)
+        with pytest.raises(JMAPMethodError):
+            stalwart_client.get_event(event_id)
+
+    def test_event_query_time_range(self, stalwart_client, stalwart_event_id):
+        # Stalwart does not support the inCalendars filter; query without calendar_id.
+        results = stalwart_client.search_events(
+            start="2026-06-01T00:00:00",
+            end="2026-06-02T00:00:00",
+        )
+        assert len(results) >= 1
+        assert any("Stalwart Test Event" in jscal_to_ical(r.get_data()) for r in results)
+
+    def test_ical_roundtrip(self, stalwart_client, stalwart_calendar_id):
+        start = datetime(2026, 7, 15, 9, 0, 0, tzinfo=timezone.utc)
+        event_id = stalwart_client.create_event(
+            stalwart_calendar_id, _minimal_ical("Stalwart Roundtrip Event", start=start)
+        )
+        try:
+            fetched = jscal_to_ical(stalwart_client.get_event(event_id).get_data())
+            assert "Stalwart Roundtrip Event" in fetched
+            assert "20260715" in fetched
+        finally:
+            stalwart_client.delete_event(event_id)
