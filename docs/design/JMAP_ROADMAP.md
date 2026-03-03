@@ -387,7 +387,7 @@ events back.
 
 ## Known Conversion Limitations
 
-### iCalendar fields dropped in ical_to_jscal
+### iCalendar fields dropped in `ical_to_jscal`
 
 | Field | Why it's dropped |
 |-------|------------------|
@@ -457,7 +457,7 @@ events back.
 
 ### Cyrus IMAP
 
-**Tested.** The only server with integration tests. Docker setup at
+**Tested.** Docker setup at
 `tests/docker-test-servers/cyrus/`, port 8802, user1/x.
 
 Known gaps and quirks:
@@ -533,6 +533,10 @@ Nextcloud, Baikal, Radicale, SOGo, DAViCal — none speak JMAP.
 ---
 
 ## Future Direction
+
+### Integration test expansion
+
+Unified CalDAV/JMAP integration tests that exercise the same calendar operations against both protocols should be prioritized. This would ensure API parity, validate the unified client architecture, and catch protocol-specific quirks. The existing CalDAV test suite provides a foundation for extending coverage to JMAP servers.
 
 ### Scheduling
 
@@ -706,7 +710,7 @@ their address book when building event participant lists.
 
 Two related architectural moves are under consideration:
 
-1. **Extract `caldav.jmap` into a standalone library** (tentatively `python-jmap`
+1. **Extract `caldav.jmap` into a standalone library** (tentatively `python-calendar-jmap`
    or similar). The JMAP module was built inside the `caldav` repository for
    convenience during initial development, but it has no CalDAV dependencies —
    it uses only the shared config system and `vcal.fix()`. Extracting it would
