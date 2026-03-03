@@ -160,11 +160,11 @@ class FeatureSet:
         "search": {
             "description": "calendar MUST support searching for objects using the REPORT method, as specified in RFC4791, section 7"
         },
-        "search.comp-type-optional": {
+        "search.comp-type-optional": { ## TODO: search.comp-type.optional is better?  (Discovered this just while doing the last polishing on the CHANGELOG before releasing v3.0 and I will NOT spend time on this or rerun all the tests)
             "description": "In all the search examples in the RFC, comptype is given during a search, the client specifies if it's event or tasks or journals that is wanted.  However, as I read the RFC this is not required.  If omitted, the server should deliver all objects.  Many servers will not return anything if the COMPTYPE filter is not set.  Other servers will return 404"
         },
         "search.comp-type": {
-            "type": "server-peculiarity",
+            "type": "server-peculiarity", ## TODO: why?  This type may for sure be removed?  (Discovered this just while doing the last polishing on the CHANGELOG before releasing v3.0 and I will NOT spend time on this or rerun all the tests)
             "description": "Server correctly filters calendar-query results by component type. When 'broken', server may misclassify component types (e.g., returning TODOs when VEVENTs are requested). The library will perform client-side filtering to work around this issue",
             "default": {"support": "full"}
         },
@@ -186,10 +186,10 @@ class FeatureSet:
             "description": "Supports searching for objects where properties is-not-defined according to rfc4791 section 9.7.4",
             "default": {"support": "full"}
         },
-        "search.is-not-defined.category": {
+        "search.is-not-defined.category": { ## TODO: this should most likely be removed - it was a client bug fixed in icalendar-search 1.0.5, not a server error. (Discovered in the last minute before releasing caldav v3.0.0 - I won't touch it now)
             "description": "Supports searching for objects where the CATEGORIES property is not defined (RFC4791 section 9.7.4). Some servers support is-not-defined for other properties (e.g. CLASS) but silently return wrong results or nothing when applied to CATEGORIES"
         },
-        "search.is-not-defined.dtend": {
+        "search.is-not-defined.dtend": { ## TODO: this should most likely be removed - it was a client bug fixed in icalendar-search 1.0.5, not a server error. (Discovered in the last minute before releasing caldav v3.0.0 - I won't touch it now)
             "description": "Supports searching for objects where the DTEND property is not defined (RFC4791 section 9.7.4). Some servers support is-not-defined for some properties but not DTEND"
         },
         "search.text": {
@@ -272,7 +272,7 @@ class FeatureSet:
         "principal-search.list-all": {
             "description": "Server allows listing all principals without a name filter. Often blocked for privacy/security reasons"
         },
-        "wrong-password-check": {
+        "wrong-password-check": { ## TODO: reconsider this one.  The name should be reconsidered, perhaps it should be removed at all as it's specific for some test servers, and those test servers should be marked with a special password in the config for tests to pass.
             "description": "Server rejects requests with wrong password by returning an authorization error. Some servers may not properly reject wrong passwords in certain configurations."
         },
         "save": {},

@@ -79,6 +79,8 @@ class _JMAPClientBase:
     def _build_auth(self, auth_type: str | None):
         """Select and construct the auth object.
 
+        **The JMAP support is experimental, the API may change in minor-releases**
+
         JMAP supports Basic and Bearer auth; Digest is not supported.
         When ``auth_type`` is ``None`` the type is inferred from the
         credentials supplied: a username triggers Basic, a password

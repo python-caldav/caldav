@@ -9,12 +9,13 @@ Historical context
 There is also information in `GitHub issue #457 <https://github.com/python-caldav/caldav/issues/457>`_
 
 I got in a pull request suggesting to replace the "good old" requests
-libary with **niquests**.  While development of the requests library is
-more or less stagnant, niquests supports HTTP/2.0, HTTP/3.0, async
-operations and a lot more.  I held back releasing this change until
-v2.0.  Short time after v2.0 was released, I got a complaint from a
-package maintainer - he found the niquests dependency to be
-unacceptable.
+libary with **niquests**.  While development of the requests library
+is more or less stagnant, niquests supports HTTP/2.0, HTTP/3.0, async
+operations and a lot more.  Just replacing `r` with `n` already
+resolved several long-standing issues.  I held back releasing this
+change until v2.0.  Short time after v2.0 was released, I got a
+complaint from a package maintainer - he found the niquests dependency
+to be unacceptable.
 
 The niquests and urllib3-future packages seems to have started as
 patches to the requests and urllib3 libraries, but was never accepted
@@ -58,4 +59,4 @@ While niquests supports HTTP/2 and HTTP/3 out of the box, the HTTP/2-support in 
 Multiplexing problems
 ---------------------
 
-Some servers (particularly the combination nginx with digest auth) does have compatibility issues with HTTP/2 multiplexing, so this is disabled by default.  The CalDAV communication may potentially be speeded up a bit by enabling multiplexing.  This is done in the CalDAV server configuration settings, by flagging that the featue `http.multiplexing` is supported.
+Some servers (particularly the combination nginx with digest auth) does have compatibility issues with HTTP/2 multiplexing, so this is disabled by default.  The CalDAV communication may potentially be speeded up a bit by enabling multiplexing.  This is done in the CalDAV server configuration settings, by flagging that the feature `http.multiplexing` is supported.

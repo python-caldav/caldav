@@ -45,6 +45,8 @@ log = logging.getLogger("caldav.jmap")
 class AsyncJMAPClient(_JMAPClientBase):
     """Asynchronous JMAP client for calendar operations.
 
+    **The JMAP support is experimental, the API may change in minor-releases**
+
     Usage::
 
         from caldav.jmap import get_async_jmap_client

@@ -6,151 +6,46 @@ As of v3.x, **niquests** is used for HTTP communication. It's a backward-compati
 
 ## Meta
 
-This file should adhere to [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), but it's manually maintained, and I have some extra sections in it.  Notably an executive summary at the top,  "Breaking Changes" or "Potentially Breaking Changes", list of GitHub issues/pull requests closed/merged, information on changes in the test framework, credits to people assisting, an overview of how much time I've spent on each release, and an overview of calendar servers the release has been tested towards.
+This file should adhere to [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), but I do have some extra sections in it.  Notably an executive summary at the top,  "Breaking Changes" or "Potentially Breaking Changes", list of GitHub issues/pull requests closed/merged, information on changes in the test framework, list of tests run, my work effort, credits to people assisting, an overview of how much time I've spent on each release, and an overview of calendar servers the release has been tested towards.
 
 Changelogs prior to v2.0 is pruned, but was available in the v2.x releases
 
 This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html), though for pre-releases PEP 440 takes precedence.
 
-## [Unreleased]
+## [3.0.0] - [2026-03-03]
 
-### Added
-
-* **Stalwart CalDAV server** added to Docker test server framework.
-* **Async multiget fallback in `_async_load()`** -- `CalendarObjectResource._async_load()` now has the same two-stage fallback as sync `load()`: on a 404, first tries calendar-multiget REPORT, then re-fetches by UID. Previously the async path only had the UID re-fetch fallback.
-
-### Fixed
-
-* Fixed two bugs in `DAVClient` rate-limit auto-detection: (1) `is_supported('rate-limit', dict)` returns `{'enable': False}` (a truthy dict) for unconfigured clients, causing rate-limiting to be enabled unintentionally; (2) crash (`TypeError: '>' not supported between 'int' and 'NoneType'`) when `rate_limit_max_sleep` is `None` and a 429 is received.
-* Fixed `AsyncDAVClient` rate-limit handling to be fully symmetric with the sync client: same `Optional[bool]` default, same features-based auto-detect, same adaptive backoff accumulating sleep time across retries.
-* Fixed `Principal._async_get_property()` override having an incompatible signature (missing `use_cached` and `**passthrough`) and reimplementing PROPFIND logic already handled correctly by the parent `DAVObject._async_get_property()`. The override has been removed.
-* Fixed inconsistent URL quoting for calendar object UIDs containing slashes -- both `_generate_url()` and `_find_id_and_path()` in `calendarobject_ops.py` now share a single `_quote_uid()` helper (related to https://github.com/python-caldav/caldav/issues/143).
-* Fixed `expand_simple_props()` return value handling.
-* Fixed `Calendar.add_object()` (and `add_event()` / `add_todo()`) not being awaitable when using `AsyncDAVClient` -- `save()` returns a coroutine for async clients, but the code was calling it without `await`, making the method uncallable in async contexts.  https://github.com/python-caldav/caldav/issues/631
-
-### Added (compatibility)
-
-* New feature flag `save-load.event.recurrences.exception` to express whether the server stores master+exception VEVENTs as a single calendar object (per RFC) or splits them into separate objects. When a server stores them separately, `expand=True` searches now automatically fall back to server-side `CALDAV:expand` (when supported), since client-side expansion of the master alone would otherwise yield duplicate occurrences.
-* Added Stalwart compatibility hints: `search.recurrences.includes-implicit.event` (fragile — broken for all-day/VALUE=DATE events), `search.recurrences.includes-implicit.todo` (fragile), `search.recurrences.expanded.exception` (unsupported), `save-load.event.recurrences.exception` (unsupported — exceptions stored as separate objects), `vtodo_datesearch_nodtstart_task_is_skipped` and `no_search_openended` old-flags.
-
-### Test Framework
-
-* Added async rate-limit unit tests matching the sync test suite.
-* caldav-server-tester: `CheckRecurrenceSearch` now also verifies implicit recurrence support for all-day (VALUE=DATE) recurring events, marking the feature as `fragile` (with behaviour description) when only datetime recurring events work.
-
-## [3.0.0a2] - 2026-02-25 (Alpha Release)
-
-**This is an alpha release for testing purposes.** Please report issues at https://github.com/python-caldav/caldav/issues
+Version 3.0 should be fully backward-compatible with version 2.x - but there are massive code changes in version 3.0, so if you're using the Python CalDAV client library in some sharp production environment, I would recommend to wait for two months before upgrading.
 
 ### Highlights
 
-Mostly bugfixes and server compatibility improvements since 3.0.0a1, plus a few new features.
+* As always, lots of compatibility-tweaking.  This release have probably been tested on more server implementations than any earlier version.
+* "Black Style" has been replaced with **ruff**.  This causes quite some minor changes to the code.
+* **Full async support** -- New `AsyncDAVClient` and async domain objects using a Sans-I/O architecture.  The same `Calendar`, `Event`, `Todo`, etc. objects work with both sync and async clients.
+* Experimental **JMAP client** -- New `caldav.jmap` package with `JMAPClient` and `AsyncJMAPClient` for servers implementing RFC 8620 (JMAP Core) and RFC 8984 (JMAP Calendars).  Note that this is experimental, and the public API may be changed in upcoming minor-releases.
+* **Overhaul of the official API** -- v3.0 comes with an improved, more pythonic and more consistent API, but aims to be fully backeward compatible.  Some work has been done on the documentation, but full QA and updates will have to wait for an upcoming patch release.
+
+### Test runs before release
+
+* The built-in test-servers, of course: Radicale, Xandikos
+* All the docker-based test servers: Nextcloud, Baikal, Bedework, CCS, Cyrus, DAViCal, Davis, SOGo, Stalwart, Zimbra
+* External servers and SaaS-providers:
+  * ECloud (NextCloud-based - big troubles due to ratelimiting and need for manually "emptying the trashbin")
+  * Synology
+  * Zimbra Enterprise, hosted by my employer
+  * Robur (has some issues with transient errors)
+  * Posteo
+  * Purelymail (test run takes ages due to delays before search results are ready)
+
+The tests broke with lots of AuthorizationErrors with GMX.  The tests were running successfully towards GMX before releasing the last alpha-release.  It's probably a transient issue.  I don't want to delay the release by doing more research into it.
 
 ### Breaking Changes
 
-* **`caldav/objects.py` removed** -- the backward-compatibility re-export shim has been deleted.  Any code doing `from caldav.objects import <something>` must be updated; all public symbols remain available directly via `caldav` or from their respective submodules.
-* **Config file parse errors now raise exceptions** -- `caldav.config.read_config()` now raises `ValueError` on YAML/JSON parse errors instead of logging and returning an empty dict.  This ensures config errors are detected early.
-
-### Added
-
-* **Retry-After / rate-limit handling** (RFC 6585 / RFC 9110) -- `DAVClient` and `AsyncDAVClient` now expose `rate_limit_handle`, `rate_limit_default_sleep`, and `rate_limit_max_sleep` parameters.  When `rate_limit_handle=True` the client automatically sleeps and retries on 429 Too Many Requests and 503 Service Unavailable responses that include a `Retry-After` header.  When `rate_limit_handle=False` (default) a `RateLimitError` is raised immediately so callers can implement their own back-off strategy.  New `caldav.lib.error.RateLimitError` has `retry_after` (raw header string) and `retry_after_seconds` (parsed float) attributes.  https://github.com/python-caldav/caldav/issues/627
-* **Lazy imports (PEP 562)** -- `import caldav` is now significantly faster.  Heavy dependencies (lxml, niquests, icalendar) are deferred until first use.  https://github.com/python-caldav/caldav/pull/621
-* **`search.is-not-defined.category` and `search.is-not-defined.dtend`** -- new client-side workaround sub-features for servers that do not support the `CALDAV:is-not-defined` filter natively for these properties.
-* **Base+override feature profiles** -- YAML config now supports inheriting from a base profile:
-  ```yaml
-  my-server:
-      features:
-          base: nextcloud
-          search.comp-type: unsupported
-  ```
-* **Feature validation** -- `caldav.config` now validates feature names and raises errors on unknown feature names.
-* **URL space validation** -- `caldav.lib.url` now warns when URLs contain unquoted spaces.
-* **Fallback for missing calendar-home-set** -- client now falls back to the principal URL when `calendar-home-set` property is not available (e.g. GMX).
-* **Load fallback for changed URLs** -- `CalendarObjectResource.load()` now falls back to UID-based lookup when servers change object URLs after a save.
-
-### Fixed
-
-* Fixed `ssl_verify_cert` not passed through in `get_sync_client` / `get_async_client`
-* Fixed `_derive_from_subfeatures` partial-config derivation bug (parent-feature defaults not overridden by sub-feature configuration)
-* Fixed feature name parsing when names include a `compatibility_hints.` prefix
-* Fixed recursive `_search_with_comptypes` fallback when `search.comp-type` is broken
-* Fixed pending todo search on servers with broken comp-type filtering
-* Fixed URL path quoting when extracting calendars from PROPFIND results
-* Removed spurious warning on URL path mismatch; deduplicated `get_properties`
-* Fixed `create-calendar` feature incorrectly derived as unsupported
-* Fixed `get_object_by_uid()` to route through `search()` so server-specific delays and retry logic are honoured
-* Graceful handling of invalid recurrence data returned by some servers
-* Fixed duplicate certificate-detection logic in `compatibility_hints.py`
-* Fixed `search.category` features to use correct `search.text.category` names
-
-### Changed
-
-* Bumped `icalendar-searcher` minimum dependency to 1.0.5, which fixes the `is-not-defined` filter for CATEGORIES (broken with icalendar >= 6.x) and for DTEND on recurring all-day events
-* Search refactored to use generator-based Sans-I/O pattern -- `_search_impl` yields `(SearchAction, data)` tuples consumed by sync or async wrappers
-* Configuration system expanded: `get_connection_params()` provides unified config discovery with clear priority (explicit params > test server config > env vars > config file)
-* `${VAR}` and `${VAR:-default}` environment variable expansion in config values
-* `caldav/objects.py` backward-compatibility shim removed (see Breaking Changes above)
-* `DAVClient` and `AsyncDAVClient` further consolidated via `BaseDAVClient` -- shared rate-limit helpers, duplicated request-handling logic removed
-
-### Test Framework
-
-* **New Docker test servers**: CCS (Apple CalendarServer), DAViCal, Davis, Zimbra
-* **Updated Docker configs**: Baikal, Cyrus, Nextcloud, SOGo
-* Added lychee link-check workflow
-* Added `convert_conf_private.py` migration tool for legacy config format
-* New test files: `test_lazy_import.py`; expanded `test_async_davclient.py`, `test_async_integration.py`, `test_compatibility_hints.py`, `test_search.py`, `test_caldav_unit.py`
-
-### GitHub Pull Requests Merged
-
-* #628 -- Rate-limit handling (Retry-After / 429 / 503) by temsocial
-* #621 -- Lazy-load heavy dependencies to speed up `import caldav`
-* #622 -- Fix overlong inline literal, replace hyphens with en-dashes
-
-### GitHub Issues Closed
-
-* #627 -- Rate-limit / Retry-After handling
-
-### Security
-
-* UUID1 usage in UID generation (`calendarobject_ops.py`) may embed the host MAC address in calendar UIDs.  Since calendar events are shared with third parties, this is a privacy concern.  Planned fix: switch to UUID4.
-
-### Compatibility Hints Updated
-
-Server-specific workarounds updated for:
-
-* **CCS (Apple CalendarServer)** -- cross-calendar UID enforcement, min-date-time restrictions, various search hints
-* **Zimbra** -- search.text.substring unsupported; updated multiple hints following actual test runs
-* **Cyrus** -- updated hints; password sentinel (any password accepted in test setup)
-* **Bedework** -- removed stale workaround hints after GET-on-items started working
-* **PurelyMail** -- corrected search.time-range.todo (was false negative); increased post-write delay
-* **GMX** -- fixed typo; corrected basepath; rate-limit hint
-* **ecloud** -- removed create-calendar unsupported hint (feature works)
-* **Posteo** -- fixed several false-negative hints
-* **SOGo** -- save-load.journal ungraceful, case-insensitive, delete-calendar
-* **Baikal/Radicale** -- case-sensitive search, principal-search features
-* **Synology** -- is-not-defined workarounds
-* **DAViCal** -- various search and sync hints
-* **Xandikos** -- freebusy-query now supported in v0.3.3
-
-## [3.0.0a1] - 2026-02-01 (Alpha Release)
-
-**This is an alpha release for testing purposes.** The API may change before the stable 3.0.0 release. Please report issues at https://github.com/python-caldav/caldav/issues
-
-### Highlights
-
-Version 3.0 should be fully backward-compatible with version 2.x - but there are massive code changes in version 3.0:
-
-* "Black style" has been replaced with ruff.  This causes quite some changes in the code.
-* Version 3.0 introduces **full async support** using a Sans-I/O architecture. The same domain objects (Calendar, Event, Todo, etc.) now work with both synchronous and asynchronous clients. The async client uses niquests by default; httpx is also supported for projects that already have it as a dependency.
-* Quite some refactoring work has been done
-* Some work has been put down ensuring better consistency in the method names.  Version 3.0 should be backward-compatible with version 2.0, so the old methods still work, but are deprecated.
-
-### Breaking Changes
-
-(Be aware that some of the 2.x minor-versions also tagged some "Potentially Breaking Changes")
+Be aware that some of the 2.x minor-versions also tagged some "Potentially Breaking Changes" - so if you're upgrading i.e. from 2.1, you may want to browse through the "Potentially Breaking Changes" for the intermediate minor releases too.
 
 * **Minimum Python version**: Python 3.10+ is now required (was 3.8+).
 * **Test Server Configuration**: `tests/conf.py` has been removed and `conf_private.py` will be ignored.  See the Test Framework section below.
+* **`caldav/objects.py` removed** -- the backward-compatibility re-export shim has been deleted.  Any code doing `from caldav.objects import <something>` must be updated; all public symbols remain available directly via `caldav` or from their respective submodules.
+* **Config file parse errors now raise exceptions** -- `caldav.config.read_config()` now raises `ValueError` on YAML/JSON parse errors instead of logging and returning an empty dict.  This ensures config errors are detected early.
 
 ### Deprecated
 
@@ -183,13 +78,13 @@ The following `check_*_support()` methods are deprecated but do not yet emit war
 * `client.check_dav_support()` - use `client.supports_dav()` instead
 * `client.check_cdav_support()` - use `client.supports_caldav()` instead
 * `client.check_scheduling_support()` - use `client.supports_scheduling()` instead
-(Those methods do actively ask the server if they support the things.  In my caldav-server-tester script I define a `check` to be something that is actively probing, while `is_supported()` would be a configuration lookup).
+(Those methods actively probe the server; `is_supported()` is a configuration lookup.)
 
 Additionally, direct `DAVClient()` instantiation should migrate to `get_davclient()` factory method (see `docs/design/API_NAMING_CONVENTIONS.md`)
 
 ### Added
 
-* **JMAP calendar client** — new `caldav.jmap` package providing a JMAP client
+* Experimental **JMAP calendar client** — new `caldav.jmap` package providing a JMAP client
   for servers implementing RFC 8620 (JMAP Core) and RFC 8984 (JMAP Calendars).
   Features:
   - Synchronous `JMAPClient` and asynchronous `AsyncJMAPClient` with mirrored APIs
@@ -212,58 +107,168 @@ Additionally, direct `DAVClient()` instantiation should migrate to `get_davclien
       for cal in calendars:
           events = await cal.get_events()
   ```
-* **Sans-I/O architecture** - Internal refactoring separates protocol logic from I/O:
-  - Protocol layer (`caldav/protocol/`): Pure functions for XML building/parsing
-  - Operations layer (`caldav/operations/`): High-level CalDAV operations
-  - This enables code reuse between sync and async implementations
+* **Retry-After / rate-limit handling** (RFC 6585 / RFC 9110) -- `DAVClient` and `AsyncDAVClient` now expose `rate_limit_handle`, `rate_limit_default_sleep`, and `rate_limit_max_sleep` parameters (this may be specified in the configuration file as well).  When `rate_limit_handle=True` the client automatically sleeps and retries on 429 Too Many Requests and 503 Service Unavailable responses that include a `Retry-After` header.  When `rate_limit_handle=False` (default) a `RateLimitError` is raised immediately so callers can implement their own back-off strategy.  New `caldav.lib.error.RateLimitError` has `retry_after` (raw header string) and `retry_after_seconds` (parsed float) attributes.  https://github.com/python-caldav/caldav/issues/627
+* **`search.is-not-defined.category` and `search.is-not-defined.dtend`** -- new client-side workaround sub-features for servers that do not support the `CALDAV:is-not-defined` filter natively for these properties.
+* **Base+override feature profiles** -- YAML config now supports inheriting from a base profile:
+  ```yaml
+  my-server:
+      features:
+          base: nextcloud
+          search.comp-type: unsupported
+  ```
+* **Compatibility fixes**
+  * New feature flags
+    * `save-load.event.recurrences.exception` which is supported if the server stores master+exception VEVENTs as a single calendar object as per the RFC.  Stalwart splits them into separate objects. Stalwart recombines the data when doing an expanded search, so `expand=True` searches now automatically fall back to server-side `CALDAV:expand`.  (Arguably, `unsupported` here could also mean the exception data was simply discarded.  If needed, I'll refine this in a future version)
+	* `save-load.journal.mixed-calendar` - some calendar servers offers a separate journal list.
+	* `save-load.reuse-deleted-uid` - server allows immediate reuse of an uid if the old object has been deleted
+    * `search.time-range.*.old-dates` - test data mostly have historic dates.  Calendars are primarily made for future happenings.  Some calendar servers does not support searching for things that happened 20 years ago, even for a very small calendar.
+    * `search.is-not-defined.category` and `search.is-not-defined.dtend` - actually, those are artifacts.  The bug was on the client side, not server side.  I may delete them in a future release.
+  * Fallback for missing calendar-home-set -- client now falls back to the principal URL when `calendar-home-set` property is not available (e.g. GMX).
+  * Load fallback for changed URLs -- `CalendarObjectResource.load()` now falls back to UID-based lookup when servers change object URLs after a save.
+  * Many other tweaks and fixings of the compatibility hints.
 * Added python-dateutil and PyYAML as explicit dependencies (were transitive)
-* Quite some methods have been renamed for consistency and to follow best current practices.  See the deprecation section.
+* Quite some methods have been renamed for consistency and to follow best current practices.  See the Deprecated section.
 * `Calendar` class now accepts a `name` parameter in its constructor, addressing a long-standing API inconsistency (https://github.com/python-caldav/caldav/issues/128)
-* **Data representation API** - New efficient data access via `CalendarObjectResource` properties (https://github.com/python-caldav/caldav/issues/613):
-  - `.icalendar_instance` - parsed icalendar object (lazy loaded)
-  - `.vobject_instance` - parsed vobject object (lazy loaded)
-  - `.data` - raw iCalendar string
-  - Internal `DataState` class manages caching between formats
 * **CalendarObjectResource.id property** - Returns the UID of calendar objects (https://github.com/python-caldav/caldav/issues/515)
 * **calendar.searcher() API** - Factory method for advanced search queries (https://github.com/python-caldav/caldav/issues/590):
   ```python
   searcher = calendar.searcher()
   searcher.add_filter(...)
   results = searcher.search()
-  ```
+  ``
+* Improved API for accessing the `CalendarObjectResource` properties (https://github.com/python-caldav/caldav/issues/613 ):
+  * `get_data()`, `get_icalendar_instance`, `get_vobject_instance`, `get_icalendar_component`:
+    * Returns COPIES of the data
+  * `edit_*` (but no `edit_data` - the data is an immutable string, should use simply `object.data = foo` for editing it)
+    * Returns a context manager
+	* "Borowing pattern" - `with obj.get_foo`, the client may edit foo, and then `obj.save()` to send it to the server.
 
 ### Fixed
 
 * RFC 4791 compliance: Don't send Depth header for calendar-multiget REPORT (clients SHOULD NOT send it, but servers MUST ignore it per §7.9)
+* Lots of minor fixes and workarounds were done while trying to run the integration tests for v3.0, most of them fixing new bugs introduced in the development branch, but also new workarounds for server incompatibilities (and better fixing of old workarounds).  v3.0 was tested on quite many more servers than v2.2.6.
+* Possibly other minor bugfixes adressing old previously unknown bugs - frankly, I've lost the overview.  v3.0 has a lot of code changes.
+* The `is-not-defined` filter for CATEGORIES did not work, and for DTEND it did not work for full day events.  (this was fixes in the `icalendar-searcher`, version 1.0.5).
 
 ### Changed
-
-* Sync client (`DAVClient`) now shares common code with async client via `BaseDAVClient`
-* Response handling unified in `BaseDAVResponse` class
+* Optimilizations on data conversions in the `CalendarObjectResource` properties (https://github.com/python-caldav/caldav/issues/613 )
+* Lazy imports (PEP 562) -- `import caldav` is now significantly faster.  Heavy dependencies (lxml, niquests, icalendar) are deferred until first use.  https://github.com/python-caldav/caldav/pull/621
+* Search refactored to use generator-based Sans-I/O pattern -- `_search_impl` yields `(SearchAction, data)` tuples consumed by sync or async wrappers
+* Configuration system expanded: `get_connection_params()` provides unified config discovery with clear priority (explicit params > test server config > env vars > config file)
+* `${VAR}` and `${VAR:-default}` environment variable expansion in config values
 * Test configuration migrated from legacy `tests/conf.py` to new `tests/test_servers/` framework
+* Lots of refactored code.
+* "Black Style" replaced with ruff
+* Compatibility hint matrix has been updated a bit.  I'm a bit confused on weather it's due to changes in my caldav-server-tester tool, changed behaviour in newer versions of the servers, or other reasons.  Running the integration tests and debugging such issues takes a lot of time and effort.
+
+### Security
+
+* UUID1 usage in UID generation may embed the host MAC address in calendar UIDs.  Since calendar events are shared with third parties, this may be a privacy concern.  A switch to UUID4 has been made some places in the code.  (Running a grep just when doing the final touches on the CHANGELOG, I discovered that there is still some UUID1-instances left.  It should be safe to change it, but I don't want to delay the release of v3.0.0, so it will have to go into a future v3.0.1 release)
 
 ### Test Framework
 
+* **New Docker test servers**:
+  * Apple Calendar Server (CCS) - the project was discontinued long ago, but used to be a flagship of compatibility - and I suspect the iCloud server has inheritated some code from this project.
+  * DAViCal - an old server, but maintained and one of the more standard-compliant servers.  It also has multi-user support.
+  * Davis - it's a relative of Baikal
+  * Stalwart - a quite new project, mail+calendar, supports JMAP and is funded through NLNet
+  * Zimbra - multi-user mail+calendar.  Financed through having a non-free "enterprise" version with paid licenses.
 * Fixed Nextcloud Docker test server tmpfs permissions race condition
 * Added deptry for dependency verification in CI
 * The test server framework has been refactored with a new `tests/test_servers/` module.  It provides **YAML-based server configuration**: see `tests/test_servers/__init__.py` for usage
 * Added pytest-asyncio for async test support
+* **Updated Docker configs**: Baikal, Cyrus, Nextcloud, SOGo
+* Added lychee link-check workflow
+* Added `convert_conf_private.py` migration tool for legacy config format
+* New test files: `test_lazy_import.py`; expanded `test_async_davclient.py`, `test_async_integration.py`, `test_compatibility_hints.py`, `test_search.py`, `test_caldav_unit.py`
+* Added async rate-limit unit tests matching the sync test suite
+* caldav-server-tester: `CheckRecurrenceSearch` now also verifies implicit recurrence support for all-day (VALUE=DATE) recurring events, marking the feature as `fragile` (with behaviour description) when only datetime recurring events work.
+
 
 ### GitHub Pull Requests Merged
 
-* #607 - Add deptry for dependency verification
+* #607 - Add deptry for dependency verification (also in 2.2.6) -- Tobias Brox (@tobixen)
+* #610 - Development for the v3.0-branch - async support and misc -- Tobias Brox (@tobixen)
+* #617 - Refactoring the `calendar.search` -- Tobias Brox (@tobixen)
+* #618 - Deprecate DAVObject.name in favor of `get_display_name()` -- Tobias Brox (@tobixen)
+* #622 - Fix overlong inline literal, replace hyphens with en-dashes -- @joshinils
+* #623 - More v3.0 development -- Tobias Brox (@tobixen)
+* #625 - feat(jmap): add caldav/jmap — JMAP calendar and task client -- Sashank Bhamidi (@SashankBhamidi)
+* #626 - docs(jmap): JMAP usage documentation and autodoc stubs -- Sashank Bhamidi (@SashankBhamidi)
+* #630 - More v3.0 development -- Tobias Brox (@tobixen)
+
+### GitHub Pull Requests Closed (not merged)
+
+* #565 - ADR: HTTPX Async-First Architecture with Thin Sync Wrappers (design exploration; superceded by #610) -- Chris Coutinho (@cbcoutinho)
+* #588 - Fix duplicate parameter bug in search() recursive call (superseded by search refactoring in #617) -- Tobias Brox (@tobixen)
+* #603 - Playground/new async api design (exploratory work, superceded by #610) -- Tobias Brox (@tobixen)
+* #604 - mistake, pull request created from the wrong branch -- Tobias Brox (@tobixen)
+* #628 - ISSUE-627: Add handling of Retry-After header for 429 and 503 status codes (code incorporated into master) -- Tema (@temsocial)
 
 ### GitHub Issues Closed
 
-* #613 - Data representation API for efficient data access
-* #590 - calendar.searcher() API for advanced search queries
-* #515 - CalendarObjectResource.id property returns UID
-* #609 - How to get original RRULE when search expand=True?
-* #128 - Calendar constructor should accept name parameter (long-standing issue)
+* #128 - Calendar constructor should accept name parameter (long-standing issue) -- Tobias Brox (@tobixen)
+* #342 - need support asyncio -- @ArtemIsmagilov
+* #424 - implement support for JMAP protocol -- @ArtemIsmagilov
+* #457 - Replace requests with niquests or httpx? -- Tobias Brox (@tobixen)
+* #509 - Refactor the test configuration again -- Tobias Brox (@tobixen)
+* #515 - CalendarObjectResource.id property returns UID -- Tobias Brox (@tobixen)
+* #518 - Test setup: try to mute expected error/warning logging -- Tobias Brox (@tobixen)
+* #580 - search.py is already ripe for refactoring -- Tobias Brox (@tobixen)
+* #589 - Replace "black style" with ruff -- Tobias Brox (@tobixen)
+* #590 - calendar.searcher() API for advanced search queries -- Tobias Brox (@tobixen)
+* #601 - `get_davclient` to be importable from caldav -- Tobias Brox (@tobixen)
+* #609 - How to get original RRULE when search expand=True? -- JS Moore (@jakkarth)
+* #613 - Data representation API for efficient data access -- Tobias Brox (@tobixen)
+* #621 - Using niquests makes import unreasonably slow -- @rymdbar
+* #627 - Rate-limit / Retry-After handling -- Tema (@temsocial)
+* #631 - Cannot create calendar event by AsyncDAVClient (fix implemented, pending user confirmation) -- Oleg Yurchik (@OlegYurchik)
 
-### Security
+### Credits
 
-Nothing to report.
+The following people contributed to this release through issue reports, pull requests, and/or commits:
+
+* @ArtemIsmagilov
+* Chris Coutinho (@cbcoutinho)
+* @joshinils
+* JS Moore (@jakkarth)
+* Oleg Yurchik (@OlegYurchik)
+* @rymdbar
+* Sashank Bhamidi (@SashankBhamidi)
+* Tema (@temsocial)
+* Tobias Brox (@tobixen)
+
+### Time Spent
+
+Since the 2.2.1-release and excluding the JMAP-work done by Sashank,
+Tobias has spent around 132 hours on this project.
+
+In the 3.0-release, AI-tools have been used for improving quality and
+speed.  My first impression was very good.  It seemed like the AI
+understood the project, and it could fix things faster and better than
+what I could do myself - I really didn't expect it to create any good
+code at all.  Well, sometimes it does, other times not.  Soon enough I
+also learned that the AI is good at creating crap code, breaking
+things and Claude is particularly good at duplicating code and code
+paths.  In the end, despite using Claude I've spent more time on this
+release than what I had estimated.  However, I believe I've done a
+quite through work on preserving backward-compatibility while also
+developing a better API.
+
+From my roadmap, those are the estimates:
+
+* [x] 50 hours for ASync + improved API - fully done
+* [x] 23 hours for fixing/closing old issues - fully done
+* [ ] 12 hours for documentation - partly done
+* [ ] 40 hours for fixing/closing issues related with scheduling in 3.2 - done the davical test server, estimated to take 6 hours.
+
+In addition, lots of time spent on things that aren't covered by the roadmap:
+
+* The caldav-server-tester utility (but none of it into "polishing and releasing" as the roadmap says)
+* More docker test servers
+* Responding fast to inbound issues and pull requests
+* Communication and collaboration
+* The release itself (running tests towards lots of servers with quirks - like having to wait for several minutes from an event is edited until it can be found through a search operation - looking through and making sure the CHANGELOG is complete, etc) is quite tedious and easily takes several days - weeks if it's needed to tweak on workarounds and compatbility hints to get the tests passing.
 
 ## [2.2.6] - [2026-02-01]
 
@@ -538,7 +543,7 @@ As always, the new release comes with quite some bugfixes, compatibility fixes a
 
 Due to feedback we've fallen back from niquests to requests again.
 
-## Changes
+### Changes
 
 * I was told in https://github.com/python-caldav/caldav/issues/530 that the niquests dependency makes it impossible to package the library, so I've reverted the requests -> niquests changeset.
 

@@ -1,5 +1,15 @@
 # CalDAV Design Documents
 
+End-user documentation belongs under `../srv` and more or less important stuff belongs under the project root.  "Everything else" may be thrown into this directory.
+
+Admittedly it's quite much junk in this folder.
+
+This directory was made after starting to "discuss" code design with Claude.  At first it wanted to create tons of design documents directly on the project root.  I thought it was a good idea to keep them in a separate folder.  Later versions of Claude Code hides the design documents under `~/.claude`.
+
+Quite many design decisions and discussions are done on the GitHub platform.  Due to the geopolitical situation, "exit strategy" has become important (at least for EU-based organizations).  GitHub is a Microsoft-owned centralized propritary US-based SaaS system.  I've thought deeply through it, there aren't many good alterantives to GH.  The network effect is strong, almost everybody is on GitHub - I wouldn't want to move to another centralized service that has only some handfuls of users.  A federated service would be very good, but as far as I know it doesnt exist - yet.  For now I don't mind *using* GitHub, but I think it's important not to *depend* on GitHub.  Having roadmaps, design discussions and conclusions, code reviews etc in the git repository itself makes sense in my head.  This should be the directory for it, though it should probably be organized a bit better.
+
+Everything below is AI-generated and possibly out of date.
+
 ## Current Status (January 2026)
 
 **Branch:** `v3.0-dev`
