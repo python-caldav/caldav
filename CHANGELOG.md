@@ -12,11 +12,17 @@ Changelogs prior to v2.0 is pruned, but was available in the v2.x releases
 
 This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html), though for pre-releases PEP 440 takes precedence.
 
-## [3.0.0] - [2026-03-03]
+## [Unreleased]
+
+### Fixed
+
+* `AsyncDAVClient` failed to initialize when using httpx < 0.23.0 because `proxy=None` was unconditionally passed to `httpx.AsyncClient` which did not accept a `proxy` keyword argument in older releases.  Fixes https://github.com/python-caldav/caldav/issues/632
+
+## [3.0.0] - 2026-03-03
 
 Version 3.0 should be fully backward-compatible with version 2.x - but there are massive code changes in version 3.0, so if you're using the Python CalDAV client library in some sharp production environment, I would recommend to wait for two months before upgrading.
 
-### Highlights
+Highlights
 
 * As always, lots of compatibility-tweaking.  This release have probably been tested on more server implementations than any earlier version.
 * "Black Style" has been replaced with **ruff**.  This causes quite some minor changes to the code.
@@ -270,7 +276,7 @@ In addition, lots of time spent on things that aren't covered by the roadmap:
 * Communication and collaboration
 * The release itself (running tests towards lots of servers with quirks - like having to wait for several minutes from an event is edited until it can be found through a search operation - looking through and making sure the CHANGELOG is complete, etc) is quite tedious and easily takes several days - weeks if it's needed to tweak on workarounds and compatbility hints to get the tests passing.
 
-## [2.2.6] - [2026-02-01]
+## [2.2.6] - 2026-02-01
 
 ### Fixed
 
@@ -301,15 +307,13 @@ In addition, lots of time spent on things that aren't covered by the roadmap:
 
 * `get_davclient` is now exported from the `caldav` package, allowing `from caldav import get_davclient`.  https://github.com/python-caldav/caldav/issues/612
 
-## [2.2.3] - [2025-12-06]
-
+## [2.2.3] - 2025-12-06]
 ### Fixed
 
 * Some servers did not support the combination of HTTP/2-multiplexing and authentication.  Two workarounds fixed; baikal will specifically not use multiplexing, and an attempt to authenticate without multiplexing will be made upon authentication problems.  Fixes https://github.com/python-caldav/caldav/issues/564
 * The DTSTAMP is mandatory in icalendar data.  The `vcal.fix`-scrubber has been updated to make up a DTSTAMP if it's missing.  Fixes https://github.com/python-caldav/caldav/issues/504
 
-## [2.2.2] - [2025-12-04]
-
+## [2.2.2] - 2025-12-04]
 2.2.1 is released with requests support (mispelled riquests in 2.2.0), 2.2.2 with niquests support
 
 ## [2.2.1] - [2025-12-04]
@@ -453,7 +457,7 @@ Some few reasons of the overrun:
 
 The following contributors (by GitHub username) have assisted by reporting issues, submitting pull requests and provided feedback:
 
-@ArtemIsmagilov, @cbcoutinho, @cdce8p, @dieterbahr, @dozed, @Ducking2180, @edel-macias-cubix, @erahhal, @greve, @jannistpl, @julien4215, @Kreijstal, @lbt, @lothar-mar, @mauritium, @moi90, @niccokunzmann, @oxivanisher, @paramazo, @pessimo, @Savvasg35, @seanmills1020, @siderai, @slyon, @smurfix, @soundstorm, @thogitnet, @thomasloven, @thyssentishman, @ugniusslev, @whoamiafterall, @yuwash, @zealseeker, @Zhx-Chenailuoding, @Zocker1999NET, @Sashank, @Claude and @tobixen
+@ArtemIsmagilov, @cbcoutinho, @cdce8p, @dieterbahr, @dozed, @Ducking2180, @edel-macias-cubix, @erahhal, @greve, @jannistpl, @julien4215, @Kreijstal, @lbt, @lothar-mar, @mauritium, @moi90, @niccokunzmann, @oxivanisher, @paramazo, @pessimo, @Savvasg35, @seanmills1020, @siderai, @slyon, @smurfix, @soundstorm, @thogitnet, @thomasloven, @thyssentishman, @ugniusslev, @whoamiafterall, @yuwash, @zealseeker, @Zhx-Chenailuoding, @Zocker1999NET, @SashankBhamidi, @Claude and @tobixen
 
 ### Test runs before release
 
@@ -494,15 +498,15 @@ Those servers ought to be tested, but I'm missing accounts/capacity to do it at 
 * all-inkl.com
 * OX
 
-## [2.1.2] - [2025-11-08]
+## [2.1.2] - 2025-11-08
 
 Version 2.1.0 comes without niquests in the dependency file.  Version 2.1.2 come with niquests in the dependency file.  Also fixed up some minor mistakes in the CHANGELOG.
 
-## [2.1.1] - [2025-11-08] [YANKED]
+## [2.1.1] - 2025-11-08 [YANKED]
 
 Version 2.1.0 comes without niquests in the dependency file.  Version 2.1.1 should come with niquests in the dependency file, but I made a mistake.
 
-## [2.1.0] - [2025-11-08]
+## [2.1.0] - 2025-11-08
 
 I'm working on a [caldav compatibility checker](https://github.com/tobixen/caldav-server-tester) side project.  While doing so, I'm working on redefining the "compatibility matrix".  This should only affect the test code.  **If you maintain a file `tests/conf_private.py`, chances are that the latest changesets will break**  Since "running tests towards private CalDAV servers" is not considered to be part of the public API, I deem this to be allowed without bumping the major version number.  If you are affected and can't figure out of it, reach out by email, GitHub issue or GitHub discussions.  (Frankly, I'm interessted if anyone except me uses this, so feel free to reach out also if you can figure out of it).
 
@@ -539,15 +543,14 @@ As always, the new release comes with quite some bugfixes, compatibility fixes a
 * Example code: Basic usage examples have been brushed up, thanks to David Greaves - https://github.com/python-caldav/caldav/pull/534
 * PEP 639 conforming license expression in the pyproject.toml, thanks to Marc Mueller - https://github.com/python-caldav/caldav/pull/538
 
-## [2.0.1] - [2025-06-24]
-
+## [2.0.1] - 2025-06-24
 Due to feedback we've fallen back from niquests to requests again.
 
 ### Changes
 
 * I was told in https://github.com/python-caldav/caldav/issues/530 that the niquests dependency makes it impossible to package the library, so I've reverted the requests -> niquests changeset.
 
-## [2.0.0] - [2025-06-23]
+## [2.0.0] - 2025-06-23
 
 Here are the most important changes in 2.0:
 

@@ -289,13 +289,15 @@ class AsyncDAVClient(BaseDAVClient):
     def _create_session(self) -> None:
         """Create or recreate the async HTTP client with current settings."""
         if _USE_HTTPX:
-            self.session = httpx.AsyncClient(
-                http2=self._http2 or False,
-                proxy=self._proxy,
-                verify=self._ssl_verify_cert if self._ssl_verify_cert is not None else True,
-                cert=self._ssl_cert,
-                timeout=self._timeout,
-            )
+            client_kwargs: dict = {
+                "http2": self._http2 or False,
+                "verify": self._ssl_verify_cert if self._ssl_verify_cert is not None else True,
+                "cert": self._ssl_cert,
+                "timeout": self._timeout,
+            }
+            if self._proxy is not None:
+                client_kwargs["proxy"] = self._proxy
+            self.session = httpx.AsyncClient(**client_kwargs)
         else:
             # niquests - proxy/ssl/timeout are passed per-request
             try:

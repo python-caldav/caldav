@@ -174,6 +174,40 @@ class TestAsyncDAVClient:
 
         assert client.proxy == "http://proxy.example.com:8080"
 
+    def test_session_creation_without_proxy_does_not_pass_proxy_kwarg(self) -> None:
+        """Regression test for issue #632: proxy=None must not be passed to httpx.AsyncClient.
+
+        httpx < 0.23.0 does not accept a 'proxy' keyword argument at all, so
+        passing proxy=None unconditionally breaks initialization even when no
+        proxy is configured.
+        """
+        from caldav.async_davclient import _USE_HTTPX
+
+        if not _USE_HTTPX:
+            pytest.skip("test only relevant for httpx backend")
+
+        with patch("httpx.AsyncClient") as mock_client:
+            AsyncDAVClient(url="https://caldav.example.com/dav/")
+            _, call_kwargs = mock_client.call_args
+            assert "proxy" not in call_kwargs, (
+                "proxy kwarg must not be passed to httpx.AsyncClient when no proxy is configured"
+            )
+
+    def test_session_creation_with_proxy_passes_proxy_kwarg(self) -> None:
+        """When a proxy is configured, it must be forwarded to httpx.AsyncClient."""
+        from caldav.async_davclient import _USE_HTTPX
+
+        if not _USE_HTTPX:
+            pytest.skip("test only relevant for httpx backend")
+
+        with patch("httpx.AsyncClient") as mock_client:
+            AsyncDAVClient(
+                url="https://caldav.example.com/dav/",
+                proxy="proxy.example.com:8080",
+            )
+            _, call_kwargs = mock_client.call_args
+            assert call_kwargs.get("proxy") == "http://proxy.example.com:8080"
+
     def test_client_with_ssl_verify(self) -> None:
         """Test SSL verification settings."""
         client = AsyncDAVClient(
