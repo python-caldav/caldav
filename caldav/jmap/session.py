@@ -8,7 +8,7 @@ information needed to make subsequent API calls.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse, urlunparse
 
 try:
     import niquests as requests
@@ -56,6 +56,15 @@ def _parse_session_data(url: str, data: dict) -> Session:
     # RFC 8620 §2 says apiUrl SHOULD be absolute, but some servers (e.g. Cyrus)
     # return a relative path. Resolve it against the session endpoint URL.
     api_url = urljoin(url, api_url)
+
+    # Some servers (e.g. Stalwart behind a port-remapping proxy) advertise an
+    # api_url whose host matches ours but whose port reflects the internal
+    # listener rather than the port we actually connected through. Rewrite to
+    # match the session endpoint's authority so subsequent calls succeed.
+    session_parsed = urlparse(url)
+    api_parsed = urlparse(api_url)
+    if api_parsed.hostname == session_parsed.hostname and api_parsed.port != session_parsed.port:
+        api_url = urlunparse(api_parsed._replace(netloc=session_parsed.netloc))
 
     state = data.get("state", "")
     server_capabilities = data.get("capabilities", {})

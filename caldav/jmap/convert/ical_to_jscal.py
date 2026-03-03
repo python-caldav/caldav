@@ -332,6 +332,7 @@ def ical_to_jscal(ical_str: str, calendar_id: str | None = None) -> dict:
         duration = "P0D"
 
     jscal: dict = {
+        "@type": "Event",
         "uid": uid,
         "title": title,
         "start": start,

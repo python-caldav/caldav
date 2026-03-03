@@ -2,6 +2,7 @@ services:
   stalwart:
     image: stalwartlabs/stalwart:latest
     container_name: stalwart-test
+    hostname: localhost  # Stalwart uses hostname in JMAP session apiUrl; without this it advertises the container ID
     ports:
       - "8809:8080"
     environment:

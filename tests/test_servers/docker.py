@@ -355,7 +355,7 @@ class StalwartTestServer(DockerTestServer):
 
     Stalwart added CalDAV/CardDAV support in 2024/2025. Uses plain HTTP on
     port 8080 for both the admin interface and CalDAV access. Calendar home
-    for a user is at /dav/cal/<username>/.
+    for a user is at /dav/cal/<username>/. JMAP is at /.well-known/jmap.
     """
 
     name = "Stalwart"
@@ -376,6 +376,10 @@ class StalwartTestServer(DockerTestServer):
     @property
     def url(self) -> str:
         return f"http://{self.host}:{self.port}/dav/cal/{self.username}/"
+
+    @property
+    def jmap_url(self) -> str:
+        return f"http://{self.host}:{self.port}/.well-known/jmap"
 
 
 # Register server classes

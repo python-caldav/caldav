@@ -984,6 +984,7 @@ class TestIcalToJscal:
     def test_minimal_event(self):
         ical = _make_ical("DTSTART:20240615T100000Z\r\nDURATION:PT1H\r\nSUMMARY:Test Event\r\n")
         result = ical_to_jscal(ical)
+        assert result["@type"] == "Event"
         assert result["uid"] == "test-uid@example.com"
         assert result["title"] == "Test Event"
         assert result["start"] == "2024-06-15T10:00:00"
