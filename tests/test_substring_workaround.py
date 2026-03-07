@@ -70,7 +70,7 @@ def test_substring_workaround_only_for_explicit_contains() -> None:
         "search.text.case-sensitive": True,
         "search.text.category": True,
         "search.combined-is-logical-and": True,
-        "search.comp-type-optional": True,
+        "search.comp-type.optional": True,
     }.get(feature, True)
 
     searcher = CalDAVSearcher(event=True)
@@ -106,7 +106,7 @@ def test_substring_workaround_applies_for_explicit_contains() -> None:
         "search.text.case-sensitive": True,
         "search.text.category": True,
         "search.combined-is-logical-and": True,
-        "search.comp-type-optional": True,
+        "search.comp-type.optional": True,
     }.get(feature, True)
 
     searcher = CalDAVSearcher(event=True)
@@ -147,7 +147,7 @@ def test_mixed_explicit_and_implicit_operators() -> None:
         "search.text.case-sensitive": True,
         "search.text.category": True,
         "search.combined-is-logical-and": True,
-        "search.comp-type-optional": True,
+        "search.comp-type.optional": True,
     }.get(feature, True)
 
     searcher = CalDAVSearcher(event=True)

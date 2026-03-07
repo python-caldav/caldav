@@ -1978,7 +1978,7 @@ END:VCALENDAR
 
         ## Search without any parameters should yield everything on calendar
         all_todos = c.search()
-        if not self.is_supported("search.comp-type-optional"):
+        if not self.is_supported("search.comp-type.optional"):
             assert len(all_todos) <= 6 + pre_cnt
         else:
             assert len(all_todos) == 6 + pre_cnt

@@ -496,7 +496,7 @@ class CalDAVSearcher(Searcher):
                 )
 
             if not self.comp_class and not calendar.client.features.is_supported(
-                "search.comp-type-optional"
+                "search.comp-type.optional"
             ):
                 if self.include_completed is None:
                     self.include_completed = True
