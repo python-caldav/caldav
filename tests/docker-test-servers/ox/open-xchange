@@ -1,0 +1,17 @@
+<VirtualHost *:80>
+       ServerAdmin webmaster@localhost
+
+       DocumentRoot /var/www
+       <Directory /var/www>
+               Options Indexes FollowSymLinks MultiViews
+               AllowOverride None
+               Order allow,deny
+               allow from all
+               RedirectMatch ^/$ /appsuite/
+       </Directory>
+
+       <Directory /var/www/appsuite>
+               Options None +SymLinksIfOwnerMatch
+               AllowOverride Indexes FileInfo
+       </Directory>
+</VirtualHost>

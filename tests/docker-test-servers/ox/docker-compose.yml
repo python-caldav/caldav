@@ -1,0 +1,15 @@
+services:
+  ox:
+    image: ox-caldav-test
+    container_name: ox-test
+    ports:
+      - "8810:80"
+    tmpfs:
+      - /var/lib/mysql:size=500m
+      - /ox/store:size=200m
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost/caldav/"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 120s

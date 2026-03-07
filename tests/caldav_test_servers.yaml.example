@@ -117,6 +117,15 @@ test-servers:
     username: ${STALWART_USERNAME:-testuser}
     password: ${STALWART_PASSWORD:-testpass}
 
+  # OX App Suite requires a locally built Docker image — run build.sh first.
+  ox:
+    type: docker
+    enabled: ${TEST_OX:-false}
+    host: ${OX_HOST:-localhost}
+    port: ${OX_PORT:-8810}
+    username: ${OX_USERNAME:-oxadmin}
+    password: ${OX_PASSWORD:-oxadmin}
+
   # =========================================================================
   # External/private servers (your own CalDAV server)
   # =========================================================================

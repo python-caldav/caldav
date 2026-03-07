@@ -1,0 +1,2 @@
+deb https://software.open-xchange.com/products/appsuite/stable/appsuiteui/DebianBookworm/ /
+deb https://software.open-xchange.com/products/appsuite/stable/backend/DebianBookworm/ /

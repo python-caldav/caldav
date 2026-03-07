@@ -382,6 +382,47 @@ class StalwartTestServer(DockerTestServer):
         return f"http://{self.host}:{self.port}/.well-known/jmap"
 
 
+class OxTestServer(DockerTestServer):
+    """
+    Open-Xchange App Suite CalDAV server in Docker.
+
+    OX App Suite is a commercial groupware platform with CalDAV/CardDAV support.
+    The Docker image must be built locally before use (see tests/docker-test-servers/ox/build.sh).
+    First-run initialisation takes ~3 minutes.
+    """
+
+    name = "OX"
+
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
+        config = config or {}
+        config.setdefault("host", os.environ.get("OX_HOST", "localhost"))
+        config.setdefault("port", int(os.environ.get("OX_PORT", "8810")))
+        config.setdefault("username", os.environ.get("OX_USERNAME", "oxadmin"))
+        config.setdefault("password", os.environ.get("OX_PASSWORD", "oxadmin"))
+        if "features" not in config:
+            config["features"] = compatibility_hints.ox.copy()
+        super().__init__(config)
+
+    def _default_port(self) -> int:
+        return 8810
+
+    @property
+    def url(self) -> str:
+        return f"http://{self.host}:{self.port}/caldav/"
+
+    def is_accessible(self) -> bool:
+        """Check if OX CalDAV is accessible."""
+        try:
+            response = requests.request(
+                "PROPFIND",
+                self.url,
+                timeout=DEFAULT_HTTP_TIMEOUT,
+            )
+            return response.status_code in (200, 207, 401, 403)
+        except Exception:
+            return False
+
+
 # Register server classes
 register_server_class("baikal", BaikalTestServer)
 register_server_class("nextcloud", NextcloudTestServer)
@@ -393,3 +434,4 @@ register_server_class("davis", DavisTestServer)
 register_server_class("ccs", CCSTestServer)
 register_server_class("zimbra", ZimbraTestServer)
 register_server_class("stalwart", StalwartTestServer)
+register_server_class("ox", OxTestServer)
