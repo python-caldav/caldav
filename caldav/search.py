@@ -1,6 +1,7 @@
 import inspect
 import logging
 from dataclasses import dataclass, field, replace
+from datetime import datetime, timezone
 from enum import Enum, auto
 from typing import TYPE_CHECKING, Any, Optional
 
@@ -245,6 +246,28 @@ class CalDAVSearcher(Searcher):
                 "No calendar provided. Either pass a calendar to search() or "
                 "create the searcher via calendar.searcher()"
             )
+
+        ## Workaround for servers where REPORT without a time range only returns
+        ## objects within a sliding window (search.unlimited-time-range: broken).
+        ## Inject a wide time range covering 1970–2126 so that year-2000 test
+        ## objects and other old data are returned.
+        if (
+            not self.start
+            and not self.end
+            and not (self.expand or server_expand)
+            and not calendar.client.features.is_supported("search.unlimited-time-range")
+        ):
+            clone = replace(
+                self,
+                start=datetime(1970, 1, 1, tzinfo=timezone.utc),
+                end=datetime(2126, 1, 1, tzinfo=timezone.utc),
+            )
+            result = yield (
+                SearchAction.RECURSIVE_SEARCH,
+                (clone, calendar, server_expand, split_expanded, props, xml, post_filter, _hacks),
+            )
+            yield (SearchAction.RETURN, result)
+            return
 
         ## Handle servers with broken component-type filtering (e.g., Bedework)
         comp_type_support = calendar.client.features.is_supported("search.comp-type", str)

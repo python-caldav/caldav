@@ -182,6 +182,10 @@ class FeatureSet:
         "search.time-range.event.old-dates": {"description": "time range searches for events with old dates (e.g. year 2000) work - some servers enforce a min-date-time restriction"},
         "search.time-range.journal": {"description": "basic time range searches for journal works"},
         "search.time-range.alarm": {"description": "Time range searches for alarms work. The server supports searching for events based on when their alarms trigger, as specified in RFC4791 section 9.9"},
+        "search.unlimited-time-range": {
+            "description": "A REPORT without a time-range filter should return all matching objects regardless of when they occur. Some servers (e.g. OX App Suite) use a sliding window for REPORT requests without a time range, returning only objects within approximately ±1 year of now and potentially missing older or far-future objects.",
+            "default": {"support": "full"},
+        },
         "search.is-not-defined": {
             "description": "Supports searching for objects where properties is-not-defined according to rfc4791 section 9.7.4",
             "default": {"support": "full"}
@@ -1483,6 +1487,46 @@ gmx = {
         "no_scheduling_calendar_user_address_set",
         "vtodo-cannot-be-uncompleted",
     ]
+}
+
+## https://www.open-xchange.com/
+## OX App Suite CalDAV served at /caldav/ (Apache proxies to /servlet/dav/caldav on port 8009).
+## The Docker image must be built locally before use (see tests/docker-test-servers/ox/build.sh).
+ox = {
+    ## Renaming a calendar after creation via PROPPATCH is not supported
+    'create-calendar.set-displayname': {'support': 'unsupported'},
+    ## VTODOs must be in a dedicated VTODO-only calendar; mixed calendars not supported
+    'save-load.todo.mixed-calendar': {'support': 'unsupported'},
+    ## Basic VTODO support works fine; only recurrences are broken
+    'save-load.todo': {'support': 'full'},
+    ## Recurring VTODOs (RRULE in VTODO) are rejected with 400
+    'save-load.todo.recurrences': {'support': 'ungraceful'},
+    ## VJOURNAL is not supported
+    'save-load.journal': {'support': 'unsupported'},
+    ## Search limitations
+    'search.time-range.event.old-dates': {'support': 'unsupported'},
+    'search.time-range.todo.old-dates': {'support': 'unsupported'},
+    'search.time-range.alarm': {'support': 'unsupported'},
+    'search.unlimited-time-range': {'support': 'broken'},
+    'search.comp-type-optional': {'support': 'ungraceful'},
+    'search.text': {'support': 'unsupported'},
+    'search.text.category': {'support': 'unsupported'},
+    'search.text.case-sensitive': {'support': 'unsupported'},
+    'search.text.case-insensitive': {'support': 'unsupported'},
+    ## Recurrence searching broken (sliding window + old-dates limitation)
+    'search.recurrences.includes-implicit': {'support': 'unsupported'},
+    'search.recurrences.includes-implicit.todo.pending': {'support': 'unsupported'},
+    'search.recurrences.expanded': {'support': 'unsupported'},
+    ## is-not-defined for DTEND is not supported
+    'search.is-not-defined.dtend': {'support': 'unsupported'},
+    ## Freebusy queries are not supported (returns 400)
+    'freebusy-query': {'support': 'ungraceful'},
+    ## Principal search not supported
+    'principal-search': {'support': 'unsupported'},
+    'principal-search.by-name.self': {'support': 'unsupported'},
+    'principal-search.list-all': {'support': 'unsupported'},
+    ## Cross-calendar duplicate UID test fails (AuthorizationError creating second calendar)
+    'save.duplicate-uid.cross-calendar': {'support': 'ungraceful'},
 }
 
 # fmt: on
