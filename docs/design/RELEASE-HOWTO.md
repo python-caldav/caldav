@@ -17,11 +17,12 @@ I have no clue on the proper procedures for doing releases, and I keep on doing 
 * Any changes done, go back to the start of this list
 * Write up some release notes.  (I typically keep a short summary of the changes in the CHANGELOG, and use that as the release notes).
 * Verify that we're on the right branch - `git checkout master`.  (`master` may not always be right - sometimes we may want to use a dedicated branch connected to the release-series, i.e. `v1.3`)
+* TODO - document needs to be updated - as the test runs on github now takes significant amounts of time, it's important to push the code first and wait for quite a while before tagging and pushing the tag.
 * Set the variable `VERSION=2.2.0`
 * Commit the changes (typically `CHANGELOG.md`, perhaps documentation): `git commit -am "preparing for releasing v${VERSION}"`
 * Create a tag: `git tag -as v${VERSION}` - use the release notes in the tag message.  Don't push it yet.
 * Make a clone: `cd ~ ; git clone caldav/ caldav-release ; cd caldav-release ; git checkout v${VERSION}`
-* Run tests (particularly the style check): `pytest` and `tox -e style`.
+* Run tests (particularly the style check): `pytest` and `tox -e style`. TODO: is `tox -e style` still relevant?
 * Push the code to github: `cd ~/caldav ; git push ; git push --tags`
 * Some people relies on the github release system for finding releases - go to https://github.com/python-caldav/caldav/releases/new, choose the new tag, copy the version number and the release notes in.  Remember to check the box to make it the latest release.
 * The most important part - push to pypi:
