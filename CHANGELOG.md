@@ -14,9 +14,18 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 
 ## [Unreleased]
 
+### Added
+
+* **OX App Suite** compatibility hints added; the library is now tested against OX App Suite via a new Docker test server (`tests/docker-test-servers/ox/`).
+* New `search.unlimited-time-range` feature flag with a workaround in `search.py` that injects a broad time range (1970–2126) for servers that return an empty result set when no time range is specified.
+
 ### Fixed
 
 * `AsyncDAVClient` failed to initialize when using httpx < 0.23.0 because `proxy=None` was unconditionally passed to `httpx.AsyncClient` which did not accept a `proxy` keyword argument in older releases.  Fixes https://github.com/python-caldav/caldav/issues/632
+
+### Potentially Breaking Changes
+
+* The compatibility-hint key `search.comp-type-optional` has been renamed to `search.comp-type.optional` for consistency with the dotted-key naming convention used elsewhere.  If you have this key set in a local server configuration, update it accordingly.
 
 ## [3.0.0] - 2026-03-03
 
