@@ -32,28 +32,34 @@ icalendar data.
 Backward compatibility support
 ==============================
 
-The 1.x version series is intended to be maintained at least until
-2026-01.
+If you stumble upon problems and cannot easily resolve them, feel free
+to get in touch, i.e. by the issue tracker.
 
-The 2.x version series (not released as of 2025-06-01) is supposed to
-be fully backwards-compatible with version 1.x, and is intended to be
-maintained at least until 2027.
+The 1.x version series is not maintained anymore.
 
-2.0 sheds compatibility with python 3.7 and python 3.8, and one
-obscure deprecated method has been ripped out.
+If serious problems are found with v2.2.6 during 2026, v2.2.7 will be
+released.
 
-API that is marked as deprecated 2.x will most likely be removed in version 3.0
+The 3.x version series (released 2026-03) is almost
+backwards-compatible with version 2.x.  Python 3.10+ is required
+(Python 3.8 and 3.9 are no longer supported).  The
+``caldav/objects.py`` backward-compatibility shim has been removed;
+any code doing ``from caldav.objects import <something>`` must be
+updated to import directly from ``caldav``.  The wildcard import has
+also been removed, so if you were doing weird imports from ``caldav``,
+things may break.
+
+API deprecated with a warning in 2.x may be removed in a future 4.0 release.
+API deprecated without a warning in 2.x will get a deprecation warning in 4.0.
+
 If you have any suggestions on API-changes, please
 comment on https://github.com/python-caldav/caldav/issues/92
-
-Warnings will be issued when using legacy interface.
-
 
 Python compatibility notice
 ===========================
 
 Most of the code is regularly tested towards different versions of
-Python, the oldest being Python 3.9.
+Python, the oldest being Python 3.10 (as of v3.0).
 
 Support for Python2 was officially not supported starting from caldav
 version 1.0.
@@ -256,11 +262,12 @@ CalDAV URLs can be quite confusing, some software requires the URL to the calend
 Unit testing
 ============
 
-To start the tests code, install everything from the setup.tests_requires list and run:
+To run the tests, install the test dependencies and use pytest:
 
 .. code-block:: bash
 
-  $ python setup.py test
+  $ pip install -e ".[test]"
+  $ pytest
 
 tox should also work:
 

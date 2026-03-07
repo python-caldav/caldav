@@ -3,7 +3,7 @@ Config file format
 ==================
 
 
-The :class:`davclient.get_davclient` method (and perhaps in 2.1, also ``davclient.get_calendar``) can read from a config file.  It will look for it in the following locations:
+The :func:`caldav.get_davclient`, :func:`caldav.get_calendar`, and :func:`caldav.get_calendars` functions can read from a config file.  It will look for it in the following locations:
 
 * ``$HOME/.config/caldav/calendar.conf``
 * ``$HOME/.config/caldav/calendar.yaml``
@@ -13,7 +13,7 @@ The :class:`davclient.get_davclient` method (and perhaps in 2.1, also ``davclien
 
 The config file has to be valid json or yaml (support for toml and Apple pkl may be considered).
 
-The config file is expected to be divided in sections, where each section can describe locations and credentials to a CalDAV server, a CalDAV calendar or a collection of calendars/servers.  As of version 2.0, only the first is supported.
+The config file is expected to be divided in sections, where each section can describe locations and credentials to a CalDAV server, a CalDAV calendar or a collection of calendars/servers.
 
 A config section can be given either through parameters to :func:`caldav.get_davclient` or by enviornment variable ``CALDAV_CONFIG_SECTION``.  If no section is given, the ``default`` section is used.
 
@@ -25,9 +25,8 @@ The section should contain configuration keys and values.  All configuration key
 Calendar parameters
 ===================
 
-Not implemented yet.
-
-Probably in version 2.1 or version 2.2, ``calendar_name``, ``calendar_id`` and ``calendar_url`` can be used to specify a calendar.
+The :func:`caldav.get_calendar` and :func:`caldav.get_calendars` functions accept
+``calendar_name`` and ``calendar_url`` parameters to select a specific calendar.
 
 Inheritance and collections
 ===========================

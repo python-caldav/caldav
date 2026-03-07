@@ -23,15 +23,16 @@ Real Configuration
 ------------------
 
 The recommended way to configure caldav is through a config file or
-environment variables. Create ``~/.config/caldav/caldav.conf``:
+environment variables. Create ``~/.config/caldav/calendar.conf``:
 
-.. code-block:: ini
+.. code-block:: yaml
 
-    # ~/.config/caldav/caldav.conf
-    [default]
-    url = https://caldav.example.com/
-    username = alice
-    password = secret
+    # ~/.config/caldav/calendar.conf
+    ---
+    default:
+        caldav_url: https://caldav.example.com/
+        caldav_username: alice
+        caldav_password: secret
 
 Or set environment variables:
 
@@ -62,7 +63,7 @@ Use :func:`caldav.get_calendars` to get all calendars or filter by name:
 
     # First create a calendar to work with
     with get_davclient() as client:
-        my_principal = client.principal()
+        my_principal = client.get_principal()
         my_principal.make_calendar(name="Work")
 
     # Get all calendars

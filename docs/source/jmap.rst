@@ -2,7 +2,7 @@
 JMAP
 ====
 
-**The jap support in v3.0 is experimental, the API may change in v3.1 of the library**
+**The JMAP support in v3.0 is experimental, the API may change in v3.1 of the library**
 
 The caldav library includes a JMAP client for servers that speak
 `RFC 8620 <https://www.rfc-editor.org/rfc/rfc8620>`_ (JMAP Core) and

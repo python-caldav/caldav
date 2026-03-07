@@ -21,7 +21,7 @@ The async API is available through the ``caldav.aio`` module:
 
     async def main():
         async with aio.get_async_davclient() as client:
-            principal = await client.principal()
+            principal = await client.get_principal()
             calendars = await principal.get_calendars()
             for cal in calendars:
                 print(f"Calendar: {cal.name}")
@@ -73,7 +73,7 @@ Example: Working with Calendars
 
     async def calendar_demo():
         async with aio.get_async_davclient() as client:
-            principal = await client.principal()
+            principal = await client.get_principal()
 
             # Create a new calendar
             my_calendar = await principal.make_calendar(
@@ -113,7 +113,7 @@ concurrently:
 
     async def fetch_all_events():
         async with aio.get_async_davclient() as client:
-            principal = await client.principal()
+            principal = await client.get_principal()
             calendars = await principal.get_calendars()
 
             # Fetch events from all calendars in parallel
@@ -158,12 +158,12 @@ The async API closely mirrors the sync API. Here are the key differences:
    .. code-block:: python
 
        # Sync
-       principal = client.principal()
+       principal = client.get_principal()
        calendars = principal.get_calendars()
        events = calendar.get_events()
 
        # Async
-       principal = await client.principal()
+       principal = await client.get_principal()
        calendars = await principal.get_calendars()
        events = await calendar.get_events()
 
@@ -187,7 +187,7 @@ All methods that perform I/O are ``async`` and must be awaited:
 
 **AsyncDAVClient:**
 
-* ``await client.principal()`` - Get the principal
+* ``await client.get_principal()`` - Get the principal
 * ``client.calendar(url=...)`` - Get a calendar by URL (no await, no I/O)
 
 **AsyncPrincipal:**
