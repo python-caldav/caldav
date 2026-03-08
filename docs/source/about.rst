@@ -160,68 +160,110 @@ For convenience, the classes above are also available as
 Compatibility
 =============
 
-(This will probably never be completely up-to-date.  CalDAV-servers
-tend to be a moving target, and I rarely recheck if things works in
-newer versions of the software after I find an incompatibility)
+CalDAV server implementations vary widely in which optional RFC features they
+support, and how gracefully they handle things they do not support.  The caldav
+library contains a compatibility layer that works around known issues
+automatically when the server is identified.
 
-The test suite is regularly run against several calendar servers, see https://github.com/python-caldav/caldav/issues/45 for the latest updates.  See ``compatibility_hints.py`` for the most up-to-date list of compatibility issues.  In early versions of this library test breakages was often an indication that the library did not conform well enough to the standards, but as of today it mostly indicates that the servers does not support the standard well enough.  It may be an option to add tweaks to the library code to cover some of the missing functionality.
+Compatibility hints system
+--------------------------
+..todo:: the sections about the compatibility hints should be moved somewhere else, maybe to a new document.
 
-Here are some known issues:
+Server quirks and workarounds are encoded in ``caldav/compatibility_hints.py``.
+Each feature has a *support level*:
 
-* iCloud, Google and Zimbra are notoriously bad on their CalDAV-support.
+* ``full`` — works (as expected or better than expected)
+* ``quirk`` — supported, but needs special client-side handling
+* ``fragile`` — sometimes works, sometimes not
+* ``broken`` — server does something unexpected
+* ``ungraceful`` — server raises an HTTP error instead of handling gracefully
+* ``unsupported`` — feature is absent; attempts are silently skipped or adapted
+* ``unknown`` — not yet tested
 
-* You may want to avoid non-ASCII characters in the calendar name, or
-  some servers (at least Zimbra) may behave a bit unexpectedly.
+The library calls ``is_supported(feature)`` internally before issuing requests,
+and applies workarounds where possible (for example, injecting an explicit time
+range when ``search.unlimited-time-range`` is ``broken``).
 
-* It's non-trivial to fix proper support for recurring events and
-  tasks on the server side.  DAViCal and Baikal are the only one I
-  know of that does it right, all other calendar implementations that
-  I've tested fails (but in different ways) on the tests covering
-  recurrent events and tasks.  Xandikos developer claims that it
-  should work, I should probably revisit it again.
+Configuring compatibility hints
+--------------------------------
 
-* Baikal does not support date search for todo tasks.  DAViCal has
-  slightly broken support for such date search.
+The ``features`` parameter of :func:`caldav.get_davclient` (or
+:class:`caldav.DAVClient`) selects a named server profile from
+``compatibility_hints.py``, or accepts a dict of feature overrides:
 
-* There are some special hacks both in the code and the tests to work
-  around compatibility issues in Zimbra (this should be solved differently)
+.. code-block:: python
 
-* Not all servers supports task lists, not all servers supports
-  freebusy, and not all servers supports journals.  Xandikos and
-  Baikal seems to support them all.
+    # Use a named profile — workarounds are applied automatically
+    client = get_davclient(url="https://caldav.icloud.com/", features="icloud", ...)
 
-* Calendar creation is actually not a mandatory feature according to
-  the RFC, but the tests depends on it.  The google calendar does
-  support creating calendars, but not through their CalDAV adapter.
+    # Override individual features
+    client = get_davclient(url="https://...", features={"search.text": {"support": "unsupported"}}, ...)
 
-* iCloud may be a bit tricky, this is tracked in issue
-  https://github.com/python-caldav/caldav/issues/3 - the list of incompatibilities found includes:
+(Best practice is to keep the configuration including passwords in a
+configuration file rather than hard-coding it in the python code)
 
-  * No support for freebusy-requests, tasks or journals (only support for basic events).
+For well-known providers (iCloud, ecloud, etc.) the ``features`` string also
+encodes the well-known CalDAV URL, so only the credentials are required.  See
+:doc:`configfile` for how to specify ``features`` in the config file.
 
-  * Broken (or no) support for recurring events
+The test suite is regularly run against several calendar servers, see
+https://github.com/python-caldav/caldav/issues/45 for the latest updates.
+See ``compatibility_hints.py`` for the authoritative and up-to-date list of
+known quirks.  Earlier versions of the library often had test failures that
+indicated the library itself was wrong; nowadays failures more often indicate
+that the server deviates from the standard.
 
-  * We've observed information reappearing even if it has been deleted (i.e. recreating a calendar with the same name as a deleted calendar, and finding that the old events are still there)
+Server-specific highlights
+--------------------------
 
-  * Seems impossible to have the same event on two calendars
+* **iCloud, Google, Zimbra** are notoriously incomplete in their CalDAV
+  support — see the server profile names ``icloud``, ``google``, ``zimbra``
+  in ``compatibility_hints.py`` for the current list of known issues.
 
-  * Some problems observed with the propfind method
+  iCloud has not been tested for a while.  As the maintainer has no account there, YOUR help is needed to ensure iCloud-compatibility.
 
-  * get_object_by_uid does not work (and my get_object_by_uid follows the example in the RFC)
+  Notable iCloud limitations (tracked in https://github.com/python-caldav/caldav/issues/3):
 
-* Google seems to be the new Microsoft, according to the issue
-  tracker it seems like their CalDAV-support is rather lacking.  At least they have a list ... https://developers.google.com/calendar/caldav/v2/guide
+  * No support for freebusy, tasks, or journals.
+  * Broken or absent support for recurring events.
+  * Objects deleted from one client may reappear after recreating a
+    calendar with the same name.
+  * ``get_object_by_uid()`` does not work despite following the RFC example.
 
-* radicale will auto-create a calendar if one tries to access a calendar that does not exist.  The normal method of accessing a list of the calendars owned by the user seems to fail.
+  Google's CalDAV adapter does not support creating calendars; use the Google
+  API directly for that.  As with iCloud, Google support hasn't been tested for quite a while.
+
+* **Radicale** will auto-create a calendar when accessing a URL that does not
+  exist, and listing calendars owned by the user may fail.
+
+* **Baikal** does not support date-range searches for todo tasks.
+
+* **DAViCal** has slightly broken support for date-range searches on todos.
+
+* **OX App Suite** applies a "sliding window" to all calendar REPORT queries:
+  objects whose date lies too far in the past (or future) are invisible.
+  There is no CalDAV mechanism to enumerate those objects — they are invisible
+  to ``calendar.search()``, ``calendar.events()``,
+  ``calendar.get_objects_by_sync_token()``, and ``calendar.get_object_by_uid()``;
+  the only way to access them is a direct GET if the URL is already known.
+  The library works around this by injecting an explicit 1970–2126 time range
+  (``search.unlimited-time-range: broken``), which makes recurring events with
+  future occurrences visible, but truly old non-recurring objects remain
+  inaccessible.  OX also rejects VTODOs containing RRULE with HTTP 400, and
+  VTODOs must be stored in a calendar explicitly created for the ``VTODO``
+  component type.
+
+* **Calendar creation** is not mandatory under RFC 4791.  Most self-hosted
+  servers support it; Google's CalDAV adapter does not.
+
+* **Recurring events and tasks** are non-trivial to implement correctly on
+  the server side.  DAViCal and Baikal are the only servers known to handle
+  them correctly in the test suite.
 
 Some notes on CalDAV URLs
 =========================
 
-.. todo::
-   This section should be moved into separate HOWTOs for each calendar server/provider.
-   Check if comment "to be released" can be removed
-
-From v2.1, well-known URLs were hard-coded into the compatibility_hints.  As of v2.2 (to be released 2025-12) auto-detection based on RFC6764 is supported.  This protocol is widely used.  For servers supporting it, it's sufficient to add something like "demo2.nextcloud.com" in the URL.  For well-known calendar providers, it's not needed to enter anything in the URL, it suffices to put i.e. `features="ecloud"` into the connection parameters.
+From v2.1, well-known URLs were hard-coded into the compatibility_hints.  As of v2.2, auto-detection based on RFC6764 is supported.  This protocol is widely used.  For servers supporting it, it's sufficient to add something like "demo2.nextcloud.com" in the URL.  For well-known calendar providers, it's not needed to enter anything in the URL, it suffices to put i.e. `features="ecloud"` into the connection parameters.
 
 CalDAV URLs can be quite confusing, some software requires the URL to the calendar, other requires the URL to the principal.  The Python CalDAV library does support accessing calendars and principals using such URLs, but the recommended practice is to configure up the CalDAV root URL and tell the library to find the principal and calendars from that.  Typical examples of CalDAV URLs:
 

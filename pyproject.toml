@@ -136,7 +136,6 @@ ignore = [
     "UP008",   # super() style (existing code uses explicit form)
     "UP031",   # %-format (existing code uses it extensively)
     "UP036",   # Outdated version blocks (will clean up when dropping old Python)
-    "UP038",   # isinstance tuple vs | (used in try/except for backwards compat)
     "UP045",   # X | None vs Optional (both are fine)
 ]
 

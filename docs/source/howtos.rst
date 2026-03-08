@@ -59,10 +59,27 @@ For simple read access, use the ``component`` property:
     summary = event.component["SUMMARY"]
     start = event.component.start
 
-.. todo::
+Backing Up a Calendar
+---------------------
 
-   * Make a how-to on how to create a local backup and syncing it.  (procrastinated until the ``get_calendar`` function is completed)
-   * Make how-tos on each known calendar server and/or service provider - including known incompatibilities.  Some information in the `about.rst`, should be moved here
-   * Particularly Google.
+Use :func:`caldav.get_calendar` (available since v2.0) to fetch all objects
+from a specific calendar and write them to disk:
 
-   See also https://github.com/python-caldav/caldav/issues/513
+.. code-block:: python
+
+    import pathlib
+    from caldav import get_calendar
+
+    backup_dir = pathlib.Path("backup")
+    backup_dir.mkdir(exist_ok=True)
+
+    with get_calendar(calendar_name="Work") as cal:
+        for obj in cal.search():
+            uid = obj.icalendar_instance.subcomponents[0]["UID"]
+            (backup_dir / f"{uid}.ics").write_text(obj.data)
+
+To restore, iterate over the saved ``.ics`` files and call ``cal.add_event()``
+(or ``add_todo()``/``add_journal()`` as appropriate).
+
+For more on server-specific connection details and known incompatibilities,
+see :ref:`about:Compatibility` and :ref:`about:Some notes on CalDAV URLs`.
