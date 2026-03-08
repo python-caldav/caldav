@@ -192,7 +192,7 @@ class BaseDAVResponse:
         status = None
         href: str | None = None
         propstats: list[_Element] = []
-        check_404 = False  ## special for purelymail
+        check_404 = False  ## special for purelymail and stalwart
         error.assert_(response.tag == dav.Response.tag)
         for elem in response:
             if elem.tag == dav.Status.tag:
@@ -205,6 +205,12 @@ class BaseDAVResponse:
                 href = _normalize_href(elem.text or "")
             elif elem.tag == dav.PropStat.tag:
                 propstats.append(elem)
+            elif elem.tag == "{DAV:}responsedescription":
+                ## This happens with Stalwart on a 404.
+                ## This code is mostly moot, but in debug
+                ## mode I want to be sure we do not toss away any data
+                error.assert_(elem.text == "No resources found")
+                check_404 = True
             elif elem.tag == "{DAV:}error":
                 ## This happens with purelymail on a 404.
                 ## This code is mostly moot, but in debug

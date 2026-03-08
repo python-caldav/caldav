@@ -1087,6 +1087,9 @@ END:VCALENDAR
         """
         ref https://github.com/python-caldav/caldav/issues/201
         """
+        ## Test breaks for OX (because it does not support old events in any meaningful way).
+        self.skip_unless_support("search.unlimited-time-range")
+
         c = self._fixCalendar()
 
         if self.is_supported("save-load.event"):
@@ -1890,6 +1893,8 @@ END:VCALENDAR
     def testSearchSortTodo(self):
         self.skip_unless_support("save-load.todo")
         self.skip_unless_support("search")
+        ## Test breaks for OX (because it does not support old events in any meaningful way).
+        self.skip_unless_support("search.unlimited-time-range")
         c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
         pre_todos = c.get_todos()
         pre_todo_uid_map = {x.icalendar_component["uid"] for x in pre_todos}
@@ -1965,6 +1970,8 @@ END:VCALENDAR
     def testSearchTodos(self):
         self.skip_unless_support("save-load.todo")
         self.skip_unless_support("search")
+        ## Test breaks for OX (because it does not support old events in any meaningful way).
+        self.skip_unless_support("search.unlimited-time-range")
         c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
 
         pre_cnt = len(c.get_todos())
@@ -2375,6 +2382,8 @@ END:VCALENDAR
         * Verify that cal.get_events() method returns nothing
         """
         self.skip_unless_support("save-load.todo")
+        ## Test breaks for OX (because it does not support old events in any meaningful way).
+        self.skip_unless_support("search.unlimited-time-range")
 
         # For most servers (notable exception Zimbra), it's
         # possible to create a calendar and add todo-items to it.
@@ -2427,6 +2436,8 @@ END:VCALENDAR
         * It will list out all pending tasks, sorted by priority
         """
         self.skip_unless_support("save-load.todo")
+        ## Test breaks for OX (because it does not support old events in any meaningful way).
+        self.skip_unless_support("search.unlimited-time-range")
         c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
 
         # add todo-item
@@ -2690,6 +2701,8 @@ END:VCALENDAR
         Will check that todo-items can be completed and deleted
         """
         self.skip_unless_support("save-load.todo")
+        ## Test breaks for OX, because it doesn't support old tasks.
+        self.skip_unless_support("search.unlimited-time-range")
         # not all caldav servers support VTODO
         c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
 
@@ -2735,6 +2748,8 @@ END:VCALENDAR
     ## TODO: use parameterized test, this is duplicated in testTodoRecurringCompleteThisandfuture
     def testTodoRecurringCompleteSafe(self):
         self.skip_unless_support("save-load.todo")
+        ## Test breaks for OX, because it doesn't support old tasks.
+        self.skip_unless_support("search.unlimited-time-range")
         c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
         assert len(c.get_todos()) == 0
         t6 = c.add_todo(todo6, status="NEEDS-ACTION")
