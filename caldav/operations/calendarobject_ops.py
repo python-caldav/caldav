@@ -469,7 +469,7 @@ def _get_primary_component(icalendar_instance: Any) -> Any | None:
     for comp in components:
         if isinstance(
             comp,
-            (icalendar.Event, icalendar.Todo, icalendar.Journal, icalendar.FreeBusy),
+            icalendar.Event | icalendar.Todo | icalendar.Journal | icalendar.FreeBusy,
         ):
             return comp
 

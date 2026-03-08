@@ -662,7 +662,7 @@ class CalendarObjectResource(DAVObject):
         obj = self.__class__(
             parent=new_parent or self.parent,
             data=self.data,
-            id=self.id if keep_uid else str(uuid.uuid1()),
+            id=self.id if keep_uid else str(uuid.uuid4()),
         )
         if new_parent or not keep_uid:
             obj.url = obj._generate_url()
@@ -843,7 +843,7 @@ class CalendarObjectResource(DAVObject):
             ## TODO: do we ever get here?  Perhaps this if is completely moot?
             id = re.search("(/|^)([^/]*).ics", str(path)).group(2)
         if id is None:
-            id = str(uuid.uuid1())
+            id = str(uuid.uuid4())
 
         i.pop("UID", None)
         i.add("UID", id)

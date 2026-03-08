@@ -209,7 +209,7 @@ def create_ical(ical_fragment=None, objtype=None, language="en_DK", **props):
     if not component.get("dtstamp") and not props.get("dtstamp"):
         component.add("dtstamp", datetime.datetime.now(tz=datetime.timezone.utc))
     if not component.get("uid") and not props.get("uid"):
-        component.add("uid", uuid.uuid1())
+        component.add("uid", uuid.uuid4())
 
     alarm = {}
     for prop in props:

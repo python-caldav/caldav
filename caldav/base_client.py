@@ -389,7 +389,7 @@ def _normalize_to_list(obj: Any) -> list:
     """Convert a string or None to a list for uniform handling."""
     if not obj:
         return []
-    if isinstance(obj, (str, bytes)):
+    if isinstance(obj, str | bytes):
         return [obj]
     return list(obj)
 

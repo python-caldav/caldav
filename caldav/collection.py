@@ -473,7 +473,7 @@ class Principal(DAVObject):
         freebusy_ical.add("prodid", "-//tobixen/python-caldav//EN")
         freebusy_ical.add("version", "2.0")
         freebusy_ical.add("method", "REQUEST")
-        uid = uuid.uuid1()
+        uid = uuid.uuid4()
         freebusy_comp = icalendar.FreeBusy()
         freebusy_comp.add("uid", uid)
         freebusy_comp.add("dtstamp", datetime.now())
@@ -568,7 +568,7 @@ class Calendar(DAVObject):
             return self._async_create(name, id, supported_calendar_component_set, method)
 
         if id is None:
-            id = str(uuid.uuid1())
+            id = str(uuid.uuid4())
         self.id = id
 
         if method is None:
@@ -636,7 +636,7 @@ class Calendar(DAVObject):
     ) -> None:
         """Async implementation of _create."""
         if id is None:
-            id = str(uuid.uuid1())
+            id = str(uuid.uuid4())
         self.id = id
 
         if method is None:
