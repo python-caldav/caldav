@@ -528,7 +528,7 @@ class Calendar(DAVObject):
     """
     The `Calendar` object is used to represent a calendar collection.
     Refer to the RFC for details:
-    https://tools.ietf.org/html/rfc4791#section-5.3.1
+    https://datatracker.ietf.org/doc/html/rfc4791#section-5.3.1
     """
 
     def __init__(

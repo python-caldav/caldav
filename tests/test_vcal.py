@@ -13,7 +13,7 @@ from caldav.lib.vcal import create_ical
 
 utc = timezone.utc
 
-# example from http://www.rfc-editor.org/rfc/rfc5545.txt
+# example from https://datatracker.ietf.org/doc/html/rfc5545
 ev = """BEGIN:VCALENDAR
 VERSION:2.0
 PRODID:-//Example Corp.//CalDAV Client//EN

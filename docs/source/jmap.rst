@@ -5,9 +5,9 @@ JMAP
 **The JMAP support in v3.0 is experimental, the API may change in v3.1 of the library**
 
 The caldav library includes a JMAP client for servers that speak
-`RFC 8620 <https://www.rfc-editor.org/rfc/rfc8620>`_ (JMAP Core) and
+:rfc:`8620` (JMAP Core) and
 the JMAP Calendars protocol (``urn:ietf:params:jmap:calendars``), which uses
-`RFC 8984 <https://www.rfc-editor.org/rfc/rfc8984>`_ (JSCalendar) as its data format.
+:rfc:`8984` (JSCalendar) as its data format.
 It covers calendar listing, event CRUD, incremental sync, and task CRUD — the same
 operations as the CalDAV client — so the choice of protocol comes down to what the
 server supports.
@@ -361,7 +361,7 @@ The three specific error classes:
 * :class:`~caldav.jmap.error.JMAPCapabilityError` — the server's Session object
   does not advertise ``urn:ietf:params:jmap:calendars``.
 * :class:`~caldav.jmap.error.JMAPMethodError` — a JMAP method call returned an error
-  response.  The ``error_type`` attribute holds the RFC 8620 error type string
+  response.  The ``error_type`` attribute holds the :rfc:`8620` error type string
   (e.g. ``"invalidArguments"``, ``"notFound"``, ``"stateMismatch"``).
 
 Configuration File

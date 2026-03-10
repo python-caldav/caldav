@@ -164,7 +164,7 @@ END:VEVENT
 END:VCALENDAR
 """
 
-# example from http://www.rfc-editor.org/rfc/rfc5545.txt
+# example from https://datatracker.ietf.org/doc/html/rfc5545
 evr = """BEGIN:VCALENDAR
 VERSION:2.0
 PRODID:-//Example Corp.//CalDAV Client//EN
@@ -209,7 +209,7 @@ X-MOZ-GENERATION:1
 END:VEVENT
 END:VCALENDAR"""
 
-# example from http://www.rfc-editor.org/rfc/rfc5545.txt
+# example from https://datatracker.ietf.org/doc/html/rfc5545
 todo = """BEGIN:VCALENDAR
 VERSION:2.0
 PRODID:-//Example Corp.//CalDAV Client//EN
@@ -3249,7 +3249,7 @@ END:VCALENDAR
             expand=True,
         )
 
-        ## According to https://tools.ietf.org/html/rfc4791#section-7.8.3, the
+        ## According to https://datatracker.ietf.org/doc/html/rfc4791#section-7.8.3, the
         ## resultset should be one vcalendar with two events.
         assert len(r1) == 1
         assert "RRULE" not in r1[0].data
