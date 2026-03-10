@@ -65,12 +65,12 @@ Support for Python2 was officially not supported starting from caldav
 version 1.0.
 
 
-:rfc:`4791`, 2518, 5545, 6638 et al
-------------------------------------
+RFC compliance
+--------------
 
 :rfc:`4791` (CalDAV) outlines the standard way of communicating with a
 calendar server.  :rfc:`4791` is an extension of :rfc:`4918` (WebDAV).  The
-scope of this library is basically to cover :rfc:`4791`/:rfc:`4918`, the actual
+scope of this library is basically to cover :rfc:`4791` and :rfc:`4918`, the actual
 communication with the caldav server.  (The WebDAV standard also has
 quite some extensions, this library supports some of the relevant
 extensions as well).
@@ -78,7 +78,7 @@ extensions as well).
 There exists another library webdavclient3 for handling :rfc:`4918`
 (WebDAV), ideally we should be depending on it rather than overlap it.
 
-:rfc:`6638`/:rfc:`6047` is extending the CalDAV and iCalendar protocols for
+:rfc:`6638` and :rfc:`6047` extend the CalDAV and iCalendar protocols for
 scheduling purposes, work is in progress to support :rfc:`6638`.  Support
 for :rfc:`6047` is considered mostly outside the scope of this library,
 though for convenience this library may contain methods like accept()

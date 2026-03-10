@@ -383,7 +383,7 @@ JMAP client (experimental)
 ---------------------------
 
 A new ``caldav.jmap`` package provides ``JMAPClient`` and ``AsyncJMAPClient``
-for servers implementing RFC 8620 (JMAP Core) and RFC 8984 (JMAP Calendars).
+for servers implementing :rfc:`8620` (JMAP Core) and :rfc:`8984` (JMAP Calendars).
 The public API may change in minor releases.  See :doc:`jmap`.
 
 Advanced search
