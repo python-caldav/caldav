@@ -57,7 +57,7 @@ The ``caldav.aio`` module exports:
 * ``AsyncCalendarSet`` - Collection of calendars
 * ``AsyncPrincipal`` - User principal
 
-**Scheduling (RFC6638):**
+**Scheduling (:rfc:`6638`):**
 
 * ``AsyncScheduleInbox`` - Incoming invitations
 * ``AsyncScheduleOutbox`` - Outgoing invitations

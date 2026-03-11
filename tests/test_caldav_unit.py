@@ -126,7 +126,7 @@ END:VJOURNAL
 END:VCALENDAR
 """
 
-# example from http://www.rfc-editor.org/rfc/rfc5545.txt
+# example from https://datatracker.ietf.org/doc/html/rfc5545
 evr = """BEGIN:VCALENDAR
 VERSION:2.0
 PRODID:-//Example Corp.//CalDAV Client//EN

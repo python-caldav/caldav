@@ -65,40 +65,40 @@ Support for Python2 was officially not supported starting from caldav
 version 1.0.
 
 
-RFC 4791, 2518, 5545, 6638 et al
---------------------------------
+RFC compliance
+--------------
 
-RFC 4791 (CalDAV) outlines the standard way of communicating with a
-calendar server.  RFC 4791 is an extension of RFC 4918 (WebDAV).  The
-scope of this library is basically to cover RFC 4791/4918, the actual
+:rfc:`4791` (CalDAV) outlines the standard way of communicating with a
+calendar server.  :rfc:`4791` is an extension of :rfc:`4918` (WebDAV).  The
+scope of this library is basically to cover :rfc:`4791` and :rfc:`4918`, the actual
 communication with the caldav server.  (The WebDAV standard also has
 quite some extensions, this library supports some of the relevant
 extensions as well).
 
-There exists another library webdavclient3 for handling RFC 4918
+There exists another library webdavclient3 for handling :rfc:`4918`
 (WebDAV), ideally we should be depending on it rather than overlap it.
 
-RFC 6638/RFC 6047 is extending the CalDAV and iCalendar protocols for
-scheduling purposes, work is in progress to support RFC 6638.  Support
-for RFC 6047 is considered mostly outside the scope of this library,
+:rfc:`6638` and :rfc:`6047` extend the CalDAV and iCalendar protocols for
+scheduling purposes, work is in progress to support :rfc:`6638`.  Support
+for :rfc:`6047` is considered mostly outside the scope of this library,
 though for convenience this library may contain methods like accept()
 on a calendar invite (which involves fetching the invite from the
 server, editing the calendar data and putting it to the server).
 
 This library should make it trivial to fetch an event, modify the data
 and save it back to the server - but to do that it's also needed to
-support RFC 5545 (icalendar).  It's outside the scope of this library
-to implement logic for parsing and modifying RFC 5545, instead we
+support :rfc:`5545` (icalendar).  It's outside the scope of this library
+to implement logic for parsing and modifying :rfc:`5545`, instead we
 depend on another library for that.
 
-RFC 5545 describes the icalendar format.  Constructing or parsing
+:rfc:`5545` describes the icalendar format.  Constructing or parsing
 icalendar data was considered out of the scope of this library, but we
 do make exceptions - like, there is a method to complete a task - it
 involves editing the icalendar data, and now the ``add_event``,
 ``add_todo`` and ``add_journal`` methods are able to construct icalendar
 data if needed.
 
-There exists two libraries supporting RFC 5545, vobject and icalendar.
+There exists two libraries supporting :rfc:`5545`, vobject and icalendar.
 vobject was unmaintained for several years, but seems to be actively
 maintained now.  The caldav library originally came with vobject
 support, but as many people requested the vobject dependency to be
@@ -109,7 +109,7 @@ Misbehaving server implementations
 ----------------------------------
 
 Some server implementations may have some "caldav"-support that either
-doesn't implement all of RFC 4791, breaks the standard a bit, or has
+doesn't implement all of :rfc:`4791`, breaks the standard a bit, or has
 extra features.  As long as it doesn't add too much complexity to the
 code, hacks and workarounds for "badly behaving caldav servers" are
 considered to be within the scope.  Ideally, users of the caldav
@@ -253,7 +253,7 @@ Server-specific highlights
   VTODOs must be stored in a calendar explicitly created for the ``VTODO``
   component type.
 
-* **Calendar creation** is not mandatory under RFC 4791.  Most self-hosted
+* **Calendar creation** is not mandatory under :rfc:`4791`.  Most self-hosted
   servers support it; Google's CalDAV adapter does not.
 
 * **Recurring events and tasks** are non-trivial to implement correctly on
@@ -263,7 +263,7 @@ Server-specific highlights
 Some notes on CalDAV URLs
 =========================
 
-From v2.1, well-known URLs were hard-coded into the compatibility_hints.  As of v2.2, auto-detection based on RFC6764 is supported.  This protocol is widely used.  For servers supporting it, it's sufficient to add something like "demo2.nextcloud.com" in the URL.  For well-known calendar providers, it's not needed to enter anything in the URL, it suffices to put i.e. `features="ecloud"` into the connection parameters.
+From v2.1, well-known URLs were hard-coded into the compatibility_hints.  As of v2.2, auto-detection based on :rfc:`6764` is supported.  This protocol is widely used.  For servers supporting it, it's sufficient to add something like "demo2.nextcloud.com" in the URL.  For well-known calendar providers, it's not needed to enter anything in the URL, it suffices to put i.e. `features="ecloud"` into the connection parameters.
 
 CalDAV URLs can be quite confusing, some software requires the URL to the calendar, other requires the URL to the principal.  The Python CalDAV library does support accessing calendars and principals using such URLs, but the recommended practice is to configure up the CalDAV root URL and tell the library to find the principal and calendars from that.  Typical examples of CalDAV URLs:
 

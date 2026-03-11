@@ -103,7 +103,7 @@ class TimeRange(BaseElement):
 
     def __init__(self, start: datetime | None = None, end: datetime | None = None) -> None:
         ## start and end should be an icalendar "date with UTC time",
-        ## ref https://tools.ietf.org/html/rfc4791#section-9.9
+        ## ref https://datatracker.ietf.org/doc/html/rfc4791#section-9.9
         super(TimeRange, self).__init__()
 
         if self.attributes is None:

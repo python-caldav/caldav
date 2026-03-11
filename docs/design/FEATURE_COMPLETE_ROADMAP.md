@@ -29,7 +29,7 @@ This roadmap covers the **remaining gaps** to achieve full RFC compliance and ad
 
 **Priority:** High
 **Estimated effort:** 40-60 hours
-**RFC:** [RFC 3744](https://www.rfc-editor.org/rfc/rfc3744)
+**RFC:** [RFC 3744](https://datatracker.ietf.org/doc/html/rfc3744)
 
 Current state: The library has basic principal support but lacks ACL manipulation.
 
@@ -50,7 +50,7 @@ Current state: The library has basic principal support but lacks ACL manipulatio
 
 **Priority:** High
 **Estimated effort:** 40 hours (partially covered in #599 for v3.2)
-**RFC:** [RFC 6638](https://www.rfc-editor.org/rfc/rfc6638)
+**RFC:** [RFC 6638](https://datatracker.ietf.org/doc/html/rfc6638)
 
 The v3.2 roadmap covers basic scheduling improvements. Additional work for full compliance:
 
@@ -71,7 +71,7 @@ The v3.2 roadmap covers basic scheduling improvements. Additional work for full 
 
 **Priority:** Medium
 **Estimated effort:** 16-24 hours
-**RFC:** [RFC 7953](https://www.rfc-editor.org/rfc/rfc7953)
+**RFC:** [RFC 7953](https://datatracker.ietf.org/doc/html/rfc7953)
 **Related issue:** #425
 
 **Tasks:**
@@ -88,7 +88,7 @@ The v3.2 roadmap covers basic scheduling improvements. Additional work for full 
 
 **Priority:** Medium
 **Estimated effort:** 8-12 hours
-**RFC:** [RFC 7986](https://www.rfc-editor.org/rfc/rfc7986)
+**RFC:** [RFC 7986](https://datatracker.ietf.org/doc/html/rfc7986)
 
 **Tasks:**
 - [ ] Support calendar-level properties: `NAME`, `DESCRIPTION`, `COLOR`, `REFRESH-INTERVAL`, `SOURCE`
@@ -148,7 +148,7 @@ The v3.2 roadmap covers basic scheduling improvements. Additional work for full 
 
 **Priority:** Low
 **Estimated effort:** 24-32 hours
-**RFC:** [RFC 8607](https://www.rfc-editor.org/rfc/rfc8607)
+**RFC:** [RFC 8607](https://datatracker.ietf.org/doc/html/rfc8607)
 
 **Tasks:**
 - [ ] Detect server support for `calendar-managed-attachments`
@@ -181,7 +181,7 @@ Note: This is a draft standard but widely implemented by major servers.
 
 **Priority:** Low
 **Estimated effort:** 4-8 hours
-**RFC:** [RFC 5689](https://www.rfc-editor.org/rfc/rfc5689)
+**RFC:** [RFC 5689](https://datatracker.ietf.org/doc/html/rfc5689)
 
 **Tasks:**
 - [ ] Support extended MKCOL as alternative to MKCALENDAR
@@ -194,7 +194,7 @@ Note: This is a draft standard but widely implemented by major servers.
 
 **Priority:** Low
 **Estimated effort:** 4-8 hours
-**RFC:** [RFC 4331](https://www.rfc-editor.org/rfc/rfc4331)
+**RFC:** [RFC 4331](https://datatracker.ietf.org/doc/html/rfc4331)
 
 **Tasks:**
 - [ ] Add `calendar.get_quota()` method
@@ -270,7 +270,7 @@ Note: This is a draft standard but widely implemented by major servers.
 **Priority:** Medium
 **Estimated effort:** 16-24 hours
 **Related issue:** #571
-**RFC:** [RFC 6764 Section 8](https://www.rfc-editor.org/rfc/rfc6764#section-8)
+**RFC:** [RFC 6764 Section 8](https://datatracker.ietf.org/doc/html/rfc6764#section-8)
 
 **Tasks:**
 - [ ] Add optional DNSSEC validation for SRV/TXT lookups
@@ -301,7 +301,7 @@ Note: This is a draft standard but widely implemented by major servers.
 
 **Priority:** Low
 **Estimated effort:** 16-24 hours
-**RFC:** [RFC 7265](https://www.rfc-editor.org/rfc/rfc7265)
+**RFC:** [RFC 7265](https://datatracker.ietf.org/doc/html/rfc7265)
 
 **Tasks:**
 - [ ] Accept `application/calendar+json` responses
@@ -314,7 +314,7 @@ Note: This is a draft standard but widely implemented by major servers.
 
 **Priority:** Low
 **Estimated effort:** 16-24 hours
-**RFC:** [RFC 6321](https://www.rfc-editor.org/rfc/rfc6321)
+**RFC:** [RFC 6321](https://datatracker.ietf.org/doc/html/rfc6321)
 
 **Tasks:**
 - [ ] Accept `application/calendar+xml` responses
@@ -488,23 +488,23 @@ Based on the roadmap, suggested version milestones after v3.2:
 ## References
 
 ### Core Standards
-- [RFC 4791 - CalDAV](https://www.rfc-editor.org/rfc/rfc4791)
-- [RFC 6638 - CalDAV Scheduling](https://www.rfc-editor.org/rfc/rfc6638)
-- [RFC 4918 - WebDAV](https://www.rfc-editor.org/rfc/rfc4918)
-- [RFC 3744 - WebDAV ACL](https://www.rfc-editor.org/rfc/rfc3744)
-- [RFC 5545 - iCalendar](https://www.rfc-editor.org/rfc/rfc5545)
+- [RFC 4791 - CalDAV](https://datatracker.ietf.org/doc/html/rfc4791)
+- [RFC 6638 - CalDAV Scheduling](https://datatracker.ietf.org/doc/html/rfc6638)
+- [RFC 4918 - WebDAV](https://datatracker.ietf.org/doc/html/rfc4918)
+- [RFC 3744 - WebDAV ACL](https://datatracker.ietf.org/doc/html/rfc3744)
+- [RFC 5545 - iCalendar](https://datatracker.ietf.org/doc/html/rfc5545)
 
 ### Extensions
-- [RFC 6764 - Service Discovery](https://www.rfc-editor.org/rfc/rfc6764)
-- [RFC 6578 - WebDAV Sync](https://www.rfc-editor.org/rfc/rfc6578)
-- [RFC 7953 - Calendar Availability](https://www.rfc-editor.org/rfc/rfc7953)
-- [RFC 7986 - New iCalendar Properties](https://www.rfc-editor.org/rfc/rfc7986)
-- [RFC 8607 - Managed Attachments](https://www.rfc-editor.org/rfc/rfc8607)
+- [RFC 6764 - Service Discovery](https://datatracker.ietf.org/doc/html/rfc6764)
+- [RFC 6578 - WebDAV Sync](https://datatracker.ietf.org/doc/html/rfc6578)
+- [RFC 7953 - Calendar Availability](https://datatracker.ietf.org/doc/html/rfc7953)
+- [RFC 7986 - New iCalendar Properties](https://datatracker.ietf.org/doc/html/rfc7986)
+- [RFC 8607 - Managed Attachments](https://datatracker.ietf.org/doc/html/rfc8607)
 
 ### Related
-- [RFC 5546 - iTIP](https://www.rfc-editor.org/rfc/rfc5546)
-- [RFC 6321 - xCal](https://www.rfc-editor.org/rfc/rfc6321)
-- [RFC 7265 - jCal](https://www.rfc-editor.org/rfc/rfc7265)
+- [RFC 5546 - iTIP](https://datatracker.ietf.org/doc/html/rfc5546)
+- [RFC 6321 - xCal](https://datatracker.ietf.org/doc/html/rfc6321)
+- [RFC 7265 - jCal](https://datatracker.ietf.org/doc/html/rfc7265)
 - [CalConnect Developer Guide](https://devguide.calconnect.org/)
 
 ---
