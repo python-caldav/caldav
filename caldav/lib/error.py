@@ -34,6 +34,40 @@ def errmsg(r) -> str:
     return "%s %s\n\n%s" % (r.status, r.reason, r.raw)
 
 
+def _dump_communication(method: str, url: str, combined_headers: dict, body, response) -> None:
+    """Write a request/response exchange to a uniquely-named temp file.
+
+    Called when ``debug_dump_communication`` is truthy.  Works for both the
+    sync and async code paths because it only depends on the attributes that
+    ``BaseDAVResponse`` exposes: ``.status``, ``.reason``, ``.headers``,
+    ``.tree``, and ``._raw``.
+    """
+    import datetime
+    from tempfile import NamedTemporaryFile
+
+    from lxml import etree
+
+    from caldav.lib.python_utilities import to_wire
+
+    with NamedTemporaryFile(prefix="caldavcomm", delete=False) as commlog:
+        commlog.write(b"=" * 80 + b"\n")
+        commlog.write(f"{datetime.datetime.now():%FT%H:%M:%S}".encode())
+        commlog.write(b"\n====>\n")
+        commlog.write(f"{method} {url}\n".encode())
+        commlog.write(b"\n".join(to_wire(f"{k}: {v}") for k, v in combined_headers.items()))
+        commlog.write(b"\n\n")
+        commlog.write(to_wire(body) or b"")
+        commlog.write(b"\n<====\n")
+        commlog.write(f"{response.status} {response.reason}\n".encode())
+        commlog.write(b"\n".join(to_wire(f"{k}: {v}") for k, v in response.headers.items()))
+        commlog.write(b"\n\n")
+        if response.tree is not None:
+            commlog.write(to_wire(etree.tostring(response.tree, pretty_print=True)))
+        else:
+            commlog.write(to_wire(response._raw) or b"")
+        commlog.write(b"\n")
+
+
 def weirdness(*reasons):
     from caldav.lib.debug import xmlstring
 

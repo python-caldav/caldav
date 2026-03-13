@@ -527,6 +527,9 @@ class AsyncDAVClient(BaseDAVClient):
         if response.status in (401, 403):
             self._raise_authorization_error(str(url_obj), response)
 
+        if error.debug_dump_communication:
+            error._dump_communication(method, url, combined_headers, body, response)
+
         return response
 
     # ==================== HTTP Method Wrappers ====================
