@@ -17,6 +17,7 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 ### Fixed
 
 * Communication dump (`PYTHON_CALDAV_COMMDUMP` / `debug_dump_communication`) was accidentally dropped during the v3.0 refactor.  Restored, with the dump logic extracted into a shared helper so both the sync and async code paths benefit.  Fixes https://github.com/python-caldav/caldav/issues/638
+* `search()` raised `NotImplementedError` when a full calendar-query XML was passed and the server does not support `search.comp-type.optional` (e.g. DavMail).  Falls back to a single REPORT with the XML as-is.  Fixes https://github.com/python-caldav/caldav/issues/637
 
 ### Documentation
 

@@ -688,9 +688,12 @@ class CalDAVSearcher(Searcher):
         Internal method - does three searches, one for each comp class (event, journal, todo).
         """
         if xml and (isinstance(xml, str) or "calendar-query" in xml.tag):
-            raise NotImplementedError(
-                "full xml given, and it has to be patched to include comp_type"
-            )
+            # Full XML provided – cannot inject a comp-type filter into it.
+            # Fall back to a single REPORT request with the XML as-is; the
+            # server is expected to return whatever comp-types the query
+            # matches, and comp_class detection falls back to auto-detect.
+            _, objects = calendar._request_report_build_resultlist(xml, None, props)
+            return self.sort(objects)
         objects = []
 
         assert self.event is None and self.todo is None and self.journal is None
@@ -769,9 +772,10 @@ class CalDAVSearcher(Searcher):
         Internal async method - does three searches, one for each comp class.
         """
         if xml and (isinstance(xml, str) or "calendar-query" in xml.tag):
-            raise NotImplementedError(
-                "full xml given, and it has to be patched to include comp_type"
-            )
+            # Full XML provided – cannot inject a comp-type filter into it.
+            # Fall back to a single REPORT request with the XML as-is.
+            _, objects = await calendar._request_report_build_resultlist(xml, None, props)
+            return self.sort(objects)
         objects: list[AsyncCalendarObjectResource] = []
 
         assert self.event is None and self.todo is None and self.journal is None
