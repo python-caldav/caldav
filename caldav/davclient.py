@@ -936,6 +936,10 @@ class DAVClient(BaseDAVClient):
             self._raise_authorization_error(str(url_obj), r)
 
         response = DAVResponse(r, self)
+
+        if error.debug_dump_communication:
+            error._dump_communication(method, url, combined_headers, body, response)
+
         return response
 
 
