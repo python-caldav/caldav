@@ -195,6 +195,9 @@ class FeatureSet:
         "search.is-not-defined.dtend": { ## TODO: this should most likely be removed - it was a client bug fixed in icalendar-search 1.0.5, not a server error. (Discovered in the last minute before releasing caldav v3.0.0 - I won't touch it now)
             "description": "Supports searching for objects where the DTEND property is not defined (RFC4791 section 9.7.4). Some servers support is-not-defined for some properties but not DTEND"
         },
+        "search.is-not-defined.class": {
+            "description": "Supports searching for objects where the CLASS property is not defined (RFC4791 section 9.7.4). Some servers support is-not-defined for CLASS but not for other properties like CATEGORIES"
+        },
         "search.text": {
             "description": "Search for text attributes should work"
         },
