@@ -829,3 +829,41 @@ class TestCalDAVSearcherIsNotDefined:
         # Only the recurring event without DTEND should be returned
         assert len(result) == 1
         assert result[0].icalendar_component.get("DTEND") is None
+
+
+class TestSearchWithCompTypesFullXML:
+    """Regression tests for issue #637.
+
+    When search() is called with a full calendar-query XML and the server does
+    not support search.comp-type.optional, the code used to raise
+    NotImplementedError.  It should instead do a single REPORT request with
+    the XML as-is.
+    """
+
+    def test_search_full_xml_string_no_comp_type_optional(
+        self, mock_client: DAVClient, mock_url: str
+    ) -> None:
+        """Passing a full XML string to search() must not raise NotImplementedError
+        when the server does not support search.comp-type.optional."""
+
+        def mock_is_supported(feat, type_=bool):
+            if feat == "search.comp-type.optional":
+                return False
+            if type_ == str:
+                return "full"
+            return True
+
+        mock_client.features.is_supported = mock.Mock(side_effect=mock_is_supported)
+        mock_client.features.backward_compatibility_mode = False
+
+        event = Event(client=mock_client, url=mock_url, data=SIMPLE_EVENT)
+        calendar = mock.Mock()
+        calendar.client = mock_client
+        calendar._request_report_build_resultlist.return_value = (mock.Mock(), [event])
+
+        full_xml = "<C:calendar-query xmlns:C='urn:ietf:params:xml:ns:caldav'/>"
+        searcher = CalDAVSearcher()
+        result = searcher.search(calendar, xml=full_xml)
+
+        assert result == [event]
+        calendar._request_report_build_resultlist.assert_called_once_with(full_xml, None, None)
