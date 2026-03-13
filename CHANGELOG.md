@@ -14,6 +14,10 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 
 ## [Unreleased]
 
+### Fixed
+
+* Communication dump (`PYTHON_CALDAV_COMMDUMP` / `debug_dump_communication`) was accidentally dropped during the v3.0 refactor.  Restored, with the dump logic extracted into a shared helper so both the sync and async code paths benefit.  Fixes https://github.com/python-caldav/caldav/issues/638
+
 ### Documentation
 
 I've decided to try to stick to the conventionalcommits standard.  This is documented in CONTRIBUTING.md.  We'll see how many days it takes before I forget about it ...

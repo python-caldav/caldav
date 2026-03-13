@@ -415,6 +415,40 @@ class TestCalDAV:
         with pytest.raises(lxml.etree.XMLSyntaxError):
             client.request("/")
 
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def testCommunicationDump(self, mocked):
+        """
+        ref https://github.com/python-caldav/caldav/issues/638
+        When PYTHON_CALDAV_COMMDUMP (or debug_dump_communication) is set,
+        request/response data should be written to a temp file.
+        """
+        import glob
+        import os
+        import tempfile
+
+        mocked().status_code = 200
+        mocked().headers = {"Content-Type": "text/plain"}
+        mocked().content = b""
+        mocked().reason = "OK"
+        mocked().reason_phrase = None
+
+        from caldav.lib import error as caldav_error
+
+        old_value = caldav_error.debug_dump_communication
+        caldav_error.debug_dump_communication = True
+        try:
+            client = DAVClient(url="http://test.example.com/")
+            before = set(glob.glob(os.path.join(tempfile.gettempdir(), "caldavcomm*")))
+            client.request("/")
+            after = set(glob.glob(os.path.join(tempfile.gettempdir(), "caldavcomm*")))
+            new_files = after - before
+            assert len(new_files) == 1
+            content = open(list(new_files)[0], "rb").read()
+            assert b"GET /" in content
+            assert b"200 OK" in content
+        finally:
+            caldav_error.debug_dump_communication = old_value
+
     def testPathWithEscapedCharacters(self):
         xml = b"""<D:multistatus xmlns:D="DAV:" xmlns:caldav="urn:ietf:params:xml:ns:caldav" xmlns:cs="http://calendarserver.org/ns/" xmlns:ical="http://apple.com/ns/ical/">
   <D:response xmlns:carddav="urn:ietf:params:xml:ns:carddav" xmlns:cm="http://cal.me.com/_namespace/" xmlns:md="urn:mobileme:davservices">
