@@ -12,6 +12,12 @@ Changelogs prior to v2.0 is pruned, but was available in the v2.x releases
 
 This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html), though for pre-releases PEP 440 takes precedence.
 
+## [Unreleased]
+
+### Documentation
+
+I've decided to try to stick to the conventionalcommits standard.  This is documented in CONTRIBUTING.md.  We'll see how many days it takes before I forget about it ...
+
 ## [3.0.1] - 2026-03-04
 
 Highlights:
@@ -42,6 +48,10 @@ Highlights:
 ### Potentially Breaking Changes
 
 * The compatibility-hint key `search.comp-type-optional` has been renamed to `search.comp-type.optional` for consistency with the dotted-key naming convention used elsewhere.  If you have this key set in a local server configuration, update it accordingly.
+
+### Documentation
+
+Some minor improvements, including a fix for https://github.com/python-caldav/caldav/issues/635 - use canonical RFC-links.
 
 ## [3.0.0] - 2026-03-03
 
