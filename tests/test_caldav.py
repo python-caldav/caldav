@@ -1272,10 +1272,13 @@ END:VCALENDAR
             ## Calendar.new() is supported from icalendar 7, which is yet to be released as of 2025-09
             pytest.skip("Newer icalendar version required")
 
+        ## Use a near-future date so servers with a "sliding window" (e.g. OX) can find the event
+        start = datetime.now() + timedelta(days=30)
+        end = start + timedelta(hours=1)
         icalevent = icalendar.Event.new(
             uid="ctuid1",
-            start=datetime(2015, 10, 10, 8, 7, 6),
-            end=datetime(2015, 10, 10, 9, 7, 6),
+            start=start,
+            end=end,
             summary="This is a test event",
         )
         icalcal.add_component(icalevent)
