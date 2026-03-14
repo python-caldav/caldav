@@ -19,5 +19,5 @@ repos:
     hooks:
       - id: lychee
         args: ["--no-progress", "--timeout", "10"]
-        types: [markdown, rst]
-        stages: [manual]  # Run with: pre-commit run lychee --hook-stage manual
+        #types: [markdown, rst]
+        stages: [pre-push]

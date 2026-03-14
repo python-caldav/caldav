@@ -78,7 +78,7 @@ class FeatureSet:
             }
         },
         "get-current-user-principal": {
-            "description": "Support for RFC5397, current principal extension.  Most CalDAV servers have this, but it is an extension to the DAV standard"},
+            "description": "Support for RFC5397, current principal extension.  Most CalDAV servers have this, but it is an extension to the DAV standard.  Possibly observed missing on mail.ru,DavMail gateway and it is possible to configure the support in some sabre-based servers"},
         "get-current-user-principal.has-calendar": {
             "type": "server-observation",
             "description": "Principal has one or more calendars.  Some servers and providers comes with a pre-defined calendar for each user, for other servers a calendar has to be explicitly created (supported means there exists a calendar - it may be because the calendar was already provisioned together with the principal, or it may be because a calendar was created manually, the checks can't see the difference)"},
@@ -194,6 +194,9 @@ class FeatureSet:
         },
         "search.is-not-defined.dtend": { ## TODO: this should most likely be removed - it was a client bug fixed in icalendar-search 1.0.5, not a server error. (Discovered in the last minute before releasing caldav v3.0.0 - I won't touch it now)
             "description": "Supports searching for objects where the DTEND property is not defined (RFC4791 section 9.7.4). Some servers support is-not-defined for some properties but not DTEND"
+        },
+        "search.is-not-defined.class": {
+            "description": "Supports searching for objects where the CLASS property is not defined (RFC4791 section 9.7.4). Some servers support is-not-defined for CLASS but not for other properties like CATEGORIES"
         },
         "search.text": {
             "description": "Search for text attributes should work"
@@ -704,9 +707,6 @@ class FeatureSet:
 ## * Perhaps some more readable format should be considered (yaml?).
 ## * Consider how to get this into the documentation
 incompatibility_description = {
-    'no_current-user-principal':
-        """Current user principal not supported by the server (flag is ignored by the tests as for now - pass the principal URL as the testing URL and it will work, albeit with one warning""",
-
     'no_scheduling':
         """RFC6833 is not supported""",
 

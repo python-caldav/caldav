@@ -12,6 +12,17 @@ Changelogs prior to v2.0 is pruned, but was available in the v2.x releases
 
 This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html), though for pre-releases PEP 440 takes precedence.
 
+## [Unreleased]
+
+### Fixed
+
+* Communication dump (`PYTHON_CALDAV_COMMDUMP` / `debug_dump_communication`) was accidentally dropped during the v3.0 refactor.  Restored, with the dump logic extracted into a shared helper so both the sync and async code paths benefit.  Fixes https://github.com/python-caldav/caldav/issues/638
+* `search()` raised `NotImplementedError` when a full calendar-query XML was passed and the server does not support `search.comp-type.optional` (e.g. DavMail).  Falls back to a single REPORT with the XML as-is.  Fixes https://github.com/python-caldav/caldav/issues/637
+
+### Documentation
+
+I've decided to try to stick to the conventionalcommits standard.  This is documented in CONTRIBUTING.md.  We'll see how many days it takes before I forget about it ...
+
 ## [3.0.1] - 2026-03-04
 
 Highlights:
@@ -42,6 +53,10 @@ Highlights:
 ### Potentially Breaking Changes
 
 * The compatibility-hint key `search.comp-type-optional` has been renamed to `search.comp-type.optional` for consistency with the dotted-key naming convention used elsewhere.  If you have this key set in a local server configuration, update it accordingly.
+
+### Documentation
+
+Some minor improvements, including a fix for https://github.com/python-caldav/caldav/issues/635 - use canonical RFC-links.
 
 ## [3.0.0] - 2026-03-03
 
