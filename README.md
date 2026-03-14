@@ -1,6 +1,6 @@
 # caldav
 
-This project is a CalDAV ([RFC4791](http://www.ietf.org/rfc/rfc4791.txt)) client library for Python.
+This project is a CalDAV ([RFC4791](https://www.ietf.org/rfc/rfc4791.txt)) client library for Python.
 
 Features:
 
