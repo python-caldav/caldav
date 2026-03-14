@@ -4,6 +4,7 @@ https?://.*\.example\.com/.*
 
 # Localhost URLs for test servers (not accessible in CI)
 http://localhost:\d+/.*
+http://localhost/.*
 
 # CalDAV endpoints that require authentication (401/403 expected)
 https://caldav\.fastmail\.com/.*
@@ -16,5 +17,17 @@ https://webmail\.all-inkl\.com/.*
 https://www\.google\.com/calendar/dav/.*
 https://caldav-jp\.larksuite\.com/.*
 
-# Apple namespace URL (returns 404 but is a valid XML namespace reference)
+# Misc old namespace URLs, few of them works
 http://apple\.com/ns/ical/
+http://cal.me.com/_namespace/
+http://nextcloud.org/ns
+http://owncloud.org/ns
+
+
+# Other junk that was never meant to be followed
+# lychee converts unknown schemes to file:// URLs before matching ignore patterns
+file://.*/scheme:.*
+/17149682/.*
+http://x/
+https://ecloud\.global/remote\.php/.*
+https://tobixen@e\.email/remote\.php/dav

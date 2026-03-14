@@ -25,7 +25,7 @@ The `compatibility_hints.py` has been moved from the test directory to the codeb
 
 This is not set in stone.  If you feel strongly for using something else, use something else in the commit message and update this file in the same commit.
 
-"Imperative mood" is to be used in commit messages.
+"Imperative presens" or "imperative mood" is to be used in commit messages.
 
 The boundaries of breaking changes vs "non-breaking" changes [may be blurry](https://xkcd.com/1172/). In the CHANGELOG I've used the concept "potentially breaking changes" for things that most likely won't break anything for anyone.  Potentially breaking changes should be marked with `!` in the commit header.  Breaking changes should be marked both with `!` and `BREAKING CHANGE:`
 
@@ -62,11 +62,9 @@ Consider this procedures to be a more of a guideline than a rigid procedure.  Us
 
 * Write up your changes
 
-* Run `pytest` for a quick run of the tests.  They should still pass.
+* Run `pytest`.  The tests should still pass.  (Beware: tests may take very long time to run and may consume a lot of memory and disk space if the tests have the permissions to start docker containers).
 
-* Run `tox -e style` to verify a consistent code style (this may modify your code).
-
-* Consider to write some lines in the documentation and/or examples covering your change
+* Consider to write some lines in the documentation, changelog and/or examples covering your change
 
 * Add an entry in the `CHANGELOG.md` file.
 

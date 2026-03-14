@@ -855,16 +855,23 @@ xandikos_v0_2_12 = {
     ]
 }
 
-xandikos_v0_3 = {
+xandikos = {
+    ## We've sometimes been observing internal server errors on freebusy-requests.
+    ## Should do more research on it next time it shows up.
+
+    ## Component type filtering is required - searches must specify event=True or todo=True
+    "search.comp-type.optional": "unsupported",
+
+    ## Principal property search returns 403 (not implemented)
+    "principal-search": "ungraceful",
+
+    ## Server-side recurrence expansion is buggy for tasks and event exceptions
+    "search.recurrences.expanded.todo": "unsupported",
+    "search.recurrences.expanded.exception": "unsupported",
+
     ## this only applies for very simple installations
     "auto-connect.url": {"domain": "localhost", "scheme": "http", "basepath": "/"},
-    'search.comp-type.optional': {'support': 'unsupported'},
-    ## This suddenly disappeared.  Should probably look more into the checks ...
-    #"search.recurrences.includes-implicit.todo.pending": {"support": "unsupported"},
-    'search.recurrences.expanded.todo': {'support': 'unsupported'},
-    'search.recurrences.expanded.exception': {'support': 'unsupported'},
-    'principal-search': {'support': 'ungraceful'},
-    'freebusy-query.rfc4791': {'support': 'ungraceful', 'behaviour': '500 internal server error'},
+
     "old_flags":  [
     ## https://github.com/jelmer/xandikos/issues/8
     'date_todo_search_ignores_duration',
@@ -872,24 +879,8 @@ xandikos_v0_3 = {
 
     ## scheduling is not supported
     "no_scheduling",
-
-    ## The test with an rrule and an overridden event passes as
-    ## long as it's with timestamps.  With dates, xandikos gets
-    ## into troubles.  I've chosen to edit the test to use timestamp
-    ## rather than date, just to have the test exercised ... but we
-    ## should report this upstream
-    #'broken_expand_on_exceptions',
-
     ]
 }
-
-xandikos_main = xandikos_v0_3.copy()
-## woot ... a regression?
-## xandikos did support freebusy-query.rfc4791 for a while, now it trips on a traceback
-## TODO: do research into this and report
-#xandikos_main.pop('freebusy-query.rfc4791')
-
-xandikos = xandikos_main
 
 ## This seems to work as of version 3.5.4 of Radicale.
 ## There is much development going on at Radicale as of summar 2025,
@@ -928,6 +919,7 @@ nextcloud = {
     'search.comp-type.optional': {'support': 'ungraceful'},
     'search.recurrences.expanded.todo': {'support': 'unsupported'},
     'search.recurrences.expanded.exception': {'support': 'unsupported'}, ## TODO: verify
+    "search.recurrences.includes-implicit.infinite-scope": False,
     'delete-calendar': {
         'support': 'fragile',
         'behaviour': 'Deleting a recently created calendar fails'},
@@ -979,6 +971,7 @@ zimbra = {
     'sync-token': {'support': 'fragile'},
     'search.is-not-defined': {'support': 'unsupported'},
     'search.text': {'support': 'unsupported'},
+    "search.recurrences.includes-implicit.infinite-scope": False,
     # sometimes throws a 500
     'search.text.category': {'support': 'ungraceful'},
     'search.recurrences.expanded.todo': { "support": "unsupported" },
@@ -1011,60 +1004,35 @@ zimbra = {
 }
 
 bedework = {
-    'search.comp-type': {'support': 'broken', 'behaviour': 'Server returns everything when searching for events and nothing when searching for todos'},
-    'search.comp-type.optional': {'support': 'ungraceful'},
-    #'search.time-range.event': {'support': 'unsupported'}, ## TODO: flapping??
-    #"search.combined-is-logical-and": { "support": "unsupported" },
-    ## TODO: play with this and see if it's needed
+    ## If tests are yielding unexpected results, try to increase this:
     'search-cache': {'behaviour': 'delay', 'delay': 1.5},
-    ## TODO: play with this and see if it's needed
-    'old_flags': [
-    'propfind_allprop_failure',
-    'duplicates_not_allowed',
-    ],
-    # Ephemeral Docker container: wipe objects (delete-calendar not supported)
+
     'test-calendar': {'cleanup-regime': 'wipe-calendar'},
     'auto-connect.url': {'basepath': '/ucaldav/'},
     'save-load.journal': {'support': 'ungraceful'},
     'save-load.todo.recurrences.thisandfuture': {'support': 'ungraceful'},
     'save-load.event.recurrences.exception': False,
-    ## search.time-range.alarm: not checked by the server tester
     'search.time-range.alarm': {'support': 'unsupported'},
-    ## Huh?  Non-deterministic behaviour of the checking script?
-    #"save.duplicate-uid.cross-calendar": {
-    #    "support": "unsupported",
-    #    "behaviour": "silently-ignored"
-    #},
-    "freebusy-query.rfc4791": {
-        "support": "full"
-    },
-    "search.time-range.todo": {
-        "support": "unsupported"
-    },
+    "freebusy-query.rfc4791": True,
+    "search.time-range.todo": False,
     "search.text": False, ## sometimes ungraceful
-    "search.is-not-defined": {
-        "support": "fragile"
-    },
-    "search.recurrences.includes-implicit": {
-        "support": "unsupported",
-        "behaviour": "cannot reliably test due to broken comp-type filtering"
-    },
-    "sync-token": {
-        "support": "fragile"
-    },
-    ## Check results are non-deterministic!?
-    "search.recurrences.expanded.exception": {
-        "support": "unsupported"
-    },
-    "search.recurrences.expanded.event": {
-        "support": "unsupported"
-    },
-    "search.recurrences.expanded.todo": {
-        "support": "unsupported"
-    },
-    "principal-search": {
-        "support": "ungraceful",
-    },
+    "search.recurrences.includes-implicit": False,
+    "sync-token": { "support": "fragile" },
+    "search.recurrences.expanded.exception": False,
+    "search.recurrences.expanded.event": False,
+    "search.recurrences.expanded.todo": False,
+    'search.comp-type': {'support': 'broken', 'behaviour': 'Server returns everything when searching for events and nothing when searching for todos'},
+    'search.comp-type.optional': {'support': 'ungraceful'},
+    'search.is-not-defined.dtend': False,
+    "principal-search": {  "support": "ungraceful" },
+    "search.unlimited-time-range": {"support": "broken"},
+
+    ## TODO: play with this and see if it's needed
+    'old_flags': [
+    'propfind_allprop_failure',
+    'duplicates_not_allowed',
+    ],
+
 }
 
 synology = {
@@ -1086,6 +1054,7 @@ baikal =  { ## version 0.10.1
     'search.recurrences.expanded.todo': {'support': 'unsupported'},
     'search.recurrences.expanded.exception': {'support': 'unsupported'},
     'search.recurrences.includes-implicit.todo': {'support': 'unsupported'},
+    "search.recurrences.includes-implicit.infinite-scope": False,
     'save-load.journal.mixed-calendar': {'support': 'unsupported'},
     'principal-search': {'support': 'ungraceful'},
     'principal-search.by-name.self': {'support': 'unsupported'},
@@ -1109,6 +1078,7 @@ baikal_old = baikal | {
 cyrus = {
     "search.comp-type.optional": {"support": "ungraceful"},
     "search.recurrences.expanded.exception": {"support": "unsupported"},
+    "search.recurrences.includes-implicit.infinite-scope": False,
     "search.time-range.alarm": {"support": "ungraceful"},
     'principal-search': {'support': 'ungraceful'},
     # Cyrus enforces unique UIDs across all calendars for a user
@@ -1322,6 +1292,7 @@ davis = {
     "search.recurrences.expanded.todo": {"support": "unsupported"},
     "search.recurrences.expanded.exception": {"support": "unsupported"},
     "search.recurrences.includes-implicit.todo": {"support": "unsupported"},
+    "search.recurrences.includes-implicit.infinite-scope": False,
     "principal-search.by-name.self": {"support": "unsupported"},
     "principal-search": {"support": "ungraceful"},
     "save-load.journal.mixed-calendar": {"support": "unsupported"},
