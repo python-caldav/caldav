@@ -2362,9 +2362,8 @@ END:VCALENDAR
         assert len(journals) == 1
         self.skip_unless_support("search.text.by-uid")
         j1_ = c.get_journal_by_uid(j1.id)
-        j1_.get_icalendar_instance()
-        journals[0].get_icalendar_instance()
-        assert j1_.data == journals[0].data
+        ## Direct comparison handles different line folding from different fetch methods
+        assert j1_.get_icalendar_instance() == journals[0].get_icalendar_instance()
         j2 = c.add_journal(
             dtstart=date(2011, 11, 11),
             summary="A childbirth in a hospital in Kupchino",
