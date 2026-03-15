@@ -743,7 +743,7 @@ class TestCalDAVSearcherIsNotDefined:
         def mock_is_supported(feat, type_=bool):
             if feat == "search.is-not-defined.category":
                 return False
-            if type_ == str:
+            if type_ is str:
                 return "full"
             return True
 
@@ -807,7 +807,7 @@ class TestCalDAVSearcherIsNotDefined:
         def mock_is_supported(feat, type_=bool):
             if feat == "search.is-not-defined.dtend":
                 return False
-            if type_ == str:
+            if type_ is str:
                 return "full"
             return True
 
@@ -849,7 +849,7 @@ class TestSearchWithCompTypesFullXML:
         def mock_is_supported(feat, type_=bool):
             if feat == "search.comp-type.optional":
                 return False
-            if type_ == str:
+            if type_ is str:
                 return "full"
             return True
 

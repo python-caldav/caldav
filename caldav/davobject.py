@@ -6,13 +6,6 @@ from urllib.parse import ParseResult, SplitResult, quote, unquote
 
 from lxml import etree
 
-try:
-    from typing import Optional
-
-    TimeStamp = Optional[date | datetime]
-except:
-    pass
-
 if TYPE_CHECKING:
     from .davclient import DAVClient
 

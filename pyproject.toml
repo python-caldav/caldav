@@ -116,27 +116,15 @@ select = [
     "UP",   # pyupgrade (modernize code)
     "B",    # flake8-bugbear (find bugs)
 ]
+## See https://github.com/python-caldav/caldav/issues/634 for ongoing work to reduce this list
 ignore = [
     "E501",    # Line too long (formatter handles this)
     "E402",    # Module level import not at top of file (common with conditional imports)
-    "E721",    # Type comparisons (isinstance is not always better)
-    "E722",    # Bare except (TODO: fix these gradually)
-    "E731",    # Lambda assignments (sometimes clearer than def)
-    "B007",    # Unused loop variable (often intentional)
-    "B011",    # assert False (used as unreachable markers)
-    "B018",    # Useless expression (often intentional in tests)
-    "B026",    # Star-arg after keyword (legacy pattern)
-    "B028",    # stacklevel in warnings (not critical)
-    "B904",    # raise from (TODO: fix gradually)
-    "F401",    # Unused imports (many are for re-export or conditional)
-    "F403",    # Star imports (legacy, TODO: fix gradually)
-    "F821",    # Undefined names (often in TYPE_CHECKING blocks or docstrings)
-    "F841",    # Unused variables (often intentional, e.g. unpacking)
-    "UP007",   # Optional[X] vs X | None (used in try/except for backwards compat)
-    "UP008",   # super() style (existing code uses explicit form)
-    "UP031",   # %-format (existing code uses it extensively)
-    "UP036",   # Outdated version blocks (will clean up when dropping old Python)
-    "UP045",   # X | None vs Optional (both are fine)
+    "E722",    # Bare except — 28 violations, each needs case-by-case review
+    "F401",    # Unused imports — many are re-exports or conditional; needs audit
+    "F821",    # Undefined names — often in TYPE_CHECKING blocks or docstrings
+    "F841",    # Unused variables — often intentional (e.g. unpacking)
+    "UP031",   # %-format — 31 violations; ruff only offers unsafe auto-fix
 ]
 
 [tool.ruff.lint.per-file-ignores]

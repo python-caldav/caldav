@@ -351,7 +351,7 @@ class FeatureSet:
         elif value is None:
             fc = {feature: {"support": "unknown"}}
         else:
-            assert False
+            raise AssertionError
         self.copyFeatureSet(fc, collapse=False)
         feat_def = self.find_feature(feature)
         feat_type = feat_def.get('type', 'server-feature')
@@ -389,7 +389,7 @@ class FeatureSet:
                     self._validate_support_level(value['support'], feature)
                 server_node.update(value)
             else:
-                assert False
+                raise AssertionError
         if collapse:
             self.collapse()
 
@@ -598,12 +598,12 @@ class FeatureSet:
         hierarchical dict, hence the naming of the method.  I
         considered it too complicated though)
         """
-        if return_type == str:
+        if return_type is str:
             ## TODO: consider feature_info['type'], be smarter about it
             return node.get('support', node.get('enable', node.get('behaviour')))
-        elif return_type == dict:
+        elif return_type is dict:
             return node
-        elif return_type == bool:
+        elif return_type is bool:
             ## TODO: consider feature_info['type'], be smarter about this
             support = node.get('support', 'full')
             if support == 'quirk':
@@ -616,7 +616,7 @@ class FeatureSet:
                 ## TODO: this may be improved
                 return not node.get('enable') and not node.get('behaviour') and not node.get('observed')
         else:
-            assert False
+            raise AssertionError
 
     @classmethod
     def find_feature(cls, feature: str) -> dict:

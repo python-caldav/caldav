@@ -108,7 +108,9 @@ def read_config(fn, interactive_error=False):
                     # Re-raise YAML errors so they can be handled by caller
                     raise ValueError(f"config file {fn} is neither valid JSON nor YAML: {e}") from e
             except ImportError:
-                raise ValueError(f"config file {fn} is not valid JSON, and pyyaml is not installed")
+                raise ValueError(
+                    f"config file {fn} is not valid JSON, and pyyaml is not installed"
+                ) from None
 
     except FileNotFoundError:
         ## File not found

@@ -17,19 +17,12 @@ import uuid
 import warnings
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any, ClassVar, Optional
 from urllib.parse import ParseResult, SplitResult
 
 import icalendar
 from dateutil.rrule import rrulestr
 from icalendar import vCalAddress, vText
-
-try:
-    from typing import ClassVar, Optional
-
-    TimeStamp = Optional[date | datetime]
-except:
-    pass
 
 if TYPE_CHECKING:
     from icalendar import vCalAddress
@@ -142,9 +135,7 @@ class CalendarObjectResource(DAVObject):
         CalendarObjectResource has an additional parameter for its constructor:
          * data = "...", vCal data for the event
         """
-        super(CalendarObjectResource, self).__init__(
-            client=client, url=url, parent=parent, id=id, props=props
-        )
+        super().__init__(client=client, url=url, parent=parent, id=id, props=props)
         if data is not None:
             self.data = data
             if id and self._get_component_type_cheap():
@@ -871,9 +862,9 @@ class CalendarObjectResource(DAVObject):
                 except ImportError:
                     retry_on_failure = False
             if retry_on_failure:
-                ## This looks like a noop, but the object may be "cleaned".
+                ## Accessing vobject_instance may "clean" the object.
                 ## See https://github.com/python-caldav/caldav/issues/43
-                self.vobject_instance
+                self.get_vobject_instance()
                 return self._put(False)
             else:
                 raise error.PutError(errmsg(r))
@@ -895,7 +886,7 @@ class CalendarObjectResource(DAVObject):
                 except ImportError:
                     retry_on_failure = False
             if retry_on_failure:
-                self.vobject_instance
+                self.get_vobject_instance()
                 return await self._async_put(False)
             else:
                 raise error.PutError(errmsg(r))
@@ -950,7 +941,10 @@ class CalendarObjectResource(DAVObject):
         attendee_lines = ical_obj["attendee"]
         if isinstance(attendee_lines, str):
             attendee_lines = [attendee_lines]
-        strip_mailto = lambda x: str(x).lower().replace("mailto:", "")
+
+        def strip_mailto(x):
+            return str(x).lower().replace("mailto:", "")
+
         for attendee_line in attendee_lines:
             if strip_mailto(attendee_line) == strip_mailto(attendee):
                 attendee_line.params.update(kwargs)
@@ -1855,7 +1849,7 @@ class Todo(CalendarObjectResource):
         if i.get("STATUS", "NEEDS-ACTION") in ("CANCELLED", "COMPLETED"):
             return False
         ## input data does not conform to the RFC
-        assert False
+        raise AssertionError
 
     def uncomplete(self) -> None:
         """Undo completion - marks a completed task as not completed"""

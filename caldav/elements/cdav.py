@@ -88,7 +88,7 @@ class TextMatch(ValuedBaseElement):
     tag: ClassVar[str] = ns("C", "text-match")
 
     def __init__(self, value, collation: str = "i;octet", negate: bool = False) -> None:
-        super(TextMatch, self).__init__(value=value)
+        super().__init__(value=value)
 
         if self.attributes is None:
             raise ValueError("Unexpected value None for self.attributes")
@@ -104,7 +104,7 @@ class TimeRange(BaseElement):
     def __init__(self, start: datetime | None = None, end: datetime | None = None) -> None:
         ## start and end should be an icalendar "date with UTC time",
         ## ref https://datatracker.ietf.org/doc/html/rfc4791#section-9.9
-        super(TimeRange, self).__init__()
+        super().__init__()
 
         if self.attributes is None:
             raise ValueError("Unexpected value None for self.attributes")
@@ -128,7 +128,7 @@ class Expand(BaseElement):
     tag: ClassVar[str] = ns("C", "expand")
 
     def __init__(self, start: datetime | None, end: datetime | None = None) -> None:
-        super(Expand, self).__init__()
+        super().__init__()
 
         if self.attributes is None:
             raise ValueError("Unexpected value None for self.attributes")

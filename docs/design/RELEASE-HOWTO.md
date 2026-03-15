@@ -4,6 +4,8 @@
 
 I have no clue on the proper procedures for doing releases, and I keep on doing clumsy mistakes - hence the need for this document.  Anyway, perhaps there are better ways of doing releases?  Feel free to shout out (or write up a pull-request).  (Indeed - in all other projects now I'm just tagging a release and then magic happens through CI pipelines.  I should consider the same for the caldav library)
 
+(And no - we cannot do auto-releases of CalDAV.  Every release has to be well-tested, some of the tests needs my private configuration with passwords and usernames for various caldav servers, and some of the docker containers included are sluggish, full test runs takes very long time).
+
 ## Checklist
 
 * Go through changes since last release and compare it with the `CHANGELOG.md`.  Any change should be logged.
