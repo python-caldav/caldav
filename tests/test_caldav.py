@@ -872,8 +872,6 @@ class RepeatedFunctionalTestsBaseClass:
         except:
             pass
 
-    ## TODO: Why do we have more logic here than in fixture_helpers.py?
-    ## TODO: perhaps a decorator is a better pattern than a wrapper?
     def _fixCalendar(self, **kwargs):
         cal = self._fixCalendar_(**kwargs)
         if self.cleanup_regime == "wipe-calendar":
