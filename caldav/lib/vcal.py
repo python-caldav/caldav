@@ -106,7 +106,10 @@ def fix(event):
         ## two (2, 4, 8, 16, 32, 64, etc).
         global fixup_error_loggings
         fixup_error_loggings += 1
-        is_power_of_two = lambda n: not (n & (n - 1))
+
+        def is_power_of_two(n):
+            return not (n & (n - 1))
+
         logger = logging.getLogger("caldav")
         if is_power_of_two(fixup_error_loggings):
             log = logger.warning

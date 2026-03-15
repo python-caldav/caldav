@@ -1148,11 +1148,11 @@ END:VCALENDAR
         assert isinstance(my_event.data, str)
         assert isinstance(my_event.wire_data, bytestr)
         ## this may have side effects, as it converts the internal storage
-        my_event.icalendar_instance
+        my_event.get_icalendar_instance()
         assert isinstance(my_event.data, str)
         assert isinstance(my_event.wire_data, bytestr)
         ## this may have side effects, as it converts the internal storage
-        my_event.vobject_instance
+        my_event.get_vobject_instance()
         assert isinstance(my_event.data, str)
         assert isinstance(my_event.wire_data, bytestr)
         my_event.wire_data = to_wire(ev1)

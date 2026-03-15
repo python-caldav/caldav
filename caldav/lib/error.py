@@ -186,7 +186,7 @@ class RateLimitError(DAVError):
         self.retry_after_seconds = retry_after_seconds
 
 
-def parse_retry_after(retry_after_header: str) -> Optional[float]:
+def parse_retry_after(retry_after_header: str) -> float | None:
     """Parse a Retry-After header value into seconds from now.
 
     Handles both the integer-seconds form (RFC 7231 §7.1.3) and the HTTP-date
@@ -205,10 +205,10 @@ def parse_retry_after(retry_after_header: str) -> Optional[float]:
 
 
 def compute_sleep_seconds(
-    retry_after_seconds: Optional[float],
-    default_sleep: Optional[int],
-    max_sleep: Optional[int],
-) -> Optional[float]:
+    retry_after_seconds: float | None,
+    default_sleep: int | None,
+    max_sleep: int | None,
+) -> float | None:
     """Compute the effective sleep duration for rate-limit handling.
 
     Returns None when there is no usable duration (meaning the caller should
@@ -222,7 +222,7 @@ def compute_sleep_seconds(
         max_sleep: Hard cap on sleep duration.  None means no cap; 0 means
             never sleep.
     """
-    effective: Optional[float] = (
+    effective: float | None = (
         retry_after_seconds
         if retry_after_seconds is not None
         else (float(default_sleep) if default_sleep is not None else None)
@@ -239,7 +239,7 @@ def compute_sleep_seconds(
 def raise_if_rate_limited(
     status_code: int,
     url: str,
-    retry_after_header: Optional[str],
+    retry_after_header: str | None,
 ) -> None:
     """Raise RateLimitError when the response indicates rate limiting.
 

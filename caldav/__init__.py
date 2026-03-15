@@ -20,7 +20,8 @@ except ModuleNotFoundError:
 
     warnings.warn(
         "You need to install the `build` package and do a `python -m build` "
-        "to get caldav.__version__ set correctly"
+        "to get caldav.__version__ set correctly",
+        stacklevel=2,
     )
 
 # Silence notification of no default logging handler

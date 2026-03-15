@@ -20,13 +20,6 @@ from urllib.parse import ParseResult, SplitResult, quote, unquote
 
 import icalendar
 
-try:
-    from typing import Optional
-
-    TimeStamp = Optional[date | datetime]
-except:
-    pass
-
 if TYPE_CHECKING:
     from icalendar import vCalAddress
 
@@ -252,7 +245,7 @@ class Principal(DAVObject):
         """
         self._calendar_home_set = calendar_home_set
 
-        super(Principal, self).__init__(client=client, url=url, **kwargs)
+        super().__init__(client=client, url=url, **kwargs)
         if url is None:
             if self.client is None:
                 raise ValueError("Unexpected value None for self.client")
@@ -1819,7 +1812,7 @@ class ScheduleMailbox(Calendar):
         """
         Will locate the mbox if no url is given
         """
-        super(ScheduleMailbox, self).__init__(client=client, url=url)
+        super().__init__(client=client, url=url)
         self._items = None
         if not client and principal:
             self.client = principal.client
@@ -1853,7 +1846,7 @@ class ScheduleMailbox(Calendar):
                 # properly fix in a future revision
                 raise error.NotFoundError(
                     "principal has no %s.  %s" % (str(self.findprop()), error.ERR_FRAGMENT)  # type: ignore
-                )
+                ) from None
 
     def get_items(self):
         """

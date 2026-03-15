@@ -82,14 +82,14 @@ class BaseElement:
 
 class NamedBaseElement(BaseElement):
     def __init__(self, name: str | None = None) -> None:
-        super(NamedBaseElement, self).__init__(name=name)
+        super().__init__(name=name)
 
     def xmlelement(self):
         if self.attributes.get("name") is None:
             raise Exception("name attribute must be defined")
-        return super(NamedBaseElement, self).xmlelement()
+        return super().xmlelement()
 
 
 class ValuedBaseElement(BaseElement):
     def __init__(self, value: str | bytes | None = None) -> None:
-        super(ValuedBaseElement, self).__init__(value=value)
+        super().__init__(value=value)

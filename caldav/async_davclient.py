@@ -155,9 +155,9 @@ class AsyncDAVClient(BaseDAVClient):
         features: FeatureSet | dict | str | None = None,
         enable_rfc6764: bool = True,
         require_tls: bool = True,
-        rate_limit_handle: Optional[bool] = None,
-        rate_limit_default_sleep: Optional[int] = None,
-        rate_limit_max_sleep: Optional[int] = None,
+        rate_limit_handle: bool | None = None,
+        rate_limit_default_sleep: int | None = None,
+        rate_limit_max_sleep: int | None = None,
     ) -> None:
         """
         Initialize an async DAV client.

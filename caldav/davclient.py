@@ -211,9 +211,9 @@ class DAVClient(BaseDAVClient):
         features: FeatureSet | dict | str = None,
         enable_rfc6764: bool = True,
         require_tls: bool = True,
-        rate_limit_handle: Optional[bool] = None,
-        rate_limit_default_sleep: Optional[int] = None,
-        rate_limit_max_sleep: Optional[int] = None,
+        rate_limit_handle: bool | None = None,
+        rate_limit_default_sleep: int | None = None,
+        rate_limit_max_sleep: int | None = None,
     ) -> None:
         """
         Sets up a HTTPConnection object towards the server in the url.
@@ -453,7 +453,7 @@ class DAVClient(BaseDAVClient):
         calendars.
         """
         if not self._principal:
-            self._principal = Principal(client=self, *largs, **kwargs)
+            self._principal = Principal(*largs, client=self, **kwargs)
         return self._principal
 
     def calendar(self, **kwargs):

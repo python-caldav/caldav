@@ -1216,7 +1216,9 @@ END:VCALENDAR
 
         existing_events = c.get_events()
         existing_urls = {x.url for x in existing_events}
-        cleanse = lambda events: [x for x in events if x.url not in existing_urls]
+
+        def cleanse(events):
+            return [x for x in events if x.url not in existing_urls]
 
         if self.is_supported("create-calendar"):
             ## we're supposed to be working towards a brand new calendar
@@ -1899,9 +1901,10 @@ END:VCALENDAR
         c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
         pre_todos = c.get_todos()
         pre_todo_uid_map = {x.icalendar_component["uid"] for x in pre_todos}
-        cleanse = lambda tasks: [
-            x for x in tasks if x.icalendar_component["uid"] not in pre_todo_uid_map
-        ]
+
+        def cleanse(tasks):
+            return [x for x in tasks if x.icalendar_component["uid"] not in pre_todo_uid_map]
+
         t1 = c.add_todo(
             summary="1 task overdue",
             due=date(2022, 12, 12),
@@ -2359,8 +2362,8 @@ END:VCALENDAR
         assert len(journals) == 1
         self.skip_unless_support("search.text.by-uid")
         j1_ = c.get_journal_by_uid(j1.id)
-        j1_.icalendar_instance
-        journals[0].icalendar_instance
+        j1_.get_icalendar_instance()
+        journals[0].get_icalendar_instance()
         assert j1_.data == journals[0].data
         j2 = c.add_journal(
             dtstart=date(2011, 11, 11),
@@ -3403,11 +3406,6 @@ END:VCALENDAR
         recurrence.icalendar_component["summary"] = "six months of daily testing"
         recurrence.save()
         assert summary_by_month(7) == "six months of daily testing"
-
-        ## this new feature does not workk on python 3.8.  We will soon enough
-        ## release 2.0 and shed the 3.8-dependency.  As for now, just skip the rest of the test.
-        if sys.version_info < (3, 9):
-            return
 
         ## parameter all_recurrences should change all recurrences -
         ## except February and July
