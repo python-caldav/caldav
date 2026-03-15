@@ -12,16 +12,19 @@ Changelogs prior to v2.0 is pruned, but was available in the v2.x releases
 
 This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html), though for pre-releases PEP 440 takes precedence.
 
-## [Unreleased]
+## [3.0.2] - 2026-03-05
 
 ### Fixed
 
 * Communication dump (`PYTHON_CALDAV_COMMDUMP` / `debug_dump_communication`) was accidentally dropped during the v3.0 refactor.  Restored, with the dump logic extracted into a shared helper so both the sync and async code paths benefit.  Fixes https://github.com/python-caldav/caldav/issues/638
 * `search()` raised `NotImplementedError` when a full calendar-query XML was passed and the server does not support `search.comp-type.optional` (e.g. DavMail).  Falls back to a single REPORT with the XML as-is.  Fixes https://github.com/python-caldav/caldav/issues/637
 
-### Documentation
+### Tests and documentation
 
-I've decided to try to stick to the conventionalcommits standard.  This is documented in CONTRIBUTING.md.  We'll see how many days it takes before I forget about it ...
+* All links to the RFC is now in a cannonical format.  Links in docstrings and ReST-documntation follows the sphinx-standard.  Fixes https://github.com/python-caldav/caldav/issues/635 - pull request https://github.com/python-caldav/caldav/pull/636
+* I've decided to try to stick to the conventionalcommits standard.  This is documented in CONTRIBUTING.md, and I've added a pre-commit hookk for enforcing it (but it needs to be installed through pre-commit ... so I will most likely have to police pull requests manually)
+* Some code refactoring in the test code.
+* Improved the lychee link testing setup
 
 ## [3.0.1] - 2026-03-04
 
