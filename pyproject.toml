@@ -122,7 +122,6 @@ ignore = [
     "E402",    # Module level import not at top of file (common with conditional imports)
     "E722",    # Bare except — 28 violations, each needs case-by-case review
     "F401",    # Unused imports — many are re-exports or conditional; needs audit
-    "F403",    # Star imports — legacy pattern; needs audit
     "F821",    # Undefined names — often in TYPE_CHECKING blocks or docstrings
     "F841",    # Unused variables — often intentional (e.g. unpacking)
     "UP031",   # %-format — 31 violations; ruff only offers unsafe auto-fix
