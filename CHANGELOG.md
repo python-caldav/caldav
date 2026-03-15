@@ -14,10 +14,12 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 
 ## [3.0.2] - 2026-03-05
 
+Highlight: Reintroducing debug communication dump functionality.
+
 ### Fixed
 
-* Communication dump (`PYTHON_CALDAV_COMMDUMP` / `debug_dump_communication`) was accidentally dropped during the v3.0 refactor.  Restored, with the dump logic extracted into a shared helper so both the sync and async code paths benefit.  Fixes https://github.com/python-caldav/caldav/issues/638
-* `search()` raised `NotImplementedError` when a full calendar-query XML was passed and the server does not support `search.comp-type.optional` (e.g. DavMail).  Falls back to a single REPORT with the XML as-is.  Fixes https://github.com/python-caldav/caldav/issues/637
+* When environment variable `PYTHON_CALDAV_COMMDUMP` is given, caldav communication is dumped to /tmp - details in https://github.com/python-caldav/caldav/issues/248 .  This is regarded as "fix" rather than "feature" as it was introduced in v1.4.0 and accidentally dropped during the v3.0 refactoring.  Restored, with the dump logic extracted into a shared helper so both the sync and async code paths benefit.  Test code added to make sure it won't disappear again.  Fixes https://github.com/python-caldav/caldav/issues/638
+* `search()` raised `NotImplementedError` when a full calendar-query XML was passed and the server does not support `search.comp-type.optional`.  This is a really rare and deprecaed code path, but still `NotImplementedError` isn't good.  Now it falls back to a single REPORT with the XML as-is.  Fixes https://github.com/python-caldav/caldav/issues/637
 
 ### Tests and documentation
 
