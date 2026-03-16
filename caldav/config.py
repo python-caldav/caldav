@@ -493,7 +493,14 @@ def _test_server_to_params(server: Any, was_already_started: bool) -> dict[str, 
 
 
 def _extract_conn_params_from_section(section_data: dict[str, Any]) -> dict[str, Any] | None:
-    """Extract connection parameters from a config section dict."""
+    """Extract connection parameters from a config section dict.
+
+    Returns a dict containing only CONNKEYS entries.  Returns ``None`` if no
+    server URL is present.  Calendar filter keys (``calendar_name``,
+    ``calendar_url``) are intentionally excluded — callers that need them
+    (e.g. :func:`get_all_file_connection_params`) read ``section_data``
+    directly.
+    """
     conn_params: dict[str, Any] = {}
     for k in section_data:
         if k.startswith("caldav_"):
@@ -512,6 +519,44 @@ def _extract_conn_params_from_section(section_data: dict[str, Any]) -> dict[str,
             conn_params["features"] = resolve_features(section_data[k])
 
     return conn_params if conn_params.get("url") else None
+
+
+def get_all_file_connection_params(
+    config_file: str | None,
+    section_name: str | None = None,
+) -> list[dict[str, Any]]:
+    """Return connection-params dicts for every leaf section that ``section_name`` expands to.
+
+    ``section_name`` follows the same rules as everywhere else in the config
+    system: a plain name returns ``[section_name]``; a meta-section with
+    ``contains: [...]`` expands recursively; ``*`` means all non-disabled
+    sections; glob patterns (``work_*``) are also supported.
+
+    Each dict contains CONNKEYS entries plus optional ``calendar_name`` /
+    ``calendar_url`` calendar-filter keys read from the config section.
+
+    Returns an empty list when the config file is absent or the section has
+    no usable URL.
+    """
+    if not section_name:
+        section_name = "default"
+
+    cfg = read_config(config_file)
+    if not cfg:
+        return []
+
+    sections = expand_config_section(cfg, section_name)
+    result: list[dict[str, Any]] = []
+    for s in sections:
+        section_data = config_section(cfg, s)
+        params = _extract_conn_params_from_section(section_data)
+        if params:
+            # Add calendar filter keys — these must NOT flow into DAVClient()
+            for k in ("calendar_name", "calendar_url"):
+                if section_data.get(k):
+                    params[k] = section_data[k]
+            result.append(params)
+    return result
 
 
 def get_all_test_servers(

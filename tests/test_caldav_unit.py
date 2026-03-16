@@ -2084,3 +2084,142 @@ class TestRateLimiting:
         with mock.patch("caldav.davclient.time.sleep"):
             with pytest.raises(error.RateLimitError):
                 client.request("/")
+
+
+class TestExpandConfigSection:
+    """Unit tests for caldav.config.expand_config_section."""
+
+    def test_normal_section_returns_single_item(self):
+        from caldav.config import expand_config_section
+
+        config = {"default": {"caldav_url": "https://example.com/"}}
+        assert expand_config_section(config, "default") == ["default"]
+
+    def test_meta_section_with_contains(self):
+        from caldav.config import expand_config_section
+
+        config = {
+            "work": {"caldav_url": "https://work.example.com/"},
+            "personal": {"caldav_url": "https://personal.example.com/"},
+            "all": {"contains": ["work", "personal"]},
+        }
+        assert expand_config_section(config, "all") == ["work", "personal"]
+
+    def test_star_returns_all_non_disabled_sections(self):
+        from caldav.config import expand_config_section
+
+        config = {
+            "work": {"caldav_url": "https://work.example.com/"},
+            "personal": {"caldav_url": "https://personal.example.com/"},
+            "hidden": {"caldav_url": "https://hidden.example.com/", "disable": True},
+        }
+        result = expand_config_section(config, "*")
+        assert set(result) == {"work", "personal"}
+
+    def test_glob_pattern(self):
+        from caldav.config import expand_config_section
+
+        config = {
+            "work_a": {"caldav_url": "https://a.example.com/"},
+            "work_b": {"caldav_url": "https://b.example.com/"},
+            "personal": {"caldav_url": "https://c.example.com/"},
+        }
+        result = expand_config_section(config, "work_*")
+        assert set(result) == {"work_a", "work_b"}
+
+    def test_recursive_meta_section(self):
+        from caldav.config import expand_config_section
+
+        config = {
+            "a": {"caldav_url": "https://a.example.com/"},
+            "b": {"caldav_url": "https://b.example.com/"},
+            "ab": {"contains": ["a", "b"]},
+            "c": {"caldav_url": "https://c.example.com/"},
+            "all": {"contains": ["ab", "c"]},
+        }
+        assert set(expand_config_section(config, "all")) == {"a", "b", "c"}
+
+
+class TestGetAllFileConnectionParams:
+    """Unit tests for caldav.config.get_all_file_connection_params."""
+
+    def test_single_section_returns_one_dict(self, tmp_path):
+        import json
+
+        from caldav.config import get_all_file_connection_params
+
+        config = {
+            "default": {
+                "caldav_url": "https://example.com/dav/",
+                "caldav_username": "user",
+                "caldav_password": "pass",
+            }
+        }
+        config_file = tmp_path / "calendar.conf"
+        config_file.write_text(json.dumps(config))
+        results = get_all_file_connection_params(str(config_file), "default")
+        assert len(results) == 1
+        assert results[0]["url"] == "https://example.com/dav/"
+        assert results[0]["username"] == "user"
+
+    def test_calendar_name_extracted_from_section(self, tmp_path):
+        import json
+
+        from caldav.config import get_all_file_connection_params
+
+        config = {
+            "default": {
+                "caldav_url": "https://example.com/dav/",
+                "caldav_username": "user",
+                "calendar_name": "My Calendar",
+            }
+        }
+        config_file = tmp_path / "calendar.conf"
+        config_file.write_text(json.dumps(config))
+        results = get_all_file_connection_params(str(config_file), "default")
+        assert len(results) == 1
+        assert results[0]["calendar_name"] == "My Calendar"
+
+    def test_calendar_url_extracted_from_section(self, tmp_path):
+        import json
+
+        from caldav.config import get_all_file_connection_params
+
+        config = {
+            "default": {
+                "caldav_url": "https://example.com/dav/",
+                "caldav_username": "user",
+                "calendar_url": "/dav/user/mycalendar/",
+            }
+        }
+        config_file = tmp_path / "calendar.conf"
+        config_file.write_text(json.dumps(config))
+        results = get_all_file_connection_params(str(config_file), "default")
+        assert len(results) == 1
+        assert results[0]["calendar_url"] == "/dav/user/mycalendar/"
+
+    def test_meta_section_returns_multiple_dicts(self, tmp_path):
+        import json
+
+        from caldav.config import get_all_file_connection_params
+
+        config = {
+            "work": {
+                "caldav_url": "https://work.example.com/dav/",
+                "caldav_username": "wuser",
+            },
+            "personal": {
+                "caldav_url": "https://personal.example.com/dav/",
+                "caldav_username": "puser",
+            },
+            "all": {"contains": ["work", "personal"]},
+        }
+        config_file = tmp_path / "calendar.conf"
+        config_file.write_text(json.dumps(config))
+        results = get_all_file_connection_params(str(config_file), "all")
+        assert len(results) == 2
+        urls = {r["url"] for r in results}
+        assert urls == {
+            "https://work.example.com/dav/",
+            "https://personal.example.com/dav/",
+        }
