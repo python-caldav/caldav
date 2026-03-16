@@ -78,6 +78,19 @@ class TestServer(ABC):
                 return self.config[key]
         return None
 
+    # Default priority per server type.  Lower number = higher priority.
+    # Subclasses (embedded=10, docker=20, external=30) override this.
+    _default_priority: int = 50
+
+    @property
+    def priority(self) -> int:
+        """Return the sort priority for this server.
+
+        Lower values are returned first by the registry.  Can be overridden
+        per-server via ``priority: <int>`` in the server config.
+        """
+        return int(self.config.get("priority", self._default_priority))
+
     @property
     def features(self) -> Any:
         """
@@ -218,6 +231,7 @@ class EmbeddedTestServer(TestServer):
     """
 
     server_type = "embedded"
+    _default_priority = 10
 
     def __init__(self, config: dict[str, Any] | None = None) -> None:
         super().__init__(config)
@@ -266,6 +280,7 @@ class DockerTestServer(TestServer):
     """
 
     server_type = "docker"
+    _default_priority = 20
 
     def __init__(self, config: dict[str, Any] | None = None) -> None:
         super().__init__(config)
@@ -406,6 +421,7 @@ class ExternalTestServer(TestServer):
     """
 
     server_type = "external"
+    _default_priority = 30
 
     def __init__(self, config: dict[str, Any] | None = None) -> None:
         super().__init__(config)

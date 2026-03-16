@@ -337,43 +337,159 @@ def _get_test_server_config(
     name: str | None, environment: bool, config_file: str | None = None
 ) -> dict[str, Any] | None:
     """
-    Get connection parameters for test server.
+    Get connection parameters for a test server.
 
-    Priority:
-    1. Config file sections with 'testing_allowed: true'
+    Uses the priority-ordered server list as the single source of truth.
+    Embedded servers (xandikos priority 10, radicale priority 10) beat docker
+    (20) and configured / testing_allowed servers (30) by default.  Any server
+    can override its priority via ``priority: <int>`` in its config.
+
+    When running from the source tree the full registry is used (embedded +
+    docker + external).  When caldav is pip-installed without the test
+    infrastructure, only embedded servers from ``caldav.testing`` plus any
+    ``testing_allowed`` config-file sections are available.
 
     Args:
-        name: Specific config section or test server name/index to use.
-              Can be a config section name, test server name, or numeric index.
-        environment: Whether to check environment variables for server selection.
-        config_file: Explicit config file path to check.
+        name: Optional server name or server_type to restrict selection.
+        environment: Whether to read PYTHON_CALDAV_TEST_SERVER_NAME.
+        config_file: Explicit config file path (for testing_allowed fallback).
 
     Returns:
-        Connection parameters dict, or None if no test server configured.
+        Connection parameters dict, or None if no server could be started.
     """
-    # Check environment for server name
     if environment and name is None:
         name = os.environ.get("PYTHON_CALDAV_TEST_SERVER_NAME")
 
-    # 1. Try config file with testing_allowed flag
-    cfg = read_config(config_file)  # Use explicit file or default locations
-    if cfg:
-        # If name is specified, check if it's a config section with testing_allowed
-        if name is not None and not isinstance(name, int):
-            section_data = config_section(cfg, str(name))
-            if section_data.get("testing_allowed"):
-                return _extract_conn_params_from_section(section_data)
+    for server in _collect_test_servers(name, config_file):
+        was_already_started = server._started
+        try:
+            server.start()
+        except Exception as e:
+            logging.warning("Failed to start test server %s: %s", server.name, e)
+            continue
+        logging.info("Using test server: %s at %s", server.name, server.url)
+        return _test_server_to_params(server, was_already_started)
 
-        # Find first section with testing_allowed=true (if no name specified)
-        if name is None:
-            for section_name in cfg:
-                section_data = config_section(cfg, section_name)
-                if section_data.get("testing_allowed"):
-                    logging.info(f"Using test server from config section: {section_name}")
-                    return _extract_conn_params_from_section(section_data)
-
-    # No built-in test server fallback - use config files or environment variables
+    logging.info(
+        "PYTHON_CALDAV_USE_TEST_SERVER is set but no test server is available. "
+        "Install xandikos or radicale, or add 'testing_allowed: true' to a config section."
+    )
     return None
+
+
+def _collect_test_servers(name: str | None, config_file: str | None) -> list[Any]:
+    """
+    Return a priority-ordered list of available test servers.
+
+    Tries the full registry first (source tree); falls back to embedded
+    servers from ``caldav.testing`` plus ``testing_allowed`` config sections
+    (pip-installed users).
+    """
+    try:
+        from tests.test_servers.registry import get_registry
+
+        servers: list[Any] = list(get_registry().enabled_servers())
+    except ImportError:
+        servers = _get_pip_test_servers(config_file)
+
+    if name is not None:
+        servers = [s for s in servers if name.lower() in (s.name.lower(), s.server_type.lower())]
+    return servers
+
+
+def _get_pip_test_servers(config_file: str | None) -> list[Any]:
+    """
+    Build a server list for pip-installed users (no tests/ available).
+
+    Includes embedded servers from caldav.testing and any testing_allowed
+    sections from config files, all sorted by priority.
+    """
+    from caldav.testing import RadicaleServer, XandikosServer
+
+    servers: list[Any] = []
+
+    try:
+        import xandikos  # noqa: F401
+
+        servers.append(XandikosServer())
+    except ImportError:
+        pass
+
+    try:
+        import radicale  # noqa: F401
+
+        servers.append(RadicaleServer())
+    except ImportError:
+        pass
+
+    for section_name, params in get_all_test_servers(config_file).items():
+        servers.append(_ConfiguredServer(section_name, params))
+
+    return sorted(servers, key=lambda s: s.priority)
+
+
+class _ConfiguredServer:
+    """
+    Thin wrapper around a ``testing_allowed`` config-file section.
+
+    Used only in pip-installed mode; in the source tree these sections are
+    loaded into the registry as ``ExternalTestServer`` instances instead.
+    """
+
+    server_type = "external"
+
+    def __init__(self, name: str, params: dict[str, Any]) -> None:
+        self.name = name
+        self._params = params
+        self._started = False
+
+    @property
+    def priority(self) -> int:
+        return int(self._params.get("priority", 30))
+
+    @property
+    def url(self) -> str:
+        return self._params.get("url", "")
+
+    @property
+    def username(self) -> str | None:
+        return self._params.get("username")
+
+    @property
+    def password(self) -> str | None:
+        return self._params.get("password")
+
+    @property
+    def features(self) -> Any:
+        return self._params.get("features")
+
+    def start(self) -> None:
+        self._started = True  # external — assumed already running
+
+    def stop(self) -> None:
+        self._started = False
+
+    def is_accessible(self) -> bool:
+        return bool(self.url)
+
+
+def _test_server_to_params(server: Any, was_already_started: bool) -> dict[str, Any]:
+    """Build a ``get_davclient``-compatible params dict from a server object."""
+    params: dict[str, Any] = {
+        "url": server.url,
+        "_server_name": server.name,
+    }
+    if server.username:
+        params["username"] = server.username
+    if server.password:
+        params["password"] = server.password
+    if server.features:
+        params["features"] = server.features
+    # Only attach teardown if we started the server; if it was already running
+    # (e.g. started by client_context) leave lifecycle management to the caller.
+    if not was_already_started:
+        params["_teardown"] = lambda _client=None, s=server: s.stop()
+    return params
 
 
 def _extract_conn_params_from_section(section_data: dict[str, Any]) -> dict[str, Any] | None:
