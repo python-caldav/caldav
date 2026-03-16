@@ -3,7 +3,35 @@ Server registry for test server discovery and management.
 
 This module provides a registry for discovering and managing test servers.
 It supports automatic detection of available servers and lazy initialization.
+
+Server type env-var filtering
+------------------------------
+Three environment variables control which server *types* are included when
+the registry reports ``enabled_servers()`` / ``get_caldav_servers_list()``:
+
+* ``PYTHON_CALDAV_TEST_EMBEDDED`` – embedded (in-process) servers such as
+  Xandikos and Radicale.  Default: **enabled**.
+* ``PYTHON_CALDAV_TEST_DOCKER`` – Docker-based servers (Baikal, Nextcloud,
+  Cyrus, …).  Default: **enabled** (skipped automatically when Docker is
+  not available).
+* ``PYTHON_CALDAV_TEST_EXTERNAL`` – externally configured servers loaded
+  from ``caldav_test_servers.yaml``.  Default: **enabled**.
+
+Set any of these to ``0``, ``false``, ``no``, or ``off`` (case-insensitive)
+to disable that category.  Any other value (including ``1``, ``true``, etc.)
+keeps them enabled.
+
+Priority order
+--------------
+Servers are registered — and therefore returned — in this order:
+
+1. Xandikos  (embedded)
+2. Radicale  (embedded)
+3. Docker servers  (in alphabetical directory order)
+4. External / config-file servers
 """
+
+import os
 
 from .base import TestServer
 
@@ -90,21 +118,50 @@ class ServerRegistry:
 
     def all_servers(self) -> list[TestServer]:
         """
-        Get all registered test servers.
+        Get all registered test servers, sorted by priority (lowest first).
 
         Returns:
             List of all registered servers
         """
-        return list(self._servers.values())
+        return sorted(self._servers.values(), key=lambda s: s.priority)
+
+    @staticmethod
+    def _is_server_type_enabled(server_type: str) -> bool:
+        """Return True unless the env var for this server type is set to a falsy value.
+
+        Env vars checked:
+        - ``PYTHON_CALDAV_TEST_EMBEDDED`` for ``"embedded"``
+        - ``PYTHON_CALDAV_TEST_DOCKER``   for ``"docker"``
+        - ``PYTHON_CALDAV_TEST_EXTERNAL`` for ``"external"``
+        """
+        env_map = {
+            "embedded": "PYTHON_CALDAV_TEST_EMBEDDED",
+            "docker": "PYTHON_CALDAV_TEST_DOCKER",
+            "external": "PYTHON_CALDAV_TEST_EXTERNAL",
+        }
+        env_var = env_map.get(server_type)
+        if env_var is None:
+            return True
+        val = os.environ.get(env_var, "").strip().lower()
+        return val not in ("0", "false", "no", "off")
 
     def enabled_servers(self) -> list[TestServer]:
         """
-        Get all enabled test servers.
+        Get all enabled test servers, sorted by priority (lowest first) and
+        respecting per-type env-var overrides.
 
         Returns:
-            List of servers where config.get("enabled", True) is True
+            List of servers where config.get("enabled", True) is True *and*
+            the server's type has not been disabled via an environment variable.
         """
-        return [s for s in self._servers.values() if s.config.get("enabled", True)]
+        return sorted(
+            (
+                s
+                for s in self._servers.values()
+                if s.config.get("enabled", True) and self._is_server_type_enabled(s.server_type)
+            ),
+            key=lambda s: s.priority,
+        )
 
     def load_from_config(self, config: dict) -> None:
         """
@@ -186,24 +243,27 @@ class ServerRegistry:
         self._discover_docker_servers()
 
     def _discover_embedded_servers(self) -> None:
-        """Discover available embedded servers."""
-        # Check for Radicale
-        try:
-            import radicale  # noqa: F401
+        """Discover available embedded servers.
 
-            radicale_class = get_server_class("radicale")
-            if radicale_class is not None:
-                self.register(radicale_class())
-        except ImportError:
-            pass
-
-        # Check for Xandikos
+        Xandikos is registered first (higher default priority than Radicale).
+        """
+        # Check for Xandikos first (preferred embedded server)
         try:
             import xandikos  # noqa: F401
 
             xandikos_class = get_server_class("xandikos")
             if xandikos_class is not None:
                 self.register(xandikos_class())
+        except ImportError:
+            pass
+
+        # Check for Radicale (fallback embedded server)
+        try:
+            import radicale  # noqa: F401
+
+            radicale_class = get_server_class("radicale")
+            if radicale_class is not None:
+                self.register(radicale_class())
         except ImportError:
             pass
 

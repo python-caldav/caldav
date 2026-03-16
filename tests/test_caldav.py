@@ -464,7 +464,7 @@ sched = sched_template % (
 
 @pytest.mark.skipif(
     not caldav_servers,
-    reason="Requirement: at least one working server in conf.py. The tail object of the server list will be chosen, that is typically the LocalRadicale or LocalXandikos server.",
+    reason="Requirement: at least one working server configured. The highest-priority server (index 0) will be used, typically Xandikos or Radicale.",
 )
 class TestGetDAVClient:
     """
@@ -475,7 +475,7 @@ class TestGetDAVClient:
     def testTestConfig(self):
         """Test that get_davclient(testconfig=True) finds config with testing_allowed."""
         # Start a test server using test_servers framework
-        server_params = caldav_servers[-1]
+        server_params = caldav_servers[0]
         with client(**server_params) as conn:
             # Create a config file with testing_allowed: true
             config = {"testing_allowed": True}
@@ -499,7 +499,7 @@ class TestGetDAVClient:
     def testEnvironment(self):
         """Test that get_davclient() reads from environment variables."""
         # Start a test server using test_servers framework
-        server_params = caldav_servers[-1]
+        server_params = caldav_servers[0]
         with client(**server_params) as conn:
             # Set environment variables (only if value is not None)
             for key in ("username", "password", "proxy"):
@@ -520,7 +520,7 @@ class TestGetDAVClient:
     def testConfigfile(self):
         """Test that get_davclient() reads from config file."""
         # Start a test server using test_servers framework
-        server_params = caldav_servers[-1]
+        server_params = caldav_servers[0]
         with client(**server_params) as conn:
             config = {}
             for key in ("username", "password", "proxy"):
@@ -536,6 +536,14 @@ class TestGetDAVClient:
                     config_file=tmp.name, testconfig=False, environment=False
                 ) as conn2:
                     assert conn2.principal()
+
+    def testAutoEmbeddedServer(self) -> None:
+        """Test that get_davclient(testconfig=True) auto-starts xandikos when no config file server found."""
+        pytest.importorskip("xandikos")
+        with get_davclient(testconfig=True, check_config_file=False, environment=False) as conn:
+            assert hasattr(conn, "server_name")
+            assert "xandikos" in conn.server_name.lower()
+            conn.principal()
 
     def testNoConfigfile(self, fs):
         """This is actually a unit test, not a functional test.
@@ -559,6 +567,16 @@ class TestGetDAVClient:
         )
         client = get_davclient(testconfig=False, environment=False)
         assert client.url == "https://caldav.example.com/dav"
+
+
+def test_get_davclient_returns_none_without_env_or_config(fs) -> None:
+    """get_davclient() must return None when PYTHON_CALDAV_USE_TEST_SERVER is not set
+    and no config file is present."""
+    from unittest.mock import patch
+
+    with patch.dict(os.environ, {}, clear=True):
+        result = get_davclient()
+    assert result is None
 
 
 @pytest.mark.skipif(
