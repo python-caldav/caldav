@@ -945,7 +945,7 @@ class DAVClient(BaseDAVClient):
 
 def get_calendars(**kwargs) -> list["Calendar"]:
     """
-    Get calendars from a CalDAV server with configuration from multiple sources.
+    Get calendars from CalDAV servers with configuration from multiple sources.
 
     This is a convenience wrapper around :func:`caldav.base_client.get_calendars`
     that uses DAVClient.

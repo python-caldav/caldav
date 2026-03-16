@@ -579,6 +579,97 @@ def test_get_davclient_returns_none_without_env_or_config(fs) -> None:
     assert result is None
 
 
+@pytest.mark.skipif(not caldav_servers, reason="need at least one test server")
+class TestGetCalendarsConfig:
+    """
+    Tests for caldav.get_calendars() config-file integration:
+    - calendar_name / calendar_url in a config section filter the returned calendars
+    - meta-sections (contains: [...]) aggregate calendars from multiple servers
+    """
+
+    def _server_config(self, conn, server) -> dict:
+        """Build a caldav config dict for a running server connection."""
+        cfg: dict = {"caldav_url": str(conn.url)}
+        if server and server.username:
+            cfg["caldav_username"] = server.username
+        if server and server.password is not None:
+            cfg["caldav_password"] = server.password
+        return cfg
+
+    def test_calendar_name_from_config_filters(self) -> None:
+        """calendar_name in a config section must restrict which calendar is returned."""
+        from caldav import get_calendars
+
+        from .test_servers.helpers import client_context
+
+        with client_context(server_index=0) as conn:
+            principal = conn.principal()
+            principal.make_calendar(name="CalConfigA")
+            principal.make_calendar(name="CalConfigB")
+
+            server = _registry.get(conn.server_name)
+            cfg_section = self._server_config(conn, server)
+            cfg_section["calendar_name"] = "CalConfigA"
+
+            with tempfile.NamedTemporaryFile(delete=True, mode="w", suffix=".json") as tmp:
+                json.dump({"default": cfg_section}, tmp)
+                tmp.flush()
+                os.fsync(tmp.fileno())
+                with get_calendars(
+                    config_file=tmp.name,
+                    config_section="default",
+                    testconfig=False,
+                    environment=False,
+                ) as calendars:
+                    names = [c.get_display_name() for c in calendars]
+                    assert "CalConfigA" in names
+                    assert "CalConfigB" not in names
+
+    @pytest.mark.skipif(
+        not (test_radicale and test_xandikos),
+        reason="need both Xandikos and Radicale for multi-server test",
+    )
+    def test_multi_server_meta_section(self) -> None:
+        """A meta-section (contains: [...]) must aggregate calendars from multiple servers."""
+        from caldav import get_calendars
+
+        from .test_servers.helpers import client_context
+
+        with (
+            client_context(server_name="Xandikos") as x_conn,
+            client_context(server_name="Radicale") as r_conn,
+        ):
+            x_conn.principal().make_calendar(name="XandikosMetaCal")
+            r_conn.principal().make_calendar(name="RadicaleMetaCal")
+
+            x_cfg = self._server_config(x_conn, _xandikos_server)
+            x_cfg["calendar_name"] = "XandikosMetaCal"
+            r_cfg = self._server_config(r_conn, _radicale_server)
+            r_cfg["calendar_name"] = "RadicaleMetaCal"
+
+            config = {
+                "xandikos": x_cfg,
+                "radicale": r_cfg,
+                "both": {"contains": ["xandikos", "radicale"]},
+            }
+            with tempfile.NamedTemporaryFile(delete=True, mode="w", suffix=".json") as tmp:
+                json.dump(config, tmp)
+                tmp.flush()
+                os.fsync(tmp.fileno())
+                with get_calendars(
+                    config_file=tmp.name,
+                    config_section="both",
+                    testconfig=False,
+                    environment=False,
+                ) as calendars:
+                    names = {c.get_display_name() for c in calendars}
+                    assert "XandikosMetaCal" in names
+                    assert "RadicaleMetaCal" in names
+                    # calendars came from two distinct DAVClient instances
+                    clients = {id(c.client) for c in calendars}
+                    assert len(clients) == 2
+
+
 @pytest.mark.skipif(
     not rfc6638_users, reason="need rfc6638_users to be set in order to run this test"
 )
