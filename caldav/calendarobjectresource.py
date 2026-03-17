@@ -1347,6 +1347,23 @@ class CalendarObjectResource(DAVObject):
         """
         return self._ensure_state().get_icalendar_copy()
 
+    def get_icalendar_component(self) -> "icalendar.Component":
+        """Get a COPY of the inner icalendar component (VEVENT/VTODO/VJOURNAL) for read-only access.
+
+        This is safe for inspection - modifications to the returned object
+        will NOT be saved. For editing, use edit_icalendar_component().
+
+        For recurring events with multiple components, returns the first
+        non-timezone component (the master RRULE component).  Use
+        ``search(..., expand=True)`` to get individual expanded occurrences.
+
+        Returns:
+            A copy of the first non-timezone subcomponent.
+        """
+        import copy
+
+        return copy.deepcopy(self.icalendar_component)
+
     def get_vobject_instance(self) -> "vobject.base.Component":
         """Get a COPY of the vobject object for read-only access.
 
@@ -1400,6 +1417,32 @@ class CalendarObjectResource(DAVObject):
             yield self._state.get_authoritative_icalendar()
         finally:
             self._borrowed = False
+
+    @contextmanager
+    def edit_icalendar_component(self):
+        """Context manager to borrow the inner icalendar component for editing.
+
+        Like :meth:`edit_icalendar_instance` but yields the first
+        ``VEVENT`` / ``VTODO`` / ``VJOURNAL`` subcomponent directly,
+        rather than the ``VCALENDAR`` wrapper.  This is convenient when
+        you only need to modify a single property on the component itself.
+
+        Usage::
+
+            with event.edit_icalendar_component() as comp:
+                comp['SUMMARY'] = 'New Summary'
+            event.save()
+
+        Yields:
+            The first non-``VTIMEZONE`` subcomponent of the icalendar object.
+
+        Raises:
+            RuntimeError: If another representation is currently borrowed.
+            StopIteration: If the calendar contains no non-timezone components.
+        """
+        with self.edit_icalendar_instance() as cal:
+            component = next(c for c in cal.subcomponents if c.name != "VTIMEZONE")
+            yield component
 
     @contextmanager
     def edit_vobject_instance(self):
