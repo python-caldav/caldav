@@ -2086,6 +2086,94 @@ class TestRateLimiting:
                 client.request("/")
 
 
+class TestDateToUtcConversion:
+    """
+    RFC 4791 §9.9: time-range start/end MUST be UTC datetime values.
+    Plain date objects must be coerced to midnight UTC before use in
+    REPORT XML and before being stored on the searcher (for client-side
+    filtering).
+    """
+
+    def test_to_utc_date_string_with_date_gives_midnight_utc(self):
+        """_to_utc_date_string(date) must produce a valid UTC datetime string."""
+        from datetime import date
+
+        from caldav.elements.cdav import _to_utc_date_string
+
+        result = _to_utc_date_string(date(2026, 5, 1))
+        assert result == "20260501T000000Z"
+
+    def test_to_utc_date_string_with_datetime_unchanged(self):
+        """_to_utc_date_string(datetime) must still work correctly."""
+        from datetime import datetime, timezone
+
+        from caldav.elements.cdav import _to_utc_date_string
+
+        result = _to_utc_date_string(datetime(2026, 5, 1, 12, 0, 0, tzinfo=timezone.utc))
+        assert result == "20260501T120000Z"
+
+    def test_time_range_xml_with_date_produces_utc_attrs(self):
+        """TimeRange built with plain date objects must emit UTC datetime attributes."""
+        from datetime import date
+
+        from caldav.elements.cdav import TimeRange
+
+        tr = TimeRange(start=date(2026, 5, 1), end=date(2026, 6, 1))
+        assert tr.attributes["start"] == "20260501T000000Z"
+        assert tr.attributes["end"] == "20260601T000000Z"
+
+    def test_search_with_date_emits_utc_datetime_in_report_xml(self):
+        """calendar.search(start=date(...)) must send UTC datetime strings in
+        the REPORT body, not bare date strings."""
+        from datetime import date
+
+        class CapturingClient(MockedDAVClient):
+            def __init__(self):
+                super().__init__("<multistatus xmlns='DAV:'/>")
+                self.report_bodies = []
+
+            def request(self, url, method="GET", body=None, headers=None):
+                if method == "REPORT" and body:
+                    self.report_bodies.append(body)
+                return super().request(url, method, body, headers)
+
+        client = CapturingClient()
+        calendar = Calendar(client, url="/cal/")
+        calendar.search(event=True, start=date(2026, 5, 1), end=date(2026, 6, 1))
+
+        assert client.report_bodies, "expected at least one REPORT request"
+        body = client.report_bodies[0]
+        if isinstance(body, bytes):
+            body = body.decode()
+        assert "20260501T000000Z" in body, f"UTC start not found in REPORT body:\n{body}"
+        assert "20260601T000000Z" in body, f"UTC end not found in REPORT body:\n{body}"
+        # Must NOT contain bare date strings without time component
+        assert "20260501Z" not in body
+        assert "20260601Z" not in body
+
+    def test_searcher_coerces_date_to_datetime(self):
+        """calendar.searcher(start=date(...)) must store datetime on the searcher,
+        not bare date objects — otherwise icalendar_searcher warns during
+        client-side filtering (check_component is called per result object)."""
+        from datetime import date, datetime, timezone
+
+        client = MockedDAVClient("<multistatus xmlns='DAV:'/>")
+        calendar = Calendar(client, url="/cal/")
+        searcher = calendar.searcher(
+            event=True,
+            start=date(2026, 5, 1),
+            end=date(2026, 6, 1),
+        )
+        assert isinstance(searcher.start, datetime), (
+            f"searcher.start should be datetime, got {type(searcher.start)}"
+        )
+        assert isinstance(searcher.end, datetime), (
+            f"searcher.end should be datetime, got {type(searcher.end)}"
+        )
+        assert searcher.start == datetime(2026, 5, 1, 0, 0, 0, tzinfo=timezone.utc)
+        assert searcher.end == datetime(2026, 6, 1, 0, 0, 0, tzinfo=timezone.utc)
+
+
 class TestExpandConfigSection:
     """Unit tests for caldav.config.expand_config_section."""
 

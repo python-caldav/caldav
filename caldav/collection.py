@@ -13,7 +13,8 @@ A SynchronizableCalendarObjectCollection contains a local copy of objects from a
 import logging
 import uuid
 import warnings
-from datetime import datetime
+from datetime import date as _date
+from datetime import datetime, timezone
 from time import sleep
 from typing import TYPE_CHECKING, Any, Optional, TypeVar
 from urllib.parse import ParseResult, SplitResult, quote, unquote
@@ -1173,6 +1174,41 @@ class Calendar(DAVObject):
             )
         return (response, matches)
 
+    def _populate_searcher(self, my_searcher, searchargs: dict, sort_reverse: bool) -> None:
+        """Populate a CalDAVSearcher from a dict of search keyword arguments.
+
+        Shared by :meth:`searcher` and :meth:`search`.
+        """
+        for key in searchargs:
+            assert key[0] != "_"  ## not allowed
+            alias = key
+            if key == "class_":  ## because class is a reserved word
+                alias = "class"
+            if key == "no_category":
+                alias = "no_categories"
+            if key == "no_class_":
+                alias = "no_class"
+            if key == "sort_keys":
+                if isinstance(searchargs["sort_keys"], str):
+                    searchargs["sort_keys"] = [searchargs["sort_keys"]]
+                for sortkey in searchargs["sort_keys"]:
+                    my_searcher.add_sort_key(sortkey, sort_reverse)
+            elif key == "sort_reverse":
+                pass  # handled with sort_keys
+            elif key == "comp_class" or key in my_searcher.__dataclass_fields__:
+                value = searchargs[key]
+                if (
+                    key in ("start", "end", "alarm_start", "alarm_end")
+                    and isinstance(value, _date)
+                    and not isinstance(value, datetime)
+                ):
+                    value = datetime(value.year, value.month, value.day, tzinfo=timezone.utc)
+                setattr(my_searcher, key, value)
+            elif alias.startswith("no_"):
+                my_searcher.add_property_filter(alias[3:], searchargs[key], operator="undef")
+            else:
+                my_searcher.add_property_filter(alias, searchargs[key])
+
     def searcher(self, **searchargs) -> "CalDAVSearcher":
         """Create a searcher object for building complex search queries.
 
@@ -1196,31 +1232,7 @@ class Calendar(DAVObject):
 
         my_searcher = CalDAVSearcher()
         my_searcher._calendar = self
-
-        for key in searchargs:
-            assert key[0] != "_"  ## not allowed
-            alias = key
-            if key == "class_":  ## because class is a reserved word
-                alias = "class"
-            if key == "no_category":
-                alias = "no_categories"
-            if key == "no_class_":
-                alias = "no_class"
-            if key == "sort_keys":
-                sort_reverse = searchargs.get("sort_reverse", False)
-                if isinstance(searchargs["sort_keys"], str):
-                    searchargs["sort_keys"] = [searchargs["sort_keys"]]
-                for sortkey in searchargs["sort_keys"]:
-                    my_searcher.add_sort_key(sortkey, sort_reverse)
-            elif key == "sort_reverse":
-                pass  # handled with sort_keys
-            elif key == "comp_class" or key in my_searcher.__dataclass_fields__:
-                setattr(my_searcher, key, searchargs[key])
-            elif alias.startswith("no_"):
-                my_searcher.add_property_filter(alias[3:], searchargs[key], operator="undef")
-            else:
-                my_searcher.add_property_filter(alias, searchargs[key])
-
+        self._populate_searcher(my_searcher, searchargs, searchargs.get("sort_reverse", False))
         return my_searcher
 
     def search(
@@ -1337,28 +1349,7 @@ class Calendar(DAVObject):
 
         ## Transfer all the arguments to CalDAVSearcher
         my_searcher = CalDAVSearcher()
-        for key in searchargs:
-            assert key[0] != "_"  ## not allowed
-            alias = key
-            if key == "class_":  ## because class is a reserved word
-                alias = "class"
-            if key == "no_category":
-                alias = "no_categories"
-            if key == "no_class_":
-                alias = "no_class"
-            if key == "sort_keys":
-                if isinstance(searchargs["sort_keys"], str):
-                    searchargs["sort_keys"] = [searchargs["sort_keys"]]
-                for sortkey in searchargs["sort_keys"]:
-                    my_searcher.add_sort_key(sortkey, sort_reverse)
-                    continue
-            elif key == "comp_class" or key in my_searcher.__dataclass_fields__:
-                setattr(my_searcher, key, searchargs[key])
-                continue
-            elif alias.startswith("no_"):
-                my_searcher.add_property_filter(alias[3:], searchargs[key], operator="undef")
-            else:
-                my_searcher.add_property_filter(alias, searchargs[key])
+        self._populate_searcher(my_searcher, searchargs, sort_reverse)
 
         if not xml and filters:
             xml = filters
