@@ -146,6 +146,8 @@ class XandikosServer(EmbeddedServer):
             response = requests.request(
                 "PROPFIND",
                 f"http://{self.host}:{self.port}",
+                headers={"Depth": "0", "Content-Type": "application/xml"},
+                data=b'<?xml version="1.0"?><propfind xmlns="DAV:"><prop><resourcetype/></prop></propfind>',
                 timeout=2,
             )
             return response.status_code in (200, 207, 401, 403, 404)
