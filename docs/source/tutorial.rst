@@ -11,8 +11,8 @@ imports.
 Go through the tutorial twice, first against a Xandikos test server,
 and then against a server of your own choice.
 
-This tutorial only covers the sync API.  The async API is quite
-similar.  A tutorial on the async API will come soon.
+This tutorial only covers the sync API.  See :doc:`async_tutorial` for the
+async equivalent.
 
 Ad-hoc Configuration
 --------------------
