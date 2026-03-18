@@ -1486,6 +1486,8 @@ class Calendar(DAVObject):
         Returns:
          CalendarObjectResource (Event, Todo, or Journal)
         """
+        if self.is_async_client:
+            return self._async_get_object_by_uid(uid, comp_filter, comp_class)
         ## Use self.search() rather than CalDAVSearcher directly, so that any
         ## monkey-patching of Calendar.search (e.g. the search-cache delay for
         ## servers with lazy search indexes) is respected.  This mirrors the
@@ -1495,6 +1497,23 @@ class Calendar(DAVObject):
         ## apply an exact match filter afterwards to preserve the semantics of
         ## this method (see testObjectByUID).
         items_found = self.search(
+            uid=uid, comp_class=comp_class, xml=comp_filter, post_filter=True, _hacks="insist"
+        )
+        items_found = [o for o in items_found if o.id == uid]
+
+        if not items_found:
+            raise error.NotFoundError("%s not found on server" % uid)
+        error.assert_(len(items_found) == 1)
+        return items_found[0]
+
+    async def _async_get_object_by_uid(
+        self,
+        uid: str,
+        comp_filter: cdav.CompFilter | None = None,
+        comp_class: Optional["CalendarObjectResource"] = None,
+    ) -> "Event":
+        """Async helper for get_object_by_uid()."""
+        items_found = await self.search(
             uid=uid, comp_class=comp_class, xml=comp_filter, post_filter=True, _hacks="insist"
         )
         items_found = [o for o in items_found if o.id == uid]
