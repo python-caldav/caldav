@@ -27,7 +27,7 @@ unified dual-mode classes.
 """
 
 # Import the async client (this is truly async)
-from caldav.async_davclient import AsyncDAVClient, AsyncDAVResponse
+from caldav.async_davclient import AsyncDAVClient, AsyncDAVResponse, get_calendar, get_calendars
 from caldav.async_davclient import get_davclient as get_async_davclient
 from caldav.calendarobjectresource import CalendarObjectResource, Event, FreeBusy, Journal, Todo
 from caldav.collection import (
@@ -61,6 +61,9 @@ __all__ = [
     "AsyncDAVClient",
     "AsyncDAVResponse",
     "get_async_davclient",
+    # Factory functions (async equivalents of caldav.get_calendar / get_calendars)
+    "get_calendar",
+    "get_calendars",
     # Base objects (unified dual-mode)
     "DAVObject",
     "CalendarObjectResource",
