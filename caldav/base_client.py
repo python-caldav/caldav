@@ -319,7 +319,13 @@ class CalendarCollection(list):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.close()
+        seen: set[int] = set()
+        for c in self._clients:
+            if id(c) not in seen:
+                c.__exit__(exc_type, exc_val, exc_tb)
+                seen.add(id(c))
+        if not self._clients and self:
+            self[0].client.__exit__(exc_type, exc_val, exc_tb)
         return False
 
     def close(self):
@@ -379,7 +385,9 @@ class CalendarResult:
         return self._calendar
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.close()
+        client = self.client
+        if client:
+            client.__exit__(exc_type, exc_val, exc_tb)
         return False
 
     def close(self):
