@@ -31,3 +31,4 @@ file://.*/scheme:.*
 http://x/
 https://ecloud\.global/remote\.php/.*
 https://tobixen@e\.email/remote\.php/dav
+https://dav\.qq\.com/.*
