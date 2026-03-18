@@ -2293,6 +2293,97 @@ class TestExpandConfigSection:
         assert set(expand_config_section(config, "all")) == {"a", "b", "c"}
 
 
+class TestConfigSectionInheritance:
+    """Unit tests for caldav.config.config_section (inherits key)."""
+
+    def test_inherits_copies_parent_values(self):
+        from caldav.config import config_section
+
+        config = {
+            "base": {"caldav_url": "https://example.com/", "caldav_username": "alice"},
+            "child": {"inherits": "base", "caldav_username": "bob"},
+        }
+        result = config_section(config, "child")
+        assert result["caldav_url"] == "https://example.com/"
+        # child's own value overrides parent's
+        assert result["caldav_username"] == "bob"
+
+    def test_inherits_does_not_affect_parent(self):
+        from caldav.config import config_section
+
+        config = {
+            "base": {"caldav_url": "https://example.com/", "caldav_username": "alice"},
+            "child": {"inherits": "base", "calendar_name": "Inbox"},
+        }
+        parent = config_section(config, "base")
+        assert "calendar_name" not in parent
+
+    def test_inherits_recursive(self):
+        from caldav.config import config_section
+
+        config = {
+            "grandparent": {"caldav_url": "https://example.com/"},
+            "parent": {"inherits": "grandparent", "caldav_username": "alice"},
+            "child": {"inherits": "parent", "caldav_password": "secret"},
+        }
+        result = config_section(config, "child")
+        assert result["caldav_url"] == "https://example.com/"
+        assert result["caldav_username"] == "alice"
+        assert result["caldav_password"] == "secret"
+
+
+class TestExpandEnvVars:
+    """Unit tests for caldav.config.expand_env_vars."""
+
+    def test_simple_var(self, monkeypatch):
+        from caldav.config import expand_env_vars
+
+        monkeypatch.setenv("TEST_CALDAV_URL", "https://env.example.com/")
+        assert expand_env_vars("${TEST_CALDAV_URL}") == "https://env.example.com/"
+
+    def test_default_when_missing(self):
+        import os
+
+        from caldav.config import expand_env_vars
+
+        os.environ.pop("MISSING_CALDAV_VAR", None)
+        assert expand_env_vars("${MISSING_CALDAV_VAR:-fallback}") == "fallback"
+
+    def test_empty_default_when_missing(self):
+        import os
+
+        from caldav.config import expand_env_vars
+
+        os.environ.pop("MISSING_CALDAV_VAR", None)
+        assert expand_env_vars("${MISSING_CALDAV_VAR}") == ""
+
+    def test_recursive_in_dict(self, monkeypatch):
+        from caldav.config import expand_env_vars
+
+        monkeypatch.setenv("TEST_USER", "alice")
+        result = expand_env_vars({"caldav_username": "${TEST_USER}"})
+        assert result == {"caldav_username": "alice"}
+
+    def test_env_var_in_config_section(self, tmp_path, monkeypatch):
+        """end-to-end: env var in config file is expanded before use."""
+        import json
+
+        from caldav.config import get_all_file_connection_params
+
+        monkeypatch.setenv("MY_CALDAV_PASS", "s3cr3t")
+        config = {
+            "default": {
+                "caldav_url": "https://example.com/",
+                "caldav_username": "alice",
+                "caldav_password": "${MY_CALDAV_PASS}",
+            }
+        }
+        config_file = tmp_path / "calendar.conf"
+        config_file.write_text(json.dumps(config))
+        results = get_all_file_connection_params(str(config_file))
+        assert results[0]["password"] == "s3cr3t"
+
+
 class TestGetAllFileConnectionParams:
     """Unit tests for caldav.config.get_all_file_connection_params."""
 
