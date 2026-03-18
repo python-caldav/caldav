@@ -1001,6 +1001,19 @@ class CalendarObjectResource(DAVObject):
         if not self.is_loaded():
             return self
 
+        # Delegate to async version for async clients (all logic that calls parent
+        # collection methods must be async-aware to avoid getting unawaited coroutines)
+        if self.is_async_client:
+            return self._async_save(
+                no_overwrite=no_overwrite,
+                no_create=no_create,
+                obj_type=obj_type,
+                increase_seqno=increase_seqno,
+                if_schedule_tag_match=if_schedule_tag_match,
+                only_this_recurrence=only_this_recurrence,
+                all_recurrences=all_recurrences,
+            )
+
         # Helper function to get the full object by UID
         def get_self():
             from caldav.lib import error
@@ -1022,113 +1035,145 @@ class CalendarObjectResource(DAVObject):
                     return None
             return None
 
-        # Handle no_overwrite/no_create validation BEFORE async delegation
-        # This must be done here because it requires collection methods (get_event_by_uid, etc.)
-        # which are sync and can't be called from async context (nested event loop issue)
         if no_overwrite or no_create:
-            from caldav.lib import error
-
-            if not obj_type:
-                obj_type = self.__class__.__name__.lower()
-
-            # Determine the ID
             uid = self.id or self.icalendar_component.get("uid")
-
-            # Check if object exists using parent collection methods
             existing = get_self()
+            self._validate_save_constraints(existing, uid, no_overwrite, no_create)
 
-            # Validate constraints
-            if not uid and no_create:
-                raise error.ConsistencyError("no_create flag was set, but no ID given")
-            if no_overwrite and existing:
-                raise error.ConsistencyError("no_overwrite flag was set, but object already exists")
-            if no_create and not existing:
-                raise error.ConsistencyError("no_create flag was set, but object does not exist")
-
-        # Handle recurrence instances BEFORE async delegation
-        # When saving a single recurrence instance, we need to:
-        # - Get the full recurring event from the server
-        # - Add/update the recurrence instance in the event's subcomponents
-        # - Save the full event back
-        # This prevents overwriting the entire recurring event with just one instance
         if (
             only_this_recurrence or all_recurrences
         ) and "RECURRENCE-ID" in self.icalendar_component:
-            import icalendar
-
             from caldav.lib import error
 
-            obj = get_self()  # Get the full object, not only the recurrence
+            obj = get_self()
             if obj is None:
                 raise error.NotFoundError("Could not find parent recurring event")
+            self._incorporate_recurrence_into_parent(obj, only_this_recurrence, all_recurrences)
+            return obj.save(increase_seqno=increase_seqno)
 
-            ici = obj.icalendar_instance  # ical instance
+        self._maybe_increment_sequence(increase_seqno)
+        path = self.url.path if self.url else None
+        self._create(id=self.id, path=path)
+        return self
 
-            if all_recurrences:
-                occ = obj.icalendar_component  # original calendar component
-                ncc = self.icalendar_component.copy()  # new calendar component
-                for prop in ["exdate", "exrule", "rdate", "rrule"]:
-                    if prop in occ:
-                        ncc[prop] = occ[prop]
+    def _validate_save_constraints(self, existing, uid, no_overwrite, no_create):
+        """Raise ConsistencyError if no_overwrite/no_create constraints are violated."""
+        from caldav.lib import error
 
-                # dtstart_diff = how much we've moved the time
-                dtstart_diff = ncc.start.astimezone() - ncc["recurrence-id"].dt.astimezone()
-                new_duration = ncc.duration
-                ncc.pop("dtstart")
-                ncc.add("dtstart", occ.start + dtstart_diff)
-                for ep in ("duration", "dtend"):
-                    if ep in ncc:
-                        ncc.pop(ep)
-                ncc.add("dtend", ncc.start + new_duration)
-                ncc.pop("recurrence-id")
-                s = ici.subcomponents
+        if not uid and no_create:
+            raise error.ConsistencyError("no_create flag was set, but no ID given")
+        if no_overwrite and existing:
+            raise error.ConsistencyError("no_overwrite flag was set, but object already exists")
+        if no_create and not existing:
+            raise error.ConsistencyError("no_create flag was set, but object does not exist")
 
-                # Replace the "root" subcomponent
-                comp_idxes = [
-                    i for i in range(0, len(s)) if not isinstance(s[i], icalendar.Timezone)
-                ]
-                comp_idx = comp_idxes[0]
-                s[comp_idx] = ncc
+    def _incorporate_recurrence_into_parent(self, obj, only_this_recurrence, all_recurrences):
+        """Mutate obj's icalendar_instance to include/update self (a recurrence instance).
 
-                # The recurrence-ids of all objects has to be recalculated
-                if dtstart_diff:
-                    for i in comp_idxes[1:]:
-                        rid = s[i].pop("recurrence-id")
-                        s[i].add("recurrence-id", rid.dt + dtstart_diff)
+        When saving a single recurrence instance we need to merge it into the
+        full recurring event rather than overwrite it on the server.  This method
+        performs that pure icalendar manipulation so it can be shared between the
+        sync and async save paths.
+        """
+        import icalendar
 
-                return obj.save(increase_seqno=increase_seqno)
+        from caldav.lib import error
 
-            if only_this_recurrence:
-                existing_idx = [
-                    i
-                    for i in range(0, len(ici.subcomponents))
-                    if ici.subcomponents[i].get("recurrence-id")
-                    == self.icalendar_component["recurrence-id"]
-                ]
-                error.assert_(len(existing_idx) <= 1)
-                if existing_idx:
-                    ici.subcomponents[existing_idx[0]] = self.icalendar_component
-                else:
-                    ici.add_component(self.icalendar_component)
-                return obj.save(increase_seqno=increase_seqno)
+        ici = obj.icalendar_instance
 
-        # Handle SEQUENCE increment
+        if all_recurrences:
+            occ = obj.icalendar_component
+            ncc = self.icalendar_component.copy()
+            for prop in ["exdate", "exrule", "rdate", "rrule"]:
+                if prop in occ:
+                    ncc[prop] = occ[prop]
+
+            # dtstart_diff = how much we've moved the time
+            dtstart_diff = ncc.start.astimezone() - ncc["recurrence-id"].dt.astimezone()
+            new_duration = ncc.duration
+            ncc.pop("dtstart")
+            ncc.add("dtstart", occ.start + dtstart_diff)
+            for ep in ("duration", "dtend"):
+                if ep in ncc:
+                    ncc.pop(ep)
+            ncc.add("dtend", ncc.start + new_duration)
+            ncc.pop("recurrence-id")
+            s = ici.subcomponents
+
+            # Replace the "root" subcomponent
+            comp_idxes = [i for i in range(len(s)) if not isinstance(s[i], icalendar.Timezone)]
+            s[comp_idxes[0]] = ncc
+
+            # The recurrence-ids of all objects has to be recalculated
+            if dtstart_diff:
+                for i in comp_idxes[1:]:
+                    rid = s[i].pop("recurrence-id")
+                    s[i].add("recurrence-id", rid.dt + dtstart_diff)
+
+        elif only_this_recurrence:
+            existing_idx = [
+                i
+                for i in range(len(ici.subcomponents))
+                if ici.subcomponents[i].get("recurrence-id")
+                == self.icalendar_component["recurrence-id"]
+            ]
+            error.assert_(len(existing_idx) <= 1)
+            if existing_idx:
+                ici.subcomponents[existing_idx[0]] = self.icalendar_component
+            else:
+                ici.add_component(self.icalendar_component)
+
+    def _maybe_increment_sequence(self, increase_seqno):
+        """Increment SEQUENCE number if present and increase_seqno is True."""
         if increase_seqno and "SEQUENCE" in self.icalendar_component:
             seqno = self.icalendar_component.pop("SEQUENCE", None)
             if seqno is not None:
                 self.icalendar_component.add("SEQUENCE", seqno + 1)
 
+    async def _async_save(
+        self,
+        no_overwrite: bool = False,
+        no_create: bool = False,
+        obj_type: str | None = None,
+        increase_seqno: bool = True,
+        if_schedule_tag_match: bool = False,
+        only_this_recurrence: bool = True,
+        all_recurrences: bool = False,
+    ) -> Self:
+        """Async implementation of save() for async clients."""
+        from caldav.lib import error
+
+        async def get_self():
+            uid = self.id or self.icalendar_component.get("uid")
+            if uid and self.parent:
+                try:
+                    _obj_type = obj_type or self.__class__.__name__.lower()
+                    if _obj_type:
+                        method_name = f"get_{_obj_type}_by_uid"
+                        if hasattr(self.parent, method_name):
+                            return await getattr(self.parent, method_name)(uid)
+                    if hasattr(self.parent, "get_object_by_uid"):
+                        return await self.parent.get_object_by_uid(uid)
+                except error.NotFoundError:
+                    return None
+            return None
+
+        if no_overwrite or no_create:
+            uid = self.id or self.icalendar_component.get("uid")
+            existing = await get_self()
+            self._validate_save_constraints(existing, uid, no_overwrite, no_create)
+
+        if (
+            only_this_recurrence or all_recurrences
+        ) and "RECURRENCE-ID" in self.icalendar_component:
+            obj = await get_self()
+            if obj is None:
+                raise error.NotFoundError("Could not find parent recurring event")
+            self._incorporate_recurrence_into_parent(obj, only_this_recurrence, all_recurrences)
+            return await obj.save(increase_seqno=increase_seqno)
+
+        self._maybe_increment_sequence(increase_seqno)
         path = self.url.path if self.url else None
-
-        # Dual-mode support: async clients return a coroutine
-        if self.is_async_client:
-            return self._async_save_final(path)
-
-        self._create(id=self.id, path=path)
-        return self
-
-    async def _async_save_final(self, path) -> Self:
-        """Async helper for the final save operation."""
         await self._async_create(id=self.id, path=path)
         return self
 
@@ -1869,10 +1914,28 @@ class Todo(CalendarObjectResource):
         if not completion_timestamp:
             completion_timestamp = datetime.now(timezone.utc)
 
+        if self.is_async_client:
+            return self._async_complete(completion_timestamp, handle_rrule, rrule_mode)
+
         if "RRULE" in self.icalendar_component and handle_rrule:
             return getattr(self, "_complete_recurring_%s" % rrule_mode)(completion_timestamp)
         self._complete_ical(completion_timestamp=completion_timestamp)
         self.save()
+
+    async def _async_complete(
+        self,
+        completion_timestamp: datetime,
+        handle_rrule: bool = False,
+        rrule_mode: str = "safe",
+    ) -> None:
+        """Async implementation of complete()."""
+        if "RRULE" in self.icalendar_component and handle_rrule:
+            # _complete_recurring_* methods are sync-only for now; they internally
+            # call self.save() which would return an unawaited coroutine in async mode.
+            # This is a known limitation - handle_rrule is not yet async-safe.
+            raise NotImplementedError("handle_rrule=True is not yet supported for async clients")
+        self._complete_ical(completion_timestamp=completion_timestamp)
+        await self.save()
 
     def _complete_ical(self, i=None, completion_timestamp=None) -> None:
         if i is None:
