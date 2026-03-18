@@ -20,6 +20,7 @@ Contents
    about
    v3-migration
    tutorial
+   async_tutorial
    configfile
    async
    jmap
