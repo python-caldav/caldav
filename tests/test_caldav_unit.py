@@ -1837,6 +1837,71 @@ END:VCALENDAR
             calendar.get_object_by_uid("20010712T182145Z-123401@example.com-nope")
 
 
+class TestAsyncGetObjectByUid:
+    """Tests for async support in get_object_by_uid and friends (issue #642)."""
+
+    def _make_multistatus(self, ical_data, href="/calendar/ev1.ics"):
+        return f"""<d:multistatus xmlns:d="DAV:" xmlns:cal="urn:ietf:params:xml:ns:caldav">
+  <d:response>
+    <d:href>{href}</d:href>
+    <d:propstat>
+      <d:prop>
+        <cal:calendar-data>{ical_data}</cal:calendar-data>
+      </d:prop>
+      <d:status>HTTP/1.1 200 OK</d:status>
+    </d:propstat>
+  </d:response>
+</d:multistatus>"""
+
+    def test_get_object_by_uid_returns_coroutine_for_async_client(self):
+        """get_object_by_uid() must return a coroutine (not a result) when the
+        client is an AsyncDAVClient, so that the caller can await it."""
+        import asyncio
+
+        from caldav.async_davclient import AsyncDAVClient
+
+        xml_response = self._make_multistatus(ev1)
+        client = MockedDAVClient(xml_response)
+        # Pretend the client is async by patching the type name
+        client.__class__ = type(
+            "AsyncDAVClient", (MockedDAVClient,), {"__module__": AsyncDAVClient.__module__}
+        )
+        calendar = Calendar(client, url="/calendar/")
+        assert calendar.is_async_client
+        uid = "20010712T182145Z-123401@example.com"
+        result = calendar.get_object_by_uid(uid)
+        # Must be a coroutine, not an Event/CalendarObjectResource
+        assert asyncio.iscoroutine(result), (
+            f"expected coroutine from async client, got {type(result)}"
+        )
+        result.close()  # clean up to avoid ResourceWarning
+
+    def test_get_object_by_uid_async_returns_correct_object(self):
+        """Awaiting the coroutine from get_object_by_uid() returns the right object."""
+        import asyncio
+
+        from caldav.async_davclient import AsyncDAVClient
+
+        client = MockedDAVClient("")
+        client.__class__ = type(
+            "AsyncDAVClient", (MockedDAVClient,), {"__module__": AsyncDAVClient.__module__}
+        )
+        calendar = Calendar(client, url="/calendar/")
+        uid = "20010712T182145Z-123401@example.com"
+
+        # Build a real Event object that the mocked search will return
+        fake_event = Event(client=client, url="/calendar/ev1.ics", data=ev1, parent=calendar)
+
+        # Mock calendar.search as an async function returning our fake event
+        async def fake_search(**kwargs):
+            return [fake_event]
+
+        calendar.search = fake_search
+
+        obj = asyncio.run(calendar.get_object_by_uid(uid))
+        assert obj.id == uid
+
+
 class TestRateLimitHelpers:
     """Unit tests for the shared rate-limit helper functions in caldav.lib.error."""
 
