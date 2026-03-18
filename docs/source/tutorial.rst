@@ -61,7 +61,7 @@ Many servers will start with a "clean slate", with no calendars - so to get anyt
         ## ... from the client get the principal ...
         my_principal = client.get_principal()
         ## ... from the principal we can create calendar ...
-        my_new_calendar = my_principal.make_calendar(name="Teest calendar")
+        my_new_calendar = my_principal.make_calendar(name="Test calendar")
         ## Enable the debug breakpoint to investigate the calendar object
         #breakpoint()
         my_new_calendar.delete()
