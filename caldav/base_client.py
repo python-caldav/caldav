@@ -328,6 +328,26 @@ class CalendarCollection(list):
             self[0].client.__exit__(exc_type, exc_val, exc_tb)
         return False
 
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        seen: set[int] = set()
+        for c in self._clients:
+            if id(c) not in seen:
+                if hasattr(c, "__aexit__"):
+                    await c.__aexit__(exc_type, exc_val, exc_tb)
+                else:
+                    c.__exit__(exc_type, exc_val, exc_tb)
+                seen.add(id(c))
+        if not self._clients and self:
+            c = self[0].client
+            if hasattr(c, "__aexit__"):
+                await c.__aexit__(exc_type, exc_val, exc_tb)
+            else:
+                c.__exit__(exc_type, exc_val, exc_tb)
+        return False
+
     def close(self):
         """Close all underlying DAV client connections."""
         seen: set[int] = set()
@@ -388,6 +408,18 @@ class CalendarResult:
         client = self.client
         if client:
             client.__exit__(exc_type, exc_val, exc_tb)
+        return False
+
+    async def __aenter__(self):
+        return self._calendar
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        client = self.client
+        if client:
+            if hasattr(client, "__aexit__"):
+                await client.__aexit__(exc_type, exc_val, exc_tb)
+            else:
+                client.__exit__(exc_type, exc_val, exc_tb)
         return False
 
     def close(self):

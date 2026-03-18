@@ -1245,7 +1245,7 @@ async def get_calendars(
     calendar_name: Any | None = None,
     raise_errors: bool = False,
     **kwargs: Any,
-) -> list["Calendar"]:
+) -> "CalendarCollection":
     """
     Get calendars from a CalDAV server asynchronously.
 
@@ -1258,15 +1258,14 @@ async def get_calendars(
         **kwargs: Connection parameters (url, username, password, etc.)
 
     Returns:
-        List of Calendar objects matching the criteria.
+        :class:`~caldav.base_client.CalendarCollection` of matching calendars.
+        Use as an async context manager to auto-close the connection::
 
-    Example::
-
-        from caldav.async_davclient import get_calendars
-
-        calendars = await get_calendars(url="...", username="...", password="...")
+            async with await aio.get_calendars() as calendars:
+                for cal in calendars:
+                    print(await cal.get_display_name())
     """
-    from caldav.base_client import _normalize_to_list
+    from caldav.base_client import CalendarCollection, _normalize_to_list
 
     def _try(coro_result, errmsg):
         """Handle errors based on raise_errors flag."""
@@ -1282,13 +1281,13 @@ async def get_calendars(
         if raise_errors:
             raise
         log.error(f"Failed to create async client: {e}")
-        return []
+        return CalendarCollection()
 
     try:
         principal = await client.get_principal()
         if not principal:
             _try(None, "getting principal")
-            return []
+            return CalendarCollection(client=client)
 
         calendars = []
         calendar_urls = _normalize_to_list(calendar_url)
@@ -1332,31 +1331,34 @@ async def get_calendars(
                 if raise_errors:
                     raise
 
-        return calendars
+        return CalendarCollection(calendars, client=client)
 
-    finally:
-        # Don't close the client - let the caller manage its lifecycle
-        pass
+    except Exception:
+        await client.__aexit__(None, None, None)
+        raise
 
 
-async def get_calendar(**kwargs: Any) -> Optional["Calendar"]:
+async def get_calendar(**kwargs: Any) -> "CalendarResult":
     """
     Get a single calendar from a CalDAV server asynchronously.
 
     This is a convenience function for the common case where only one
-    calendar is needed. It returns the first matching calendar or None.
+    calendar is needed.  Use as an async context manager to auto-close
+    the connection::
+
+        async with await aio.get_calendar() as cal:
+            events = await cal.search(event=True)
 
     Args:
         Same as :func:`get_calendars`.
 
     Returns:
-        A single Calendar object, or None if no calendars found.
-
-    Example::
-
-        from caldav.async_davclient import get_calendar
-
-        calendar = await get_calendar(calendar_name="Work", url="...", ...)
+        :class:`~caldav.base_client.CalendarResult` wrapping the first
+        matching calendar (or None).  Behaves like the calendar via
+        ``__getattr__`` delegation when not used as a context manager.
     """
-    calendars = await get_calendars(**kwargs)
-    return calendars[0] if calendars else None
+    from caldav.base_client import CalendarResult
+
+    collection = await get_calendars(**kwargs)
+    cal = collection[0] if collection else None
+    return CalendarResult(cal, client=collection.client)
