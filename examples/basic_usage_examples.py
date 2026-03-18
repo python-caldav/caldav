@@ -88,7 +88,7 @@ def print_calendars_demo(calendars):
         ## this principal.
         print("your principal has %i calendars:" % len(calendars))
         for c in calendars:
-            print("    Name: %-36s  URL: %s" % (c.name, c.url))
+            print("    Name: %-36s  URL: %s" % (c.get_display_name(), c.url))
     else:
         print("your principal has no calendars")
 
