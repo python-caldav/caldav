@@ -848,7 +848,7 @@ class Calendar(DAVObject):
         """Async helper for add_object(): awaits save() then handles reverse relations."""
         o = await o.save(no_overwrite=no_overwrite, no_create=no_create)
         if o.url is not None:
-            o._handle_reverse_relations(fix=True)
+            await o._async_handle_reverse_relations(fix=True)
         return o
 
     def add_event(self, *largs, **kwargs) -> "Event":
