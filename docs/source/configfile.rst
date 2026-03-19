@@ -271,3 +271,43 @@ Shared base with per-calendar overrides
         inherits: _server
         calendar_name: Tasks
         calendar_url: https://caldav.example.com/cal/tasks/
+
+Testing server compatibility
+============================
+
+The `caldav-server-tester <https://github.com/python-caldav/caldav-server-tester>`_
+companion tool probes a CalDAV server and reports which features and RFC
+requirements it supports, which ones it handles in a quirky way, and which ones
+it gets wrong.  Its output can be used to populate the ``features`` key in your
+config file so the caldav library applies the right workarounds automatically.
+
+Installation::
+
+    pip install caldav-server-tester
+
+Run against a config section defined in your ``calendar.conf``::
+
+    caldav-server-tester --config-section myserver
+
+Or supply connection details directly::
+
+    caldav-server-tester --caldav-url https://example.com/dav \
+                         --caldav-username alice \
+                         --caldav-password secret
+
+The tool will run a series of checks and print which features deviate from the
+CalDAV standard.  To get machine-readable output that you can paste into your
+``calendar.conf``, use ``--format yaml``::
+
+    caldav-server-tester --config-section myserver --format yaml
+
+Copy the ``features:`` block from the output into your config section.
+Alternatively, if your server matches one of the named profiles in
+:mod:`caldav.compatibility_hints` (e.g. ``radicale``, ``baikal``,
+``xandikos``), you can just name the profile::
+
+    myserver:
+        caldav_url: https://example.com/dav
+        caldav_username: alice
+        caldav_password: secret
+        features: radicale
