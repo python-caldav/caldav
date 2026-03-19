@@ -12,7 +12,46 @@ Changelogs prior to v2.0 is pruned, but was available in the v2.x releases
 
 This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html), though for pre-releases PEP 440 takes precedence.
 
-## [3.0.2] - 2026-03-05
+## [3.1.0] - 2026-03-19
+
+Highlights:
+
+* **Fixups on the async support**.  Perhaps the "sans-io" design concept wasn't such a great idea - quite some gaps in the async support has been identified and fixed,.
+* **Multi-server `get_calendars()`:** a single `get_calendars()` call can now span multiple config-file sections (including glob/wildcard expansion), aggregating calendars from multiple servers into one `CalendarCollection`.  This was the idea (and has been implemented in my `plann` project for quite some time), but fell short of getting into the v3.0-release.
+* Full async tutorial added to the documentation.
+
+### Added
+
+* `get_icalendar_component()` returns a deep-copy of the inner VEVENT/VTODO/VJOURNAL sub-component for read-only inspection, consistent with the `get_icalendar_instance()` naming convention.
+* `edit_icalendar_component()` context manager yields the inner component for editing and delegates to `edit_icalendar_instance()` so all borrow/state/save machinery is reused.
+* `get_calendars()` now accepts a `config_section` value that is expanded via `expand_config_section()`, so wildcards like `"work_*"` or `"all"` resolve to multiple leaf sections; each section gets its own `DAVClient` and all calendars are aggregated into a `CalendarCollection`.  `CalendarCollection` now closes all its clients on context-manager exit.
+* New config helper: `get_all_file_connection_params(config_file, section)`.
+* `PYTHON_CALDAV_USE_TEST_SERVER=1` (or `testconfig=True`) falls back to automatically starting the first available enabled server from the test-server registry when no `testing_allowed` config section is present.  Three new env vars (`PYTHON_CALDAV_TEST_EMBEDDED`, `PYTHON_CALDAV_TEST_DOCKER`, `PYTHON_CALDAV_TEST_EXTERNAL`) control which server categories are eligible.  Per-server `priority:` keys in config files are honoured.
+* New `caldav/testing.py` (shipped with the package): `EmbeddedServer`, `XandikosServer`, `RadicaleServer` — so pip-installed users can use `PYTHON_CALDAV_USE_TEST_SERVER=1` without a source checkout.
+
+### Fixed
+
+* `get_object_by_uid()` (and `get_event_by_uid()`, `get_todo_by_uid()`, `get_journal_by_uid()`, and their deprecated aliases) raised `TypeError` with async clients because `search()` returned a coroutine that was iterated directly.  Fixes https://github.com/python-caldav/caldav/issues/642
+* `complete()` and the save()-recurrence path were not awaited for async clients.
+* `uncomplete()`, `set_relation()`, `get_relatives()`, and `invite()` lacked async dispatch.
+* `_handle_reverse_relations()` called `get_relatives()` without `await`, silently returning a coroutine.
+* `get_calendar()` and `get_calendars()` were missing from the `caldav.aio` re-export.
+* `get_calendars(config_section=…)` silently ignored `calendar_name` and `calendar_url` keys in config sections — they were stripped before reaching the filter logic.
+* `expand_config_section()` was not called when reading the config file, so `contains:`-style meta-sections had no effect.
+* `date` objects passed to `calendar.search()` or `calendar.searcher()` as time-range boundaries now get coerced to UTC `datetime` before being forwarded to `icalendar_searcher`, silencing the "Date-range searches not well supported yet" warning.
+* `XandikosServer.is_accessible()` now sends a minimal `PROPFIND` requesting only `{DAV:}resourcetype` instead of an implicit `allprop`, avoiding spurious `NotImplementedError` log lines from Xandikos during test-server startup.
+
+### Tests and documentation
+
+* Full async tutorial added: `docs/source/async_tutorial.rst`.  Covers the same ground as the sync tutorial plus a "Parallel Operations" section demonstrating `asyncio.gather()`.  The sync tutorial now links to it.
+* `docs/source/configfile.rst` has been rewritten and extended; tests for `inherits` and env-var expansion added.
+* `docs/source/tutorial.rst` rewritten and fixed.
+* The caldav-server-tester tool is now documented in the config file guide.
+* Design notes on the dual-mode sync/async pattern and its trade-offs added in `docs/source/`.
+* Test server spin-up/teardown tweaked for reliability.
+* CI: deptry and lychee link-checker fixups.
+
+## [3.0.2] - 2026-03-15
 
 Highlight: Reintroducing debug communication dump functionality.
 
@@ -23,8 +62,8 @@ Highlight: Reintroducing debug communication dump functionality.
 
 ### Tests and documentation
 
-* All links to the RFC is now in a cannonical format.  Links in docstrings and ReST-documntation follows the sphinx-standard.  Fixes https://github.com/python-caldav/caldav/issues/635 - pull request https://github.com/python-caldav/caldav/pull/636
-* I've decided to try to stick to the conventionalcommits standard.  This is documented in CONTRIBUTING.md, and I've added a pre-commit hookk for enforcing it (but it needs to be installed through pre-commit ... so I will most likely have to police pull requests manually)
+* All links to the RFC is now in a canonical format.  Links in docstrings and ReST-documentation follows the sphinx-standard.  Fixes https://github.com/python-caldav/caldav/issues/635 - pull request https://github.com/python-caldav/caldav/pull/636
+* I've decided to try to stick to the conventionalcommits standard.  This is documented in CONTRIBUTING.md, and I've added a pre-commit hook for enforcing it (but it needs to be installed through pre-commit ... so I will most likely have to police pull requests manually)
 * Some code refactoring in the test code.
 * Improved the lychee link testing setup
 
