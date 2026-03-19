@@ -88,6 +88,11 @@ Proposed Ruff configuration for linting and formatting.
 ### [RUFF_REMAINING_ISSUES.md](RUFF_REMAINING_ISSUES.md)
 Remaining linting issues to address.
 
+### [ASYNC_DESIGN_CRITIQUE.md](ASYNC_DESIGN_CRITIQUE.md)
+Critique of the current dual-mode async pattern (same class, runtime `is_async_client`
+branching): why it is fragile, what alternative designs exist, and which methods still
+lack async support as of March 2026.
+
 ## Historical Note
 
 Some design documents from the exploration phase were removed in January 2026 after
