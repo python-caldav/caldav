@@ -283,16 +283,27 @@ class CalendarObjectResource(DAVObject):
             else:
                 # Use cheap accessor to avoid format conversion (issue #613)
                 uid = other._get_uid_cheap() or other.icalendar_component["uid"]
+            other_obj = other
         else:
             uid = other
-            if set_reverse:
-                other = self.parent.get_object_by_uid(uid)
+            other_obj = None  # Resolved below (possibly async)
+
+        if self.is_async_client:
+            return self._async_set_relation(uid, other_obj, reltype, set_reverse)
+
+        if other_obj is None and set_reverse:
+            other_obj = self.parent.get_object_by_uid(uid)
         if set_reverse:
             ## TODO: special handling of NEXT/FIRST.
             ## STARTTOFINISH does not have any equivalent "reverse".
             reltype_reverse = self.RELTYPE_REVERSE_MAP[reltype]
-            other.set_relation(other=self, reltype=reltype_reverse, set_reverse=False)
+            other_obj.set_relation(other=self, reltype=reltype_reverse, set_reverse=False)
 
+        self._add_relation_to_ical(uid, reltype)
+        self.save()
+
+    def _add_relation_to_ical(self, uid, reltype) -> None:
+        """Add a RELATED-TO property to the icalendar component (no-op if already present)."""
         existing_relation = self.icalendar_component.get("related-to", None)
         existing_relations = (
             existing_relation if isinstance(existing_relation, list) else [existing_relation]
@@ -306,16 +317,45 @@ class CalendarObjectResource(DAVObject):
         #  then Component._encode does miss adding properties
         #  see https://github.com/collective/icalendar/issues/557
         #  workaround should be safe to remove if issue gets fixed
-        uid = str(uid)
         self.icalendar_component.add(
-            "related-to", uid, parameters={"RELTYPE": reltype}, encode=True
+            "related-to", str(uid), parameters={"RELTYPE": reltype}, encode=True
         )
 
-        self.save()
+    async def _async_set_relation(self, uid, other_obj, reltype, set_reverse) -> None:
+        """Async implementation of set_relation() for async clients."""
+        if other_obj is None and set_reverse:
+            other_obj = await self.parent.get_object_by_uid(uid)
+        if set_reverse:
+            ## TODO: special handling of NEXT/FIRST.
+            reltype_reverse = self.RELTYPE_REVERSE_MAP[reltype]
+            # set_relation() returns a coroutine when is_async_client, so await it
+            await other_obj.set_relation(other=self, reltype=reltype_reverse, set_reverse=False)
+
+        self._add_relation_to_ical(uid, reltype)
+        await self.save()
 
     ## TODO: this method is undertested in the caldav library.
     ## However, as this consolidated and eliminated quite some duplicated code in the
     ## plann project, it is extensively tested in plann.
+    def _parse_relatives_from_ical(
+        self,
+        reltypes: "Container[str] | None",
+        relfilter: "Callable[[Any], bool] | None",
+    ) -> "defaultdict[str, set[str]]":
+        """Extract RELATED-TO properties as a {reltype: {uid, ...}} dict (pure, no I/O)."""
+        ret: defaultdict[str, set[str]] = defaultdict(set)
+        relations = self.icalendar_component.get("RELATED-TO", [])
+        if not isinstance(relations, list):
+            relations = [relations]
+        for rel in relations:
+            if relfilter and not relfilter(rel):
+                continue
+            reltype = rel.params.get("RELTYPE", "PARENT")
+            if reltypes and reltype not in reltypes:
+                continue
+            ret[reltype].add(str(rel))
+        return ret
+
     def get_relatives(
         self,
         reltypes: Container[str] | None = None,
@@ -340,24 +380,17 @@ class CalendarObjectResource(DAVObject):
         (but due to backward compatibility requirement, such an object should behave like
         the current dict)
         """
+        if self.is_async_client:
+            return self._async_get_relatives(reltypes, relfilter, fetch_objects, ignore_missing)
+
         from .collection import Calendar  ## late import to avoid cycling imports
 
-        ret = defaultdict(set)
-        relations = self.icalendar_component.get("RELATED-TO", [])
-        if not isinstance(relations, list):
-            relations = [relations]
-        for rel in relations:
-            if relfilter and not relfilter(rel):
-                continue
-            reltype = rel.params.get("RELTYPE", "PARENT")
-            if reltypes and reltype not in reltypes:
-                continue
-            ret[reltype].add(str(rel))
+        ret = self._parse_relatives_from_ical(reltypes, relfilter)
 
         if fetch_objects:
             for reltype in ret:
                 uids = ret[reltype]
-                reltype_set = set()
+                reltype_set: set = set()
 
                 if self.parent is None:
                     raise ValueError("Unexpected value None for self.parent")
@@ -372,6 +405,37 @@ class CalendarObjectResource(DAVObject):
                         if not ignore_missing:
                             raise
 
+                ret[reltype] = reltype_set
+
+        return ret
+
+    async def _async_get_relatives(
+        self,
+        reltypes: "Container[str] | None",
+        relfilter: "Callable[[Any], bool] | None",
+        fetch_objects: bool,
+        ignore_missing: bool,
+    ) -> "defaultdict[str, set]":
+        """Async implementation of get_relatives() for async clients."""
+        from .collection import Calendar  ## late import to avoid cycling imports
+
+        ret = self._parse_relatives_from_ical(reltypes, relfilter)
+
+        if fetch_objects:
+            if self.parent is None:
+                raise ValueError("Unexpected value None for self.parent")
+            if not isinstance(self.parent, Calendar):
+                raise ValueError("self.parent expected to be of type Calendar but it is not")
+
+            for reltype in ret:
+                uids = ret[reltype]
+                reltype_set: set = set()
+                for obj in uids:
+                    try:
+                        reltype_set.add(await self.parent.get_object_by_uid(obj))
+                    except error.NotFoundError:
+                        if not ignore_missing:
+                            raise
                 ret[reltype] = reltype_set
 
         return ret
@@ -621,6 +685,11 @@ class CalendarObjectResource(DAVObject):
     ## partstat can also be set to COMPLETED and IN-PROGRESS.
 
     def _reply_to_invite_request(self, partstat, calendar) -> None:
+        if self.is_async_client:
+            raise NotImplementedError(
+                "accept_invite/decline_invite/tentatively_accept_invite are not yet supported "
+                "for async clients"
+            )
         error.assert_(self.is_invite_request())
         if not calendar:
             calendar = self.client.principal().get_calendars()[0]
@@ -1966,7 +2035,13 @@ class Todo(CalendarObjectResource):
         self.icalendar_component.add("status", "NEEDS-ACTION")
         if "completed" in self.icalendar_component:
             self.icalendar_component.pop("completed")
+        if self.is_async_client:
+            return self._async_uncomplete()
         self.save()
+
+    async def _async_uncomplete(self) -> None:
+        """Async implementation of uncomplete() for async clients."""
+        await self.save()
 
     ## TODO: should be moved up to the base class
     def set_duration(self, duration, movable_attr="DTSTART"):
