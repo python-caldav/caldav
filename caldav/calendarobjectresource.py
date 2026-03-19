@@ -448,6 +448,14 @@ class CalendarObjectResource(DAVObject):
             return
         other.set_relation(self, reverse_reltype, other)
 
+    async def _async_set_reverse_relation(self, other, reltype):
+        """Async version of _set_reverse_relation."""
+        reverse_reltype = self.RELTYPE_REVERSE_MAP.get(reltype)
+        if not reverse_reltype:
+            logging.error("Reltype %s not supported in object uid %s" % (reltype, self.id))
+            return
+        await other.set_relation(self, reverse_reltype, other)
+
     def _verify_reverse_relation(self, other, reltype) -> tuple:
         revreltype = self.RELTYPE_REVERSE_MAP[reltype]
         ## TODO: special case FIRST/NEXT needs special handling
@@ -460,6 +468,36 @@ class CalendarObjectResource(DAVObject):
             ## have to leave it like this.
             return (other, revreltype)
         return False
+
+    async def _async_verify_reverse_relation(self, other, reltype) -> tuple:
+        """Async version of _verify_reverse_relation."""
+        revreltype = self.RELTYPE_REVERSE_MAP[reltype]
+        other_relations = await other.get_relatives(fetch_objects=False, reltypes={revreltype})
+        my_uid = self._get_uid_cheap() or str(self.icalendar_component["uid"])
+        if my_uid not in other_relations[revreltype]:
+            return (other, revreltype)
+        return False
+
+    async def _async_handle_reverse_relations(
+        self, verify: bool = False, fix: bool = False, pdb: bool = False
+    ) -> list:
+        """Async version of _handle_reverse_relations for async clients."""
+        ret = []
+        assert verify or fix
+        relations = await self.get_relatives()
+        for reltype in relations:
+            for other in relations[reltype]:
+                if verify:
+                    foobar = await self._async_verify_reverse_relation(other, reltype)
+                    if foobar:
+                        ret.append(foobar)
+                        if pdb:
+                            breakpoint()
+                        if fix:
+                            await self._async_set_reverse_relation(other, reltype)
+                elif fix:
+                    await self._async_set_reverse_relation(other, reltype)
+        return ret
 
     def _handle_reverse_relations(
         self, verify: bool = False, fix: bool = False, pdb: bool = False
