@@ -1902,6 +1902,168 @@ class TestAsyncGetObjectByUid:
         assert obj.id == uid
 
 
+class TestAsyncCalendarObjectResource:
+    """Tests that CalendarObjectResource methods return coroutines (not None) for async clients.
+
+    These guard against the pattern where a sync method calls self.save() or
+    self.parent.some_method() without awaiting, silently discarding the coroutine.
+    """
+
+    completed_todo = """BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Example Corp.//CalDAV Client//EN
+BEGIN:VTODO
+UID:20070313T123432Z-456553@example.com
+DTSTAMP:20070313T123432Z
+DUE;VALUE=DATE:20070501
+SUMMARY:Submit Quebec Income Tax Return for 2006
+STATUS:COMPLETED
+COMPLETED:20070501T000000Z
+END:VTODO
+END:VCALENDAR"""
+
+    todo_with_relation = """BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Example Corp.//CalDAV Client//EN
+BEGIN:VTODO
+UID:20070313T123432Z-456553@example.com
+DTSTAMP:20070313T123432Z
+DUE;VALUE=DATE:20070501
+SUMMARY:Submit Quebec Income Tax Return for 2006
+RELATED-TO;RELTYPE=PARENT:parent-uid-001
+STATUS:NEEDS-ACTION
+END:VTODO
+END:VCALENDAR"""
+
+    def _make_async_client_and_calendar(self):
+        from caldav.async_davclient import AsyncDAVClient
+
+        client = MockedDAVClient("")
+        client.__class__ = type(
+            "AsyncDAVClient", (MockedDAVClient,), {"__module__": AsyncDAVClient.__module__}
+        )
+        calendar = Calendar(client, url="/calendar/")
+        return client, calendar
+
+    def test_uncomplete_returns_coroutine_for_async_client(self):
+        """uncomplete() must return a coroutine for async clients, not silently discard save()."""
+        import asyncio
+
+        client, calendar = self._make_async_client_and_calendar()
+        todo = Todo(
+            client=client,
+            url="/calendar/todo1.ics",
+            data=self.completed_todo,
+            parent=calendar,
+        )
+        result = todo.uncomplete()
+        assert asyncio.iscoroutine(result), (
+            f"expected coroutine from uncomplete(), got {type(result)}"
+        )
+        result.close()
+
+    def test_uncomplete_async_saves_and_clears_status(self):
+        """Awaiting uncomplete() must actually save the object and clear STATUS/COMPLETED."""
+        import asyncio
+
+        client, calendar = self._make_async_client_and_calendar()
+        todo = Todo(
+            client=client,
+            url="/calendar/todo1.ics",
+            data=self.completed_todo,
+            parent=calendar,
+        )
+
+        saved = False
+
+        async def fake_async_put(*args, **kwargs):
+            nonlocal saved
+            saved = True
+
+        todo._async_put = fake_async_put
+        asyncio.run(todo.uncomplete())
+
+        assert saved, "uncomplete() did not call _async_put for async client"
+        assert todo.icalendar_component.get("STATUS") == "NEEDS-ACTION"
+        assert "COMPLETED" not in todo.icalendar_component
+
+    def test_get_relatives_returns_coroutine_for_async_client(self):
+        """get_relatives(fetch_objects=True) must return a coroutine for async clients."""
+        import asyncio
+
+        client, calendar = self._make_async_client_and_calendar()
+        todo = Todo(
+            client=client,
+            url="/calendar/todo1.ics",
+            data=self.todo_with_relation,
+            parent=calendar,
+        )
+        result = todo.get_relatives()
+        assert asyncio.iscoroutine(result), (
+            f"expected coroutine from get_relatives(), got {type(result)}"
+        )
+        result.close()
+
+    def test_get_relatives_async_returns_objects(self):
+        """Awaiting get_relatives() must return fetched objects, not coroutines."""
+        import asyncio
+
+        client, calendar = self._make_async_client_and_calendar()
+        todo = Todo(
+            client=client,
+            url="/calendar/todo1.ics",
+            data=self.todo_with_relation,
+            parent=calendar,
+        )
+
+        parent_todo = Todo(client=client, url="/calendar/parent.ics", data=ev1, parent=calendar)
+
+        async def fake_get_object_by_uid(uid):
+            return parent_todo
+
+        calendar.get_object_by_uid = fake_get_object_by_uid
+
+        result = asyncio.run(todo.get_relatives())
+        assert "PARENT" in result
+        parent_set = result["PARENT"]
+        assert len(parent_set) == 1
+        obj = next(iter(parent_set))
+        assert obj is parent_todo, f"expected the parent todo object, got {obj!r}"
+
+    def test_set_relation_returns_coroutine_for_async_client(self):
+        """set_relation() must return a coroutine for async clients, not silently drop save()."""
+        import asyncio
+
+        client, calendar = self._make_async_client_and_calendar()
+        todo = Todo(
+            client=client,
+            url="/calendar/todo1.ics",
+            data=self.completed_todo,
+            parent=calendar,
+        )
+        other_todo = Todo(
+            client=client,
+            url="/calendar/todo2.ics",
+            data=self.completed_todo,
+            parent=calendar,
+        )
+        # Patch id so set_relation can extract a UID without a full ical parse
+        other_todo._id = "some-other-uid"
+
+        result = todo.set_relation(other_todo, reltype="PARENT", set_reverse=False)
+        assert asyncio.iscoroutine(result), (
+            f"expected coroutine from set_relation(), got {type(result)}"
+        )
+        result.close()
+
+    def test_accept_invite_raises_not_implemented_for_async_client(self):
+        """accept_invite() must raise NotImplementedError for async clients (not silently fail)."""
+        client, calendar = self._make_async_client_and_calendar()
+        event = Event(client=client, url="/calendar/ev1.ics", data=ev1, parent=calendar)
+        with pytest.raises(NotImplementedError):
+            event.accept_invite()
+
+
 class TestRateLimitHelpers:
     """Unit tests for the shared rate-limit helper functions in caldav.lib.error."""
 
