@@ -711,15 +711,6 @@ class FeatureSet:
 ## * Perhaps some more readable format should be considered (yaml?).
 ## * Consider how to get this into the documentation
 incompatibility_description = {
-    'no_scheduling':
-        """RFC6833 is not supported""",
-
-    'no_scheduling_mailbox':
-        """Parts of RFC6833 is supported, but not the existence of inbox/mailbox""",
-
-    'no_scheduling_calendar_user_address_set':
-        """Parts of RFC6833 is supported, but not getting the calendar users addresses""",
-
     'no_default_calendar':
         """The given user starts without an assigned default calendar """
         """(or without pre-defined calendars at all)""",
@@ -841,13 +832,11 @@ xandikos_v0_2_12 = {
     "search.text.category.substring": {"support": "unsupported"},
     'principal-search': {'support': 'unsupported'},
     'freebusy-query.rfc4791': {'support': 'ungraceful', 'behaviour': '500 internal server error'},
+    "scheduling": {"support": "unsupported"},
     "old_flags":  [
     ## https://github.com/jelmer/xandikos/issues/8
     'date_todo_search_ignores_duration',
     'vtodo_datesearch_nostart_future_tasks_delivered',
-
-    ## scheduling is not supported
-    "no_scheduling",
 
     ## The test with an rrule and an overridden event passes as
     ## long as it's with timestamps.  With dates, xandikos gets
@@ -876,13 +865,11 @@ xandikos = {
     ## this only applies for very simple installations
     "auto-connect.url": {"domain": "localhost", "scheme": "http", "basepath": "/"},
 
+    "scheduling": {"support": "unsupported"},
     "old_flags":  [
     ## https://github.com/jelmer/xandikos/issues/8
     'date_todo_search_ignores_duration',
     'vtodo_datesearch_nostart_future_tasks_delivered',
-
-    ## scheduling is not supported
-    "no_scheduling",
     ]
 }
 
@@ -899,11 +886,11 @@ radicale = {
     ## this only applies for very simple installations
     "auto-connect.url": {"domain": "localhost", "scheme": "http", "basepath": "/"},
     ## freebusy is not supported yet, but on the long-term road map
+    "scheduling": {"support": "unsupported"},
     'old_flags': [
     ## calendar listings and calendar creation works a bit
     ## "weird" on radicale
 
-    'no_scheduling',
     'no_search_openended',
 
     #'text_search_is_exact_match_sometimes',
@@ -1228,9 +1215,9 @@ robur = {
     'search.recurrences.includes-implicit.todo': {'support': 'unsupported'},
     'principal-search': {'support': 'ungraceful'},
     'freebusy-query.rfc4791': {'support': 'ungraceful'},
+    "scheduling": {"support": "unsupported"},
     'old_flags': [
         'non_existing_raises_other', ## AuthorizationError instead of NotFoundError
-        'no_scheduling',
         'no_supported_components_support',
         'no_relships',
     ],
@@ -1270,8 +1257,8 @@ posteo = {
     'search.combined-is-logical-and': {'support': 'unsupported'},
     'sync-token': {'support': 'ungraceful'},
     'principal-search': {'support': 'unsupported'},
+    "scheduling": {"support": "unsupported"},
     'old_flags': [
-        'no_scheduling',
         #'no_recurring_todo', ## todo
     ]
 }
@@ -1405,10 +1392,9 @@ purelymail = {
         'basepath': '/webdav/',
         'domain': 'purelymail.com',
     },
+    ## Known, work in progress
+    "scheduling": {"support": "unsupported"},
     'old_flags': [
-        ## Known, work in progress
-        'no_scheduling',
-
         ## Known, not a breach of standard
         'no_supported_components_support',
 
@@ -1452,11 +1438,13 @@ gmx = {
     ## was apparently observed working for a while, possibly due to the master/more_checks split-brain git branching incident in the server-checker project.
     ## unsupported in be26d42b1ca3ff3b4fd183761b4a9b024ce12b84 / 537a23b145487006bb987dee5ab9e00cdebb0492 2026-02-19.  Supported when testing again short time after.  Either I'm confused or it's "fragile".
     #'search.time-range.alarm': {'support': 'unsupported'},
+    ## GMX advertises calendar-auto-schedule but inbox/mailbox and
+    ## calendar-user-address-set are not functional (RFC6638 sub-features).
+    ## TODO: add scheduling.mailbox and scheduling.calendar-user-address-set sub-features
+    "scheduling": {"support": "full"},
     "old_flags":  [
-        "no_scheduling_mailbox",
         #"text_search_is_case_insensitive",
         "no_search_openended",
-        "no_scheduling_calendar_user_address_set",
         "vtodo-cannot-be-uncompleted",
     ]
 }
