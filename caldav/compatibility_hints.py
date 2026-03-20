@@ -261,6 +261,10 @@ class FeatureSet:
         "sync-token.delete": {
             "description": "Server correctly handles sync-collection reports after objects have been deleted from the calendar (solved in Nextcloud in https://github.com/nextcloud/server/pull/44130)"
         },
+        "scheduling": {
+            "description": "Server supports CalDAV Scheduling (RFC6638). Detected via the presence of the schedule-outbox and/or schedule-inbox in DAV headers. Corresponds to the legacy 'no_scheduling' flag.",
+            "links": ["https://datatracker.ietf.org/doc/html/rfc6638"],
+        },
         'freebusy-query': {'description': "freebusy queries come in two flavors, one query can be done towards a CalDAV server as defined in RFC4791, another query can be done through the scheduling framework, RFC 6638.  Only RFC4791 is tested for as today"},
         "freebusy-query.rfc4791": {
             "description": "Server supports free/busy-query REPORT as specified in RFC4791 section 7.10. The REPORT allows clients to query for free/busy time information for a time range. Servers without this support will typically return an error (often 500 Internal Server Error or 501 Not Implemented). Note: RFC6638 defines a different freebusy mechanism for scheduling",
