@@ -27,9 +27,13 @@ echo ""
 echo "Disabling password policy for testing..."
 docker exec $CONTAINER_NAME php occ app:disable password_policy || true
 
-echo "Creating test user..."
+echo "Creating test users..."
 # Create test user (ignore error if already exists)
 docker exec -e OC_PASS="$TEST_PASSWORD" $CONTAINER_NAME php occ user:add --password-from-env --display-name="Test User" $TEST_USER 2>/dev/null || echo "User may already exist"
+# Create scheduling test users
+for i in 1 2 3; do
+    docker exec -e OC_PASS="testpass${i}" $CONTAINER_NAME php occ user:add --password-from-env --display-name="User ${i}" "user${i}" 2>/dev/null || echo "user${i} may already exist"
+done
 
 echo "Enabling calendar app..."
 docker exec $CONTAINER_NAME php occ app:enable calendar || true
@@ -64,5 +68,6 @@ echo ""
 echo "Credentials:"
 echo "  Admin: admin / admin"
 echo "  Test user: $TEST_USER / $TEST_PASSWORD"
+echo "  Scheduling users: user1/testpass1, user2/testpass2, user3/testpass3"
 echo "  CalDAV URL: http://localhost:8801/remote.php/dav"
 echo ""

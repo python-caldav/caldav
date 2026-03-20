@@ -149,6 +149,11 @@ jobs:
           # Create test user
           docker exec -e OC_PASS="testpass" ${{ job.services.nextcloud.id }} php occ user:add --password-from-env --display-name="Test User" testuser || echo "User may already exist"
 
+          # Create scheduling test users (user1-user3)
+          for i in 1 2 3; do
+            docker exec -e OC_PASS="testpass${i}" ${{ job.services.nextcloud.id }} php occ user:add --password-from-env --display-name="User ${i}" "user${i}" || echo "user${i} may already exist"
+          done
+
           # Enable calendar and contacts apps
           docker exec ${{ job.services.nextcloud.id }} php occ app:enable calendar || true
           docker exec ${{ job.services.nextcloud.id }} php occ app:enable contacts || true

@@ -34,25 +34,32 @@ for i in $(seq 1 $max_attempts); do
     sleep 3
 done
 
-echo ""
-echo "Creating test user..."
-# Check if user already exists
-EXISTING=$(run_sql "SELECT username FROM usr WHERE username='${TEST_USER}'")
-if [ -n "$EXISTING" ]; then
-    echo "User '${TEST_USER}' already exists, skipping creation"
-else
-    run_sql "INSERT INTO usr (username, password, fullname, email) VALUES ('${TEST_USER}', '**${TEST_PASSWORD}', 'Test User', '${TEST_USER}@example.com')"
-    echo "User created"
-fi
+create_user() {
+    local username="$1"
+    local password="$2"
+    local fullname="$3"
+    EXISTING=$(run_sql "SELECT username FROM usr WHERE username='${username}'")
+    if [ -n "$EXISTING" ]; then
+        echo "User '${username}' already exists, skipping creation"
+    else
+        run_sql "INSERT INTO usr (username, password, fullname, email) VALUES ('${username}', '**${password}', '${fullname}', '${username}@example.com')"
+        echo "User '${username}' created"
+    fi
+    EXISTING_PRINCIPAL=$(run_sql "SELECT principal_id FROM principal p JOIN usr u ON p.user_no = u.user_no WHERE u.username='${username}'")
+    if [ -n "$EXISTING_PRINCIPAL" ]; then
+        echo "Principal for '${username}' already exists, skipping"
+    else
+        run_sql "INSERT INTO principal (type_id, user_no, displayname) SELECT 1, user_no, fullname FROM usr WHERE username='${username}'"
+        echo "Principal for '${username}' created"
+    fi
+}
 
-echo "Creating principal entry..."
-EXISTING_PRINCIPAL=$(run_sql "SELECT principal_id FROM principal p JOIN usr u ON p.user_no = u.user_no WHERE u.username='${TEST_USER}'")
-if [ -n "$EXISTING_PRINCIPAL" ]; then
-    echo "Principal already exists, skipping"
-else
-    run_sql "INSERT INTO principal (type_id, user_no, displayname) SELECT 1, user_no, fullname FROM usr WHERE username='${TEST_USER}'"
-    echo "Principal created"
-fi
+echo ""
+echo "Creating test users..."
+create_user "${TEST_USER}" "${TEST_PASSWORD}" "Test User"
+create_user "user1" "testpass1" "User One"
+create_user "user2" "testpass2" "User Two"
+create_user "user3" "testpass3" "User Three"
 
 echo ""
 echo "Verifying CalDAV access..."
@@ -79,4 +86,5 @@ echo ""
 echo "Credentials:"
 echo "  Admin: admin / testpass"
 echo "  Test user: ${TEST_USER} / ${TEST_PASSWORD}"
+echo "  Scheduling users: user1/testpass1, user2/testpass2, user3/testpass3"
 echo "  CalDAV URL: http://localhost:8805/caldav.php/${TEST_USER}/"
