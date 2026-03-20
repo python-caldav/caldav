@@ -88,3 +88,39 @@ purelymail:
         with pytest.raises(ConfigParseError) as exc_info:
             load_test_server_config(str(config_file))
         assert "could not be parsed" in str(exc_info.value)
+
+    def test_rfc6638_users_preserved_alongside_test_servers(self, tmp_path: Path) -> None:
+        """rfc6638_users at top level is preserved when test-servers is unwrapped."""
+        config_file = tmp_path / "test_servers.yaml"
+        config_file.write_text("""
+test-servers:
+  radicale:
+    type: embedded
+    enabled: true
+
+rfc6638_users:
+  - url: http://localhost:8802/dav/calendars/user/user1
+    username: user1
+    password: x
+  - url: http://localhost:8802/dav/calendars/user/user2
+    username: user2
+    password: x
+""")
+        cfg = load_test_server_config(str(config_file))
+        assert "radicale" in cfg
+        assert "rfc6638_users" in cfg
+        assert len(cfg["rfc6638_users"]) == 2
+        assert cfg["rfc6638_users"][0]["username"] == "user1"
+
+    def test_rfc6638_users_only_config(self, tmp_path: Path) -> None:
+        """Config with only rfc6638_users (no test-servers) works correctly."""
+        config_file = tmp_path / "test_servers.yaml"
+        config_file.write_text("""
+rfc6638_users:
+  - url: http://localhost:8802/dav/calendars/user/user1
+    username: user1
+    password: x
+""")
+        cfg = load_test_server_config(str(config_file))
+        assert "rfc6638_users" in cfg
+        assert cfg["rfc6638_users"][0]["url"] == "http://localhost:8802/dav/calendars/user/user1"

@@ -183,10 +183,8 @@ class ServerRegistry:
 
         for name, server_config in config.items():
             if not isinstance(server_config, dict):
-                raise ValueError(
-                    f"Server '{name}': configuration must be a dict, "
-                    f"got {type(server_config).__name__}"
-                )
+                # Skip non-server entries (e.g. rfc6638_users is a list, not a server)
+                continue
 
             if not server_config.get("enabled", True):
                 continue
