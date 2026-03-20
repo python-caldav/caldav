@@ -53,6 +53,8 @@ docker exec zimbra-test su - zimbra -c "zmprov ca testuser@$ZIMBRA_DOMAIN testpa
     echo "  testuser already exists (or creation failed)"
 docker exec zimbra-test su - zimbra -c "zmprov ca testuser2@$ZIMBRA_DOMAIN testpass" 2>/dev/null || \
     echo "  testuser2 already exists (or creation failed)"
+docker exec zimbra-test su - zimbra -c "zmprov ca testuser3@$ZIMBRA_DOMAIN testpass" 2>/dev/null || \
+    echo "  testuser3 already exists (or creation failed)"
 
 # Verify CalDAV is responding
 echo "Verifying CalDAV endpoint..."
@@ -68,6 +70,7 @@ echo ""
 echo "Zimbra is running on https://$ZIMBRA_FQDN:8808/"
 echo "  Users: testuser@$ZIMBRA_DOMAIN / testpass"
 echo "         testuser2@$ZIMBRA_DOMAIN / testpass"
+echo "         testuser3@$ZIMBRA_DOMAIN / testpass"
 echo ""
 echo "Run tests from project root:"
 echo "  cd ../../.."

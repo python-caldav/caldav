@@ -183,12 +183,36 @@ class ServerRegistry:
 
         for name, server_config in config.items():
             if not isinstance(server_config, dict):
-                raise ValueError(
-                    f"Server '{name}': configuration must be a dict, "
-                    f"got {type(server_config).__name__}"
-                )
+                # Skip non-server entries (e.g. rfc6638_users is a list, not a server)
+                continue
 
             if not server_config.get("enabled", True):
+                continue
+
+            # Keys that only carry test-specific metadata, not connection config.
+            _TEST_ONLY_KEYS = frozenset({"scheduling_users"})
+            _META_KEYS = frozenset({"type", "enabled", "name"})
+
+            # If an auto-discovered server with the same name (case-insensitive) is
+            # already registered, merge extra test-only fields (like scheduling_users)
+            # into it instead of registering a duplicate.
+            existing_key = next(
+                (k for k in self._servers if k.lower() == name.lower()), None
+            )
+            if existing_key is not None:
+                if "scheduling_users" in server_config:
+                    self._servers[existing_key].config["scheduling_users"] = server_config[
+                        "scheduling_users"
+                    ]
+                continue
+
+            # If the config only contains test-only metadata (no real connection
+            # params) and there is no existing server to merge into, skip: the
+            # entry is intended only to augment a running server, not to register
+            # a new one (e.g. a config written for CI that references Cyrus
+            # scheduling users but Cyrus isn't started locally).
+            non_connection_keys = {k for k in server_config if k not in _META_KEYS | _TEST_ONLY_KEYS}
+            if not non_connection_keys:
                 continue
 
             server_type = server_config.get("type", name)

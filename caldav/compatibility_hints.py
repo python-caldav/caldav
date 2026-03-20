@@ -264,6 +264,18 @@ class FeatureSet:
         "sync-token.delete": {
             "description": "Server correctly handles sync-collection reports after objects have been deleted from the calendar (solved in Nextcloud in https://github.com/nextcloud/server/pull/44130)"
         },
+        "scheduling": {
+            "description": "Server supports CalDAV Scheduling (RFC6638). Detected via the presence of 'calendar-auto-schedule' in the DAV response header.",
+            "links": ["https://datatracker.ietf.org/doc/html/rfc6638"],
+        },
+        "scheduling.mailbox": {
+            "description": "Server provides schedule-inbox and schedule-outbox collections for the principal (RFC6638 sections 2.2-2.3). When unsupported, calls to schedule_inbox() or schedule_outbox() raise NotFoundError.",
+            "links": ["https://datatracker.ietf.org/doc/html/rfc6638#section-2.2"],
+        },
+        "scheduling.calendar-user-address-set": {
+            "description": "Server provides the calendar-user-address-set property on the principal (RFC6638 section 2.4.1), used to identify a user's email/URI for scheduling purposes. When unsupported, calendar_user_address_set() raises NotFoundError.",
+            "links": ["https://datatracker.ietf.org/doc/html/rfc6638#section-2.4.1"],
+        },
         'freebusy-query': {'description': "freebusy queries come in two flavors, one query can be done towards a CalDAV server as defined in RFC4791, another query can be done through the scheduling framework, RFC 6638.  Only RFC4791 is tested for as today"},
         "freebusy-query.rfc4791": {
             "description": "Server supports free/busy-query REPORT as specified in RFC4791 section 7.10. The REPORT allows clients to query for free/busy time information for a time range. Servers without this support will typically return an error (often 500 Internal Server Error or 501 Not Implemented). Note: RFC6638 defines a different freebusy mechanism for scheduling",
@@ -710,15 +722,6 @@ class FeatureSet:
 ## * Perhaps some more readable format should be considered (yaml?).
 ## * Consider how to get this into the documentation
 incompatibility_description = {
-    'no_scheduling':
-        """RFC6833 is not supported""",
-
-    'no_scheduling_mailbox':
-        """Parts of RFC6833 is supported, but not the existence of inbox/mailbox""",
-
-    'no_scheduling_calendar_user_address_set':
-        """Parts of RFC6833 is supported, but not getting the calendar users addresses""",
-
     'no_default_calendar':
         """The given user starts without an assigned default calendar """
         """(or without pre-defined calendars at all)""",
@@ -837,13 +840,11 @@ xandikos_v0_2_12 = {
     "search.text.category.substring": {"support": "unsupported"},
     'principal-search': {'support': 'unsupported'},
     'freebusy-query.rfc4791': {'support': 'ungraceful', 'behaviour': '500 internal server error'},
+    "scheduling": {"support": "unsupported"},
     "old_flags":  [
     ## https://github.com/jelmer/xandikos/issues/8
     'date_todo_search_ignores_duration',
     'vtodo_datesearch_nostart_future_tasks_delivered',
-
-    ## scheduling is not supported
-    "no_scheduling",
 
     ## The test with an rrule and an overridden event passes as
     ## long as it's with timestamps.  With dates, xandikos gets
@@ -872,13 +873,11 @@ xandikos = {
     ## this only applies for very simple installations
     "auto-connect.url": {"domain": "localhost", "scheme": "http", "basepath": "/"},
 
+    "scheduling": {"support": "unsupported"},
     "old_flags":  [
     ## https://github.com/jelmer/xandikos/issues/8
     'date_todo_search_ignores_duration',
     'vtodo_datesearch_nostart_future_tasks_delivered',
-
-    ## scheduling is not supported
-    "no_scheduling",
     ]
 }
 
@@ -895,11 +894,11 @@ radicale = {
     ## this only applies for very simple installations
     "auto-connect.url": {"domain": "localhost", "scheme": "http", "basepath": "/"},
     ## freebusy is not supported yet, but on the long-term road map
+    "scheduling": {"support": "unsupported"},
     'old_flags': [
     ## calendar listings and calendar creation works a bit
     ## "weird" on radicale
 
-    'no_scheduling',
     'no_search_openended',
 
     #'text_search_is_exact_match_sometimes',
@@ -1224,9 +1223,10 @@ robur = {
     'search.recurrences.includes-implicit.todo': {'support': 'unsupported'},
     'principal-search': {'support': 'ungraceful'},
     'freebusy-query.rfc4791': {'support': 'ungraceful'},
+    "scheduling": {"support": "unsupported"},
     'old_flags': [
         'non_existing_raises_other', ## AuthorizationError instead of NotFoundError
-        'no_scheduling',
+        'no_supported_components_support',
         'no_relships',
     ],
     'test-calendar': {'cleanup-regime': 'wipe-calendar'},
@@ -1266,8 +1266,8 @@ posteo = {
     'search.combined-is-logical-and': {'support': 'unsupported'},
     'sync-token': {'support': 'ungraceful'},
     'principal-search': {'support': 'unsupported'},
+    "scheduling": {"support": "unsupported"},
     'old_flags': [
-        'no_scheduling',
         #'no_recurring_todo', ## todo
     ]
 }
@@ -1401,9 +1401,10 @@ purelymail = {
         'basepath': '/webdav/',
         'domain': 'purelymail.com',
     },
+    ## Known, work in progress
+    "scheduling": {"support": "unsupported"},
     'old_flags': [
-        ## Known, work in progress
-        'no_scheduling',
+        'no_supported_components_support',
     ],
     ## Known, not a breach of standard
     "get-supported-components": {"support": "unsupported"},
@@ -1445,11 +1446,14 @@ gmx = {
     ## was apparently observed working for a while, possibly due to the master/more_checks split-brain git branching incident in the server-checker project.
     ## unsupported in be26d42b1ca3ff3b4fd183761b4a9b024ce12b84 / 537a23b145487006bb987dee5ab9e00cdebb0492 2026-02-19.  Supported when testing again short time after.  Either I'm confused or it's "fragile".
     #'search.time-range.alarm': {'support': 'unsupported'},
+    ## GMX advertises calendar-auto-schedule but inbox/mailbox and
+    ## calendar-user-address-set are not functional (RFC6638 sub-features).
+    "scheduling": {"support": "full"},
+    "scheduling.mailbox": {"support": "unsupported"},
+    "scheduling.calendar-user-address-set": {"support": "unsupported"},
     "old_flags":  [
-        "no_scheduling_mailbox",
         #"text_search_is_case_insensitive",
         "no_search_openended",
-        "no_scheduling_calendar_user_address_set",
         "vtodo-cannot-be-uncompleted",
     ]
 }
