@@ -14,3 +14,16 @@ CREATE TABLE IF NOT EXISTS sogo_users (
 INSERT INTO sogo_users (c_uid, c_name, c_password, c_cn, mail)
 VALUES ('testuser', 'testuser', MD5('testpass'), 'Test User', 'testuser@example.com')
 ON DUPLICATE KEY UPDATE c_password=MD5('testpass');
+
+-- Additional users for RFC6638 scheduling tests (need at least 3 users)
+INSERT INTO sogo_users (c_uid, c_name, c_password, c_cn, mail)
+VALUES ('user1', 'user1', MD5('testpass1'), 'Test User 1', 'user1@example.com')
+ON DUPLICATE KEY UPDATE c_password=MD5('testpass1');
+
+INSERT INTO sogo_users (c_uid, c_name, c_password, c_cn, mail)
+VALUES ('user2', 'user2', MD5('testpass2'), 'Test User 2', 'user2@example.com')
+ON DUPLICATE KEY UPDATE c_password=MD5('testpass2');
+
+INSERT INTO sogo_users (c_uid, c_name, c_password, c_cn, mail)
+VALUES ('user3', 'user3', MD5('testpass3'), 'Test User 3', 'user3@example.com')
+ON DUPLICATE KEY UPDATE c_password=MD5('testpass3');

@@ -670,15 +670,11 @@ class TestGetCalendarsConfig:
                     assert len(clients) == 2
 
 
-@pytest.mark.skipif(
-    not rfc6638_users, reason="need rfc6638_users to be set in order to run this test"
-)
-@pytest.mark.skipif(
-    len(rfc6638_users) < 3,
-    reason="need at least three users in rfc6638_users to be set in order to run this test",
-)
-class TestScheduling:
-    """Testing support of RFC6638.
+class _TestSchedulingBase:
+    """
+    Base class for RFC6638 scheduling tests.  Not collected directly by
+    pytest (no ``Test`` prefix); concrete subclasses supply ``_users``.
+
     TODO: work in progress.  Stalled a bit due to lack of proper testing accounts.  I haven't managed to get this test to pass at any systems yet, but I believe the problem is not on the library side.
     * icloud: cannot really test much with only one test account
       available.  I did some testing forth and back with emails sent
@@ -701,6 +697,9 @@ class TestScheduling:
       RFC6638.
     """
 
+    ## Subclasses set this to the list of user connection dicts to use.
+    _users: list[dict] = []
+
     def _getCalendar(self, i):
         calendar_id = "schedulingnosetestcalendar%i" % i
         calendar_name = "caldav scheduling test %i" % i
@@ -713,7 +712,7 @@ class TestScheduling:
     def setup_method(self):
         self.clients = []
         self.principals = []
-        for foo in rfc6638_users:
+        for foo in self._users:
             c = client(**foo)
             if not c.check_scheduling_support():
                 continue  ## ignoring user because server does not support scheduling.
@@ -788,6 +787,15 @@ class TestScheduling:
 
     ## TODO: more testing ... what happens if deleting things from the
     ## inbox/outbox?
+
+
+## Legacy: run TestScheduling against the top-level rfc6638_users config.
+if rfc6638_users:
+    TestScheduling = type(
+        "TestScheduling",
+        (_TestSchedulingBase,),
+        {"_users": rfc6638_users},
+    )
 
 
 def _delay_decorator(f, t=20):
@@ -1093,20 +1101,15 @@ class RepeatedFunctionalTestsBaseClass:
         self.skip_on_compatibility_flag("dav_not_supported")
         assert self.caldav.check_dav_support()
         assert self.caldav.check_cdav_support()
-        if self.check_compatibility_flag("no_scheduling"):
-            assert not self.caldav.check_scheduling_support()
-        else:
-            assert self.caldav.check_scheduling_support()
+        assert self.caldav.check_scheduling_support() == self.is_supported("scheduling")
 
     def testSchedulingInfo(self):
-        self.skip_on_compatibility_flag("no_scheduling")
-        self.skip_on_compatibility_flag("no_scheduling_calendar_user_address_set")
+        self.skip_unless_support("scheduling.calendar-user-address-set")
         calendar_user_address_set = self.principal.calendar_user_address_set()
         me_a_participant = self.principal.get_vcal_address()
 
     def testSchedulingMailboxes(self):
-        self.skip_on_compatibility_flag("no_scheduling")
-        self.skip_on_compatibility_flag("no_scheduling_mailbox")
+        self.skip_unless_support("scheduling.mailbox")
         inbox = self.principal.schedule_inbox()
         outbox = self.principal.schedule_outbox()
 
@@ -3678,3 +3681,13 @@ for _caldav_server in caldav_servers:
         (RepeatedFunctionalTestsBaseClass,),
         {"server_params": _caldav_server},
     )
+
+    # If the server has scheduling_users configured, also generate a
+    # TestSchedulingForServer* class so scheduling tests run per-server.
+    if "scheduling_users" in _caldav_server:
+        _sched_classname = "TestSchedulingForServer" + _servername
+        vars()[_sched_classname] = type(
+            _sched_classname,
+            (_TestSchedulingBase,),
+            {"_users": _caldav_server["scheduling_users"]},
+        )
