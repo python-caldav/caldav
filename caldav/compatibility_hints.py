@@ -262,8 +262,16 @@ class FeatureSet:
             "description": "Server correctly handles sync-collection reports after objects have been deleted from the calendar (solved in Nextcloud in https://github.com/nextcloud/server/pull/44130)"
         },
         "scheduling": {
-            "description": "Server supports CalDAV Scheduling (RFC6638). Detected via the presence of the schedule-outbox and/or schedule-inbox in DAV headers. Corresponds to the legacy 'no_scheduling' flag.",
+            "description": "Server supports CalDAV Scheduling (RFC6638). Detected via the presence of 'calendar-auto-schedule' in the DAV response header.",
             "links": ["https://datatracker.ietf.org/doc/html/rfc6638"],
+        },
+        "scheduling.mailbox": {
+            "description": "Server provides schedule-inbox and schedule-outbox collections for the principal (RFC6638 sections 2.2-2.3). When unsupported, calls to schedule_inbox() or schedule_outbox() raise NotFoundError.",
+            "links": ["https://datatracker.ietf.org/doc/html/rfc6638#section-2.2"],
+        },
+        "scheduling.calendar-user-address-set": {
+            "description": "Server provides the calendar-user-address-set property on the principal (RFC6638 section 2.4.1), used to identify a user's email/URI for scheduling purposes. When unsupported, calendar_user_address_set() raises NotFoundError.",
+            "links": ["https://datatracker.ietf.org/doc/html/rfc6638#section-2.4.1"],
         },
         'freebusy-query': {'description': "freebusy queries come in two flavors, one query can be done towards a CalDAV server as defined in RFC4791, another query can be done through the scheduling framework, RFC 6638.  Only RFC4791 is tested for as today"},
         "freebusy-query.rfc4791": {
@@ -1440,8 +1448,9 @@ gmx = {
     #'search.time-range.alarm': {'support': 'unsupported'},
     ## GMX advertises calendar-auto-schedule but inbox/mailbox and
     ## calendar-user-address-set are not functional (RFC6638 sub-features).
-    ## TODO: add scheduling.mailbox and scheduling.calendar-user-address-set sub-features
     "scheduling": {"support": "full"},
+    "scheduling.mailbox": {"support": "unsupported"},
+    "scheduling.calendar-user-address-set": {"support": "unsupported"},
     "old_flags":  [
         #"text_search_is_case_insensitive",
         "no_search_openended",

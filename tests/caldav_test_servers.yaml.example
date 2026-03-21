@@ -60,6 +60,17 @@ test-servers:
     port: ${CYRUS_PORT:-8802}
     username: ${CYRUS_USERNAME:-testuser@test.local}
     password: ${CYRUS_PASSWORD:-testpassword}
+    # Cyrus pre-creates user1-user5 (password 'x'), enabling scheduling tests.
+    scheduling_users:
+      - url: http://${CYRUS_HOST:-localhost}:${CYRUS_PORT:-8802}/dav/calendars/user/user1
+        username: user1@test.local
+        password: x
+      - url: http://${CYRUS_HOST:-localhost}:${CYRUS_PORT:-8802}/dav/calendars/user/user2
+        username: user2@test.local
+        password: x
+      - url: http://${CYRUS_HOST:-localhost}:${CYRUS_PORT:-8802}/dav/calendars/user/user3
+        username: user3@test.local
+        password: x
 
   sogo:
     type: docker
