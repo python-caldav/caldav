@@ -30,13 +30,22 @@ class BaikalTestServer(DockerTestServer):
 
     def __init__(self, config: dict[str, Any] | None = None) -> None:
         config = config or {}
-        config.setdefault("host", os.environ.get("BAIKAL_HOST", "localhost"))
-        config.setdefault("port", int(os.environ.get("BAIKAL_PORT", "8800")))
+        host = config.get("host") or os.environ.get("BAIKAL_HOST", "localhost")
+        port = int(config.get("port") or os.environ.get("BAIKAL_PORT", "8800"))
+        config.setdefault("host", host)
+        config.setdefault("port", port)
         config.setdefault("username", os.environ.get("BAIKAL_USERNAME", "testuser"))
         config.setdefault("password", os.environ.get("BAIKAL_PASSWORD", "testpass"))
         # Set up Baikal-specific compatibility hints
         if "features" not in config:
             config["features"] = compatibility_hints.baikal.copy()
+        # user1-user3 are pre-seeded in the committed db.sqlite for scheduling tests
+        if "scheduling_users" not in config:
+            base = f"http://{host}:{port}/dav.php"
+            config["scheduling_users"] = [
+                {"url": base, "username": f"user{i}", "password": f"testpass{i}"}
+                for i in range(1, 4)
+            ]
         super().__init__(config)
 
     def _default_port(self) -> int:
@@ -88,14 +97,18 @@ class CyrusTestServer(DockerTestServer):
     Cyrus IMAP server with CalDAV support in Docker.
 
     Cyrus is a mail server that also supports CalDAV/CardDAV.
+    The ghcr.io/cyrusimap/cyrus-docker-test-server image pre-creates
+    user1-user5 (password 'x') with CalDAV scheduling support.
     """
 
     name = "Cyrus"
 
     def __init__(self, config: dict[str, Any] | None = None) -> None:
         config = config or {}
-        config.setdefault("host", os.environ.get("CYRUS_HOST", "localhost"))
-        config.setdefault("port", int(os.environ.get("CYRUS_PORT", "8802")))
+        host = config.get("host") or os.environ.get("CYRUS_HOST", "localhost")
+        port = int(config.get("port") or os.environ.get("CYRUS_PORT", "8802"))
+        config.setdefault("host", host)
+        config.setdefault("port", port)
         config.setdefault("username", os.environ.get("CYRUS_USERNAME", "user1"))
         config.setdefault(
             "password", os.environ.get("CYRUS_PASSWORD", "any-password-seems-to-work")
@@ -103,6 +116,16 @@ class CyrusTestServer(DockerTestServer):
         # Set up Cyrus-specific compatibility hints
         if "features" not in config:
             config["features"] = compatibility_hints.cyrus.copy()
+        # The docker image pre-creates user1-user5 with password 'x'
+        if "scheduling_users" not in config:
+            config["scheduling_users"] = [
+                {
+                    "url": f"http://{host}:{port}/dav/calendars/user/user{i}",
+                    "username": f"user{i}",
+                    "password": "x",
+                }
+                for i in range(1, 4)
+            ]
         super().__init__(config)
 
     def _default_port(self) -> int:
