@@ -749,46 +749,47 @@ class _TestSchedulingBase:
         )
         assert len(organizers_calendar.get_events()) == 1
 
-        ## no new inbox items expected for principals[0]
-        for item in self.principals[0].schedule_inbox().get_items():
-            assert item.url in inbox_items
+        ## Check attendee's inbox first — this tells us whether the server uses
+        ## inbox delivery or automatic scheduling (RFC6638 section 3.2.3).
+        new_attendee_inbox_items = [
+            item for item in self.principals[1].schedule_inbox().get_items()
+            if item.url not in inbox_items
+        ]
 
-        ## principals[1] should have one new inbox item
-        new_inbox_items = []
-        for item in self.principals[1].schedule_inbox().get_items():
-            if item.url not in inbox_items:
-                new_inbox_items.append(item)
-
-        if len(new_inbox_items) == 0:
-            ## Some servers implement automatic scheduling (RFC6638 section 3.2.3):
-            ## invitations are auto-processed by the server without being delivered
-            ## to the attendee's inbox (e.g. Cyrus). Verify the event was placed
-            ## directly on the attendee's calendar instead, and skip the
-            ## accept/reply flow.
+        if len(new_attendee_inbox_items) == 0:
+            ## Server implements automatic scheduling: invitation was auto-processed
+            ## and placed directly on the attendee's calendar (e.g. Cyrus).
+            ## Verify the event is there and skip the manual accept/reply flow.
             assert len(attendee_calendar.get_events()) == 1, (
                 "Expected invite in attendee inbox OR event auto-added to attendee calendar, got neither"
             )
             return
 
-        assert len(new_inbox_items) == 1
+        ## Normal inbox-delivery flow (RFC6638 section 3.1).
+
+        ## no new inbox items expected for principals[0] yet
+        for item in self.principals[0].schedule_inbox().get_items():
+            assert item.url in inbox_items
+
+        assert len(new_attendee_inbox_items) == 1
         ## ... and the new inbox item should be an invite request
-        assert new_inbox_items[0].is_invite_request()
+        assert new_attendee_inbox_items[0].is_invite_request()
 
         ## Approving the invite
-        new_inbox_items[0].accept_invite(calendar=attendee_calendar)
+        new_attendee_inbox_items[0].accept_invite(calendar=attendee_calendar)
         ## (now, this item should probably appear on a calendar somewhere ...
         ## TODO: make asserts on that)
         ## TODO: what happens if we delete that invite request now?
 
         ## principals[0] should now have a notification in the inbox that the
         ## calendar invite was accepted
-        new_inbox_items = []
-        for item in self.principals[0].schedule_inbox().get_items():
-            if item.url not in inbox_items:
-                new_inbox_items.append(item)
-        assert len(new_inbox_items) == 1
-        assert new_inbox_items[0].is_invite_reply()
-        new_inbox_items[0].delete()
+        new_organizer_inbox_items = [
+            item for item in self.principals[0].schedule_inbox().get_items()
+            if item.url not in inbox_items
+        ]
+        assert len(new_organizer_inbox_items) == 1
+        assert new_organizer_inbox_items[0].is_invite_reply()
+        new_organizer_inbox_items[0].delete()
 
     ## TODO.  Invite two principals, let both of them load the
     ## invitation, and then let them respond in order.  Lacks both
