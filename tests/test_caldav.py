@@ -758,6 +758,18 @@ class _TestSchedulingBase:
         for item in self.principals[1].schedule_inbox().get_items():
             if item.url not in inbox_items:
                 new_inbox_items.append(item)
+
+        if len(new_inbox_items) == 0:
+            ## Some servers implement automatic scheduling (RFC6638 section 3.2.3):
+            ## invitations are auto-processed by the server without being delivered
+            ## to the attendee's inbox (e.g. Cyrus). Verify the event was placed
+            ## directly on the attendee's calendar instead, and skip the
+            ## accept/reply flow.
+            assert len(attendee_calendar.get_events()) == 1, (
+                "Expected invite in attendee inbox OR event auto-added to attendee calendar, got neither"
+            )
+            return
+
         assert len(new_inbox_items) == 1
         ## ... and the new inbox item should be an invite request
         assert new_inbox_items[0].is_invite_request()
