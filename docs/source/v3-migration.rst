@@ -85,6 +85,7 @@ compatibility hints automatically:
     from caldav import get_davclient
 
     # Credentials from env vars or ~/.config/caldav/calendar.conf
+    # This is considered best practice!
     with get_davclient() as client:
         principal = client.get_principal()
 	...
@@ -95,14 +96,14 @@ compatibility hints automatically:
         principal = client.get_principal()
 	...
 
-    # Use a named compatibility profile (iCloud, google, nextcloud, …)
-    with get_davclient(features="icloud",
+    # Use a named compatibility profile (ecloud, baikal, posteo, …)
+    with get_davclient(features="ecloud",
                        username="alice@icloud.com", password="...") as client:
         ...
 
-Calendars may be configured in the config file, and it's also possible to get a celndar directly through factory method:
+Calendars may be configured in the config file, and it's also possible to get a calendar directly through factory method:
 
-.. code-block::python
+.. code-block:: python
 
     from caldav import get_calendar
     with my_calendar as get_calendar(config_section='work_calendar'):
