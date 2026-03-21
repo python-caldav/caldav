@@ -704,14 +704,20 @@ class _TestSchedulingBase:
         calendar_id = "schedulingnosetestcalendar%i" % i
         calendar_name = "caldav scheduling test %i" % i
         try:
-            self.principals[i].calendar(name=calendar_name).delete()
+            cal = self.principals[i].calendar(name=calendar_name)
+            ## Calendar already exists — clear its contents rather than delete+recreate,
+            ## since some servers (e.g. Nextcloud) move deleted calendars to a trash bin
+            ## and block re-creation with the same cal_id.
+            for obj in cal.objects():
+                obj.delete()
+            return cal
         except error.NotFoundError:
-            pass
-        return self.principals[i].make_calendar(name=calendar_name, cal_id=calendar_id)
+            return self.principals[i].make_calendar(name=calendar_name, cal_id=calendar_id)
 
     def setup_method(self):
         self.clients = []
         self.principals = []
+        self._auto_scheduled_event_uids = []
         for foo in self._users:
             c = client(**foo)
             if not c.check_scheduling_support():
@@ -723,9 +729,28 @@ class _TestSchedulingBase:
         for i in range(0, len(self.principals)):
             calendar_name = "caldav scheduling test %i" % i
             try:
-                self.principals[i].calendar(name=calendar_name).delete()
+                cal = self.principals[i].calendar(name=calendar_name)
+                ## Clear events rather than deleting the calendar: some servers
+                ## (e.g. Nextcloud) soft-delete calendars to a trash bin, blocking
+                ## re-creation with the same cal_id on the next test run.
+                for obj in cal.objects():
+                    try:
+                        obj.delete()
+                    except Exception:
+                        pass
             except error.NotFoundError:
                 pass
+        ## Clean up any auto-scheduled events that the server placed in non-test
+        ## calendars (e.g. Cyrus delivers to the Default calendar).
+        if self._auto_scheduled_event_uids:
+            for principal in self.principals:
+                for cal in principal.calendars():
+                    for event in cal.get_events():
+                        try:
+                            if event.id in self._auto_scheduled_event_uids:
+                                event.delete()
+                        except Exception:
+                            pass
         for c in self.clients:
             c.__exit__()
 
@@ -744,39 +769,71 @@ class _TestSchedulingBase:
         ## self.principal[0] is the organizer, and invites self.principal[1]
         organizers_calendar = self._getCalendar(0)
         attendee_calendar = self._getCalendar(1)
-        organizers_calendar.save_with_invites(
+        saved_event = organizers_calendar.save_with_invites(
             sched, [self.principals[0], self.principals[1].get_vcal_address()]
         )
+        event_uid = saved_event.id
+        self._auto_scheduled_event_uids.append(event_uid)
         assert len(organizers_calendar.get_events()) == 1
 
-        ## no new inbox items expected for principals[0]
+        ## Check attendee's inbox and calendars.  Some servers (e.g. Zimbra, CCS)
+        ## process scheduling asynchronously, so poll with backoff before giving up.
+        new_attendee_inbox_items = []
+        auto_scheduled = False
+        for _ in range(30):
+            new_attendee_inbox_items = [
+                item
+                for item in self.principals[1].schedule_inbox().get_items()
+                if item.url not in inbox_items
+            ]
+            ## Check whether the server auto-scheduled the event directly into
+            ## the attendee's calendar (server-side automatic scheduling).
+            ## The event may land in any calendar (e.g. Cyrus uses Default, not the
+            ## test calendar), so search all attendee calendars for the event UID.
+            auto_scheduled = any(
+                event.id == event_uid
+                for cal in self.principals[1].calendars()
+                for event in cal.get_events()
+            )
+            if new_attendee_inbox_items or auto_scheduled:
+                break
+            time.sleep(1)
+
+        if len(new_attendee_inbox_items) == 0 or auto_scheduled:
+            ## Server implements automatic scheduling.  Some servers (e.g.
+            ## Cyrus) may additionally deliver an iTIP copy to the inbox as
+            ## a notification, but the acceptance is already done.
+            assert auto_scheduled, (
+                "Expected invite in attendee inbox OR event auto-added to attendee calendar, got neither"
+            )
+            return
+
+        ## Normal inbox-delivery flow (RFC6638 section 4.1).
+
+        ## no new inbox items expected for principals[0] yet
         for item in self.principals[0].schedule_inbox().get_items():
             assert item.url in inbox_items
 
-        ## principals[1] should have one new inbox item
-        new_inbox_items = []
-        for item in self.principals[1].schedule_inbox().get_items():
-            if item.url not in inbox_items:
-                new_inbox_items.append(item)
-        assert len(new_inbox_items) == 1
+        assert len(new_attendee_inbox_items) == 1
         ## ... and the new inbox item should be an invite request
-        assert new_inbox_items[0].is_invite_request()
+        assert new_attendee_inbox_items[0].is_invite_request()
 
         ## Approving the invite
-        new_inbox_items[0].accept_invite(calendar=attendee_calendar)
+        new_attendee_inbox_items[0].accept_invite(calendar=attendee_calendar)
         ## (now, this item should probably appear on a calendar somewhere ...
         ## TODO: make asserts on that)
         ## TODO: what happens if we delete that invite request now?
 
         ## principals[0] should now have a notification in the inbox that the
         ## calendar invite was accepted
-        new_inbox_items = []
-        for item in self.principals[0].schedule_inbox().get_items():
-            if item.url not in inbox_items:
-                new_inbox_items.append(item)
-        assert len(new_inbox_items) == 1
-        assert new_inbox_items[0].is_invite_reply()
-        new_inbox_items[0].delete()
+        new_organizer_inbox_items = [
+            item
+            for item in self.principals[0].schedule_inbox().get_items()
+            if item.url not in inbox_items
+        ]
+        assert len(new_organizer_inbox_items) == 1
+        assert new_organizer_inbox_items[0].is_invite_reply()
+        new_organizer_inbox_items[0].delete()
 
     ## TODO.  Invite two principals, let both of them load the
     ## invitation, and then let them respond in order.  Lacks both
@@ -1058,7 +1115,32 @@ class RepeatedFunctionalTestsBaseClass:
 
         # Use pdb debug mode if pytest was run with --pdb, otherwise use logging
         debug_mode = "pdb" if request.config.option.usepdb else "logging"
-        checker = ServerQuirkChecker(self.caldav, debug_mode=debug_mode)
+
+        ## Build extra clients from scheduling_users (skip index 0; main client covers that user)
+        extra_clients = []
+        for user_params in self.server_params.get("scheduling_users", [])[1:]:
+            params = {
+                k: v for k, v in user_params.items() if k not in ("name", "setup", "teardown")
+            }
+            try:
+                ec = client(**params)
+                ec.__enter__()
+                extra_clients.append(ec)
+            except Exception:
+                pass
+
+        try:
+            checker = ServerQuirkChecker(
+                self.caldav, debug_mode=debug_mode, extra_clients=extra_clients
+            )
+            checker.check_all()
+            checker.cleanup(force=False)
+        finally:
+            for ec in extra_clients:
+                try:
+                    ec.__exit__(None, None, None)
+                except Exception:
+                    pass
         checker.check_all()
         checker.cleanup(force=False)
 

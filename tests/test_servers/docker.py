@@ -168,13 +168,22 @@ class SOGoTestServer(DockerTestServer):
 
     def __init__(self, config: dict[str, Any] | None = None) -> None:
         config = config or {}
-        config.setdefault("host", os.environ.get("SOGO_HOST", "localhost"))
-        config.setdefault("port", int(os.environ.get("SOGO_PORT", "8803")))
+        host = config.get("host") or os.environ.get("SOGO_HOST", "localhost")
+        port = int(config.get("port") or os.environ.get("SOGO_PORT", "8803"))
+        config.setdefault("host", host)
+        config.setdefault("port", port)
         config.setdefault("username", os.environ.get("SOGO_USERNAME", "testuser"))
         config.setdefault("password", os.environ.get("SOGO_PASSWORD", "testpass"))
         # Set up SOGo-specific compatibility hints
         if "features" not in config:
             config["features"] = compatibility_hints.sogo.copy()
+        # user1-user3 are pre-seeded in init-sogo-users.sql for scheduling tests
+        if "scheduling_users" not in config:
+            base = f"http://{host}:{port}/SOGo/dav"
+            config["scheduling_users"] = [
+                {"url": f"{base}/user{i}", "username": f"user{i}", "password": f"testpass{i}"}
+                for i in range(1, 4)
+            ]
         super().__init__(config)
 
     def _default_port(self) -> int:
@@ -301,12 +310,21 @@ class DavisTestServer(DockerTestServer):
 
     def __init__(self, config: dict[str, Any] | None = None) -> None:
         config = config or {}
-        config.setdefault("host", os.environ.get("DAVIS_HOST", "localhost"))
-        config.setdefault("port", int(os.environ.get("DAVIS_PORT", "8806")))
+        host = config.get("host") or os.environ.get("DAVIS_HOST", "localhost")
+        port = int(config.get("port") or os.environ.get("DAVIS_PORT", "8806"))
+        config.setdefault("host", host)
+        config.setdefault("port", port)
         config.setdefault("username", os.environ.get("DAVIS_USERNAME", "testuser"))
         config.setdefault("password", os.environ.get("DAVIS_PASSWORD", "testpass"))
         if "features" not in config:
             config["features"] = compatibility_hints.davis.copy()
+        # user1-user3 are created by setup_davis.sh for scheduling tests
+        if "scheduling_users" not in config:
+            base = f"http://{host}:{port}/dav/"
+            config["scheduling_users"] = [
+                {"url": base, "username": f"user{i}", "password": f"testpass{i}"}
+                for i in range(1, 4)
+            ]
         super().__init__(config)
 
     def _default_port(self) -> int:
@@ -329,12 +347,20 @@ class CCSTestServer(DockerTestServer):
 
     def __init__(self, config: dict[str, Any] | None = None) -> None:
         config = config or {}
-        config.setdefault("host", os.environ.get("CCS_HOST", "localhost"))
-        config.setdefault("port", int(os.environ.get("CCS_PORT", "8807")))
+        host = config.get("host") or os.environ.get("CCS_HOST", "localhost")
+        port = int(config.get("port") or os.environ.get("CCS_PORT", "8807"))
+        config.setdefault("host", host)
+        config.setdefault("port", port)
         config.setdefault("username", os.environ.get("CCS_USERNAME", "user01"))
         config.setdefault("password", os.environ.get("CCS_PASSWORD", "user01"))
         if "features" not in config:
             config["features"] = compatibility_hints.ccs.copy()
+        # user01 and user02 are pre-defined in conf/auth/accounts.xml for scheduling tests
+        if "scheduling_users" not in config:
+            base = f"http://{host}:{port}/principals/"
+            config["scheduling_users"] = [
+                {"url": base, "username": f"user0{i}", "password": f"user0{i}"} for i in range(1, 3)
+            ]
         super().__init__(config)
 
     def _default_port(self) -> int:
@@ -420,12 +446,21 @@ class StalwartTestServer(DockerTestServer):
 
     def __init__(self, config: dict[str, Any] | None = None) -> None:
         config = config or {}
-        config.setdefault("host", os.environ.get("STALWART_HOST", "localhost"))
-        config.setdefault("port", int(os.environ.get("STALWART_PORT", "8809")))
+        host = config.get("host") or os.environ.get("STALWART_HOST", "localhost")
+        port = int(config.get("port") or os.environ.get("STALWART_PORT", "8809"))
+        config.setdefault("host", host)
+        config.setdefault("port", port)
         config.setdefault("username", os.environ.get("STALWART_USERNAME", "testuser"))
         config.setdefault("password", os.environ.get("STALWART_PASSWORD", "testpass"))
         if "features" not in config:
             config["features"] = compatibility_hints.stalwart.copy()
+        # user1-user3 are created by setup_stalwart.sh for scheduling tests
+        if "scheduling_users" not in config:
+            base = f"http://{host}:{port}/dav/cal"
+            config["scheduling_users"] = [
+                {"url": f"{base}/user{i}/", "username": f"user{i}", "password": f"testpass{i}"}
+                for i in range(1, 4)
+            ]
         super().__init__(config)
 
     def _default_port(self) -> int:
