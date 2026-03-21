@@ -272,12 +272,18 @@ class FeatureSet:
             "links": ["https://datatracker.ietf.org/doc/html/rfc6638"],
         },
         "scheduling.mailbox": {
-            "description": "Server provides schedule-inbox and schedule-outbox collections for the principal (RFC6638 sections 2.2-2.3). When unsupported, calls to schedule_inbox() or schedule_outbox() raise NotFoundError.",
-            "links": ["https://datatracker.ietf.org/doc/html/rfc6638#section-2.2"],
+            "description": "Server provides schedule-inbox and schedule-outbox collections for the principal (RFC6638 sections 2.1-2.2). When unsupported, calls to schedule_inbox() or schedule_outbox() raise NotFoundError.",
+            "links": ["https://datatracker.ietf.org/doc/html/rfc6638#section-2.1"],
         },
         "scheduling.calendar-user-address-set": {
             "description": "Server provides the calendar-user-address-set property on the principal (RFC6638 section 2.4.1), used to identify a user's email/URI for scheduling purposes. When unsupported, calendar_user_address_set() raises NotFoundError.",
             "links": ["https://datatracker.ietf.org/doc/html/rfc6638#section-2.4.1"],
+        },
+        "scheduling.mailbox.inbox-delivery": {
+            "description": "Server delivers incoming scheduling REQUEST messages to the attendee's schedule-inbox (RFC6638 section 4.1). When unsupported, the server implements automatic scheduling: invitations are auto-processed and placed directly on the attendee's calendar without appearing in the inbox. Clients should check this feature to know whether to look for inbox items after sending an invite, or check the attendee calendar directly.",
+            "links": [
+                "https://datatracker.ietf.org/doc/html/rfc6638#section-4.1",
+            ],
         },
         'freebusy-query': {'description': "freebusy queries come in two flavors, one query can be done towards a CalDAV server as defined in RFC4791, another query can be done through the scheduling framework, RFC 6638.  Only RFC4791 is tested for as today"},
         "freebusy-query.rfc4791": {
@@ -980,6 +986,10 @@ zimbra = {
     'search.comp-type.optional': {'support': 'fragile'}, ## TODO: more research on this, looks like a bug in the checker,
     'search.time-range.alarm': {'support': 'unsupported'},
     'principal-search': "unsupported",
+    ## Zimbra implements server-side automatic scheduling: invitations are
+    ## auto-processed into the attendee's calendar; no iTIP notification appears in the inbox.
+    "scheduling": True,
+    "scheduling.mailbox.inbox-delivery": {"support": "unsupported"},
 
     "old_flags": [
     ## apparently, zimbra has no journal support
@@ -1007,7 +1017,7 @@ zimbra = {
 
 bedework = {
     ## If tests are yielding unexpected results, try to increase this:
-    'search-cache': {'behaviour': 'delay', 'delay': 1.5},
+    'search-cache': {'behaviour': 'delay', 'delay': 3},
 
     'test-calendar': {'cleanup-regime': 'wipe-calendar'},
     'auto-connect.url': {'basepath': '/ucaldav/'},
@@ -1027,7 +1037,15 @@ bedework = {
     'search.comp-type.optional': {'support': 'ungraceful'},
     'search.is-not-defined.dtend': False,
     "principal-search": {  "support": "ungraceful" },
-    "search.unlimited-time-range": {"support": "broken"},
+    ## Bedework hides past non-recurring events from REPORT without a time-range filter,
+    ## but still returns recurring events that have future occurrences.  The unlimited-time-range
+    ## check probe is a past-only non-recurring event; it is not returned even though the
+    ## PrepareCalendar recurring event (RRULE:FREQ=MONTHLY since 2000) is returned.
+    ## Result: objects is non-empty but the probe event is absent → "broken".
+    #"search.unlimited-time-range": {"support": "broken"},
+    ## Bedework uses a pre-built Docker image with no easy way to add users, so
+    ## cross-user scheduling tests cannot be run; inbox-delivery behaviour is unknown.
+    "scheduling.mailbox.inbox-delivery": {"support": "unknown"},
 
     ## TODO: play with this and see if it's needed
     'old_flags': [
@@ -1051,6 +1069,9 @@ synology = {
 }
 
 baikal =  { ## version 0.10.1
+    # Baikal (sabre/dav) delivers iTIP notifications to the attendee inbox AND auto-schedules
+    # into their calendar (quirk: both delivery modes happen simultaneously).
+    "scheduling.mailbox.inbox-delivery": {"support": "quirk", "behaviour": "server delivers iTIP notification to inbox AND auto-schedules into calendar"},
     "http.multiplexing": "fragile", ## ref https://github.com/python-caldav/caldav/issues/564
     'search.comp-type.optional': {'support': 'ungraceful'},
     'search.recurrences.expanded.todo': {'support': 'unsupported'},
@@ -1091,6 +1112,15 @@ cyrus = {
         'support': 'fragile',
         'behaviour': 'Deleting a recently created calendar fails'},
     # Cyrus may not properly reject wrong passwords in some configurations
+    # Cyrus implements server-side automatic scheduling: for cross-user
+    # invites, the server both auto-processes the invite into the attendee's calendar
+    # AND delivers an iTIP notification copy to the attendee's schedule-inbox.
+    # Clients do not need to explicitly accept from the inbox (auto-accept is done),
+    # but inbox items do appear.  This is "quirk" behaviour: both delivery modes happen.
+    "scheduling.mailbox.inbox-delivery": {
+        "support": "quirk",
+        "behaviour": "server delivers iTIP notification to inbox AND auto-schedules into calendar",
+    },
     'old_flags': []
 }
 
@@ -1111,6 +1141,9 @@ davical = {
     # Disable HTTP/2 multiplexing - davical doesn't support it well and niquests
     # lazy responses cause MultiplexingError when accessing status_code
     "http.multiplexing": { "support": "unsupported" },
+    # DAViCal delivers iTIP notifications to the attendee inbox AND auto-schedules
+    # into their calendar (quirk: both delivery modes happen simultaneously).
+    "scheduling.mailbox.inbox-delivery": {"support": "quirk", "behaviour": "server delivers iTIP notification to inbox AND auto-schedules into calendar"},
     "search.comp-type.optional": { "support": "fragile" },
     "search.recurrences.expanded.exception": { "support": "unsupported" },
     "search.time-range.alarm": { "support": "unsupported" },
@@ -1130,6 +1163,8 @@ davical = {
 }
 
 sogo = {
+    ## scheduling.mailbox.inbox-delivery behaviour unknown until cross-user scheduling tests run
+    "scheduling.mailbox.inbox-delivery": {"support": "unknown"},
     ## I'm surprised, I'm quite sure this was passing earlier.  reported unsupported with caldav commit a98d50490b872e9b9d8e93e2e401c936ad193003, caldav server checker commit 3cae24cf99da1702b851b5a74a9b88c8e5317dad 2026-02-15
     "search.text.category": False,
     "search.time-range.event.old-dates": False,
@@ -1292,6 +1327,10 @@ posteo = {
 ## Davis uses sabre/dav (same backend as Baikal), so hints are similar.
 ## TODO: consolidate, make a sabredav dict and let davis/baikal build on it
 davis = {
+    # Davis uses sabre/dav (same backend as Baikal): delivers iTIP notifications to the
+    # attendee inbox AND auto-schedules into their calendar (quirk behaviour).
+    "scheduling": True,
+    "scheduling.mailbox.inbox-delivery": {"support": "quirk", "behaviour": "server delivers iTIP notification to inbox AND auto-schedules into calendar"},
     "search.recurrences.expanded.todo": {"support": "unsupported"},
     "search.recurrences.expanded.exception": {"support": "unsupported"},
     "search.recurrences.includes-implicit.todo": {"support": "unsupported"},
@@ -1313,6 +1352,8 @@ davis = {
 ## cannot be changed.  The pre-provisioned "tasks" calendar supports VTODO only.
 ## VJOURNAL is not supported at all.
 ccs = {
+    ## scheduling.mailbox.inbox-delivery behaviour unknown until cross-user scheduling tests run
+    "scheduling.mailbox.inbox-delivery": {"support": "unknown"},
     "save-load.journal": {"support": "unsupported"},
     "save-load.todo.mixed-calendar": {"support": "unsupported"},
     # CCS enforces unique UIDs across ALL calendars for a user
@@ -1346,6 +1387,8 @@ ccs = {
 ## CalDAV served at /dav/cal/<username>/ over HTTP on port 8080.
 ## Feature support mostly unknown until tested; starting with empty hints.
 stalwart = {
+    ## scheduling.mailbox.inbox-delivery behaviour unknown until cross-user scheduling tests run
+    "scheduling.mailbox.inbox-delivery": {"support": "unknown"},
     'rate-limit': {
         'enable': True,
         'default_sleep': 3,
@@ -1499,6 +1542,8 @@ ox = {
     'principal-search.list-all': {'support': 'unsupported'},
     ## Cross-calendar duplicate UID test fails (AuthorizationError creating second calendar)
     'save.duplicate-uid.cross-calendar': {'support': 'ungraceful'},
+    ## OX App Suite has complex user provisioning; cross-user scheduling tests not yet set up.
+    "scheduling.mailbox.inbox-delivery": {"support": "unknown"},
 }
 
 # fmt: on

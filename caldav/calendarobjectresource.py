@@ -696,7 +696,7 @@ class CalendarObjectResource(DAVObject):
     def is_invite_reply(self) -> bool:
         """
         Returns True if the object is a reply, see
-        :rfc:`2446#section-3.2.3`.
+        :rfc:`5546#section-3.2`.
         """
         self.load(only_if_unloaded=True)
         return self.icalendar_instance.get("method", None) == "REPLY"

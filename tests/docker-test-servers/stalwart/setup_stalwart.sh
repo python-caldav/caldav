@@ -29,6 +29,28 @@ api_post() {
         -d "${body}"
 }
 
+create_user() {
+    local username="$1"
+    local password="$2"
+    local result
+    result=$(api_post "/principal" "{
+        \"type\": \"individual\",
+        \"name\": \"${username}\",
+        \"secrets\": [\"${password}\"],
+        \"emails\": [\"${username}@${DOMAIN}\"],
+        \"roles\": [\"user\"]
+    }")
+    if echo "$result" | grep -q '"error"'; then
+        if echo "$result" | grep -q '"fieldAlreadyExists"'; then
+            echo "User '${username}' already exists (OK)"
+        else
+            echo "Warning: user '${username}' creation returned: $result"
+        fi
+    else
+        echo "User '${username}' created"
+    fi
+}
+
 echo "Waiting for Stalwart HTTP endpoint to be ready..."
 max_attempts=60
 for i in $(seq 1 $max_attempts); do
@@ -74,6 +96,11 @@ if echo "$RESULT" | grep -q '"error"'; then
 else
     echo "User created: $RESULT"
 fi
+
+# Additional users for RFC6638 scheduling tests
+create_user "user1" "testpass1"
+create_user "user2" "testpass2"
+create_user "user3" "testpass3"
 
 echo ""
 echo "Verifying CalDAV access..."

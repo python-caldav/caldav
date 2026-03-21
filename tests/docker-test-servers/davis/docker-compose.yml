@@ -17,6 +17,10 @@ services:
       - AUTH_METHOD=Basic
       - APP_SECRET=testserversecret123
       - INVITE_FROM_ADDRESS=test@example.com
+      # Disable SMTP: without a null mailer, sabre/dav tries to send email
+      # notifications on every PUT/DELETE of a scheduled event and returns 500
+      # when it cannot connect to the SMTP server.
+      - MAILER_DSN=null://null
     tmpfs:
       - /data:size=100m
     healthcheck:

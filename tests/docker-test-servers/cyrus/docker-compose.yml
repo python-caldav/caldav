@@ -11,7 +11,13 @@ services:
     environment:
       - DEFAULTDOMAIN=example.com
       - SERVERNAME=cyrus-test
-    # No volumes - let data be ephemeral for testing
+    volumes:
+      # Override the imapd.conf template to set virtdomains: off.
+      # This fixes iTIP scheduling delivery: with virtdomains: userid the
+      # caladdress_lookup() function preserves user2@example.com as the
+      # userid, but mailbox ACLs use the short form user2, causing 403.
+      - ./imapd.conf:/srv/cyrus-docker-test-server.git/imapd.conf:ro
+    # Other data remains ephemeral for testing
     # This ensures each start is fresh with newly created users
     healthcheck:
       test: ["CMD", "curl", "-s", "http://localhost:8080/"]

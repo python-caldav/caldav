@@ -16,6 +16,17 @@ TEST_PASSWORD="testpass"
 AUTH_REALM="SabreDAV"
 CONSOLE="php /var/www/davis/bin/console"
 
+create_user() {
+    local username="$1"
+    local password="$2"
+    local digest
+    digest=$(echo -n "${username}:${AUTH_REALM}:${password}" | md5sum | awk '{print $1}')
+    run_sql "INSERT OR IGNORE INTO users (username, digesta1) VALUES ('${username}', '${digest}')"
+    run_sql "INSERT OR IGNORE INTO principals (uri, email, displayname, is_main, is_admin) VALUES ('principals/${username}', '${username}@example.com', '${username}', 1, 0)"
+    run_sql "INSERT OR IGNORE INTO principals (uri, email, displayname, is_main, is_admin) VALUES ('principals/${username}/calendar-proxy-read', NULL, NULL, 0, 0)"
+    run_sql "INSERT OR IGNORE INTO principals (uri, email, displayname, is_main, is_admin) VALUES ('principals/${username}/calendar-proxy-write', NULL, NULL, 0, 0)"
+}
+
 run_sql() {
     docker exec "$CONTAINER_NAME" $CONSOLE dbal:run-sql "$1" 2>&1
 }
@@ -46,22 +57,13 @@ echo "Running database migrations..."
 docker exec "$CONTAINER_NAME" $CONSOLE doctrine:migrations:migrate --no-interaction 2>&1
 
 echo ""
-echo "Computing digest hash..."
-DIGEST=$(echo -n "${TEST_USER}:${AUTH_REALM}:${TEST_PASSWORD}" | md5sum | awk '{print $1}')
-echo "Digest: ${DIGEST}"
+echo "Creating test users in database..."
+create_user "${TEST_USER}" "${TEST_PASSWORD}"
 
-echo ""
-echo "Creating test user in database..."
-run_sql "INSERT INTO users (username, digesta1) VALUES ('${TEST_USER}', '${DIGEST}')"
-
-echo "Creating principal entries..."
-# sabre/dav requires principal entries for CalDAV to work
-# The principals table has is_main and is_admin boolean columns
-run_sql "INSERT INTO principals (uri, email, displayname, is_main, is_admin) VALUES ('principals/${TEST_USER}', '${TEST_USER}@example.com', 'Test User', 1, 0)"
-
-# Calendar-proxy principals that sabre/dav expects for delegation
-run_sql "INSERT INTO principals (uri, email, displayname, is_main, is_admin) VALUES ('principals/${TEST_USER}/calendar-proxy-read', NULL, NULL, 0, 0)"
-run_sql "INSERT INTO principals (uri, email, displayname, is_main, is_admin) VALUES ('principals/${TEST_USER}/calendar-proxy-write', NULL, NULL, 0, 0)"
+# Additional users for RFC6638 scheduling tests
+create_user "user1" "testpass1"
+create_user "user2" "testpass2"
+create_user "user3" "testpass3"
 
 echo ""
 echo "Verifying CalDAV access..."
