@@ -196,9 +196,7 @@ class ServerRegistry:
             # If an auto-discovered server with the same name (case-insensitive) is
             # already registered, merge extra test-only fields (like scheduling_users)
             # into it instead of registering a duplicate.
-            existing_key = next(
-                (k for k in self._servers if k.lower() == name.lower()), None
-            )
+            existing_key = next((k for k in self._servers if k.lower() == name.lower()), None)
             if existing_key is not None:
                 if "scheduling_users" in server_config:
                     self._servers[existing_key].config["scheduling_users"] = server_config[
@@ -211,7 +209,9 @@ class ServerRegistry:
             # entry is intended only to augment a running server, not to register
             # a new one (e.g. a config written for CI that references Cyrus
             # scheduling users but Cyrus isn't started locally).
-            non_connection_keys = {k for k in server_config if k not in _META_KEYS | _TEST_ONLY_KEYS}
+            non_connection_keys = {
+                k for k in server_config if k not in _META_KEYS | _TEST_ONLY_KEYS
+            }
             if not non_connection_keys:
                 continue
 
