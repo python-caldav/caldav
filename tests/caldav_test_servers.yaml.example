@@ -52,6 +52,7 @@ test-servers:
     port: ${NEXTCLOUD_PORT:-8801}
     username: ${NEXTCLOUD_USERNAME:-testuser}
     password: ${NEXTCLOUD_PASSWORD:-testpass}
+    # setup_nextcloud.sh creates user1-user3 (passwords testpass1-3) for scheduling tests.
 
   cyrus:
     type: docker
@@ -95,6 +96,7 @@ test-servers:
     port: ${DAVICAL_PORT:-8805}
     username: ${DAVICAL_USERNAME:-testuser}
     password: ${DAVICAL_PASSWORD:-testpass}
+    # setup_davical.sh creates user1-user3 (passwords testpass1-3) for scheduling tests.
 
   davis:
     type: docker
@@ -119,6 +121,7 @@ test-servers:
     port: ${ZIMBRA_PORT:-8808}
     username: ${ZIMBRA_USERNAME:-testuser@zimbra.io}
     password: ${ZIMBRA_PASSWORD:-testpass}
+    # start.sh creates testuser/testuser2/testuser3@zimbra.io (password testpass) for scheduling tests.
 
   stalwart:
     type: docker

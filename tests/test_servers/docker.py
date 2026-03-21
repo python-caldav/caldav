@@ -67,13 +67,22 @@ class NextcloudTestServer(DockerTestServer):
 
     def __init__(self, config: dict[str, Any] | None = None) -> None:
         config = config or {}
-        config.setdefault("host", os.environ.get("NEXTCLOUD_HOST", "localhost"))
-        config.setdefault("port", int(os.environ.get("NEXTCLOUD_PORT", "8801")))
+        host = config.get("host") or os.environ.get("NEXTCLOUD_HOST", "localhost")
+        port = int(config.get("port") or os.environ.get("NEXTCLOUD_PORT", "8801"))
+        config.setdefault("host", host)
+        config.setdefault("port", port)
         config.setdefault("username", os.environ.get("NEXTCLOUD_USERNAME", "testuser"))
         config.setdefault("password", os.environ.get("NEXTCLOUD_PASSWORD", "testpass"))
         # Set up Nextcloud-specific compatibility hints
         if "features" not in config:
             config["features"] = compatibility_hints.nextcloud.copy()
+        # user1-user3 are created by setup_nextcloud.sh for scheduling tests
+        if "scheduling_users" not in config:
+            base = f"http://{host}:{port}/remote.php/dav"
+            config["scheduling_users"] = [
+                {"url": base, "username": f"user{i}", "password": f"testpass{i}"}
+                for i in range(1, 4)
+            ]
         super().__init__(config)
 
     def _default_port(self) -> int:
@@ -240,12 +249,24 @@ class DavicalTestServer(DockerTestServer):
 
     def __init__(self, config: dict[str, Any] | None = None) -> None:
         config = config or {}
-        config.setdefault("host", os.environ.get("DAVICAL_HOST", "localhost"))
-        config.setdefault("port", int(os.environ.get("DAVICAL_PORT", "8805")))
+        host = config.get("host") or os.environ.get("DAVICAL_HOST", "localhost")
+        port = int(config.get("port") or os.environ.get("DAVICAL_PORT", "8805"))
+        config.setdefault("host", host)
+        config.setdefault("port", port)
         config.setdefault("username", os.environ.get("DAVICAL_USERNAME", "testuser"))
         config.setdefault("password", os.environ.get("DAVICAL_PASSWORD", "testpass"))
         if "features" not in config:
             config["features"] = compatibility_hints.davical.copy()
+        # user1-user3 are created by setup_davical.sh for scheduling tests
+        if "scheduling_users" not in config:
+            config["scheduling_users"] = [
+                {
+                    "url": f"http://{host}:{port}/caldav.php/user{i}/",
+                    "username": f"user{i}",
+                    "password": f"testpass{i}",
+                }
+                for i in range(1, 4)
+            ]
         super().__init__(config)
 
     def _default_port(self) -> int:
@@ -336,8 +357,10 @@ class ZimbraTestServer(DockerTestServer):
 
     def __init__(self, config: dict[str, Any] | None = None) -> None:
         config = config or {}
-        config.setdefault("host", os.environ.get("ZIMBRA_HOST", "zimbra-docker.zimbra.io"))
-        config.setdefault("port", int(os.environ.get("ZIMBRA_PORT", "8808")))
+        host = config.get("host") or os.environ.get("ZIMBRA_HOST", "zimbra-docker.zimbra.io")
+        port = int(config.get("port") or os.environ.get("ZIMBRA_PORT", "8808"))
+        config.setdefault("host", host)
+        config.setdefault("port", port)
         config.setdefault(
             "username",
             os.environ.get("ZIMBRA_USERNAME", "testuser@zimbra.io"),
@@ -346,6 +369,18 @@ class ZimbraTestServer(DockerTestServer):
         config.setdefault("ssl_verify_cert", False)
         if "features" not in config:
             config["features"] = compatibility_hints.zimbra.copy()
+        # testuser/testuser2/testuser3 are created by start.sh for scheduling tests
+        if "scheduling_users" not in config:
+            domain = os.environ.get("ZIMBRA_DOMAIN", "zimbra.io")
+            config["scheduling_users"] = [
+                {
+                    "url": f"https://{host}:{port}/dav/",
+                    "username": f"testuser{'' if i == 1 else i}@{domain}",
+                    "password": "testpass",
+                    "ssl_verify_cert": False,
+                }
+                for i in range(1, 4)
+            ]
         super().__init__(config)
 
     def _default_port(self) -> int:
