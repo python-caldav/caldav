@@ -670,7 +670,7 @@ class TestGetCalendarsConfig:
                     assert len(clients) == 2
 
 
-class TestSchedulingBase:
+class _TestSchedulingBase:
     """
     Base class for RFC6638 scheduling tests.  Not collected directly by
     pytest (no ``Test`` prefix); concrete subclasses supply ``_users``.
@@ -793,7 +793,7 @@ class TestSchedulingBase:
 if rfc6638_users:
     TestScheduling = type(
         "TestScheduling",
-        (TestSchedulingBase,),
+        (_TestSchedulingBase,),
         {"_users": rfc6638_users},
     )
 
@@ -3689,6 +3689,6 @@ for _caldav_server in caldav_servers:
         _sched_classname = "TestSchedulingForServer" + _servername
         vars()[_sched_classname] = type(
             _sched_classname,
-            (TestSchedulingBase,),
+            (_TestSchedulingBase,),
             {"_users": _caldav_server["scheduling_users"]},
         )

@@ -278,23 +278,33 @@ jobs:
           fi
       - name: Configure RFC6638 scheduling test users
         run: |
-          # Write test config with rfc6638_users for scheduling tests.
+          # Write test config with scheduling_users for each server that supports it.
           # Cyrus pre-creates user1-user5 (password 'x') with scheduling support.
           # Baikal users user1-user3 are in the pre-seeded db.sqlite.
-          # Two separate config sections for each server; CI uses Cyrus.
+          # These configs are merged into auto-discovered servers by the registry.
           cat > tests/caldav_test_servers.yaml << 'EOF'
-          # RFC6638 scheduling test users - written by CI
-          # Cyrus pre-creates user1-user5 with password 'x' and supports scheduling
-          rfc6638_users:
-            - url: http://localhost:8802/dav/calendars/user/user1
-              username: user1
-              password: x
-            - url: http://localhost:8802/dav/calendars/user/user2
-              username: user2
-              password: x
-            - url: http://localhost:8802/dav/calendars/user/user3
-              username: user3
-              password: x
+          cyrus:
+            scheduling_users:
+              - url: http://localhost:8802/dav/calendars/user/user1
+                username: user1
+                password: x
+              - url: http://localhost:8802/dav/calendars/user/user2
+                username: user2
+                password: x
+              - url: http://localhost:8802/dav/calendars/user/user3
+                username: user3
+                password: x
+          baikal:
+            scheduling_users:
+              - url: http://localhost:8800/dav.php/
+                username: user1
+                password: testpass1
+              - url: http://localhost:8800/dav.php/
+                username: user2
+                password: testpass2
+              - url: http://localhost:8800/dav.php/
+                username: user3
+                password: testpass3
           EOF
       - run: tox -e py
         env:

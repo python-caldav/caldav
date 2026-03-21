@@ -161,11 +161,42 @@ test-servers:
 # RFC6638 scheduling test users (optional)
 # =========================================================================
 #
-# For testing calendar scheduling (meeting invites, etc.), define at least
-# three users on the same CalDAV server that can send invites to each other.
-# This section lives at the TOP LEVEL (not under test-servers).
+# Preferred: add scheduling_users inside a server block (as shown for Cyrus
+# above).  The registry merges it into the already-registered server, and
+# pytest generates a TestSchedulingForServer<Name> class automatically.
 #
-# Cyrus (pre-creates user1-user5 with password 'x'):
+# Baikal (user1-user3 in pre-seeded db.sqlite, passwords testpass1-3):
+#
+#   baikal:
+#     scheduling_users:
+#       - url: http://localhost:8800/dav.php/
+#         username: user1
+#         password: testpass1
+#       - url: http://localhost:8800/dav.php/
+#         username: user2
+#         password: testpass2
+#       - url: http://localhost:8800/dav.php/
+#         username: user3
+#         password: testpass3
+#
+# SOGo (user1-user3 from init-sogo-users.sql, passwords testpass1-3):
+#
+#   sogo:
+#     scheduling_users:
+#       - url: http://localhost:8803/SOGo/dav/user1
+#         username: user1
+#         password: testpass1
+#       - url: http://localhost:8803/SOGo/dav/user2
+#         username: user2
+#         password: testpass2
+#       - url: http://localhost:8803/SOGo/dav/user3
+#         username: user3
+#         password: testpass3
+#
+# Legacy: top-level rfc6638_users creates a single TestScheduling class
+# that is not tied to any specific server in the test run.  Prefer the
+# per-server scheduling_users approach above.
+#
 # rfc6638_users:
 #   - url: http://localhost:8802/dav/calendars/user/user1
 #     username: user1
@@ -176,27 +207,3 @@ test-servers:
 #   - url: http://localhost:8802/dav/calendars/user/user3
 #     username: user3
 #     password: x
-#
-# Baikal (user1-user3 are in the pre-seeded db.sqlite, passwords testpass1-3):
-# rfc6638_users:
-#   - url: http://localhost:8800/dav.php/
-#     username: user1
-#     password: testpass1
-#   - url: http://localhost:8800/dav.php/
-#     username: user2
-#     password: testpass2
-#   - url: http://localhost:8800/dav.php/
-#     username: user3
-#     password: testpass3
-#
-# SOGo (user1-user3 from init-sogo-users.sql, passwords testpass1-3):
-# rfc6638_users:
-#   - url: http://localhost:8803/SOGo/dav/user1
-#     username: user1
-#     password: testpass1
-#   - url: http://localhost:8803/SOGo/dav/user2
-#     username: user2
-#     password: testpass2
-#   - url: http://localhost:8803/SOGo/dav/user3
-#     username: user3
-#     password: testpass3
