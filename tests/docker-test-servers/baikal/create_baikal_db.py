@@ -241,7 +241,9 @@ def add_baikal_user(db_path: Path, username: str, password: str) -> None:
     conn = sqlite3.connect(str(db_path))
     cursor = conn.cursor()
 
-    cursor.execute("INSERT OR REPLACE INTO users (username, digesta1) VALUES (?, ?)", (username, ha1))
+    cursor.execute(
+        "INSERT OR REPLACE INTO users (username, digesta1) VALUES (?, ?)", (username, ha1)
+    )
 
     cursor.execute(
         "INSERT OR IGNORE INTO principals (uri, email, displayname) VALUES (?, ?, ?)",
