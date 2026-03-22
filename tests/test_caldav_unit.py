@@ -159,6 +159,47 @@ PRIORITY:1
 END:VTODO
 END:VCALENDAR"""
 
+## Mock response with 2 pending and 2 completed todos, for testing include_completed behavior
+## https://github.com/python-caldav/caldav/issues/650
+mixed_todos_response = """<d:multistatus xmlns:d="DAV:" xmlns:cal="urn:ietf:params:xml:ns:caldav">
+  <d:response>
+    <d:href>/calendar/pending1.ics</d:href>
+    <d:propstat>
+      <d:prop>
+        <cal:calendar-data>BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VTODO\r\nUID:pending1\r\nSUMMARY:Pending 1\r\nSTATUS:NEEDS-ACTION\r\nDTSTAMP:20250101T000000Z\r\nEND:VTODO\r\nEND:VCALENDAR\r\n</cal:calendar-data>
+      </d:prop>
+      <d:status>HTTP/1.1 200 OK</d:status>
+    </d:propstat>
+  </d:response>
+  <d:response>
+    <d:href>/calendar/pending2.ics</d:href>
+    <d:propstat>
+      <d:prop>
+        <cal:calendar-data>BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VTODO\r\nUID:pending2\r\nSUMMARY:Pending 2\r\nDTSTAMP:20250101T000000Z\r\nEND:VTODO\r\nEND:VCALENDAR\r\n</cal:calendar-data>
+      </d:prop>
+      <d:status>HTTP/1.1 200 OK</d:status>
+    </d:propstat>
+  </d:response>
+  <d:response>
+    <d:href>/calendar/completed1.ics</d:href>
+    <d:propstat>
+      <d:prop>
+        <cal:calendar-data>BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VTODO\r\nUID:completed1\r\nSUMMARY:Completed 1\r\nSTATUS:COMPLETED\r\nDTSTAMP:20250101T000000Z\r\nCOMPLETED:20250101T120000Z\r\nEND:VTODO\r\nEND:VCALENDAR\r\n</cal:calendar-data>
+      </d:prop>
+      <d:status>HTTP/1.1 200 OK</d:status>
+    </d:propstat>
+  </d:response>
+  <d:response>
+    <d:href>/calendar/completed2.ics</d:href>
+    <d:propstat>
+      <d:prop>
+        <cal:calendar-data>BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VTODO\r\nUID:completed2\r\nSUMMARY:Completed 2\r\nSTATUS:COMPLETED\r\nDTSTAMP:20250101T000000Z\r\nCOMPLETED:20250101T120000Z\r\nEND:VTODO\r\nEND:VCALENDAR\r\n</cal:calendar-data>
+      </d:prop>
+      <d:status>HTTP/1.1 200 OK</d:status>
+    </d:propstat>
+  </d:response>
+</d:multistatus>"""
+
 ## from https://github.com/python-caldav/caldav/issues/495
 recurring_task_response = """<d:multistatus xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns" xmlns:cal="urn:ietf:params:xml:ns:caldav" xmlns:cs="http://calendarserver.org/ns/" xmlns:oc="http://owncloud.org/ns" xmlns:nc="http://nextcloud.org/ns">
   <d:response>
@@ -342,10 +383,53 @@ class TestCalDAV:
             expand=True,
             start=datetime(2025, 1, 1),
             end=datetime(2025, 6, 5),
-            ## TODO - TEMP workaround for compatibility issues!  post_filter should not be needed!
-            post_filter=True,
         )
         assert len(mytasks) == 9
+
+    def testSearcherReuseConsistency_Issue650(self):
+        """
+        Regression test for https://github.com/python-caldav/caldav/issues/650
+
+        A CalDAVSearcher with todo=True and default include_completed (None) should
+        return consistent results across multiple search() calls.  Previously, the
+        icalendar_searcher library would mutate include_completed from None to False
+        during the first search(), changing which code path subsequent calls took.
+        """
+        client = MockedDAVClient(mixed_todos_response)
+        calendar = Calendar(client, url="/calendar/issue650/")
+
+        ## Test 1: searcher with include_completed=None (default) should give consistent results
+        searcher = calendar.searcher(todo=True)
+        assert searcher.include_completed is None, "include_completed should start as None"
+
+        first_result = searcher.search()
+        assert len(first_result) == 2, f"Expected 2 pending todos, got {len(first_result)}"
+
+        ## After calling search(), include_completed must not have been mutated
+        assert searcher.include_completed is None, (
+            "include_completed was mutated from None during search() - "
+            "this breaks reuse of the searcher object (issue #650)"
+        )
+
+        second_result = searcher.search()
+        assert len(second_result) == 2, (
+            f"Second search() call returned {len(second_result)} results, "
+            f"expected 2 - inconsistent behavior after searcher reuse (issue #650)"
+        )
+
+        ## Test 2: explicit include_completed=False should also give correct results
+        searcher_false = calendar.searcher(todo=True, include_completed=False)
+        result_false = searcher_false.search()
+        assert len(result_false) == 2, (
+            f"include_completed=False returned {len(result_false)} results, expected 2"
+        )
+
+        ## Test 3: include_completed=True should return all todos
+        searcher_true = calendar.searcher(todo=True, include_completed=True)
+        result_true = searcher_true.search()
+        assert len(result_true) == 4, (
+            f"include_completed=True returned {len(result_true)} results, expected 4"
+        )
 
     def testLoadByMultiGet404(self):
         xml = """
