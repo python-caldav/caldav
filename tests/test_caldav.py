@@ -704,10 +704,15 @@ class _TestSchedulingBase:
         calendar_id = "schedulingnosetestcalendar%i" % i
         calendar_name = "caldav scheduling test %i" % i
         try:
-            self.principals[i].calendar(name=calendar_name).delete()
+            cal = self.principals[i].calendar(name=calendar_name)
+            ## Calendar already exists — clear its contents rather than delete+recreate,
+            ## since some servers (e.g. Nextcloud) move deleted calendars to a trash bin
+            ## and block re-creation with the same cal_id.
+            for obj in cal.objects():
+                obj.delete()
+            return cal
         except error.NotFoundError:
-            pass
-        return self.principals[i].make_calendar(name=calendar_name, cal_id=calendar_id)
+            return self.principals[i].make_calendar(name=calendar_name, cal_id=calendar_id)
 
     def setup_method(self):
         self.clients = []
@@ -1097,7 +1102,32 @@ class RepeatedFunctionalTestsBaseClass:
 
         # Use pdb debug mode if pytest was run with --pdb, otherwise use logging
         debug_mode = "pdb" if request.config.option.usepdb else "logging"
-        checker = ServerQuirkChecker(self.caldav, debug_mode=debug_mode)
+
+        ## Build extra clients from scheduling_users (skip index 0; main client covers that user)
+        extra_clients = []
+        for user_params in self.server_params.get("scheduling_users", [])[1:]:
+            params = {
+                k: v for k, v in user_params.items() if k not in ("name", "setup", "teardown")
+            }
+            try:
+                ec = client(**params)
+                ec.__enter__()
+                extra_clients.append(ec)
+            except Exception:
+                pass
+
+        try:
+            checker = ServerQuirkChecker(
+                self.caldav, debug_mode=debug_mode, extra_clients=extra_clients
+            )
+            checker.check_all()
+            checker.cleanup(force=False)
+        finally:
+            for ec in extra_clients:
+                try:
+                    ec.__exit__(None, None, None)
+                except Exception:
+                    pass
         checker.check_all()
         checker.cleanup(force=False)
 
