@@ -1094,8 +1094,14 @@ cyrus = {
         'support': 'fragile',
         'behaviour': 'Deleting a recently created calendar fails'},
     # Cyrus may not properly reject wrong passwords in some configurations
-    # Cyrus implements automatic scheduling (RFC6638 section 4.1): invites are
-    # auto-processed without being delivered to the attendee's inbox
+    # Cyrus implements automatic scheduling (RFC6638 section 3.2.3): invites are
+    # auto-processed and placed directly on the attendee's calendar.  For
+    # cross-user invites, Cyrus also delivers an iTIP copy to the attendee's
+    # schedule-inbox as a notification, but the accept/decline decision is
+    # already done — clients do not need to explicitly accept from the inbox.
+    # The self-invite probe used by feature-checkers may detect this as
+    # "unsupported" because Cyrus skips self-invite delivery; the actual
+    # behaviour for cross-user scheduling is inbox-delivery with auto-accept.
     "scheduling.inbox-delivery": {"support": "unsupported"},
     'old_flags': []
 }

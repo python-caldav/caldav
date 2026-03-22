@@ -712,6 +712,7 @@ class _TestSchedulingBase:
     def setup_method(self):
         self.clients = []
         self.principals = []
+        self._auto_scheduled_event_uids = []
         for foo in self._users:
             c = client(**foo)
             if not c.check_scheduling_support():
@@ -726,6 +727,17 @@ class _TestSchedulingBase:
                 self.principals[i].calendar(name=calendar_name).delete()
             except error.NotFoundError:
                 pass
+        ## Clean up any auto-scheduled events that the server placed in non-test
+        ## calendars (e.g. Cyrus delivers to the Default calendar).
+        if self._auto_scheduled_event_uids:
+            for principal in self.principals:
+                for cal in principal.calendars():
+                    for event in cal.get_events():
+                        try:
+                            if event.id in self._auto_scheduled_event_uids:
+                                event.delete()
+                        except Exception:
+                            pass
         for c in self.clients:
             c.__exit__()
 
@@ -744,9 +756,11 @@ class _TestSchedulingBase:
         ## self.principal[0] is the organizer, and invites self.principal[1]
         organizers_calendar = self._getCalendar(0)
         attendee_calendar = self._getCalendar(1)
-        organizers_calendar.save_with_invites(
+        saved_event = organizers_calendar.save_with_invites(
             sched, [self.principals[0], self.principals[1].get_vcal_address()]
         )
+        event_uid = saved_event.id
+        self._auto_scheduled_event_uids.append(event_uid)
         assert len(organizers_calendar.get_events()) == 1
 
         ## Check attendee's inbox first — this tells us whether the server uses
@@ -757,11 +771,21 @@ class _TestSchedulingBase:
             if item.url not in inbox_items
         ]
 
-        if len(new_attendee_inbox_items) == 0:
-            ## Server implements automatic scheduling: invitation was auto-processed
-            ## and placed directly on the attendee's calendar (e.g. Cyrus).
-            ## Verify the event is there and skip the manual accept/reply flow.
-            assert len(attendee_calendar.get_events()) == 1, (
+        ## Check whether the server auto-scheduled the event directly into
+        ## the attendee's calendar (RFC6638 section 3.2.3 automatic scheduling).
+        ## The event may land in any calendar (e.g. Cyrus uses Default, not the
+        ## test calendar), so search all attendee calendars for the event UID.
+        auto_scheduled = any(
+            event.id == event_uid
+            for cal in self.principals[1].calendars()
+            for event in cal.get_events()
+        )
+
+        if len(new_attendee_inbox_items) == 0 or auto_scheduled:
+            ## Server implements automatic scheduling.  Some servers (e.g.
+            ## Cyrus) may additionally deliver an iTIP copy to the inbox as
+            ## a notification, but the acceptance is already done.
+            assert auto_scheduled, (
                 "Expected invite in attendee inbox OR event auto-added to attendee calendar, got neither"
             )
             return
