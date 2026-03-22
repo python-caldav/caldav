@@ -752,7 +752,8 @@ class _TestSchedulingBase:
         ## Check attendee's inbox first — this tells us whether the server uses
         ## inbox delivery or automatic scheduling (RFC6638 section 3.2.3).
         new_attendee_inbox_items = [
-            item for item in self.principals[1].schedule_inbox().get_items()
+            item
+            for item in self.principals[1].schedule_inbox().get_items()
             if item.url not in inbox_items
         ]
 
@@ -784,7 +785,8 @@ class _TestSchedulingBase:
         ## principals[0] should now have a notification in the inbox that the
         ## calendar invite was accepted
         new_organizer_inbox_items = [
-            item for item in self.principals[0].schedule_inbox().get_items()
+            item
+            for item in self.principals[0].schedule_inbox().get_items()
             if item.url not in inbox_items
         ]
         assert len(new_organizer_inbox_items) == 1
