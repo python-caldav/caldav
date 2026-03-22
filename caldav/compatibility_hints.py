@@ -274,10 +274,9 @@ class FeatureSet:
             "links": ["https://datatracker.ietf.org/doc/html/rfc6638#section-2.4.1"],
         },
         "scheduling.inbox-delivery": {
-            "description": "Server delivers incoming scheduling REQUEST messages to the attendee's schedule-inbox (RFC6638 section 3.1). When unsupported, the server implements automatic scheduling (RFC6638 section 3.2.3): invitations are auto-processed and placed directly on the attendee's calendar without appearing in the inbox. Clients should check this feature to know whether to look for inbox items after sending an invite, or check the attendee calendar directly.",
+            "description": "Server delivers incoming scheduling REQUEST messages to the attendee's schedule-inbox (RFC6638 section 4.1). When unsupported, the server implements automatic scheduling: invitations are auto-processed and placed directly on the attendee's calendar without appearing in the inbox. Clients should check this feature to know whether to look for inbox items after sending an invite, or check the attendee calendar directly.",
             "links": [
-                "https://datatracker.ietf.org/doc/html/rfc6638#section-3.1",
-                "https://datatracker.ietf.org/doc/html/rfc6638#section-3.2.3",
+                "https://datatracker.ietf.org/doc/html/rfc6638#section-4.1",
             ],
         },
         'freebusy-query': {'description': "freebusy queries come in two flavors, one query can be done towards a CalDAV server as defined in RFC4791, another query can be done through the scheduling framework, RFC 6638.  Only RFC4791 is tested for as today"},
@@ -1095,7 +1094,7 @@ cyrus = {
         'support': 'fragile',
         'behaviour': 'Deleting a recently created calendar fails'},
     # Cyrus may not properly reject wrong passwords in some configurations
-    # Cyrus implements automatic scheduling (RFC6638 section 3.2.3): invites are
+    # Cyrus implements automatic scheduling (RFC6638 section 4.1): invites are
     # auto-processed without being delivered to the attendee's inbox
     "scheduling.inbox-delivery": {"support": "unsupported"},
     'old_flags': []
