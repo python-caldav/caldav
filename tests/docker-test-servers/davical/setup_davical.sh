@@ -49,9 +49,14 @@ create_user() {
     if [ -n "$EXISTING_PRINCIPAL" ]; then
         echo "Principal for '${username}' already exists, skipping"
     else
-        run_sql "INSERT INTO principal (type_id, user_no, displayname) SELECT 1, user_no, fullname FROM usr WHERE username='${username}'"
+        # default_privileges: schedule-deliver (7168 = bits for schedule-deliver-invite +
+        # schedule-deliver-reply + schedule-query-freebusy) so other users can send
+        # scheduling invites/replies to this principal's inbox.
+        run_sql "INSERT INTO principal (type_id, user_no, displayname, default_privileges) SELECT 1, user_no, fullname, 7168::BIT(24) FROM usr WHERE username='${username}'"
         echo "Principal for '${username}' created"
     fi
+    # Ensure default_privileges is set even for existing principals (idempotent update)
+    run_sql "UPDATE principal SET default_privileges = 7168::BIT(24) FROM usr WHERE principal.user_no = usr.user_no AND usr.username = '${username}' AND (default_privileges IS NULL OR default_privileges = 0::BIT(24))"
 }
 
 echo ""
@@ -60,6 +65,10 @@ create_user "${TEST_USER}" "${TEST_PASSWORD}" "Test User"
 create_user "user1" "testpass1" "User One"
 create_user "user2" "testpass2" "User Two"
 create_user "user3" "testpass3" "User Three"
+
+echo ""
+echo "Enabling local scheduling in DAViCal config..."
+docker exec "$DAVICAL_CONTAINER" sed -i 's|// \$c->enable_scheduling = true;|\$c->enable_scheduling = true;|' /etc/davical/config.php || true
 
 echo ""
 echo "Verifying CalDAV access..."
