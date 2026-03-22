@@ -807,9 +807,17 @@ class CalDAVSearcher(Searcher):
         :param server_expand: Whether server was asked to expand recurrences
         :return: Filtered and/or split list of CalendarObjectResource objects
         """
+        ## icalendar_searcher.Searcher.check_component() mutates include_completed from
+        ## None to the effective default (not self.todo) on first use, and also mutates
+        ## event/journal/todo flags from None to True/False.  This breaks reuse of a
+        ## CalDAVSearcher instance across multiple search() calls (issue #650).
+        ## Use a copy with include_completed already resolved so the original is unchanged.
+        searcher = self
+        if self.include_completed is None:
+            searcher = replace(self, include_completed=not self.todo if self.todo else True)
         return filter_search_results(
             objects=objects,
-            searcher=self,
+            searcher=searcher,
             post_filter=post_filter,
             split_expanded=split_expanded,
             server_expand=server_expand,
