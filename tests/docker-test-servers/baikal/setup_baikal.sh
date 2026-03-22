@@ -1,52 +1,60 @@
 #!/bin/bash
-# Setup script for Baikal CalDAV server for testing
+# Setup script for Baikal CalDAV server for testing.
 #
-# This script helps configure a fresh Baikal installation for testing.
-# It can be used both locally and in CI environments.
+# Baikal is pre-configured via the committed Specific/ directory which contains
+# a pre-seeded db.sqlite with testuser and user1-user3 for scheduling tests.
+# This script verifies connectivity and re-seeds users if needed (e.g. if the
+# DB was replaced or users were deleted).
 
 set -e
 
+CONTAINER_NAME="baikal-test"
 BAIKAL_URL="${BAIKAL_URL:-http://localhost:8800}"
-BAIKAL_ADMIN_PASSWORD="${BAIKAL_ADMIN_PASSWORD:-admin}"
-BAIKAL_USERNAME="${BAIKAL_USERNAME:-testuser}"
-BAIKAL_PASSWORD="${BAIKAL_PASSWORD:-testpass}"
+DB_PATH="/var/www/baikal/Specific/db/db.sqlite"
+REALM="BaikalDAV"
 
-echo "Setting up Baikal CalDAV server at $BAIKAL_URL"
-
-# Wait for Baikal to be ready
 echo "Waiting for Baikal to be ready..."
-timeout 60 bash -c "until curl -f $BAIKAL_URL/ 2>/dev/null; do echo 'Waiting...'; sleep 2; done" || {
-    echo "Error: Baikal did not become ready in time"
-    exit 1
+max_attempts=30
+for i in $(seq 1 $max_attempts); do
+    if curl -sf "$BAIKAL_URL/" -o /dev/null 2>/dev/null; then
+        echo "✓ Baikal is ready"
+        break
+    fi
+    if [ $i -eq $max_attempts ]; then
+        echo "✗ Baikal did not become ready in time"
+        exit 1
+    fi
+    echo -n "."
+    sleep 2
+done
+
+echo ""
+echo "Seeding test users (idempotent)..."
+
+add_user() {
+    local username="$1"
+    local password="$2"
+    local email="$3"
+    local displayname="$4"
+    local ha1
+    ha1=$(python3 -c "import hashlib; print(hashlib.md5('${username}:${REALM}:${password}'.encode()).hexdigest())")
+    docker exec "$CONTAINER_NAME" sqlite3 "$DB_PATH" \
+        "INSERT OR IGNORE INTO users (username, digesta1) VALUES ('${username}', '${ha1}');
+         INSERT OR IGNORE INTO principals (uri, email, displayname) VALUES ('principals/${username}', '${email}', '${displayname}');"
+    echo "  ${username}: OK"
 }
 
-echo "Baikal is ready!"
-
-# Note: Baikal requires initial configuration through web interface or config files
-# For automated testing, you may need to:
-# 1. Pre-configure Baikal by mounting a pre-configured config directory
-# 2. Use the Baikal API if available
-# 3. Manually configure once and export the config
+add_user "testuser"  "testpass"  "testuser@example.com"  "Test User"
+add_user "user1"     "testpass1" "user1@example.com"     "User 1"
+add_user "user2"     "testpass2" "user2@example.com"     "User 2"
+add_user "user3"     "testpass3" "user3@example.com"     "User 3"
 
 echo ""
-echo "================================================================"
-echo "IMPORTANT: Baikal Initial Configuration Required"
-echo "================================================================"
+echo "✓ Baikal setup complete!"
 echo ""
-echo "Baikal requires initial setup through the web interface or"
-echo "by providing pre-configured files."
+echo "Credentials:"
+echo "  Test user: testuser / testpass"
+echo "  Scheduling users: user1/testpass1, user2/testpass2, user3/testpass3"
+echo "  CalDAV URL: $BAIKAL_URL/dav.php"
+echo "  Auth type: Digest (realm: $REALM)"
 echo ""
-echo "For automated testing, you have several options:"
-echo ""
-echo "1. Access $BAIKAL_URL in your browser and complete the setup"
-echo "   - Set admin password to: $BAIKAL_ADMIN_PASSWORD"
-echo "   - Create a test user: $BAIKAL_USERNAME / $BAIKAL_PASSWORD"
-echo ""
-echo "2. Mount a pre-configured Baikal config directory:"
-echo "   - Configure Baikal once"
-echo "   - Export the config directory"
-echo "   - Mount it in docker-compose.yml or CI"
-echo ""
-echo "3. For CI/CD: See tests/baikal-config/ for sample configs"
-echo ""
-echo "================================================================"

@@ -776,23 +776,28 @@ class _TestSchedulingBase:
         self._auto_scheduled_event_uids.append(event_uid)
         assert len(organizers_calendar.get_events()) == 1
 
-        ## Check attendee's inbox first — this tells us whether the server uses
-        ## inbox delivery or automatic scheduling (RFC6638 section 3.2.3).
-        new_attendee_inbox_items = [
-            item
-            for item in self.principals[1].schedule_inbox().get_items()
-            if item.url not in inbox_items
-        ]
-
-        ## Check whether the server auto-scheduled the event directly into
-        ## the attendee's calendar (RFC6638 section 3.2.3 automatic scheduling).
-        ## The event may land in any calendar (e.g. Cyrus uses Default, not the
-        ## test calendar), so search all attendee calendars for the event UID.
-        auto_scheduled = any(
-            event.id == event_uid
-            for cal in self.principals[1].calendars()
-            for event in cal.get_events()
-        )
+        ## Check attendee's inbox and calendars.  Some servers (e.g. Zimbra)
+        ## process scheduling asynchronously, so poll briefly before giving up.
+        new_attendee_inbox_items = []
+        auto_scheduled = False
+        for _ in range(10):
+            new_attendee_inbox_items = [
+                item
+                for item in self.principals[1].schedule_inbox().get_items()
+                if item.url not in inbox_items
+            ]
+            ## Check whether the server auto-scheduled the event directly into
+            ## the attendee's calendar (RFC6638 section 3.2.3 automatic scheduling).
+            ## The event may land in any calendar (e.g. Cyrus uses Default, not the
+            ## test calendar), so search all attendee calendars for the event UID.
+            auto_scheduled = any(
+                event.id == event_uid
+                for cal in self.principals[1].calendars()
+                for event in cal.get_events()
+            )
+            if new_attendee_inbox_items or auto_scheduled:
+                break
+            time.sleep(0.5)
 
         if len(new_attendee_inbox_items) == 0 or auto_scheduled:
             ## Server implements automatic scheduling.  Some servers (e.g.
