@@ -729,7 +729,15 @@ class _TestSchedulingBase:
         for i in range(0, len(self.principals)):
             calendar_name = "caldav scheduling test %i" % i
             try:
-                self.principals[i].calendar(name=calendar_name).delete()
+                cal = self.principals[i].calendar(name=calendar_name)
+                ## Clear events rather than deleting the calendar: some servers
+                ## (e.g. Nextcloud) soft-delete calendars to a trash bin, blocking
+                ## re-creation with the same cal_id on the next test run.
+                for obj in cal.objects():
+                    try:
+                        obj.delete()
+                    except Exception:
+                        pass
             except error.NotFoundError:
                 pass
         ## Clean up any auto-scheduled events that the server placed in non-test
