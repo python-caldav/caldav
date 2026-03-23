@@ -2713,3 +2713,99 @@ class TestGetAllFileConnectionParams:
             "https://work.example.com/dav/",
             "https://personal.example.com/dav/",
         }
+
+
+class TestConnectionErrorHandling:
+    """
+    Unit tests for connection error / timeout handling (issue #647).
+
+    niquests can raise ConnectionError or Timeout when accessing response
+    attributes (lazy gather). caldav should catch these, wrap them as
+    DAVNetworkError, and retry once for all idempotent methods (everything
+    except POST).
+    """
+
+    def _make_ok_response(self):
+        r = mock.MagicMock()
+        r.status_code = 207
+        r.headers = {}
+        r.reason = "Multi-Status"
+        return r
+
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def test_connection_error_report_retries(self, mocked):
+        """On ConnectionError, REPORT is retried once and succeeds on second attempt."""
+        from caldav.davclient import requests as _requests
+
+        mocked.side_effect = [
+            _requests.exceptions.ConnectionError("Read timed out."),
+            self._make_ok_response(),
+        ]
+        client = DAVClient(url="http://cal.example.com/")
+        response = client.request("/", "REPORT")
+        assert response.status == 207
+        assert mocked.call_count == 2
+
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def test_timeout_propfind_retries(self, mocked):
+        """On Timeout, PROPFIND is retried once and succeeds on second attempt."""
+        from caldav.davclient import requests as _requests
+
+        mocked.side_effect = [
+            _requests.exceptions.Timeout("Read timed out."),
+            self._make_ok_response(),
+        ]
+        client = DAVClient(url="http://cal.example.com/")
+        response = client.request("/", "PROPFIND")
+        assert response.status == 207
+        assert mocked.call_count == 2
+
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def test_connection_error_second_fail_raises(self, mocked):
+        """If both attempts fail, DAVNetworkError is raised."""
+        from caldav.davclient import requests as _requests
+
+        mocked.side_effect = _requests.exceptions.ConnectionError("Read timed out.")
+        client = DAVClient(url="http://cal.example.com/")
+        with pytest.raises(error.DAVNetworkError):
+            client.request("/", "REPORT")
+        assert mocked.call_count == 2
+
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def test_connection_error_put_retries(self, mocked):
+        """PUT is idempotent and should be retried."""
+        from caldav.davclient import requests as _requests
+
+        mocked.side_effect = [
+            _requests.exceptions.ConnectionError("Read timed out."),
+            self._make_ok_response(),
+        ]
+        client = DAVClient(url="http://cal.example.com/")
+        response = client.request("/", "PUT")
+        assert response.status == 207
+        assert mocked.call_count == 2
+
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def test_connection_error_post_no_retry(self, mocked):
+        """POST is not idempotent — DAVNetworkError raised immediately without retry."""
+        from caldav.davclient import requests as _requests
+
+        mocked.side_effect = _requests.exceptions.ConnectionError("Read timed out.")
+        client = DAVClient(url="http://cal.example.com/")
+        with pytest.raises(error.DAVNetworkError):
+            client.request("/", "POST")
+        assert mocked.call_count == 1
+
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def test_get_method_retries(self, mocked):
+        """GET is in the safe set and should also be retried."""
+        from caldav.davclient import requests as _requests
+
+        mocked.side_effect = [
+            _requests.exceptions.ConnectionError("Read timed out."),
+            self._make_ok_response(),
+        ]
+        client = DAVClient(url="http://cal.example.com/")
+        response = client.request("/", "GET")
+        assert response.status == 207
+        assert mocked.call_count == 2

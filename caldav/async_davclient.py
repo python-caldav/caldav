@@ -69,6 +69,7 @@ from caldav import __version__
 from caldav.base_client import BaseDAVClient
 from caldav.base_client import get_davclient as _base_get_davclient
 from caldav.compatibility_hints import FeatureSet
+from caldav.davclient import _SAFE_METHODS
 from caldav.lib import error
 from caldav.lib.python_utilities import to_wire
 from caldav.lib.url import URL
@@ -91,6 +92,12 @@ from caldav.requests import HTTPBearerAuth
 from caldav.response import BaseDAVResponse
 
 log = logging.getLogger("caldav")
+
+# Network-level exceptions for the active async HTTP library.
+if _USE_HTTPX:
+    _NETWORK_EXCEPTIONS: tuple = (httpx.ConnectError, httpx.TimeoutException, httpx.NetworkError)
+else:
+    _NETWORK_EXCEPTIONS = (niquests.exceptions.ConnectionError, niquests.exceptions.Timeout)
 
 if sys.version_info < (3, 11):
     from typing_extensions import Self
@@ -404,6 +411,7 @@ class AsyncDAVClient(BaseDAVClient):
         method: str = "GET",
         body: str = "",
         headers: Mapping[str, str] | None = None,
+        _connection_retried: bool = False,
     ) -> AsyncDAVResponse:
         """
         Async HTTP request implementation with auth negotiation.
@@ -441,96 +449,109 @@ class AsyncDAVClient(BaseDAVClient):
             }
 
         try:
-            r = await self.session.request(**request_kwargs)
-            reason = r.reason_phrase if _USE_HTTPX else r.reason
-            log.debug(f"server responded with {r.status_code} {reason}")
-            if (
-                r.status_code == 401
-                and "text/html" in self.headers.get("Content-Type", "")
-                and not self.auth
-            ):
-                msg = (
-                    "No authentication object was provided. "
-                    "HTML was returned when probing the server for supported authentication types. "
-                    "To avoid logging errors, consider passing the auth_type connection parameter"
-                )
-                if r.headers.get("WWW-Authenticate"):
-                    auth_types = [
-                        t
-                        for t in self.extract_auth_types(r.headers["WWW-Authenticate"])
-                        if t in ["basic", "digest", "bearer"]
-                    ]
-                    if auth_types:
-                        msg += "\nSupported authentication types: {}".format(", ".join(auth_types))
-                log.warning(msg)
-            response = AsyncDAVResponse(r, self)
-        except Exception:
-            # Workaround for servers that abort connection on unauthenticated requests
-            # ref https://github.com/python-caldav/caldav/issues/158
-            if self.auth or not self.password:
-                raise
-            # Build minimal request for auth detection
-            if _USE_HTTPX:
-                r = await self.session.request(
-                    method="GET",
-                    url=str(url_obj),
-                    headers=combined_headers,
-                    timeout=self.timeout,
-                )
-            else:
-                proxies = None
-                if self.proxy is not None:
-                    proxies = {url_obj.scheme: self.proxy}
-                r = await self.session.request(
-                    method="GET",
-                    url=str(url_obj),
-                    headers=combined_headers,
-                    timeout=self.timeout,
-                    proxies=proxies,
-                    verify=self.ssl_verify_cert,
-                    cert=self.ssl_cert,
-                )
-            reason = r.reason_phrase if _USE_HTTPX else r.reason
-            log.debug(f"auth type detection: server responded with {r.status_code} {reason}")
-            if r.status_code == 401 and r.headers.get("WWW-Authenticate"):
-                auth_types = self.extract_auth_types(r.headers["WWW-Authenticate"])
-                self.build_auth_object(auth_types)
-                # Retry original request with auth
-                request_kwargs["auth"] = self.auth
+            try:
                 r = await self.session.request(**request_kwargs)
-            response = AsyncDAVResponse(r, self)
+                reason = r.reason_phrase if _USE_HTTPX else r.reason
+                log.debug(f"server responded with {r.status_code} {reason}")
+                if (
+                    r.status_code == 401
+                    and "text/html" in self.headers.get("Content-Type", "")
+                    and not self.auth
+                ):
+                    msg = (
+                        "No authentication object was provided. "
+                        "HTML was returned when probing the server for supported authentication types. "
+                        "To avoid logging errors, consider passing the auth_type connection parameter"
+                    )
+                    if r.headers.get("WWW-Authenticate"):
+                        auth_types = [
+                            t
+                            for t in self.extract_auth_types(r.headers["WWW-Authenticate"])
+                            if t in ["basic", "digest", "bearer"]
+                        ]
+                        if auth_types:
+                            msg += "\nSupported authentication types: {}".format(
+                                ", ".join(auth_types)
+                            )
+                    log.warning(msg)
+                response = AsyncDAVResponse(r, self)
+            except Exception:
+                # Workaround for servers that abort connection on unauthenticated requests
+                # ref https://github.com/python-caldav/caldav/issues/158
+                if self.auth or not self.password:
+                    raise
+                # Build minimal request for auth detection
+                if _USE_HTTPX:
+                    r = await self.session.request(
+                        method="GET",
+                        url=str(url_obj),
+                        headers=combined_headers,
+                        timeout=self.timeout,
+                    )
+                else:
+                    proxies = None
+                    if self.proxy is not None:
+                        proxies = {url_obj.scheme: self.proxy}
+                    r = await self.session.request(
+                        method="GET",
+                        url=str(url_obj),
+                        headers=combined_headers,
+                        timeout=self.timeout,
+                        proxies=proxies,
+                        verify=self.ssl_verify_cert,
+                        cert=self.ssl_cert,
+                    )
+                reason = r.reason_phrase if _USE_HTTPX else r.reason
+                log.debug(f"auth type detection: server responded with {r.status_code} {reason}")
+                if r.status_code == 401 and r.headers.get("WWW-Authenticate"):
+                    auth_types = self.extract_auth_types(r.headers["WWW-Authenticate"])
+                    self.build_auth_object(auth_types)
+                    # Retry original request with auth
+                    request_kwargs["auth"] = self.auth
+                    r = await self.session.request(**request_kwargs)
+                response = AsyncDAVResponse(r, self)
 
-        # Handle 429/503 rate-limit responses
-        error.raise_if_rate_limited(r.status_code, str(url_obj), r.headers.get("Retry-After"))
+            # Handle 429/503 rate-limit responses
+            error.raise_if_rate_limited(r.status_code, str(url_obj), r.headers.get("Retry-After"))
 
-        # Handle 401: negotiate auth then retry
-        if self._should_negotiate_auth(r.status_code, r.headers):
-            self._build_auth_from_401(r.headers["WWW-Authenticate"])
-            return await self._async_request(url, method, body, headers)
+            # Handle 401: negotiate auth then retry
+            if self._should_negotiate_auth(r.status_code, r.headers):
+                self._build_auth_from_401(r.headers["WWW-Authenticate"])
+                return await self._async_request(url, method, body, headers)
 
-        elif (
-            r.status_code == 401
-            and "WWW-Authenticate" in r.headers
-            and self.auth
-            and self.features.is_supported("http.multiplexing", return_defaults=False) is None
-        ):
-            # Handle HTTP/2 multiplexing issue: most likely wrong username/password, but could
-            # be an HTTP/2 problem.  Retry with HTTP/2 disabled if multiplexing was auto-detected.
-            await self.close()
-            self._http2 = False
-            self._create_session()
-            # Set multiplexing to False BEFORE retry to prevent infinite loop
-            self.features.set_feature("http.multiplexing", False)
-            return await self._async_request(str(url_obj), method, body, headers)
+            elif (
+                r.status_code == 401
+                and "WWW-Authenticate" in r.headers
+                and self.auth
+                and self.features.is_supported("http.multiplexing", return_defaults=False) is None
+            ):
+                # Handle HTTP/2 multiplexing issue: most likely wrong username/password, but could
+                # be an HTTP/2 problem.  Retry with HTTP/2 disabled if multiplexing was auto-detected.
+                await self.close()
+                self._http2 = False
+                self._create_session()
+                # Set multiplexing to False BEFORE retry to prevent infinite loop
+                self.features.set_feature("http.multiplexing", False)
+                return await self._async_request(str(url_obj), method, body, headers)
 
-        # Raise AuthorizationError for 401/403 responses
-        if response.status in (401, 403):
-            self._raise_authorization_error(str(url_obj), response)
+            # Raise AuthorizationError for 401/403 responses
+            if response.status in (401, 403):
+                self._raise_authorization_error(str(url_obj), response)
 
-        if error.debug_dump_communication:
-            error._dump_communication(method, url, combined_headers, body, response)
+            if error.debug_dump_communication:
+                error._dump_communication(method, url, combined_headers, body, response)
 
-        return response
+            return response
+
+        except error.DAVError:
+            raise
+        except _NETWORK_EXCEPTIONS as e:
+            if not _connection_retried and method.upper() in _SAFE_METHODS:
+                log.warning("Network error on %s %s, retrying once", method, url)
+                return await self._async_request(
+                    url, method, body, headers, _connection_retried=True
+                )
+            raise error.DAVNetworkError(str(url_obj), str(e)) from e
 
     # ==================== HTTP Method Wrappers ====================
     # Query methods (URL optional - defaults to self.url)

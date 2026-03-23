@@ -186,6 +186,19 @@ class RateLimitError(DAVError):
         self.retry_after_seconds = retry_after_seconds
 
 
+class DAVNetworkError(DAVError):
+    """Raised on a network-level failure (timeout, connection reset, etc.)
+    while communicating with the server.
+
+    This typically wraps a ``requests.exceptions.ConnectionError`` or
+    ``requests.exceptions.Timeout`` from the underlying HTTP library.  The
+    original exception is chained via ``__cause__`` so the full traceback is
+    still available when debugging.
+    """
+
+    pass
+
+
 def parse_retry_after(retry_after_header: str) -> float | None:
     """Parse a Retry-After header value into seconds from now.
 
