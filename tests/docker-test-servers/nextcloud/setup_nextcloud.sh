@@ -27,9 +27,15 @@ echo ""
 echo "Disabling password policy for testing..."
 docker exec $CONTAINER_NAME php occ app:disable password_policy || true
 
-echo "Creating test user..."
+echo "Creating test users..."
 # Create test user (ignore error if already exists)
 docker exec -e OC_PASS="$TEST_PASSWORD" $CONTAINER_NAME php occ user:add --password-from-env --display-name="Test User" $TEST_USER 2>/dev/null || echo "User may already exist"
+# Create scheduling test users
+for i in 1 2 3; do
+    docker exec -e OC_PASS="testpass${i}" $CONTAINER_NAME php occ user:add --password-from-env --display-name="User ${i}" "user${i}" 2>/dev/null || echo "user${i} may already exist"
+    # Set email address — required for CalDAV scheduling (calendar-user-address-set)
+    docker exec $CONTAINER_NAME php occ user:setting "user${i}" settings email "user${i}@localhost" || true
+done
 
 echo "Enabling calendar app..."
 docker exec $CONTAINER_NAME php occ app:enable calendar || true
@@ -37,8 +43,21 @@ docker exec $CONTAINER_NAME php occ app:enable calendar || true
 echo "Enabling contacts app..."
 docker exec $CONTAINER_NAME php occ app:enable contacts || true
 
-echo "Disabling rate limiting for testing..."
-#docker exec $CONTAINER_NAME php occ config:system:set ratelimit.enabled --value=false --type=boolean || true
+echo "Configuring bruteforce protection..."
+# Temporarily enable bruteforce protection so we can reset accumulated failed
+# auth attempts (which pile up while the server is starting before users exist).
+docker exec $CONTAINER_NAME php occ config:system:set auth.bruteforce.protection.enabled --value=true --type=boolean || true
+for ip in 127.0.0.1 ::1; do
+    docker exec $CONTAINER_NAME php occ security:bruteforce:reset "$ip" 2>/dev/null || true
+done
+# Detect the Docker gateway IP and reset it too
+GATEWAY_IP=$(docker exec $CONTAINER_NAME sh -c "ip route | awk '/default/{print \$3}'" 2>/dev/null || true)
+if [ -n "$GATEWAY_IP" ]; then
+    docker exec $CONTAINER_NAME php occ security:bruteforce:reset "$GATEWAY_IP" 2>/dev/null || true
+fi
+# Now disable bruteforce protection — the caldav library handles 429 via
+# rate_limit_handle, but Nextcloud's bruteforce gives no Retry-After header
+# and would make tests slow.
 docker exec $CONTAINER_NAME php occ app:disable bruteforcesettings || true
 docker exec $CONTAINER_NAME php occ config:system:set auth.bruteforce.protection.enabled --value=false --type=boolean || true
 
@@ -47,8 +66,9 @@ docker exec $CONTAINER_NAME php occ config:app:set dav rateLimitCalendarCreation
 docker exec $CONTAINER_NAME php occ config:app:set dav maximumCalendarsSubscriptions --value=-1 || true
 
 echo "Adding IP whitelist for rate limiting..."
-docker exec $CONTAINER_NAME php occ config:system:set ratelimit.whitelist.0 --value='172.19.0.0/16' || true
-docker exec $CONTAINER_NAME php occ config:system:set ratelimit.whitelist.1 --value='127.0.0.1' || true
+# Service is test-only and never exposed externally, so whitelist everything
+docker exec $CONTAINER_NAME php occ config:system:set ratelimit.whitelist.0 --value='0.0.0.0/0' || true
+docker exec $CONTAINER_NAME php occ config:system:set ratelimit.whitelist.1 --value='::/0' || true
 
 echo "Clearing rate limit cache..."
 docker exec $CONTAINER_NAME php -r "
@@ -64,5 +84,6 @@ echo ""
 echo "Credentials:"
 echo "  Admin: admin / admin"
 echo "  Test user: $TEST_USER / $TEST_PASSWORD"
+echo "  Scheduling users: user1/testpass1, user2/testpass2, user3/testpass3"
 echo "  CalDAV URL: http://localhost:8801/remote.php/dav"
 echo ""

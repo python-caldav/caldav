@@ -201,6 +201,9 @@ class TestServer(ABC):
         # Pass through SSL verification setting if configured
         if "ssl_verify_cert" in self.config:
             params["ssl_verify_cert"] = self.config["ssl_verify_cert"]
+        # Pass through scheduling_users if configured (for TestScheduling generation)
+        if "scheduling_users" in self.config:
+            params["scheduling_users"] = self.config["scheduling_users"]
         # Check if server is already running (either started by us or externally)
         already_running = self._started or self.is_accessible()
         if already_running:
