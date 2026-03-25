@@ -758,7 +758,12 @@ class Calendar(DAVObject):
         if self.url is None:
             raise ValueError("Unexpected value None for self.url")
 
-        _rfc_default = ["VEVENT", "VTODO", "VJOURNAL"]
+        ## RFC default is all component types, but trim based on known server limitations
+        _rfc_default = ["VEVENT"]
+        if self.client and self.client.features.is_supported("save-load.todo"):
+            _rfc_default.append("VTODO")
+        if self.client and self.client.features.is_supported("save-load.journal"):
+            _rfc_default.append("VJOURNAL")
 
         props = [cdav.SupportedCalendarComponentSet()]
         response = self.get_properties(props, parse_response_xml=False)

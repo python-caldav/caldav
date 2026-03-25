@@ -594,6 +594,29 @@ class TestCalDAV:
         assert "VTODO" in components
         assert "VJOURNAL" in components
 
+    def test_get_supported_components_absent_hints(self):
+        """When supported-calendar-component-set is absent, the RFC default is filtered
+        by compatibility hints: if the server is known not to support VTODO or VJOURNAL,
+        those should be excluded from the returned list.
+        See https://github.com/python-caldav/caldav/issues/653"""
+        from caldav.compatibility_hints import FeatureSet
+
+        xml = b"""<D:multistatus xmlns:D="DAV:">
+  <D:response>
+    <D:href>/some/caldav/root/testcal/</D:href>
+    <D:propstat>
+      <D:status>HTTP/1.1 200 OK</D:status>
+      <D:prop/>
+    </D:propstat>
+  </D:response>
+</D:multistatus>"""
+        client = MockedDAVClient(xml)
+        client.features = FeatureSet({"save-load.todo": {"support": "unsupported"}, "save-load.journal": {"support": "unsupported"}})
+        components = client.calendar(
+            url="https://somwhere.in.the.universe.example/some/caldav/root/testcal/"
+        ).get_supported_components()
+        assert components == ["VEVENT"]
+
     def testAbsoluteURL(self):
         """Version 0.7.0 does not handle responses with absolute URLs very well, ref https://github.com/python-caldav/caldav/pull/103"""
         ## none of this should initiate any communication
