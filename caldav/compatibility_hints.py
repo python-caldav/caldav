@@ -85,6 +85,9 @@ class FeatureSet:
         "get-supported-components": {
             "description": "Server returns the supported-calendar-component-set property (RFC 4791 section 5.2.3).  The property is optional: when absent the RFC mandates that all component types are accepted, so 'unsupported' here is not a protocol violation, but the client cannot determine the actual supported set without trying.",
         },
+        "create-calendar.with-supported-component-types": {
+            "description": "Server honours the supported-calendar-component-set restriction set at MKCALENDAR time.  When 'full', the server both advertises (or enforces) the restriction; when 'unsupported', the restriction is silently ignored (wrong-type objects can be saved to the calendar).  When 'ungraceful', the MKCALENDAR request itself fails when a component set is specified.",
+        },
         "rate-limit": {
             "type": "client-feature",
             "description": "client (or test code) must sleep a bit between requests.  Pro-active rate limiting is done through interval and count, server-flagged rate-limiting is controlled through default_sleep/max_sleep",
@@ -812,9 +815,6 @@ incompatibility_description = {
     'non_existing_raises_other':
         """Robur raises AuthorizationError when trying to access a non-existing resource (while 404 is expected).  Probably so one shouldn't probe a public name space?""",
 
-    'no_supported_components_support':
-        """The supported components prop query does not work""",
-
     'no_relships':
         """The calendar server does not support child/parent relationships between calendar components""",
 
@@ -1230,11 +1230,11 @@ robur = {
     'old_flags': [
         'non_existing_raises_other', ## AuthorizationError instead of NotFoundError
         'no_scheduling',
-        'no_supported_components_support',
         'no_relships',
     ],
     'test-calendar': {'cleanup-regime': 'wipe-calendar'},
     "sync-token": {"support": "ungraceful"},
+    "get-supported-components": {"support": "unsupported"},
 }
 
 posteo = {
@@ -1407,12 +1407,9 @@ purelymail = {
     'old_flags': [
         ## Known, work in progress
         'no_scheduling',
-
-        ## Known, not a breach of standard
-        'no_supported_components_support',
-
-        ## I haven't raised this one with them yet
-    ]
+    ],
+    ## Known, not a breach of standard
+    "get-supported-components": {"support": "unsupported"},
 }
 
 gmx = {
