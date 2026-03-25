@@ -82,6 +82,9 @@ class FeatureSet:
         "get-current-user-principal.has-calendar": {
             "type": "server-observation",
             "description": "Principal has one or more calendars.  Some servers and providers comes with a pre-defined calendar for each user, for other servers a calendar has to be explicitly created (supported means there exists a calendar - it may be because the calendar was already provisioned together with the principal, or it may be because a calendar was created manually, the checks can't see the difference)"},
+        "get-supported-components": {
+            "description": "Server returns the supported-calendar-component-set property (RFC 4791 section 5.2.3).  The property is optional: when absent the RFC mandates that all component types are accepted, so 'unsupported' here is not a protocol violation, but the client cannot determine the actual supported set without trying.",
+        },
         "rate-limit": {
             "type": "client-feature",
             "description": "client (or test code) must sleep a bit between requests.  Pro-active rate limiting is done through interval and count, server-flagged rate-limiting is controlled through default_sleep/max_sleep",

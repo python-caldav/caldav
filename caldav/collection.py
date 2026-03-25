@@ -749,9 +749,16 @@ class Calendar(DAVObject):
         """
         returns a list of component types supported by the calendar, in
         string format (typically ['VJOURNAL', 'VTODO', 'VEVENT'])
+
+        RFC 4791 section 5.2.3: supported-calendar-component-set is optional.
+        When absent, the server MUST accept all component types, so we return
+        the full default list rather than an empty list.
+        See https://github.com/python-caldav/caldav/issues/653
         """
         if self.url is None:
             raise ValueError("Unexpected value None for self.url")
+
+        _rfc_default = ["VEVENT", "VTODO", "VJOURNAL"]
 
         props = [cdav.SupportedCalendarComponentSet()]
         response = self.get_properties(props, parse_response_xml=False)
@@ -762,11 +769,13 @@ class Calendar(DAVObject):
                 components = result.properties.get(cdav.SupportedCalendarComponentSet().tag)
                 if components:
                     return components
-            return []
+            return _rfc_default
 
         # Fallback for mocked responses without protocol parsing
         response_list = response._find_objects_and_props()
-        prop = response_list[unquote(self.url.path)][cdav.SupportedCalendarComponentSet().tag]
+        prop = response_list.get(unquote(self.url.path), {}).get(cdav.SupportedCalendarComponentSet().tag)
+        if prop is None:
+            return _rfc_default
         return [supported.get("name") for supported in prop]
 
     def save_with_invites(self, ical: str, attendees, **attendeeoptions) -> None:

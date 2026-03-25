@@ -552,6 +552,48 @@ class TestCalDAV:
             url="https://somwhere.in.the.universe.example/some/caldav/root/133bahgr6ohlo9ungq0it45vf8%40group.calendar.google.com/events/"
         ).get_supported_components() == ["VEVENT"]
 
+    def test_get_supported_components_present(self):
+        """Test get_supported_components when the property is present in the server response."""
+        xml = b"""<multistatus xmlns="DAV:">
+  <response xmlns="DAV:">
+    <href>/some/caldav/root/testcal/</href>
+    <propstat>
+      <prop>
+        <supported-calendar-component-set xmlns="urn:ietf:params:xml:ns:caldav">
+          <comp xmlns="urn:ietf:params:xml:ns:caldav" name="VEVENT"/>
+        </supported-calendar-component-set>
+      </prop>
+      <status>HTTP/1.1 200 OK</status>
+    </propstat>
+  </response>
+</multistatus>"""
+        client = MockedDAVClient(xml)
+        assert client.calendar(
+            url="https://somwhere.in.the.universe.example/some/caldav/root/testcal/"
+        ).get_supported_components() == ["VEVENT"]
+
+    def test_get_supported_components_absent(self):
+        """RFC 4791 says supported-calendar-component-set is optional.
+        When absent, the server MUST accept all component types, and the
+        client MUST assume that all component types are accepted.
+        Regression for https://github.com/python-caldav/caldav/issues/653"""
+        xml = b"""<D:multistatus xmlns:D="DAV:">
+  <D:response>
+    <D:href>/some/caldav/root/testcal/</D:href>
+    <D:propstat>
+      <D:status>HTTP/1.1 200 OK</D:status>
+      <D:prop/>
+    </D:propstat>
+  </D:response>
+</D:multistatus>"""
+        client = MockedDAVClient(xml)
+        components = client.calendar(
+            url="https://somwhere.in.the.universe.example/some/caldav/root/testcal/"
+        ).get_supported_components()
+        assert "VEVENT" in components
+        assert "VTODO" in components
+        assert "VJOURNAL" in components
+
     def testAbsoluteURL(self):
         """Version 0.7.0 does not handle responses with absolute URLs very well, ref https://github.com/python-caldav/caldav/pull/103"""
         ## none of this should initiate any communication
@@ -779,26 +821,6 @@ class TestCalDAV:
         calendar_home_set = CalendarSet(client, url="/dav/tobias%40redpill-linpro.com/")
         assert len(calendar_home_set.get_calendars()) == 1
 
-        def test_supported_components(self):
-            xml = """
-<multistatus xmlns="DAV:">
-  <response xmlns="DAV:">
-    <href>/17149682/calendars/testcalendar-0da571c7-139c-479a-9407-8ce9ed20146d/</href>
-    <propstat>
-      <prop>
-        <supported-calendar-component-set xmlns="urn:ietf:params:xml:ns:caldav">
-          <comp xmlns="urn:ietf:params:xml:ns:caldav" name="VEVENT"/>
-        </supported-calendar-component-set>
-      </prop>
-      <status>HTTP/1.1 200 OK</status>
-    </propstat>
-  </response>
-</multistatus>"""
-            client = MockedDAVClient(xml)
-            assert Calendar(
-                client=client,
-                url="/17149682/calendars/testcalendar-0da571c7-139c-479a-9407-8ce9ed20146d/",
-            ).get_supported_components() == ["VEVENT"]
 
     def test_xml_parsing(self):
         """
