@@ -745,7 +745,7 @@ class Calendar(DAVObject):
         else:
             await self._async_delete()
 
-    def get_supported_components(self) -> list[Any]:
+    def get_supported_components(self, with_fallback=True) -> list[Any]:
         """
         returns a list of component types supported by the calendar, in
         string format (typically ['VJOURNAL', 'VTODO', 'VEVENT'])
@@ -755,15 +755,20 @@ class Calendar(DAVObject):
         the full default list rather than an empty list.
         See https://github.com/python-caldav/caldav/issues/653
         """
+        def _fallback():
+            if not with_fallback:
+                raise error.PropfindError("supported-calendar-component-set not supported")
+            ## RFC default is all component types, but trim based on known server limitations
+            _fallback_values = ["VEVENT"]
+            if self.client and self.client.features.is_supported("save-load.todo"):
+                _fallback_values.append("VTODO")
+            if self.client and self.client.features.is_supported("save-load.journal"):
+                _fallback_values.append("VJOURNAL")
+
+            return _fallback_values
+        
         if self.url is None:
             raise ValueError("Unexpected value None for self.url")
-
-        ## RFC default is all component types, but trim based on known server limitations
-        _rfc_default = ["VEVENT"]
-        if self.client and self.client.features.is_supported("save-load.todo"):
-            _rfc_default.append("VTODO")
-        if self.client and self.client.features.is_supported("save-load.journal"):
-            _rfc_default.append("VJOURNAL")
 
         props = [cdav.SupportedCalendarComponentSet()]
         response = self.get_properties(props, parse_response_xml=False)
@@ -774,13 +779,13 @@ class Calendar(DAVObject):
                 components = result.properties.get(cdav.SupportedCalendarComponentSet().tag)
                 if components:
                     return components
-            return _rfc_default
+            return _fallback()
 
         # Fallback for mocked responses without protocol parsing
         response_list = response._find_objects_and_props()
         prop = response_list.get(unquote(self.url.path), {}).get(cdav.SupportedCalendarComponentSet().tag)
         if prop is None:
-            return _rfc_default
+            return _fallback()
         return [supported.get("name") for supported in prop]
 
     def save_with_invites(self, ical: str, attendees, **attendeeoptions) -> None:
