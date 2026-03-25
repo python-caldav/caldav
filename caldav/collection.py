@@ -745,6 +745,26 @@ class Calendar(DAVObject):
         else:
             await self._async_delete()
 
+    def _supported_components_from_response(self, response: Any, with_fallback: bool) -> list[Any]:
+        """Extract supported component types from a propfind DAVResponse.
+
+        Both the sync and async paths produce a DAVResponse via propfind,
+        which always populates response.results via the protocol layer.
+        """
+        for result in (response.results or []):
+            components = result.properties.get(cdav.SupportedCalendarComponentSet().tag)
+            if components:
+                return components
+        ## Property absent: RFC 4791 s.5.2.3 says accept all types; trim by known server limits
+        if not with_fallback:
+            raise error.PropfindError("supported-calendar-component-set not supported")
+        rfc_default = ["VEVENT"]
+        if self.client and self.client.features.is_supported("save-load.todo"):
+            rfc_default.append("VTODO")
+        if self.client and self.client.features.is_supported("save-load.journal"):
+            rfc_default.append("VJOURNAL")
+        return rfc_default
+
     def get_supported_components(self, with_fallback=True) -> list[Any]:
         """
         returns a list of component types supported by the calendar, in
@@ -752,41 +772,22 @@ class Calendar(DAVObject):
 
         RFC 4791 section 5.2.3: supported-calendar-component-set is optional.
         When absent, the server MUST accept all component types, so we return
-        the full default list rather than an empty list.
+        the RFC default list (trimmed by known server limitations from
+        compatibility hints) rather than raising or returning empty.
         See https://github.com/python-caldav/caldav/issues/653
         """
-        def _fallback():
-            if not with_fallback:
-                raise error.PropfindError("supported-calendar-component-set not supported")
-            ## RFC default is all component types, but trim based on known server limitations
-            _fallback_values = ["VEVENT"]
-            if self.client and self.client.features.is_supported("save-load.todo"):
-                _fallback_values.append("VTODO")
-            if self.client and self.client.features.is_supported("save-load.journal"):
-                _fallback_values.append("VJOURNAL")
-
-            return _fallback_values
-        
         if self.url is None:
             raise ValueError("Unexpected value None for self.url")
-
+        if self.is_async_client:
+            return self._async_get_supported_components(with_fallback)
         props = [cdav.SupportedCalendarComponentSet()]
         response = self.get_properties(props, parse_response_xml=False)
+        return self._supported_components_from_response(response, with_fallback)
 
-        # Use protocol layer results if available
-        if response.results:
-            for result in response.results:
-                components = result.properties.get(cdav.SupportedCalendarComponentSet().tag)
-                if components:
-                    return components
-            return _fallback()
-
-        # Fallback for mocked responses without protocol parsing
-        response_list = response._find_objects_and_props()
-        prop = response_list.get(unquote(self.url.path), {}).get(cdav.SupportedCalendarComponentSet().tag)
-        if prop is None:
-            return _fallback()
-        return [supported.get("name") for supported in prop]
+    async def _async_get_supported_components(self, with_fallback=True) -> list[Any]:
+        props = [cdav.SupportedCalendarComponentSet()]
+        response = await self._async_get_properties(props, parse_response_xml=False)
+        return self._supported_components_from_response(response, with_fallback)
 
     def save_with_invites(self, ical: str, attendees, **attendeeoptions) -> None:
         """
