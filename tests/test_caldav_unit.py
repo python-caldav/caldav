@@ -2713,3 +2713,26 @@ class TestGetAllFileConnectionParams:
             "https://work.example.com/dav/",
             "https://personal.example.com/dav/",
         }
+
+
+class TestResolveProperties:
+    """Tests for _resolve_properties unbound variable bug (issue #647 / calendar-cli #114)."""
+
+    def _make_calendar(self, path="/calendar/"):
+        client = DAVClient(url="https://example.com")
+        return Calendar(client=client, url=f"https://example.com{path}")
+
+    def test_resolve_properties_empty_dict_production_mode(self):
+        """In PRODUCTION mode, error.assert_ only logs; _resolve_properties must
+        not crash with UnboundLocalError when properties dict is empty."""
+        cal = self._make_calendar()
+        with mock.patch.object(error, "debugmode", "PRODUCTION"):
+            result = cal._resolve_properties({})
+        assert result == {}
+
+    def test_resolve_properties_unmatched_paths_production_mode(self):
+        """Same but with a non-empty properties dict where path does not match."""
+        cal = self._make_calendar("/calendar/")
+        with mock.patch.object(error, "debugmode", "PRODUCTION"):
+            result = cal._resolve_properties({"/other/path/": {"foo": "bar"}, "/yet/another/": {"baz": "qux"}})
+        assert result == {}
