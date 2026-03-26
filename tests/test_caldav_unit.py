@@ -611,7 +611,12 @@ class TestCalDAV:
   </D:response>
 </D:multistatus>"""
         client = MockedDAVClient(xml)
-        client.features = FeatureSet({"save-load.todo": {"support": "unsupported"}, "save-load.journal": {"support": "unsupported"}})
+        client.features = FeatureSet(
+            {
+                "save-load.todo": {"support": "unsupported"},
+                "save-load.journal": {"support": "unsupported"},
+            }
+        )
         components = client.calendar(
             url="https://somwhere.in.the.universe.example/some/caldav/root/testcal/"
         ).get_supported_components()
@@ -843,7 +848,6 @@ class TestCalDAV:
         client = MockedDAVClient(xml)
         calendar_home_set = CalendarSet(client, url="/dav/tobias%40redpill-linpro.com/")
         assert len(calendar_home_set.get_calendars()) == 1
-
 
     def test_xml_parsing(self):
         """

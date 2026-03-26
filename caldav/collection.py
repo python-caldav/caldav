@@ -751,7 +751,7 @@ class Calendar(DAVObject):
         Both the sync and async paths produce a DAVResponse via propfind,
         which always populates response.results via the protocol layer.
         """
-        for result in (response.results or []):
+        for result in response.results or []:
             components = result.properties.get(cdav.SupportedCalendarComponentSet().tag)
             if components:
                 return components
