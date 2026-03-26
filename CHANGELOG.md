@@ -17,6 +17,7 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 ### Fixed
 
 * Reusing a `CalDAVSearcher` across multiple `search()` calls could yield inconsistent results: the first call would return only pending tasks (correct), but subsequent calls would change behaviour because `icalendar_searcher.Searcher.check_component()` mutated the `include_completed` field from `None` to `False` as a side-effect.  Fixed by passing a copy with `include_completed` already resolved to `filter_search_results()`, leaving the original searcher object unchanged.  Fixes https://github.com/python-caldav/caldav/issues/650
+* `Calendar.get_supported_components()` raised `KeyError` when the server did not include the `supported-calendar-component-set` property in its response.  RFC 4791 section 5.2.3 states this property is optional and that its absence means all component types are accepted; the method now returns the RFC default `["VEVENT", "VTODO", "VJOURNAL"]` in that case, trimmed by any known server limitations from the compatibility hints (e.g. if `save-load.todo` is `unsupported`, `VTODO` is excluded).  Fixes https://github.com/python-caldav/caldav/issues/653
 
 ## [3.1.0] - 2026-03-19
 
