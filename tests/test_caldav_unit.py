@@ -2734,5 +2734,7 @@ class TestResolveProperties:
         """Same but with a non-empty properties dict where path does not match."""
         cal = self._make_calendar("/calendar/")
         with mock.patch.object(error, "debugmode", "PRODUCTION"):
-            result = cal._resolve_properties({"/other/path/": {"foo": "bar"}, "/yet/another/": {"baz": "qux"}})
+            result = cal._resolve_properties(
+                {"/other/path/": {"foo": "bar"}, "/yet/another/": {"baz": "qux"}}
+            )
         assert result == {}
