@@ -356,6 +356,7 @@ class DAVObject:
                 f"paths found: {list(properties.keys())}"
             )
             error.assert_(False)
+            return {}
         self.props.update(rc)
         return rc
 

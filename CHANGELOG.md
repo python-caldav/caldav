@@ -17,6 +17,7 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 ### Fixed
 
 * Reusing a `CalDAVSearcher` across multiple `search()` calls could yield inconsistent results: the first call would return only pending tasks (correct), but subsequent calls would change behaviour because `icalendar_searcher.Searcher.check_component()` mutated the `include_completed` field from `None` to `False` as a side-effect.  Fixed by passing a copy with `include_completed` already resolved to `filter_search_results()`, leaving the original searcher object unchanged.  Fixes https://github.com/python-caldav/caldav/issues/650
+* `_resolve_properties()` would crash with `UnboundLocalError` in production mode when a server returned an empty or unrecognisable PROPFIND response (the response paths did not match the request URI and there was more than one or zero paths returned).  Fixed by returning `{}` instead of falling through to an unbound variable.  Related: https://github.com/pycalendar/calendar-cli/issues/114
 
 ## [3.1.0] - 2026-03-19
 
