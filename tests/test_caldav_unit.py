@@ -2787,3 +2787,82 @@ class TestResolveProperties:
                 {"/other/path/": {"foo": "bar"}, "/yet/another/": {"baz": "qux"}}
             )
         assert result == {}
+
+
+class TestAddOrganizer:
+    """Unit tests for CalendarObjectResource.add_organizer() (issue #524)."""
+
+    _ev = """\
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//Test//EN
+BEGIN:VEVENT
+UID:test-add-organizer@example.com
+DTSTAMP:20240101T000000Z
+DTSTART:20240601T100000Z
+DTEND:20240601T110000Z
+SUMMARY:Test event
+END:VEVENT
+END:VCALENDAR
+"""
+
+    def _make_event(self):
+        return Event(data=self._ev)
+
+    def test_add_organizer_email_string(self):
+        """Passing a plain email string sets the ORGANIZER field."""
+        ev = self._make_event()
+        ev.add_organizer("organizer@example.com")
+        organizer = ev.icalendar_component.get("organizer")
+        assert organizer is not None
+        assert "organizer@example.com" in str(organizer)
+
+    def test_add_organizer_mailto_string(self):
+        """Passing a mailto: URI sets the ORGANIZER field."""
+        ev = self._make_event()
+        ev.add_organizer("mailto:organizer@example.com")
+        organizer = ev.icalendar_component.get("organizer")
+        assert str(organizer) == "mailto:organizer@example.com"
+
+    def test_add_organizer_vcal_address(self):
+        """Passing a vCalAddress directly sets the ORGANIZER field."""
+        from icalendar import vCalAddress
+
+        ev = self._make_event()
+        addr = vCalAddress("mailto:organizer@example.com")
+        ev.add_organizer(addr)
+        organizer = ev.icalendar_component.get("organizer")
+        assert str(organizer) == "mailto:organizer@example.com"
+
+    def test_add_organizer_replaces_existing(self):
+        """Calling add_organizer twice replaces the first value, no duplicate."""
+        ev = self._make_event()
+        ev.add_organizer("first@example.com")
+        ev.add_organizer("second@example.com")
+        comp = ev.icalendar_component
+        ## icalendar stores repeated properties as a list; ORGANIZER should be
+        ## a single value, not a list.
+        organizer = comp.get("organizer")
+        assert not isinstance(organizer, list), "ORGANIZER should not be duplicated"
+        assert "second@example.com" in str(organizer)
+
+    def test_add_organizer_no_arg_uses_principal(self):
+        """Calling add_organizer() without arguments uses the current principal."""
+        from icalendar import vCalAddress
+
+        ev = self._make_event()
+        mock_client = mock.MagicMock()
+        mock_principal = mock.MagicMock()
+        mock_principal.get_vcal_address.return_value = vCalAddress("mailto:me@example.com")
+        mock_client.principal.return_value = mock_principal
+        ev.client = mock_client
+        ev.add_organizer()
+        organizer = ev.icalendar_component.get("organizer")
+        assert str(organizer) == "mailto:me@example.com"
+
+    def test_add_organizer_no_arg_no_client_raises(self):
+        """Calling add_organizer() without arguments and no client raises ValueError."""
+        ev = self._make_event()
+        ev.client = None
+        with pytest.raises(ValueError):
+            ev.add_organizer()
