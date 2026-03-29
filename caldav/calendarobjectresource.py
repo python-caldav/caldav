@@ -168,18 +168,42 @@ class CalendarObjectResource(DAVObject):
 
         i.add(self._ENDPARAM, end)
 
-    def add_organizer(self) -> None:
+    def add_organizer(self, organizer=None) -> None:
         """
-        goes via self.client, finds the principal, figures out the right attendee-format and adds an
-        organizer line to the event
-        """
-        if self.client is None:
-            raise ValueError("Unexpected value None for self.client")
+        Add (or replace) the ORGANIZER field on the calendar component.
 
-        principal = self.client.principal()
-        ## TODO: remove Organizer-field, if exists
-        ## TODO: what if walk returns more than one vevent?
-        self.icalendar_component.add("organizer", principal.get_vcal_address())
+        If *organizer* is omitted the current principal is used (requires
+        ``self.client`` to be set).  The *organizer* argument accepts the
+        same types as :meth:`add_attendee`:
+
+        * A :class:`~caldav.Principal` object
+        * A :class:`icalendar.vCalAddress` object
+        * A ``"mailto:user@example.com"`` string
+        * A plain email address string (``"mailto:"`` is prepended automatically)
+
+        Any pre-existing ORGANIZER field is removed before the new one is added.
+        """
+        from .collection import Principal as _Principal  ## avoid circular import
+
+        if organizer is None:
+            if self.client is None:
+                raise ValueError("Unexpected value None for self.client")
+            organizer_obj = self.client.principal().get_vcal_address()
+        elif isinstance(organizer, _Principal):
+            organizer_obj = organizer.get_vcal_address()
+        elif isinstance(organizer, vCalAddress):
+            organizer_obj = organizer
+        elif isinstance(organizer, str):
+            if organizer.startswith("mailto:"):
+                organizer_obj = vCalAddress(organizer)
+            else:
+                organizer_obj = vCalAddress("mailto:" + organizer)
+        else:
+            raise ValueError(f"Unsupported organizer type: {type(organizer)!r}")
+
+        ievent = self.icalendar_component
+        ievent.pop("organizer", None)
+        ievent.add("organizer", organizer_obj)
 
     def split_expanded(self) -> list[Self]:
         """This was used internally for processing search results.
