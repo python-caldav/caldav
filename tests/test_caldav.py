@@ -1198,7 +1198,17 @@ class RepeatedFunctionalTestsBaseClass:
     def testFindCalendarOwner(self):
         cal = self._fixCalendar()
         owner = cal.get_property(dav.Owner())
-        ## TODO: something should probably be asserted about the Owner
+        ## Not all servers expose the DAV:owner property; None is acceptable.
+        if owner is None:
+            return
+
+        ## The owner URL should point to a principal resource.
+        ## Constructing a Principal from it and fetching the vcal address
+        ## demonstrates the full workflow from issue #544.
+        if self.is_supported("scheduling.calendar-user-address-set"):
+            owner_principal = Principal(client=self.caldav, url=owner)
+            address = owner_principal.get_vcal_address()
+            assert address is not None
 
     def testIssue397(self):
         self.skip_unless_support("search.text.by-uid")

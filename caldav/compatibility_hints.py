@@ -274,6 +274,7 @@ class FeatureSet:
         "scheduling.mailbox": {
             "description": "Server provides schedule-inbox and schedule-outbox collections for the principal (RFC6638 sections 2.1-2.2). When unsupported, calls to schedule_inbox() or schedule_outbox() raise NotFoundError.",
             "links": ["https://datatracker.ietf.org/doc/html/rfc6638#section-2.1"],
+            "default": {"support": "full"},
         },
         "scheduling.calendar-user-address-set": {
             "description": "Server provides the calendar-user-address-set property on the principal (RFC6638 section 2.4.1), used to identify a user's email/URI for scheduling purposes. When unsupported, calendar_user_address_set() raises NotFoundError.",
@@ -988,7 +989,7 @@ zimbra = {
     'principal-search': "unsupported",
     ## Zimbra implements server-side automatic scheduling: invitations are
     ## auto-processed into the attendee's calendar; no iTIP notification appears in the inbox.
-    "scheduling": True,
+    "scheduling.mailbox": True,
     "scheduling.mailbox.inbox-delivery": {"support": "unsupported"},
 
     "old_flags": [
@@ -1045,7 +1046,7 @@ bedework = {
     #"search.unlimited-time-range": {"support": "broken"},
     ## Bedework uses a pre-built Docker image with no easy way to add users, so
     ## cross-user scheduling tests cannot be run; inbox-delivery behaviour is unknown.
-    "scheduling.mailbox.inbox-delivery": {"support": "unknown"},
+    "scheduling.mailbox": {"support": "unknown"},
 
     ## TODO: play with this and see if it's needed
     'old_flags': [
@@ -1072,6 +1073,7 @@ baikal =  { ## version 0.10.1
     # Baikal (sabre/dav) delivers iTIP notifications to the attendee inbox AND auto-schedules
     # into their calendar (quirk: both delivery modes happen simultaneously).
     "scheduling.mailbox.inbox-delivery": {"support": "quirk", "behaviour": "server delivers iTIP notification to inbox AND auto-schedules into calendar"},
+    "scheduling.mailbox": True,
     "http.multiplexing": "fragile", ## ref https://github.com/python-caldav/caldav/issues/564
     'search.comp-type.optional': {'support': 'ungraceful'},
     'search.recurrences.expanded.todo': {'support': 'unsupported'},
@@ -1117,6 +1119,7 @@ cyrus = {
     # AND delivers an iTIP notification copy to the attendee's schedule-inbox.
     # Clients do not need to explicitly accept from the inbox (auto-accept is done),
     # but inbox items do appear.  This is "quirk" behaviour: both delivery modes happen.
+    "scheduling.mailbox": True,
     "scheduling.mailbox.inbox-delivery": {
         "support": "quirk",
         "behaviour": "server delivers iTIP notification to inbox AND auto-schedules into calendar",
@@ -1143,6 +1146,7 @@ davical = {
     "http.multiplexing": { "support": "unsupported" },
     # DAViCal delivers iTIP notifications to the attendee inbox AND auto-schedules
     # into their calendar (quirk: both delivery modes happen simultaneously).
+    "scheduling.mailbox": True,
     "scheduling.mailbox.inbox-delivery": {"support": "quirk", "behaviour": "server delivers iTIP notification to inbox AND auto-schedules into calendar"},
     "search.comp-type.optional": { "support": "fragile" },
     "search.recurrences.expanded.exception": { "support": "unsupported" },
@@ -1329,7 +1333,7 @@ posteo = {
 davis = {
     # Davis uses sabre/dav (same backend as Baikal): delivers iTIP notifications to the
     # attendee inbox AND auto-schedules into their calendar (quirk behaviour).
-    "scheduling": True,
+    "scheduling.mailbox": True,
     "scheduling.mailbox.inbox-delivery": {"support": "quirk", "behaviour": "server delivers iTIP notification to inbox AND auto-schedules into calendar"},
     "search.recurrences.expanded.todo": {"support": "unsupported"},
     "search.recurrences.expanded.exception": {"support": "unsupported"},
