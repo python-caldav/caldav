@@ -2809,6 +2809,8 @@ class TestConnectionErrorHandling:
         response = client.request("/", "GET")
         assert response.status == 207
         assert mocked.call_count == 2
+
+
 class TestResolveProperties:
     """Tests for _resolve_properties unbound variable bug (issue #647 / calendar-cli #114)."""
 
