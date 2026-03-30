@@ -1055,7 +1055,22 @@ class CalendarObjectResource(DAVObject):
         cnt = 0
 
         if isinstance(attendee, Principal):
-            attendee_emails = attendee.calendar_user_address_set()
+            try:
+                attendee_emails = attendee.calendar_user_address_set()
+            except error.NotFoundError:
+                ## Server does not expose calendar-user-address-set (RFC6638 §2.4.1).
+                ## Fall back to client.username if it looks like an email address.
+                ## See https://github.com/python-caldav/caldav/issues/399
+                username = getattr(self.client, "username", None)
+                if username and "@" in str(username):
+                    attendee_emails = ["mailto:" + username]
+                else:
+                    raise error.NotFoundError(
+                        "Server does not provide the calendar-user-address-set property "
+                        "(RFC6638 §2.4.1) and the client username is not an email address. "
+                        "Cannot determine which attendee to update. "
+                        "Pass the attendee email address explicitly to change_attendee_status()."
+                    ) from None
             for addr in attendee_emails:
                 try:
                     self.change_attendee_status(addr, **kwargs)

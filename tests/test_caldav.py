@@ -835,6 +835,79 @@ class _TestSchedulingBase:
         assert new_organizer_inbox_items[0].is_invite_reply()
         new_organizer_inbox_items[0].delete()
 
+    def testAcceptInviteUsernameEmailFallback(self):
+        """accept_invite() works when the invite was built with username-as-email (issue #399).
+
+        The invite is constructed using the attendee's login username directly
+        instead of get_vcal_address(), mirroring what a client must do when the
+        server does not expose calendar-user-address-set.
+
+        On servers that expose calendar-user-address-set the normal code path
+        runs inside accept_invite(); on servers that do not, the username-email
+        fallback introduced by the fix kicks in.  Both paths produce the same
+        observable outcome (PARTSTAT updated, invite accepted), so this test is
+        valid regardless of whether calendar-user-address-set is available.
+
+        Only runs when:
+        - two principals are available
+        - the server delivers iTIP requests to the inbox
+        - the attendee's login username is an email address
+        """
+        if len(self.principals) < 2:
+            pytest.skip("need 2 principals to do the invite and respond test")
+
+        attendee_client = self.clients[1]
+        if not attendee_client.features.is_supported("scheduling.mailbox.inbox-delivery"):
+            pytest.skip("server does not deliver iTIP requests to the inbox")
+        attendee_username = getattr(attendee_client, "username", None)
+        if not attendee_username or "@" not in str(attendee_username):
+            pytest.skip(
+                "Attendee username %r is not an email address; "
+                "cannot build a matching ATTENDEE line" % attendee_username
+            )
+        attendee_email = "mailto:" + attendee_username
+
+        inbox_items = set(x.url for x in self.principals[0].schedule_inbox().get_items())
+        inbox_items.update(x.url for x in self.principals[1].schedule_inbox().get_items())
+
+        organizers_calendar = self._getCalendar(0)
+        attendee_calendar = self._getCalendar(1)
+        ## Build the invite using the attendee's email directly, since
+        ## get_vcal_address() would also fail without calendar-user-address-set.
+        ## Use a fresh UUID so Zimbra (and other servers) don't treat this as a
+        ## duplicate of the event sent by testInviteAndRespond.  Both tests use
+        ## the module-level `sched` which has the same UID for the whole test
+        ## session, so reusing it causes Zimbra to silently skip inbox delivery.
+        fresh_sched = sched_template % (
+            str(uuid.uuid4()),
+            "%2i%2i%2i" % (random.randint(0, 23), random.randint(0, 59), random.randint(0, 59)),
+            random.randint(1, 28),
+            "%2i%2i%2i" % (random.randint(0, 23), random.randint(0, 59), random.randint(0, 59)),
+        )
+        saved_event = organizers_calendar.save_with_invites(
+            fresh_sched, [self.principals[0], attendee_email]
+        )
+        self._auto_scheduled_event_uids.append(saved_event.id)
+
+        new_attendee_inbox_items = []
+        for _ in range(30):
+            new_attendee_inbox_items = [
+                item
+                for item in self.principals[1].schedule_inbox().get_items()
+                if item.url not in inbox_items
+            ]
+            if new_attendee_inbox_items:
+                break
+            time.sleep(1)
+
+        assert len(new_attendee_inbox_items) == 1, (
+            "expected exactly one new inbox item for attendee"
+        )
+        assert new_attendee_inbox_items[0].is_invite_request()
+
+        ## accept_invite() must work via the username-email fallback.
+        new_attendee_inbox_items[0].accept_invite(calendar=attendee_calendar)
+
     ## TODO.  Invite two principals, let both of them load the
     ## invitation, and then let them respond in order.  Lacks both
     ## tests and the implementation also apparently doesn't work as
@@ -1189,6 +1262,53 @@ class RepeatedFunctionalTestsBaseClass:
         self.skip_unless_support("scheduling.calendar-user-address-set")
         calendar_user_address_set = self.principal.calendar_user_address_set()
         me_a_participant = self.principal.get_vcal_address()
+
+    def testIssue399ChangeAttendeeStatusUsernameEmailFallback(self):
+        """change_attendee_status() works when the attendee is identified
+        by the client username rather than calendar_user_address_set() (issue #399).
+
+        On servers that expose calendar-user-address-set the normal path runs;
+        on servers that do not, the username-email fallback introduced by the
+        fix kicks in.  Either way the PARTSTAT update must succeed.
+        Only skipped when the login username is not an email address.
+        """
+        self.skip_unless_support("scheduling")
+        username = getattr(self.caldav, "username", None)
+        if not username or "@" not in str(username):
+            pytest.skip(
+                "Client username %r is not an email address; "
+                "cannot build a matching ATTENDEE line" % username
+            )
+        my_email = "mailto:" + username
+
+        invite_data = """\
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//Test//EN
+METHOD:REQUEST
+BEGIN:VEVENT
+UID:test-issue-399-%s@test.example
+DTSTAMP:%s
+DTSTART:%s
+DTEND:%s
+SUMMARY:Test invite for issue 399
+ORGANIZER:mailto:organizer@test.example
+ATTENDEE;PARTSTAT=NEEDS-ACTION:%s
+END:VEVENT
+END:VCALENDAR
+""" % (
+            uuid.uuid4(),
+            datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ"),
+            (datetime.now(timezone.utc) + timedelta(days=10)).strftime("%Y%m%dT%H%M%SZ"),
+            (datetime.now(timezone.utc) + timedelta(days=10, hours=1)).strftime("%Y%m%dT%H%M%SZ"),
+            my_email,
+        )
+
+        ev = Event(client=self.caldav, data=invite_data)
+        ev.change_attendee_status(partstat="ACCEPTED")
+
+        attendee = ev.icalendar_component["attendee"]
+        assert attendee.params.get("PARTSTAT") == "ACCEPTED"
 
     def testSchedulingMailboxes(self):
         self.skip_unless_support("scheduling.mailbox")
