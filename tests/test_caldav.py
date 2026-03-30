@@ -1819,7 +1819,6 @@ END:VCALENDAR
         assert len(c.get_events()) == cnt
 
     def testGetSupportedComponents(self):
-        self.skip_on_compatibility_flag("no_supported_components_support")
         c = self._fixCalendar()
 
         components = c.get_supported_components()
