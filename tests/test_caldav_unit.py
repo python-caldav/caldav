@@ -2866,3 +2866,60 @@ END:VCALENDAR
         ev.client = None
         with pytest.raises(ValueError):
             ev.add_organizer()
+
+
+class TestChangeAttendeeStatusFallback:
+    """Unit tests for change_attendee_status() fallback when calendar_user_address_set() is unavailable.
+
+    Covers issue https://github.com/python-caldav/caldav/issues/399: accept_invite() fails on servers
+    that do not expose the calendar-user-address-set property (RFC6638 §2.4.1).
+    """
+
+    _invite = """\
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//Test//EN
+METHOD:REQUEST
+BEGIN:VEVENT
+UID:test-invite-399@example.com
+DTSTAMP:20240101T000000Z
+DTSTART:20240601T100000Z
+DTEND:20240601T110000Z
+SUMMARY:Test invite
+ORGANIZER:mailto:organizer@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION:mailto:attendee@example.com
+END:VEVENT
+END:VCALENDAR
+"""
+
+    def _make_event_with_mock_client(self, username):
+        from caldav.collection import Principal
+        from caldav.lib import error as caldav_error
+
+        ev = Event(data=self._invite)
+        mock_client = mock.MagicMock()
+        mock_client.username = username
+        mock_principal = mock.MagicMock(spec=Principal)
+        mock_principal.calendar_user_address_set.side_effect = caldav_error.NotFoundError(
+            "calendar-user-address-set not supported"
+        )
+        mock_client.principal.return_value = mock_principal
+        ev.client = mock_client
+        return ev
+
+    def test_change_attendee_status_falls_back_to_email_username(self):
+        """When calendar_user_address_set() raises NotFoundError and username is an email,
+        change_attendee_status() should use the username as the attendee address."""
+        ev = self._make_event_with_mock_client("attendee@example.com")
+        ev.change_attendee_status(partstat="ACCEPTED")
+        attendee = ev.icalendar_component["attendee"]
+        assert attendee.params.get("PARTSTAT") == "ACCEPTED"
+
+    def test_change_attendee_status_raises_when_username_not_email(self):
+        """When calendar_user_address_set() raises NotFoundError and username is not an email,
+        change_attendee_status() should re-raise NotFoundError with a descriptive message."""
+        from caldav.lib import error as caldav_error
+
+        ev = self._make_event_with_mock_client("just_a_username")
+        with pytest.raises(caldav_error.NotFoundError):
+            ev.change_attendee_status(partstat="ACCEPTED")
