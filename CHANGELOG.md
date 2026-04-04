@@ -14,6 +14,10 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 
 ## [Unreleased]
 
+### Removed
+
+* Compatibility feature `search.text.by-uid` has been removed.  `get_object_by_uid()` already has a client-side fallback (via `_hacks="insist"`) that works on any server, so the guard was no longer needed.  Closes https://github.com/python-caldav/caldav/issues/586
+
 ### Fixed
 
 * Reusing a `CalDAVSearcher` across multiple `search()` calls could yield inconsistent results: the first call would return only pending tasks (correct), but subsequent calls would change behaviour because `icalendar_searcher.Searcher.check_component()` mutated the `include_completed` field from `None` to `False` as a side-effect.  Fixed by passing a copy with `include_completed` already resolved to `filter_search_results()`, leaving the original searcher object unchanged.  Fixes https://github.com/python-caldav/caldav/issues/650

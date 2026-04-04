@@ -1125,7 +1125,7 @@ class CalendarObjectResource(DAVObject):
         def get_self():
             from caldav.lib import error
 
-            uid = self.id or self.icalendar_component.get("uid")
+            uid = self.id
             if uid and self.parent:
                 try:
                     if not obj_type:

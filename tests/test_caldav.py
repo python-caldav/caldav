@@ -1116,7 +1116,7 @@ class RepeatedFunctionalTestsBaseClass:
         ## TODO: something should probably be asserted about the Owner
 
     def testIssue397(self):
-        self.skip_unless_support("search.text.by-uid")
+        self.skip_unless_support("save-load.event.recurrences.exception")
         cal = self._fixCalendar()
         cal.add_event(
             """BEGIN:VCALENDAR
@@ -1289,7 +1289,6 @@ END:VCALENDAR
         )
         event.change_attendee_status(attendee="testuser@example.com", PARTSTAT="ACCEPTED")
         event.save()
-        self.skip_unless_support("search.text.by-uid")
         event = c.get_event_by_uid("test1")
         ## TODO: work in progress ... see https://github.com/python-caldav/caldav/issues/399
 
@@ -1456,7 +1455,6 @@ END:VCALENDAR
         """
         It should be possible to save a task and retrieve it by uid
         """
-        self.skip_unless_support("search.text.by-uid")
         c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
         c.add_todo(summary="Some test task with a well-known uid", uid="well_known_1")
         foo = c.get_object_by_uid("well_known_1")
@@ -2228,7 +2226,6 @@ END:VCALENDAR
     def testCreateChildParent(self):
         self.skip_unless_support("save-load.event")
         self.skip_on_compatibility_flag("no_relships")
-        self.skip_unless_support("search.text.by-uid")
         c = self._fixCalendar(supported_calendar_component_set=["VEVENT"])
         parent = c.add_event(
             dtstart=datetime(2022, 12, 26, 19, 15),
@@ -2356,7 +2353,7 @@ END:VCALENDAR
             dtstart=datetime(2022, 12, 26, 19, 15, tzinfo=utc),
             due=datetime(2022, 12, 26, 20, 00, tzinfo=utc),
             summary="Some task",
-            uid="ctuid1",
+            uid="ctuid5",
         )
 
         ## setting the due should ... set the due (surprise, surprise)
@@ -2378,7 +2375,7 @@ END:VCALENDAR
             dtstart=datetime(2022, 12, 26, 19, 15, tzinfo=utc),
             duration=timedelta(minutes=15),
             summary="Some other task",
-            uid="ctuid2",
+            uid="ctuid6",
         )
         some_other_todo.set_due(datetime(2022, 12, 26, 19, 45, tzinfo=utc), move_dtstart=True)
         assert some_other_todo.icalendar_component["DUE"].dt == datetime(
@@ -2391,19 +2388,22 @@ END:VCALENDAR
         some_todo.save()
 
         self.skip_on_compatibility_flag("no_relships")
-        self.skip_unless_support("search.text.by-uid")
+
         parent = c.add_todo(
             dtstart=datetime(2022, 12, 26, 19, 00, tzinfo=utc),
             due=datetime(2022, 12, 26, 21, 00, tzinfo=utc),
             summary="this is a parent test task",
-            uid="ctuid3",
+            uid="ctuid7",
             child=[some_todo.id],
         )
 
+        ## The check_reverse_relations method is cheeky,
+        ## returning a list of non-behaving relations
+        ## (so it SHOULD return an empty list)
         assert not parent.check_reverse_relations()
 
-        ## The above updates the some_todo object on the server side, but the local object is not
-        ## updated ... until we reload it
+        ## The above updates the some_todo object on the server side,
+        ## but the local object is not updated ... until we reload it
         some_todo.load()
 
         ## This should work out (set the children due to some time before the parents due)
@@ -2468,7 +2468,6 @@ END:VCALENDAR
         j1 = c.add_journal(journal)
         journals = c.get_journals()
         assert len(journals) == 1
-        self.skip_unless_support("search.text.by-uid")
         j1_ = c.get_journal_by_uid(j1.id)
         ## Direct comparison handles different line folding from different fetch methods
         assert j1_.get_icalendar_instance() == journals[0].get_icalendar_instance()
@@ -2836,11 +2835,10 @@ END:VCALENDAR
         # The historic todo-item can still be accessed
         todos = c.get_todos(include_completed=True)
         assert len(todos) == 3
-        if self.is_supported("search.text.by-uid"):
-            t3_ = c.get_todo_by_uid(t3.id)
-            assert t3_.vobject_instance.vtodo.summary == t3.vobject_instance.vtodo.summary
-            assert t3_.vobject_instance.vtodo.uid == t3.vobject_instance.vtodo.uid
-            assert t3_.vobject_instance.vtodo.dtstart == t3.vobject_instance.vtodo.dtstart
+        t3_ = c.get_todo_by_uid(t3.id)
+        assert t3_.vobject_instance.vtodo.summary == t3.vobject_instance.vtodo.summary
+        assert t3_.vobject_instance.vtodo.uid == t3.vobject_instance.vtodo.uid
+        assert t3_.vobject_instance.vtodo.dtstart == t3.vobject_instance.vtodo.dtstart
 
         t2.delete()
 
@@ -3073,10 +3071,9 @@ END:VCALENDAR
             e2 = c.event_by_url(e1.url)
             assert e2.vobject_instance.vevent.uid == e1.vobject_instance.vevent.uid
             assert e2.url == e1.url
-        if self.is_supported("search.text.by-uid"):
-            e3 = c.get_event_by_uid("20010712T182145Z-123401@example.com")
-            assert e3.vobject_instance.vevent.uid == e1.vobject_instance.vevent.uid
-            assert e3.url == e1.url
+        e3 = c.get_event_by_uid("20010712T182145Z-123401@example.com")
+        assert e3.vobject_instance.vevent.uid == e1.vobject_instance.vevent.uid
+        assert e3.url == e1.url
 
         # Knowing the URL of an event, we should be able to get to it
         # without going through a calendar object
@@ -3100,10 +3097,9 @@ END:VCALENDAR
         c = self._fixCalendar()
         assert c.url is not None
 
-        # attempts on updating/overwriting a non-existing event should fail (unless get_object_by_uid_is_broken):
-        if self.is_supported("search.text.by-uid"):
-            with pytest.raises(error.ConsistencyError):
-                c.add_event(ev1, no_create=True)
+        # attempts on updating/overwriting a non-existing event should fail:
+        with pytest.raises(error.ConsistencyError):
+            c.add_event(ev1, no_create=True)
 
         # no_create and no_overwrite is mutually exclusive, this will always
         # raise an error (unless the ical given is blank)
@@ -3121,11 +3117,9 @@ END:VCALENDAR
             assert t1.url is not None
         if not self.check_compatibility_flag("event_by_url_is_broken"):
             assert c.event_by_url(e1.url).url == e1.url
-        if self.is_supported("search.text.by-uid"):
-            assert c.get_event_by_uid(e1.id).url == e1.url
+        assert c.get_event_by_uid(e1.id).url == e1.url
 
-        ## no_create will not work unless get_object_by_uid works
-        no_create = self.is_supported("search.text.by-uid")
+        no_create = True
 
         ## add same event again.  As it has same uid, it should be overwritten
         ## (but some calendars may throw a "409 Conflict")
@@ -3155,13 +3149,12 @@ END:VCALENDAR
                 e3 = c.event_by_url(e1.url)
                 assert e3.vobject_instance.vevent.summary.value == "Bastille Day Party!"
 
-        ## "no_overwrite" should throw a ConsistencyError.  But it depends on get_object_by_uid.
-        if self.is_supported("search.text.by-uid"):
+        ## "no_overwrite" should throw a ConsistencyError.
+        with pytest.raises(error.ConsistencyError):
+            c.add_event(ev1, no_overwrite=True)
+        if todo_ok:
             with pytest.raises(error.ConsistencyError):
-                c.add_event(ev1, no_overwrite=True)
-            if todo_ok:
-                with pytest.raises(error.ConsistencyError):
-                    c.add_todo(todo, no_overwrite=True)
+                c.add_todo(todo, no_overwrite=True)
 
         # delete event
         e1.delete()
