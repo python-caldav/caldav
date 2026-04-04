@@ -1508,7 +1508,12 @@ class Calendar(DAVObject):
         ## apply an exact match filter afterwards to preserve the semantics of
         ## this method (see testObjectByUID).
         items_found = self.search(
-            uid=uid, comp_class=comp_class, xml=comp_filter, post_filter=True, _hacks="insist"
+            uid=uid,
+            comp_class=comp_class,
+            xml=comp_filter,
+            post_filter=True,
+            _hacks="insist",
+            include_completed=True,
         )
         items_found = [o for o in items_found if o.id == uid]
 
@@ -1541,7 +1546,7 @@ class Calendar(DAVObject):
         Returns the task with the given uid.
         See :meth:`get_object_by_uid` for more details.
         """
-        return self.get_object_by_uid(uid, comp_filter=cdav.CompFilter("VTODO"))
+        return self.get_object_by_uid(uid, comp_class=Todo)
 
     def get_event_by_uid(self, uid: str) -> "CalendarObjectResource":
         """
@@ -1550,7 +1555,7 @@ class Calendar(DAVObject):
         Returns the event with the given uid.
         See :meth:`get_object_by_uid` for more details.
         """
-        return self.get_object_by_uid(uid, comp_filter=cdav.CompFilter("VEVENT"))
+        return self.get_object_by_uid(uid, comp_class=Event)
 
     def get_journal_by_uid(self, uid: str) -> "CalendarObjectResource":
         """
@@ -1559,7 +1564,7 @@ class Calendar(DAVObject):
         Returns the journal with the given uid.
         See :meth:`get_object_by_uid` for more details.
         """
-        return self.get_object_by_uid(uid, comp_filter=cdav.CompFilter("VJOURNAL"))
+        return self.get_object_by_uid(uid, comp_class=Journal)
 
     ## Deprecated aliases - use get_*_by_uid instead
 

@@ -233,6 +233,8 @@ class CalDAVSearcher(Searcher):
     ):
         """Core search implementation as a generator yielding actions.
 
+        (TODO: refactoring beyond readability?  Is this sane?)
+
         This generator contains all the search logic and yields (action, data) tuples
         that the caller (sync or async) executes. Results are sent back via .send().
 
@@ -451,7 +453,7 @@ class CalDAVSearcher(Searcher):
         ## we wouldn't waste so much time on repeated queries
         if self.todo and self.include_completed is False:
             clone = replace(self, include_completed=True)
-            clone.include_completed = True
+            clone.include_completed = True  ## Why?  Isn't this redundant?
             clone.expand = False
 
             if (
@@ -618,7 +620,7 @@ class CalDAVSearcher(Searcher):
         :param calendar: Calendar to be searched (optional if searcher was created
                         from a calendar via ``calendar.searcher()``)
         :param server_expand: Ask the CalDAV server to expand recurrences
-        :param split_expanded: Don't collect a recurrence set in one ical calendar
+        :param split_expanded: Send expanded recurrences as multiple objects
         :param props: CalDAV properties to send in the query
         :param xml: XML query to be sent to the server (string or elements)
         :param post_filter: Do client-side filtering after querying the server
@@ -699,6 +701,10 @@ class CalDAVSearcher(Searcher):
         assert self.event is None and self.todo is None and self.journal is None
 
         for comp_class in (Event, Todo, Journal):
+            if not calendar.client.features.is_supported(
+                f"save-load.{comp_class.__name__.lower()}"
+            ):
+                continue
             clone = replace(self)
             clone.comp_class = comp_class
             objects += clone.search(

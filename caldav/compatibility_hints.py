@@ -221,9 +221,6 @@ class FeatureSet:
         "search.text.category.substring": {
             "description": "Substring search for category should work according to the RFC.  I.e., search for mil should match family,finance",
         },
-        "search.text.by-uid": {
-            "description": "The server supports searching for objects by UID property. When unsupported, calendar.get_object_by_uid(uid) will not work.  This may be removed in the feature - the checker-script is not checking the right thing (check TODO-comments), probably search by uid is no special case for any server implementations"
-        },
         "search.recurrences": {
             "description": "Support for recurrences in search"
         },
@@ -1034,6 +1031,7 @@ bedework = {
     'old_flags': [
     'propfind_allprop_failure',
     'duplicates_not_allowed',
+    'no_relships' ## relships seems to work as long as it's one RELATED-TO-line, but as soon as there are multiple lines the implementation seems broken
     ],
 
 }
@@ -1219,7 +1217,6 @@ robur = {
     "search.time-range.todo": { "support": "unsupported" },
     "search.time-range.alarm": {'support': 'unsupported'},
     "search.text": { "support": "unsupported", "behaviour": "a text search ignores the filter and returns all elements" },
-    "search.text.by-uid": { "support": "fragile", "behaviour": "Probably not supported, but my caldav-server-checker tool has issues with it at the moment" },
     "search.comp-type.optional": { "support": "ungraceful" },
     "search.recurrences.expanded.todo": { "support": "unsupported" },
     "search.recurrences.expanded.event": { "support": "fragile" },
@@ -1495,6 +1492,9 @@ ox = {
     'principal-search.list-all': {'support': 'unsupported'},
     ## Cross-calendar duplicate UID test fails (AuthorizationError creating second calendar)
     'save.duplicate-uid.cross-calendar': {'support': 'ungraceful'},
+    'old_flags': [
+        'no_relships',
+    ],
 }
 
 # fmt: on

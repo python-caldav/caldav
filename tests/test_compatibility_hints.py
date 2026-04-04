@@ -375,8 +375,8 @@ class TestFeatureSetCollapse:
 
     def test_intermediate_feature_derives_from_children(self) -> None:
         """Test that intermediate features (e.g. search.text) derive status from their children"""
-        # search.text has 5 children: case-sensitive, case-insensitive,
-        # substring, category, by-uid (none have explicit defaults)
+        # search.text has 4 direct children: case-sensitive, case-insensitive,
+        # substring, category (none have explicit defaults)
 
         # All children set with mixed statuses -> derive "unknown"
         fs = FeatureSet(
@@ -384,8 +384,7 @@ class TestFeatureSetCollapse:
                 "search.text.case-sensitive": {"support": "unsupported"},
                 "search.text.case-insensitive": {"support": "unsupported"},
                 "search.text.substring": {"support": "unsupported"},
-                "search.text.category": {"support": "unsupported"},
-                "search.text.by-uid": {"support": "fragile"},
+                "search.text.category": {"support": "fragile"},
             }
         )
         assert not fs.is_supported("search.text")
@@ -396,7 +395,7 @@ class TestFeatureSetCollapse:
         fs1b = FeatureSet(
             {
                 "search.text.case-sensitive": {"support": "unsupported"},
-                "search.text.by-uid": {"support": "fragile"},
+                "search.text.category.substring": {"support": "fragile"},
             }
         )
         assert fs1b.is_supported("search.text")
@@ -408,7 +407,6 @@ class TestFeatureSetCollapse:
                 "search.text.case-insensitive": {"support": "unsupported"},
                 "search.text.substring": {"support": "unsupported"},
                 "search.text.category": {"support": "unsupported"},
-                "search.text.by-uid": {"support": "unsupported"},
             }
         )
         assert not fs2.is_supported("search.text")
