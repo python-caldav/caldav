@@ -21,6 +21,7 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 * `Calendar.get_supported_components()`
   * raised `KeyError` when the server did not include the `supported-calendar-component-set` property in its response.  RFC 4791 section 5.2.3 states this property is optional and that its absence means all component types are accepted; the method now returns the RFC default `["VEVENT", "VTODO", "VJOURNAL"]` in that case, trimmed by any known server limitations from the compatibility hints (e.g. if `save-load.todo` is `unsupported`, `VTODO` is excluded).  Fixes https://github.com/python-caldav/caldav/issues/653
   * async path returned an unawaited coroutine instead of the actual result.
+* `accept_invite()` (and `decline_invite()`, `tentatively_accept_invite()`) now fall back to the client username as the attendee email address when the server does not expose the `calendar-user-address-set` property (RFC6638 §2.4.1).  A `NotFoundError` with a descriptive message is raised when the username is also not an email address.  Fixes https://github.com/python-caldav/caldav/issues/399
 
 ## [3.1.0] - 2026-03-19
 

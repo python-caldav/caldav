@@ -56,3 +56,8 @@ class TestExamples:
 
     def test_rfc8764_test_conf(self):
         pass
+
+    def test_calendar_owner_examples(self):
+        from examples import calendar_owner_examples
+
+        calendar_owner_examples.run_examples()

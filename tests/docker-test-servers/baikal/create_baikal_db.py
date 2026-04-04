@@ -232,6 +232,49 @@ CREATE TABLE users (
     print(f"  Digest A1: {ha1}")
 
 
+def add_baikal_user(db_path: Path, username: str, password: str) -> None:
+    """Add an additional user to an existing Baikal SQLite database."""
+    realm = "BaikalDAV"
+    ha1 = hashlib.md5(f"{username}:{realm}:{password}".encode()).hexdigest()
+    principal_uri = f"principals/{username}"
+
+    conn = sqlite3.connect(str(db_path))
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "INSERT OR REPLACE INTO users (username, digesta1) VALUES (?, ?)", (username, ha1)
+    )
+
+    cursor.execute(
+        "INSERT OR IGNORE INTO principals (uri, email, displayname) VALUES (?, ?, ?)",
+        (principal_uri, f"{username}@baikal.test", f"Test User ({username})"),
+    )
+
+    cursor.execute(
+        "INSERT INTO calendars (synctoken, components) VALUES (?, ?)",
+        (1, "VEVENT,VTODO,VJOURNAL"),
+    )
+    calendar_id = cursor.lastrowid
+
+    cursor.execute(
+        """INSERT INTO calendarinstances
+           (calendarid, principaluri, access, displayname, uri, calendarorder, calendarcolor)
+           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+        (calendar_id, principal_uri, 1, "Default Calendar", "default", 0, "#3a87ad"),
+    )
+
+    cursor.execute(
+        """INSERT INTO addressbooks
+           (principaluri, displayname, uri, synctoken)
+           VALUES (?, ?, ?, ?)""",
+        (principal_uri, "Default Address Book", "default", 1),
+    )
+
+    conn.commit()
+    conn.close()
+    print(f"✓ Added user '{username}' to Baikal database")
+
+
 def create_baikal_config(config_path: Path) -> None:
     """Create Baikal config.php file."""
 
@@ -358,9 +401,13 @@ database:
 if __name__ == "__main__":
     script_dir = Path(__file__).parent
 
-    # Create database
+    # Create database with primary test user
     db_path = script_dir / "Specific" / "db" / "db.sqlite"
     create_baikal_db(db_path, username="testuser", password="testpass")
+
+    # Add extra users for RFC6638 scheduling tests (need at least 3)
+    for i in range(1, 4):
+        add_baikal_user(db_path, username=f"user{i}", password=f"testpass{i}")
 
     # Create legacy PHP config files (for older Baikal versions)
     config_path = script_dir / "Specific" / "config.php"
@@ -380,4 +427,5 @@ if __name__ == "__main__":
     print("\nCredentials:")
     print("  Admin: admin / admin")
     print("  User: testuser / testpass")
+    print("  RFC6638 users: user1/testpass1, user2/testpass2, user3/testpass3")
     print("  CalDAV URL: http://localhost:8800/dav.php/")

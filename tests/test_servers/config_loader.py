@@ -91,7 +91,11 @@ def _load_config_file(path: str) -> dict[str, dict[str, Any]]:
     # Unwrap the "test-servers" key if present (the example YAML
     # uses this as a top-level namespace).  Also support configs
     # where server dicts are at the top level directly.
+    # Preserve top-level non-server keys (e.g. rfc6638_users) by merging
+    # them back into the servers dict after unwrapping.
     if "test-servers" in cfg:
+        top_level_extras = {k: v for k, v in cfg.items() if k != "test-servers"}
         cfg = cfg["test-servers"]
+        cfg.update(top_level_extras)
 
     return cfg

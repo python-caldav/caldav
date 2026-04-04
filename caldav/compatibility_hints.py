@@ -267,6 +267,25 @@ class FeatureSet:
         "sync-token.delete": {
             "description": "Server correctly handles sync-collection reports after objects have been deleted from the calendar (solved in Nextcloud in https://github.com/nextcloud/server/pull/44130)"
         },
+        "scheduling": {
+            "description": "Server supports CalDAV Scheduling (RFC6638). Detected via the presence of 'calendar-auto-schedule' in the DAV response header.",
+            "links": ["https://datatracker.ietf.org/doc/html/rfc6638"],
+        },
+        "scheduling.mailbox": {
+            "description": "Server provides schedule-inbox and schedule-outbox collections for the principal (RFC6638 sections 2.1-2.2). When unsupported, calls to schedule_inbox() or schedule_outbox() raise NotFoundError.",
+            "links": ["https://datatracker.ietf.org/doc/html/rfc6638#section-2.1"],
+            "default": {"support": "full"},
+        },
+        "scheduling.calendar-user-address-set": {
+            "description": "Server provides the calendar-user-address-set property on the principal (RFC6638 section 2.4.1), used to identify a user's email/URI for scheduling purposes. When unsupported, calendar_user_address_set() raises NotFoundError.",
+            "links": ["https://datatracker.ietf.org/doc/html/rfc6638#section-2.4.1"],
+        },
+        "scheduling.mailbox.inbox-delivery": {
+            "description": "Server delivers incoming scheduling REQUEST messages to the attendee's schedule-inbox (RFC6638 section 4.1). When unsupported, the server implements automatic scheduling: invitations are auto-processed and placed directly on the attendee's calendar without appearing in the inbox. Clients should check this feature to know whether to look for inbox items after sending an invite, or check the attendee calendar directly.",
+            "links": [
+                "https://datatracker.ietf.org/doc/html/rfc6638#section-4.1",
+            ],
+        },
         'freebusy-query': {'description': "freebusy queries come in two flavors, one query can be done towards a CalDAV server as defined in RFC4791, another query can be done through the scheduling framework, RFC 6638.  Only RFC4791 is tested for as today"},
         "freebusy-query.rfc4791": {
             "description": "Server supports free/busy-query REPORT as specified in RFC4791 section 7.10. The REPORT allows clients to query for free/busy time information for a time range. Servers without this support will typically return an error (often 500 Internal Server Error or 501 Not Implemented). Note: RFC6638 defines a different freebusy mechanism for scheduling",
@@ -713,15 +732,6 @@ class FeatureSet:
 ## * Perhaps some more readable format should be considered (yaml?).
 ## * Consider how to get this into the documentation
 incompatibility_description = {
-    'no_scheduling':
-        """RFC6833 is not supported""",
-
-    'no_scheduling_mailbox':
-        """Parts of RFC6833 is supported, but not the existence of inbox/mailbox""",
-
-    'no_scheduling_calendar_user_address_set':
-        """Parts of RFC6833 is supported, but not getting the calendar users addresses""",
-
     'no_default_calendar':
         """The given user starts without an assigned default calendar """
         """(or without pre-defined calendars at all)""",
@@ -840,13 +850,11 @@ xandikos_v0_2_12 = {
     "search.text.category.substring": {"support": "unsupported"},
     'principal-search': {'support': 'unsupported'},
     'freebusy-query.rfc4791': {'support': 'ungraceful', 'behaviour': '500 internal server error'},
+    "scheduling": {"support": "unsupported"},
     "old_flags":  [
     ## https://github.com/jelmer/xandikos/issues/8
     'date_todo_search_ignores_duration',
     'vtodo_datesearch_nostart_future_tasks_delivered',
-
-    ## scheduling is not supported
-    "no_scheduling",
 
     ## The test with an rrule and an overridden event passes as
     ## long as it's with timestamps.  With dates, xandikos gets
@@ -875,13 +883,11 @@ xandikos = {
     ## this only applies for very simple installations
     "auto-connect.url": {"domain": "localhost", "scheme": "http", "basepath": "/"},
 
+    "scheduling": {"support": "unsupported"},
     "old_flags":  [
     ## https://github.com/jelmer/xandikos/issues/8
     'date_todo_search_ignores_duration',
     'vtodo_datesearch_nostart_future_tasks_delivered',
-
-    ## scheduling is not supported
-    "no_scheduling",
     ]
 }
 
@@ -898,11 +904,11 @@ radicale = {
     ## this only applies for very simple installations
     "auto-connect.url": {"domain": "localhost", "scheme": "http", "basepath": "/"},
     ## freebusy is not supported yet, but on the long-term road map
+    "scheduling": {"support": "unsupported"},
     'old_flags': [
     ## calendar listings and calendar creation works a bit
     ## "weird" on radicale
 
-    'no_scheduling',
     'no_search_openended',
 
     #'text_search_is_exact_match_sometimes',
@@ -981,6 +987,10 @@ zimbra = {
     'search.comp-type.optional': {'support': 'fragile'}, ## TODO: more research on this, looks like a bug in the checker,
     'search.time-range.alarm': {'support': 'unsupported'},
     'principal-search': "unsupported",
+    ## Zimbra implements server-side automatic scheduling: invitations are
+    ## auto-processed into the attendee's calendar; no iTIP notification appears in the inbox.
+    "scheduling.mailbox": True,
+    "scheduling.mailbox.inbox-delivery": {"support": "unsupported"},
 
     "old_flags": [
     ## apparently, zimbra has no journal support
@@ -1008,7 +1018,7 @@ zimbra = {
 
 bedework = {
     ## If tests are yielding unexpected results, try to increase this:
-    'search-cache': {'behaviour': 'delay', 'delay': 1.5},
+    'search-cache': {'behaviour': 'delay', 'delay': 3},
 
     'test-calendar': {'cleanup-regime': 'wipe-calendar'},
     'auto-connect.url': {'basepath': '/ucaldav/'},
@@ -1028,7 +1038,15 @@ bedework = {
     'search.comp-type.optional': {'support': 'ungraceful'},
     'search.is-not-defined.dtend': False,
     "principal-search": {  "support": "ungraceful" },
-    "search.unlimited-time-range": {"support": "broken"},
+    ## Bedework hides past non-recurring events from REPORT without a time-range filter,
+    ## but still returns recurring events that have future occurrences.  The unlimited-time-range
+    ## check probe is a past-only non-recurring event; it is not returned even though the
+    ## PrepareCalendar recurring event (RRULE:FREQ=MONTHLY since 2000) is returned.
+    ## Result: objects is non-empty but the probe event is absent → "broken".
+    #"search.unlimited-time-range": {"support": "broken"},
+    ## Bedework uses a pre-built Docker image with no easy way to add users, so
+    ## cross-user scheduling tests cannot be run; inbox-delivery behaviour is unknown.
+    "scheduling.mailbox": {"support": "unknown"},
 
     ## TODO: play with this and see if it's needed
     'old_flags': [
@@ -1052,6 +1070,10 @@ synology = {
 }
 
 baikal =  { ## version 0.10.1
+    # Baikal (sabre/dav) delivers iTIP notifications to the attendee inbox AND auto-schedules
+    # into their calendar (quirk: both delivery modes happen simultaneously).
+    "scheduling.mailbox.inbox-delivery": {"support": "quirk", "behaviour": "server delivers iTIP notification to inbox AND auto-schedules into calendar"},
+    "scheduling.mailbox": True,
     "http.multiplexing": "fragile", ## ref https://github.com/python-caldav/caldav/issues/564
     'search.comp-type.optional': {'support': 'ungraceful'},
     'search.recurrences.expanded.todo': {'support': 'unsupported'},
@@ -1092,6 +1114,16 @@ cyrus = {
         'support': 'fragile',
         'behaviour': 'Deleting a recently created calendar fails'},
     # Cyrus may not properly reject wrong passwords in some configurations
+    # Cyrus implements server-side automatic scheduling: for cross-user
+    # invites, the server both auto-processes the invite into the attendee's calendar
+    # AND delivers an iTIP notification copy to the attendee's schedule-inbox.
+    # Clients do not need to explicitly accept from the inbox (auto-accept is done),
+    # but inbox items do appear.  This is "quirk" behaviour: both delivery modes happen.
+    "scheduling.mailbox": True,
+    "scheduling.mailbox.inbox-delivery": {
+        "support": "quirk",
+        "behaviour": "server delivers iTIP notification to inbox AND auto-schedules into calendar",
+    },
     'old_flags': []
 }
 
@@ -1112,6 +1144,10 @@ davical = {
     # Disable HTTP/2 multiplexing - davical doesn't support it well and niquests
     # lazy responses cause MultiplexingError when accessing status_code
     "http.multiplexing": { "support": "unsupported" },
+    # DAViCal delivers iTIP notifications to the attendee inbox AND auto-schedules
+    # into their calendar (quirk: both delivery modes happen simultaneously).
+    "scheduling.mailbox": True,
+    "scheduling.mailbox.inbox-delivery": {"support": "quirk", "behaviour": "server delivers iTIP notification to inbox AND auto-schedules into calendar"},
     "search.comp-type.optional": { "support": "fragile" },
     "search.recurrences.expanded.exception": { "support": "unsupported" },
     "search.time-range.alarm": { "support": "unsupported" },
@@ -1131,6 +1167,8 @@ davical = {
 }
 
 sogo = {
+    ## scheduling.mailbox.inbox-delivery behaviour unknown until cross-user scheduling tests run
+    "scheduling.mailbox.inbox-delivery": {"support": "unknown"},
     ## I'm surprised, I'm quite sure this was passing earlier.  reported unsupported with caldav commit a98d50490b872e9b9d8e93e2e401c936ad193003, caldav server checker commit 3cae24cf99da1702b851b5a74a9b88c8e5317dad 2026-02-15
     "search.text.category": False,
     "search.time-range.event.old-dates": False,
@@ -1227,9 +1265,10 @@ robur = {
     'search.recurrences.includes-implicit.todo': {'support': 'unsupported'},
     'principal-search': {'support': 'ungraceful'},
     'freebusy-query.rfc4791': {'support': 'ungraceful'},
+    "scheduling": {"support": "unsupported"},
     'old_flags': [
         'non_existing_raises_other', ## AuthorizationError instead of NotFoundError
-        'no_scheduling',
+        'no_supported_components_support',
         'no_relships',
     ],
     'test-calendar': {'cleanup-regime': 'wipe-calendar'},
@@ -1269,8 +1308,8 @@ posteo = {
     'search.combined-is-logical-and': {'support': 'unsupported'},
     'sync-token': {'support': 'ungraceful'},
     'principal-search': {'support': 'unsupported'},
+    "scheduling": {"support": "unsupported"},
     'old_flags': [
-        'no_scheduling',
         #'no_recurring_todo', ## todo
     ]
 }
@@ -1292,6 +1331,10 @@ posteo = {
 ## Davis uses sabre/dav (same backend as Baikal), so hints are similar.
 ## TODO: consolidate, make a sabredav dict and let davis/baikal build on it
 davis = {
+    # Davis uses sabre/dav (same backend as Baikal): delivers iTIP notifications to the
+    # attendee inbox AND auto-schedules into their calendar (quirk behaviour).
+    "scheduling.mailbox": True,
+    "scheduling.mailbox.inbox-delivery": {"support": "quirk", "behaviour": "server delivers iTIP notification to inbox AND auto-schedules into calendar"},
     "search.recurrences.expanded.todo": {"support": "unsupported"},
     "search.recurrences.expanded.exception": {"support": "unsupported"},
     "search.recurrences.includes-implicit.todo": {"support": "unsupported"},
@@ -1313,6 +1356,8 @@ davis = {
 ## cannot be changed.  The pre-provisioned "tasks" calendar supports VTODO only.
 ## VJOURNAL is not supported at all.
 ccs = {
+    ## scheduling.mailbox.inbox-delivery behaviour unknown until cross-user scheduling tests run
+    "scheduling.mailbox.inbox-delivery": {"support": "unknown"},
     "save-load.journal": {"support": "unsupported"},
     "save-load.todo.mixed-calendar": {"support": "unsupported"},
     # CCS enforces unique UIDs across ALL calendars for a user
@@ -1346,6 +1391,8 @@ ccs = {
 ## CalDAV served at /dav/cal/<username>/ over HTTP on port 8080.
 ## Feature support mostly unknown until tested; starting with empty hints.
 stalwart = {
+    ## scheduling.mailbox.inbox-delivery behaviour unknown until cross-user scheduling tests run
+    "scheduling.mailbox.inbox-delivery": {"support": "unknown"},
     'rate-limit': {
         'enable': True,
         'default_sleep': 3,
@@ -1404,9 +1451,10 @@ purelymail = {
         'basepath': '/webdav/',
         'domain': 'purelymail.com',
     },
+    ## Known, work in progress
+    "scheduling": {"support": "unsupported"},
     'old_flags': [
-        ## Known, work in progress
-        'no_scheduling',
+        'no_supported_components_support',
     ],
     ## Known, not a breach of standard
     "get-supported-components": {"support": "unsupported"},
@@ -1448,11 +1496,14 @@ gmx = {
     ## was apparently observed working for a while, possibly due to the master/more_checks split-brain git branching incident in the server-checker project.
     ## unsupported in be26d42b1ca3ff3b4fd183761b4a9b024ce12b84 / 537a23b145487006bb987dee5ab9e00cdebb0492 2026-02-19.  Supported when testing again short time after.  Either I'm confused or it's "fragile".
     #'search.time-range.alarm': {'support': 'unsupported'},
+    ## GMX advertises calendar-auto-schedule but inbox/mailbox and
+    ## calendar-user-address-set are not functional (RFC6638 sub-features).
+    "scheduling": {"support": "full"},
+    "scheduling.mailbox": {"support": "unsupported"},
+    "scheduling.calendar-user-address-set": {"support": "unsupported"},
     "old_flags":  [
-        "no_scheduling_mailbox",
         #"text_search_is_case_insensitive",
         "no_search_openended",
-        "no_scheduling_calendar_user_address_set",
         "vtodo-cannot-be-uncompleted",
     ]
 }
@@ -1495,6 +1546,8 @@ ox = {
     'principal-search.list-all': {'support': 'unsupported'},
     ## Cross-calendar duplicate UID test fails (AuthorizationError creating second calendar)
     'save.duplicate-uid.cross-calendar': {'support': 'ungraceful'},
+    ## OX App Suite has complex user provisioning; cross-user scheduling tests not yet set up.
+    "scheduling.mailbox.inbox-delivery": {"support": "unknown"},
 }
 
 # fmt: on
