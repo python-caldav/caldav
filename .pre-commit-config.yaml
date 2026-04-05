@@ -24,6 +24,6 @@ repos:
     rev: lychee-v0.22.0
     hooks:
       - id: lychee
-        args: ["--no-progress", "--timeout", "10", "--exclude-path", ".lycheeignore"]
+        args: ["--no-progress", "--timeout", "10", "--exclude-path", ".lycheeignore", "--max-cache-age=30d", "--cache"]
         stages: [pre-push]
         exclude: ^tests/test_caldav_unit\.py$
