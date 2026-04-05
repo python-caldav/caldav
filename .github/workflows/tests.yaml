@@ -40,7 +40,10 @@ jobs:
           --health-retries 5
           --health-start-period 60s
       cyrus:
-        image: ghcr.io/cyrusimap/cyrus-docker-test-server:latest
+        # Pinned to last known-good build (pre-April-2026 multi-stage rebuild
+        # that broke CalDAV startup). Unpin once upstream is fixed.
+        # Working digest confirmed in CI run 23748898521 (2026-03-30).
+        image: ghcr.io/cyrusimap/cyrus-docker-test-server@sha256:d639a9116691a7a1c875073486c419d60843e5ef8e32e65c5ef56283874dbf2c
         ports:
           - 8802:8080
           - 8001:8001
