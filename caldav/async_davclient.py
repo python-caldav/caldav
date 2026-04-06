@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Any, Optional
 from urllib.parse import unquote
 
 if TYPE_CHECKING:
-    from caldav.calendarobjectresource import CalendarObjectResource, Event, Todo
+    from caldav.calendarobjectresource import CalendarObjectResource
     from caldav.collection import Calendar, Principal
 
 # Try niquests first (preferred), fall back to httpx
