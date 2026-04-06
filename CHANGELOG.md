@@ -12,7 +12,7 @@ Changelogs prior to v2.0 is pruned, but was available in the v2.x releases
 
 This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html), though for pre-releases PEP 440 takes precedence.
 
-## [3.2.0] - 2026-04-07
+## [3.2.0] - unreleased
 
 ### Added
 
