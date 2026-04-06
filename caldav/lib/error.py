@@ -3,7 +3,6 @@ import logging
 from collections import defaultdict
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
-from typing import Optional
 
 from caldav import __version__
 
@@ -16,7 +15,7 @@ try:
     debug_dump_communication = os.environ.get("PYTHON_CALDAV_COMMDUMP", False)
     ## one of DEBUG_PDB, DEBUG, DEVELOPMENT, PRODUCTION
     debugmode = os.environ["PYTHON_CALDAV_DEBUGMODE"]
-except:
+except KeyError:
     if "dev" in __version__ or __version__ == "(unknown)":
         debugmode = "DEVELOPMENT"
     else:

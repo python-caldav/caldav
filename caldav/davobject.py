@@ -389,7 +389,6 @@ class DAVObject:
         if self.is_async_client:
             return self._async_get_properties(props, depth, parse_response_xml, parse_props)
 
-        rc = None
         response = self._query_properties(props, depth)
         if not parse_response_xml:
             return response
@@ -427,7 +426,6 @@ class DAVObject:
         parse_props: bool = True,
     ):
         """Async implementation of get_properties."""
-        rc = None
         response = await self._async_query_properties(props, depth)
         if not parse_response_xml:
             return response
@@ -577,7 +575,7 @@ class DAVObject:
     def __str__(self) -> str:
         try:
             return str(self.get_property(dav.DisplayName(), use_cached=True)) or self.url
-        except:
+        except Exception:
             return str(self.url)
 
     def __repr__(self) -> str:

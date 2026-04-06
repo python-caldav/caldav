@@ -604,7 +604,7 @@ class Calendar(DAVObject):
 
         mkcol = (dav.Mkcol() if method == "mkcol" else cdav.Mkcalendar()) + set
 
-        r = self._query(root=mkcol, query_method=method, url=path, expected_return_value=201)
+        self._query(root=mkcol, query_method=method, url=path, expected_return_value=201)
 
         # COMPATIBILITY ISSUE
         # name should already be set, but we've seen caldav servers failing
@@ -619,7 +619,7 @@ class Calendar(DAVObject):
                 try:
                     current_display_name = self.get_display_name()
                     error.assert_(current_display_name == name)
-                except:
+                except Exception:
                     log.warning(
                         "calendar server does not support display name on calendar?  Ignoring",
                         exc_info=True,
@@ -680,7 +680,7 @@ class Calendar(DAVObject):
                 try:
                     current_display_name = await self._async_get_property(dav.DisplayName())
                     error.assert_(current_display_name == name)
-                except:
+                except Exception:
                     log.warning(
                         "calendar server does not support display name on calendar?  Ignoring",
                         exc_info=True,
@@ -973,7 +973,6 @@ class Calendar(DAVObject):
         if self.url is None:
             raise ValueError("Unexpected value None for self.url")
 
-        rv = []
         prop = dav.Prop() + cdav.CalendarData()
         root = cdav.CalendarMultiGet() + prop + [dav.Href(value=u.path) for u in event_urls]
         # RFC 4791 section 7.9: "the 'Depth' header MUST be ignored by the
@@ -1713,7 +1712,7 @@ class Calendar(DAVObject):
                 ## TODO: look more into this, I think sync_token should be directly available through response object
                 try:
                     sync_token = response.sync_token
-                except:
+                except AttributeError:
                     sync_token = response.tree.findall(".//" + dav.SyncToken.tag)[0].text
 
                 ## this is not quite right - the etag we've fetched can already be outdated
@@ -1873,7 +1872,7 @@ class ScheduleMailbox(Calendar):
                 # we ignore the type here as this is defined in sub-classes only; require more changes to
                 # properly fix in a future revision
                 self.url = self.client.url.join(URL(self.get_property(self.findprop())))  # type: ignore
-            except:
+            except Exception:
                 logging.error("something bad happened", exc_info=True)
                 error.assert_(self.client.check_scheduling_support())
                 self.url = None
@@ -1891,7 +1890,7 @@ class ScheduleMailbox(Calendar):
         if not self._items:
             try:
                 self._items = self.objects(load_objects=True)
-            except:
+            except Exception:
                 logging.debug(
                     "caldav server does not seem to support a sync-token REPORT query on a scheduling mailbox"
                 )
@@ -1904,7 +1903,7 @@ class ScheduleMailbox(Calendar):
         else:
             try:
                 self._items.sync()
-            except:
+            except Exception:
                 self._items = [
                     CalendarObjectResource(url=x[0], client=self.client) for x in self.children()
                 ]

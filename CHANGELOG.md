@@ -28,6 +28,11 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
   * async path returned an unawaited coroutine instead of the actual result.
 * `accept_invite()` (and `decline_invite()`, `tentatively_accept_invite()`) now fall back to the client username as the attendee email address when the server does not expose the `calendar-user-address-set` property (RFC6638 §2.4.1).  A `NotFoundError` with a descriptive message is raised when the username is also not an email address.  Fixes https://github.com/python-caldav/caldav/issues/399
 
+### Housekeeping
+
+* Code quality: reduced ruff ignore list (https://github.com/python-caldav/caldav/issues/634) — removed unused imports (`copy`, `lxml.etree`, `CalendarSet`, `cdav/dav` re-exports, `Optional`, `timezone`, `Event`/`Todo` type stubs), replaced bare `except:` clauses with specific exception types (`KeyError`, `AttributeError`, `Exception` where broad catching is intentional), and removed unused local variables.
+* Sync `_put()` now updates `self.url` from the `Location` header on a 302 redirect, mirroring the existing async behaviour.
+
 ### Test framework, compatibility hints, documentation, examples
 
 * RFC 6638 scheduling feature-detection infrastructure: new `scheduling`, `scheduling.mailbox`, and `scheduling.calendar-user-address-set` compatibility hints; legacy `no_scheduling` flags migrated.  Default scheduling hints set for all the servers tested.

@@ -20,7 +20,7 @@ def _to_utc_date_string(ts):
             ## in python 3.6 and higher, ts.astimezone() will assume a
             ## naive timestamp is localtime (and so do we)
             ts = ts.astimezone(utc_tz)
-        except:
+        except (OverflowError, OSError):
             ## native time stamp and the current python version is
             ## not able to treat it as localtime.
             import tzlocal
