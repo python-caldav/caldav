@@ -30,6 +30,7 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 
 ### Housekeeping
 
+* Added `funding.json` (https://fundingjson.org/) at the repository root.  Closes https://github.com/python-caldav/caldav/issues/608
 * Code quality: reduced ruff ignore list (https://github.com/python-caldav/caldav/issues/634) — removed unused imports (`copy`, `lxml.etree`, `CalendarSet`, `cdav/dav` re-exports, `Optional`, `timezone`, `Event`/`Todo` type stubs), replaced bare `except:` clauses with specific exception types (`KeyError`, `AttributeError`, `Exception` where broad catching is intentional), and removed unused local variables.
 * Sync `_put()` now updates `self.url` from the `Location` header on a 302 redirect, mirroring the existing async behaviour.
 
