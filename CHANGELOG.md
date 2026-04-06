@@ -12,20 +12,28 @@ Changelogs prior to v2.0 is pruned, but was available in the v2.x releases
 
 This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html), though for pre-releases PEP 440 takes precedence.
 
-## [Unreleased]
+## [3.2.0] - 2026-04-08
 
-### Removed
+### Added
 
-* Compatibility feature `search.text.by-uid` has been removed.  `get_object_by_uid()` already has a client-side fallback (via `_hacks="insist"`) that works on any server, so the guard was no longer needed.  Closes https://github.com/python-caldav/caldav/issues/586
+* `add_organizer()` now accepts an explicit *organizer* argument (a `Principal`, `vCalAddress`, or email string); when omitted it still defaults to the current principal.
 
 ### Fixed
 
+* `add_organizer()` - any pre-existing `ORGANIZER` field is replaced rather than duplicated.
 * Reusing a `CalDAVSearcher` across multiple `search()` calls could yield inconsistent results: the first call would return only pending tasks (correct), but subsequent calls would change behaviour because `icalendar_searcher.Searcher.check_component()` mutated the `include_completed` field from `None` to `False` as a side-effect.  Fixed by passing a copy with `include_completed` already resolved to `filter_search_results()`, leaving the original searcher object unchanged.  Fixes https://github.com/python-caldav/caldav/issues/650
 * `_resolve_properties()` would crash with `UnboundLocalError` in production mode when a server returned an empty or unrecognisable PROPFIND response (the response paths did not match the request URI and there was more than one or zero paths returned).  Fixed by returning `{}` instead of falling through to an unbound variable.  Related: https://github.com/pycalendar/calendar-cli/issues/114
 * `Calendar.get_supported_components()`
   * raised `KeyError` when the server did not include the `supported-calendar-component-set` property in its response.  RFC 4791 section 5.2.3 states this property is optional and that its absence means all component types are accepted; the method now returns the RFC default `["VEVENT", "VTODO", "VJOURNAL"]` in that case, trimmed by any known server limitations from the compatibility hints (e.g. if `save-load.todo` is `unsupported`, `VTODO` is excluded).  Fixes https://github.com/python-caldav/caldav/issues/653
   * async path returned an unawaited coroutine instead of the actual result.
 * `accept_invite()` (and `decline_invite()`, `tentatively_accept_invite()`) now fall back to the client username as the attendee email address when the server does not expose the `calendar-user-address-set` property (RFC6638 §2.4.1).  A `NotFoundError` with a descriptive message is raised when the username is also not an email address.  Fixes https://github.com/python-caldav/caldav/issues/399
+
+### Test framework, compatibility hints, documentation, examples
+
+* RFC 6638 scheduling feature-detection infrastructure: new `scheduling`, `scheduling.mailbox`, and `scheduling.calendar-user-address-set` compatibility hints; legacy `no_scheduling` flags migrated.  Default scheduling hints set for all the servers tested.
+* Calendar owner example (`examples/calendar_owner_examples.py`) demonstrating how to retrieve the owner of a calendar via `DAV:owner` and resolve their calendar-user address.  `testFindCalendarOwner` now exercises the full owner → principal → `get_vcal_address()` chain.  Closes https://github.com/python-caldav/caldav/issues/544
+* `testInviteAndRespond` implemented end-to-end: organizer creates an event, invites an attendee, attendee accepts, and the organizer verifies the updated `PARTSTAT`.  Per-server compatibility flags applied for known quirks (Baikal, Cyrus, SOGo).
+* Multi-user RFC 6638 scheduling tests wired into the Docker server setup for Cyrus and Baikal (pre-populated `user1`–`user3`/`user1`–`user5`).
 
 ## [3.1.0] - 2026-03-19
 
