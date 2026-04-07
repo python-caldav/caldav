@@ -2,7 +2,12 @@
 
 ## Read this first
 
-The most important rule: Be honest and inform about it!
+The most important rule: be honest and inform about it!
+
+Also: keep a log of the prompts used - prompts may be included in the
+git commits.
+
+## Transparency matters
 
 If you've spent hours, perhaps a full day of your time writing up a
 pull request, then I sort of owe you something.  I should spend some
@@ -26,10 +31,10 @@ explain in details why I'm rejecting the pull request.
 ## Bugfixes are (most often) welcome
 
 It's fine to ask the AI for help to analyze a bug and create a fix for
-it.  By discovering the bug, reproducing it and testing it you're adding
-real value to the project - but be transparent about AI usage and I
-expect that you will not break down and cry if I decide to reject the code
-changes.
+it.  By discovering the bug, reproducing it and testing it you're
+adding real value to the project - just be transparent about AI usage
+and do not take offence if the code changes are rejected, or completely
+rewritten.
 
 ## General rules
 
@@ -69,3 +74,34 @@ changes.
   as of 2026-02, and I can hardly see cases where the AI would break
   the Code of Conduct, but at the end of the day, it's **YOUR**
   responsibility that the contribution follows those guidelines.
+
+## Disclosure of GenAI usage, 2.2.6 - 3.2.0
+
+The maintainer started playing with Claude Code in the end of 2025 - and [blogged about it](https://www.redpill-linpro.com/techblog/2026/03/20/from-luddite-to-vibe-coder.html)
+
+Releases 2.2.6 - 3.2.0 has been heavily assisted by Claude - which is pretty obvious when looking into the commit messages.  My experiences has been mixed - sometimes it seems to be doing a better and faster job than me, other times it seems to be making a mess a lot faster than what I can do it.  Despite (or because of?) using Claude extensively, I spent much more time on it than estimated.
+
+Lots of time and efforts have been spent on doing QA on the changes, fixing up things and/or asking Claude to do a better job.  The surge of issues reported after the 3.0-release is probably unrelated to the AI usage - it's a result of trying to shoehorn both async and API changes into it without breaking backward compatbility and without duplicating too much code.  The CHANGELOG.md entry for 3.0 explicitly declared a caveat: "there are massive code changes in version 3.0, so if you're using the Python CalDAV client library in some sharp production environment, I would recommend to wait for two months before upgrading".
+
+I don't have any good log of prompts given to Claude prior to the 3.2.0-release, but some of the considerations from Claude has been stored under `docs/design`.  A copy of my [CLAUDE.md](docs/design/CLAUDE.md)-file can now be found in the same directory.
+
+Generated changes and human-made changes are often mixed up.  I prefer "logical" commits containing self-sustained changesets, one of the things I'm often asking Claude to do is to do a rebase of a branch and organize the commits in one or few logical commits with descriptive commit messages.
+
+## Future plans of GenAI-usage
+
+Post-3.2.0 and until further notice I will try to go more back to the old ways for doing the "core development tasks" - new features and complex refactoring.  If nothing else, it's important for maintaining my brain cells, coding skills and making sure all the changes sticks to my memory.  The new policy is that GenAI-tools should be used mainly for improving quality, not speeding up the development.
+
+I still intend to use GenAI heavily for certain tasks, like:
+
+* Minor bugfixes - with test code.  The bugfix itself may often be a simple one-line change, but debugging and writing up the tests is tedious work.
+* Maintaining the integration test framework.  It's hard work, even when using Claude.  Thanks to Claude I've now been able to put up an extensive "battery" of test servers that I'm checking regularly towards.  This is something I've started on several times since 2013 but except for the two integrated python servers I never managed to get any lasting solutions.  It's very useful to be able to easily test the library towards a wide range of servers - the majority of the bug reports are compatibility issues.  The more servers I have for testing every release, the less troubles will be discovered downstream.
+* Other CI-related frameworks and "boiler plate" for things like automated testing of code embedded in the documentation, QA on the commit messages before I push my git commits out from my laptop, etc.  It increases quality, although being quite outside the "core business" of the CalDAV library.  Doing it manually (and reading through all the documentation out there) would have stolen lots of valuable time that could have been used for coding.
+* Writing up test code.  I've always thought that "test driven development" is a good idea (write test code first, then the logic), but it's quite often both tedious and difficult.  Claude can make them really fast.  It still needs some QA, care should be taken to ensure it's testing the right thing.
+* Code reviews.  The more "eyes" looking into the software, the better - it seems Claude is equally good at spotting the problems and mistakes in my code as I'm on spotting the problems and mistakes in the code Claude generates.
+* Debugging.  It's easy to get stuck and spend tons of time on debugging - sometimes (but not always) Claude can find them easily.
+* Various mundane and tedious work (i.e. "I left a TODO-note in the code over there, could you have look into it and eliminate it?").
+* Development of the companion caldav-server-checker tool - writing up checks to discover various server issues may be really tedious and time-consuming, and (most of the time) easy for Claude to get right.  The alternative to using GenAI would probably be to have half as many checks.  I find those checks very useful.
+* Investigations of different architectural choices - like with the async work I had claude develop different design approaches and chose the one that I felt most comfortable with (though I'm still not sure that I did the right choice).
+* Reading RFCs and quickly give a pointer to the relevant sections, or verifying that the code is according to the standards or not.
+
+I will do some research on how to log prompts and chat.
