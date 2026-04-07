@@ -40,14 +40,28 @@ async def main():
 asyncio.run(main())
 ```
 
-The documentation was updated as of version 2.0, and is available at https://caldav.readthedocs.io/
+## Documentation and other links
+
+The user documentation (up-to-date with version 3.2) is embedded under `docs/source` - a rendered copy is available at https://caldav.readthedocs.io/
+
+Other documentation:
+
+* [This file](README.md)
+* [Changelog](CHANGELOG.md)
+* [Contributors guide](CONTRIBUTING.md)
+* [Contact information](CONTACT.md)
+* [Code of Conduct](CODE_OF_CONDUCT)
+* [Security Policy](SECURITY.md)
+* [AI policy and AI disclaimer](AI-POLICY.md)
+* [Apache License](COPYING.APACHE)
+* [GPL license](COPYING.GPL)
 
 The package is published at [Pypi](https://pypi.org/project/caldav)
 
 ## HTTP Libraries
 
-The sync client uses [niquests](https://github.com/jawah/niquests) by default (with fallback to [requests](https://requests.readthedocs.io/)). The async client uses [httpx](https://www.python-httpx.org/) if installed (`pip install caldav[async]`), otherwise falls back to niquests. See [HTTP Library Configuration](docs/source/http-libraries.rst) for details.
+The sync client uses [niquests](https://github.com/jawah/niquests) by default (with fallback to [requests](https://requests.readthedocs.io/)). The async client uses [httpx](https://www.python-httpx.org/) if installed, otherwise falls back to niquests. See [HTTP Library Configuration](docs/source/http-libraries.rst) for details.
 
-Licences:
+## Licences
 
-Caldav is dual-licensed under the [GNU GENERAL PUBLIC LICENSE Version 3](COPYING.GPL) or the [Apache License 2.0](COPYING.APACHE).
+The caldav library is dual-licensed under the [GNU GENERAL PUBLIC LICENSE Version 3](COPYING.GPL) or the [Apache License 2.0](COPYING.APACHE).
