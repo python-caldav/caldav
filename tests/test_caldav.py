@@ -2440,7 +2440,7 @@ END:VCALENDAR
 
     def testCreateChildParent(self):
         self.skip_unless_support("save-load.event")
-        self.skip_on_compatibility_flag("no_relships")
+        self.skip_unless_support("save-load.icalendar.related-to")
         c = self._fixCalendar(supported_calendar_component_set=["VEVENT"])
         parent = c.add_event(
             dtstart=datetime(2022, 12, 26, 19, 15),
@@ -2602,7 +2602,7 @@ END:VCALENDAR
 
         some_todo.save()
 
-        self.skip_on_compatibility_flag("no_relships")
+        self.skip_unless_support("save-load.icalendar.related-to")
 
         parent = c.add_todo(
             dtstart=datetime(2022, 12, 26, 19, 00, tzinfo=utc),
