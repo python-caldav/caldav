@@ -78,12 +78,15 @@ class FeatureSet:
             }
         },
         "get-current-user-principal": {
-            "description": "Support for RFC5397, current principal extension.  Most CalDAV servers have this, but it is an extension to the DAV standard.  Possibly observed missing on mail.ru,DavMail gateway and it is possible to configure the support in some sabre-based servers"},
+            "description": "Support for RFC5397, current principal extension.  Most CalDAV servers have this, but it is an extension to the DAV standard.  Possibly observed missing on mail.ru, DavMail gateway and it is possible to configure the support in some sabre-based servers",
+            "links": ["https://datatracker.ietf.org/doc/html/rfc5397"],
+        },
         "get-current-user-principal.has-calendar": {
             "type": "server-observation",
             "description": "Principal has one or more calendars.  Some servers and providers comes with a pre-defined calendar for each user, for other servers a calendar has to be explicitly created (supported means there exists a calendar - it may be because the calendar was already provisioned together with the principal, or it may be because a calendar was created manually, the checks can't see the difference)"},
         "get-supported-components": {
             "description": "Server returns the supported-calendar-component-set property (RFC 4791 section 5.2.3).  The property is optional: when absent the RFC mandates that all component types are accepted, so 'unsupported' here is not a protocol violation, but the client cannot determine the actual supported set without trying.",
+            "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-5.2.3"],
         },
         "create-calendar.with-supported-component-types": {
             "description": "Server honours the supported-calendar-component-set restriction set at MKCALENDAR time.  When 'full', the server both advertises (or enforces) the restriction; when 'unsupported', the restriction is silently ignored (wrong-type objects can be saved to the calendar).  When 'ungraceful', the MKCALENDAR request itself fails when a component set is specified.",
@@ -110,7 +113,11 @@ class FeatureSet:
         },
         "create-calendar": {
             "default": { "support": "full" },
-            "description": "RFC4791 says that \"support for MKCALENDAR on the server is only RECOMMENDED and not REQUIRED because some calendar stores only support one calendar per user (or principal), and those are typically pre-created for each account\".  Hence a conformant server may opt to not support creating calendars, this is often seen for cloud services (some services allows extra calendars to be made, but not through the CalDAV protocol).  (RFC4791 also says that the server MAY support MKCOL in section 8.5.2.  I do read it as MKCOL may be used for creating calendars - which is weird, since section 8.5.2 is titled \"external attachments\".  We should consider testing this as well)",
+            "description": "RFC4791 section 5.3.1 says that \"support for MKCALENDAR on the server is only RECOMMENDED and not REQUIRED because some calendar stores only support one calendar per user (or principal), and those are typically pre-created for each account\".  Hence a conformant server may opt to not support creating calendars, this is often seen for cloud services (some services allows extra calendars to be made, but not through the CalDAV protocol).  (RFC5689 extended MKCOL may also be used to create calendar collections as an alternative to MKCALENDAR.  We should consider testing this as well)",
+            "links": [
+                "https://datatracker.ietf.org/doc/html/rfc4791#section-5.3.1",
+                "https://datatracker.ietf.org/doc/html/rfc5689",
+            ],
         },
         "create-calendar.auto": {
             "default": { "support": "unsupported" },
@@ -120,7 +127,8 @@ class FeatureSet:
             "description": "It's possible to set the displayname on a calendar upon creation"
         },
         "delete-calendar": {
-            "description": "RFC4791 says nothing about deletion of calendars, so the server implementation is free to choose weather this should be supported or not.  Section 3.2.3.2 in RFC 6638 says that if a calendar is deleted, all the calendarobjectresources on the calendar should also be deleted - but it's a bit unclear if this only applies to scheduling objects or not.  Some calendar servers moves the object to a trashcan rather than deleting it"
+            "description": "RFC4791 says nothing about deletion of calendars, so the server implementation is free to choose weather this should be supported or not.  Section 3.2.3.2 in RFC 6638 says that if a calendar is deleted, all the calendarobjectresources on the calendar should also be deleted - but it's a bit unclear if this only applies to scheduling objects or not.  Some calendar servers moves the object to a trashcan rather than deleting it",
+            "links": ["https://datatracker.ietf.org/doc/html/rfc6638#section-3.2.3.2"],
         },
         "delete-calendar.free-namespace": {
             "description": "The delete operations clears the namespace, so that another calendar with the same ID/name can be created"
@@ -163,8 +171,15 @@ class FeatureSet:
         "save-load.event.timezone": {
             "description": "The server accepts events with non-UTC timezone information. When unsupported or broken, the server may reject events with timezone data (e.g., return 403 Forbidden). Related to GitHub issue https://github.com/python-caldav/caldav/issues/372."
         },
+        "save-load.icalendar": {"description": "Is it possible to save icalendar data to the calendar?  (Most likely yes - but we need a parent to collect all icalendar compatibility problems that aren't specific to one kind of object resource types"},
+        "save-load.icalendar.related-to": {
+            "description": "The server preserves RELATED-TO properties (RFC5545 section 3.8.4.5) when saving and loading calendar objects. When 'unsupported', the server may typically silently strip all RELATED-TO lines",
+            "default": {"support": "full"},
+            "links": ["https://datatracker.ietf.org/doc/html/rfc5545#section-3.8.4.5"],
+        },
         "search": {
-            "description": "calendar MUST support searching for objects using the REPORT method, as specified in RFC4791, section 7"
+            "description": "calendar MUST support searching for objects using the REPORT method, as specified in RFC4791, section 7",
+            "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-7"],
         },
         "search.comp-type.optional": {
             "description": "In all the search examples in the RFC, comptype is given during a search, the client specifies if it's event or tasks or journals that is wanted.  However, as I read the RFC this is not required.  If omitted, the server should deliver all objects.  Many servers will not return anything if the COMPTYPE filter is not set.  Other servers will return 404"
@@ -176,48 +191,85 @@ class FeatureSet:
         ## TODO - there is still quite a lot of search-related
         ## stuff that hasn't been moved from the old "quirk list"
         "search.time-range": {
-            "description": "Search for time or date ranges should work.  This is specified in RFC4791, section 7.4 and section 9.9"},
+            "description": "Search for time or date ranges should work.  This is specified in RFC4791, section 7.4 and section 9.9",
+            "links": [
+                "https://datatracker.ietf.org/doc/html/rfc4791#section-7.4",
+                "https://datatracker.ietf.org/doc/html/rfc4791#section-9.9",
+            ],
+        },
         "search.time-range.accurate": {
             "description": "Time-range searches should only return events/todos that actually fall within the requested time range. Some servers incorrectly return recurring events whose recurrences fall outside (after) the search interval, or events with no recurrences in the requested time range at all. RFC4791 section 9.9 specifies that a VEVENT component overlaps a time range if the condition (start < search_end AND end > search_start) is true.",
             "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-9.9"],
         },
         "search.time-range.todo": {"description": "basic time range searches for tasks works", "default": {"support": "full"}},
         "search.time-range.todo.old-dates": {"description": "time range searches for tasks with old dates (e.g. year 2000) work - some servers enforce a min-date-time restriction"},
+        "search.time-range.todo.duration": {
+            "description": "Time-range searches correctly handle VTODOs that specify their interval via DTSTART+DURATION (without a DUE property). RFC4791 section 9.9 specifies that such tasks overlap a time range if DTSTART+DURATION falls within the range. When 'unsupported', the server ignores DURATION and fails to find such tasks.",
+            "default": {"support": "full"},
+            "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-9.9"],
+        },
+        "search.time-range.todo.open-start": {
+            "description": "Time-range searches with only an end bound (no start) correctly exclude tasks whose DTSTART is after the end bound. RFC4791 section 9.9: a VTODO with both DTSTART and DUE should not overlap if its DTSTART > search_end. When 'broken', the server incorrectly returns future tasks.",
+            "default": {"support": "full"},
+            "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-9.9"],
+        },
         "search.time-range.event": {"description": "basic time range searches for event works", "default": {"support": "full"}},
         "search.time-range.event.old-dates": {"description": "time range searches for events with old dates (e.g. year 2000) work - some servers enforce a min-date-time restriction"},
         "search.time-range.journal": {"description": "basic time range searches for journal works"},
-        "search.time-range.alarm": {"description": "Time range searches for alarms work. The server supports searching for events based on when their alarms trigger, as specified in RFC4791 section 9.9"},
+        "search.time-range.alarm": {
+            "description": "Time range searches for alarms work. The server supports searching for events based on when their alarms trigger, as specified in RFC4791 section 9.9",
+            "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-9.9"],
+        },
         "search.unlimited-time-range": {
             "description": "A REPORT without a time-range filter should return all matching objects regardless of when they occur. Some servers (e.g. OX App Suite) use a sliding window for REPORT requests without a time range, returning only objects within approximately ±1 year of now and potentially missing older or far-future objects.",
             "default": {"support": "full"},
         },
         "search.is-not-defined": {
             "description": "Supports searching for objects where properties is-not-defined according to rfc4791 section 9.7.4",
-            "default": {"support": "full"}
+            "default": {"support": "full"},
+            "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-9.7.4"],
         },
         "search.is-not-defined.category": { ## TODO: this should most likely be removed - it was a client bug fixed in icalendar-search 1.0.5, not a server error. (Discovered in the last minute before releasing caldav v3.0.0 - I won't touch it now)
-            "description": "Supports searching for objects where the CATEGORIES property is not defined (RFC4791 section 9.7.4). Some servers support is-not-defined for other properties (e.g. CLASS) but silently return wrong results or nothing when applied to CATEGORIES"
+            "description": "Supports searching for objects where the CATEGORIES property is not defined (RFC4791 section 9.7.4). Some servers support is-not-defined for other properties (e.g. CLASS) but silently return wrong results or nothing when applied to CATEGORIES",
+            "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-9.7.4"],
         },
         "search.is-not-defined.dtend": { ## TODO: this should most likely be removed - it was a client bug fixed in icalendar-search 1.0.5, not a server error. (Discovered in the last minute before releasing caldav v3.0.0 - I won't touch it now)
-            "description": "Supports searching for objects where the DTEND property is not defined (RFC4791 section 9.7.4). Some servers support is-not-defined for some properties but not DTEND"
+            "description": "Supports searching for objects where the DTEND property is not defined (RFC4791 section 9.7.4). Some servers support is-not-defined for some properties but not DTEND",
+            "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-9.7.4"],
         },
         "search.is-not-defined.class": {
-            "description": "Supports searching for objects where the CLASS property is not defined (RFC4791 section 9.7.4). Some servers support is-not-defined for CLASS but not for other properties like CATEGORIES"
+            "description": "Supports searching for objects where the CLASS property is not defined (RFC4791 section 9.7.4). Some servers support is-not-defined for CLASS but not for other properties like CATEGORIES",
+            "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-9.7.4"],
         },
         "search.text": {
             "description": "Search for text attributes should work"
         },
         "search.text.case-sensitive": {
-            "description": "In RFC4791, section-9.7.5, a text-match may pass a collation, and i;ascii-casemap MUST be the default, this is not checked (yet - TODO) by the caldav-server-checker project.  Section 7.5 describes that the servers also are REQUIRED to support i;octet.  The definitions of those collations are given in RFC4790, i;octet is a case-sensitive byte-by-byte comparition (fastest).  search.text.case-sensitive is supported if passing the i;octet collation to search causes the search to be case-sensitive."
+            "description": "In RFC4791, section-9.7.5, a text-match may pass a collation, and i;ascii-casemap MUST be the default, this is not checked (yet - TODO) by the caldav-server-checker project.  Section 7.5 describes that the servers also are REQUIRED to support i;octet.  The definitions of those collations are given in RFC4790, i;octet is a case-sensitive byte-by-byte comparition (fastest).  search.text.case-sensitive is supported if passing the i;octet collation to search causes the search to be case-sensitive.",
+            "links": [
+                "https://datatracker.ietf.org/doc/html/rfc4791#section-9.7.5",
+                "https://datatracker.ietf.org/doc/html/rfc4791#section-7.5",
+                "https://datatracker.ietf.org/doc/html/rfc4790",
+            ],
         },
         "search.text.case-insensitive": {
-            "description": "The i;ascii-casemap requires ascii-characters to be case-insensitive, while non-ascii characters are compared byte-by-byte (case-sensitive).  Proper unicode case-insensitive searches may be supported by the server, but it's not a requirement in the RFC.  As for now, we consider case-insensitive searches to be supported if the i;ascii-casemap collation does what it's supposed to do..  In the future we may consider adding a search.text.case-insensitive.unicode. (i;unicode-casemap is defined in RFC5051)"
+            "description": "The i;ascii-casemap requires ascii-characters to be case-insensitive, while non-ascii characters are compared byte-by-byte (case-sensitive).  Proper unicode case-insensitive searches may be supported by the server, but it's not a requirement in the RFC.  As for now, we consider case-insensitive searches to be supported if the i;ascii-casemap collation does what it's supposed to do..  In the future we may consider adding a search.text.case-insensitive.unicode. (i;unicode-casemap is defined in RFC5051)",
+            "links": [
+                "https://datatracker.ietf.org/doc/html/rfc4791#section-9.7.5",
+                "https://datatracker.ietf.org/doc/html/rfc5051",
+            ],
         },
         "search.text.substring": {
-            "description": "According to RFC4791 the search done should be a substring search.  The search.text.substring feature is set if the calendar server does this (as opposed to only return full matches).  Substring matches does not always make sense, but it's mandated by the RFC.  When a server does a substring match on some properties but an exact match on others, the support should be marked as fragile.  Except for categories, which are handled in search.text.category.substring"
+            "description": "According to RFC4791 the search done should be a substring search.  The search.text.substring feature is set if the calendar server does this (as opposed to only return full matches).  Substring matches does not always make sense, but it's mandated by the RFC.  When a server does a substring match on some properties but an exact match on others, the support should be marked as fragile.  Except for categories, which are handled in search.text.category.substring",
+            "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-9.7.5"],
         },
         "search.text.category": {
-            "description": "Search for category should work.  This is not explicitly specified in RFC4791, but covered in section 9.7.5.  No examples targets categories explicitly, but there are some text match examples in section 7.8.6 and following sections"},
+            "description": "Search for category should work.  This is not explicitly specified in RFC4791, but covered in section 9.7.5.  No examples targets categories explicitly, but there are some text match examples in section 7.8.6 and following sections",
+            "links": [
+                "https://datatracker.ietf.org/doc/html/rfc4791#section-9.7.5",
+                "https://datatracker.ietf.org/doc/html/rfc4791#section-7.8.6",
+            ],
+        },
         "search.text.category.substring": {
             "description": "Substring search for category should work according to the RFC.  I.e., search for mil should match family,finance",
         },
@@ -259,7 +311,8 @@ class FeatureSet:
             "description": "Server expand should work correctly also if a recurrence set with exceptions is given"
         },
         "sync-token": {
-            "description": "RFC6578 sync-collection reports are supported. Server provides sync tokens that can be used to efficiently retrieve only changed objects since last sync. Support can be 'full', 'fragile' (occasionally returns more content than expected), or 'unsupported'. Behaviour 'time-based' indicates second-precision tokens requiring sleep(1) between operations"
+            "description": "RFC6578 sync-collection reports are supported. Server provides sync tokens that can be used to efficiently retrieve only changed objects since last sync. Support can be 'full', 'fragile' (occasionally returns more content than expected), or 'unsupported'. Behaviour 'time-based' indicates second-precision tokens requiring sleep(1) between operations",
+            "links": ["https://datatracker.ietf.org/doc/html/rfc6578"],
         },
         "sync-token.delete": {
             "description": "Server correctly handles sync-collection reports after objects have been deleted from the calendar (solved in Nextcloud in https://github.com/nextcloud/server/pull/44130)"
@@ -270,7 +323,10 @@ class FeatureSet:
         },
         "scheduling.mailbox": {
             "description": "Server provides schedule-inbox and schedule-outbox collections for the principal (RFC6638 sections 2.1-2.2). When unsupported, calls to schedule_inbox() or schedule_outbox() raise NotFoundError.",
-            "links": ["https://datatracker.ietf.org/doc/html/rfc6638#section-2.1"],
+            "links": [
+                "https://datatracker.ietf.org/doc/html/rfc6638#section-2.1",
+                "https://datatracker.ietf.org/doc/html/rfc6638#section-2.2",
+            ],
             "default": {"support": "full"},
         },
         "scheduling.calendar-user-address-set": {
@@ -283,10 +339,20 @@ class FeatureSet:
                 "https://datatracker.ietf.org/doc/html/rfc6638#section-4.1",
             ],
         },
-        'freebusy-query': {'description': "freebusy queries come in two flavors, one query can be done towards a CalDAV server as defined in RFC4791, another query can be done through the scheduling framework, RFC 6638.  Only RFC4791 is tested for as today"},
+        'freebusy-query': {
+            'description': "freebusy queries come in two flavors, one query can be done towards a CalDAV server as defined in RFC4791, another query can be done through the scheduling framework, RFC 6638.",
+            "links": [
+                "https://datatracker.ietf.org/doc/html/rfc4791#section-7.10",
+                "https://datatracker.ietf.org/doc/html/rfc6638",
+            ],
+        },
         "freebusy-query.rfc4791": {
             "description": "Server supports free/busy-query REPORT as specified in RFC4791 section 7.10. The REPORT allows clients to query for free/busy time information for a time range. Servers without this support will typically return an error (often 500 Internal Server Error or 501 Not Implemented). Note: RFC6638 defines a different freebusy mechanism for scheduling",
             "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-7.10"],
+        },
+        "freebusy-query.rfc6638": {
+            "description": "Server supports RFC6638 freebusy query via the schedule outbox (section 4.1). The organizer POSTs a VFREEBUSY component to the schedule outbox and the server returns free/busy information for the listed attendees. Distinct from freebusy-query.rfc4791 which queries a calendar collection directly via REPORT.",
+            "links": ["https://datatracker.ietf.org/doc/html/rfc6638#section-4.1"],
         },
         "principal-search": {
             "description": "Server supports searching for principals (CalDAV users). Principal search may be restricted for privacy/security reasons on many servers.  (not to be confused with get-current-user-principal)"
@@ -725,13 +791,6 @@ class FeatureSet:
 ## * Perhaps some more readable format should be considered (yaml?).
 ## * Consider how to get this into the documentation
 incompatibility_description = {
-    'no_default_calendar':
-        """The given user starts without an assigned default calendar """
-        """(or without pre-defined calendars at all)""",
-
-    'no_freebusy_rfc6638':
-        """Server does not support a freebusy-request as per RFC6638""",
-
     'calendar_order':
         """Server supports (nonstandard) calendar ordering property""",
 
@@ -745,10 +804,6 @@ incompatibility_description = {
 
     'event_by_url_is_broken':
         """A GET towards a valid calendar object resource URL will yield 404 (wtf?)""",
-
-    'no_delete_event':
-        """Zimbra does not support deleting an event, probably because event_by_url is broken""",
-
 
     'propfind_allprop_failure':
         """The propfind test fails ... """
@@ -765,27 +820,10 @@ incompatibility_description = {
         """date searches for todo-items will (only) find tasks that has either """
         """a dtstart or due set""",
 
-    'vtodo_datesearch_nostart_future_tasks_delivered':
-        """Future tasks are yielded when doing a date search with some end timestamp and without start timestamp and the task contains both dtstart and due, but not duration (xandikos 0.2.12)""",
-
     'vtodo_no_due_infinite_duration':
         """date search will find todo-items without due if dtstart is """
         """before the date search interval.  This is in breach of rfc4791"""
         """section 9.9""",
-
-    'vtodo_no_dtstart_infinite_duration':
-        """date search will find todo-items without dtstart if due is """
-        """after the date search interval.  This is in breach of rfc4791"""
-        """section 9.9""",
-
-    'vtodo_no_dtstart_search_weirdness':
-       """Zimbra is weird""",
-
-    'vtodo_no_duration_search_weirdness':
-       """Zimbra is weird""",
-
-    'vtodo_with_due_weirdness':
-       """Zimbra is weird""",
 
     'vtodo-cannot-be-uncompleted':
         """If a VTODO object has been set with STATUS:COMPLETE, it's not possible to delete the COMPLTEDED attribute and change back to STATUS:IN-ACTION""",
@@ -803,23 +841,11 @@ incompatibility_description = {
     'dav_not_supported':
         """when asked, the server may claim it doesn't support the DAV protocol.  Observed by one baikal server, should be investigated more (TODO) and robur""",
 
-    'text_search_is_case_insensitive':
-        """Probably not supporting the collation used by the caldav library""",
-
-    'date_search_ignores_duration':
-        """Date search with search interval overlapping event interval works on events with dtstart and dtend, but not on events with dtstart and due""",
-
-    'date_todo_search_ignores_duration':
-        """Same as above, but specifically for tasks""",
-
    'fastmail_buggy_noexpand_date_search':
         """The 'blissful anniversary' recurrent example event is returned when asked for a no-expand date search for some timestamps covering a completely different date""",
 
     'non_existing_raises_other':
         """Robur raises AuthorizationError when trying to access a non-existing resource (while 404 is expected).  Probably so one shouldn't probe a public name space?""",
-
-    'no_relships':
-        """The calendar server does not support child/parent relationships between calendar components""",
 
     'robur_rrule_freq_yearly_expands_monthly':
         """Robur expands a yearly event into a monthly event.  I believe I've reported this one upstream at some point, but can't find back to it""",
@@ -844,26 +870,17 @@ xandikos_v0_2_12 = {
     'principal-search': {'support': 'unsupported'},
     'freebusy-query.rfc4791': {'support': 'ungraceful', 'behaviour': '500 internal server error'},
     "scheduling": {"support": "unsupported"},
-    "old_flags":  [
     ## https://github.com/jelmer/xandikos/issues/8
-    'date_todo_search_ignores_duration',
-    'vtodo_datesearch_nostart_future_tasks_delivered',
-
-    ## The test with an rrule and an overridden event passes as
-    ## long as it's with timestamps.  With dates, xandikos gets
-    ## into troubles.  I've chosen to edit the test to use timestamp
-    ## rather than date, just to have the test exercised ... but we
-    ## should report this upstream
-    #'broken_expand_on_exceptions',
-
-    ]
+    'search.time-range.todo.duration': {'support': 'unsupported'},
+    'search.time-range.todo.open-start': {'support': 'broken', 'behaviour': 'future tasks are returned when only an end bound is given'},
 }
 
 xandikos = {
     ## We've sometimes been observing internal server errors on freebusy-requests.
     ## Should do more research on it next time it shows up.
 
-    ## Component type filtering is required - searches must specify event=True or todo=True
+    ## Component type filtering is required - searches must specify event=True or todo=True;
+    ## omitting it returns empty results.
     "search.comp-type.optional": "unsupported",
 
     ## Principal property search returns 403 (not implemented)
@@ -877,11 +894,10 @@ xandikos = {
     "auto-connect.url": {"domain": "localhost", "scheme": "http", "basepath": "/"},
 
     "scheduling": {"support": "unsupported"},
-    "old_flags":  [
-    ## https://github.com/jelmer/xandikos/issues/8
-    'date_todo_search_ignores_duration',
-    'vtodo_datesearch_nostart_future_tasks_delivered',
-    ]
+    ## Open-start searches (end bound only) cause xandikos to return 500 when processing
+    ## VTODOs that have DURATION but no DUE (no DUE means the index falls back to a full
+    ## file check, which crashes in the time-range calculation).
+    'search.time-range.todo.open-start': {'support': 'ungraceful', 'behaviour': 'xandikos returns 500 on open-start searches involving DURATION-only VTODOs'},
 }
 
 ## This seems to work as of version 3.5.4 of Radicale.
@@ -933,9 +949,12 @@ nextcloud = {
     #'save-load.todo.mixed-calendar': {'support': 'unsupported'}, ## Why?  It started complaining about this just recently.
     'principal-search.by-name.self': {'support': 'unsupported'},
     'principal-search': {'support': 'ungraceful'},
-    'old_flags': ['unique_calendar_ids'],
+    #'old_flags': ['unique_calendar_ids'],
     ## I'm surprised, I'm quite sure this was passing earlier.  Caldav commit a98d50490b872e9b9d8e93e2e401c936ad193003, caldav server checker commit 3cae24cf99da1702b851b5a74a9b88c8e5317dad
-    'search.combined-is-logical-and': False
+    'search.combined-is-logical-and': False,
+    ## Observed with Nextcloud 33: server delivers iTIP notification to the inbox AND
+    ## auto-schedules into the attendee's calendar (same quirk as Baikal/Cyrus).
+    "scheduling.mailbox.inbox-delivery": {"support": "quirk", "behaviour": "server delivers iTIP notification to inbox AND auto-schedules into calendar"},
 }
 
 ## TODO: Latest - mismatch between config and test script in delete-calendar.free-namespace ... and create-calendar.set-displayname?
@@ -984,10 +1003,9 @@ zimbra = {
     ## auto-processed into the attendee's calendar; no iTIP notification appears in the inbox.
     "scheduling.mailbox": True,
     "scheduling.mailbox.inbox-delivery": {"support": "unsupported"},
+    'save-load.icalendar.related-to': {'support': 'unsupported'},
 
     "old_flags": [
-    ## apparently, zimbra has no journal support
-
     ## setting display name in zimbra does not work (display name,
     ## calendar-ID and URL is the same, the display name cannot be
     ## changed, it can only be given if no calendar-ID is given.  In
@@ -995,9 +1013,7 @@ zimbra = {
     ## then the calendar would not be available on the old URL
     ## anymore)
     ## 'event_by_url_is_broken' removed - works in zimbra/zcs-foss:latest
-    'no_delete_event',
     'vtodo_datesearch_notime_task_is_skipped',
-    'no_relships',
 
     ## TODO: I just discovered that when searching for a date some
     ## years after a recurring daily event was made, the event does
@@ -1042,10 +1058,10 @@ bedework = {
     "scheduling.mailbox": {"support": "unknown"},
 
     ## TODO: play with this and see if it's needed
+    'save-load.icalendar.related-to': {'support': 'broken', 'behaviour': 'first RELATED-TO line is preserved but subsequent RELATED-TO lines are stripped'},
     'old_flags': [
     'propfind_allprop_failure',
     'duplicates_not_allowed',
-    'no_relships' ## relships seems to work as long as it's one RELATED-TO-line, but as soon as there are multiple lines the implementation seems broken
     ],
 
 }
@@ -1118,7 +1134,6 @@ cyrus = {
         "support": "quirk",
         "behaviour": "server delivers iTIP notification to inbox AND auto-schedules into calendar",
     },
-    'old_flags': []
 }
 
 ## See comments on https://github.com/python-caldav/caldav/issues/3
@@ -1153,11 +1168,11 @@ davical = {
         #'nofreebusy', ## for old versions
         ## 'fragile_sync_tokens' removed - covered by 'sync-token': {'support': 'fragile'}
         'vtodo_datesearch_nodtstart_task_is_skipped', ## no issue raised yet
-        'date_todo_search_ignores_duration',
         'calendar_color',
         'calendar_order',
         'vtodo_datesearch_notime_task_is_skipped',
-    ]
+    ],
+    'search.time-range.todo.duration': {'support': 'unsupported'},
 }
 
 sogo = {
@@ -1261,9 +1276,8 @@ robur = {
     "scheduling": {"support": "unsupported"},
     'old_flags': [
         'non_existing_raises_other', ## AuthorizationError instead of NotFoundError
-        'no_supported_components_support',
-        'no_relships',
     ],
+    'save-load.icalendar.related-to': {'support': 'unsupported'},
     'test-calendar': {'cleanup-regime': 'wipe-calendar'},
     "sync-token": {"support": "ungraceful"},
     "get-supported-components": {"support": "unsupported"},
@@ -1302,9 +1316,6 @@ posteo = {
     'sync-token': {'support': 'ungraceful'},
     'principal-search': {'support': 'unsupported'},
     "scheduling": {"support": "unsupported"},
-    'old_flags': [
-        #'no_recurring_todo', ## todo
-    ]
 }
 
 #calendar_mail_ru = [
@@ -1446,9 +1457,6 @@ purelymail = {
     },
     ## Known, work in progress
     "scheduling": {"support": "unsupported"},
-    'old_flags': [
-        'no_supported_components_support',
-    ],
     ## Known, not a breach of standard
     "get-supported-components": {"support": "unsupported"},
 }
@@ -1539,9 +1547,7 @@ ox = {
     'principal-search.list-all': {'support': 'unsupported'},
     ## Cross-calendar duplicate UID test fails (AuthorizationError creating second calendar)
     'save.duplicate-uid.cross-calendar': {'support': 'ungraceful'},
-    'old_flags': [
-        'no_relships',
-    ],
+    'save-load.icalendar.related-to': {'support': 'unsupported'},
     ## OX App Suite has complex user provisioning; cross-user scheduling tests not yet set up.
     "scheduling.mailbox.inbox-delivery": {"support": "unknown"},
 }
