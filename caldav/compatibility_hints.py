@@ -163,6 +163,11 @@ class FeatureSet:
         "save-load.event.timezone": {
             "description": "The server accepts events with non-UTC timezone information. When unsupported or broken, the server may reject events with timezone data (e.g., return 403 Forbidden). Related to GitHub issue https://github.com/python-caldav/caldav/issues/372."
         },
+        "save-load.icalendar": {"description": "Is it possible to save icalendar data to the calendar?  (Most likely yes - but we need a parent to collect all icalendar compatibility problems that aren't specific to one kind of object resource types"},
+        "save-load.icalendar.related-to": {
+            "description": "The server preserves RELATED-TO properties (RFC5545 section 3.8.4.5) when saving and loading calendar objects. When 'unsupported', the server may typically silently strip all RELATED-TO lines",
+            "default": {"support": "full"},
+        },
         "search": {
             "description": "calendar MUST support searching for objects using the REPORT method, as specified in RFC4791, section 7"
         },
@@ -183,6 +188,14 @@ class FeatureSet:
         },
         "search.time-range.todo": {"description": "basic time range searches for tasks works", "default": {"support": "full"}},
         "search.time-range.todo.old-dates": {"description": "time range searches for tasks with old dates (e.g. year 2000) work - some servers enforce a min-date-time restriction"},
+        "search.time-range.todo.duration": {
+            "description": "Time-range searches correctly handle VTODOs that specify their interval via DTSTART+DURATION (without a DUE property). RFC4791 section 9.9 specifies that such tasks overlap a time range if DTSTART+DURATION falls within the range. When 'unsupported', the server ignores DURATION and fails to find such tasks.",
+            "default": {"support": "full"},
+        },
+        "search.time-range.todo.open-start": {
+            "description": "Time-range searches with only an end bound (no start) correctly exclude tasks whose DTSTART is after the end bound. RFC4791 section 9.9: a VTODO with both DTSTART and DUE should not overlap if its DTSTART > search_end. When 'broken', the server incorrectly returns future tasks.",
+            "default": {"support": "full"},
+        },
         "search.time-range.event": {"description": "basic time range searches for event works", "default": {"support": "full"}},
         "search.time-range.event.old-dates": {"description": "time range searches for events with old dates (e.g. year 2000) work - some servers enforce a min-date-time restriction"},
         "search.time-range.journal": {"description": "basic time range searches for journal works"},
@@ -754,9 +767,6 @@ incompatibility_description = {
         """date searches for todo-items will (only) find tasks that has either """
         """a dtstart or due set""",
 
-    'vtodo_datesearch_nostart_future_tasks_delivered':
-        """Future tasks are yielded when doing a date search with some end timestamp and without start timestamp and the task contains both dtstart and due, but not duration (xandikos 0.2.12)""",
-
     'vtodo_no_due_infinite_duration':
         """date search will find todo-items without due if dtstart is """
         """before the date search interval.  This is in breach of rfc4791"""
@@ -778,17 +788,11 @@ incompatibility_description = {
     'dav_not_supported':
         """when asked, the server may claim it doesn't support the DAV protocol.  Observed by one baikal server, should be investigated more (TODO) and robur""",
 
-    'date_todo_search_ignores_duration':
-        """Same as above, but specifically for tasks""",
-
    'fastmail_buggy_noexpand_date_search':
         """The 'blissful anniversary' recurrent example event is returned when asked for a no-expand date search for some timestamps covering a completely different date""",
 
     'non_existing_raises_other':
         """Robur raises AuthorizationError when trying to access a non-existing resource (while 404 is expected).  Probably so one shouldn't probe a public name space?""",
-
-    'no_relships':
-        """The calendar server does not support child/parent relationships between calendar components""",
 
     'robur_rrule_freq_yearly_expands_monthly':
         """Robur expands a yearly event into a monthly event.  I believe I've reported this one upstream at some point, but can't find back to it""",
@@ -813,19 +817,9 @@ xandikos_v0_2_12 = {
     'principal-search': {'support': 'unsupported'},
     'freebusy-query.rfc4791': {'support': 'ungraceful', 'behaviour': '500 internal server error'},
     "scheduling": {"support": "unsupported"},
-    "old_flags":  [
     ## https://github.com/jelmer/xandikos/issues/8
-    'date_todo_search_ignores_duration',
-    'vtodo_datesearch_nostart_future_tasks_delivered',
-
-    ## The test with an rrule and an overridden event passes as
-    ## long as it's with timestamps.  With dates, xandikos gets
-    ## into troubles.  I've chosen to edit the test to use timestamp
-    ## rather than date, just to have the test exercised ... but we
-    ## should report this upstream
-    #'broken_expand_on_exceptions',
-
-    ]
+    'search.time-range.todo.duration': {'support': 'unsupported'},
+    'search.time-range.todo.open-start': {'support': 'broken', 'behaviour': 'future tasks are returned when only an end bound is given'},
 }
 
 xandikos = {
@@ -846,11 +840,9 @@ xandikos = {
     "auto-connect.url": {"domain": "localhost", "scheme": "http", "basepath": "/"},
 
     "scheduling": {"support": "unsupported"},
-    "old_flags":  [
     ## https://github.com/jelmer/xandikos/issues/8
-    'date_todo_search_ignores_duration',
-    'vtodo_datesearch_nostart_future_tasks_delivered',
-    ]
+    'search.time-range.todo.duration': {'support': 'unsupported'},
+    'search.time-range.todo.open-start': {'support': 'broken', 'behaviour': 'future tasks are returned when only an end bound is given'},
 }
 
 ## This seems to work as of version 3.5.4 of Radicale.
@@ -953,6 +945,7 @@ zimbra = {
     ## auto-processed into the attendee's calendar; no iTIP notification appears in the inbox.
     "scheduling.mailbox": True,
     "scheduling.mailbox.inbox-delivery": {"support": "unsupported"},
+    'save-load.icalendar.related-to': {'support': 'unsupported'},
 
     "old_flags": [
     ## setting display name in zimbra does not work (display name,
@@ -963,7 +956,6 @@ zimbra = {
     ## anymore)
     ## 'event_by_url_is_broken' removed - works in zimbra/zcs-foss:latest
     'vtodo_datesearch_notime_task_is_skipped',
-    'no_relships',
 
     ## TODO: I just discovered that when searching for a date some
     ## years after a recurring daily event was made, the event does
@@ -1008,10 +1000,10 @@ bedework = {
     "scheduling.mailbox": {"support": "unknown"},
 
     ## TODO: play with this and see if it's needed
+    'save-load.icalendar.related-to': {'support': 'broken', 'behaviour': 'first RELATED-TO line is preserved but subsequent RELATED-TO lines are stripped'},
     'old_flags': [
     'propfind_allprop_failure',
     'duplicates_not_allowed',
-    'no_relships' ## relships seems to work as long as it's one RELATED-TO-line, but as soon as there are multiple lines the implementation seems broken
     ],
 
 }
@@ -1118,11 +1110,11 @@ davical = {
         #'nofreebusy', ## for old versions
         ## 'fragile_sync_tokens' removed - covered by 'sync-token': {'support': 'fragile'}
         'vtodo_datesearch_nodtstart_task_is_skipped', ## no issue raised yet
-        'date_todo_search_ignores_duration',
         'calendar_color',
         'calendar_order',
         'vtodo_datesearch_notime_task_is_skipped',
-    ]
+    ],
+    'search.time-range.todo.duration': {'support': 'unsupported'},
 }
 
 sogo = {
@@ -1226,8 +1218,8 @@ robur = {
     "scheduling": {"support": "unsupported"},
     'old_flags': [
         'non_existing_raises_other', ## AuthorizationError instead of NotFoundError
-        'no_relships',
     ],
+    'save-load.icalendar.related-to': {'support': 'unsupported'},
     'test-calendar': {'cleanup-regime': 'wipe-calendar'},
     "sync-token": {"support": "ungraceful"},
     "get-supported-components": {"support": "unsupported"},
@@ -1497,9 +1489,7 @@ ox = {
     'principal-search.list-all': {'support': 'unsupported'},
     ## Cross-calendar duplicate UID test fails (AuthorizationError creating second calendar)
     'save.duplicate-uid.cross-calendar': {'support': 'ungraceful'},
-    'old_flags': [
-        'no_relships',
-    ],
+    'save-load.icalendar.related-to': {'support': 'unsupported'},
     ## OX App Suite has complex user provisioning; cross-user scheduling tests not yet set up.
     "scheduling.mailbox.inbox-delivery": {"support": "unknown"},
 }
