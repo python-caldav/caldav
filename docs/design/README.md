@@ -1,6 +1,6 @@
 # CalDAV Design Documents
 
-End-user documentation belongs under `../srv` and more or less important stuff belongs under the project root.  "Everything else" may be thrown into this directory.
+End-user documentation belongs under `../source` and more or less important stuff belongs under the project root.  "Everything else" may be thrown into this directory.
 
 Admittedly it's quite much junk in this folder.
 
