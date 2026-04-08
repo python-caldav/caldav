@@ -725,13 +725,6 @@ class FeatureSet:
 ## * Perhaps some more readable format should be considered (yaml?).
 ## * Consider how to get this into the documentation
 incompatibility_description = {
-    'no_default_calendar':
-        """The given user starts without an assigned default calendar """
-        """(or without pre-defined calendars at all)""",
-
-    'no_freebusy_rfc6638':
-        """Server does not support a freebusy-request as per RFC6638""",
-
     'calendar_order':
         """Server supports (nonstandard) calendar ordering property""",
 
@@ -745,10 +738,6 @@ incompatibility_description = {
 
     'event_by_url_is_broken':
         """A GET towards a valid calendar object resource URL will yield 404 (wtf?)""",
-
-    'no_delete_event':
-        """Zimbra does not support deleting an event, probably because event_by_url is broken""",
-
 
     'propfind_allprop_failure':
         """The propfind test fails ... """
@@ -773,20 +762,6 @@ incompatibility_description = {
         """before the date search interval.  This is in breach of rfc4791"""
         """section 9.9""",
 
-    'vtodo_no_dtstart_infinite_duration':
-        """date search will find todo-items without dtstart if due is """
-        """after the date search interval.  This is in breach of rfc4791"""
-        """section 9.9""",
-
-    'vtodo_no_dtstart_search_weirdness':
-       """Zimbra is weird""",
-
-    'vtodo_no_duration_search_weirdness':
-       """Zimbra is weird""",
-
-    'vtodo_with_due_weirdness':
-       """Zimbra is weird""",
-
     'vtodo-cannot-be-uncompleted':
         """If a VTODO object has been set with STATUS:COMPLETE, it's not possible to delete the COMPLTEDED attribute and change back to STATUS:IN-ACTION""",
 
@@ -802,12 +777,6 @@ incompatibility_description = {
 
     'dav_not_supported':
         """when asked, the server may claim it doesn't support the DAV protocol.  Observed by one baikal server, should be investigated more (TODO) and robur""",
-
-    'text_search_is_case_insensitive':
-        """Probably not supporting the collation used by the caldav library""",
-
-    'date_search_ignores_duration':
-        """Date search with search interval overlapping event interval works on events with dtstart and dtend, but not on events with dtstart and due""",
 
     'date_todo_search_ignores_duration':
         """Same as above, but specifically for tasks""",
@@ -933,7 +902,7 @@ nextcloud = {
     #'save-load.todo.mixed-calendar': {'support': 'unsupported'}, ## Why?  It started complaining about this just recently.
     'principal-search.by-name.self': {'support': 'unsupported'},
     'principal-search': {'support': 'ungraceful'},
-    'old_flags': ['unique_calendar_ids'],
+    #'old_flags': ['unique_calendar_ids'],
     ## I'm surprised, I'm quite sure this was passing earlier.  Caldav commit a98d50490b872e9b9d8e93e2e401c936ad193003, caldav server checker commit 3cae24cf99da1702b851b5a74a9b88c8e5317dad
     'search.combined-is-logical-and': False
 }
@@ -986,8 +955,6 @@ zimbra = {
     "scheduling.mailbox.inbox-delivery": {"support": "unsupported"},
 
     "old_flags": [
-    ## apparently, zimbra has no journal support
-
     ## setting display name in zimbra does not work (display name,
     ## calendar-ID and URL is the same, the display name cannot be
     ## changed, it can only be given if no calendar-ID is given.  In
@@ -995,7 +962,6 @@ zimbra = {
     ## then the calendar would not be available on the old URL
     ## anymore)
     ## 'event_by_url_is_broken' removed - works in zimbra/zcs-foss:latest
-    'no_delete_event',
     'vtodo_datesearch_notime_task_is_skipped',
     'no_relships',
 
@@ -1118,7 +1084,6 @@ cyrus = {
         "support": "quirk",
         "behaviour": "server delivers iTIP notification to inbox AND auto-schedules into calendar",
     },
-    'old_flags': []
 }
 
 ## See comments on https://github.com/python-caldav/caldav/issues/3
@@ -1261,7 +1226,6 @@ robur = {
     "scheduling": {"support": "unsupported"},
     'old_flags': [
         'non_existing_raises_other', ## AuthorizationError instead of NotFoundError
-        'no_supported_components_support',
         'no_relships',
     ],
     'test-calendar': {'cleanup-regime': 'wipe-calendar'},
@@ -1302,9 +1266,6 @@ posteo = {
     'sync-token': {'support': 'ungraceful'},
     'principal-search': {'support': 'unsupported'},
     "scheduling": {"support": "unsupported"},
-    'old_flags': [
-        #'no_recurring_todo', ## todo
-    ]
 }
 
 #calendar_mail_ru = [
@@ -1446,9 +1407,6 @@ purelymail = {
     },
     ## Known, work in progress
     "scheduling": {"support": "unsupported"},
-    'old_flags': [
-        'no_supported_components_support',
-    ],
     ## Known, not a breach of standard
     "get-supported-components": {"support": "unsupported"},
 }
