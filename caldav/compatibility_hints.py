@@ -340,7 +340,7 @@ class FeatureSet:
             ],
         },
         'freebusy-query': {
-            'description': "freebusy queries come in two flavors, one query can be done towards a CalDAV server as defined in RFC4791, another query can be done through the scheduling framework, RFC 6638.  Only RFC4791 is tested for as today",
+            'description': "freebusy queries come in two flavors, one query can be done towards a CalDAV server as defined in RFC4791, another query can be done through the scheduling framework, RFC 6638.",
             "links": [
                 "https://datatracker.ietf.org/doc/html/rfc4791#section-7.10",
                 "https://datatracker.ietf.org/doc/html/rfc6638",
@@ -349,6 +349,10 @@ class FeatureSet:
         "freebusy-query.rfc4791": {
             "description": "Server supports free/busy-query REPORT as specified in RFC4791 section 7.10. The REPORT allows clients to query for free/busy time information for a time range. Servers without this support will typically return an error (often 500 Internal Server Error or 501 Not Implemented). Note: RFC6638 defines a different freebusy mechanism for scheduling",
             "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-7.10"],
+        },
+        "freebusy-query.rfc6638": {
+            "description": "Server supports RFC6638 freebusy query via the schedule outbox (section 4.1). The organizer POSTs a VFREEBUSY component to the schedule outbox and the server returns free/busy information for the listed attendees. Distinct from freebusy-query.rfc4791 which queries a calendar collection directly via REPORT.",
+            "links": ["https://datatracker.ietf.org/doc/html/rfc6638#section-4.1"],
         },
         "principal-search": {
             "description": "Server supports searching for principals (CalDAV users). Principal search may be restricted for privacy/security reasons on many servers.  (not to be confused with get-current-user-principal)"
@@ -875,7 +879,8 @@ xandikos = {
     ## We've sometimes been observing internal server errors on freebusy-requests.
     ## Should do more research on it next time it shows up.
 
-    ## Component type filtering is required - searches must specify event=True or todo=True
+    ## Component type filtering is required - searches must specify event=True or todo=True;
+    ## omitting it returns empty results.
     "search.comp-type.optional": "unsupported",
 
     ## Principal property search returns 403 (not implemented)
@@ -889,9 +894,10 @@ xandikos = {
     "auto-connect.url": {"domain": "localhost", "scheme": "http", "basepath": "/"},
 
     "scheduling": {"support": "unsupported"},
-    ## https://github.com/jelmer/xandikos/issues/8
-    'search.time-range.todo.duration': {'support': 'unsupported'},
-    'search.time-range.todo.open-start': {'support': 'broken', 'behaviour': 'future tasks are returned when only an end bound is given'},
+    ## Open-start searches (end bound only) cause xandikos to return 500 when processing
+    ## VTODOs that have DURATION but no DUE (no DUE means the index falls back to a full
+    ## file check, which crashes in the time-range calculation).
+    'search.time-range.todo.open-start': {'support': 'ungraceful', 'behaviour': 'xandikos returns 500 on open-start searches involving DURATION-only VTODOs'},
 }
 
 ## This seems to work as of version 3.5.4 of Radicale.
