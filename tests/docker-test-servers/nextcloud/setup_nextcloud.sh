@@ -61,6 +61,17 @@ fi
 docker exec $CONTAINER_NAME php occ app:disable bruteforcesettings || true
 docker exec $CONTAINER_NAME php occ config:system:set auth.bruteforce.protection.enabled --value=false --type=boolean || true
 
+echo "Disabling CalDAV trashbin (calendar retention)..."
+# Setting calendarRetentionObligation to '0' (the string) disables the trashbin in
+# CalDavBackend::deleteCalendar and deleteCalendarObject, making deletes permanent.
+# Without this, deleted calendars/objects are soft-deleted and accumulate in the DB,
+# causing UNIQUE constraint violations when tests recreate a calendar with the same slug
+# (Nextcloud 33+ reuses the calendarid, keeping old soft-deleted objects, so adding
+# an event with the same UID fails).
+docker exec $CONTAINER_NAME php occ config:app:set dav calendarRetentionObligation --value=0 || true
+# Purge any leftover soft-deleted calendars/objects from previous runs
+docker exec $CONTAINER_NAME php occ dav:retention:clean-up || true
+
 echo "Configuring CalDAV rate limits..."
 docker exec $CONTAINER_NAME php occ config:app:set dav rateLimitCalendarCreation --value=99999 || true
 docker exec $CONTAINER_NAME php occ config:app:set dav maximumCalendarsSubscriptions --value=-1 || true

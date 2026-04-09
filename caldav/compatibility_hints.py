@@ -945,7 +945,10 @@ nextcloud = {
     'principal-search': {'support': 'ungraceful'},
     #'old_flags': ['unique_calendar_ids'],
     ## I'm surprised, I'm quite sure this was passing earlier.  Caldav commit a98d50490b872e9b9d8e93e2e401c936ad193003, caldav server checker commit 3cae24cf99da1702b851b5a74a9b88c8e5317dad
-    'search.combined-is-logical-and': False
+    'search.combined-is-logical-and': False,
+    ## Observed with Nextcloud 33: server delivers iTIP notification to the inbox AND
+    ## auto-schedules into the attendee's calendar (same quirk as Baikal/Cyrus).
+    "scheduling.mailbox.inbox-delivery": {"support": "quirk", "behaviour": "server delivers iTIP notification to inbox AND auto-schedules into calendar"},
 }
 
 ## TODO: Latest - mismatch between config and test script in delete-calendar.free-namespace ... and create-calendar.set-displayname?
