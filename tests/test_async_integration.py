@@ -470,6 +470,63 @@ class AsyncFunctionalTestsBaseClass:
             f"ORGANIZER {org!r} should match the principal's address {expected_vcal!r}"
         )
 
+    @pytest.mark.asyncio
+    async def test_save_with_invites(self, async_client: Any, async_calendar: Any) -> None:
+        """Calendar.save_with_invites() must return a coroutine and save the event for async clients.
+
+        Verifies that save_with_invites() detects the async client, returns a coroutine,
+        and that awaiting it properly sets ORGANIZER (via _async_add_organizer) and saves
+        the object to the server (via _async_save).
+        """
+        import uuid
+
+        self.skip_unless_support("scheduling.calendar-user-address-set")
+
+        principal = await async_client.principal()
+        vcal_address = await principal._async_get_vcal_address()
+
+        base = _get_base_date()
+        ical = make_event(
+            f"async-swi-{uuid.uuid4()}@example.com",
+            "Async Save-With-Invites Test",
+            base + timedelta(days=2),
+            base + timedelta(days=2, hours=1),
+        )
+
+        ## Must return a coroutine, not execute synchronously
+        coro = async_calendar.save_with_invites(ical, [vcal_address])
+        assert asyncio.iscoroutine(coro), (
+            f"save_with_invites() on async client must return a coroutine, got {type(coro)}"
+        )
+        obj = await coro
+
+        assert obj.id is not None, "save_with_invites() must return an object with an id"
+        org = obj.icalendar_component.get("organizer")
+        assert org is not None, "ORGANIZER must be set after awaiting save_with_invites()"
+
+    @pytest.mark.asyncio
+    async def test_principal_freebusy_request(self, async_client: Any) -> None:
+        """Principal.freebusy_request() must return a coroutine for async clients.
+
+        Verifies that freebusy_request() detects the async client and delegates to
+        _async_freebusy_request, which awaits _async_schedule_outbox(), add_organizer(),
+        and client.post() rather than executing them synchronously.
+        """
+        self.skip_unless_support("scheduling.mailbox")
+        self.skip_unless_support("scheduling.calendar-user-address-set")
+
+        principal = await async_client.principal()
+        vcal_address = await principal._async_get_vcal_address()
+
+        base = _get_base_date()
+
+        coro = principal.freebusy_request(base, base + timedelta(hours=2), [vcal_address])
+        assert asyncio.iscoroutine(coro), (
+            f"Principal.freebusy_request() on async client must return a coroutine, got {type(coro)}"
+        )
+        ## We don't assert much about the response structure — just that awaiting doesn't raise
+        await coro
+
 
 # ==================== Dynamic Test Class Generation ====================
 #
