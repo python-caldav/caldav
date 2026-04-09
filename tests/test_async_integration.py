@@ -439,6 +439,37 @@ class AsyncFunctionalTestsBaseClass:
         assert len(todos) >= 1
         assert all(isinstance(t, AsyncTodo) for t in todos)
 
+    @pytest.mark.asyncio
+    async def test_add_organizer_no_arg(self, async_client: Any, async_calendar: Any) -> None:
+        """add_organizer() without args returns a coroutine and sets ORGANIZER (issue #524).
+
+        Verifies the async fix: on an AsyncDAVClient principal() is a coroutine
+        function, so add_organizer() must await it via _async_add_organizer()
+        rather than calling it synchronously (which would raise AttributeError
+        on the returned coroutine object).
+        """
+        from caldav import Event
+
+        self.skip_unless_support("scheduling.calendar-user-address-set")
+
+        principal = await async_client.principal()
+        expected_vcal = await principal._async_get_vcal_address()
+
+        event = Event(client=async_client, data=ev1(), parent=async_calendar)
+
+        ## Must return a coroutine, not raise AttributeError
+        coro = event.add_organizer()
+        assert asyncio.iscoroutine(coro), (
+            f"add_organizer() on async client must return a coroutine, got {type(coro)}"
+        )
+        await coro
+
+        org = event.icalendar_component.get("organizer")
+        assert org is not None, "ORGANIZER must be set after awaiting add_organizer()"
+        assert str(org) == str(expected_vcal), (
+            f"ORGANIZER {org!r} should match the principal's address {expected_vcal!r}"
+        )
+
 
 # ==================== Dynamic Test Class Generation ====================
 #

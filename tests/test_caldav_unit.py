@@ -2190,11 +2190,75 @@ END:VCALENDAR"""
         result.close()
 
     def test_accept_invite_raises_not_implemented_for_async_client(self):
-        """accept_invite() must raise NotImplementedError for async clients (not silently fail)."""
+        """accept_invite() must raise Notimplemented for async clients (not silently fail)."""
         client, calendar = self._make_async_client_and_calendar()
         event = Event(client=client, url="/calendar/ev1.ics", data=ev1, parent=calendar)
         with pytest.raises(NotImplementedError):
             event.accept_invite()
+
+    def test_add_organizer_explicit_arg_is_sync_safe_for_async_client(self):
+        """add_organizer(explicit_arg) is pure in-memory: no network call, no await needed.
+        It must work correctly even when the client is an async client."""
+        from icalendar import vCalAddress
+
+        client, calendar = self._make_async_client_and_calendar()
+        event = Event(client=client, url="/calendar/ev1.ics", data=ev1, parent=calendar)
+        event.add_organizer("organizer@example.com")
+        organizer = event.icalendar_component.get("organizer")
+        assert "organizer@example.com" in str(organizer)
+
+    def test_add_organizer_no_arg_returns_coroutine_for_async_client(self):
+        """add_organizer() without args must return a coroutine for async clients.
+
+        Bug: today the code calls self.client.principal().get_vcal_address() without
+        checking is_async_client first.  On an AsyncDAVClient, principal() is a
+        coroutine function, so principal() returns a coroutine object.  Calling
+        .get_vcal_address() on that coroutine raises AttributeError instead of
+        returning a usable coroutine to the caller.
+        """
+        import asyncio
+
+        from icalendar import vCalAddress
+
+        client, calendar = self._make_async_client_and_calendar()
+        event = Event(client=client, url="/calendar/ev1.ics", data=ev1, parent=calendar)
+
+        async def async_principal():
+            p = mock.MagicMock()
+            p._async_get_vcal_address = mock.AsyncMock(
+                return_value=vCalAddress("mailto:me@example.com")
+            )
+            return p
+
+        client.principal = async_principal
+
+        result = event.add_organizer()
+        assert asyncio.iscoroutine(result), (
+            f"expected a coroutine from add_organizer() on async client, got {type(result)}"
+        )
+        result.close()
+
+    def test_add_organizer_no_arg_async_awaited_sets_organizer(self):
+        """Awaiting add_organizer() without args on async client must set ORGANIZER correctly."""
+        import asyncio
+
+        from icalendar import vCalAddress
+
+        client, calendar = self._make_async_client_and_calendar()
+        event = Event(client=client, url="/calendar/ev1.ics", data=ev1, parent=calendar)
+
+        async def async_principal():
+            p = mock.MagicMock()
+            p._async_get_vcal_address = mock.AsyncMock(
+                return_value=vCalAddress("mailto:me@example.com")
+            )
+            return p
+
+        client.principal = async_principal
+
+        asyncio.run(event.add_organizer())
+        organizer = event.icalendar_component.get("organizer")
+        assert str(organizer) == "mailto:me@example.com"
 
 
 class TestRateLimitHelpers:
@@ -2866,6 +2930,18 @@ END:VCALENDAR
         ev.client = None
         with pytest.raises(ValueError):
             ev.add_organizer()
+
+    def test_add_organizer_principal_object(self):
+        """Passing a Principal object directly calls get_vcal_address() on it."""
+        from icalendar import vCalAddress
+
+        ev = self._make_event()
+        mock_principal = mock.MagicMock(spec=Principal)
+        mock_principal.get_vcal_address.return_value = vCalAddress("mailto:organizer@example.com")
+        ev.add_organizer(mock_principal)
+        organizer = ev.icalendar_component.get("organizer")
+        assert str(organizer) == "mailto:organizer@example.com"
+        mock_principal.get_vcal_address.assert_called_once()
 
 
 class TestChangeAttendeeStatusFallback:
