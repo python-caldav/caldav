@@ -9,6 +9,11 @@ The caldav library provides an async-first API for use with Python's
 * Integrate with async web frameworks (FastAPI, aiohttp, etc.)
 * Build responsive applications that don't block on I/O
 
+Caveat
+======
+
+A "Sans-IO" design pattern was followed, in a hope that it would make it possible to have one library serve both the async and sync use case through relatively similar APIs without duplicating too much code.  In retro-perspective I'm not sure this was the best idea for the CalDAV library.  Be aware that there are still exists code paths that works well with the sync code but will blow up if you try using it with the async code.
+
 Quick Start
 ===========
 

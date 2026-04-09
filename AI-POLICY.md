@@ -4,8 +4,8 @@
 
 The most important rule: be honest and inform about it!
 
-Keep a log of the prompts used - prompts may be included in the
-git commits.
+Keep a log of the prompts used - prompts should be included in the
+git commits
 
 Tools should be used for improving the quality of the project, not for
 rapidly adding new features.
