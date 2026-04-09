@@ -396,6 +396,22 @@ class Principal(DAVObject):
         ret.params["cutype"] = vText(cutype)
         return ret
 
+    async def _async_get_vcal_address(self) -> "vCalAddress":
+        """Async counterpart of get_vcal_address() for use with AsyncDAVClient."""
+        from icalendar import vCalAddress, vText
+
+        cn = await self.get_display_name()
+        addresses_el = await self.get_property(cdav.CalendarUserAddressSet(), parse_props=False)
+        if addresses_el is None:
+            raise error.NotFoundError("No calendar user addresses given from server")
+        assert not [x for x in addresses_el if x.tag != dav.Href().tag]
+        addresses = sorted(list(addresses_el), key=lambda x: -int(x.get("preferred", 0)))
+        cutype = await self.get_property(cdav.CalendarUserType())
+        ret = vCalAddress(addresses[0].text)
+        ret.params["cn"] = vText(cn)
+        ret.params["cutype"] = vText(cutype)
+        return ret
+
     @property
     def calendar_home_set(self):
         if not self._calendar_home_set:
