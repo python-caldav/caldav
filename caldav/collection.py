@@ -396,6 +396,22 @@ class Principal(DAVObject):
         ret.params["cutype"] = vText(cutype)
         return ret
 
+    async def _async_get_vcal_address(self) -> "vCalAddress":
+        """Async counterpart of get_vcal_address() for use with AsyncDAVClient."""
+        from icalendar import vCalAddress, vText
+
+        cn = await self.get_display_name()
+        addresses_el = await self.get_property(cdav.CalendarUserAddressSet(), parse_props=False)
+        if addresses_el is None:
+            raise error.NotFoundError("No calendar user addresses given from server")
+        assert not [x for x in addresses_el if x.tag != dav.Href().tag]
+        addresses = sorted(list(addresses_el), key=lambda x: -int(x.get("preferred", 0)))
+        cutype = await self.get_property(cdav.CalendarUserType())
+        ret = vCalAddress(addresses[0].text)
+        ret.params["cn"] = vText(cn)
+        ret.params["cutype"] = vText(cutype)
+        return ret
+
     @property
     def calendar_home_set(self):
         if not self._calendar_home_set:
@@ -461,7 +477,11 @@ class Principal(DAVObject):
     def freebusy_request(self, dtstart, dtend, attendees):
         """Sends a freebusy-request for some attendee to the server
         as per RFC6638.
+
+        For async clients, returns a coroutine that must be awaited.
         """
+        if self.is_async_client:
+            return self._async_freebusy_request(dtstart, dtend, attendees)
 
         freebusy_ical = icalendar.Calendar()
         freebusy_ical.add("prodid", "-//tobixen/python-caldav//EN")
@@ -481,6 +501,31 @@ class Principal(DAVObject):
             caldavobj.add_attendee(attendee, no_default_parameters=True)
 
         response = self.client.post(
+            outbox.url,
+            caldavobj.data,
+            headers={"Content-Type": "text/calendar; charset=utf-8"},
+        )
+        return response._find_objects_and_props()
+
+    async def _async_freebusy_request(self, dtstart, dtend, attendees):
+        """Async implementation of freebusy_request() for async clients."""
+        freebusy_ical = icalendar.Calendar()
+        freebusy_ical.add("prodid", "-//tobixen/python-caldav//EN")
+        freebusy_ical.add("version", "2.0")
+        freebusy_ical.add("method", "REQUEST")
+        uid = uuid.uuid4()
+        freebusy_comp = icalendar.FreeBusy()
+        freebusy_comp.add("uid", uid)
+        freebusy_comp.add("dtstamp", datetime.now())
+        freebusy_comp.add("dtstart", dtstart)
+        freebusy_comp.add("dtend", dtend)
+        freebusy_ical.add_component(freebusy_comp)
+        outbox = await self._async_schedule_outbox()
+        caldavobj = FreeBusy(data=freebusy_ical, parent=outbox)
+        await caldavobj.add_organizer()
+        for attendee in attendees:
+            caldavobj.add_attendee(attendee, no_default_parameters=True)
+        response = await self.client.post(
             outbox.url,
             caldavobj.data,
             headers={"Content-Type": "text/calendar; charset=utf-8"},
@@ -516,6 +561,11 @@ class Principal(DAVObject):
         Returns the schedule outbox, as defined in RFC6638
         """
         return ScheduleOutbox(principal=self)
+
+    async def _async_schedule_outbox(self) -> "ScheduleOutbox":
+        """Async version of schedule_outbox() for async clients."""
+        url = await self.get_property(cdav.ScheduleOutboxURL())
+        return ScheduleOutbox(client=self.client, url=url)
 
 
 class Calendar(DAVObject):
@@ -793,7 +843,11 @@ class Calendar(DAVObject):
         """
         sends a schedule request to the server.  Equivalent with add_event, add_todo, etc,
         but the attendees will be added to the ical object before sending it to the server.
+
+        For async clients, returns a coroutine that must be awaited.
         """
+        if self.is_async_client:
+            return self._async_save_with_invites(ical, attendees, **attendeeoptions)
         ## TODO: consolidate together with save_*
         obj = self._calendar_comp_class_by_data(ical)(data=ical, client=self.client)
         obj.parent = self
@@ -802,6 +856,17 @@ class Calendar(DAVObject):
             obj.add_attendee(attendee, **attendeeoptions)
         obj.id = obj.icalendar_instance.walk("vevent")[0]["uid"]
         obj.save()
+        return obj
+
+    async def _async_save_with_invites(self, ical: str, attendees, **attendeeoptions):
+        """Async implementation of save_with_invites() for async clients."""
+        obj = self._calendar_comp_class_by_data(ical)(data=ical, client=self.client)
+        obj.parent = self
+        await obj.add_organizer()
+        for attendee in attendees:
+            obj.add_attendee(attendee, **attendeeoptions)
+        obj.id = obj.icalendar_instance.walk("vevent")[0]["uid"]
+        await obj.save()
         return obj
 
     def _use_or_create_ics(self, ical, objtype, **ical_data):

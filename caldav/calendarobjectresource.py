@@ -182,12 +182,18 @@ class CalendarObjectResource(DAVObject):
         * A plain email address string (``"mailto:"`` is prepended automatically)
 
         Any pre-existing ORGANIZER field is removed before the new one is added.
+
+        For async clients, when *organizer* is omitted the method returns a
+        coroutine that must be awaited.  When an explicit *organizer* is supplied
+        the method is always synchronous (pure in-memory, no network call).
         """
         from .collection import Principal as _Principal  ## avoid circular import
 
         if organizer is None:
             if self.client is None:
                 raise ValueError("Unexpected value None for self.client")
+            if self.is_async_client:
+                return self._async_add_organizer()
             organizer_obj = self.client.principal().get_vcal_address()
         elif isinstance(organizer, _Principal):
             organizer_obj = organizer.get_vcal_address()
@@ -201,6 +207,15 @@ class CalendarObjectResource(DAVObject):
         else:
             raise ValueError(f"Unsupported organizer type: {type(organizer)!r}")
 
+        self._set_organizer(organizer_obj)
+
+    async def _async_add_organizer(self) -> None:
+        """Async implementation of add_organizer() for async clients."""
+        principal = await self.client.principal()
+        self._set_organizer(await principal._async_get_vcal_address())
+
+    def _set_organizer(self, organizer_obj: vCalAddress) -> None:
+        """Write the ORGANIZER property onto the icalendar component (sync, no I/O)."""
         ievent = self.icalendar_component
         ievent.pop("organizer", None)
         ievent.add("organizer", organizer_obj)

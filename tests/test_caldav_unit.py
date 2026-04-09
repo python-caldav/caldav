@@ -2190,11 +2190,150 @@ END:VCALENDAR"""
         result.close()
 
     def test_accept_invite_raises_not_implemented_for_async_client(self):
-        """accept_invite() must raise NotImplementedError for async clients (not silently fail)."""
+        """accept_invite() must raise Notimplemented for async clients (not silently fail)."""
         client, calendar = self._make_async_client_and_calendar()
         event = Event(client=client, url="/calendar/ev1.ics", data=ev1, parent=calendar)
         with pytest.raises(NotImplementedError):
             event.accept_invite()
+
+    def test_add_organizer_explicit_arg_is_sync_safe_for_async_client(self):
+        """add_organizer(explicit_arg) is pure in-memory: no network call, no await needed.
+        It must work correctly even when the client is an async client."""
+        from icalendar import vCalAddress
+
+        client, calendar = self._make_async_client_and_calendar()
+        event = Event(client=client, url="/calendar/ev1.ics", data=ev1, parent=calendar)
+        event.add_organizer("organizer@example.com")
+        organizer = event.icalendar_component.get("organizer")
+        assert "organizer@example.com" in str(organizer)
+
+    def test_add_organizer_no_arg_returns_coroutine_for_async_client(self):
+        """add_organizer() without args must return a coroutine for async clients.
+
+        Bug: today the code calls self.client.principal().get_vcal_address() without
+        checking is_async_client first.  On an AsyncDAVClient, principal() is a
+        coroutine function, so principal() returns a coroutine object.  Calling
+        .get_vcal_address() on that coroutine raises AttributeError instead of
+        returning a usable coroutine to the caller.
+        """
+        import asyncio
+
+        from icalendar import vCalAddress
+
+        client, calendar = self._make_async_client_and_calendar()
+        event = Event(client=client, url="/calendar/ev1.ics", data=ev1, parent=calendar)
+
+        async def async_principal():
+            p = mock.MagicMock()
+            p._async_get_vcal_address = mock.AsyncMock(
+                return_value=vCalAddress("mailto:me@example.com")
+            )
+            return p
+
+        client.principal = async_principal
+
+        result = event.add_organizer()
+        assert asyncio.iscoroutine(result), (
+            f"expected a coroutine from add_organizer() on async client, got {type(result)}"
+        )
+        result.close()
+
+    def test_add_organizer_no_arg_async_awaited_sets_organizer(self):
+        """Awaiting add_organizer() without args on async client must set ORGANIZER correctly."""
+        import asyncio
+
+        from icalendar import vCalAddress
+
+        client, calendar = self._make_async_client_and_calendar()
+        event = Event(client=client, url="/calendar/ev1.ics", data=ev1, parent=calendar)
+
+        async def async_principal():
+            p = mock.MagicMock()
+            p._async_get_vcal_address = mock.AsyncMock(
+                return_value=vCalAddress("mailto:me@example.com")
+            )
+            return p
+
+        client.principal = async_principal
+
+        asyncio.run(event.add_organizer())
+        organizer = event.icalendar_component.get("organizer")
+        assert str(organizer) == "mailto:me@example.com"
+
+    def test_save_with_invites_returns_coroutine_for_async_client(self):
+        """save_with_invites() must return a coroutine for async clients (not silently drop save/organizer)."""
+        import asyncio
+
+        from icalendar import vCalAddress
+
+        client, calendar = self._make_async_client_and_calendar()
+
+        async def async_principal():
+            p = mock.MagicMock()
+            p._async_get_vcal_address = mock.AsyncMock(
+                return_value=vCalAddress("mailto:me@example.com")
+            )
+            return p
+
+        client.principal = async_principal
+
+        result = calendar.save_with_invites(ev1, [])
+        assert asyncio.iscoroutine(result), (
+            f"expected coroutine from save_with_invites() on async client, got {type(result)}"
+        )
+        result.close()
+
+    def test_save_with_invites_async_awaited_sets_organizer_and_saves(self):
+        """Awaiting save_with_invites() on async client must set ORGANIZER and call put."""
+        import asyncio
+
+        from icalendar import vCalAddress
+
+        client, calendar = self._make_async_client_and_calendar()
+
+        async def async_principal():
+            p = mock.MagicMock()
+            p._async_get_vcal_address = mock.AsyncMock(
+                return_value=vCalAddress("mailto:me@example.com")
+            )
+            return p
+
+        client.principal = async_principal
+        saved = False
+
+        async def fake_async_put(*args, **kwargs):
+            nonlocal saved
+            saved = True
+            r = mock.MagicMock()
+            r.status = 201
+            r.headers = []
+            return r
+
+        client.put = fake_async_put
+
+        obj = asyncio.run(calendar.save_with_invites(ev1, []))
+        assert saved, "save_with_invites() did not call put for async client"
+        org = obj.icalendar_component.get("organizer")
+        assert org is not None, "ORGANIZER must be set after awaiting save_with_invites()"
+        assert "me@example.com" in str(org)
+
+    def test_principal_freebusy_request_returns_coroutine_for_async_client(self):
+        """Principal.freebusy_request() must return a coroutine for async clients."""
+        import asyncio
+        from datetime import datetime
+
+        client, calendar = self._make_async_client_and_calendar()
+        principal = Principal(client=client, url="/principals/me/")
+
+        result = principal.freebusy_request(
+            datetime(2024, 1, 1, 10, 0, 0),
+            datetime(2024, 1, 1, 12, 0, 0),
+            [],
+        )
+        assert asyncio.iscoroutine(result), (
+            f"expected coroutine from Principal.freebusy_request() on async client, got {type(result)}"
+        )
+        result.close()
 
 
 class TestRateLimitHelpers:
@@ -2866,6 +3005,18 @@ END:VCALENDAR
         ev.client = None
         with pytest.raises(ValueError):
             ev.add_organizer()
+
+    def test_add_organizer_principal_object(self):
+        """Passing a Principal object directly calls get_vcal_address() on it."""
+        from icalendar import vCalAddress
+
+        ev = self._make_event()
+        mock_principal = mock.MagicMock(spec=Principal)
+        mock_principal.get_vcal_address.return_value = vCalAddress("mailto:organizer@example.com")
+        ev.add_organizer(mock_principal)
+        organizer = ev.icalendar_component.get("organizer")
+        assert str(organizer) == "mailto:organizer@example.com"
+        mock_principal.get_vcal_address.assert_called_once()
 
 
 class TestChangeAttendeeStatusFallback:

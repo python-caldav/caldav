@@ -1263,6 +1263,46 @@ class RepeatedFunctionalTestsBaseClass:
         calendar_user_address_set = self.principal.calendar_user_address_set()
         me_a_participant = self.principal.get_vcal_address()
 
+    def testAddOrganizer(self):
+        """add_organizer() sets ORGANIZER from the current principal (issue #524).
+
+        Tests three paths:
+        - no-arg: principal is looked up from the client (requires
+          scheduling.calendar-user-address-set).
+        - explicit email string: pure in-memory, no server interaction.
+        - explicit vCalAddress: pure in-memory, no server interaction.
+        """
+        from icalendar import vCalAddress
+
+        cal = self._fixCalendar()
+        event = Event(
+            client=self.caldav,
+            data=ev1,
+            parent=cal,
+        )
+
+        ## ---- explicit string arg (pure in-memory, always runs) ----
+        event.add_organizer("organizer@example.com")
+        org = event.icalendar_component.get("organizer")
+        assert org is not None, "ORGANIZER should be set after add_organizer(string)"
+        assert "organizer@example.com" in str(org)
+
+        ## ---- explicit vCalAddress arg ----
+        addr = vCalAddress("mailto:addr@example.com")
+        event.add_organizer(addr)
+        org = event.icalendar_component.get("organizer")
+        assert str(org) == "mailto:addr@example.com"
+
+        ## ---- no-arg: uses current principal ----
+        self.skip_unless_support("scheduling.calendar-user-address-set")
+        event.add_organizer()
+        org = event.icalendar_component.get("organizer")
+        assert org is not None, "ORGANIZER should be set when add_organizer() uses principal"
+        principal_addresses = self.principal.calendar_user_address_set()
+        assert any(addr in str(org) for addr in principal_addresses), (
+            f"ORGANIZER {org!r} should contain one of the principal's addresses {principal_addresses!r}"
+        )
+
     def testIssue399ChangeAttendeeStatusUsernameEmailFallback(self):
         """change_attendee_status() works when the attendee is identified
         by the client username rather than calendar_user_address_set() (issue #399).
