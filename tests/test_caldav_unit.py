@@ -2260,6 +2260,81 @@ END:VCALENDAR"""
         organizer = event.icalendar_component.get("organizer")
         assert str(organizer) == "mailto:me@example.com"
 
+    def test_save_with_invites_returns_coroutine_for_async_client(self):
+        """save_with_invites() must return a coroutine for async clients (not silently drop save/organizer)."""
+        import asyncio
+
+        from icalendar import vCalAddress
+
+        client, calendar = self._make_async_client_and_calendar()
+
+        async def async_principal():
+            p = mock.MagicMock()
+            p._async_get_vcal_address = mock.AsyncMock(
+                return_value=vCalAddress("mailto:me@example.com")
+            )
+            return p
+
+        client.principal = async_principal
+
+        result = calendar.save_with_invites(ev1, [])
+        assert asyncio.iscoroutine(result), (
+            f"expected coroutine from save_with_invites() on async client, got {type(result)}"
+        )
+        result.close()
+
+    def test_save_with_invites_async_awaited_sets_organizer_and_saves(self):
+        """Awaiting save_with_invites() on async client must set ORGANIZER and call put."""
+        import asyncio
+
+        from icalendar import vCalAddress
+
+        client, calendar = self._make_async_client_and_calendar()
+
+        async def async_principal():
+            p = mock.MagicMock()
+            p._async_get_vcal_address = mock.AsyncMock(
+                return_value=vCalAddress("mailto:me@example.com")
+            )
+            return p
+
+        client.principal = async_principal
+        saved = False
+
+        async def fake_async_put(*args, **kwargs):
+            nonlocal saved
+            saved = True
+            r = mock.MagicMock()
+            r.status = 201
+            r.headers = []
+            return r
+
+        client.put = fake_async_put
+
+        obj = asyncio.run(calendar.save_with_invites(ev1, []))
+        assert saved, "save_with_invites() did not call put for async client"
+        org = obj.icalendar_component.get("organizer")
+        assert org is not None, "ORGANIZER must be set after awaiting save_with_invites()"
+        assert "me@example.com" in str(org)
+
+    def test_principal_freebusy_request_returns_coroutine_for_async_client(self):
+        """Principal.freebusy_request() must return a coroutine for async clients."""
+        import asyncio
+        from datetime import datetime
+
+        client, calendar = self._make_async_client_and_calendar()
+        principal = Principal(client=client, url="/principals/me/")
+
+        result = principal.freebusy_request(
+            datetime(2024, 1, 1, 10, 0, 0),
+            datetime(2024, 1, 1, 12, 0, 0),
+            [],
+        )
+        assert asyncio.iscoroutine(result), (
+            f"expected coroutine from Principal.freebusy_request() on async client, got {type(result)}"
+        )
+        result.close()
+
 
 class TestRateLimitHelpers:
     """Unit tests for the shared rate-limit helper functions in caldav.lib.error."""
