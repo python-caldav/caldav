@@ -15,7 +15,7 @@ The types used should (as for now) be one of:
 * "refactor" - a code change in the codebase that is neither a bugfix or a feature, but makes the code more readable, shorter, better or more maintainable.
 * "test" - fixes, additions or improvements that only affects the test code or the test framework.  The commit may include documentation.
 * "docs" - changes that *only* is done to the documentation, documentation framework - this includes minor typo fixes as well as new documentation, and it includes both the user documentation under `docs/source`, other documentation files (including CHANGELOG) as well as inline comments and docstrings in the code itself.
-* "other" - if nothing of the above fits
+* "chore" - if nothing of the above fits
 
 The `compatibility_hints.py` has been moved from the test directory to the codebase not so very long ago.  Some special rules here:
 

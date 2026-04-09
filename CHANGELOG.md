@@ -27,12 +27,13 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
   * raised `KeyError` when the server did not include the `supported-calendar-component-set` property in its response.  RFC 4791 section 5.2.3 states this property is optional and that its absence means all component types are accepted; the method now returns the RFC default `["VEVENT", "VTODO", "VJOURNAL"]` in that case, trimmed by any known server limitations from the compatibility hints (e.g. if `save-load.todo` is `unsupported`, `VTODO` is excluded).  Fixes https://github.com/python-caldav/caldav/issues/653
   * async path returned an unawaited coroutine instead of the actual result.
 * `accept_invite()` (and `decline_invite()`, `tentatively_accept_invite()`) now fall back to the client username as the attendee email address when the server does not expose the `calendar-user-address-set` property (RFC6638 §2.4.1).  A `NotFoundError` with a descriptive message is raised when the username is also not an email address.  Fixes https://github.com/python-caldav/caldav/issues/399
+* `get_object_by_uid()` now passes `include_completed=True` so completed todos are found by UID lookup (previously they were silently missed).  `get_todo_by_uid()` now uses `comp_class=Todo` instead of a raw VTODO `CompFilter`, aligning it with the rest of the search API.  Closes https://github.com/python-caldav/caldav/issues/586
+* Sync `_put()` now updates `self.url` from the `Location` header on a 302 redirect, mirroring the existing async behaviour.
 
 ### Housekeeping
 
 * Added `funding.json` (https://fundingjson.org/) at the repository root.  Closes https://github.com/python-caldav/caldav/issues/608
 * Code quality: reduced ruff ignore list (https://github.com/python-caldav/caldav/issues/634) — removed unused imports (`copy`, `lxml.etree`, `CalendarSet`, `cdav/dav` re-exports, `Optional`, `timezone`, `Event`/`Todo` type stubs), replaced bare `except:` clauses with specific exception types (`KeyError`, `AttributeError`, `Exception` where broad catching is intentional), and removed unused local variables.
-* Sync `_put()` now updates `self.url` from the `Location` header on a 302 redirect, mirroring the existing async behaviour.
 
 ### Test framework, compatibility hints, documentation, examples
 
