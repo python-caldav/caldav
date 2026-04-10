@@ -213,6 +213,11 @@ class FeatureSet:
             "default": {"support": "full"},
             "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-9.9"],
         },
+        "search.time-range.todo.strict": {
+            "description": "Bounded VTODO time-range searches do not return tasks whose time span falls entirely outside the searched range (no false positives).",
+            "default": {"support": "full"},
+            "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-9.9"],
+        },
         "search.time-range.event": {"description": "basic time range searches for event works", "default": {"support": "full"}},
         "search.time-range.event.old-dates": {"description": "time range searches for events with old dates (e.g. year 2000) work - some servers enforce a min-date-time restriction"},
         "search.time-range.journal": {"description": "basic time range searches for journal works"},
@@ -898,6 +903,9 @@ xandikos = {
     ## VTODOs that have DURATION but no DUE (no DUE means the index falls back to a full
     ## file check, which crashes in the time-range calculation).
     'search.time-range.todo.open-start': {'support': 'ungraceful', 'behaviour': 'xandikos returns 500 on open-start searches involving DURATION-only VTODOs'},
+    ## xandikos index-based filtering for VTODO is inaccurate: tasks with DTSTART+DUE
+    ## entirely outside the search range can be returned as false positives.
+    'search.time-range.todo.strict': {'support': 'broken', 'behaviour': 'tasks with DTSTART+DUE outside the range are returned'},
 }
 
 ## This seems to work as of version 3.5.4 of Radicale.
