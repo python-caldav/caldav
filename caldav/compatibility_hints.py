@@ -203,13 +203,26 @@ class FeatureSet:
         },
         "search.time-range.todo": {"description": "basic time range searches for tasks works", "default": {"support": "full"}},
         "search.time-range.todo.old-dates": {"description": "time range searches for tasks with old dates (e.g. year 2000) work - some servers enforce a min-date-time restriction"},
-        "search.time-range.todo.duration": {
-            "description": "Time-range searches correctly handle VTODOs that specify their interval via DTSTART+DURATION (without a DUE property). RFC4791 section 9.9 specifies that such tasks overlap a time range if DTSTART+DURATION falls within the range. When 'unsupported', the server ignores DURATION and fails to find such tasks.",
+        "search.time-range.todo.strict": {
+            "description": "Bounded VTODO time-range searches do not return tasks whose time span falls entirely outside the searched range (no false positives).",
             "default": {"support": "full"},
             "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-9.9"],
         },
-        "search.time-range.todo.open-start": {
-            "description": "Time-range searches with only an end bound (no start) correctly exclude tasks whose DTSTART is after the end bound. RFC4791 section 9.9: a VTODO with both DTSTART and DUE should not overlap if its DTSTART > search_end. When 'broken', the server incorrectly returns future tasks.",
+        "search.time-range.open": {
+            "description": "Open-ended time-range searches (with only one bound) work correctly. RFC4791 section 9.9: the CALDAV:time-range 'start' and 'end' attributes are optional; if absent, assume -infinity and +infinity respectively. At least one attribute must be present.",
+            "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-9.9"],
+        },
+        "search.time-range.open.end": {
+            "description": "Searches with only a start bound (end assumed +infinity) correctly return components whose time span overlaps the start. RFC4791 section 9.9: for a VTODO with DTSTART+DUE and absent end bound, the overlap condition is (start < DUE) OR (start <= DTSTART). When 'unsupported', such queries return no results.",
+            "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-9.9"],
+        },
+        "search.time-range.open.start": {
+            "description": "Searches with only an end bound (start assumed -infinity) correctly exclude components whose DTSTART is after the end bound. RFC4791 section 9.9: a VTODO with DTSTART+DUE should not overlap if its DTSTART > search_end. When 'broken', the server incorrectly returns future tasks.",
+            "default": {"support": "full"},
+            "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-9.9"],
+        },
+        "search.time-range.open.start.duration": {
+            "description": "Time-range searches correctly handle components that specify their interval via DTSTART+DURATION (without DTEND/DUE). RFC4791 section 9.9: a VEVENT with DURATION (end > 0s) overlaps [start, end] if (start < DTSTART+DURATION) AND (end > DTSTART); a VTODO with DTSTART+DURATION overlaps if (start <= DTSTART+DURATION) AND ((end > DTSTART) OR (end >= DTSTART+DURATION)). Tested for both VTODO and VEVENT; if support is asymmetric across component types the feature is marked 'broken' with a behaviour note.",
             "default": {"support": "full"},
             "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-9.9"],
         },
@@ -339,20 +352,34 @@ class FeatureSet:
                 "https://datatracker.ietf.org/doc/html/rfc6638#section-4.1",
             ],
         },
-        'freebusy-query': {
-            'description': "freebusy queries come in two flavors, one query can be done towards a CalDAV server as defined in RFC4791, another query can be done through the scheduling framework, RFC 6638.",
+        "scheduling.auto-schedule": {
+            "description": "Server automatically processes incoming iTIP REQUEST messages and adds the event directly to the attendee's calendar without requiring explicit acceptance from the inbox (RFC6638 SCHEDULE-AGENT=SERVER behaviour). When False/unsupported, the attendee must process inbox items manually. Note: only detectable from the caldav-server-tester with a cross-user probe (extra_principals configured).",
             "links": [
-                "https://datatracker.ietf.org/doc/html/rfc4791#section-7.10",
                 "https://datatracker.ietf.org/doc/html/rfc6638",
             ],
+            "default": {"support": "full"},
         },
-        "freebusy-query.rfc4791": {
-            "description": "Server supports free/busy-query REPORT as specified in RFC4791 section 7.10. The REPORT allows clients to query for free/busy time information for a time range. Servers without this support will typically return an error (often 500 Internal Server Error or 501 Not Implemented). Note: RFC6638 defines a different freebusy mechanism for scheduling",
-            "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-7.10"],
+        "scheduling.schedule-tag": {
+            "description": "Server returns a Schedule-Tag response header on GET of a scheduling object resource (a calendar object with an ORGANIZER property) and exposes the schedule-tag DAV property via PROPFIND (RFC6638 sections 3.2-3.3). Clients use the Schedule-Tag for conditional PUT requests to detect concurrent scheduling changes.",
+            "default": {"support": "full"},
+            "links": [
+                "https://datatracker.ietf.org/doc/html/rfc6638#section-3.2",
+                "https://datatracker.ietf.org/doc/html/rfc6638#section-3.3",
+            ],
         },
-        "freebusy-query.rfc6638": {
-            "description": "Server supports RFC6638 freebusy query via the schedule outbox (section 4.1). The organizer POSTs a VFREEBUSY component to the schedule outbox and the server returns free/busy information for the listed attendees. Distinct from freebusy-query.rfc4791 which queries a calendar collection directly via REPORT.",
-            "links": ["https://datatracker.ietf.org/doc/html/rfc6638#section-4.1"],
+        "scheduling.schedule-tag.stable-partstat": {
+            "description": "Server keeps the Schedule-Tag stable when an attendee performs a PARTSTAT-only update (RFC6638 section 3.2 requirement). Non-compliant servers change the tag even when only PARTSTAT is updated, breaking conditional-PUT logic for other attendees.",
+            "links": ["https://datatracker.ietf.org/doc/html/rfc6638#section-3.2"],
+        },
+        "scheduling.freebusy-query": {
+            "description": "Server supports the RFC6638 freebusy query: the organizer POSTs a VFREEBUSY REQUEST to the schedule outbox and the server returns free/busy information for the listed attendees.",
+            "links": ["https://datatracker.ietf.org/doc/html/rfc6638#section-5"],
+        },
+        'freebusy-query': {
+            'description': "Server supports the RFC4791 free/busy-query REPORT (section 7.10): a REPORT sent directly to a calendar collection to retrieve free/busy time for a range. See also scheduling.freebusy-query for the RFC6638 variant which POSTs a VFREEBUSY to the schedule outbox.",
+            "links": [
+                "https://datatracker.ietf.org/doc/html/rfc4791#section-7.10",
+            ],
         },
         "principal-search": {
             "description": "Server supports searching for principals (CalDAV users). Principal search may be restricted for privacy/security reasons on many servers.  (not to be confused with get-current-user-principal)"
@@ -850,9 +877,6 @@ incompatibility_description = {
     'robur_rrule_freq_yearly_expands_monthly':
         """Robur expands a yearly event into a monthly event.  I believe I've reported this one upstream at some point, but can't find back to it""",
 
-    'no_search_openended':
-        """An open-ended search will not work""",
-
 }
 
 ## This is for Xandikos 0.2.12.
@@ -868,11 +892,11 @@ xandikos_v0_2_12 = {
     "search.text.substring": {"support": "unsupported"},
     "search.text.category.substring": {"support": "unsupported"},
     'principal-search': {'support': 'unsupported'},
-    'freebusy-query.rfc4791': {'support': 'ungraceful', 'behaviour': '500 internal server error'},
+    'freebusy-query': {'support': 'ungraceful', 'behaviour': '500 internal server error'},
     "scheduling": {"support": "unsupported"},
     ## https://github.com/jelmer/xandikos/issues/8
-    'search.time-range.todo.duration': {'support': 'unsupported'},
-    'search.time-range.todo.open-start': {'support': 'broken', 'behaviour': 'future tasks are returned when only an end bound is given'},
+    'search.time-range.open.start.duration': {'support': 'unsupported'},
+    'search.time-range.open.start': {'support': 'broken', 'behaviour': 'future tasks are returned when only an end bound is given'},
 }
 
 xandikos = {
@@ -897,7 +921,10 @@ xandikos = {
     ## Open-start searches (end bound only) cause xandikos to return 500 when processing
     ## VTODOs that have DURATION but no DUE (no DUE means the index falls back to a full
     ## file check, which crashes in the time-range calculation).
-    'search.time-range.todo.open-start': {'support': 'ungraceful', 'behaviour': 'xandikos returns 500 on open-start searches involving DURATION-only VTODOs'},
+    'search.time-range.open.start': {'support': 'ungraceful', 'behaviour': 'xandikos returns 500 on open-start searches involving DURATION-only VTODOs'},
+    ## xandikos index-based filtering for VTODO is inaccurate: tasks with DTSTART+DUE
+    ## entirely outside the search range can be returned as false positives.
+    'search.time-range.todo.strict': {'support': 'broken', 'behaviour': 'tasks with DTSTART+DUE outside the range are returned'},
 }
 
 ## This seems to work as of version 3.5.4 of Radicale.
@@ -914,11 +941,11 @@ radicale = {
     "auto-connect.url": {"domain": "localhost", "scheme": "http", "basepath": "/"},
     ## freebusy is not supported yet, but on the long-term road map
     "scheduling": {"support": "unsupported"},
+    ## Radicale does not return results for open-end date searches (only start given)
+    'search.time-range.open.end': {'support': 'unsupported'},
     'old_flags': [
     ## calendar listings and calendar creation works a bit
     ## "weird" on radicale
-
-    'no_search_openended',
 
     #'text_search_is_exact_match_sometimes',
 
@@ -1004,6 +1031,8 @@ zimbra = {
     "scheduling.mailbox": True,
     "scheduling.mailbox.inbox-delivery": {"support": "unsupported"},
     'save-load.icalendar.related-to': {'support': 'unsupported'},
+    'search.time-range.open.start.duration': {'support': 'unsupported'},
+    'search.time-range.open.start': {'support': 'broken'},
 
     "old_flags": [
     ## setting display name in zimbra does not work (display name,
@@ -1035,7 +1064,7 @@ bedework = {
     'save-load.todo.recurrences.thisandfuture': {'support': 'ungraceful'},
     'save-load.event.recurrences.exception': False,
     'search.time-range.alarm': {'support': 'unsupported'},
-    "freebusy-query.rfc4791": True,
+    "freebusy-query": True,
     "search.time-range.todo": False,
     "search.text": False, ## sometimes ungraceful
     "search.recurrences.includes-implicit": False,
@@ -1123,6 +1152,9 @@ cyrus = {
     'delete-calendar': {
         'support': 'fragile',
         'behaviour': 'Deleting a recently created calendar fails'},
+    # Cyrus changes the Schedule-Tag even on attendee PARTSTAT-only updates,
+    # violating RFC6638 section 3.2 which requires the tag to remain stable.
+    "scheduling.schedule-tag.stable-partstat": {"support": "unsupported"},
     # Cyrus may not properly reject wrong passwords in some configurations
     # Cyrus implements server-side automatic scheduling: for cross-user
     # invites, the server both auto-processes the invite into the attendee's calendar
@@ -1172,7 +1204,7 @@ davical = {
         'calendar_order',
         'vtodo_datesearch_notime_task_is_skipped',
     ],
-    'search.time-range.todo.duration': {'support': 'unsupported'},
+    'search.time-range.open.start.duration': {'support': 'unsupported'},
 }
 
 sogo = {
@@ -1210,7 +1242,7 @@ sogo = {
         "support": "unsupported"
     },
     ## unsupported earlier, ungraceful at be26d42b1ca3ff3b4fd183761b4a9b024ce12b84 / 537a23b145487006bb987dee5ab9e00cdebb0492
-    "freebusy-query.rfc4791": {"support": "ungraceful"},
+    "freebusy-query": {"support": "ungraceful"},
     "principal-search": {
         "support": "ungraceful",
         "behaviour": "Search by name failed: ReportError at '501 Not Implemented - <?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\n<body><h3>An error occurred during object publishing</h3><p>did not find the specified REPORT</p></body>\n</html>\n', reason no reason",
@@ -1272,7 +1304,7 @@ robur = {
     "search.recurrences.expanded.exception": { "support": "unsupported" },
     'search.recurrences.includes-implicit.todo': {'support': 'unsupported'},
     'principal-search': {'support': 'ungraceful'},
-    'freebusy-query.rfc4791': {'support': 'ungraceful'},
+    'freebusy-query': {'support': 'ungraceful'},
     "scheduling": {"support": "unsupported"},
     'old_flags': [
         'non_existing_raises_other', ## AuthorizationError instead of NotFoundError
@@ -1370,21 +1402,24 @@ ccs = {
     "save.duplicate-uid.cross-calendar": {"support": "ungraceful"},
     # CCS rejects multi-instance VTODOs (thisandfuture recurring completion)
     "save-load.todo.recurrences.thisandfuture": {"support": "unsupported"},
-    "search.time-range.event": {"support": "full"},
-    "search.time-range.event.old-dates": {"support": "ungraceful"},
-    "search.time-range.todo": {"support": "full"},
-    "search.time-range.todo.old-dates": {"support": "ungraceful"},
     "search.comp-type.optional": {"support": "ungraceful"},
+    "scheduling.free-busy": {"support": "broken"},
     ## "full" observed, 70938dc1cbb6a839978eee4315699746d38ee5f0/3cae24cf99da1702b851b5a74a9b88c8e5317dad, 2026-02-17.
     ## However, this may be due to mess with the caldav-server-checker branches.  "unsupported" again at be26d42b1ca3ff3b4fd183761b4a9b024ce12b84 / 537a23b145487006bb987dee5ab9e00cdebb0492
     "search.text.case-sensitive": {"support": "unsupported"},
+    "search.time-range.event": {"support": "full"},
+    "search.time-range.event.old-dates": {"support": "ungraceful"},
+    "search.time-range.todo": {"support": "full"},
+    'search.time-range.open.start.duration': {'support': 'ungraceful'},
+    "search.time-range.todo.old-dates": {"support": "ungraceful"},
+    "search.time-range.open.start": {"support": "ungraceful"},
     "search.time-range.alarm": {"support": "unsupported"},
     "search.recurrences": {"support": "unsupported"},
     "principal-search": {"support": "unsupported"},
     # Ephemeral Docker container: wipe objects (avoids UID conflicts across calendars)
     "test-calendar": {"cleanup-regime": "wipe-calendar"},
     ## Did pass earlier, ungraceful at be26d42b1ca3ff3b4fd183761b4a9b024ce12b84 / 537a23b145487006bb987dee5ab9e00cdebb0492
-    'freebusy-query.rfc4791': {'support': 'ungraceful'},
+    'freebusy-query': {'support': 'ungraceful'},
     "old_flags": [
         "propfind_allprop_failure",
     ],
@@ -1417,11 +1452,11 @@ stalwart = {
     'search.recurrences.expanded.exception': False,
     ## Stalwart stores master+exception VEVENTs as a single resource with 2 VEVENTs.
     'save-load.event.recurrences.exception': {'support': 'full'},
+    ## Stalwart does not return results for open-end date searches (only start given)
+    'search.time-range.open.end': {'support': 'unsupported'},
     'old_flags': [
         ## Stalwart does not return VTODO items without DTSTART in date searches
         'vtodo_datesearch_nodtstart_task_is_skipped',
-        ## Stalwart does not return results for open-ended date searches on VTODOs
-        'no_search_openended',
     ],
 }
 
@@ -1487,8 +1522,8 @@ gmx = {
     'principal-search': {'support': 'ungraceful'},
     'principal-search.by-name.self': {'support': 'unsupported'},
     ## TODO: flapping ...?
-    #'freebusy-query.rfc4791': {'support': 'unsupported'},
-    'freebusy-query.rfc4791': {'support': 'ungraceful'},
+    #'freebusy-query': {'support': 'unsupported'},
+    'freebusy-query': {'support': 'ungraceful'},
     ## flapping ...?
     #'search.is-not-defined.category': {'support': 'unsupported'},
     ## flapping ...?
@@ -1502,9 +1537,10 @@ gmx = {
     "scheduling": {"support": "full"},
     "scheduling.mailbox": {"support": "unsupported"},
     "scheduling.calendar-user-address-set": {"support": "unsupported"},
+    ## GMX does not return results for open-end date searches (only start given)
+    'search.time-range.open.end': {'support': 'unsupported'},
     "old_flags":  [
         #"text_search_is_case_insensitive",
-        "no_search_openended",
         "vtodo-cannot-be-uncompleted",
     ]
 }
