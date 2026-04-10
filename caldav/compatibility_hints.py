@@ -344,20 +344,15 @@ class FeatureSet:
                 "https://datatracker.ietf.org/doc/html/rfc6638#section-4.1",
             ],
         },
+        "scheduling.freebusy-query": {
+            "description": "Server supports the RFC6638 freebusy query: the organizer POSTs a VFREEBUSY REQUEST to the schedule outbox and the server returns free/busy information for the listed attendees.",
+            "links": ["https://datatracker.ietf.org/doc/html/rfc6638#section-4.1"],
+        },
         'freebusy-query': {
-            'description': "freebusy queries come in two flavors, one query can be done towards a CalDAV server as defined in RFC4791, another query can be done through the scheduling framework, RFC 6638.",
+            'description': "Server supports the RFC4791 free/busy-query REPORT (section 7.10): a REPORT sent directly to a calendar collection to retrieve free/busy time for a range. See also scheduling.freebusy-query for the RFC6638 variant which POSTs a VFREEBUSY to the schedule outbox.",
             "links": [
                 "https://datatracker.ietf.org/doc/html/rfc4791#section-7.10",
-                "https://datatracker.ietf.org/doc/html/rfc6638",
             ],
-        },
-        "freebusy-query.rfc4791": {
-            "description": "Server supports free/busy-query REPORT as specified in RFC4791 section 7.10. The REPORT allows clients to query for free/busy time information for a time range. Servers without this support will typically return an error (often 500 Internal Server Error or 501 Not Implemented). Note: RFC6638 defines a different freebusy mechanism for scheduling",
-            "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-7.10"],
-        },
-        "freebusy-query.rfc6638": {
-            "description": "Server supports RFC6638 freebusy query via the schedule outbox (section 4.1). The organizer POSTs a VFREEBUSY component to the schedule outbox and the server returns free/busy information for the listed attendees. Distinct from freebusy-query.rfc4791 which queries a calendar collection directly via REPORT.",
-            "links": ["https://datatracker.ietf.org/doc/html/rfc6638#section-4.1"],
         },
         "principal-search": {
             "description": "Server supports searching for principals (CalDAV users). Principal search may be restricted for privacy/security reasons on many servers.  (not to be confused with get-current-user-principal)"
@@ -873,7 +868,7 @@ xandikos_v0_2_12 = {
     "search.text.substring": {"support": "unsupported"},
     "search.text.category.substring": {"support": "unsupported"},
     'principal-search': {'support': 'unsupported'},
-    'freebusy-query.rfc4791': {'support': 'ungraceful', 'behaviour': '500 internal server error'},
+    'freebusy-query': {'support': 'ungraceful', 'behaviour': '500 internal server error'},
     "scheduling": {"support": "unsupported"},
     ## https://github.com/jelmer/xandikos/issues/8
     'search.time-range.todo.duration': {'support': 'unsupported'},
@@ -1043,7 +1038,7 @@ bedework = {
     'save-load.todo.recurrences.thisandfuture': {'support': 'ungraceful'},
     'save-load.event.recurrences.exception': False,
     'search.time-range.alarm': {'support': 'unsupported'},
-    "freebusy-query.rfc4791": True,
+    "freebusy-query": True,
     "search.time-range.todo": False,
     "search.text": False, ## sometimes ungraceful
     "search.recurrences.includes-implicit": False,
@@ -1218,7 +1213,7 @@ sogo = {
         "support": "unsupported"
     },
     ## unsupported earlier, ungraceful at be26d42b1ca3ff3b4fd183761b4a9b024ce12b84 / 537a23b145487006bb987dee5ab9e00cdebb0492
-    "freebusy-query.rfc4791": {"support": "ungraceful"},
+    "freebusy-query": {"support": "ungraceful"},
     "principal-search": {
         "support": "ungraceful",
         "behaviour": "Search by name failed: ReportError at '501 Not Implemented - <?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\n<body><h3>An error occurred during object publishing</h3><p>did not find the specified REPORT</p></body>\n</html>\n', reason no reason",
@@ -1280,7 +1275,7 @@ robur = {
     "search.recurrences.expanded.exception": { "support": "unsupported" },
     'search.recurrences.includes-implicit.todo': {'support': 'unsupported'},
     'principal-search': {'support': 'ungraceful'},
-    'freebusy-query.rfc4791': {'support': 'ungraceful'},
+    'freebusy-query': {'support': 'ungraceful'},
     "scheduling": {"support": "unsupported"},
     'old_flags': [
         'non_existing_raises_other', ## AuthorizationError instead of NotFoundError
@@ -1392,7 +1387,7 @@ ccs = {
     # Ephemeral Docker container: wipe objects (avoids UID conflicts across calendars)
     "test-calendar": {"cleanup-regime": "wipe-calendar"},
     ## Did pass earlier, ungraceful at be26d42b1ca3ff3b4fd183761b4a9b024ce12b84 / 537a23b145487006bb987dee5ab9e00cdebb0492
-    'freebusy-query.rfc4791': {'support': 'ungraceful'},
+    'freebusy-query': {'support': 'ungraceful'},
     "old_flags": [
         "propfind_allprop_failure",
     ],
@@ -1495,8 +1490,8 @@ gmx = {
     'principal-search': {'support': 'ungraceful'},
     'principal-search.by-name.self': {'support': 'unsupported'},
     ## TODO: flapping ...?
-    #'freebusy-query.rfc4791': {'support': 'unsupported'},
-    'freebusy-query.rfc4791': {'support': 'ungraceful'},
+    #'freebusy-query': {'support': 'unsupported'},
+    'freebusy-query': {'support': 'ungraceful'},
     ## flapping ...?
     #'search.is-not-defined.category': {'support': 'unsupported'},
     ## flapping ...?
