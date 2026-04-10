@@ -579,8 +579,8 @@ class _AsyncTestSchedulingBase:
         ## Snapshot inbox contents before the invite
         inbox_urls_before: set[Any] = set()
         try:
-            inbox0 = await principals[0]._async_schedule_inbox()
-            inbox1 = await principals[1]._async_schedule_inbox()
+            inbox0 = await principals[0].schedule_inbox()
+            inbox1 = await principals[1].schedule_inbox()
             for item in await inbox0.get_events():
                 inbox_urls_before.add(item.url)
             for item in await inbox1.get_events():
