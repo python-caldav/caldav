@@ -385,7 +385,10 @@ class Principal(DAVObject):
     def get_vcal_address(self) -> "vCalAddress":
         """
         Returns the principal, as an icalendar.vCalAddress object.
+        For async clients, returns a coroutine that must be awaited.
         """
+        if self.is_async_client:
+            return self._async_get_vcal_address()
         from icalendar import vCalAddress, vText
 
         cn = self.get_display_name()
@@ -873,6 +876,8 @@ class Calendar(DAVObject):
         obj.parent = self
         await obj.add_organizer()
         for attendee in attendees:
+            if isinstance(attendee, Principal):
+                attendee = await attendee.get_vcal_address()
             obj.add_attendee(attendee, **attendeeoptions)
         obj.id = obj.icalendar_instance.walk("vevent")[0]["uid"]
         await obj.save()
