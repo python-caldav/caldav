@@ -2336,6 +2336,118 @@ END:VCALENDAR"""
         result.close()
 
 
+class TestFreeBusyScheduleResponse:
+    """Unit tests for parsing RFC6638 schedule-response to a freebusy request.
+
+    The XML fixture is taken directly from RFC 6638 Appendix B.5.
+    Three attendees are requested; two succeed (with VFREEBUSY calendar-data),
+    one fails with "3.7;Invalid calendar user".
+    """
+
+    # RFC 6638 §B.5 server response (slightly compacted for readability)
+    RFC6638_B5_XML = b"""\
+<?xml version="1.0" encoding="utf-8" ?>
+<C:schedule-response xmlns:D="DAV:"
+       xmlns:C="urn:ietf:params:xml:ns:caldav">
+<C:response>
+<C:recipient>
+<D:href>mailto:wilfredo@example.com</D:href>
+</C:recipient>
+<C:request-status>2.0;Success</C:request-status>
+<C:calendar-data>BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Example Corp.//CalDAV Server//EN
+METHOD:REPLY
+BEGIN:VFREEBUSY
+UID:4FD3AD926350
+DTSTAMP:20090602T200733Z
+DTSTART:20090602T000000Z
+DTEND:20090604T000000Z
+ORGANIZER;CN="Cyrus Daboo":mailto:cyrus@example.com
+ATTENDEE;CN="Wilfredo Sanchez Vega":mailto:wilfredo@example.com
+FREEBUSY;FBTYPE=BUSY:20090602T110000Z/20090602T120000Z
+FREEBUSY;FBTYPE=BUSY:20090603T170000Z/20090603T180000Z
+END:VFREEBUSY
+END:VCALENDAR
+</C:calendar-data>
+</C:response>
+<C:response>
+<C:recipient>
+<D:href>mailto:bernard@example.net</D:href>
+</C:recipient>
+<C:request-status>2.0;Success</C:request-status>
+<C:calendar-data>BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Example Corp.//CalDAV Server//EN
+METHOD:REPLY
+BEGIN:VFREEBUSY
+UID:4FD3AD926350
+DTSTAMP:20090602T200733Z
+DTSTART:20090602T000000Z
+DTEND:20090604T000000Z
+ORGANIZER;CN="Cyrus Daboo":mailto:cyrus@example.com
+ATTENDEE;CN="Bernard Desruisseaux":mailto:bernard@example.net
+FREEBUSY;FBTYPE=BUSY:20090602T150000Z/20090602T160000Z
+FREEBUSY;FBTYPE=BUSY:20090603T090000Z/20090603T100000Z
+FREEBUSY;FBTYPE=BUSY:20090603T180000Z/20090603T190000Z
+END:VFREEBUSY
+END:VCALENDAR
+</C:calendar-data>
+</C:response>
+<C:response>
+<C:recipient>
+<D:href>mailto:mike@example.org</D:href>
+</C:recipient>
+<C:request-status>3.7;Invalid calendar user</C:request-status>
+</C:response>
+</C:schedule-response>"""
+
+    def _make_schedule_response(self):
+        """Return a DAVResponse wrapping the RFC 6638 §B.5 XML."""
+        from caldav.davclient import DAVResponse
+
+        resp = mock.MagicMock()
+        resp.status_code = 200
+        resp.reason = "OK"
+        resp.headers = {"Content-Type": "application/xml; charset=utf-8"}
+        resp.content = self.RFC6638_B5_XML
+        return DAVResponse(resp)
+
+    def test_schedule_response_returns_three_recipients(self):
+        """Parsing the B.5 response must yield one entry per recipient."""
+        response = self._make_schedule_response()
+        result = response._find_objects_and_props(
+            expect_multistatus=False, expect_schedule_response=True
+        )
+        assert len(result) == 3
+
+    def test_schedule_response_successful_recipients_have_calendar_data(self):
+        """Recipients with 2.0;Success must have calendar-data containing VFREEBUSY."""
+        response = self._make_schedule_response()
+        result = response._find_objects_and_props(
+            expect_multistatus=False, expect_schedule_response=True
+        )
+        wilfredo = result["mailto:wilfredo@example.com"]
+        bernard = result["mailto:bernard@example.net"]
+        assert wilfredo["request-status"] == "2.0;Success"
+        assert bernard["request-status"] == "2.0;Success"
+        assert "VFREEBUSY" in wilfredo["calendar-data"]
+        assert "VFREEBUSY" in bernard["calendar-data"]
+        # Wilfredo has 2 busy slots; Bernard has 3
+        assert wilfredo["calendar-data"].count("FREEBUSY") == 2
+        assert bernard["calendar-data"].count("FREEBUSY") == 3
+
+    def test_schedule_response_failed_recipient_has_no_calendar_data(self):
+        """Recipients with a non-2.x status must have no calendar-data entry."""
+        response = self._make_schedule_response()
+        result = response._find_objects_and_props(
+            expect_multistatus=False, expect_schedule_response=True
+        )
+        mike = result["mailto:mike@example.org"]
+        assert mike["request-status"] == "3.7;Invalid calendar user"
+        assert "calendar-data" not in mike
+
+
 class TestRateLimitHelpers:
     """Unit tests for the shared rate-limit helper functions in caldav.lib.error."""
 
