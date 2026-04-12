@@ -651,7 +651,7 @@ class _AsyncTestSchedulingBase:
         async clients and that awaiting it completes without error.
         """
         clients, principals, calendars, auto_uids = scheduling_setup
-        self._skip_unless_support("freebusy-query.rfc6638")
+        self._skip_unless_support("scheduling.freebusy-query")
 
         base = _get_base_date()
         dtstart = base

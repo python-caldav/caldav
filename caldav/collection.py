@@ -477,15 +477,17 @@ class Principal(DAVObject):
         """
         return self.get_calendars()
 
-    def freebusy_request(self, dtstart, dtend, attendees):
+    ## TODO: we have code in lib.vcal for constructing icalendar objects,
+    ## and from icalendar 7 there is also code in the icalendar library
+    ## for this.  The cruft below for constructing the request should be
+    ## eliminated.  Also, the async diversion should happen closer to the
+    ## bottom of the method, reducing the need of duplicating code
+    def freebusy_request(self, dtstart, dtend, attendees) -> dict[str, FreeBusy]:
         """Sends a freebusy-request for some attendee to the server
         as per RFC6638.
 
         For async clients, returns a coroutine that must be awaited.
         """
-        if self.is_async_client:
-            return self._async_freebusy_request(dtstart, dtend, attendees)
-
         freebusy_ical = icalendar.Calendar()
         freebusy_ical.add("prodid", "-//tobixen/python-caldav//EN")
         freebusy_ical.add("version", "2.0")
@@ -498,42 +500,34 @@ class Principal(DAVObject):
         freebusy_comp.add("dtend", dtend)
         freebusy_ical.add_component(freebusy_comp)
         outbox = self.schedule_outbox()
-        caldavobj = FreeBusy(data=freebusy_ical, parent=outbox)
-        caldavobj.add_organizer()
+        caldavobj = FreeBusy(data=freebusy_ical, parent=self)
         for attendee in attendees:
             caldavobj.add_attendee(attendee, no_default_parameters=True)
+
+        if self.is_async_client:
+            return self._async_freebusy_request(outbox, caldavobj)
+
+        caldavobj.add_organizer()
 
         response = self.client.post(
             outbox.url,
             caldavobj.data,
             headers={"Content-Type": "text/calendar; charset=utf-8"},
         )
-        return response._find_objects_and_props()
+        return response._parse_scheduling_response_objects(parent=self)
 
-    async def _async_freebusy_request(self, dtstart, dtend, attendees):
+    async def _async_freebusy_request(self, outbox, fb_obj) -> dict:
         """Async implementation of freebusy_request() for async clients."""
-        freebusy_ical = icalendar.Calendar()
-        freebusy_ical.add("prodid", "-//tobixen/python-caldav//EN")
-        freebusy_ical.add("version", "2.0")
-        freebusy_ical.add("method", "REQUEST")
-        uid = uuid.uuid4()
-        freebusy_comp = icalendar.FreeBusy()
-        freebusy_comp.add("uid", uid)
-        freebusy_comp.add("dtstamp", datetime.now())
-        freebusy_comp.add("dtstart", dtstart)
-        freebusy_comp.add("dtend", dtend)
-        freebusy_ical.add_component(freebusy_comp)
-        outbox = await self._async_schedule_outbox()
-        caldavobj = FreeBusy(data=freebusy_ical, parent=outbox)
-        await caldavobj.add_organizer()
-        for attendee in attendees:
-            caldavobj.add_attendee(attendee, no_default_parameters=True)
-        response = await self.client.post(
-            outbox.url,
-            caldavobj.data,
-            headers={"Content-Type": "text/calendar; charset=utf-8"},
-        )
-        return response._find_objects_and_props()
+        ## TODO: could we have common headers as global variable?
+        headers = {"Content-Type": "text/calendar; charset=utf-8"}
+        outbox = await outbox
+        ## TODO: it's really bad that arbitrary methods returns
+        ## a coroutine in async mode.  It's needed to make it much
+        ## more clear what methods involves I/O and what methods
+        ## doesn't involve I/O in 4.0
+        await fb_obj.add_organizer()
+        response = await self.client.post(outbox.url, fb_obj.data, headers)
+        return response._parse_scheduling_response_objects(parent=self)
 
     def calendar_user_address_set(self) -> list[str | None]:
         """
@@ -1473,7 +1467,7 @@ class Calendar(DAVObject):
         Returns:
           [FreeBusy(), ...]
         """
-
+        ## TODO: async variant?
         root = cdav.FreeBusyQuery() + [cdav.TimeRange(start, end)]
         response = self._query(root, 1, "report")
         return FreeBusy(self, response.raw)

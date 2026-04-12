@@ -5,6 +5,9 @@ This module implements the Strategy/State pattern for managing different
 representations of calendar data (raw string, icalendar object, vobject object).
 
 See https://github.com/python-caldav/caldav/issues/613 for design discussion.
+
+TODO: verify that we have sufficient test coverage - both through unit tests
+and integration tests
 """
 
 from __future__ import annotations
@@ -61,18 +64,18 @@ class DataState(ABC):
         """
         cal = self.get_icalendar_copy()
         for comp in cal.subcomponents:
-            if comp.name in ("VEVENT", "VTODO", "VJOURNAL") and "UID" in comp:
+            if comp.name in ("VEVENT", "VTODO", "VJOURNAL", "FREEBUSY") and "UID" in comp:
                 return str(comp["UID"])
         return None
 
     def get_component_type(self) -> str | None:
-        """Get the component type (VEVENT, VTODO, VJOURNAL) without full parsing.
+        """Get the component type (VEVENT, VTODO, VJOURNAL, FREEBUSY) without full parsing.
 
         Default implementation parses the data, but subclasses can optimize.
         """
         cal = self.get_icalendar_copy()
         for comp in cal.subcomponents:
-            if comp.name in ("VEVENT", "VTODO", "VJOURNAL"):
+            if comp.name in ("VEVENT", "VTODO", "VJOURNAL", "FREEBUSY"):
                 return comp.name
         return None
 
@@ -146,6 +149,8 @@ class RawDataState(DataState):
             return "VTODO"
         elif "BEGIN:VJOURNAL" in self._data:
             return "VJOURNAL"
+        elif "BEGIN:FREEBUSY" in self._data:
+            return "VFREEBUSY"
         return None
 
 
@@ -182,13 +187,13 @@ class IcalendarState(DataState):
 
     def get_uid(self) -> str | None:
         for comp in self._calendar.subcomponents:
-            if comp.name in ("VEVENT", "VTODO", "VJOURNAL") and "UID" in comp:
+            if comp.name in ("VEVENT", "VTODO", "VJOURNAL", "VFREEBUSY") and "UID" in comp:
                 return str(comp["UID"])
         return None
 
     def get_component_type(self) -> str | None:
         for comp in self._calendar.subcomponents:
-            if comp.name in ("VEVENT", "VTODO", "VJOURNAL"):
+            if comp.name in ("VEVENT", "VTODO", "VJOURNAL", "VFREEBUSY"):
                 return comp.name
         return None
 
@@ -232,6 +237,8 @@ class VobjectState(DataState):
                 return str(self._vobject.vtodo.uid.value)
             elif hasattr(self._vobject, "vjournal"):
                 return str(self._vobject.vjournal.uid.value)
+            elif hasattr(self._vobject, "vfreebusy"):
+                return str(self._vobject.vfreebusy.uid.value)
         except AttributeError:
             pass
         return None
@@ -243,4 +250,6 @@ class VobjectState(DataState):
             return "VTODO"
         elif hasattr(self._vobject, "vjournal"):
             return "VJOURNAL"
+        elif hasattr(self._vobject, "vfreebusy"):
+            return "VFREEBUSY"
         return None

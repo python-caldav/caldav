@@ -41,6 +41,9 @@ def _to_utc_date_string(ts):
     return ts.strftime("%Y%m%dT%H%M%SZ")
 
 
+## TODO: add RFC references to every class, like it's done in the Response class
+
+
 # Operations
 class CalendarQuery(BaseElement):
     tag: ClassVar[str] = ns("C", "calendar-query")
@@ -56,14 +59,6 @@ class Mkcalendar(BaseElement):
 
 class CalendarMultiGet(BaseElement):
     tag: ClassVar[str] = ns("C", "calendar-multiget")
-
-
-class ScheduleInboxURL(BaseElement):
-    tag: ClassVar[str] = ns("C", "schedule-inbox-URL")
-
-
-class ScheduleOutboxURL(BaseElement):
-    tag: ClassVar[str] = ns("C", "schedule-outbox-URL")
 
 
 # Filters
@@ -143,13 +138,6 @@ class Comp(NamedBaseElement):
     tag: ClassVar[str] = ns("C", "comp")
 
 
-# Uhhm ... can't find any references to calendar-collection in rfc4791.txt
-# and newer versions of baikal gives 403 forbidden when this one is
-# encountered
-# class CalendarCollection(BaseElement):
-#     tag = ns("C", "calendar-collection")
-
-
 # Properties
 class CalendarUserAddressSet(BaseElement):
     tag: ClassVar[str] = ns("C", "calendar-user-address-set")
@@ -208,5 +196,47 @@ class Allprop(BaseElement):
     tag: ClassVar[str] = ns("C", "allprop")
 
 
+# Scheduling
+
+
 class ScheduleTag(BaseElement):
     tag: ClassVar[str] = ns("C", "schedule-tag")
+
+
+class ScheduleInboxURL(BaseElement):
+    tag: ClassVar[str] = ns("C", "schedule-inbox-URL")
+
+
+class ScheduleOutboxURL(BaseElement):
+    tag: ClassVar[str] = ns("C", "schedule-outbox-URL")
+
+
+class ScheduleResponse(BaseElement):
+    tag: ClassVar[str] = ns("C", "schedule-response")
+
+
+class Response(BaseElement):
+    """
+    https://datatracker.ietf.org/doc/html/rfc6638#section-10.2
+    Child of schedule-response
+    """
+
+    tag: ClassVar[str] = ns("C", "response")
+
+
+class Recipient(BaseElement):
+    """
+    https://datatracker.ietf.org/doc/html/rfc6638#section-10.3
+    Child of response
+    """
+
+    tag: ClassVar[str] = ns("C", "recipient")
+
+
+class RequestStatus(BaseElement):
+    """
+    https://datatracker.ietf.org/doc/html/rfc6638#section-10.4
+    Child of response
+    """
+
+    tag: ClassVar[str] = ns("C", "request-status")

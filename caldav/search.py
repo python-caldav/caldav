@@ -233,13 +233,17 @@ class CalDAVSearcher(Searcher):
     ):
         """Core search implementation as a generator yielding actions.
 
-        (TODO: refactoring beyond readability?  Is this sane?)
-
         This generator contains all the search logic and yields (action, data) tuples
         that the caller (sync or async) executes. Results are sent back via .send().
 
+        TODO: refactoring beyond readability?  Is this sane? If
+        nothing else, the generator data flow better.  Possibly this
+        method is too long and should be split up for improved
+        readability
+
         Yields:
             Tuples of (SearchAction, data) where data depends on action type
+
         """
         if calendar is None:
             calendar = self._calendar
