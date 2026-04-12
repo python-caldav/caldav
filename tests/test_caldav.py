@@ -3033,7 +3033,7 @@ END:VCALENDAR
         todos2 = c.search(start=datetime(2025, 4, 14), todo=True, include_completed=True)
         todos3 = c.search(start=datetime(2025, 4, 14), todo=True)
 
-        if not self.check_compatibility_flag("no_search_openended"):
+        if self.is_supported("search.time-range.open.end"):
             assert isinstance(todos1[0], Todo)
             assert isinstance(todos2[0], Todo)
             assert isinstance(todos3[0], Todo)

@@ -203,18 +203,26 @@ class FeatureSet:
         },
         "search.time-range.todo": {"description": "basic time range searches for tasks works", "default": {"support": "full"}},
         "search.time-range.todo.old-dates": {"description": "time range searches for tasks with old dates (e.g. year 2000) work - some servers enforce a min-date-time restriction"},
-        "search.time-range.todo.duration": {
-            "description": "Time-range searches correctly handle VTODOs that specify their interval via DTSTART+DURATION (without a DUE property). RFC4791 section 9.9 specifies that such tasks overlap a time range if DTSTART+DURATION falls within the range. When 'unsupported', the server ignores DURATION and fails to find such tasks.",
-            "default": {"support": "full"},
-            "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-9.9"],
-        },
-        "search.time-range.todo.open-start": {
-            "description": "Time-range searches with only an end bound (no start) correctly exclude tasks whose DTSTART is after the end bound. RFC4791 section 9.9: a VTODO with both DTSTART and DUE should not overlap if its DTSTART > search_end. When 'broken', the server incorrectly returns future tasks.",
-            "default": {"support": "full"},
-            "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-9.9"],
-        },
         "search.time-range.todo.strict": {
             "description": "Bounded VTODO time-range searches do not return tasks whose time span falls entirely outside the searched range (no false positives).",
+            "default": {"support": "full"},
+            "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-9.9"],
+        },
+        "search.time-range.open": {
+            "description": "Open-ended time-range searches (with only one bound) work correctly. RFC4791 section 9.9: the CALDAV:time-range 'start' and 'end' attributes are optional; if absent, assume -infinity and +infinity respectively. At least one attribute must be present.",
+            "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-9.9"],
+        },
+        "search.time-range.open.end": {
+            "description": "Searches with only a start bound (end assumed +infinity) correctly return components whose time span overlaps the start. RFC4791 section 9.9: for a VTODO with DTSTART+DUE and absent end bound, the overlap condition is (start < DUE) OR (start <= DTSTART). When 'unsupported', such queries return no results.",
+            "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-9.9"],
+        },
+        "search.time-range.open.start": {
+            "description": "Searches with only an end bound (start assumed -infinity) correctly exclude components whose DTSTART is after the end bound. RFC4791 section 9.9: a VTODO with DTSTART+DUE should not overlap if its DTSTART > search_end. When 'broken', the server incorrectly returns future tasks.",
+            "default": {"support": "full"},
+            "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-9.9"],
+        },
+        "search.time-range.open.start.duration": {
+            "description": "Time-range searches correctly handle components that specify their interval via DTSTART+DURATION (without DTEND/DUE). RFC4791 section 9.9: a VEVENT with DURATION (end > 0s) overlaps [start, end] if (start < DTSTART+DURATION) AND (end > DTSTART); a VTODO with DTSTART+DURATION overlaps if (start <= DTSTART+DURATION) AND ((end > DTSTART) OR (end >= DTSTART+DURATION)). Tested for both VTODO and VEVENT; if support is asymmetric across component types the feature is marked 'broken' with a behaviour note.",
             "default": {"support": "full"},
             "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-9.9"],
         },
@@ -850,9 +858,6 @@ incompatibility_description = {
     'robur_rrule_freq_yearly_expands_monthly':
         """Robur expands a yearly event into a monthly event.  I believe I've reported this one upstream at some point, but can't find back to it""",
 
-    'no_search_openended':
-        """An open-ended search will not work""",
-
 }
 
 ## This is for Xandikos 0.2.12.
@@ -871,8 +876,8 @@ xandikos_v0_2_12 = {
     'freebusy-query': {'support': 'ungraceful', 'behaviour': '500 internal server error'},
     "scheduling": {"support": "unsupported"},
     ## https://github.com/jelmer/xandikos/issues/8
-    'search.time-range.todo.duration': {'support': 'unsupported'},
-    'search.time-range.todo.open-start': {'support': 'broken', 'behaviour': 'future tasks are returned when only an end bound is given'},
+    'search.time-range.open.start.duration': {'support': 'unsupported'},
+    'search.time-range.open.start': {'support': 'broken', 'behaviour': 'future tasks are returned when only an end bound is given'},
 }
 
 xandikos = {
@@ -897,7 +902,7 @@ xandikos = {
     ## Open-start searches (end bound only) cause xandikos to return 500 when processing
     ## VTODOs that have DURATION but no DUE (no DUE means the index falls back to a full
     ## file check, which crashes in the time-range calculation).
-    'search.time-range.todo.open-start': {'support': 'ungraceful', 'behaviour': 'xandikos returns 500 on open-start searches involving DURATION-only VTODOs'},
+    'search.time-range.open.start': {'support': 'ungraceful', 'behaviour': 'xandikos returns 500 on open-start searches involving DURATION-only VTODOs'},
     ## xandikos index-based filtering for VTODO is inaccurate: tasks with DTSTART+DUE
     ## entirely outside the search range can be returned as false positives.
     'search.time-range.todo.strict': {'support': 'broken', 'behaviour': 'tasks with DTSTART+DUE outside the range are returned'},
@@ -917,11 +922,11 @@ radicale = {
     "auto-connect.url": {"domain": "localhost", "scheme": "http", "basepath": "/"},
     ## freebusy is not supported yet, but on the long-term road map
     "scheduling": {"support": "unsupported"},
+    ## Radicale does not return results for open-end date searches (only start given)
+    'search.time-range.open.end': {'support': 'unsupported'},
     'old_flags': [
     ## calendar listings and calendar creation works a bit
     ## "weird" on radicale
-
-    'no_search_openended',
 
     #'text_search_is_exact_match_sometimes',
 
@@ -1007,8 +1012,8 @@ zimbra = {
     "scheduling.mailbox": True,
     "scheduling.mailbox.inbox-delivery": {"support": "unsupported"},
     'save-load.icalendar.related-to': {'support': 'unsupported'},
-    'search.time-range.todo.duration': {'support': 'unsupported'},
-    'search.time-range.todo.open-start': {'support': 'broken'},
+    'search.time-range.open.start.duration': {'support': 'unsupported'},
+    'search.time-range.open.start': {'support': 'broken'},
 
     "old_flags": [
     ## setting display name in zimbra does not work (display name,
@@ -1177,7 +1182,7 @@ davical = {
         'calendar_order',
         'vtodo_datesearch_notime_task_is_skipped',
     ],
-    'search.time-range.todo.duration': {'support': 'unsupported'},
+    'search.time-range.open.start.duration': {'support': 'unsupported'},
 }
 
 sogo = {
@@ -1383,9 +1388,9 @@ ccs = {
     "search.time-range.event": {"support": "full"},
     "search.time-range.event.old-dates": {"support": "ungraceful"},
     "search.time-range.todo": {"support": "full"},
-    'search.time-range.todo.duration': {'support': 'ugraceful'},
+    'search.time-range.open.start.duration': {'support': 'ungraceful'},
     "search.time-range.todo.old-dates": {"support": "ungraceful"},
-    "search.time-range.todo.open-start": {"support": "ungraceful"},
+    "search.time-range.open.start": {"support": "ungraceful"},
     "search.time-range.alarm": {"support": "unsupported"},
     "search.recurrences": {"support": "unsupported"},
     "principal-search": {"support": "unsupported"},
@@ -1425,11 +1430,11 @@ stalwart = {
     'search.recurrences.expanded.exception': False,
     ## Stalwart stores master+exception VEVENTs as a single resource with 2 VEVENTs.
     'save-load.event.recurrences.exception': {'support': 'full'},
+    ## Stalwart does not return results for open-end date searches (only start given)
+    'search.time-range.open.end': {'support': 'unsupported'},
     'old_flags': [
         ## Stalwart does not return VTODO items without DTSTART in date searches
         'vtodo_datesearch_nodtstart_task_is_skipped',
-        ## Stalwart does not return results for open-ended date searches on VTODOs
-        'no_search_openended',
     ],
 }
 
@@ -1510,9 +1515,10 @@ gmx = {
     "scheduling": {"support": "full"},
     "scheduling.mailbox": {"support": "unsupported"},
     "scheduling.calendar-user-address-set": {"support": "unsupported"},
+    ## GMX does not return results for open-end date searches (only start given)
+    'search.time-range.open.end': {'support': 'unsupported'},
     "old_flags":  [
         #"text_search_is_case_insensitive",
-        "no_search_openended",
         "vtodo-cannot-be-uncompleted",
     ]
 }

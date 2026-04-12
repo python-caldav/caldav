@@ -37,6 +37,7 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 
 ### Test framework, compatibility hints, documentation, examples
 
+* Open-ended time-range search compatibility hints: new `search.time-range.open`, `search.time-range.open.end`, `search.time-range.open.start`, and `search.time-range.open.start.duration` features (RFC4791 section 9.9).  Old `no_search_openended` flag and `search.time-range.todo.duration`/`search.time-range.todo.open-start` features migrated.  `testTodoSearch` updated to use `is_supported("search.time-range.open.end")` instead of the old compatibility flag.
 * RFC 6638 scheduling feature-detection infrastructure: new `scheduling`, `scheduling.mailbox`, and `scheduling.calendar-user-address-set` compatibility hints; legacy `no_scheduling` flags migrated.  Default scheduling hints set for all the servers tested.
 * Calendar owner example (`examples/calendar_owner_examples.py`) demonstrating how to retrieve the owner of a calendar via `DAV:owner` and resolve their calendar-user address.  `testFindCalendarOwner` now exercises the full owner → principal → `get_vcal_address()` chain.  Closes https://github.com/python-caldav/caldav/issues/544
 * `testInviteAndRespond` implemented end-to-end: organizer creates an event, invites an attendee, attendee accepts, and the organizer verifies the updated `PARTSTAT`.  Per-server compatibility flags applied for known quirks (Baikal, Cyrus, SOGo).
