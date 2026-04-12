@@ -760,7 +760,7 @@ class _TestSchedulingBase:
         """Test RFC6638 freebusy query via the schedule outbox (Principal.freebusy_request)."""
         if len(self.principals) < 1:
             pytest.skip("need at least 1 principal")
-        self._skip_unless_support("freebusy-query.rfc6638")
+        self._skip_unless_support("scheduling.freebusy-query")
 
         dtstart = (datetime.now() + timedelta(days=1)).replace(
             hour=9, minute=0, second=0, microsecond=0
@@ -3530,7 +3530,7 @@ END:VCALENDAR
             assert len(r) == 1
 
         # Lets try a freebusy request as well
-        self.skip_unless_support("freebusy-query.rfc4791")
+        self.skip_unless_support("freebusy-query")
 
         freebusy = c.freebusy_request(
             datetime(2007, 7, 13, 17, 00, 00), datetime(2007, 7, 15, 17, 00, 00)

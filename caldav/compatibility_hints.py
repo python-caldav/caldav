@@ -346,7 +346,7 @@ class FeatureSet:
         },
         "scheduling.freebusy-query": {
             "description": "Server supports the RFC6638 freebusy query: the organizer POSTs a VFREEBUSY REQUEST to the schedule outbox and the server returns free/busy information for the listed attendees.",
-            "links": ["https://datatracker.ietf.org/doc/html/rfc6638#section-4.1"],
+            "links": ["https://datatracker.ietf.org/doc/html/rfc6638#section-5"],
         },
         'freebusy-query': {
             'description': "Server supports the RFC4791 free/busy-query REPORT (section 7.10): a REPORT sent directly to a calendar collection to retrieve free/busy time for a range. See also scheduling.freebusy-query for the RFC6638 variant which POSTs a VFREEBUSY to the schedule outbox.",
@@ -1007,6 +1007,8 @@ zimbra = {
     "scheduling.mailbox": True,
     "scheduling.mailbox.inbox-delivery": {"support": "unsupported"},
     'save-load.icalendar.related-to': {'support': 'unsupported'},
+    'search.time-range.todo.duration': {'support': 'unsupported'},
+    'search.time-range.todo.open-start': {'support': 'broken'},
 
     "old_flags": [
     ## setting display name in zimbra does not work (display name,
@@ -1373,14 +1375,17 @@ ccs = {
     "save.duplicate-uid.cross-calendar": {"support": "ungraceful"},
     # CCS rejects multi-instance VTODOs (thisandfuture recurring completion)
     "save-load.todo.recurrences.thisandfuture": {"support": "unsupported"},
-    "search.time-range.event": {"support": "full"},
-    "search.time-range.event.old-dates": {"support": "ungraceful"},
-    "search.time-range.todo": {"support": "full"},
-    "search.time-range.todo.old-dates": {"support": "ungraceful"},
     "search.comp-type.optional": {"support": "ungraceful"},
+    "scheduling.free-busy": {"support": "broken"},
     ## "full" observed, 70938dc1cbb6a839978eee4315699746d38ee5f0/3cae24cf99da1702b851b5a74a9b88c8e5317dad, 2026-02-17.
     ## However, this may be due to mess with the caldav-server-checker branches.  "unsupported" again at be26d42b1ca3ff3b4fd183761b4a9b024ce12b84 / 537a23b145487006bb987dee5ab9e00cdebb0492
     "search.text.case-sensitive": {"support": "unsupported"},
+    "search.time-range.event": {"support": "full"},
+    "search.time-range.event.old-dates": {"support": "ungraceful"},
+    "search.time-range.todo": {"support": "full"},
+    'search.time-range.todo.duration': {'support': 'ugraceful'},
+    "search.time-range.todo.old-dates": {"support": "ungraceful"},
+    "search.time-range.todo.open-start": {"support": "ungraceful"},
     "search.time-range.alarm": {"support": "unsupported"},
     "search.recurrences": {"support": "unsupported"},
     "principal-search": {"support": "unsupported"},

@@ -5,6 +5,8 @@ from caldav.lib.namespace import ns
 
 from .base import BaseElement, ValuedBaseElement
 
+## TODO: add RFC references to every class, consistently with the cdav.py
+
 
 # Operations
 class Propfind(BaseElement):

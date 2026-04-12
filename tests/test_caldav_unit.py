@@ -2416,36 +2416,27 @@ END:VCALENDAR
     def test_schedule_response_returns_three_recipients(self):
         """Parsing the B.5 response must yield one entry per recipient."""
         response = self._make_schedule_response()
-        result = response._find_objects_and_props(
-            expect_multistatus=False, expect_schedule_response=True
-        )
+        result = response._parse_scheduling_response_objects(parent=mock.MagicMock())
         assert len(result) == 3
 
     def test_schedule_response_successful_recipients_have_calendar_data(self):
         """Recipients with 2.0;Success must have calendar-data containing VFREEBUSY."""
         response = self._make_schedule_response()
-        result = response._find_objects_and_props(
-            expect_multistatus=False, expect_schedule_response=True
-        )
+        result = response._parse_scheduling_response_objects(parent=mock.MagicMock())
         wilfredo = result["mailto:wilfredo@example.com"]
         bernard = result["mailto:bernard@example.net"]
-        assert wilfredo["request-status"] == "2.0;Success"
-        assert bernard["request-status"] == "2.0;Success"
-        assert "VFREEBUSY" in wilfredo["calendar-data"]
-        assert "VFREEBUSY" in bernard["calendar-data"]
+        assert "VFREEBUSY" in wilfredo.data
+        assert "VFREEBUSY" in bernard.data
         # Wilfredo has 2 busy slots; Bernard has 3
-        assert wilfredo["calendar-data"].count("FREEBUSY") == 2
-        assert bernard["calendar-data"].count("FREEBUSY") == 3
+        assert wilfredo.data.count("\nFREEBUSY") == 2
+        assert bernard.data.count("\nFREEBUSY") == 3
 
     def test_schedule_response_failed_recipient_has_no_calendar_data(self):
-        """Recipients with a non-2.x status must have no calendar-data entry."""
+        """Recipients with a non-2.x status must have no calendar data"""
         response = self._make_schedule_response()
-        result = response._find_objects_and_props(
-            expect_multistatus=False, expect_schedule_response=True
-        )
-        mike = result["mailto:mike@example.org"]
-        assert mike["request-status"] == "3.7;Invalid calendar user"
-        assert "calendar-data" not in mike
+        result = response._parse_scheduling_response_objects(parent=mock.MagicMock())
+        assert result["errors"]["mailto:mike@example.org"] == "3.7;Invalid calendar user"
+        assert not result.get("mailto:mike@example.org")
 
 
 class TestRateLimitHelpers:
