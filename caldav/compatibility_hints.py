@@ -352,6 +352,13 @@ class FeatureSet:
                 "https://datatracker.ietf.org/doc/html/rfc6638#section-4.1",
             ],
         },
+        "scheduling.schedule-tag": {
+            "description": "Server returns a Schedule-Tag response header on GET of a scheduling object resource (a calendar object with an ORGANIZER property) and exposes the schedule-tag DAV property via PROPFIND (RFC6638 sections 3.2-3.3). Clients use the Schedule-Tag for conditional PUT requests to detect concurrent scheduling changes.",
+            "links": [
+                "https://datatracker.ietf.org/doc/html/rfc6638#section-3.2",
+                "https://datatracker.ietf.org/doc/html/rfc6638#section-3.3",
+            ],
+        },
         "scheduling.freebusy-query": {
             "description": "Server supports the RFC6638 freebusy query: the organizer POSTs a VFREEBUSY REQUEST to the schedule outbox and the server returns free/busy information for the listed attendees.",
             "links": ["https://datatracker.ietf.org/doc/html/rfc6638#section-5"],
@@ -884,28 +891,22 @@ xandikos = {
     ## We've sometimes been observing internal server errors on freebusy-requests.
     ## Should do more research on it next time it shows up.
 
-    ## Component type filtering is required - searches must specify event=True or todo=True;
-    ## omitting it returns empty results.
-    "search.comp-type.optional": "unsupported",
-
     ## Principal property search returns 403 (not implemented)
     "principal-search": "ungraceful",
 
-    ## Server-side recurrence expansion is buggy for tasks and event exceptions
-    "search.recurrences.expanded.todo": "unsupported",
+    ## Server-side recurrence expansion for event exceptions is still broken;
+    ## VTODO RRULE expansion was fixed in xandikos PR #627 (released in 0.3.7).
     "search.recurrences.expanded.exception": "unsupported",
+
+    ## Open-start time-range searches (no lower bound) crash xandikos 0.3.7 with a
+    ## 500 Internal Server Error (OverflowError: date value out of range in icalendar.py
+    ## _expand_rrule_component when computing adjusted_start = start - duration).
+    "search.time-range.open.start": {"support": "ungraceful", "behaviour": "500 Internal Server Error (OverflowError in rrule expansion)"},
 
     ## this only applies for very simple installations
     "auto-connect.url": {"domain": "localhost", "scheme": "http", "basepath": "/"},
 
     "scheduling": {"support": "unsupported"},
-    ## Open-start searches (end bound only) cause xandikos to return 500 when processing
-    ## VTODOs that have DURATION but no DUE (no DUE means the index falls back to a full
-    ## file check, which crashes in the time-range calculation).
-    'search.time-range.open.start': {'support': 'ungraceful', 'behaviour': 'xandikos returns 500 on open-start searches involving DURATION-only VTODOs'},
-    ## xandikos index-based filtering for VTODO is inaccurate: tasks with DTSTART+DUE
-    ## entirely outside the search range can be returned as false positives.
-    'search.time-range.todo.strict': {'support': 'broken', 'behaviour': 'tasks with DTSTART+DUE outside the range are returned'},
 }
 
 ## This seems to work as of version 3.5.4 of Radicale.
@@ -922,15 +923,8 @@ radicale = {
     "auto-connect.url": {"domain": "localhost", "scheme": "http", "basepath": "/"},
     ## freebusy is not supported yet, but on the long-term road map
     "scheduling": {"support": "unsupported"},
-    ## Radicale does not return results for open-end date searches (only start given)
-    'search.time-range.open.end': {'support': 'unsupported'},
     'old_flags': [
-    ## calendar listings and calendar creation works a bit
-    ## "weird" on radicale
-
-    #'text_search_is_exact_match_sometimes',
-
-    ## extra features not specified in RFC5545
+    ## extra features not specified in RFC4791
     "calendar_order",
     "calendar_color"
     ]
@@ -957,6 +951,7 @@ nextcloud = {
     #'save-load.todo.mixed-calendar': {'support': 'unsupported'}, ## Why?  It started complaining about this just recently.
     'principal-search.by-name.self': {'support': 'unsupported'},
     'principal-search': {'support': 'ungraceful'},
+    'search.time-range.open.start.duration': 'broken',
     #'old_flags': ['unique_calendar_ids'],
     ## I'm surprised, I'm quite sure this was passing earlier.  Caldav commit a98d50490b872e9b9d8e93e2e401c936ad193003, caldav server checker commit 3cae24cf99da1702b851b5a74a9b88c8e5317dad
     'search.combined-is-logical-and': False,
@@ -1012,7 +1007,6 @@ zimbra = {
     "scheduling.mailbox": True,
     "scheduling.mailbox.inbox-delivery": {"support": "unsupported"},
     'save-load.icalendar.related-to': {'support': 'unsupported'},
-    'search.time-range.open.start.duration': {'support': 'unsupported'},
     'search.time-range.open.start': {'support': 'broken'},
 
     "old_flags": [
@@ -1182,7 +1176,6 @@ davical = {
         'calendar_order',
         'vtodo_datesearch_notime_task_is_skipped',
     ],
-    'search.time-range.open.start.duration': {'support': 'unsupported'},
 }
 
 sogo = {
@@ -1370,8 +1363,8 @@ davis = {
 ## cannot be changed.  The pre-provisioned "tasks" calendar supports VTODO only.
 ## VJOURNAL is not supported at all.
 ccs = {
-    ## scheduling.mailbox.inbox-delivery behaviour unknown until cross-user scheduling tests run
-    "scheduling.mailbox.inbox-delivery": {"support": "unknown"},
+    "scheduling.freebusy-query": {"support": "ungraceful"},
+    "scheduling.mailbox.inbox-delivery": {"support": "quirk", "behaviour": "server delivers iTIP notification to inbox AND auto-schedules into calendar"},
     "save-load.journal": {"support": "unsupported"},
     "save-load.todo.mixed-calendar": {"support": "unsupported"},
     # CCS enforces unique UIDs across ALL calendars for a user
@@ -1381,16 +1374,14 @@ ccs = {
     # CCS rejects multi-instance VTODOs (thisandfuture recurring completion)
     "save-load.todo.recurrences.thisandfuture": {"support": "unsupported"},
     "search.comp-type.optional": {"support": "ungraceful"},
-    "scheduling.free-busy": {"support": "broken"},
     ## "full" observed, 70938dc1cbb6a839978eee4315699746d38ee5f0/3cae24cf99da1702b851b5a74a9b88c8e5317dad, 2026-02-17.
     ## However, this may be due to mess with the caldav-server-checker branches.  "unsupported" again at be26d42b1ca3ff3b4fd183761b4a9b024ce12b84 / 537a23b145487006bb987dee5ab9e00cdebb0492
     "search.text.case-sensitive": {"support": "unsupported"},
     "search.time-range.event": {"support": "full"},
     "search.time-range.event.old-dates": {"support": "ungraceful"},
     "search.time-range.todo": {"support": "full"},
-    'search.time-range.open.start.duration': {'support': 'ungraceful'},
     "search.time-range.todo.old-dates": {"support": "ungraceful"},
-    "search.time-range.open.start": {"support": "ungraceful"},
+    "search.time-range.open": {"support": "ungraceful"},
     "search.time-range.alarm": {"support": "unsupported"},
     "search.recurrences": {"support": "unsupported"},
     "principal-search": {"support": "unsupported"},
@@ -1430,8 +1421,7 @@ stalwart = {
     'search.recurrences.expanded.exception': False,
     ## Stalwart stores master+exception VEVENTs as a single resource with 2 VEVENTs.
     'save-load.event.recurrences.exception': {'support': 'full'},
-    ## Stalwart does not return results for open-end date searches (only start given)
-    'search.time-range.open.end': {'support': 'unsupported'},
+    'search.time-range.open': True,
     'old_flags': [
         ## Stalwart does not return VTODO items without DTSTART in date searches
         'vtodo_datesearch_nodtstart_task_is_skipped',
@@ -1561,9 +1551,15 @@ ox = {
     'principal-search.list-all': {'support': 'unsupported'},
     ## Cross-calendar duplicate UID test fails (AuthorizationError creating second calendar)
     'save.duplicate-uid.cross-calendar': {'support': 'ungraceful'},
-    'save-load.icalendar.related-to': {'support': 'unsupported'},
+    'save-load.icalendar.related-to': {'support': 'broken'},
     ## OX App Suite has complex user provisioning; cross-user scheduling tests not yet set up.
     "scheduling.mailbox.inbox-delivery": {"support": "unknown"},
+    "scheduling.freebusy-query": "ungraceful",
+    'search.time-range.open.start': "broken",
+    'search.time-range.open.end': True,
+    ## time-range.open is "broken", while time-range.open.start.duration is "unsupported"?
+    ## this may possibly be some problems with the checker rather than with Ox
+    'search.time-range.open.start.duration': "unsupported"
 }
 
 # fmt: on
