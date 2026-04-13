@@ -267,7 +267,7 @@ class DAVClient(BaseDAVClient):
         when returning 401, warnings will be printed which might be unwanted.
         Check auth parameter for details.
         """
-        headers = headers or {}
+        headers = headers or CaseInsensitiveDict()
 
         ## Deprecation TODO: give a warning, user should use get_davclient or auto_calendar instead.  Probably.
 
@@ -318,7 +318,7 @@ class DAVClient(BaseDAVClient):
                 "Accept": "text/xml, text/calendar",
             }
         )
-        self.headers.update(headers or {})
+        self.headers.update(headers or CaseInsensitiveDict())
         if self.url.username is not None:
             username = unquote(self.url.username)
             password = unquote(self.url.password)
@@ -756,7 +756,7 @@ class DAVClient(BaseDAVClient):
         Returns
             DAVResponse
         """
-        headers = {"Depth": str(depth)} if depth is not None else {}
+        headers = {"Depth": str(depth)} if depth is not None else CaseInsensitiveDict()
         return self.request(url, "REPORT", query, headers)
 
     def mkcol(self, url: str, body: str, dummy: None = None) -> DAVResponse:

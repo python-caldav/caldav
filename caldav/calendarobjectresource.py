@@ -39,6 +39,7 @@ else:
 
 from contextlib import contextmanager
 
+from .base_client import ICALH
 from .datastate import DataState, IcalendarState, NoDataState, RawDataState, VobjectState
 from .davobject import DAVObject
 from .elements import cdav, dav
@@ -94,6 +95,15 @@ class CalendarObjectResource(DAVObject):
     # New state management (issue #613)
     _state: DataState | None = None
     _borrowed: bool = False
+
+    # Schedule tag (ref https://github.com/python-caldav/caldav/issues/660 and docs/design/TODO-SCHEDULE.md)
+    @property
+    def schedule_tag(self) -> str | None:
+        return self.props.get(cdav.ScheduleTag.tag)
+
+    @property
+    def etag(self) -> str | None:
+        return self.props.get(dav.GetEtag.tag)
 
     @property
     def id(self) -> str | None:
@@ -410,7 +420,7 @@ class CalendarObjectResource(DAVObject):
         acceptable relation types in reltypes, or by passing a lambda
         function in relfilter.
 
-        TODO: Make it possible to  also check up reverse relationships
+        TODO: Make it possible to also check up reverse relationships
 
         TODO: this is partially overlapped by plann.lib._relships_by_type
         in the plann tool.  Should consolidate the code.
@@ -773,18 +783,34 @@ class CalendarObjectResource(DAVObject):
         ## we need to modify the icalendar code, update our own participant status
         self.icalendar_instance.pop("METHOD")
         self.change_attendee_status(partstat=partstat)
-        self.get_property(cdav.ScheduleTag(), use_cached=True)
+        uid = self.id
+        ## On auto-scheduling servers the server already places the event in the attendee's
+        ## calendar with a Schedule-Tag set.  We must update that copy rather than creating a
+        ## new one via add_event() — a plain attendee PUT won't get a Schedule-Tag because
+        ## servers only assign it on organizer-originated scheduling operations.
+        if uid and self.client.features.is_supported("scheduling.auto-schedule"):
+            for cal in self.client.principal().calendars():
+                try:
+                    existing = cal.event_by_uid(uid)
+                    existing.load()
+                    existing.change_attendee_status(partstat=partstat)
+                    existing.save()
+                    return
+                except error.NotFoundError:
+                    pass
         try:
             calendar.add_event(self.data)
         except Exception:
-            ## TODO - TODO - TODO
-            ## RFC6638 does not seem to be very clear (or
-            ## perhaps I should read it more thoroughly) neither on
-            ## how to handle conflicts, nor if the reply should be
-            ## posted to the "outbox", saved back to the same url or
-            ## sent to a calendar.
+            ## add_event() failed — the event likely already exists (e.g. non-auto-scheduling
+            ## server that still rejects duplicate UIDs).  Reload self from the inbox so we have
+            ## fresh data (METHOD is restored), then retry via the outbox: posting an iTIP REPLY
+            ## to the outbox lets the server process the PARTSTAT update on our behalf, which is
+            ## the correct RFC 6638 mechanism when we cannot write directly to the calendar.
+            ## We intentionally do NOT do a separate PROPFIND for Schedule-Tag here: the tag must
+            ## be read atomically with the object data (a separate request could race with a
+            ## concurrent scheduling operation), and RFC 6638 requires the server to return it
+            ## as a response header on GET — so load() is sufficient if the server complies.
             self.load()
-            self.get_property(cdav.ScheduleTag(), use_cached=False)
             outbox = self.client.principal().schedule_outbox()
             if calendar.url != outbox.url:
                 self._reply_to_invite_request(partstat, calendar=outbox)
@@ -868,6 +894,7 @@ class CalendarObjectResource(DAVObject):
         except Exception:
             return self.load_by_multiget()
 
+        ## consider refactoring - this is repeated many places now
         if "Etag" in r.headers:
             self.props[dav.GetEtag.tag] = r.headers["Etag"]
         if "Schedule-Tag" in r.headers:
@@ -997,10 +1024,25 @@ class CalendarObjectResource(DAVObject):
         self.url = URL.objectify(path)
 
     def _put(self, retry_on_failure=True):
+        ## TODO: quite much overlapping with _async_put, should consolidate
+        ## TODO: this is low-level http-communication - shouldn't it be in the davclient file rather than in calendarobjectresource.py?
         ## SECURITY TODO: we should probably have a check here to verify that no such object exists already
-        r = self.client.put(self.url, self.data, {"Content-Type": 'text/calendar; charset="utf-8"'})
-        if r.status == 302:
-            path = [x[1] for x in r.headers if x[0] == "location"][0]
+        headers = {}  ## TODO: use some caseinsensitivedict
+        if self.schedule_tag:
+            headers["if-schedule-tag-match"] = self.schedule_tag
+        elif self.etag:
+            headers["if-match"] = self.etag
+        headers |= ICALH
+        r = self.client.put(self.url, self.data, headers)
+        if r.status == 412:
+            if self.schedule_tag:
+                raise error.ScheduleTagMismatchError(errmsg(r))
+            elif self.etag:
+                raise error.ETagMismatchError(errmsg(r))
+            else:
+                raise error.PutError(errmsg(r))
+        elif r.status == 302:
+            self.url = URL.objectify([x[1] for x in r.headers if x[0] == "location"][0])
         elif r.status not in (204, 201):
             if retry_on_failure:
                 try:
@@ -1014,14 +1056,14 @@ class CalendarObjectResource(DAVObject):
                 return self._put(False)
             else:
                 raise error.PutError(errmsg(r))
+        if "Etag" in r.headers:
+            self.props[dav.GetEtag.tag] = r.headers["Etag"]
+        if r.headers and r.headers.get("schedule-tag"):
+            self.props[cdav.ScheduleTag.tag] = r.headers["schedule-tag"]
 
     async def _async_put(self, retry_on_failure=True):
         """Async version of _put for async clients."""
-        r = await self.client.put(
-            str(self.url),
-            str(self.data),
-            {"Content-Type": 'text/calendar; charset="utf-8"'},
-        )
+        r = await self.client.put(str(self.url), str(self.data), ICALH)
         if r.status == 302:
             path = [x[1] for x in r.headers if x[0] == "location"][0]
             self.url = URL.objectify(path)
@@ -1036,6 +1078,11 @@ class CalendarObjectResource(DAVObject):
                 return await self._async_put(False)
             else:
                 raise error.PutError(errmsg(r))
+        ## TODO: refactor - those code lines are repeated all over the place
+        if "Etag" in r.headers:
+            self.props[dav.GetEtag.tag] = r.headers["Etag"]
+        if r.headers and r.headers.get("schedule-tag"):
+            self.props[cdav.ScheduleTag.tag] = r.headers["schedule-tag"]
 
     def _create(self, id=None, path=None, retry_on_failure=True) -> None:
         ## TODO: Find a better method name
@@ -1120,7 +1167,6 @@ class CalendarObjectResource(DAVObject):
         no_create: bool = False,
         obj_type: str | None = None,
         increase_seqno: bool = True,
-        if_schedule_tag_match: bool = False,
         only_this_recurrence: bool = True,
         all_recurrences: bool = False,
     ) -> Self:
@@ -1137,8 +1183,7 @@ class CalendarObjectResource(DAVObject):
 
         The SEQUENCE should be increased when saving a new version of
         the object.  If this behaviour is unwanted, then
-        increase_seqno should be set to False.  Also, if SEQUENCE is
-        not set, then this will be ignored.
+        increase_seqno should be set to False.
 
         The behaviour when saving a single recurrence object to the
         server is as far as I can understand not defined in the RFCs,
@@ -1170,7 +1215,6 @@ class CalendarObjectResource(DAVObject):
                 no_create=no_create,
                 obj_type=obj_type,
                 increase_seqno=increase_seqno,
-                if_schedule_tag_match=if_schedule_tag_match,
                 only_this_recurrence=only_this_recurrence,
                 all_recurrences=all_recurrences,
             )
@@ -1285,11 +1329,10 @@ class CalendarObjectResource(DAVObject):
                 ici.add_component(self.icalendar_component)
 
     def _maybe_increment_sequence(self, increase_seqno):
-        """Increment SEQUENCE number if present and increase_seqno is True."""
+        """Increment SEQUENCE number if increase_seqno is True."""
         if increase_seqno and "SEQUENCE" in self.icalendar_component:
-            seqno = self.icalendar_component.pop("SEQUENCE", None)
-            if seqno is not None:
-                self.icalendar_component.add("SEQUENCE", seqno + 1)
+            seqno = self.icalendar_component.pop("SEQUENCE", 0)
+            self.icalendar_component.add("SEQUENCE", seqno + 1)
 
     async def _async_save(
         self,
@@ -1297,7 +1340,6 @@ class CalendarObjectResource(DAVObject):
         no_create: bool = False,
         obj_type: str | None = None,
         increase_seqno: bool = True,
-        if_schedule_tag_match: bool = False,
         only_this_recurrence: bool = True,
         all_recurrences: bool = False,
     ) -> Self:

@@ -347,7 +347,7 @@ class FeatureSet:
             "links": ["https://datatracker.ietf.org/doc/html/rfc6638#section-2.4.1"],
         },
         "scheduling.mailbox.inbox-delivery": {
-            "description": "Server delivers incoming scheduling REQUEST messages to the attendee's schedule-inbox (RFC6638 section 4.1). When unsupported, the server implements automatic scheduling: invitations are auto-processed and placed directly on the attendee's calendar without appearing in the inbox. Clients should check this feature to know whether to look for inbox items after sending an invite, or check the attendee calendar directly.",
+            "description": "Server delivers incoming scheduling REQUEST messages to the attendee's schedule-inbox (RFC6638 section 4.1). See also scheduling.auto-schedule for whether the server additionally auto-processes invitations into the attendee's calendar.",
             "links": [
                 "https://datatracker.ietf.org/doc/html/rfc6638#section-4.1",
             ],
@@ -903,28 +903,22 @@ xandikos = {
     ## We've sometimes been observing internal server errors on freebusy-requests.
     ## Should do more research on it next time it shows up.
 
-    ## Component type filtering is required - searches must specify event=True or todo=True;
-    ## omitting it returns empty results.
-    "search.comp-type.optional": "unsupported",
-
     ## Principal property search returns 403 (not implemented)
     "principal-search": "ungraceful",
 
-    ## Server-side recurrence expansion is buggy for tasks and event exceptions
-    "search.recurrences.expanded.todo": "unsupported",
+    ## Server-side recurrence expansion for event exceptions is still broken;
+    ## VTODO RRULE expansion was fixed in xandikos PR #627 (released in 0.3.7).
     "search.recurrences.expanded.exception": "unsupported",
+
+    ## Open-start time-range searches (no lower bound) crash xandikos 0.3.7 with a
+    ## 500 Internal Server Error (OverflowError: date value out of range in icalendar.py
+    ## _expand_rrule_component when computing adjusted_start = start - duration).
+    "search.time-range.open.start": {"support": "ungraceful", "behaviour": "500 Internal Server Error (OverflowError in rrule expansion)"},
 
     ## this only applies for very simple installations
     "auto-connect.url": {"domain": "localhost", "scheme": "http", "basepath": "/"},
 
     "scheduling": {"support": "unsupported"},
-    ## Open-start searches (end bound only) cause xandikos to return 500 when processing
-    ## VTODOs that have DURATION but no DUE (no DUE means the index falls back to a full
-    ## file check, which crashes in the time-range calculation).
-    'search.time-range.open.start': {'support': 'ungraceful', 'behaviour': 'xandikos returns 500 on open-start searches involving DURATION-only VTODOs'},
-    ## xandikos index-based filtering for VTODO is inaccurate: tasks with DTSTART+DUE
-    ## entirely outside the search range can be returned as false positives.
-    'search.time-range.todo.strict': {'support': 'broken', 'behaviour': 'tasks with DTSTART+DUE outside the range are returned'},
 }
 
 ## This seems to work as of version 3.5.4 of Radicale.
@@ -941,15 +935,8 @@ radicale = {
     "auto-connect.url": {"domain": "localhost", "scheme": "http", "basepath": "/"},
     ## freebusy is not supported yet, but on the long-term road map
     "scheduling": {"support": "unsupported"},
-    ## Radicale does not return results for open-end date searches (only start given)
-    'search.time-range.open.end': {'support': 'unsupported'},
     'old_flags': [
-    ## calendar listings and calendar creation works a bit
-    ## "weird" on radicale
-
-    #'text_search_is_exact_match_sometimes',
-
-    ## extra features not specified in RFC5545
+    ## extra features not specified in RFC4791
     "calendar_order",
     "calendar_color"
     ]
@@ -976,12 +963,14 @@ nextcloud = {
     #'save-load.todo.mixed-calendar': {'support': 'unsupported'}, ## Why?  It started complaining about this just recently.
     'principal-search.by-name.self': {'support': 'unsupported'},
     'principal-search': {'support': 'ungraceful'},
+    'search.time-range.open.start.duration': 'broken',
     #'old_flags': ['unique_calendar_ids'],
     ## I'm surprised, I'm quite sure this was passing earlier.  Caldav commit a98d50490b872e9b9d8e93e2e401c936ad193003, caldav server checker commit 3cae24cf99da1702b851b5a74a9b88c8e5317dad
     'search.combined-is-logical-and': False,
     ## Observed with Nextcloud 33: server delivers iTIP notification to the inbox AND
-    ## auto-schedules into the attendee's calendar (same quirk as Baikal/Cyrus).
-    "scheduling.mailbox.inbox-delivery": {"support": "quirk", "behaviour": "server delivers iTIP notification to inbox AND auto-schedules into calendar"},
+    ## auto-schedules into the attendee's calendar.
+    "scheduling.mailbox.inbox-delivery": True,
+    "scheduling.auto-schedule": True,
 }
 
 ## TODO: Latest - mismatch between config and test script in delete-calendar.free-namespace ... and create-calendar.set-displayname?
@@ -1029,9 +1018,9 @@ zimbra = {
     ## Zimbra implements server-side automatic scheduling: invitations are
     ## auto-processed into the attendee's calendar; no iTIP notification appears in the inbox.
     "scheduling.mailbox": True,
-    "scheduling.mailbox.inbox-delivery": {"support": "unsupported"},
+    "scheduling.mailbox.inbox-delivery": False,
+    "scheduling.auto-schedule": True,
     'save-load.icalendar.related-to': {'support': 'unsupported'},
-    'search.time-range.open.start.duration': {'support': 'unsupported'},
     'search.time-range.open.start': {'support': 'broken'},
 
     "old_flags": [
@@ -1112,8 +1101,9 @@ synology = {
 
 baikal =  { ## version 0.10.1
     # Baikal (sabre/dav) delivers iTIP notifications to the attendee inbox AND auto-schedules
-    # into their calendar (quirk: both delivery modes happen simultaneously).
-    "scheduling.mailbox.inbox-delivery": {"support": "quirk", "behaviour": "server delivers iTIP notification to inbox AND auto-schedules into calendar"},
+    # into their calendar.
+    "scheduling.mailbox.inbox-delivery": True,
+    "scheduling.auto-schedule": True,
     "scheduling.mailbox": True,
     "http.multiplexing": "fragile", ## ref https://github.com/python-caldav/caldav/issues/564
     'search.comp-type.optional': {'support': 'ungraceful'},
@@ -1158,16 +1148,12 @@ cyrus = {
     # violating RFC6638 section 3.2 which requires the tag to remain stable.
     "scheduling.schedule-tag.stable-partstat": {"support": "unsupported"},
     # Cyrus may not properly reject wrong passwords in some configurations
-    # Cyrus implements server-side automatic scheduling: for cross-user
-    # invites, the server both auto-processes the invite into the attendee's calendar
+    # Cyrus implements server-side automatic scheduling: for cross-user invites,
+    # the server both auto-processes the invite into the attendee's calendar
     # AND delivers an iTIP notification copy to the attendee's schedule-inbox.
-    # Clients do not need to explicitly accept from the inbox (auto-accept is done),
-    # but inbox items do appear.  This is "quirk" behaviour: both delivery modes happen.
     "scheduling.mailbox": True,
-    "scheduling.mailbox.inbox-delivery": {
-        "support": "quirk",
-        "behaviour": "server delivers iTIP notification to inbox AND auto-schedules into calendar",
-    },
+    "scheduling.mailbox.inbox-delivery": True,
+    "scheduling.auto-schedule": True,
 }
 
 ## See comments on https://github.com/python-caldav/caldav/issues/3
@@ -1188,9 +1174,10 @@ davical = {
     # lazy responses cause MultiplexingError when accessing status_code
     "http.multiplexing": { "support": "unsupported" },
     # DAViCal delivers iTIP notifications to the attendee inbox AND auto-schedules
-    # into their calendar (quirk: both delivery modes happen simultaneously).
+    # into their calendar.
     "scheduling.mailbox": True,
-    "scheduling.mailbox.inbox-delivery": {"support": "quirk", "behaviour": "server delivers iTIP notification to inbox AND auto-schedules into calendar"},
+    "scheduling.mailbox.inbox-delivery": True,
+    "scheduling.auto-schedule": True,
     "search.comp-type.optional": { "support": "fragile" },
     "search.recurrences.expanded.exception": { "support": "unsupported" },
     "search.time-range.alarm": { "support": "unsupported" },
@@ -1206,7 +1193,6 @@ davical = {
         'calendar_order',
         'vtodo_datesearch_notime_task_is_skipped',
     ],
-    'search.time-range.open.start.duration': {'support': 'unsupported'},
 }
 
 sogo = {
@@ -1370,9 +1356,10 @@ posteo = {
 ## TODO: consolidate, make a sabredav dict and let davis/baikal build on it
 davis = {
     # Davis uses sabre/dav (same backend as Baikal): delivers iTIP notifications to the
-    # attendee inbox AND auto-schedules into their calendar (quirk behaviour).
+    # attendee inbox AND auto-schedules into their calendar.
     "scheduling.mailbox": True,
-    "scheduling.mailbox.inbox-delivery": {"support": "quirk", "behaviour": "server delivers iTIP notification to inbox AND auto-schedules into calendar"},
+    "scheduling.mailbox.inbox-delivery": True,
+    "scheduling.auto-schedule": True,
     "search.recurrences.expanded.todo": {"support": "unsupported"},
     "search.recurrences.expanded.exception": {"support": "unsupported"},
     "search.recurrences.includes-implicit.todo": {"support": "unsupported"},
@@ -1394,8 +1381,9 @@ davis = {
 ## cannot be changed.  The pre-provisioned "tasks" calendar supports VTODO only.
 ## VJOURNAL is not supported at all.
 ccs = {
-    ## scheduling.mailbox.inbox-delivery behaviour unknown until cross-user scheduling tests run
-    "scheduling.mailbox.inbox-delivery": {"support": "unknown"},
+    "scheduling.freebusy-query": {"support": "ungraceful"},
+    "scheduling.mailbox.inbox-delivery": True,
+    "scheduling.auto-schedule": True,
     "save-load.journal": {"support": "unsupported"},
     "save-load.todo.mixed-calendar": {"support": "unsupported"},
     # CCS enforces unique UIDs across ALL calendars for a user
@@ -1405,16 +1393,14 @@ ccs = {
     # CCS rejects multi-instance VTODOs (thisandfuture recurring completion)
     "save-load.todo.recurrences.thisandfuture": {"support": "unsupported"},
     "search.comp-type.optional": {"support": "ungraceful"},
-    "scheduling.free-busy": {"support": "broken"},
     ## "full" observed, 70938dc1cbb6a839978eee4315699746d38ee5f0/3cae24cf99da1702b851b5a74a9b88c8e5317dad, 2026-02-17.
     ## However, this may be due to mess with the caldav-server-checker branches.  "unsupported" again at be26d42b1ca3ff3b4fd183761b4a9b024ce12b84 / 537a23b145487006bb987dee5ab9e00cdebb0492
     "search.text.case-sensitive": {"support": "unsupported"},
     "search.time-range.event": {"support": "full"},
     "search.time-range.event.old-dates": {"support": "ungraceful"},
     "search.time-range.todo": {"support": "full"},
-    'search.time-range.open.start.duration': {'support': 'ungraceful'},
     "search.time-range.todo.old-dates": {"support": "ungraceful"},
-    "search.time-range.open.start": {"support": "ungraceful"},
+    "search.time-range.open": {"support": "ungraceful"},
     "search.time-range.alarm": {"support": "unsupported"},
     "search.recurrences": {"support": "unsupported"},
     "principal-search": {"support": "unsupported"},
@@ -1432,8 +1418,6 @@ ccs = {
 ## CalDAV served at /dav/cal/<username>/ over HTTP on port 8080.
 ## Feature support mostly unknown until tested; starting with empty hints.
 stalwart = {
-    ## scheduling.mailbox.inbox-delivery behaviour unknown until cross-user scheduling tests run
-    "scheduling.mailbox.inbox-delivery": {"support": "unknown"},
     'rate-limit': {
         'enable': True,
         'default_sleep': 3,
@@ -1454,8 +1438,11 @@ stalwart = {
     'search.recurrences.expanded.exception': False,
     ## Stalwart stores master+exception VEVENTs as a single resource with 2 VEVENTs.
     'save-load.event.recurrences.exception': {'support': 'full'},
-    ## Stalwart does not return results for open-end date searches (only start given)
-    'search.time-range.open.end': {'support': 'unsupported'},
+    'search.time-range.open': True,
+    ## Stalwart delivers iTIP notifications to the attendee inbox AND auto-schedules
+    ## into their calendar (verified by running CheckSchedulingInboxDelivery).
+    "scheduling.mailbox.inbox-delivery": True,
+    "scheduling.auto-schedule": True,
     'old_flags': [
         ## Stalwart does not return VTODO items without DTSTART in date searches
         'vtodo_datesearch_nodtstart_task_is_skipped',
@@ -1585,9 +1572,15 @@ ox = {
     'principal-search.list-all': {'support': 'unsupported'},
     ## Cross-calendar duplicate UID test fails (AuthorizationError creating second calendar)
     'save.duplicate-uid.cross-calendar': {'support': 'ungraceful'},
-    'save-load.icalendar.related-to': {'support': 'unsupported'},
+    'save-load.icalendar.related-to': {'support': 'broken'},
     ## OX App Suite has complex user provisioning; cross-user scheduling tests not yet set up.
-    "scheduling.mailbox.inbox-delivery": {"support": "unknown"},
+    "scheduling": {"support": "unknown"},
+    "scheduling.freebusy-query": "ungraceful",
+    'search.time-range.open.start': "broken",
+    'search.time-range.open.end': True,
+    ## time-range.open is "broken", while time-range.open.start.duration is "unsupported"?
+    ## this may possibly be some problems with the checker rather than with Ox
+    'search.time-range.open.start.duration': "unsupported"
 }
 
 # fmt: on
