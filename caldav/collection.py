@@ -30,6 +30,7 @@ if TYPE_CHECKING:
 from collections.abc import Iterable, Iterator, Sequence
 from typing import Literal
 
+from .base_client import ICALH
 from .calendarobjectresource import (
     CalendarObjectResource,
     Event,
@@ -509,17 +510,13 @@ class Principal(DAVObject):
 
         caldavobj.add_organizer()
 
-        response = self.client.post(
-            outbox.url,
-            caldavobj.data,
-            headers={"Content-Type": "text/calendar; charset=utf-8"},
-        )
+        response = self.client.post(outbox.url, caldavobj.data, headers=ICALH)
         return response._parse_scheduling_response_objects(parent=self)
 
     async def _async_freebusy_request(self, outbox, fb_obj) -> dict:
         """Async implementation of freebusy_request() for async clients."""
         ## TODO: could we have common headers as global variable?
-        headers = {"Content-Type": "text/calendar; charset=utf-8"}
+        headers = ICALH
         outbox = await outbox
         ## TODO: it's really bad that arbitrary methods returns
         ## a coroutine in async mode.  It's needed to make it much
@@ -1957,34 +1954,50 @@ class ScheduleMailbox(Calendar):
 
     def get_items(self):
         """
-        TODO: work in progress
-        TODO: perhaps this belongs to the super class?
+        Return all items currently in this scheduling mailbox (inbox or outbox).
+
+        Unlike regular calendars, schedule mailboxes contain raw iTIP messages
+        (METHOD:REQUEST, METHOD:REPLY, METHOD:CANCEL, …) rather than permanent
+        calendar objects.  Items should be processed and then deleted; they are
+        not meant to be kept indefinitely.
+
+        Servers often do not support the sync-collection REPORT (RFC 6578) on
+        schedule-inbox/outbox — the inbox is not a full calendar collection and
+        may not be indexed the same way.  We therefore attempt the sync-token
+        path first (efficient for repeat polling) but fall back transparently to
+        a plain PROPFIND depth-1 followed by individual GETs.  Both paths return
+        loaded CalendarObjectResource objects.
+
+        This method does NOT belong on the Calendar super-class: Calendar exposes
+        type-specific accessors (get_events, get_todos, …) and uses search()
+        internally.  The mailbox is a different beast — it holds transient,
+        mixed-type scheduling messages and must use children() as its fallback
+        because search() / REPORT queries against a mailbox URL are unreliable
+        across servers.
         """
+
+        def _load_from_children():
+            items = [CalendarObjectResource(url=x[0], client=self.client) for x in self.children()]
+            for x in items:
+                x.load()
+            return items
+
         if not self._items:
             try:
                 self._items = self.objects(load_objects=True)
             except Exception:
                 logging.debug(
-                    "caldav server does not seem to support a sync-token REPORT query on a scheduling mailbox"
+                    "sync-collection REPORT not supported on scheduling mailbox %s; "
+                    "falling back to PROPFIND depth-1",
+                    self.url,
                 )
-                error.assert_("google" in str(self.url))
-                self._items = [
-                    CalendarObjectResource(url=x[0], client=self.client) for x in self.children()
-                ]
-                for x in self._items:
-                    x.load()
+                self._items = _load_from_children()
         else:
             try:
                 self._items.sync()
             except Exception:
-                self._items = [
-                    CalendarObjectResource(url=x[0], client=self.client) for x in self.children()
-                ]
-                for x in self._items:
-                    x.load()
+                self._items = _load_from_children()
         return self._items
-
-    ## TODO: work in progress
 
 
 #    def get_invites():
