@@ -933,6 +933,269 @@ class _TestSchedulingBase:
     ## TODO: more testing ... what happens if deleting things from the
     ## inbox/outbox?
 
+    # ------------------------------------------------------------------ #
+    # Schedule-Tag tests (RFC 6638 section 3.2–3.3)                       #
+    # All tests below are expected to FAIL until the implementation is    #
+    # complete.  See docs/design/TODO_SCHEDULE_TAG.md and                 #
+    # https://github.com/python-caldav/caldav/issues/660                  #
+    # ------------------------------------------------------------------ #
+
+    def testScheduleTagReturnedOnSave(self):
+        """
+        Saving a scheduling object (one with ORGANIZER/ATTENDEE) to the server
+        should return a Schedule-Tag header.  After save() the tag must be
+        accessible via event.schedule_tag and stored in event.props.
+
+        RFC 6638 section 3.2: the server MUST return Schedule-Tag on
+        responses to PUT requests for scheduling object resources.
+        """
+        self._skip_unless_support("scheduling.schedule-tag")
+        if len(self.principals) < 1:
+            pytest.skip("need at least 1 principal")
+
+        cal = self._getCalendar(0)
+        addr = self.principals[0].get_vcal_address()
+        uid = str(uuid.uuid4())
+        ical = (
+            "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Test//Test//EN\r\n"
+            "BEGIN:VEVENT\r\n"
+            f"UID:{uid}\r\n"
+            "DTSTAMP:20260101T000000Z\r\n"
+            "DTSTART:20320601T100000Z\r\nDURATION:PT1H\r\n"
+            "SUMMARY:Schedule-Tag test\r\n"
+            f"ORGANIZER:{addr}\r\n"
+            f"ATTENDEE;RSVP=TRUE;PARTSTAT=NEEDS-ACTION:{addr}\r\n"
+            "END:VEVENT\r\nEND:VCALENDAR\r\n"
+        )
+        event = cal.save_event(ical)
+
+        assert event.schedule_tag is not None, (
+            "Server did not return Schedule-Tag header after PUT; "
+            "either the server does not support it or event.schedule_tag "
+            "property is not implemented"
+        )
+
+    def testScheduleTagStableOnPartstateUpdate(self):
+        """
+        RFC 6638 section 3.2: when an attendee updates only their PARTSTAT
+        (participation status) the server MUST NOT change the Schedule-Tag.
+
+        The tag before and after a PARTSTAT-only PUT must be identical.
+        """
+        self._skip_unless_support("scheduling.schedule-tag")
+        if len(self.principals) < 2:
+            pytest.skip("need 2 principals")
+        if not self.clients[1].features.is_supported("scheduling.mailbox.inbox-delivery"):
+            pytest.skip("server does not deliver iTIP requests to the inbox")
+
+        organizer_cal = self._getCalendar(0)
+        attendee_cal = self._getCalendar(1)
+
+        fresh_sched = sched_template % (
+            str(uuid.uuid4()),
+            "%2i%2i%2i" % (random.randint(0, 23), random.randint(0, 59), random.randint(0, 59)),
+            random.randint(1, 28),
+            "%2i%2i%2i" % (random.randint(0, 23), random.randint(0, 59), random.randint(0, 59)),
+        )
+        saved_event = organizer_cal.save_with_invites(
+            fresh_sched, [self.principals[0], self.principals[1].get_vcal_address()]
+        )
+        self._auto_scheduled_event_uids.append(saved_event.id)
+
+        ## Wait for invite to land in attendee's inbox
+        inbox_items = []
+        for _ in range(30):
+            inbox_items = self.principals[1].schedule_inbox().get_items()
+            if inbox_items:
+                break
+            time.sleep(1)
+
+        if not inbox_items:
+            pytest.skip("Invite not delivered to attendee inbox; cannot test PARTSTAT stability")
+
+        invite = inbox_items[0]
+        invite.load()
+        tag_before = invite.schedule_tag
+        assert tag_before is not None, "No Schedule-Tag on inbox item before PARTSTAT update"
+
+        ## Accept the invite — a PARTSTAT-only change
+        invite.accept_invite(calendar=attendee_cal)
+
+        ## Re-fetch the attendee's copy and compare tags
+        attendee_event = None
+        for cal in self.principals[1].calendars():
+            for ev in cal.get_events():
+                if ev.id == saved_event.id:
+                    attendee_event = ev
+                    break
+            if attendee_event:
+                break
+
+        assert attendee_event is not None, "Accepted event not found in attendee's calendars"
+        attendee_event.load()
+        tag_after = attendee_event.schedule_tag
+
+        assert tag_after is not None, "No Schedule-Tag on attendee's event after accept"
+        assert tag_before == tag_after, (
+            f"Schedule-Tag changed after PARTSTAT-only update: "
+            f"{tag_before!r} → {tag_after!r}; "
+            "RFC 6638 section 3.2 requires the tag to be stable across "
+            "participation-status-only updates"
+        )
+
+    def testScheduleTagChangesOnOrganizerUpdate(self):
+        """
+        RFC 6638 section 3.2: when the organizer sends a substantive update,
+        the server MUST update the Schedule-Tag on the attendee's copy.
+
+        The tag on the attendee's resource before and after an organizer PUT
+        must differ.
+        """
+        self._skip_unless_support("scheduling.schedule-tag")
+        if len(self.principals) < 2:
+            pytest.skip("need 2 principals")
+
+        organizer_cal = self._getCalendar(0)
+
+        uid = str(uuid.uuid4())
+        attendee_addr = self.principals[1].get_vcal_address()
+        organizer_addr = self.principals[0].get_vcal_address()
+
+        def _make_ical(summary):
+            return (
+                "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Test//Test//EN\r\n"
+                "BEGIN:VEVENT\r\n"
+                f"UID:{uid}\r\n"
+                "DTSTAMP:20260101T000000Z\r\n"
+                "DTSTART:20320601T100000Z\r\nDURATION:PT1H\r\n"
+                f"SUMMARY:{summary}\r\n"
+                f"ORGANIZER:{organizer_addr}\r\n"
+                f"ATTENDEE;RSVP=TRUE;PARTSTAT=NEEDS-ACTION:{attendee_addr}\r\n"
+                "END:VEVENT\r\nEND:VCALENDAR\r\n"
+            )
+
+        saved = organizer_cal.save_with_invites(
+            _make_ical("Original summary"),
+            [self.principals[0], attendee_addr],
+        )
+        self._auto_scheduled_event_uids.append(uid)
+
+        ## Find the attendee's copy and record the tag
+        attendee_event = None
+        for _ in range(30):
+            for cal in self.principals[1].calendars():
+                for ev in cal.get_events():
+                    if ev.id == uid:
+                        attendee_event = ev
+                        break
+                if attendee_event:
+                    break
+            if attendee_event:
+                break
+            time.sleep(1)
+
+        if attendee_event is None:
+            pytest.skip("Event not delivered to attendee; cannot test tag change")
+
+        attendee_event.load()
+        tag_before = attendee_event.schedule_tag
+        assert tag_before is not None, "No Schedule-Tag on attendee's copy before organizer update"
+
+        ## Organizer sends a substantive update (changed summary)
+        organizer_cal.save_with_invites(
+            _make_ical("Updated summary"),
+            [self.principals[0], attendee_addr],
+        )
+
+        ## Poll until the attendee's copy reflects the update
+        for _ in range(30):
+            attendee_event.load()
+            if attendee_event.schedule_tag != tag_before:
+                break
+            time.sleep(1)
+
+        tag_after = attendee_event.schedule_tag
+        assert tag_after != tag_before, (
+            f"Schedule-Tag did not change after organizer update: still {tag_before!r}; "
+            "RFC 6638 section 3.2 requires the tag to change on substantive updates"
+        )
+
+    def testScheduleTagMismatchRaisesError(self):
+        """
+        save(if_schedule_tag_match=True) with a stale (wrong) tag must raise
+        ScheduleTagMismatchError (a subclass of PutError) when the server
+        returns 412.
+
+        This tests the full round-trip: client sends If-Schedule-Tag-Match
+        with a wrong value, server rejects with 412.
+        """
+        self._skip_unless_support("scheduling.schedule-tag")
+        if len(self.principals) < 1:
+            pytest.skip("need at least 1 principal")
+
+        cal = self._getCalendar(0)
+        addr = self.principals[0].get_vcal_address()
+        uid = str(uuid.uuid4())
+        ical = (
+            "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Test//Test//EN\r\n"
+            "BEGIN:VEVENT\r\n"
+            f"UID:{uid}\r\n"
+            "DTSTAMP:20260101T000000Z\r\n"
+            "DTSTART:20320601T100000Z\r\nDURATION:PT1H\r\n"
+            "SUMMARY:Stale-tag test\r\n"
+            f"ORGANIZER:{addr}\r\n"
+            f"ATTENDEE;RSVP=TRUE;PARTSTAT=NEEDS-ACTION:{addr}\r\n"
+            "END:VEVENT\r\nEND:VCALENDAR\r\n"
+        )
+        event = cal.save_event(ical)
+        event.load()
+
+        ## Inject a deliberately wrong tag
+        from caldav.elements import cdav as _cdav
+
+        event.props[_cdav.ScheduleTag.tag] = '"deliberately-wrong-tag"'
+
+        with pytest.raises(error.ScheduleTagMismatchError):
+            event.save(if_schedule_tag_match=True)
+
+    def testScheduleTagMatchSucceeds(self):
+        """
+        save(if_schedule_tag_match=True) with the correct (current) tag must
+        succeed and the updated tag must be stored in event.props afterwards.
+        """
+        self._skip_unless_support("scheduling.schedule-tag")
+        if len(self.principals) < 1:
+            pytest.skip("need at least 1 principal")
+
+        cal = self._getCalendar(0)
+        addr = self.principals[0].get_vcal_address()
+        uid = str(uuid.uuid4())
+        ical = (
+            "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Test//Test//EN\r\n"
+            "BEGIN:VEVENT\r\n"
+            f"UID:{uid}\r\n"
+            "DTSTAMP:20260101T000000Z\r\n"
+            "DTSTART:20320601T100000Z\r\nDURATION:PT1H\r\n"
+            "SUMMARY:Correct-tag test\r\n"
+            f"ORGANIZER:{addr}\r\n"
+            f"ATTENDEE;RSVP=TRUE;PARTSTAT=NEEDS-ACTION:{addr}\r\n"
+            "END:VEVENT\r\nEND:VCALENDAR\r\n"
+        )
+        event = cal.save_event(ical)
+        event.load()
+
+        tag_before = event.schedule_tag
+        assert tag_before is not None, "Server did not return Schedule-Tag"
+
+        ## Modify something minor and save with the correct tag
+        event.icalendar_component["SUMMARY"] = "Correct-tag test (updated)"
+        event.save(if_schedule_tag_match=True, increase_seqno=False)
+
+        ## Must not have raised; tag in props must be present (may have changed)
+        assert event.schedule_tag is not None, (
+            "schedule_tag property disappeared after conditional save"
+        )
+
 
 ## Legacy: run TestScheduling against the top-level rfc6638_users config.
 if rfc6638_users:
