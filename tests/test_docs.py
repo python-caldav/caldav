@@ -33,4 +33,5 @@ class DocTests(unittest.TestCase):
             os.environ.pop("PYTHON_CALDAV_USE_TEST_SERVER", None)
 
     test_tutorial = manueltest("../docs/source/tutorial.rst")
-    test_tutorial = manueltest("../docs/source/async_tutorial.rst")
+    test_async_tutorial = manueltest("../docs/source/async_tutorial.rst")
+    test_async_ref = manueltest("../docs/source/async.rst")

@@ -9,6 +9,16 @@ The caldav library provides an async-first API for use with Python's
 * Integrate with async web frameworks (FastAPI, aiohttp, etc.)
 * Build responsive applications that don't block on I/O
 
+=======
+Caveats
+=======
+
+Async IO was introduced in version 3.0, 2026-03-03, without being tested in any production environments, and it was done by a developer not having much experience with async usage.  Rough edges are to be expected.  Test it very well in a staging environment before using it in production environments.  It's probably a good idea to wait some few releases before using it in sharp production settings.
+
+A "Sans-IO" design pattern was followed, in a hope that it would make it possible to have one library serve both the async and sync use case through relatively similar APIs without duplicating too much code.  In retro-perspective I'm not sure this was the best idea for the CalDAV library.  Be aware that there are still exists code paths that works well with the sync code but will blow up if you try using it with the async code.
+
+Async works very well when it's crispy clear what operations causes API calls.  I've been a bit careless with the old sync library, there are many places where an API call is not expected, but anyway there are things like ``self.load(only_if_unloaded=True)`` buried in the code.  Works well with sync, not so much with the async code.  In a 4.0-version (perhaps 2027?) there may be some major changes to the API.
+
 Quick Start
 ===========
 
@@ -20,11 +30,11 @@ The async API is available through the ``caldav.aio`` module:
     from caldav import aio
 
     async def main():
-        async with aio.get_async_davclient() as client:
+        async with await aio.get_async_davclient() as client:
             principal = await client.get_principal()
             calendars = await principal.get_calendars()
             for cal in calendars:
-                print(f"Calendar: {cal.name}")
+                print(f"Calendar: {await cal.get_display_name()}")
                 events = await cal.get_events()
                 print(f"  {len(events)} events")
 
@@ -72,7 +82,7 @@ Example: Working with Calendars
     from datetime import datetime, date
 
     async def calendar_demo():
-        async with aio.get_async_davclient() as client:
+        async with await aio.get_async_davclient() as client:
             principal = await client.get_principal()
 
             # Create a new calendar
@@ -112,7 +122,7 @@ concurrently:
     from caldav import aio
 
     async def fetch_all_events():
-        async with aio.get_async_davclient() as client:
+        async with await aio.get_async_davclient() as client:
             principal = await client.get_principal()
             calendars = await principal.get_calendars()
 
@@ -121,7 +131,7 @@ concurrently:
             results = await asyncio.gather(*tasks)
 
             for cal, events in zip(calendars, results):
-                print(f"{cal.name}: {len(events)} events")
+                print(f"{await cal.get_display_name()}: {len(events)} events")
 
     asyncio.run(fetch_all_events())
 
@@ -150,7 +160,7 @@ The async API closely mirrors the sync API. Here are the key differences:
            ...
 
        # Async
-       async with aio.get_async_davclient() as client:
+       async with await aio.get_async_davclient() as client:
            ...
 
 3. **Await all I/O operations:**
