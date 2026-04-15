@@ -14,6 +14,17 @@ repos:
       - id: trailing-whitespace
       - id: end-of-file-fixer
 
+  - repo: https://github.com/pycalendar/ai-prompt-auto-commit
+    rev: v0.0.5
+    hooks:
+      - id: unstage-ai-prompts
+      - id: append-ai-prompts
+        stages: [prepare-commit-msg]
+      - id: archive-ai-prompts
+        stages: [post-commit]
+      - id: prepare-ai-repository
+        stages: [manual]
+
   - repo: https://github.com/compilerla/conventional-pre-commit
     rev: v3.4.0
     hooks:

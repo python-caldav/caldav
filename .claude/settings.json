@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "id": "ai-prompt-auto-commit",
+            "type": "command",
+            "command": "input=$(cat); ts=$(date +%Y-%m-%dT%H-%M-%S); model=$(printf '%s' \"$input\" | jq -r '.model // \"claude-sonnet-4-6\"'); printf '%s' \"$input\" | jq -r '.prompt' > \".prompts/${ts}_${model}.md\""
+          }
+        ]
+      }
+    ]
+  }
+}
