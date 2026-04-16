@@ -39,6 +39,7 @@ else:
 
 from contextlib import contextmanager
 
+from .base_client import ICALH
 from .datastate import DataState, IcalendarState, NoDataState, RawDataState, VobjectState
 from .davobject import DAVObject
 from .elements import cdav, dav
@@ -94,6 +95,11 @@ class CalendarObjectResource(DAVObject):
     # New state management (issue #613)
     _state: DataState | None = None
     _borrowed: bool = False
+
+    # Schedule tag (ref https://github.com/python-caldav/caldav/issues/660 and docs/design/TODO-SCHEDULE.md)
+    @property
+    def schedule_tag(self) -> str | None:
+        return self.props.get(cdav.ScheduleTag.tag)
 
     @property
     def id(self) -> str | None:
@@ -996,9 +1002,11 @@ class CalendarObjectResource(DAVObject):
 
         self.url = URL.objectify(path)
 
-    def _put(self, retry_on_failure=True):
+    def _put(self, retry_on_failure=True, extra_headers=None):
+        ## TODO: quite much overlapping with _async_put, should consolidate
         ## SECURITY TODO: we should probably have a check here to verify that no such object exists already
-        r = self.client.put(self.url, self.data, {"Content-Type": 'text/calendar; charset="utf-8"'})
+        headers = ICALH | (extra_headers or {})
+        r = self.client.put(self.url, self.data, headers)
         if r.status == 302:
             self.url = URL.objectify([x[1] for x in r.headers if x[0] == "location"][0])
         elif r.status not in (204, 201):
@@ -1014,14 +1022,12 @@ class CalendarObjectResource(DAVObject):
                 return self._put(False)
             else:
                 raise error.PutError(errmsg(r))
+        if r.headers and r.headers.get("scheduling-tag"):
+            self.scheduling_tag = r.headers["scheduling-tag"]
 
     async def _async_put(self, retry_on_failure=True):
         """Async version of _put for async clients."""
-        r = await self.client.put(
-            str(self.url),
-            str(self.data),
-            {"Content-Type": 'text/calendar; charset="utf-8"'},
-        )
+        r = await self.client.put(str(self.url), str(self.data), ICALH)
         if r.status == 302:
             path = [x[1] for x in r.headers if x[0] == "location"][0]
             self.url = URL.objectify(path)
