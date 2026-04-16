@@ -22,6 +22,9 @@ if TYPE_CHECKING:
 
 log = logging.getLogger("caldav")
 
+## Common HTTP headers
+ICALH = {"Content-Type": 'text/calendar; charset="utf-8"'}
+
 
 class BaseDAVClient(ABC):
     """

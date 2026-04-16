@@ -30,6 +30,7 @@ if TYPE_CHECKING:
 from collections.abc import Iterable, Iterator, Sequence
 from typing import Literal
 
+from .base_client import ICALH
 from .calendarobjectresource import (
     CalendarObjectResource,
     Event,
@@ -509,17 +510,13 @@ class Principal(DAVObject):
 
         caldavobj.add_organizer()
 
-        response = self.client.post(
-            outbox.url,
-            caldavobj.data,
-            headers={"Content-Type": "text/calendar; charset=utf-8"},
-        )
+        response = self.client.post(outbox.url, caldavobj.data, headers=ICALH)
         return response._parse_scheduling_response_objects(parent=self)
 
     async def _async_freebusy_request(self, outbox, fb_obj) -> dict:
         """Async implementation of freebusy_request() for async clients."""
         ## TODO: could we have common headers as global variable?
-        headers = {"Content-Type": "text/calendar; charset=utf-8"}
+        headers = ICALH
         outbox = await outbox
         ## TODO: it's really bad that arbitrary methods returns
         ## a coroutine in async mode.  It's needed to make it much

@@ -4,8 +4,8 @@
 
 The most important rule: be honest and inform about it!
 
-Keep a log of the prompts used - prompts should be included in the
-git commits
+Keep a log of the prompts used - prompts should preferably be included in the
+git commits.
 
 Tools should be used for improving the quality of the project, not for
 rapidly adding new features.
@@ -35,8 +35,7 @@ explain in details why I'm rejecting the pull request.
 
 It's fine to ask the AI for help to analyze a bug and create a fix for
 it.  By discovering the bug, reproducing it and testing it you're
-adding real value to the project - just be transparent about AI usage
-and do not take offence if the code changes are rejected, or completely
+adding real value to the project - just remember to be honest, if you have no clue what Claude did and why it solves the bug, then inform!  Do not take offence if the code changes are rejected, or completely
 rewritten.
 
 ## General rules
