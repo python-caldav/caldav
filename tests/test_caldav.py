@@ -950,11 +950,12 @@ class _TestSchedulingBase:
         responses to PUT requests for scheduling object resources.
         """
         self._skip_unless_support("scheduling.schedule-tag")
-        if len(self.principals) < 1:
+        if len(self.principals) < 2:
             pytest.skip("need at least 1 principal")
 
         cal = self._getCalendar(0)
         addr = self.principals[0].get_vcal_address()
+        addr2 = self.principals[1].get_vcal_address()
         uid = str(uuid.uuid4())
         ical = (
             "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Test//Test//EN\r\n"
@@ -965,6 +966,7 @@ class _TestSchedulingBase:
             "SUMMARY:Schedule-Tag test\r\n"
             f"ORGANIZER:{addr}\r\n"
             f"ATTENDEE;RSVP=TRUE;PARTSTAT=NEEDS-ACTION:{addr}\r\n"
+            f"ATTENDEE;RSVP=TRUE;PARTSTAT=NEEDS-ACTION:{addr2}\r\n"
             "END:VEVENT\r\nEND:VCALENDAR\r\n"
         )
         event = cal.save_event(ical)
@@ -1002,40 +1004,52 @@ class _TestSchedulingBase:
         )
         self._auto_scheduled_event_uids.append(saved_event.id)
 
-        ## Wait for invite to land in attendee's inbox
-        inbox_items = []
+        ## Wait for the REQUEST invite (matching our UID) to land in attendee's inbox
+        invite = None
         for _ in range(30):
-            inbox_items = self.principals[1].schedule_inbox().get_items()
-            if inbox_items:
+            for item in self.principals[1].schedule_inbox().get_items():
+                item.load()
+                if item.is_invite_request() and item.id == saved_event.id:
+                    invite = item
+                    break
+            if invite:
                 break
             time.sleep(1)
 
-        if not inbox_items:
+        if not invite:
             pytest.skip("Invite not delivered to attendee inbox; cannot test PARTSTAT stability")
 
-        invite = inbox_items[0]
-        invite.load()
-        tag_before = invite.schedule_tag
-        assert tag_before is not None, "No Schedule-Tag on inbox item before PARTSTAT update"
-
-        ## Accept the invite — a PARTSTAT-only change
+        ## Accept the invite — places the event in the attendee's calendar.
+        ## On auto-scheduling servers the event may already exist; _reply_to_invite_request
+        ## handles that by finding and updating it in place.
         invite.accept_invite(calendar=attendee_cal)
 
-        ## Re-fetch the attendee's copy and compare tags
+        ## Find the event across all attendee calendars; on auto-scheduling servers it may be
+        ## in the default calendar rather than attendee_cal.  Retry briefly for async servers.
         attendee_event = None
-        for cal in self.principals[1].calendars():
-            for ev in cal.get_events():
-                if ev.id == saved_event.id:
-                    attendee_event = ev
+        for _ in range(5):
+            for cal in self.principals[1].calendars():
+                try:
+                    attendee_event = cal.event_by_uid(saved_event.id)
                     break
+                except error.NotFoundError:
+                    pass
             if attendee_event:
                 break
+            time.sleep(1)
 
-        assert attendee_event is not None, "Accepted event not found in attendee's calendars"
+        assert attendee_event is not None, "Event not found in any attendee calendar after accept"
+        attendee_event.load()
+        tag_before = attendee_event.schedule_tag
+        assert tag_before is not None, "No Schedule-Tag on attendee's calendar event after accept"
+
+        ## Do a second PARTSTAT-only change (ACCEPTED → TENTATIVE) and compare tags
+        attendee_event.change_attendee_status(partstat="TENTATIVE")
+        attendee_event.save()
         attendee_event.load()
         tag_after = attendee_event.schedule_tag
 
-        assert tag_after is not None, "No Schedule-Tag on attendee's event after accept"
+        assert tag_after is not None, "No Schedule-Tag on attendee's event after PARTSTAT update"
         assert tag_before == tag_after, (
             f"Schedule-Tag changed after PARTSTAT-only update: "
             f"{tag_before!r} → {tag_after!r}; "

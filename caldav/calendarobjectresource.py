@@ -99,7 +99,7 @@ class CalendarObjectResource(DAVObject):
     # Schedule tag (ref https://github.com/python-caldav/caldav/issues/660 and docs/design/TODO-SCHEDULE.md)
     @property
     def schedule_tag(self) -> str | None:
-        return self.props.get(cdav.ScheduleTag.tag)
+        return self.get_property(cdav.ScheduleTag(), use_cached=True)
 
     @property
     def id(self) -> str | None:
@@ -778,6 +778,7 @@ class CalendarObjectResource(DAVObject):
             calendar = self.client.principal().get_calendars()[0]
         ## we need to modify the icalendar code, update our own participant status
         self.icalendar_instance.pop("METHOD")
+        ## TODO: Why?
         self.change_attendee_status(partstat=partstat)
         self.get_property(cdav.ScheduleTag(), use_cached=True)
         try:
@@ -790,6 +791,7 @@ class CalendarObjectResource(DAVObject):
             ## posted to the "outbox", saved back to the same url or
             ## sent to a calendar.
             self.load()
+            ## TODO: Why?
             self.get_property(cdav.ScheduleTag(), use_cached=False)
             outbox = self.client.principal().schedule_outbox()
             if calendar.url != outbox.url:
@@ -874,6 +876,7 @@ class CalendarObjectResource(DAVObject):
         except Exception:
             return self.load_by_multiget()
 
+        ## consider refactoring - this is repeated many places now
         if "Etag" in r.headers:
             self.props[dav.GetEtag.tag] = r.headers["Etag"]
         if "Schedule-Tag" in r.headers:
@@ -1022,8 +1025,10 @@ class CalendarObjectResource(DAVObject):
                 return self._put(False)
             else:
                 raise error.PutError(errmsg(r))
-        if r.headers and r.headers.get("scheduling-tag"):
-            self.scheduling_tag = r.headers["scheduling-tag"]
+        if "Etag" in r.headers:
+            self.props[dav.GetEtag.tag] = r.headers["Etag"]
+        if r.headers and r.headers.get("schedule-tag"):
+            self.props[cdav.ScheduleTag.tag] = r.headers["schedule-tag"]
 
     async def _async_put(self, retry_on_failure=True):
         """Async version of _put for async clients."""
@@ -1042,6 +1047,11 @@ class CalendarObjectResource(DAVObject):
                 return await self._async_put(False)
             else:
                 raise error.PutError(errmsg(r))
+        ## TODO: refactor - those code lines are repeated all over the place
+        if "Etag" in r.headers:
+            self.props[dav.GetEtag.tag] = r.headers["Etag"]
+        if r.headers and r.headers.get("schedule-tag"):
+            self.props[cdav.ScheduleTag.tag] = r.headers["schedule-tag"]
 
     def _create(self, id=None, path=None, retry_on_failure=True) -> None:
         ## TODO: Find a better method name
