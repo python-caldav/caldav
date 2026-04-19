@@ -778,21 +778,35 @@ class CalendarObjectResource(DAVObject):
             calendar = self.client.principal().get_calendars()[0]
         ## we need to modify the icalendar code, update our own participant status
         self.icalendar_instance.pop("METHOD")
-        ## TODO: Why?
         self.change_attendee_status(partstat=partstat)
-        self.get_property(cdav.ScheduleTag(), use_cached=True)
+        uid = self.id
+        ## On auto-scheduling servers the server already places the event in the attendee's
+        ## calendar with a Schedule-Tag set.  We must update that copy rather than creating a
+        ## new one via add_event() — a plain attendee PUT won't get a Schedule-Tag because
+        ## servers only assign it on organizer-originated scheduling operations.
+        if uid and self.client.features.is_supported("scheduling.auto-schedule"):
+            for cal in self.client.principal().calendars():
+                try:
+                    existing = cal.event_by_uid(uid)
+                    existing.load()
+                    existing.change_attendee_status(partstat=partstat)
+                    existing.save()
+                    return
+                except error.NotFoundError:
+                    pass
         try:
             calendar.add_event(self.data)
         except Exception:
-            ## TODO - TODO - TODO
-            ## RFC6638 does not seem to be very clear (or
-            ## perhaps I should read it more thoroughly) neither on
-            ## how to handle conflicts, nor if the reply should be
-            ## posted to the "outbox", saved back to the same url or
-            ## sent to a calendar.
+            ## add_event() failed — the event likely already exists (e.g. non-auto-scheduling
+            ## server that still rejects duplicate UIDs).  Reload self from the inbox so we have
+            ## fresh data (METHOD is restored), then retry via the outbox: posting an iTIP REPLY
+            ## to the outbox lets the server process the PARTSTAT update on our behalf, which is
+            ## the correct RFC 6638 mechanism when we cannot write directly to the calendar.
+            ## We intentionally do NOT do a separate PROPFIND for Schedule-Tag here: the tag must
+            ## be read atomically with the object data (a separate request could race with a
+            ## concurrent scheduling operation), and RFC 6638 requires the server to return it
+            ## as a response header on GET — so load() is sufficient if the server complies.
             self.load()
-            ## TODO: Why?
-            self.get_property(cdav.ScheduleTag(), use_cached=False)
             outbox = self.client.principal().schedule_outbox()
             if calendar.url != outbox.url:
                 self._reply_to_invite_request(partstat, calendar=outbox)

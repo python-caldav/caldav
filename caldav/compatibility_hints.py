@@ -353,7 +353,7 @@ class FeatureSet:
             ],
         },
         "scheduling.auto-schedule": {
-            "description": "Server automatically processes incoming iTIP REQUEST messages and adds the event directly to the attendee's calendar without requiring explicit acceptance from the inbox (RFC6638 SCHEDULE-AGENT=SERVER behaviour). When False/unsupported, the attendee must process inbox items manually. Note: only detectable with a cross-user probe (extra_principals configured).",
+            "description": "Server automatically processes incoming iTIP REQUEST messages and adds the event directly to the attendee's calendar without requiring explicit acceptance from the inbox (RFC6638 SCHEDULE-AGENT=SERVER behaviour). When False/unsupported, the attendee must process inbox items manually. Note: only detectable from the caldav-server-tester with a cross-user probe (extra_principals configured).",
             "links": [
                 "https://datatracker.ietf.org/doc/html/rfc6638",
             ],

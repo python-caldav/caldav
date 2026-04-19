@@ -1075,11 +1075,17 @@ class _TestSchedulingBase:
         attendee_addr = self.principals[1].get_vcal_address()
         organizer_addr = self.principals[0].get_vcal_address()
 
+        seqno = 0
+
         def _make_ical(summary):
+            nonlocal seqno
+            s = seqno
+            seqno += 1
             return (
                 "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Test//Test//EN\r\n"
                 "BEGIN:VEVENT\r\n"
                 f"UID:{uid}\r\n"
+                f"SEQUENCE:{s}\r\n"
                 "DTSTAMP:20260101T000000Z\r\n"
                 "DTSTART:20320601T100000Z\r\nDURATION:PT1H\r\n"
                 f"SUMMARY:{summary}\r\n"
