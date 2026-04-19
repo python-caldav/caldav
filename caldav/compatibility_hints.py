@@ -347,10 +347,17 @@ class FeatureSet:
             "links": ["https://datatracker.ietf.org/doc/html/rfc6638#section-2.4.1"],
         },
         "scheduling.mailbox.inbox-delivery": {
-            "description": "Server delivers incoming scheduling REQUEST messages to the attendee's schedule-inbox (RFC6638 section 4.1). When unsupported, the server implements automatic scheduling: invitations are auto-processed and placed directly on the attendee's calendar without appearing in the inbox. Clients should check this feature to know whether to look for inbox items after sending an invite, or check the attendee calendar directly.",
+            "description": "Server delivers incoming scheduling REQUEST messages to the attendee's schedule-inbox (RFC6638 section 4.1). See also scheduling.auto-schedule for whether the server additionally auto-processes invitations into the attendee's calendar.",
             "links": [
                 "https://datatracker.ietf.org/doc/html/rfc6638#section-4.1",
             ],
+        },
+        "scheduling.auto-schedule": {
+            "description": "Server automatically processes incoming iTIP REQUEST messages and adds the event directly to the attendee's calendar without requiring explicit acceptance from the inbox (RFC6638 SCHEDULE-AGENT=SERVER behaviour). When False/unsupported, the attendee must process inbox items manually. Note: only detectable with a cross-user probe (extra_principals configured).",
+            "links": [
+                "https://datatracker.ietf.org/doc/html/rfc6638",
+            ],
+            "default": {"support": "full"},
         },
         "scheduling.schedule-tag": {
             "description": "Server returns a Schedule-Tag response header on GET of a scheduling object resource (a calendar object with an ORGANIZER property) and exposes the schedule-tag DAV property via PROPFIND (RFC6638 sections 3.2-3.3). Clients use the Schedule-Tag for conditional PUT requests to detect concurrent scheduling changes.",
@@ -956,8 +963,9 @@ nextcloud = {
     ## I'm surprised, I'm quite sure this was passing earlier.  Caldav commit a98d50490b872e9b9d8e93e2e401c936ad193003, caldav server checker commit 3cae24cf99da1702b851b5a74a9b88c8e5317dad
     'search.combined-is-logical-and': False,
     ## Observed with Nextcloud 33: server delivers iTIP notification to the inbox AND
-    ## auto-schedules into the attendee's calendar (same quirk as Baikal/Cyrus).
-    "scheduling.mailbox.inbox-delivery": {"support": "quirk", "behaviour": "server delivers iTIP notification to inbox AND auto-schedules into calendar"},
+    ## auto-schedules into the attendee's calendar.
+    "scheduling.mailbox.inbox-delivery": True,
+    "scheduling.auto-schedule": True,
 }
 
 ## TODO: Latest - mismatch between config and test script in delete-calendar.free-namespace ... and create-calendar.set-displayname?
@@ -1005,7 +1013,8 @@ zimbra = {
     ## Zimbra implements server-side automatic scheduling: invitations are
     ## auto-processed into the attendee's calendar; no iTIP notification appears in the inbox.
     "scheduling.mailbox": True,
-    "scheduling.mailbox.inbox-delivery": {"support": "unsupported"},
+    "scheduling.mailbox.inbox-delivery": False,
+    "scheduling.auto-schedule": True,
     'save-load.icalendar.related-to': {'support': 'unsupported'},
     'search.time-range.open.start': {'support': 'broken'},
 
@@ -1085,8 +1094,9 @@ synology = {
 
 baikal =  { ## version 0.10.1
     # Baikal (sabre/dav) delivers iTIP notifications to the attendee inbox AND auto-schedules
-    # into their calendar (quirk: both delivery modes happen simultaneously).
-    "scheduling.mailbox.inbox-delivery": {"support": "quirk", "behaviour": "server delivers iTIP notification to inbox AND auto-schedules into calendar"},
+    # into their calendar.
+    "scheduling.mailbox.inbox-delivery": True,
+    "scheduling.auto-schedule": True,
     "scheduling.mailbox": True,
     "http.multiplexing": "fragile", ## ref https://github.com/python-caldav/caldav/issues/564
     'search.comp-type.optional': {'support': 'ungraceful'},
@@ -1128,16 +1138,12 @@ cyrus = {
         'support': 'fragile',
         'behaviour': 'Deleting a recently created calendar fails'},
     # Cyrus may not properly reject wrong passwords in some configurations
-    # Cyrus implements server-side automatic scheduling: for cross-user
-    # invites, the server both auto-processes the invite into the attendee's calendar
+    # Cyrus implements server-side automatic scheduling: for cross-user invites,
+    # the server both auto-processes the invite into the attendee's calendar
     # AND delivers an iTIP notification copy to the attendee's schedule-inbox.
-    # Clients do not need to explicitly accept from the inbox (auto-accept is done),
-    # but inbox items do appear.  This is "quirk" behaviour: both delivery modes happen.
     "scheduling.mailbox": True,
-    "scheduling.mailbox.inbox-delivery": {
-        "support": "quirk",
-        "behaviour": "server delivers iTIP notification to inbox AND auto-schedules into calendar",
-    },
+    "scheduling.mailbox.inbox-delivery": True,
+    "scheduling.auto-schedule": True,
 }
 
 ## See comments on https://github.com/python-caldav/caldav/issues/3
@@ -1158,9 +1164,10 @@ davical = {
     # lazy responses cause MultiplexingError when accessing status_code
     "http.multiplexing": { "support": "unsupported" },
     # DAViCal delivers iTIP notifications to the attendee inbox AND auto-schedules
-    # into their calendar (quirk: both delivery modes happen simultaneously).
+    # into their calendar.
     "scheduling.mailbox": True,
-    "scheduling.mailbox.inbox-delivery": {"support": "quirk", "behaviour": "server delivers iTIP notification to inbox AND auto-schedules into calendar"},
+    "scheduling.mailbox.inbox-delivery": True,
+    "scheduling.auto-schedule": True,
     "search.comp-type.optional": { "support": "fragile" },
     "search.recurrences.expanded.exception": { "support": "unsupported" },
     "search.time-range.alarm": { "support": "unsupported" },
@@ -1339,9 +1346,10 @@ posteo = {
 ## TODO: consolidate, make a sabredav dict and let davis/baikal build on it
 davis = {
     # Davis uses sabre/dav (same backend as Baikal): delivers iTIP notifications to the
-    # attendee inbox AND auto-schedules into their calendar (quirk behaviour).
+    # attendee inbox AND auto-schedules into their calendar.
     "scheduling.mailbox": True,
-    "scheduling.mailbox.inbox-delivery": {"support": "quirk", "behaviour": "server delivers iTIP notification to inbox AND auto-schedules into calendar"},
+    "scheduling.mailbox.inbox-delivery": True,
+    "scheduling.auto-schedule": True,
     "search.recurrences.expanded.todo": {"support": "unsupported"},
     "search.recurrences.expanded.exception": {"support": "unsupported"},
     "search.recurrences.includes-implicit.todo": {"support": "unsupported"},
@@ -1364,7 +1372,8 @@ davis = {
 ## VJOURNAL is not supported at all.
 ccs = {
     "scheduling.freebusy-query": {"support": "ungraceful"},
-    "scheduling.mailbox.inbox-delivery": {"support": "quirk", "behaviour": "server delivers iTIP notification to inbox AND auto-schedules into calendar"},
+    "scheduling.mailbox.inbox-delivery": True,
+    "scheduling.auto-schedule": True,
     "save-load.journal": {"support": "unsupported"},
     "save-load.todo.mixed-calendar": {"support": "unsupported"},
     # CCS enforces unique UIDs across ALL calendars for a user
@@ -1399,8 +1408,6 @@ ccs = {
 ## CalDAV served at /dav/cal/<username>/ over HTTP on port 8080.
 ## Feature support mostly unknown until tested; starting with empty hints.
 stalwart = {
-    ## scheduling.mailbox.inbox-delivery behaviour unknown until cross-user scheduling tests run
-    "scheduling.mailbox.inbox-delivery": {"support": "unknown"},
     'rate-limit': {
         'enable': True,
         'default_sleep': 3,
@@ -1422,6 +1429,10 @@ stalwart = {
     ## Stalwart stores master+exception VEVENTs as a single resource with 2 VEVENTs.
     'save-load.event.recurrences.exception': {'support': 'full'},
     'search.time-range.open': True,
+    ## Stalwart delivers iTIP notifications to the attendee inbox AND auto-schedules
+    ## into their calendar (verified by running CheckSchedulingInboxDelivery).
+    "scheduling.mailbox.inbox-delivery": True,
+    "scheduling.auto-schedule": True,
     'old_flags': [
         ## Stalwart does not return VTODO items without DTSTART in date searches
         'vtodo_datesearch_nodtstart_task_is_skipped',
@@ -1553,7 +1564,7 @@ ox = {
     'save.duplicate-uid.cross-calendar': {'support': 'ungraceful'},
     'save-load.icalendar.related-to': {'support': 'broken'},
     ## OX App Suite has complex user provisioning; cross-user scheduling tests not yet set up.
-    "scheduling.mailbox.inbox-delivery": {"support": "unknown"},
+    "scheduling": {"support": "unknown"},
     "scheduling.freebusy-query": "ungraceful",
     'search.time-range.open.start': "broken",
     'search.time-range.open.end': True,
