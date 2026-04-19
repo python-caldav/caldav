@@ -416,7 +416,7 @@ class CalendarObjectResource(DAVObject):
         acceptable relation types in reltypes, or by passing a lambda
         function in relfilter.
 
-        TODO: Make it possible to  also check up reverse relationships
+        TODO: Make it possible to also check up reverse relationships
 
         TODO: this is partially overlapped by plann.lib._relships_by_type
         in the plann tool.  Should consolidate the code.
@@ -1153,8 +1153,7 @@ class CalendarObjectResource(DAVObject):
 
         The SEQUENCE should be increased when saving a new version of
         the object.  If this behaviour is unwanted, then
-        increase_seqno should be set to False.  Also, if SEQUENCE is
-        not set, then this will be ignored.
+        increase_seqno should be set to False.
 
         The behaviour when saving a single recurrence object to the
         server is as far as I can understand not defined in the RFCs,
@@ -1301,11 +1300,10 @@ class CalendarObjectResource(DAVObject):
                 ici.add_component(self.icalendar_component)
 
     def _maybe_increment_sequence(self, increase_seqno):
-        """Increment SEQUENCE number if present and increase_seqno is True."""
+        """Increment SEQUENCE number if increase_seqno is True."""
         if increase_seqno and "SEQUENCE" in self.icalendar_component:
-            seqno = self.icalendar_component.pop("SEQUENCE", None)
-            if seqno is not None:
-                self.icalendar_component.add("SEQUENCE", seqno + 1)
+            seqno = self.icalendar_component.pop("SEQUENCE", 0)
+            self.icalendar_component.add("SEQUENCE", seqno + 1)
 
     async def _async_save(
         self,
