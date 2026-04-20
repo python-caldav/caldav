@@ -666,6 +666,316 @@ class _AsyncTestSchedulingBase:
         ## Just verify it completes without raising; response format varies per server.
         await coro
 
+    # ------------------------------------------------------------------ #
+    # Schedule-Tag tests (RFC 6638 section 3.2–3.3)                       #
+    # These are async counterparts of the sync tests in                   #
+    # _TestSchedulingBase.  They are EXPECTED TO FAIL until async         #
+    # scheduling support (_async_put with If-Schedule-Tag-Match etc.)     #
+    # is implemented.                                                      #
+    # ------------------------------------------------------------------ #
+
+    @pytest.mark.asyncio
+    async def test_schedule_tag_returned_on_save(self, scheduling_setup: Any) -> None:
+        """Saving a scheduling object must return a Schedule-Tag header.
+
+        Async counterpart of testScheduleTagReturnedOnSave.
+        Expected to fail: _async_put() does not yet capture the Schedule-Tag
+        response header into event.props.
+        """
+        import uuid
+
+        clients, principals, calendars, auto_uids = scheduling_setup
+        self._skip_unless_support("scheduling.schedule-tag")
+        if len(principals) < 2:
+            pytest.skip("need 2 principals")
+
+        organizer_cal = calendars[0]
+        addr = await principals[0].get_vcal_address()
+        addr2 = await principals[1].get_vcal_address()
+        uid = str(uuid.uuid4())
+        ical = (
+            "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Test//Test//EN\r\n"
+            "BEGIN:VEVENT\r\n"
+            f"UID:{uid}\r\n"
+            "DTSTAMP:20260101T000000Z\r\n"
+            "DTSTART:20320601T100000Z\r\nDURATION:PT1H\r\n"
+            "SUMMARY:Schedule-Tag test\r\n"
+            f"ORGANIZER:{addr}\r\n"
+            f"ATTENDEE;RSVP=TRUE;PARTSTAT=NEEDS-ACTION:{addr}\r\n"
+            f"ATTENDEE;RSVP=TRUE;PARTSTAT=NEEDS-ACTION:{addr2}\r\n"
+            "END:VEVENT\r\nEND:VCALENDAR\r\n"
+        )
+        event = await organizer_cal.save_event(ical)
+        auto_uids.append(uid)
+
+        assert event.schedule_tag is not None, "Server did not return Schedule-Tag header after PUT"
+
+    @pytest.mark.asyncio
+    async def test_schedule_tag_stable_on_partstate_update(self, scheduling_setup: Any) -> None:
+        """PARTSTAT-only update must not change the Schedule-Tag.
+
+        Async counterpart of testScheduleTagStableOnPartstateUpdate.
+        Expected to fail: accept_invite() raises NotImplementedError for
+        async clients.
+        """
+        import uuid
+
+        clients, principals, calendars, auto_uids = scheduling_setup
+        self._skip_unless_support("scheduling.schedule-tag")
+        if len(principals) < 2:
+            pytest.skip("need 2 principals")
+        if not clients[1].features.is_supported("scheduling.mailbox.inbox-delivery"):
+            pytest.skip("server does not deliver iTIP requests to the inbox")
+
+        organizer_cal = calendars[0]
+        attendee_cal = calendars[1]
+        organizer_addr = await principals[0].get_vcal_address()
+        attendee_addr = await principals[1].get_vcal_address()
+        uid = str(uuid.uuid4())
+        ical = (
+            "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Test//Test//EN\r\n"
+            "BEGIN:VEVENT\r\n"
+            f"UID:{uid}\r\n"
+            "SEQUENCE:0\r\n"
+            "DTSTAMP:20260101T000000Z\r\n"
+            "DTSTART:20320601T100000Z\r\nDURATION:PT1H\r\n"
+            "SUMMARY:Partstat stability test\r\n"
+            f"ORGANIZER:{organizer_addr}\r\n"
+            f"ATTENDEE;RSVP=TRUE;PARTSTAT=NEEDS-ACTION:{attendee_addr}\r\n"
+            "END:VEVENT\r\nEND:VCALENDAR\r\n"
+        )
+        saved_event = await organizer_cal.save_with_invites(ical, [principals[0], attendee_addr])
+        auto_uids.append(uid)
+
+        ## Wait for the REQUEST invite to land in attendee's inbox
+        invite = None
+        for _ in range(30):
+            inbox = await principals[1].schedule_inbox()
+            for item in await inbox.get_items():
+                await item.load()
+                if item.is_invite_request() and item.id == saved_event.id:
+                    invite = item
+                    break
+            if invite:
+                break
+            await asyncio.sleep(1)
+
+        if not invite:
+            pytest.skip("Invite not delivered to attendee inbox; cannot test PARTSTAT stability")
+
+        ## accept_invite is not yet implemented for async clients
+        invite.accept_invite(calendar=attendee_cal)
+
+        ## Find the attendee's copy
+        attendee_event = None
+        for _ in range(5):
+            for cal in await principals[1].calendars():
+                try:
+                    attendee_event = await cal.get_event_by_uid(saved_event.id)
+                    break
+                except Exception:
+                    pass
+            if attendee_event:
+                break
+            await asyncio.sleep(1)
+
+        assert attendee_event is not None, "Event not found in any attendee calendar after accept"
+        await attendee_event.load()
+        tag_before = attendee_event.schedule_tag
+        assert tag_before is not None, "No Schedule-Tag on attendee's calendar event after accept"
+
+        ## PARTSTAT-only change — tag must not move
+        attendee_event.change_attendee_status(partstat="TENTATIVE")
+        await attendee_event.save()
+        await attendee_event.load()
+        tag_after = attendee_event.schedule_tag
+
+        assert tag_after is not None, "No Schedule-Tag on attendee's event after PARTSTAT update"
+        assert tag_before == tag_after, (
+            f"Schedule-Tag changed after PARTSTAT-only update: {tag_before!r} → {tag_after!r}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_schedule_tag_changes_on_organizer_update(self, scheduling_setup: Any) -> None:
+        """Organizer update must advance the Schedule-Tag on the attendee's copy.
+
+        Async counterpart of testScheduleTagChangesOnOrganizerUpdate.
+        Expected to fail: _async_load() does not yet capture the Schedule-Tag
+        response header.
+        """
+        import uuid
+
+        clients, principals, calendars, auto_uids = scheduling_setup
+        self._skip_unless_support("scheduling.schedule-tag")
+        if len(principals) < 2:
+            pytest.skip("need 2 principals")
+
+        organizer_cal = calendars[0]
+        organizer_addr = await principals[0].get_vcal_address()
+        attendee_addr = await principals[1].get_vcal_address()
+        uid = str(uuid.uuid4())
+        seqno = 0
+
+        def _make_ical(summary: str) -> str:
+            nonlocal seqno
+            s = seqno
+            seqno += 1
+            return (
+                "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Test//Test//EN\r\n"
+                "BEGIN:VEVENT\r\n"
+                f"UID:{uid}\r\n"
+                f"SEQUENCE:{s}\r\n"
+                "DTSTAMP:20260101T000000Z\r\n"
+                "DTSTART:20320601T100000Z\r\nDURATION:PT1H\r\n"
+                f"SUMMARY:{summary}\r\n"
+                f"ORGANIZER:{organizer_addr}\r\n"
+                f"ATTENDEE;RSVP=TRUE;PARTSTAT=NEEDS-ACTION:{attendee_addr}\r\n"
+                "END:VEVENT\r\nEND:VCALENDAR\r\n"
+            )
+
+        await organizer_cal.save_with_invites(
+            _make_ical("Original summary"), [principals[0], attendee_addr]
+        )
+        auto_uids.append(uid)
+
+        ## Poll for attendee's copy
+        attendee_event = None
+        for _ in range(30):
+            for cal in await principals[1].calendars():
+                for ev in await cal.get_events():
+                    if ev.id == uid:
+                        attendee_event = ev
+                        break
+                if attendee_event:
+                    break
+            if attendee_event:
+                break
+            await asyncio.sleep(1)
+
+        if attendee_event is None:
+            pytest.skip("Event not delivered to attendee; cannot test tag change")
+
+        await attendee_event.load()
+        tag_before = attendee_event.schedule_tag
+        assert tag_before is not None, "No Schedule-Tag on attendee's copy before organizer update"
+
+        ## Organizer sends a substantive update
+        await organizer_cal.save_with_invites(
+            _make_ical("Updated summary"), [principals[0], attendee_addr]
+        )
+
+        ## Poll until the tag advances
+        for _ in range(30):
+            await attendee_event.load()
+            if attendee_event.schedule_tag != tag_before:
+                break
+            await asyncio.sleep(1)
+
+        assert attendee_event.schedule_tag != tag_before, (
+            f"Schedule-Tag did not change after organizer update: still {tag_before!r}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_schedule_tag_mismatch_raises_error(self, scheduling_setup: Any) -> None:
+        """save() with a stale Schedule-Tag must raise ScheduleTagMismatchError.
+
+        Async counterpart of testScheduleTagMismatchRaisesError.
+        Expected to fail: _async_put() does not yet send If-Schedule-Tag-Match
+        or raise ScheduleTagMismatchError on a 412 response.
+        """
+        import uuid
+
+        from caldav.lib import error
+
+        clients, principals, calendars, auto_uids = scheduling_setup
+        self._skip_unless_support("scheduling.schedule-tag")
+        if len(principals) < 2:
+            pytest.skip("need 2 principals to cause a server-side tag advance")
+
+        organizer_cal = calendars[0]
+        organizer_addr = await principals[0].get_vcal_address()
+        attendee_addr = await principals[1].get_vcal_address()
+        uid = str(uuid.uuid4())
+
+        def _make_ical(summary: str, seq: int) -> str:
+            return (
+                "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Test//Test//EN\r\n"
+                "BEGIN:VEVENT\r\n"
+                f"UID:{uid}\r\n"
+                f"SEQUENCE:{seq}\r\n"
+                "DTSTAMP:20260101T000000Z\r\n"
+                "DTSTART:20320601T100000Z\r\nDURATION:PT1H\r\n"
+                f"SUMMARY:{summary}\r\n"
+                f"ORGANIZER:{organizer_addr}\r\n"
+                f"ATTENDEE;RSVP=TRUE;PARTSTAT=NEEDS-ACTION:{attendee_addr}\r\n"
+                "END:VEVENT\r\nEND:VCALENDAR\r\n"
+            )
+
+        ## Create event, load it: event holds original content + tag=1
+        event = await organizer_cal.save_event(_make_ical("Original", 0))
+        auto_uids.append(uid)
+        await event.load()
+        assert event.schedule_tag is not None, (
+            "server did not return Schedule-Tag after initial save"
+        )
+
+        ## Make a local conflicting edit before the concurrent organizer update
+        event.icalendar_component["SUMMARY"] = "Conflicting client change"
+
+        ## Concurrent organizer PUT advances the server-side tag
+        await organizer_cal.save_event(_make_ical("Organizer update", 1))
+
+        ## PUT stale content with stale tag — server must reject with 412
+        with pytest.raises(error.ScheduleTagMismatchError):
+            await event.save(increase_seqno=False)
+
+    @pytest.mark.asyncio
+    async def test_schedule_tag_match_succeeds(self, scheduling_setup: Any) -> None:
+        """save() with the correct Schedule-Tag must succeed.
+
+        Async counterpart of testScheduleTagMatchSucceeds.
+        Expected to fail: _async_put() does not yet send If-Schedule-Tag-Match,
+        so the conditional PUT is not exercised.
+        """
+        import uuid
+
+        clients, principals, calendars, auto_uids = scheduling_setup
+        self._skip_unless_support("scheduling.schedule-tag")
+        if len(principals) < 2:
+            pytest.skip("need 2 principals for Schedule-Tag to be assigned")
+
+        cal = calendars[0]
+        addr = await principals[0].get_vcal_address()
+        addr2 = await principals[1].get_vcal_address()
+        uid = str(uuid.uuid4())
+        ical = (
+            "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Test//Test//EN\r\n"
+            "BEGIN:VEVENT\r\n"
+            f"UID:{uid}\r\n"
+            "DTSTAMP:20260101T000000Z\r\n"
+            "DTSTART:20320601T100000Z\r\nDURATION:PT1H\r\n"
+            "SUMMARY:Correct-tag test\r\n"
+            f"ORGANIZER:{addr}\r\n"
+            f"ATTENDEE;RSVP=TRUE;PARTSTAT=NEEDS-ACTION:{addr}\r\n"
+            f"ATTENDEE;RSVP=TRUE;PARTSTAT=NEEDS-ACTION:{addr2}\r\n"
+            "END:VEVENT\r\nEND:VCALENDAR\r\n"
+        )
+        event = await cal.save_event(ical)
+        auto_uids.append(uid)
+        await event.load()
+
+        tag_before = event.schedule_tag
+        assert tag_before is not None, "Server did not return Schedule-Tag"
+
+        ## Minor update with the correct tag — must not raise
+        event.icalendar_component["SUMMARY"] = "Correct-tag test (updated)"
+        await event.save(increase_seqno=False)
+
+        ## Tag must still be present after save
+        assert event.schedule_tag is not None, (
+            "schedule_tag property disappeared after conditional save"
+        )
+
 
 # ==================== Dynamic Test Class Generation ====================
 #
