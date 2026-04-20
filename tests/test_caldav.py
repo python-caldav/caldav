@@ -1137,50 +1137,66 @@ class _TestSchedulingBase:
         tag_after = attendee_event.schedule_tag
         assert tag_after != tag_before, (
             f"Schedule-Tag did not change after organizer update: still {tag_before!r}; "
-            "RFC 6638 section 3.2 requires the tag to change on substantive updates"
+            "RFC 6638 section 3.2.10 requires the attendees tag to change after organizer PUT"
         )
 
     def testScheduleTagMismatchRaisesError(self):
         """
-        save(if_schedule_tag_match=True) with a stale (wrong) tag must raise
-        ScheduleTagMismatchError (a subclass of PutError) when the server
-        returns 412.
+        save() with a stale Schedule-Tag must raise ScheduleTagMismatchError
+        when the server returns 412.
 
-        This tests the full round-trip: client sends If-Schedule-Tag-Match
-        with a wrong value, server rejects with 412.
+        _put() sends If-Schedule-Tag-Match whenever self.schedule_tag is set.
+        We obtain a genuine tag from the server (tag=1), then cause the server
+        to advance it (organizer update → tag=2), then attempt a PUT still
+        holding the old tag (1).  Some servers (e.g. Stalwart) use integer
+        tags and ignore arbitrary strings, so an injected fake string like
+        "deliberately-wrong-tag" would be silently accepted (204) rather than
+        rejected (412).
         """
         self._skip_unless_support("scheduling.schedule-tag")
-        if len(self.principals) < 1:
-            pytest.skip("need at least 1 principal")
+        if len(self.principals) < 2:
+            pytest.skip("need 2 principals to cause a server-side tag advance")
 
-        cal = self._getCalendar(0)
-        addr = self.principals[0].get_vcal_address()
+        organizer_cal = self._getCalendar(0)
+        attendee_addr = self.principals[1].get_vcal_address()
+        organizer_addr = self.principals[0].get_vcal_address()
         uid = str(uuid.uuid4())
-        ical = (
-            "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Test//Test//EN\r\n"
-            "BEGIN:VEVENT\r\n"
-            f"UID:{uid}\r\n"
-            "DTSTAMP:20260101T000000Z\r\n"
-            "DTSTART:20320601T100000Z\r\nDURATION:PT1H\r\n"
-            "SUMMARY:Stale-tag test\r\n"
-            f"ORGANIZER:{addr}\r\n"
-            f"ATTENDEE;RSVP=TRUE;PARTSTAT=NEEDS-ACTION:{addr}\r\n"
-            "END:VEVENT\r\nEND:VCALENDAR\r\n"
-        )
-        event = cal.save_event(ical)
+
+        def _make_ical(summary, seq):
+            return (
+                "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Test//Test//EN\r\n"
+                "BEGIN:VEVENT\r\n"
+                f"UID:{uid}\r\n"
+                f"SEQUENCE:{seq}\r\n"
+                "DTSTAMP:20260101T000000Z\r\n"
+                "DTSTART:20320601T100000Z\r\nDURATION:PT1H\r\n"
+                f"SUMMARY:{summary}\r\n"
+                f"ORGANIZER:{organizer_addr}\r\n"
+                f"ATTENDEE;RSVP=TRUE;PARTSTAT=NEEDS-ACTION:{attendee_addr}\r\n"
+                "END:VEVENT\r\nEND:VCALENDAR\r\n"
+            )
+
+        ## Create the event; server sets schedule_tag to 1
+        event = organizer_cal.save_event(_make_ical("Original", 0))
+        self._auto_scheduled_event_uids.append(uid)
         event.load()
+        tag_v1 = event.schedule_tag
+        assert tag_v1 is not None, "server did not return Schedule-Tag after initial save"
 
-        ## Inject a deliberately wrong tag
-        from caldav.elements import cdav as _cdav
+        ## Organizer sends a substantive update; server advances schedule_tag to 2
+        organizer_cal.save_event(_make_ical("Updated", 1))
+        event.load()
+        tag_v2 = event.schedule_tag
+        assert tag_v2 != tag_v1, "server did not advance Schedule-Tag after organizer update"
 
-        event.props[_cdav.ScheduleTag.tag] = '"deliberately-wrong-tag"'
-
+        ## Now attempt to PUT using the stale tag (v1); server must reject with 412
+        event.props[cdav.ScheduleTag.tag] = tag_v1
         with pytest.raises(error.ScheduleTagMismatchError):
-            event.save(if_schedule_tag_match=True)
+            event.save(increase_seqno=False)
 
     def testScheduleTagMatchSucceeds(self):
         """
-        save(if_schedule_tag_match=True) with the correct (current) tag must
+        save() with the correct (current) tag must
         succeed and the updated tag must be stored in event.props afterwards.
         """
         self._skip_unless_support("scheduling.schedule-tag")
@@ -1209,7 +1225,7 @@ class _TestSchedulingBase:
 
         ## Modify something minor and save with the correct tag
         event.icalendar_component["SUMMARY"] = "Correct-tag test (updated)"
-        event.save(if_schedule_tag_match=True, increase_seqno=False)
+        event.save(increase_seqno=False)
 
         ## Must not have raised; tag in props must be present (may have changed)
         assert event.schedule_tag is not None, (

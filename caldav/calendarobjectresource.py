@@ -99,7 +99,11 @@ class CalendarObjectResource(DAVObject):
     # Schedule tag (ref https://github.com/python-caldav/caldav/issues/660 and docs/design/TODO-SCHEDULE.md)
     @property
     def schedule_tag(self) -> str | None:
-        return self.get_property(cdav.ScheduleTag(), use_cached=True)
+        return self.props.get(cdav.ScheduleTag.tag)
+
+    @property
+    def etag(self) -> str | None:
+        return self.props.get(dav.GetEtag.tag)
 
     @property
     def id(self) -> str | None:
@@ -1019,12 +1023,25 @@ class CalendarObjectResource(DAVObject):
 
         self.url = URL.objectify(path)
 
-    def _put(self, retry_on_failure=True, extra_headers=None):
+    def _put(self, retry_on_failure=True):
         ## TODO: quite much overlapping with _async_put, should consolidate
+        ## TODO: this is low-level http-communication - shouldn't it be in the davclient file rather than in calendarobjectresource.py?
         ## SECURITY TODO: we should probably have a check here to verify that no such object exists already
-        headers = ICALH | (extra_headers or {})
+        headers = {}  ## TODO: use some caseinsensitivedict
+        if self.schedule_tag:
+            headers["if-schedule-tag-match"] = self.schedule_tag
+        elif self.etag:
+            headers["if-match"] = self.etag
+        headers |= ICALH
         r = self.client.put(self.url, self.data, headers)
-        if r.status == 302:
+        if r.status == 412:
+            if self.schedule_tag:
+                raise error.ScheduleTagMismatchError(errmsg(r))
+            elif self.etag:
+                raise error.ETagMismatchError(errmsg(r))
+            else:
+                raise error.PutError(errmsg(r))
+        elif r.status == 302:
             self.url = URL.objectify([x[1] for x in r.headers if x[0] == "location"][0])
         elif r.status not in (204, 201):
             if retry_on_failure:
@@ -1150,7 +1167,6 @@ class CalendarObjectResource(DAVObject):
         no_create: bool = False,
         obj_type: str | None = None,
         increase_seqno: bool = True,
-        if_schedule_tag_match: bool = False,
         only_this_recurrence: bool = True,
         all_recurrences: bool = False,
     ) -> Self:
@@ -1199,7 +1215,6 @@ class CalendarObjectResource(DAVObject):
                 no_create=no_create,
                 obj_type=obj_type,
                 increase_seqno=increase_seqno,
-                if_schedule_tag_match=if_schedule_tag_match,
                 only_this_recurrence=only_this_recurrence,
                 all_recurrences=all_recurrences,
             )
@@ -1325,7 +1340,6 @@ class CalendarObjectResource(DAVObject):
         no_create: bool = False,
         obj_type: str | None = None,
         increase_seqno: bool = True,
-        if_schedule_tag_match: bool = False,
         only_this_recurrence: bool = True,
         all_recurrences: bool = False,
     ) -> Self:

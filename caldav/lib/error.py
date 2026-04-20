@@ -169,7 +169,11 @@ class ResponseError(DAVError):
     pass
 
 
-class ScheduleTagMismatch(DAVError):
+class ScheduleTagMismatchError(DAVError):
+    pass
+
+
+class ETagMismatchError(DAVError):
     pass
 
 
