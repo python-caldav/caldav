@@ -1146,12 +1146,11 @@ class _TestSchedulingBase:
         when the server returns 412.
 
         _put() sends If-Schedule-Tag-Match whenever self.schedule_tag is set.
-        We obtain a genuine tag from the server (tag=1), then cause the server
-        to advance it (organizer update → tag=2), then attempt a PUT still
-        holding the old tag (1).  Some servers (e.g. Stalwart) use integer
-        tags and ignore arbitrary strings, so an injected fake string like
-        "deliberately-wrong-tag" would be silently accepted (204) rather than
-        rejected (412).
+        We fetch the event (holding original content + tag=1), then a
+        concurrent PUT advances the server-side tag to 2, then we attempt to
+        PUT the now-stale original content with the stale tag.  The server
+        must reject with 412 because accepting it would revert the organizer's
+        update — that is the whole point of If-Schedule-Tag-Match.
         """
         self._skip_unless_support("scheduling.schedule-tag")
         if len(self.principals) < 2:
@@ -1176,21 +1175,20 @@ class _TestSchedulingBase:
                 "END:VEVENT\r\nEND:VCALENDAR\r\n"
             )
 
-        ## Create the event; server sets schedule_tag to 1
+        ## Create the event and load it; event now holds original content + tag=1
         event = organizer_cal.save_event(_make_ical("Original", 0))
         self._auto_scheduled_event_uids.append(uid)
         event.load()
-        tag_v1 = event.schedule_tag
-        assert tag_v1 is not None, "server did not return Schedule-Tag after initial save"
+        assert event.schedule_tag is not None, (
+            "server did not return Schedule-Tag after initial save"
+        )
 
-        ## Organizer sends a substantive update; server advances schedule_tag to 2
+        ## A concurrent PUT advances the server-side tag to 2.
+        ## We do NOT reload `event`, so it still carries the original content + tag=1.
         organizer_cal.save_event(_make_ical("Updated", 1))
-        event.load()
-        tag_v2 = event.schedule_tag
-        assert tag_v2 != tag_v1, "server did not advance Schedule-Tag after organizer update"
 
-        ## Now attempt to PUT using the stale tag (v1); server must reject with 412
-        event.props[cdav.ScheduleTag.tag] = tag_v1
+        ## PUT the stale original content with the stale tag; server must reject with 412
+        ## because accepting it would silently revert the concurrent update.
         with pytest.raises(error.ScheduleTagMismatchError):
             event.save(increase_seqno=False)
 
@@ -1198,13 +1196,17 @@ class _TestSchedulingBase:
         """
         save() with the correct (current) tag must
         succeed and the updated tag must be stored in event.props afterwards.
+
+        Requires 2 principals: servers only assign a Schedule-Tag to events
+        that have external attendees (i.e. real scheduling objects).
         """
         self._skip_unless_support("scheduling.schedule-tag")
-        if len(self.principals) < 1:
-            pytest.skip("need at least 1 principal")
+        if len(self.principals) < 2:
+            pytest.skip("need 2 principals for Schedule-Tag to be assigned")
 
         cal = self._getCalendar(0)
         addr = self.principals[0].get_vcal_address()
+        addr2 = self.principals[1].get_vcal_address()
         uid = str(uuid.uuid4())
         ical = (
             "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Test//Test//EN\r\n"
@@ -1215,9 +1217,11 @@ class _TestSchedulingBase:
             "SUMMARY:Correct-tag test\r\n"
             f"ORGANIZER:{addr}\r\n"
             f"ATTENDEE;RSVP=TRUE;PARTSTAT=NEEDS-ACTION:{addr}\r\n"
+            f"ATTENDEE;RSVP=TRUE;PARTSTAT=NEEDS-ACTION:{addr2}\r\n"
             "END:VEVENT\r\nEND:VCALENDAR\r\n"
         )
         event = cal.save_event(ical)
+        self._auto_scheduled_event_uids.append(uid)
         event.load()
 
         tag_before = event.schedule_tag
