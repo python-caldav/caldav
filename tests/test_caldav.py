@@ -1146,11 +1146,10 @@ class _TestSchedulingBase:
         when the server returns 412.
 
         _put() sends If-Schedule-Tag-Match whenever self.schedule_tag is set.
-        We fetch the event (holding original content + tag=1), then a
-        concurrent PUT advances the server-side tag to 2, then we attempt to
-        PUT the now-stale original content with the stale tag.  The server
-        must reject with 412 because accepting it would revert the organizer's
-        update — that is the whole point of If-Schedule-Tag-Match.
+        We fetch the event (tag=1), make a local conflicting edit, then a
+        concurrent organizer PUT advances the server-side tag to 2 with a
+        different edit on the same field.  The resulting divergence cannot be
+        auto-merged, so the server must reject with 412.
         """
         self._skip_unless_support("scheduling.schedule-tag")
         if len(self.principals) < 2:
@@ -1183,12 +1182,16 @@ class _TestSchedulingBase:
             "server did not return Schedule-Tag after initial save"
         )
 
-        ## A concurrent PUT advances the server-side tag to 2.
-        ## We do NOT reload `event`, so it still carries the original content + tag=1.
-        organizer_cal.save_event(_make_ical("Updated", 1))
+        ## Make a local conflicting edit (simulating a client that diverges from
+        ## the server before a concurrent organizer update arrives).
+        event.icalendar_component["SUMMARY"] = "Conflicting client change"
 
-        ## PUT the stale original content with the stale tag; server must reject with 412
-        ## because accepting it would silently revert the concurrent update.
+        ## Concurrent organizer PUT advances the server-side tag; the two edits
+        ## now conflict on SUMMARY and cannot be auto-merged.
+        organizer_cal.save_event(_make_ical("Organizer update", 1))
+
+        ## PUT the locally-modified stale version; server must reject with 412
+        ## because the conflicting changes cannot be safely merged.
         with pytest.raises(error.ScheduleTagMismatchError):
             event.save(increase_seqno=False)
 
