@@ -17,6 +17,11 @@ from unittest import mock
 
 import pytest
 
+try:
+    from niquests.structures import CaseInsensitiveDict
+except ImportError:
+    from requests.structures import CaseInsensitiveDict
+
 from caldav import Calendar, Event
 from caldav.davclient import DAVClient
 from caldav.elements import cdav, dav
@@ -45,7 +50,7 @@ def _make_put_response(status_code, headers=None):
     """Return a minimal mock requests.Response for a PUT."""
     r = mock.MagicMock()
     r.status_code = status_code
-    r.headers = headers or {}
+    r.headers = CaseInsensitiveDict(headers or {})
     r.reason = "OK" if status_code in (200, 201, 204) else "Precondition Failed"
     r.content = b""
     return r
@@ -64,7 +69,8 @@ def _make_event_with_tag(schedule_tag='"tag-abc"'):
         data=SCHED_ICAL.format(uid=str(uuid.uuid4())),
         parent=cal,
     )
-    event.props[cdav.ScheduleTag.tag] = schedule_tag
+    if schedule_tag:
+        event.props[cdav.ScheduleTag.tag] = schedule_tag
     return event
 
 
@@ -138,16 +144,14 @@ class TestScheduleTagUnit:
     @mock.patch("caldav.davclient.requests.Session.request")
     def test_if_schedule_tag_match_header_sent_when_tag_cached(self, mocked):
         """
-        save(if_schedule_tag_match=True) must send an If-Schedule-Tag-Match
+        save() must send an If-Schedule-Tag-Match
         request header equal to the cached schedule-tag.
-
-        Currently fails because save() ignores if_schedule_tag_match.
         """
         ok_resp = _make_put_response(204, {"Schedule-Tag": '"tag-abc"'})
         mocked.return_value = ok_resp
 
         event = _make_event_with_tag('"tag-abc"')
-        event.save(if_schedule_tag_match=True)
+        event.save()
 
         # Inspect the actual HTTP call
         call_kwargs = mocked.call_args
@@ -157,8 +161,7 @@ class TestScheduleTagUnit:
             "headers", call_kwargs[0][2] if len(call_kwargs[0]) > 2 else {}
         )
         assert "If-Schedule-Tag-Match" in sent_headers, (
-            "If-Schedule-Tag-Match header was not sent; "
-            "save(if_schedule_tag_match=True) is still a no-op"
+            "If-Schedule-Tag-Match header was not sent; save() is still a no-op"
         )
         assert sent_headers["If-Schedule-Tag-Match"] == '"tag-abc"'
 
@@ -171,7 +174,7 @@ class TestScheduleTagUnit:
         ok_resp = _make_put_response(204)
         mocked.return_value = ok_resp
 
-        event = _make_event_with_tag('"tag-abc"')
+        event = _make_event_with_tag(None)
         event.save()
 
         call_kwargs = mocked.call_args
@@ -184,45 +187,7 @@ class TestScheduleTagUnit:
     # 4. Load before PUT when tag not yet cached                           #
     # ------------------------------------------------------------------ #
 
-    @mock.patch("caldav.davclient.requests.Session.request")
-    def test_if_schedule_tag_match_loads_tag_when_not_cached(self, mocked):
-        """
-        If if_schedule_tag_match=True is requested but no tag is cached,
-        the client should GET the resource first to obtain the tag, then PUT
-        with If-Schedule-Tag-Match.
-
-        Currently fails: the flag is ignored so no GET and no header.
-        """
-        get_resp = mock.MagicMock()
-        get_resp.status_code = 200
-        get_resp.headers = {"Schedule-Tag": '"fetched-tag"', "Etag": '"etag1"'}
-        get_resp.content = SCHED_ICAL.format(uid="load-test-uid").encode()
-        get_resp.reason = "OK"
-
-        put_resp = _make_put_response(204, {"Schedule-Tag": '"fetched-tag"'})
-
-        # First call → GET (load), second call → PUT
-        mocked.side_effect = [get_resp, put_resp]
-
-        client = DAVClient(url="http://cal.example.com/")
-        cal = Calendar(client=client, url="http://cal.example.com/cal/")
-        event = Event(
-            client=client,
-            url="http://cal.example.com/cal/load-test-uid.ics",
-            data=SCHED_ICAL.format(uid="load-test-uid"),
-            parent=cal,
-        )
-        # No tag cached yet
-        assert event.props.get(cdav.ScheduleTag.tag) is None
-
-        event.save(if_schedule_tag_match=True)
-
-        assert mocked.call_count == 2, (
-            "Expected a GET (to fetch tag) followed by a PUT; got %d call(s)" % mocked.call_count
-        )
-        put_call = mocked.call_args_list[1]
-        sent_headers = put_call[1].get("headers", put_call[0][2] if len(put_call[0]) > 2 else {})
-        assert sent_headers.get("If-Schedule-Tag-Match") == '"fetched-tag"'
+    ## Removed, it's moot with the current design
 
     # ------------------------------------------------------------------ #
     # 5. 412 raises ScheduleTagMismatchError                               #
@@ -243,7 +208,7 @@ class TestScheduleTagUnit:
 
         event = _make_event_with_tag('"stale-tag"')
         with pytest.raises(error.ScheduleTagMismatchError):
-            event.save(if_schedule_tag_match=True)
+            event.save()
 
     @mock.patch("caldav.davclient.requests.Session.request")
     def test_412_without_schedule_tag_raises_put_error(self, mocked):
@@ -253,7 +218,7 @@ class TestScheduleTagUnit:
         """
         mocked.return_value = _make_put_response(412)
 
-        event = _make_event_with_tag('"tag"')
+        event = _make_event_with_tag(None)
         # save() without if_schedule_tag_match — any 412 is a plain PutError
         with pytest.raises(error.PutError):
             event.save()
@@ -272,7 +237,7 @@ class TestScheduleTagUnit:
         mocked.return_value = _make_put_response(204, {"Schedule-Tag": new_tag})
 
         event = _make_event_with_tag('"tag-before-save"')
-        event.save(if_schedule_tag_match=True)
+        event.save()
 
         assert event.schedule_tag == new_tag, (
             "schedule_tag prop not updated after successful conditional save"
