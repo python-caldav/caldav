@@ -566,9 +566,8 @@ class _AsyncTestSchedulingBase:
         """send a calendar invite via save_with_invites and verify delivery.
 
         Async counterpart of _TestSchedulingBase.testInviteAndRespond.
-        Note: accept_invite() is not yet supported for async clients, so
-        the response half of the flow is verified only at the delivery level
-        (inbox item or auto-scheduled event).
+        NOTE: inbox listing uses get_events() as a workaround since
+        ScheduleMailbox.get_items() does not yet have async support.
         """
         import uuid
 
@@ -577,16 +576,13 @@ class _AsyncTestSchedulingBase:
             pytest.skip("need 2 principals to do the invite and respond test")
 
         ## Snapshot inbox contents before the invite
+        inbox0 = await principals[0].schedule_inbox()
+        inbox1 = await principals[1].schedule_inbox()
         inbox_urls_before: set[Any] = set()
-        try:
-            inbox0 = await principals[0].schedule_inbox()
-            inbox1 = await principals[1].schedule_inbox()
-            for item in await inbox0.get_events():
-                inbox_urls_before.add(item.url)
-            for item in await inbox1.get_events():
-                inbox_urls_before.add(item.url)
-        except Exception:
-            pass  ## inbox listing may not work on all servers
+        for item in await inbox0.get_events():
+            inbox_urls_before.add(item.url)
+        for item in await inbox1.get_events():
+            inbox_urls_before.add(item.url)
 
         ## Send the invite
         base = _get_base_date()
@@ -607,40 +603,63 @@ class _AsyncTestSchedulingBase:
             "Event should appear in organizer's calendar after save_with_invites"
         )
 
-        ## Poll: event auto-scheduled into attendee calendar OR new inbox item
+        ## Poll: check attendee's inbox and calendars.  Some servers process
+        ## scheduling asynchronously, so poll with backoff before giving up.
+        new_attendee_inbox_items: list[Any] = []
         auto_scheduled = False
-        new_inbox_items: list[Any] = []
         for _ in range(30):
-            try:
+            new_attendee_inbox_items = [
+                item for item in await inbox1.get_events() if item.url not in inbox_urls_before
+            ]
+            ## Check whether the server auto-scheduled the event directly into
+            ## the attendee's calendar.  The event may land in any calendar,
+            ## so search all attendee calendars for the event UID.
+            if not new_attendee_inbox_items:
                 for cal in await principals[1].calendars():
-                    try:
-                        if any(e.id == event_uid for e in await cal.get_events()):
+                    for event in await cal.get_events():
+                        if event.id == event_uid:
                             auto_scheduled = True
                             break
-                    except Exception:
-                        pass
-            except Exception:
-                pass
-            if not auto_scheduled:
-                try:
-                    new_inbox_items = [
-                        item
-                        for item in await inbox1.get_events()
-                        if item.url not in inbox_urls_before
-                    ]
-                except Exception:
-                    pass
-            if auto_scheduled or new_inbox_items:
+                    if auto_scheduled:
+                        break
+            if new_attendee_inbox_items or auto_scheduled:
                 break
             await asyncio.sleep(1)
 
-        assert auto_scheduled or new_inbox_items, (
-            "Expected invite in attendee inbox OR event auto-added to attendee calendar, "
-            "got neither"
-        )
+        if len(new_attendee_inbox_items) == 0 or auto_scheduled:
+            ## Server implements automatic scheduling.  Some servers (e.g.
+            ## Stalwart) may additionally deliver an iTIP copy to the inbox as
+            ## a notification, but the acceptance is already done.
+            assert auto_scheduled, (
+                "Expected invite in attendee inbox OR event auto-added to attendee calendar, "
+                "got neither"
+            )
+            return
 
-        ## accept_invite() is not yet supported for async clients (raises NotImplementedError).
-        ## Verifying delivery is sufficient to confirm save_with_invites works end-to-end.
+        ## Normal inbox-delivery flow (RFC6638 section 4.1).
+
+        ## No new inbox items expected for principals[0] yet
+        for item in await inbox0.get_events():
+            assert item.url in inbox_urls_before
+
+        assert len(new_attendee_inbox_items) == 1
+        assert new_attendee_inbox_items[0].is_invite_request()
+
+        ## Approving the invite.  accept_invite() is not yet implemented for
+        ## async clients; skip rather than fail so the test can be extended later.
+        try:
+            new_attendee_inbox_items[0].accept_invite(calendar=calendars[1])
+        except NotImplementedError:
+            pytest.skip("accept_invite() not yet supported for async clients")
+
+        ## principals[0] should now have a notification in the inbox that the
+        ## calendar invite was accepted
+        new_organizer_inbox_items = [
+            item for item in await inbox0.get_events() if item.url not in inbox_urls_before
+        ]
+        assert len(new_organizer_inbox_items) == 1
+        assert new_organizer_inbox_items[0].is_invite_reply()
+        await new_organizer_inbox_items[0].delete()
 
     @pytest.mark.asyncio
     async def test_freebusy(self, scheduling_setup: Any) -> None:
