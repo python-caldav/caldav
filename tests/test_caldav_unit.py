@@ -2189,12 +2189,17 @@ END:VCALENDAR"""
         )
         result.close()
 
-    def test_accept_invite_raises_not_implemented_for_async_client(self):
-        """accept_invite() must raise Notimplemented for async clients (not silently fail)."""
+    def test_accept_invite_returns_coroutine_for_async_client(self):
+        """accept_invite() must return a coroutine for async clients."""
+        import asyncio
+
         client, calendar = self._make_async_client_and_calendar()
         event = Event(client=client, url="/calendar/ev1.ics", data=ev1, parent=calendar)
-        with pytest.raises(NotImplementedError):
-            event.accept_invite()
+        result = event.accept_invite()
+        assert asyncio.iscoroutine(result), (
+            f"expected coroutine from accept_invite(), got {type(result)}"
+        )
+        result.close()
 
     def test_add_organizer_explicit_arg_is_sync_safe_for_async_client(self):
         """add_organizer(explicit_arg) is pure in-memory: no network call, no await needed.

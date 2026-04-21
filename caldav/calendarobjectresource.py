@@ -753,30 +753,30 @@ class CalendarObjectResource(DAVObject):
     def accept_invite(self, calendar: Optional["Calendar"] = None) -> None:
         """
         Accepts an invite - to be used on an invite object.
+        For async clients, returns a coroutine that must be awaited.
         """
-        self._reply_to_invite_request("ACCEPTED", calendar)
+        return self._reply_to_invite_request("ACCEPTED", calendar)
 
     def decline_invite(self, calendar: Optional["Calendar"] = None) -> None:
         """
         Declines an invite - to be used on an invite object.
+        For async clients, returns a coroutine that must be awaited.
         """
-        self._reply_to_invite_request("DECLINED", calendar)
+        return self._reply_to_invite_request("DECLINED", calendar)
 
     def tentatively_accept_invite(self, calendar: Any | None = None) -> None:
         """
         Tentatively accept an invite - to be used on an invite object.
+        For async clients, returns a coroutine that must be awaited.
         """
-        self._reply_to_invite_request("TENTATIVE", calendar)
+        return self._reply_to_invite_request("TENTATIVE", calendar)
 
     ## TODO: DELEGATED is also a valid option, and for vtodos the
     ## partstat can also be set to COMPLETED and IN-PROGRESS.
 
     def _reply_to_invite_request(self, partstat, calendar) -> None:
         if self.is_async_client:
-            raise NotImplementedError(
-                "accept_invite/decline_invite/tentatively_accept_invite are not yet supported "
-                "for async clients"
-            )
+            return self._async_reply_to_invite_request(partstat, calendar)
         error.assert_(self.is_invite_request())
         if not calendar:
             calendar = self.client.principal().get_calendars()[0]
@@ -816,6 +816,72 @@ class CalendarObjectResource(DAVObject):
                 self._reply_to_invite_request(partstat, calendar=outbox)
             else:
                 self.save()
+
+    async def _async_reply_to_invite_request(self, partstat: str, calendar) -> None:
+        """Async implementation of _reply_to_invite_request()."""
+        await self.load(only_if_unloaded=True)
+        error.assert_(self.icalendar_instance.get("method", None) == "REQUEST")
+        principal = await self.client.principal()
+        if not calendar:
+            calendar = (await principal.get_calendars())[0]
+        self.icalendar_instance.pop("METHOD")
+        ## change_attendee_status() resolves the attendee from self.client.principal()
+        ## internally; that returns a coroutine in async mode so we resolve addresses here
+        ## and pass them explicitly.
+        addresses_el = await principal.get_property(
+            cdav.CalendarUserAddressSet(), parse_props=False
+        )
+        if addresses_el is not None:
+            addresses = sorted(list(addresses_el), key=lambda x: -int(x.get("preferred", 0)))
+            attendee_addresses = [x.text for x in addresses]
+        else:
+            username = getattr(self.client, "username", None)
+            if username and "@" in str(username):
+                attendee_addresses = ["mailto:" + username]
+            else:
+                raise error.NotFoundError(
+                    "Server does not provide the calendar-user-address-set property "
+                    "(RFC6638 §2.4.1) and the client username is not an email address. "
+                    "Cannot determine which attendee to update."
+                )
+        cnt = 0
+        for addr in attendee_addresses:
+            try:
+                self.change_attendee_status(addr, partstat=partstat)
+                cnt += 1
+            except error.NotFoundError:
+                pass
+        if not cnt:
+            raise error.NotFoundError("Principal is not invited to event")
+        error.assert_(cnt == 1)
+        uid = self.id
+        if uid and self.client.features.is_supported("scheduling.auto-schedule"):
+            for cal in await principal.calendars():
+                try:
+                    existing = await cal.event_by_uid(uid)
+                    await existing.load()
+                    cnt2 = 0
+                    for addr in attendee_addresses:
+                        try:
+                            existing.change_attendee_status(addr, partstat=partstat)
+                            cnt2 += 1
+                        except error.NotFoundError:
+                            pass
+                    if not cnt2:
+                        raise error.NotFoundError("Principal is not invited to existing event")
+                    await existing.save()
+                    return
+                except error.NotFoundError:
+                    pass
+        try:
+            await calendar.add_event(self.data)
+        except Exception:
+            await self.load()
+            outbox = await principal.schedule_outbox()
+            if calendar.url != outbox.url:
+                await self._async_reply_to_invite_request(partstat, calendar=outbox)
+            else:
+                await self.save()
 
     def copy(self, keep_uid: bool = False, new_parent: Any | None = None) -> Self:
         """
