@@ -2118,7 +2118,7 @@ class ScheduleMailbox(Calendar):
                 self._items = await _load_from_children()
         else:
             try:
-                await self._items.sync()
+                await self._items.async_sync()
             except Exception:
                 self._items = await _load_from_children()
         return self._items
@@ -2259,6 +2259,83 @@ class SynchronizableCalendarObjectCollection:
             ## Update internal state
             self.objects = list(current_by_url.values())
             self._objects_by_url = None  ## Invalidate cache
+            self.sync_token = self.calendar._generate_fake_sync_token(self.objects)
+
+        return (updated_objs, deleted_objs)
+
+    async def async_sync(self) -> tuple[Any, Any]:
+        """Async counterpart of sync() for async clients.
+
+        Mirrors sync() exactly but awaits all I/O operations.
+        """
+        updated_objs: list[Any] = []
+        deleted_objs: list[Any] = []
+
+        is_fake_token = isinstance(self.sync_token, str) and self.sync_token.startswith("fake-")
+
+        if not is_fake_token:
+            try:
+                updates = await self.calendar.get_objects_by_sync_token(
+                    self.sync_token, load_objects=False
+                )
+
+                if isinstance(updates.sync_token, str) and updates.sync_token.startswith("fake-"):
+                    is_fake_token = True
+                else:
+                    obu = self.objects_by_url()
+                    for obj in updates:
+                        obj.url = obj.url.canonical()
+                        if (
+                            obj.url in obu
+                            and dav.GetEtag.tag in obu[obj.url].props
+                            and dav.GetEtag.tag in obj.props
+                        ):
+                            if obu[obj.url].props[dav.GetEtag.tag] == obj.props[dav.GetEtag.tag]:
+                                continue
+                        obu[obj.url] = obj
+                        try:
+                            await obj.load()
+                            updated_objs.append(obj)
+                        except error.NotFoundError:
+                            deleted_objs.append(obj)
+                            obu.pop(obj.url)
+
+                    self.objects = list(obu.values())
+                    self._objects_by_url = None
+                    self.sync_token = updates.sync_token
+                    return (updated_objs, deleted_objs)
+            except (error.ReportError, error.DAVError):
+                is_fake_token = True
+
+        if is_fake_token:
+            log.debug("Using fallback async_sync mechanism (comparing all objects)")
+
+            current_objects = list(await self.calendar.search())
+
+            for obj in current_objects:
+                try:
+                    await obj.load()
+                except error.NotFoundError:
+                    pass
+
+            current_by_url = {obj.url.canonical(): obj for obj in current_objects}
+            old_by_url = self.objects_by_url()
+
+            for url, obj in current_by_url.items():
+                if url in old_by_url:
+                    old_data = old_by_url[url].data if hasattr(old_by_url[url], "data") else None
+                    new_data = obj.data if hasattr(obj, "data") else None
+                    if old_data != new_data and new_data is not None:
+                        updated_objs.append(obj)
+                else:
+                    updated_objs.append(obj)
+
+            for url in old_by_url:
+                if url not in current_by_url:
+                    deleted_objs.append(old_by_url[url])
+
+            self.objects = list(current_by_url.values())
+            self._objects_by_url = None
             self.sync_token = self.calendar._generate_fake_sync_token(self.objects)
 
         return (updated_objs, deleted_objs)

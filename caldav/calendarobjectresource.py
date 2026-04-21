@@ -953,7 +953,7 @@ class CalendarObjectResource(DAVObject):
         """
         error.assert_(self.url)
         if not self.parent:
-            raise NotFoundError(f"Could not do a multiget because {self.url} has no parent?")
+            raise error.NotFoundError(f"Could not do a multiget because {self.url} has no parent?")
         if self.is_async_client:
             return self._async_load_by_multiget()
         items = self.parent._multiget(event_urls=[self.url], raise_notfound=True)
