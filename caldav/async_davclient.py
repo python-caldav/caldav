@@ -71,24 +71,8 @@ from caldav.base_client import get_davclient as _base_get_davclient
 from caldav.compatibility_hints import FeatureSet
 from caldav.lib import error
 from caldav.lib.python_utilities import to_wire
-from caldav.lib.url import URL
-from caldav.protocol.types import (
-    CalendarQueryResult,
-    PropfindResult,
-)
-from caldav.protocol.xml_builders import (
-    _build_calendar_multiget_body,
-    _build_calendar_query_body,
-    _build_propfind_body,
-    _build_sync_collection_body,
-)
-from caldav.protocol.xml_parsers import (
-    _parse_calendar_query_response,
-    _parse_propfind_response,
-    _parse_sync_collection_response,
-)
 from caldav.requests import HTTPBearerAuth
-from caldav.response import BaseDAVResponse
+from caldav.response import CalendarQueryResult, DAVResponse, PropfindResult
 
 log = logging.getLogger("caldav")
 
@@ -96,31 +80,6 @@ if sys.version_info < (3, 11):
     from typing_extensions import Self
 else:
     from typing import Self
-
-
-class AsyncDAVResponse(BaseDAVResponse):
-    """
-    Response from an async DAV request.
-
-    This class handles the parsing of DAV responses, including XML parsing.
-    End users typically won't interact with this class directly.
-
-    Response parsing methods are inherited from BaseDAVResponse.
-
-    New protocol-based attributes:
-        results: Parsed results from protocol layer (List[PropfindResult], etc.)
-        sync_token: Sync token from sync-collection response
-    """
-
-    # Protocol-based parsed results (new interface)
-    results: list[PropfindResult | CalendarQueryResult] | None = None
-    sync_token: str | None = None
-
-    def __init__(self, response: Any, davclient: Optional["AsyncDAVClient"] = None) -> None:
-        """Initialize from httpx.Response or niquests.Response."""
-        self._init_from_response(response, davclient)
-
-    # Response parsing methods are inherited from BaseDAVResponse
 
 
 class AsyncDAVClient(BaseDAVClient):
@@ -366,7 +325,7 @@ class AsyncDAVClient(BaseDAVClient):
         body: str = "",
         headers: Mapping[str, str] | None = None,
         rate_limit_time_slept: float = 0,
-    ) -> AsyncDAVResponse:
+    ) -> DAVResponse:
         """
         Send an async HTTP request, with optional rate-limit sleep-and-retry.
 
@@ -404,7 +363,7 @@ class AsyncDAVClient(BaseDAVClient):
         method: str = "GET",
         body: str = "",
         headers: Mapping[str, str] | None = None,
-    ) -> AsyncDAVResponse:
+    ) -> DAVResponse:
         """
         Async HTTP request implementation with auth negotiation.
 
@@ -463,7 +422,7 @@ class AsyncDAVClient(BaseDAVClient):
                     if auth_types:
                         msg += "\nSupported authentication types: {}".format(", ".join(auth_types))
                 log.warning(msg)
-            response = AsyncDAVResponse(r, self)
+            response = DAVResponse(r, self)
         except Exception:
             # Workaround for servers that abort connection on unauthenticated requests
             # ref https://github.com/python-caldav/caldav/issues/158
@@ -498,7 +457,7 @@ class AsyncDAVClient(BaseDAVClient):
                 # Retry original request with auth
                 request_kwargs["auth"] = self.auth
                 r = await self.session.request(**request_kwargs)
-            response = AsyncDAVResponse(r, self)
+            response = DAVResponse(r, self)
 
         # Handle 429/503 rate-limit responses
         error.raise_if_rate_limited(r.status_code, str(url_obj), r.headers.get("Retry-After"))
@@ -542,7 +501,7 @@ class AsyncDAVClient(BaseDAVClient):
         depth: int = 0,
         headers: Mapping[str, str] | None = None,
         props: list[str] | None = None,
-    ) -> AsyncDAVResponse:
+    ) -> DAVResponse:
         """
         Send a PROPFIND request.
 
@@ -554,7 +513,7 @@ class AsyncDAVClient(BaseDAVClient):
             props: List of property names to request (uses protocol layer).
 
         Returns:
-            AsyncDAVResponse with results attribute containing parsed PropfindResult list.
+            DAVResponse with results attribute containing parsed PropfindResult list.
         """
         # Use protocol layer to build XML if props provided
         if props is not None and not body:
@@ -580,7 +539,7 @@ class AsyncDAVClient(BaseDAVClient):
         body: str = "",
         depth: int | None = 0,
         headers: Mapping[str, str] | None = None,
-    ) -> AsyncDAVResponse:
+    ) -> DAVResponse:
         """
         Send a REPORT request.
 
@@ -592,7 +551,7 @@ class AsyncDAVClient(BaseDAVClient):
             headers: Additional headers.
 
         Returns:
-            AsyncDAVResponse
+            DAVResponse
         """
         final_headers = self._build_method_headers("REPORT", depth, headers)
         return await self.request(url or str(self.url), "REPORT", body, final_headers)
@@ -601,7 +560,7 @@ class AsyncDAVClient(BaseDAVClient):
         self,
         url: str | None = None,
         headers: Mapping[str, str] | None = None,
-    ) -> AsyncDAVResponse:
+    ) -> DAVResponse:
         """
         Send an OPTIONS request.
 
@@ -610,7 +569,7 @@ class AsyncDAVClient(BaseDAVClient):
             headers: Additional headers.
 
         Returns:
-            AsyncDAVResponse
+            DAVResponse
         """
         return await self.request(url or str(self.url), "OPTIONS", "", headers)
 
@@ -621,7 +580,7 @@ class AsyncDAVClient(BaseDAVClient):
         url: str,
         body: str = "",
         headers: Mapping[str, str] | None = None,
-    ) -> AsyncDAVResponse:
+    ) -> DAVResponse:
         """
         Send a PROPPATCH request.
 
@@ -631,7 +590,7 @@ class AsyncDAVClient(BaseDAVClient):
             headers: Additional headers.
 
         Returns:
-            AsyncDAVResponse
+            DAVResponse
         """
         final_headers = self._build_method_headers("PROPPATCH", extra_headers=headers)
         return await self.request(url, "PROPPATCH", body, final_headers)
@@ -641,7 +600,7 @@ class AsyncDAVClient(BaseDAVClient):
         url: str,
         body: str = "",
         headers: Mapping[str, str] | None = None,
-    ) -> AsyncDAVResponse:
+    ) -> DAVResponse:
         """
         Send a MKCOL request.
 
@@ -653,7 +612,7 @@ class AsyncDAVClient(BaseDAVClient):
             headers: Additional headers.
 
         Returns:
-            AsyncDAVResponse
+            DAVResponse
         """
         final_headers = self._build_method_headers("MKCOL", extra_headers=headers)
         return await self.request(url, "MKCOL", body, final_headers)
@@ -663,7 +622,7 @@ class AsyncDAVClient(BaseDAVClient):
         url: str,
         body: str = "",
         headers: Mapping[str, str] | None = None,
-    ) -> AsyncDAVResponse:
+    ) -> DAVResponse:
         """
         Send a MKCALENDAR request.
 
@@ -673,7 +632,7 @@ class AsyncDAVClient(BaseDAVClient):
             headers: Additional headers.
 
         Returns:
-            AsyncDAVResponse
+            DAVResponse
         """
         final_headers = self._build_method_headers("MKCALENDAR", extra_headers=headers)
         return await self.request(url, "MKCALENDAR", body, final_headers)
@@ -683,7 +642,7 @@ class AsyncDAVClient(BaseDAVClient):
         url: str,
         body: str,
         headers: Mapping[str, str] | None = None,
-    ) -> AsyncDAVResponse:
+    ) -> DAVResponse:
         """
         Send a PUT request.
 
@@ -693,7 +652,7 @@ class AsyncDAVClient(BaseDAVClient):
             headers: Additional headers.
 
         Returns:
-            AsyncDAVResponse
+            DAVResponse
         """
         return await self.request(url, "PUT", body, headers)
 
@@ -702,7 +661,7 @@ class AsyncDAVClient(BaseDAVClient):
         url: str,
         body: str,
         headers: Mapping[str, str] | None = None,
-    ) -> AsyncDAVResponse:
+    ) -> DAVResponse:
         """
         Send a POST request.
 
@@ -712,7 +671,7 @@ class AsyncDAVClient(BaseDAVClient):
             headers: Additional headers.
 
         Returns:
-            AsyncDAVResponse
+            DAVResponse
         """
         return await self.request(url, "POST", body, headers)
 
@@ -720,7 +679,7 @@ class AsyncDAVClient(BaseDAVClient):
         self,
         url: str,
         headers: Mapping[str, str] | None = None,
-    ) -> AsyncDAVResponse:
+    ) -> DAVResponse:
         """
         Send a DELETE request.
 
@@ -729,7 +688,7 @@ class AsyncDAVClient(BaseDAVClient):
             headers: Additional headers.
 
         Returns:
-            AsyncDAVResponse
+            DAVResponse
         """
         return await self.request(url, "DELETE", "", headers)
 
@@ -747,7 +706,7 @@ class AsyncDAVClient(BaseDAVClient):
         expand: bool = False,
         depth: int = 1,
         headers: Mapping[str, str] | None = None,
-    ) -> AsyncDAVResponse:
+    ) -> DAVResponse:
         """
         Execute a calendar-query REPORT to search for calendar objects.
 
@@ -763,7 +722,7 @@ class AsyncDAVClient(BaseDAVClient):
             headers: Additional headers.
 
         Returns:
-            AsyncDAVResponse with results containing List[CalendarQueryResult].
+            DAVResponse with results containing List[CalendarQueryResult].
         """
 
         body, _ = _build_calendar_query_body(
@@ -797,7 +756,7 @@ class AsyncDAVClient(BaseDAVClient):
         hrefs: list[str] | None = None,
         depth: int = 1,
         headers: Mapping[str, str] | None = None,
-    ) -> AsyncDAVResponse:
+    ) -> DAVResponse:
         """
         Execute a calendar-multiget REPORT to fetch specific calendar objects.
 
@@ -808,7 +767,7 @@ class AsyncDAVClient(BaseDAVClient):
             headers: Additional headers.
 
         Returns:
-            AsyncDAVResponse with results containing List[CalendarQueryResult].
+            DAVResponse with results containing List[CalendarQueryResult].
         """
         body = _build_calendar_multiget_body(hrefs or [])
 
@@ -835,7 +794,7 @@ class AsyncDAVClient(BaseDAVClient):
         props: list[str] | None = None,
         depth: int = 1,
         headers: Mapping[str, str] | None = None,
-    ) -> AsyncDAVResponse:
+    ) -> DAVResponse:
         """
         Execute a sync-collection REPORT for efficient synchronization.
 
@@ -847,7 +806,7 @@ class AsyncDAVClient(BaseDAVClient):
             headers: Additional headers.
 
         Returns:
-            AsyncDAVResponse with results containing SyncCollectionResult.
+            DAVResponse with results containing SyncCollectionResult.
         """
         body = _build_sync_collection_body(sync_token=sync_token, props=props)
 
@@ -868,6 +827,12 @@ class AsyncDAVClient(BaseDAVClient):
             response.sync_token = sync_result.sync_token
 
         return response
+
+    def _value_or_coroutine(self, value):
+        return self._async_value_or_coroutine(value)
+
+    async def _async_value_or_coroutine(self, value):
+        return value
 
     # ==================== Authentication Helpers ====================
 
@@ -1120,21 +1085,6 @@ class AsyncDAVClient(BaseDAVClient):
         Returns the Principal object for the authenticated user.
         """
         return await self.get_principal()
-
-    def calendar(self, **kwargs: Any) -> "Calendar":
-        """Returns a calendar object.
-
-        Typically, a URL should be given as a named parameter (url)
-
-        No network traffic will be initiated by this method.
-
-        If you don't know the URL of the calendar, use
-        ``await client.get_principal().get_calendars()`` instead, or
-        ``await client.get_calendars()``
-        """
-        from caldav.collection import Calendar
-
-        return Calendar(client=self, **kwargs)
 
     async def check_dav_support(self) -> str | None:
         """

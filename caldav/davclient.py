@@ -50,7 +50,7 @@ from caldav.lib import error
 from caldav.lib.python_utilities import to_wire
 from caldav.lib.url import URL
 from caldav.requests import HTTPBearerAuth
-from caldav.response import BaseDAVResponse
+from caldav.response import DAVResponse
 
 log = logging.getLogger("caldav")
 
@@ -153,28 +153,6 @@ def _auto_url(
         url = url_hints["domain"]
     url = f"{url_hints.get('scheme', 'https')}://{url}{url_hints.get('basepath', '')}"
     return (url, None)
-
-
-class DAVResponse(BaseDAVResponse):
-    """
-    This class is a response from a DAV request.  It is instantiated from
-    the DAVClient class.  End users of the library should not need to
-    know anything about this class.  Since we often get XML responses,
-    it tries to parse it into `self.tree`
-    """
-
-    # Protocol-layer parsed results (new interface, replaces find_objects_and_props())
-    results: list | None = None
-    sync_token: str | None = None
-
-    def __init__(
-        self,
-        response: Response,
-        davclient: Optional["DAVClient"] = None,
-    ) -> None:
-        self._init_from_response(response, davclient)
-
-    # Response parsing methods are inherited from BaseDAVResponse
 
 
 class DAVClient(BaseDAVClient):
@@ -450,19 +428,6 @@ class DAVClient(BaseDAVClient):
         if not self._principal:
             self._principal = Principal(*largs, client=self, **kwargs)
         return self._principal
-
-    def calendar(self, **kwargs):
-        """Returns a calendar object.
-
-        Typically, a URL should be given as a named parameter (url)
-
-        No network traffic will be initiated by this method.
-
-        If you don't know the URL of the calendar, use
-        client.principal().calendar(...) instead, or
-        client.principal().get_calendars()
-        """
-        return Calendar(client=self, **kwargs)
 
     # ==================== High-Level Methods ====================
     # These methods mirror the async API for consistency.

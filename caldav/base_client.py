@@ -58,6 +58,21 @@ class BaseDAVClient(ABC):
     features: FeatureSet | None = None
     url: Any = None  # URL object, set by subclasses
 
+    def calendar(self, **kwargs):
+        """Returns a calendar object.
+
+        Typically, a URL should be given as a named parameter (url)
+
+        No network traffic will be initiated by this method.
+
+        If you don't know the URL of the calendar, use
+        client.principal().calendar(...) instead, or
+        client.principal().get_calendars()
+        """
+        from caldav.collection import Calendar
+
+        return Calendar(client=self, **kwargs)
+
     def _make_absolute_url(self, url: str) -> str:
         """Make a URL absolute by joining with the client's base URL if needed.
 
@@ -70,6 +85,9 @@ class BaseDAVClient(ABC):
         if url and not url.startswith("http"):
             return str(self.url.join(url))
         return url
+
+    def _value_or_coroutine(self, value):
+        return value
 
     def extract_auth_types(self, header: str) -> set[str]:
         """Extract authentication types from WWW-Authenticate header.
