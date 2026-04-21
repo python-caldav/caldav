@@ -366,6 +366,10 @@ class FeatureSet:
                 "https://datatracker.ietf.org/doc/html/rfc6638#section-3.3",
             ],
         },
+        "scheduling.schedule-tag.stable-partstat": {
+            "description": "Server keeps the Schedule-Tag stable when an attendee performs a PARTSTAT-only update (RFC6638 section 3.2 requirement). Non-compliant servers change the tag even when only PARTSTAT is updated, breaking conditional-PUT logic for other attendees.",
+            "links": ["https://datatracker.ietf.org/doc/html/rfc6638#section-3.2"],
+        },
         "scheduling.freebusy-query": {
             "description": "Server supports the RFC6638 freebusy query: the organizer POSTs a VFREEBUSY REQUEST to the schedule outbox and the server returns free/busy information for the listed attendees.",
             "links": ["https://datatracker.ietf.org/doc/html/rfc6638#section-5"],
@@ -1037,6 +1041,12 @@ zimbra = {
 bedework = {
     ## If tests are yielding unexpected results, try to increase this:
     'search-cache': {'behaviour': 'delay', 'delay': 3},
+    'scheduling.auto-schedule': {'support': 'unknown'},
+    'scheduling.calendar-user-address-set': {'support': 'full'},
+    'scheduling.freebusy-query': {'support': 'full'},
+    'scheduling.mailbox': {'support': 'full'},
+    'scheduling.mailbox.inbox-delivery': {'support': 'unsupported'},
+    'scheduling.schedule-tag': {'support': 'full'},
 
     'test-calendar': {'cleanup-regime': 'wipe-calendar'},
     'auto-connect.url': {'basepath': '/ucaldav/'},
@@ -1362,6 +1372,7 @@ ccs = {
     "scheduling.freebusy-query": {"support": "ungraceful"},
     "scheduling.mailbox.inbox-delivery": True,
     "scheduling.auto-schedule": True,
+    "scheduling.schedule-tag.stable-partstat": {"support": "unsupported"},
     "save-load.journal": {"support": "unsupported"},
     "save-load.todo.mixed-calendar": {"support": "unsupported"},
     # CCS enforces unique UIDs across ALL calendars for a user

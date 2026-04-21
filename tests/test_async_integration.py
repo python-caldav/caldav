@@ -739,6 +739,7 @@ class _AsyncTestSchedulingBase:
 
         clients, principals, calendars, auto_uids = scheduling_setup
         self._skip_unless_support("scheduling.schedule-tag")
+        self._skip_unless_support("scheduling.schedule-tag.stable-partstat")
         if len(principals) < 2:
             pytest.skip("need 2 principals")
         if not clients[1].features.is_supported("scheduling.mailbox.inbox-delivery"):

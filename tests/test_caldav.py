@@ -985,6 +985,7 @@ class _TestSchedulingBase:
         The tag before and after a PARTSTAT-only PUT must be identical.
         """
         self._skip_unless_support("scheduling.schedule-tag")
+        self._skip_unless_support("scheduling.schedule-tag.stable-partstat")
         if len(self.principals) < 2:
             pytest.skip("need 2 principals")
         if not self.clients[1].features.is_supported("scheduling.mailbox.inbox-delivery"):
