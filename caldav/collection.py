@@ -1733,6 +1733,8 @@ class Calendar(DAVObject):
     ) -> "SynchronizableCalendarObjectCollection":
         """get_objects_by_sync_token aka get_objects
 
+        For async clients, returns a coroutine that must be awaited.
+
         Do a sync-collection report, ref RFC 6578 and
         https://github.com/python-caldav/caldav/issues/87
 
@@ -1757,6 +1759,9 @@ class Calendar(DAVObject):
         of falling back to retrieving all objects. This is useful for testing whether
         the server truly supports sync tokens.
         """
+        if self.is_async_client:
+            return self._async_get_objects_by_sync_token(sync_token, load_objects, disable_fallback)
+
         ## Check if we should attempt to use sync tokens
         ## (either server supports them, or we haven't checked yet, or this is a fake token)
         use_sync_token = True
@@ -1878,6 +1883,93 @@ class Calendar(DAVObject):
     objects = objects_by_sync_token
     get_objects = get_objects_by_sync_token
 
+    async def _async_get_objects_by_sync_token(
+        self,
+        sync_token: Any | None = None,
+        load_objects: bool = False,
+        disable_fallback: bool = False,
+    ) -> "SynchronizableCalendarObjectCollection":
+        """Async implementation of get_objects_by_sync_token."""
+        use_sync_token = True
+        sync_support = self.client.features.is_supported("sync-token", return_type=dict)
+        if sync_support.get("support") == "unsupported":
+            if disable_fallback:
+                raise error.ReportError("Sync tokens are not supported by the server")
+            use_sync_token = False
+        if sync_token and isinstance(sync_token, str) and sync_token.startswith("fake-"):
+            use_sync_token = False
+
+        if use_sync_token:
+            try:
+                cmd = dav.SyncCollection()
+                token = dav.SyncToken(value=sync_token)
+                level = dav.SyncLevel(value="1")
+                props = dav.Prop() + dav.GetEtag()
+                root = cmd + [level, token, props]
+                (response, objects) = await self._request_report_build_resultlist(
+                    root, props=[dav.GetEtag()], no_calendardata=True
+                )
+                try:
+                    sync_token = response.sync_token
+                except AttributeError:
+                    sync_token = response.tree.findall(".//" + dav.SyncToken.tag)[0].text
+
+                if load_objects:
+                    for obj in objects:
+                        try:
+                            await obj.load()
+                        except error.NotFoundError:
+                            pass
+                return SynchronizableCalendarObjectCollection(
+                    calendar=self, objects=objects, sync_token=sync_token
+                )
+            except (error.ReportError, error.DAVError) as e:
+                if disable_fallback:
+                    raise
+                log.info(f"Sync-collection REPORT failed ({e}), falling back to full retrieval")
+
+        log.debug("Using fallback sync mechanism (retrieving all objects)")
+
+        all_objects = list(await self.search())
+
+        if load_objects:
+            for obj in all_objects:
+                if not hasattr(obj, "_data") or obj._data is None:
+                    try:
+                        await obj.load()
+                    except error.NotFoundError:
+                        pass
+
+        if all_objects and (
+            not hasattr(all_objects[0], "props") or dav.GetEtag.tag not in all_objects[0].props
+        ):
+            try:
+                response = await self._query_properties([dav.GetEtag()], depth=1)
+                etag_props = response.expand_simple_props([dav.GetEtag()])
+                url_to_obj = {str(obj.url.canonical()): obj for obj in all_objects}
+                log.debug(f"Fallback: Fetching ETags for {len(url_to_obj)} objects")
+                for url_str, props in etag_props.items():
+                    canonical_url_str = str(self.url.join(url_str).canonical())
+                    if canonical_url_str in url_to_obj:
+                        if not hasattr(url_to_obj[canonical_url_str], "props"):
+                            url_to_obj[canonical_url_str].props = {}
+                        url_to_obj[canonical_url_str].props.update(props)
+                        log.debug(f"Fallback: Added ETag to {canonical_url_str}")
+            except Exception as e:
+                log.debug(f"Failed to fetch ETags for fallback sync: {e}")
+
+        fake_sync_token = self._generate_fake_sync_token(all_objects)
+
+        if sync_token and isinstance(sync_token, str) and sync_token.startswith("fake-"):
+            if sync_token == fake_sync_token:
+                return SynchronizableCalendarObjectCollection(
+                    calendar=self, objects=[], sync_token=fake_sync_token
+                )
+
+        return SynchronizableCalendarObjectCollection(
+            calendar=self, objects=all_objects, sync_token=fake_sync_token
+        )
+
     def get_journals(self) -> list["Journal"]:
         """
         List all journals from the calendar.
@@ -1953,8 +2045,9 @@ class ScheduleMailbox(Calendar):
                 ) from None
 
     def get_items(self):
-        """
-        Return all items currently in this scheduling mailbox (inbox or outbox).
+        """Return all items currently in this scheduling mailbox (inbox or outbox).
+
+        For async clients, returns a coroutine that must be awaited.
 
         Unlike regular calendars, schedule mailboxes contain raw iTIP messages
         (METHOD:REQUEST, METHOD:REPLY, METHOD:CANCEL, …) rather than permanent
@@ -1968,13 +2061,16 @@ class ScheduleMailbox(Calendar):
         a plain PROPFIND depth-1 followed by individual GETs.  Both paths return
         loaded CalendarObjectResource objects.
 
-        This method does NOT belong on the Calendar super-class: Calendar exposes
-        type-specific accessors (get_events, get_todos, …) and uses search()
-        internally.  The mailbox is a different beast — it holds transient,
-        mixed-type scheduling messages and must use children() as its fallback
-        because search() / REPORT queries against a mailbox URL are unreliable
-        across servers.
+        Claude says that this method does NOT belong on the Calendar
+        super-class.  Calendar exposes type-specific accessors
+        (get_events, get_todos, …) and uses search() internally.  The
+        mailbox is a different beast — it holds transient, mixed-type
+        scheduling messages and must use children() as its fallback
+        because search() / REPORT queries against a mailbox URL are
+        unreliable across servers.
         """
+        if self.is_async_client:
+            return self._async_get_items()
 
         def _load_from_children():
             items = [CalendarObjectResource(url=x[0], client=self.client) for x in self.children()]
@@ -1997,6 +2093,34 @@ class ScheduleMailbox(Calendar):
                 self._items.sync()
             except Exception:
                 self._items = _load_from_children()
+        return self._items
+
+    async def _async_get_items(self):
+        """Async implementation of get_items."""
+
+        async def _load_from_children():
+            items = [
+                CalendarObjectResource(url=x[0], client=self.client) for x in await self.children()
+            ]
+            for x in items:
+                await x.load()
+            return items
+
+        if not self._items:
+            try:
+                self._items = await self.objects(load_objects=True)
+            except Exception:
+                logging.debug(
+                    "sync-collection REPORT not supported on scheduling mailbox %s; "
+                    "falling back to PROPFIND depth-1",
+                    self.url,
+                )
+                self._items = await _load_from_children()
+        else:
+            try:
+                await self._items.sync()
+            except Exception:
+                self._items = await _load_from_children()
         return self._items
 
 

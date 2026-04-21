@@ -566,8 +566,6 @@ class _AsyncTestSchedulingBase:
         """send a calendar invite via save_with_invites and verify delivery.
 
         Async counterpart of _TestSchedulingBase.testInviteAndRespond.
-        NOTE: inbox listing uses get_events() as a workaround since
-        ScheduleMailbox.get_items() does not yet have async support.
         """
         import uuid
 
@@ -579,9 +577,9 @@ class _AsyncTestSchedulingBase:
         inbox0 = await principals[0].schedule_inbox()
         inbox1 = await principals[1].schedule_inbox()
         inbox_urls_before: set[Any] = set()
-        for item in await inbox0.get_events():
+        for item in await inbox0.get_items():
             inbox_urls_before.add(item.url)
-        for item in await inbox1.get_events():
+        for item in await inbox1.get_items():
             inbox_urls_before.add(item.url)
 
         ## Send the invite
@@ -609,7 +607,7 @@ class _AsyncTestSchedulingBase:
         auto_scheduled = False
         for _ in range(30):
             new_attendee_inbox_items = [
-                item for item in await inbox1.get_events() if item.url not in inbox_urls_before
+                item for item in await inbox1.get_items() if item.url not in inbox_urls_before
             ]
             ## Check whether the server auto-scheduled the event directly into
             ## the attendee's calendar.  The event may land in any calendar,
@@ -639,7 +637,7 @@ class _AsyncTestSchedulingBase:
         ## Normal inbox-delivery flow (RFC6638 section 4.1).
 
         ## No new inbox items expected for principals[0] yet
-        for item in await inbox0.get_events():
+        for item in await inbox0.get_items():
             assert item.url in inbox_urls_before
 
         assert len(new_attendee_inbox_items) == 1
@@ -655,7 +653,7 @@ class _AsyncTestSchedulingBase:
         ## principals[0] should now have a notification in the inbox that the
         ## calendar invite was accepted
         new_organizer_inbox_items = [
-            item for item in await inbox0.get_events() if item.url not in inbox_urls_before
+            item for item in await inbox0.get_items() if item.url not in inbox_urls_before
         ]
         assert len(new_organizer_inbox_items) == 1
         assert new_organizer_inbox_items[0].is_invite_reply()

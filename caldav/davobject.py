@@ -136,14 +136,26 @@ class DAVObject:
         props = [dav.DisplayName()]
         multiprops = [dav.ResourceType()]
         props_multiprops = props + multiprops
+
+        if self.is_async_client:
+            return self._async_children(type, props_multiprops, depth)
+
         response = self._query_properties(props_multiprops, depth)
+        return self._children_post_process(type, response)
+
+    def _children_post_process(self, type_, response):
+        from .collection import CalendarSet
+
+        c = []
+        props = [dav.DisplayName()]
+        multiprops = [dav.ResourceType()]
         properties = response.expand_simple_props(props=props, multi_value_props=multiprops)
 
         for path in properties:
             resource_types = properties[path][dav.ResourceType.tag]
             resource_name = properties[path][dav.DisplayName.tag]
 
-            if type is None or type in resource_types:
+            if type_ is None or type_ in resource_types:
                 url = URL(path)
                 if url.hostname is None:
                     # Quote when path is not a full URL
@@ -154,7 +166,7 @@ class DAVObject:
                 # And why is the strip_trailing_slash-method needed?
                 # The collection URL should always end with a slash according
                 # to RFC 2518, section 5.2.
-                if (isinstance(self, CalendarSet) and type == cdav.Calendar.tag) or (
+                if (isinstance(self, CalendarSet) and type_ == cdav.Calendar.tag) or (
                     self.url.canonical().strip_trailing_slash()
                     != self.url.join(path).canonical().strip_trailing_slash()
                 ):
@@ -163,6 +175,11 @@ class DAVObject:
         ## TODO: return objects rather than just URLs, and include
         ## the properties we've already fetched
         return c
+
+    ## TODO: get the typehints correct
+    async def _async_children(self, type, props_multiprops, depth):
+        response = await self._query_properties(props_multiprops, depth)
+        return self._children_post_process(type, response)
 
     def _build_xml_body(self, root) -> bytes | str:
         """Serialize a DAV element (or raw bytes/str) to a request body."""
