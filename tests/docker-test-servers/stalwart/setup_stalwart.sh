@@ -125,6 +125,30 @@ for i in $(seq 1 $max_caldav_attempts); do
 done
 
 echo ""
+echo "Disabling rate limiting for test environment..."
+# Stalwart applies HTTP and authentication rate limits by default, which causes
+# 429 responses during rapid test runs. Append generous limits to config inside
+# the container, then reload.
+docker exec "$CONTAINER_NAME" sh -c 'cat >> /opt/stalwart/etc/config.toml << '"'"'EOF'"'"'
+
+[server.http.rate-limit]
+requests = "999999999/1s"
+size = 1000000
+
+[authentication.rate-limit]
+remote.burst = 9999999
+remote.requests = "9999999/1s"
+account.burst = 9999999
+account.requests = "9999999/1s"
+EOF'
+RELOAD_RESULT=$(curl -s -u "${ADMIN_USER}:${ADMIN_PASSWORD}" "${API_BASE}/reload")
+if echo "$RELOAD_RESULT" | grep -q '"errors":{}'; then
+    echo "Rate limiting disabled (config reloaded)"
+else
+    echo "Warning: config reload result: $RELOAD_RESULT"
+fi
+
+echo ""
 echo "Stalwart setup complete!"
 echo ""
 echo "Credentials:"
