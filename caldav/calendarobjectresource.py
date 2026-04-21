@@ -967,7 +967,7 @@ class CalendarObjectResource(DAVObject):
     def _post_load_by_multiget(self, items):
         if not items:
             raise error.NotFoundError(self.url)
-        url_data = next(mydata, None)
+        url_data = next(items, None)
         if url_data is None:
             ## We shouldn't come here.  Something is wrong.
             ## TODO: research it
@@ -976,7 +976,7 @@ class CalendarObjectResource(DAVObject):
             raise error.NotFoundError(self.url)
         _url, self.data = url_data
         error.assert_(self.data)
-        error.assert_(len(items) == 1)
+        error.assert_(next(items, None) is None)
         return self
 
     ## TODO: self.id should either always be available or never
