@@ -895,9 +895,6 @@ xandikos_v0_2_12 = {
 }
 
 xandikos = {
-    ## We've sometimes been observing internal server errors on freebusy-requests.
-    ## Should do more research on it next time it shows up.
-
     ## Principal property search returns 403 (not implemented)
     "principal-search": "ungraceful",
 
@@ -909,6 +906,7 @@ xandikos = {
     ## 500 Internal Server Error (OverflowError: date value out of range in icalendar.py
     ## _expand_rrule_component when computing adjusted_start = start - duration).
     "search.time-range.open.start": {"support": "ungraceful", "behaviour": "500 Internal Server Error (OverflowError in rrule expansion)"},
+    "search.time-range.open.start.duration": True,
 
     ## this only applies for very simple installations
     "auto-connect.url": {"domain": "localhost", "scheme": "http", "basepath": "/"},
@@ -928,7 +926,6 @@ radicale = {
     "principal-search": {"support": "unsupported"},
     ## this only applies for very simple installations
     "auto-connect.url": {"domain": "localhost", "scheme": "http", "basepath": "/"},
-    ## freebusy is not supported yet, but on the long-term road map
     "scheduling": {"support": "unsupported"},
     'old_flags': [
     ## extra features not specified in RFC4791
@@ -964,8 +961,7 @@ nextcloud = {
     'search.combined-is-logical-and': False,
     ## Observed with Nextcloud 33: server delivers iTIP notification to the inbox AND
     ## auto-schedules into the attendee's calendar.
-    "scheduling.mailbox.inbox-delivery": True,
-    "scheduling.auto-schedule": True,
+    'scheduling.schedule-tag': False,
 }
 
 ## TODO: Latest - mismatch between config and test script in delete-calendar.free-namespace ... and create-calendar.set-displayname?
@@ -1012,9 +1008,9 @@ zimbra = {
     'principal-search': "unsupported",
     ## Zimbra implements server-side automatic scheduling: invitations are
     ## auto-processed into the attendee's calendar; no iTIP notification appears in the inbox.
-    "scheduling.mailbox": True,
-    "scheduling.mailbox.inbox-delivery": False,
-    "scheduling.auto-schedule": True,
+    ## TODO: auto-scheduling did not work in the last test?  Check more around it
+    #"scheduling.mailbox.inbox-delivery": False,
+    "scheduling.schedule-tag": False,
     'save-load.icalendar.related-to': {'support': 'unsupported'},
     'search.time-range.open.start': {'support': 'broken'},
 
@@ -1068,7 +1064,8 @@ bedework = {
     #"search.unlimited-time-range": {"support": "broken"},
     ## Bedework uses a pre-built Docker image with no easy way to add users, so
     ## cross-user scheduling tests cannot be run; inbox-delivery behaviour is unknown.
-    "scheduling.mailbox": {"support": "unknown"},
+    ## (not expected to be working though)
+    "scheduling": {"support": "unknown"},
 
     ## TODO: play with this and see if it's needed
     'save-load.icalendar.related-to': {'support': 'broken', 'behaviour': 'first RELATED-TO line is preserved but subsequent RELATED-TO lines are stripped'},
@@ -1095,9 +1092,7 @@ synology = {
 baikal =  { ## version 0.10.1
     # Baikal (sabre/dav) delivers iTIP notifications to the attendee inbox AND auto-schedules
     # into their calendar.
-    "scheduling.mailbox.inbox-delivery": True,
-    "scheduling.auto-schedule": True,
-    "scheduling.mailbox": True,
+    "scheduling.schedule-tag": False,
     "http.multiplexing": "fragile", ## ref https://github.com/python-caldav/caldav/issues/564
     'search.comp-type.optional': {'support': 'ungraceful'},
     'search.recurrences.expanded.todo': {'support': 'unsupported'},
@@ -1141,9 +1136,6 @@ cyrus = {
     # Cyrus implements server-side automatic scheduling: for cross-user invites,
     # the server both auto-processes the invite into the attendee's calendar
     # AND delivers an iTIP notification copy to the attendee's schedule-inbox.
-    "scheduling.mailbox": True,
-    "scheduling.mailbox.inbox-delivery": True,
-    "scheduling.auto-schedule": True,
 }
 
 ## See comments on https://github.com/python-caldav/caldav/issues/3
@@ -1165,9 +1157,7 @@ davical = {
     "http.multiplexing": { "support": "unsupported" },
     # DAViCal delivers iTIP notifications to the attendee inbox AND auto-schedules
     # into their calendar.
-    "scheduling.mailbox": True,
-    "scheduling.mailbox.inbox-delivery": True,
-    "scheduling.auto-schedule": True,
+    "scheduling.schedule-tag": False,
     "search.comp-type.optional": { "support": "fragile" },
     "search.recurrences.expanded.exception": { "support": "unsupported" },
     "search.time-range.alarm": { "support": "unsupported" },
@@ -1186,8 +1176,8 @@ davical = {
 }
 
 sogo = {
-    ## scheduling.mailbox.inbox-delivery behaviour unknown until cross-user scheduling tests run
-    "scheduling.mailbox.inbox-delivery": {"support": "unknown"},
+    "scheduling.schedule-tag": False,
+    "scheduling.mailbox.inbox-delivery": False,
     ## I'm surprised, I'm quite sure this was passing earlier.  reported unsupported with caldav commit a98d50490b872e9b9d8e93e2e401c936ad193003, caldav server checker commit 3cae24cf99da1702b851b5a74a9b88c8e5317dad 2026-02-15
     "search.text.category": False,
     "search.time-range.event.old-dates": False,
@@ -1347,9 +1337,7 @@ posteo = {
 davis = {
     # Davis uses sabre/dav (same backend as Baikal): delivers iTIP notifications to the
     # attendee inbox AND auto-schedules into their calendar.
-    "scheduling.mailbox": True,
-    "scheduling.mailbox.inbox-delivery": True,
-    "scheduling.auto-schedule": True,
+    "scheduling.schedule-tag": False,
     "search.recurrences.expanded.todo": {"support": "unsupported"},
     "search.recurrences.expanded.exception": {"support": "unsupported"},
     "search.recurrences.includes-implicit.todo": {"support": "unsupported"},
