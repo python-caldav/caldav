@@ -131,15 +131,9 @@ echo "Disabling rate limiting for test environment..."
 # the container, then reload.
 docker exec "$CONTAINER_NAME" sh -c 'cat >> /opt/stalwart/etc/config.toml << '"'"'EOF'"'"'
 
-[server.http.rate-limit]
-requests = "999999999/1s"
-size = 1000000
-
-[authentication.rate-limit]
-remote.burst = 9999999
-remote.requests = "9999999/1s"
-account.burst = 9999999
-account.requests = "9999999/1s"
+[http]
+rate-limit-anonymous = { count = 999999999, period = "1m" }
+rate-limit-authenticated = { count = 999999999, period = "1m" }
 EOF'
 RELOAD_RESULT=$(curl -s -u "${ADMIN_USER}:${ADMIN_PASSWORD}" "${API_BASE}/reload")
 if echo "$RELOAD_RESULT" | grep -q '"errors":{}'; then
