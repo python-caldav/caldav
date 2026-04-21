@@ -715,7 +715,16 @@ class CalendarObjectResource(DAVObject):
             attendee_obj = vCalAddress()
 
         ## TODO: if possible, check that the attendee exists
-        ## TODO: check that the attendee will not be duplicated in the event.
+        ievent = self.icalendar_component
+        existing = ievent.get("attendee", [])
+        if isinstance(existing, str):
+            existing = [existing]
+
+        def _strip_mailto(x):
+            return str(x).lower().replace("mailto:", "")
+
+        if any(_strip_mailto(a) == _strip_mailto(attendee_obj) for a in existing):
+            return
         if not no_default_parameters:
             ## Sensible defaults:
             attendee_obj.params["partstat"] = "NEEDS-ACTION"
@@ -731,7 +740,6 @@ class CalendarObjectResource(DAVObject):
             else:
                 params[new_key] = parameters[key]
         attendee_obj.params.update(params)
-        ievent = self.icalendar_component
         ievent.add("attendee", attendee_obj)
 
     def is_invite_request(self) -> bool:

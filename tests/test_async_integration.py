@@ -643,8 +643,7 @@ class _AsyncTestSchedulingBase:
         assert len(new_attendee_inbox_items) == 1
         assert new_attendee_inbox_items[0].is_invite_request()
 
-        ## Approving the invite.  accept_invite() is not yet implemented for
-        ## async clients; skip rather than fail so the test can be extended later.
+        ## Approving the invite.
         await new_attendee_inbox_items[0].accept_invite(calendar=calendars[1])
 
         ## principals[0] should now have a notification in the inbox that the
