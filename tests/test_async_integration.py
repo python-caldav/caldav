@@ -732,8 +732,6 @@ class _AsyncTestSchedulingBase:
         """PARTSTAT-only update must not change the Schedule-Tag.
 
         Async counterpart of testScheduleTagStableOnPartstateUpdate.
-        Expected to fail: accept_invite() raises NotImplementedError for
-        async clients.
         """
         import uuid
 
@@ -781,8 +779,7 @@ class _AsyncTestSchedulingBase:
         if not invite:
             pytest.skip("Invite not delivered to attendee inbox; cannot test PARTSTAT stability")
 
-        ## accept_invite is not yet implemented for async clients
-        invite.accept_invite(calendar=attendee_cal)
+        await invite.accept_invite(calendar=attendee_cal)
 
         ## Find the attendee's copy
         attendee_event = None
@@ -802,8 +799,10 @@ class _AsyncTestSchedulingBase:
         tag_before = attendee_event.schedule_tag
         assert tag_before is not None, "No Schedule-Tag on attendee's calendar event after accept"
 
-        ## PARTSTAT-only change — tag must not move
-        attendee_event.change_attendee_status(partstat="TENTATIVE")
+        ## PARTSTAT-only change — tag must not move.
+        ## Pass attendee_addr explicitly: without an arg, change_attendee_status() resolves
+        ## the principal via self.client.principal(), which returns a coroutine in async mode.
+        attendee_event.change_attendee_status(str(attendee_addr), partstat="TENTATIVE")
         await attendee_event.save()
         await attendee_event.load()
         tag_after = attendee_event.schedule_tag
