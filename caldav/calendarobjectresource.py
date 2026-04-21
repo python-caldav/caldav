@@ -819,7 +819,10 @@ class CalendarObjectResource(DAVObject):
 
     async def _async_reply_to_invite_request(self, partstat: str, calendar) -> None:
         """Async implementation of _reply_to_invite_request()."""
-        await self.load(only_if_unloaded=True)
+        foo = self.load(only_if_unloaded=True)
+        ## TODO: this is a mess
+        if not isinstance(foo, CalendarObjectResource):
+            await foo
         error.assert_(self.icalendar_instance.get("method", None) == "REQUEST")
         principal = await self.client.principal()
         if not calendar:
@@ -914,6 +917,13 @@ class CalendarObjectResource(DAVObject):
         Example (async):
             await obj.load()
         """
+        ## This is so bad ... the `self.load(only_if_unloaded)` has
+        ## been peppered all over the place, at places where no
+        ## server communication is expected, just for the oddball
+        ## case where an object expected to contain data only contains
+        ## an URL.  This causes huge problems when trying to do the
+        ## async work by isolating the IO-causing methods.
+
         # Check if already loaded BEFORE delegating to async
         # This avoids returning a coroutine when no work is needed
         if only_if_unloaded and self.is_loaded():

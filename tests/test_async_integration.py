@@ -645,10 +645,7 @@ class _AsyncTestSchedulingBase:
 
         ## Approving the invite.  accept_invite() is not yet implemented for
         ## async clients; skip rather than fail so the test can be extended later.
-        try:
-            new_attendee_inbox_items[0].accept_invite(calendar=calendars[1])
-        except NotImplementedError:
-            pytest.skip("accept_invite() not yet supported for async clients")
+        await new_attendee_inbox_items[0].accept_invite(calendar=calendars[1])
 
         ## principals[0] should now have a notification in the inbox that the
         ## calendar invite was accepted
