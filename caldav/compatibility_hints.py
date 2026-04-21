@@ -361,6 +361,7 @@ class FeatureSet:
         },
         "scheduling.schedule-tag": {
             "description": "Server returns a Schedule-Tag response header on GET of a scheduling object resource (a calendar object with an ORGANIZER property) and exposes the schedule-tag DAV property via PROPFIND (RFC6638 sections 3.2-3.3). Clients use the Schedule-Tag for conditional PUT requests to detect concurrent scheduling changes.",
+            "default": {"support": "full"},
             "links": [
                 "https://datatracker.ietf.org/doc/html/rfc6638#section-3.2",
                 "https://datatracker.ietf.org/doc/html/rfc6638#section-3.3",

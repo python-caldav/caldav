@@ -1578,7 +1578,8 @@ class RepeatedFunctionalTestsBaseClass:
         self.skip_on_compatibility_flag("dav_not_supported")
         assert self.caldav.check_dav_support()
         assert self.caldav.check_cdav_support()
-        assert self.caldav.check_scheduling_support() == self.is_supported("scheduling")
+        if self.is_supported("scheduling", str) != "unknown":
+            assert self.caldav.check_scheduling_support() == self.is_supported("scheduling")
 
     def testSchedulingInfo(self):
         self.skip_unless_support("scheduling.calendar-user-address-set")

@@ -1102,7 +1102,16 @@ class CalendarObjectResource(DAVObject):
         elif self.etag:
             headers["if-match"] = self.etag
         headers |= ICALH
+        if self.is_async_client:
+            return self._async_put(headers, retry_on_failure)
         r = self.client.put(self.url, self.data, headers)
+        return self._post_put(r)
+
+    async def _async_put(self, headers, retry_on_failure=True):
+        r = await self.client.put(str(self.url), str(self.data), headers | ICALH)
+        return self._post_put(r)
+
+    def _post_put(self, r):
         if r.status == 412:
             if self.schedule_tag:
                 raise error.ScheduleTagMismatchError(errmsg(r))
@@ -1130,9 +1139,6 @@ class CalendarObjectResource(DAVObject):
         if r.headers and r.headers.get("schedule-tag"):
             self.props[cdav.ScheduleTag.tag] = r.headers["schedule-tag"]
 
-    async def _async_put(self, retry_on_failure=True):
-        """Async version of _put for async clients."""
-        r = await self.client.put(str(self.url), str(self.data), ICALH)
         if r.status == 302:
             path = [x[1] for x in r.headers if x[0] == "location"][0]
             self.url = URL.objectify(path)
@@ -1143,8 +1149,9 @@ class CalendarObjectResource(DAVObject):
                 except ImportError:
                     retry_on_failure = False
             if retry_on_failure:
-                self.get_vobject_instance()
-                return await self._async_put(False)
+                ## This seems like a noop, but it may "wash" the object
+                dummy = self.vobject_instance
+                return self._put(False)
             else:
                 raise error.PutError(errmsg(r))
         ## TODO: refactor - those code lines are repeated all over the place
@@ -1161,7 +1168,7 @@ class CalendarObjectResource(DAVObject):
     async def _async_create(self, id=None, path=None) -> None:
         """Async version of _create for async clients."""
         self._find_id_path(id=id, path=path)
-        await self._async_put()
+        return await self._put()
 
     def _generate_url(self):
         ## See https://github.com/python-caldav/caldav/issues/143 for the rationale behind double-quoting slashes
