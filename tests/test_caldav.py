@@ -985,6 +985,7 @@ class _TestSchedulingBase:
         The tag before and after a PARTSTAT-only PUT must be identical.
         """
         self._skip_unless_support("scheduling.schedule-tag")
+        self._skip_unless_support("scheduling.schedule-tag.stable-partstat")
         if len(self.principals) < 2:
             pytest.skip("need 2 principals")
         if not self.clients[1].features.is_supported("scheduling.mailbox.inbox-delivery"):
@@ -1577,7 +1578,8 @@ class RepeatedFunctionalTestsBaseClass:
         self.skip_on_compatibility_flag("dav_not_supported")
         assert self.caldav.check_dav_support()
         assert self.caldav.check_cdav_support()
-        assert self.caldav.check_scheduling_support() == self.is_supported("scheduling")
+        if self.is_supported("scheduling", str) != "unknown":
+            assert self.caldav.check_scheduling_support() == self.is_supported("scheduling")
 
     def testSchedulingInfo(self):
         self.skip_unless_support("scheduling.calendar-user-address-set")

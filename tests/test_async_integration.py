@@ -567,8 +567,6 @@ class _AsyncTestSchedulingBase:
         """send a calendar invite via save_with_invites and verify delivery.
 
         Async counterpart of _TestSchedulingBase.testInviteAndRespond.
-        NOTE: inbox listing uses get_events() as a workaround since
-        ScheduleMailbox.get_items() does not yet have async support.
         """
         import uuid
 
@@ -580,9 +578,9 @@ class _AsyncTestSchedulingBase:
         inbox0 = await principals[0].schedule_inbox()
         inbox1 = await principals[1].schedule_inbox()
         inbox_urls_before: set[Any] = set()
-        for item in await inbox0.get_events():
+        for item in await inbox0.get_items():
             inbox_urls_before.add(item.url)
-        for item in await inbox1.get_events():
+        for item in await inbox1.get_items():
             inbox_urls_before.add(item.url)
 
         ## Send the invite
@@ -610,12 +608,14 @@ class _AsyncTestSchedulingBase:
         auto_scheduled = False
         for _ in range(30):
             new_attendee_inbox_items = [
-                item for item in await inbox1.get_events() if item.url not in inbox_urls_before
+                item for item in await inbox1.get_items() if item.url not in inbox_urls_before
             ]
             ## Check whether the server auto-scheduled the event directly into
             ## the attendee's calendar.  The event may land in any calendar,
             ## so search all attendee calendars for the event UID.
-            if not new_attendee_inbox_items:
+            ## Always check even when inbox items were found: some servers (e.g.
+            ## Davis/sabre/dav) deliver iTIP to the inbox AND auto-schedule.
+            if not auto_scheduled:
                 for cal in await principals[1].calendars():
                     for event in await cal.get_events():
                         if event.id == event_uid:
@@ -640,23 +640,19 @@ class _AsyncTestSchedulingBase:
         ## Normal inbox-delivery flow (RFC6638 section 4.1).
 
         ## No new inbox items expected for principals[0] yet
-        for item in await inbox0.get_events():
+        for item in await inbox0.get_items():
             assert item.url in inbox_urls_before
 
         assert len(new_attendee_inbox_items) == 1
         assert new_attendee_inbox_items[0].is_invite_request()
 
-        ## Approving the invite.  accept_invite() is not yet implemented for
-        ## async clients; skip rather than fail so the test can be extended later.
-        try:
-            new_attendee_inbox_items[0].accept_invite(calendar=calendars[1])
-        except NotImplementedError:
-            pytest.skip("accept_invite() not yet supported for async clients")
+        ## Approving the invite.
+        await new_attendee_inbox_items[0].accept_invite(calendar=calendars[1])
 
         ## principals[0] should now have a notification in the inbox that the
         ## calendar invite was accepted
         new_organizer_inbox_items = [
-            item for item in await inbox0.get_events() if item.url not in inbox_urls_before
+            item for item in await inbox0.get_items() if item.url not in inbox_urls_before
         ]
         assert len(new_organizer_inbox_items) == 1
         assert new_organizer_inbox_items[0].is_invite_reply()
@@ -735,13 +731,12 @@ class _AsyncTestSchedulingBase:
         """PARTSTAT-only update must not change the Schedule-Tag.
 
         Async counterpart of testScheduleTagStableOnPartstateUpdate.
-        Expected to fail: accept_invite() raises NotImplementedError for
-        async clients.
         """
         import uuid
 
         clients, principals, calendars, auto_uids = scheduling_setup
         self._skip_unless_support("scheduling.schedule-tag")
+        self._skip_unless_support("scheduling.schedule-tag.stable-partstat")
         if len(principals) < 2:
             pytest.skip("need 2 principals")
         if not clients[1].features.is_supported("scheduling.mailbox.inbox-delivery"):
@@ -783,8 +778,7 @@ class _AsyncTestSchedulingBase:
         if not invite:
             pytest.skip("Invite not delivered to attendee inbox; cannot test PARTSTAT stability")
 
-        ## accept_invite is not yet implemented for async clients
-        invite.accept_invite(calendar=attendee_cal)
+        await invite.accept_invite(calendar=attendee_cal)
 
         ## Find the attendee's copy
         attendee_event = None
@@ -804,8 +798,10 @@ class _AsyncTestSchedulingBase:
         tag_before = attendee_event.schedule_tag
         assert tag_before is not None, "No Schedule-Tag on attendee's calendar event after accept"
 
-        ## PARTSTAT-only change — tag must not move
-        attendee_event.change_attendee_status(partstat="TENTATIVE")
+        ## PARTSTAT-only change — tag must not move.
+        ## Pass attendee_addr explicitly: without an arg, change_attendee_status() resolves
+        ## the principal via self.client.principal(), which returns a coroutine in async mode.
+        attendee_event.change_attendee_status(str(attendee_addr), partstat="TENTATIVE")
         await attendee_event.save()
         await attendee_event.load()
         tag_after = attendee_event.schedule_tag
