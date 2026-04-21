@@ -921,7 +921,7 @@ class CalendarObjectResource(DAVObject):
             if uid:
                 # Fallback 1: try multiget (REPORT may work even when GET fails)
                 try:
-                    return await self._async_load_by_multiget()
+                    return await self.load_by_multiget()
                 except Exception:
                     pass
                 # Fallback 2: re-fetch by UID (server may have changed the URL)
@@ -938,23 +938,12 @@ class CalendarObjectResource(DAVObject):
                         pass
             raise
         except Exception:
-            return await self._async_load_by_multiget()
+            return await self.load_by_multiget()
 
         if "Etag" in r.headers:
             self.props[dav.GetEtag.tag] = r.headers["Etag"]
         if "Schedule-Tag" in r.headers:
             self.props[cdav.ScheduleTag.tag] = r.headers["Schedule-Tag"]
-        return self
-
-    async def _async_load_by_multiget(self) -> Self:
-        """Async implementation of load_by_multiget."""
-        error.assert_(self.url)
-        items = await self.parent._async_multiget(event_urls=[self.url], raise_notfound=True)
-        if not items:
-            raise error.NotFoundError(self.url)
-        _url, self.data = items[0]
-        error.assert_(self.data)
-        error.assert_(len(items) == 1)
         return self
 
     def load_by_multiget(self) -> Self:
@@ -963,7 +952,21 @@ class CalendarObjectResource(DAVObject):
         with a multiget query
         """
         error.assert_(self.url)
-        mydata = self.parent._multiget(event_urls=[self.url], raise_notfound=True)
+        if not self.parent:
+            raise NotFoundError(f"Could not do a multiget because {self.url} has no parent?")
+        if self.is_async_client:
+            return self._async_load_by_multiget()
+        items = self.parent._multiget(event_urls=[self.url], raise_notfound=True)
+        return self._post_load_by_multiget(items)
+
+    async def _async_load_by_multiget(self) -> Self:
+        """Async implementation of load_by_multiget."""
+        items = await self.parent._async_multiget(event_urls=[self.url], raise_notfound=True)
+        return self._post_load_by_multiget(items)
+
+    def _post_load_by_multiget(self, items):
+        if not items:
+            raise error.NotFoundError(self.url)
         url_data = next(mydata, None)
         if url_data is None:
             ## We shouldn't come here.  Something is wrong.
@@ -971,9 +974,9 @@ class CalendarObjectResource(DAVObject):
             ## As of 2025-05-20, this code section is used by
             ## TestForServerECloud::testCreateOverwriteDeleteEvent
             raise error.NotFoundError(self.url)
-        url, self.data = url_data
+        _url, self.data = url_data
         error.assert_(self.data)
-        error.assert_(next(mydata, None) is None)
+        error.assert_(len(items) == 1)
         return self
 
     ## TODO: self.id should either always be available or never

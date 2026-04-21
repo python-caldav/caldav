@@ -13,11 +13,11 @@ The caldav library provides an async-first API for use with Python's
 Caveats
 =======
 
-Async IO was introduced in version 3.0, 2026-03-03, without being tested in any production environments, and it was done by a developer not having much experience with async usage.  Rough edges are to be expected.  Test it very well in a staging environment before using it in production environments.  It's probably a good idea to wait some few releases before using it in sharp production settings.
+Async IO was introduced in version 3.0, 2026-03-03, without being tested in any production environments, and it was done by a developer not having much experience with async usage.  Rough edges are to be expected.  Test it very well in a staging environment before using it in production environments.  It's probably a good idea to wait until version 4.0 before using it in very sharp production settings.
 
-A "Sans-IO" design pattern was followed, in a hope that it would make it possible to have one library serve both the async and sync use case through relatively similar APIs without duplicating too much code.  In retro-perspective I'm not sure this was the best idea for the CalDAV library.  Be aware that there are still exists code paths that works well with the sync code but will blow up if you try using it with the async code.
+A "Sans-IO" design pattern was initially followed, in a hope that it would make it possible to have one library serve both the async and sync use case through relatively similar APIs without duplicating too much code.  In retro-perspective I'm not sure this was the best idea for the CalDAV library.  Be aware that there are still exists code paths that works well with the sync code but will blow up if you try using it with the async code.
 
-Async works very well when it's crispy clear what operations causes API calls.  I've been a bit careless with the old sync library, there are many places where an API call is not expected, but anyway there are things like ``self.load(only_if_unloaded=True)`` buried in the code.  Works well with sync, not so much with the async code.  In a 4.0-version (perhaps 2027?) there may be some major changes to the API.
+Async (and particularly the "Sans-IO" dsign pattern) works very well when it's crispy clear what operations causes API calls.  I've been a bit careless with the old sync library, there are many places where an API call is not expected, but anyway there are things like ``self.load(only_if_unloaded=True)`` buried in the code.  Works well with sync, not so much with the async code.  In a 4.0-version (perhaps 2027?) there may be some major changes to the API.
 
 Quick Start
 ===========
