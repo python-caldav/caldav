@@ -969,11 +969,11 @@ class AsyncDAVClient(BaseDAVClient):
                 print(f"Calendar: {cal.get_display_name()}")
         """
         from caldav.collection import Calendar
-        from caldav.operations.calendarset_ops import (
-            _extract_calendars_from_propfind_results as extract_calendars,
-        )
-        from caldav.operations.principal_ops import (
+        from caldav.collection import (
             _extract_calendar_home_set_from_results as extract_home_set,
+        )
+        from caldav.collection import (
+            _extract_calendars_from_propfind_results as extract_calendars,
         )
 
         if principal is None:

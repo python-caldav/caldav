@@ -13,11 +13,12 @@ A SynchronizableCalendarObjectCollection contains a local copy of objects from a
 import logging
 import uuid
 import warnings
+from dataclasses import dataclass
 from datetime import date as _date
 from datetime import datetime, timezone
 from time import sleep
 from typing import TYPE_CHECKING, Any, Optional, TypeVar
-from urllib.parse import ParseResult, SplitResult, quote, unquote
+from urllib.parse import ParseResult, SplitResult, quote, unquote, urlparse, urlunparse
 
 import icalendar
 
@@ -48,6 +49,89 @@ _CC = TypeVar("_CC", bound="CalendarObjectResource")
 log = logging.getLogger("caldav")
 
 
+# ---------------------------------------------------------------------------
+# Helpers for extracting calendar / principal info from PROPFIND results.
+# These were previously in caldav/operations/calendarset_ops.py and
+# caldav/operations/principal_ops.py.
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class CalendarInfo:
+    """Data for a calendar extracted from a PROPFIND response."""
+
+    url: str
+    cal_id: str | None
+    name: str | None
+    resource_types: list[str]
+
+
+def _extract_calendar_id_from_url(url: str) -> str | None:
+    try:
+        parts = str(url).rstrip("/").split("/")
+        if parts:
+            cal_id = parts[-1]
+            if cal_id:
+                return cal_id
+    except Exception:
+        log.error(f"Calendar has unexpected url {url}")
+    return None
+
+
+def _quote_url_path(url: str) -> str:
+    """Quote the path component of a URL to handle unencoded spaces (e.g. Zimbra)."""
+    parsed = urlparse(url)
+    quoted_path = quote(unquote(parsed.path), safe="/@")
+    return urlunparse(parsed._replace(path=quoted_path))
+
+
+def _is_calendar_resource(properties: dict[str, Any]) -> bool:
+    rt = properties.get("{DAV:}resourcetype", [])
+    if not isinstance(rt, list):
+        rt = [rt] if rt else []
+    return "{urn:ietf:params:xml:ns:caldav}calendar" in rt
+
+
+def _extract_calendars_from_propfind_results(results: list[Any] | None) -> list[CalendarInfo]:
+    """Extract CalendarInfo objects from a list of PropfindResult objects."""
+    calendars = []
+    for result in results or []:
+        if not _is_calendar_resource(result.properties):
+            continue
+        url = _quote_url_path(result.href)
+        name = result.properties.get("{DAV:}displayname")
+        cal_id = _extract_calendar_id_from_url(url)
+        if not cal_id:
+            continue
+        calendars.append(
+            CalendarInfo(
+                url=url,
+                cal_id=cal_id,
+                name=name,
+                resource_types=result.properties.get("{DAV:}resourcetype", []),
+            )
+        )
+    return calendars
+
+
+def _sanitize_calendar_home_set_url(url: str | None) -> str | None:
+    """Quote @ in owncloud-style URLs that are not full URLs."""
+    if url is None:
+        return None
+    if "@" in url and "://" not in url and "%40" not in url:
+        return quote(url)
+    return url
+
+
+def _extract_calendar_home_set_from_results(results: list[Any] | None) -> str | None:
+    """Extract calendar-home-set URL from a list of PropfindResult objects."""
+    for result in results or []:
+        home_set = result.properties.get("{urn:ietf:params:xml:ns:caldav}calendar-home-set")
+        if home_set:
+            return _sanitize_calendar_home_set_url(home_set)
+    return None
+
+
 class CalendarSet(DAVObject):
     """
     A CalendarSet is a set of calendars.
@@ -55,10 +139,6 @@ class CalendarSet(DAVObject):
 
     def _calendars_from_results(self, results) -> list["Calendar"]:
         """Convert PropfindResult list into Calendar objects."""
-        from caldav.operations.calendarset_ops import (
-            _extract_calendars_from_propfind_results,
-        )
-
         calendar_infos = _extract_calendars_from_propfind_results(results)
         return [
             Calendar(client=self.client, url=info.url, name=info.name, id=info.cal_id, parent=self)
