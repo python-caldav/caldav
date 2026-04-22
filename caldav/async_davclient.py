@@ -18,43 +18,43 @@ if TYPE_CHECKING:
     from caldav.calendarobjectresource import CalendarObjectResource, Event, Todo
     from caldav.collection import Calendar, Principal
 
-# Try httpx first (preferred), fall back to niquests
+# Try niquests first (preferred), fall back to httpx
 _USE_HTTPX = False
 _USE_NIQUESTS = False
 _H2_AVAILABLE = False
 
 try:
-    import httpx
+    import niquests
+    from niquests import AsyncSession
+    from niquests.structures import CaseInsensitiveDict
 
-    _USE_HTTPX = True
-    # Check if h2 is available for HTTP/2 support
-    try:
-        import h2  # noqa: F401
-
-        _H2_AVAILABLE = True
-    except ImportError:
-        pass
-
-    class _HttpxBearerAuth(httpx.Auth):
-        """httpx-compatible bearer token auth."""
-
-        def __init__(self, password: str) -> None:
-            self.password = password
-
-        def auth_flow(self, request):
-            request.headers["Authorization"] = f"Bearer {self.password}"
-            yield request
-
+    _USE_NIQUESTS = True
 except ImportError:
     pass
 
-if not _USE_HTTPX:
+if not _USE_NIQUESTS:
     try:
-        import niquests
-        from niquests import AsyncSession
-        from niquests.structures import CaseInsensitiveDict
+        import httpx
 
-        _USE_NIQUESTS = True
+        _USE_HTTPX = True
+        # Check if h2 is available for HTTP/2 support
+        try:
+            import h2  # noqa: F401
+
+            _H2_AVAILABLE = True
+        except ImportError:
+            pass
+
+        class _HttpxBearerAuth(httpx.Auth):
+            """httpx-compatible bearer token auth."""
+
+            def __init__(self, password: str) -> None:
+                self.password = password
+
+            def auth_flow(self, request):
+                request.headers["Authorization"] = f"Bearer {self.password}"
+                yield request
+
     except ImportError:
         pass
 
