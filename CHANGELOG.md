@@ -17,6 +17,15 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 ### Added
 
 * `add_organizer()` now accepts an explicit *organizer* argument (a `Principal`, `vCalAddress`, or email string); when omitted it still defaults to the current principal.
+* **Schedule-Tag support** (RFC 6638 §3.2–3.3): `save()` captures the `Schedule-Tag` from server response headers and stores it.  Pass `if_schedule_tag_match=True` to `save()` to send an `If-Schedule-Tag-Match` conditional header; a `ScheduleTagMismatchError` is raised on 412.  When a server auto-schedules the event into the attendee's calendar (`scheduling.auto-schedule`), `_reply_to_invite_request()` now searches the attendee's calendars for the server-assigned copy and updates it in place, preserving the server-issued Schedule-Tag.
+* **`scheduling.auto-schedule` compatibility flag**: True when the server auto-processes incoming iTIP REQUEST messages and places the event directly into the attendee's calendar (RFC 6638 SCHEDULE-AGENT=SERVER).  Used by `_reply_to_invite_request()` to choose the right update strategy.
+* SEQUENCE property assumed to default to 0 when absent (RFC 5546 §2.1.4).  `save()` now inserts `SEQUENCE:1` when a significant change is made and the property was not previously set.
+* `ScheduleMailbox.get_items()` is now async-aware: `_async_get_items()` added; `get_items()` dispatches to it for async clients.
+* `accept_invite()`, `decline_invite()`, and `tentatively_accept_invite()` are now fully async-aware; they previously raised `NotImplementedError` for async clients.
+* `Calendar.save_with_invites()` and `Principal.freebusy_request()` are now async-aware.
+* `Principal.schedule_inbox()` and `Principal.schedule_outbox()` are now async-aware.
+* `Principal.get_vcal_address()` is now async-aware.
+* `add_organizer()` (no-arg form) is now async-aware.
 
 ### Fixed
 
@@ -29,6 +38,7 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 * `accept_invite()` (and `decline_invite()`, `tentatively_accept_invite()`) now fall back to the client username as the attendee email address when the server does not expose the `calendar-user-address-set` property (RFC6638 §2.4.1).  A `NotFoundError` with a descriptive message is raised when the username is also not an email address.  Fixes https://github.com/python-caldav/caldav/issues/399
 * `get_object_by_uid()` now passes `include_completed=True` so completed todos are found by UID lookup (previously they were silently missed).  `get_todo_by_uid()` now uses `comp_class=Todo` instead of a raw VTODO `CompFilter`, aligning it with the rest of the search API.  Closes https://github.com/python-caldav/caldav/issues/586
 * Sync `_put()` now updates `self.url` from the `Location` header on a 302 redirect, mirroring the existing async behaviour.
+* `_to_utc_date_string()` now catches `ValueError` (in addition to `OverflowError`/`OSError`) when converting a near-year-1 naive datetime to UTC via `astimezone()`; some timezones shift the date before year 1, triggering a `ValueError` rather than `OverflowError`.
 
 ### Housekeeping
 
@@ -39,10 +49,17 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 
 * Open-ended time-range search compatibility hints: new `search.time-range.open`, `search.time-range.open.end`, `search.time-range.open.start`, and `search.time-range.open.start.duration` features (RFC4791 section 9.9).  Old `no_search_openended` flag and `search.time-range.todo.duration`/`search.time-range.todo.open-start` features migrated.  `testTodoSearch` updated to use `is_supported("search.time-range.open.end")` instead of the old compatibility flag.
 * RFC 6638 scheduling feature-detection infrastructure: new `scheduling`, `scheduling.mailbox`, and `scheduling.calendar-user-address-set` compatibility hints; legacy `no_scheduling` flags migrated.  Default scheduling hints set for all the servers tested.
+* New `scheduling.schedule-tag` compatibility flag and tests covering RFC 6638 §3.2–3.3: `testScheduleTagReturnedOnSave`, `testScheduleTagStableOnPartstateUpdate`, `testScheduleTagChangesOnOrganizerUpdate`, `testScheduleTagMismatchRaisesError`, `testScheduleTagMatchSucceeds` — plus async counterparts of all five.
 * New `scheduling.schedule-tag.stable-partstat` compatibility hint: RFC6638 §3.2 requires the Schedule-Tag to remain unchanged when an attendee performs a PARTSTAT-only update; CCS does not comply and is marked `unsupported`.  `testScheduleTagStableOnPartstateUpdate` (and its async counterpart) now skip on non-compliant servers.
+* New `scheduling.auto-schedule` compatibility flag (see Added section).  Server entries updated: Baikal, Cyrus, DAViCal, Davis, CCS, Nextcloud, Stalwart gain explicit `inbox-delivery` + `auto-schedule` values; Zimbra: `inbox-delivery=False` + `auto-schedule=True`.
+* Scheduling freebusy-query: `scheduling.freebusy-query` feature flag (RFC 6638 outbox POST); `freebusy-query.rfc4791` merged into `freebusy-query` (RFC 4791 REPORT).  `testFreeBusy` added to `_TestSchedulingBase`; async counterpart added to `_AsyncTestSchedulingBase`.
+* `search.time-range.todo.strict` compatibility flag: server must not return VTODOs whose time span is entirely outside the searched range; xandikos is marked `broken`.
+* New `save-load.property.related-to`, `search.time-range.todo.duration`, and `search.time-range.todo.open-start` feature flags replacing old-style flags.  RFC links added to all FEATURES entries.
+* `_AsyncTestSchedulingBase` added: async counterpart of `_TestSchedulingBase` with `test_invite_and_respond` and `test_freebusy`; `TestAsyncSchedulingFor<Server>` classes generated for each server with `scheduling_users` configured.
 * Calendar owner example (`examples/calendar_owner_examples.py`) demonstrating how to retrieve the owner of a calendar via `DAV:owner` and resolve their calendar-user address.  `testFindCalendarOwner` now exercises the full owner → principal → `get_vcal_address()` chain.  Closes https://github.com/python-caldav/caldav/issues/544
 * `testInviteAndRespond` implemented end-to-end: organizer creates an event, invites an attendee, attendee accepts, and the organizer verifies the updated `PARTSTAT`.  Per-server compatibility flags applied for known quirks (Baikal, Cyrus, SOGo).
 * Multi-user RFC 6638 scheduling tests wired into the Docker server setup for Cyrus and Baikal (pre-populated `user1`–`user3`/`user1`–`user5`).
+* Internal refactoring: `caldav/operations/` and `caldav/protocol/` packages deleted; functionality consolidated into `response.py`, `collection.py`, `search.py`, and `BaseDAVClient` static methods.  No user-visible API changes.
 
 ## [3.1.0] - 2026-03-19
 
