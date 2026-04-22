@@ -18,7 +18,7 @@ import warnings
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any, ClassVar, Optional
-from urllib.parse import ParseResult, SplitResult
+from urllib.parse import ParseResult, SplitResult, quote
 
 import icalendar
 from dateutil.rrule import rrulestr
@@ -47,9 +47,17 @@ from .lib import error, vcal
 from .lib.error import errmsg
 from .lib.python_utilities import to_normal_str, to_unicode, to_wire
 from .lib.url import URL
-from .operations.calendarobject_ops import _quote_uid
 
 log = logging.getLogger("caldav")
+
+
+def _quote_uid(uid: str) -> str:
+    """URL-quote a UID for use in a CalDAV object URL.
+
+    Slashes are double-quoted (replaced with %2F before percent-encoding)
+    per https://github.com/python-caldav/caldav/issues/143.
+    """
+    return quote(uid.replace("/", "%2F"))
 
 
 class CalendarObjectResource(DAVObject):

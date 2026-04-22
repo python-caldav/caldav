@@ -466,11 +466,11 @@ class DAVClient(BaseDAVClient):
             for cal in calendars:
                 print(f"Calendar: {cal.get_display_name()}")
         """
-        from caldav.operations.calendarset_ops import (
-            _extract_calendars_from_propfind_results as extract_calendars,
-        )
-        from caldav.operations.principal_ops import (
+        from caldav.collection import (
             _extract_calendar_home_set_from_results as extract_home_set,
+        )
+        from caldav.collection import (
+            _extract_calendars_from_propfind_results as extract_calendars,
         )
 
         if principal is None:
@@ -668,13 +668,11 @@ class DAVClient(BaseDAVClient):
         -------
         DAVResponse
         """
-        from caldav.protocol.xml_builders import _build_propfind_body
-
         # Handle both old interface (props=xml_string) and new interface (props=list)
         body = ""
         if props is not None:
             if isinstance(props, list):
-                body = _build_propfind_body(props).decode("utf-8")
+                body = self._build_propfind_body(props).decode("utf-8")
             else:
                 body = props  # Old interface: props is XML string
 
@@ -682,16 +680,8 @@ class DAVClient(BaseDAVClient):
         headers = {"Depth": str(depth)}
         response = self.request(url or str(self.url), "PROPFIND", body, headers)
 
-        # Parse response using protocol layer
         if response.status in (200, 207) and response._raw:
-            from caldav.protocol.xml_parsers import _parse_propfind_response
-
-            raw_bytes = (
-                response._raw if isinstance(response._raw, bytes) else response._raw.encode("utf-8")
-            )
-            response.results = _parse_propfind_response(
-                raw_bytes, response.status, response.huge_tree
-            )
+            response.results = response.parse_propfind()
         return response
 
     def proppatch(self, url: str, body: str, dummy: None = None) -> DAVResponse:
