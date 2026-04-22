@@ -1,21 +1,20 @@
 import inspect
 import logging
+from copy import deepcopy
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from enum import Enum, auto
 from typing import TYPE_CHECKING, Any, Optional
 
+from icalendar import Timezone
 from icalendar.prop import TypesFactory
 from icalendar_searcher import Searcher
 from icalendar_searcher.collation import Collation
 
 from .calendarobjectresource import CalendarObjectResource, Event, Journal, Todo
 from .collection import Calendar
-from .elements import cdav
+from .elements import cdav, dav
 from .lib import error
-from .operations.search_ops import _build_search_xml_query
-from .operations.search_ops import _collation_to_caldav as collation_to_caldav
-from .operations.search_ops import _filter_search_results as filter_search_results
 
 if TYPE_CHECKING:
     from .calendarobjectresource import (
@@ -26,8 +25,211 @@ if TYPE_CHECKING:
 _icalendar_types = TypesFactory()
 
 
-# Re-export for backward compatibility
-_collation_to_caldav = collation_to_caldav
+def _collation_to_caldav(collation: Collation, case_sensitive: bool = True) -> str:
+    """Map a Collation enum value to a CalDAV collation identifier string."""
+    if collation == Collation.SIMPLE:
+        return "i;octet" if case_sensitive else "i;ascii-casemap"
+    elif collation == Collation.UNICODE:
+        return "i;octet" if case_sensitive else "i;unicode-casemap"
+    elif collation == Collation.LOCALE:
+        return "i;ascii-casemap"
+    return "i;octet"
+
+
+# backward-compat alias used inside this module
+collation_to_caldav = _collation_to_caldav
+
+
+def _filter_search_results(
+    objects: list["CalendarObjectResource"],
+    searcher: "Searcher",
+    post_filter: bool | None = None,
+    split_expanded: bool = True,
+    server_expand: bool = False,
+) -> list["CalendarObjectResource"]:
+    """Apply client-side filtering and handle recurrence expansion/splitting."""
+    if not (post_filter or searcher.expand or (split_expanded and server_expand)):
+        return objects
+
+    result = []
+    for o in objects:
+        if searcher.expand or post_filter:
+            try:
+                filtered = searcher.check_component(o, expand_only=not post_filter)
+            except ValueError:
+                filtered = [
+                    x for x in o.icalendar_instance.subcomponents if not isinstance(x, Timezone)
+                ]
+            if not filtered:
+                continue
+        else:
+            filtered = [
+                x for x in o.icalendar_instance.subcomponents if not isinstance(x, Timezone)
+            ]
+
+        i = o.icalendar_instance
+        tz_ = [x for x in i.subcomponents if isinstance(x, Timezone)]
+        i.subcomponents = tz_
+
+        for comp in filtered:
+            if isinstance(comp, Timezone):
+                continue
+            if split_expanded:
+                new_obj = o.copy(keep_uid=True)
+                new_i = new_obj.icalendar_instance
+                new_i.subcomponents = []
+                for tz in tz_:
+                    new_i.add_component(tz)
+                result.append(new_obj)
+            else:
+                new_i = i
+            new_i.add_component(comp)
+
+        if not split_expanded:
+            result.append(o)
+
+    return result
+
+
+# backward-compat alias
+filter_search_results = _filter_search_results
+
+
+def _build_search_xml_query(
+    searcher: "Searcher",
+    server_expand: bool = False,
+    props: list[Any] | None = None,
+    filters: Any = None,
+    _hacks: str | None = None,
+) -> tuple[Any, type | None]:
+    """Build a CalDAV calendar-query XML request body."""
+    data = cdav.CalendarData()
+    if server_expand:
+        if not searcher.start or not searcher.end:
+            raise error.ReportError("can't expand without a date range")
+        data += cdav.Expand(searcher.start, searcher.end)
+
+    props_ = [data] if props is None else [data] + list(props)
+    prop = dav.Prop() + props_
+    vcalendar = cdav.CompFilter("VCALENDAR")
+
+    comp_filter = None
+    comp_class = searcher.comp_class
+
+    if filters:
+        filters = deepcopy(filters)
+        if hasattr(filters, "tag") and filters.tag == cdav.CompFilter.tag:
+            comp_filter = filters
+            filters = []
+    else:
+        filters = []
+
+    vNotCompleted = cdav.TextMatch("COMPLETED", negate=True)
+    vNotCancelled = cdav.TextMatch("CANCELLED", negate=True)
+    vNeedsAction = cdav.TextMatch("NEEDS-ACTION")
+    vStatusNotCompleted = cdav.PropFilter("STATUS") + vNotCompleted
+    vStatusNotCancelled = cdav.PropFilter("STATUS") + vNotCancelled
+    vStatusNeedsAction = cdav.PropFilter("STATUS") + vNeedsAction
+    vStatusNotDefined = cdav.PropFilter("STATUS") + cdav.NotDefined()
+    vNoCompleteDate = cdav.PropFilter("COMPLETED") + cdav.NotDefined()
+
+    if _hacks == "ignore_completed1":
+        filters.extend([vNoCompleteDate, vStatusNotCompleted, vStatusNotCancelled])
+    elif _hacks == "ignore_completed2":
+        filters.extend([vNoCompleteDate, vStatusNotDefined])
+    elif _hacks == "ignore_completed3":
+        filters.extend([vStatusNeedsAction])
+
+    if searcher.start or searcher.end:
+        filters.append(cdav.TimeRange(searcher.start, searcher.end))
+
+    if searcher.alarm_start or searcher.alarm_end:
+        filters.append(
+            cdav.CompFilter("VALARM") + cdav.TimeRange(searcher.alarm_start, searcher.alarm_end)
+        )
+
+    comp_mappings = [
+        ("event", "VEVENT", Event),
+        ("todo", "VTODO", Todo),
+        ("journal", "VJOURNAL", Journal),
+    ]
+
+    for flag, comp_name, sync_class in comp_mappings:
+        flagged = getattr(searcher, flag, False)
+
+        if flagged:
+            if comp_class is not None and comp_class is not sync_class:
+                raise error.ConsistencyError(
+                    f"inconsistent search parameters - comp_class = {comp_class}, want {sync_class}"
+                )
+            comp_class = sync_class
+
+        if comp_filter and comp_filter.attributes.get("name") == comp_name:
+            comp_class = sync_class
+            if (
+                flag == "todo"
+                and not getattr(searcher, "todo", False)
+                and searcher.include_completed is None
+            ):
+                searcher.include_completed = True
+            setattr(searcher, flag, True)
+
+        if comp_class is sync_class:
+            if comp_filter:
+                assert comp_filter.attributes.get("name") == comp_name
+            else:
+                comp_filter = cdav.CompFilter(comp_name)
+            setattr(searcher, flag, True)
+
+    if comp_class and not comp_filter:
+        raise error.ConsistencyError(f"unsupported comp class {comp_class} for search")
+
+    if _hacks == "no_comp_filter":
+        comp_filter = None
+
+    for property in searcher._property_operator:
+        if searcher._property_operator[property] == "undef":
+            match = cdav.NotDefined()
+            filters.append(cdav.PropFilter(property.upper()) + match)
+        else:
+            value = searcher._property_filters[property]
+            property_ = property.upper()
+            if property.lower() == "category":
+                property_ = "CATEGORIES"
+            if property.lower() == "categories":
+                values = value.cats
+            else:
+                values = [value]
+
+            for value in values:
+                if hasattr(value, "to_ical"):
+                    value = value.to_ical()
+
+                collation_str = "i;octet"
+                if (
+                    hasattr(searcher, "_property_collation")
+                    and property in searcher._property_collation
+                ):
+                    case_sensitive = searcher._property_case_sensitive.get(property, True)
+                    collation_str = _collation_to_caldav(
+                        searcher._property_collation[property], case_sensitive
+                    )
+
+                match = cdav.TextMatch(value, collation=collation_str)
+                filters.append(cdav.PropFilter(property_) + match)
+
+    if comp_filter and filters:
+        comp_filter += filters
+        vcalendar += comp_filter
+    elif comp_filter:
+        vcalendar += comp_filter
+    elif filters:
+        vcalendar += filters
+
+    filter_elem = cdav.Filter() + vcalendar
+    root = cdav.CalendarQuery() + [prop, filter_elem]
+
+    return (root, comp_class)
 
 
 def _is_not_defined_supported(features: Any, prop: str) -> bool:

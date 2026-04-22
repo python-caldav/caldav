@@ -1,7 +1,7 @@
 """
-Unit tests for Sans-I/O protocol layer.
+Unit tests for protocol XML builders and response parsers.
 
-These tests verify protocol logic without any HTTP mocking required.
+These tests verify XML building and parsing logic without any HTTP mocking.
 All tests are pure - they test data transformations only.
 """
 
@@ -9,76 +9,14 @@ from datetime import datetime
 
 import pytest
 
-from caldav.protocol import (
-    DAVMethod,
-    DAVRequest,
-    DAVResponse,
-    MultistatusResponse,
-    SyncCollectionResult,
-)
-from caldav.protocol.xml_builders import (
-    _build_calendar_multiget_body as build_calendar_multiget_body,
-)
-from caldav.protocol.xml_builders import (
-    _build_calendar_query_body as build_calendar_query_body,
-)
-from caldav.protocol.xml_builders import _build_mkcalendar_body as build_mkcalendar_body
-from caldav.protocol.xml_builders import _build_propfind_body as build_propfind_body
-from caldav.protocol.xml_builders import (
-    _build_sync_collection_body as build_sync_collection_body,
-)
-from caldav.protocol.xml_parsers import (
-    _parse_calendar_query_response as parse_calendar_query_response,
-)
-from caldav.protocol.xml_parsers import _parse_multistatus as parse_multistatus
-from caldav.protocol.xml_parsers import (
-    _parse_propfind_response as parse_propfind_response,
-)
-from caldav.protocol.xml_parsers import (
-    _parse_sync_collection_response as parse_sync_collection_response,
-)
+from caldav.base_client import BaseDAVClient
 
-
-class TestDAVTypes:
-    """Test core DAV types."""
-
-    def test_dav_request_immutable(self):
-        """DAVRequest should be immutable (frozen dataclass)."""
-        request = DAVRequest(
-            method=DAVMethod.GET,
-            url="https://example.com/",
-            headers={},
-        )
-        with pytest.raises(AttributeError):
-            request.url = "https://other.com/"
-
-    def test_dav_request_with_header(self):
-        """with_header should return new request with added header."""
-        request = DAVRequest(
-            method=DAVMethod.GET,
-            url="https://example.com/",
-            headers={"Accept": "text/html"},
-        )
-        new_request = request.with_header("Authorization", "Bearer token")
-
-        # Original unchanged
-        assert "Authorization" not in request.headers
-        # New has both headers
-        assert new_request.headers["Accept"] == "text/html"
-        assert new_request.headers["Authorization"] == "Bearer token"
-
-    def test_dav_response_ok(self):
-        """ok property should return True for 2xx status codes."""
-        assert DAVResponse(status=200, headers={}, body=b"").ok
-        assert DAVResponse(status=201, headers={}, body=b"").ok
-        assert DAVResponse(status=207, headers={}, body=b"").ok
-        assert not DAVResponse(status=404, headers={}, body=b"").ok
-        assert not DAVResponse(status=500, headers={}, body=b"").ok
-
-    def test_dav_response_is_multistatus(self):
-        """is_multistatus should return True only for 207."""
-        assert DAVResponse(status=207, headers={}, body=b"").is_multistatus
-        assert not DAVResponse(status=200, headers={}, body=b"").is_multistatus
+build_calendar_multiget_body = BaseDAVClient._build_calendar_multiget_body
+build_calendar_query_body = BaseDAVClient._build_calendar_query_body
+build_mkcalendar_body = BaseDAVClient._build_mkcalendar_body
+build_propfind_body = BaseDAVClient._build_propfind_body
+build_sync_collection_body = BaseDAVClient._build_sync_collection_body
+from caldav.response import DAVResponse, SyncCollectionResult
 
 
 class TestXMLBuilders:
@@ -149,8 +87,8 @@ class TestXMLBuilders:
 class TestXMLParsers:
     """Test XML parsing functions."""
 
-    def test_parse_multistatus_simple(self):
-        """Parse simple multistatus response."""
+    def test_parse_propfind_simple(self):
+        """Parse simple multistatus response via DAVResponse."""
         xml = b"""<?xml version="1.0" encoding="utf-8"?>
         <D:multistatus xmlns:D="DAV:">
             <D:response>
@@ -164,15 +102,14 @@ class TestXMLParsers:
             </D:response>
         </D:multistatus>"""
 
-        result = parse_multistatus(xml)
+        results = DAVResponse.from_bytes(xml).parse_propfind()
 
-        assert isinstance(result, MultistatusResponse)
-        assert len(result.responses) == 1
-        assert result.responses[0].href == "/calendars/user/"
-        assert "{DAV:}displayname" in result.responses[0].properties
+        assert len(results) == 1
+        assert results[0].href == "/calendars/user/"
+        assert "{DAV:}displayname" in results[0].properties
 
-    def test_parse_multistatus_with_sync_token(self):
-        """Parse multistatus with sync-token."""
+    def test_parse_propfind_with_sync_token(self):
+        """parse_propfind populates DAVResponse.sync_token when present."""
         xml = b"""<?xml version="1.0"?>
         <D:multistatus xmlns:D="DAV:">
             <D:response>
@@ -185,8 +122,9 @@ class TestXMLParsers:
             <D:sync-token>token-456</D:sync-token>
         </D:multistatus>"""
 
-        result = parse_multistatus(xml)
-        assert result.sync_token == "token-456"
+        response = DAVResponse.from_bytes(xml)
+        response.parse_propfind()
+        assert response.sync_token == "token-456"
 
     def test_parse_propfind_response(self):
         """Parse PROPFIND response."""
@@ -203,14 +141,14 @@ class TestXMLParsers:
             </D:response>
         </D:multistatus>"""
 
-        results = parse_propfind_response(xml, status_code=207)
+        results = DAVResponse.from_bytes(xml).parse_propfind()
 
         assert len(results) == 1
         assert results[0].href == "/calendars/"
 
     def test_parse_propfind_404_returns_empty(self):
         """PROPFIND 404 should return empty list."""
-        results = parse_propfind_response(b"", status_code=404)
+        results = DAVResponse.from_bytes(b"", status_code=404).parse_propfind()
         assert results == []
 
     def test_parse_calendar_query_response(self):
@@ -234,7 +172,7 @@ END:VCALENDAR</C:calendar-data>
             </D:response>
         </D:multistatus>"""
 
-        results = parse_calendar_query_response(xml, status_code=207)
+        results = DAVResponse.from_bytes(xml).parse_calendar_query()
 
         assert len(results) == 1
         assert results[0].href == "/cal/event.ics"
@@ -261,7 +199,7 @@ END:VCALENDAR</C:calendar-data>
             <D:sync-token>new-token</D:sync-token>
         </D:multistatus>"""
 
-        result = parse_sync_collection_response(xml, status_code=207)
+        result = DAVResponse.from_bytes(xml).parse_sync_collection()
 
         assert isinstance(result, SyncCollectionResult)
         assert len(result.changed) == 1
@@ -297,20 +235,17 @@ END:VCALENDAR</C:calendar-data>
             </D:response>
         </D:multistatus>"""
 
-        results = parse_propfind_response(xml, status_code=207)
+        results = DAVResponse.from_bytes(xml).parse_propfind()
 
         assert len(results) == 1
         props = results[0].properties
 
-        # Simple property
         assert props["{DAV:}displayname"] == "My Calendar"
 
-        # resourcetype - list of child tags
         resourcetype = props["{DAV:}resourcetype"]
         assert "{DAV:}collection" in resourcetype
         assert "{urn:ietf:params:xml:ns:caldav}calendar" in resourcetype
 
-        # supported-calendar-component-set - list of component names
         components = props["{urn:ietf:params:xml:ns:caldav}supported-calendar-component-set"]
         assert components == ["VEVENT", "VTODO", "VJOURNAL"]
 
