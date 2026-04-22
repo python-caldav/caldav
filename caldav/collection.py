@@ -1782,6 +1782,8 @@ class Calendar(DAVObject):
         the server truly supports sync tokens.
         """
         if self.is_async_client:
+            ## TODO: lots of code duplication here.  It's difficult, since there is a lot of
+            ## forth and back between the client and the server in this method.
             return self._async_get_objects_by_sync_token(sync_token, load_objects, disable_fallback)
 
         ## Check if we should attempt to use sync tokens
@@ -1914,6 +1916,10 @@ class Calendar(DAVObject):
         disable_fallback: bool = False,
     ) -> "SynchronizableCalendarObjectCollection":
         """Async implementation of get_objects_by_sync_token."""
+
+        ## TODO: lots of code duplication here.  It's difficult, since there is a lot of
+        ## forth and back between the client and the server in this method.
+
         use_sync_token = True
         sync_support = self.client.features.is_supported("sync-token", return_type=dict)
         if sync_support.get("support") == "unsupported":
@@ -1933,6 +1939,8 @@ class Calendar(DAVObject):
                 (response, objects) = await self._request_report_build_resultlist(
                     root, props=[dav.GetEtag()], no_calendardata=True
                 )
+                ## TODO: look more into this, I think sync_token should be directly available through response object
+                ## we should probably not access response.tree directly
                 try:
                     sync_token = response.sync_token
                 except AttributeError:

@@ -124,6 +124,12 @@ def _strip_to_multistatus(tree: _Element) -> "_Element | list[_Element]":
     return [tree]
 
 
+## TODO: _parse_response_element is a simplified version of BaseDAVResponse._parse_response
+## (which adds assertions and handles Stalwart/purelymail quirks).  The module-level parse
+## functions (_parse_multistatus etc.) use this simpler version because they are pure
+## functions with no access to a response instance.  If the parse pipeline were refactored
+## to work through the tree already stored on self (avoiding the re-parse in _raw_bytes),
+## both of these could be unified into a single method.
 def _parse_response_element(
     response: _Element,
 ) -> "tuple[str, list[_Element], str | None]":
@@ -488,6 +494,13 @@ class BaseDAVResponse:
         if isinstance(raw, bytes):
             return raw
         return raw.encode("utf-8") if raw else b""
+
+    ## TODO: parse_propfind / parse_calendar_query / parse_sync_collection currently
+    ## re-parse the XML from raw bytes (via _raw_bytes) even though _init_from_response
+    ## already parsed it into self.tree.  A cleaner implementation would walk self.tree
+    ## directly and use self._parse_response() (the assertion-rich class method) instead
+    ## of re-parsing and using the simplified module-level _parse_response_element.
+    ## That would also let us drop _raw_bytes, _parse_response_element, and _parse_multistatus.
 
     def parse_propfind(self) -> list["PropfindResult"]:
         """Parse the response body as a PROPFIND multi-status reply."""
