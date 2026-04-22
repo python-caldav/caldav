@@ -1123,13 +1123,13 @@ class CalendarObjectResource(DAVObject):
         if self.is_async_client:
             return self._async_put(headers, retry_on_failure)
         r = self.client.put(self.url, self.data, headers)
-        return self._post_put(r)
+        return self._post_put(r, retry_on_failure)
 
     async def _async_put(self, headers, retry_on_failure=True):
         r = await self.client.put(str(self.url), str(self.data), headers | ICALH)
-        return self._post_put(r)
+        return self._post_put(r, retry_on_failure)
 
-    def _post_put(self, r):
+    def _post_put(self, r, retry_on_failure):
         if r.status == 412:
             if self.schedule_tag:
                 raise error.ScheduleTagMismatchError(errmsg(r))
