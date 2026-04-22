@@ -72,12 +72,6 @@ from caldav.compatibility_hints import FeatureSet
 from caldav.lib import error
 from caldav.lib.python_utilities import to_wire
 from caldav.lib.url import URL
-from caldav.protocol.xml_builders import (
-    _build_calendar_multiget_body,
-    _build_calendar_query_body,
-    _build_propfind_body,
-    _build_sync_collection_body,
-)
 from caldav.requests import HTTPBearerAuth
 from caldav.response import BaseDAVResponse, CalendarQueryResult, PropfindResult
 
@@ -549,7 +543,7 @@ class AsyncDAVClient(BaseDAVClient):
         """
         # Use protocol layer to build XML if props provided
         if props is not None and not body:
-            body = _build_propfind_body(props).decode("utf-8")
+            body = self._build_propfind_body(props).decode("utf-8")
 
         final_headers = self._build_method_headers("PROPFIND", depth, headers)
         response = await self.request(url or str(self.url), "PROPFIND", body, final_headers)
@@ -751,7 +745,7 @@ class AsyncDAVClient(BaseDAVClient):
             AsyncDAVResponse with results containing List[CalendarQueryResult].
         """
 
-        body, _ = _build_calendar_query_body(
+        body, _ = self._build_calendar_query_body(
             start=start,
             end=end,
             event=event,
@@ -789,7 +783,7 @@ class AsyncDAVClient(BaseDAVClient):
         Returns:
             AsyncDAVResponse with results containing List[CalendarQueryResult].
         """
-        body = _build_calendar_multiget_body(hrefs or [])
+        body = self._build_calendar_multiget_body(hrefs or [])
 
         final_headers = self._build_method_headers("REPORT", depth, headers)
         response = await self.request(
@@ -822,7 +816,7 @@ class AsyncDAVClient(BaseDAVClient):
         Returns:
             AsyncDAVResponse with results containing SyncCollectionResult.
         """
-        body = _build_sync_collection_body(sync_token=sync_token, props=props)
+        body = self._build_sync_collection_body(sync_token=sync_token, props=props)
 
         final_headers = self._build_method_headers("REPORT", depth, headers)
         response = await self.request(

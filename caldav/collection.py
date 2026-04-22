@@ -1800,11 +1800,9 @@ class Calendar(DAVObject):
 
         if use_sync_token:
             try:
-                cmd = dav.SyncCollection()
-                token = dav.SyncToken(value=sync_token)
-                level = dav.SyncLevel(value="1")
-                props = dav.Prop() + dav.GetEtag()
-                root = cmd + [level, token, props]
+                root = self.client._build_sync_collection_body(
+                    sync_token=sync_token, props=["getetag"]
+                )
                 (response, objects) = self._request_report_build_resultlist(
                     root, props=[dav.GetEtag()], no_calendardata=True
                 )
@@ -1931,11 +1929,9 @@ class Calendar(DAVObject):
 
         if use_sync_token:
             try:
-                cmd = dav.SyncCollection()
-                token = dav.SyncToken(value=sync_token)
-                level = dav.SyncLevel(value="1")
-                props = dav.Prop() + dav.GetEtag()
-                root = cmd + [level, token, props]
+                root = self.client._build_sync_collection_body(
+                    sync_token=sync_token, props=["getetag"]
+                )
                 (response, objects) = await self._request_report_build_resultlist(
                     root, props=[dav.GetEtag()], no_calendardata=True
                 )

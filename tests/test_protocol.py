@@ -9,17 +9,13 @@ from datetime import datetime
 
 import pytest
 
-from caldav.protocol.xml_builders import (
-    _build_calendar_multiget_body as build_calendar_multiget_body,
-)
-from caldav.protocol.xml_builders import (
-    _build_calendar_query_body as build_calendar_query_body,
-)
-from caldav.protocol.xml_builders import _build_mkcalendar_body as build_mkcalendar_body
-from caldav.protocol.xml_builders import _build_propfind_body as build_propfind_body
-from caldav.protocol.xml_builders import (
-    _build_sync_collection_body as build_sync_collection_body,
-)
+from caldav.base_client import BaseDAVClient
+
+build_calendar_multiget_body = BaseDAVClient._build_calendar_multiget_body
+build_calendar_query_body = BaseDAVClient._build_calendar_query_body
+build_mkcalendar_body = BaseDAVClient._build_mkcalendar_body
+build_propfind_body = BaseDAVClient._build_propfind_body
+build_sync_collection_body = BaseDAVClient._build_sync_collection_body
 from caldav.response import (
     MultistatusResponse,
     SyncCollectionResult,

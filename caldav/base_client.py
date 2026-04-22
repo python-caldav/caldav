@@ -10,8 +10,13 @@ from __future__ import annotations
 import logging
 from abc import ABC, abstractmethod
 from collections.abc import Mapping
+from datetime import datetime
 from typing import TYPE_CHECKING, Any, NoReturn
 
+from lxml import etree
+
+from caldav.elements import cdav, dav
+from caldav.elements.base import BaseElement
 from caldav.lib import error
 from caldav.lib.auth import extract_auth_types, select_auth_type
 from caldav.lib.python_utilities import to_normal_str
@@ -24,6 +29,42 @@ log = logging.getLogger("caldav")
 
 ## Common HTTP headers
 ICALH = {"Content-Type": 'text/calendar; charset="utf-8"'}
+
+
+def _prop_name_to_element(name: str, value: Any | None = None) -> BaseElement | None:
+    """Convert a property name string (plain or Clark-notation) to a DAV element object."""
+    dav_props: dict[str, Any] = {
+        "displayname": dav.DisplayName,
+        "resourcetype": dav.ResourceType,
+        "getetag": dav.GetEtag,
+        "current-user-principal": dav.CurrentUserPrincipal,
+        "owner": dav.Owner,
+        "sync-token": dav.SyncToken,
+        "supported-report-set": dav.SupportedReportSet,
+    }
+    caldav_props: dict[str, Any] = {
+        "calendar-data": cdav.CalendarData,
+        "calendar-home-set": cdav.CalendarHomeSet,
+        "calendar-user-address-set": cdav.CalendarUserAddressSet,
+        "calendar-user-type": cdav.CalendarUserType,
+        "calendar-description": cdav.CalendarDescription,
+        "calendar-timezone": cdav.CalendarTimeZone,
+        "supported-calendar-component-set": cdav.SupportedCalendarComponentSet,
+        "schedule-inbox-url": cdav.ScheduleInboxURL,
+        "schedule-outbox-url": cdav.ScheduleOutboxURL,
+    }
+    # Strip Clark-notation namespace prefix: "{DAV:}displayname" → "displayname"
+    if name.startswith("{") and "}" in name:
+        name = name.split("}", 1)[1]
+    name_lower = name.lower().replace("_", "-")
+    for props_dict in (dav_props, caldav_props):
+        if name_lower in props_dict:
+            cls = props_dict[name_lower]
+            try:
+                return cls(value) if value is not None else cls()
+            except TypeError:
+                return cls()
+    return None
 
 
 class BaseDAVClient(ABC):
@@ -196,12 +237,148 @@ class BaseDAVClient(ABC):
             reason = "None given"
         raise error.AuthorizationError(url=url_str, reason=reason)
 
-    def _build_principal_search_query(self, name: str | None) -> bytes:
+    # ── XML builders ──────────────────────────────────────────────────────────
+    # All methods are static: no I/O, no server interaction, pure data
+    # transformation.  Both DAVClient and AsyncDAVClient inherit these so
+    # every code path that builds request XML uses the same implementation.
+
+    @staticmethod
+    def _build_propfind_body(
+        props: list[str] | None = None,
+        allprop: bool = False,
+    ) -> bytes:
+        """Build PROPFIND request body XML."""
+        if allprop:
+            propfind = dav.Propfind() + dav.Allprop()
+        elif props:
+            prop_elements = [e for name in props if (e := _prop_name_to_element(name)) is not None]
+            propfind = dav.Propfind() + (dav.Prop() + prop_elements)
+        else:
+            propfind = dav.Propfind() + dav.Prop()
+        return etree.tostring(propfind.xmlelement(), encoding="utf-8", xml_declaration=True)
+
+    @staticmethod
+    def _build_proppatch_body(set_props: dict[str, Any] | None = None) -> bytes:
+        """Build PROPPATCH request body for setting properties."""
+        propertyupdate = dav.PropertyUpdate()
+        if set_props:
+            set_elements = [
+                e
+                for name, value in set_props.items()
+                if (e := _prop_name_to_element(name, value)) is not None
+            ]
+            if set_elements:
+                propertyupdate += dav.Set() + (dav.Prop() + set_elements)
+        return etree.tostring(propertyupdate.xmlelement(), encoding="utf-8", xml_declaration=True)
+
+    @staticmethod
+    def _build_calendar_query_body(
+        start: datetime | None = None,
+        end: datetime | None = None,
+        expand: bool = False,
+        comp_filter: str | None = None,
+        event: bool = False,
+        todo: bool = False,
+        journal: bool = False,
+        props: list[BaseElement] | None = None,
+        filters: list[BaseElement] | None = None,
+    ) -> tuple[bytes, str | None]:
+        """Build calendar-query REPORT request body.
+
+        Returns (XML bytes, component type name or None).
+        """
+        data = cdav.CalendarData()
+        if expand:
+            if not start or not end:
+                raise error.ReportError("can't expand without a date range")
+            data += cdav.Expand(start, end)
+
+        props_list: list[BaseElement] = [data] + (list(props) if props else [])
+        prop = dav.Prop() + props_list
+
+        vcalendar = cdav.CompFilter("VCALENDAR")
+        comp_type = comp_filter or (
+            "VEVENT" if event else "VTODO" if todo else "VJOURNAL" if journal else None
+        )
+        filter_list: list[BaseElement] = list(filters) if filters else []
+        if start or end:
+            filter_list.append(cdav.TimeRange(start, end))
+
+        if comp_type:
+            comp_filter_elem = cdav.CompFilter(comp_type)
+            if filter_list:
+                comp_filter_elem += filter_list
+            vcalendar += comp_filter_elem
+        elif filter_list:
+            vcalendar += filter_list
+
+        root = cdav.CalendarQuery() + [prop, cdav.Filter() + vcalendar]
+        return (
+            etree.tostring(root.xmlelement(), encoding="utf-8", xml_declaration=True),
+            comp_type,
+        )
+
+    @staticmethod
+    def _build_calendar_multiget_body(
+        hrefs: list[str],
+        include_data: bool = True,
+    ) -> bytes:
+        """Build calendar-multiget REPORT request body."""
+        elements: list[BaseElement] = []
+        if include_data:
+            elements.append(dav.Prop() + cdav.CalendarData())
+        for href in hrefs:
+            elements.append(dav.Href(href))
+        multiget = cdav.CalendarMultiGet() + elements
+        return etree.tostring(multiget.xmlelement(), encoding="utf-8", xml_declaration=True)
+
+    @staticmethod
+    def _build_sync_collection_body(
+        sync_token: str | None = None,
+        props: list[str] | None = None,
+        sync_level: str = "1",
+    ) -> bytes:
+        """Build sync-collection REPORT request body."""
+        elements: list[BaseElement] = [
+            dav.SyncToken(sync_token or ""),
+            dav.SyncLevel(sync_level),
+        ]
+        if props:
+            prop_elements = [e for name in props if (e := _prop_name_to_element(name)) is not None]
+            if prop_elements:
+                elements.append(dav.Prop() + prop_elements)
+        else:
+            elements.append(dav.Prop() + [dav.GetEtag(), cdav.CalendarData()])
+        sync_collection = dav.SyncCollection() + elements
+        return etree.tostring(sync_collection.xmlelement(), encoding="utf-8", xml_declaration=True)
+
+    @staticmethod
+    def _build_mkcalendar_body(
+        displayname: str | None = None,
+        description: str | None = None,
+        timezone: str | None = None,
+        supported_components: list[str] | None = None,
+    ) -> bytes:
+        """Build MKCALENDAR request body."""
+        prop = dav.Prop()
+        if displayname:
+            prop += dav.DisplayName(displayname)
+        if description:
+            prop += cdav.CalendarDescription(description)
+        if timezone:
+            prop += cdav.CalendarTimeZone(timezone)
+        if supported_components:
+            sccs = cdav.SupportedCalendarComponentSet()
+            for comp in supported_components:
+                sccs += cdav.Comp(comp)
+            prop += sccs
+        prop += dav.ResourceType() + [dav.Collection(), cdav.Calendar()]
+        mkcalendar = cdav.Mkcalendar() + (dav.Set() + prop)
+        return etree.tostring(mkcalendar.xmlelement(), encoding="utf-8", xml_declaration=True)
+
+    @staticmethod
+    def _build_principal_search_query(name: str | None) -> bytes:
         """Build the XML body for a principal-property-search REPORT."""
-        from lxml import etree
-
-        from caldav.elements import cdav, dav
-
         name_filter = (
             [dav.PropertySearch() + [dav.Prop() + [dav.DisplayName()]] + dav.Match(value=name)]
             if name

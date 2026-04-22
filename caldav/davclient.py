@@ -703,13 +703,11 @@ class DAVClient(BaseDAVClient):
         -------
         DAVResponse
         """
-        from caldav.protocol.xml_builders import _build_propfind_body
-
         # Handle both old interface (props=xml_string) and new interface (props=list)
         body = ""
         if props is not None:
             if isinstance(props, list):
-                body = _build_propfind_body(props).decode("utf-8")
+                body = self._build_propfind_body(props).decode("utf-8")
             else:
                 body = props  # Old interface: props is XML string
 
