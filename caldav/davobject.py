@@ -9,7 +9,7 @@ from lxml import etree
 if TYPE_CHECKING:
     from .davclient import DAVClient
 
-from collections.abc import Sequence
+from collections.abc import Coroutine, Sequence
 
 if sys.version_info < (3, 11):
     from typing_extensions import Self
@@ -110,7 +110,9 @@ class DAVObject:
         # Use string check to avoid circular imports
         return type(self.client).__name__ == "AsyncDAVClient"
 
-    def children(self, type: str | None = None) -> list[tuple[URL, Any, Any]]:
+    def children(
+        self, type: str | None = None
+    ) -> "list[tuple[URL, Any, Any]] | Coroutine[Any, Any, list[tuple[URL, Any, Any]]]":
         """List children, using a propfind (resourcetype) on the parent object,
         at depth = 1.
 
@@ -125,8 +127,6 @@ class DAVObject:
         """
         ## Late import to avoid circular imports
         from .collection import CalendarSet
-
-        c = []
 
         depth = 1
 
@@ -201,7 +201,9 @@ class DAVObject:
             return dav.Propfind() + prop
         return None
 
-    def _query_properties(self, props: Sequence[BaseElement] | None = None, depth: int = 0):
+    def _query_properties(
+        self, props: Sequence[BaseElement] | None = None, depth: int = 0
+    ) -> "Any | Coroutine[Any, Any, Any]":
         """
         This is an internal method for doing a propfind query.  It's a
         result of code-refactoring work, attempting to consolidate
@@ -218,7 +220,7 @@ class DAVObject:
         self, props: Sequence[BaseElement] | None = None, depth: int = 0
     ):
         """Async implementation of _query_properties."""
-        return await self._async_query(self._build_propfind_root(props), depth)
+        return await self._query(self._build_propfind_root(props), depth)
 
     def _query(
         self,
@@ -227,7 +229,7 @@ class DAVObject:
         query_method="propfind",
         url=None,
         expected_return_value=None,
-    ):
+    ) -> "Any | Coroutine[Any, Any, Any]":
         """
         This is an internal method for doing a query.  It's a
         result of code-refactoring work, attempting to consolidate
@@ -278,15 +280,13 @@ class DAVObject:
             body = to_wire(body)
             if ret.status == 500 and b"D:getetag" not in body and b"<C:calendar-data" in body:
                 body = body.replace(b"<C:calendar-data", b"<D:getetag/><C:calendar-data")
-                return await self._async_query(
-                    body, depth, query_method, url, expected_return_value
-                )
+                return await self._query(body, depth, query_method, url, expected_return_value)
             raise error.exception_by_method[query_method](errmsg(ret))
         return ret
 
     def get_property(
         self, prop: BaseElement, use_cached: bool = False, **passthrough
-    ) -> str | None:
+    ) -> "str | None | Coroutine[Any, Any, str | None]":
         """
         Wrapper for the :class:`get_properties`, when only one property is wanted
 
@@ -299,25 +299,16 @@ class DAVObject:
 
         For async clients, returns a coroutine that must be awaited.
         """
-        if self.is_async_client:
-            return self._async_get_property(prop, use_cached, **passthrough)
-
         ## TODO: use_cached should probably be true
-        if use_cached:
-            if prop.tag in self.props:
-                return self.props[prop.tag]
-        foo = self.get_properties([prop], **passthrough)
-        return foo.get(prop.tag, None)
+        if use_cached and prop.tag in self.props:
+            return self.props[prop.tag]
+        if self.is_async_client:
+            return self._async_get_property(prop, **passthrough)
+        return self.get_properties([prop], **passthrough).get(prop.tag, None)
 
-    async def _async_get_property(
-        self, prop: BaseElement, use_cached: bool = False, **passthrough
-    ) -> str | None:
+    async def _async_get_property(self, prop: BaseElement, **passthrough) -> str | None:
         """Async implementation of get_property."""
-        if use_cached:
-            if prop.tag in self.props:
-                return self.props[prop.tag]
-        foo = await self._async_get_properties([prop], **passthrough)
-        return foo.get(prop.tag, None)
+        return (await self.get_properties([prop], **passthrough)).get(prop.tag, None)
 
     def _resolve_properties(self, properties: dict) -> dict:
         """Resolve the correct property dict from a PROPFIND response.
@@ -383,7 +374,7 @@ class DAVObject:
         depth: int = 0,
         parse_response_xml: bool = True,
         parse_props: bool = True,
-    ):
+    ) -> "dict | Any | Coroutine[Any, Any, dict | Any]":
         """Get properties (PROPFIND) for this object.
 
         With parse_response_xml and parse_props set to True a
@@ -407,6 +398,10 @@ class DAVObject:
             return self._async_get_properties(props, depth, parse_response_xml, parse_props)
 
         response = self._query_properties(props, depth)
+        return self._post_get_properties(response, props, parse_response_xml, parse_props)
+
+    def _post_get_properties(self, response, props, parse_response_xml, parse_props):
+        """Shared post-processing for get_properties and _async_get_properties."""
         if not parse_response_xml:
             return response
 
@@ -432,7 +427,6 @@ class DAVObject:
             properties = response.expand_simple_props(props)
 
         error.assert_(properties)
-
         return self._resolve_properties(properties)
 
     async def _async_get_properties(
@@ -443,36 +437,10 @@ class DAVObject:
         parse_props: bool = True,
     ):
         """Async implementation of get_properties."""
-        response = await self._async_query_properties(props, depth)
-        if not parse_response_xml:
-            return response
+        response = await self._query_properties(props, depth)
+        return self._post_get_properties(response, props, parse_response_xml, parse_props)
 
-        # Use protocol layer results when available and parse_props=True
-        if parse_props and response.results:
-            # Convert results to the expected {href: {tag: value}} format
-            properties = {}
-            for result in response.results:
-                # Start with None for all requested props (for backward compat)
-                result_props = {}
-                if props:
-                    for prop in props:
-                        if prop.tag:
-                            result_props[prop.tag] = None
-                # Then overlay with actual values from server
-                result_props.update(result.properties)
-                properties[result.href] = result_props
-        elif not parse_props:
-            # Caller wants raw XML elements - use internal method
-            properties = response._find_objects_and_props()
-        else:
-            # Fallback to expand_simple_props for mocked responses
-            properties = response.expand_simple_props(props)
-
-        error.assert_(properties)
-
-        return self._resolve_properties(properties)
-
-    def set_properties(self, props: Any | None = None) -> Self:
+    def set_properties(self, props: Any | None = None) -> "Self | Coroutine[Any, Any, Self]":
         """
         Set properties (PROPPATCH) for this object.
 
@@ -483,46 +451,30 @@ class DAVObject:
         Returns:
          * self
         """
+        props = [] if props is None else props
+        prop = dav.Prop() + props
+        set_elem = dav.Set() + prop
+        root = dav.PropertyUpdate() + set_elem
+        body = self._build_xml_body(root)
+
+        if self.url is None:
+            raise ValueError("Unexpected value None for self.url")
+        if self.client is None:
+            raise ValueError("Unexpected value None for self.client")
+
         if self.is_async_client:
-            return self._async_set_properties(props)
+            return self._async_set_properties(body)
 
-        props = [] if props is None else props
-        prop = dav.Prop() + props
-        set_elem = dav.Set() + prop
-        root = dav.PropertyUpdate() + set_elem
-        body = self._build_xml_body(root)
+        return self._post_set_properties(self.client.proppatch(str(self.url), body))
 
-        if self.url is None:
-            raise ValueError("Unexpected value None for self.url")
-        if self.client is None:
-            raise ValueError("Unexpected value None for self.client")
-
-        r = self.client.proppatch(str(self.url), body)
-
+    def _post_set_properties(self, r) -> Self:
         if r.status >= 400:
             raise error.PropsetError(errmsg(r))
-
         return self
 
-    async def _async_set_properties(self, props: Any | None = None) -> Self:
+    async def _async_set_properties(self, body) -> Self:
         """Async implementation of set_properties."""
-        props = [] if props is None else props
-        prop = dav.Prop() + props
-        set_elem = dav.Set() + prop
-        root = dav.PropertyUpdate() + set_elem
-        body = self._build_xml_body(root)
-
-        if self.url is None:
-            raise ValueError("Unexpected value None for self.url")
-        if self.client is None:
-            raise ValueError("Unexpected value None for self.client")
-
-        r = await self.client.proppatch(str(self.url), body)
-
-        if r.status >= 400:
-            raise error.PropsetError(errmsg(r))
-
-        return self
+        return self._post_set_properties(await self.client.proppatch(str(self.url), body))
 
     def save(self) -> Self:
         """
@@ -534,7 +486,7 @@ class DAVObject:
         """
         raise NotImplementedError()
 
-    def delete(self) -> None:
+    def delete(self) -> "None | Coroutine[Any, Any, None]":
         """
         Delete the object.
 
@@ -547,28 +499,24 @@ class DAVObject:
         Example (async):
             await obj.delete()
         """
-        if self.url is not None:
-            if self.client is None:
-                raise ValueError("Unexpected value None for self.client")
+        if self.url is None:
+            return
+        if self.client is None:
+            raise ValueError("Unexpected value None for self.client")
+        if self.is_async_client:
+            return self._async_delete()
+        # TODO: find out why we get 404
+        self._post_delete(self.client.delete(str(self.url)))
 
-            # Delegate to client for dual-mode support
-            if self.is_async_client:
-                return self._async_delete()
-
-            r = self.client.delete(str(self.url))
-
-            # TODO: find out why we get 404
-            if r.status not in (200, 204, 404):
-                raise error.DeleteError(errmsg(r))
+    def _post_delete(self, r) -> None:
+        if r.status not in (200, 204, 404):
+            raise error.DeleteError(errmsg(r))
 
     async def _async_delete(self) -> None:
         """Async implementation of delete."""
-        if self.url is not None and self.client is not None:
-            r = await self.client.delete(str(self.url))
-            if r.status not in (200, 204, 404):
-                raise error.DeleteError(errmsg(r))
+        self._post_delete(await self.client.delete(str(self.url)))
 
-    def get_display_name(self):
+    def get_display_name(self) -> "str | None | Coroutine[Any, Any, str | None]":
         """
         Get display name (calendar, principal, ...more?)
         """

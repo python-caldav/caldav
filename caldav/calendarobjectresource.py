@@ -29,7 +29,7 @@ if TYPE_CHECKING:
 
     from .davclient import DAVClient
 
-from collections.abc import Callable, Container
+from collections.abc import Callable, Container, Coroutine
 from typing import Literal
 
 if sys.version_info < (3, 11):
@@ -178,7 +178,7 @@ class CalendarObjectResource(DAVObject):
 
         i.add(self._ENDPARAM, end)
 
-    def add_organizer(self, organizer=None) -> None:
+    def add_organizer(self, organizer=None) -> "None | Coroutine[Any, Any, None]":
         """
         Add (or replace) the ORGANIZER field on the calendar component.
 
@@ -222,7 +222,7 @@ class CalendarObjectResource(DAVObject):
     async def _async_add_organizer(self) -> None:
         """Async implementation of add_organizer() for async clients."""
         principal = await self.client.principal()
-        self._set_organizer(await principal._async_get_vcal_address())
+        self._set_organizer(await principal.get_vcal_address())
 
     def _set_organizer(self, organizer_obj: vCalAddress) -> None:
         """Write the ORGANIZER property onto the icalendar component (sync, no I/O)."""
@@ -320,7 +320,7 @@ class CalendarObjectResource(DAVObject):
 
     def set_relation(
         self, other, reltype=None, set_reverse=True
-    ) -> None:  ## TODO: logic to find and set siblings?
+    ) -> "None | Coroutine[Any, Any, None]":  ## TODO: logic to find and set siblings?
         """
         Sets a relation between this object and another object (given by uid or object).
         """
@@ -411,7 +411,7 @@ class CalendarObjectResource(DAVObject):
         relfilter: Callable[[Any], bool] | None = None,
         fetch_objects: bool = True,
         ignore_missing: bool = True,
-    ) -> defaultdict[str, set[str]]:
+    ) -> "defaultdict[str, set[str]] | Coroutine[Any, Any, defaultdict[str, set]]":
         """
         By default, loads all objects pointed to by the RELATED-TO
         property and loads the related objects.
@@ -491,6 +491,8 @@ class CalendarObjectResource(DAVObject):
 
     def _set_reverse_relation(self, other, reltype):
         ## TODO: handle RFC9253 better!  Particularly next/first-lists
+        if self.is_async_client:
+            return self._async_set_reverse_relation(other, reltype)
         reverse_reltype = self.RELTYPE_REVERSE_MAP.get(reltype)
         if not reverse_reltype:
             logging.error("Reltype %s not supported in object uid %s" % (reltype, self.id))
@@ -498,7 +500,7 @@ class CalendarObjectResource(DAVObject):
         other.set_relation(self, reverse_reltype, other)
 
     async def _async_set_reverse_relation(self, other, reltype):
-        """Async version of _set_reverse_relation."""
+        """Async implementation of _set_reverse_relation."""
         reverse_reltype = self.RELTYPE_REVERSE_MAP.get(reltype)
         if not reverse_reltype:
             logging.error("Reltype %s not supported in object uid %s" % (reltype, self.id))
@@ -506,6 +508,8 @@ class CalendarObjectResource(DAVObject):
         await other.set_relation(self, reverse_reltype, other)
 
     def _verify_reverse_relation(self, other, reltype) -> tuple:
+        if self.is_async_client:
+            return self._async_verify_reverse_relation(other, reltype)
         revreltype = self.RELTYPE_REVERSE_MAP[reltype]
         ## TODO: special case FIRST/NEXT needs special handling
         other_relations = other.get_relatives(fetch_objects=False, reltypes={revreltype})
@@ -519,7 +523,7 @@ class CalendarObjectResource(DAVObject):
         return False
 
     async def _async_verify_reverse_relation(self, other, reltype) -> tuple:
-        """Async version of _verify_reverse_relation."""
+        """Async implementation of _verify_reverse_relation."""
         revreltype = self.RELTYPE_REVERSE_MAP[reltype]
         other_relations = await other.get_relatives(fetch_objects=False, reltypes={revreltype})
         my_uid = self._get_uid_cheap() or str(self.icalendar_component["uid"])
@@ -530,22 +534,22 @@ class CalendarObjectResource(DAVObject):
     async def _async_handle_reverse_relations(
         self, verify: bool = False, fix: bool = False, pdb: bool = False
     ) -> list:
-        """Async version of _handle_reverse_relations for async clients."""
+        """Async implementation of _handle_reverse_relations."""
         ret = []
         assert verify or fix
         relations = await self.get_relatives()
         for reltype in relations:
             for other in relations[reltype]:
                 if verify:
-                    foobar = await self._async_verify_reverse_relation(other, reltype)
+                    foobar = await self._verify_reverse_relation(other, reltype)
                     if foobar:
                         ret.append(foobar)
                         if pdb:
                             breakpoint()
                         if fix:
-                            await self._async_set_reverse_relation(other, reltype)
+                            await self._set_reverse_relation(other, reltype)
                 elif fix:
-                    await self._async_set_reverse_relation(other, reltype)
+                    await self._set_reverse_relation(other, reltype)
         return ret
 
     def _handle_reverse_relations(
@@ -563,6 +567,8 @@ class CalendarObjectResource(DAVObject):
             Assume all reverse relations are missing.
             Used internally when creating new objects.
         """
+        if self.is_async_client:
+            return self._async_handle_reverse_relations(verify, fix, pdb)
         ret = []
         assert verify or fix
         relations = self.get_relatives()
@@ -758,21 +764,27 @@ class CalendarObjectResource(DAVObject):
         self.load(only_if_unloaded=True)
         return self.icalendar_instance.get("method", None) == "REPLY"
 
-    def accept_invite(self, calendar: Optional["Calendar"] = None) -> None:
+    def accept_invite(
+        self, calendar: Optional["Calendar"] = None
+    ) -> "None | Coroutine[Any, Any, None]":
         """
         Accepts an invite - to be used on an invite object.
         For async clients, returns a coroutine that must be awaited.
         """
         return self._reply_to_invite_request("ACCEPTED", calendar)
 
-    def decline_invite(self, calendar: Optional["Calendar"] = None) -> None:
+    def decline_invite(
+        self, calendar: Optional["Calendar"] = None
+    ) -> "None | Coroutine[Any, Any, None]":
         """
         Declines an invite - to be used on an invite object.
         For async clients, returns a coroutine that must be awaited.
         """
         return self._reply_to_invite_request("DECLINED", calendar)
 
-    def tentatively_accept_invite(self, calendar: Any | None = None) -> None:
+    def tentatively_accept_invite(
+        self, calendar: Any | None = None
+    ) -> "None | Coroutine[Any, Any, None]":
         """
         Tentatively accept an invite - to be used on an invite object.
         For async clients, returns a coroutine that must be awaited.
@@ -782,7 +794,7 @@ class CalendarObjectResource(DAVObject):
     ## TODO: DELEGATED is also a valid option, and for vtodos the
     ## partstat can also be set to COMPLETED and IN-PROGRESS.
 
-    def _reply_to_invite_request(self, partstat, calendar) -> None:
+    def _reply_to_invite_request(self, partstat, calendar) -> "None | Coroutine[Any, Any, None]":
         if self.is_async_client:
             return self._async_reply_to_invite_request(partstat, calendar)
         error.assert_(self.is_invite_request())
@@ -890,7 +902,7 @@ class CalendarObjectResource(DAVObject):
             await self.load()
             outbox = await principal.schedule_outbox()
             if calendar.url != outbox.url:
-                await self._async_reply_to_invite_request(partstat, calendar=outbox)
+                await self._reply_to_invite_request(partstat, calendar=outbox)
             else:
                 await self.save()
 
@@ -912,7 +924,7 @@ class CalendarObjectResource(DAVObject):
 
     ## TODO: move get-logics to a load_by_get method.
     ## The load method should deal with "server quirks".
-    def load(self, only_if_unloaded: bool = False) -> Self:
+    def load(self, only_if_unloaded: bool = False) -> "Self | Coroutine[Any, Any, Self]":
         """
         (Re)load the object from the caldav server.
 
@@ -1030,7 +1042,7 @@ class CalendarObjectResource(DAVObject):
             self.props[cdav.ScheduleTag.tag] = r.headers["Schedule-Tag"]
         return self
 
-    def load_by_multiget(self) -> Self:
+    def load_by_multiget(self) -> "Self | Coroutine[Any, Any, Self]":
         """
         Some servers do not accept a GET, but we can still do a REPORT
         with a multiget query
@@ -1110,7 +1122,7 @@ class CalendarObjectResource(DAVObject):
 
         self.url = URL.objectify(path)
 
-    def _put(self, retry_on_failure=True):
+    def _put(self, retry_on_failure=True) -> "None | Coroutine[Any, Any, None]":
         ## TODO: quite much overlapping with _async_put, should consolidate
         ## TODO: this is low-level http-communication - shouldn't it be in the davclient file rather than in calendarobjectresource.py?
         ## SECURITY TODO: we should probably have a check here to verify that no such object exists already
@@ -1178,15 +1190,18 @@ class CalendarObjectResource(DAVObject):
         if r.headers and r.headers.get("schedule-tag"):
             self.props[cdav.ScheduleTag.tag] = r.headers["schedule-tag"]
 
-    def _create(self, id=None, path=None, retry_on_failure=True) -> None:
+    def _create(
+        self, id=None, path=None, retry_on_failure=True
+    ) -> "None | Coroutine[Any, Any, None]":
         ## TODO: Find a better method name
         self._find_id_path(id=id, path=path)
-        self._put()
+        if self.is_async_client:
+            return self._async_create(retry_on_failure)
+        self._put(retry_on_failure)
 
-    async def _async_create(self, id=None, path=None) -> None:
-        """Async version of _create for async clients."""
-        self._find_id_path(id=id, path=path)
-        return await self._put()
+    async def _async_create(self, retry_on_failure=True) -> None:
+        """Async implementation of _create."""
+        await self._put(retry_on_failure)
 
     def _generate_url(self):
         ## See https://github.com/python-caldav/caldav/issues/143 for the rationale behind double-quoting slashes
@@ -1263,7 +1278,7 @@ class CalendarObjectResource(DAVObject):
         increase_seqno: bool = True,
         only_this_recurrence: bool = True,
         all_recurrences: bool = False,
-    ) -> Self:
+    ) -> "Self | Coroutine[Any, Any, Self]":
         """Save the object, can be used for creation and update.
 
         no_overwrite and no_create will check if the object exists.
@@ -1471,7 +1486,7 @@ class CalendarObjectResource(DAVObject):
 
         self._maybe_increment_sequence(increase_seqno)
         path = self.url.path if self.url else None
-        await self._async_create(id=self.id, path=path)
+        await self._create(id=self.id, path=path)
         return self
 
     def is_loaded(self):
@@ -2190,7 +2205,7 @@ class Todo(CalendarObjectResource):
         completion_timestamp: datetime | None = None,
         handle_rrule: bool = False,
         rrule_mode: Literal["safe", "this_and_future"] = "safe",
-    ) -> None:
+    ) -> "None | Coroutine[Any, Any, None]":
         """Marks the task as completed.
 
         Parameters
@@ -2254,7 +2269,7 @@ class Todo(CalendarObjectResource):
         ## input data does not conform to the RFC
         raise AssertionError
 
-    def uncomplete(self) -> None:
+    def uncomplete(self) -> "None | Coroutine[Any, Any, None]":
         """Undo completion - marks a completed task as not completed"""
         ### TODO: needs test code for code coverage!
         ## (it has been tested through the calendar-cli test code)
