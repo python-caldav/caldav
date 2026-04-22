@@ -2230,9 +2230,7 @@ END:VCALENDAR"""
 
         async def async_principal():
             p = mock.MagicMock()
-            p._async_get_vcal_address = mock.AsyncMock(
-                return_value=vCalAddress("mailto:me@example.com")
-            )
+            p.get_vcal_address = mock.AsyncMock(return_value=vCalAddress("mailto:me@example.com"))
             return p
 
         client.principal = async_principal
@@ -2254,9 +2252,7 @@ END:VCALENDAR"""
 
         async def async_principal():
             p = mock.MagicMock()
-            p._async_get_vcal_address = mock.AsyncMock(
-                return_value=vCalAddress("mailto:me@example.com")
-            )
+            p.get_vcal_address = mock.AsyncMock(return_value=vCalAddress("mailto:me@example.com"))
             return p
 
         client.principal = async_principal
@@ -2275,9 +2271,7 @@ END:VCALENDAR"""
 
         async def async_principal():
             p = mock.MagicMock()
-            p._async_get_vcal_address = mock.AsyncMock(
-                return_value=vCalAddress("mailto:me@example.com")
-            )
+            p.get_vcal_address = mock.AsyncMock(return_value=vCalAddress("mailto:me@example.com"))
             return p
 
         client.principal = async_principal
@@ -2298,9 +2292,7 @@ END:VCALENDAR"""
 
         async def async_principal():
             p = mock.MagicMock()
-            p._async_get_vcal_address = mock.AsyncMock(
-                return_value=vCalAddress("mailto:me@example.com")
-            )
+            p.get_vcal_address = mock.AsyncMock(return_value=vCalAddress("mailto:me@example.com"))
             return p
 
         client.principal = async_principal

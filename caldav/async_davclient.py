@@ -72,23 +72,14 @@ from caldav.compatibility_hints import FeatureSet
 from caldav.lib import error
 from caldav.lib.python_utilities import to_wire
 from caldav.lib.url import URL
-from caldav.protocol.types import (
-    CalendarQueryResult,
-    PropfindResult,
-)
 from caldav.protocol.xml_builders import (
     _build_calendar_multiget_body,
     _build_calendar_query_body,
     _build_propfind_body,
     _build_sync_collection_body,
 )
-from caldav.protocol.xml_parsers import (
-    _parse_calendar_query_response,
-    _parse_propfind_response,
-    _parse_sync_collection_response,
-)
 from caldav.requests import HTTPBearerAuth
-from caldav.response import BaseDAVResponse
+from caldav.response import BaseDAVResponse, CalendarQueryResult, PropfindResult
 
 log = logging.getLogger("caldav")
 
@@ -563,14 +554,8 @@ class AsyncDAVClient(BaseDAVClient):
         final_headers = self._build_method_headers("PROPFIND", depth, headers)
         response = await self.request(url or str(self.url), "PROPFIND", body, final_headers)
 
-        # Parse response using protocol layer
         if response.status in (200, 207) and response._raw:
-            raw_bytes = (
-                response._raw if isinstance(response._raw, bytes) else response._raw.encode("utf-8")
-            )
-            response.results = _parse_propfind_response(
-                raw_bytes, response.status, response.huge_tree
-            )
+            response.results = response.parse_propfind()
 
         return response
 
@@ -780,14 +765,8 @@ class AsyncDAVClient(BaseDAVClient):
             url or str(self.url), "REPORT", body.decode("utf-8"), final_headers
         )
 
-        # Parse response using protocol layer
         if response.status in (200, 207) and response._raw:
-            raw_bytes = (
-                response._raw if isinstance(response._raw, bytes) else response._raw.encode("utf-8")
-            )
-            response.results = _parse_calendar_query_response(
-                raw_bytes, response.status, response.huge_tree
-            )
+            response.results = response.parse_calendar_query()
 
         return response
 
@@ -817,14 +796,8 @@ class AsyncDAVClient(BaseDAVClient):
             url or str(self.url), "REPORT", body.decode("utf-8"), final_headers
         )
 
-        # Parse response using protocol layer
         if response.status in (200, 207) and response._raw:
-            raw_bytes = (
-                response._raw if isinstance(response._raw, bytes) else response._raw.encode("utf-8")
-            )
-            response.results = _parse_calendar_query_response(
-                raw_bytes, response.status, response.huge_tree
-            )
+            response.results = response.parse_calendar_query()
 
         return response
 
@@ -856,14 +829,8 @@ class AsyncDAVClient(BaseDAVClient):
             url or str(self.url), "REPORT", body.decode("utf-8"), final_headers
         )
 
-        # Parse response using protocol layer
         if response.status in (200, 207) and response._raw:
-            raw_bytes = (
-                response._raw if isinstance(response._raw, bytes) else response._raw.encode("utf-8")
-            )
-            sync_result = _parse_sync_collection_response(
-                raw_bytes, response.status, response.huge_tree
-            )
+            sync_result = response.parse_sync_collection()
             response.results = sync_result.changed
             response.sync_token = sync_result.sync_token
 

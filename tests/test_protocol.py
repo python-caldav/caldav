@@ -1,7 +1,7 @@
 """
-Unit tests for Sans-I/O protocol layer.
+Unit tests for protocol XML builders and response parsers.
 
-These tests verify protocol logic without any HTTP mocking required.
+These tests verify XML building and parsing logic without any HTTP mocking.
 All tests are pure - they test data transformations only.
 """
 
@@ -9,13 +9,6 @@ from datetime import datetime
 
 import pytest
 
-from caldav.protocol import (
-    DAVMethod,
-    DAVRequest,
-    DAVResponse,
-    MultistatusResponse,
-    SyncCollectionResult,
-)
 from caldav.protocol.xml_builders import (
     _build_calendar_multiget_body as build_calendar_multiget_body,
 )
@@ -27,58 +20,22 @@ from caldav.protocol.xml_builders import _build_propfind_body as build_propfind_
 from caldav.protocol.xml_builders import (
     _build_sync_collection_body as build_sync_collection_body,
 )
-from caldav.protocol.xml_parsers import (
+from caldav.response import (
+    MultistatusResponse,
+    SyncCollectionResult,
+)
+from caldav.response import (
     _parse_calendar_query_response as parse_calendar_query_response,
 )
-from caldav.protocol.xml_parsers import _parse_multistatus as parse_multistatus
-from caldav.protocol.xml_parsers import (
+from caldav.response import (
+    _parse_multistatus as parse_multistatus,
+)
+from caldav.response import (
     _parse_propfind_response as parse_propfind_response,
 )
-from caldav.protocol.xml_parsers import (
+from caldav.response import (
     _parse_sync_collection_response as parse_sync_collection_response,
 )
-
-
-class TestDAVTypes:
-    """Test core DAV types."""
-
-    def test_dav_request_immutable(self):
-        """DAVRequest should be immutable (frozen dataclass)."""
-        request = DAVRequest(
-            method=DAVMethod.GET,
-            url="https://example.com/",
-            headers={},
-        )
-        with pytest.raises(AttributeError):
-            request.url = "https://other.com/"
-
-    def test_dav_request_with_header(self):
-        """with_header should return new request with added header."""
-        request = DAVRequest(
-            method=DAVMethod.GET,
-            url="https://example.com/",
-            headers={"Accept": "text/html"},
-        )
-        new_request = request.with_header("Authorization", "Bearer token")
-
-        # Original unchanged
-        assert "Authorization" not in request.headers
-        # New has both headers
-        assert new_request.headers["Accept"] == "text/html"
-        assert new_request.headers["Authorization"] == "Bearer token"
-
-    def test_dav_response_ok(self):
-        """ok property should return True for 2xx status codes."""
-        assert DAVResponse(status=200, headers={}, body=b"").ok
-        assert DAVResponse(status=201, headers={}, body=b"").ok
-        assert DAVResponse(status=207, headers={}, body=b"").ok
-        assert not DAVResponse(status=404, headers={}, body=b"").ok
-        assert not DAVResponse(status=500, headers={}, body=b"").ok
-
-    def test_dav_response_is_multistatus(self):
-        """is_multistatus should return True only for 207."""
-        assert DAVResponse(status=207, headers={}, body=b"").is_multistatus
-        assert not DAVResponse(status=200, headers={}, body=b"").is_multistatus
 
 
 class TestXMLBuilders:

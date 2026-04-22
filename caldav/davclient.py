@@ -717,16 +717,8 @@ class DAVClient(BaseDAVClient):
         headers = {"Depth": str(depth)}
         response = self.request(url or str(self.url), "PROPFIND", body, headers)
 
-        # Parse response using protocol layer
         if response.status in (200, 207) and response._raw:
-            from caldav.protocol.xml_parsers import _parse_propfind_response
-
-            raw_bytes = (
-                response._raw if isinstance(response._raw, bytes) else response._raw.encode("utf-8")
-            )
-            response.results = _parse_propfind_response(
-                raw_bytes, response.status, response.huge_tree
-            )
+            response.results = response.parse_propfind()
         return response
 
     def proppatch(self, url: str, body: str, dummy: None = None) -> DAVResponse:
