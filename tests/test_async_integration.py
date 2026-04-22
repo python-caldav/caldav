@@ -612,7 +612,9 @@ class _AsyncTestSchedulingBase:
             ## Check whether the server auto-scheduled the event directly into
             ## the attendee's calendar.  The event may land in any calendar,
             ## so search all attendee calendars for the event UID.
-            if not new_attendee_inbox_items:
+            ## Always check even when inbox items were found: some servers (e.g.
+            ## Davis/sabre/dav) deliver iTIP to the inbox AND auto-schedule.
+            if not auto_scheduled:
                 for cal in await principals[1].calendars():
                     for event in await cal.get_events():
                         if event.id == event_uid:
