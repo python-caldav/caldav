@@ -4,7 +4,7 @@ Shared datetime and duration utilities for JSCalendar ↔ iCalendar conversion.
 
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timedelta
 
 
 def _timedelta_to_duration(td: timedelta) -> str:

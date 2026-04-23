@@ -8,7 +8,7 @@ def xmlstring(root):
         root = root.xmlelement()
     try:
         return etree.tostring(root, pretty_print=True).decode("utf-8")
-    except:
+    except Exception:
         return root
 
 

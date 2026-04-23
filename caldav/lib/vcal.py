@@ -127,7 +127,7 @@ def fix(event):
             import difflib
 
             diff = list(difflib.unified_diff(event.split("\n"), fixed2.split("\n"), lineterm=""))
-        except:
+        except Exception:
             diff = ["Original: ", event, "Modified: ", fixed2]
 
         log("\n".join(log_message + diff))
@@ -182,7 +182,7 @@ def create_ical(ical_fragment=None, objtype=None, language="en_DK", **props):
             objtype = "VEVENT"
         try:
             component = icalendar.cal.component_factory[objtype]()
-        except:
+        except TypeError:
             component = icalendar.cal.component_factory.ComponentFactory()[objtype]()
         my_instance.add_component(component)
         ## STATUS should default to NEEDS-ACTION for tasks, if it's not set

@@ -8,7 +8,6 @@ for XML building and response parsing.
 For async code, use: from caldav import aio
 """
 
-import copy
 import logging
 import sys
 import time
@@ -38,19 +37,15 @@ except ImportError:
 
 from collections.abc import Mapping
 
-from lxml import etree
-
-import caldav.compatibility_hints
 from caldav import __version__
 from caldav.base_client import BaseDAVClient
 from caldav.base_client import get_calendars as _base_get_calendars
 from caldav.base_client import get_davclient as _base_get_davclient
-from caldav.collection import Calendar, CalendarSet, Principal
+from caldav.collection import Calendar, Principal
 from caldav.compatibility_hints import FeatureSet
 
 # Re-export CONNKEYS for backward compatibility
 from caldav.config import CONNKEYS  # noqa: F401
-from caldav.elements import cdav, dav
 from caldav.lib import error
 from caldav.lib.python_utilities import to_wire
 from caldav.lib.url import URL
@@ -65,7 +60,7 @@ else:
     from typing import Self
 
 if TYPE_CHECKING:
-    from caldav.calendarobjectresource import CalendarObjectResource, Event, Todo
+    from caldav.calendarobjectresource import CalendarObjectResource
 
 
 """
