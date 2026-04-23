@@ -18,3 +18,5 @@ As for 3.x, for a method `foo` doing some preparations, some IO and then some pr
   should be moved to the last possible point in the method. * For methods
   containing significant amount of logic after doing the IO, split the
   logic out in a `_post_foo`-method.
+
+Now, some of the methods may return cached data if it exists, avoiding IO-operations.  We should probably make things consistent so that an awaitable coroutine will always be returned in async mode, even when no IO is done and there doesn't exist anything to wait for.
