@@ -17,6 +17,17 @@ import pytest_asyncio
 
 from caldav.compatibility_hints import FeatureSet
 
+from .test_caldav import (
+    ev1 as ev1_static,  # old-date (2006); distinct from ev1() near-future generator
+)
+from .test_caldav import ev2 as ev2_static  # same UID as ev1_static, one year later
+from .test_caldav import ev3 as ev3_static  # different UID (2021)
+from .test_caldav import evr as evr_static  # recurring annual event (1997)
+from .test_caldav import evr2 as evr2_static  # bi-weekly with exception (2024)
+from .test_caldav import journal as journal_static
+from .test_caldav import todo as todo_static  # avoids clash with local var in add_todo()
+from .test_caldav import todo2 as todo2_static  # avoids clash with todo2() generator
+from .test_caldav import todo3 as todo3_static
 from .test_servers import TestServer, get_available_servers
 
 
@@ -289,6 +300,91 @@ class AsyncFunctionalTestsBaseClass:
                 await calendar.delete()
             except Exception:
                 pass
+
+    @pytest_asyncio.fixture
+    async def async_calendar2(self, async_client: Any) -> Any:
+        """Create a second test calendar for tests that need two distinct calendars."""
+        from caldav.aio import AsyncPrincipal
+        from caldav.lib.error import AuthorizationError, NotFoundError
+
+        from .fixture_helpers import aget_or_create_test_calendar
+
+        calendar_name = f"async-test2-{datetime.now().strftime('%Y%m%d%H%M%S%f')}"
+
+        principal = None
+        try:
+            principal = await AsyncPrincipal.create(async_client)
+        except (NotFoundError, AuthorizationError):
+            pass
+
+        calendar, created = await aget_or_create_test_calendar(
+            async_client, principal, calendar_name=calendar_name
+        )
+
+        if calendar is None:
+            pytest.skip("Could not create or find a second calendar for testing")
+
+        yield calendar
+
+        if created:
+            try:
+                await calendar.delete()
+            except Exception:
+                pass
+
+    @pytest_asyncio.fixture
+    async def async_journal_list(self, async_client: Any) -> Any:
+        """Create a VJOURNAL calendar for journal tests."""
+        from caldav.aio import AsyncPrincipal
+        from caldav.lib.error import AuthorizationError, NotFoundError
+
+        from .fixture_helpers import aget_or_create_test_calendar
+
+        calendar_name = f"async-journal-{datetime.now().strftime('%Y%m%d%H%M%S%f')}"
+
+        principal = None
+        try:
+            principal = await AsyncPrincipal.create(async_client)
+        except (NotFoundError, AuthorizationError):
+            pass
+
+        calendar, created = await aget_or_create_test_calendar(
+            async_client,
+            principal,
+            calendar_name=calendar_name,
+            supported_calendar_component_set=["VJOURNAL"],
+        )
+
+        if calendar is None:
+            pytest.skip("Could not create or find a journal list for testing")
+
+        yield calendar
+
+        if created:
+            try:
+                await calendar.delete()
+            except Exception:
+                pass
+
+    async def _make_async_client_with_params(self, **overrides: Any) -> Any:
+        """Build a fresh async client from this server's config with kwargs overridden.
+
+        Used by auth-error tests (wrong password, wrong auth type) that need a
+        client that is expected to fail to connect.
+        """
+        from caldav.aio import get_async_davclient
+
+        kwargs: dict[str, Any] = {
+            "url": self.server.url,
+            "username": self.server.username,
+            "password": self.server.password,
+            "features": self.server.features,
+            "probe": False,
+        }
+        if "ssl_verify_cert" in self.server.config:
+            kwargs["ssl_verify_cert"] = self.server.config["ssl_verify_cert"]
+        kwargs.update(overrides)
+        return await get_async_davclient(**kwargs)
 
     # ==================== Test Methods ====================
 
