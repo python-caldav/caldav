@@ -36,7 +36,7 @@
         "guid": "general",
         "status": "active",
         "name": "General support",
-        "description": "Any contribution is welcome. Funding helps prioritise features and fixes requested by donors.",
+        "description": "Any contribution is welcome. Quite a lot of the work here is done on hobby basis - I do have to prioritize my a day job.  Additional funding allows me to take out unpaid vacation days and work more with this library.  Funding from YOU would motivate me to work on YOUR pet issues or feature requests - but please don't have high expectances after throwing money at me - better to negotiate in advance and pay me after the feature/bugfix is implemented",
         "amount": 0,
         "currency": "EUR",
         "frequency": "monthly",

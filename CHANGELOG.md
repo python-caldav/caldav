@@ -12,9 +12,9 @@ Changelogs prior to v2.0 is pruned, but was available in the v2.x releases
 
 This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html), though for pre-releases PEP 440 takes precedence.
 
-## [3.2.0] - unreleased
+## [Unreleased]
 
-### Added
+### Removed
 
 * `add_organizer()` now accepts an explicit *organizer* argument (a `Principal`, `vCalAddress`, or email string); when omitted it still defaults to the current principal.
 * **Schedule-Tag support** (RFC 6638 §3.2–3.3): `save()` captures the `Schedule-Tag` from server response headers and stores it.  Pass `if_schedule_tag_match=True` to `save()` to send an `If-Schedule-Tag-Match` conditional header; a `ScheduleTagMismatchError` is raised on 412.  When a server auto-schedules the event into the attendee's calendar (`scheduling.auto-schedule`), `_reply_to_invite_request()` now searches the attendee's calendars for the server-assigned copy and updates it in place, preserving the server-issued Schedule-Tag.
@@ -29,7 +29,6 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 
 ### Fixed
 
-* `add_organizer()` - any pre-existing `ORGANIZER` field is replaced rather than duplicated.
 * Reusing a `CalDAVSearcher` across multiple `search()` calls could yield inconsistent results: the first call would return only pending tasks (correct), but subsequent calls would change behaviour because `icalendar_searcher.Searcher.check_component()` mutated the `include_completed` field from `None` to `False` as a side-effect.  Fixed by passing a copy with `include_completed` already resolved to `filter_search_results()`, leaving the original searcher object unchanged.  Fixes https://github.com/python-caldav/caldav/issues/650
 * `_resolve_properties()` would crash with `UnboundLocalError` in production mode when a server returned an empty or unrecognisable PROPFIND response (the response paths did not match the request URI and there was more than one or zero paths returned).  Fixed by returning `{}` instead of falling through to an unbound variable.  Related: https://github.com/pycalendar/calendar-cli/issues/114
 * `Calendar.get_supported_components()`
@@ -60,6 +59,7 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 * `testInviteAndRespond` implemented end-to-end: organizer creates an event, invites an attendee, attendee accepts, and the organizer verifies the updated `PARTSTAT`.  Per-server compatibility flags applied for known quirks (Baikal, Cyrus, SOGo).
 * Multi-user RFC 6638 scheduling tests wired into the Docker server setup for Cyrus and Baikal (pre-populated `user1`–`user3`/`user1`–`user5`).
 * Internal refactoring: `caldav/operations/` and `caldav/protocol/` packages deleted; functionality consolidated into `response.py`, `collection.py`, `search.py`, and `BaseDAVClient` static methods.  No user-visible API changes.
+* Compatibility feature `search.text.by-uid` has been removed.  `get_object_by_uid()` already has a client-side fallback (via `_hacks="insist"`) that works on any server, so the guard was no longer needed.  Closes https://github.com/python-caldav/caldav/issues/586
 
 ## [3.1.0] - 2026-03-19
 

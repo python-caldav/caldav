@@ -1143,6 +1143,9 @@ cyrus = {
     'delete-calendar': {
         'support': 'fragile',
         'behaviour': 'Deleting a recently created calendar fails'},
+    # Cyrus changes the Schedule-Tag even on attendee PARTSTAT-only updates,
+    # violating RFC6638 section 3.2 which requires the tag to remain stable.
+    "scheduling.schedule-tag.stable-partstat": {"support": "unsupported"},
     # Cyrus may not properly reject wrong passwords in some configurations
     # Cyrus implements server-side automatic scheduling: for cross-user invites,
     # the server both auto-processes the invite into the attendee's calendar

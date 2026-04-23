@@ -9,17 +9,12 @@ The caldav library provides an async API for use with Python's
 * Integrate with async web frameworks (FastAPI, aiohttp, etc.)
 * Build responsive applications that don't block on I/O
 
-=======
 Caveats
 =======
 
-Async IO was introduced in version 3.0, 2026-03-03, without being tested in any production environments, and it was done by a developer not having much experience with async usage.  Rough edges are to be expected.  Test it very well in a staging environment before using it in production environments.  It's probably a good idea to wait until version 4.0 before using it in very sharp production settings.
+Async IO was introduced in version 3.0, 2026-03-03, without being tested in any production environments, and it was done by a developer not having much experience with async usage, and probably with a bit too much trust in AI-assistance.  Rough edges are to be expected.  Test it very well in a staging environment before using it in production environments.  It's probably a good idea to wait until version 4.0 before using it in very sharp production settings.
 
-A "Sans-IO" design pattern was initially followed, in a hope that it would make it possible to have one library serve both the async and sync use case through relatively similar APIs without duplicating too much code.  In retro-perspective this may not seem to be the best idea for the CalDAV library.  Be aware that there are still exists code paths that works well with the sync code but will blow up if you try using it with the async code.  The current design (or lack of it) needs to be revisited in 4.0.
-
-Async combined with the "Sans-IO" design pattern works well when it's crispy clear what operations causes API calls, and when every operations typically consists of some preparations, an IO-operation, and then processing of the results.  I've been a bit careless with the old sync library, there are many places where an API call is not expected, but anyway there are things like ``self.load(only_if_unloaded=True)`` buried in the code.  Other routines involves a ping-pong of method calls, with many of them involving IO-operations.  With the old sync code one doesn't need to care about it - when doing async code and trying to separate out all the IO, it works pretty bad.  In a 4.0-version (perhaps 2027?) there may be some major changes to the API.
-
-(Claude suggests that a async-first-generate-sync is the best option for CalDAV.  I'm concerned - in my head, if it's needed to generate code, then it's a hint that the programming language isn't good enough)
+We've ended up with some hybrid design pattern inspired by "Sans-IO".  There is a dual `DAVClient` vs `AsyncDAVClient` with a common baseclass.  On the other classes, all methods that involves or may involve IO will deliver an awaitable coroutine in async mode.  I'm not sure that the current dsign is the best, and the design may be revisited and shaken up in 4.0.  (Claude suggests that a async-first-generate-sync is the best option for CalDAV.  I'm concerned - in my head, if it's needed to generate code, then it's a hint that the programming language isn't good enough)
 
 Quick Start
 ===========
