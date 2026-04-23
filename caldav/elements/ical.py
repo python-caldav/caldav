@@ -6,7 +6,7 @@ from caldav.lib.namespace import ns
 from .base import ValuedBaseElement
 
 
-# Properties
+# Properties - those are non-standard but implemented in several calendar servers
 class CalendarColor(ValuedBaseElement):
     tag: ClassVar[str] = ns("I", "calendar-color")
 

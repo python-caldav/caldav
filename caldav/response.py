@@ -13,7 +13,8 @@ from typing import TYPE_CHECKING, Any, cast
 from lxml import etree
 from lxml.etree import _Element
 
-from caldav.elements import dav
+from caldav.calendarobjectresource import FreeBusy
+from caldav.elements import cdav, dav
 from caldav.elements.base import BaseElement
 from caldav.lib import error
 from caldav.lib.python_utilities import to_normal_str
@@ -230,17 +231,90 @@ class BaseDAVResponse:
             error.assert_("404" in status)
         return (cast(str, href), propstats, status)
 
-    ## TODO: there is currently quite some overlapping with the protocol.xml_parsers
-    ## we should refactor
+    def _parse_scheduling_response_objects(self, parent) -> dict:
+        """Parses an RFC6638 freebusy scheduling request response
+
+        The response from the server is asserted to be a
+        scheduling-response, with freebusy status for one or more wanted
+        attendee - potentially with error status for all or some
+        of the wanted attendees.
+
+        TODO: some asserts here - should make better error handling
+
+        Returns:
+            Dict with:
+              * email addresses -> FreeBusy status (raw data)
+              * errors - dict with email addresses -> error messages
+
+        """
+        self.objects = {}
+        self.objects["errors"] = {}
+        assert self.tree.tag == cdav.ScheduleResponse.tag
+        for response in self.tree:
+            assert response.tag == cdav.Response.tag
+            parsed_response = self._parse_scheduling_response(response)
+            for x in parsed_response:
+                if x.endswith(":err"):
+                    self.objects["errors"][x[:-4]] = parsed_response[x]
+                else:
+                    self.objects[x] = FreeBusy(parent=parent, data=parsed_response[x])
+
+        return self.objects
+
+    def _parse_scheduling_response(self, response) -> dict[str, str]:
+        """
+        TODO: lots of asserts here - should make better error handling
+
+        Parses one attendee response from a RFC6638 freebusy scheduling request
+
+        Returns:
+          * ``{ recipient => calendar_data }`` if everything is OK,
+          * ``{f"{recipient}:err": status}`` if things are not OK,
+          * a dict with both elements if things are partially OK
+        """
+        ret = {}
+        recipient = None
+        status = None
+        calendar_data = None
+        for x in response:
+            if x.tag == cdav.Recipient.tag:
+                if len(x) == 1:
+                    assert x[0].tag == dav.Href.tag
+                    recipient = x[0].text
+                else:
+                    recipient = x.text
+            elif x.tag == cdav.RequestStatus.tag:
+                status = x.text
+            elif x.tag == cdav.CalendarData.tag:
+                calendar_data = x.text
+            else:
+                raise error.DAVError(f"unexpected attribute {x.tag}")
+        assert recipient
+        assert status
+        if not status.startswith("2.0"):
+            ret[f"{recipient}:err"] = status
+        if calendar_data:
+            ret[recipient] = calendar_data
+        return ret
+
+    ## TODO: there is currently quite some overlapping with the
+    ## protocol.xml_parsers we should refactor.  I'm not 100% sure the
+    ## protocol.xml_parsers layer is a better approach.  Look for more
+    ## cases of old code that was is still remaining after the
+    ## protocol layer refactoring
     def _find_objects_and_props(self) -> dict[str, dict[str, _Element]]:
         """Internal implementation of find_objects_and_props without deprecation warning."""
         self.objects: dict[str, dict[str, _Element]] = {}
         self.statuses: dict[str, str] = {}
 
+        ## TODO: the schedule_tag is not used anywhere as for now
+        ## TODO: should it be set somewhere else? (now it's not
+        ## covered by the scheduling freebusy requests)
         if "Schedule-Tag" in self.headers:
             self.schedule_tag = self.headers["Schedule-Tag"]
 
         responses = self._strip_to_multistatus()
+
         for r in responses:
             if r.tag == dav.SyncToken.tag:
                 self.sync_token = r.text
@@ -312,7 +386,7 @@ class BaseDAVResponse:
         if proptag in props_found:
             prop_xml = props_found[proptag]
             for item in prop_xml.items():
-                if proptag == "{urn:ietf:params:xml:ns:caldav}calendar-data":
+                if proptag == cdav.CalendarData.tag:
                     if (
                         item[0].lower().endswith("content-type")
                         and item[1].lower() == "text/calendar"
