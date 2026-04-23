@@ -17,6 +17,17 @@ import pytest_asyncio
 
 from caldav.compatibility_hints import FeatureSet
 
+from .test_caldav import (
+    ev1 as ev1_static,  # old-date (2006); distinct from ev1() near-future generator
+)
+from .test_caldav import ev2 as ev2_static  # same UID as ev1_static, one year later
+from .test_caldav import ev3 as ev3_static  # different UID (2021)
+from .test_caldav import evr as evr_static  # recurring annual event (1997)
+from .test_caldav import evr2 as evr2_static  # bi-weekly with exception (2024)
+from .test_caldav import journal as journal_static
+from .test_caldav import todo as todo_static  # avoids clash with local var in add_todo()
+from .test_caldav import todo2 as todo2_static  # avoids clash with todo2() generator
+from .test_caldav import todo3 as todo3_static
 from .test_servers import TestServer, get_available_servers
 
 
@@ -248,18 +259,21 @@ class AsyncFunctionalTestsBaseClass:
 
         For servers that don't support mixed calendars (like Zimbra), todos must
         be stored in a separate task list with supported_calendar_component_set=["VTODO"].
+
+        Uses the same stable cal_id ("pythoncaldav-test-tasks") as the sync test suite
+        so that both share state rather than accumulate duplicate-UID conflicts on
+        servers with cross-calendar UID uniqueness (e.g. OX).  Objects are wiped
+        before each test for isolation.
         """
         from caldav.aio import AsyncPrincipal
         from caldav.lib.error import AuthorizationError, NotFoundError
 
-        from .fixture_helpers import aget_or_create_test_calendar
+        from .fixture_helpers import aget_or_create_test_calendar, cleanup_calendar_objects
 
         # Check if server supports mixed calendars
         supports_mixed = True
         if hasattr(async_client, "features") and async_client.features:
             supports_mixed = async_client.features.is_supported("save-load.todo.mixed-calendar")
-
-        calendar_name = f"async-task-list-{datetime.now().strftime('%Y%m%d%H%M%S%f')}"
 
         # Try to get principal for calendar operations
         principal = None
@@ -268,18 +282,31 @@ class AsyncFunctionalTestsBaseClass:
         except (NotFoundError, AuthorizationError):
             pass
 
-        # For servers without mixed calendar support, create a dedicated task list
+        # For servers without mixed calendar support, create a dedicated task list.
+        # Use the same stable cal_id as the sync test suite so servers with
+        # cross-calendar duplicate-UID detection (e.g. OX) don't reject objects
+        # that also exist in the sync test's calendar.
         component_set = ["VTODO"] if not supports_mixed else None
+        cal_id = "pythoncaldav-test-tasks" if not supports_mixed else "pythoncaldav-async-test"
+        supports_displayname = (
+            async_client.features.is_supported("create-calendar.set-displayname")
+            if hasattr(async_client, "features") and async_client.features
+            else True
+        )
+        calendar_name = cal_id if supports_displayname else None
 
         calendar, created = await aget_or_create_test_calendar(
             async_client,
             principal,
             calendar_name=calendar_name,
+            cal_id=cal_id,
             supported_calendar_component_set=component_set,
         )
 
         if calendar is None:
             pytest.skip("Could not create or find a task list for testing")
+
+        await cleanup_calendar_objects(calendar)
 
         yield calendar
 
@@ -289,6 +316,91 @@ class AsyncFunctionalTestsBaseClass:
                 await calendar.delete()
             except Exception:
                 pass
+
+    @pytest_asyncio.fixture
+    async def async_calendar2(self, async_client: Any) -> Any:
+        """Create a second test calendar for tests that need two distinct calendars."""
+        from caldav.aio import AsyncPrincipal
+        from caldav.lib.error import AuthorizationError, NotFoundError
+
+        from .fixture_helpers import aget_or_create_test_calendar
+
+        calendar_name = f"async-test2-{datetime.now().strftime('%Y%m%d%H%M%S%f')}"
+
+        principal = None
+        try:
+            principal = await AsyncPrincipal.create(async_client)
+        except (NotFoundError, AuthorizationError):
+            pass
+
+        calendar, created = await aget_or_create_test_calendar(
+            async_client, principal, calendar_name=calendar_name
+        )
+
+        if calendar is None:
+            pytest.skip("Could not create or find a second calendar for testing")
+
+        yield calendar
+
+        if created:
+            try:
+                await calendar.delete()
+            except Exception:
+                pass
+
+    @pytest_asyncio.fixture
+    async def async_journal_list(self, async_client: Any) -> Any:
+        """Create a VJOURNAL calendar for journal tests."""
+        from caldav.aio import AsyncPrincipal
+        from caldav.lib.error import AuthorizationError, NotFoundError
+
+        from .fixture_helpers import aget_or_create_test_calendar
+
+        calendar_name = f"async-journal-{datetime.now().strftime('%Y%m%d%H%M%S%f')}"
+
+        principal = None
+        try:
+            principal = await AsyncPrincipal.create(async_client)
+        except (NotFoundError, AuthorizationError):
+            pass
+
+        calendar, created = await aget_or_create_test_calendar(
+            async_client,
+            principal,
+            calendar_name=calendar_name,
+            supported_calendar_component_set=["VJOURNAL"],
+        )
+
+        if calendar is None:
+            pytest.skip("Could not create or find a journal list for testing")
+
+        yield calendar
+
+        if created:
+            try:
+                await calendar.delete()
+            except Exception:
+                pass
+
+    async def _make_async_client_with_params(self, **overrides: Any) -> Any:
+        """Build a fresh async client from this server's config with kwargs overridden.
+
+        Used by auth-error tests (wrong password, wrong auth type) that need a
+        client that is expected to fail to connect.
+        """
+        from caldav.aio import get_async_davclient
+
+        kwargs: dict[str, Any] = {
+            "url": self.server.url,
+            "username": self.server.username,
+            "password": self.server.password,
+            "features": self.server.features,
+            "probe": False,
+        }
+        if "ssl_verify_cert" in self.server.config:
+            kwargs["ssl_verify_cert"] = self.server.config["ssl_verify_cert"]
+        kwargs.update(overrides)
+        return await get_async_davclient(**kwargs)
 
     # ==================== Test Methods ====================
 
@@ -469,6 +581,189 @@ class AsyncFunctionalTestsBaseClass:
         assert str(org) == str(expected_vcal), (
             f"ORGANIZER {org!r} should match the principal's address {expected_vcal!r}"
         )
+
+    # ==================== Group A – Core CRUD ====================
+
+    @pytest.mark.asyncio
+    async def test_get_supported_components(self, async_calendar: Any) -> None:
+        """get_supported_components() must include VEVENT."""
+        components = await async_calendar.get_supported_components()
+        assert components
+        assert "VEVENT" in components
+
+    @pytest.mark.asyncio
+    async def test_lookup_event(self, async_calendar: Any) -> None:
+        """Add an event and look it up by URL, by UID, and via Event(url=…).load()."""
+        from caldav import Event
+        from caldav.lib import error
+
+        self.skip_unless_support("save-load.event")
+        c = async_calendar
+
+        # create the event
+        e1 = await c.add_event(ev1_static)
+        assert e1.url is not None
+
+        # Verify that we can look it up from calendar by url
+        e2 = await c.event_by_url(e1.url)
+        assert e2.vobject_instance.vevent.uid == e1.vobject_instance.vevent.uid
+        assert e2.url == e1.url
+
+        # look up by UID
+        e3 = await c.get_event_by_uid("20010712T182145Z-123401@example.com")
+        assert str(e3.icalendar_component["uid"]) == "20010712T182145Z-123401@example.com"
+        assert e3.url == e1.url
+
+        # load directly from URL without going through the calendar object
+        e4 = Event(client=c.client, url=e1.url)
+        await e4.load()
+        assert str(e4.icalendar_component["uid"]) == "20010712T182145Z-123401@example.com"
+
+        with pytest.raises(error.NotFoundError):
+            await c.get_event_by_uid("nonexistent-uid-000")
+
+    @pytest.mark.asyncio
+    async def test_create_overwrite_delete_event(self, async_calendar: Any) -> None:
+        """no_create/no_overwrite flags, same-UID overwrite, and delete."""
+        from caldav.lib import error
+
+        self.skip_unless_support("save-load.event")
+        c = async_calendar
+
+        # attempting to update a non-existing event must raise ConsistencyError
+        with pytest.raises(error.ConsistencyError):
+            await c.add_event(ev1_static, no_create=True)
+
+        # no_create + no_overwrite is always an error
+        with pytest.raises(error.ConsistencyError):
+            await c.add_event(ev1_static, no_create=True, no_overwrite=True)
+
+        e1 = await c.add_event(ev1_static)
+        assert e1.url is not None
+
+        # same UID again → overwrite (unless server forbids it)
+        if not self.is_supported("save-load.mutable"):
+            e2 = await c.add_event(ev1_static)
+
+            # no_create on an existing event must succeed
+            e2 = await c.add_event(ev1_static, no_create=True)
+
+            # modify and save with no_create
+            e2.icalendar_component["summary"] = "Bastille Day Party!"
+            await e2.save(no_create=True)
+
+            e3 = await c.event_by_url(e1.url)
+            assert e3.icalendar_component["summary"] == "Bastille Day Party!"
+
+        # no_overwrite on an existing event must raise ConsistencyError
+        with pytest.raises(error.ConsistencyError):
+            await c.add_event(ev1_static, no_overwrite=True)
+
+        await e1.delete()
+
+        with pytest.raises(error.NotFoundError):
+            await c.event_by_url(e1.url)
+        with pytest.raises(error.NotFoundError):
+            await c.get_event_by_uid("20010712T182145Z-123401@example.com")
+
+    @pytest.mark.asyncio
+    async def test_object_by_uid(self, async_task_list: Any) -> None:
+        """Add a TODO with a known UID and retrieve it via get_object_by_uid()."""
+        from caldav.lib import error
+
+        c = async_task_list
+        await c.add_todo(summary="Some test task with a well-known uid", uid="well_known_1")
+
+        foo = await c.get_object_by_uid("well_known_1")
+        assert str(foo.icalendar_component["summary"]) == "Some test task with a well-known uid"
+
+        # prefix match must NOT succeed
+        with pytest.raises(error.NotFoundError):
+            await c.get_object_by_uid("well_known")
+
+        # suffix match must NOT succeed
+        with pytest.raises(error.NotFoundError):
+            await c.get_object_by_uid("well_known_10")
+
+    @pytest.mark.asyncio
+    async def test_load_event(self, async_calendar: Any, async_calendar2: Any) -> None:
+        """add_event() returns an object; load() must populate it."""
+        self.skip_unless_support("save-load.event")
+        self.skip_unless_support("create-calendar")
+
+        c1 = async_calendar
+
+        e1_ = await c1.add_event(ev1_static)
+        await e1_.load()  # load the object returned by add_event
+
+        events = await c1.get_events()
+        assert len(events) >= 1
+        e1 = events[0]
+        await e1.load()  # load a freshly fetched handle
+        assert e1.url == e1_.url
+
+    @pytest.mark.asyncio
+    async def test_copy_event(self, async_calendar: Any, async_calendar2: Any) -> None:
+        """copy() within same calendar and cross-calendar."""
+        self.skip_unless_support("save-load.event")
+        self.skip_unless_support("create-calendar")
+
+        c1 = async_calendar
+        c2 = async_calendar2
+
+        e1_ = await c1.add_event(ev1_static)
+        events = await c1.get_events()
+        e1 = events[0]
+
+        # duplicate in same calendar with a new UID
+        e1_dup = e1.copy()
+        await e1_dup.save()
+        assert len(await c1.get_events()) == 2
+
+        # copy cross-calendar keeping the same UID
+        if self.is_supported("save.duplicate-uid.cross-calendar"):
+            e1_in_c2 = e1.copy(new_parent=c2, keep_uid=True)
+            await e1_in_c2.save()
+            assert len(await c2.get_events()) == 1
+
+            # modifying the copy in c2 must not affect c1's event
+            e1_in_c2.icalendar_component["summary"] = "asdf"
+            await e1_in_c2.save()
+            await e1.load()
+            assert str(e1.icalendar_component["summary"]) == "Bastille Day Party"
+
+        # copy in same calendar keeping UID — same-UID PUT is a no-op / overwrite
+        e1_dup2 = e1.copy(keep_uid=True)
+        await e1_dup2.save()
+        # count should still be 2 (not 3) because same UID overwrites
+        assert len(await c1.get_events()) == 2
+
+    @pytest.mark.asyncio
+    async def test_multi_get(self, async_calendar: Any) -> None:
+        """multiget() retrieves multiple events in one request."""
+        self.skip_unless_support("save-load.event")
+
+        c = async_calendar
+
+        event1 = await c.add_event(
+            uid="test-multiget-1",
+            dtstart=datetime(2015, 1, 1, 8, 0, 0),
+            dtend=datetime(2015, 1, 1, 9, 0, 0),
+            summary="test-multiget-1",
+        )
+        event2 = await c.add_event(
+            uid="test-multiget-2",
+            dtstart=datetime(2015, 1, 1, 8, 0, 0),
+            dtend=datetime(2015, 1, 1, 9, 0, 0),
+            summary="test-multiget-2",
+        )
+
+        results = await c.multiget([event1.url, event2.url])
+        assert len(results) == 2
+        uids = {str(r.icalendar_component["uid"]) for r in results}
+        assert uids == {"test-multiget-1", "test-multiget-2"}
+
+        await event1.load_by_multiget()
 
 
 class _AsyncTestSchedulingBase:
