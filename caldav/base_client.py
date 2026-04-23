@@ -355,8 +355,8 @@ class BaseDAVClient(ABC):
     ) -> bytes:
         """Build sync-collection REPORT request body."""
         elements: list[BaseElement] = [
-            dav.SyncToken(sync_token or ""),
-            dav.SyncLevel(sync_level),
+            dav.SyncToken(value=sync_token or ""),
+            dav.SyncLevel(value=sync_level),
         ]
         if props:
             prop_elements = [e for name in props if (e := _prop_name_to_element(name)) is not None]
