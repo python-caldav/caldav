@@ -162,6 +162,7 @@ def _parse_calendar_query_response(
     return results
 
 
+## TODO: the purpose of the xml_parsers was to consolidate common code to be used by sync and async code paths, to avoid duplicated code.  Why cannot this code snippet be used for async?  The code here is very similar to _parse_calendar_query_response - we should consolidate common code
 def _parse_sync_collection_response(
     body: bytes,
     status_code: int = 207,
