@@ -503,8 +503,6 @@ class _AsyncTestSchedulingBase:
     @pytest_asyncio.fixture
     async def scheduling_setup(self) -> Any:
         """Create async clients/principals/calendars for each scheduling user."""
-        import uuid
-
         from caldav.aio import get_async_davclient
 
         from .fixture_helpers import aget_or_create_test_calendar, cleanup_calendar_objects
@@ -523,11 +521,14 @@ class _AsyncTestSchedulingBase:
                 await client.close()
                 continue
             principal = await client.principal()
+            ## Use a fixed cal_id (not a random UUID) so the same calendar is
+            ## reused across test runs and does not accumulate on the server.
+            ## This mirrors the sync scheduling tests which use fixed calendar names.
             cal, _ = await aget_or_create_test_calendar(
                 client,
                 principal,
                 calendar_name=f"async scheduling test {i}",
-                cal_id=f"asyncschedtest{uuid.uuid4().hex[:8]}",
+                cal_id=f"asyncschedtest{i}",
             )
             if cal is None:
                 await client.close()
