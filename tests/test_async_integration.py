@@ -566,6 +566,183 @@ class AsyncFunctionalTestsBaseClass:
             f"ORGANIZER {org!r} should match the principal's address {expected_vcal!r}"
         )
 
+    # ==================== Group A – Core CRUD ====================
+
+    @pytest.mark.asyncio
+    async def test_get_supported_components(self, async_calendar: Any) -> None:
+        """get_supported_components() must include VEVENT."""
+        components = await async_calendar.get_supported_components()
+        assert components
+        assert "VEVENT" in components
+
+    @pytest.mark.asyncio
+    async def test_lookup_event(self, async_calendar: Any) -> None:
+        """Add an event and look it up by URL, by UID, and via Event(url=…).load()."""
+        from caldav import Event
+        from caldav.lib import error
+
+        self.skip_unless_support("save-load.event")
+        c = async_calendar
+
+        e1 = await c.add_event(ev1_static)
+        assert e1.url is not None
+
+        # look up by UID
+        e3 = await c.get_event_by_uid("20010712T182145Z-123401@example.com")
+        assert str(e3.icalendar_component["uid"]) == "20010712T182145Z-123401@example.com"
+        assert e3.url == e1.url
+
+        # load directly from URL without going through the calendar object
+        e4 = Event(client=c.client, url=e1.url)
+        await e4.load()
+        assert str(e4.icalendar_component["uid"]) == "20010712T182145Z-123401@example.com"
+
+        with pytest.raises(error.NotFoundError):
+            await c.get_event_by_uid("nonexistent-uid-000")
+
+    @pytest.mark.asyncio
+    async def test_create_overwrite_delete_event(self, async_calendar: Any) -> None:
+        """no_create/no_overwrite flags, same-UID overwrite, and delete."""
+        from caldav.lib import error
+
+        self.skip_unless_support("save-load.event")
+        c = async_calendar
+
+        # attempting to update a non-existing event must raise ConsistencyError
+        with pytest.raises(error.ConsistencyError):
+            await c.add_event(ev1_static, no_create=True)
+
+        # no_create + no_overwrite is always an error
+        with pytest.raises(error.ConsistencyError):
+            await c.add_event(ev1_static, no_create=True, no_overwrite=True)
+
+        e1 = await c.add_event(ev1_static)
+        assert e1.url is not None
+
+        # same UID again → overwrite (unless server forbids it)
+        if not self.is_supported("no-overwrite"):
+            e2 = await c.add_event(ev1_static)
+
+            # no_create on an existing event must succeed
+            e2 = await c.add_event(ev1_static, no_create=True)
+
+            # modify and save with no_create
+            e2.icalendar_component["summary"] = "Bastille Day Party!"
+            await e2.save(no_create=True)
+
+            e3 = await c.event_by_url(e1.url)
+            assert e3.icalendar_component["summary"] == "Bastille Day Party!"
+
+        # no_overwrite on an existing event must raise ConsistencyError
+        with pytest.raises(error.ConsistencyError):
+            await c.add_event(ev1_static, no_overwrite=True)
+
+        await e1.delete()
+
+        with pytest.raises(error.NotFoundError):
+            await c.event_by_url(e1.url)
+        with pytest.raises(error.NotFoundError):
+            await c.get_event_by_uid("20010712T182145Z-123401@example.com")
+
+    @pytest.mark.asyncio
+    async def test_object_by_uid(self, async_task_list: Any) -> None:
+        """Add a TODO with a known UID and retrieve it via get_object_by_uid()."""
+        from caldav.lib import error
+
+        c = async_task_list
+        await c.add_todo(summary="Some test task with a well-known uid", uid="well_known_1")
+
+        foo = await c.get_object_by_uid("well_known_1")
+        assert str(foo.icalendar_component["summary"]) == "Some test task with a well-known uid"
+
+        # prefix match must NOT succeed
+        with pytest.raises(error.NotFoundError):
+            await c.get_object_by_uid("well_known")
+
+        # suffix match must NOT succeed
+        with pytest.raises(error.NotFoundError):
+            await c.get_object_by_uid("well_known_10")
+
+    @pytest.mark.asyncio
+    async def test_load_event(self, async_calendar: Any, async_calendar2: Any) -> None:
+        """add_event() returns an object; load() must populate it."""
+        self.skip_unless_support("save-load.event")
+        self.skip_unless_support("create-calendar")
+
+        c1 = async_calendar
+
+        e1_ = await c1.add_event(ev1_static)
+        await e1_.load()  # load the object returned by add_event
+
+        events = await c1.get_events()
+        assert len(events) >= 1
+        e1 = events[0]
+        await e1.load()  # load a freshly fetched handle
+        assert e1.url == e1_.url
+
+    @pytest.mark.asyncio
+    async def test_copy_event(self, async_calendar: Any, async_calendar2: Any) -> None:
+        """copy() within same calendar and cross-calendar."""
+        self.skip_unless_support("save-load.event")
+        self.skip_unless_support("create-calendar")
+
+        c1 = async_calendar
+        c2 = async_calendar2
+
+        e1_ = await c1.add_event(ev1_static)
+        events = await c1.get_events()
+        e1 = events[0]
+
+        # duplicate in same calendar with a new UID
+        e1_dup = e1.copy()
+        await e1_dup.save()
+        assert len(await c1.get_events()) == 2
+
+        # copy cross-calendar keeping the same UID
+        if self.is_supported("save.duplicate-uid.cross-calendar"):
+            e1_in_c2 = e1.copy(new_parent=c2, keep_uid=True)
+            await e1_in_c2.save()
+            assert len(await c2.get_events()) == 1
+
+            # modifying the copy in c2 must not affect c1's event
+            e1_in_c2.icalendar_component["summary"] = "asdf"
+            await e1_in_c2.save()
+            await e1.load()
+            assert str(e1.icalendar_component["summary"]) == "Bastille Day Party"
+
+        # copy in same calendar keeping UID — same-UID PUT is a no-op / overwrite
+        e1_dup2 = e1.copy(keep_uid=True)
+        await e1_dup2.save()
+        # count should still be 2 (not 3) because same UID overwrites
+        assert len(await c1.get_events()) == 2
+
+    @pytest.mark.asyncio
+    async def test_multi_get(self, async_calendar: Any) -> None:
+        """calendar_multiget() retrieves multiple events in one request."""
+        self.skip_unless_support("save-load.event")
+
+        c = async_calendar
+
+        event1 = await c.add_event(
+            uid="test-multiget-1",
+            dtstart=datetime(2015, 1, 1, 8, 0, 0),
+            dtend=datetime(2015, 1, 1, 9, 0, 0),
+            summary="test-multiget-1",
+        )
+        event2 = await c.add_event(
+            uid="test-multiget-2",
+            dtstart=datetime(2015, 1, 1, 8, 0, 0),
+            dtend=datetime(2015, 1, 1, 9, 0, 0),
+            summary="test-multiget-2",
+        )
+
+        results = await c.calendar_multiget([event1.url, event2.url])
+        assert len(results) == 2
+        uids = {str(r.icalendar_component["uid"]) for r in results}
+        assert uids == {"test-multiget-1", "test-multiget-2"}
+
+        await event1.load_by_multiget()
+
 
 class _AsyncTestSchedulingBase:
     """
