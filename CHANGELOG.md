@@ -27,6 +27,19 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
   * async path returned an unawaited coroutine instead of the actual result.
 * `accept_invite()` (and `decline_invite()`, `tentatively_accept_invite()`) now fall back to the client username as the attendee email address when the server does not expose the `calendar-user-address-set` property (RFC6638 §2.4.1).  A `NotFoundError` with a descriptive message is raised when the username is also not an email address.  Fixes https://github.com/python-caldav/caldav/issues/399
 
+### Housekeeping
+
+* Added `funding.json` (https://fundingjson.org/) at the repository root.  Closes https://github.com/python-caldav/caldav/issues/608
+* Code quality: reduced ruff ignore list (https://github.com/python-caldav/caldav/issues/634) — removed unused imports (`copy`, `lxml.etree`, `CalendarSet`, `cdav/dav` re-exports, `Optional`, `timezone`, `Event`/`Todo` type stubs), replaced bare `except:` clauses with specific exception types (`KeyError`, `AttributeError`, `Exception` where broad catching is intentional), and removed unused local variables.
+* Sync `_put()` now updates `self.url` from the `Location` header on a 302 redirect, mirroring the existing async behaviour.
+
+### Test framework, compatibility hints, documentation, examples
+
+* RFC 6638 scheduling feature-detection infrastructure: new `scheduling`, `scheduling.mailbox`, and `scheduling.calendar-user-address-set` compatibility hints; legacy `no_scheduling` flags migrated.  Default scheduling hints set for all the servers tested.
+* Calendar owner example (`examples/calendar_owner_examples.py`) demonstrating how to retrieve the owner of a calendar via `DAV:owner` and resolve their calendar-user address.  `testFindCalendarOwner` now exercises the full owner → principal → `get_vcal_address()` chain.  Closes https://github.com/python-caldav/caldav/issues/544
+* `testInviteAndRespond` implemented end-to-end: organizer creates an event, invites an attendee, attendee accepts, and the organizer verifies the updated `PARTSTAT`.  Per-server compatibility flags applied for known quirks (Baikal, Cyrus, SOGo).
+* Multi-user RFC 6638 scheduling tests wired into the Docker server setup for Cyrus and Baikal (pre-populated `user1`–`user3`/`user1`–`user5`).
+
 ## [3.1.0] - 2026-03-19
 
 Highlights:

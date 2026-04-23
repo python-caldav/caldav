@@ -139,7 +139,7 @@ class CalendarObjectResource(DAVObject):
         if data is not None:
             self.data = data
             if id and self._get_component_type_cheap():
-                old_id = self.icalendar_component.pop("UID", None)
+                self.icalendar_component.pop("UID", None)
                 self.icalendar_component.add("UID", id)
                 # Clear raw data and update state to use the modified icalendar instance
                 self._data = None
@@ -989,7 +989,7 @@ class CalendarObjectResource(DAVObject):
         elif r.status not in (204, 201):
             if retry_on_failure:
                 try:
-                    import vobject
+                    import vobject  # noqa: F401
                 except ImportError:
                     retry_on_failure = False
             if retry_on_failure:
@@ -1013,7 +1013,7 @@ class CalendarObjectResource(DAVObject):
         elif r.status not in (204, 201):
             if retry_on_failure:
                 try:
-                    import vobject
+                    import vobject  # noqa: F401
                 except ImportError:
                     retry_on_failure = False
             if retry_on_failure:
@@ -1468,7 +1468,7 @@ class CalendarObjectResource(DAVObject):
             try:  ## DEPRECATION TODO: remove this try/except the future
                 ## icalendar 7.x behaviour (not released yet as of 2025-09
                 cal = icalendar.Calendar.new()
-            except:
+            except AttributeError:
                 cal = icalendar.Calendar()
                 cal.add("prodid", "-//python-caldav//caldav//en_DK")
                 cal.add("version", "2.0")
@@ -2087,7 +2087,7 @@ class Todo(CalendarObjectResource):
         if i is None:
             i = self.icalendar_component
         assert self.is_pending(i)
-        status = i.pop("STATUS", None)
+        i.pop("STATUS", None)
         i.add("STATUS", "COMPLETED")
         i.add("COMPLETED", completion_timestamp)
 
@@ -2166,7 +2166,6 @@ class Todo(CalendarObjectResource):
         WARNING: the check_dependent-logic may be rewritten to support
         RFC9253 in 3.x
         """
-        i = self.icalendar_component
         if hasattr(due, "tzinfo") and not due.tzinfo:
             due = due.astimezone(timezone.utc)
         if check_dependent:

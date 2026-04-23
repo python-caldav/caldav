@@ -375,9 +375,6 @@ class FeatureSet:
         else:
             raise AssertionError
         self.copyFeatureSet(fc, collapse=False)
-        feat_def = self.find_feature(feature)
-        feat_type = feat_def.get('type', 'server-feature')
-        sup = fc[feature].get('support', feat_def.get('default', 'full'))
 
 
     ## TODO: Why is this camelCase while every other method is with under_score?  rename ...
@@ -396,7 +393,6 @@ class FeatureSet:
                     UserWarning,
                     stacklevel=3,
                 )
-                feature_info = {}
             value = feature_set[feature]
             if feature not in self._server_features:
                 self._server_features[feature] = {}
@@ -570,7 +566,7 @@ class FeatureSet:
                 subfeature_info = self.find_feature(subfeature_key)
                 if 'default' in subfeature_info:
                     continue
-            except:
+            except Exception:
                 pass
 
             total_relevant += 1
