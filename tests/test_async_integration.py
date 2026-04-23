@@ -470,61 +470,200 @@ class AsyncFunctionalTestsBaseClass:
             f"ORGANIZER {org!r} should match the principal's address {expected_vcal!r}"
         )
 
-    @pytest.mark.asyncio
-    async def test_save_with_invites(self, async_client: Any, async_calendar: Any) -> None:
-        """Calendar.save_with_invites() must return a coroutine and save the event for async clients.
 
-        Verifies that save_with_invites() detects the async client, returns a coroutine,
-        and that awaiting it properly sets ORGANIZER (via _async_add_organizer) and saves
-        the object to the server (via _async_save).
+class _AsyncTestSchedulingBase:
+    """
+    Async counterpart of _TestSchedulingBase (tests/test_caldav.py) for
+    RFC6638 scheduling tests.  Not collected directly by pytest (no ``Test``
+    prefix); concrete subclasses supply ``_users`` and ``_server_features``.
+
+    Concrete subclasses are generated dynamically in the module epilogue,
+    one per server that has ``scheduling_users`` configured.
+    """
+
+    ## Subclasses set these when the class is dynamically generated.
+    _users: list[dict] = []
+    _server_features: object = None
+
+    def _skip_unless_support(self, feature: str) -> None:
+        """Skip if the server does not declare support for *feature*."""
+        from caldav.compatibility_hints import FeatureSet
+
+        if not self._server_features:
+            pytest.skip(f"No feature information available, skipping {feature} test")
+        fs = (
+            self._server_features
+            if isinstance(self._server_features, FeatureSet)
+            else FeatureSet(self._server_features)
+        )
+        if not fs.is_supported(feature):
+            msg = fs.find_feature(feature).get("description", feature)
+            pytest.skip("Test skipped due to server incompatibility issue: " + msg)
+
+    @pytest_asyncio.fixture
+    async def scheduling_setup(self) -> Any:
+        """Create async clients/principals/calendars for each scheduling user."""
+        import uuid
+
+        from caldav.aio import get_async_davclient
+
+        from .fixture_helpers import aget_or_create_test_calendar, cleanup_calendar_objects
+
+        clients: list[Any] = []
+        principals: list[Any] = []
+        calendars: list[Any] = []
+        auto_uids: list[str] = []
+
+        for i, user_config in enumerate(self._users):
+            try:
+                client = await get_async_davclient(probe=False, **user_config)
+            except Exception:
+                continue
+            if not await client.check_scheduling_support():
+                await client.close()
+                continue
+            principal = await client.principal()
+            cal, _ = await aget_or_create_test_calendar(
+                client,
+                principal,
+                calendar_name=f"async scheduling test {i}",
+                cal_id=f"asyncschedtest{uuid.uuid4().hex[:8]}",
+            )
+            if cal is None:
+                await client.close()
+                continue
+            await cleanup_calendar_objects(cal)
+            clients.append(client)
+            principals.append(principal)
+            calendars.append(cal)
+
+        if not clients:
+            pytest.skip("No scheduling users available or server does not support scheduling")
+
+        yield clients, principals, calendars, auto_uids
+
+        ## Teardown: clear calendar objects and clean up auto-scheduled events
+        for i, (client, principal) in enumerate(zip(clients, principals, strict=False)):
+            try:
+                await cleanup_calendar_objects(calendars[i])
+            except Exception:
+                pass
+            if auto_uids:
+                try:
+                    for cal in await principal.calendars():
+                        try:
+                            for event in await cal.get_events():
+                                if event.id in auto_uids:
+                                    await event.delete()
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
+            await client.close()
+
+    @pytest.mark.asyncio
+    async def test_invite_and_respond(self, scheduling_setup: Any) -> None:
+        """send a calendar invite via save_with_invites and verify delivery.
+
+        Async counterpart of _TestSchedulingBase.testInviteAndRespond.
+        Note: accept_invite() is not yet supported for async clients, so
+        the response half of the flow is verified only at the delivery level
+        (inbox item or auto-scheduled event).
         """
         import uuid
 
-        self.skip_unless_support("scheduling.calendar-user-address-set")
+        clients, principals, calendars, auto_uids = scheduling_setup
+        if len(principals) < 2:
+            pytest.skip("need 2 principals to do the invite and respond test")
 
-        principal = await async_client.principal()
-        vcal_address = await principal._async_get_vcal_address()
+        ## Snapshot inbox contents before the invite
+        inbox_urls_before: set[Any] = set()
+        try:
+            inbox0 = await principals[0]._async_schedule_inbox()
+            inbox1 = await principals[1]._async_schedule_inbox()
+            for item in await inbox0.get_events():
+                inbox_urls_before.add(item.url)
+            for item in await inbox1.get_events():
+                inbox_urls_before.add(item.url)
+        except Exception:
+            pass  ## inbox listing may not work on all servers
 
+        ## Send the invite
         base = _get_base_date()
         ical = make_event(
-            f"async-swi-{uuid.uuid4()}@example.com",
-            "Async Save-With-Invites Test",
-            base + timedelta(days=2),
-            base + timedelta(days=2, hours=1),
+            f"async-sched-{uuid.uuid4()}@example.com",
+            "Async Schedule Test",
+            base + timedelta(days=3),
+            base + timedelta(days=3, hours=1),
+        )
+        attendee_vcal = await principals[1]._async_get_vcal_address()
+        saved_event = await calendars[0].save_with_invites(ical, [principals[0], attendee_vcal])
+        event_uid = saved_event.id
+        auto_uids.append(event_uid)
+
+        ## Event must be in the organizer's calendar
+        organizer_events = await calendars[0].get_events()
+        assert any(e.id == event_uid for e in organizer_events), (
+            "Event should appear in organizer's calendar after save_with_invites"
         )
 
-        ## Must return a coroutine, not execute synchronously
-        coro = async_calendar.save_with_invites(ical, [vcal_address])
-        assert asyncio.iscoroutine(coro), (
-            f"save_with_invites() on async client must return a coroutine, got {type(coro)}"
-        )
-        obj = await coro
+        ## Poll: event auto-scheduled into attendee calendar OR new inbox item
+        auto_scheduled = False
+        new_inbox_items: list[Any] = []
+        for _ in range(30):
+            try:
+                for cal in await principals[1].calendars():
+                    try:
+                        if any(e.id == event_uid for e in await cal.get_events()):
+                            auto_scheduled = True
+                            break
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+            if not auto_scheduled:
+                try:
+                    new_inbox_items = [
+                        item
+                        for item in await inbox1.get_events()
+                        if item.url not in inbox_urls_before
+                    ]
+                except Exception:
+                    pass
+            if auto_scheduled or new_inbox_items:
+                break
+            await asyncio.sleep(1)
 
-        assert obj.id is not None, "save_with_invites() must return an object with an id"
-        org = obj.icalendar_component.get("organizer")
-        assert org is not None, "ORGANIZER must be set after awaiting save_with_invites()"
+        assert auto_scheduled or new_inbox_items, (
+            "Expected invite in attendee inbox OR event auto-added to attendee calendar, "
+            "got neither"
+        )
+
+        ## accept_invite() is not yet supported for async clients (raises NotImplementedError).
+        ## Verifying delivery is sufficient to confirm save_with_invites works end-to-end.
 
     @pytest.mark.asyncio
-    async def test_principal_freebusy_request(self, async_client: Any) -> None:
-        """Principal.freebusy_request() must return a coroutine for async clients.
+    async def test_freebusy(self, scheduling_setup: Any) -> None:
+        """Test RFC6638 freebusy query via the schedule outbox.
 
-        Verifies that freebusy_request() detects the async client and delegates to
-        _async_freebusy_request, which awaits _async_schedule_outbox(), add_organizer(),
-        and client.post() rather than executing them synchronously.
+        Async counterpart of _TestSchedulingBase.testFreeBusy.
+        Verifies that Principal.freebusy_request() returns a coroutine for
+        async clients and that awaiting it completes without error.
         """
-        self.skip_unless_support("scheduling.mailbox")
-        self.skip_unless_support("scheduling.calendar-user-address-set")
-
-        principal = await async_client.principal()
-        vcal_address = await principal._async_get_vcal_address()
+        clients, principals, calendars, auto_uids = scheduling_setup
+        self._skip_unless_support("freebusy-query.rfc6638")
 
         base = _get_base_date()
+        dtstart = base
+        dtend = base + timedelta(days=1)
+        attendees = [await principals[0]._async_get_vcal_address()]
 
-        coro = principal.freebusy_request(base, base + timedelta(hours=2), [vcal_address])
+        coro = principals[0].freebusy_request(dtstart, dtend, attendees)
         assert asyncio.iscoroutine(coro), (
-            f"Principal.freebusy_request() on async client must return a coroutine, got {type(coro)}"
+            f"Principal.freebusy_request() on async client must return a coroutine, "
+            f"got {type(coro)}"
         )
-        ## We don't assert much about the response structure — just that awaiting doesn't raise
+        ## Just verify it completes without raising; response format varies per server.
         await coro
 
 
@@ -552,3 +691,18 @@ for _server in get_available_servers():
     # Add to module namespace so pytest discovers it
     vars()[_classname] = _test_class
     _generated_classes[_classname] = _test_class
+
+    ## If the server has scheduling_users, also generate an async scheduling class.
+    if hasattr(_server, "config") and "scheduling_users" in _server.config:
+        _sched_classname = f"TestAsyncSchedulingFor{_server.name.replace(' ', '')}"
+        if _sched_classname not in _generated_classes:
+            _sched_class = type(
+                _sched_classname,
+                (_AsyncTestSchedulingBase,),
+                {
+                    "_users": _server.config["scheduling_users"],
+                    "_server_features": _server.features,
+                },
+            )
+            vars()[_sched_classname] = _sched_class
+            _generated_classes[_sched_classname] = _sched_class

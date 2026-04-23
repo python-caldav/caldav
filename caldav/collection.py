@@ -562,6 +562,11 @@ class Principal(DAVObject):
         """
         return ScheduleOutbox(principal=self)
 
+    async def _async_schedule_inbox(self) -> "ScheduleInbox":
+        """Async version of schedule_inbox() for async clients."""
+        url = await self.get_property(cdav.ScheduleInboxURL())
+        return ScheduleInbox(client=self.client, url=url)
+
     async def _async_schedule_outbox(self) -> "ScheduleOutbox":
         """Async version of schedule_outbox() for async clients."""
         url = await self.get_property(cdav.ScheduleOutboxURL())

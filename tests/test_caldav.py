@@ -675,30 +675,32 @@ class _TestSchedulingBase:
     Base class for RFC6638 scheduling tests.  Not collected directly by
     pytest (no ``Test`` prefix); concrete subclasses supply ``_users``.
 
-    TODO: work in progress.  Stalled a bit due to lack of proper testing accounts.  I haven't managed to get this test to pass at any systems yet, but I believe the problem is not on the library side.
-    * icloud: cannot really test much with only one test account
-      available.  I did some testing forth and back with emails sent
-      to an account on another service through the
-      scheduling_examples.py, and it seems like I was able both to
-      accept an invite from an external account (and the external
-      account got notified about it) and to receive notification that
-      the external party having accepted the calendar invite.
-      FreeBusy doesn't work.  I don't have capacity following up more
-      right now.
-    * DAViCal: I have only an old version to test with at the moment,
-      should look into that.  I did manage to send and receive a
-      calendar invite, but apparently I did not manage to accept the
-      calendar invite.  It should be looked more into.  FreeBusy
-      doesn't work in the old version, probably it works in a newer
-      version.
-    * SOGo: Sending a calendar invite, but receiving nothing in the
-      CalDAV inbox.  FreeBusy works somehow, but returns pure
-      iCalendar data and not XML, I believe that's not according to
-      RFC6638.
+    Concrete subclasses are generated dynamically in the module epilogue,
+    one per server that has ``scheduling_users`` configured (see
+    ``caldav_test_servers.yaml.example`` for setup instructions).
+    Docker test servers (Baikal, Nextcloud, Cyrus, SOGo, DAViCal, Davis,
+    CCS, Zimbra, Stalwart) pre-create multiple users for this purpose.
     """
 
     ## Subclasses set this to the list of user connection dicts to use.
     _users: list[dict] = []
+    ## Server-level feature dict/FeatureSet; set by dynamic class generation.
+    _server_features: object = None
+
+    def _skip_unless_support(self, feature: str) -> None:
+        """Skip the test if the server does not declare support for *feature*."""
+        from caldav.compatibility_hints import FeatureSet
+
+        if not self._server_features:
+            pytest.skip(f"No feature information available, skipping {feature} test")
+        fs = (
+            self._server_features
+            if isinstance(self._server_features, FeatureSet)
+            else FeatureSet(self._server_features)
+        )
+        if not fs.is_supported(feature):
+            msg = fs.find_feature(feature).get("description", feature)
+            pytest.skip("Test skipped due to server incompatibility issue: " + msg)
 
     def _getCalendar(self, i):
         calendar_id = "schedulingnosetestcalendar%i" % i
@@ -754,9 +756,22 @@ class _TestSchedulingBase:
         for c in self.clients:
             c.__exit__()
 
-    ## TODO
-    # def testFreeBusy(self):
-    # pass
+    def testFreeBusy(self):
+        """Test RFC6638 freebusy query via the schedule outbox (Principal.freebusy_request)."""
+        if len(self.principals) < 1:
+            pytest.skip("need at least 1 principal")
+        self._skip_unless_support("freebusy-query.rfc6638")
+
+        dtstart = (datetime.now() + timedelta(days=1)).replace(
+            hour=9, minute=0, second=0, microsecond=0
+        )
+        dtend = (datetime.now() + timedelta(days=1)).replace(
+            hour=18, minute=0, second=0, microsecond=0
+        )
+        attendees = [self.principals[0].get_vcal_address()]
+        ## Just verify the call completes without raising.
+        ## The response format varies per server.
+        self.principals[0].freebusy_request(dtstart, dtend, attendees)
 
     def testInviteAndRespond(self):
         ## Look through inboxes of principals[0] and principals[1] so we can sort
@@ -3934,5 +3949,8 @@ for _caldav_server in caldav_servers:
         vars()[_sched_classname] = type(
             _sched_classname,
             (_TestSchedulingBase,),
-            {"_users": _caldav_server["scheduling_users"]},
+            {
+                "_users": _caldav_server["scheduling_users"],
+                "_server_features": _caldav_server.get("features"),
+            },
         )
