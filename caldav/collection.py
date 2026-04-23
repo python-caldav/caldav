@@ -484,7 +484,10 @@ class Principal(DAVObject):
         """Async counterpart of get_vcal_address() for use with AsyncDAVClient."""
         from icalendar import vCalAddress, vText
 
-        cn = await self.get_display_name()
+        cn = self.get_display_name()
+        if not isinstance(cn, str):
+            cn = await cn
+
         addresses_el = await self.get_property(cdav.CalendarUserAddressSet(), parse_props=False)
         if addresses_el is None:
             raise error.NotFoundError("No calendar user addresses given from server")
@@ -1057,24 +1060,20 @@ class Calendar(DAVObject):
         Returns:
          * self
         """
-        if self.is_async_client:
-            return self._async_save(method)
-
         if self.url is None:
             # Get display name from props cache
             display_name = self.props.get("{DAV:}displayname")
+            if self.is_async_client:
+                return self._async_save(displayname, method)
+
             self._create(id=self.id, name=display_name, method=method, **self.extra_init_options)
         return self
 
-    async def _async_save(self, method=None):
+    async def _async_save(self, displayname, method=None):
         """Async implementation of save."""
-        if self.url is None:
-            # Get display name from props cache
-            display_name = self.props.get("{DAV:}displayname")
-            await self._create(
-                name=display_name, id=self.id, method=method, **self.extra_init_options
-            )
-        return self
+        return await self._create(
+            name=display_name, id=self.id, method=method, **self.extra_init_options
+        )
 
     # def data2object_class
 
@@ -2146,7 +2145,7 @@ class ScheduleMailbox(Calendar):
                 self._items = await _load_from_children()
         else:
             try:
-                await self._items.async_sync()
+                await self._items._async_sync()
             except Exception:
                 self._items = await _load_from_children()
         return self._items
@@ -2196,32 +2195,66 @@ class SynchronizableCalendarObjectCollection:
                 self._objects_by_url[obj.url.canonical()] = obj
         return self._objects_by_url
 
-    def sync(self) -> tuple[Any, Any]:
-        """
-        This method will contact the caldav server,
-        request all changes from it, and sync up the collection.
+    def _post_sync_fallback(
+        self, current_by_url: dict, old_by_url: dict
+    ) -> tuple[list[Any], list[Any]]:
+        """Pure post-processing for the fallback sync path (no I/O).
 
-        This method transparently falls back to comparing full calendar state
-        if the server doesn't support sync tokens.
+        Compares current server state against cached state to determine what
+        changed, then updates internal state.
         """
-        updated_objs = []
-        deleted_objs = []
+        updated_objs: list[Any] = []
+        deleted_objs: list[Any] = []
+
+        for url, obj in current_by_url.items():
+            if url in old_by_url:
+                old_data = old_by_url[url].data if hasattr(old_by_url[url], "data") else None
+                new_data = obj.data if hasattr(obj, "data") else None
+                if old_data != new_data and new_data is not None:
+                    updated_objs.append(obj)
+            else:
+                updated_objs.append(obj)
+
+        for url in old_by_url:
+            if url not in current_by_url:
+                deleted_objs.append(old_by_url[url])
+
+        self.objects = list(current_by_url.values())
+        self._objects_by_url = None
+        self.sync_token = self.calendar._generate_fake_sync_token(self.objects)
+        return (updated_objs, deleted_objs)
+
+    def sync(
+        self,
+    ) -> "tuple[Any, Any] | Coroutine[Any, Any, tuple[Any, Any]]":
+        """Contact the server, fetch changes, and update the local collection.
+
+        Falls back to comparing the full calendar state when the server does
+        not support sync tokens.
+
+        Returns a coroutine for async clients; call with ``await`` in that case.
+        """
+        if self.calendar.is_async_client:
+            return self._async_sync()
+
+        updated_objs: list[Any] = []
+        deleted_objs: list[Any] = []
 
         ## Check if we're using fake sync tokens (fallback mode)
         is_fake_token = isinstance(self.sync_token, str) and self.sync_token.startswith("fake-")
 
         if not is_fake_token:
-            ## Try to use real sync tokens
+            ## Try to use real sync tokens.
+            ## NOTE: the loop below mixes I/O (obj.load()) with data manipulation;
+            ## any changes here must be mirrored in _async_sync().
             try:
                 updates = self.calendar.get_objects_by_sync_token(
                     self.sync_token, load_objects=False
                 )
 
-                ## If we got a fake token back, we've fallen back
                 if isinstance(updates.sync_token, str) and updates.sync_token.startswith("fake-"):
                     is_fake_token = True
                 else:
-                    ## Real sync token path
                     obu = self.objects_by_url()
                     for obj in updates:
                         obj.url = obj.url.canonical()
@@ -2241,60 +2274,28 @@ class SynchronizableCalendarObjectCollection:
                             obu.pop(obj.url)
 
                     self.objects = list(obu.values())
-                    self._objects_by_url = None  ## Invalidate cache
+                    self._objects_by_url = None
                     self.sync_token = updates.sync_token
                     return (updated_objs, deleted_objs)
             except (error.ReportError, error.DAVError):
-                ## Sync failed, fall back
                 is_fake_token = True
 
-        if is_fake_token:
-            ## FALLBACK: Compare full calendar state
-            log.debug("Using fallback sync mechanism (comparing all objects)")
+        ## FALLBACK: fetch all objects and compare
+        log.debug("Using fallback sync mechanism (comparing all objects)")
+        current_objects = list(self.calendar.search())
+        for obj in current_objects:
+            try:
+                obj.load()
+            except error.NotFoundError:
+                pass
+        current_by_url = {obj.url.canonical(): obj for obj in current_objects}
+        return self._post_sync_fallback(current_by_url, self.objects_by_url())
 
-            ## Retrieve all current objects from server
-            current_objects = list(self.calendar.search())
+    async def _async_sync(self) -> tuple[Any, Any]:
+        """Async implementation of sync().
 
-            ## Load them
-            for obj in current_objects:
-                try:
-                    obj.load()
-                except error.NotFoundError:
-                    pass
-
-            ## Build URL-indexed dicts for comparison
-            current_by_url = {obj.url.canonical(): obj for obj in current_objects}
-            old_by_url = self.objects_by_url()
-
-            ## Find updated and new objects
-            for url, obj in current_by_url.items():
-                if url in old_by_url:
-                    ## Object exists in both - check if modified
-                    ## Compare data if available, otherwise consider it unchanged
-                    old_data = old_by_url[url].data if hasattr(old_by_url[url], "data") else None
-                    new_data = obj.data if hasattr(obj, "data") else None
-                    if old_data != new_data and new_data is not None:
-                        updated_objs.append(obj)
-                else:
-                    ## New object
-                    updated_objs.append(obj)
-
-            ## Find deleted objects
-            for url in old_by_url:
-                if url not in current_by_url:
-                    deleted_objs.append(old_by_url[url])
-
-            ## Update internal state
-            self.objects = list(current_by_url.values())
-            self._objects_by_url = None  ## Invalidate cache
-            self.sync_token = self.calendar._generate_fake_sync_token(self.objects)
-
-        return (updated_objs, deleted_objs)
-
-    async def async_sync(self) -> tuple[Any, Any]:
-        """Async counterpart of sync() for async clients.
-
-        Mirrors sync() exactly but awaits all I/O operations.
+        NOTE: the real-token loop mixes I/O (await obj.load()) with data
+        manipulation; any changes here must be mirrored in sync().
         """
         updated_objs: list[Any] = []
         deleted_objs: list[Any] = []
@@ -2335,35 +2336,13 @@ class SynchronizableCalendarObjectCollection:
             except (error.ReportError, error.DAVError):
                 is_fake_token = True
 
-        if is_fake_token:
-            log.debug("Using fallback async_sync mechanism (comparing all objects)")
-
-            current_objects = list(await self.calendar.search())
-
-            for obj in current_objects:
-                try:
-                    await obj.load()
-                except error.NotFoundError:
-                    pass
-
-            current_by_url = {obj.url.canonical(): obj for obj in current_objects}
-            old_by_url = self.objects_by_url()
-
-            for url, obj in current_by_url.items():
-                if url in old_by_url:
-                    old_data = old_by_url[url].data if hasattr(old_by_url[url], "data") else None
-                    new_data = obj.data if hasattr(obj, "data") else None
-                    if old_data != new_data and new_data is not None:
-                        updated_objs.append(obj)
-                else:
-                    updated_objs.append(obj)
-
-            for url in old_by_url:
-                if url not in current_by_url:
-                    deleted_objs.append(old_by_url[url])
-
-            self.objects = list(current_by_url.values())
-            self._objects_by_url = None
-            self.sync_token = self.calendar._generate_fake_sync_token(self.objects)
-
-        return (updated_objs, deleted_objs)
+        ## FALLBACK: fetch all objects and compare
+        log.debug("Using fallback sync mechanism (comparing all objects)")
+        current_objects = list(await self.calendar.search())
+        for obj in current_objects:
+            try:
+                await obj.load()
+            except error.NotFoundError:
+                pass
+        current_by_url = {obj.url.canonical(): obj for obj in current_objects}
+        return self._post_sync_fallback(current_by_url, self.objects_by_url())
