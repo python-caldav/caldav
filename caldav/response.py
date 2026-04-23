@@ -346,7 +346,6 @@ class DAVResponse:
     that are common to both sync and async DAV responses.
     """
 
-    # These attributes should be set by subclass __init__
     tree: _Element | None = None
     headers: Any = None
     status: int = 0
@@ -354,6 +353,9 @@ class DAVResponse:
     huge_tree: bool = False
     reason: str = ""
     davclient: Any = None
+
+    def __init__(self, response: "Response", davclient: Any = None) -> None:
+        self._init_from_response(response, davclient)
 
     def _init_from_response(self, response: "Response", davclient: Any = None) -> None:
         """
@@ -628,7 +630,7 @@ class DAVResponse:
         return ret
 
     @property
-    def sync_token():
+    def sync_token(self):
         try:
             sync_token = self._sync_token
         except AttributeError:
@@ -636,7 +638,8 @@ class DAVResponse:
         if sync_token is None:
             ## TODO: this should not be needed?
             ## investigate!
-            sync_token = response.tree.findall(".//" + dav.SyncToken.tag)[0].text
+            tokens = self.tree.findall(".//" + dav.SyncToken.tag) if self.tree is not None else []
+            sync_token = tokens[0].text if tokens else None
         return sync_token
 
     ## TODO: there is currently quite some overlapping with the
