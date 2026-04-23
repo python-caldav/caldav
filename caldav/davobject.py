@@ -295,13 +295,14 @@ class DAVObject:
          prop: the property to search for
          use_cached: don't send anything to the server if we've asked before
 
+        TODO: use_cached default is False, should probably be True?
+
         Other parameters are sent directly to the :class:`get_properties` method
 
         For async clients, returns a coroutine that must be awaited.
         """
-        ## TODO: use_cached should probably be true
         if use_cached and prop.tag in self.props:
-            return self.props[prop.tag]
+            return self.client._value_or_coroutine(self.props[prop.tag])
         if self.is_async_client:
             return self._async_get_property(prop, **passthrough)
         return self.get_properties([prop], **passthrough).get(prop.tag, None)

@@ -127,6 +127,9 @@ class BaseDAVClient(ABC):
             return str(self.url.join(url))
         return url
 
+    def _value_or_coroutine(self, value):
+        return value
+
     def extract_auth_types(self, header: str) -> set[str]:
         """Extract authentication types from WWW-Authenticate header.
 

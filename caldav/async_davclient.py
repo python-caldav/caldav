@@ -805,6 +805,12 @@ class AsyncDAVClient(BaseDAVClient):
 
         return response
 
+    def _value_or_coroutine(self, value):
+        return self._async_value_or_coroutine(value)
+
+    async def _async_value_or_coroutine(self, value):
+        return value
+
     # ==================== Authentication Helpers ====================
 
     def build_auth_object(self, auth_types: list[str] | None = None) -> None:
