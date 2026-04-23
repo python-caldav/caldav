@@ -89,6 +89,15 @@ environmental variables, a configuration file or test configuration.
 
 from caldav.config import resolve_features as _resolve_features
 
+# CalDAV/WebDAV methods that are safe to retry on transient network errors.
+# POST is the only non-idempotent method and is excluded.  All others are
+# idempotent: re-sending yields the same server state.  Note that retrying
+# DELETE after a silent success will return 404; this is arguably correct
+# (the resource is gone as intended), though callers may observe the error.
+_SAFE_METHODS: frozenset[str] = frozenset(
+    {"GET", "HEAD", "OPTIONS", "PROPFIND", "REPORT", "PUT", "DELETE", "MKCOL", "MKCALENDAR"}
+)
+
 
 def _auto_url(
     url,
@@ -857,6 +866,7 @@ class DAVClient(BaseDAVClient):
         body: str = "",
         headers: Mapping[str, str] = None,
         rate_limit_time_slept=0,
+        _connection_retried: bool = False,
     ) -> DAVResponse:
         """
         Send a generic HTTP request.
@@ -891,6 +901,13 @@ class DAVClient(BaseDAVClient):
                 raise
             time.sleep(sleep_seconds)
             return self.request(url, method, body, headers, rate_limit_time_slept + sleep_seconds)
+        except error.DAVNetworkError:
+            if not _connection_retried and method.upper() in _SAFE_METHODS:
+                log.warning("Network error on %s %s, retrying once", method, url)
+                return self.request(
+                    url, method, body, headers, rate_limit_time_slept, _connection_retried=True
+                )
+            raise
 
     def _sync_request(
         self,
@@ -909,38 +926,46 @@ class DAVClient(BaseDAVClient):
             proxies = {url_obj.scheme: self.proxy}
             log.debug("using proxy - %s" % (proxies))
 
-        r = self.session.request(
-            method,
-            str(url_obj),
-            data=to_wire(body),
-            headers=combined_headers,
-            proxies=proxies,
-            auth=self.auth,
-            timeout=self.timeout,
-            verify=self.ssl_verify_cert,
-            cert=self.ssl_cert,
-        )
+        try:
+            r = self.session.request(
+                method,
+                str(url_obj),
+                data=to_wire(body),
+                headers=combined_headers,
+                proxies=proxies,
+                auth=self.auth,
+                timeout=self.timeout,
+                verify=self.ssl_verify_cert,
+                cert=self.ssl_cert,
+            )
 
-        r_headers = CaseInsensitiveDict(r.headers)
+            r_headers = CaseInsensitiveDict(r.headers)
 
-        # Handle 429/503 responses: raise RateLimitError so the caller can decide whether to retry
-        error.raise_if_rate_limited(r.status_code, str(url_obj), r_headers.get("Retry-After"))
+            # Handle 429/503 responses: raise RateLimitError so the caller can decide whether to retry
+            error.raise_if_rate_limited(r.status_code, str(url_obj), r_headers.get("Retry-After"))
 
-        # Handle 401: negotiate auth then retry
-        if self._should_negotiate_auth(r.status_code, r_headers):
-            self._build_auth_from_401(r_headers["WWW-Authenticate"])
-            return self._sync_request(url, method, body, headers)
+            # Handle 401: negotiate auth then retry
+            if self._should_negotiate_auth(r.status_code, r_headers):
+                self._build_auth_from_401(r_headers["WWW-Authenticate"])
+                return self._sync_request(url, method, body, headers)
 
-        # Raise AuthorizationError for 401/403 after auth attempt
-        if r.status_code in (401, 403):
-            self._raise_authorization_error(str(url_obj), r)
+            # Raise AuthorizationError for 401/403 after auth attempt
+            if r.status_code in (401, 403):
+                self._raise_authorization_error(str(url_obj), r)
 
-        response = DAVResponse(r, self)
+            response = DAVResponse(r, self)
 
-        if error.debug_dump_communication:
-            error._dump_communication(method, url, combined_headers, body, response)
+            if error.debug_dump_communication:
+                error._dump_communication(method, url, combined_headers, body, response)
 
-        return response
+            return response
+
+        except error.DAVError:
+            raise
+        except requests.exceptions.ConnectionError as e:
+            raise error.DAVNetworkError(str(url_obj), str(e)) from e
+        except requests.exceptions.Timeout as e:
+            raise error.DAVNetworkError(str(url_obj), str(e)) from e
 
 
 def get_calendars(**kwargs) -> list["Calendar"]:
