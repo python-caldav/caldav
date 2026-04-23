@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from caldav.async_davclient import AsyncDAVClient, AsyncDAVResponse, get_davclient
+from caldav.async_davclient import AsyncDAVClient, DAVResponse, get_davclient
 from caldav.lib import error
 
 # Sample XML responses for testing
@@ -68,8 +68,8 @@ def create_mock_response(
     return resp
 
 
-class TestAsyncDAVResponse:
-    """Tests for AsyncDAVResponse class."""
+class TestDAVResponse:
+    """Tests for DAVResponse class."""
 
     def test_response_with_xml_content(self) -> None:
         """Test parsing XML response."""
@@ -80,7 +80,7 @@ class TestAsyncDAVResponse:
             headers={"Content-Type": "text/xml; charset=utf-8"},
         )
 
-        dav_response = AsyncDAVResponse(resp)
+        dav_response = DAVResponse(resp)
 
         assert dav_response.status == 207
         assert dav_response.reason == "Multi-Status"
@@ -96,7 +96,7 @@ class TestAsyncDAVResponse:
             headers={"Content-Length": "0"},
         )
 
-        dav_response = AsyncDAVResponse(resp)
+        dav_response = DAVResponse(resp)
 
         assert dav_response.status == 204
         assert dav_response.tree is None
@@ -110,7 +110,7 @@ class TestAsyncDAVResponse:
             headers={"Content-Type": "text/plain"},
         )
 
-        dav_response = AsyncDAVResponse(resp)
+        dav_response = DAVResponse(resp)
 
         assert dav_response.status == 200
         assert dav_response.tree is None
@@ -120,7 +120,7 @@ class TestAsyncDAVResponse:
         """Test raw property returns string."""
         resp = create_mock_response(content=b"test content")
 
-        dav_response = AsyncDAVResponse(resp)
+        dav_response = DAVResponse(resp)
 
         assert isinstance(dav_response.raw, str)
         assert "test content" in dav_response.raw
@@ -129,7 +129,7 @@ class TestAsyncDAVResponse:
         """Test that CRLF is normalized to LF."""
         resp = create_mock_response(content=b"line1\r\nline2\r\nline3")
 
-        dav_response = AsyncDAVResponse(resp)
+        dav_response = DAVResponse(resp)
 
         assert b"\r\n" not in dav_response._raw
         assert b"\n" in dav_response._raw
@@ -289,7 +289,7 @@ class TestAsyncDAVClient:
 
         response = await client.request("/test/path", "GET")
 
-        assert isinstance(response, AsyncDAVResponse)
+        assert isinstance(response, DAVResponse)
         assert response.status == 207
         client.session.request.assert_called_once()
 
@@ -562,7 +562,7 @@ class TestGetDAVClient:
                 status_code=200,
                 headers=SAMPLE_OPTIONS_HEADERS,
             )
-            mock_response_obj = AsyncDAVResponse(mock_response)
+            mock_response_obj = DAVResponse(mock_response)
             mock_options.return_value = mock_response_obj
 
             client = await get_davclient(
