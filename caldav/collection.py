@@ -1064,12 +1064,12 @@ class Calendar(DAVObject):
             # Get display name from props cache
             display_name = self.props.get("{DAV:}displayname")
             if self.is_async_client:
-                return self._async_save(displayname, method)
+                return self._async_save(display_name, method)
 
             self._create(id=self.id, name=display_name, method=method, **self.extra_init_options)
         return self
 
-    async def _async_save(self, displayname, method=None):
+    async def _async_save(self, display_name, method=None):
         """Async implementation of save."""
         return await self._create(
             name=display_name, id=self.id, method=method, **self.extra_init_options
