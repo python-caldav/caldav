@@ -353,6 +353,8 @@ class DAVResponse:
     huge_tree: bool = False
     reason: str = ""
     davclient: Any = None
+    results: list[PropfindResult | CalendarQueryResult] | None = None
+    _sync_token: str | None = None
 
     def __init__(self, response: "Response", davclient: Any = None) -> None:
         self._init_from_response(response, davclient)
