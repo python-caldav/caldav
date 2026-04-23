@@ -1071,6 +1071,7 @@ class CalendarObjectResource(DAVObject):
     def _post_load_by_multiget(self, items):
         if not items:
             raise error.NotFoundError(self.url)
+        items = iter(items)
         url_data = next(items, None)
         if url_data is None:
             ## We shouldn't come here.  Something is wrong.
@@ -1147,7 +1148,10 @@ class CalendarObjectResource(DAVObject):
 
     async def _async_put(self, headers, retry_on_failure=True):
         r = await self.client.put(str(self.url), str(self.data), headers | ICALH)
-        return self._post_put(r, retry_on_failure)
+        result = self._post_put(r, retry_on_failure)
+        if result is not None:
+            # _post_put returned a retry coroutine (self._put(False) for async client)
+            await result
 
     def _post_put(self, r, retry_on_failure):
         if r.status == 412:

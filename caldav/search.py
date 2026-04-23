@@ -993,6 +993,10 @@ class CalDAVSearcher(Searcher):
         assert self.event is None and self.todo is None and self.journal is None
 
         for comp_class in (Event, Todo, Journal):
+            if not calendar.client.features.is_supported(
+                f"save-load.{comp_class.__name__.lower()}"
+            ):
+                continue
             clone = replace(self)
             clone.comp_class = comp_class
             results = await clone.async_search(

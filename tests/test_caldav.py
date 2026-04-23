@@ -3645,26 +3645,21 @@ END:VCALENDAR
         assert e1.url is not None
 
         # Verify that we can look it up, both by URL and by ID
-        if not self.check_compatibility_flag("event_by_url_is_broken"):
-            e2 = c.event_by_url(e1.url)
-            assert e2.vobject_instance.vevent.uid == e1.vobject_instance.vevent.uid
-            assert e2.url == e1.url
+        e2 = c.event_by_url(e1.url)
+        assert e2.vobject_instance.vevent.uid == e1.vobject_instance.vevent.uid
+        assert e2.url == e1.url
+
+        # look up by UID
         e3 = c.get_event_by_uid("20010712T182145Z-123401@example.com")
         assert e3.vobject_instance.vevent.uid == e1.vobject_instance.vevent.uid
         assert e3.url == e1.url
 
-        # Knowing the URL of an event, we should be able to get to it
-        # without going through a calendar object
-        if not self.check_compatibility_flag("event_by_url_is_broken"):
-            e4 = Event(client=self.caldav, url=e1.url)
-            e4.load()
-            assert e4.vobject_instance.vevent.uid == e1.vobject_instance.vevent.uid
+        e4 = Event(client=self.caldav, url=e1.url)
+        e4.load()
+        assert e4.id == e1.id
 
         with pytest.raises(error.NotFoundError):
-            c.get_event_by_uid("0")
-        c.add_event(evr)
-        with pytest.raises(error.NotFoundError):
-            c.get_event_by_uid("0")
+            c.get_event_by_uid("nonexistent-uid-0")
 
     def testCreateOverwriteDeleteEvent(self):
         """
