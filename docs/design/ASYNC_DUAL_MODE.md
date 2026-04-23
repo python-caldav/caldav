@@ -8,15 +8,11 @@ As for 3.x, for a method `foo` doing some preparations, some IO and then some pr
   `if self.is_async_client: return self._async_foo(...)`-logic
 * `foo` should have type hints telling it may return an awaitable coroutine
 * `self._async_foo` should never be called upon other places
-* Quite many of the methods are doing some preparations, firing off
-  some other method causing I/O, and then doing some processing of
-  the data returned from the server.  Other methods are more complex,
-  having mutliple code lines causing I/O.
 * For methods containing significant amount of logic (like, two or
   more code lines) before doing any IO, the
   `if self.is_async_client: return self._async_foo(...)`-logic
-  should be moved to the last possible point in the method. * For methods
-  containing significant amount of logic after doing the IO, split the
-  logic out in a `_post_foo`-method.
+  should be moved to the last possible point in the method.
+* For methods containing significant amount of logic after doing the IO,
+  split the logic out in a `_post_foo`-method.
 
 Now, some of the methods may return cached data if it exists, avoiding IO-operations.  We should probably make things consistent so that an awaitable coroutine will always be returned in async mode, even when no IO is done and there doesn't exist anything to wait for.

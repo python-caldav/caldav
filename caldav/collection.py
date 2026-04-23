@@ -1071,9 +1071,8 @@ class Calendar(DAVObject):
 
     async def _async_save(self, display_name, method=None):
         """Async implementation of save."""
-        return await self._create(
-            name=display_name, id=self.id, method=method, **self.extra_init_options
-        )
+        await self._create(name=display_name, id=self.id, method=method, **self.extra_init_options)
+        return self
 
     # def data2object_class
 
@@ -1805,11 +1804,6 @@ class Calendar(DAVObject):
                 (response, objects) = self._request_report_build_resultlist(
                     root, props=[dav.GetEtag()], no_calendardata=True
                 )
-                ## TODO: look more into this, I think sync_token should be directly available through response object
-                try:
-                    sync_token = response.sync_token
-                except AttributeError:
-                    sync_token = response.tree.findall(".//" + dav.SyncToken.tag)[0].text
 
                 ## this is not quite right - the etag we've fetched can already be outdated
                 if load_objects:
@@ -1820,7 +1814,7 @@ class Calendar(DAVObject):
                             ## The object was deleted
                             pass
                 return SynchronizableCalendarObjectCollection(
-                    calendar=self, objects=objects, sync_token=sync_token
+                    calendar=self, objects=objects, sync_token=response.sync_token
                 )
             except (error.ReportError, error.DAVError) as e:
                 ## Server doesn't support sync tokens or the sync-collection REPORT failed
@@ -1934,13 +1928,6 @@ class Calendar(DAVObject):
                 (response, objects) = await self._request_report_build_resultlist(
                     root, props=[dav.GetEtag()], no_calendardata=True
                 )
-                ## TODO: look more into this, I think sync_token should be directly available through response object
-                ## we should probably not access response.tree directly
-                try:
-                    sync_token = response.sync_token
-                except AttributeError:
-                    sync_token = response.tree.findall(".//" + dav.SyncToken.tag)[0].text
-
                 if load_objects:
                     for obj in objects:
                         try:
@@ -1948,7 +1935,7 @@ class Calendar(DAVObject):
                         except error.NotFoundError:
                             pass
                 return SynchronizableCalendarObjectCollection(
-                    calendar=self, objects=objects, sync_token=sync_token
+                    calendar=self, objects=objects, sync_token=response.sync_token
                 )
             except (error.ReportError, error.DAVError) as e:
                 if disable_fallback:

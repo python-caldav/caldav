@@ -124,7 +124,7 @@ def _strip_to_multistatus(tree: _Element) -> "_Element | list[_Element]":
     return [tree]
 
 
-## TODO: _parse_response_element is a simplified version of BaseDAVResponse._parse_response
+## TODO: _parse_response_element is a simplified version of DAVResponse._parse_response
 ## (which adds assertions and handles Stalwart/purelymail quirks).  The module-level parse
 ## functions (_parse_multistatus etc.) use this simpler version because they are pure
 ## functions with no access to a response instance.  If the parse pipeline were refactored
@@ -338,7 +338,7 @@ def _parse_sync_collection_response(
     return SyncCollectionResult(changed=changed, deleted=deleted, sync_token=sync_token)
 
 
-class BaseDAVResponse:
+class DAVResponse:
     """
     Base class containing shared response parsing logic.
 
@@ -627,6 +627,18 @@ class BaseDAVResponse:
             ret[recipient] = calendar_data
         return ret
 
+    @property
+    def sync_token():
+        try:
+            sync_token = self._sync_token
+        except AttributeError:
+            sync_token = None
+        if sync_token is None:
+            ## TODO: this should not be needed?
+            ## investigate!
+            sync_token = response.tree.findall(".//" + dav.SyncToken.tag)[0].text
+        return sync_token
+
     ## TODO: there is currently quite some overlapping with the
     ## protocol.xml_parsers we should refactor.  I'm not 100% sure the
     ## protocol.xml_parsers layer is a better approach.  Look for more
@@ -647,7 +659,7 @@ class BaseDAVResponse:
 
         for r in responses:
             if r.tag == dav.SyncToken.tag:
-                self.sync_token = r.text
+                self._sync_token = r.text
                 continue
             error.assert_(r.tag == dav.Response.tag)
 
