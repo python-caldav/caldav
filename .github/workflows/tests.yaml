@@ -338,6 +338,17 @@ jobs:
     # Test that async code works with niquests when httpx is not installed
     name: async (niquests fallback)
     runs-on: ubuntu-latest
+    services:
+      baikal:
+        image: ckulka/baikal:nginx
+        ports:
+          - 8800:80
+        options: >-
+          --health-cmd "curl -f http://localhost/ || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+          --health-start-period 30s
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -347,6 +358,21 @@ jobs:
         run: |
           pip install --editable .[test]
           pip uninstall -y httpx
+      - name: Configure Baikal with pre-seeded database
+        run: |
+          docker cp tests/docker-test-servers/baikal/Specific/. ${{ job.services.baikal.id }}:/var/www/baikal/Specific/
+          docker cp tests/docker-test-servers/baikal/config/. ${{ job.services.baikal.id }}:/var/www/baikal/config/
+          docker exec ${{ job.services.baikal.id }} chown -R nginx:nginx /var/www/baikal/Specific /var/www/baikal/config
+          docker exec ${{ job.services.baikal.id }} chmod -R 770 /var/www/baikal/Specific
+          docker restart ${{ job.services.baikal.id }}
+      - name: Wait for Baikal to be ready
+        run: |
+          if timeout 60 bash -c 'until curl -f http://localhost:8800/ 2>/dev/null; do echo "Waiting..."; sleep 2; done'; then
+            echo "✓ Baikal is ready!"
+          else
+            echo "✗ Error: Baikal did not become ready within 60 seconds"
+            exit 1
+          fi
       - name: Verify niquests is used
         run: |
           python -c "
@@ -356,7 +382,9 @@ jobs:
           print('✓ Using niquests for async HTTP')
           "
       - name: Run async tests with niquests
-        run: pytest tests/test_async_davclient.py -v
+        run: pytest tests/test_async_davclient.py tests/test_async_integration.py -v -k baikal
+        env:
+          BAIKAL_URL: http://localhost:8800
   sync-requests:
     # Test that sync code works with requests when niquests is not installed
     name: sync (requests fallback)
