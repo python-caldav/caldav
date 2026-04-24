@@ -34,6 +34,8 @@ The indirection added complexity without benefit.
 
 ### Concern: `response.py` is now a God-module
 
+**Status:** Partially fixes, code duplication have been dealt with and squashd together with earlier work on this.
+
 `response.py` grew from ~200 to ~900 lines and now contains result dataclasses, six XML
 parse functions, *and* the `DAVResponse` class with its own parse path.  The file itself
 notes:
@@ -55,6 +57,8 @@ version.
 
 ### Concern: `base_client.py` XML builders are `@staticmethod`s on a class
 
+**Status:** Ignored as for now.
+
 The `_build_propfind_body`, `_build_calendar_query_body`, etc. methods are `@staticmethod`
 on `BaseDAVClient`.  They do not use `self` or `cls`; they could be module-level functions.
 Placing them on the class forces any caller to either hold a client reference or write
@@ -71,6 +75,8 @@ across the codebase.  The `_value_or_coroutine` hook for cache hits is a clever 
 
 ### Major concern: `is_async_client` uses a string class-name comparison
 
+**Status:** Fixed
+
 ```python
 # davobject.py:110
 return type(self.client).__name__ == "AsyncDAVClient"
@@ -83,6 +89,8 @@ should use `isinstance()` or a class-level flag attribute.
 
 ### Concern: dual-mode return types are misleading to type checkers
 
+**Status:** Ignored as for now.
+
 Methods like `get_calendars()` are typed as `list[Calendar] | Coroutine[...]`.  In
 practice sync callers get a list and async callers get a coroutine — but nothing in the
 type system enforces that the caller actually awaits it.  A sync caller who accidentally
@@ -91,6 +99,8 @@ pragmatically reasonable for v3.x, but the design docs are correct that this nee
 proper solution in v4.0.
 
 ### Potential bug: `freebusy_request()` passes an unawaited coroutine
+
+**Status:** **Needs attention in 3.2.1**
 
 ```python
 # collection.py
@@ -106,6 +116,8 @@ if self.is_async_client:
 variable named `outbox` holds a coroutine.  The inline comment acknowledges this is messy.
 
 ### Bug: `_async_complete` with RRULE silently drops `save()`
+
+**Status:** **Needs attention in 3.2.1**
 
 ```python
 # calendarobjectresource.py — comment in _async_complete:
@@ -131,6 +143,8 @@ be a `raise NotImplementedError(...)` with a clear message rather than a silent 
 
 ### Concern: bare `assert` in `_parse_scheduling_response_objects()`
 
+**Status:** Fixed
+
 ```python
 assert self.tree.tag == cdav.ScheduleResponse.tag
 assert response.tag == cdav.Response.tag
@@ -140,6 +154,8 @@ These are in a production code path.  Python's `-O` flag strips `assert` stateme
 Use `error.assert_()` or explicit `if … raise` like the rest of the codebase does.
 
 ### Concern: repeated ETag / Schedule-Tag update block
+
+**Status:** Should be fixed, perhaps in 3.2.1.  This code was hand-written by the guy who hates duplicated code.
 
 ```python
 ## consider refactoring - this is repeated many places now
@@ -164,6 +180,8 @@ model for structured parse results.
 
 ### Concern: `_element_to_value` fallback returns a raw lxml element
 
+**Status:** Ignored as for now.  Should consider this.
+
 ```python
 # end of _element_to_value()
 return elem   # returns an lxml _Element as a "value"
@@ -173,6 +191,8 @@ Returning a raw `_Element` as a property value is surprising and will confuse ca
 expecting strings or lists of strings.  This path should at minimum log a warning.
 
 ### Concern: `_strip_to_multistatus` return type is opaque
+
+**Status:** Ignored as for now.  Should consider this.
 
 ```python
 def _strip_to_multistatus(tree: _Element) -> "_Element | list[_Element]":
@@ -196,6 +216,8 @@ future maintainers.
 
 ### Concern: `_resolve_properties` dead-code path
 
+**Status:** Ignored as for now.  Should consider this.
+
 ```python
 error.assert_(False)
 return {}   # newly added
@@ -218,6 +240,8 @@ if-chain.
 
 ### Minor: `_ConfiguredServer.start()` is a no-op, `is_accessible()` ignores reachability
 
+**Status:** Ignored as for now.  Should consider this.
+
 ```python
 def start(self) -> None:
     self._started = True  # external — assumed already running
@@ -238,6 +262,8 @@ etc. brought in from `operations/calendarset_ops.py` are now module-level helper
 `collection.py`, which is logical.
 
 ### Concern: `_extract_calendar_id_from_url` swallows all exceptions
+
+**Status:** Ignored as for now.  Should consider this.
 
 ```python
 except Exception:
