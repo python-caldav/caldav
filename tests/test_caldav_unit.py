@@ -1995,10 +1995,7 @@ class TestAsyncGetObjectByUid:
 
         xml_response = self._make_multistatus(ev1)
         client = MockedDAVClient(xml_response)
-        # Pretend the client is async by patching the type name
-        client.__class__ = type(
-            "AsyncDAVClient", (MockedDAVClient,), {"__module__": AsyncDAVClient.__module__}
-        )
+        client.__class__ = type("MockedAsyncDAVClient", (MockedDAVClient, AsyncDAVClient), {})
         calendar = Calendar(client, url="/calendar/")
         assert calendar.is_async_client
         uid = "20010712T182145Z-123401@example.com"
@@ -2016,9 +2013,7 @@ class TestAsyncGetObjectByUid:
         from caldav.async_davclient import AsyncDAVClient
 
         client = MockedDAVClient("")
-        client.__class__ = type(
-            "AsyncDAVClient", (MockedDAVClient,), {"__module__": AsyncDAVClient.__module__}
-        )
+        client.__class__ = type("MockedAsyncDAVClient", (MockedDAVClient, AsyncDAVClient), {})
         calendar = Calendar(client, url="/calendar/")
         uid = "20010712T182145Z-123401@example.com"
 
@@ -2072,9 +2067,7 @@ END:VCALENDAR"""
         from caldav.async_davclient import AsyncDAVClient
 
         client = MockedDAVClient("")
-        client.__class__ = type(
-            "AsyncDAVClient", (MockedDAVClient,), {"__module__": AsyncDAVClient.__module__}
-        )
+        client.__class__ = type("MockedAsyncDAVClient", (MockedDAVClient, AsyncDAVClient), {})
         calendar = Calendar(client, url="/calendar/")
         return client, calendar
 

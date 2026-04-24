@@ -107,8 +107,9 @@ class DAVObject:
         """
         if self.client is None:
             return False
-        # Use string check to avoid circular imports
-        return type(self.client).__name__ == "AsyncDAVClient"
+        from caldav.async_davclient import AsyncDAVClient
+
+        return isinstance(self.client, AsyncDAVClient)
 
     def children(
         self, type: str | None = None
