@@ -23,7 +23,8 @@ The two most significant news in v3.2 are **relatively well-tested support for s
 
 ### Changed
 
-* SEQUENCE property assumed to default to 0 when absent (RFC 5546 §2.1.4).  `save()` then inserts `SEQUENCE:1` when doing a `save()`.
+* **httpx deprecation** - earlier, in async mode, if httpx was installed it would be used (while niquests is listed in the requirements).  This have been reversed - now httpx will be used if it's installed while niquest isn't installed.  httpx seems like a dead end, destroyed by drama and intrigues, and now even flagged as a supply chain risk on Reddit.  See https://github.com/python-caldav/caldav/issues/611#issuecomment-4278875543
+* **SEQUENCE property assumed to default to 0** when absent (RFC 5546 §2.1.4).  `save()` then inserts `SEQUENCE:1` unless the `increase_seqno` attribute is set to False.
 
 ### Fixed
 
