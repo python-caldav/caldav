@@ -38,7 +38,7 @@ The two most significant news in v3.2 are **relatively well-tested support for s
 
 ### AI transparency
 
-I've been experimenting with Claude Code over the last few months, concerns have been raised that it may have negatively affected code quality - and indeed, this is probably a major reason why the async support in v3.0 was simply not good enough.  I've been working a bit more on the [[AI-POLICY.md]], some of the directions for the future looks like this:
+I've been experimenting with Claude Code over the last few months, concerns have been raised that it may have negatively affected code quality - and indeed, this is probably a major reason why the async support in v3.0 was simply not good enough.  I've been working a bit more on the [AI-POLICY.md](AI-POLICY.md), some of the directions for the future looks like this:
 
 * All work involving *new features* should primarily be done by hand (AI-assistance allowed for discussing different design decisions, reviewing and fixing trivial bugs in the new code, dealing with trivial TODO-nodes in the handwritten code, etc).
 * All prompts should be logged.
