@@ -124,12 +124,11 @@ def _strip_to_multistatus(tree: _Element) -> "_Element | list[_Element]":
     return [tree]
 
 
-## TODO: _parse_response_element is a simplified version of DAVResponse._parse_response
-## (which adds assertions and handles Stalwart/purelymail quirks).  The module-level parse
-## functions (_parse_multistatus etc.) use this simpler version because they are pure
-## functions with no access to a response instance.  If the parse pipeline were refactored
-## to work through the tree already stored on self (avoiding the re-parse in _raw_bytes),
-## both of these could be unified into a single method.
+## _parse_response_element is a simplified version of DAVResponse._parse_response
+## (which adds assertions and handles Stalwart/purelymail quirks).  This version is
+## used only by the module-level parse functions (_parse_multistatus etc.) which are
+## tested directly and work on raw bytes without a response instance.
+## The DAVResponse.parse_* methods use _parse_response() instead and walk self.tree.
 def _parse_response_element(
     response: _Element,
 ) -> "tuple[str, list[_Element], str | None]":
@@ -492,31 +491,101 @@ class DAVResponse:
         """
         _validate_status(status)
 
-    def _raw_bytes(self) -> bytes:
-        """Return raw response content as bytes."""
-        raw = self._raw
-        if isinstance(raw, bytes):
-            return raw
-        return raw.encode("utf-8") if raw else b""
+    def _extract_calendar_query_props(
+        self, propstats: "list[_Element]"
+    ) -> "tuple[str | None, str | None]":
+        """Extract (etag, calendar_data) from a list of propstat elements."""
+        etag: str | None = None
+        calendar_data: str | None = None
+        for propstat in propstats:
+            prop = propstat.find(dav.Prop.tag)
+            if prop is None:
+                continue
+            for child in prop:
+                if child.tag == cdav.CalendarData.tag:
+                    calendar_data = child.text
+                elif child.tag == dav.GetEtag.tag:
+                    etag = child.text
+        return etag, calendar_data
 
-    ## TODO: parse_propfind / parse_calendar_query / parse_sync_collection currently
-    ## re-parse the XML from raw bytes (via _raw_bytes) even though _init_from_response
-    ## already parsed it into self.tree.  A cleaner implementation would walk self.tree
-    ## directly and use self._parse_response() (the assertion-rich class method) instead
-    ## of re-parsing and using the simplified module-level _parse_response_element.
-    ## That would also let us drop _raw_bytes, _parse_response_element, and _parse_multistatus.
-
-    def parse_propfind(self) -> list["PropfindResult"]:
+    def parse_propfind(self) -> "list[PropfindResult]":
         """Parse the response body as a PROPFIND multi-status reply."""
-        return _parse_propfind_response(self._raw_bytes(), self.status, self.huge_tree)
+        if self.status == 404:
+            return []
+        if self.status not in (200, 207):
+            raise error.ResponseError(f"PROPFIND failed with status {self.status}")
+        if self.tree is None:
+            return []
+        results: list[PropfindResult] = []
+        for elem in self._strip_to_multistatus():
+            if elem.tag == dav.SyncToken.tag:
+                self._sync_token = elem.text
+                continue
+            if elem.tag != dav.Response.tag:
+                continue
+            href, propstats, status = self._parse_response(elem)
+            results.append(
+                PropfindResult(
+                    href=href,
+                    properties=_extract_properties(propstats),
+                    status=_status_to_code(status) if status else 200,
+                )
+            )
+        return results
 
-    def parse_calendar_query(self) -> list["CalendarQueryResult"]:
+    def parse_calendar_query(self) -> "list[CalendarQueryResult]":
         """Parse the response body as a calendar-query or calendar-multiget REPORT reply."""
-        return _parse_calendar_query_response(self._raw_bytes(), self.status, self.huge_tree)
+        if self.status not in (200, 207):
+            raise error.ResponseError(f"REPORT failed with status {self.status}")
+        if self.tree is None:
+            return []
+        results: list[CalendarQueryResult] = []
+        for elem in self._strip_to_multistatus():
+            if elem.tag != dav.Response.tag:
+                continue
+            href, propstats, status = self._parse_response(elem)
+            etag, calendar_data = self._extract_calendar_query_props(propstats)
+            results.append(
+                CalendarQueryResult(
+                    href=href,
+                    etag=etag,
+                    calendar_data=calendar_data,
+                    status=_status_to_code(status) if status else 200,
+                )
+            )
+        return results
 
     def parse_sync_collection(self) -> "SyncCollectionResult":
         """Parse the response body as a sync-collection REPORT reply."""
-        return _parse_sync_collection_response(self._raw_bytes(), self.status, self.huge_tree)
+        if self.status not in (200, 207):
+            raise error.ResponseError(f"sync-collection failed with status {self.status}")
+        if self.tree is None:
+            return SyncCollectionResult()
+        changed: list[CalendarQueryResult] = []
+        deleted: list[str] = []
+        sync_token: str | None = None
+        for elem in self._strip_to_multistatus():
+            if elem.tag == dav.SyncToken.tag:
+                sync_token = elem.text
+                self._sync_token = elem.text
+                continue
+            if elem.tag != dav.Response.tag:
+                continue
+            href, propstats, status_str = self._parse_response(elem)
+            status_code = _status_to_code(status_str) if status_str else 200
+            if status_code == 404:
+                deleted.append(href)
+                continue
+            etag, calendar_data = self._extract_calendar_query_props(propstats)
+            changed.append(
+                CalendarQueryResult(
+                    href=href,
+                    etag=etag,
+                    calendar_data=calendar_data,
+                    status=status_code,
+                )
+            )
+        return SyncCollectionResult(changed=changed, deleted=deleted, sync_token=sync_token)
 
     def _parse_response(self, response: _Element) -> tuple[str, list[_Element], Any | None]:
         """
