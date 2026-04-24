@@ -4,11 +4,21 @@
 
 The most important rule: be honest and inform about it!
 
-Keep a log of the prompts used - prompts should preferably be included in the
-git commits.
+Tools should generally be used for improving the quality of the
+project, not for rapidly adding new features.
 
-Tools should be used for improving the quality of the project, not for
-rapidly adding new features.
+Keep a log of the prompts used - prompts should be included
+verbatimely in the git commits as long as it's possible without making
+the messages too messy.  When relevant, chat-output may also need to
+be included.  The `docs/design`-folder can be used for dumping
+AI-generated design documents, code reviews, prompts that are too
+large for being included in the commit message, etc.
+
+Keep it clear what is human-written vs what is AI-written.  In a
+feature-branch, separate AI-commits and human-commits is preferable.
+Those should most often be squashed together before including it in
+the main branch, with a notice in the commit message on what parts o
+the commit is AI-generated.
 
 ## Transparency matters
 
@@ -110,5 +120,3 @@ I still intend to use GenAI heavily for certain tasks, particularly anything tha
 * Investigations of different architectural choices - like with the async work I had claude develop different design approaches and chose the one that I felt most comfortable with (though I'm still not sure that I did the right choice).
 * Reading RFCs and quickly give a pointer to the relevant sections, or verifying that the code is according to the standards or not (but care should be taken - I've seen Claude hallucinating completely wrong RFC references).
 * Various other mundane and tedious work (i.e. "I left a TODO-note in the code over there, could you have look into it and eliminate it?").
-
-I will do some research on how to log prompts and chat - but it's difficult, my feedback to Claude is maningless without the context - Claude may deliver tons of text and rejected code changes for every commit.

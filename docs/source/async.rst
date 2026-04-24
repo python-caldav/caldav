@@ -12,11 +12,11 @@ The caldav library provides an async API for use with Python's
 Caveats
 =======
 
-Async IO was introduced in version 3.0, 2026-03-03, without being tested in any production environments, and it was done by a developer not having much experience with async usage, and probably with a bit too much trust in AI-assistance.  Rough edges are to be expected.  Test it very well in a staging environment before using it in production environments.  It's probably a good idea to wait until version 4.0 before using it in very sharp production settings.
+Async IO was introduced in version 3.0, 2026-03-03, without being tested in any production environments, and it was done by a developer not having much experience with async usage, and probably with a bit too much trust in AI-assistance.  The quality of the async code has been lifted significantly in 3.2, but rough edges are still to be expected.  Test it very well in a staging environment before using it in production environments.  It's probably a good idea to wait until version 4.0 before using it in very sharp production settings.
 
-We've ended up with some hybrid design pattern inspired by "Sans-IO".  There is a dual `DAVClient` vs `AsyncDAVClient` with a common baseclass.  On the other classes, all methods that involves or may involve IO will deliver an awaitable coroutine in async mode.  I'm not sure that the current dsign is the best, and the design may be revisited and shaken up in 4.0.  (Claude suggests that a async-first-generate-sync is the best option for CalDAV.  I'm concerned - in my head, if it's needed to generate code, then it's a hint that the programming language isn't good enough).
+We've ended up with some hybrid design pattern inspired by "Sans-IO".  There is a dual `DAVClient` vs `AsyncDAVClient` with a common baseclass.  On the other classes, all methods that involves or may involve IO will deliver an awaitable coroutine in async mode.  I'm not sure that the current dsign is the best, and the design may be revisited and shaken up in 4.0.  (Claude suggests that a async-first-generate-sync is the best option for CalDAV).
 
-There may still be sharp edges - as of v3.2, there is 40kb of async integration test code compared to 164kb of sync integration test code, so most likely some of the less travelled code paths will blow up when using it in async mode.  File an issue, and I'll prioritize fixing it!
+There may still be sharp edges - as of v3.2, there is 40kb of async integration test code compared to 164kb of sync integration test code, so most likely some of the less travelled code paths will blow up when using it in async mode.  File an issue, and I'll prioritize fixing it!  I will work more on this in an upcoming version 3.2.1.
 
 Quick Start
 ===========

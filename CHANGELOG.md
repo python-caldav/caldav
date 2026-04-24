@@ -12,33 +12,46 @@ Changelogs prior to v3.0 is pruned, but was available in the v3.1 release
 
 This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html), though for pre-releases PEP 440 takes precedence.
 
-## [Unreleased]
+## [3.2.0] - 2026-04-24
 
-The two most significant news in v3.2 are **relatively well-tested support for scheduling** (RFC6638) and **better-tested support for async**.  Care should still be taken, those features are backed by many tests, but lacks testing for how well they support real-world use-case scenarios.  While async support was added in version 3.0, it was not well-enough tested.
+The two most significant news in v3.2 are **relatively well-tested support for scheduling** (RFC6638) and **better-tested support for async**.  Care should still be taken, those features are backed by many tests, but lacks testing for how well they support real-world use-case scenarios.  While async support was added in version 3.0, it was not well-enough tested.  Still only a fraction of all the integration tests for sync usage has been duplicated in the async integration test, I expect to release 3.2.1 with symmetric async integration tests before 2025-07.
 
 ### Added
 
-* `add_organizer()` now accepts an explicit *organizer* argument (a `Principal`, `vCalAddress`, or email string); when omitted it still defaults to the current principal.
+* `add_organizer()` now accepts an optional explicit *organizer* argument (a `Principal`, `vCalAddress`, or email string)
 * Complete support for **Schedule-Tag** (RFC 6638 §3.2–3.3) and **Etag**.  Headers from upstream will be catched and stored in the properties.  If those properties exists, `If-Schedule-Tag-Match` or `If-Match` headers will be sent.  A `ScheduleTagMismatchError` or `EtagMismatchError` will be raised on 412.
-* `ScheduleMailbox.get_items()` is now async-aware: `_async_get_items()` added; `get_items()` dispatches to it for async clients.
-* `accept_invite()`, `decline_invite()`, and `tentatively_accept_invite()` are now fully async-aware; they previously raised `NotImplementedError` for async clients.
-* `Calendar.save_with_invites()` and `Principal.freebusy_request()` are now async-aware.
-* `Principal.schedule_inbox()` and `Principal.schedule_outbox()` are now async-aware.
-* `Principal.get_vcal_address()` is now async-aware.
-* `add_organizer()` (no-arg form) is now async-aware.
 
 ### Changed
-* SEQUENCE property assumed to default to 0 when absent (RFC 5546 §2.1.4).  `save()` now inserts `SEQUENCE:1` when a significant change is made and the property was not previously set.
+
+* SEQUENCE property assumed to default to 0 when absent (RFC 5546 §2.1.4).  `save()` then inserts `SEQUENCE:1` when doing a `save()`.
 
 ### Fixed
 
-* Reusing a `CalDAVSearcher` across multiple `search()` calls could yield inconsistent results: the first call would return only pending tasks (correct), but subsequent calls would change behaviour because `icalendar_searcher.Searcher.check_component()` mutated the `include_completed` field from `None` to `False` as a side-effect.  Fixed by passing a copy with `include_completed` already resolved to `filter_search_results()`, leaving the original searcher object unchanged.  Fixes https://github.com/python-caldav/caldav/issues/650
+* Bug with inconsistent `search()`-results - https://github.com/python-caldav/caldav/issues/650
 * Compatibility fixing:
-  * `_resolve_properties()` would crash with `UnboundLocalError` for servers returning an empty or unrecognisable PROPFIND response.  ttps://github.com/pycalendar/calendar-cli/issues/114
-  * `Calendar.get_supported_components()` raised `KeyError` when the server did not include the `supported-calendar-component-set` property in its response.  RFC 4791 section 5.2.3 states this property is optional and that its absence means all component types are accepted.  https://github.com/python-caldav/caldav/issues/653
+  * `_resolve_properties()` would crash for some disbehaving servers. https://github.com/pycalendar/calendar-cli/issues/114
+  * `Calendar.get_supported_components()` would crash for some servers.  https://github.com/python-caldav/caldav/issues/653
+  * Fallback code for `accept_invite()`, `decline_invite()` and `tentatively_accept_invite()` when the server does not expose the `calendar-user-address-set` property. https://github.com/python-caldav/caldav/issues/399
 * Quite some code-paths with IO was async-unaware - found and fixed quite many of those.  Some places duplicating code seems to be most trivial - but it's something I really want to avoid.  There were already places in the code where the async and sync behaviour differed. I've done quite some refactoring to reduce the amount of duplicated code.
-* `accept_invite()` (and `decline_invite()`, `tentatively_accept_invite()`) now fall back to the client username as the attendee email address when the server does not expose the `calendar-user-address-set` property (RFC6638 §2.4.1).  A `NotFoundError` with a descriptive message is raised when the username is also not an email address.  Fixes https://github.com/python-caldav/caldav/issues/399
 * Done some work on `get_object_by_uid()`, aligning it with the rest of the search API.  Closes https://github.com/python-caldav/caldav/issues/586
+
+### AI transparency
+
+I've been experimenting with Claude Code over the last few months, concerns have been raised that it may have negatively affected code quality - and indeed, this is probably a major reason why the async support in v3.0 was simply not good enough.  I've been working a bit more on the [[AI-POLICY.md]], some of the directions for the future looks like this:
+
+* All work involving *new features* should primarily be done by hand (AI-assistance allowed for discussing different design decisions, reviewing and fixing trivial bugs in the new code, dealing with trivial TODO-nodes in the handwritten code, etc).
+* All prompts should be logged.
+* Prompts should be included in the commit message.
+* Model and other relevant information on the AI-usage should be included.
+* Commit messages should include information on what and how much is AI-generated (with default being "all" or "none" dependent on the commit message trailer)
+* Commit messages should include information on why AI was used.
+* The AI should be used for Code Review for every release.
+
+The 3.2-release may not be fully up to those standards, as they were made while working on 3.2.
+
+The branch v3.2-development contains "raw" commits, most of the commits are either AI-written (including commit message) or human-written.  I've done quite some work trying to squash the commits into fewer commits, in the main branch all the recent commit messages are handwritten, and most of the commits have some notes on how much is AI-generated and why AI-generation was chosen.  The manual walk-through of all the commits has been tedious, but useful for QA-purposes.  I'm considering this to be the way forward.
+
+I have all relatively fresh communication with Claude in JSON-files, and I was considering to embed them into the repository for increased transparency.  Everything considered, I think it would involve too much noise, so I've skipped it as for now.  If you want it, I will publish it.
 
 ### Housekeeping
 
