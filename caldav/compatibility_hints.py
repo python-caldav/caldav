@@ -1098,6 +1098,8 @@ synology = {
     "search.recurrences.expanded.exception": False,
     'old_flags': ['vtodo_datesearch_nodtstart_task_is_skipped'],
     'test-calendar': {'cleanup-regime': 'wipe-calendar'},
+    'scheduling.schedule-tag': False,
+    'scheduling.mailbox.inbox-delivery': False,
 }
 
 baikal =  { ## version 0.10.1
