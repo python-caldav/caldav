@@ -42,7 +42,7 @@ Fallbacks implemented
 I respect that people may have concerns, hence I've implemtened fallback logic:
 
 * **Sync client**: Falls back to `requests` if niquests is not installed
-* **Async client**: Uses `httpx` if installed, otherwise uses niquests
+* **Async client**: Falls back to `httpx` if niquests is not installed
 
 This means all that is needed for getting the library to work without
 dragging in the niquest dependency is to change the dependencies in

@@ -54,30 +54,28 @@ The branch v3.2-development contains "raw" commits, most of the commits are eith
 
 I have all relatively fresh communication with Claude in JSON-files, and I was considering to embed them into the repository for increased transparency.  Everything considered, I think it would involve too much noise, so I've skipped it as for now.  If you want it, I will publish it.
 
-### Housekeeping
+### Housekeeping and documentation
 
+* **AI-POLICY.md** updated - see also the "AI Transparency" subsection
 * **GitHub exit strategy**: Issues are now mirrored in the git repository itself using the [git-bug package](https://github.com/git-bug/git-bug).  I'm not intending to leave GitHub for the foreseeable future, but I don't want to be locked-in or dependent on GitHub - this is a first step towards an "exit strategy".
 * **Code quality**: reduced ruff ignore list (https://github.com/python-caldav/caldav/issues/634) — removed unused imports (`copy`, `lxml.etree`, `CalendarSet`, `cdav/dav` re-exports, `Optional`, `timezone`, `Event`/`Todo` type stubs), replaced bare `except:` clauses with specific exception types (`KeyError`, `AttributeError`, `Exception` where broad catching is intentional), and removed unused local variables.
+* async documentation brushed up a bit with bugfixes and disclaimers
+* Examples and tests for finding calendar owners -  https://github.com/python-caldav/caldav/issues/544
 * Added `funding.json` (https://fundingjson.org/) at the repository root.  Closes https://github.com/python-caldav/caldav/issues/608
+* Some broken examples and documentation wasn't properly tested - https://github.com/python-caldav/caldav/issues/661
 
 ### Test framework, compatibility hints, documentation, examples
 
-* Open-ended time-range search compatibility hints: new `search.time-range.open`, `search.time-range.open.end`, `search.time-range.open.start`, and `search.time-range.open.start.duration` features (RFC4791 section 9.9).  Old `no_search_openended` flag and `search.time-range.todo.duration`/`search.time-range.todo.open-start` features migrated.  `testTodoSearch` updated to use `is_supported("search.time-range.open.end")` instead of the old compatibility flag.
-* RFC 6638 scheduling feature-detection infrastructure: new `scheduling`, `scheduling.mailbox`, and `scheduling.calendar-user-address-set` compatibility hints; legacy `no_scheduling` flags migrated.  Default scheduling hints set for all the servers tested.
-* New `scheduling.schedule-tag` compatibility flag and tests covering RFC 6638 §3.2–3.3: `testScheduleTagReturnedOnSave`, `testScheduleTagStableOnPartstateUpdate`, `testScheduleTagChangesOnOrganizerUpdate`, `testScheduleTagMismatchRaisesError`, `testScheduleTagMatchSucceeds` — plus async counterparts of all five.
-* New `scheduling.schedule-tag.stable-partstat` compatibility hint: RFC6638 §3.2 requires the Schedule-Tag to remain unchanged when an attendee performs a PARTSTAT-only update; CCS does not comply and is marked `unsupported`.  `testScheduleTagStableOnPartstateUpdate` (and its async counterpart) now skip on non-compliant servers.
-* New `scheduling.auto-schedule` compatibility flag (see Added section).  Server entries updated: Baikal, Cyrus, DAViCal, Davis, CCS, Nextcloud, Stalwart gain explicit `inbox-delivery` + `auto-schedule` values; Zimbra: `inbox-delivery=False` + `auto-schedule=True`.
-* Scheduling freebusy-query: `scheduling.freebusy-query` feature flag (RFC 6638 outbox POST); `freebusy-query.rfc4791` merged into `freebusy-query` (RFC 4791 REPORT).  `testFreeBusy` added to `_TestSchedulingBase`; async counterpart added to `_AsyncTestSchedulingBase`.
-* `search.time-range.todo.strict` compatibility flag: server must not return VTODOs whose time span is entirely outside the searched range; xandikos is marked `broken`.
-* New `save-load.property.related-to`, `search.time-range.todo.duration`, and `search.time-range.todo.open-start` feature flags replacing old-style flags.  RFC links added to all FEATURES entries.
+* Lots of new compatibility feaure hints added (with checking code in the caldav-server-tester tool), including RFC6638-relevant features.
+* Some compatibility feature hints have been renamed and moved around.  See the "Breaking changes"-section below.
 * `_AsyncTestSchedulingBase` added: async counterpart of `_TestSchedulingBase` with `test_invite_and_respond` and `test_freebusy`; `TestAsyncSchedulingFor<Server>` classes generated for each server with `scheduling_users` configured.
-* New `scheduling.schedule-tag.stable-partstat` compatibility hint: RFC6638 §3.2 requires the Schedule-Tag to remain unchanged when an attendee performs a PARTSTAT-only update; CCS does not comply and is marked `unsupported`.  `testScheduleTagStableOnPartstateUpdate` (and its async counterpart) now skip on non-compliant servers.
-* Calendar owner example (`examples/calendar_owner_examples.py`) demonstrating how to retrieve the owner of a calendar via `DAV:owner` and resolve their calendar-user address.  `testFindCalendarOwner` now exercises the full owner → principal → `get_vcal_address()` chain.  Closes https://github.com/python-caldav/caldav/issues/544
-* `testInviteAndRespond` implemented end-to-end: organizer creates an event, invites an attendee, attendee accepts, and the organizer verifies the updated `PARTSTAT`.  Per-server compatibility flags applied for known quirks (Baikal, Cyrus, SOGo).
-* Multi-user RFC 6638 scheduling tests wired into the Docker server setup for Cyrus and Baikal (pre-populated `user1`–`user3`/`user1`–`user5`).
-* Internal refactoring: `caldav/operations/` and `caldav/protocol/` packages deleted; functionality consolidated into `response.py`, `collection.py`, `search.py`, and `BaseDAVClient` static methods.  No user-visible API changes.
-* Compatibility feature `search.text.by-uid` has been removed.  `get_object_by_uid()` already has a client-side fallback (via `_hacks="insist"`) that works on any server, so the guard was no longer needed.  Closes https://github.com/python-caldav/caldav/issues/586
-* **`scheduling.auto-schedule` compatibility flag**: True when the server auto-processes incoming iTIP REQUEST messages and places the event directly into the attendee's calendar (RFC 6638 SCHEDULE-AGENT=SERVER).  Used by `_reply_to_invite_request()` to choose the right update strategy.
+* Lots of new test code for the RFC6638-functionality, including setting up extra test users in the docker containers.
+
+### Breaking changes
+
+* Some compatibility feature hints have been moved a bit around.  This file is still not considered to be a "sharp" part of the libary, otherwise we'd need to bump the version number to 4.0.
+  * freebusy-related flags.  The rfc6638-freebusy have been moved to `scheduling.freebusy`, rfc4791-freebusy have been collapsed down into `freebusy` (instead of `freebusy.rfc4791`).
+  * `search.text.by-uid` was removed, there is (probably?) no servers supporting one but not the other.  (Though the checks on this may be wrong, as workarounds are automatically employed for servers not supporting text search).   https://github.com/python-caldav/caldav/issues/586
 
 ## [3.1.0] - 2026-03-19
 
