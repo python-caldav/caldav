@@ -72,7 +72,6 @@ from caldav.compatibility_hints import FeatureSet
 from caldav.lib import error
 from caldav.lib.python_utilities import to_wire
 from caldav.lib.url import URL
-
 from caldav.requests import HTTPBearerAuth
 from caldav.response import CalendarQueryResult, DAVResponse, PropfindResult
 
