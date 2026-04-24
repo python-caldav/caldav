@@ -58,16 +58,8 @@ class SyncCollectionResult:
     sync_token: str | None = None
 
 
-@dataclass
-class MultistatusResponse:
-    """Parsed multi-status (207) response containing multiple PropfindResults."""
-
-    responses: list[PropfindResult] = field(default_factory=list)
-    sync_token: str | None = None
-
-
 # ---------------------------------------------------------------------------
-# XML parse helpers (previously in protocol/xml_parsers.py)
+# XML parse helpers
 # ---------------------------------------------------------------------------
 
 
@@ -122,29 +114,6 @@ def _strip_to_multistatus(tree: _Element) -> "_Element | list[_Element]":
     if tree.tag == dav.MultiStatus.tag:
         return tree
     return [tree]
-
-
-## _parse_response_element is a simplified version of DAVResponse._parse_response
-## (which adds assertions and handles Stalwart/purelymail quirks).  This version is
-## used only by the module-level parse functions (_parse_multistatus etc.) which are
-## tested directly and work on raw bytes without a response instance.
-## The DAVResponse.parse_* methods use _parse_response() instead and walk self.tree.
-def _parse_response_element(
-    response: _Element,
-) -> "tuple[str, list[_Element], str | None]":
-    """Parse a single DAV:response element into (href, propstats, status)."""
-    status: str | None = None
-    href: str | None = None
-    propstats: list[_Element] = []
-    for elem in response:
-        if elem.tag == dav.Status.tag:
-            status = elem.text
-            _validate_status(status)
-        elif elem.tag == dav.Href.tag:
-            href = _normalize_href(elem.text or "")
-        elif elem.tag == dav.PropStat.tag:
-            propstats.append(elem)
-    return (href or "", propstats, status)
 
 
 def _extract_properties(propstats: "list[_Element]") -> "dict[str, Any]":
@@ -208,135 +177,6 @@ def _element_to_value(elem: _Element) -> Any:
     return elem
 
 
-def _parse_multistatus(body: bytes, huge_tree: bool = False) -> MultistatusResponse:
-    """Parse a 207 Multi-Status response body into a MultistatusResponse."""
-    parser = etree.XMLParser(huge_tree=huge_tree)
-    tree = etree.fromstring(body, parser)
-
-    responses: list[PropfindResult] = []
-    sync_token: str | None = None
-
-    for elem in _strip_to_multistatus(tree):
-        if elem.tag == dav.SyncToken.tag:
-            sync_token = elem.text
-            continue
-        if elem.tag != dav.Response.tag:
-            continue
-        href, propstats, status = _parse_response_element(elem)
-        properties = _extract_properties(propstats)
-        responses.append(
-            PropfindResult(
-                href=href,
-                properties=properties,
-                status=_status_to_code(status) if status else 200,
-            )
-        )
-
-    return MultistatusResponse(responses=responses, sync_token=sync_token)
-
-
-def _parse_propfind_response(
-    body: bytes, status_code: int = 207, huge_tree: bool = False
-) -> list[PropfindResult]:
-    """Parse a PROPFIND response body into a list of PropfindResult objects."""
-    if status_code == 404:
-        return []
-    if status_code not in (200, 207):
-        raise error.ResponseError(f"PROPFIND failed with status {status_code}")
-    if not body:
-        return []
-    return _parse_multistatus(body, huge_tree=huge_tree).responses
-
-
-def _parse_calendar_query_response(
-    body: bytes, status_code: int = 207, huge_tree: bool = False
-) -> list[CalendarQueryResult]:
-    """Parse a calendar-query or calendar-multiget REPORT response."""
-    if status_code not in (200, 207):
-        raise error.ResponseError(f"REPORT failed with status {status_code}")
-    if not body:
-        return []
-
-    parser = etree.XMLParser(huge_tree=huge_tree)
-    tree = etree.fromstring(body, parser)
-    results: list[CalendarQueryResult] = []
-
-    for elem in _strip_to_multistatus(tree):
-        if elem.tag != dav.Response.tag:
-            continue
-        href, propstats, status = _parse_response_element(elem)
-        calendar_data: str | None = None
-        etag: str | None = None
-        for propstat in propstats:
-            prop = propstat.find(dav.Prop.tag)
-            if prop is None:
-                continue
-            for child in prop:
-                if child.tag == cdav.CalendarData.tag:
-                    calendar_data = child.text
-                elif child.tag == dav.GetEtag.tag:
-                    etag = child.text
-        results.append(
-            CalendarQueryResult(
-                href=href,
-                etag=etag,
-                calendar_data=calendar_data,
-                status=_status_to_code(status) if status else 200,
-            )
-        )
-
-    return results
-
-
-def _parse_sync_collection_response(
-    body: bytes, status_code: int = 207, huge_tree: bool = False
-) -> SyncCollectionResult:
-    """Parse a sync-collection REPORT response."""
-    if status_code not in (200, 207):
-        raise error.ResponseError(f"sync-collection failed with status {status_code}")
-    if not body:
-        return SyncCollectionResult()
-
-    parser = etree.XMLParser(huge_tree=huge_tree)
-    tree = etree.fromstring(body, parser)
-    changed: list[CalendarQueryResult] = []
-    deleted: list[str] = []
-    sync_token: str | None = None
-
-    for elem in _strip_to_multistatus(tree):
-        if elem.tag == dav.SyncToken.tag:
-            sync_token = elem.text
-            continue
-        if elem.tag != dav.Response.tag:
-            continue
-        href, propstats, status = _parse_response_element(elem)
-        status_code_elem = _status_to_code(status) if status else 200
-        if status_code_elem == 404:
-            deleted.append(href)
-            continue
-        calendar_data = None
-        etag = None
-        for propstat in propstats:
-            prop = propstat.find(dav.Prop.tag)
-            if prop is None:
-                continue
-            for child in prop:
-                if child.tag == cdav.CalendarData.tag:
-                    calendar_data = child.text
-                elif child.tag == dav.GetEtag.tag:
-                    etag = child.text
-        changed.append(
-            CalendarQueryResult(
-                href=href,
-                etag=etag,
-                calendar_data=calendar_data,
-                status=status_code_elem,
-            )
-        )
-
-    return SyncCollectionResult(changed=changed, deleted=deleted, sync_token=sync_token)
-
-
 class DAVResponse:
     """
     Base class containing shared response parsing logic.
@@ -357,6 +197,31 @@ class DAVResponse:
 
     def __init__(self, response: "Response", davclient: Any = None) -> None:
         self._init_from_response(response, davclient)
+
+    @classmethod
+    def from_bytes(
+        cls, body: bytes, status_code: int = 207, huge_tree: bool = False
+    ) -> "DAVResponse":
+        """Construct a DAVResponse from raw bytes — intended for tests."""
+
+        class _FakeResponse:
+            headers: dict = {}
+            status_code = 200
+            content = b""
+            text = ""
+            reason = "OK"
+
+        fake = _FakeResponse()
+        fake.status_code = status_code
+        fake.content = body
+        fake.text = body.decode("utf-8", errors="replace") if body else ""
+        obj = cls.__new__(cls)
+        obj.huge_tree = huge_tree
+        obj.davclient = None
+        obj.results = None
+        obj._sync_token = None
+        obj._init_from_response(fake)
+        return obj
 
     def _init_from_response(self, response: "Response", davclient: Any = None) -> None:
         """
