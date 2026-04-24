@@ -56,6 +56,8 @@ Other documentation:
 * [Apache License](COPYING.APACHE)
 * [GPL license](COPYING.GPL)
 
+There is also a directory [docs/design](docs/design) containing lots of documents, mostly AI-generated, containing things like design decisions and other things that neither is deemed important enough to have a document on the root of the project nor deemed to be "user documentation".
+
 The package is published at [Pypi](https://pypi.org/project/caldav)
 
 ## HTTP Libraries

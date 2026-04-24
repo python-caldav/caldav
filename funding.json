@@ -1,0 +1,47 @@
+{
+  "$schema": "https://fundingjson.org/schema/v1.1.0.json",
+  "version": "v1.1.0",
+  "entity": {
+    "type": "individual",
+    "role": "owner",
+    "name": "Tobias Brox",
+    "email": "funding@plann.no",
+    "description": "Independent open source developer maintaining python-caldav (a CalDAV client library used by Home Assistant and many other projects) and plann (a CalDAV-based CLI for task and calendar management). Funding helps prioritise features and fixes requested by donors.",
+    "webpageUrl": {
+      "url": "https://plann.no"
+    }
+  },
+  "funding": {
+    "channels": [
+      {
+        "guid": "github-sponsors",
+        "type": "payment-provider",
+        "address": "https://github.com/sponsors/tobixen",
+        "description": "GitHub Sponsors"
+      },
+      {
+        "guid": "bank-iban",
+        "type": "bank",
+        "address": "DE90100110012753397999"
+      },
+      {
+        "guid": "btc",
+        "type": "other",
+        "address": "bc1qd63vwz0v77r5us4c8kn4l9mx9cw9pgjd47mlf9",
+        "description": "Bitcoin"
+      }
+    ],
+    "plans": [
+      {
+        "guid": "general",
+        "status": "active",
+        "name": "General support",
+        "description": "Any contribution is welcome. Quite a lot of the work here is done on hobby basis - I do have to prioritize my a day job.  Additional funding allows me to take out unpaid vacation days and work more with this library.  Funding from YOU would motivate me to work on YOUR pet issues or feature requests - but please don't have high expectances after throwing money at me - better to negotiate in advance and pay me after the feature/bugfix is implemented",
+        "amount": 0,
+        "currency": "EUR",
+        "frequency": "monthly",
+        "channels": ["github-sponsors", "bank-iban", "btc"]
+      }
+    ]
+  }
+}
