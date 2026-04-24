@@ -470,7 +470,7 @@ class DAVResponse:
                 error.assert_(status)
                 self.validate_status(status)
             elif elem.tag == dav.Href.tag:
-                assert not href
+                error.assert_(not href)
                 href = _normalize_href(elem.text or "")
             elif elem.tag == dav.PropStat.tag:
                 propstats.append(elem)
@@ -507,8 +507,6 @@ class DAVResponse:
         attendee - potentially with error status for all or some
         of the wanted attendees.
 
-        TODO: some asserts here - should make better error handling
-
         Returns:
             Dict with:
               * email addresses -> FreeBusy status (raw data)
@@ -517,9 +515,9 @@ class DAVResponse:
         """
         self.objects = {}
         self.objects["errors"] = {}
-        assert self.tree.tag == cdav.ScheduleResponse.tag
+        error.assert_(self.tree.tag == cdav.ScheduleResponse.tag)
         for response in self.tree:
-            assert response.tag == cdav.Response.tag
+            error.assert_(response.tag == cdav.Response.tag)
             parsed_response = self._parse_scheduling_response(response)
             for x in parsed_response:
                 if x.endswith(":err"):
@@ -531,8 +529,6 @@ class DAVResponse:
 
     def _parse_scheduling_response(self, response) -> dict[str, str]:
         """
-        TODO: lots of asserts here - should make better error handling
-
         Parses one attendee response from a RFC6638 freebusy scheduling request
 
         Returns:
@@ -547,7 +543,7 @@ class DAVResponse:
         for x in response:
             if x.tag == cdav.Recipient.tag:
                 if len(x) == 1:
-                    assert x[0].tag == dav.Href.tag
+                    error.assert_(x[0].tag == dav.Href.tag)
                     recipient = x[0].text
                 else:
                     recipient = x.text
@@ -557,8 +553,8 @@ class DAVResponse:
                 calendar_data = x.text
             else:
                 raise error.DAVError(f"unexpected attribute {x.tag}")
-        assert recipient
-        assert status
+        error.assert_(recipient)
+        error.assert_(status)
         if not status.startswith("2.0"):
             ret[f"{recipient}:err"] = status
         if calendar_data:
