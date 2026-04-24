@@ -1313,6 +1313,7 @@ posteo = {
     ## foo ... "full" observed for the next two, 70938dc1cbb6a839978eee4315699746d38ee5f0/3cae24cf99da1702b851b5a74a9b88c8e5317dad, 2026-02-17
     ## bar ... 3cae24cf99da1702b851b5a74a9b88c8e5317dad was probably the rotten commit, ungraceful again in  be26d42b1ca3ff3b4fd183761b4a9b024ce12b84 / 537a23b145487006bb987dee5ab9e00cdebb0492
     'search.comp-type.optional': {'support': 'ungraceful'},
+    'search.recurrences.includes-implicit.infinite-scope': False,
     #'search.text.case-sensitive': {'support': 'unsupported'},
     ## Comment from claude:
     ## Text search precondition check returns unexpected results on posteo
