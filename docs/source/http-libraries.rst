@@ -25,8 +25,7 @@ decisions, it may have been due to personal conflicts - or, perhaps
 the quality of the code was found not to be good enough.  It works for
 me.  I've had Claude to do a code review of niquests and urllib3 - it
 gave a thumbs-up for Niquests, while urllib3.future could benefit from
-some refactoring (claude also recommends shedding backward
-compatibility).
+some refactoring.
 
 I see some possible reasons why one would like to avoid niquests:
   * Many projects are already dependent on requests and/or httpx, and one
