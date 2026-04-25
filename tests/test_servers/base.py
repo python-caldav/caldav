@@ -308,30 +308,20 @@ class DockerTestServer(TestServer):
         Check if docker and docker-compose are available.
 
         Returns:
-            True if docker-compose is available and docker daemon is running
+            True if docker compose is available and docker daemon is running
         """
         import subprocess
 
-        try:
-            subprocess.run(
-                ["docker-compose", "--version"],
-                capture_output=True,
-                check=True,
-                timeout=5,
-            )
-            subprocess.run(
-                ["docker", "ps"],
-                capture_output=True,
-                check=True,
-                timeout=5,
-            )
-            return True
-        except (
-            subprocess.CalledProcessError,
-            FileNotFoundError,
-            subprocess.TimeoutExpired,
-        ):
-            return False
+        def _run(*cmd: str) -> bool:
+            try:
+                subprocess.run(list(cmd), capture_output=True, check=True, timeout=5)
+                return True
+            except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
+                return False
+
+        # Accept either the legacy standalone binary or the modern plugin form.
+        compose_ok = _run("docker-compose", "--version") or _run("docker", "compose", "version")
+        return compose_ok and _run("docker", "ps")
 
     def start(self) -> None:
         """
