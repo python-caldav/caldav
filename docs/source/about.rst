@@ -41,8 +41,7 @@ If serious problems are found with v2.2.6 during 2026, v2.2.7 will be
 released.
 
 The 3.x version series (released 2026-03) is almost
-backwards-compatible with version 2.x.  Python 3.10+ is required
-(Python 3.8 and 3.9 are no longer supported).  The
+backwards-compatible with version 2.x.  The
 ``caldav/objects.py`` backward-compatibility shim has been removed;
 any code doing ``from caldav.objects import <something>`` must be
 updated to import directly from ``caldav``.  The wildcard import has
@@ -59,7 +58,7 @@ Python compatibility notice
 ===========================
 
 Most of the code is regularly tested towards different versions of
-Python, the oldest being Python 3.10 (as of v3.0).
+Python.  As of 3.x.x, 3.10 to 3.14 is tested.  The 3.x-series does not support Python 3.8 (due to type hints), Python 3.9 is just not tested.
 
 Support for Python2 was officially not supported starting from caldav
 version 1.0.
@@ -105,28 +104,6 @@ support, but as many people requested the vobject dependency to be
 replaced with icalendar, both are now supported, and the icalendar
 library is now consistently used internally
 
-Misbehaving server implementations
-----------------------------------
-
-Some server implementations may have some "caldav"-support that either
-doesn't implement all of :rfc:`4791`, breaks the standard a bit, or has
-extra features.  As long as it doesn't add too much complexity to the
-code, hacks and workarounds for "badly behaving caldav servers" are
-considered to be within the scope.  Ideally, users of the caldav
-library should be able to download all the data from one calendar
-server or cloud provider, upload it to another server type or cloud
-provider, and continue using the library without noticing any
-differences.  To get there, it may be needed to add tweaks in the
-library covering the things the servers are doing wrong.
-
-There exists an extension to the standard covering calendar color and
-calendar order, allegedly with an xml namespace
-``http://apple.com/ns/ical/``. That URL gives (301 https and
-then) 404.  I've so far found no documentation at all
-on this extension - however, it seems to be supported by several
-caldav libraries, clients and servers.  As of 0.7, calendar colors and
-order is available for "power users".
-
 
 Notable classes and workflow
 ============================
@@ -144,7 +121,7 @@ Notable classes and workflow
 
 * From the calendar object one can fetch / generate
   :class:`caldav.calendarobjectresource.Event` objects and
-  :class:`caldav.calendarobjectresource.Todo` objects (as well as :class:`caldav.calendarobjectresource.Journal` objects - does anyone use Journal objects?).  Eventually the library may also spew out objects of the base class (:class:`caldav.calendarobjectresource.CalendarObjectResource`) if the object type is unknown when the object is instantiated.
+  :class:`caldav.calendarobjectresource.Todo` objects, as well as :class:`caldav.calendarobjectresource.Journal` objects.  The library may also spew out objects of the base class (:class:`caldav.calendarobjectresource.CalendarObjectResource`) if the object type is unknown when the object is instantiated.
 
 * If one happens to know the URLs, objects like calendars, principals
   and events can be instantiated without going through the
@@ -160,10 +137,11 @@ For convenience, the classes above are also available as
 Compatibility
 =============
 
-CalDAV server implementations vary widely in which optional RFC features they
-support, and how gracefully they handle things they do not support.  The caldav
-library contains a compatibility layer that works around known issues
-automatically when the server is identified.
+The calendaring server supporting the CalDAV standards fully and perfectly does not exist.  CalDAV server implementations vary widely in which optional RFC features they
+support, and how gracefully they handle things they do not support, as well as how the standard is interpreted, things not working due to bugs, etc.
+
+The caldav library contains a compatibility layer that works around
+some known issues automatically when the server is identified.
 
 Compatibility hints system
 --------------------------
@@ -186,6 +164,10 @@ range when ``search.unlimited-time-range`` is ``broken``).
 
 Configuring compatibility hints
 --------------------------------
+
+A separate tool https://github.com/python-caldav/caldav-server-tester has been split out to do compatibility testing towards the servers.  The results are stored in ``caldav/compatibility_hints.py``.  The server supporting everything in the CalDAV RFCs perfectly does not exist.
+
+Compatibility testing has traditionally only been done by the maintainer - one of the purposes of the caldav-server-tester is to allow anyone to run the checks towards the software they use, without having to share any account information with the CalDAV maintainer.  The tool may spit out code blocks to be included in the compatibility hints file, as well as yaml snippets to be included in configuration files.
 
 The ``features`` parameter of :func:`caldav.get_davclient` (or
 :class:`caldav.DAVClient`) selects a named server profile from
@@ -216,49 +198,9 @@ that the server deviates from the standard.
 Server-specific highlights
 --------------------------
 
-* **iCloud, Google, Zimbra** are notoriously incomplete in their CalDAV
-  support — see the server profile names ``icloud``, ``google``, ``zimbra``
-  in ``compatibility_hints.py`` for the current list of known issues.
+Over the past years, the focus has been on compatibility-testing towards open source calendar servers.  In particular Google and iCloud haven't been tested for a long time.  Google officially supports CalDAV, see https://developers.google.com/workspace/calendar/caldav/v2/guide - iCloud supports CalDAV partly, but there exists no official information about it. iCloud limitations has been tracked in https://github.com/python-caldav/caldav/issues/3
 
-  iCloud has not been tested for a while.  As the maintainer has no account there, YOUR help is needed to ensure iCloud-compatibility.
-
-  Notable iCloud limitations (tracked in https://github.com/python-caldav/caldav/issues/3):
-
-  * No support for freebusy, tasks, or journals.
-  * Broken or absent support for recurring events.
-  * Objects deleted from one client may reappear after recreating a
-    calendar with the same name.
-  * ``get_object_by_uid()`` does not work despite following the RFC example.
-
-  Google's CalDAV adapter does not support creating calendars; use the Google
-  API directly for that.  As with iCloud, Google support hasn't been tested for quite a while.
-
-* **Radicale** will auto-create a calendar when accessing a URL that does not
-  exist, and listing calendars owned by the user may fail.
-
-* **Baikal** does not support date-range searches for todo tasks.
-
-* **DAViCal** has slightly broken support for date-range searches on todos.
-
-* **OX App Suite** applies a "sliding window" to all calendar REPORT queries:
-  objects whose date lies too far in the past (or future) are invisible.
-  There is no CalDAV mechanism to enumerate those objects — they are invisible
-  to ``calendar.search()``, ``calendar.events()``,
-  ``calendar.get_objects_by_sync_token()``, and ``calendar.get_object_by_uid()``;
-  the only way to access them is a direct GET if the URL is already known.
-  The library works around this by injecting an explicit 1970–2126 time range
-  (``search.unlimited-time-range: broken``), which makes recurring events with
-  future occurrences visible, but truly old non-recurring objects remain
-  inaccessible.  OX also rejects VTODOs containing RRULE with HTTP 400, and
-  VTODOs must be stored in a calendar explicitly created for the ``VTODO``
-  component type.
-
-* **Calendar creation** is not mandatory under :rfc:`4791`.  Most self-hosted
-  servers support it; Google's CalDAV adapter does not.
-
-* **Recurring events and tasks** are non-trivial to implement correctly on
-  the server side.  DAViCal and Baikal are the only servers known to handle
-  them correctly in the test suite.
+(This section contained lots of detailed information on how the different servers handle it, but it has been removed as much of it was outdated.  All the information is available in ``compatibility_hints.py``, though it should probably be redone a bit for better readability)
 
 Some notes on CalDAV URLs
 =========================
@@ -274,7 +216,7 @@ CalDAV URLs can be quite confusing, some software requires the URL to the calend
   typical icloud calendar URL looks like
   ``https://p12-caldav.icloud.com/12345/calendars/CALNAME``.
   If you encounter troubles with iCloud, try toggling
-  between IPv4 and IPv6 (see [issue 393](https://github.com/python-caldav/caldav/issues/393))
+  between IPv4 and IPv6 (see `issue 393 <https://github.com/python-caldav/caldav/issues/393>`_)
 
 * Google - legacy:  ``https://www.google.com/calendar/dav/``,
   The calendar URL for the primary personal calendar seems to be of the
@@ -283,13 +225,13 @@ CalDAV URLs can be quite confusing, some software requires the URL to the calend
   namespace.
 
 * Google - new api: see https://developers.google.com/calendar/caldav/v2/guide.
-  There is some information in https://github.com/python-caldav/caldav/issues/119 on how to connect to Google, and there are two contributed :ref:`examples:examples` on how to obtain a bearer token and use it in the caldav lbirary.  There is also a `blog post <https://blog.lasall.dev/post/tell-me-why-google-and-caldav/>`_ describing the process.
+  There is some information in https://github.com/python-caldav/caldav/issues/119 on how to connect to Google, and there are two contributed :ref:`examples:examples` on how to obtain a bearer token and use it in the caldav library.  There is also a `blog post <https://blog.lasall.dev/post/tell-me-why-google-and-caldav/>`_ describing the process.
 
 * DAViCal: The caldav URL typically seems to be on the format ``https://your.server.example.com/caldav.php/``, though it depends on how the web server is configured.  The primary calendars have URLs like ``https://your.server.example.com/caldav.php/donald/calendar`` and other calendars have names like ``https://your.server.example.com/caldav.php/donald/golfing_calendar``.
 
 * Zimbra: The caldav URL is typically on the format ``https://mail.example.com/dav/``, calendar URLs can be on the format ``https://mail.example.com/dav/donald@example.com/My%20Golfing%20Calendar``.  Display name always matches the last part of the URL.
 
-* Fastmail: ``https://caldav.fastmail.com/dav/`` - note that the trailing dash is significant (ref https://github.com/home-assistant/core/issues/66599)
+* Fastmail: ``https://caldav.fastmail.com/dav/`` - note that the trailing slash is significant (ref https://github.com/home-assistant/core/issues/66599)
 
 * GMX: `f"https://caldav.gmx.net/begenda/dav/{userid}@gmx.net/calendar`"`
 
@@ -323,7 +265,7 @@ private servers into tests/caldav_test_servers.yaml, see tests/caldav_test_serve
 Niquests vs Requests vs HTTPX
 =============================
 
-By default, CalDAV depends on the niquests library.  Some people are not happy with that, there exists fallbacks to utilize httpx and requests.  See the :doc:`http-libraries` document.
+By default, CalDAV depends on the niquests library.  Some people are not happy with that, so there exists fallbacks to utilize httpx and requests.  See the :doc:`http-libraries` document.
 
 Documentation
 =============
@@ -332,12 +274,12 @@ To build the documentation, install sphinx and run:
 
 .. code-block:: bash
 
-  $ python setup.py build_sphinx
+  $ make html
 
 Code of Conduct
 ===============
 
-While I hope we never will need to refer to it, the `Contributor Covenant <https://www.contributor-covenant.org/version/2/1/code_of_conduct/>`_ applies to this project, see also `CODE_OF_CONDUCT <https://github.com/python-caldav/caldav/blob/master/CODE_OF_CONDUCT>`_.  Avoid toxic negativity in general, but Tobias Brox can probably handle some blunt criticism if it may help getting the project on a better track.
+While I hope we never will need to refer to it, the `Contributor Covenant <https://www.contributor-covenant.org/version/2/1/code_of_conduct/>`_ applies to this project, see also `CODE_OF_CONDUCT <https://github.com/python-caldav/caldav/blob/master/CODE_OF_CONDUCT>`_.  Avoid toxic negativity in general, but the maintainer can handle some blunt criticism as long as it may help getting the project on a better track.
 
 License
 =======

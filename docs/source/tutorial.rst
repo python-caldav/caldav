@@ -68,7 +68,7 @@ Many servers will start with a "clean slate", with no calendars - so to get anyt
 
 The delete-step is unimportant when running towards an ephemeral test server.
 
-**Tip:** In test mode, the with-block ensures the test server is stopped when done.  It also ensures that the HTTP-session is terminated.  However, for testing things interactively in the python it's a pain.  Usage of the with-block is Best Recommended Practice, but the test server will anyway be terminated when the python process exits, and the HTTP-session will be terminated on timeout or when leaving the test server, whatever comes first.  Feel free to just use ``client = get_davclient()`` while you're testing things.
+**Tip:** In test mode, the with-block ensures the test server is stopped when done.  It also ensures that the HTTP-session is terminated.  For testing things interactively in the python it's a pain.  Usage of the with-block is Best Recommended Practice, but you may safely use ``client = get_davclient()`` while you're testing things.
 
 **Caveat:** In many settings, communication is done lazily when needed.  Things will eventually break if password/url/username is wrong, but perhaps not where you expect it to.  To test, you may try out:
 
