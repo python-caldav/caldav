@@ -1322,12 +1322,8 @@ class RepeatedFunctionalTestsBaseClass:
         for flag in self.old_features:
             assert flag in incompatibility_description
 
-        if self.check_compatibility_flag("unique_calendar_ids"):
-            self.testcal_id = "testcalendar-" + str(uuid.uuid4())
-            self.testcal_id2 = "testcalendar-" + str(uuid.uuid4())
-        else:
-            self.testcal_id = "pythoncaldav-test"
-            self.testcal_id2 = "pythoncaldav-test2"
+        self.testcal_id = "pythoncaldav-test"
+        self.testcal_id2 = "pythoncaldav-test2"
 
         foo = self.is_supported("rate-limit", dict)
         if foo.get("enable"):
@@ -1408,8 +1404,6 @@ class RepeatedFunctionalTestsBaseClass:
                     pass
             else:
                 cal.delete()
-        if self.check_compatibility_flag("unique_calendar_ids") and mode == "pre":
-            a = self._teardownCalendar(name="Yep")
         for calid in (self.testcal_id, self.testcal_id2, self.testcal_id + "-tasks"):
             self._teardownCalendar(cal_id=calid)
         if self.cleanup_regime == "thorough":
@@ -1471,10 +1465,7 @@ class RepeatedFunctionalTestsBaseClass:
 
         # Pre-processing: set up defaults for name and cal_id
         if "name" not in kwargs:
-            if not self.check_compatibility_flag("unique_calendar_ids") and self.cleanup_regime in (
-                "light",
-                "pre",
-            ):
+            if self.cleanup_regime in ("light", "pre"):
                 self._teardownCalendar(cal_id=self.testcal_id)
             if not self.is_supported("create-calendar.set-displayname"):
                 kwargs["name"] = None
@@ -2103,7 +2094,7 @@ END:VCALENDAR
             assert len(list(my_changed_objects)) == 0
 
         ## I was unable to run the rest of the tests towards Google using their legacy caldav API
-        self.skip_on_compatibility_flag("no_overwrite")
+        self.skip_unless_support("save-load.mutable")
 
         ## MODIFYING an object
         if is_time_based:
@@ -2234,7 +2225,7 @@ END:VCALENDAR
             time.sleep(1)
 
         ## I was unable to run the rest of the tests towards Google using their legacy caldav API
-        self.skip_on_compatibility_flag("no_overwrite")
+        self.skip_unless_support("save-load.mutable")
 
         ## MODIFYING an object
         obj.icalendar_instance.subcomponents[0]["SUMMARY"] = "foobar"
@@ -2291,10 +2282,7 @@ END:VCALENDAR
     def testLoadEvent(self):
         self.skip_unless_support("save-load.event")
         self.skip_unless_support("create-calendar")
-        if not self.check_compatibility_flag("unique_calendar_ids") and self.cleanup_regime in (
-            "light",
-            "pre",
-        ):
+        if self.cleanup_regime in ("light", "pre"):
             self._teardownCalendar(cal_id=self.testcal_id)
             self._teardownCalendar(cal_id=self.testcal_id2)
         c1 = self._fixCalendar(name="Yep", cal_id=self.testcal_id)
@@ -2307,20 +2295,14 @@ END:VCALENDAR
         if not self.check_compatibility_flag("event_by_url_is_broken"):
             assert e1.url == e1_.url
             e1.load()
-        if (
-            not self.check_compatibility_flag("unique_calendar_ids")
-            and self.cleanup_regime == "post"
-        ):
+        if self.cleanup_regime == "post":
             self._teardownCalendar(cal_id=self.testcal_id)
             self._teardownCalendar(cal_id=self.testcal_id2)
 
     def testCopyEvent(self):
         self.skip_unless_support("save-load.event")
         self.skip_unless_support("create-calendar")
-        if not self.check_compatibility_flag("unique_calendar_ids") and self.cleanup_regime in (
-            "light",
-            "pre",
-        ):
+        if self.cleanup_regime in ("light", "pre"):
             self._teardownCalendar(cal_id=self.testcal_id)
             self._teardownCalendar(cal_id=self.testcal_id2)
 
@@ -2366,10 +2348,7 @@ END:VCALENDAR
         else:
             assert len(c1.get_events()) == 2
 
-        if (
-            not self.check_compatibility_flag("unique_calendar_ids")
-            and self.cleanup_regime == "post"
-        ):
+        if self.cleanup_regime == "post":
             self._teardownCalendar(cal_id=self.testcal_id)
             self._teardownCalendar(cal_id=self.testcal_id2)
 
@@ -3496,10 +3475,7 @@ END:VCALENDAR
         # TODO: split up in creating a calendar with non-ascii name
         # and an event with non-ascii description
         self.skip_unless_support("create-calendar")
-        if not self.check_compatibility_flag("unique_calendar_ids") and self.cleanup_regime in (
-            "light",
-            "pre",
-        ):
+        if self.cleanup_regime in ("light", "pre"):
             self._teardownCalendar(cal_id=self.testcal_id)
 
         c = self._fixCalendar(name="Yølp", cal_id=self.testcal_id)
@@ -3519,19 +3495,13 @@ END:VCALENDAR
         if "zimbra" not in str(c.url):
             assert len(events) == 1
 
-        if (
-            not self.check_compatibility_flag("unique_calendar_ids")
-            and self.cleanup_regime == "post"
-        ):
+        if self.cleanup_regime == "post":
             self._teardownCalendar(cal_id=self.testcal_id)
 
     def testUnicodeEvent(self):
         self.skip_unless_support("save-load.event")
         self.skip_unless_support("create-calendar")
-        if not self.check_compatibility_flag("unique_calendar_ids") and self.cleanup_regime in (
-            "light",
-            "pre",
-        ):
+        if self.cleanup_regime in ("light", "pre"):
             self._teardownCalendar(cal_id=self.testcal_id)
         c = self._fixCalendar(name="Yølp", cal_id=self.testcal_id)
 
@@ -3565,18 +3535,15 @@ END:VCALENDAR
 
         # Creating a new calendar with different ID but with existing name
         # TODO: why do we do this?
-        if not self.check_compatibility_flag("unique_calendar_ids") and self.cleanup_regime in (
-            "light",
-            "pre",
-        ):
+        # TODO: we're doing this all over the placee, it should be consolidated
+        # TODO: it should be in the test setup/teardown
+        if self.cleanup_regime in ("light", "pre"):
             self._teardownCalendar(cal_id=self.testcal_id2)
         cc = self._fixCalendar(name="Yep", cal_id=self.testcal_id2)
         try:
             cc.delete()
         except error.DeleteError:
-            if not self.is_supported("delete-calendar") or self.check_compatibility_flag(
-                "unique_calendar_ids"
-            ):
+            if not self.is_supported("delete-calendar"):
                 raise
 
         c.set_properties(
@@ -3696,7 +3663,7 @@ END:VCALENDAR
 
         ## add same event again.  As it has same uid, it should be overwritten
         ## (but some calendars may throw a "409 Conflict")
-        if not self.check_compatibility_flag("no_overwrite"):
+        if self.is_supported("save-load.mutable"):
             e2 = c.add_event(ev1)
             if todo_ok:
                 t2 = c.add_todo(todo)
@@ -3742,7 +3709,7 @@ END:VCALENDAR
         # Verify that we can't look it up, both by URL and by ID
         with pytest.raises(self._notFound()):
             c.event_by_url(e1.url)
-        if not self.check_compatibility_flag("no_overwrite"):
+        if self.is_supported("save-load.mutable"):
             with pytest.raises(self._notFound()):
                 c.event_by_url(e2.url)
         if not self.check_compatibility_flag("event_by_url_is_broken"):
@@ -3799,7 +3766,7 @@ END:VCALENDAR
         ## (But events should not be immutable!  One should be able to change an event, push the changes
         ## out to all participants and all copies of the calendar, and let everyone know that it's a
         ## changed event and not a cancellation and a new event).
-        self.skip_on_compatibility_flag("no_overwrite")
+        self.skip_unless_support("save-load.mutable")
 
         # ev2 is same UID, but one year ahead.
         # The timestamp should change.
