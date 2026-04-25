@@ -620,7 +620,7 @@ class AsyncFunctionalTestsBaseClass:
         assert e1.url is not None
 
         # same UID again → overwrite (unless server forbids it)
-        if not self.is_supported("no-overwrite"):
+        if not self.is_supported("save-load.mutable"):
             e2 = await c.add_event(ev1_static)
 
             # no_create on an existing event must succeed
@@ -718,7 +718,7 @@ class AsyncFunctionalTestsBaseClass:
 
     @pytest.mark.asyncio
     async def test_multi_get(self, async_calendar: Any) -> None:
-        """calendar_multiget() retrieves multiple events in one request."""
+        """multiget() retrieves multiple events in one request."""
         self.skip_unless_support("save-load.event")
 
         c = async_calendar
@@ -736,7 +736,7 @@ class AsyncFunctionalTestsBaseClass:
             summary="test-multiget-2",
         )
 
-        results = await c.calendar_multiget([event1.url, event2.url])
+        results = await c.multiget([event1.url, event2.url])
         assert len(results) == 2
         uids = {str(r.icalendar_component["uid"]) for r in results}
         assert uids == {"test-multiget-1", "test-multiget-2"}
