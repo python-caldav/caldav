@@ -1080,6 +1080,7 @@ class Calendar(DAVObject):
         """
         get multiple events' data.
         TODO: Does it overlap the _request_report_build_resultlist method
+        ## WARNING: async logic is duplicated in _async_multiget — mirror any changes there
         """
         if self.url is None:
             raise ValueError("Unexpected value None for self.url")
@@ -1098,28 +1099,33 @@ class Calendar(DAVObject):
         for r in results:
             yield (r, results[r][cdav.CalendarData.tag])
 
-    ## Replace the last lines with
+    def _post_multiget(self, results: Iterable[tuple[str, str]]) -> list[_CC]:
+        """Post-processing shared by multiget and _async_multiget_objects."""
+        return [
+            self._calendar_comp_class_by_data(data)(
+                self.client,
+                # Quote path to handle servers returning unencoded spaces (e.g., Zimbra)
+                url=self.url.join(quote(unquote(str(url)), safe="/:@")),
+                data=data,
+                parent=self,
+            )
+            for url, data in results
+        ]
+
     def multiget(self, event_urls: Iterable[URL], raise_notfound: bool = False) -> Iterable[_CC]:
         """
         get multiple events' data
         TODO: Does it overlap the _request_report_build_resultlist method?
         @author mtorange@gmail.com (refactored by Tobias)
         """
-        results = self._multiget(event_urls, raise_notfound=raise_notfound)
-        for url, data in results:
-            # Quote path to handle servers returning unencoded spaces (e.g., Zimbra)
-            quoted_url = quote(unquote(str(url)), safe="/:@")
-            yield self._calendar_comp_class_by_data(data)(
-                self.client,
-                url=self.url.join(quoted_url),
-                data=data,
-                parent=self,
-            )
+        if self.is_async_client:
+            return self._async_multiget_objects(event_urls, raise_notfound=raise_notfound)
+        return self._post_multiget(self._multiget(event_urls, raise_notfound=raise_notfound))
 
     async def _async_multiget(
         self, event_urls: Iterable[URL], raise_notfound: bool = False
     ) -> list[tuple[str, str]]:
-        """Async version of _multiget — returns a list of (url, data) tuples."""
+        ## WARNING: sync logic is duplicated in _multiget — mirror any changes there
         if self.url is None:
             raise ValueError("Unexpected value None for self.url")
 
@@ -1134,13 +1140,29 @@ class Calendar(DAVObject):
                     raise error.NotFoundError(f"Status {status} in {href}")
         return [(r, results[r][cdav.CalendarData.tag]) for r in results]
 
+    async def _async_multiget_objects(
+        self, event_urls: Iterable[URL], raise_notfound: bool = False
+    ) -> list[_CC]:
+        """Async version of multiget."""
+        return self._post_multiget(
+            await self._async_multiget(event_urls, raise_notfound=raise_notfound)
+        )
+
     def calendar_multiget(self, *largs, **kwargs):
         """
         get multiple events' data
         @author mtorange@gmail.com
         (refactored by Tobias)
         This is for backward compatibility.  It may be removed in 3.0 or later release.
+
+        .. deprecated::
+            Use :meth:`multiget` instead.
         """
+        warnings.warn(
+            "calendar_multiget is deprecated, use multiget instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         return list(self.multiget(*largs, **kwargs))
 
     def date_search(

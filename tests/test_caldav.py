@@ -2103,7 +2103,7 @@ END:VCALENDAR
             assert len(list(my_changed_objects)) == 0
 
         ## I was unable to run the rest of the tests towards Google using their legacy caldav API
-        self.skip_on_compatibility_flag("no_overwrite")
+        self.skip_unless_support("save-load.mutable")
 
         ## MODIFYING an object
         if is_time_based:
@@ -2234,7 +2234,7 @@ END:VCALENDAR
             time.sleep(1)
 
         ## I was unable to run the rest of the tests towards Google using their legacy caldav API
-        self.skip_on_compatibility_flag("no_overwrite")
+        self.skip_unless_support("save-load.mutable")
 
         ## MODIFYING an object
         obj.icalendar_instance.subcomponents[0]["SUMMARY"] = "foobar"
@@ -3701,7 +3701,7 @@ END:VCALENDAR
 
         ## add same event again.  As it has same uid, it should be overwritten
         ## (but some calendars may throw a "409 Conflict")
-        if not self.check_compatibility_flag("no_overwrite"):
+        if self.is_supported("save-load.mutable"):
             e2 = c.add_event(ev1)
             if todo_ok:
                 t2 = c.add_todo(todo)
@@ -3747,7 +3747,7 @@ END:VCALENDAR
         # Verify that we can't look it up, both by URL and by ID
         with pytest.raises(self._notFound()):
             c.event_by_url(e1.url)
-        if not self.check_compatibility_flag("no_overwrite"):
+        if self.is_supported("save-load.mutable"):
             with pytest.raises(self._notFound()):
                 c.event_by_url(e2.url)
         if not self.check_compatibility_flag("event_by_url_is_broken"):
@@ -3804,7 +3804,7 @@ END:VCALENDAR
         ## (But events should not be immutable!  One should be able to change an event, push the changes
         ## out to all participants and all copies of the calendar, and let everyone know that it's a
         ## changed event and not a cancellation and a new event).
-        self.skip_on_compatibility_flag("no_overwrite")
+        self.skip_unless_support("save-load.mutable")
 
         # ev2 is same UID, but one year ahead.
         # The timestamp should change.
