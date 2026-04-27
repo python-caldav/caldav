@@ -38,11 +38,11 @@ replace it with:
     from caldav import Event, Todo, Calendar           # OK
 
 All public symbols that were in ``caldav.objects`` should remain available directly
-from the ``caldav`` namespace
+from the ``caldav`` namespace.  Exceptions may apply.
 
 Wildcard import into caldav.* removed
 -------------------------------------
-Earlier a wildcard import ``from caldav.objects import *`` was done into the ``caldav`` namespace.  This has been removed.  In normal circumstances, your imports should continue to work - but there are no guarantees that all imports will continue working.  If you have any issues, see :doc:`contact`.
+Earlier a wildcard import ``from caldav.objects import *`` was done into the ``caldav`` namespace.  This has been removed.  Imports should work, but corner cases may exists.  If you have any issues, see :doc:`contact`.
 
 Config-file parse errors now raise exceptions
 ---------------------------------------------
@@ -308,9 +308,7 @@ context-manager "borrow" methods that give exclusive, safe write access.
 
 While inside the ``with`` block, the borrowed representation is the
 single source of truth.  Attempting to borrow a *different*
-representation raises ``RuntimeError``.  This means the current
-pattern is not completely thread-safe as of v3.x - but an explicit
-error is often better than updates silently being dropped.
+representation raises ``RuntimeError``.
 
 **The data representation remains the same:**
 
