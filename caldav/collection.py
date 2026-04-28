@@ -723,7 +723,14 @@ class Calendar(DAVObject):
 
         prop = dav.Prop()
         display_name = None
-        if name:
+        # Some servers (e.g. Zimbra) use the DisplayName from the MKCALENDAR body
+        # as the calendar URL, ignoring the actual request path.  When the server
+        # does not support setting a separate display name, omit it from the body so
+        # the request URL path is used as the calendar identifier.
+        supports_displayname = not self.client or self.client.features.is_supported(
+            "create-calendar.set-displayname"
+        )
+        if name and supports_displayname:
             display_name = dav.DisplayName(name)
             prop += [display_name]
         if supported_calendar_component_set:
@@ -747,7 +754,7 @@ class Calendar(DAVObject):
         # on setting the DisplayName on calendar creation
         # (DAViCal, Zimbra, ...).  Doing an attempt on explicitly setting the
         # display name using PROPPATCH.
-        if name:
+        if display_name:
             try:
                 self.set_properties([display_name])
             except Exception:
@@ -766,7 +773,7 @@ class Calendar(DAVObject):
         await self._query(root=mkcol, query_method=method, url=path, expected_return_value=201)
 
         # COMPATIBILITY ISSUE - try to set display name explicitly
-        if name:
+        if display_name:
             try:
                 await self.set_properties([display_name])
             except Exception:
