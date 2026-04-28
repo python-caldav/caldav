@@ -584,8 +584,14 @@ class AsyncFunctionalTestsBaseClass:
         self.skip_unless_support("save-load.event")
         c = async_calendar
 
+        # create the event
         e1 = await c.add_event(ev1_static)
         assert e1.url is not None
+
+        # Verify that we can look it up from calendar by url
+        e2 = await c.event_by_url(e1.url)
+        assert e2.vobject_instance.vevent.uid == e1.vobject_instance.vevent.uid
+        assert e2.url == e1.url
 
         # look up by UID
         e3 = await c.get_event_by_uid("20010712T182145Z-123401@example.com")
