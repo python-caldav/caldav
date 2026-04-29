@@ -113,9 +113,6 @@ def find_delete_calendar_demo(my_principal, calendar_name):
 def add_stuff_to_calendar_demo(calendar):
     """
     This demo adds some stuff to the calendar
-
-    Unfortunately the arguments that it's possible to pass to save_* is poorly documented.
-    https://github.com/python-caldav/caldav/issues/253
     """
     ## Add an event with some certain attributes
     print("Saving an event")

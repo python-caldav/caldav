@@ -1071,6 +1071,7 @@ class CalendarObjectResource(DAVObject):
     def _post_load_by_multiget(self, items):
         if not items:
             raise error.NotFoundError(self.url)
+        items = iter(items)
         url_data = next(items, None)
         if url_data is None:
             ## We shouldn't come here.  Something is wrong.

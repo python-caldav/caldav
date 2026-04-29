@@ -835,9 +835,9 @@ class AsyncDAVClient(BaseDAVClient):
             if _USE_HTTPX:
                 self.auth = httpx.DigestAuth(self.username, self.password)
             else:
-                from niquests.auth import HTTPDigestAuth
+                from niquests.auth import AsyncHTTPDigestAuth
 
-                self.auth = HTTPDigestAuth(self.username, self.password)
+                self.auth = AsyncHTTPDigestAuth(self.username, self.password)
         elif auth_type == "basic":
             if _USE_HTTPX:
                 self.auth = httpx.BasicAuth(self.username, self.password)

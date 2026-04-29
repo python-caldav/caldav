@@ -2,12 +2,10 @@
 Migrating from caldav 2.x to 3.x
 =========================================
 
-v3.0 is mostly backward-compatible with v2.x.  Existing code should
+v3.x is mostly backward-compatible with v2.x.  Existing code should
 generally continue to run.  New method names and usage patterns exists
 alongside the old ones.  The purpose of this document is to give a
-primer on the "best current usage practice" as of v3.0.  It may be
-needed to implement some of the changes below before using future
-major versions like v4 or v5.
+primer on the "best current usage practice" as of v3.x.
 
 .. contents:: Contents
    :local:
@@ -40,13 +38,11 @@ replace it with:
     from caldav import Event, Todo, Calendar           # OK
 
 All public symbols that were in ``caldav.objects`` should remain available directly
-from the ``caldav`` namespace
+from the ``caldav`` namespace.  Exceptions may apply.
 
 Wildcard import into caldav.* removed
 -------------------------------------
-Earlier a wildcard import ``from caldav.objects import *`` was done into the ``caldav`` namespace.  This has been removed.  In normal circumstances, your imports should continue to work - but I cannot give any guarantees that YOUR imports will continue working.  If you have any issues, then reach out.
-
-..todo:: how to add a link from "reach out" to the contact page?
+Earlier a wildcard import ``from caldav.objects import *`` was done into the ``caldav`` namespace.  This has been removed.  Imports should work, but corner cases may exists.  If you have any issues, see :doc:`contact`.
 
 Config-file parse errors now raise exceptions
 ---------------------------------------------
@@ -247,7 +243,7 @@ Rationale: Those methods are also querying the server actively, and not just loo
 Accessing and editing calendar data
 =====================================
 
-This is the most significant new API in v3.0, addressing a long-standing
+This is the most significant new API in v3.x, addressing a long-standing
 ambiguity in how calendar object data was accessed and modified.
 
 The old ``vobject_instance``, ``icalendar_instance``, ``icalendar_component`` are now deprecated.
@@ -271,7 +267,7 @@ internal slot.  Accessing one representation could silently invalidate another:
 The 3.x Solution: read and edit methods
 -----------------------------------------
 
-v3.0 adds explicit read-only getters that always return **copies**, and
+v3.x adds explicit read-only getters that always return **copies**, and
 context-manager "borrow" methods that give exclusive, safe write access.
 
 **Read-only access** (safe at any time, returns a copy):
@@ -312,9 +308,7 @@ context-manager "borrow" methods that give exclusive, safe write access.
 
 While inside the ``with`` block, the borrowed representation is the
 single source of truth.  Attempting to borrow a *different*
-representation raises ``RuntimeError``.  This means the current
-pattern is not completely thread-safe as of v3.0 - but an explicit
-error is often better than updates silently being dropped.
+representation raises ``RuntimeError``.
 
 **The data representation remains the same:**
 
@@ -354,7 +348,7 @@ The interface for the string representation is still the same.  Strings are immu
      - Replace all data from a raw string
 
 
-New in v3.0
+New in v3.x
 ============
 
 Async client
@@ -486,10 +480,10 @@ If the server gives a `retry-after`-header on 429 or 530 it will be respected, o
 
 The total sleep period will never exceed 120, no matter if retry-after is given or not.
 
-Deprecated in v3.0 (will be removed in v4.0)
-=============================================
+Deprecated in v3.x
+==================
 
-The following emit ``DeprecationWarning``:
+The following emit ``DeprecationWarning`` and may be removed in v4.0:
 
 * ``calendar.date_search()`` — use ``calendar.search()``
 * ``client.principals()`` — use ``client.search_principals()``
@@ -498,7 +492,7 @@ The following emit ``DeprecationWarning``:
 * ``.instance`` property on calendar objects — use ``.vobject_instance``
 * ``response.find_objects_and_props()`` — use ``response.results``
 
-The following are deprecated but do **not yet** emit warnings:
+The following are deprecated, do **not yet** emit warnings and may be removed in v5.0:
 
 * All ``save_*`` methods → use ``add_*``
 * All ``*_by_uid()`` methods → use ``get_*_by_uid()``
