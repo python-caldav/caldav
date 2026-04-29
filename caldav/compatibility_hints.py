@@ -77,6 +77,9 @@ class FeatureSet:
                 ## TODO: in the future, templates for the principal URL, calendar URLs etc may also be added.
             }
         },
+        "url": {
+            "type": "client-hints",
+        },
         "get-current-user-principal": {
             "description": "Support for RFC5397, current principal extension.  Most CalDAV servers have this, but it is an extension to the DAV standard.  Possibly observed missing on mail.ru, DavMail gateway and it is possible to configure the support in some sabre-based servers",
             "links": ["https://datatracker.ietf.org/doc/html/rfc5397"],
@@ -859,9 +862,6 @@ incompatibility_description = {
     'vtodo-cannot-be-uncompleted':
         """If a VTODO object has been set with STATUS:COMPLETE, it's not possible to delete the COMPLTEDED attribute and change back to STATUS:IN-ACTION""",
 
-    'unique_calendar_ids':
-        """For every test, generate a new and unique calendar id""",
-
     'sticky_events':
         """Events should be deleted before the calendar is deleted, """
         """and/or deleting a calendar may not have immediate effect""",
@@ -965,7 +965,6 @@ nextcloud = {
     'principal-search.by-name.self': {'support': 'unsupported'},
     'principal-search': {'support': 'ungraceful'},
     'search.time-range.open.start.duration': 'broken',
-    #'old_flags': ['unique_calendar_ids'],
     ## I'm surprised, I'm quite sure this was passing earlier.  Caldav commit a98d50490b872e9b9d8e93e2e401c936ad193003, caldav server checker commit 3cae24cf99da1702b851b5a74a9b88c8e5317dad
     'search.combined-is-logical-and': False,
     ## Observed with Nextcloud 33: server delivers iTIP notification to the inbox AND
@@ -997,7 +996,9 @@ ecloud = nextcloud | {
 zimbra = {
     'auto-connect.url': {'basepath': '/dav/'},
     'delete-calendar': {'support': 'fragile', 'behaviour': 'may move to trashbin instead of deleting immediately'},
-    'save-load.get-by-url': {'support': 'fragile', 'behaviour': '404 most of the time - but sometimes 200.  Weird, should be investigated more'},
+    ## This is a zimbra bug when creating calendars with a display
+    ## name.  Now mitigated in the calendar creation code.
+    #'save-load.get-by-url': {'support': 'fragile', 'behaviour': '404 most of the time - but sometimes 200.  Weird, should be investigated more'},
     ## Zimbra treats same-UID events across calendars as aliases of the same event
     'save.duplicate-uid.cross-calendar': {'support': 'unsupported'},
     'search.recurrences.expanded.exception': {'support': 'unsupported'}, ## TODO: verify
@@ -1160,7 +1161,6 @@ cyrus = {
 
 ## See comments on https://github.com/python-caldav/caldav/issues/3
 #icloud = [
-#    'unique_calendar_ids',
 #    'duplicate_in_other_calendar_with_same_uid_breaks',
 #    'sticky_events',
 #    'no_journal', ## it threw a 500 internal server error!
