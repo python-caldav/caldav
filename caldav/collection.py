@@ -1161,7 +1161,15 @@ class Calendar(DAVObject):
         @author mtorange@gmail.com
         (refactored by Tobias)
         This is for backward compatibility.  It may be removed in a later release.
+
+        .. deprecated::
+            Use :meth:`multiget` instead.
         """
+        warnings.warn(
+            "calendar_multiget is deprecated, use multiget instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         return list(self.multiget(*largs, **kwargs))
 
     def date_search(
