@@ -1,10 +1,15 @@
 # Example domains that don't resolve
 https?://your\.server\.example\.com/.*
-https?://.*\.example\.com/.*
+https?://.*\.example\.com(:\d+)?(/.*)?$
+https?://domain/.*
 
 # Localhost URLs for test servers (not accessible in CI)
 http://localhost:\d+/.*
 http://localhost/.*
+http://.*@localhost:\d+/.*
+
+# Internal Docker hostnames (only reachable inside compose network)
+http://oxhost2:\d+/.*
 
 # CalDAV endpoints that require authentication (401/403 expected)
 https://caldav\.fastmail\.com/.*
@@ -24,8 +29,21 @@ http://nextcloud.org/ns
 http://owncloud.org/ns
 
 
+# Google API endpoints (require auth — 401/404/405 expected)
+https://apidata\.googleusercontent\.com/.*
+https://oauth2\.googleapis\.com/.*
+
+# Personal/demo test server (may be down)
+https?://davical\.bekkenstenveien53c\.oslo\.no/.*
+
+# Dead or broken links we can't fix
+http://fsf\.org/.*
+http://oxpedia\.org/.*
+http://httpd\.apache\.org/.*
+# GitHub URL template in sphinx conf (contains encoded braces, always 404)
+https://github\.com/python-caldav/caldav/blob/master/%7B.*
+
 # Other junk that was never meant to be followed
-# lychee converts unknown schemes to file:// URLs before matching ignore patterns
 file://.*/scheme:.*
 /17149682/.*
 http://x/
