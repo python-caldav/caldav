@@ -260,20 +260,47 @@ class AsyncFunctionalTestsBaseClass:
         For servers that don't support mixed calendars (like Zimbra), todos must
         be stored in a separate task list with supported_calendar_component_set=["VTODO"].
 
-        Uses the same stable cal_id ("pythoncaldav-test-tasks") as the sync test suite
-        so that both share state rather than accumulate duplicate-UID conflicts on
-        servers with cross-calendar UID uniqueness (e.g. OX).  Objects are wiped
-        before each test for isolation.
+        Calendar naming strategy:
+        - Servers with cross-calendar UID uniqueness (Cyrus, OX) or no mixed-calendar
+          support: use "pythoncaldav-test-tasks" (shared with sync suite) to avoid
+          duplicate-UID conflicts.
+        - Servers where calendar deletion doesn't free the namespace (Nextcloud trashbin):
+          use unique timestamped names to avoid stale state from previous runs.
+        - All other servers: use stable "pythoncaldav-async-test".
         """
         from caldav.aio import AsyncPrincipal
         from caldav.lib.error import AuthorizationError, NotFoundError
 
         from .fixture_helpers import aget_or_create_test_calendar, cleanup_calendar_objects
 
-        # Check if server supports mixed calendars
-        supports_mixed = True
-        if hasattr(async_client, "features") and async_client.features:
-            supports_mixed = async_client.features.is_supported("save-load.todo.mixed-calendar")
+        feats = getattr(async_client, "features", None) or None
+
+        def _feat(name: str) -> bool:
+            return feats.is_supported(name) if feats else True
+
+        supports_mixed = _feat("save-load.todo.mixed-calendar")
+        cross_cal_uid_issues = not _feat("save.duplicate-uid.cross-calendar")
+        delete_frees_namespace = _feat("delete-calendar.free-namespace")
+
+        # Determine cal_id and whether we share state with the sync test suite
+        if not supports_mixed or cross_cal_uid_issues:
+            # Must share with sync suite to avoid cross-calendar UID conflicts
+            component_set: list[str] | None = ["VTODO"] if not supports_mixed else None
+            cal_id = "pythoncaldav-test-tasks"
+            shared_with_sync = True
+        elif not delete_frees_namespace:
+            # Deletion goes to trashbin (e.g. Nextcloud): use unique name so
+            # stale objects from a previous run don't cause duplicate-UID errors.
+            component_set = None
+            cal_id = f"pythoncaldav-async-test-{datetime.now().strftime('%Y%m%d%H%M%S%f')}"
+            shared_with_sync = False
+        else:
+            component_set = None
+            cal_id = "pythoncaldav-async-test"
+            shared_with_sync = False
+
+        supports_displayname = _feat("create-calendar.set-displayname")
+        calendar_name = cal_id if supports_displayname else None
 
         # Try to get principal for calendar operations
         principal = None
@@ -281,19 +308,6 @@ class AsyncFunctionalTestsBaseClass:
             principal = await AsyncPrincipal.create(async_client)
         except (NotFoundError, AuthorizationError):
             pass
-
-        # For servers without mixed calendar support, create a dedicated task list.
-        # Use the same stable cal_id as the sync test suite so servers with
-        # cross-calendar duplicate-UID detection (e.g. OX) don't reject objects
-        # that also exist in the sync test's calendar.
-        component_set = ["VTODO"] if not supports_mixed else None
-        cal_id = "pythoncaldav-test-tasks" if not supports_mixed else "pythoncaldav-async-test"
-        supports_displayname = (
-            async_client.features.is_supported("create-calendar.set-displayname")
-            if hasattr(async_client, "features") and async_client.features
-            else True
-        )
-        calendar_name = cal_id if supports_displayname else None
 
         calendar, created = await aget_or_create_test_calendar(
             async_client,
@@ -310,8 +324,10 @@ class AsyncFunctionalTestsBaseClass:
 
         yield calendar
 
-        # Only cleanup if we created the calendar
-        if created:
+        # Delete only if we created it and it's not shared with the sync suite.
+        # For shared calendars, objects were already wiped at setup; deleting the
+        # calendar here would break sync tests that run later in the same session.
+        if created and not shared_with_sync:
             try:
                 await calendar.delete()
             except Exception:

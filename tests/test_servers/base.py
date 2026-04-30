@@ -319,9 +319,11 @@ class DockerTestServer(TestServer):
             except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
                 return False
 
-        # Accept either the legacy standalone binary or the modern plugin form.
-        compose_ok = _run("docker-compose", "--version") or _run("docker", "compose", "version")
-        return compose_ok and _run("docker", "ps")
+        # start.sh scripts use the standalone `docker-compose` binary, so we
+        # only return True when that binary is actually present.  The `docker
+        # compose` plugin form is NOT sufficient — start.sh will exit 127 if
+        # only the plugin is available (e.g. on GitHub Actions runners).
+        return _run("docker-compose", "--version") and _run("docker", "ps")
 
     def start(self) -> None:
         """
