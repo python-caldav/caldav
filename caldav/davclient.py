@@ -198,11 +198,11 @@ class DAVClient(BaseDAVClient):
                - Full URL: `https://caldav.example.com/dav/`
                - Domain: `example.com` (will attempt RFC6764 discovery if enable_rfc6764=True)
                - Email: `user@example.com` (will attempt RFC6764 discovery if enable_rfc6764=True)
-               - URL with auth: `scheme://user:pass@hostname:port`
+               - URL with auth: `http://user:pass@proxy.example.com:8080`
                - Omit URL: Use `username='user@example.com'` for discovery
           username: Username for authentication. If url is omitted and username contains @,
                     RFC6764 discovery will be attempted using the username as email address.
-          proxy: A string defining a proxy server: `scheme://hostname:port`. Scheme defaults to http, port defaults to 8080.
+          proxy: A string defining a proxy server: `http://proxy.example.com:8080`. Scheme defaults to http, port defaults to 8080.
           auth: A niquests.auth.AuthBase or requests.auth.AuthBase object, may be passed instead of username/password.  username and password should be passed as arguments or in the URL
           timeout and ssl_verify_cert are passed to niquests.request.
           if auth_type is given, the auth-object will be auto-created. Auth_type can be ``bearer``, ``digest`` or ``basic``. Things are likely to work without ``auth_type`` set, but if nothing else the number of requests to the server will be reduced, and some servers may require this to squelch warnings of unexpected HTML delivered from the

@@ -124,7 +124,7 @@ class AsyncDAVClient(BaseDAVClient):
 
         Args:
             url: CalDAV server URL, domain, or email address.
-            proxy: Proxy server (scheme://hostname:port).
+            proxy: Proxy server (e.g. http://proxy.example.com:8080).
             username: Username for authentication.
             password: Password for authentication.
             auth: Custom auth object (httpx.Auth or niquests AuthBase).

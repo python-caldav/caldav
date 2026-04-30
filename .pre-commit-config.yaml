@@ -32,7 +32,7 @@ repos:
         stages: [commit-msg]
 
   - repo: https://github.com/lycheeverse/lychee
-    rev: lychee-v0.22.0
+    rev: lychee-v0.24.1
     hooks:
       - id: lychee
         args: ["--no-progress", "--timeout", "10", "--exclude-path", ".lycheeignore", "--max-cache-age=30d", "--cache"]
