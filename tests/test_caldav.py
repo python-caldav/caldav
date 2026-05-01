@@ -1515,6 +1515,15 @@ class RepeatedFunctionalTestsBaseClass:
             except Exception:
                 pass
 
+        ## ServerQuirkChecker applies its own search-cache delay internally.
+        ## setup_method may have already wrapped Calendar.search; temporarily
+        ## expose the original so the checker doesn't double-delay each call.
+        saved_calendar_search = Calendar.search
+        had_underscore_search = hasattr(Calendar, "_search")
+        saved_calendar_underscore_search = getattr(Calendar, "_search", None)
+        if had_underscore_search:
+            Calendar.search = saved_calendar_underscore_search
+
         try:
             checker = ServerQuirkChecker(
                 self.caldav, debug_mode=debug_mode, extra_clients=extra_clients
@@ -1527,8 +1536,12 @@ class RepeatedFunctionalTestsBaseClass:
                     ec.__exit__(None, None, None)
                 except Exception:
                     pass
-        checker.check_all()
-        checker.cleanup(force=False)
+            ## Restore the state setup_method left so teardown_method works normally
+            Calendar.search = saved_calendar_search
+            if had_underscore_search:
+                Calendar._search = saved_calendar_underscore_search
+            elif hasattr(Calendar, "_search"):
+                delattr(Calendar, "_search")
 
         ## features observed and features expected
         fo = checker.features_checked
