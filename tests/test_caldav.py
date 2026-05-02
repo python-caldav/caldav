@@ -3969,7 +3969,12 @@ END:VCALENDAR
         ):
             assert len(rs) == 2
 
-        asserts_on_results = [r]
+        asserts_on_results = []
+        # Client-side expansion only produces correct RECURRENCE-IDs when the
+        # server keeps master VEVENT + exception VEVENT in the same calendar
+        # object resource.  If the server splits them, skip this assertion.
+        if self.is_supported("save-load.event.recurrences.exception"):
+            asserts_on_results.append(r)
         if self.is_supported("search.recurrences.expanded.exception"):
             asserts_on_results.append(rs)
 

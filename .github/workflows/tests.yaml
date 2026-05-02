@@ -154,6 +154,11 @@ jobs:
             docker exec -e OC_PASS="testpass${i}" ${{ job.services.nextcloud.id }} php occ user:add --password-from-env --display-name="User ${i}" "user${i}" || echo "user${i} may already exist"
           done
 
+          # Set email addresses for scheduling users (required for calendar-user-address-set)
+          for i in 1 2 3; do
+            docker exec ${{ job.services.nextcloud.id }} php occ user:setting "user${i}" settings email "user${i}@localhost" || true
+          done
+
           # Enable calendar and contacts apps
           docker exec ${{ job.services.nextcloud.id }} php occ app:enable calendar || true
           docker exec ${{ job.services.nextcloud.id }} php occ app:enable contacts || true
@@ -180,6 +185,17 @@ jobs:
           " || true
 
           echo "Nextcloud is configured!"
+      - name: Configure Cyrus
+        run: |
+          # Copy imapd.conf with virtdomains: off (required for iTIP scheduling delivery).
+          # The default virtdomains: userid setting causes caladdress_lookup() to preserve
+          # the full email form (user2@example.com) while mailbox ACLs use the short form
+          # (user2), resulting in 403 errors when delivering iTIP invites.
+          sed 's/{{DEFAULTDOMAIN}}/example.com/g; s/{{SERVERNAME}}/cyrus-test/g' \
+            tests/docker-test-servers/cyrus/imapd.conf > /tmp/imapd_expanded.conf
+          docker cp /tmp/imapd_expanded.conf ${{ job.services.cyrus.id }}:/srv/cyrus-docker-test-server.git/imapd.conf
+          docker restart ${{ job.services.cyrus.id }}
+          echo "✓ Cyrus reconfigured with virtdomains: off"
       - name: Wait for Cyrus to be ready
         run: |
           echo "Waiting for Cyrus server..."

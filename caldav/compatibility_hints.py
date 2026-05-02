@@ -959,6 +959,9 @@ nextcloud = {
         'behaviour': "deleting a calendar moves it to a trashbin, thrashbin has to be manually 'emptied' from the web-ui before the namespace is freed up",
         'support': 'fragile',
     },
+    # Calendar deletion goes to trashbin so delete-and-recreate doesn't give a
+    # fresh empty calendar.  Wipe objects instead of deleting the calendar itself.
+    "test-calendar": {"cleanup-regime": "wipe-calendar"},
     'search.recurrences.includes-implicit.todo': {'support': 'unsupported'},
     #'save-load.todo.mixed-calendar': {'support': 'unsupported'}, ## Why?  It started complaining about this just recently.
     'principal-search.by-name.self': {'support': 'unsupported'},
@@ -1145,7 +1148,11 @@ cyrus = {
     # Cyrus changes the Schedule-Tag even on attendee PARTSTAT-only updates,
     # violating RFC6638 section 3.2 which requires the tag to remain stable.
     "scheduling.schedule-tag.stable-partstat": {"support": "unsupported"},
-    # Cyrus may not properly reject wrong passwords in some configurations
+    # Cyrus splits exception VEVENTs (with RECURRENCE-ID) into separate calendar
+    # object resources rather than keeping master+exception together.  Client-side
+    # expansion therefore cannot produce correct RECURRENCE-ID values.
+    "save-load.event.recurrences.exception": {"support": "unsupported"},
+    # Cyrus may not properly reject wrong passwords in some configurations.
     # Cyrus implements server-side automatic scheduling: for cross-user invites,
     # the server both auto-processes the invite into the attendee's calendar
     # AND delivers an iTIP notification copy to the attendee's schedule-inbox.
