@@ -1535,6 +1535,10 @@ class RepeatedFunctionalTestsBaseClass:
         fe = self.caldav.features
 
         ## dotted list expected and observed
+        ## Snapshot checked features before compact=True calls collapse(), which
+        ## mutates _server_features by removing subfeatures that collapse into
+        ## their parent — making tested features look like untested ones.
+        checked_features = set(fo._server_features.keys())
         observed = fo.dotted_feature_set_list(compact=True)
         expected = fe.dotted_feature_set_list(compact=True)
 
@@ -1547,7 +1551,7 @@ class RepeatedFunctionalTestsBaseClass:
                 continue
             ## Skip features the checker never explicitly tested -
             ## the observation would just be a default, not a real result
-            if feature not in observed and feature not in fo._server_features:
+            if feature not in observed and feature not in checked_features:
                 continue
             type_ = fo.find_feature(feature).get("type", "server-feature")
             if type_ in (

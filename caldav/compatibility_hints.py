@@ -907,9 +907,8 @@ xandikos = {
     ## Principal property search returns 403 (not implemented)
     "principal-search": "ungraceful",
 
-    ## Server-side recurrence expansion for event exceptions is still broken;
     ## VTODO RRULE expansion was fixed in xandikos PR #627 (released in 0.3.7).
-    "search.recurrences.expanded.exception": "unsupported",
+    ## Exception expansion (CALDAV:expand with EXDATE/RECURRENCE-ID) is now also supported.
 
     ## Open-start time-range searches (no lower bound) crash xandikos 0.3.7 with a
     ## 500 Internal Server Error (OverflowError: date value out of range in icalendar.py
@@ -1423,10 +1422,7 @@ stalwart = {
     ## Stalwart returns the recurring todo in search results but doesn't return the
     ## RRULE intact, so client-side expansion can't expand it to specific occurrences.
     'search.recurrences.includes-implicit.todo': {'support': 'fragile'},
-    ## Stalwart doesn't handle exceptions properly in server-side CALDAV:expand:
-    ## returns 3 items instead of 2 for a recurring event with one exception
-    ## (the exception is stored as a separate object and returned twice).
-    'search.recurrences.expanded.exception': False,
+    ## Stalwart correctly handles exceptions in server-side CALDAV:expand (observed supported).
     ## Stalwart stores master+exception VEVENTs as a single resource with 2 VEVENTs.
     'save-load.event.recurrences.exception': {'support': 'full'},
     'search.time-range.open': True,
