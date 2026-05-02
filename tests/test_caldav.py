@@ -1383,25 +1383,15 @@ class RepeatedFunctionalTestsBaseClass:
             return  ## no cleanup needed
         if self.cleanup_regime == "wipe-calendar":
             for cal in self.calendars_used:
-                ## do we need a try-except-pass?
-                try:
-                    for x in cal.search():
-                        x.delete()
-                except error.NotFoundError:
-                    pass
+                cal.delete(wipe=True)
         elif not self.is_supported("create-calendar") or self.cleanup_regime == "thorough":
             for cal in self.calendars_used:
-                for x in cal.search():
-                    x.delete()
+                cal.delete(wipe=True)
             return
         for cal in self.calendars_used:
             if str(cal.url) in self._preconfigured_calendar_urls:
                 ## Pre-configured calendar: wipe objects, don't delete the calendar
-                try:
-                    for x in cal.search():
-                        x.delete()
-                except error.NotFoundError:
-                    pass
+                cal.delete(wipe=True)
             else:
                 cal.delete()
         for calid in (self.testcal_id, self.testcal_id2, self.testcal_id + "-tasks"):
@@ -1438,10 +1428,7 @@ class RepeatedFunctionalTestsBaseClass:
     def _fixCalendar(self, **kwargs):
         cal = self._fixCalendar_(**kwargs)
         if self.cleanup_regime == "wipe-calendar":
-            ## do we need a try-except-pass?
-            ## (if so, consolidate)
-            for x in cal.search():
-                x.delete()
+            cal.delete(wipe=True)
         return cal
 
     def _fixCalendar_(self, **kwargs):

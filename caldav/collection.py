@@ -804,7 +804,10 @@ class Calendar(DAVObject):
 
         if wipe is True:
             for obj in self.search():
-                obj.delete()
+                try:
+                    obj.delete()
+                except error.NotFoundError:
+                    pass
             return
 
         ## TODO: remove quirk handling from the functional tests
@@ -838,7 +841,10 @@ class Calendar(DAVObject):
 
         if wipe is True:
             for obj in await self.search():
-                await obj.delete()
+                try:
+                    await obj.delete()
+                except error.NotFoundError:
+                    pass
             return
 
         quirk_info = self.client.features.is_supported("delete-calendar", dict)

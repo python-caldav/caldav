@@ -1148,10 +1148,6 @@ cyrus = {
     # Cyrus changes the Schedule-Tag even on attendee PARTSTAT-only updates,
     # violating RFC6638 section 3.2 which requires the tag to remain stable.
     "scheduling.schedule-tag.stable-partstat": {"support": "unsupported"},
-    # Cyrus splits exception VEVENTs (with RECURRENCE-ID) into separate calendar
-    # object resources rather than keeping master+exception together.  Client-side
-    # expansion therefore cannot produce correct RECURRENCE-ID values.
-    "save-load.event.recurrences.exception": {"support": "unsupported"},
     # Cyrus may not properly reject wrong passwords in some configurations.
     # Cyrus implements server-side automatic scheduling: for cross-user invites,
     # the server both auto-processes the invite into the attendee's calendar
