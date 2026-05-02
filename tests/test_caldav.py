@@ -1383,25 +1383,15 @@ class RepeatedFunctionalTestsBaseClass:
             return  ## no cleanup needed
         if self.cleanup_regime == "wipe-calendar":
             for cal in self.calendars_used:
-                ## do we need a try-except-pass?
-                try:
-                    for x in cal.search():
-                        x.delete()
-                except error.NotFoundError:
-                    pass
+                cal.delete(wipe=True)
         elif not self.is_supported("create-calendar") or self.cleanup_regime == "thorough":
             for cal in self.calendars_used:
-                for x in cal.search():
-                    x.delete()
+                cal.delete(wipe=True)
             return
         for cal in self.calendars_used:
             if str(cal.url) in self._preconfigured_calendar_urls:
                 ## Pre-configured calendar: wipe objects, don't delete the calendar
-                try:
-                    for x in cal.search():
-                        x.delete()
-                except error.NotFoundError:
-                    pass
+                cal.delete(wipe=True)
             else:
                 cal.delete()
         for calid in (self.testcal_id, self.testcal_id2, self.testcal_id + "-tasks"):
@@ -1438,10 +1428,7 @@ class RepeatedFunctionalTestsBaseClass:
     def _fixCalendar(self, **kwargs):
         cal = self._fixCalendar_(**kwargs)
         if self.cleanup_regime == "wipe-calendar":
-            ## do we need a try-except-pass?
-            ## (if so, consolidate)
-            for x in cal.search():
-                x.delete()
+            cal.delete(wipe=True)
         return cal
 
     def _fixCalendar_(self, **kwargs):
@@ -1548,6 +1535,10 @@ class RepeatedFunctionalTestsBaseClass:
         fe = self.caldav.features
 
         ## dotted list expected and observed
+        ## Snapshot checked features before compact=True calls collapse(), which
+        ## mutates _server_features by removing subfeatures that collapse into
+        ## their parent — making tested features look like untested ones.
+        checked_features = set(fo._server_features.keys())
         observed = fo.dotted_feature_set_list(compact=True)
         expected = fe.dotted_feature_set_list(compact=True)
 
@@ -1560,7 +1551,7 @@ class RepeatedFunctionalTestsBaseClass:
                 continue
             ## Skip features the checker never explicitly tested -
             ## the observation would just be a default, not a real result
-            if feature not in observed and feature not in fo._server_features:
+            if feature not in observed and feature not in checked_features:
                 continue
             type_ = fo.find_feature(feature).get("type", "server-feature")
             if type_ in (
@@ -3969,7 +3960,12 @@ END:VCALENDAR
         ):
             assert len(rs) == 2
 
-        asserts_on_results = [r]
+        asserts_on_results = []
+        # Client-side expansion only produces correct RECURRENCE-IDs when the
+        # server keeps master VEVENT + exception VEVENT in the same calendar
+        # object resource.  If the server splits them, skip this assertion.
+        if self.is_supported("save-load.event.recurrences.exception"):
+            asserts_on_results.append(r)
         if self.is_supported("search.recurrences.expanded.exception"):
             asserts_on_results.append(rs)
 

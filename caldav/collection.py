@@ -786,44 +786,70 @@ class Calendar(DAVObject):
                         exc_info=True,
                     )
 
-    def delete(self):
+    def delete(self, wipe=None):
         """Delete the calendar.
 
         For async clients, returns a coroutine that must be awaited.
+
+        wipe: tristate controlling cleanup behaviour
+          None (default) – wipe all objects instead of deleting if the server
+                           doesn't support calendar deletion
+          True           – wipe all objects and return without deleting the
+                           calendar itself (useful for servers where deletion
+                           moves calendars to a trashbin)
+          False          – always attempt to delete the calendar via HTTP DELETE
         """
         if self.is_async_client:
-            return self._async_delete()
+            return self._async_delete(wipe=wipe)
+
+        if wipe is True:
+            for obj in self.search():
+                try:
+                    obj.delete()
+                except error.NotFoundError:
+                    pass
+            return
 
         ## TODO: remove quirk handling from the functional tests
         ## TODO: this needs test code
         quirk_info = self.client.features.is_supported("delete-calendar", dict)
-        wipe = not self.client.features.is_supported("delete-calendar")
+        if wipe is None:
+            wipe = not self.client.features.is_supported("delete-calendar")
         if quirk_info["support"] == "fragile":
             ## Do some retries on deleting the calendar
-            for x in range(0, 20):
+            for _ in range(0, 20):
                 try:
                     super().delete()
                 except error.DeleteError:
                     pass
                 try:
-                    x = self.get_events()
+                    self.get_events()
                     sleep(0.3)
                 except error.NotFoundError:
                     wipe = False
                     break
 
         if wipe:
-            for x in self.search():
-                x.delete()
+            for obj in self.search():
+                obj.delete()
         else:
             super().delete()
 
-    async def _async_delete(self):
+    async def _async_delete(self, wipe=None):
         """Async implementation of Calendar.delete()."""
         import asyncio
 
+        if wipe is True:
+            for obj in await self.search():
+                try:
+                    await obj.delete()
+                except error.NotFoundError:
+                    pass
+            return
+
         quirk_info = self.client.features.is_supported("delete-calendar", dict)
-        wipe = not self.client.features.is_supported("delete-calendar")
+        if wipe is None:
+            wipe = not self.client.features.is_supported("delete-calendar")
 
         if quirk_info["support"] == "fragile":
             # Do some retries on deleting the calendar
