@@ -335,7 +335,7 @@ jobs:
       - run: pip install tox
       - run: tox -e deptry
   async-niquests:
-    # Test that async code works with niquests when httpx is not installed
+    # Test that async code works with niquests when httpx/httpxyz are not installed
     name: async (niquests fallback)
     runs-on: ubuntu-latest
     steps:
@@ -343,19 +343,68 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install dependencies without httpx
+      - name: Install dependencies without httpx/httpxyz
         run: |
           pip install --editable .[test]
-          pip uninstall -y httpx
+          pip uninstall -y httpx httpxyz
       - name: Verify niquests is used
         run: |
           python -c "
           from caldav.async_davclient import _USE_HTTPX, _USE_NIQUESTS
-          assert not _USE_HTTPX, 'httpx should not be available'
+          assert not _USE_HTTPX, 'httpx/httpxyz should not be available'
           assert _USE_NIQUESTS, 'niquests should be used'
           print('✓ Using niquests for async HTTP')
           "
       - name: Run async tests with niquests
+        run: pytest tests/test_async_davclient.py -v
+  async-httpxyz:
+    # Test that async code works with httpxyz when niquests is not installed
+    name: async (httpxyz fallback)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies with httpxyz, without niquests
+        run: |
+          pip install --editable .[test]
+          pip uninstall -y niquests
+          pip install httpxyz
+      - name: Verify httpxyz is used
+        run: |
+          python -c "
+          from caldav.async_davclient import _USE_HTTPX, _USE_HTTPXYZ, _USE_NIQUESTS
+          assert not _USE_NIQUESTS, 'niquests should not be available'
+          assert _USE_HTTPXYZ, 'httpxyz should be used'
+          assert _USE_HTTPX, '_USE_HTTPX should be set when httpxyz is used'
+          print('✓ Using httpxyz for async HTTP')
+          "
+      - name: Run async tests with httpxyz
+        run: pytest tests/test_async_davclient.py -v
+  async-httpx:
+    # Test that async code works with plain httpx when niquests and httpxyz are not installed
+    name: async (httpx fallback)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies with httpx only
+        run: |
+          pip install --editable .[test]
+          pip uninstall -y niquests httpxyz
+      - name: Verify httpx is used
+        run: |
+          python -c "
+          from caldav.async_davclient import _USE_HTTPX, _USE_HTTPXYZ, _USE_NIQUESTS
+          assert not _USE_NIQUESTS, 'niquests should not be available'
+          assert not _USE_HTTPXYZ, 'httpxyz should not be available'
+          assert _USE_HTTPX, 'httpx should be used'
+          print('✓ Using httpx for async HTTP')
+          "
+      - name: Run async tests with httpx
         run: pytest tests/test_async_davclient.py -v
   sync-requests:
     # Test that sync code works with requests when niquests is not installed
