@@ -83,6 +83,7 @@ test = [
   "radicale",
   "pyfakefs",
   "httpx",
+  "httpxyz",
   #"caldav_server_tester"
   "deptry>=0.24.0; python_version >= '3.10'",
 ]
@@ -101,7 +102,7 @@ namespaces = false
 ignore = ["DEP002"]  # Test dependencies (pytest, coverage, etc.) are not imported in main code
 
 [tool.deptry.per_rule_ignores]
-DEP001 = ["conf", "h2"]  # conf: Local test config, h2: Optional HTTP/2 support
+DEP001 = ["conf", "h2", "httpxyz"]  # conf: Local test config, h2: Optional HTTP/2 support, httpxyz: Optional async HTTP client
 DEP003 = ["aiohttp"]  # aiohttp: optional dep used only in caldav/testing.py (XandikosServer)
 
 [tool.ruff]
