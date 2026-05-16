@@ -154,6 +154,11 @@ jobs:
             docker exec -e OC_PASS="testpass${i}" ${{ job.services.nextcloud.id }} php occ user:add --password-from-env --display-name="User ${i}" "user${i}" || echo "user${i} may already exist"
           done
 
+          # Set email addresses for scheduling users (required for calendar-user-address-set)
+          for i in 1 2 3; do
+            docker exec ${{ job.services.nextcloud.id }} php occ user:setting "user${i}" settings email "user${i}@localhost" || true
+          done
+
           # Enable calendar and contacts apps
           docker exec ${{ job.services.nextcloud.id }} php occ app:enable calendar || true
           docker exec ${{ job.services.nextcloud.id }} php occ app:enable contacts || true
@@ -162,6 +167,13 @@ jobs:
           docker exec ${{ job.services.nextcloud.id }} php occ config:system:set ratelimit.enabled --value=false --type=boolean || true
           docker exec ${{ job.services.nextcloud.id }} php occ app:disable bruteforcesettings || true
           docker exec ${{ job.services.nextcloud.id }} php occ config:system:set auth.bruteforce.protection.enabled --value=false --type=boolean || true
+
+          # Disable CalDAV trashbin: setting calendarRetentionObligation=0 makes
+          # CalDavBackend hard-delete objects instead of soft-deleting them.
+          # Without this, deleted events remain in oc_calendarobjects with a deleted_at
+          # timestamp, causing UNIQUE constraint violations when tests recreate the same UID.
+          docker exec ${{ job.services.nextcloud.id }} php occ config:app:set dav calendarRetentionObligation --value=0 || true
+          docker exec ${{ job.services.nextcloud.id }} php occ dav:retention:clean-up || true
 
           # Configure CalDAV rate limits
           docker exec ${{ job.services.nextcloud.id }} php occ config:app:set dav rateLimitCalendarCreation --value=99999 || true
@@ -180,6 +192,17 @@ jobs:
           " || true
 
           echo "Nextcloud is configured!"
+      - name: Configure Cyrus
+        run: |
+          # Copy imapd.conf with virtdomains: off (required for iTIP scheduling delivery).
+          # The default virtdomains: userid setting causes caladdress_lookup() to preserve
+          # the full email form (user2@example.com) while mailbox ACLs use the short form
+          # (user2), resulting in 403 errors when delivering iTIP invites.
+          sed 's/{{DEFAULTDOMAIN}}/example.com/g; s/{{SERVERNAME}}/cyrus-test/g' \
+            tests/docker-test-servers/cyrus/imapd.conf > /tmp/imapd_expanded.conf
+          docker cp /tmp/imapd_expanded.conf ${{ job.services.cyrus.id }}:/srv/cyrus-docker-test-server.git/imapd.conf
+          docker restart ${{ job.services.cyrus.id }}
+          echo "✓ Cyrus reconfigured with virtdomains: off"
       - name: Wait for Cyrus to be ready
         run: |
           echo "Waiting for Cyrus server..."
@@ -284,6 +307,8 @@ jobs:
             echo "✗ Error: Bedework CalDAV access failed"
             exit 1
           fi
+      # Runs the full test suite (sync + async) against all servers above.
+      # Async tests run with niquests (the default install).
       - run: tox -e py
         env:
           NEXTCLOUD_URL: http://localhost:8801
@@ -334,9 +359,19 @@ jobs:
           key: pip|${{ hashFiles('setup.py') }}|${{ hashFiles('tox.ini') }}
       - run: pip install tox
       - run: tox -e deptry
+  # The three async-* jobs below exist to test the async backend *selection* logic,
+  # not to re-run the async integration tests.  The async HTTP library
+  # (_USE_HTTPX / _USE_NIQUESTS / _USE_HTTPXYZ) is chosen at import time based on
+  # what is installed, so the only way to exercise each fallback path is to
+  # manipulate the installed packages before running pytest.  The main `tests`
+  # job above already covers async tests with niquests (the default install);
+  # these jobs cover the httpxyz and plain-httpx fallback paths and explicitly
+  # assert the right _USE_* flag before running tests.
   async-niquests:
-    # Test that async code works with niquests when httpx/httpxyz are not installed
-    name: async (niquests fallback)
+    # Explicit labelled check that the niquests path (default) works in isolation.
+    # Complements the main `tests` job; uninstalls httpx/httpxyz to ensure niquests
+    # is selected, then runs unit tests only (no server required).
+    name: async (niquests)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -358,7 +393,8 @@ jobs:
       - name: Run async tests with niquests
         run: pytest tests/test_async_davclient.py -v
   async-httpxyz:
-    # Test that async code works with httpxyz when niquests is not installed
+    # Uninstalls niquests and installs httpxyz to force the httpxyz fallback path.
+    # Runs unit tests only (no server required).
     name: async (httpxyz fallback)
     runs-on: ubuntu-latest
     steps:
@@ -383,9 +419,22 @@ jobs:
       - name: Run async tests with httpxyz
         run: pytest tests/test_async_davclient.py -v
   async-httpx:
-    # Test that async code works with plain httpx when niquests and httpxyz are not installed
+    # Uninstalls both niquests and httpxyz to force the plain-httpx fallback path.
+    # Runs unit tests + a real integration test against Baikal (the lightest server)
+    # to verify end-to-end async HTTP with this backend.
     name: async (httpx fallback)
     runs-on: ubuntu-latest
+    services:
+      baikal:
+        image: ckulka/baikal:nginx
+        ports:
+          - 8800:80
+        options: >-
+          --health-cmd "curl -f http://localhost/ || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+          --health-start-period 30s
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -395,6 +444,21 @@ jobs:
         run: |
           pip install --editable .[test]
           pip uninstall -y niquests httpxyz
+      - name: Configure Baikal with pre-seeded database
+        run: |
+          docker cp tests/docker-test-servers/baikal/Specific/. ${{ job.services.baikal.id }}:/var/www/baikal/Specific/
+          docker cp tests/docker-test-servers/baikal/config/. ${{ job.services.baikal.id }}:/var/www/baikal/config/
+          docker exec ${{ job.services.baikal.id }} chown -R nginx:nginx /var/www/baikal/Specific /var/www/baikal/config
+          docker exec ${{ job.services.baikal.id }} chmod -R 770 /var/www/baikal/Specific
+          docker restart ${{ job.services.baikal.id }}
+      - name: Wait for Baikal to be ready
+        run: |
+          if timeout 60 bash -c 'until curl -f http://localhost:8800/ 2>/dev/null; do echo "Waiting..."; sleep 2; done'; then
+            echo "✓ Baikal is ready!"
+          else
+            echo "✗ Error: Baikal did not become ready within 60 seconds"
+            exit 1
+          fi
       - name: Verify httpx is used
         run: |
           python -c "
@@ -405,11 +469,24 @@ jobs:
           print('✓ Using httpx for async HTTP')
           "
       - name: Run async tests with httpx
-        run: pytest tests/test_async_davclient.py -v
+        run: pytest tests/test_async_davclient.py tests/test_async_integration.py -v -k baikal
+        env:
+          BAIKAL_URL: http://localhost:8800
   sync-requests:
     # Test that sync code works with requests when niquests is not installed
     name: sync (requests fallback)
     runs-on: ubuntu-latest
+    services:
+      baikal:
+        image: ckulka/baikal:nginx
+        ports:
+          - 8800:80
+        options: >-
+          --health-cmd "curl -f http://localhost/ || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+          --health-start-period 30s
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -420,6 +497,21 @@ jobs:
           pip install --editable .[test]
           pip uninstall -y niquests
           pip install requests
+      - name: Configure Baikal with pre-seeded database
+        run: |
+          docker cp tests/docker-test-servers/baikal/Specific/. ${{ job.services.baikal.id }}:/var/www/baikal/Specific/
+          docker cp tests/docker-test-servers/baikal/config/. ${{ job.services.baikal.id }}:/var/www/baikal/config/
+          docker exec ${{ job.services.baikal.id }} chown -R nginx:nginx /var/www/baikal/Specific /var/www/baikal/config
+          docker exec ${{ job.services.baikal.id }} chmod -R 770 /var/www/baikal/Specific
+          docker restart ${{ job.services.baikal.id }}
+      - name: Wait for Baikal to be ready
+        run: |
+          if timeout 60 bash -c 'until curl -f http://localhost:8800/ 2>/dev/null; do echo "Waiting..."; sleep 2; done'; then
+            echo "✓ Baikal is ready!"
+          else
+            echo "✗ Error: Baikal did not become ready within 60 seconds"
+            exit 1
+          fi
       - name: Verify requests is used
         run: |
           python -c "
@@ -429,4 +521,6 @@ jobs:
           print('✓ Using requests for sync HTTP')
           "
       - name: Run sync tests with requests
-        run: pytest tests/test_caldav.py -v -k "Radicale" --ignore=tests/test_async_integration.py
+        run: pytest tests/test_caldav.py -v -k "Baikal or Radicale" --ignore=tests/test_async_integration.py
+        env:
+          BAIKAL_URL: http://localhost:8800
