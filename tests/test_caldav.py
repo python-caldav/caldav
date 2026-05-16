@@ -1383,28 +1383,24 @@ class RepeatedFunctionalTestsBaseClass:
             return  ## no cleanup needed
         if self.cleanup_regime == "wipe-calendar":
             for cal in self.calendars_used:
-                ## do we need a try-except-pass?
-                try:
-                    for x in cal.search():
-                        x.delete()
-                except error.NotFoundError:
-                    pass
+                cal.delete(wipe=True)
+            return  ## keep calendar alive; don't fall through to cal.delete() below
         elif not self.is_supported("create-calendar") or self.cleanup_regime == "thorough":
             for cal in self.calendars_used:
-                for x in cal.search():
-                    x.delete()
+                cal.delete(wipe=True)
             return
         for cal in self.calendars_used:
             if str(cal.url) in self._preconfigured_calendar_urls:
                 ## Pre-configured calendar: wipe objects, don't delete the calendar
-                try:
-                    for x in cal.search():
-                        x.delete()
-                except error.NotFoundError:
-                    pass
+                cal.delete(wipe=True)
             else:
                 cal.delete()
-        for calid in (self.testcal_id, self.testcal_id2, self.testcal_id + "-tasks"):
+        for calid in (
+            self.testcal_id,
+            self.testcal_id2,
+            self.testcal_id + "-tasks",
+            self.testcal_id + "-journals",
+        ):
             self._teardownCalendar(cal_id=calid)
         if self.cleanup_regime == "thorough":
             for name in (
@@ -1414,6 +1410,7 @@ class RepeatedFunctionalTestsBaseClass:
                 self.testcal_id,
                 self.testcal_id2,
                 self.testcal_id + "-tasks",
+                self.testcal_id + "-journals",
             ):
                 self._teardownCalendar(name=name)
                 self._teardownCalendar(cal_id=name)
@@ -1438,10 +1435,7 @@ class RepeatedFunctionalTestsBaseClass:
     def _fixCalendar(self, **kwargs):
         cal = self._fixCalendar_(**kwargs)
         if self.cleanup_regime == "wipe-calendar":
-            ## do we need a try-except-pass?
-            ## (if so, consolidate)
-            for x in cal.search():
-                x.delete()
+            cal.delete(wipe=True)
         return cal
 
     def _fixCalendar_(self, **kwargs):
@@ -1472,12 +1466,14 @@ class RepeatedFunctionalTestsBaseClass:
             else:
                 kwargs["name"] = "Yep"
         if "cal_id" not in kwargs:
-            # Use a separate calendar for non-VEVENT component sets
-            # (e.g. VTODO-only) to avoid reusing a VEVENT-only calendar
-            # on servers where MKCALENDAR "already exists" falls through
-            # to the existing calendar with the wrong component set.
+            # Use distinct cal_ids for different component-set-restricted calendars so
+            # that a VTODO-only calendar and a VJOURNAL-only calendar don't share the
+            # same slot and cause MKCALENDAR failures (and wrong-type PUT errors) when
+            # the calendar persists across tests under wipe-calendar cleanup regime.
             comp_set = kwargs.get("supported_calendar_component_set", [])
-            if comp_set and "VEVENT" not in comp_set:
+            if comp_set and "VJOURNAL" in comp_set and "VEVENT" not in comp_set:
+                kwargs["cal_id"] = self.testcal_id + "-journals"
+            elif comp_set and "VEVENT" not in comp_set:
                 kwargs["cal_id"] = self.testcal_id + "-tasks"
             else:
                 kwargs["cal_id"] = self.testcal_id
@@ -3941,7 +3937,7 @@ END:VCALENDAR
         ## It has an exception, edited summary for recurrence id 20240425T123000Z
         e = c.add_event(evr2)
 
-        r = c.search(
+        rc = c.search(
             start=datetime(2024, 3, 31, 0, 0),
             end=datetime(2024, 5, 4, 0, 0, 0),
             event=True,
@@ -3960,16 +3956,21 @@ END:VCALENDAR
         if self.is_supported("save-load.event.recurrences.exception") or self.is_supported(
             "search.recurrences.expanded.exception"
         ):
-            assert len(r) == 2
-            assert "RRULE" not in r[0].data
-            assert "RRULE" not in r[1].data
+            assert len(rc) == 2
+            assert "RRULE" not in rc[0].data
+            assert "RRULE" not in rc[1].data
 
         if self.is_supported("search.recurrences.expanded.event") and self.is_supported(
             "search.recurrences.expanded.exception"
         ):
             assert len(rs) == 2
 
-        asserts_on_results = [r]
+        asserts_on_results = []
+        # Client-side expansion only produces correct RECURRENCE-IDs when the
+        # server keeps master VEVENT + exception VEVENT in the same calendar
+        # object resource.  If the server splits them, skip this assertion.
+        if self.is_supported("save-load.event.recurrences.exception"):
+            asserts_on_results.append(rc)
         if self.is_supported("search.recurrences.expanded.exception"):
             asserts_on_results.append(rs)
 
@@ -3978,11 +3979,14 @@ END:VCALENDAR
             # Order is not guaranteed by the spec, so collect the dates and verify both are present
             recurrence_ids = []
             for event in r:
-                assert isinstance(event.icalendar_component["RECURRENCE-ID"], icalendar.vDDDTypes)
+                ## Some servers (e.g. Cyrus) omit RECURRENCE-ID on the first expanded occurrence
                 ## TODO: xandikos returns a datetime without a tzinfo, radicale returns a datetime with tzinfo=UTC, but perhaps other calendar servers returns the timestamp converted to localtime?
-                recurrence_ids.append(
-                    event.icalendar_component["RECURRENCE-ID"].dt.replace(tzinfo=None)
-                )
+                recurrence_id = event.icalendar_component.get(
+                    "RECURRENCE-ID"
+                ) or event.icalendar_component.get("DTSTART")
+                assert recurrence_id is not None
+                assert isinstance(recurrence_id, icalendar.vDDDTypes)
+                recurrence_ids.append(recurrence_id.dt.replace(tzinfo=None))
 
             # Verify we have both expected recurrence instances (order-independent)
             assert set(recurrence_ids) == {
