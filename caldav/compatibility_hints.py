@@ -907,9 +907,8 @@ xandikos = {
     ## Principal property search returns 403 (not implemented)
     "principal-search": "ungraceful",
 
-    ## Server-side recurrence expansion for event exceptions is still broken;
     ## VTODO RRULE expansion was fixed in xandikos PR #627 (released in 0.3.7).
-    "search.recurrences.expanded.exception": "unsupported",
+    ## Exception expansion (CALDAV:expand with EXDATE/RECURRENCE-ID) is now also supported.
 
     ## Open-start time-range searches (no lower bound) crash xandikos 0.3.7 with a
     ## 500 Internal Server Error (OverflowError: date value out of range in icalendar.py
@@ -959,6 +958,9 @@ nextcloud = {
         'behaviour': "deleting a calendar moves it to a trashbin, thrashbin has to be manually 'emptied' from the web-ui before the namespace is freed up",
         'support': 'fragile',
     },
+    # Calendar deletion goes to trashbin so delete-and-recreate doesn't give a
+    # fresh empty calendar.  Wipe objects instead of deleting the calendar itself.
+    "test-calendar": {"cleanup-regime": "wipe-calendar"},
     'search.recurrences.includes-implicit.todo': {'support': 'unsupported'},
     #'save-load.todo.mixed-calendar': {'support': 'unsupported'}, ## Why?  It started complaining about this just recently.
     'principal-search.by-name.self': {'support': 'unsupported'},
@@ -1145,7 +1147,7 @@ cyrus = {
     # Cyrus changes the Schedule-Tag even on attendee PARTSTAT-only updates,
     # violating RFC6638 section 3.2 which requires the tag to remain stable.
     "scheduling.schedule-tag.stable-partstat": {"support": "unsupported"},
-    # Cyrus may not properly reject wrong passwords in some configurations
+    # Cyrus may not properly reject wrong passwords in some configurations.
     # Cyrus implements server-side automatic scheduling: for cross-user invites,
     # the server both auto-processes the invite into the attendee's calendar
     # AND delivers an iTIP notification copy to the attendee's schedule-inbox.
@@ -1420,10 +1422,7 @@ stalwart = {
     ## Stalwart returns the recurring todo in search results but doesn't return the
     ## RRULE intact, so client-side expansion can't expand it to specific occurrences.
     'search.recurrences.includes-implicit.todo': {'support': 'fragile'},
-    ## Stalwart doesn't handle exceptions properly in server-side CALDAV:expand:
-    ## returns 3 items instead of 2 for a recurring event with one exception
-    ## (the exception is stored as a separate object and returned twice).
-    'search.recurrences.expanded.exception': False,
+    ## Stalwart correctly handles exceptions in server-side CALDAV:expand (observed supported).
     ## Stalwart stores master+exception VEVENTs as a single resource with 2 VEVENTs.
     'save-load.event.recurrences.exception': {'support': 'full'},
     'search.time-range.open': True,
