@@ -12,6 +12,12 @@ Changelogs prior to v3.0 is pruned, but was available in the v3.1 release
 
 This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html), though for pre-releases PEP 440 takes precedence.
 
+## [Unreleased]
+
+### Added
+
+* `Calendar.delete(wipe=None)` now accepts a `wipe` parameter.  `wipe=True` wipes all objects from the calendar without deleting the calendar itself — useful for servers like Nextcloud where calendar deletion moves the calendar to a trashbin without freeing the URL namespace.  `wipe=False` always attempts a HTTP DELETE regardless of server support.  The existing `None` default preserves current auto-detect behaviour.
+
 ## [3.2.0] - 2026-04-24
 
 The two most significant news in v3.2 are **relatively well-tested support for scheduling** (RFC6638) and **better-tested support for async**.  Care should still be taken, those features are backed by many tests, but lacks testing for how well they support real-world use-case scenarios.  While async support was added in version 3.0, it was not well-enough tested.  Still only a fraction of all the integration tests for sync usage has been duplicated in the async integration test, I expect to release 3.2.1 with symmetric async integration tests before 2025-07.

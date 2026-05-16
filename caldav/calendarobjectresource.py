@@ -319,8 +319,10 @@ class CalendarObjectResource(DAVObject):
                 and occurrence.get("STATUS") in ("COMPLETED", "CANCELLED")
             ):
                 continue
-            ## TODO: If there are no reports of missing RECURRENCE-ID until 2027,
-            ## the if-statement below may be deleted
+            ## RFC 4791 §9.6.5: server-side expansion MAY omit RECURRENCE-ID on the
+            ## initial instance.  This code path uses recurring_ical_events (client-side),
+            ## which always provides RECURRENCE-ID; the assert catches any regression in
+            ## that library, and the fallback handles it gracefully if it ever fires.
             error.assert_("RECURRENCE-ID" in occurrence)
             if "RECURRENCE-ID" not in occurrence:
                 occurrence.add("RECURRENCE-ID", occurrence.get("DTSTART").dt)
@@ -1366,6 +1368,10 @@ class CalendarObjectResource(DAVObject):
             existing = get_self()
             self._validate_save_constraints(existing, uid, no_overwrite, no_create)
 
+        ## Note: RFC 4791 §9.6.5 permits servers to omit RECURRENCE-ID on the initial
+        ## expanded instance.  If this object is such an instance (no RECURRENCE-ID but
+        ## fetched via server-side expand), only_this_recurrence will silently not merge
+        ## it into the parent; the caller must add RECURRENCE-ID from DTSTART first.
         if (
             only_this_recurrence or all_recurrences
         ) and "RECURRENCE-ID" in self.icalendar_component:

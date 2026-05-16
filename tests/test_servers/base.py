@@ -308,30 +308,22 @@ class DockerTestServer(TestServer):
         Check if docker and docker-compose are available.
 
         Returns:
-            True if docker-compose is available and docker daemon is running
+            True if docker compose is available and docker daemon is running
         """
         import subprocess
 
-        try:
-            subprocess.run(
-                ["docker-compose", "--version"],
-                capture_output=True,
-                check=True,
-                timeout=5,
-            )
-            subprocess.run(
-                ["docker", "ps"],
-                capture_output=True,
-                check=True,
-                timeout=5,
-            )
-            return True
-        except (
-            subprocess.CalledProcessError,
-            FileNotFoundError,
-            subprocess.TimeoutExpired,
-        ):
-            return False
+        def _run(*cmd: str) -> bool:
+            try:
+                subprocess.run(list(cmd), capture_output=True, check=True, timeout=5)
+                return True
+            except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
+                return False
+
+        # start.sh scripts use the standalone `docker-compose` binary, so we
+        # only return True when that binary is actually present.  The `docker
+        # compose` plugin form is NOT sufficient — start.sh will exit 127 if
+        # only the plugin is available (e.g. on GitHub Actions runners).
+        return _run("docker-compose", "--version") and _run("docker", "ps")
 
     def start(self) -> None:
         """
