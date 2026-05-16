@@ -297,8 +297,7 @@ class ServerRegistry:
 
         from .base import DockerTestServer
 
-        if not DockerTestServer.verify_docker():
-            return
+        docker_available = DockerTestServer.verify_docker()
 
         # Look for docker-test-servers directories
         docker_servers_dir = Path(__file__).parent.parent / "docker-test-servers"
@@ -312,7 +311,11 @@ class ServerRegistry:
                 server_class = get_server_class(server_name)
 
                 if server_class is not None and server_name not in self._servers:
-                    self.register(server_class({"docker_dir": str(server_dir)}))
+                    server = server_class({"docker_dir": str(server_dir)})
+                    # Register if Docker is available (can start containers) OR if
+                    # the server is already running (e.g. a CI service container).
+                    if docker_available or server.is_accessible():
+                        self.register(server)
 
     def get_caldav_servers_list(self) -> list[dict]:
         """
