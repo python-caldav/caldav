@@ -1290,7 +1290,7 @@ class CalendarObjectResource(DAVObject):
         no_create: bool = False,
         obj_type: str | None = None,
         increase_seqno: bool = True,
-        only_this_recurrence: bool = True,
+        only_this_recurrence: bool | None = True,
         all_recurrences: bool = False,
     ) -> "Self | Coroutine[Any, Any, Self]":
         """Save the object, can be used for creation and update.
@@ -1318,9 +1318,14 @@ class CalendarObjectResource(DAVObject):
         nature mutually exclusive, but since only_this_recurrence is
         True by default, it will be ignored if all_recurrences is set.
 
-        If you want to sent the recurrence as it is to the server,
-        you should set both all_recurrences and only_this_recurrence
-        to False.
+        only_this_recurrence is a tristate:
+         * True (default): fetch master event and merge this recurrence
+           into it; raise NotFoundError if the master cannot be found.
+         * None: fetch master event and merge if found; if the master
+           cannot be found, PUT the fragment as-is (useful when
+           importing ICS data that may contain orphaned overrides).
+         * False: skip the merge entirely and PUT whatever is in this
+           object directly to the server.
 
         Returns:
          * self
@@ -1373,15 +1378,20 @@ class CalendarObjectResource(DAVObject):
         ## fetched via server-side expand), only_this_recurrence will silently not merge
         ## it into the parent; the caller must add RECURRENCE-ID from DTSTART first.
         if (
-            only_this_recurrence or all_recurrences
+            only_this_recurrence is not False or all_recurrences
         ) and "RECURRENCE-ID" in self.icalendar_component:
             from caldav.lib import error
 
             obj = get_self()
             if obj is None:
-                raise error.NotFoundError("Could not find parent recurring event")
-            self._incorporate_recurrence_into_parent(obj, only_this_recurrence, all_recurrences)
-            return obj.save(increase_seqno=increase_seqno)
+                if only_this_recurrence is True:
+                    raise error.NotFoundError("Could not find parent recurring event")
+                ## only_this_recurrence is None: master not found, fall through to PUT as-is
+            else:
+                self._incorporate_recurrence_into_parent(
+                    obj, only_this_recurrence is not False, all_recurrences
+                )
+                return obj.save(increase_seqno=increase_seqno)
 
         self._maybe_increment_sequence(increase_seqno)
         path = self.url.path if self.url else None
@@ -1467,7 +1477,7 @@ class CalendarObjectResource(DAVObject):
         no_create: bool = False,
         obj_type: str | None = None,
         increase_seqno: bool = True,
-        only_this_recurrence: bool = True,
+        only_this_recurrence: bool | None = True,
         all_recurrences: bool = False,
     ) -> Self:
         """Async implementation of save() for async clients."""
@@ -1494,13 +1504,18 @@ class CalendarObjectResource(DAVObject):
             self._validate_save_constraints(existing, uid, no_overwrite, no_create)
 
         if (
-            only_this_recurrence or all_recurrences
+            only_this_recurrence is not False or all_recurrences
         ) and "RECURRENCE-ID" in self.icalendar_component:
             obj = await get_self()
             if obj is None:
-                raise error.NotFoundError("Could not find parent recurring event")
-            self._incorporate_recurrence_into_parent(obj, only_this_recurrence, all_recurrences)
-            return await obj.save(increase_seqno=increase_seqno)
+                if only_this_recurrence is True:
+                    raise error.NotFoundError("Could not find parent recurring event")
+                ## only_this_recurrence is None: master not found, fall through to PUT as-is
+            else:
+                self._incorporate_recurrence_into_parent(
+                    obj, only_this_recurrence is not False, all_recurrences
+                )
+                return await obj.save(increase_seqno=increase_seqno)
 
         self._maybe_increment_sequence(increase_seqno)
         path = self.url.path if self.url else None

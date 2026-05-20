@@ -1009,7 +1009,7 @@ class Calendar(DAVObject):
         )
         if self.is_async_client:
             return self._async_add_object_finish(o, no_overwrite=no_overwrite, no_create=no_create)
-        o = o.save(no_overwrite=no_overwrite, no_create=no_create)
+        o = o.save(no_overwrite=no_overwrite, no_create=no_create, only_this_recurrence=None)
         ## TODO: Saving nothing is currently giving an object with None as URL.
         ## This should probably be changed in some future version to raise an error
         ## See also CalendarObjectResource.save()
@@ -1019,7 +1019,7 @@ class Calendar(DAVObject):
 
     async def _async_add_object_finish(self, o, no_overwrite=False, no_create=False):
         """Async helper for add_object(): awaits save() then handles reverse relations."""
-        o = await o.save(no_overwrite=no_overwrite, no_create=no_create)
+        o = await o.save(no_overwrite=no_overwrite, no_create=no_create, only_this_recurrence=None)
         if o.url is not None:
             await o._handle_reverse_relations(fix=True)
         return o
