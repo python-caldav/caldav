@@ -1735,6 +1735,42 @@ END:VCALENDAR
         events = [event for event in instance.subcomponents if isinstance(event, icalendar.Event)]
         assert len(events) == 2
 
+    def testAddOrphanedRecurrence(self):
+        """
+        add_event() with an ICS fragment containing only a RECURRENCE-ID override
+        (no master RRULE object in the calendar) must not raise NotFoundError.
+
+        Regression test for commit 7269f179 (graceful adding of orphaned recurrences):
+        the library was raising NotFoundError before even attempting the PUT.
+        Now it falls through to a plain PUT when the master cannot be found.
+        """
+        self.skip_unless_support("save-load.event")
+        cal = self._fixCalendar()
+        orphaned_recurrence = """BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Example//CalDAV test//EN
+BEGIN:VEVENT
+UID:orphaned-recurrence-test-uid@example.com
+DTSTAMP:20200101T000000Z
+DTSTART:20200115T100000Z
+DTEND:20200115T110000Z
+RECURRENCE-ID:20200115T100000Z
+SUMMARY:Orphaned recurrence with no master
+END:VEVENT
+END:VCALENDAR"""
+        try:
+            cal.add_event(orphaned_recurrence)
+        except error.NotFoundError:
+            pytest.fail(
+                "add_event() raised NotFoundError for an orphaned recurrence; "
+                "see commit 7269f179 (graceful adding of orphaned recurrences)"
+            )
+        except Exception:
+            ## Some servers may reject an orphaned recurrence with a 4xx error;
+            ## that is acceptable server behaviour.  The key guarantee is that
+            ## the library does not raise NotFoundError before even attempting the PUT.
+            pass
+
     def testPropfind(self):
         """
         Test of the propfind methods. (This is sort of redundant, since

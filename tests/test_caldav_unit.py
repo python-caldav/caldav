@@ -2030,6 +2030,84 @@ class TestAsyncGetObjectByUid:
         assert obj.id == uid
 
 
+class TestOrphanedRecurrenceSave:
+    """Unit tests for save() behavior with orphaned recurrences (RECURRENCE-ID without master).
+
+    Regression tests for commit 7269f179 (graceful adding of orphaned recurrences).
+    """
+
+    _orphan_ical = """BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Example//EN
+BEGIN:VEVENT
+UID:orphan-test-uid@example.com
+DTSTAMP:20200101T000000Z
+DTSTART:20200115T100000Z
+DTEND:20200115T110000Z
+RECURRENCE-ID:20200115T100000Z
+SUMMARY:Orphaned recurrence (no master)
+END:VEVENT
+END:VCALENDAR"""
+
+    def _make_orphan_event(self):
+        """Return (event, mock_calendar) with RECURRENCE-ID set and master not found."""
+        client = MockedDAVClient("")
+        mock_calendar = mock.MagicMock()
+        mock_calendar.is_async_client = False
+        mock_calendar.url = URL("https://example.com/calendar/")
+        mock_calendar.get_event_by_uid.side_effect = error.NotFoundError("master not found")
+        event = Event(
+            client=client,
+            url="/calendar/orphan.ics",
+            data=self._orphan_ical,
+            parent=mock_calendar,
+        )
+        return event, mock_calendar
+
+    def test_save_default_raises_when_master_missing(self):
+        """save() with the default only_this_recurrence=True raises NotFoundError when master absent."""
+        event, _ = self._make_orphan_event()
+        with pytest.raises(error.NotFoundError):
+            event.save()
+
+    def test_save_none_falls_through_to_put_when_master_missing(self):
+        """save(only_this_recurrence=None) calls _create() rather than raising when master absent."""
+        event, _ = self._make_orphan_event()
+        created = []
+        event._create = lambda id=None, path=None, retry_on_failure=True: created.append(True)
+        event.save(only_this_recurrence=None)
+        assert created, "_create() must be called (PUT as-is) when master not found"
+
+    def test_save_false_bypasses_master_lookup(self):
+        """save(only_this_recurrence=False) skips the master lookup entirely and PUTs directly."""
+        event, mock_calendar = self._make_orphan_event()
+        created = []
+        event._create = lambda id=None, path=None, retry_on_failure=True: created.append(True)
+        event.save(only_this_recurrence=False)
+        mock_calendar.get_event_by_uid.assert_not_called()
+        assert created, "_create() must be called when only_this_recurrence=False"
+
+    def test_add_object_orphan_does_not_raise_notfound(self):
+        """Calendar.add_object() passes only_this_recurrence=None, so orphaned recurrences succeed."""
+        client = MockedDAVClient("")
+        calendar = Calendar(client, url="/calendar/")
+        calendar.get_event_by_uid = mock.MagicMock(side_effect=error.NotFoundError("no master"))
+
+        created = []
+        original_create = CalendarObjectResource._create
+        CalendarObjectResource._create = (
+            lambda self_, id=None, path=None, retry_on_failure=True: created.append(True)
+        )
+        try:
+            calendar.add_object(Event, self._orphan_ical)
+        finally:
+            CalendarObjectResource._create = original_create
+
+        assert created, (
+            "add_object() with orphaned recurrence must PUT without raising NotFoundError"
+        )
+
+
 class TestAsyncCalendarObjectResource:
     """Tests that CalendarObjectResource methods return coroutines (not None) for async clients.
 
