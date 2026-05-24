@@ -15,7 +15,7 @@ TEST_USER="testuser"
 TEST_PASSWORD="testpass"
 
 run_sql() {
-    docker exec "$DB_CONTAINER" psql -U "$DB_USER" "$DB_NAME" -tAc "$1" 2>&1
+    docker exec "$DB_CONTAINER" psql -U "$DB_USER" "$DB_NAME" -tAc "$1" 2>/dev/null
 }
 
 echo "Waiting for DAViCal to be accessible..."

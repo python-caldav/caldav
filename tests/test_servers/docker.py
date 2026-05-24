@@ -7,6 +7,7 @@ in Docker containers: Baikal, Nextcloud, Cyrus, SOGo, Bedework, DAViCal, Davis, 
 
 import os
 from typing import Any
+from urllib.parse import quote
 
 try:
     import niquests as requests
@@ -438,11 +439,17 @@ class StalwartTestServer(DockerTestServer):
     Stalwart all-in-one mail & collaboration server in Docker.
 
     Stalwart added CalDAV/CardDAV support in 2024/2025. Uses plain HTTP on
-    port 8080 for both the admin interface and CalDAV access. Calendar home
-    for a user is at /dav/cal/<username>/. JMAP is at /.well-known/jmap.
+    port 8080 for both the admin interface and CalDAV access.
+
+    v0.16+ changes:
+    - User accounts use full email addresses (local@domain).
+    - CalDAV path URL-encodes the @: /dav/cal/user%40example.org/
+    - Management API moved from REST /api/ to JMAP POST /jmap.
+    - config.json (SQLite pointer) is required to avoid bootstrap mode.
     """
 
     name = "Stalwart"
+    _domain = "example.org"
 
     def __init__(self, config: dict[str, Any] | None = None) -> None:
         config = config or {}
@@ -450,15 +457,23 @@ class StalwartTestServer(DockerTestServer):
         port = int(config.get("port") or os.environ.get("STALWART_PORT", "8809"))
         config.setdefault("host", host)
         config.setdefault("port", port)
-        config.setdefault("username", os.environ.get("STALWART_USERNAME", "testuser"))
-        config.setdefault("password", os.environ.get("STALWART_PASSWORD", "testpass"))
+        # v0.16+: username is a full email address; default matches setup_stalwart.sh
+        config.setdefault(
+            "username", os.environ.get("STALWART_USERNAME", f"testuser@{self._domain}")
+        )
+        config.setdefault("password", os.environ.get("STALWART_PASSWORD", "testcaldav"))
         if "features" not in config:
             config["features"] = compatibility_hints.stalwart.copy()
         # user1-user3 are created by setup_stalwart.sh for scheduling tests
+        # Passwords match setup_stalwart.sh defaults (caldavtest{N}).
         if "scheduling_users" not in config:
             base = f"http://{host}:{port}/dav/cal"
             config["scheduling_users"] = [
-                {"url": f"{base}/user{i}/", "username": f"user{i}", "password": f"testpass{i}"}
+                {
+                    "url": f"{base}/user{i}%40{self._domain}/",
+                    "username": f"user{i}@{self._domain}",
+                    "password": f"caldavtest{i}",
+                }
                 for i in range(1, 4)
             ]
         super().__init__(config)
@@ -468,7 +483,8 @@ class StalwartTestServer(DockerTestServer):
 
     @property
     def url(self) -> str:
-        return f"http://{self.host}:{self.port}/dav/cal/{self.username}/"
+        # URL-encode the @ in the email address for the CalDAV path component.
+        return f"http://{self.host}:{self.port}/dav/cal/{quote(self.username or '', safe='')}/"
 
     @property
     def jmap_url(self) -> str:
