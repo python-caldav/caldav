@@ -128,8 +128,9 @@ test-servers:
     enabled: ${TEST_STALWART:-false}
     host: ${STALWART_HOST:-localhost}
     port: ${STALWART_PORT:-8809}
-    username: ${STALWART_USERNAME:-testuser}
-    password: ${STALWART_PASSWORD:-testpass}
+    # v0.16+: username is a full email address; password must not be in zxcvbn common-word list.
+    username: ${STALWART_USERNAME:-testuser@example.org}
+    password: ${STALWART_PASSWORD:-testcaldav}
 
   # OX App Suite requires a locally built Docker image — run build.sh first.
   ox:

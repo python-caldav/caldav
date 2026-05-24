@@ -16,11 +16,11 @@ services:
       # This fixes iTIP scheduling delivery: with virtdomains: userid the
       # caladdress_lookup() function preserves user2@example.com as the
       # userid, but mailbox ACLs use the short form user2, causing 403.
-      - ./imapd.conf:/srv/cyrus-docker-test-server.git/imapd.conf:ro
+      - ./imapd.conf:/srv/testserver/imapd.conf:ro
     # Other data remains ephemeral for testing
     # This ensures each start is fresh with newly created users
     healthcheck:
-      test: ["CMD", "curl", "-s", "http://localhost:8080/"]
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/8080'"]
       interval: 10s
       timeout: 5s
       retries: 5

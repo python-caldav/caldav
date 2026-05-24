@@ -57,14 +57,18 @@ def _parse_session_data(url: str, data: dict) -> Session:
     # return a relative path. Resolve it against the session endpoint URL.
     api_url = urljoin(url, api_url)
 
-    # Some servers (e.g. Stalwart behind a port-remapping proxy) advertise an
-    # api_url whose host matches ours but whose port reflects the internal
-    # listener rather than the port we actually connected through. Rewrite to
-    # match the session endpoint's authority so subsequent calls succeed.
+    # Some servers (e.g. Stalwart) advertise an api_url whose host matches ours
+    # but with a different scheme (https vs http) and/or port than the one we
+    # actually connected through. Rewrite both scheme and netloc to match the
+    # session endpoint so that subsequent calls succeed without TLS errors.
     session_parsed = urlparse(url)
     api_parsed = urlparse(api_url)
-    if api_parsed.hostname == session_parsed.hostname and api_parsed.port != session_parsed.port:
-        api_url = urlunparse(api_parsed._replace(netloc=session_parsed.netloc))
+    if api_parsed.hostname == session_parsed.hostname and (
+        api_parsed.port != session_parsed.port or api_parsed.scheme != session_parsed.scheme
+    ):
+        api_url = urlunparse(
+            api_parsed._replace(scheme=session_parsed.scheme, netloc=session_parsed.netloc)
+        )
 
     state = data.get("state", "")
     server_capabilities = data.get("capabilities", {})

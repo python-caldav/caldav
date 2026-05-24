@@ -24,7 +24,7 @@ services:
     tmpfs:
       - /data:size=100m
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/dav/"]
+      test: ["CMD", "curl", "-s", "http://localhost:9000/dav/"]
       interval: 10s
       timeout: 5s
       retries: 5

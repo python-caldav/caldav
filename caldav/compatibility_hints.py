@@ -883,38 +883,12 @@ incompatibility_description = {
 
 }
 
-## This is for Xandikos 0.2.12.
-## Lots of development going on as of summer 2025, so expect the list to become shorter soon!
-xandikos_v0_2_12 = {
-    ## this only applies for very simple installations
-    "auto-connect.url": {"domain": "localhost", "scheme": "http", "basepath": "/"},
-    'search.recurrences.includes-implicit': {'support': 'unsupported'},
-    'search.recurrences.expanded': {'support': 'unsupported'},
-    'search.time-range.todo': {'support': 'unsupported'},
-    'search.time-range.alarm': {'support': 'ungraceful', 'behaviour': '500 internal server error'},
-    'search.comp-type.optional': {'support': 'ungraceful'},
-    "search.text.substring": {"support": "unsupported"},
-    "search.text.category.substring": {"support": "unsupported"},
-    'principal-search': {'support': 'unsupported'},
-    'freebusy-query': {'support': 'ungraceful', 'behaviour': '500 internal server error'},
-    "scheduling": {"support": "unsupported"},
-    ## https://github.com/jelmer/xandikos/issues/8
-    'search.time-range.open.start.duration': {'support': 'unsupported'},
-    'search.time-range.open.start': {'support': 'broken', 'behaviour': 'future tasks are returned when only an end bound is given'},
-}
-
 xandikos = {
     ## Principal property search returns 403 (not implemented)
     "principal-search": "ungraceful",
 
     ## VTODO RRULE expansion was fixed in xandikos PR #627 (released in 0.3.7).
     ## Exception expansion (CALDAV:expand with EXDATE/RECURRENCE-ID) is now also supported.
-
-    ## Open-start time-range searches (no lower bound) crash xandikos 0.3.7 with a
-    ## 500 Internal Server Error (OverflowError: date value out of range in icalendar.py
-    ## _expand_rrule_component when computing adjusted_start = start - duration).
-    "search.time-range.open.start": {"support": "ungraceful", "behaviour": "500 Internal Server Error (OverflowError in rrule expansion)"},
-    "search.time-range.open.start.duration": True,
 
     ## this only applies for very simple installations
     "auto-connect.url": {"domain": "localhost", "scheme": "http", "basepath": "/"},

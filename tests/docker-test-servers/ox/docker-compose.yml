@@ -8,7 +8,7 @@ services:
       - /var/lib/mysql:size=500m
       - /ox/store:size=200m
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost/caldav/"]
+      test: ["CMD", "curl", "-s", "http://localhost/caldav/"]
       interval: 10s
       timeout: 5s
       retries: 30

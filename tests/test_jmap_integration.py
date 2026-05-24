@@ -39,8 +39,8 @@ CYRUS_PASSWORD = "x"
 STALWART_HOST = "localhost"
 STALWART_PORT = 8809
 STALWART_JMAP_URL = f"http://{STALWART_HOST}:{STALWART_PORT}/.well-known/jmap"
-STALWART_USERNAME = "testuser"
-STALWART_PASSWORD = "testpass"
+STALWART_USERNAME = "testuser@example.org"
+STALWART_PASSWORD = "testcaldav"
 
 
 def _reachable(host: str, port: int) -> bool:

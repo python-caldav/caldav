@@ -1,12 +1,18 @@
 #!/bin/bash
 # Setup script for Stalwart test server.
-# Creates the test domain and user via the management REST API.
+# Creates the test domain and user via the JMAP management API.
 #
-# Stalwart requires:
-#   1. A domain principal before a user can be created with that email.
-#   2. A user principal with a plain-text secret (Stalwart hashes it internally).
+# Stalwart v0.16+ architecture:
+#   - REST /api/ endpoints are gone; management is done via JMAP (POST /jmap).
+#   - x:Domain/set creates a domain principal.
+#   - x:Account/set creates a user account (name = local part, domainId = domain id).
+#   - Authentication uses full email: testuser@example.org.
+#   - CalDAV URL encodes the @ as %40: /dav/cal/testuser%40example.org/
+#   - config.json (mounted read-only) points Stalwart at the SQLite database,
+#     preventing bootstrap mode from activating.
+#   - STALWART_RECOVERY_ADMIN pins the admin credential during bootstrap.
 #
-# CalDAV is served at /dav/cal/<username>/ over plain HTTP on port 8080.
+# Default passwords avoid zxcvbn's common-password blacklist ("testpass" is rejected).
 
 set -e
 
@@ -16,45 +22,22 @@ ADMIN_USER="admin"
 ADMIN_PASSWORD="adminpass"
 DOMAIN="example.org"
 TEST_USER="${STALWART_USERNAME:-testuser}"
-TEST_PASSWORD="${STALWART_PASSWORD:-testpass}"
-API_BASE="http://localhost:${HOST_PORT}/api"
+TEST_PASSWORD="${STALWART_PASSWORD:-testcaldav}"
+JMAP_URL="http://localhost:${HOST_PORT}/jmap"
 
-api_post() {
-    local endpoint="$1"
-    local body="$2"
-    curl -s -X POST "${API_BASE}${endpoint}" \
+jmap_call() {
+    local body="$1"
+    curl -s -u "${ADMIN_USER}:${ADMIN_PASSWORD}" \
+        -X POST "${JMAP_URL}" \
         -H "Content-Type: application/json" \
-        -H "Accept: application/json" \
-        -u "${ADMIN_USER}:${ADMIN_PASSWORD}" \
         -d "${body}"
-}
-
-create_user() {
-    local username="$1"
-    local password="$2"
-    local result
-    result=$(api_post "/principal" "{
-        \"type\": \"individual\",
-        \"name\": \"${username}\",
-        \"secrets\": [\"${password}\"],
-        \"emails\": [\"${username}@${DOMAIN}\"],
-        \"roles\": [\"user\"]
-    }")
-    if echo "$result" | grep -q '"error"'; then
-        if echo "$result" | grep -q '"fieldAlreadyExists"'; then
-            echo "User '${username}' already exists (OK)"
-        else
-            echo "Warning: user '${username}' creation returned: $result"
-        fi
-    else
-        echo "User '${username}' created"
-    fi
 }
 
 echo "Waiting for Stalwart HTTP endpoint to be ready..."
 max_attempts=60
 for i in $(seq 1 $max_attempts); do
-    if curl -s -o /dev/null -w "%{http_code}" "http://localhost:${HOST_PORT}/" 2>/dev/null | grep -q "200"; then
+    # /dav/cal/ returns 401 once the database is initialised — no GitHub download needed.
+    if curl -s -o /dev/null -w "%{http_code}" "http://localhost:${HOST_PORT}/dav/cal/" 2>/dev/null | grep -q "401"; then
         echo "Stalwart is ready"
         break
     fi
@@ -68,48 +51,124 @@ for i in $(seq 1 $max_attempts); do
 done
 
 echo ""
-echo "Creating domain '${DOMAIN}'..."
-RESULT=$(api_post "/principal" "{\"type\": \"domain\", \"name\": \"${DOMAIN}\"}")
-if echo "$RESULT" | grep -q '"error"'; then
-    if echo "$RESULT" | grep -q '"fieldAlreadyExists"'; then
-        echo "Domain already exists (OK)"
-    else
-        echo "Warning: domain creation returned: $RESULT"
-    fi
-fi
-
-echo "Creating test user '${TEST_USER}'..."
-RESULT=$(api_post "/principal" "{
-    \"type\": \"individual\",
-    \"name\": \"${TEST_USER}\",
-    \"secrets\": [\"${TEST_PASSWORD}\"],
-    \"emails\": [\"${TEST_USER}@${DOMAIN}\"],
-    \"roles\": [\"user\"]
-}")
-if echo "$RESULT" | grep -q '"error"'; then
-    if echo "$RESULT" | grep -q '"fieldAlreadyExists"'; then
-        echo "User already exists (OK)"
-    else
-        echo "Error creating user: $RESULT"
-        exit 1
-    fi
+echo "Disabling password strength check for test environment..."
+# Allow simple test passwords; zxcvbn by default rejects common words like "testpass".
+RESULT=$(jmap_call '{
+    "using": ["urn:ietf:params:jmap:core"],
+    "methodCalls": [["x:Authentication/set", {
+        "accountId": "d333333",
+        "update": {"singleton": {"passwordMinStrength": "zero"}}
+    }, "0"]]
+}')
+if echo "$RESULT" | grep -q '"updated"'; then
+    echo "Password strength check disabled"
 else
-    echo "User created: $RESULT"
+    echo "Warning: could not disable password strength check: $RESULT"
 fi
 
-# Additional users for RFC6638 scheduling tests
-create_user "user1" "testpass1"
-create_user "user2" "testpass2"
-create_user "user3" "testpass3"
+echo ""
+echo "Disabling rate limiting for test environment..."
+# Stalwart applies HTTP rate limits by default; disable them to avoid 429s during tests.
+# The Http object is a singleton with id "singleton". period is milliseconds (integer).
+# max count per Stalwart validation is 1,000,000.  Try create first; if it already
+# exists (primaryKeyViolation), update the singleton instead.
+RATE_BODY='{"rateLimitAnonymous":{"count":1000000,"period":60000},"rateLimitAuthenticated":{"count":1000000,"period":60000}}'
+RESULT=$(jmap_call "{
+    \"using\": [\"urn:ietf:params:jmap:core\"],
+    \"methodCalls\": [[\"x:Http/set\", {
+        \"accountId\": \"d333333\",
+        \"create\": {\"h1\": ${RATE_BODY}}
+    }, \"0\"]]
+}")
+if echo "$RESULT" | grep -q '"primaryKeyViolation"'; then
+    RESULT=$(jmap_call "{
+        \"using\": [\"urn:ietf:params:jmap:core\"],
+        \"methodCalls\": [[\"x:Http/set\", {
+            \"accountId\": \"d333333\",
+            \"update\": {\"singleton\": ${RATE_BODY}}
+        }, \"0\"]]
+    }")
+fi
+if echo "$RESULT" | grep -q '"notCreated"\|"notUpdated"\|"error"'; then
+    echo "Warning: rate limit update returned: $RESULT"
+else
+    echo "Rate limiting disabled"
+fi
+
+echo ""
+echo "Creating domain '${DOMAIN}'..."
+RESULT=$(jmap_call "{
+    \"using\": [\"urn:ietf:params:jmap:core\"],
+    \"methodCalls\": [[\"x:Domain/set\", {
+        \"accountId\": \"d333333\",
+        \"create\": {\"d1\": {\"name\": \"${DOMAIN}\"}}
+    }, \"0\"]]
+}")
+if echo "$RESULT" | grep -q '"created"'; then
+    DOMAIN_ID=$(echo "$RESULT" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['methodResponses'][0][1]['created']['d1']['id'])" 2>/dev/null)
+    echo "Domain created (id=${DOMAIN_ID})"
+elif echo "$RESULT" | grep -q '"alreadyExists"\|"primaryKeyViolation"'; then
+    echo "Domain already exists, fetching id..."
+    DOMAIN_ID=$(jmap_call '{"using":["urn:ietf:params:jmap:core"],"methodCalls":[["x:Domain/get",{"accountId":"d333333","ids":null},"0"]]}' | \
+        python3 -c "import json,sys; l=json.load(sys.stdin)['methodResponses'][0][1]['list']; d=[x for x in l if x['name']=='${DOMAIN}']; print(d[0]['id'] if d else '')" 2>/dev/null)
+    echo "Existing domain id=${DOMAIN_ID}"
+else
+    echo "Warning: domain creation returned: $RESULT"
+    DOMAIN_ID=$(jmap_call '{"using":["urn:ietf:params:jmap:core"],"methodCalls":[["x:Domain/get",{"accountId":"d333333","ids":null},"0"]]}' | \
+        python3 -c "import json,sys; l=json.load(sys.stdin)['methodResponses'][0][1]['list']; d=[x for x in l if x['name']=='${DOMAIN}']; print(d[0]['id'] if d else '')" 2>/dev/null)
+fi
+
+if [ -z "$DOMAIN_ID" ]; then
+    echo "Error: could not determine domain id"
+    exit 1
+fi
+
+create_user() {
+    local username="$1"
+    local password="$2"
+    local result
+    result=$(jmap_call "{
+        \"using\": [\"urn:ietf:params:jmap:core\"],
+        \"methodCalls\": [[\"x:Account/set\", {
+            \"accountId\": \"d333333\",
+            \"create\": {\"u1\": {
+                \"@type\": \"User\",
+                \"name\": \"${username}\",
+                \"domainId\": \"${DOMAIN_ID}\",
+                \"credentials\": {\"0\": {\"@type\": \"Password\", \"secret\": \"${password}\"}}
+            }}
+        }, \"0\"]]
+    }")
+    if echo "$result" | grep -q '"created"'; then
+        echo "User '${username}@${DOMAIN}' created"
+    elif echo "$result" | grep -q '"primaryKeyViolation"'; then
+        echo "User '${username}@${DOMAIN}' already exists (OK)"
+    else
+        echo "Warning: user '${username}' creation returned: $result"
+    fi
+}
+
+echo ""
+echo "Creating test user '${TEST_USER}'..."
+create_user "${TEST_USER}" "${TEST_PASSWORD}"
+
+echo ""
+echo "Creating additional users for RFC6638 scheduling tests..."
+# Passwords avoid the common-word blacklist: "caldavtest{N}" passes, "testpass{N}" does not.
+create_user "user1" "caldavtest1"
+create_user "user2" "caldavtest2"
+create_user "user3" "caldavtest3"
 
 echo ""
 echo "Verifying CalDAV access..."
+# v0.16+: CalDAV path encodes the @ in the email address as %40.
+CALDAV_PATH="/dav/cal/${TEST_USER}%40${DOMAIN}/"
 max_caldav_attempts=15
 for i in $(seq 1 $max_caldav_attempts); do
     RESPONSE=$(curl -s -X PROPFIND \
         -H "Depth: 0" \
-        -u "${TEST_USER}:${TEST_PASSWORD}" \
-        "http://localhost:${HOST_PORT}/dav/cal/${TEST_USER}/" 2>/dev/null)
+        -u "${TEST_USER}@${DOMAIN}:${TEST_PASSWORD}" \
+        "http://localhost:${HOST_PORT}${CALDAV_PATH}" 2>/dev/null)
     if echo "$RESPONSE" | grep -qi "multistatus\|collection"; then
         echo "CalDAV is accessible"
         break
@@ -125,27 +184,9 @@ for i in $(seq 1 $max_caldav_attempts); do
 done
 
 echo ""
-echo "Disabling rate limiting for test environment..."
-# Stalwart applies HTTP and authentication rate limits by default, which causes
-# 429 responses during rapid test runs. Append generous limits to config inside
-# the container, then reload.
-docker exec "$CONTAINER_NAME" sh -c 'cat >> /opt/stalwart/etc/config.toml << '"'"'EOF'"'"'
-
-[http]
-rate-limit-anonymous = { count = 999999999, period = "1m" }
-rate-limit-authenticated = { count = 999999999, period = "1m" }
-EOF'
-RELOAD_RESULT=$(curl -s -u "${ADMIN_USER}:${ADMIN_PASSWORD}" "${API_BASE}/reload")
-if echo "$RELOAD_RESULT" | grep -q '"errors":{}'; then
-    echo "Rate limiting disabled (config reloaded)"
-else
-    echo "Warning: config reload result: $RELOAD_RESULT"
-fi
-
-echo ""
 echo "Stalwart setup complete!"
 echo ""
 echo "Credentials:"
-echo "  Admin:     ${ADMIN_USER} / ${ADMIN_PASSWORD}  (web UI: http://localhost:${HOST_PORT})"
-echo "  Test user: ${TEST_USER} / ${TEST_PASSWORD}"
-echo "  CalDAV URL: http://localhost:${HOST_PORT}/dav/cal/${TEST_USER}/"
+echo "  Admin:     ${ADMIN_USER} / ${ADMIN_PASSWORD}  (web UI: http://localhost:${HOST_PORT}/admin/)"
+echo "  Test user: ${TEST_USER}@${DOMAIN} / ${TEST_PASSWORD}"
+echo "  CalDAV URL: http://localhost:${HOST_PORT}${CALDAV_PATH}"
