@@ -456,6 +456,17 @@ class Principal(DAVObject):
         It will not initiate any communication with the server.
         """
         if not cal_url:
+            ## For full-URL cal_id, skip calendar_home_set (which may be async-lazy)
+            if cal_id and (
+                isinstance(cal_id, URL)
+                or (
+                    isinstance(cal_id, str)
+                    and (cal_id.startswith("https://") or cal_id.startswith("http://"))
+                )
+            ):
+                if self.client is None:
+                    raise ValueError("Unexpected value None for self.client")
+                return Calendar(self.client, url=URL.objectify(cal_id))
             return self.calendar_home_set.calendar(name, cal_id)
         else:
             if self.client is None:
@@ -611,10 +622,14 @@ class Principal(DAVObject):
         response = await self.client.post(outbox.url, fb_obj.data, headers)
         return response._parse_scheduling_response_objects(parent=self)
 
-    def calendar_user_address_set(self) -> list[str | None]:
+    def calendar_user_address_set(
+        self,
+    ) -> "list[str | None] | Coroutine[Any, Any, list[str | None]]":
         """
         defined in RFC6638
         """
+        if self.is_async_client:
+            return self._async_calendar_user_address_set()
         _addresses: _Element | None = self.get_property(
             cdav.CalendarUserAddressSet(), parse_props=False
         )
@@ -626,6 +641,15 @@ class Principal(DAVObject):
         addresses = list(_addresses)
         ## possibly the preferred attribute is iCloud-specific.
         ## TODO: do more research on that
+        addresses.sort(key=lambda x: -int(x.get("preferred", 0)))
+        return [x.text for x in addresses]
+
+    async def _async_calendar_user_address_set(self) -> list[str | None]:
+        _addresses = await self.get_property(cdav.CalendarUserAddressSet(), parse_props=False)
+        if _addresses is None:
+            raise error.NotFoundError("No calendar user addresses given from server")
+        assert not [x for x in _addresses if x.tag != dav.Href().tag]
+        addresses = list(_addresses)
         addresses.sort(key=lambda x: -int(x.get("preferred", 0)))
         return [x.text for x in addresses]
 
@@ -1512,7 +1536,9 @@ class Calendar(DAVObject):
             self, server_expand, split_expanded, props, xml, post_filter, _hacks
         )
 
-    def freebusy_request(self, start: datetime, end: datetime) -> "FreeBusy":
+    def freebusy_request(
+        self, start: datetime, end: datetime
+    ) -> "FreeBusy | Coroutine[Any, Any, FreeBusy]":
         """
         Search the calendar, but return only the free/busy information.
 
@@ -1521,11 +1547,16 @@ class Calendar(DAVObject):
           end : same as above.
 
         Returns:
-          [FreeBusy(), ...]
+          FreeBusy object (or a coroutine for async clients)
         """
-        ## TODO: async variant?
         root = cdav.FreeBusyQuery() + [cdav.TimeRange(start, end)]
+        if self.is_async_client:
+            return self._async_freebusy_request(root)
         response = self._query(root, 1, "report")
+        return FreeBusy(self, response.raw)
+
+    async def _async_freebusy_request(self, root) -> "FreeBusy":
+        response = await self._query(root, 1, "report")
         return FreeBusy(self, response.raw)
 
     def get_todos(
