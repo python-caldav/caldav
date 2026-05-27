@@ -2267,6 +2267,8 @@ class Todo(CalendarObjectResource):
         self._complete_ical(completion_timestamp=completion_timestamp)
         self.save()
 
+    ## TODO: there is TERRIBLY much code duplication here.  We should try to consolidate
+    ## the sync and async code better.
     async def _async_complete(
         self,
         completion_timestamp: datetime,
@@ -2275,12 +2277,93 @@ class Todo(CalendarObjectResource):
     ) -> None:
         """Async implementation of complete()."""
         if "RRULE" in self.icalendar_component and handle_rrule:
-            # _complete_recurring_* methods are sync-only for now; they internally
-            # call self.save() which would return an unawaited coroutine in async mode.
-            # This is a known limitation - handle_rrule is not yet async-safe.
-            raise NotImplementedError("handle_rrule=True is not yet supported for async clients")
+            await getattr(self, "_async_complete_recurring_%s" % rrule_mode)(completion_timestamp)
+            return
         self._complete_ical(completion_timestamp=completion_timestamp)
         await self.save()
+
+    async def _async_complete_recurring_safe(self, completion_timestamp: datetime) -> None:
+        """Async version of _complete_recurring_safe."""
+        if not self._reduce_count():
+            return await self._async_complete(completion_timestamp, handle_rrule=False)
+        next_dtstart = self._next(completion_timestamp)
+        if not next_dtstart:
+            return await self._async_complete(completion_timestamp, handle_rrule=False)
+
+        completed = self.copy()
+        completed.url = self.parent.url.join(completed.id + ".ics")
+        completed.icalendar_component.pop("RRULE")
+        await completed.save()
+        completed._complete_ical(completion_timestamp=completion_timestamp)
+        await completed.save()
+
+        duration = self.get_duration()
+        i = self.icalendar_component
+        i.pop("DTSTART", None)
+        i.add("DTSTART", next_dtstart)
+        self.set_duration(duration, movable_attr="DUE")
+        await self.save()
+
+    async def _async_complete_recurring_thisandfuture(self, completion_timestamp: datetime) -> None:
+        """Async version of _complete_recurring_thisandfuture."""
+        recurrences = self.icalendar_instance.subcomponents
+        orig = recurrences[0]
+        if "STATUS" not in orig:
+            orig["STATUS"] = "NEEDS-ACTION"
+
+        if len(recurrences) == 1:
+            just_completed = orig.copy()
+            just_completed.pop("RRULE")
+            just_completed.add("RECURRENCE-ID", orig.get("DTSTART", completion_timestamp))
+            seqno = just_completed.pop("SEQUENCE", 0)
+            just_completed.add("SEQUENCE", seqno + 1)
+            recurrences.append(just_completed)
+
+        prev = recurrences[-1]
+        rrule = prev.get("RRULE", orig["RRULE"])
+        thisandfuture = prev.copy()
+        seqno = thisandfuture.pop("SEQUENCE", 0)
+        thisandfuture.add("SEQUENCE", seqno + 1)
+
+        if len(recurrences) > 2:
+            if prev["RECURRENCE-ID"].params.get("RANGE", None) == "THISANDFUTURE":
+                prev["RECURRENCE-ID"].params.pop("RANGE")
+            else:
+                raise NotImplementedError(
+                    "multiple instances found, but last one is not of type THISANDFUTURE, possibly this has been created by some incompatible client, but we should deal with it"
+                )
+        self._complete_ical(prev, completion_timestamp)
+
+        thisandfuture.pop("RECURRENCE-ID", None)
+        thisandfuture.add("RECURRENCE-ID", self._next(i=prev, rrule=rrule))
+        thisandfuture["RECURRENCE-ID"].params["RANGE"] = "THISANDFUTURE"
+        rrule2 = thisandfuture.pop("RRULE", None)
+
+        if rrule2 is not None:
+            count = rrule2.get("COUNT", None)
+            if count is not None and count[0] in (0, 1):
+                for i in recurrences:
+                    self._complete_ical(i, completion_timestamp=completion_timestamp)
+            thisandfuture.add("RRULE", rrule2)
+        else:
+            count = rrule.get("COUNT", None)
+            if count is not None and count[0] <= len(
+                [x for x in recurrences if not self.is_pending(x)]
+            ):
+                self._complete_ical(recurrences[0], completion_timestamp=completion_timestamp)
+                await self.save(increase_seqno=False)
+                return
+
+        rrule = rrule2 or rrule
+
+        duration = self._get_duration(i=prev)
+        thisandfuture.pop("DTSTART", None)
+        thisandfuture.pop("DUE", None)
+        next_dtstart = self._next(i=prev, rrule=rrule, ts=completion_timestamp)
+        thisandfuture.add("DTSTART", next_dtstart)
+        self._set_duration(i=thisandfuture, duration=duration, movable_attr="DUE")
+        self.icalendar_instance.subcomponents.append(thisandfuture)
+        await self.save(increase_seqno=False)
 
     def _complete_ical(self, i=None, completion_timestamp=None) -> None:
         if i is None:

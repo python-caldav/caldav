@@ -1095,7 +1095,11 @@ class AsyncDAVClient(BaseDAVClient):
 
         Returns the DAV header from an OPTIONS request, or None if not supported.
         """
-        response = await self.options(str(self.url))
+        try:
+            principal = await self.principal()
+            response = await self.options(principal.url)
+        except Exception:
+            response = await self.options(str(self.url))
         return response.headers.get("DAV")
 
     async def check_cdav_support(self) -> bool:
