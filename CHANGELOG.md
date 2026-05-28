@@ -6,17 +6,37 @@ As of v3.x, **niquests** is used for HTTP communication. It's a backward-compati
 
 ## Meta
 
-This file should adhere to [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), but I do have some extra sections in it.  Notably an executive summary at the top,  "Breaking Changes" or "Potentially Breaking Changes", list of GitHub issues/pull requests closed/merged, information on changes in the test framework, list of tests run, my work effort, credits to people assisting, an overview of how much time I've spent on each release, and an overview of calendar servers the release has been tested towards.
+This file should adhere to [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), but I frequently add some sections in it.
 
 Changelogs prior to v3.0 is pruned, but was available in the v3.1 release
 
 This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html), though for pre-releases PEP 440 takes precedence.
 
-## [Unreleased]
+## [3.2.1] - 2026-05-28
+
+The changeset in 3.2.1 is predominently added async integration tests.  Those tests should now be replicating all the logic in the good old sync integration tests under `test_caldav.py`.  Some more bugs were found while adding those tests.
+
+There are two "feature commits" adding new parameters to existing functions.  Those are minor additions and was required while fixing things (test breakage plus observed crash due to weird real-world-data), hence I define this to be a patch-release rather than a minor-release.
 
 ### Added
 
-* `Calendar.delete(wipe=None)` now accepts a `wipe` parameter.  `wipe=True` wipes all objects from the calendar without deleting the calendar itself — useful for servers like Nextcloud where calendar deletion moves the calendar to a trashbin without freeing the URL namespace.  `wipe=False` always attempts a HTTP DELETE regardless of server support.  The existing `None` default preserves current auto-detect behaviour.
+* `Calendar.delete()` has had a "wipe-mode" since v2.2.0, deleting items from the calendar if it's not possible to delete the calendar itself.  Now a tristate `wipe` parameter has been added, `wipe=True` to wipe rather than delete the calendar, `wipe=False` to not wipe, and default behaviour (`wipe=None`) is still "wipe if needed".  (Useful for NextCloud tests, where events stuck on calendars in the "trashbin" pollutes the namespace preventing the same event to be added to a new calendar).
+* `save()` `only_this_recurrence` parameter is now a tristate:
+  * `True` (default) - unchanged, if the object is a recurrence it will be merged with the master event, making sure the saved recurrence is stored as an exception to the RRULE.  If the master object does not exist, then it will raise `NotFoundError`.
+  * `None` (new) - same as True, except that if the master object does not exist, the recurrence will just be sent directly to the server as-is.
+  * `False` - unchanged, the recurrence will be sent directly to the server as-is.
+  `None` is used in the `add_object()`.  This change was needed to avoid a crash when trying to add a recurrence-object without a master to the server.  (So much ado for a very weird edge case).
+
+### Fixed
+
+* Async digest auth was broken when using niquests: `HTTPDigestAuth.handle_401()` calls `r.connection.send()` which returns a coroutine in async context, causing `AttributeError: 'coroutine' object has no attribute 'history'`.  Fixed by using `AsyncHTTPDigestAuth` for the async client.  See https://github.com/jawah/niquests/issues/387
+* Several async code paths were not properly awaited or were missing parity with their sync counterparts:
+  * `Calendar.freebusy_request()` was not async-aware.
+  * `_async_complete()` raised `NotImplementedError` for `handle_rrule=True`.
+  * `_async_put()` did not `await` the retry coroutine returned by `_post_put()`.
+  * `_async_get_object_by_uid()` was missing `include_completed=True`, unlike the sync version.
+  * `_async_search_with_comptypes()` did not skip component types unsupported by the server, unlike the sync version.
+* Zimbra compatibility: `DisplayName` is now omitted from the `MKCALENDAR` request body when `create-calendar.set-displayname` is unsupported.
 
 ## [3.2.0] - 2026-04-24
 
