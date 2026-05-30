@@ -14,7 +14,7 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 
 ## [3.2.1] - 2026-05-28
 
-The changeset in 3.2.1 is predominently added async integration tests.  Those tests should now be replicating all the logic in the good old sync integration tests under `test_caldav.py`.  Some more bugs were found while adding those tests.
+The changeset in 3.2.1 is predominently added async integration tests.  Those tests should now be replicating all the logic in the good old sync integration tests under `test_caldav.py`.  Some few more bugs were found while adding those tests.
 
 There are two "feature commits" adding new parameters to existing functions.  Those are minor additions and was required while fixing things (test breakage plus observed crash due to weird real-world-data), hence I define this to be a patch-release rather than a minor-release.
 
@@ -37,6 +37,40 @@ There are two "feature commits" adding new parameters to existing functions.  Th
   * `_async_get_object_by_uid()` was missing `include_completed=True`, unlike the sync version.
   * `_async_search_with_comptypes()` did not skip component types unsupported by the server, unlike the sync version.
 * Zimbra compatibility: `DisplayName` is now omitted from the `MKCALENDAR` request body when `create-calendar.set-displayname` is unsupported.
+
+### Changed
+
+* **httpxyz added as an async HTTP fallback**.  [httpxyz](https://codeberg.org/httpxyz/httpxyz) is a maintained fork of httpx that picked up where httpx stalled.  The async client fallback priority is now `niquests` (preferred) → `httpxyz` → `httpx`.  See https://github.com/python-caldav/caldav/issues/611
+
+### Test framework
+
+These changes are not part of the shipped library, but make up the bulk of the 3.2.1 changeset.
+
+#### Async tests
+
+* **Async integration tests greatly expanded** (`tests/test_async_integration.py` grew by ~1700 lines) to mirror the sync suite in `test_caldav.py`.  Part of `git bug bug show e44ee06` aka  https://github.com/python-caldav/caldav/issues/667
+* **Test reliability on Nextcloud and others**: While I've been trying to insist on static readable UIDs during the last couple of years, Claude insists on using unique identifiers for each run using uuid4.  The latter does improve the reliability when it comes to i.e. Nextcloud that moves calendars to the trashbin rather than deleting them, while also rejecting duplicated UIDs.  I finally gave up on this one for some of the event/task/journal UIDs after restarting the nextcloud container every so often to avoid test breakages.  I still haven't given up the idea of having static calendar IDs to identify the test calendars.
+* `testCheckCompatibility` no longer takes ~8 minutes on servers with a search-cache delay (e.g. Bedework) — two bugs causing repeated cache-delay waits were fixed, and some redundant Bedework compatibility-matrix entries were cleaned up.
+* Added unit and integration tests for the orphaned-recurrence save behaviour (`test_caldav.py`, `test_caldav_unit.py`).
+* `tests/test_servers/`: registered Baikal's `URL_ENV_VAR` so the async-httpx CI job can reach it, and added a `get_available_servers()` helper used by the async integration tests.
+
+#### Docker test servers
+
+* **Migrated the local test rig from Docker to rootless Podman**, which surfaced and fixed several issues:
+  * The DAViCal setup script broke on Podman's `Emulate Docker CLI using podman` banner string.
+  * Some health-checks were broken (probably under Docker too, just unnoticed) and were repaired.
+  * Removed `uid=…,gid=…` tmpfs mount options that Podman does not support (CCS / CalendarServer runs as root inside the container, so the ownership hint wasn't needed).
+* **Stalwart v0.16.6 breaking changes** handled: the server now enters bootstrap mode without config files (config files added), the admin API was reorganized (affecting setup calls and health-checks), simple usernames are rejected in favour of full email addresses (`testuser@example.org`), weak passwords are rejected, and a workaround was added for Stalwart advertising `https://` even when reached over `http://` in local dev.
+* **Nextcloud**: added `mailto:` email addresses for the scheduling test users (so iTIP delivery works), and disabled the CalDAV trashbin (`calendarRetentionObligation=0`) so HTTP `DELETE` hard-deletes objects and re-using a UID doesn't hit a `UNIQUE` constraint violation.
+* **Cyrus**: ship `imapd.conf` with `virtdomains: off` (the default `virtdomains: userid` caused 403s on iTIP delivery due to userid/ACL mismatch), unpinned from the March 2026 digest now that `:latest` is stable again, and pointed the health-check at the CalDAV port.
+* Dropped some now-obsolete lines from the Xandikos (in)compatibility matrix following upstream bugfixes.
+
+#### GitHub CI
+
+* **More server coverage in the GitHub workflows**: Nextcloud and Cyrus are now configured for the scheduling tests, and a new async-httpx integration job runs against a real Baikal service (previously only unit tests exercised the httpx fallback path).
+* Renamed the `async (niquests fallback)` job to `async (niquests)` to reflect that niquests is the default install, not a fallback.
+* Added CI jobs verifying each async HTTP backend is picked up correctly when the others are absent: `async (niquests)`, `async (httpxyz fallback)` and `async (httpx fallback)`.
+* **lychee link-checker upgraded to v0.24.1** (pre-commit hook bumped from v0.22.0).  v0.24.1 hard-errors on placeholder URLs like `scheme://hostname:port` instead of silently rewriting them, which the 30-day cache had been masking — placeholder URLs were replaced with concrete examples (`http://proxy.example.com:8080`) in `davclient.py` and `async_davclient.py`, and `.lycheeignore` was updated accordingly.
 
 ## [3.2.0] - 2026-04-24
 
