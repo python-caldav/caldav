@@ -965,6 +965,37 @@ class TestCompTypeOptionalTimeRange:
 
         assert result == [event]
 
+    def test_compatibility_workarounds_false_sends_raw_query(
+        self, mock_client: DAVClient, mock_url: str
+    ) -> None:
+        """compatibility_workarounds=False must disable the comp-type split and send
+        the comp-type-less time-range query verbatim (single REPORT), so the
+        compatibility checker can observe the raw server behaviour."""
+        from caldav.compatibility_hints import FeatureSet
+
+        mock_client.features = FeatureSet(None)
+
+        calls = []
+        calendar = mock.Mock()
+        calendar.client = mock_client
+
+        def rep(xml, comp_cls, props=None):
+            calls.append(xml)
+            return (mock.Mock(), [])
+
+        calendar._request_report_build_resultlist.side_effect = rep
+
+        searcher = CalDAVSearcher(
+            start=datetime(2024, 1, 1, tzinfo=timezone.utc),
+            end=datetime(2024, 2, 1, tzinfo=timezone.utc),
+        )
+        searcher.search(calendar, post_filter=False, compatibility_workarounds=False)
+
+        ## exactly one report, sent verbatim with the (RFC-questionable) time-range
+        ## directly under VCALENDAR - no splitting
+        assert len(calls) == 1
+        assert self._vcalendar_timerange_children(calls[0])
+
 
 class TestSearchDriverExceptionHandling:
     """The search() driver runs the generator's yielded actions and must feed any
