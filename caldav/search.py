@@ -1018,6 +1018,7 @@ class CalDAVSearcher(Searcher):
         xml: str = None,
         post_filter=None,
         _hacks: str = None,
+        compatibility_workarounds: bool | None = None,
     ) -> list["AsyncCalendarObjectResource"]:
         """Async version of search() - does the search on an AsyncCalendar.
 
@@ -1026,6 +1027,8 @@ class CalDAVSearcher(Searcher):
 
         See the sync search() method for full documentation.
         """
+        if compatibility_workarounds is not None:
+            self._compatibility_workarounds = compatibility_workarounds
         gen = self._search_impl(
             calendar, server_expand, split_expanded, props, xml, post_filter, _hacks
         )

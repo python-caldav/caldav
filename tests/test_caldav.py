@@ -3412,6 +3412,76 @@ END:VCALENDAR"""
         assert len(objects) == 2
         assert set([type(x).__name__ for x in objects]) == {"Todo", "Event"}
 
+    def testSearchWithoutCompTypeWithDateRange(self):
+        """Test for https://github.com/python-caldav/caldav/issues/681
+
+        A time-range search that does NOT specify a component type must work
+        even on SabreDAV-based servers (Baikal, Nextcloud, ...) which - correctly
+        per RFC4791 section 9.7 - reject a CALDAV:time-range placed directly under
+        the VCALENDAR comp-filter with HTTP 400.  The library works around this by
+        splitting the search into one query per component type
+        (search.time-range.comp-type.optional being unsupported).
+
+        The search is run twice: once with the server's real feature
+        configuration, and once with search.time-range.comp-type.optional forced
+        to "supported".  The forced run makes the library optimistically send the
+        comp-type-less time-range query that SabreDAV rejects, exercising the
+        reactive 400-fallback.  Without that fallback the forced run fails on
+        Baikal.
+        """
+        self.skip_unless_support("search.time-range.event")
+        cal = self._fixCalendar()
+
+        ## Near-future dates, to steer clear of servers that restrict old-date
+        ## time-range searches.
+        now = datetime.now(timezone.utc)
+        dtstart = now + timedelta(days=1)
+        dtend = dtstart + timedelta(hours=1)
+        uid = "issue681-" + uuid.uuid4().hex
+        ical = (
+            "BEGIN:VCALENDAR\r\n"
+            "VERSION:2.0\r\n"
+            "PRODID:-//python-caldav//issue681 test//EN\r\n"
+            "BEGIN:VEVENT\r\n"
+            f"UID:{uid}\r\n"
+            f"DTSTAMP:{now.strftime('%Y%m%dT%H%M%SZ')}\r\n"
+            f"DTSTART:{dtstart.strftime('%Y%m%dT%H%M%SZ')}\r\n"
+            f"DTEND:{dtend.strftime('%Y%m%dT%H%M%SZ')}\r\n"
+            "SUMMARY:issue 681 comp-type-less time-range search\r\n"
+            "END:VEVENT\r\n"
+            "END:VCALENDAR\r\n"
+        )
+        cal.save_event(ical)
+
+        start = now
+        end = now + timedelta(days=2)
+
+        def _assert_event_found():
+            ## must not raise (this is the crux of issue #681) and must find the event
+            objects = cal.search(start=start, end=end)
+            assert [o for o in objects if uid in o.data], (
+                "comp-type-less time-range search did not return the event"
+            )
+
+        ## Run 1: the server's real feature configuration (proactive comp-type split)
+        _assert_event_found()
+
+        ## Run 2: force search.time-range.comp-type.optional ON, so the library
+        ## sends the comp-type-less time-range query verbatim and must recover from
+        ## the server's rejection via the reactive fallback (issue #681 item 4).
+        features = self.caldav.features
+        key = "search.time-range.comp-type.optional"
+        had_key = key in features._server_features
+        saved = features._server_features.get(key)
+        features.set_feature(key, {"support": "full"})
+        try:
+            _assert_event_found()
+        finally:
+            if had_key:
+                features._server_features[key] = saved
+            else:
+                features._server_features.pop(key, None)
+
     def testTodoCompletion(self):
         """
         Will check that todo-items can be completed and deleted
