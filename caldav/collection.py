@@ -1417,6 +1417,7 @@ class Calendar(DAVObject):
         filters=None,
         post_filter=None,
         _hacks=None,
+        compatibility_workarounds: bool | None = None,
         **searchargs,
     ) -> "list[_CC] | Coroutine[Any, Any, list[_CC]]":
         """Sends a search request towards the server, processes the
@@ -1529,11 +1530,25 @@ class Calendar(DAVObject):
         # For async clients, use async_search
         if self.is_async_client:
             return my_searcher.async_search(
-                self, server_expand, split_expanded, props, xml, post_filter, _hacks
+                self,
+                server_expand,
+                split_expanded,
+                props,
+                xml,
+                post_filter,
+                _hacks,
+                compatibility_workarounds,
             )
 
         return my_searcher.search(
-            self, server_expand, split_expanded, props, xml, post_filter, _hacks
+            self,
+            server_expand,
+            split_expanded,
+            props,
+            xml,
+            post_filter,
+            _hacks,
+            compatibility_workarounds,
         )
 
     def freebusy_request(
