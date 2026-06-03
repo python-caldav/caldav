@@ -703,9 +703,28 @@ class CalDAVSearcher(Searcher):
                     server_expand, props=props, filters=xml, _hacks=_hacks
                 )
 
-            if not self.comp_class and not calendar.client.features.is_supported(
-                "search.comp-type.optional"
-            ):
+            ## A CALDAV:time-range (and VALARM) filter is a component-level filter:
+            ## RFC4791 section 9.7 only allows it inside a comp-filter for
+            ## VEVENT/VTODO/VJOURNAL/VFREEBUSY/VALARM, never directly under VCALENDAR.
+            ## So when no component type is given we cannot place such a filter in an
+            ## RFC-legal way - we must split the search into one query per component
+            ## type (search.time-range.comp-type.optional).  This is independent of
+            ## search.comp-type.optional, which only governs comp-type-less queries
+            ## WITHOUT a time-range.
+            ## See https://github.com/python-caldav/caldav/issues/681
+            has_component_level_filter = bool(
+                self.start or self.end or self.alarm_start or self.alarm_end
+            )
+            needs_comptype_split = not self.comp_class and (
+                not calendar.client.features.is_supported("search.comp-type.optional")
+                or (
+                    has_component_level_filter
+                    and not calendar.client.features.is_supported(
+                        "search.time-range.comp-type.optional"
+                    )
+                )
+            )
+            if needs_comptype_split:
                 if self.include_completed is None:
                     self.include_completed = True
 
@@ -722,6 +741,28 @@ class CalDAVSearcher(Searcher):
                     (calendar, xml, self.comp_class, props),
                 )
             except error.ReportError as err:
+                ## Reactive workaround for https://github.com/python-caldav/caldav/issues/681:
+                ## if the server was (optimistically) configured as supporting
+                ## search.time-range.comp-type.optional but actually rejects the
+                ## comp-type-less time-range query (e.g. SabreDAV's HTTP 400 "You cannot
+                ## add time-range filters on the VCALENDAR component"), retry by splitting
+                ## into one query per component type.  orig_xml must be empty - if the
+                ## caller passed a full calendar-query we cannot rebuild it per comp-type.
+                if not self.comp_class and not orig_xml and has_component_level_filter:
+                    result = yield (
+                        SearchAction.SEARCH_WITH_COMPTYPES,
+                        (
+                            calendar,
+                            server_expand,
+                            split_expanded,
+                            props,
+                            orig_xml,
+                            _hacks,
+                            post_filter,
+                        ),
+                    )
+                    yield (SearchAction.RETURN, result)
+                    return
                 if (
                     calendar.client.features.backward_compatibility_mode
                     and not self.comp_class
@@ -862,6 +903,11 @@ class CalDAVSearcher(Searcher):
             return []
 
         while True:
+            ## Phase 1: execute the action, capturing either a result or an exception.
+            ## The exception is fed back into the generator via gen.throw() (Phase 2)
+            ## so the search logic's own try/except blocks (e.g. the issue #681
+            ## time-range fallback, or the per-object load error handling) can act on it.
+            exc = None
             try:
                 if action == SearchAction.RECURSIVE_SEARCH:
                     clone, cal, srv_exp, spl_exp, prp, xm, pf, hk = data
@@ -877,8 +923,17 @@ class CalDAVSearcher(Searcher):
                     result = None
                 elif action == SearchAction.RETURN:
                     return data
+            except Exception as e:
+                exc = e
 
-                action, data = gen.send(result)
+            ## Phase 2: advance the generator.  If the action raised, throw the
+            ## exception in at the yield point; if the generator does not handle it,
+            ## gen.throw() re-raises it out of here (correct propagation).
+            try:
+                if exc is not None:
+                    action, data = gen.throw(exc)
+                else:
+                    action, data = gen.send(result)
             except StopIteration:
                 return []
 

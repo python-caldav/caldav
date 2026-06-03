@@ -208,6 +208,14 @@ class FeatureSet:
             "description": "Time-range searches should only return events/todos that actually fall within the requested time range. Some servers incorrectly return recurring events whose recurrences fall outside (after) the search interval, or events with no recurrences in the requested time range at all. RFC4791 section 9.9 specifies that a VEVENT component overlaps a time range if the condition (start < search_end AND end > search_start) is true.",
             "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-9.9"],
         },
+        "search.time-range.comp-type": {
+            "description": "Grouping of features describing how time-range searches interact with the component-type (comp-filter) of a calendar-query.",
+        },
+        "search.time-range.comp-type.optional": {
+            "description": "Whether the server accepts a calendar-query carrying a time-range filter but NOT specifying a component type. Per RFC4791 section 9.7 a CALDAV:time-range element is only valid inside a comp-filter for VEVENT/VTODO/VJOURNAL/VFREEBUSY/VALARM - never directly under the VCALENDAR comp-filter. A query without a component type therefore has nowhere RFC-legal to put the time-range. Consequently 'unsupported' (the default) is FULLY RFC-COMPLIANT and is NOT a server defect: SabreDAV-based servers (Baikal, Nextcloud, ...) correctly reject such queries with HTTP 400 'You cannot add time-range filters on the VCALENDAR component'. When unsupported, the library splits the search into one query per component type. See https://github.com/python-caldav/caldav/issues/681",
+            "default": {"support": "unsupported"},
+            "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-9.7"],
+        },
         "search.time-range.todo": {"description": "basic time range searches for tasks works", "default": {"support": "full"}},
         "search.time-range.todo.old-dates": {"description": "time range searches for tasks with old dates (e.g. year 2000) work - some servers enforce a min-date-time restriction"},
         "search.time-range.todo.strict": {
