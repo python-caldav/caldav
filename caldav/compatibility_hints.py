@@ -892,6 +892,9 @@ incompatibility_description = {
 }
 
 xandikos = {
+    ## Genuinely returns matching objects for a comp-type-less query that carries
+    ## a time-range (verified: the event is returned, not just "no error").
+    "search.time-range.comp-type.optional": {"support": "full"},
     ## Principal property search returns 403 (not implemented)
     "principal-search": "ungraceful",
 
@@ -908,6 +911,9 @@ xandikos = {
 ## There is much development going on at Radicale as of summar 2025,
 ## so I'm expecting this list to shrink a lot soon.
 radicale = {
+    ## Genuinely returns matching objects for a comp-type-less query that carries
+    ## a time-range (verified: the event is returned, not just "no error").
+    "search.time-range.comp-type.optional": {"support": "full"},
     "search.is-not-defined": {"support": "full"},
     "search.text.case-sensitive": {"support": "unsupported"},
     "search.recurrences.includes-implicit.todo.pending": {"support": "fragile", "behaviour": "inconsistent results between runs"},
@@ -985,7 +991,8 @@ ecloud = nextcloud | {
 ## Zimbra is not very good at it's caldav support
 zimbra = {
     'auto-connect.url': {'basepath': '/dav/'},
-    ## Accepts a comp-type-less query that carries a time-range (unlike SabreDAV).
+    ## Genuinely returns matching objects for a comp-type-less query that carries
+    ## a time-range (verified: the event is returned, not just "no error").
     'search.time-range.comp-type.optional': {'support': 'full'},
     'delete-calendar': {'support': 'fragile', 'behaviour': 'may move to trashbin instead of deleting immediately'},
     ## This is a zimbra bug when creating calendars with a display
@@ -1036,8 +1043,6 @@ zimbra = {
 }
 
 bedework = {
-    ## Accepts a comp-type-less query that carries a time-range (unlike SabreDAV).
-    'search.time-range.comp-type.optional': {'support': 'full'},
     ## If tests are yielding unexpected results, try to increase this:
     'search-cache': {'behaviour': 'delay', 'delay': 3},
     'scheduling.auto-schedule': {'support': 'unknown'},
@@ -1169,6 +1174,9 @@ davical = {
     # into their calendar.
     "scheduling.schedule-tag": False,
     "search.comp-type.optional": { "support": "fragile" },
+    ## Genuinely returns matching objects for a comp-type-less query that carries
+    ## a time-range (verified: the event is returned, not just "no error").
+    "search.time-range.comp-type.optional": { "support": "full" },
     "search.time-range.alarm": { "support": "unsupported" },
     'sync-token': {'support': 'fragile'},
     'principal-search': {'support': 'unsupported'},
@@ -1202,15 +1210,13 @@ sogo = {
     "search.time-range.alarm": {
         "support": "unsupported"
     },
-    ## A bare comp-type-less query returns nothing, but a comp-type-less query
-    ## that carries a time-range works (see search.time-range.comp-type.optional).
-    ## The previous "ungraceful" was a checker bug where the comp-type.optional
-    ## probe carried a time-range (https://github.com/python-caldav/caldav/issues/681).
+    ## A comp-type-less query returns nothing - with or without a time-range -
+    ## so both search.comp-type.optional and search.time-range.comp-type.optional
+    ## are unsupported (the latter is the default).  The previous "ungraceful" was
+    ## a checker bug where the comp-type.optional probe carried a time-range that
+    ## SabreDAV-likes reject (https://github.com/python-caldav/caldav/issues/681).
     "search.comp-type.optional": {
         "support": "unsupported"
-    },
-    "search.time-range.comp-type.optional": {
-        "support": "full"
     },
     ## includes-implicit.todo has been observed as both supported and unsupported
     ## across different test runs.  Other includes-implicit children are unsupported.
