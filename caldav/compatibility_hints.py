@@ -272,6 +272,14 @@ class FeatureSet:
         "search.text": {
             "description": "Search for text attributes should work"
         },
+        "search.text.comp-type": {
+            "description": "Grouping of features describing how property/text filters interact with the component-type (comp-filter) of a calendar-query.",
+        },
+        "search.text.comp-type.optional": {
+            "description": "Whether the server returns matching objects for a calendar-query that carries a prop-filter (CATEGORIES, SUMMARY, ...) but does NOT specify a component type.  Such a prop-filter ends up directly under the VCALENDAR comp-filter, where it filters on VCALENDAR's own properties - which do not include component properties like CATEGORIES - so most servers (e.g. Xandikos, SabreDAV) match nothing.  'unsupported' (the default) is therefore the common, RFC-reasonable case; when unsupported the library splits the search into one query per component type.  Analogous to search.time-range.comp-type.optional.  See https://github.com/python-caldav/caldav/issues/681",
+            "default": {"support": "unsupported"},
+            "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-9.7"],
+        },
         "search.text.case-sensitive": {
             "description": "In RFC4791, section-9.7.5, a text-match may pass a collation, and i;ascii-casemap MUST be the default, this is not checked (yet - TODO) by the caldav-server-checker project.  Section 7.5 describes that the servers also are REQUIRED to support i;octet.  The definitions of those collations are given in RFC4790, i;octet is a case-sensitive byte-by-byte comparition (fastest).  search.text.case-sensitive is supported if passing the i;octet collation to search causes the search to be case-sensitive.",
             "links": [

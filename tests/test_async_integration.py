@@ -594,6 +594,36 @@ class AsyncFunctionalTestsBaseClass:
                 features._server_features.pop(key, None)
 
     @pytest.mark.asyncio
+    async def test_search_without_comptype_with_category(self, async_calendar: Any) -> None:
+        """Async mirror of testSearchWithoutCompTypeWithCategory.
+
+        Test for https://github.com/python-caldav/caldav/issues/681
+
+        A property filter (CATEGORIES) without a component type must work.  Under
+        the VCALENDAR comp-filter it targets VCALENDAR's own properties (no
+        CATEGORIES), so servers match nothing; the library splits the search into
+        one query per component type (search.text.comp-type.optional unsupported).
+        """
+        self.skip_unless_support("search.text.category")
+        base = _get_base_date()
+        category = "issue681cat" + uuid.uuid4().hex[:8]
+        uid = f"issue681cat-async-{uuid.uuid4()}@example.com"
+        data = make_event(
+            uid,
+            "issue 681 async comp-type-less category search",
+            base,
+            base + timedelta(hours=1),
+        ).replace("END:VEVENT", f"CATEGORIES:{category}\nEND:VEVENT")
+        await add_event(async_calendar, data)
+
+        ## Only the proactive split is testable here: servers silently return
+        ## nothing for a prop-filter under VCALENDAR (no error to recover from).
+        objects = await async_calendar.search(category=category)
+        assert [o for o in objects if uid in o.data], (
+            "comp-type-less category search did not return the event"
+        )
+
+    @pytest.mark.asyncio
     async def test_search_todos_pending(self, async_task_list: Any) -> None:
         """Test searching for pending todos."""
         from caldav.aio import AsyncTodo

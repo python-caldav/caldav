@@ -997,6 +997,59 @@ class TestCompTypeOptionalTimeRange:
         assert self._vcalendar_timerange_children(calls[0])
 
 
+class TestCompTypeOptionalPropFilter:
+    """Regression tests for https://github.com/python-caldav/caldav/issues/681.
+
+    A CALDAV:prop-filter (CATEGORIES, SUMMARY, ...) placed directly under the
+    VCALENDAR comp-filter filters on VCALENDAR's own properties, which do not
+    include component properties like CATEGORIES.  Servers (e.g. Xandikos, and
+    SabreDAV-based servers) therefore match nothing.  When no component type is
+    specified, the library must split the search into one query per component
+    type so the prop-filter lands inside a VEVENT/VTODO/VJOURNAL comp-filter.
+    """
+
+    _NS = {"C": "urn:ietf:params:xml:ns:caldav"}
+
+    def _vcalendar_propfilter_children(self, xml):
+        """Return any <prop-filter> elements that are direct children of the
+        VCALENDAR comp-filter (i.e. filtering on a non-existent VCALENDAR prop)."""
+        x = xml.xmlelement() if hasattr(xml, "xmlelement") else None
+        if x is None:
+            return []
+        return x.xpath('//C:comp-filter[@name="VCALENDAR"]/C:prop-filter', namespaces=self._NS)
+
+    def test_untyped_propfilter_search_splits_per_comptype(
+        self, mock_client: DAVClient, mock_url: str
+    ) -> None:
+        """Backward-compat mode: an untyped property-filter search must split into
+        per-component queries rather than placing <prop-filter> under VCALENDAR."""
+        from caldav.compatibility_hints import FeatureSet
+
+        mock_client.features = FeatureSet(None)  # default / backward-compat
+
+        calls = []
+        calendar = mock.Mock()
+        calendar.client = mock_client
+
+        def rep(xml, comp_cls, props=None):
+            calls.append(xml)
+            return (mock.Mock(), [])
+
+        calendar._request_report_build_resultlist.side_effect = rep
+
+        searcher = CalDAVSearcher()
+        searcher.add_property_filter("SUMMARY", "meeting")
+        searcher.search(calendar)
+
+        assert calls, "no REPORT was issued"
+        for xml in calls:
+            assert not self._vcalendar_propfilter_children(xml), (
+                "prop-filter must not be placed directly under VCALENDAR"
+            )
+        ## split into one query per component type (VEVENT/VTODO/VJOURNAL)
+        assert len(calls) == 3
+
+
 class TestSearchDriverExceptionHandling:
     """The search() driver runs the generator's yielded actions and must feed any
     exception raised by an action back INTO the generator (via gen.throw()) so the
