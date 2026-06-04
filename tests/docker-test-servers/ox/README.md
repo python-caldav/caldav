@@ -42,7 +42,7 @@ are used so the container always starts clean).
 
 ```bash
 cd ../../..
-TEST_OX=true pytest tests/test_caldav.py -k OX -v
+pytest tests/test_caldav.py -k OX -v
 ```
 
 ## Notes
