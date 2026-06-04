@@ -929,8 +929,15 @@ nextcloud = {
     'auto-connect.url': {
         'basepath': '/remote.php/dav',
     },
-    ## I'm surprised, I'm quite sure this was reported ungraceful earlier.  Passed with caldav commit a98d50490b872e9b9d8e93e2e401c936ad193003, caldav server checker commit 3cae24cf99da1702b851b5a74a9b88c8e5317dad 2026-02-15.  The commit 3cae24cf99da1702b851b5a74a9b88c8e5317dad was however development done on the wrong branch and has been force-pushed awway.  It was again observed ungraceful at commits be26d42b1ca3ff3b4fd183761b4a9b024ce12b84 / 537a23b145487006bb987dee5ab9e00cdebb0492
-    'search.comp-type.optional': {'support': 'ungraceful'},
+    ## Historically this flip-flopped between "ungraceful" and "full" - that
+    ## instability was a checker bug (https://github.com/python-caldav/caldav/issues/681):
+    ## the comp-type.optional probe used to send a comp-type-less query carrying a
+    ## time-range, which SabreDAV rejects (the time-range belongs in a VEVENT/...
+    ## comp-filter, not under VCALENDAR).  Now that the probe omits the time-range,
+    ## Nextcloud correctly accepts the bare comp-type-less query.  The time-range
+    ## variant is tracked separately as search.time-range.comp-type.optional
+    ## (unsupported on SabreDAV, the default).
+    'search.comp-type.optional': {'support': 'full'},
     'search.recurrences.expanded.todo': {'support': 'unsupported'},
     "search.recurrences.includes-implicit.infinite-scope": False,
     'delete-calendar': {
@@ -978,6 +985,8 @@ ecloud = nextcloud | {
 ## Zimbra is not very good at it's caldav support
 zimbra = {
     'auto-connect.url': {'basepath': '/dav/'},
+    ## Accepts a comp-type-less query that carries a time-range (unlike SabreDAV).
+    'search.time-range.comp-type.optional': {'support': 'full'},
     'delete-calendar': {'support': 'fragile', 'behaviour': 'may move to trashbin instead of deleting immediately'},
     ## This is a zimbra bug when creating calendars with a display
     ## name.  Now mitigated in the calendar creation code.
@@ -1027,6 +1036,8 @@ zimbra = {
 }
 
 bedework = {
+    ## Accepts a comp-type-less query that carries a time-range (unlike SabreDAV).
+    'search.time-range.comp-type.optional': {'support': 'full'},
     ## If tests are yielding unexpected results, try to increase this:
     'search-cache': {'behaviour': 'delay', 'delay': 3},
     'scheduling.auto-schedule': {'support': 'unknown'},
@@ -1115,7 +1126,10 @@ baikal_old = baikal | {
 }
 
 cyrus = {
-    "search.comp-type.optional": {"support": "ungraceful"},
+    ## A bare comp-type-less query is accepted; the previous "ungraceful" was a
+    ## checker bug where the probe carried a time-range
+    ## (https://github.com/python-caldav/caldav/issues/681).
+    "search.comp-type.optional": {"support": "full"},
     "search.recurrences.includes-implicit.infinite-scope": False,
     "search.time-range.alarm": {"support": "ungraceful"},
     'principal-search': {'support': 'ungraceful'},
@@ -1188,9 +1202,15 @@ sogo = {
     "search.time-range.alarm": {
         "support": "unsupported"
     },
-    ## was unsupported.  reported ungraceful with caldav commit a98d50490b872e9b9d8e93e2e401c936ad193003, caldav server checker commit 3cae24cf99da1702b851b5a74a9b88c8e5317dad 2026-02-15
+    ## A bare comp-type-less query returns nothing, but a comp-type-less query
+    ## that carries a time-range works (see search.time-range.comp-type.optional).
+    ## The previous "ungraceful" was a checker bug where the comp-type.optional
+    ## probe carried a time-range (https://github.com/python-caldav/caldav/issues/681).
     "search.comp-type.optional": {
-        "support": "ungraceful"
+        "support": "unsupported"
+    },
+    "search.time-range.comp-type.optional": {
+        "support": "full"
     },
     ## includes-implicit.todo has been observed as both supported and unsupported
     ## across different test runs.  Other includes-implicit children are unsupported.
