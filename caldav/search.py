@@ -731,11 +731,16 @@ class CalDAVSearcher(Searcher):
             ## RFC-legal way - we must split the search into one query per component
             ## type (search.time-range.comp-type.optional).  This is independent of
             ## search.comp-type.optional, which only governs comp-type-less queries
-            ## WITHOUT a time-range.
+            ## WITHOUT any filter.
+            ## The same applies to a prop-filter (CATEGORIES, SUMMARY, ...): under
+            ## VCALENDAR it would filter on VCALENDAR's own properties (which lack
+            ## component properties), so servers match nothing
+            ## (search.text.comp-type.optional).
             ## See https://github.com/python-caldav/caldav/issues/681
             has_component_level_filter = bool(
                 self.start or self.end or self.alarm_start or self.alarm_end
             )
+            has_property_filter = bool(self._property_filters)
             needs_comptype_split = (
                 cw
                 and not self.comp_class
@@ -745,6 +750,12 @@ class CalDAVSearcher(Searcher):
                         has_component_level_filter
                         and not calendar.client.features.is_supported(
                             "search.time-range.comp-type.optional"
+                        )
+                    )
+                    or (
+                        has_property_filter
+                        and not calendar.client.features.is_supported(
+                            "search.text.comp-type.optional"
                         )
                     )
                 )
@@ -771,9 +782,15 @@ class CalDAVSearcher(Searcher):
                 ## search.time-range.comp-type.optional but actually rejects the
                 ## comp-type-less time-range query (e.g. SabreDAV's HTTP 400 "You cannot
                 ## add time-range filters on the VCALENDAR component"), retry by splitting
-                ## into one query per component type.  orig_xml must be empty - if the
+                ## into one query per component type.  Also covers prop-filters
+                ## (search.text.comp-type.optional).  orig_xml must be empty - if the
                 ## caller passed a full calendar-query we cannot rebuild it per comp-type.
-                if cw and not self.comp_class and not orig_xml and has_component_level_filter:
+                if (
+                    cw
+                    and not self.comp_class
+                    and not orig_xml
+                    and (has_component_level_filter or has_property_filter)
+                ):
                     result = yield (
                         SearchAction.SEARCH_WITH_COMPTYPES,
                         (

@@ -3482,6 +3482,47 @@ END:VCALENDAR"""
             else:
                 features._server_features.pop(key, None)
 
+    def testSearchWithoutCompTypeWithCategory(self):
+        """Test for https://github.com/python-caldav/caldav/issues/681
+
+        A property filter (here CATEGORIES) without a component type must work.
+        Placed directly under the VCALENDAR comp-filter the prop-filter targets
+        VCALENDAR's own properties, which lack component properties like
+        CATEGORIES, so servers (Xandikos, SabreDAV, ...) match nothing.  The
+        library works around this by splitting the search into one query per
+        component type (search.text.comp-type.optional being unsupported).
+        """
+        self.skip_unless_support("search.text.category")
+        cal = self._fixCalendar()
+
+        category = "issue681cat" + uuid.uuid4().hex[:8]
+        uid = "issue681cat-" + uuid.uuid4().hex
+        ical = (
+            "BEGIN:VCALENDAR\r\n"
+            "VERSION:2.0\r\n"
+            "PRODID:-//python-caldav//issue681 test//EN\r\n"
+            "BEGIN:VEVENT\r\n"
+            f"UID:{uid}\r\n"
+            f"DTSTAMP:{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}\r\n"
+            f"DTSTART:{(datetime.now(timezone.utc) + timedelta(days=1)).strftime('%Y%m%dT%H%M%SZ')}\r\n"
+            f"DTEND:{(datetime.now(timezone.utc) + timedelta(days=1, hours=1)).strftime('%Y%m%dT%H%M%SZ')}\r\n"
+            "SUMMARY:issue 681 comp-type-less category search\r\n"
+            f"CATEGORIES:{category}\r\n"
+            "END:VEVENT\r\n"
+            "END:VCALENDAR\r\n"
+        )
+        cal.save_event(ical)
+
+        ## The proactive per-component-type split is the only safe fix here: unlike
+        ## the time-range case (where SabreDAV returns HTTP 400, which the reactive
+        ## fallback can catch), servers silently return nothing for a prop-filter
+        ## under VCALENDAR, so there is no error to recover from.  Hence we only
+        ## verify the default (proactive) behaviour.
+        objects = cal.search(category=category)
+        assert [o for o in objects if uid in o.data], (
+            "comp-type-less category search did not return the event"
+        )
+
     def testTodoCompletion(self):
         """
         Will check that todo-items can be completed and deleted
