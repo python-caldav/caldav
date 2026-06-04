@@ -44,7 +44,8 @@ This will:
 
 This Nextcloud instance comes **pre-configured** with:
 - Admin user: `admin` / `admin`
-- Test user: `testuser` / `TestPassword123!`
+- Test user: `testuser` / `testpass`
+- Scheduling test users: `user1` / `testpass1`, `user2` / `testpass2`, `user3` / `testpass3`
 - Calendar and Contacts apps enabled
 - CalDAV URL: `http://localhost:8801/remote.php/dav`
 
@@ -56,7 +57,7 @@ This Nextcloud instance comes **pre-configured** with:
 
 - `NEXTCLOUD_URL`: URL of the Nextcloud server (default: `http://localhost:8801`)
 - `NEXTCLOUD_USERNAME`: Test user username (default: `testuser`)
-- `NEXTCLOUD_PASSWORD`: Test user password (default: `TestPassword123!`)
+- `NEXTCLOUD_PASSWORD`: Test user password (default: `testpass`)
 
 ## Disabling Nextcloud Tests
 
@@ -67,8 +68,6 @@ nextcloud:
   type: docker
   enabled: false
 ```
-
-Or use the environment variable: `TEST_NEXTCLOUD=false`.
 
 Or simply don't install Docker - the tests will automatically skip Nextcloud if Docker is not available.
 
