@@ -1040,6 +1040,11 @@ class CalDAVSearcher(Searcher):
             return []
 
         while True:
+            ## Phase 1: execute the action, capturing either a result or an exception.
+            ## The exception is fed back into the generator via gen.throw() (Phase 2)
+            ## so the search logic's own try/except blocks (e.g. the issue #681
+            ## time-range fallback, or the per-object load error handling) can act on it.
+            exc = None
             try:
                 if action == SearchAction.RECURSIVE_SEARCH:
                     clone, cal, srv_exp, spl_exp, prp, xm, pf, hk = data
@@ -1059,8 +1064,17 @@ class CalDAVSearcher(Searcher):
                     result = None
                 elif action == SearchAction.RETURN:
                     return data
+            except Exception as e:
+                exc = e
 
-                action, data = gen.send(result)
+            ## Phase 2: advance the generator.  If the action raised, throw the
+            ## exception in at the yield point; if the generator does not handle it,
+            ## gen.throw() re-raises it out of here (correct propagation).
+            try:
+                if exc is not None:
+                    action, data = gen.throw(exc)
+                else:
+                    action, data = gen.send(result)
             except StopIteration:
                 return []
 
