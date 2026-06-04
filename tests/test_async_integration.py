@@ -536,6 +536,64 @@ class AsyncFunctionalTestsBaseClass:
         assert "Async Test Event" in events[0].data
 
     @pytest.mark.asyncio
+    async def test_search_without_comptype_with_date_range(self, async_calendar: Any) -> None:
+        """Async mirror of testSearchWithoutCompTypeWithDateRange.
+
+        Test for https://github.com/python-caldav/caldav/issues/681
+
+        A time-range search that does NOT specify a component type must work
+        even on SabreDAV-based servers (Baikal, Nextcloud, ...) which - correctly
+        per RFC4791 section 9.7 - reject a CALDAV:time-range placed directly under
+        VCALENDAR with HTTP 400.  The library works around this by splitting the
+        search into one query per component type.
+
+        The search is run twice: once with the server's real feature
+        configuration, and once with search.time-range.comp-type.optional forced
+        to "supported", exercising the reactive HTTP-400 fallback.
+        """
+        self.skip_unless_support("search.time-range.event")
+        base = _get_base_date()
+        uid = f"issue681-async-{uuid.uuid4()}@example.com"
+        await add_event(
+            async_calendar,
+            make_event(
+                uid,
+                "issue 681 async comp-type-less time-range",
+                base,
+                base + timedelta(hours=1),
+            ),
+        )
+
+        start = base - timedelta(hours=1)
+        end = base + timedelta(days=1)
+
+        async def _assert_event_found():
+            ## must not raise (the crux of issue #681) and must find the event
+            objects = await async_calendar.search(start=start, end=end)
+            assert [o for o in objects if uid in o.data], (
+                "comp-type-less time-range search did not return the event"
+            )
+
+        ## Run 1: the server's real feature configuration (proactive comp-type split)
+        await _assert_event_found()
+
+        ## Run 2: force search.time-range.comp-type.optional ON, so the library
+        ## sends the comp-type-less time-range query verbatim and must recover from
+        ## the server's rejection via the reactive fallback (issue #681 item 4).
+        features = async_calendar.client.features
+        key = "search.time-range.comp-type.optional"
+        had_key = key in features._server_features
+        saved = features._server_features.get(key)
+        features.set_feature(key, {"support": "full"})
+        try:
+            await _assert_event_found()
+        finally:
+            if had_key:
+                features._server_features[key] = saved
+            else:
+                features._server_features.pop(key, None)
+
+    @pytest.mark.asyncio
     async def test_search_todos_pending(self, async_task_list: Any) -> None:
         """Test searching for pending todos."""
         from caldav.aio import AsyncTodo
