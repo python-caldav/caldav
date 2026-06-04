@@ -12,6 +12,17 @@ Changelogs prior to v3.0 is pruned, but was available in the v3.1 release
 
 This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html), though for pre-releases PEP 440 takes precedence.
 
+## [Unreleased]
+
+### Fixed
+
+* Time-range searches without a component type (`search(start=..., end=...)` with no `event`/`todo`/`journal`/`comp_class`) crashed against SabreDAV-based servers (Baikal, Nextcloud, ...) with `ReportError`: *"You cannot add time-range filters on the VCALENDAR component"*.  A `CALDAV:time-range` is only valid inside a `VEVENT`/`VTODO`/`VJOURNAL`/`VFREEBUSY`/`VALARM` comp-filter (RFC4791 section 9.7), never directly under `VCALENDAR`.  The library now splits such a search into one query per component type, and additionally recovers from the server rejection at runtime if it occurs anyway.  See https://github.com/python-caldav/caldav/issues/681
+* `search()`'s generator driver now feeds exceptions raised while executing a request back into the search logic, so the server-compatibility fallbacks and per-object load error handling actually take effect (previously dead code).  Applies to both the sync and async code paths.
+
+### Added
+
+* New `compatibility_workarounds` parameter on `Calendar.search()` / `CalDAVSearcher.search()` / `async_search()`.  When `False`, all server-compatibility workarounds are disabled and the query is sent verbatim (a single REPORT, no comp-type splitting, no filter rewriting, no fallback retries).  Mainly for the server-compatibility checker, to observe raw server behaviour.
+
 ## [3.2.1] - 2026-05-28
 
 The changeset in 3.2.1 is predominently added async integration tests.  Those tests should now be replicating all the logic in the good old sync integration tests under `test_caldav.py`.  Some few more bugs were found while adding those tests.
