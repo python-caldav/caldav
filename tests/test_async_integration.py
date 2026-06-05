@@ -548,7 +548,7 @@ class AsyncFunctionalTestsBaseClass:
         search into one query per component type.
 
         The search is run twice: once with the server's real feature
-        configuration, and once with search.time-range.comp-type.optional forced
+        configuration, and once with search.time-range.comp-type-optional forced
         to "supported", exercising the reactive HTTP-400 fallback.
         """
         self.skip_unless_support("search.time-range.event")
@@ -577,11 +577,11 @@ class AsyncFunctionalTestsBaseClass:
         ## Run 1: the server's real feature configuration (proactive comp-type split)
         await _assert_event_found()
 
-        ## Run 2: force search.time-range.comp-type.optional ON, so the library
+        ## Run 2: force search.time-range.comp-type-optional ON, so the library
         ## sends the comp-type-less time-range query verbatim and must recover from
         ## the server's rejection via the reactive fallback (issue #681 item 4).
         features = async_calendar.client.features
-        key = "search.time-range.comp-type.optional"
+        key = "search.time-range.comp-type-optional"
         had_key = key in features._server_features
         saved = features._server_features.get(key)
         features.set_feature(key, {"support": "full"})
@@ -602,7 +602,7 @@ class AsyncFunctionalTestsBaseClass:
         A property filter (CATEGORIES) without a component type must work.  Under
         the VCALENDAR comp-filter it targets VCALENDAR's own properties (no
         CATEGORIES), so servers match nothing; the library splits the search into
-        one query per component type (search.text.comp-type.optional unsupported).
+        one query per component type (search.text.comp-type-optional unsupported).
         """
         self.skip_unless_support("search.text.category")
         base = _get_base_date()

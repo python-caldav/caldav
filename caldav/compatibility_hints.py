@@ -208,10 +208,7 @@ class FeatureSet:
             "description": "Time-range searches should only return events/todos that actually fall within the requested time range. Some servers incorrectly return recurring events whose recurrences fall outside (after) the search interval, or events with no recurrences in the requested time range at all. RFC4791 section 9.9 specifies that a VEVENT component overlaps a time range if the condition (start < search_end AND end > search_start) is true.",
             "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-9.9"],
         },
-        "search.time-range.comp-type": {
-            "description": "Grouping of features describing how time-range searches interact with the component-type (comp-filter) of a calendar-query.",
-        },
-        "search.time-range.comp-type.optional": {
+        "search.time-range.comp-type-optional": {
             "description": "Whether the server accepts a calendar-query carrying a time-range filter but NOT specifying a component type. Per RFC4791 section 9.7 a CALDAV:time-range element is only valid inside a comp-filter for VEVENT/VTODO/VJOURNAL/VFREEBUSY/VALARM - never directly under the VCALENDAR comp-filter. A query without a component type therefore has nowhere RFC-legal to put the time-range. Consequently 'unsupported' (the default) is FULLY RFC-COMPLIANT and is NOT a server defect: SabreDAV-based servers (Baikal, Nextcloud, ...) correctly reject such queries with HTTP 400 'You cannot add time-range filters on the VCALENDAR component'. When unsupported, the library splits the search into one query per component type. See https://github.com/python-caldav/caldav/issues/681",
             "default": {"support": "unsupported"},
             "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-9.7"],
@@ -272,11 +269,8 @@ class FeatureSet:
         "search.text": {
             "description": "Search for text attributes should work"
         },
-        "search.text.comp-type": {
-            "description": "Grouping of features describing how property/text filters interact with the component-type (comp-filter) of a calendar-query.",
-        },
-        "search.text.comp-type.optional": {
-            "description": "Whether the server returns matching objects for a calendar-query that carries a prop-filter (CATEGORIES, SUMMARY, ...) but does NOT specify a component type.  Such a prop-filter ends up directly under the VCALENDAR comp-filter, where it filters on VCALENDAR's own properties - which do not include component properties like CATEGORIES - so most servers (e.g. Xandikos, SabreDAV) match nothing.  'unsupported' (the default) is therefore the common, RFC-reasonable case; when unsupported the library splits the search into one query per component type.  Analogous to search.time-range.comp-type.optional.  See https://github.com/python-caldav/caldav/issues/681",
+        "search.text.comp-type-optional": {
+            "description": "Whether the server returns matching objects for a calendar-query that carries a prop-filter (CATEGORIES, SUMMARY, ...) but does NOT specify a component type.  Such a prop-filter ends up directly under the VCALENDAR comp-filter, where it filters on VCALENDAR's own properties - which do not include component properties like CATEGORIES - so most servers (e.g. Xandikos, SabreDAV) match nothing.  'unsupported' (the default) is therefore the common, RFC-reasonable case; when unsupported the library splits the search into one query per component type.  Analogous to search.time-range.comp-type-optional.  See https://github.com/python-caldav/caldav/issues/681",
             "default": {"support": "unsupported"},
             "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-9.7"],
         },
@@ -902,7 +896,7 @@ incompatibility_description = {
 xandikos = {
     ## Genuinely returns matching objects for a comp-type-less query that carries
     ## a time-range (verified: the event is returned, not just "no error").
-    "search.time-range.comp-type.optional": {"support": "full"},
+    "search.time-range.comp-type-optional": {"support": "full"},
     ## Principal property search returns 403 (not implemented)
     "principal-search": "ungraceful",
 
@@ -921,7 +915,7 @@ xandikos = {
 radicale = {
     ## Genuinely returns matching objects for a comp-type-less query that carries
     ## a time-range (verified: the event is returned, not just "no error").
-    "search.time-range.comp-type.optional": {"support": "full"},
+    "search.time-range.comp-type-optional": {"support": "full"},
     "search.is-not-defined": {"support": "full"},
     "search.text.case-sensitive": {"support": "unsupported"},
     "search.recurrences.includes-implicit.todo.pending": {"support": "fragile", "behaviour": "inconsistent results between runs"},
@@ -949,7 +943,7 @@ nextcloud = {
     ## time-range, which SabreDAV rejects (the time-range belongs in a VEVENT/...
     ## comp-filter, not under VCALENDAR).  Now that the probe omits the time-range,
     ## Nextcloud correctly accepts the bare comp-type-less query.  The time-range
-    ## variant is tracked separately as search.time-range.comp-type.optional
+    ## variant is tracked separately as search.time-range.comp-type-optional
     ## (unsupported on SabreDAV, the default).
     'search.comp-type.optional': {'support': 'full'},
     'search.recurrences.expanded.todo': {'support': 'unsupported'},
@@ -1001,7 +995,7 @@ zimbra = {
     'auto-connect.url': {'basepath': '/dav/'},
     ## Genuinely returns matching objects for a comp-type-less query that carries
     ## a time-range (verified: the event is returned, not just "no error").
-    'search.time-range.comp-type.optional': {'support': 'full'},
+    'search.time-range.comp-type-optional': {'support': 'full'},
     'delete-calendar': {'support': 'fragile', 'behaviour': 'may move to trashbin instead of deleting immediately'},
     ## This is a zimbra bug when creating calendars with a display
     ## name.  Now mitigated in the calendar creation code.
@@ -1184,7 +1178,7 @@ davical = {
     "search.comp-type.optional": { "support": "fragile" },
     ## Genuinely returns matching objects for a comp-type-less query that carries
     ## a time-range (verified: the event is returned, not just "no error").
-    "search.time-range.comp-type.optional": { "support": "full" },
+    "search.time-range.comp-type-optional": { "support": "full" },
     "search.time-range.alarm": { "support": "unsupported" },
     'sync-token': {'support': 'fragile'},
     'principal-search': {'support': 'unsupported'},
@@ -1219,7 +1213,7 @@ sogo = {
         "support": "unsupported"
     },
     ## A comp-type-less query returns nothing - with or without a time-range -
-    ## so both search.comp-type.optional and search.time-range.comp-type.optional
+    ## so both search.comp-type.optional and search.time-range.comp-type-optional
     ## are unsupported (the latter is the default).  The previous "ungraceful" was
     ## a checker bug where the comp-type.optional probe carried a time-range that
     ## SabreDAV-likes reject (https://github.com/python-caldav/caldav/issues/681).

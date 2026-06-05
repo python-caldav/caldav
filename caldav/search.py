@@ -729,13 +729,13 @@ class CalDAVSearcher(Searcher):
             ## VEVENT/VTODO/VJOURNAL/VFREEBUSY/VALARM, never directly under VCALENDAR.
             ## So when no component type is given we cannot place such a filter in an
             ## RFC-legal way - we must split the search into one query per component
-            ## type (search.time-range.comp-type.optional).  This is independent of
+            ## type (search.time-range.comp-type-optional).  This is independent of
             ## search.comp-type.optional, which only governs comp-type-less queries
             ## WITHOUT any filter.
             ## The same applies to a prop-filter (CATEGORIES, SUMMARY, ...): under
             ## VCALENDAR it would filter on VCALENDAR's own properties (which lack
             ## component properties), so servers match nothing
-            ## (search.text.comp-type.optional).
+            ## (search.text.comp-type-optional).
             ## See https://github.com/python-caldav/caldav/issues/681
             has_component_level_filter = bool(
                 self.start or self.end or self.alarm_start or self.alarm_end
@@ -749,13 +749,13 @@ class CalDAVSearcher(Searcher):
                     or (
                         has_component_level_filter
                         and not calendar.client.features.is_supported(
-                            "search.time-range.comp-type.optional"
+                            "search.time-range.comp-type-optional"
                         )
                     )
                     or (
                         has_property_filter
                         and not calendar.client.features.is_supported(
-                            "search.text.comp-type.optional"
+                            "search.text.comp-type-optional"
                         )
                     )
                 )
@@ -779,11 +779,11 @@ class CalDAVSearcher(Searcher):
             except error.ReportError as err:
                 ## Reactive workaround for https://github.com/python-caldav/caldav/issues/681:
                 ## if the server was (optimistically) configured as supporting
-                ## search.time-range.comp-type.optional but actually rejects the
+                ## search.time-range.comp-type-optional but actually rejects the
                 ## comp-type-less time-range query (e.g. SabreDAV's HTTP 400 "You cannot
                 ## add time-range filters on the VCALENDAR component"), retry by splitting
                 ## into one query per component type.  Also covers prop-filters
-                ## (search.text.comp-type.optional).  orig_xml must be empty - if the
+                ## (search.text.comp-type-optional).  orig_xml must be empty - if the
                 ## caller passed a full calendar-query we cannot rebuild it per comp-type.
                 if (
                     cw
