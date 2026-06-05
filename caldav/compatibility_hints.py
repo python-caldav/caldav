@@ -699,8 +699,11 @@ class FeatureSet:
         if has_positive:
             if all_same:
                 derived_status = subfeature_statuses[0]
+            elif not is_complete:
+                # Incomplete mixed set: unset siblings might be unsupported; inconclusive
+                return None
             else:
-                # Mixed positive/negative → unknown
+                # All relevant children seen, but mixed positive/negative → unknown
                 derived_status = 'unknown'
         elif is_complete and all_same:
             # All relevant subfeatures set, all the same negative status
