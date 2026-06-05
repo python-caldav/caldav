@@ -433,7 +433,7 @@ class TestDeriveFromSubfeatures:
     - search.recurrences.expanded
     - search.recurrences.includes-implicit
 
-    The default for search.recurrences (a server-feature) is {"support": "full"}.
+    The implicit default for search.recurrences (a server-feature) is {"support": "full"}.
     """
 
     @pytest.mark.parametrize(
@@ -446,6 +446,22 @@ class TestDeriveFromSubfeatures:
                     "search.recurrences.includes-implicit": {"support": "unsupported"},
                 },
                 "search.recurrences",
+                "unsupported",
+            ),
+            (
+                "parent_unsupported",
+                {
+                    "save-load": {"support": "unsupported"},
+                },
+                "save-load.event",
+                "unsupported",
+            ),
+            (
+                "parent_with_explicit_default_unsupported",
+                {
+                    "create-calendar": {"support": "unsupported"},
+                },
+                "create-calendar.auto",
                 "unsupported",
             ),
             (
@@ -506,6 +522,24 @@ class TestDeriveFromSubfeatures:
                 },
                 "search.recurrences.includes-implicit.todo",
                 "full",
+            ),
+            (
+                "mixed_children_incomplete_unset_sibling_falls_to_default",
+                {
+                    "save-load.todo": {"support": "full"},
+                    "save-load.journal": {"support": "unsupported"},
+                },
+                "save-load.event",
+                "full",  # incomplete set: cannot derive anything about unset siblings
+            ),
+            (
+                "explicit_default_overrides_children",
+                {
+                    "create-calendar.auto": {"support": "unsupported"},
+                    "create-calendar.set-displayname": {"support": "unsupported"},
+                },
+                "create-calendar",
+                "full",  # this feature does not depend on the sub-features
             ),
         ],
         ids=lambda x: x if isinstance(x, str) and "_" in x else "",
