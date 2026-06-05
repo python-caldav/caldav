@@ -302,138 +302,15 @@ class TestFeatureSetCollapse:
         assert "principal-search.list-all" not in fs._server_features
         assert "principal-search" in fs._server_features
 
-    def test_independent_subfeature_not_derived(self) -> None:
-        """Test that independent subfeatures (with explicit defaults) don't affect parent derivation"""
-        fs = FeatureSet()
 
-        # Scenario: create-calendar.auto is set to unsupported, but it's an independent
-        # feature (has explicit default) and should NOT cause create-calendar to be
-        # derived as unsupported
-        fs._server_features = {
-            "create-calendar.auto": {"support": "unsupported"},
-        }
+class TestImplicitDerivation:
+    """Test is_supported() implicit derivation: parent→child, child→parent, explicit defaults.
 
-        # create-calendar should return its default (full), NOT derive from .auto
-        result = fs.is_supported("create-calendar", return_type=dict)
-        assert result == {"support": "full"}, (
-            f"create-calendar should default to 'full' when only independent "
-            f"subfeature .auto is set, but got {result}"
-        )
-
-        # Verify that the independent subfeature itself is still accessible
-        auto_result = fs.is_supported("create-calendar.auto", return_type=dict)
-        assert auto_result == {"support": "unsupported"}
-
-    def test_parent_default_not_overridden_by_subfeature_derivation(self) -> None:
-        """Test that a parent with an explicit default is not overridden by subfeature derivation.
-
-        Zimbra scenario: create-calendar.set-displayname is unsupported, but
-        create-calendar has an explicit default of 'full'.  The parent feature
-        represents an independent capability (calendar creation works), so the
-        subfeature status should not override the default.
-        """
-        fs = FeatureSet()
-        fs._server_features = {
-            "create-calendar.set-displayname": {"support": "unsupported"},
-        }
-
-        # create-calendar should return its default (full), NOT derive unsupported
-        # from .set-displayname
-        result = fs.is_supported("create-calendar", return_type=dict)
-        assert result == {"support": "full"}, (
-            f"create-calendar should default to 'full' even when "
-            f".set-displayname is unsupported, but got {result}"
-        )
-
-    def test_hierarchical_vs_independent_subfeatures(self) -> None:
-        """Test that hierarchical subfeatures derive parent, but independent ones don't"""
-        fs = FeatureSet()
-
-        # Hierarchical subfeatures: principal-search.by-name and principal-search.list-all
-        # These should cause parent to derive to "unknown" when mixed
-        fs.set_feature("principal-search.by-name", {"support": "unknown"})
-        fs.set_feature("principal-search.list-all", {"support": "unsupported"})
-
-        # Should derive to "unknown" due to mixed hierarchical subfeatures
-        result = fs.is_supported("principal-search", return_type=dict)
-        assert result == {"support": "unknown"}, (
-            f"principal-search should derive to 'unknown' from mixed hierarchical "
-            f"subfeatures, but got {result}"
-        )
-
-        # Now test independent subfeature: create-calendar.auto
-        # This should NOT affect create-calendar parent
-        fs2 = FeatureSet()
-        fs2.set_feature("create-calendar.auto", {"support": "unsupported"})
-
-        # Should return default, NOT derive from independent subfeature
-        result2 = fs2.is_supported("create-calendar", return_type=dict)
-        assert result2 == {"support": "full"}, (
-            f"create-calendar should default to 'full' ignoring independent "
-            f"subfeature .auto, but got {result2}"
-        )
-
-    def test_intermediate_feature_derives_from_children(self) -> None:
-        """Test that intermediate features (e.g. search.text) derive status from their children"""
-        # search.text has 4 direct children: case-sensitive, case-insensitive,
-        # substring, category (none have explicit defaults)
-
-        # All children set with mixed statuses -> derive "unknown"
-        fs = FeatureSet(
-            {
-                "search.text.case-sensitive": {"support": "unsupported"},
-                "search.text.case-insensitive": {"support": "unsupported"},
-                "search.text.substring": {"support": "unsupported"},
-                "search.text.category": {"support": "fragile"},
-            }
-        )
-        assert not fs.is_supported("search.text")
-        assert fs.is_supported("search.text", return_type=dict) == {"support": "unknown"}
-
-        # Partial children set with mixed non-positive statuses -> inconclusive,
-        # falls back to default ("full")
-        fs1b = FeatureSet(
-            {
-                "search.text.case-sensitive": {"support": "unsupported"},
-                "search.text.category.substring": {"support": "fragile"},
-            }
-        )
-        assert fs1b.is_supported("search.text")
-
-        # All children unsupported -> parent derives as "unsupported"
-        fs2 = FeatureSet(
-            {
-                "search.text.case-sensitive": {"support": "unsupported"},
-                "search.text.case-insensitive": {"support": "unsupported"},
-                "search.text.substring": {"support": "unsupported"},
-                "search.text.category": {"support": "unsupported"},
-            }
-        )
-        assert not fs2.is_supported("search.text")
-        assert fs2.is_supported("search.text", return_type=dict) == {"support": "unsupported"}
-
-        # No children set -> falls back to default ("full")
-        fs3 = FeatureSet({})
-        assert fs3.is_supported("search.text")
-
-        # Explicit parent value takes precedence over children
-        fs4 = FeatureSet(
-            {
-                "search.text": {"support": "full"},
-                "search.text.case-sensitive": {"support": "unsupported"},
-            }
-        )
-        assert fs4.is_supported("search.text")
-
-
-class TestDeriveFromSubfeatures:
-    """Test _derive_from_subfeatures with partial and complete subfeature configs.
-
-    Uses search.recurrences which has two relevant children without defaults:
-    - search.recurrences.expanded
-    - search.recurrences.includes-implicit
-
-    The implicit default for search.recurrences (a server-feature) is {"support": "full"}.
+    Covers:
+    - Children without explicit defaults derive the parent value.
+    - Parent set explicitly propagates down to unset children.
+    - Features with explicit defaults ignore subfeature derivation.
+    - Partial/incomplete child sets fall through to the feature's default.
     """
 
     @pytest.mark.parametrize(
@@ -540,6 +417,15 @@ class TestDeriveFromSubfeatures:
                 },
                 "create-calendar",
                 "full",  # this feature does not depend on the sub-features
+            ),
+            (
+                "partial_mixed_children_query_parent_falls_to_default",
+                {
+                    "search.text.case-sensitive": {"support": "unsupported"},
+                    "search.text.case-insensitive": {"support": "full"},
+                },
+                "search.text",
+                "full",  # partial+mixed: cannot conclude unsupported; default applies
             ),
         ],
         ids=lambda x: x if isinstance(x, str) and "_" in x else "",
