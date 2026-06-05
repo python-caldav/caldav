@@ -59,18 +59,19 @@ test-servers:
     enabled: ${TEST_CYRUS:-false}
     host: ${CYRUS_HOST:-localhost}
     port: ${CYRUS_PORT:-8802}
-    username: ${CYRUS_USERNAME:-testuser@test.local}
-    password: ${CYRUS_PASSWORD:-testpassword}
+    username: ${CYRUS_USERNAME:-user1}
+    password: ${CYRUS_PASSWORD:-x}
     # Cyrus pre-creates user1-user5 (password 'x'), enabling scheduling tests.
+    # Use plain usernames (no domain): virtdomains is off in the test image.
     scheduling_users:
       - url: http://${CYRUS_HOST:-localhost}:${CYRUS_PORT:-8802}/dav/calendars/user/user1
-        username: user1@test.local
+        username: user1
         password: x
       - url: http://${CYRUS_HOST:-localhost}:${CYRUS_PORT:-8802}/dav/calendars/user/user2
-        username: user2@test.local
+        username: user2
         password: x
       - url: http://${CYRUS_HOST:-localhost}:${CYRUS_PORT:-8802}/dav/calendars/user/user3
-        username: user3@test.local
+        username: user3
         password: x
 
   sogo:

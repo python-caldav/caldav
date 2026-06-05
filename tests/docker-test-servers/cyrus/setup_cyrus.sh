@@ -42,6 +42,18 @@ for i in $(seq 1 $max_caldav_attempts); do
 done
 
 echo ""
+echo "Granting scheduling ACL rights to pre-provisioned users..."
+# Cyrus 3.13.x pre-creates user1's calendar home in the Docker image without
+# the extended scheduling rights (7=schedule-send-invite, 8=schedule-send-reply,
+# 9=schedule-send-freebusy).  Dynamically-created calendar homes (user2+) get
+# these rights automatically, so we only need to patch user1 here, but grant
+# to all known pre-created users for safety.
+for user in user1 user2 user3 user4 user5; do
+    printf 'sam user.%s.#calendars.Outbox %s lrswipkxtecdan789\r\n' "$user" "$user"
+done | /usr/cyrus/bin/cyradm --auth PLAIN -u admin -w admin --notls --port 8143 localhost 2>/dev/null || \
+    echo "Warning: could not set scheduling ACL rights (cyradm failed)"
+
+echo ""
 echo "✓ Cyrus setup complete!"
 echo ""
 echo "Credentials:"
