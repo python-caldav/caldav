@@ -941,7 +941,7 @@ class TestCompTypeOptionalTimeRange:
         ## Feature explicitly configured as supported, so the library optimistically
         ## sends the comp-type-less time-range query that SabreDAV rejects.
         mock_client.features = FeatureSet(
-            {"search.time-range.comp-type.optional": {"support": "full"}}
+            {"search.time-range.comp-type-optional": {"support": "full"}}
         )
 
         event = Event(client=mock_client, url=mock_url, data=SIMPLE_EVENT)

@@ -3420,10 +3420,10 @@ END:VCALENDAR"""
         per RFC4791 section 9.7 - reject a CALDAV:time-range placed directly under
         the VCALENDAR comp-filter with HTTP 400.  The library works around this by
         splitting the search into one query per component type
-        (search.time-range.comp-type.optional being unsupported).
+        (search.time-range.comp-type-optional being unsupported).
 
         The search is run twice: once with the server's real feature
-        configuration, and once with search.time-range.comp-type.optional forced
+        configuration, and once with search.time-range.comp-type-optional forced
         to "supported".  The forced run makes the library optimistically send the
         comp-type-less time-range query that SabreDAV rejects, exercising the
         reactive 400-fallback.  Without that fallback the forced run fails on
@@ -3466,11 +3466,11 @@ END:VCALENDAR"""
         ## Run 1: the server's real feature configuration (proactive comp-type split)
         _assert_event_found()
 
-        ## Run 2: force search.time-range.comp-type.optional ON, so the library
+        ## Run 2: force search.time-range.comp-type-optional ON, so the library
         ## sends the comp-type-less time-range query verbatim and must recover from
         ## the server's rejection via the reactive fallback (issue #681 item 4).
         features = self.caldav.features
-        key = "search.time-range.comp-type.optional"
+        key = "search.time-range.comp-type-optional"
         had_key = key in features._server_features
         saved = features._server_features.get(key)
         features.set_feature(key, {"support": "full"})
@@ -3490,7 +3490,7 @@ END:VCALENDAR"""
         VCALENDAR's own properties, which lack component properties like
         CATEGORIES, so servers (Xandikos, SabreDAV, ...) match nothing.  The
         library works around this by splitting the search into one query per
-        component type (search.text.comp-type.optional being unsupported).
+        component type (search.text.comp-type-optional being unsupported).
         """
         self.skip_unless_support("search.text.category")
         cal = self._fixCalendar()
