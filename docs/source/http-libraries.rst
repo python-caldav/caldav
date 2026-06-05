@@ -30,12 +30,15 @@ According to
 https://github.com/python-caldav/caldav/issues/611#issuecomment-4278875543
 the httpx development seems stagnant, and httpx is even flagged as a
 supply-chain risk in some Reddit-discussions.  It seems like the http
-user space is filled with drama and intrigues.
+user space is filled with drama and intrigues.  httpxyz is a
+maintained fork of httpx.  For async communication, the fallback chain
+now is niquests, httpxyz and finally httpx if import of the former two
+fails.
 
 Fallbacks
 ---------
 
-To enable the fallbacks, just ensure the requests and/or httpx library is available and that niquests isn't available.  In virtual environments, fix the dependencies in `pyproject.toml`.
+To enable the fallbacks, just ensure the requests and/or httpxyz/httpx library is available and that niquests isn't available.  In virtual environments, fix the dependencies in `pyproject.toml`.
 
 Recommendations
 ---------------

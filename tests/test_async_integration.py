@@ -577,21 +577,39 @@ class AsyncFunctionalTestsBaseClass:
         ## Run 1: the server's real feature configuration (proactive comp-type split)
         await _assert_event_found()
 
-        ## Run 2: force search.time-range.comp-type-optional ON, so the library
-        ## sends the comp-type-less time-range query verbatim and must recover from
-        ## the server's rejection via the reactive fallback (issue #681 item 4).
-        features = async_calendar.client.features
-        key = "search.time-range.comp-type-optional"
-        had_key = key in features._server_features
-        saved = features._server_features.get(key)
-        features.set_feature(key, {"support": "full"})
+        ## Determine how this server reacts to the raw comp-type-less time-range
+        ## query.  Only SabreDAV-style servers reject it with a ReportError (HTTP
+        ## 400) - the case the reactive fallback (issue #681 item 4) recovers from.
+        ## Others return nothing or a different error (e.g. Cyrus may answer 403),
+        ## where forcing the feature on is an unrecoverable misconfiguration.
+        from caldav.lib import error
+
         try:
-            await _assert_event_found()
-        finally:
-            if had_key:
-                features._server_features[key] = saved
-            else:
-                features._server_features.pop(key, None)
+            await async_calendar.search(start=start, end=end, compatibility_workarounds=False)
+            raw_report_error = False
+        except error.ReportError:
+            raw_report_error = True
+        except error.DAVError:
+            raw_report_error = False
+
+        ## Run 2 (only meaningful where the raw query raises a ReportError): force
+        ## the feature ON and verify the reactive fallback recovers and finds the event.
+        if raw_report_error:
+            features = async_calendar.client.features
+            key = "search.time-range.comp-type-optional"
+            had_key = key in features._server_features
+            saved = features._server_features.get(key)
+            features.set_feature(key, {"support": "full"})
+            try:
+                objects = await async_calendar.search(start=start, end=end)
+                assert [o for o in objects if uid in o.data], (
+                    "reactive fallback did not recover the comp-type-less time-range search"
+                )
+            finally:
+                if had_key:
+                    features._server_features[key] = saved
+                else:
+                    features._server_features.pop(key, None)
 
     @pytest.mark.asyncio
     async def test_search_without_comptype_with_category(self, async_calendar: Any) -> None:
