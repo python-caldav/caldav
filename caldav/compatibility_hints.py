@@ -1005,7 +1005,13 @@ zimbra = {
     #'save-load.get-by-url': {'support': 'fragile', 'behaviour': '404 most of the time - but sometimes 200.  Weird, should be investigated more'},
     ## Zimbra treats same-UID events across calendars as aliases of the same event
     'save.duplicate-uid.cross-calendar': {'support': 'unsupported'},
-    'create-calendar.set-displayname': {'support': 'unsupported'},
+    ## was 'unsupported' - that was the checker bug (it looked the calendar up by
+    ## display name, which a leftover/colliding calendar would shadow).  The probe
+    ## now reads the displayname back by cal_id via PROPFIND, and Zimbra returns the
+    ## requested name (distinct from the cal_id), so set-at-create works.  The old
+    ## old_flags note below ("display name can only be given if no calendar-ID is
+    ## given") no longer holds for zcs-foss:latest.  Confirmed full 2026-06-07.
+    'create-calendar.set-displayname': {'support': 'full'},
     'save-load.todo.mixed-calendar': {'support': 'unsupported'},
     'save-load.todo.recurrences.count': {'support': 'unsupported'}, ## This is a new problem?
     'save-load.journal': {'support': 'ungraceful'},
@@ -1560,8 +1566,11 @@ gmx = {
 ## OX App Suite CalDAV served at /caldav/ (Apache proxies to /servlet/dav/caldav on port 8009).
 ## The Docker image must be built locally before use (see tests/docker-test-servers/ox/build.sh).
 ox = {
-    ## Renaming a calendar after creation via PROPPATCH is not supported
-    'create-calendar.set-displayname': {'support': 'unsupported'},
+    ## Renaming a calendar after creation via PROPPATCH is not supported, but
+    ## setting the display name AT creation time is - and that's what the probe
+    ## tests.  Was 'unsupported' (conflated the two operations, and masked by the
+    ## checker's display-name-lookup bug).  Confirmed full 2026-06-07.
+    'create-calendar.set-displayname': {'support': 'full'},
     ## VTODOs must be in a dedicated VTODO-only calendar; mixed calendars not supported
     'save-load.todo.mixed-calendar': {'support': 'unsupported'},
     ## Basic VTODO support works fine; only recurrences are broken
