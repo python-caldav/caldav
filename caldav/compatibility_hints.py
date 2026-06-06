@@ -1016,7 +1016,10 @@ zimbra = {
     # sometimes throws a 500
     'search.text.category': {'support': 'ungraceful'},
     'search.recurrences.expanded.todo': { "support": "unsupported" },
-    'search.comp-type.optional': {'support': 'fragile'}, ## TODO: more research on this, looks like a bug in the checker,
+    ## was 'fragile' - that was the checker bug (it compared a comp-type-less
+    ## search against cnt, which counts objects stored in a separate
+    ## task/journal calendar).  Confirmed full 2026-06-06.
+    'search.comp-type.optional': {'support': 'full'},
     'search.time-range.alarm': {'support': 'unsupported'},
     'principal-search': "unsupported",
     ## Zimbra implements server-side automatic scheduling: invitations are
@@ -1069,7 +1072,14 @@ bedework = {
     "search.recurrences": False,
     "sync-token": { "support": "fragile" },
     'search.comp-type': {'support': 'broken', 'behaviour': 'Server returns everything when searching for events and nothing when searching for todos'},
-    'search.comp-type.optional': {'support': 'ungraceful'},
+    ## was 'ungraceful' - that was the checker bug (cnt counted the separately
+    ## stored journal); confirmed full 2026-06-06.
+    'search.comp-type.optional': {'support': 'full'},
+    ## Flaps between full and unsupported across runs - the comp-type-less
+    ## time-range query intermittently returns the in-range object vs nothing,
+    ## most likely the search-cache delay above.  Marked fragile so the checker
+    ## skips it.  Observed 2026-06-06.
+    'search.time-range.comp-type-optional': {'support': 'fragile'},
     'search.is-not-defined.dtend': False,
     "principal-search": {  "support": "ungraceful" },
     ## Bedework hides past non-recurring events from REPORT without a time-range filter,
@@ -1111,7 +1121,9 @@ baikal =  { ## version 0.10.1
     # into their calendar.
     "scheduling.schedule-tag": False,
     "http.multiplexing": "fragile", ## ref https://github.com/python-caldav/caldav/issues/564
-    'search.comp-type.optional': {'support': 'ungraceful'},
+    ## was 'ungraceful' - that was the checker bug (cnt counted the journal that
+    ## SabreDAV stores in a separate calendar); confirmed full 2026-06-06.
+    'search.comp-type.optional': {'support': 'full'},
     'search.recurrences.expanded.todo': {'support': 'unsupported'},
     'search.recurrences.includes-implicit.todo': {'support': 'unsupported'},
     "search.recurrences.includes-implicit.infinite-scope": False,
@@ -1178,7 +1190,8 @@ davical = {
     # DAViCal delivers iTIP notifications to the attendee inbox AND auto-schedules
     # into their calendar.
     "scheduling.schedule-tag": False,
-    "search.comp-type.optional": { "support": "fragile" },
+    ## was 'fragile' - that was the checker bug (cnt mismatch); confirmed full 2026-06-06.
+    "search.comp-type.optional": { "support": "full" },
     ## Genuinely returns matching objects for a comp-type-less query that carries
     ## a time-range (verified: the event is returned, not just "no error").
     "search.time-range.comp-type-optional": { "support": "full" },
@@ -1369,7 +1382,9 @@ davis = {
     "principal-search.by-name.self": {"support": "unsupported"},
     "principal-search": {"support": "ungraceful"},
     "save-load.journal.mixed-calendar": {"support": "unsupported"},
-    "search.comp-type.optional": {"support": "ungraceful"},
+    ## was 'ungraceful' - that was the checker bug (cnt counted the journal that
+    ## SabreDAV stores in a separate calendar); confirmed full 2026-06-06.
+    "search.comp-type.optional": {"support": "full"},
     "old_flags": [
         "calendar_order",
         "calendar_color",
@@ -1395,9 +1410,12 @@ ccs = {
     "save.duplicate-uid.cross-calendar": {"support": "ungraceful"},
     # CCS rejects multi-instance VTODOs (thisandfuture recurring completion)
     "save-load.todo.recurrences.thisandfuture": {"support": "unsupported"},
-    "search.comp-type.optional": {"support": "ungraceful"},
-    ## "full" observed, 70938dc1cbb6a839978eee4315699746d38ee5f0/3cae24cf99da1702b851b5a74a9b88c8e5317dad, 2026-02-17.
-    ## However, this may be due to mess with the caldav-server-checker branches.  "unsupported" again at be26d42b1ca3ff3b4fd183761b4a9b024ce12b84 / 537a23b145487006bb987dee5ab9e00cdebb0492
+    ## was 'ungraceful' - that was the checker bug (cnt mismatch: it counted a
+    ## journal object that CCS could not store, so the comp-type-less count never
+    ## matched).  Confirmed full 2026-06-06.
+    ## ("full" had also been observed 2026-02-17, then "unsupported"/"ungraceful"
+    ## - all that flapping was the same checker bug, now fixed.)
+    "search.comp-type.optional": {"support": "full"},
     "search.text.case-sensitive": {"support": "unsupported"},
     "search.time-range.event": {"support": "full"},
     "search.time-range.event.old-dates": {"support": "ungraceful"},
@@ -1429,6 +1447,11 @@ stalwart = {
     'create-calendar.auto': True,
     'principal-search': {'support': 'ungraceful'},
     'search.time-range.alarm': False,
+    ## Stalwart accepts comp-type-less queries fully, including the time-range
+    ## and prop-filter variants (both unsupported on most other servers).
+    ## Confirmed 2026-06-06.
+    'search.time-range.comp-type-optional': {'support': 'full'},
+    'search.text.comp-type-optional': {'support': 'full'},
     ## Stalwart supports implicit recurrence for datetime events but not for
     ## all-day (VALUE=DATE) recurring events in time-range searches.
     'search.recurrences.includes-implicit.event': {'support': 'fragile', 'behaviour': 'broken for all-day (VALUE=DATE) events'},
@@ -1552,7 +1575,9 @@ ox = {
     'search.time-range.todo.old-dates': {'support': 'unsupported'},
     'search.time-range.alarm': {'support': 'unsupported'},
     'search.unlimited-time-range': {'support': 'broken'},
-    'search.comp-type.optional': {'support': 'ungraceful'},
+    ## was 'ungraceful' - that was the checker bug (cnt mismatch across the
+    ## separate VTODO calendar); confirmed full 2026-06-06.
+    'search.comp-type.optional': {'support': 'full'},
     'search.text': {'support': 'unsupported'},
     'search.text.category': {'support': 'unsupported'},
     'search.text.case-sensitive': {'support': 'unsupported'},
