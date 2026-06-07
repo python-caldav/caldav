@@ -12,6 +12,7 @@ import json
 import logging
 import os
 import random
+import re
 import sys
 import tempfile
 import time
@@ -137,6 +138,25 @@ DTEND:20060715T040000Z
 SUMMARY:Bastille Day Party
 END:VEVENT
 """
+
+
+def near_now_ics(ics, days=30, hours=11):
+    """Return a copy of an ical event string with DTSTART/DTEND shifted to ~now.
+
+    Some servers (e.g. OX App Suite) only return objects within a sliding ~±1
+    year window from REPORT-based lookups (ref search.unlimited-time-range), so
+    an event with a static historic date (the year-2006 dates in ev1/broken_ev1)
+    is invisible to get_events()/get_event_by_uid() even though it was stored
+    correctly.  Using a near-now date keeps these save-then-search tests
+    meaningful on such servers.  Only plain "DTSTART:"/"DTEND:" properties are
+    shifted; recurring all-day templates (DTSTART;VALUE=DATE:) are left alone.
+    """
+    start = datetime.now() + timedelta(days=days)
+    end = start + timedelta(hours=hours)
+    ics = re.sub(r"DTSTART:[0-9T]+Z?", start.strftime("DTSTART:%Y%m%dT%H%M%SZ"), ics)
+    ics = re.sub(r"DTEND:[0-9T]+Z?", end.strftime("DTEND:%Y%m%dT%H%M%SZ"), ics)
+    return ics
+
 
 ev2 = """BEGIN:VCALENDAR
 VERSION:2.0
@@ -1950,8 +1970,9 @@ END:VCALENDAR"""
             ## we're supposed to be working towards a brand new calendar
             assert len(existing_events) == 0
 
-        # add event
-        c.add_event(broken_ev1)
+        # add event (near-now date so it stays visible to REPORT-based lookups
+        # on sliding-window servers; see near_now_ics)
+        c.add_event(near_now_ics(broken_ev1))
 
         # c.get_events() should give a full list of events
         events = cleanse(c.get_events())
@@ -1973,16 +1994,22 @@ END:VCALENDAR"""
                 self.is_supported("delete-calendar")
                 or self.is_supported("delete-calendar", str) == "fragile"
             ):
-                assert c2.url == c.url
+                ## A name lookup may return a different (canonical) calendar URL
+                ## than the one we created it at on servers that don't preserve
+                ## the URL (e.g. OX exposes the calendar under an internal
+                ## cal://0/NNN id); see save-load.stable-url.
+                if self.is_supported("save-load.stable-url"):
+                    assert c2.url == c.url
                 events2 = cleanse(c2.get_events())
                 assert len(events2) == 1
                 assert events2[0].url == events[0].url
 
         # add another event, it should be doable without having premade ICS
+        _dt = datetime.now() + timedelta(days=31)
         ev2 = c.add_event(
-            dtstart=datetime(2015, 10, 10, 8, 7, 6),
+            dtstart=_dt,
             summary="This is a test event",
-            dtend=datetime(2016, 10, 10, 9, 8, 7),
+            dtend=_dt + timedelta(hours=1),
             uid="ctuid1",
         )
         events = c.get_events()
@@ -2096,7 +2123,7 @@ END:VCALENDAR"""
         if self.is_supported("save-load.todo.mixed-calendar"):
             objcnt += len(c.get_todos())
         objcnt += len(c.get_events())
-        obj = c.add_event(ev1)
+        obj = c.add_event(near_now_ics(ev1))
         objcnt += 1
         if self.is_supported("save-load.event.recurrences"):
             c.add_event(evr)
@@ -2178,7 +2205,7 @@ END:VCALENDAR"""
         ## ADDING yet another object ... and it should also be reported
         if is_time_based:
             time.sleep(1)
-        obj3 = c.add_event(ev3)
+        obj3 = c.add_event(near_now_ics(ev3))
         if is_time_based:
             time.sleep(1)
         my_changed_objects = c.get_objects_by_sync_token(sync_token=my_changed_objects.sync_token)
@@ -2242,7 +2269,7 @@ END:VCALENDAR"""
         if self.is_supported("save-load.todo.mixed-calendar"):
             objcnt += len(c.get_todos())
         objcnt += len(c.get_events())
-        obj = c.add_event(ev1)
+        obj = c.add_event(near_now_ics(ev1))
         objcnt += 1
         if self.is_supported("save-load.event.recurrences"):
             c.add_event(evr)
@@ -2260,6 +2287,25 @@ END:VCALENDAR"""
         my_objects = c.objects(load_objects=True)
         assert my_objects.sync_token != ""
         assert len(list(my_objects)) == objcnt
+
+        stable_url = self.is_supported("save-load.stable-url")
+
+        def synced_match(o):
+            """Return the synced object corresponding to o, or None.
+
+            objects_by_url() is keyed by the server-reported URL, which on
+            servers that don't preserve the PUT URL (e.g. OX; see
+            save-load.stable-url) differs from o.url - so fall back to matching
+            by UID there.
+            """
+            synced = my_objects.objects_by_url()
+            if stable_url:
+                return synced.get(o.url)
+            uid = o.icalendar_component["uid"]
+            return next(
+                (cand for cand in synced.values() if cand.icalendar_component["uid"] == uid),
+                None,
+            )
 
         if is_time_based:
             time.sleep(1)
@@ -2287,13 +2333,13 @@ END:VCALENDAR"""
         if not is_fragile:
             assert len(list(updated)) == 1
             assert len(list(deleted)) == 0
-        assert "foobar" in my_objects.objects_by_url()[obj.url].data
+        assert "foobar" in synced_match(obj).data
 
         if is_time_based:
             time.sleep(1)
 
         ## ADDING yet another object ... and it should also be reported
-        obj3 = c.add_event(ev3)
+        obj3 = c.add_event(near_now_ics(ev3))
 
         if is_time_based:
             time.sleep(1)
@@ -2302,7 +2348,7 @@ END:VCALENDAR"""
         if not is_fragile:
             assert len(list(updated)) == 1
             assert len(list(deleted)) == 0
-        assert obj3.url in my_objects.objects_by_url()
+        assert synced_match(obj3) is not None
 
         self.skip_unless_support("sync-token.delete")
 
@@ -2317,7 +2363,7 @@ END:VCALENDAR"""
         if not is_fragile:
             assert len(list(updated)) == 0
             assert len(list(deleted)) == 1
-        assert obj.url not in my_objects.objects_by_url()
+        assert synced_match(obj) is None
 
         if is_time_based:
             time.sleep(1)
@@ -2337,12 +2383,16 @@ END:VCALENDAR"""
         c1 = self._fixCalendar(name="Yep", cal_id=self.testcal_id)
         c2 = self._fixCalendar(name="Yapp", cal_id=self.testcal_id2)
 
-        e1_ = c1.add_event(ev1)
+        e1_ = c1.add_event(near_now_ics(ev1))
         if not self.check_compatibility_flag("event_by_url_is_broken"):
             e1_.load()
         e1 = c1.get_events()[0]
         if not self.check_compatibility_flag("event_by_url_is_broken"):
-            assert e1.url == e1_.url
+            ## e1 came from a search and may carry a different (canonical) URL
+            ## than the PUT URL on servers that don't preserve it (e.g. OX); see
+            ## save-load.stable-url.
+            if self.is_supported("save-load.stable-url"):
+                assert e1.url == e1_.url
             e1.load()
         if self.cleanup_regime == "post":
             self._teardownCalendar(cal_id=self.testcal_id)
@@ -2361,7 +2411,7 @@ END:VCALENDAR"""
 
         assert not len(c1.get_events())
         assert not len(c2.get_events())
-        e1_ = c1.add_event(ev1)
+        e1_ = c1.add_event(near_now_ics(ev1))
         e1 = c1.get_events()[0]
 
         if not self.check_compatibility_flag("duplicates_not_allowed"):
@@ -2408,8 +2458,9 @@ END:VCALENDAR"""
         ## in case the calendar is reused
         cnt = len(c.get_events())
 
-        # add event from vobject data
-        ve1 = vobject.readOne(ev1)
+        # add event from vobject data (near-now date so it stays visible to
+        # REPORT-based lookups on sliding-window servers; see near_now_ics)
+        ve1 = vobject.readOne(near_now_ics(ev1))
         c.add_event(ve1)
         cnt += 1
 
@@ -3659,7 +3710,9 @@ END:VCALENDAR"""
         c = self._fixCalendar(name="Yølp", cal_id=self.testcal_id)
 
         # add event
-        e1 = c.add_event(ev1.replace("Bastille Day Party", "Bringebærsyltetøyfestival"))
+        e1 = c.add_event(
+            near_now_ics(ev1).replace("Bastille Day Party", "Bringebærsyltetøyfestival")
+        )
 
         # fetch it back
         events = c.get_events()
@@ -3684,7 +3737,9 @@ END:VCALENDAR"""
         c = self._fixCalendar(name="Yølp", cal_id=self.testcal_id)
 
         # add event
-        e1 = c.add_event(to_str(ev1.replace("Bastille Day Party", "Bringebærsyltetøyfestival")))
+        e1 = c.add_event(
+            to_str(near_now_ics(ev1).replace("Bastille Day Party", "Bringebærsyltetøyfestival"))
+        )
 
         # c.get_events() should give a full list of events
         events = c.get_events()
@@ -3785,17 +3840,9 @@ END:VCALENDAR"""
         c = self._fixCalendar()
         assert c.url is not None
 
-        # add event.  Use a date close to "now" rather than the static
-        # year-2006 date in ev1: some servers (e.g. OX App Suite) only return
-        # objects within a sliding ~±1 year window from REPORT-based lookups,
-        # so get_event_by_uid() would not find a year-2006 event even though
-        # it was stored correctly (ref search.unlimited-time-range).
-        dtstart = datetime.now() + timedelta(days=30)
-        dtend = dtstart + timedelta(hours=11)
-        ev = ev1.replace(
-            "DTSTART:20060714T170000Z", dtstart.strftime("DTSTART:%Y%m%dT%H%M%SZ")
-        ).replace("DTEND:20060715T040000Z", dtend.strftime("DTEND:%Y%m%dT%H%M%SZ"))
-        e1 = c.add_event(ev)
+        # add event, with a near-now date so it stays visible to REPORT-based
+        # lookups on sliding-window servers (see near_now_ics()).
+        e1 = c.add_event(near_now_ics(ev1))
         assert e1.url is not None
 
         # Verify that we can look it up, both by URL and by ID
