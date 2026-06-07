@@ -313,6 +313,9 @@ class TestImplicitDerivation:
     - Partial/incomplete child sets fall through to the feature's default.
     """
 
+    ## TODO: the tests covering "all children" may need to be
+    ## protected against future additions in compatibility_hints.py
+
     @pytest.mark.parametrize(
         "scenario, config, query, expected_support",
         [
@@ -374,6 +377,16 @@ class TestImplicitDerivation:
                 },
                 "search.recurrences",
                 "full",  # any positive support → derive as supported
+            ),
+            (
+                ## Earlier logic had it that if a node has only one child, the parent should not be affected by the child, but if there are more children and all are unsupported, the parent is automatically flipped to unsupported.  However, this special case logic should have been rendered obsolete by the new logic that every node having an explicit default is considered independent
+                "independent_feature_always_trumps",
+                {
+                    "save-load.mutable.attendee-partstat": {"support": "unsupported"},
+                    "save-load.mutable.if-match-optional": {"support": "unsupported"},
+                },
+                "save-load.mutable",
+                "full",
             ),
             (
                 "gmx_partial_unsupported_query_unset_sibling_child",

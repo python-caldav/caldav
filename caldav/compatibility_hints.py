@@ -202,8 +202,8 @@ class FeatureSet:
             "default": {"support": "full"},
             "links": ["https://github.com/python-caldav/caldav/issues/399"],
         },
-        "save-load.put-overwrite": {
-            "description": "An existing calendar object resource can be overwritten by a fresh PUT that carries no If-Match etag (i.e. add_event()/save() on an object that was not first fetched).  When 'unsupported', the server enforces optimistic concurrency and rejects a no-If-Match overwrite with 409 Conflict (e.g. OX App Suite).  Such servers still support save-load.mutable via a fetch-then-save (etag-conditional) update; only the blind-overwrite path is affected.",
+        "save-load.mutable.if-match-optional": {
+            "description": "The If-Match precondition is optional when overwriting an existing calendar object resource: the server accepts a PUT that carries no If-Match etag (i.e. add_event()/save() on an object that was not first fetched).  When 'unsupported', the server requires an If-Match etag for updates and rejects a no-If-Match overwrite with 409 Conflict (e.g. OX App Suite enforces optimistic concurrency).  Such servers still support save-load.mutable via a fetch-then-save (etag-conditional) update; only the blind-overwrite path is affected.",
             "default": {"support": "full"},
         },
         "search": {
@@ -573,44 +573,57 @@ class FeatureSet:
 
     def collapse(self):
         """
-        If all subfeatures are the same, it should be collapsed into the parent
+        Compact the stored feature set: a *grouping* parent (one without its own
+        explicit default) whose grouping children are all explicitly set to the
+        same status is replaced by a single entry on the parent, and the children
+        are dropped.
 
-        Messy and complex logic :-(
+        The parent status comes from the single derivation path,
+        is_supported() -> _derive_from_subfeatures().  That path already:
+          * treats a node with an explicit default as an independent feature -
+            never derived/collapsed from its children (so e.g. save-load.mutable
+            stays "full" even when every child is "unsupported"), and
+          * ignores independent children (those with their own default) when
+            deriving a grouping parent.
+        collapse() adds only a losslessness check on top: it folds the children
+        in solely when every grouping child is explicitly set and matches the
+        derived value, so no per-child information is lost.
         """
-        features = list(self._server_features.keys())
         parents = set()
-        for feature in features:
+        for feature in self._server_features:
             if '.' in feature:
                 parents.add(feature[:feature.rfind('.')])
-        parents = list(parents)
-        ## Parents needs to be ordered by the number of dots.  We proceed those with most dots first.
-        parents.sort(key = lambda x: (-x.count('.'), x))
-        for parent in parents:
+        ## Deepest parents first, so a freshly collapsed child can feed its parent.
+        for parent in sorted(parents, key=lambda x: (-x.count('.'), x)):
             parent_info = self.find_feature(parent)
 
-            if len(parent_info['subfeatures']):
-                foo = self.is_supported(parent, return_type=dict, return_defaults=False)
-                if len(parent_info['subfeatures']) > 1 or foo is not None:
-                    dont_collapse = False
-                    foo_key = self._collapse_key(foo) if foo is not None else None
-                    for sub in parent_info['subfeatures']:
-                        bar = self._server_features.get(f"{parent}.{sub}")
-                        if bar is None:
-                            dont_collapse = True
-                            break
-                        bar_key = self._collapse_key(bar)
-                        if foo is None:
-                            foo = bar
-                            foo_key = bar_key
-                        elif bar_key != foo_key:
-                            dont_collapse = True
-                            break
-                    if not dont_collapse:
-                        if parent not in self._server_features:
-                            self._server_features[parent] = {}
-                        for sub in parent_info['subfeatures']:
-                            self._server_features.pop(f"{parent}.{sub}")
-                        self.copyFeatureSet({parent: foo})
+            ## Independent node (its own explicit default) is never collapsed.
+            if 'default' in parent_info:
+                continue
+
+            ## Independent children (their own default) are separate features:
+            ## neither folded in nor required to match.
+            grouping_children = [
+                sub
+                for sub in parent_info['subfeatures']
+                if 'default' not in self.find_feature(f"{parent}.{sub}")
+            ]
+            if not grouping_children:
+                continue
+
+            derived = self.is_supported(parent, return_type=dict, return_defaults=False)
+            if derived is None:
+                continue
+            derived_key = self._collapse_key(derived)
+
+            ## Lossless only if every grouping child is explicitly set and matches.
+            child_nodes = [self._server_features.get(f"{parent}.{sub}") for sub in grouping_children]
+            if any(node is None or self._collapse_key(node) != derived_key for node in child_nodes):
+                continue
+
+            for sub in grouping_children:
+                self._server_features.pop(f"{parent}.{sub}", None)
+            self.copyFeatureSet({parent: derived})
 
     def _default(self, feature_info):
         if isinstance(feature_info, str):
@@ -1618,7 +1631,7 @@ ox = {
     'save-load.stable-url': {'support': 'unsupported'},
     ## OX enforces optimistic concurrency: a no-If-Match overwrite PUT is rejected
     ## with 409 Conflict (etag-conditional save() still works).
-    'save-load.put-overwrite': {'support': 'unsupported'},
+    'save-load.mutable.if-match-optional': {'support': 'unsupported'},
     ## OX forbids changing an attendee's PARTSTAT via a direct PUT (403 Forbidden
     ## even with a matching etag); it must go through iTIP scheduling.
     'save-load.mutable.attendee-partstat': {'support': 'unsupported'},
