@@ -30,14 +30,14 @@ test-servers:
   # Docker servers (require docker-compose, see docker-test-servers/)
   # =========================================================================
   #
-  # Set enabled to:
-  #   - true: always enable
-  #   - false: always disable
-  #   - "auto": enable if docker is available (default for docker servers)
+  # Set enabled to true or false.  Docker servers are skipped automatically
+  # when Docker is not available, and a running container is auto-detected
+  # even without a config entry, so listing them here is mainly to opt in or
+  # out explicitly and to override credentials/ports.
 
   baikal:
     type: docker
-    enabled: ${TEST_BAIKAL:-auto}
+    enabled: true
     host: ${BAIKAL_HOST:-localhost}
     port: ${BAIKAL_PORT:-8800}
     username: ${BAIKAL_USERNAME:-testuser}
@@ -47,7 +47,7 @@ test-servers:
 
   nextcloud:
     type: docker
-    enabled: ${TEST_NEXTCLOUD:-false}
+    enabled: false
     host: ${NEXTCLOUD_HOST:-localhost}
     port: ${NEXTCLOUD_PORT:-8801}
     username: ${NEXTCLOUD_USERNAME:-testuser}
@@ -56,7 +56,7 @@ test-servers:
 
   cyrus:
     type: docker
-    enabled: ${TEST_CYRUS:-false}
+    enabled: false
     host: ${CYRUS_HOST:-localhost}
     port: ${CYRUS_PORT:-8802}
     username: ${CYRUS_USERNAME:-user1}
@@ -76,7 +76,7 @@ test-servers:
 
   sogo:
     type: docker
-    enabled: ${TEST_SOGO:-false}
+    enabled: false
     host: ${SOGO_HOST:-localhost}
     port: ${SOGO_PORT:-8803}
     username: ${SOGO_USERNAME:-testuser}
@@ -84,7 +84,7 @@ test-servers:
 
   bedework:
     type: docker
-    enabled: ${TEST_BEDEWORK:-false}
+    enabled: false
     host: ${BEDEWORK_HOST:-localhost}
     port: ${BEDEWORK_PORT:-8804}
     username: ${BEDEWORK_USERNAME:-admin}
@@ -92,7 +92,7 @@ test-servers:
 
   davical:
     type: docker
-    enabled: ${TEST_DAVICAL:-false}
+    enabled: false
     host: ${DAVICAL_HOST:-localhost}
     port: ${DAVICAL_PORT:-8805}
     username: ${DAVICAL_USERNAME:-testuser}
@@ -101,7 +101,7 @@ test-servers:
 
   davis:
     type: docker
-    enabled: ${TEST_DAVIS:-false}
+    enabled: false
     host: ${DAVIS_HOST:-localhost}
     port: ${DAVIS_PORT:-8806}
     username: ${DAVIS_USERNAME:-testuser}
@@ -109,7 +109,7 @@ test-servers:
 
   ccs:
     type: docker
-    enabled: ${TEST_CCS:-false}
+    enabled: false
     host: ${CCS_HOST:-localhost}
     port: ${CCS_PORT:-8807}
     username: ${CCS_USERNAME:-user01}
@@ -117,7 +117,7 @@ test-servers:
 
   zimbra:
     type: docker
-    enabled: ${TEST_ZIMBRA:-false}
+    enabled: false
     host: ${ZIMBRA_HOST:-zimbra-docker.zimbra.io}
     port: ${ZIMBRA_PORT:-8808}
     username: ${ZIMBRA_USERNAME:-testuser@zimbra.io}
@@ -126,7 +126,7 @@ test-servers:
 
   stalwart:
     type: docker
-    enabled: ${TEST_STALWART:-false}
+    enabled: false
     host: ${STALWART_HOST:-localhost}
     port: ${STALWART_PORT:-8809}
     # v0.16+: username is a full email address; password must not be in zxcvbn common-word list.
@@ -136,7 +136,7 @@ test-servers:
   # OX App Suite requires a locally built Docker image — run build.sh first.
   ox:
     type: docker
-    enabled: ${TEST_OX:-false}
+    enabled: false
     host: ${OX_HOST:-localhost}
     port: ${OX_PORT:-8810}
     username: ${OX_USERNAME:-oxadmin}

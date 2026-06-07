@@ -69,8 +69,6 @@ nextcloud:
   enabled: false
 ```
 
-Or use the environment variable: `TEST_NEXTCLOUD=false`.
-
 Or simply don't install Docker - the tests will automatically skip Nextcloud if Docker is not available.
 
 ## Troubleshooting
