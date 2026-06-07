@@ -1018,13 +1018,23 @@ zimbra = {
     #'save-load.get-by-url': {'support': 'fragile', 'behaviour': '404 most of the time - but sometimes 200.  Weird, should be investigated more'},
     ## Zimbra treats same-UID events across calendars as aliases of the same event
     'save.duplicate-uid.cross-calendar': {'support': 'unsupported'},
-    ## was 'unsupported' - that was the checker bug (it looked the calendar up by
-    ## display name, which a leftover/colliding calendar would shadow).  The probe
-    ## now reads the displayname back by cal_id via PROPFIND, and Zimbra returns the
-    ## requested name (distinct from the cal_id), so set-at-create works.  The old
-    ## old_flags note below ("display name can only be given if no calendar-ID is
-    ## given") no longer holds for zcs-foss:latest.  Confirmed full 2026-06-07.
-    'create-calendar.set-displayname': {'support': 'full'},
+    ## Zimbra couples the display name to the calendar URL: MKCALENDAR uses the
+    ## DisplayName from the request body as the URL segment and IGNORES the
+    ## requested cal_id path - UNLESS a calendar with that display-name-derived
+    ## URL already exists, in which case it falls back to the cal_id path (and
+    ## then the display name does not stick).  So the outcome depends entirely on
+    ## pre-existing calendar state.  The checker briefly observed this as 'full'
+    ## only because a leftover 'Yep' calendar forced the cal_id fallback; in a
+    ## clean run the calendar relocates to '.../Yep/' while the library keeps
+    ## self.url pointed at the cal_id path, so every later URL-based operation
+    ## (event_by_url, get_event_by_uid, ...) 404s.  See the old_flags note below.
+    ##
+    ## 'fragile' is the honest value: it makes is_supported() return False, so
+    ## both Calendar._create() (omit the DisplayName from the MKCALENDAR body) and
+    ## the test fixture (create with no display name) keep the calendar addressable
+    ## at the cal_id path, and testCheckCompatibility tolerates whatever the
+    ## (state-dependent) probe observes.  Verified against zcs-foss:latest 2026-06-07.
+    'create-calendar.set-displayname': {'support': 'fragile', 'behaviour': 'display name and calendar URL are coupled; setting a display name relocates the calendar to a display-name-derived URL unless that URL is already taken'},
     'save-load.todo.mixed-calendar': {'support': 'unsupported'},
     'save-load.todo.recurrences.count': {'support': 'unsupported'}, ## This is a new problem?
     'save-load.journal': {'support': 'ungraceful'},
