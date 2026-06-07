@@ -142,9 +142,12 @@ class FeatureSet:
             "default": { "support": "fragile" },
         },
         "save-load": {
-            "description": "it's possible to save and load objects to the calendar"
+            "description": "it's possible to save and load objects to the calendar",
         },
-        "save-load.event": {"description": "it's possible to save and load events to the calendar"},
+        "save-load.event": { ## TODO: make this DRY
+            "description": "it's possible to save and load events to the calendar",
+            "default": { "support": "full" }
+        },
         "save-load.event.recurrences": {"description": "it's possible to save and load recurring events to the calendar - events with an RRULE property set, including recurrence sets", "default": {"support": "full"}},
         "save-load.event.recurrences.count": {"description": "The server will receive and store a recurring event with a count set in the RRULE", "default": {"support": "full"}},
         ## This was Claude's suggestion and it works as of today, the
@@ -157,16 +160,26 @@ class FeatureSet:
         ## information was simply discarded, and the current search behaviour would in
         ## such a case be incorrect if the exception is simply discarded.
         "save-load.event.recurrences.exception": {"description": "When a VCALENDAR containing a master VEVENT (with RRULE) and exception VEVENT(s) (with RECURRENCE-ID) is stored, the server keeps them together as a single calendar object resource. When unsupported, the server splits exception VEVENTs into separate calendar objects, making client-side expansion unreliable (the master expands without knowing about its exceptions)."},
-        "save-load.todo": {"description": "it's possible to save and load tasks to the calendar"},
+        "save-load.todo": {
+            "description": "it's possible to save and load tasks to the calendar",
+            "default": { "support": "full" }
+        },
         "save-load.todo.recurrences": {"description": "it's possible to save and load recurring tasks to the calendar"},
         "save-load.todo.recurrences.count": {"description": "The server will receive and store a recurring task with a count set in the RRULE", "default": {"support": "full"}},
         "save-load.todo.recurrences.thisandfuture": {"description": "Completing a recurring task with rrule_mode='thisandfuture' works (modifies RRULE and saves back to server)", "default": {"support": "full"}},
         "save-load.todo.mixed-calendar": {"description": "The same calendar may contain both events and tasks (Zimbra only allows tasks to be placed on special task lists)", "default": {"support": "full"}},
-        "save-load.journal": {"description": "The server will even accept journals"},
+        "save-load.journal": {
+            "description": "The server will even accept journals",
+            "default": { "support": "full" }
+        },
         ## TODO: zimbra cannot mix events and tasks, but then davis surprised me by not allowing journals on the same calendar.  But this may be a miss in the checking script - it may be that mixing is allowed, but that the calendar has to be set up from scratch with explicit support for both VJOURNAL and other things
         "save-load.journal.mixed-calendar": {"description": "The same calendar may contain events, tasks and journals (some servers require journals on a dedicated VJOURNAL calendar)", "default": {"support": "full"}},
         "save-load.get-by-url": {
             "description": "GET requests to calendar object resource URLs work correctly. When unsupported, the server returns 404 on GET even for valid object URLs. The client works around this by falling back to UID-based lookup.",
+        },
+        "save-load.stable-url": {
+            "description": "The server reports a calendar object resource under the same URL the client used to store it. When 'unsupported', the server canonicalizes the URL: e.g. OX App Suite exposes a calendar both under its display name and under an internal 'cal://0/NNN' identifier, so an object looked up via a calendar-query REPORT (object_by_uid / search) is reported under a different calendar path than the PUT URL.  A direct GET on the original URL still works (the server keeps an alias).  Clients should therefore not assume that a searched object's URL equals the URL it was created at.",
+            "default": {"support": "full"},
         },
         "save-load.reuse-deleted-uid": {
             "description": "After deleting an event, the server allows creating a new event with the same UID. When 'broken', the server keeps deleted events in a trashbin with a soft-delete flag, causing unique constraint violations on UID reuse. See https://github.com/nextcloud/server/issues/30096"
@@ -1579,6 +1592,11 @@ ox = {
     'save-load.todo.recurrences': {'support': 'ungraceful'},
     ## VJOURNAL is not supported
     'save-load.journal': {'support': 'unsupported'},
+    ## OX exposes the calendar both under its display name and under an internal
+    ## "cal://0/NNN" id, so objects looked up via REPORT come back under a
+    ## different calendar URL than the one used to PUT them (GET on the original
+    ## URL still works via an alias).
+    'save-load.stable-url': {'support': 'unsupported'},
     ## Search limitations
     'search.time-range.event.old-dates': {'support': 'unsupported'},
     'search.time-range.todo.old-dates': {'support': 'unsupported'},

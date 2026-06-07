@@ -3785,8 +3785,17 @@ END:VCALENDAR"""
         c = self._fixCalendar()
         assert c.url is not None
 
-        # add event
-        e1 = c.add_event(ev1)
+        # add event.  Use a date close to "now" rather than the static
+        # year-2006 date in ev1: some servers (e.g. OX App Suite) only return
+        # objects within a sliding ~±1 year window from REPORT-based lookups,
+        # so get_event_by_uid() would not find a year-2006 event even though
+        # it was stored correctly (ref search.unlimited-time-range).
+        dtstart = datetime.now() + timedelta(days=30)
+        dtend = dtstart + timedelta(hours=11)
+        ev = ev1.replace(
+            "DTSTART:20060714T170000Z", dtstart.strftime("DTSTART:%Y%m%dT%H%M%SZ")
+        ).replace("DTEND:20060715T040000Z", dtend.strftime("DTEND:%Y%m%dT%H%M%SZ"))
+        e1 = c.add_event(ev)
         assert e1.url is not None
 
         # Verify that we can look it up, both by URL and by ID
@@ -3797,7 +3806,15 @@ END:VCALENDAR"""
         # look up by UID
         e3 = c.get_event_by_uid("20010712T182145Z-123401@example.com")
         assert e3.vobject_instance.vevent.uid == e1.vobject_instance.vevent.uid
-        assert e3.url == e1.url
+        if self.is_supported("save-load.stable-url"):
+            assert e3.url == e1.url
+        else:
+            ## The server reports the object under a different (canonical) URL
+            ## than the one we stored it at (e.g. OX App Suite).  We can't compare
+            ## URLs, but we can confirm the looked-up URL is a real, fetchable
+            ## resource holding the same event.
+            e3.load()
+            assert e3.icalendar_component["uid"] == e1.icalendar_component["uid"]
 
         e4 = Event(client=self.caldav, url=e1.url)
         e4.load()
