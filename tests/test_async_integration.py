@@ -802,9 +802,11 @@ class AsyncFunctionalTestsBaseClass:
         assert e1.url is not None
 
         # same UID again → overwrite (unless server forbids it).  Overwriting via
-        # a fresh PUT without an If-Match etag is gated on save-load.put-overwrite:
+        # a fresh PUT without an If-Match etag is gated on save-load.mutable.if-match-optional:
         # OX enforces optimistic concurrency and rejects such a PUT with 409.
-        if self.is_supported("save-load.mutable") and self.is_supported("save-load.put-overwrite"):
+        if self.is_supported("save-load.mutable") and self.is_supported(
+            "save-load.mutable.if-match-optional"
+        ):
             e2 = await c.add_event(ev1_now)
 
             # no_create on an existing event must succeed

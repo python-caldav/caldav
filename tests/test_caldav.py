@@ -3918,10 +3918,12 @@ END:VCALENDAR"""
 
         ## add same event again.  As it has same uid, it should be overwritten
         ## (but some calendars may throw a "409 Conflict").  Overwriting via a
-        ## fresh PUT without an If-Match etag is gated on save-load.put-overwrite:
+        ## fresh PUT without an If-Match etag is gated on save-load.mutable.if-match-optional:
         ## OX enforces optimistic concurrency and rejects such a PUT with 409
         ## (etag-conditional save() still works, so save-load.mutable stays full).
-        if self.is_supported("save-load.mutable") and self.is_supported("save-load.put-overwrite"):
+        if self.is_supported("save-load.mutable") and self.is_supported(
+            "save-load.mutable.if-match-optional"
+        ):
             e2 = c.add_event(ev1_now)
             if todo_ok:
                 t2 = c.add_todo(todo)
@@ -3968,7 +3970,9 @@ END:VCALENDAR"""
         with pytest.raises(self._notFound()):
             c.event_by_url(e1.url)
         ## e2 only exists if the put-overwrite block above ran
-        if self.is_supported("save-load.mutable") and self.is_supported("save-load.put-overwrite"):
+        if self.is_supported("save-load.mutable") and self.is_supported(
+            "save-load.mutable.if-match-optional"
+        ):
             with pytest.raises(self._notFound()):
                 c.event_by_url(e2.url)
         if not self.check_compatibility_flag("event_by_url_is_broken"):
