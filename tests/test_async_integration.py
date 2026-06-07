@@ -786,23 +786,29 @@ class AsyncFunctionalTestsBaseClass:
         self.skip_unless_support("save-load.event")
         c = async_calendar
 
+        ## near-now date so the event stays visible to REPORT-based lookups on
+        ## sliding-window servers (e.g. OX); see near_now_ics
+        ev1_now = near_now_ics(ev1_static)
+
         # attempting to update a non-existing event must raise ConsistencyError
         with pytest.raises(error.ConsistencyError):
-            await c.add_event(ev1_static, no_create=True)
+            await c.add_event(ev1_now, no_create=True)
 
         # no_create + no_overwrite is always an error
         with pytest.raises(error.ConsistencyError):
-            await c.add_event(ev1_static, no_create=True, no_overwrite=True)
+            await c.add_event(ev1_now, no_create=True, no_overwrite=True)
 
-        e1 = await c.add_event(ev1_static)
+        e1 = await c.add_event(ev1_now)
         assert e1.url is not None
 
-        # same UID again → overwrite (unless server forbids it)
-        if not self.is_supported("save-load.mutable"):
-            e2 = await c.add_event(ev1_static)
+        # same UID again → overwrite (unless server forbids it).  Overwriting via
+        # a fresh PUT without an If-Match etag is gated on save-load.put-overwrite:
+        # OX enforces optimistic concurrency and rejects such a PUT with 409.
+        if self.is_supported("save-load.mutable") and self.is_supported("save-load.put-overwrite"):
+            e2 = await c.add_event(ev1_now)
 
             # no_create on an existing event must succeed
-            e2 = await c.add_event(ev1_static, no_create=True)
+            e2 = await c.add_event(ev1_now, no_create=True)
 
             # modify and save with no_create
             e2.icalendar_component["summary"] = "Bastille Day Party!"
@@ -813,7 +819,7 @@ class AsyncFunctionalTestsBaseClass:
 
         # no_overwrite on an existing event must raise ConsistencyError
         with pytest.raises(error.ConsistencyError):
-            await c.add_event(ev1_static, no_overwrite=True)
+            await c.add_event(ev1_now, no_overwrite=True)
 
         await e1.delete()
 
@@ -2046,6 +2052,9 @@ END:VCALENDAR
     ) -> None:
         """change_attendee_status(attendee=email) updates PARTSTAT correctly."""
         self.skip_unless_support("save-load.event")
+        ## Some servers (e.g. OX) forbid changing an attendee's PARTSTAT via a
+        ## direct PUT (403 Forbidden) and require iTIP scheduling instead.
+        self.skip_unless_support("save-load.mutable.attendee-partstat")
         c = async_calendar
         event = await c.add_event(
             uid="test1",
