@@ -28,6 +28,9 @@ from .test_caldav import ev3 as ev3_static  # different UID (2021)
 from .test_caldav import evr as evr_static  # recurring annual event (1997)
 from .test_caldav import evr2 as evr2_static  # bi-weekly with exception (2024)
 from .test_caldav import journal as journal_static
+from .test_caldav import (
+    near_now_ics,  # shift an ical event's DTSTART/DTEND to ~now (sliding-window servers)
+)
 from .test_caldav import todo as todo_static  # avoids clash with local var in add_todo()
 from .test_caldav import todo2 as todo2_static  # avoids clash with todo2() generator
 from .test_caldav import todo3 as todo3_static
@@ -749,8 +752,9 @@ class AsyncFunctionalTestsBaseClass:
         self.skip_unless_support("save-load.event")
         c = async_calendar
 
-        # create the event
-        e1 = await c.add_event(ev1_static)
+        # create the event (near-now date so it stays visible to REPORT-based
+        # lookups on sliding-window servers; see near_now_ics)
+        e1 = await c.add_event(near_now_ics(ev1_static))
         assert e1.url is not None
 
         # Verify that we can look it up from calendar by url
@@ -761,7 +765,10 @@ class AsyncFunctionalTestsBaseClass:
         # look up by UID
         e3 = await c.get_event_by_uid("20010712T182145Z-123401@example.com")
         assert str(e3.icalendar_component["uid"]) == "20010712T182145Z-123401@example.com"
-        assert e3.url == e1.url
+        ## get_event_by_uid may return a different (canonical) URL than the PUT
+        ## URL on servers that don't preserve it (e.g. OX); see save-load.stable-url
+        if self.is_supported("save-load.stable-url"):
+            assert e3.url == e1.url
 
         # load directly from URL without going through the calendar object
         e4 = Event(client=c.client, url=e1.url)
@@ -866,14 +873,18 @@ class AsyncFunctionalTestsBaseClass:
 
         c1 = async_calendar
 
-        e1_ = await c1.add_event(ev1_static)
+        e1_ = await c1.add_event(near_now_ics(ev1_static))
         await e1_.load()  # load the object returned by add_event
 
         events = await c1.get_events()
         assert len(events) >= 1
         e1 = events[0]
         await e1.load()  # load a freshly fetched handle
-        assert e1.url == e1_.url
+        ## e1 came from a search and may carry a different (canonical) URL than
+        ## the PUT URL on servers that don't preserve it (e.g. OX); see
+        ## save-load.stable-url
+        if self.is_supported("save-load.stable-url"):
+            assert e1.url == e1_.url
 
     @pytest.mark.asyncio
     async def test_copy_event(self, async_calendar: Any, async_calendar2: Any) -> None:
@@ -884,7 +895,7 @@ class AsyncFunctionalTestsBaseClass:
         c1 = async_calendar
         c2 = async_calendar2
 
-        e1_ = await c1.add_event(ev1_static)
+        e1_ = await c1.add_event(near_now_ics(ev1_static))
         events = await c1.get_events()
         e1 = events[0]
 
@@ -961,7 +972,7 @@ class AsyncFunctionalTestsBaseClass:
             objcnt += len(await c.get_todos())
         objcnt += len(await c.get_events())
 
-        obj = await c.add_event(ev1_static)
+        obj = await c.add_event(near_now_ics(ev1_static))
         objcnt += 1
         if self.is_supported("save-load.event.recurrences"):
             await c.add_event(evr_static)
@@ -1021,7 +1032,7 @@ class AsyncFunctionalTestsBaseClass:
 
         if is_time_based:
             await asyncio.sleep(1)
-        obj3 = await c.add_event(ev3_static)
+        obj3 = await c.add_event(near_now_ics(ev3_static))
         if is_time_based:
             await asyncio.sleep(1)
         my_changed_objects = await c.get_objects_by_sync_token(
@@ -1083,7 +1094,7 @@ class AsyncFunctionalTestsBaseClass:
             objcnt += len(await c.get_todos())
         objcnt += len(await c.get_events())
 
-        obj = await c.add_event(ev1_static)
+        obj = await c.add_event(near_now_ics(ev1_static))
         objcnt += 1
         if self.is_supported("save-load.event.recurrences"):
             await c.add_event(evr_static)
@@ -1100,6 +1111,25 @@ class AsyncFunctionalTestsBaseClass:
         my_objects = await c.objects(load_objects=True)
         assert my_objects.sync_token != ""
         assert len(list(my_objects)) == objcnt
+
+        stable_url = self.is_supported("save-load.stable-url")
+
+        def synced_match(o):
+            """Return the synced object corresponding to o, or None.
+
+            objects_by_url() is keyed by the server-reported URL, which on
+            servers that don't preserve the PUT URL (e.g. OX; see
+            save-load.stable-url) differs from o.url - so fall back to matching
+            by UID there.
+            """
+            synced = my_objects.objects_by_url()
+            if stable_url:
+                return synced.get(o.url)
+            uid = o.icalendar_component["uid"]
+            return next(
+                (cand for cand in synced.values() if cand.icalendar_component["uid"] == uid),
+                None,
+            )
 
         if is_time_based:
             await asyncio.sleep(1)
@@ -1124,12 +1154,12 @@ class AsyncFunctionalTestsBaseClass:
         if not is_fragile:
             assert len(list(updated)) == 1
             assert len(list(deleted)) == 0
-        assert "foobar" in my_objects.objects_by_url()[obj.url].data
+        assert "foobar" in synced_match(obj).data
 
         if is_time_based:
             await asyncio.sleep(1)
 
-        obj3 = await c.add_event(ev3_static)
+        obj3 = await c.add_event(near_now_ics(ev3_static))
 
         if is_time_based:
             await asyncio.sleep(1)
@@ -1138,7 +1168,7 @@ class AsyncFunctionalTestsBaseClass:
         if not is_fragile:
             assert len(list(updated)) == 1
             assert len(list(deleted)) == 0
-        assert obj3.url in my_objects.objects_by_url()
+        assert synced_match(obj3) is not None
 
         self.skip_unless_support("sync-token.delete")
 
@@ -1152,7 +1182,7 @@ class AsyncFunctionalTestsBaseClass:
         if not is_fragile:
             assert len(list(updated)) == 0
             assert len(list(deleted)) == 1
-        assert obj.url not in my_objects.objects_by_url()
+        assert synced_match(obj) is None
 
         if is_time_based:
             await asyncio.sleep(1)
@@ -2241,7 +2271,9 @@ END:VCALENDAR"""
 
         c = await principal.make_calendar(name="Yølp", cal_id=cal_id)
         try:
-            await c.add_event(ev1_static.replace("Bastille Day Party", "Bringebærsyltetøyfestival"))
+            await c.add_event(
+                near_now_ics(ev1_static).replace("Bastille Day Party", "Bringebærsyltetøyfestival")
+            )
             events = await c.get_events()
             if "zimbra" not in str(c.url):
                 assert len(events) == 1
@@ -2258,7 +2290,7 @@ END:VCALENDAR"""
         self.skip_unless_support("save-load.event")
         c = async_calendar
         cnt = len(await c.get_events())
-        ve1 = vobject.readOne(ev1_static)
+        ve1 = vobject.readOne(near_now_ics(ev1_static))
         await c.add_event(ve1)
         cnt += 1
         events = await c.get_events()
