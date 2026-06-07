@@ -67,8 +67,6 @@ cyrus:
   enabled: false
 ```
 
-Or use the environment variable: `TEST_CYRUS=false`.
-
 Or simply don't install Docker - the tests will automatically skip Cyrus if Docker is not available.
 
 ## Troubleshooting

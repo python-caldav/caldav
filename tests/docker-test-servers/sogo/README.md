@@ -66,8 +66,6 @@ sogo:
   enabled: false
 ```
 
-Or use the environment variable: `TEST_SOGO=false`.
-
 Or simply don't install Docker - the tests will automatically skip SOGo if Docker is not available.
 
 ## Troubleshooting
