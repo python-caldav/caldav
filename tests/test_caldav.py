@@ -1917,6 +1917,9 @@ END:VCALENDAR"""
 
     def testChangeAttendeeStatusWithEmailGiven(self):
         self.skip_unless_support("save-load.event")
+        ## Some servers (e.g. OX) forbid changing an attendee's PARTSTAT via a
+        ## direct PUT (403 Forbidden) and require iTIP scheduling instead.
+        self.skip_unless_support("save-load.mutable.attendee-partstat")
         c = self._fixCalendar()
 
         event = c.add_event(
@@ -3879,17 +3882,21 @@ END:VCALENDAR"""
         c = self._fixCalendar()
         assert c.url is not None
 
+        ## near-now date so the event stays visible to REPORT-based lookups on
+        ## sliding-window servers (e.g. OX); see near_now_ics
+        ev1_now = near_now_ics(ev1)
+
         # attempts on updating/overwriting a non-existing event should fail:
         with pytest.raises(error.ConsistencyError):
-            c.add_event(ev1, no_create=True)
+            c.add_event(ev1_now, no_create=True)
 
         # no_create and no_overwrite is mutually exclusive, this will always
         # raise an error (unless the ical given is blank)
         with pytest.raises(error.ConsistencyError):
-            c.add_event(ev1, no_create=True, no_overwrite=True)
+            c.add_event(ev1_now, no_create=True, no_overwrite=True)
 
         # add event
-        e1 = c.add_event(ev1)
+        e1 = c.add_event(ev1_now)
 
         todo_ok = self.is_supported("save-load.todo.mixed-calendar")
         if todo_ok:
@@ -3899,19 +3906,28 @@ END:VCALENDAR"""
             assert t1.url is not None
         if not self.check_compatibility_flag("event_by_url_is_broken"):
             assert c.event_by_url(e1.url).url == e1.url
-        assert c.get_event_by_uid(e1.id).url == e1.url
+        ## get_event_by_uid may return a different (canonical) URL than the PUT
+        ## URL on servers that don't preserve it (e.g. OX); see save-load.stable-url
+        e_by_uid = c.get_event_by_uid(e1.id)
+        if self.is_supported("save-load.stable-url"):
+            assert e_by_uid.url == e1.url
+        else:
+            assert e_by_uid.icalendar_component["uid"] == e1.icalendar_component["uid"]
 
         no_create = True
 
         ## add same event again.  As it has same uid, it should be overwritten
-        ## (but some calendars may throw a "409 Conflict")
-        if self.is_supported("save-load.mutable"):
-            e2 = c.add_event(ev1)
+        ## (but some calendars may throw a "409 Conflict").  Overwriting via a
+        ## fresh PUT without an If-Match etag is gated on save-load.put-overwrite:
+        ## OX enforces optimistic concurrency and rejects such a PUT with 409
+        ## (etag-conditional save() still works, so save-load.mutable stays full).
+        if self.is_supported("save-load.mutable") and self.is_supported("save-load.put-overwrite"):
+            e2 = c.add_event(ev1_now)
             if todo_ok:
                 t2 = c.add_todo(todo)
 
             ## add same event with "no_create".  Should work like a charm.
-            e2 = c.add_event(ev1, no_create=no_create)
+            e2 = c.add_event(ev1_now, no_create=no_create)
             if todo_ok:
                 t2 = c.add_todo(todo, no_create=no_create)
 
@@ -3933,7 +3949,7 @@ END:VCALENDAR"""
 
         ## "no_overwrite" should throw a ConsistencyError.
         with pytest.raises(error.ConsistencyError):
-            c.add_event(ev1, no_overwrite=True)
+            c.add_event(ev1_now, no_overwrite=True)
         if todo_ok:
             with pytest.raises(error.ConsistencyError):
                 c.add_todo(todo, no_overwrite=True)
@@ -3951,7 +3967,8 @@ END:VCALENDAR"""
         # Verify that we can't look it up, both by URL and by ID
         with pytest.raises(self._notFound()):
             c.event_by_url(e1.url)
-        if self.is_supported("save-load.mutable"):
+        ## e2 only exists if the put-overwrite block above ran
+        if self.is_supported("save-load.mutable") and self.is_supported("save-load.put-overwrite"):
             with pytest.raises(self._notFound()):
                 c.event_by_url(e2.url)
         if not self.check_compatibility_flag("event_by_url_is_broken"):

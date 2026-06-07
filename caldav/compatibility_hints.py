@@ -197,6 +197,15 @@ class FeatureSet:
             "description": "A saved calendar object resource can be modified and PUT back to the server; the server accepts the update and returns the modified data on the next GET/REPORT. When 'unsupported', the server treats calendar objects as immutable after initial creation (e.g. Google Calendar's legacy CalDAV API). Replaces the old 'no_overwrite' compatibility flag.",
             "default": {"support": "full"},
         },
+        "save-load.mutable.attendee-partstat": {
+            "description": "A client can modify an attendee's PARTSTAT on an existing event and PUT it back directly to the calendar.  When 'unsupported', the server forbids direct modification of attendee participation status via PUT (e.g. OX App Suite returns 403 Forbidden even with a matching If-Match etag) and expects the change to be made through iTIP scheduling instead.  See https://github.com/python-caldav/caldav/issues/399",
+            "default": {"support": "full"},
+            "links": ["https://github.com/python-caldav/caldav/issues/399"],
+        },
+        "save-load.put-overwrite": {
+            "description": "An existing calendar object resource can be overwritten by a fresh PUT that carries no If-Match etag (i.e. add_event()/save() on an object that was not first fetched).  When 'unsupported', the server enforces optimistic concurrency and rejects a no-If-Match overwrite with 409 Conflict (e.g. OX App Suite).  Such servers still support save-load.mutable via a fetch-then-save (etag-conditional) update; only the blind-overwrite path is affected.",
+            "default": {"support": "full"},
+        },
         "search": {
             "description": "calendar MUST support searching for objects using the REPORT method, as specified in RFC4791, section 7",
             "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-7"],
@@ -1607,6 +1616,12 @@ ox = {
     ## different calendar URL than the one used to PUT them (GET on the original
     ## URL still works via an alias).
     'save-load.stable-url': {'support': 'unsupported'},
+    ## OX enforces optimistic concurrency: a no-If-Match overwrite PUT is rejected
+    ## with 409 Conflict (etag-conditional save() still works).
+    'save-load.put-overwrite': {'support': 'unsupported'},
+    ## OX forbids changing an attendee's PARTSTAT via a direct PUT (403 Forbidden
+    ## even with a matching etag); it must go through iTIP scheduling.
+    'save-load.mutable.attendee-partstat': {'support': 'unsupported'},
     ## Search limitations
     'search.time-range.event.old-dates': {'support': 'unsupported'},
     'search.time-range.todo.old-dates': {'support': 'unsupported'},
