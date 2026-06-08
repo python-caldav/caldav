@@ -747,14 +747,20 @@ class Calendar(DAVObject):
 
         prop = dav.Prop()
         display_name = None
-        # Some servers (e.g. Zimbra) use the DisplayName from the MKCALENDAR body
-        # as the calendar URL, ignoring the actual request path.  When the server
-        # does not support setting a separate display name, omit it from the body so
-        # the request URL path is used as the calendar identifier.
+        # Some servers (e.g. Zimbra) couple the display name to the calendar URL:
+        # applying a display name renames/moves the collection, relocating its
+        # canonical URL to a display-name-derived path (an alias may linger at the
+        # request path, but unreliably).  When the server cannot set a display name
+        # without moving the calendar (create-calendar.set-displayname.stable-url
+        # unsupported), or cannot set one at all, omit it from the body so the
+        # request URL path stays the calendar identifier.
         supports_displayname = not self.client or self.client.features.is_supported(
             "create-calendar.set-displayname"
         )
-        if name and supports_displayname:
+        stable_url = not self.client or self.client.features.is_supported(
+            "create-calendar.set-displayname.stable-url"
+        )
+        if name and supports_displayname and stable_url:
             display_name = dav.DisplayName(name)
             prop += [display_name]
         if supported_calendar_component_set:

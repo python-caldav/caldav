@@ -1481,7 +1481,14 @@ class RepeatedFunctionalTestsBaseClass:
         if "name" not in kwargs:
             if self.cleanup_regime in ("light", "pre"):
                 self._teardownCalendar(cal_id=self.testcal_id)
-            if not self.is_supported("create-calendar.set-displayname"):
+            # Only give a display name when the server both accepts one and keeps
+            # the calendar URL stable when it's set.  On servers that relocate the
+            # calendar URL when a display name is applied (Zimbra), giving a name
+            # would move the calendar away from its cal_id URL and break later
+            # URL-based lookups.
+            if not self.is_supported("create-calendar.set-displayname") or not self.is_supported(
+                "create-calendar.set-displayname.stable-url"
+            ):
                 kwargs["name"] = None
             else:
                 kwargs["name"] = "Yep"
@@ -1987,8 +1994,13 @@ END:VCALENDAR"""
         assert len(events2) == 1
         assert events2[0].url == events[0].url
 
-        if self.is_supported("create-calendar") and self.is_supported(
-            "create-calendar.set-displayname"
+        if (
+            self.is_supported("create-calendar")
+            and self.is_supported("create-calendar.set-displayname")
+            ## _fixCalendar only gives the calendar a display name ("Yep") when
+            ## the server also keeps the URL stable; on servers that relocate the
+            ## calendar when a name is set (Zimbra) the fixture is created nameless.
+            and self.is_supported("create-calendar.set-displayname.stable-url")
         ):
             ## We should be able to access the calender through the name
             c2 = self.principal.calendar(name="Yep")
@@ -3753,6 +3765,9 @@ END:VCALENDAR"""
 
     def testSetCalendarProperties(self):
         self.skip_unless_support("create-calendar.set-displayname")
+        ## This test expects the fixture's display name ("Yep") and renames the
+        ## calendar in place; both require the URL to stay put when a name is set.
+        self.skip_unless_support("create-calendar.set-displayname.stable-url")
         self.skip_unless_support("delete-calendar")
 
         c = self._fixCalendar()

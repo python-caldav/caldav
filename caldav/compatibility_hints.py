@@ -129,6 +129,10 @@ class FeatureSet:
         "create-calendar.set-displayname": {
             "description": "It's possible to set the displayname on a calendar upon creation"
         },
+        "create-calendar.set-displayname.stable-url": {
+            "description": "Setting a calendar's display name does not change the calendar's URL.  When 'full' (the normal case) the display name and the calendar URL are independent: the calendar stays addressable at the URL derived from the requested cal_id.  When 'unsupported', the server couples the two and relocates the calendar's canonical URL to a display-name-derived path when a display name is set (Zimbra applies the display name via a rename that moves the collection; an alias may linger at the original cal_id URL but is unreliable, cf. save-load.get-by-url).  Clients that need a predictable calendar URL should therefore omit the display name from the MKCALENDAR request for such servers.",
+            "default": {"support": "full"},
+        },
         "delete-calendar": {
             "description": "RFC4791 says nothing about deletion of calendars, so the server implementation is free to choose weather this should be supported or not.  Section 3.2.3.2 in RFC 6638 says that if a calendar is deleted, all the calendarobjectresources on the calendar should also be deleted - but it's a bit unclear if this only applies to scheduling objects or not.  Some calendar servers moves the object to a trashcan rather than deleting it",
             "links": ["https://datatracker.ietf.org/doc/html/rfc6638#section-3.2.3.2"],
@@ -1040,23 +1044,25 @@ zimbra = {
     #'save-load.get-by-url': {'support': 'fragile', 'behaviour': '404 most of the time - but sometimes 200.  Weird, should be investigated more'},
     ## Zimbra treats same-UID events across calendars as aliases of the same event
     'save.duplicate-uid.cross-calendar': {'support': 'unsupported'},
-    ## Zimbra couples the display name to the calendar URL: MKCALENDAR uses the
-    ## DisplayName from the request body as the URL segment and IGNORES the
-    ## requested cal_id path - UNLESS a calendar with that display-name-derived
-    ## URL already exists, in which case it falls back to the cal_id path (and
-    ## then the display name does not stick).  So the outcome depends entirely on
-    ## pre-existing calendar state.  The checker briefly observed this as 'full'
-    ## only because a leftover 'Yep' calendar forced the cal_id fallback; in a
-    ## clean run the calendar relocates to '.../Yep/' while the library keeps
-    ## self.url pointed at the cal_id path, so every later URL-based operation
-    ## (event_by_url, get_event_by_uid, ...) 404s.  See the old_flags note below.
+    ## Zimbra DOES apply a display name set at creation - but it couples the
+    ## display name to the calendar URL.  MKCALENDAR alone always lands the
+    ## calendar at the requested cal_id path (display name = cal_id); the display
+    ## name is then applied by a follow-up PROPPATCH, which Zimbra implements as a
+    ## rename that MOVES the collection: the canonical URL relocates to a
+    ## display-name-derived path (verified deterministic with a unique name).  An
+    ## alias may linger at the original cal_id URL, but it is unreliable
+    ## (cf. save-load.get-by-url, "404 most of the time but sometimes 200").  The
+    ## earlier flip-flopping was just whether the rename's target name was free in
+    ## the namespace (including the trashbin), cf. delete-calendar=fragile.
     ##
-    ## 'fragile' is the honest value: it makes is_supported() return False, so
-    ## both Calendar._create() (omit the DisplayName from the MKCALENDAR body) and
-    ## the test fixture (create with no display name) keep the calendar addressable
-    ## at the cal_id path, and testCheckCompatibility tolerates whatever the
-    ## (state-dependent) probe observes.  Verified against zcs-foss:latest 2026-06-07.
-    'create-calendar.set-displayname': {'support': 'fragile', 'behaviour': 'display name and calendar URL are coupled; setting a display name relocates the calendar to a display-name-derived URL unless that URL is already taken'},
+    ## So set-displayname itself is 'full' (the name sticks), but the new child
+    ## set-displayname.stable-url is 'unsupported': is_supported() returns False
+    ## for the child, so Calendar._create() omits the DisplayName from MKCALENDAR
+    ## (no rename, no relocation) and the test fixture creates without a name -
+    ## keeping the calendar addressable at the cal_id path.  Verified against
+    ## zcs-foss:latest 2026-06-07.
+    'create-calendar.set-displayname': {'support': 'full'},
+    'create-calendar.set-displayname.stable-url': {'support': 'unsupported', 'behaviour': 'setting the display name renames/moves the collection, relocating the canonical calendar URL to a display-name-derived path'},
     'save-load.todo.mixed-calendar': {'support': 'unsupported'},
     'save-load.todo.recurrences.count': {'support': 'unsupported'}, ## This is a new problem?
     'save-load.journal': {'support': 'ungraceful'},
@@ -1616,6 +1622,14 @@ ox = {
     ## tests.  Was 'unsupported' (conflated the two operations, and masked by the
     ## checker's display-name-lookup bug).  Confirmed full 2026-06-07.
     'create-calendar.set-displayname': {'support': 'full'},
+    ## ... but like Zimbra, OX couples the display name to the calendar URL: a
+    ## calendar created with a display name is exposed under an internal
+    ## 'cal://0/NNN' identifier rather than the requested cal_id (cf. the
+    ## save-load.stable-url note below).  A direct GET on the cal_id URL works as
+    ## an alias, but the canonical URL differs - so the library omits the display
+    ## name from MKCALENDAR to keep the calendar addressable at the cal_id path
+    ## (creating without a name does stay at cal_id; verified 2026-06-08).
+    'create-calendar.set-displayname.stable-url': {'support': 'unsupported', 'behaviour': 'a calendar created with a display name is exposed under an internal cal://0/NNN URL, not the requested cal_id'},
     ## VTODOs must be in a dedicated VTODO-only calendar; mixed calendars not supported
     'save-load.todo.mixed-calendar': {'support': 'unsupported'},
     ## Basic VTODO support works fine; only recurrences are broken

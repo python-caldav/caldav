@@ -1934,6 +1934,9 @@ class AsyncFunctionalTestsBaseClass:
         from .fixture_helpers import cleanup_calendar_objects
 
         self.skip_unless_support("create-calendar.set-displayname")
+        ## This test expects the display name to round-trip at a stable URL;
+        ## servers that relocate the calendar when a name is set (Zimbra) can't.
+        self.skip_unless_support("create-calendar.set-displayname.stable-url")
         self.skip_unless_support("delete-calendar")
         self.skip_unless_support("create-calendar")
 
