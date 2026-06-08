@@ -1553,9 +1553,17 @@ stalwart = {
     ## Stalwart returns the recurring todo in search results but doesn't return the
     ## RRULE intact, so client-side expansion can't expand it to specific occurrences.
     'search.recurrences.includes-implicit.todo': {'support': 'fragile'},
-    ## Stalwart correctly handles exceptions in server-side CALDAV:expand (observed supported).
-    ## Stalwart stores master+exception VEVENTs as a single resource with 2 VEVENTs.
+    ## Stalwart stores master+exception VEVENTs as a single resource with 2 VEVENTs,
+    ## so client-side expand of the recurrence set works.
     'save-load.event.recurrences.exception': {'support': 'full'},
+    ## ...but server-side CALDAV:expand only suppresses the exception-overridden
+    ## occurrence when SEQUENCE is absent.  With SEQUENCE present (as real clients
+    ## always emit) it returns both the original occurrence and the override.
+    ## Detected by the server-tester's csc_monthly_recurring_with_exception_seq fixture.
+    'search.recurrences.expanded.exception': {
+        'support': 'fragile',
+        'behaviour': 'server-side expand fails to suppress the exception-overridden occurrence when SEQUENCE is present',
+    },
     'search.time-range.open': True,
     ## Stalwart delivers iTIP notifications to the attendee inbox AND auto-schedules
     ## into their calendar (verified by running CheckSchedulingInboxDelivery).
