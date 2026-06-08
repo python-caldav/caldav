@@ -82,6 +82,10 @@ class FeatureSet:
         },
         "get-current-user-principal": {
             "description": "Support for RFC5397, current principal extension.  Most CalDAV servers have this, but it is an extension to the DAV standard.  Possibly observed missing on mail.ru, DavMail gateway and it is possible to configure the support in some sabre-based servers",
+            ## Independent feature (directly probed): the default marks it so the
+            ## node uses its own probed value rather than being derived from
+            ## subfeatures such as .has-calendar.
+            "default": {"support": "full"},
             "links": ["https://datatracker.ietf.org/doc/html/rfc5397"],
         },
         "get-current-user-principal.has-calendar": {
@@ -127,7 +131,11 @@ class FeatureSet:
             "description": "Accessing a calendar which does not exist automatically creates it",
         },
         "create-calendar.set-displayname": {
-            "description": "It's possible to set the displayname on a calendar upon creation"
+            "description": "It's possible to set the displayname on a calendar upon creation",
+            ## Independent feature (directly probed): the default marks it so the
+            ## node uses its own probed value rather than being derived from
+            ## .stable-url.
+            "default": {"support": "full"},
         },
         "create-calendar.set-displayname.stable-url": {
             "description": "Setting a calendar's display name does not change the calendar's URL.  When 'full' (the normal case) the display name and the calendar URL are independent: the calendar stays addressable at the URL derived from the requested cal_id.  When 'unsupported', the server couples the two and relocates the calendar's canonical URL to a display-name-derived path when a display name is set (Zimbra applies the display name via a rename that moves the collection; an alias may linger at the original cal_id URL but is unreliable, cf. save-load.get-by-url).  Clients that need a predictable calendar URL should therefore omit the display name from the MKCALENDAR request for such servers.",
@@ -135,6 +143,10 @@ class FeatureSet:
         },
         "delete-calendar": {
             "description": "RFC4791 says nothing about deletion of calendars, so the server implementation is free to choose weather this should be supported or not.  Section 3.2.3.2 in RFC 6638 says that if a calendar is deleted, all the calendarobjectresources on the calendar should also be deleted - but it's a bit unclear if this only applies to scheduling objects or not.  Some calendar servers moves the object to a trashcan rather than deleting it",
+            ## Independent feature (directly probed): the default marks it so the
+            ## node uses its own probed value rather than being derived from
+            ## .free-namespace.
+            "default": {"support": "full"},
             "links": ["https://datatracker.ietf.org/doc/html/rfc6638#section-3.2.3.2"],
         },
         "delete-calendar.free-namespace": {
@@ -168,7 +180,7 @@ class FeatureSet:
             "description": "it's possible to save and load tasks to the calendar",
             "default": { "support": "full" }
         },
-        "save-load.todo.recurrences": {"description": "it's possible to save and load recurring tasks to the calendar"},
+        "save-load.todo.recurrences": {"description": "it's possible to save and load recurring tasks to the calendar", "default": {"support": "full"}},
         "save-load.todo.recurrences.count": {"description": "The server will receive and store a recurring task with a count set in the RRULE", "default": {"support": "full"}},
         "save-load.todo.recurrences.thisandfuture": {"description": "Completing a recurring task with rrule_mode='thisandfuture' works (modifies RRULE and saves back to server)", "default": {"support": "full"}},
         "save-load.todo.mixed-calendar": {"description": "The same calendar may contain both events and tasks (Zimbra only allows tasks to be placed on special task lists)", "default": {"support": "full"}},
@@ -321,6 +333,10 @@ class FeatureSet:
         },
         "search.text.category": {
             "description": "Search for category should work.  This is not explicitly specified in RFC4791, but covered in section 9.7.5.  No examples targets categories explicitly, but there are some text match examples in section 7.8.6 and following sections",
+            ## Independent feature (directly probed): the default marks it so the
+            ## node uses its own probed value rather than being derived from
+            ## .substring.
+            "default": {"support": "full"},
             "links": [
                 "https://datatracker.ietf.org/doc/html/rfc4791#section-9.7.5",
                 "https://datatracker.ietf.org/doc/html/rfc4791#section-7.8.6",
@@ -337,7 +353,11 @@ class FeatureSet:
             "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-7.4"],
         },
         "search.recurrences.includes-implicit.todo": {
-            "description": "tasks can also be recurring"
+            "description": "tasks can also be recurring",
+            ## Independent feature (directly probed): the default marks it so the
+            ## node uses its own probed value rather than being derived from
+            ## .pending.
+            "default": {"support": "full"},
         },
         "search.recurrences.includes-implicit.todo.pending": {
             "description": "a future recurrence of a pending task should always be pending and appear in searches for pending tasks",
@@ -368,6 +388,10 @@ class FeatureSet:
         },
         "sync-token": {
             "description": "RFC6578 sync-collection reports are supported. Server provides sync tokens that can be used to efficiently retrieve only changed objects since last sync. Support can be 'full', 'fragile' (occasionally returns more content than expected), or 'unsupported'. Behaviour 'time-based' indicates second-precision tokens requiring sleep(1) between operations",
+            ## Independent feature (directly probed): the default marks it so the
+            ## node uses its own probed value rather than being derived from
+            ## .delete.
+            "default": {"support": "full"},
             "links": ["https://datatracker.ietf.org/doc/html/rfc6578"],
         },
         "sync-token.delete": {
@@ -375,6 +399,10 @@ class FeatureSet:
         },
         "scheduling": {
             "description": "Server supports CalDAV Scheduling (RFC6638). Detected via the presence of 'calendar-auto-schedule' in the DAV response header.",
+            ## Independent feature (directly probed via the DAV header): the default
+            ## marks it so the node uses its own probed value rather than being
+            ## derived from subfeatures such as .calendar-user-address-set.
+            "default": {"support": "full"},
             "links": ["https://datatracker.ietf.org/doc/html/rfc6638"],
         },
         "scheduling.mailbox": {
@@ -426,6 +454,11 @@ class FeatureSet:
         },
         "principal-search": {
             "description": "Server supports searching for principals (CalDAV users). Principal search may be restricted for privacy/security reasons on many servers.  (not to be confused with get-current-user-principal)"
+            ## NB: genuine grouping node - 'supported' iff at least one search
+            ## method (.by-name / .list-all) works.  The checker sets it directly
+            ## because that OR-semantics cannot be expressed by the library's
+            ## all-children-agree derivation; it deliberately has NO default so
+            ## that when all sub-searches fail the node is unsupported.
         },
         "principal-search.by-name": {
             "description": "Server supports searching for principals by display name. Testing this properly requires setting up another user with a known name, so this check is not yet implemented"
