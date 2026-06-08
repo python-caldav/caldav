@@ -1513,7 +1513,12 @@ ccs = {
     "search.time-range.todo.old-dates": {"support": "ungraceful"},
     "search.time-range.open": {"support": "ungraceful"},
     "search.time-range.alarm": {"support": "unsupported"},
-    "search.recurrences": {"support": "unsupported"},
+    ## Recurrence expansion actually works within the (near-future) search window;
+    ## this was previously reported "unsupported" only because the test fixtures
+    ## lived in year 2000, which CCS's min-date-time restriction hid.  Only infinite
+    ## scope (far-future) and server-side VTODO expansion remain unsupported.
+    "search.recurrences.includes-implicit.infinite-scope": {"support": "unsupported"},
+    "search.recurrences.expanded.todo": {"support": "unsupported"},
     "principal-search": {"support": "unsupported"},
     # Ephemeral Docker container: wipe objects (avoids UID conflicts across calendars)
     "test-calendar": {"cleanup-regime": "wipe-calendar"},
@@ -1694,10 +1699,19 @@ ox = {
     'search.text.category': {'support': 'unsupported'},
     'search.text.case-sensitive': {'support': 'unsupported'},
     'search.text.case-insensitive': {'support': 'unsupported'},
-    ## Recurrence searching broken (sliding window + old-dates limitation)
-    'search.recurrences.includes-implicit': {'support': 'unsupported'},
+    ## Recurrence searching: the sliding window hides far-past/far-future
+    ## occurrences, but implicit expansion of *datetime* events and server-side
+    ## expansion of exceptions work within the window (detectable now that the
+    ## fixtures are in the near future rather than year 2000).  VTODO recurrence,
+    ## datetime-event server-side expansion, and infinite scope remain unsupported.
+    ## (event and exception expansion are left at the default "full".)
+    'search.recurrences.includes-implicit.todo': {'support': 'unsupported'},
     'search.recurrences.includes-implicit.todo.pending': {'support': 'unsupported'},
-    'search.recurrences.expanded': {'support': 'unsupported'},
+    'search.recurrences.includes-implicit.infinite-scope': {'support': 'unsupported'},
+    'search.recurrences.expanded.event': {'support': 'unsupported'},
+    'search.recurrences.expanded.todo': {'support': 'unsupported'},
+    ## OX ignores the time-range on VTODO queries and returns every task
+    'search.time-range.todo.strict': {'support': 'broken'},
     ## is-not-defined for DTEND is not supported
     'search.is-not-defined.dtend': {'support': 'unsupported'},
     ## Freebusy queries are not supported (returns 400)
