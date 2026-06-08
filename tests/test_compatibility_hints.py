@@ -207,19 +207,27 @@ class TestFeatureSetCollapse:
         assert fs._server_features["search.text"] == {"support": "fragile"}
 
     def test_collapse_parent_exists_same_value(self) -> None:
-        """When parent exists with same value as subfeatures, should still collapse"""
+        """When parent exists with same value as subfeatures, should still collapse.
+
+        Uses a genuine *grouping* parent (principal-search.by-name has no
+        explicit default); independent parents such as sync-token are
+        intentionally never collapsed (see
+        test_collapse_independent_parent_not_collapsed).  by-name's parent
+        principal-search has a second, unset child (list-all), so the collapse
+        does not cascade further up.
+        """
         fs = FeatureSet()
 
         fs._server_features = {
-            "sync-token": {"support": "unsupported"},
-            "sync-token.delete": {"support": "unsupported"},
+            "principal-search.by-name": {"support": "unsupported"},
+            "principal-search.by-name.self": {"support": "unsupported"},
         }
 
         fs.collapse()
 
         # All have same value, so subfeature should be removed
-        assert "sync-token.delete" not in fs._server_features
-        assert fs._server_features["sync-token"] == {"support": "unsupported"}
+        assert "principal-search.by-name.self" not in fs._server_features
+        assert fs._server_features["principal-search.by-name"] == {"support": "unsupported"}
 
     def test_collapse_empty_featureset(self) -> None:
         """Collapse should handle empty featureset without errors"""
@@ -243,19 +251,19 @@ class TestFeatureSetCollapse:
         assert fs._server_features == {"sync-token": {"support": "full"}}
 
     def test_collapse_single_subfeature(self) -> None:
-        """Single subfeature should collapse since parent derives from children"""
+        """Single subfeature should collapse since a grouping parent derives from children"""
         fs = FeatureSet()
 
-        # sync-token only has one subfeature: delete
+        # principal-search.by-name (a grouping node) only has one subfeature: self
         fs._server_features = {
-            "sync-token.delete": {"support": "unsupported"},
+            "principal-search.by-name.self": {"support": "unsupported"},
         }
 
         fs.collapse()
 
         # Parent status is derived from the single child, so collapse is valid
-        assert "sync-token" in fs._server_features
-        assert "sync-token.delete" not in fs._server_features
+        assert "principal-search.by-name" in fs._server_features
+        assert "principal-search.by-name.self" not in fs._server_features
 
     def test_collapse_with_complex_dict_values(self) -> None:
         """Collapse should handle complex dictionary values"""
@@ -263,20 +271,20 @@ class TestFeatureSetCollapse:
 
         complex_value = {
             "support": "fragile",
-            "behaviour": "time-based",
+            "behaviour": "inconsistent",
             "extra": "metadata",
         }
 
         fs._server_features = {
-            "sync-token": complex_value.copy(),
-            "sync-token.delete": complex_value.copy(),
+            "principal-search.by-name": complex_value.copy(),
+            "principal-search.by-name.self": complex_value.copy(),
         }
 
         fs.collapse()
 
         # Both have same value, should collapse
-        assert "sync-token.delete" not in fs._server_features
-        assert fs._server_features["sync-token"] == complex_value
+        assert "principal-search.by-name.self" not in fs._server_features
+        assert fs._server_features["principal-search.by-name"] == complex_value
 
     def test_collapse_principal_search_real_scenario(self) -> None:
         """Test user's real scenario: principal-search subfeatures with same value should collapse"""
@@ -301,6 +309,26 @@ class TestFeatureSetCollapse:
         # even if the behaviour message is different.
         assert "principal-search.list-all" not in fs._server_features
         assert "principal-search" in fs._server_features
+
+    def test_collapse_independent_parent_not_collapsed(self) -> None:
+        """An independent parent (one with its own explicit default) is never
+        folded away by its children.
+
+        sync-token carries a default, so even when its only child
+        sync-token.delete is unsupported the parent keeps its own (separately
+        probed) status: the two represent distinct capabilities and must not be
+        conflated.
+        """
+        fs = FeatureSet()
+        fs._server_features = {
+            "sync-token": {"support": "full"},
+            "sync-token.delete": {"support": "unsupported"},
+        }
+
+        fs.collapse()
+
+        assert fs._server_features["sync-token"] == {"support": "full"}
+        assert fs._server_features["sync-token.delete"] == {"support": "unsupported"}
 
 
 class TestImplicitDerivation:
