@@ -3435,10 +3435,20 @@ END:VCALENDAR"""
         todos2 = c.search(start=datetime(2025, 4, 14), todo=True, include_completed=True)
         todos3 = c.search(start=datetime(2025, 4, 14), todo=True)
 
+        ## On a compliant server t1/t4/t6 are returned by an open-ended future
+        ## search, so we get Todo objects back.  Some servers legitimately return
+        ## nothing here: they skip no-dtstart todos (t1/t4) and don't carry the
+        ## recurring todo (t6) into the future - e.g. Stalwart, which skips
+        ## no-dtstart todos and only marks implicit-recurrence todos "fragile".
+        ## The presence/absence of each todo is verified by the urls_found logic
+        ## below; here we only type-check whatever did come back.
         if self.is_supported("search.time-range.open.end"):
-            assert isinstance(todos1[0], Todo)
-            assert isinstance(todos2[0], Todo)
-            assert isinstance(todos3[0], Todo)
+            if todos1:
+                assert isinstance(todos1[0], Todo)
+            if todos2:
+                assert isinstance(todos2[0], Todo)
+            if todos3:
+                assert isinstance(todos3[0], Todo)
 
         ## * t6 should be returned, as it's a yearly task spanning over 2025
         ## * t1 should probably be returned, as it has no due date set and hence
