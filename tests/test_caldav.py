@@ -4344,30 +4344,45 @@ END:VCALENDAR"""
 
         cal = self._fixCalendar()
 
+        ## Anchor the daily recurring event a few days in the future so servers
+        ## with a sliding REPORT window / no old-date support (e.g. CCS, ref
+        ## search.time-range.event.old-dates) can still serve the time ranges.
+        ## The integer passed to search()/summary_on() is a day offset from this
+        ## anchor day; the values just need to be distinct future days.
+        base = (datetime.now() + timedelta(days=2)).replace(
+            hour=8, minute=7, second=6, microsecond=0
+        )
+
         ## Create a daily recurring event
         cal.add_event(
             uid="test1",
             summary="daily test",
-            dtstart=datetime(2015, 1, 1, 8, 7, 6),
-            dtend=datetime(2015, 1, 1, 9, 7, 6),
+            dtstart=base,
+            dtend=base + timedelta(hours=1),
             rrule={"FREQ": "DAILY"},
         )
 
-        def search(month):
+        def day_start(offset):
+            return (base + timedelta(days=offset)).replace(
+                hour=0, minute=0, second=0, microsecond=0
+            )
+
+        def search(offset):
             """
-            Internal function to find one recurrence object
+            Internal function to find one recurrence object - the occurrence on
+            the day `offset` days after the event's anchor day.
             """
             recurrence = cal.search(
                 event=True,
-                start=datetime(2015, month, 1),
-                end=datetime(2015, month, 2),
+                start=day_start(offset),
+                end=day_start(offset) + timedelta(days=1),
                 expand=True,
             )
             assert len(recurrence) == 1
             return recurrence[0]
 
-        def summary_by_month(month):
-            return search(month).icalendar_component["summary"]
+        def summary_on(offset):
+            return search(offset).icalendar_component["summary"]
 
         ## Search for a recurrence
         recurrence = search(7)
@@ -4377,51 +4392,51 @@ END:VCALENDAR"""
         recurrence.save()
 
         ## Only one day should be affected
-        assert summary_by_month(6) == "daily test"
-        assert summary_by_month(7) == "half a year of daily testing"
-        assert summary_by_month(8) == "daily test"
+        assert summary_on(6) == "daily test"
+        assert summary_on(7) == "half a year of daily testing"
+        assert summary_on(8) == "daily test"
 
         ## let's try to set several recurrence exceptions
         recurrence = search(2)
         recurrence.icalendar_component["summary"] = "one month of daily testing"
         recurrence.save()
 
-        assert summary_by_month(1) == "daily test"
-        assert summary_by_month(2) == "one month of daily testing"
-        assert summary_by_month(7) == "half a year of daily testing"
+        assert summary_on(1) == "daily test"
+        assert summary_on(2) == "one month of daily testing"
+        assert summary_on(7) == "half a year of daily testing"
 
         ## Changing any of the exceptions should also work
         recurrence = search(7)
         recurrence.icalendar_component["summary"] = "six months of daily testing"
         recurrence.save()
-        assert summary_by_month(7) == "six months of daily testing"
+        assert summary_on(7) == "six months of daily testing"
 
         ## parameter all_recurrences should change all recurrences -
-        ## except February and July
+        ## except the two edited exceptions (offsets 2 and 7)
         recurrence = search(9)
         recurrence.icalendar_component["summary"] = "daily testing"
         recurrence.save(all_recurrences=True)
-        assert summary_by_month(1) == "daily testing"
-        assert summary_by_month(2) == "one month of daily testing"
-        assert summary_by_month(3) == "daily testing"
-        assert summary_by_month(7) == "six months of daily testing"
+        assert summary_on(1) == "daily testing"
+        assert summary_on(2) == "one month of daily testing"
+        assert summary_on(3) == "daily testing"
+        assert summary_on(7) == "six months of daily testing"
 
         ## Last ... let's change the dtend and dtstart of the recurrence
         recurrence = search(9)
         recurrence.icalendar_component.pop("dtstart")
-        recurrence.icalendar_component.add("dtstart", datetime(2015, 9, 1, 8, 0, 0))
+        recurrence.icalendar_component.add("dtstart", day_start(9).replace(hour=8))
         recurrence.icalendar_component.pop("dtend")
-        recurrence.icalendar_component.add("dtend", datetime(2015, 9, 1, 10, 0, 0))
+        recurrence.icalendar_component.add("dtend", day_start(9).replace(hour=10))
         recurrence.save(all_recurrences=True)
 
         recurrence = search(8)
         assert (
             recurrence.icalendar_component.start.astimezone()
-            == datetime(2015, 8, 1, 8, 0, 0).astimezone()
+            == day_start(8).replace(hour=8).astimezone()
         )
         assert (
             recurrence.icalendar_component.end.astimezone()
-            == datetime(2015, 8, 1, 10, 0, 0).astimezone()
+            == day_start(8).replace(hour=10).astimezone()
         )
 
     def testOffsetURL(self):
