@@ -1706,6 +1706,14 @@ ox = {
     ## was 'ungraceful' - that was the checker bug (cnt mismatch across the
     ## separate VTODO calendar); confirmed full 2026-06-06.
     'search.comp-type.optional': {'support': 'full'},
+    ## OX silently ignores the CALDAV comp-filter: a calendar-query that
+    ## specifies a component type returns the calendar's whole contents
+    ## regardless of the requested type (a VEVENT-calendar answers a VTODO query
+    ## with its VEVENT, and vice versa).  No right-typed objects are dropped, so
+    ## the library recovers the correct result by post-filtering - hence
+    ## "unsupported" (silently ignored), not "broken".  Confirmed by direct probe
+    ## 2026-06-09.  Contrast bedework, which drops the todos (data loss = broken).
+    'search.comp-type': {'support': 'unsupported'},
     'search.text': {'support': 'unsupported'},
     'search.text.category': {'support': 'unsupported'},
     'search.text.case-sensitive': {'support': 'unsupported'},
@@ -1723,6 +1731,14 @@ ox = {
     'search.recurrences.expanded.todo': {'support': 'unsupported'},
     ## OX ignores the time-range on VTODO queries and returns every task
     'search.time-range.todo.strict': {'support': 'broken'},
+    ## OX silently ignores the is-not-defined prop-filter and returns the whole
+    ## calendar regardless (confirmed by direct probe 2026-06-09: a no_category
+    ## search still returns the categorised event; a no_class search still
+    ## returns the CONFIDENTIAL event).  Same "filter ignored" behaviour as
+    ## search.comp-type above - silently ignored, hence unsupported.
+    'search.is-not-defined': {'support': 'unsupported'},
+    'search.is-not-defined.category': {'support': 'unsupported'},
+    'search.is-not-defined.class': {'support': 'unsupported'},
     ## is-not-defined for DTEND is not supported
     'search.is-not-defined.dtend': {'support': 'unsupported'},
     ## Freebusy queries are not supported (returns 400)
@@ -1739,9 +1755,15 @@ ox = {
     "scheduling.freebusy-query": "ungraceful",
     'search.time-range.open.start': "broken",
     'search.time-range.open.end': True,
-    ## time-range.open is "broken", while time-range.open.start.duration is "unsupported"?
-    ## this may possibly be some problems with the checker rather than with Ox
-    'search.time-range.open.start.duration': "unsupported"
+    ## DTSTART+DURATION components ARE found by an overlapping time-range search:
+    ## confirmed by direct probe 2026-06-09 for VEVENT, and the VTODO duration
+    ## fixture is returned too.  The VTODO time-range is not honoured strictly
+    ## (out-of-range tasks leak in - tracked separately as
+    ## search.time-range.todo.strict=broken), so the checker now treats the VTODO
+    ## duration probe as inconclusive rather than a failure and judges this
+    ## feature from the conclusive VEVENT result.  (Previously mis-reported as a
+    ## VTODO/VEVENT asymmetry; see the old "checker problem" note here.)
+    'search.time-range.open.start.duration': {'support': 'full'},
 }
 
 # fmt: on
