@@ -1305,8 +1305,9 @@ sogo = {
     "scheduling.mailbox.inbox-delivery": False,
     ## I'm surprised, I'm quite sure this was passing earlier.  reported unsupported with caldav commit a98d50490b872e9b9d8e93e2e401c936ad193003, caldav server checker commit 3cae24cf99da1702b851b5a74a9b88c8e5317dad 2026-02-15
     "search.text.category": False,
-    "search.time-range.event.old-dates": False,
-    "search.time-range.todo.old-dates": False,
+    ## old-date time-range search works (probe found, definite-future object
+    ## correctly excluded); the earlier "False" was an artifact of the old
+    ## count==1 check, which a next-year open-start DUE-only task inflated.
     "save-load.journal": {"support": "ungraceful"},
     "search.is-not-defined": {"support": "unsupported"},
     "search.text.case-sensitive": {
@@ -1511,7 +1512,9 @@ ccs = {
     "search.time-range.event.old-dates": {"support": "ungraceful"},
     "search.time-range.todo": {"support": "full"},
     "search.time-range.todo.old-dates": {"support": "ungraceful"},
-    "search.time-range.open": {"support": "ungraceful"},
+    ## open-ended time-range searches work with the near-future fixtures; CCS only
+    ## rejected them (ungraceful) for the old year-2000 range, so the leaves default
+    ## to "full" (a grouping "search.time-range.open: ungraceful" was removed here).
     "search.time-range.alarm": {"support": "unsupported"},
     ## Recurrence expansion actually works within the (near-future) search window;
     ## this was previously reported "unsupported" only because the test fixtures
@@ -1522,8 +1525,8 @@ ccs = {
     "principal-search": {"support": "unsupported"},
     # Ephemeral Docker container: wipe objects (avoids UID conflicts across calendars)
     "test-calendar": {"cleanup-regime": "wipe-calendar"},
-    ## Did pass earlier, ungraceful at be26d42b1ca3ff3b4fd183761b4a9b024ce12b84 / 537a23b145487006bb987dee5ab9e00cdebb0492
-    'freebusy-query': {'support': 'ungraceful'},
+    ## freebusy-query works with the near-future fixtures; CCS rejected the
+    ## year-2000 range with an error, so this defaults to "full" now.
     "old_flags": [
         "propfind_allprop_failure",
     ],
