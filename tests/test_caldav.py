@@ -943,12 +943,19 @@ class _TestSchedulingBase:
         )
         self._auto_scheduled_event_uids.append(saved_event.id)
 
+        ## Correlate the inbox item to THIS invite by UID.  Picking the first
+        ## arbitrary "new" item is flaky: deleting an organizer event (e.g. a
+        ## previous scheduling test's teardown) makes Zimbra deliver a late
+        ## METHOD:CANCEL for the old UID, which can land in this test's poll
+        ## window before our own REQUEST arrives.  We match on UID (not method)
+        ## so that a wrongly-delivered non-REQUEST for our own UID still fails
+        ## the is_invite_request() assertion below rather than being hidden.
         new_attendee_inbox_items = []
         for _ in range(30):
             new_attendee_inbox_items = [
                 item
                 for item in self.principals[1].schedule_inbox().get_items()
-                if item.url not in inbox_items
+                if item.url not in inbox_items and item.id == saved_event.id
             ]
             if new_attendee_inbox_items:
                 break
