@@ -2113,55 +2113,69 @@ END:VCALENDAR"""
         self.skip_unless_support("search.text")
         cal = async_calendar
 
+        ## Anchor the daily recurring event a few days in the future so servers
+        ## with a sliding REPORT window / no old-date support (e.g. CCS, ref
+        ## search.time-range.event.old-dates) can still serve the time ranges.
+        ## The integer passed to search()/summary_on() is a day offset from this
+        ## anchor day; the values just need to be distinct future days.
+        base = (datetime.now() + timedelta(days=2)).replace(
+            hour=8, minute=7, second=6, microsecond=0
+        )
+
         await cal.add_event(
             uid="test1",
             summary="daily test",
-            dtstart=datetime(2015, 1, 1, 8, 7, 6),
-            dtend=datetime(2015, 1, 1, 9, 7, 6),
+            dtstart=base,
+            dtend=base + timedelta(hours=1),
             rrule={"FREQ": "DAILY"},
         )
 
-        async def search(month):
+        def day_start(offset):
+            return (base + timedelta(days=offset)).replace(
+                hour=0, minute=0, second=0, microsecond=0
+            )
+
+        async def search(offset):
             recurrence = await cal.search(
                 event=True,
-                start=datetime(2015, month, 1),
-                end=datetime(2015, month, 2),
+                start=day_start(offset),
+                end=day_start(offset) + timedelta(days=1),
                 expand=True,
             )
             assert len(recurrence) == 1
             return recurrence[0]
 
-        async def summary_by_month(month):
-            return (await search(month)).icalendar_component["summary"]
+        async def summary_on(offset):
+            return (await search(offset)).icalendar_component["summary"]
 
         recurrence = await search(7)
         recurrence.icalendar_component["summary"] = "half a year of daily testing"
         await recurrence.save()
 
-        assert await summary_by_month(6) == "daily test"
-        assert await summary_by_month(7) == "half a year of daily testing"
-        assert await summary_by_month(8) == "daily test"
+        assert await summary_on(6) == "daily test"
+        assert await summary_on(7) == "half a year of daily testing"
+        assert await summary_on(8) == "daily test"
 
         recurrence = await search(2)
         recurrence.icalendar_component["summary"] = "one month of daily testing"
         await recurrence.save()
 
-        assert await summary_by_month(1) == "daily test"
-        assert await summary_by_month(2) == "one month of daily testing"
-        assert await summary_by_month(7) == "half a year of daily testing"
+        assert await summary_on(1) == "daily test"
+        assert await summary_on(2) == "one month of daily testing"
+        assert await summary_on(7) == "half a year of daily testing"
 
         recurrence = await search(7)
         recurrence.icalendar_component["summary"] = "six months of daily testing"
         await recurrence.save()
-        assert await summary_by_month(7) == "six months of daily testing"
+        assert await summary_on(7) == "six months of daily testing"
 
         recurrence = await search(9)
         recurrence.icalendar_component["summary"] = "daily testing"
         await recurrence.save(all_recurrences=True)
-        assert await summary_by_month(1) == "daily testing"
-        assert await summary_by_month(2) == "one month of daily testing"
-        assert await summary_by_month(3) == "daily testing"
-        assert await summary_by_month(7) == "six months of daily testing"
+        assert await summary_on(1) == "daily testing"
+        assert await summary_on(2) == "one month of daily testing"
+        assert await summary_on(3) == "daily testing"
+        assert await summary_on(7) == "six months of daily testing"
 
     # ==================== Group G – Auth errors & misc ====================
 
