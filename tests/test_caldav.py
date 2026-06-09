@@ -158,6 +158,25 @@ def near_now_ics(ics, days=30, hours=11):
     return ics
 
 
+def next_anniversary_windows(month=11, day=2, hour=17):
+    """Search windows around the next future anniversary of (month, day).
+
+    A FREQ=YEARLY event (e.g. evr, anchored at 1997-11-02) recurs forever, so
+    historic search windows like 2008-11 are arbitrary.  Servers with a sliding
+    REPORT window (e.g. OX App Suite, ref search.time-range.event.old-dates) can
+    only serve time ranges near now, so we search the next future occurrence
+    instead.  Returns (year, narrow_start, narrow_end, wide_end): a ±1-day window
+    catching one occurrence in `year`, plus a wide_end one year later so that
+    [narrow_start, wide_end] catches two consecutive occurrences.
+    """
+    now = datetime.now()
+    year = now.year if (now.month, now.day) <= (month, day) else now.year + 1
+    narrow_start = datetime(year, month, day - 1, hour, 0, 0)
+    narrow_end = datetime(year, month, day + 1, hour, 0, 0)
+    wide_end = datetime(year + 1, month, day + 1, hour, 0, 0)
+    return year, narrow_start, narrow_end, wide_end
+
+
 ev2 = """BEGIN:VCALENDAR
 VERSION:2.0
 PRODID:-//Example Corp.//CalDAV Client//EN
@@ -4136,20 +4155,23 @@ END:VCALENDAR"""
         self.skip_unless_support("search.recurrences.includes-implicit.event")
         c = self._fixCalendar()
 
-        # evr is a yearly event starting at 1997-11-02
+        # evr is a yearly event starting at 1997-11-02.  We search the next
+        # future Nov-2 anniversary rather than a fixed historic year, so that
+        # sliding-window servers (e.g. OX) can serve the time range.
+        year, narrow_start, narrow_end, wide_end = next_anniversary_windows()
         e = c.add_event(evr)
 
-        ## Without "expand", we should still find it when searching over 2008 ...
+        ## Without "expand", we should still find it when searching the anniversary
         with pytest.deprecated_call():
             r = c.date_search(
-                datetime(2008, 11, 1, 17, 00, 00),
-                datetime(2008, 11, 3, 17, 00, 00),
+                narrow_start,
+                narrow_end,
                 expand=False,
             )
         r2 = c.search(
             event=True,
-            start=datetime(2008, 11, 1, 17, 00, 00),
-            end=datetime(2008, 11, 3, 17, 00, 00),
+            start=narrow_start,
+            end=narrow_end,
             expand=False,
         )
         assert len(r) == 1
@@ -4159,46 +4181,46 @@ END:VCALENDAR"""
         ## legacy method name
         with pytest.deprecated_call():
             r1 = c.date_search(
-                datetime(2008, 11, 1, 17, 00, 00),
-                datetime(2008, 11, 3, 17, 00, 00),
+                narrow_start,
+                narrow_end,
                 expand=True,
             )
         ## server expansion, with client side fallback
         r2 = c.search(
             event=True,
-            start=datetime(2008, 11, 1, 17, 00, 00),
-            end=datetime(2008, 11, 3, 17, 00, 00),
+            start=narrow_start,
+            end=narrow_end,
             expand=True,
         )
         ## r3 was client-side expansion, but this is the default now
         ## server side expansion
         r4 = c.search(
             event=True,
-            start=datetime(2008, 11, 1, 17, 00, 00),
-            end=datetime(2008, 11, 3, 17, 00, 00),
+            start=narrow_start,
+            end=narrow_end,
             server_expand=True,
         )
         assert len(r1) == 1
         assert len(r2) == 1
         assert r1[0].data.count("END:VEVENT") == 1
         assert r2[0].data.count("END:VEVENT") == 1
-        ## due to expandation, the DTSTART should be in 2008
-        assert r1[0].data.count("DTSTART;VALUE=DATE:2008") == 1
-        assert r2[0].data.count("DTSTART;VALUE=DATE:2008") == 1
+        ## due to expandation, the DTSTART should be in the anniversary year
+        assert r1[0].data.count(f"DTSTART;VALUE=DATE:{year}") == 1
+        assert r2[0].data.count(f"DTSTART;VALUE=DATE:{year}") == 1
         if self.is_supported("search.recurrences.expanded.event"):
-            assert r4[0].data.count("DTSTART;VALUE=DATE:2008") == 1
+            assert r4[0].data.count(f"DTSTART;VALUE=DATE:{year}") == 1
 
         ## With expand=True and searching over two recurrences ...
         with pytest.deprecated_call():
             r1 = c.date_search(
-                datetime(2008, 11, 1, 17, 00, 00),
-                datetime(2009, 11, 3, 17, 00, 00),
+                narrow_start,
+                wide_end,
                 expand=True,
             )
         r2 = c.search(
             event=True,
-            start=datetime(2008, 11, 1, 17, 00, 00),
-            end=datetime(2009, 11, 3, 17, 00, 00),
+            start=narrow_start,
+            end=wide_end,
             expand=True,
         )
 

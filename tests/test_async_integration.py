@@ -30,6 +30,7 @@ from .test_caldav import evr2 as evr2_static  # bi-weekly with exception (2024)
 from .test_caldav import journal as journal_static
 from .test_caldav import (
     near_now_ics,  # shift an ical event's DTSTART/DTEND to ~now (sliding-window servers)
+    next_anniversary_windows,  # near-future search windows for a FREQ=YEARLY event
 )
 from .test_caldav import todo as todo_static  # avoids clash with local var in add_todo()
 from .test_caldav import todo2 as todo2_static  # avoids clash with todo2() generator
@@ -1442,30 +1443,35 @@ class AsyncFunctionalTestsBaseClass:
         self.skip_unless_support("search.recurrences.includes-implicit.event")
         c = async_calendar
 
+        # evr is a yearly event starting at 1997-11-02.  Search the next future
+        # Nov-2 anniversary rather than a fixed historic year, so sliding-window
+        # servers (e.g. OX) can serve the time range.
+        year, narrow_start, narrow_end, wide_end = next_anniversary_windows()
+
         await c.add_event(evr_static)
 
         r = await c.search(
             event=True,
-            start=datetime(2008, 11, 1, 17, 0, 0),
-            end=datetime(2008, 11, 3, 17, 0, 0),
+            start=narrow_start,
+            end=narrow_end,
             expand=False,
         )
         assert len(r) == 1
 
         r = await c.search(
             event=True,
-            start=datetime(2008, 11, 1, 17, 0, 0),
-            end=datetime(2008, 11, 3, 17, 0, 0),
+            start=narrow_start,
+            end=narrow_end,
             expand=True,
         )
         assert len(r) == 1
         assert r[0].data.count("END:VEVENT") == 1
-        assert r[0].data.count("DTSTART;VALUE=DATE:2008") == 1
+        assert r[0].data.count(f"DTSTART;VALUE=DATE:{year}") == 1
 
         r2 = await c.search(
             event=True,
-            start=datetime(2008, 11, 1, 17, 0, 0),
-            end=datetime(2009, 11, 3, 17, 0, 0),
+            start=narrow_start,
+            end=wide_end,
             expand=True,
         )
         assert len(r2) == 2
