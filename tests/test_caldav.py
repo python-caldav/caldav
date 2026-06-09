@@ -1478,6 +1478,10 @@ class RepeatedFunctionalTestsBaseClass:
             return self._default_calendar
 
         # Pre-processing: set up defaults for name and cal_id
+        comp_set = kwargs.get("supported_calendar_component_set", [])
+        # A component-restricted fixture (VTODO-only / VJOURNAL-only) is always
+        # looked up by cal_id, never by display name.
+        restricted = bool(comp_set) and "VEVENT" not in comp_set
         if "name" not in kwargs:
             if self.cleanup_regime in ("light", "pre"):
                 self._teardownCalendar(cal_id=self.testcal_id)
@@ -1485,9 +1489,15 @@ class RepeatedFunctionalTestsBaseClass:
             # the calendar URL stable when it's set.  On servers that relocate the
             # calendar URL when a display name is applied (Zimbra), giving a name
             # would move the calendar away from its cal_id URL and break later
-            # URL-based lookups.
-            if not self.is_supported("create-calendar.set-displayname") or not self.is_supported(
-                "create-calendar.set-displayname.stable-url"
+            # URL-based lookups.  Component-restricted fixtures stay nameless: they
+            # are only ever found by cal_id, and giving them the same "Yep" name as
+            # the primary fixture would make principal.calendar(name="Yep") ambiguous
+            # and, on servers enforcing per-principal unique calendar names (SOGo),
+            # block the primary calendar from being (re)named "Yep".
+            if (
+                restricted
+                or not self.is_supported("create-calendar.set-displayname")
+                or not self.is_supported("create-calendar.set-displayname.stable-url")
             ):
                 kwargs["name"] = None
             else:
@@ -1497,10 +1507,9 @@ class RepeatedFunctionalTestsBaseClass:
             # that a VTODO-only calendar and a VJOURNAL-only calendar don't share the
             # same slot and cause MKCALENDAR failures (and wrong-type PUT errors) when
             # the calendar persists across tests under wipe-calendar cleanup regime.
-            comp_set = kwargs.get("supported_calendar_component_set", [])
             if comp_set and "VJOURNAL" in comp_set and "VEVENT" not in comp_set:
                 kwargs["cal_id"] = self.testcal_id + "-journals"
-            elif comp_set and "VEVENT" not in comp_set:
+            elif restricted:
                 kwargs["cal_id"] = self.testcal_id + "-tasks"
             else:
                 kwargs["cal_id"] = self.testcal_id
@@ -3807,17 +3816,29 @@ END:VCALENDAR"""
             if not self.is_supported("delete-calendar"):
                 raise
 
-        c.set_properties(
-            [
-                dav.DisplayName("hooray"),
-            ]
-        )
-        props = c.get_properties(
-            [
-                dav.DisplayName(),
-            ]
-        )
-        assert props[dav.DisplayName.tag] == "hooray"
+        try:
+            c.set_properties(
+                [
+                    dav.DisplayName("hooray"),
+                ]
+            )
+            props = c.get_properties(
+                [
+                    dav.DisplayName(),
+                ]
+            )
+            assert props[dav.DisplayName.tag] == "hooray"
+        finally:
+            ## Restore the fixture's canonical display name.  Under the
+            ## wipe-calendar cleanup regime the calendar is reused (never
+            ## deleted) between tests, so a lingering "hooray" would make this
+            ## test non-idempotent (the next run reads "hooray", not "Yep") and,
+            ## on servers enforcing per-principal unique calendar names (SOGo),
+            ## block other calendars from taking the "hooray" name.
+            try:
+                c.set_properties([dav.DisplayName("Yep")])
+            except error.PropsetError:
+                pass
 
         ## calendar color and calendar order are extra properties not
         ## described by RFC5545, but anyway supported by quite some
