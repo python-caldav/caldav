@@ -20,7 +20,7 @@ The types used should (as for now) be one of:
 The `compatibility_hints.py` has been moved from the test directory to the codebase not so very long ago.  Some special rules here:
 
 * Adjusting the feature set for some calendar server?  Check if there exists some workarounds etc in the code for said feature, if so, then it should be considered a fix or a feature.  Perhaps even a breaking change.  Otherwise, use `test: ...`.  (because it is relevant for the compatibility test, if nothing else).
-* Adding a new feature hint?  Ensure it's covered by the caldav-server-tester.  Since we have a compatibility test, it will be relevant for the test - so use `test: (...)`.  It should be covered by the caldav-serveer-tester, so refer to some issue or pull request for the caldav-server-tester in the commit message.
+* Adding a new feature hint?  Ensure it's covered by the caldav-server-tester.  Since we have a compatibility test, it will be relevant for the test - so use `test: (...)`.  It should be covered by the caldav-server-tester.
 * Changing some descriptions?  That goes as `docs: ...` even if it's actually changing a variable in the code.
 
 This is not set in stone.  If you feel strongly for using something else, use something else in the commit message and update this file in the same commit.
