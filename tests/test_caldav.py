@@ -835,10 +835,13 @@ class _TestSchedulingBase:
         new_attendee_inbox_items = []
         auto_scheduled = False
         for _ in range(30):
+            ## Correlate by UID: a late METHOD:CANCEL from another scheduling
+            ## test's teardown can otherwise land here as a stray "new" item
+            ## (see testAcceptInviteUsernameEmailFallback).
             new_attendee_inbox_items = [
                 item
                 for item in self.principals[1].schedule_inbox().get_items()
-                if item.url not in inbox_items
+                if item.url not in inbox_items and item.id == event_uid
             ]
             ## Check whether the server auto-scheduled the event directly into
             ## the attendee's calendar (server-side automatic scheduling).

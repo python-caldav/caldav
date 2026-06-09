@@ -2518,8 +2518,13 @@ class _AsyncTestSchedulingBase:
         new_attendee_inbox_items: list[Any] = []
         auto_scheduled = False
         for _ in range(30):
+            ## Correlate by UID: a late METHOD:CANCEL from another scheduling
+            ## test's teardown can otherwise land here as a stray "new" item
+            ## (see testAcceptInviteUsernameEmailFallback).
             new_attendee_inbox_items = [
-                item for item in await inbox1.get_items() if item.url not in inbox_urls_before
+                item
+                for item in await inbox1.get_items()
+                if item.url not in inbox_urls_before and item.id == event_uid
             ]
             ## Check whether the server auto-scheduled the event directly into
             ## the attendee's calendar.  The event may land in any calendar,
