@@ -1740,8 +1740,8 @@ class AsyncFunctionalTestsBaseClass:
         foo = 5
         if not self.is_supported("search.recurrences.includes-implicit.todo"):
             foo -= 1
-        if self.check_compatibility_flag(
-            "vtodo_datesearch_nodtstart_task_is_skipped"
+        if not self.is_supported(
+            "search.time-range.todo.no-dtstart"
         ) or self.check_compatibility_flag(
             "vtodo_datesearch_nodtstart_task_is_skipped_in_closed_date_range"
         ):

@@ -3444,8 +3444,8 @@ END:VCALENDAR"""
         )
         if not self.is_supported("search.recurrences.includes-implicit.todo"):
             foo -= 1  ## t6 will not be returned
-        if self.check_compatibility_flag(
-            "vtodo_datesearch_nodtstart_task_is_skipped"
+        if not self.is_supported(
+            "search.time-range.todo.no-dtstart"
         ) or self.check_compatibility_flag(
             "vtodo_datesearch_nodtstart_task_is_skipped_in_closed_date_range"
         ):
@@ -3504,8 +3504,8 @@ END:VCALENDAR"""
         urls_found = set(urls_found)
         if self.is_supported("search.recurrences.includes-implicit.todo", accept_fragile=True):
             urls_found.discard(t6.url)
-        if not self.check_compatibility_flag(
-            "vtodo_datesearch_nodtstart_task_is_skipped"
+        if self.is_supported(
+            "search.time-range.todo.no-dtstart"
         ) and not self.check_compatibility_flag("vtodo_datesearch_notime_task_is_skipped"):
             urls_found.discard(t4.url)
         if self.check_compatibility_flag("vtodo_no_due_infinite_duration"):
