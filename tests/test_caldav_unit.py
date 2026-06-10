@@ -3047,6 +3047,50 @@ class TestGetAllFileConnectionParams:
         assert len(results) == 1
         assert results[0]["calendar_url"] == "/dav/user/mycalendar/"
 
+    def test_section_with_features_but_no_url(self, tmp_path):
+        """A section without caldav_url is usable when it has features —
+        the client constructor resolves the URL from auto-connect.url hints."""
+        import json
+
+        from caldav.config import get_all_file_connection_params
+
+        config = {
+            "ecloud": {
+                "caldav_username": "user@e.email",
+                "caldav_password": "pass",
+                "features": "ecloud",
+            }
+        }
+        config_file = tmp_path / "calendar.conf"
+        config_file.write_text(json.dumps(config))
+        results = get_all_file_connection_params(str(config_file), "ecloud")
+        assert len(results) == 1
+        assert results[0]["username"] == "user@e.email"
+        assert results[0]["features"]
+
+    def test_get_connection_params_features_but_no_url(self, tmp_path):
+        """Same as above, but through get_connection_params — the code path
+        used by get_davclient(config_section=...)."""
+        import json
+
+        from caldav.config import get_connection_params
+
+        config = {
+            "ecloud": {
+                "caldav_username": "user@e.email",
+                "caldav_password": "pass",
+                "features": "ecloud",
+            }
+        }
+        config_file = tmp_path / "calendar.conf"
+        config_file.write_text(json.dumps(config))
+        params = get_connection_params(
+            config_file=str(config_file), config_section="ecloud", environment=False
+        )
+        assert params is not None
+        assert params["username"] == "user@e.email"
+        assert params["features"]
+
     def test_meta_section_returns_multiple_dicts(self, tmp_path):
         import json
 
