@@ -98,6 +98,18 @@ class FeatureSet:
         "create-calendar.with-supported-component-types": {
             "description": "Server honours the supported-calendar-component-set restriction set at MKCALENDAR time.  When 'full', the server both advertises (or enforces) the restriction; when 'unsupported', the restriction is silently ignored (wrong-type objects can be saved to the calendar).  When 'ungraceful', the MKCALENDAR request itself fails when a component set is specified.",
         },
+        "calendar-color": {
+            "description": "Server stores the nonstandard Apple/Mozilla {http://apple.com/ns/ical/}calendar-color property (set with a colour name like 'blue') on a calendar collection.  'full' covers servers that normalise the name to a hex value (the set value still tracks the input); 'broken' is a read-only property (the same value comes back regardless of what is set).  Not described by RFC4791/RFC5545, so a server that rejects or ignores it ('unsupported') is not breaching any RFC.  The default is 'fragile' because the behaviour varies a lot between servers and is rarely worth asserting on.",
+            "default": {"support": "fragile"},
+        },
+        "calendar-color.hex": {
+            "description": "Like calendar-color, but the property is set with a hex value (e.g. '#FF0000FF') rather than a colour name.  Some servers accept one form but not the other.",
+            "default": {"support": "fragile"},
+        },
+        "calendar-order": {
+            "description": "Server stores the nonstandard Apple/Mozilla {http://apple.com/ns/ical/}calendar-order property on a calendar collection (a get/set round-trip).  'broken' is a read-only property (e.g. the server returns the calendar's own position regardless of what is set).  Not described by RFC4791/RFC5545, so a server that rejects or ignores it ('unsupported') is not breaching any RFC.  The default is 'fragile' because the behaviour varies a lot between servers.",
+            "default": {"support": "fragile"},
+        },
         "rate-limit": {
             "type": "client-feature",
             "description": "client (or test code) must sleep a bit between requests.  Pro-active rate limiting is done through interval and count, server-flagged rate-limiting is controlled through default_sleep/max_sleep",
@@ -910,12 +922,6 @@ class FeatureSet:
 ## * Perhaps some more readable format should be considered (yaml?).
 ## * Consider how to get this into the documentation
 incompatibility_description = {
-    'calendar_order':
-        """Server supports (nonstandard) calendar ordering property""",
-
-    'calendar_color':
-        """Server supports (nonstandard) calendar color property""",
-
     'duplicates_not_allowed':
         """Duplication of an event in the same calendar not allowed """
         """(even with different uid)""",
@@ -950,9 +956,6 @@ incompatibility_description = {
     'sticky_events':
         """Events should be deleted before the calendar is deleted, """
         """and/or deleting a calendar may not have immediate effect""",
-
-    'no_overwrite':
-        """events cannot be edited""",
 
     'dav_not_supported':
         """when asked, the server may claim it doesn't support the DAV protocol.  Observed by one baikal server, should be investigated more (TODO) and robur""",
@@ -1000,11 +1003,9 @@ radicale = {
     ## this only applies for very simple installations
     "auto-connect.url": {"domain": "localhost", "scheme": "http", "basepath": "/"},
     "scheduling": {"support": "unsupported"},
-    'old_flags': [
-    ## extra features not specified in RFC4791
-    "calendar_order",
-    "calendar_color"
-    ]
+    ## extra properties not specified in RFC4791/RFC5545
+    "calendar-color": {"support": "full"},
+    "calendar-order": {"support": "full"},
 }
 
 ## Be aware that nextcloud by default have different rate limits, including how often a user is allowed to create a new calendar.  This may break test runs badly.
@@ -1133,11 +1134,15 @@ zimbra = {
     ## TODO: I just discovered that when searching for a date some
     ## years after a recurring daily event was made, the event does
     ## not appear.
-
-    ## extra features not specified in RFC5545
-    "calendar_order",
-    "calendar_color"
-    ]
+    ],
+    ## extra properties not specified in RFC4791/RFC5545.  Zimbra stores
+    ## calendar-order, and stores calendar-color only when set as a hex value -
+    ## it rejects/ignores a colour name like "blue".  (The old 'calendar_color'
+    ## flag was never actually exercised, because testSetCalendarProperties skips
+    ## on Zimbra: setting a display name relocates the calendar.)
+    "calendar-color": {"support": "unsupported"},
+    "calendar-color.hex": {"support": "full"},
+    "calendar-order": {"support": "full"},
 }
 
 bedework = {
@@ -1222,11 +1227,9 @@ baikal =  { ## version 0.10.1
     'principal-search.by-name.self': {'support': 'unsupported'},
     'principal-search.list-all': {'support': 'ungraceful'},
     #'sync-token.delete': {'support': 'unsupported'}, ## Perhaps on some older servers?
-    'old_flags': [
-        ## extra features not specified in RFC5545
-        "calendar_order",
-        "calendar_color",
-    ],
+    ## extra properties not specified in RFC4791/RFC5545
+    "calendar-color": {"support": "full"},
+    "calendar-order": {"support": "full"},
     ## I'm surprised, I'm quite sure this was passing earlier.  Caldav commit a98d50490b872e9b9d8e93e2e401c936ad193003, caldav server checker commit 3cae24cf99da1702b851b5a74a9b88c8e5317dad
     'search.combined-is-logical-and': False
 } ## TODO: testPrincipals, testWrongAuthType, testTodoDatesearch fails
@@ -1294,15 +1297,21 @@ davical = {
         #'nofreebusy', ## for old versions
         ## 'fragile_sync_tokens' removed - covered by 'sync-token': {'support': 'fragile'}
         'vtodo_datesearch_nodtstart_task_is_skipped', ## no issue raised yet
-        'calendar_color',
-        'calendar_order',
         'vtodo_datesearch_notime_task_is_skipped',
     ],
+    ## extra properties not specified in RFC4791/RFC5545
+    "calendar-color": {"support": "full"},
+    "calendar-order": {"support": "full"},
 }
 
 sogo = {
     "scheduling.schedule-tag": False,
     "scheduling.mailbox.inbox-delivery": False,
+    ## SOGo rejects the calendar-color property with an error (left at the
+    ## default "fragile" - rejecting a nonstandard extension is fine).  It
+    ## accepts calendar-order but echoes back a server-computed position rather
+    ## than the value that was set, so that property is effectively read-only.
+    "calendar-order": {"support": "broken", "behaviour": "read-only; server returns its own calendar position rather than the value set"},
     ## I'm surprised, I'm quite sure this was passing earlier.  reported unsupported with caldav commit a98d50490b872e9b9d8e93e2e401c936ad193003, caldav server checker commit 3cae24cf99da1702b851b5a74a9b88c8e5317dad 2026-02-15
     "search.text.category": False,
     ## old-date time-range search works (probe found, definite-future object
@@ -1476,10 +1485,9 @@ davis = {
     ## was 'ungraceful' - that was the checker bug (cnt counted the journal that
     ## SabreDAV stores in a separate calendar); confirmed full 2026-06-06.
     "search.comp-type.optional": {"support": "full"},
-    "old_flags": [
-        "calendar_order",
-        "calendar_color",
-    ],
+    ## extra properties not specified in RFC4791/RFC5545
+    "calendar-color": {"support": "full"},
+    "calendar-order": {"support": "full"},
     ## I'm surprised, I'm quite sure this was passing earlier.  Caldav commit a98d50490b872e9b9d8e93e2e401c936ad193003, caldav server checker commit 3cae24cf99da1702b851b5a74a9b88c8e5317dad
     'search.combined-is-logical-and': False
 }
