@@ -21,6 +21,7 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 * `search()`'s generator driver now feeds exceptions raised while executing a request back into the search logic, so the server-compatibility fallbacks and per-object load error handling actually take effect (previously dead code).  Applies to both the sync and async code paths.
 * `compatibility_hints`: OX was pinned to `create-calendar.set-displayname: unsupported` (a value masked by a checker bug that verified the feature by display-name lookup, which a leftover/colliding calendar would shadow); OX stores the display name as a property separate from the calendar URL and honours it at creation time, so the expectation is corrected to `full`.
 * `compatibility_hints`: Stalwart's `search.recurrences.expanded.exception` was inheriting the default `full`, but Stalwart's server-side `CALDAV:expand` only suppresses the exception-overridden occurrence when `SEQUENCE` is absent.  With `SEQUENCE` present (as real-world clients always emit) it returns both the original occurrence and the override, so the expectation is corrected to `fragile`.
+* Config file sections with `features` but no `caldav_url` were rejected, even though the URL can be derived from the `auto-connect.url` compatibility hints.  Explicitly passed parameters already worked this way; now `get_davclient(config_section=...)` and friends behave consistently.
 
 ### Added
 
