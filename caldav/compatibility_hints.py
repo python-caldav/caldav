@@ -95,6 +95,21 @@ class FeatureSet:
             "description": "Server returns the supported-calendar-component-set property (RFC 4791 section 5.2.3).  The property is optional: when absent the RFC mandates that all component types are accepted, so 'unsupported' here is not a protocol violation, but the client cannot determine the actual supported set without trying.",
             "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-5.2.3"],
         },
+        "propfind": {
+            "description": "Server supports the PROPFIND method (RFC4918 section 9.1): a PROPFIND for a named property returns a multistatus response.  Independent feature (not just a grouping node) so that a server lacking a sub-feature like propfind.allprop.resourcetype is not mistaken for one that does not support PROPFIND at all.",
+            "default": {"support": "full"},
+            "links": ["https://datatracker.ietf.org/doc/html/rfc4918#section-9.1"],
+        },
+        "propfind.allprop": {
+            "description": "An <DAV:allprop/> PROPFIND returns a multistatus response.  This is independent of whether resourcetype in particular is included (see propfind.allprop.resourcetype).",
+            "default": {"support": "full"},
+            "links": ["https://datatracker.ietf.org/doc/html/rfc4918#section-9.1"],
+        },
+        "propfind.allprop.resourcetype": {
+            "description": "An <DAV:allprop/> PROPFIND returns the DAV:resourcetype live property.  RFC4918 section 9.1 lists resourcetype among the live properties an allprop request should return, so 'full' (the default) is the conformant behaviour; a few servers (Bedework) omit it.",
+            "default": {"support": "full"},
+            "links": ["https://datatracker.ietf.org/doc/html/rfc4918#section-9.1"],
+        },
         "create-calendar.with-supported-component-types": {
             "description": "Server honours the supported-calendar-component-set restriction set at MKCALENDAR time.  When 'full', the server both advertises (or enforces) the restriction; when 'unsupported', the restriction is silently ignored (wrong-type objects can be saved to the calendar).  When 'ungraceful', the MKCALENDAR request itself fails when a component set is specified.",
         },
@@ -930,11 +945,6 @@ incompatibility_description = {
     'event_by_url_is_broken':
         """A GET towards a valid calendar object resource URL will yield 404 (wtf?)""",
 
-    'propfind_allprop_failure':
-        """The propfind test fails ... """
-        """it asserts DAV:allprop response contains the text 'resourcetype', """
-        """possibly this assert is wrong""",
-
     'vtodo_datesearch_nodtstart_task_is_skipped':
         """date searches for todo-items will not find tasks without a dtstart""",
 
@@ -1190,8 +1200,9 @@ bedework = {
 
     ## TODO: play with this and see if it's needed
     'save-load.icalendar.related-to': {'support': 'broken', 'behaviour': 'first RELATED-TO line is preserved but subsequent RELATED-TO lines are stripped'},
+    ## Bedework omits DAV:resourcetype from an allprop PROPFIND response.
+    "propfind.allprop.resourcetype": {"support": "unsupported"},
     'old_flags': [
-    'propfind_allprop_failure',
     'duplicates_not_allowed',
     ],
 
@@ -1535,9 +1546,9 @@ ccs = {
     "test-calendar": {"cleanup-regime": "wipe-calendar"},
     ## freebusy-query works with the near-future fixtures; CCS rejected the
     ## year-2000 range with an error, so this defaults to "full" now.
-    "old_flags": [
-        "propfind_allprop_failure",
-    ],
+    ## (The old 'propfind_allprop_failure' flag was stale: CCS does return
+    ## DAV:resourcetype in an allprop PROPFIND, so propfind.allprop.resourcetype
+    ## is left at the default "full".)
 }
 
 ## Stalwart - all-in-one mail & collaboration server (CalDAV added 2024/2025)

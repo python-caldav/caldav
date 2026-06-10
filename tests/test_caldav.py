@@ -1842,9 +1842,9 @@ END:VCALENDAR"""
         this is implicitly run by the setup)
         """
         # ResourceType MUST be defined, and SHOULD be returned on a propfind
-        # for "allprop" if I have the permission to see it.
-        # So, no ResourceType returned seems like a bug in bedework
-        self.skip_on_compatibility_flag("propfind_allprop_failure")
+        # for "allprop" if I have the permission to see it (RFC4918 section 9.1).
+        # A few servers (bedework, CCS) omit it.
+        self.skip_unless_support("propfind.allprop.resourcetype")
 
         # first a raw xml propfind to the root URL
         foo = self.caldav.propfind(
@@ -1857,12 +1857,15 @@ END:VCALENDAR"""
         assert "resourcetype" in to_local(foo.raw)
 
         # next, the internal _query_properties, returning an xml tree ...
+        # (DAV:status is a response-only element, not a queryable property -
+        # asking for it makes some servers, e.g. CCS, answer 400 - so we query a
+        # real live property instead and assert on this response, not the first.)
         foo2 = self.principal._query_properties(
             [
-                dav.Status(),
+                dav.ResourceType(),
             ]
         )
-        assert "resourcetype" in to_local(foo.raw)
+        assert "resourcetype" in to_local(foo2.raw)
         # TODO: more advanced asserts
 
     def testGetCalendarHomeSet(self):
