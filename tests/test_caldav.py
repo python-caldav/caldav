@@ -3870,43 +3870,19 @@ END:VCALENDAR"""
                 pass
 
         ## calendar color and calendar order are extra properties not
-        ## described by RFC5545, but anyway supported by quite some
-        ## server implementations
-        if self.check_compatibility_flag("calendar_color"):
-            props = c.get_properties(
-                [
-                    ical.CalendarColor(),
-                ]
-            )
-            assert props[ical.CalendarColor.tag] != "sort of blueish"
-            c.set_properties(
-                [
-                    ical.CalendarColor("blue"),
-                ]
-            )
-            props = c.get_properties(
-                [
-                    ical.CalendarColor(),
-                ]
-            )
-            assert props[ical.CalendarColor.tag] == "blue"
-        if self.check_compatibility_flag("calendar_order"):
-            props = c.get_properties(
-                [
-                    ical.CalendarOrder(),
-                ]
-            )
-            assert props[ical.CalendarOrder.tag] != "-434"
-            c.set_properties(
-                [
-                    ical.CalendarOrder("12"),
-                ]
-            )
-            props = c.get_properties(
-                [
-                    ical.CalendarOrder(),
-                ]
-            )
+        ## described by RFC5545, but anyway supported by quite some server
+        ## implementations.  How they behave is probed in detail by the
+        ## server-tester (calendar-color / calendar-order); here we just
+        ## smoke-test that a supported property can be set.  Some servers
+        ## normalise the colour name (e.g. "blue" -> a hex value), so for the
+        ## colour we only assert that *something* was stored, not the exact value.
+        if self.is_supported("calendar-color"):
+            c.set_properties([ical.CalendarColor("blue")])
+            props = c.get_properties([ical.CalendarColor()])
+            assert props[ical.CalendarColor.tag]
+        if self.is_supported("calendar-order"):
+            c.set_properties([ical.CalendarOrder("12")])
+            props = c.get_properties([ical.CalendarOrder()])
             assert props[ical.CalendarOrder.tag] == "12"
 
     def testLookupEvent(self):
