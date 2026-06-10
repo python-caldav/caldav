@@ -1808,7 +1808,9 @@ class AsyncFunctionalTestsBaseClass:
         """Raw XML propfind returns a multistatus response."""
         from caldav.lib.python_utilities import to_local
 
-        self._skip_on_compatibility_flag("propfind_allprop_failure")
+        ## This only asserts a multistatus is returned, so (unlike the sync
+        ## testPropfind, which checks for DAV:resourcetype) it needs no
+        ## propfind.allprop.resourcetype gate.
         principal = await async_client.principal()
         foo = await async_client.propfind(
             principal.url,
