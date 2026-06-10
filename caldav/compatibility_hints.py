@@ -283,6 +283,11 @@ class FeatureSet:
             "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-9.7"],
         },
         "search.time-range.todo": {"description": "basic time range searches for tasks works", "default": {"support": "full"}},
+        "search.time-range.todo.no-dtstart": {
+            "description": "A VTODO without DTSTART (but with DUE) is returned by a date-range search.  RFC5545 and RFC4791 section 9.9 say such a task has a defined time span and should be found, so 'full' (the default) is the compliant behaviour; some servers (Davical, Stalwart, Synology) skip any task lacking DTSTART.  Probed with a closed window; servers that skip such tasks only in closed ranges (returning them in open-ended ones) are instead tracked by the 'vtodo_datesearch_nodtstart_task_is_skipped_in_closed_date_range' flag.",
+            "default": {"support": "full"},
+            "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-9.9"],
+        },
         "search.time-range.todo.old-dates": {"description": "time range searches for tasks with old dates (e.g. year 2000) work - some servers enforce a min-date-time restriction"},
         "search.time-range.todo.strict": {
             "description": "Bounded VTODO time-range searches do not return tasks whose time span falls entirely outside the searched range (no false positives).",
@@ -948,9 +953,6 @@ incompatibility_description = {
     'event_by_url_is_broken':
         """A GET towards a valid calendar object resource URL will yield 404 (wtf?)""",
 
-    'vtodo_datesearch_nodtstart_task_is_skipped':
-        """date searches for todo-items will not find tasks without a dtstart""",
-
     'vtodo_datesearch_nodtstart_task_is_skipped_in_closed_date_range':
         """only open-ended date searches for todo-items will find tasks without a dtstart""",
 
@@ -1215,7 +1217,8 @@ synology = {
     'search.is-not-defined': {'support': 'fragile', 'behaviour': 'works for CLASS but not for CATEGORIES'},
     'search.text.case-sensitive': {'support': 'unsupported'},
     'search.time-range.alarm': {'support': 'unsupported'},
-    'old_flags': ['vtodo_datesearch_nodtstart_task_is_skipped'],
+    ## Synology skips VTODOs without DTSTART in date-range searches.
+    'search.time-range.todo.no-dtstart': {'support': 'unsupported'},
     'test-calendar': {'cleanup-regime': 'wipe-calendar'},
     'scheduling.schedule-tag': False,
     'scheduling.mailbox.inbox-delivery': False,
@@ -1302,11 +1305,12 @@ davical = {
     'sync-token': {'support': 'fragile'},
     'principal-search': {'support': 'unsupported'},
     'principal-search.list-all': {'support': 'unsupported'},
+    ## DAViCal skips VTODOs without DTSTART in date-range searches.
+    'search.time-range.todo.no-dtstart': {'support': 'unsupported'},
     "old_flags": [
         #'no_journal', ## it threw a 500 internal server error! ## for old versions
         #'nofreebusy', ## for old versions
         ## 'fragile_sync_tokens' removed - covered by 'sync-token': {'support': 'fragile'}
-        'vtodo_datesearch_nodtstart_task_is_skipped', ## no issue raised yet
         'vtodo_datesearch_notime_task_is_skipped',
     ],
     ## extra properties not specified in RFC4791/RFC5545
@@ -1593,10 +1597,12 @@ stalwart = {
     ## into their calendar (verified by running CheckSchedulingInboxDelivery).
     "scheduling.mailbox.inbox-delivery": True,
     "scheduling.auto-schedule": True,
-    'old_flags': [
-        ## Stalwart does not return VTODO items without DTSTART in date searches
-        'vtodo_datesearch_nodtstart_task_is_skipped',
-    ],
+    ## Stalwart's handling of DTSTART-less VTODOs in date searches is date
+    ## dependent: a near-future DUE-only task is returned (the server-tester
+    ## probe sees 'full'), but the old-date fixtures used by testTodoDatesearch
+    ## are skipped.  Marked 'fragile' so the checker skips it and the integration
+    ## test (is_supported -> False) still treats the old-date task as skipped.
+    'search.time-range.todo.no-dtstart': {'support': 'fragile'},
 }
 
 ## Lots of transient problems with purelymail
