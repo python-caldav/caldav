@@ -909,9 +909,10 @@ class AsyncFunctionalTestsBaseClass:
         e1 = events[0]
 
         # duplicate in same calendar with a new UID
-        e1_dup = e1.copy()
-        await e1_dup.save()
-        assert len(await c1.get_events()) == 2
+        if self.is_supported("save.duplicate-event"):
+            e1_dup = e1.copy()
+            await e1_dup.save()
+            assert len(await c1.get_events()) == 2
 
         # copy cross-calendar keeping the same UID
         if self.is_supported("save.duplicate-uid.cross-calendar"):
@@ -928,8 +929,12 @@ class AsyncFunctionalTestsBaseClass:
         # copy in same calendar keeping UID — same-UID PUT is a no-op / overwrite
         e1_dup2 = e1.copy(keep_uid=True)
         await e1_dup2.save()
-        # count should still be 2 (not 3) because same UID overwrites
-        assert len(await c1.get_events()) == 2
+        # same UID overwrites, so the count is unchanged: 2 where a new-UID
+        # duplicate was created above, 1 where duplicates are not allowed
+        if self.is_supported("save.duplicate-event"):
+            assert len(await c1.get_events()) == 2
+        else:
+            assert len(await c1.get_events()) == 1
 
     @pytest.mark.asyncio
     async def test_multi_get(self, async_calendar: Any) -> None:

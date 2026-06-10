@@ -2470,7 +2470,7 @@ END:VCALENDAR"""
         e1_ = c1.add_event(near_now_ics(ev1))
         e1 = c1.get_events()[0]
 
-        if not self.check_compatibility_flag("duplicates_not_allowed"):
+        if self.is_supported("save.duplicate-event"):
             ## Duplicate the event in the same calendar, with new uid
             e1_dup = e1.copy()
             e1_dup.save()
@@ -2498,10 +2498,10 @@ END:VCALENDAR"""
         ## this makes no sense, there won't be any duplication
         e1_dup2 = e1.copy(keep_uid=True)
         e1_dup2.save()
-        if self.check_compatibility_flag("duplicates_not_allowed"):
-            assert len(c1.get_events()) == 1
-        else:
+        if self.is_supported("save.duplicate-event"):
             assert len(c1.get_events()) == 2
+        else:
+            assert len(c1.get_events()) == 1
 
         if self.cleanup_regime == "post":
             self._teardownCalendar(cal_id=self.testcal_id)

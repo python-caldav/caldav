@@ -504,6 +504,10 @@ class FeatureSet:
         "save.duplicate-uid.cross-calendar": {
             "description": "Server allows events with the same UID to exist in different calendars and treats them as separate entities. Support can be 'full' (allowed), 'ungraceful' (rejected with error), or 'unsupported' (silently ignored or moved). Behaviour 'silently-ignored' means the duplicate is not saved but no error is thrown. Behaviour 'moved-instead-of-copied' means the event is moved from the original calendar to the new calendar (Zimbra behavior)"
         },
+        "save.duplicate-event": {
+            "description": "Server allows two events with identical content but different UIDs to coexist in the same calendar.  Some servers reject or de-duplicate such an event ('duplicates not allowed even with a different UID'), in which case this is 'unsupported' (silently dropped) or 'ungraceful' (rejected with an error).  The default 'full' is the usual behaviour.",
+            "default": {"support": "full"},
+        },
         ## TODO: as for now, the tests will run towards the first calendar it will find, and most of the tests will assume the calendar is empty.  This is bad.
         "test-calendar": {
             "type": "tests-behaviour",
@@ -937,11 +941,6 @@ class FeatureSet:
 ## * Perhaps some more readable format should be considered (yaml?).
 ## * Consider how to get this into the documentation
 incompatibility_description = {
-    'duplicates_not_allowed':
-        """Duplication of an event in the same calendar not allowed """
-        """(even with different uid)""",
-
-
     'event_by_url_is_broken':
         """A GET towards a valid calendar object resource URL will yield 404 (wtf?)""",
 
@@ -1202,10 +1201,9 @@ bedework = {
     'save-load.icalendar.related-to': {'support': 'broken', 'behaviour': 'first RELATED-TO line is preserved but subsequent RELATED-TO lines are stripped'},
     ## Bedework omits DAV:resourcetype from an allprop PROPFIND response.
     "propfind.allprop.resourcetype": {"support": "unsupported"},
-    'old_flags': [
-    'duplicates_not_allowed',
-    ],
-
+    ## (The old 'duplicates_not_allowed' flag was stale: Bedework does store a
+    ## second event with the same content under a different UID, so
+    ## save.duplicate-event is left at the default "full".)
 }
 
 synology = {
