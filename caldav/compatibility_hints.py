@@ -220,6 +220,10 @@ class FeatureSet:
         "save-load.get-by-url": {
             "description": "GET requests to calendar object resource URLs work correctly. When unsupported, the server returns 404 on GET even for valid object URLs. The client works around this by falling back to UID-based lookup.",
         },
+        "non-existing-raises-not-found": {
+            "description": "Looking up a non-existing calendar object resource raises NotFoundError (the server answers 404).  'full' (the default) is the expected behaviour; some servers answer 403 instead (raising AuthorizationError) - e.g. Robur, probably to avoid leaking whether a resource exists - which is a legitimate choice rather than an RFC breach, so it is recorded as 'unsupported' rather than 'broken'.",
+            "default": {"support": "full"},
+        },
         "save-load.stable-url": {
             "description": "The server reports a calendar object resource under the same URL the client used to store it. When 'unsupported', the server canonicalizes the URL: e.g. OX App Suite exposes a calendar both under its display name and under an internal 'cal://0/NNN' identifier, so an object looked up via a calendar-query REPORT (object_by_uid / search) is reported under a different calendar path than the PUT URL.  A direct GET on the original URL still works (the server keeps an alias).  Clients should therefore not assume that a searched object's URL equals the URL it was created at.",
             "default": {"support": "full"},
@@ -972,9 +976,6 @@ incompatibility_description = {
    'fastmail_buggy_noexpand_date_search':
         """The 'blissful anniversary' recurrent example event is returned when asked for a no-expand date search for some timestamps covering a completely different date""",
 
-    'non_existing_raises_other':
-        """Robur raises AuthorizationError when trying to access a non-existing resource (while 404 is expected).  Probably so one shouldn't probe a public name space?""",
-
     'robur_rrule_freq_yearly_expands_monthly':
         """Robur expands a yearly event into a monthly event.  I believe I've reported this one upstream at some point, but can't find back to it""",
 
@@ -1421,9 +1422,12 @@ robur = {
     'principal-search': {'support': 'ungraceful'},
     'freebusy-query': {'support': 'ungraceful'},
     "scheduling": {"support": "unsupported"},
-    'old_flags': [
-        'non_existing_raises_other', ## AuthorizationError instead of NotFoundError
-    ],
+    ## Robur answers 403 (AuthorizationError) instead of 404 (NotFoundError) when
+    ## looking up a non-existing resource - probably to avoid leaking whether a
+    ## resource exists.  (Not re-probed during this migration: the Robur test
+    ## server was down; value carried over from the old 'non_existing_raises_other'
+    ## flag.)
+    'non-existing-raises-not-found': {'support': 'unsupported', 'behaviour': 'raises AuthorizationError (403) instead of NotFoundError (404)'},
     'save-load.icalendar.related-to': {'support': 'unsupported'},
     'test-calendar': {'cleanup-regime': 'wipe-calendar'},
     "sync-token": {"support": "ungraceful"},
