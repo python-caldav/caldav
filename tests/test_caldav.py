@@ -1916,10 +1916,12 @@ END:VCALENDAR"""
         assert str(c.url) in repr(c)
 
     def _notFound(self):
-        if self.check_compatibility_flag("non_existing_raises_other"):
-            return error.DAVError
-        else:
+        if self.is_supported("non-existing-raises-not-found"):
             return error.NotFoundError
+        else:
+            ## Some servers answer 403 instead of 404 (e.g. Robur); accept any
+            ## DAVError in that case.
+            return error.DAVError
 
     def testPrincipal(self):
         collections = self.principal.get_calendars()
@@ -4014,11 +4016,6 @@ END:VCALENDAR"""
         e1.delete()
         if todo_ok:
             t1.delete()
-
-        if self.check_compatibility_flag("non_existing_raises_other"):
-            expected_error = error.DAVError
-        else:
-            expected_error = error.NotFoundError
 
         # Verify that we can't look it up, both by URL and by ID
         with pytest.raises(self._notFound()):
