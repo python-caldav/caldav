@@ -76,7 +76,7 @@ second 429 has no usable Retry-After (`compute_sleep_seconds` returns None,
 e.g. `Retry-After: 0`) → `None += 2.5` → TypeError instead of the documented
 `RateLimitError`. Same bug copy-pasted in both clients.
 
-### 1.4 `async_davclient.py:1272` — `aio.get_calendars(calendar_name=...)` can never work `[code]`
+### 1.4 `async_davclient.py:1272` — `aio.get_calendars(calendar_name=...)` can never work `[code]` ✅ FIXED
 The async module-level helper awaits the *synchronous* `Principal.calendar()`,
 which has no async dispatch (`collection.py:448–475`): `calendar_home_set` →
 `get_property` returns a coroutine for async clients, and
