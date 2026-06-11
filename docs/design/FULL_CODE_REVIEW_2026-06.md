@@ -119,20 +119,20 @@ file with only named sections (no `default`) makes plain
 `caldav.get_calendars()` crash with `KeyError: 'default'` instead of falling
 through to "no configuration found".
 
-### 1.10 `compatibility_hints.py:611` — `copyFeatureSet` crashes merging plain-string features `[repro]`
+### 1.10 `compatibility_hints.py:611` — `copyFeatureSet` crashes merging plain-string features `[repro]` ✅ FIXED
 `FeatureSet({'scheduling': 'unsupported'}).copyFeatureSet({'scheduling':
 'fragile'})` → bare AssertionError: the `'support' not in server_node` guard
 makes string-valued updates of an existing feature fall through to the final
 `else: raise AssertionError`. Plain strings are the dominant style in the
 hint dicts, so any two-layer merge expressing the same feature crashes.
 
-### 1.11 `compatibility_hints.py:605` — unknown feature names: warn now, crash later `[repro]`
+### 1.11 `compatibility_hints.py:605` — unknown feature names: warn now, crash later `[repro]` ✅ FIXED
 A typoed feature name in a user's config produces only a UserWarning at set
 time, but the bad key is still stored — a later `collapse()` /
 `is_supported()` hits a message-less AssertionError in `find_feature`, far
 from the config that caused it. Reject (or drop) the key at intake instead.
 
-### 1.12 `lib/vcal.py:93` — bare `assert` on server-supplied data `[repro]`
+### 1.12 `lib/vcal.py:93` — bare `assert` on server-supplied data `[repro]` ✅ FIXED
 Truncated/garbage iCalendar without DTSTAMP and without an `END:` line makes
 `fix()` raise a bare AssertionError. Under `python -O` the assert (and thus
 the DTSTAMP fixup logic it guards) is silently skipped. Should be
