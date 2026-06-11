@@ -2885,6 +2885,42 @@ class TestRateLimiting:
                 client.request("/")
 
 
+class TestAsyncProbeResponseNotReturnedAsReal:
+    """§2.15: async _async_request: when the probe GET for issue-#158 workaround does
+    not receive a 401+WWW-Authenticate response, the original exception must be re-raised.
+
+    Before the fix, a probe response with status != 401 (e.g. 200 HTML login page) fell
+    through to response = DAVResponse(r, self), returning the probe GET response as if
+    it were the real request's response — status 200 for a PUT that never happened.
+    """
+
+    @pytest.mark.asyncio
+    async def test_probe_200_reraises_original_exception(self):
+        """If the probe GET returns 200 (not a 401 challenge), the original error must propagate."""
+        from unittest.mock import AsyncMock, patch
+
+        from caldav.async_davclient import AsyncDAVClient
+
+        client = AsyncDAVClient(url="http://cal.example.com/", password="secret")
+
+        probe_resp = mock.MagicMock()
+        probe_resp.status_code = 200
+        probe_resp.reason = "OK"
+        probe_resp.headers = {"Content-Type": "text/html"}
+        probe_resp.reason_phrase = "OK"
+
+        original_error = ConnectionError("server aborted connection")
+
+        async def mock_request(*args, **kwargs):
+            if kwargs.get("method") == "GET" and not kwargs.get("auth"):
+                return probe_resp
+            raise original_error
+
+        with patch.object(client.session, "request", side_effect=mock_request):
+            with pytest.raises((ConnectionError, Exception)):
+                await client._async_request("/some/resource", "PUT", "data", {})
+
+
 class TestRateLimitNoPlusNone:
     """§1.3: rate-limit retry must not raise TypeError when second 429 has no usable Retry-After.
 
