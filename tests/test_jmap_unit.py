@@ -2009,6 +2009,16 @@ class TestJMAPClientTasks:
             self._make_client().create_task("tl1", "Test")
         assert exc_info.value.error_type == "invalidArguments"
 
+    def test_create_task_raises_jmap_error_when_created_is_empty(self, monkeypatch):
+        """§1.13: create_task must raise JMAPMethodError (not KeyError) when the server
+        returns a Task/set response with an empty 'created' dict and no 'notCreated' entry."""
+        resp = self._set_response(created={}, notCreated={})
+        monkeypatch.setattr(
+            "caldav.jmap.client.requests.post", lambda *a, **kw: self._make_mock(resp)
+        )
+        with pytest.raises(JMAPMethodError):
+            self._make_client().create_task("tl1", "Test")
+
     def test_get_task_returns_task_object(self, monkeypatch):
         resp = self._get_response([self._MINIMAL_TASK])
         monkeypatch.setattr(
