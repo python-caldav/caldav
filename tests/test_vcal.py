@@ -379,3 +379,14 @@ END:VCALENDAR"""
 
             # Verify the fixed ical is valid
             self.verifyICal(fixed)
+
+    def test_fix_does_not_crash_on_truncated_input(self) -> None:
+        """§1.12: vcal.fix() must not raise AssertionError on truncated/garbage iCalendar.
+
+        Truncated data (no END: line) previously triggered a bare assert on line 93
+        which gave no useful error message and failed silently under python -O.
+        """
+        truncated = "BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nUID:trunc@example.com\n"
+        # Must not raise — return something (possibly unchanged input)
+        result = vcal.fix(truncated)
+        assert result is not None

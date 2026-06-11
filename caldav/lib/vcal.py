@@ -90,7 +90,11 @@ def fix(event):
     ## 6) add DTSTAMP if not given
     ## (corner case that DTSTAMP is given in one but not all the recurrences is ignored)
     if "\nDTSTAMP:" not in fixed:
-        assert "\nEND" in fixed
+        if "\nEND" not in fixed:
+            logging.getLogger(__name__).warning(
+                "vcal.fix(): truncated iCalendar data (no END: line) — skipping DTSTAMP fixup"
+            )
+            return fixed
         dtstamp = datetime.datetime.now(tz=datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         fixed = re.sub("(\nEND:(VTODO|VEVENT|VJOURNAL))", f"\nDTSTAMP:{dtstamp}\\1", fixed)
 

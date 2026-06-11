@@ -3493,6 +3493,51 @@ END:VCALENDAR
         assert "nobody@example.com" in str(exc_info.value)
 
 
+class TestFeatureSetCopyFeatureSet:
+    """§1.10 + §1.11: FeatureSet.copyFeatureSet() correctness bugs.
+
+    §1.10: Merging a plain-string feature over an existing string-valued feature raised
+    bare AssertionError because the 'support' not in server_node guard prevented the
+    update branch from running.
+
+    §1.11: An unknown feature name produced a UserWarning but was still stored in
+    _server_features; a later collapse()/is_supported() then hit a message-less
+    AssertionError far from the originating config.  Unknown features must be skipped
+    (continue after warning) so bad keys never contaminate the feature set.
+    """
+
+    def test_string_feature_can_be_overridden(self):
+        """copyFeatureSet must accept a string value that overrides an existing string."""
+        from caldav.compatibility_hints import FeatureSet
+
+        fs = FeatureSet({"scheduling": "unsupported"})
+        fs.copyFeatureSet({"scheduling": "fragile"})
+        assert fs.is_supported("scheduling") is False  # fragile → False per is_supported semantics
+
+    def test_string_feature_full_override(self):
+        """Overriding 'unsupported' with 'full' must make is_supported return True."""
+        from caldav.compatibility_hints import FeatureSet
+
+        fs = FeatureSet({"scheduling": "unsupported"})
+        fs.copyFeatureSet({"scheduling": "full"})
+        assert fs.is_supported("scheduling") is True
+
+    def test_unknown_feature_warns_and_does_not_store(self):
+        """An unknown feature name must emit UserWarning and must NOT be stored."""
+        import warnings
+
+        from caldav.compatibility_hints import FeatureSet
+
+        fs = FeatureSet({})
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            fs.copyFeatureSet({"totally_nonexistent_feature_xyz": "full"})
+
+        assert any("totally_nonexistent_feature_xyz" in str(warning.message) for warning in w)
+        # The bad key must NOT be in the internal feature dict
+        assert "totally_nonexistent_feature_xyz" not in fs._server_features
+
+
 class TestXMLEntityHardening:
     """§3.2: XML parser must not expand entity references from untrusted server data.
 

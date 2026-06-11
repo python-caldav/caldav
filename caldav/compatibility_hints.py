@@ -602,13 +602,14 @@ class FeatureSet:
                     UserWarning,
                     stacklevel=3,
                 )
+                continue
             value = feature_set[feature]
             if feature not in self._server_features:
                 self._server_features[feature] = {}
             server_node = self._server_features[feature]
             if isinstance(value, bool):
                 server_node['support'] = "full" if value else "unsupported"
-            elif isinstance(value, str) and 'support' not in server_node:
+            elif isinstance(value, str):
                 self._validate_support_level(value, feature)
                 server_node['support'] = value
             elif isinstance(value, dict):
