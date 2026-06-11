@@ -223,7 +223,12 @@ class DAVClient(BaseDAVClient):
                        preventing DNS-based downgrade attacks where malicious DNS could
                        redirect to unencrypted HTTP. Set to False ONLY if you need to
                        support non-TLS servers and trust your DNS infrastructure.
-                       This parameter has no effect if enable_rfc6764=False.
+                       SCOPE: this only gates the RFC6764 discovery path. It has no
+                       effect when enable_rfc6764=False, and does NOT reject an
+                       explicitly-passed http:// URL (e.g. url="http://your.server.example.com/dav/"
+                       still connects over plaintext despite require_tls=True).
+                       Making enforcement global is deferred to 4.0 — see
+                       https://github.com/python-caldav/caldav/issues/687
           rate_limit_handle: boolean, whether to automatically sleep and retry when the server
                              responds with 429 Too Many Requests or 503 Service Unavailable.
                              Default: False (raise RateLimitError immediately).
