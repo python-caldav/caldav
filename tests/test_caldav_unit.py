@@ -2885,6 +2885,41 @@ class TestRateLimiting:
                 client.request("/")
 
 
+class TestRateLimitNoPlusNone:
+    """§1.3: rate-limit retry must not raise TypeError when second 429 has no usable Retry-After.
+
+    sleep_seconds += rate_limit_time_slept / 2 executed before the is-None check,
+    so None += 2.5 raised TypeError instead of the documented RateLimitError.
+    """
+
+    def _make_response(self, status_code, headers=None):
+        r = mock.MagicMock()
+        r.status_code = status_code
+        r.headers = headers or {}
+        r.reason = "Too Many Requests"
+        return r
+
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def test_second_429_without_retry_after_raises_rate_limit_error(self, mocked):
+        """Second 429 with Retry-After: 0 (compute_sleep_seconds → None) must raise
+        RateLimitError, not TypeError."""
+        ok = mock.MagicMock()
+        ok.status_code = 200
+        ok.headers = {}
+        mocked.side_effect = [
+            self._make_response(429, {"Retry-After": "5"}),
+            self._make_response(429, {"Retry-After": "0"}),  # compute_sleep_seconds → None
+        ]
+        client = DAVClient(
+            url="http://cal.example.com/",
+            rate_limit_handle=True,
+            rate_limit_default_sleep=None,
+        )
+        with mock.patch("caldav.davclient.time.sleep"):
+            with pytest.raises(error.RateLimitError):
+                client.request("/")
+
+
 class TestDateToUtcConversion:
     """
     RFC 4791 §9.9: time-range start/end MUST be UTC datetime values.
@@ -3634,6 +3669,32 @@ class TestXMLEntityHardening:
         assert displayname_el.text != "INJECTED", (
             "XML entity was expanded — resolve_entities=False is missing from the parser"
         )
+
+
+class TestDAVClientCredentialPrecedence:
+    """§1.2: DAVClient credential handling bugs.
+
+    - URL with username but no password (user@host) crashed with TypeError inside
+      urllib.parse.unquote(None).
+    - URL credentials had higher precedence than explicit kwargs; async client was
+      the opposite (explicit kwargs win).  Now sync matches async: explicit kwargs win.
+    """
+
+    def test_url_with_user_but_no_password_does_not_crash(self):
+        """DAVClient(url='https://user@host/', password='p') must not raise TypeError."""
+        client = DAVClient(url="https://user@cal.example.com/dav/", password="secret")
+        assert client.username == "user"
+        assert client.password == b"secret"
+
+    def test_explicit_kwargs_take_precedence_over_url_credentials(self):
+        """Explicit username/password kwargs must override credentials embedded in the URL."""
+        client = DAVClient(
+            url="https://urluser:urlpass@cal.example.com/dav/",
+            username="kwarguser",
+            password="kwargpass",
+        )
+        assert client.username == "kwarguser"
+        assert client.password == b"kwargpass"
 
 
 class TestPostPutRedirect:
