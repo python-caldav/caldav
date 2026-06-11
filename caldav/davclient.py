@@ -298,8 +298,10 @@ class DAVClient(BaseDAVClient):
         )
         self.headers.update(headers or CaseInsensitiveDict())
         if self.url.username is not None:
-            username = unquote(self.url.username)
-            password = unquote(self.url.password)
+            if username is None:
+                username = unquote(self.url.username)
+            if password is None and self.url.password is not None:
+                password = unquote(self.url.password)
 
         # Use discovered username if no explicit username was provided
         if username is None and discovered_username is not None:
@@ -832,13 +834,13 @@ class DAVClient(BaseDAVClient):
                 self.rate_limit_default_sleep,
                 self.rate_limit_max_sleep,
             )
-            if rate_limit_time_slept:
-                sleep_seconds += rate_limit_time_slept / 2
             if sleep_seconds is None or (
                 self.rate_limit_max_sleep is not None
                 and rate_limit_time_slept > self.rate_limit_max_sleep
             ):
                 raise
+            if rate_limit_time_slept:
+                sleep_seconds += rate_limit_time_slept / 2
             time.sleep(sleep_seconds)
             return self.request(url, method, body, headers, rate_limit_time_slept + sleep_seconds)
 

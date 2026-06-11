@@ -190,7 +190,8 @@ def _build_search_xml_query(
     for property in searcher._property_operator:
         if searcher._property_operator[property] == "undef":
             match = cdav.NotDefined()
-            filters.append(cdav.PropFilter(property.upper()) + match)
+            prop_name = "CATEGORIES" if property.lower() == "category" else property.upper()
+            filters.append(cdav.PropFilter(prop_name) + match)
         else:
             value = searcher._property_filters[property]
             property_ = property.upper()

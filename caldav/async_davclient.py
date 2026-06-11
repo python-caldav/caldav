@@ -372,13 +372,13 @@ class AsyncDAVClient(BaseDAVClient):
                 self.rate_limit_default_sleep,
                 self.rate_limit_max_sleep,
             )
-            if rate_limit_time_slept:
-                sleep_seconds += rate_limit_time_slept / 2
             if sleep_seconds is None or (
                 self.rate_limit_max_sleep is not None
                 and rate_limit_time_slept > self.rate_limit_max_sleep
             ):
                 raise
+            if rate_limit_time_slept:
+                sleep_seconds += rate_limit_time_slept / 2
             await asyncio.sleep(sleep_seconds)
             return await self.request(
                 url, method, body, headers, rate_limit_time_slept + sleep_seconds
@@ -955,7 +955,9 @@ class AsyncDAVClient(BaseDAVClient):
         )
         calendar_home_url = extract_home_set(response.results)
         if not calendar_home_url:
-            return []
+            # Fall back to the principal URL as calendar home
+            # (some servers like GMX don't support calendar-home-set)
+            calendar_home_url = str(principal.url)
 
         # Make URL absolute if relative
         calendar_home_url = self._make_absolute_url(calendar_home_url)
