@@ -1269,13 +1269,26 @@ async def get_calendars(
                     raise
 
         # Fetch specific calendars by name
-        for cal_name in calendar_names:
+        if calendar_names:
             try:
-                calendar = await principal.calendar(name=cal_name)
-                if calendar:
-                    calendars.append(calendar)
+                all_cals_for_name = await principal.get_calendars()
+                for cal_name in calendar_names:
+                    for cal in all_cals_for_name:
+                        try:
+                            display_name = await cal.get_display_name()
+                            if display_name == cal_name:
+                                calendars.append(cal)
+                                break
+                        except Exception:
+                            pass
+                    else:
+                        log.error(f"No calendar with name '{cal_name}' found")
+                        if raise_errors:
+                            raise error.NotFoundError(f"No calendar with name '{cal_name}' found")
+            except error.NotFoundError:
+                raise
             except Exception as e:
-                log.error(f"Problems fetching calendar by name '{cal_name}': {e}")
+                log.error(f"Problems fetching calendars by name: {e}")
                 if raise_errors:
                     raise
 
