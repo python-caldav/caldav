@@ -1569,6 +1569,7 @@ class CalendarObjectResource(DAVObject):
         self._data = vcal.fix(data)
         self._vobject_instance = None
         self._icalendar_instance = None
+        self._state = RawDataState(self._data)
         return self
 
     def _get_data(self):
