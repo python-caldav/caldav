@@ -1164,7 +1164,7 @@ class CalendarObjectResource(DAVObject):
             else:
                 raise error.PutError(errmsg(r))
         elif r.status == 302:
-            self.url = URL.objectify([x[1] for x in r.headers if x[0] == "location"][0])
+            self.url = URL.objectify(r.headers.get("location"))
         elif r.status not in (204, 201):
             if retry_on_failure:
                 try:
@@ -1184,8 +1184,7 @@ class CalendarObjectResource(DAVObject):
             self.props[cdav.ScheduleTag.tag] = r.headers["schedule-tag"]
 
         if r.status == 302:
-            path = [x[1] for x in r.headers if x[0] == "location"][0]
-            self.url = URL.objectify(path)
+            self.url = URL.objectify(r.headers.get("location"))
         elif r.status not in (204, 201):
             if retry_on_failure:
                 try:

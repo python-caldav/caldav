@@ -51,7 +51,7 @@ real bugs, clustering around four themes:
 
 ## 1. Crash bugs (realistic trigger → unhandled exception)
 
-### 1.1 `calendarobjectresource.py:1167` + `:1187` — 302 handling iterates headers as tuples `[repro]`
+### 1.1 `calendarobjectresource.py:1167` + `:1187` — 302 handling iterates headers as tuples `[repro]` ✅ FIXED (commit 22b9cc66+1)
 `[x[1] for x in r.headers if x[0] == "location"][0]` — iterating a dict-like
 `Headers` object (niquests `CaseInsensitiveDict` sync, `httpx.Headers` async)
 yields key *strings*, so `x[0]` is the first character of each header name.
@@ -148,7 +148,7 @@ hierarchy callers are told to catch. Copy-paste gap in both clients.
 
 ## 2. Silent wrong results / data corruption
 
-### 2.1 `lib/vcal.py:80` — COMPLETED fixup merges the next line into the property ⚠ data corruption `[repro]`
+### 2.1 `lib/vcal.py:80` — COMPLETED fixup merges the next line into the property ⚠ data corruption `[repro]` ✅ FIXED (commit 22b9cc66)
 `fix()` normalizes CRLF→LF first, then the COMPLETED date-to-datetime regex
 `(\d+)\s` *consumes the newline without restoring it*:
 `COMPLETED:20240101\nSUMMARY:hello` becomes

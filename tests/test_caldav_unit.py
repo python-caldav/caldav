@@ -3289,3 +3289,39 @@ END:VCALENDAR
         ev = self._make_event_with_mock_client("just_a_username")
         with pytest.raises(caldav_error.NotFoundError):
             ev.change_attendee_status(partstat="ACCEPTED")
+
+
+class TestPostPutRedirect:
+    """§1.1: 302 response to PUT must update event.url from Location header.
+
+    Bug: `[x[1] for x in r.headers if x[0] == "location"]` iterates the
+    headers dict yielding key *strings*, so x[0] is the first character of
+    each header name — never "location".  The list is always empty and any
+    302 raises IndexError.
+    """
+
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def test_302_put_updates_url_from_location_header(self, mocked):
+        try:
+            from niquests.structures import CaseInsensitiveDict
+        except ImportError:
+            from requests.structures import CaseInsensitiveDict
+
+        new_url = "http://cal.example.com/cal/new-location.ics"
+        resp = mock.MagicMock()
+        resp.status_code = 302
+        resp.headers = CaseInsensitiveDict({"Location": new_url})
+        resp.reason = "Found"
+        resp.content = b""
+        mocked.return_value = resp
+
+        client = DAVClient(url="http://cal.example.com/")
+        cal = Calendar(client=client, url="http://cal.example.com/cal/")
+        event = Event(
+            client=client,
+            url="http://cal.example.com/cal/event.ics",
+            data=ev1,
+            parent=cal,
+        )
+        event.save()
+        assert str(event.url) == new_url
