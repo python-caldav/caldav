@@ -28,7 +28,7 @@ def extract_auth_types(header: str) -> set[str]:
     Reference:
         https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/WWW-Authenticate#syntax
     """
-    return {h.split()[0] for h in header.lower().split(",")}
+    return {h.split()[0] for h in header.lower().split(",") if h.strip()}
 
 
 def select_auth_type(
