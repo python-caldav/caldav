@@ -3392,6 +3392,37 @@ END:VCALENDAR
             ev.change_attendee_status(partstat="ACCEPTED")
 
 
+class TestXMLEntityHardening:
+    """§3.2: XML parser must not expand entity references from untrusted server data.
+
+    etree.XMLParser without resolve_entities=False expands inline DOCTYPE
+    entities, allowing a malicious server to inject arbitrary text into
+    parsed values.  With resolve_entities=False the entity reference is
+    left as-is (text becomes None for element content).
+    """
+
+    def test_xml_entity_not_expanded(self):
+        """Entity defined in DOCTYPE must NOT be expanded into element text."""
+        xml = b"""<?xml version="1.0"?>
+<!DOCTYPE foo [<!ENTITY xxe "INJECTED">]>
+<multistatus xmlns="DAV:">
+  <response>
+    <href>/</href>
+    <propstat>
+      <prop><displayname>&xxe;</displayname></prop>
+      <status>HTTP/1.1 200 OK</status>
+    </propstat>
+  </response>
+</multistatus>"""
+        resp = MockedDAVResponse(xml)
+        assert resp.tree is not None
+        displayname_el = resp.tree.find(".//{DAV:}displayname")
+        assert displayname_el is not None
+        assert displayname_el.text != "INJECTED", (
+            "XML entity was expanded — resolve_entities=False is missing from the parser"
+        )
+
+
 class TestPostPutRedirect:
     """§1.1: 302 response to PUT must update event.url from Location header.
 
