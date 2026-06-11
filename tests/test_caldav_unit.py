@@ -1704,6 +1704,31 @@ END:VCALENDAR
         assert "DUE" not in my_todo4.component
         assert my_todo4.component["duration"].dt == timedelta(2)
 
+    def testTodoDurationTimedDtstart(self):
+        """§2.11: _get_duration must return timedelta(0) for a VTODO with a timed DTSTART
+        and no DUE/DURATION — not timedelta(days=1).
+
+        isinstance(i["DTSTART"], datetime) tested the vDDDTypes wrapper (always False),
+        so the date-vs-datetime branch always took the 'is a date' path, returning 1 day.
+        Fix: test isinstance(i["DTSTART"].dt, datetime) instead.
+        """
+        cal_url = "http://me:hunter2@calendar.example:80/"
+        client = DAVClient(url=cal_url)
+        todo_timed_dtstart = """BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//EN
+BEGIN:VTODO
+UID:timed-dtstart@example.com
+DTSTAMP:20240101T000000Z
+DTSTART:20240601T100000Z
+SUMMARY:Todo with timed DTSTART only
+END:VTODO
+END:VCALENDAR"""
+        todo_item = Todo(client, data=todo_timed_dtstart)
+        assert todo_item.get_duration() == timedelta(0), (
+            f"Expected timedelta(0) for timed DTSTART with no DUE, got {todo_item.get_duration()}"
+        )
+
     def testURL(self):
         """Exercising the URL class"""
         long_url = "http://foo:bar@www.example.com:8080/caldav.php/?foo=bar"
@@ -3240,6 +3265,48 @@ class TestGetAllFileConnectionParams:
             "https://work.example.com/dav/",
             "https://personal.example.com/dav/",
         }
+
+
+class TestExplicitParamsMerge:
+    """§2.18: get_connection_params explicit kwargs must be merged with env/file config.
+
+    The old code only returned explicit_params when 'url' or 'features' was present;
+    params like password-only were silently discarded when an env/file source was found.
+    """
+
+    def test_explicit_password_merged_with_env_url(self, monkeypatch):
+        """get_connection_params(password='secret') with CALDAV_URL in env must include the password."""
+        from caldav.config import get_connection_params
+
+        monkeypatch.setenv("CALDAV_URL", "https://env.example.com/")
+        monkeypatch.setenv("CALDAV_USERNAME", "envuser")
+        # Unset file config to avoid config-file interference
+        monkeypatch.delenv("CALDAV_CONFIG_FILE", raising=False)
+        result = get_connection_params(password="secret", check_config_file=False)
+        assert result is not None
+        assert result.get("password") == "secret"
+        assert result.get("url") == "https://env.example.com/"
+
+
+class TestResolveFeaturesMutation:
+    """§2.19: resolve_features and testing.py server classes must deepcopy hint dicts.
+
+    Returning or shallow-copying a module-level dict then mutating a nested key
+    permanently corrupts the module-level dict for all subsequent users.
+    """
+
+    def test_resolve_features_string_returns_independent_copy(self):
+        """resolve_features('xandikos') must return a deep copy, not the module object."""
+        import caldav.compatibility_hints as hints
+        from caldav.config import resolve_features
+
+        original_domain = hints.xandikos.get("auto-connect.url", {}).get("domain", "<sentinel>")
+        result = resolve_features("xandikos")
+        # Mutate the returned copy
+        if "auto-connect.url" in result and isinstance(result["auto-connect.url"], dict):
+            result["auto-connect.url"]["domain"] = "MUTATED:9999"
+        # Original must be unchanged
+        assert hints.xandikos.get("auto-connect.url", {}).get("domain") == original_domain
 
 
 class TestResolveProperties:

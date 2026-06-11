@@ -9,6 +9,7 @@ from the source tree.
 Docker and external server support lives in tests/test_servers/ (source only).
 """
 
+import copy
 import socket
 import tempfile
 import threading
@@ -123,7 +124,7 @@ class XandikosServer(EmbeddedServer):
         if "features" not in config:
             from caldav import compatibility_hints
 
-            features = compatibility_hints.xandikos.copy()
+            features = copy.deepcopy(compatibility_hints.xandikos)
             features["auto-connect.url"]["domain"] = f"{config['host']}:{config['port']}"
             config["features"] = features
         super().__init__(config)
@@ -259,7 +260,7 @@ class RadicaleServer(EmbeddedServer):
         if "features" not in config:
             from caldav import compatibility_hints
 
-            features = compatibility_hints.radicale.copy()
+            features = copy.deepcopy(compatibility_hints.radicale)
             features["auto-connect.url"]["domain"] = f"{config['host']}:{config['port']}"
             config["features"] = features
         super().__init__(config)
