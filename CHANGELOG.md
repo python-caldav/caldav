@@ -16,6 +16,7 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 
 ### Fixed
 
+* `URL.canonical()`: two related bugs — (a) the canonical form was built from `self.url_parsed` (which still contains `user:pass@` in the netloc) rather than the auth-stripped URL, so `canonical()` leaked credentials into the returned URL and `__eq__`/`__hash__` comparisons between an authenticated client URL and a server-returned href (no credentials) were False; (b) when a URL had no auth part, `unauth()` returned `self` and `canonical()` then overwrote `url_raw`/`url_parsed` in place — a bare `==` or `hash()` call silently mutated the URL object, potentially re-encoding special characters (e.g. `+` → `%2B`) and causing subsequent requests to target the wrong resource.  Fixed by using the auth-stripped URL's parsed form for `arr` and always returning a fresh `URL` object.
 * `_post_put`: a 302 response to `PUT` always raised `IndexError` instead of following the redirect — iterating the headers dict yields key strings, not tuples, so `x[0]` was the first character of each header name, never `"location"`.  Fixed by using `r.headers.get("location")`.
 * `vcal.fix()`: the `COMPLETED` date-to-datetime regex consumed the trailing newline, merging the following iCal property into the `COMPLETED` value on every inbound object from a server that stores `COMPLETED` as a plain date (e.g. SOGo).  Fixed by using a lookahead `(?=\s)` instead of consuming `\s`.
 
