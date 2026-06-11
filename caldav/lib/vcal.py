@@ -77,7 +77,7 @@ def fix(event):
 
     ## TODO: add ^ before COMPLETED and CREATED?
     ## 1) Add an arbitrary time if completed is given as date
-    fixed = re.sub(r"COMPLETED(?:;VALUE=DATE)?:(\d+)\s", r"COMPLETED:\g<1>T120000Z", event)
+    fixed = re.sub(r"COMPLETED(?:;VALUE=DATE)?:(\d+)(?=\s)", r"COMPLETED:\g<1>T120000Z", event)
 
     ## 2) CREATED timestamps prior to epoch does not make sense,
     ## change from year 0001 to epoch.
