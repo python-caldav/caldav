@@ -1722,6 +1722,28 @@ END:VCALENDAR
             == URL("//www.example.com/bar/").canonical()
         )
 
+        # 9b) canonical() must strip credentials (§2.5a)
+        cred_url = URL("https://user:pass@example.com/cal/")
+        canon = cred_url.canonical()
+        assert "user" not in str(canon), "canonical() leaked username"
+        assert "pass" not in str(canon), "canonical() leaked password"
+
+        # 9c) canonical() must not mutate self (§2.5b):
+        #     a URL with no auth — unauth() returns self, canonical() must
+        #     still return a fresh object and leave self unchanged.
+        plain_url = URL("http://example.com/cal/path/")
+        before = str(plain_url)
+        _ = plain_url.canonical()
+        assert str(plain_url) == before, "canonical() mutated self"
+
+        # 9d) __eq__ calls canonical() — must not mutate self (§2.5b)
+        #     A literal '+' in the path would become '%2B' after quote(unquote()),
+        #     silently changing what resource subsequent requests target.
+        plus_url = URL("http://example.com/cal/foo+bar/")
+        before_plus = str(plus_url)
+        _ = plus_url == URL("http://example.com/cal/foo+bar/")
+        assert str(plus_url) == before_plus, "__eq__ mutated URL containing '+'"
+
         # 10) pickle
         assert pickle.loads(pickle.dumps(url1)) == url1
 
