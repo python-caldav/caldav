@@ -60,7 +60,7 @@ instead of following the redirect. The same broken pattern appears twice
 because the whole block is pasted twice (see §6.2; the second copy is partly
 dead code). Fix: `r.headers.get("location")`.
 
-### 1.2 `davclient.py:302` — URL with username but no password → TypeError `[repro]`
+### 1.2 `davclient.py:302` — URL with username but no password → TypeError `[repro]` ✅ FIXED
 `DAVClient(url='https://user@example.com/dav/', password='secret')`:
 `self.url.username` is set, so `unquote(self.url.password)` runs with
 `password=None` → TypeError inside `urllib.parse.unquote`. The async client
@@ -68,7 +68,7 @@ dead code). Fix: `r.headers.get("location")`.
 also gives **explicit kwargs precedence over URL credentials, while sync does
 the opposite**. Pick one precedence (kwargs should win) and share the code.
 
-### 1.3 `davclient.py:836` / `async_davclient.py:376` — rate-limit retry: `None + float` `[code]`
+### 1.3 `davclient.py:836` / `async_davclient.py:376` — rate-limit retry: `None + float` `[code]` ✅ FIXED
 `sleep_seconds += rate_limit_time_slept / 2` executes *before* the
 `sleep_seconds is None` check. With `rate_limit_handle=True` and
 `rate_limit_default_sleep=None`: first 429 has `Retry-After: 5` → retried;
@@ -76,7 +76,7 @@ second 429 has no usable Retry-After (`compute_sleep_seconds` returns None,
 e.g. `Retry-After: 0`) → `None += 2.5` → TypeError instead of the documented
 `RateLimitError`. Same bug copy-pasted in both clients.
 
-### 1.4 `async_davclient.py:1272` — `aio.get_calendars(calendar_name=...)` can never work `[code]`
+### 1.4 `async_davclient.py:1272` — `aio.get_calendars(calendar_name=...)` can never work `[code]` ✅ FIXED
 The async module-level helper awaits the *synchronous* `Principal.calendar()`,
 which has no async dispatch (`collection.py:448–475`): `calendar_home_set` →
 `get_property` returns a coroutine for async clients, and
@@ -85,7 +85,7 @@ coroutine → TypeError (swallowed into an empty result when
 `raise_errors=False`). Name-based calendar lookup via `caldav.aio` is broken
 end-to-end.
 
-### 1.5 `collection.py:601` — async `freebusy_request` with Principal attendees → AttributeError `[code]`
+### 1.5 `collection.py:601` — async `freebusy_request` with Principal attendees → AttributeError `[code]` ✅ FIXED
 `add_attendee(attendee)` is called *before* the `is_async_client` branch at
 line 604. For a `Principal` attendee on an async client,
 `get_vcal_address()` returns a coroutine, and `add_attendee` then does
@@ -240,12 +240,12 @@ calendar explicitly requested by URL whose displayname is the empty string is
 silently omitted. The async counterpart (`async_davclient.py:1262`) correctly
 uses `is not None`.
 
-### 2.14 `async_davclient.py:957` — async `get_calendars()` lacks the GMX principal-URL fallback `[code]`
+### 2.14 `async_davclient.py:957` — async `get_calendars()` lacks the GMX principal-URL fallback `[code]` ✅ FIXED
 Sync `get_calendars()` (`davclient.py:486–489`) falls back to the principal
 URL when `calendar-home-set` is missing; async returns `[]` for the same
 server. Parity gap.
 
-### 2.15 `async_davclient.py:487` — issue-#158 workaround can return the probe response as the real one `[code]`
+### 2.15 `async_davclient.py:487` — issue-#158 workaround can return the probe response as the real one `[code]` ✅ FIXED
 When the original request dies with a connection abort, the workaround sends
 a probe GET; if that GET is *not* 401+WWW-Authenticate (e.g. 200 with a login
 page), the code falls through and returns the **probe GET's response as the

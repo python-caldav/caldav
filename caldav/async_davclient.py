@@ -226,18 +226,21 @@ class AsyncDAVClient(BaseDAVClient):
         # Parse and store URL
         self.url = URL.objectify(url_str)
 
-        # Extract auth from URL if present
-        url_username = None
-        url_password = None
-        if self.url.username:
-            url_username = unquote(self.url.username)
-        if self.url.password:
-            url_password = unquote(self.url.password)
-
-        # Combine credentials (explicit params take precedence)
-        # Use explicit None check to preserve empty strings (needed for servers with no auth)
-        self.username = username if username is not None else url_username
-        self.password = password if password is not None else url_password
+        # Combine credentials (explicit params take precedence).
+        # An explicit username discards the URL credentials wholesale: they
+        # belong to a different account, and merging them field by field would
+        # let AsyncDAVClient(url="https://bob:hunter2@cal.example.com/",
+        # username="alice") ship alice's login with bob's password.  Overriding
+        # only the password is a different thing - the username still comes
+        # from the URL, so the pair stays coherent.
+        # Use explicit None checks to preserve empty strings (needed for
+        # servers with no auth).
+        if self.url.username and username is None:
+            username = unquote(self.url.username)
+            if password is None and self.url.password:
+                password = unquote(self.url.password)
+        self.username = username
+        self.password = password
         # Strip credentials from stored URL to avoid leaking them in log messages
         self.url = self.url.unauth()
 
@@ -375,13 +378,13 @@ class AsyncDAVClient(BaseDAVClient):
                 self.rate_limit_default_sleep,
                 self.rate_limit_max_sleep,
             )
-            if rate_limit_time_slept:
-                sleep_seconds += rate_limit_time_slept / 2
             if sleep_seconds is None or (
                 self.rate_limit_max_sleep is not None
                 and rate_limit_time_slept > self.rate_limit_max_sleep
             ):
                 raise
+            if rate_limit_time_slept:
+                sleep_seconds += rate_limit_time_slept / 2
             await asyncio.sleep(sleep_seconds)
             return await self.request(
                 url, method, body, headers, rate_limit_time_slept + sleep_seconds
@@ -487,7 +490,11 @@ class AsyncDAVClient(BaseDAVClient):
                 # Retry original request with auth
                 request_kwargs["auth"] = self.auth
                 r = await self.session.request(**request_kwargs)
-            response = DAVResponse(r, self)
+                response = DAVResponse(r, self)
+            else:
+                # Probe GET did not give us a 401+WWW-Authenticate challenge —
+                # auth negotiation failed; re-raise the original connection error
+                raise
 
         # Handle 429/503 rate-limit responses
         error.raise_if_rate_limited(r.status_code, str(url_obj), r.headers.get("Retry-After"))
@@ -958,7 +965,9 @@ class AsyncDAVClient(BaseDAVClient):
         )
         calendar_home_url = extract_home_set(response.results)
         if not calendar_home_url:
-            return []
+            # Fall back to the principal URL as calendar home
+            # (some servers like GMX don't support calendar-home-set)
+            calendar_home_url = str(principal.url)
 
         # Make URL absolute if relative
         calendar_home_url = self._make_absolute_url(calendar_home_url)
@@ -1270,13 +1279,26 @@ async def get_calendars(
                     raise
 
         # Fetch specific calendars by name
-        for cal_name in calendar_names:
+        if calendar_names:
             try:
-                calendar = await principal.calendar(name=cal_name)
-                if calendar:
-                    calendars.append(calendar)
+                all_cals_for_name = await principal.get_calendars()
+                for cal_name in calendar_names:
+                    for cal in all_cals_for_name:
+                        try:
+                            display_name = await cal.get_display_name()
+                            if display_name == cal_name:
+                                calendars.append(cal)
+                                break
+                        except Exception:
+                            pass
+                    else:
+                        log.error(f"No calendar with name '{cal_name}' found")
+                        if raise_errors:
+                            raise error.NotFoundError(f"No calendar with name '{cal_name}' found")
+            except error.NotFoundError:
+                raise
             except Exception as e:
-                log.error(f"Problems fetching calendar by name '{cal_name}': {e}")
+                log.error(f"Problems fetching calendars by name: {e}")
                 if raise_errors:
                     raise
 

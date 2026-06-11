@@ -2885,6 +2885,77 @@ class TestRateLimiting:
                 client.request("/")
 
 
+class TestAsyncProbeResponseNotReturnedAsReal:
+    """§2.15: async _async_request: when the probe GET for issue-#158 workaround does
+    not receive a 401+WWW-Authenticate response, the original exception must be re-raised.
+
+    Before the fix, a probe response with status != 401 (e.g. 200 HTML login page) fell
+    through to response = DAVResponse(r, self), returning the probe GET response as if
+    it were the real request's response — status 200 for a PUT that never happened.
+    """
+
+    @pytest.mark.asyncio
+    async def test_probe_200_reraises_original_exception(self):
+        """If the probe GET returns 200 (not a 401 challenge), the original error must propagate."""
+        from unittest.mock import AsyncMock, patch
+
+        from caldav.async_davclient import AsyncDAVClient
+
+        client = AsyncDAVClient(url="http://cal.example.com/", password="secret")
+
+        probe_resp = mock.MagicMock()
+        probe_resp.status_code = 200
+        probe_resp.reason = "OK"
+        probe_resp.headers = {"Content-Type": "text/html"}
+        probe_resp.reason_phrase = "OK"
+
+        original_error = ConnectionError("server aborted connection")
+
+        async def mock_request(*args, **kwargs):
+            if kwargs.get("method") == "GET" and not kwargs.get("auth"):
+                return probe_resp
+            raise original_error
+
+        with patch.object(client.session, "request", side_effect=mock_request):
+            with pytest.raises((ConnectionError, Exception)):
+                await client._async_request("/some/resource", "PUT", "data", {})
+
+
+class TestRateLimitNoPlusNone:
+    """§1.3: rate-limit retry must not raise TypeError when second 429 has no usable Retry-After.
+
+    sleep_seconds += rate_limit_time_slept / 2 executed before the is-None check,
+    so None += 2.5 raised TypeError instead of the documented RateLimitError.
+    """
+
+    def _make_response(self, status_code, headers=None):
+        r = mock.MagicMock()
+        r.status_code = status_code
+        r.headers = headers or {}
+        r.reason = "Too Many Requests"
+        return r
+
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def test_second_429_without_retry_after_raises_rate_limit_error(self, mocked):
+        """Second 429 with Retry-After: 0 (compute_sleep_seconds → None) must raise
+        RateLimitError, not TypeError."""
+        ok = mock.MagicMock()
+        ok.status_code = 200
+        ok.headers = {}
+        mocked.side_effect = [
+            self._make_response(429, {"Retry-After": "5"}),
+            self._make_response(429, {"Retry-After": "0"}),  # compute_sleep_seconds → None
+        ]
+        client = DAVClient(
+            url="http://cal.example.com/",
+            rate_limit_handle=True,
+            rate_limit_default_sleep=None,
+        )
+        with mock.patch("caldav.davclient.time.sleep"):
+            with pytest.raises(error.RateLimitError):
+                client.request("/")
+
+
 class TestDateToUtcConversion:
     """
     RFC 4791 §9.9: time-range start/end MUST be UTC datetime values.
@@ -3709,6 +3780,52 @@ class TestDAVClientCredentialPrecedence:
         )
         assert client.username == "kwarguser"
         assert client.password == b"kwargpass"
+
+    def test_explicit_username_does_not_borrow_url_password(self):
+        """Gate finding F6: credentials are a pair, not two independent fields.
+
+        Merging them field by field produced ``username="alice"`` with
+        ``password="hunter2"`` — alice's login shipping bob's password."""
+        client = DAVClient(
+            url="https://bob:hunter2@cal.example.com/dav/",
+            username="alice",
+        )
+        assert client.username == "alice"
+        assert client.password is None
+
+    def test_explicit_password_still_pairs_with_the_url_username(self):
+        """Overriding only the password keeps the pair coherent: the username
+        still comes from the URL, so there is no account mismatch."""
+        client = DAVClient(
+            url="https://bob:hunter2@cal.example.com/dav/",
+            password="s3cret",
+        )
+        assert client.username == "bob"
+        assert client.password == b"s3cret"
+
+
+class TestAsyncDAVClientCredentialPairing:
+    """Gate finding F6, async twin: same field-by-field merge, same result."""
+
+    def test_explicit_username_does_not_borrow_url_password(self):
+        from caldav.async_davclient import AsyncDAVClient
+
+        client = AsyncDAVClient(
+            url="https://bob:hunter2@cal.example.com/dav/",
+            username="alice",
+        )
+        assert client.username == "alice"
+        assert client.password is None
+
+    def test_explicit_password_still_pairs_with_the_url_username(self):
+        from caldav.async_davclient import AsyncDAVClient
+
+        client = AsyncDAVClient(
+            url="https://bob:hunter2@cal.example.com/dav/",
+            password="s3cret",
+        )
+        assert client.username == "bob"
+        assert client.password == "s3cret"
 
 
 class TestPostPutRedirect:

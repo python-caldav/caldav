@@ -2657,6 +2657,16 @@ class _AsyncTestSchedulingBase:
         ## Just verify it completes without raising; response format varies per server.
         await coro
 
+        ## §1.5 regression: a Principal object (not a pre-resolved vCalAddress)
+        ## must also work as an attendee.  Both the sync and async freebusy
+        ## tests above only ever passed a resolved address, so the
+        ## _async_freebusy_request branch that awaits Principal.get_vcal_address()
+        ## went uncovered — before the fix add_attendee() received an un-awaited
+        ## coroutine and crashed on attendee_obj.params[...].
+        coro = principals[0].freebusy_request(dtstart, dtend, [principals[0]])
+        assert asyncio.iscoroutine(coro)
+        await coro
+
     # ------------------------------------------------------------------ #
     # Schedule-Tag tests (RFC 6638 section 3.2–3.3)                       #
     # These are async counterparts of the sync tests in                   #
