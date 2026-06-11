@@ -64,18 +64,18 @@ class DataState(ABC):
         """
         cal = self.get_icalendar_copy()
         for comp in cal.subcomponents:
-            if comp.name in ("VEVENT", "VTODO", "VJOURNAL", "FREEBUSY") and "UID" in comp:
+            if comp.name in ("VEVENT", "VTODO", "VJOURNAL", "VFREEBUSY") and "UID" in comp:
                 return str(comp["UID"])
         return None
 
     def get_component_type(self) -> str | None:
-        """Get the component type (VEVENT, VTODO, VJOURNAL, FREEBUSY) without full parsing.
+        """Get the component type (VEVENT, VTODO, VJOURNAL, VFREEBUSY) without full parsing.
 
         Default implementation parses the data, but subclasses can optimize.
         """
         cal = self.get_icalendar_copy()
         for comp in cal.subcomponents:
-            if comp.name in ("VEVENT", "VTODO", "VJOURNAL", "FREEBUSY"):
+            if comp.name in ("VEVENT", "VTODO", "VJOURNAL", "VFREEBUSY"):
                 return comp.name
         return None
 
@@ -149,7 +149,7 @@ class RawDataState(DataState):
             return "VTODO"
         elif "BEGIN:VJOURNAL" in self._data:
             return "VJOURNAL"
-        elif "BEGIN:FREEBUSY" in self._data:
+        elif "BEGIN:VFREEBUSY" in self._data:
             return "VFREEBUSY"
         return None
 

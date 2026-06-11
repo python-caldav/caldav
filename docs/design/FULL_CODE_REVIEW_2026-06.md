@@ -208,14 +208,14 @@ line 617) and the post-filter default block ignores it. On a fully-capable
 server, RFC 4791 substring `text-match` semantics leak through: `'=='`
 `'rain'` matches "Training".
 
-### 2.9 `calendarobjectresource.py:1570` — `_set_data` leaves a stale `DataState` cache `[repro]`
+### 2.9 `calendarobjectresource.py:1570` — `_set_data` leaves a stale `DataState` cache `[repro]` ✅ FIXED
 The raw-string branch clears the legacy instance attributes but never resets
 `self._state`. Sequence: fetch event → touch `event.id` / `is_loaded()`
 (caches state v1) → `event.load()` assigns `self.data = r.raw` → afterwards
 `get_data()` / `get_icalendar_instance()` / `id` still serve the **pre-reload
 content** while `.data` returns the new content.
 
-### 2.10 `datastate.py:152` (+ `:67`, `:78`) — `BEGIN:FREEBUSY` never matches `VFREEBUSY` `[repro]`
+### 2.10 `datastate.py:152` (+ `:67`, `:78`) — `BEGIN:FREEBUSY` never matches `VFREEBUSY` `[repro]` ✅ FIXED
 The component-type sniffing tests for `BEGIN:FREEBUSY`; real data says
 `BEGIN:VFREEBUSY`. A `FreeBusy` object holding raw data gets
 `get_component_type() → None`, so `is_loaded()`/`has_component()` are False,

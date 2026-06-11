@@ -1503,6 +1503,85 @@ END:VCALENDAR
         assert event._get_component_type_cheap() is None
         assert event._has_data() is False
 
+    def test_set_data_updates_state_cache(self) -> None:
+        """§2.9: _set_data (raw string branch) must reset _state so that
+        get_data()/get_icalendar_instance()/id return the new content.
+
+        Bug: _set_data cleared _data/_vobject_instance/_icalendar_instance
+        but never updated self._state.  Once _state was cached by an earlier
+        call to _ensure_state() (e.g. via event.id or is_loaded()), all
+        subsequent reads through the new API served stale content.
+        """
+        from caldav.datastate import RawDataState
+
+        client = DAVClient(url="http://cal.example.com/")
+        ev2 = """BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Example Corp.//CalDAV Client//EN
+BEGIN:VEVENT
+UID:updated-uid@example.com
+DTSTAMP:20260101T000000Z
+DTSTART:20260601T100000Z
+DTEND:20260601T110000Z
+SUMMARY:Updated Event
+END:VEVENT
+END:VCALENDAR
+"""
+        event = Event(client, data=ev1)
+
+        # Prime the state cache — simulates the common scenario where the
+        # object is accessed before a reload (e.g. event.id or is_loaded())
+        assert event.id == "20010712T182145Z-123401@example.com"
+        assert isinstance(event._state, RawDataState)
+
+        # Simulate what load() does: assign new raw data
+        event.data = ev2
+
+        # _state must now reflect the new data
+        assert isinstance(event._state, RawDataState)
+        assert event.get_data() == ev2, "get_data() returned stale pre-reload content"
+        assert event.id == "updated-uid@example.com", "id returned stale UID after reload"
+        assert "Updated Event" in event.get_data()
+
+    def test_vfreebusy_component_type_detection(self) -> None:
+        """§2.10: RawDataState.get_component_type() tested for 'BEGIN:FREEBUSY'
+        but real iCalendar data uses 'BEGIN:VFREEBUSY', so FreeBusy objects
+        got component_type=None → is_loaded()/has_component() False → save()
+        silent no-op and load(only_if_unloaded=True) spuriously reloads.
+        Also fixes get_uid()/get_component_type() in DataState base class
+        which listed 'FREEBUSY' instead of 'VFREEBUSY' as comp.name.
+        """
+        from caldav.datastate import RawDataState
+
+        freebusy_data = """BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//Test//EN
+BEGIN:VFREEBUSY
+UID:freebusy@example.com
+DTSTAMP:20240101T120000Z
+DTSTART:20240601T090000Z
+DTEND:20240601T110000Z
+FREEBUSY:20240601T090000Z/20240601T100000Z
+END:VFREEBUSY
+END:VCALENDAR
+"""
+        state = RawDataState(freebusy_data)
+        assert state.get_component_type() == "VFREEBUSY", (
+            "RawDataState.get_component_type() returned None for VFREEBUSY data "
+            "(was checking for 'BEGIN:FREEBUSY' instead of 'BEGIN:VFREEBUSY')"
+        )
+        assert state.get_uid() == "freebusy@example.com"
+
+        # Also verify via the base class parsers (IcalendarState path)
+        import icalendar
+
+        from caldav.datastate import IcalendarState
+
+        ical = icalendar.Calendar.from_ical(freebusy_data)
+        istate = IcalendarState(ical)
+        assert istate.get_component_type() == "VFREEBUSY"
+        assert istate.get_uid() == "freebusy@example.com"
+
     def testDataAPIEdgeCases(self):
         """Test edge cases in the data API (issue #613)."""
         cal_url = "http://me:hunter2@calendar.example:80/"
