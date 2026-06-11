@@ -1503,6 +1503,85 @@ END:VCALENDAR
         assert event._get_component_type_cheap() is None
         assert event._has_data() is False
 
+    def test_set_data_updates_state_cache(self) -> None:
+        """§2.9: _set_data (raw string branch) must reset _state so that
+        get_data()/get_icalendar_instance()/id return the new content.
+
+        Bug: _set_data cleared _data/_vobject_instance/_icalendar_instance
+        but never updated self._state.  Once _state was cached by an earlier
+        call to _ensure_state() (e.g. via event.id or is_loaded()), all
+        subsequent reads through the new API served stale content.
+        """
+        from caldav.datastate import RawDataState
+
+        client = DAVClient(url="http://cal.example.com/")
+        ev2 = """BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Example Corp.//CalDAV Client//EN
+BEGIN:VEVENT
+UID:updated-uid@example.com
+DTSTAMP:20260101T000000Z
+DTSTART:20260601T100000Z
+DTEND:20260601T110000Z
+SUMMARY:Updated Event
+END:VEVENT
+END:VCALENDAR
+"""
+        event = Event(client, data=ev1)
+
+        # Prime the state cache — simulates the common scenario where the
+        # object is accessed before a reload (e.g. event.id or is_loaded())
+        assert event.id == "20010712T182145Z-123401@example.com"
+        assert isinstance(event._state, RawDataState)
+
+        # Simulate what load() does: assign new raw data
+        event.data = ev2
+
+        # _state must now reflect the new data
+        assert isinstance(event._state, RawDataState)
+        assert event.get_data() == ev2, "get_data() returned stale pre-reload content"
+        assert event.id == "updated-uid@example.com", "id returned stale UID after reload"
+        assert "Updated Event" in event.get_data()
+
+    def test_vfreebusy_component_type_detection(self) -> None:
+        """§2.10: RawDataState.get_component_type() tested for 'BEGIN:FREEBUSY'
+        but real iCalendar data uses 'BEGIN:VFREEBUSY', so FreeBusy objects
+        got component_type=None → is_loaded()/has_component() False → save()
+        silent no-op and load(only_if_unloaded=True) spuriously reloads.
+        Also fixes get_uid()/get_component_type() in DataState base class
+        which listed 'FREEBUSY' instead of 'VFREEBUSY' as comp.name.
+        """
+        from caldav.datastate import RawDataState
+
+        freebusy_data = """BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//Test//EN
+BEGIN:VFREEBUSY
+UID:freebusy@example.com
+DTSTAMP:20240101T120000Z
+DTSTART:20240601T090000Z
+DTEND:20240601T110000Z
+FREEBUSY:20240601T090000Z/20240601T100000Z
+END:VFREEBUSY
+END:VCALENDAR
+"""
+        state = RawDataState(freebusy_data)
+        assert state.get_component_type() == "VFREEBUSY", (
+            "RawDataState.get_component_type() returned None for VFREEBUSY data "
+            "(was checking for 'BEGIN:FREEBUSY' instead of 'BEGIN:VFREEBUSY')"
+        )
+        assert state.get_uid() == "freebusy@example.com"
+
+        # Also verify via the base class parsers (IcalendarState path)
+        import icalendar
+
+        from caldav.datastate import IcalendarState
+
+        ical = icalendar.Calendar.from_ical(freebusy_data)
+        istate = IcalendarState(ical)
+        assert istate.get_component_type() == "VFREEBUSY"
+        assert istate.get_uid() == "freebusy@example.com"
+
     def testDataAPIEdgeCases(self):
         """Test edge cases in the data API (issue #613)."""
         cal_url = "http://me:hunter2@calendar.example:80/"
@@ -1624,6 +1703,31 @@ END:VCALENDAR
         assert "DTSTART" not in my_todo4.component
         assert "DUE" not in my_todo4.component
         assert my_todo4.component["duration"].dt == timedelta(2)
+
+    def testTodoDurationTimedDtstart(self):
+        """§2.11: _get_duration must return timedelta(0) for a VTODO with a timed DTSTART
+        and no DUE/DURATION — not timedelta(days=1).
+
+        isinstance(i["DTSTART"], datetime) tested the vDDDTypes wrapper (always False),
+        so the date-vs-datetime branch always took the 'is a date' path, returning 1 day.
+        Fix: test isinstance(i["DTSTART"].dt, datetime) instead.
+        """
+        cal_url = "http://me:hunter2@calendar.example:80/"
+        client = DAVClient(url=cal_url)
+        todo_timed_dtstart = """BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//EN
+BEGIN:VTODO
+UID:timed-dtstart@example.com
+DTSTAMP:20240101T000000Z
+DTSTART:20240601T100000Z
+SUMMARY:Todo with timed DTSTART only
+END:VTODO
+END:VCALENDAR"""
+        todo_item = Todo(client, data=todo_timed_dtstart)
+        assert todo_item.get_duration() == timedelta(0), (
+            f"Expected timedelta(0) for timed DTSTART with no DUE, got {todo_item.get_duration()}"
+        )
 
     def testURL(self):
         """Exercising the URL class"""
@@ -3161,6 +3265,97 @@ class TestGetAllFileConnectionParams:
             "https://work.example.com/dav/",
             "https://personal.example.com/dav/",
         }
+
+
+class TestExplicitParamsMerge:
+    """§2.18: get_connection_params explicit kwargs must be merged with env/file config.
+
+    The old code only returned explicit_params when 'url' or 'features' was present;
+    params like password-only were silently discarded when an env/file source was found.
+    """
+
+    def test_explicit_password_merged_with_env_url(self, monkeypatch):
+        """get_connection_params(password='secret') with CALDAV_URL in env must include the password."""
+        from caldav.config import get_connection_params
+
+        monkeypatch.setenv("CALDAV_URL", "https://env.example.com/")
+        monkeypatch.setenv("CALDAV_USERNAME", "envuser")
+        # Unset file config to avoid config-file interference
+        monkeypatch.delenv("CALDAV_CONFIG_FILE", raising=False)
+        result = get_connection_params(password="secret", check_config_file=False)
+        assert result is not None
+        assert result.get("password") == "secret"
+        assert result.get("url") == "https://env.example.com/"
+
+    def test_explicit_none_does_not_clobber_env_url(self, monkeypatch):
+        """Gate finding F8: a kwarg that is explicitly None is "not supplied",
+        not "unset it".
+
+        The common CLI wrapper -- get_davclient(url=args.url,
+        username=args.user, password=args.password) where the user only gave
+        --password -- overlaid url=None on top of the winning source and
+        wiped CALDAV_URL."""
+        from caldav.config import get_connection_params
+
+        monkeypatch.setenv("CALDAV_URL", "https://env.example.com/")
+        monkeypatch.setenv("CALDAV_USERNAME", "envuser")
+        monkeypatch.delenv("CALDAV_CONFIG_FILE", raising=False)
+        result = get_connection_params(
+            url=None, username=None, password="secret", check_config_file=False
+        )
+        assert result is not None
+        assert result.get("url") == "https://env.example.com/"
+        assert result.get("username") == "envuser"
+        assert result.get("password") == "secret"
+
+    def test_empty_string_username_is_still_explicit(self, monkeypatch):
+        """An empty username is meaningful (servers with no auth) and must
+        not be discarded along with the Nones."""
+        from caldav.config import get_connection_params
+
+        monkeypatch.setenv("CALDAV_URL", "https://env.example.com/")
+        monkeypatch.setenv("CALDAV_USERNAME", "envuser")
+        monkeypatch.delenv("CALDAV_CONFIG_FILE", raising=False)
+        result = get_connection_params(username="", check_config_file=False)
+        assert result is not None
+        assert result.get("username") == ""
+
+    def test_explicit_params_merged_with_test_server_config(self, monkeypatch):
+        """Gate finding F8: the testconfig branch returned the test-server
+        config verbatim, dropping the explicit kwargs entirely."""
+        from caldav import config as config_module
+        from caldav.config import get_connection_params
+
+        monkeypatch.setattr(
+            config_module,
+            "_get_test_server_config",
+            lambda *a, **kw: {"url": "https://testserver.example.com/", "username": "testuser"},
+        )
+        result = get_connection_params(testconfig=True, password="secret")
+        assert result is not None
+        assert result.get("url") == "https://testserver.example.com/"
+        assert result.get("password") == "secret"
+
+
+class TestResolveFeaturesMutation:
+    """§2.19: resolve_features and testing.py server classes must deepcopy hint dicts.
+
+    Returning or shallow-copying a module-level dict then mutating a nested key
+    permanently corrupts the module-level dict for all subsequent users.
+    """
+
+    def test_resolve_features_string_returns_independent_copy(self):
+        """resolve_features('xandikos') must return a deep copy, not the module object."""
+        from caldav import compatibility_hints as hints
+        from caldav.config import resolve_features
+
+        original_domain = hints.xandikos.get("auto-connect.url", {}).get("domain", "<sentinel>")
+        result = resolve_features("xandikos")
+        # Mutate the returned copy
+        if "auto-connect.url" in result and isinstance(result["auto-connect.url"], dict):
+            result["auto-connect.url"]["domain"] = "MUTATED:9999"
+        # Original must be unchanged
+        assert hints.xandikos.get("auto-connect.url", {}).get("domain") == original_domain
 
 
 class TestResolveProperties:

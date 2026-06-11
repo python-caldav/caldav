@@ -183,7 +183,7 @@ def resolve_features(features):
         feature_name = features
         if feature_name.startswith("compatibility_hints."):
             feature_name = feature_name[len("compatibility_hints.") :]
-        return getattr(caldav.compatibility_hints, feature_name)
+        return copy.deepcopy(getattr(caldav.compatibility_hints, feature_name))
     if isinstance(features, dict) and "base" in features:
         base_name = features["base"]
         if isinstance(base_name, str):
@@ -264,16 +264,24 @@ def get_connection_params(
         Dict with connection parameters (url, username, password, etc.)
         or None if no configuration found.
     """
-    # 1. Explicit parameters take highest priority
-    if explicit_params:
-        # Filter to valid connection keys
-        conn_params = {k: v for k, v in explicit_params.items() if k in CONNKEYS}
-        if conn_params.get("url") or conn_params.get("features"):
-            # Return when URL is given, or when features are given (the
-            # client constructor resolves URL from auto-connect.url hints
-            # via _auto_url()).  Don't fall through to env vars/config
-            # files when the caller explicitly provided connection info.
-            return conn_params
+    # 1. Explicit parameters take highest priority.
+    # A kwarg whose value is None counts as "not supplied" rather than
+    # "unset it" - the common CLI wrapper get_davclient(url=args.url,
+    # username=args.user, password=args.password) passes None for every
+    # option the user left out, and overlaying those on the winning source
+    # would wipe CALDAV_URL and friends.  An empty string is kept: it is
+    # meaningful for servers with no authentication.
+    explicit_conn = (
+        {k: v for k, v in explicit_params.items() if k in CONNKEYS and v is not None}
+        if explicit_params
+        else {}
+    )
+    if explicit_conn.get("url") or explicit_conn.get("features"):
+        # Return when URL is given, or when features are given (the
+        # client constructor resolves URL from auto-connect.url hints
+        # via _auto_url()).  Don't fall through to env vars/config
+        # files when the caller explicitly provided connection info.
+        return explicit_conn
 
     # Check for config file path from environment early (needed for test server config too)
     if environment:
@@ -286,6 +294,9 @@ def get_connection_params(
     if testconfig or (environment and os.environ.get("PYTHON_CALDAV_USE_TEST_SERVER")):
         conn = _get_test_server_config(name, environment, config_file)
         if conn is not None:
+            # Explicit kwargs outrank the discovered test server, same as for
+            # the environment and config-file sources below.
+            conn.update(explicit_conn)
             return conn
         # In test mode, don't fall through to regular config - return None
         # This prevents accidentally using personal/production servers for testing
@@ -299,15 +310,17 @@ def get_connection_params(
     if environment:
         conn_params = _get_env_config()
         if conn_params:
+            conn_params.update(explicit_conn)
             return conn_params
 
     # 4. Config file
     if check_config_file:
         conn_params = _get_file_config(config_file, config_section)
         if conn_params:
+            conn_params.update(explicit_conn)
             return conn_params
 
-    return None
+    return explicit_conn or None
 
 
 def _get_env_config() -> dict[str, Any] | None:
