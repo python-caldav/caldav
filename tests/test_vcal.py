@@ -281,6 +281,30 @@ END:VCALENDAR""",
         for ical in non_broken_ical:
             assert vcal.fix(ical) == ical
 
+    def test_completed_date_fixup_preserves_next_property(self) -> None:
+        """Bug §2.1: COMPLETED date fixup regex consumed the trailing newline,
+        merging the next property line into COMPLETED and destroying it."""
+        ical = """BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Example Corp.//CalDAV Client//EN
+BEGIN:VTODO
+UID:20070313T123432Z-456553@example.com
+DTSTAMP:20070313T123432Z
+COMPLETED:20070501
+SUMMARY:Submit Quebec Income Tax Return for 2006
+STATUS:NEEDS-ACTION
+END:VTODO
+END:VCALENDAR"""
+        fixed = vcal.fix(ical)
+        cal = icalendar.Calendar.from_ical(fixed)
+        todo = list(cal.walk("VTODO"))[0]
+        assert str(todo["SUMMARY"]) == "Submit Quebec Income Tax Return for 2006", (
+            "SUMMARY was destroyed by COMPLETED fixup (newline consumed)"
+        )
+        assert "SUMMARY" not in str(todo["COMPLETED"].dt), (
+            "COMPLETED value should not contain SUMMARY text"
+        )
+
     def test_missing_dtstamp_fix(self) -> None:
         """
         Test that missing DTSTAMP is added by the fix function.
