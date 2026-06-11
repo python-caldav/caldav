@@ -25,6 +25,7 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 
 ### Added
 
+* `caldav.config.extract_conn_params_from_section` is now public API (renamed from `_extract_conn_params_from_section`), so that downstream tools like plann can map plann-style config sections (`caldav_url`, `caldav_user`, `features`, etc.) to `DAVClient` parameters without duplicating the logic.
 * New compatibility feature `create-calendar.set-displayname.stable-url` (default `full`): whether setting a calendar's display name leaves its URL unchanged.  Both Zimbra and OX couple the two — a calendar created with a display name is exposed under a display-name-derived URL (Zimbra) or an internal `cal://0/NNN` id (OX) rather than the requested `cal_id`; an alias may linger at the `cal_id` URL but is unreliable (Zimbra) or non-canonical (OX).  Both are marked `create-calendar.set-displayname: full` + `create-calendar.set-displayname.stable-url: unsupported`; the library omits the display name from the `MKCALENDAR` request for such servers so the calendar stays addressable at its requested `cal_id` URL.
 * New `compatibility_workarounds` parameter on `Calendar.search()` / `CalDAVSearcher.search()` / `async_search()`.  When `False`, all server-compatibility workarounds are disabled and the query is sent verbatim (a single REPORT, no comp-type splitting, no filter rewriting, no fallback retries).  Mainly for the server-compatibility checker, to observe raw server behaviour.
 
