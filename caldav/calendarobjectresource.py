@@ -722,7 +722,7 @@ class CalendarObjectResource(DAVObject):
                 raise NotImplementedError(
                     "do we need to support this anyway?  Should be trivial, but can't figure out how to do it with the icalendar.Event/vCalAddress objects right now"
                 )
-            elif attendee.startswith("mailto:"):
+            elif attendee.lower().startswith("mailto:"):
                 attendee_obj = vCalAddress(attendee)
             elif "@" in attendee and ":" not in attendee and ";" not in attendee:
                 attendee_obj = vCalAddress("mailto:" + attendee)
@@ -1268,7 +1268,12 @@ class CalendarObjectResource(DAVObject):
             return
 
         ical_obj = self.icalendar_component
-        attendee_lines = ical_obj["attendee"]
+        try:
+            attendee_lines = ical_obj["attendee"]
+        except KeyError:
+            raise error.NotFoundError(
+                f"Participant {attendee!r} not found in attendee list (no ATTENDEE properties)"
+            ) from None
         if isinstance(attendee_lines, str):
             attendee_lines = [attendee_lines]
 
@@ -1280,7 +1285,7 @@ class CalendarObjectResource(DAVObject):
                 attendee_line.params.update(kwargs)
                 cnt += 1
         if not cnt:
-            raise error.NotFoundError("Participant %s not found in attendee list")
+            raise error.NotFoundError(f"Participant {attendee!r} not found in attendee list")
         error.assert_(cnt == 1)
 
     def save(

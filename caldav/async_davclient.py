@@ -432,7 +432,7 @@ class AsyncDAVClient(BaseDAVClient):
             log.debug(f"server responded with {r.status_code} {reason}")
             if (
                 r.status_code == 401
-                and "text/html" in self.headers.get("Content-Type", "")
+                and "text/html" in r.headers.get("Content-Type", "")
                 and not self.auth
             ):
                 msg = (

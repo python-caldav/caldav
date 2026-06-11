@@ -93,13 +93,13 @@ line 604. For a `Principal` attendee on an async client,
 `_async_save_with_invites` (`collection.py:983–984`) already does the awaited
 conversion correctly — the same dance is missing here.
 
-### 1.6 `calendarobjectresource.py:727` — `add_attendee("MAILTO:user@example.com")` → UnboundLocalError `[code]`
+### 1.6 `calendarobjectresource.py:727` — `add_attendee("MAILTO:user@example.com")` → UnboundLocalError `[code]` ✅ FIXED
 The string-branch chain is case-sensitive: uppercase `MAILTO:` (common in
 real-world iCalendar; RFC 3986 schemes are case-insensitive) fails
 `startswith("mailto:")` and fails the `":" not in attendee` branch, so
 `attendee_obj` is never assigned and line 742 raises UnboundLocalError.
 
-### 1.7 `calendarobjectresource.py:1272` — `change_attendee_status` raises bare KeyError; `:1284` literal `%s` `[repro]`
+### 1.7 `calendarobjectresource.py:1272` — `change_attendee_status` raises bare KeyError; `:1284` literal `%s` `[repro]` ✅ FIXED
 When the component has no ATTENDEE property at all, `ical_obj['attendee']`
 raises `KeyError('ATTENDEE')` — not `error.NotFoundError`, which is the only
 thing the principal-address loops catch — so the "Principal is not invited"
@@ -107,13 +107,13 @@ fallback is unreachable. Additionally the genuine not-found raise is
 `error.NotFoundError("Participant %s not found in attendee list")` with no
 `% attendee`: the user literally sees `%s`.
 
-### 1.8 `lib/auth.py:31` — IndexError on malformed WWW-Authenticate `[repro]`
+### 1.8 `lib/auth.py:31` — IndexError on malformed WWW-Authenticate `[repro]` ✅ FIXED
 `extract_auth_types('Basic realm="x",')` (trailing comma — seen in the wild)
 → the empty segment makes `h.split()[0]` raise IndexError, aborting the auth
 negotiation with an unrelated traceback. Guard with
 `for h in header.split(",") if h.strip()`.
 
-### 1.9 `config.py:37` — missing section raises KeyError instead of returning empty `[repro]`
+### 1.9 `config.py:37` — missing section raises KeyError instead of returning empty `[repro]` ✅ FIXED
 `expand_config_section` does `config[section]` for non-glob names. A config
 file with only named sections (no `default`) makes plain
 `caldav.get_calendars()` crash with `KeyError: 'default'` instead of falling
@@ -234,7 +234,7 @@ late, and `Todo._next` shifts the recurrence.
 while the async twin passes the caller's timestamp through. Sync/async
 divergence with user-visible effect on the recorded COMPLETED time.
 
-### 2.13 `base_client.py:689` — calendar with displayname `""` dropped from results `[code]`
+### 2.13 `base_client.py:689` — calendar with displayname `""` dropped from results `[code]` ✅ FIXED
 `if _try(calendar.get_display_name, ...)` is a truthiness check, so a
 calendar explicitly requested by URL whose displayname is the empty string is
 silently omitted. The async counterpart (`async_davclient.py:1262`) correctly
@@ -253,12 +253,12 @@ original request's response** — the caller sees status 200 for a PUT that
 never happened, and the real connection error is lost. Also: the sync client
 has no #158 workaround at all (parity gap in the other direction).
 
-### 2.16 `async_davclient.py:435` — HTML-on-401 hint checks the wrong headers `[code]`
+### 2.16 `async_davclient.py:435` — HTML-on-401 hint checks the wrong headers `[code]` ✅ FIXED
 The diagnostic checks `self.headers` (the client's own request headers) for
 `text/html` instead of `r.headers`, so the intended "server returned HTML,
 maybe set auth_type" hint can never fire.
 
-### 2.17 `config.py:50` — `disable: true` ignored for named sections `[repro]`
+### 2.17 `config.py:50` — `disable: true` ignored for named sections `[repro]` ✅ FIXED
 `expand_config_section` checks `config.get("section", ...)` with the string
 literal `"section"` instead of the variable. `disable` only works under
 `section='*'`; sections pulled in via a meta-section's `contains` list (or by

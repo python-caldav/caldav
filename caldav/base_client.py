@@ -686,7 +686,7 @@ def _fetch_calendars_for_client(
             calendar = principal.calendar(cal_url=cal_url)
         else:
             calendar = principal.calendar(cal_id=cal_url)
-        if _try(calendar.get_display_name, {}, f"calendar {cal_url}"):
+        if _try(calendar.get_display_name, {}, f"calendar {cal_url}") is not None:
             calendars.append(calendar)
 
     for cal_name in calendar_names:
