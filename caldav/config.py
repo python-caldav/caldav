@@ -330,7 +330,7 @@ def _get_file_config(file_path: str | None, section_name: str | None) -> dict[st
         return None
 
     section_data = config_section(cfg, section_name)
-    return _extract_conn_params_from_section(section_data)
+    return extract_conn_params_from_section(section_data)
 
 
 def _get_test_server_config(
@@ -492,8 +492,15 @@ def _test_server_to_params(server: Any, was_already_started: bool) -> dict[str, 
     return params
 
 
-def _extract_conn_params_from_section(section_data: dict[str, Any]) -> dict[str, Any] | None:
+def extract_conn_params_from_section(section_data: dict[str, Any]) -> dict[str, Any] | None:
     """Extract connection parameters from a config section dict.
+
+    Keys prefixed with ``caldav_`` are mapped to client constructor parameters
+    (with ``caldav_user``/``caldav_pass`` accepted as aliases for
+    username/password), environment variable references are expanded, and a
+    ``features`` key is resolved through :func:`resolve_features`.  Public so
+    that downstream tools (e.g. plann) can reuse it on plann-style config
+    sections.
 
     Returns a dict containing only CONNKEYS entries.  Returns ``None`` if
     neither a server URL nor features are present (with features, the client
@@ -550,7 +557,7 @@ def get_all_file_connection_params(
     result: list[dict[str, Any]] = []
     for s in sections:
         section_data = config_section(cfg, s)
-        params = _extract_conn_params_from_section(section_data)
+        params = extract_conn_params_from_section(section_data)
         if params:
             # Add calendar filter keys — these must NOT flow into DAVClient()
             for k in ("calendar_name", "calendar_url"):
@@ -585,7 +592,7 @@ def get_all_test_servers(
     for section_name in cfg:
         section_data = config_section(cfg, section_name)
         if section_data.get("testing_allowed"):
-            conn_params = _extract_conn_params_from_section(section_data)
+            conn_params = extract_conn_params_from_section(section_data)
             if conn_params:
                 # Also copy the raw section data for keys not in CONNKEYS
                 # (e.g., testing_allowed itself, or custom keys)
