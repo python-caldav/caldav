@@ -141,6 +141,31 @@ CATEGORIES:WORK,SOCIAL
 END:VEVENT
 END:VCALENDAR"""
 
+# Two events for §2.6 combined-is-logical-and tests
+SPECIAL_EVENT = """BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//Test//EN
+BEGIN:VEVENT
+UID:special-event@example.com
+DTSTAMP:20240101T120000Z
+DTSTART:20240615T140000Z
+DTEND:20240615T150000Z
+SUMMARY:My Special Event
+END:VEVENT
+END:VCALENDAR"""
+
+UNRELATED_EVENT = """BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//Test//EN
+BEGIN:VEVENT
+UID:unrelated-event@example.com
+DTSTAMP:20240101T120000Z
+DTSTART:20240615T160000Z
+DTEND:20240615T170000Z
+SUMMARY:Unrelated Meeting
+END:VEVENT
+END:VCALENDAR"""
+
 
 @pytest.fixture
 def mock_client() -> DAVClient:
@@ -1104,3 +1129,70 @@ class TestSearchDriverExceptionHandling:
         searcher = CalDAVSearcher(event=True)
         with pytest.raises(RuntimeError, match="boom"):
             searcher.search(calendar)
+
+
+class TestCombinedIsLogicalAndWorkaround:
+    """§2.6: combined-is-logical-and workaround must apply property filters client-side.
+
+    When search.combined-is-logical-and is False, the workaround strips all
+    property filters from the server query (sending only the time range) and
+    must apply them client-side afterward.  The bug passed the ambient
+    post_filter=None instead of True, so _filter_search_results short-circuited
+    and returned all objects in the time range unfiltered.
+    """
+
+    def _make_calendar_with_features(self) -> "tuple":
+        """Return (client, calendar) with combined-is-logical-and: unsupported."""
+        from caldav import Calendar
+        from caldav.compatibility_hints import FeatureSet
+
+        features = FeatureSet(
+            {
+                "search.combined-is-logical-and": "unsupported",
+                "search.text": "full",
+                "search.text.substring": "full",
+                "search.text.case-sensitive": "full",
+                "search.time-range.accurate": "full",
+                "search.unlimited-time-range": "full",
+            }
+        )
+        from caldav.davclient import DAVClient
+
+        client = DAVClient(url="https://cal.example.com/")
+        client.features = features
+        cal = Calendar(client=client, url="https://cal.example.com/cal/")
+        return client, cal
+
+    def test_summary_filter_applied_client_side(self) -> None:
+        """Time-range + SUMMARY filter on combined-is-logical-and:unsupported server
+        must return only events whose SUMMARY matches — not every event in the range."""
+        client, cal = self._make_calendar_with_features()
+
+        special = Event(
+            client=client,
+            url="https://cal.example.com/cal/special.ics",
+            data=SPECIAL_EVENT,
+            parent=cal,
+        )
+        unrelated = Event(
+            client=client,
+            url="https://cal.example.com/cal/unrelated.ics",
+            data=UNRELATED_EVENT,
+            parent=cal,
+        )
+
+        mock_response = mock.MagicMock()
+        cal._request_report_build_resultlist = mock.Mock(
+            return_value=(mock_response, [special, unrelated])
+        )
+
+        start = datetime(2024, 6, 15, 0, 0, tzinfo=timezone.utc)
+        end = datetime(2024, 6, 16, 0, 0, tzinfo=timezone.utc)
+        searcher = CalDAVSearcher(event=True, start=start, end=end)
+        searcher.add_property_filter("SUMMARY", "Special", operator="contains")
+
+        results = searcher.search(cal)
+
+        summaries = [str(r.icalendar_component["SUMMARY"]) for r in results]
+        assert len(results) == 1, f"Expected 1 result, got {len(results)}: {summaries}"
+        assert "Special" in summaries[0]

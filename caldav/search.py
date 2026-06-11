@@ -645,7 +645,7 @@ class CalDAVSearcher(Searcher):
                     )
                     yield (
                         SearchAction.RETURN,
-                        self.filter(objects, post_filter, split_expanded, server_expand),
+                        self.filter(objects, True, split_expanded, server_expand),
                     )
                     return
 

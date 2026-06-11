@@ -184,7 +184,7 @@ then overwrites `url_raw`/`url_parsed` **in place** — a mere `==` comparison
 silently rewrites the URL (port added, path re-quoted; a literal `+` becomes
 `%2B`), so subsequent requests can go to a different resource.
 
-### 2.6 `search.py:648` — `combined-is-logical-and` workaround silently drops property filters `[code]`
+### 2.6 `search.py:648` — `combined-is-logical-and` workaround silently drops property filters `[code]` ✅ FIXED
 The workaround strips property filters from the server query but passes the
 *ambient* `post_filter` (still `None` on otherwise-capable servers — e.g.
 Nextcloud, whose only relevant flag is `search.combined-is-logical-and:
