@@ -285,7 +285,7 @@ permanently polluted for the whole process, redirecting any later
 
 ## 3. Security
 
-### 3.1 `discovery.py:329` — `require_tls=True` not enforced on well-known redirect target `[code]`
+### 3.1 `discovery.py:329` — `require_tls=True` not enforced on well-known redirect target `[code]` ✅ FIXED
 `_well_known_lookup` never receives `require_tls`; a same-domain `Location:
 http://...` passes the `_is_subdomain_or_same` check and is returned as
 `ServiceInfo(tls=False)`, which `discover_service` returns unchecked. A

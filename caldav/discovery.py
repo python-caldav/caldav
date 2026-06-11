@@ -393,6 +393,10 @@ def discover_service(
                      DNS-based downgrade attacks to plaintext HTTP. Set to False
                      only if you explicitly need to support non-TLS servers and
                      trust your DNS infrastructure.
+                     NOTE: this gates the discovery path only; the client does not
+                     enforce TLS on explicitly-passed URLs. Global enforcement is
+                     deferred to 4.0 — see
+                     https://github.com/python-caldav/caldav/issues/687
 
     Returns:
         ServiceInfo object with discovered service details, or None if discovery fails
@@ -481,10 +485,16 @@ def discover_service(
     well_known_info = _well_known_lookup(domain, service_type, timeout, ssl_verify_cert)
 
     if well_known_info:
-        # Preserve username from email address
-        well_known_info.username = username
-        log.info(f"Discovered {service_type} service via well-known URI: {well_known_info.url}")
-        return well_known_info
+        if require_tls and not well_known_info.tls:
+            log.warning(
+                f"require_tls=True: Rejecting well-known redirect to non-TLS URL "
+                f"{well_known_info.url!r} — possible misconfiguration or downgrade attack"
+            )
+        else:
+            # Preserve username from email address
+            well_known_info.username = username
+            log.info(f"Discovered {service_type} service via well-known URI: {well_known_info.url}")
+            return well_known_info
 
     # All discovery methods failed
     log.warning(f"Failed to discover {service_type} service for {domain}")

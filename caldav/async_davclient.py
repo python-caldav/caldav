@@ -163,6 +163,9 @@ class AsyncDAVClient(BaseDAVClient):
             features: FeatureSet for server compatibility workarounds.
             enable_rfc6764: Enable RFC6764 DNS-based service discovery.
             require_tls: Require TLS for discovered services (security consideration).
+                Only gates the RFC6764 discovery path; it does NOT reject an
+                explicitly-passed http:// URL. Global enforcement is deferred to
+                4.0 — see https://github.com/python-caldav/caldav/issues/687
             rate_limit_handle: When True, automatically sleep and retry on 429/503
                 responses. When None (default), auto-detected from server features.
                 When False, raise RateLimitError immediately.
