@@ -1882,6 +1882,9 @@ END:VCALENDAR
                 "basic",
                 "digest",
             }
+            # §1.8: trailing comma (seen in the wild) must not raise IndexError
+            assert client.extract_auth_types("Basic,") == {"basic"}
+            assert client.extract_auth_types('Basic realm="x",') == {"basic"}
 
     def testAutoUrlEcloudWithEmailUsername(self) -> None:
         """
@@ -2998,6 +3001,26 @@ class TestExpandConfigSection:
         }
         assert set(expand_config_section(config, "all")) == {"a", "b", "c"}
 
+    def test_missing_section_returns_empty(self):
+        """§1.9: expand_config_section(config, "default") when "default" is absent must
+        return [] rather than raising KeyError."""
+        from caldav.config import expand_config_section
+
+        config = {"work": {"caldav_url": "https://work.example.com/"}}
+        # Requesting a section that doesn't exist should return [] (no match), not crash
+        assert expand_config_section(config, "default") == []
+
+    def test_disable_respected_for_named_sections(self):
+        """§2.17: disable:true must suppress named sections, not just glob '*' results.
+
+        The old code used the literal string 'section' instead of the variable,
+        so disable was only effective under the '*' glob path.
+        """
+        from caldav.config import expand_config_section
+
+        config = {"work": {"caldav_url": "https://work.example.com/", "disable": True}}
+        assert expand_config_section(config, "work") == []
+
 
 class TestConfigSectionInheritance:
     """Unit tests for caldav.config.config_section (inherits key)."""
@@ -3390,6 +3413,84 @@ END:VCALENDAR
         ev = self._make_event_with_mock_client("just_a_username")
         with pytest.raises(caldav_error.NotFoundError):
             ev.change_attendee_status(partstat="ACCEPTED")
+
+
+class TestAddAttendee:
+    """§1.6: add_attendee() crashes with UnboundLocalError on uppercase MAILTO: scheme.
+
+    RFC 3986 §3.1 specifies URI schemes are case-insensitive, so "MAILTO:user@example.com"
+    is valid and common in real-world iCalendar data.  The old code only matched lowercase
+    "mailto:" — uppercase fell through all string branches, leaving attendee_obj unassigned.
+    """
+
+    _base_event = """\
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//Test//EN
+BEGIN:VEVENT
+UID:test-add-attendee@example.com
+DTSTAMP:20240101T000000Z
+DTSTART:20240601T100000Z
+DTEND:20240601T110000Z
+SUMMARY:Test event
+END:VEVENT
+END:VCALENDAR
+"""
+
+    def test_add_attendee_uppercase_mailto(self):
+        """add_attendee('MAILTO:user@example.com') must not raise UnboundLocalError."""
+        ev = Event(data=self._base_event)
+        ev.add_attendee("MAILTO:user@example.com")
+        attendee = ev.icalendar_component["attendee"]
+        assert "user@example.com" in str(attendee).lower()
+
+    def test_add_attendee_mixed_case_mailto(self):
+        """Mixed-case scheme variants like 'Mailto:' must also work."""
+        ev = Event(data=self._base_event)
+        ev.add_attendee("Mailto:user@example.com")
+        attendee = ev.icalendar_component["attendee"]
+        assert "user@example.com" in str(attendee).lower()
+
+
+class TestChangeAttendeeStatusNoAttendees:
+    """§1.7: change_attendee_status() raises bare KeyError when event has no ATTENDEE property.
+
+    ical_obj["attendee"] raises KeyError when the key is absent; the NotFoundError-catching
+    loop in the Principal branch never sees it, so the "Principal is not invited" message
+    is unreachable and callers get an unexpected KeyError instead.
+
+    Also: the not-found message contained a literal '%s' placeholder that was never
+    substituted.
+    """
+
+    _event_no_attendees = """\
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//Test//EN
+BEGIN:VEVENT
+UID:test-no-attendees@example.com
+DTSTAMP:20240101T000000Z
+DTSTART:20240601T100000Z
+DTEND:20240601T110000Z
+SUMMARY:Event with no attendees
+END:VEVENT
+END:VCALENDAR
+"""
+
+    def test_change_attendee_status_no_attendees_raises_not_found(self):
+        """Calling change_attendee_status on an event with no ATTENDEE must raise
+        NotFoundError, not KeyError."""
+        ev = Event(data=self._event_no_attendees)
+        with pytest.raises(error.NotFoundError):
+            ev.change_attendee_status("mailto:nobody@example.com", partstat="ACCEPTED")
+
+    def test_change_attendee_status_error_message_contains_attendee(self):
+        """The not-found error message must contain the attendee address, not a literal '%s'."""
+        ev = Event(data=self._event_no_attendees)
+        with pytest.raises(error.NotFoundError) as exc_info:
+            ev.change_attendee_status("mailto:nobody@example.com", partstat="ACCEPTED")
+        assert "%s" not in str(exc_info.value)
+        assert "nobody@example.com" in str(exc_info.value)
 
 
 class TestXMLEntityHardening:
