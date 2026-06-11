@@ -140,7 +140,13 @@ class URL:
         """
         url = self.unauth()
 
-        arr = list(cast(urllib.parse.ParseResult, self.url_parsed))
+        # Use url's parsed form (credentials already stripped), not self's.
+        # Also always build a fresh URL so self is never mutated — unauth()
+        # returns self when there are no credentials, and the old code then
+        # overwrote url.url_raw/url_parsed which are the same object as self.
+        if url.url_parsed is None:
+            url.url_parsed = cast(urllib.parse.ParseResult, urlparse(str(url)))
+        arr = list(url.url_parsed)
         ## quoting path and removing double slashes
         arr[2] = quote(unquote(url.path.replace("//", "/")))
         ## sensible defaults
@@ -155,11 +161,7 @@ class URL:
                 portpart = ""
             arr[1] += portpart
 
-        # make sure to delete the string version
-        url.url_raw = urlunparse(arr)
-        url.url_parsed = None
-
-        return url
+        return URL(urlunparse(arr))
 
     def join(self, path: Any) -> "URL":
         """
