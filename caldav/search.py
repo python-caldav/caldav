@@ -190,7 +190,8 @@ def _build_search_xml_query(
     for property in searcher._property_operator:
         if searcher._property_operator[property] == "undef":
             match = cdav.NotDefined()
-            filters.append(cdav.PropFilter(property.upper()) + match)
+            prop_name = "CATEGORIES" if property.lower() == "category" else property.upper()
+            filters.append(cdav.PropFilter(prop_name) + match)
         else:
             value = searcher._property_filters[property]
             property_ = property.upper()
@@ -528,6 +529,7 @@ class CalDAVSearcher(Searcher):
                 or self.expand
                 or "categories" in self._property_filters
                 or "category" in self._property_filters
+                or any(op == "==" for op in self._property_operator.values())
                 or not calendar.client.features.is_supported("search.text.case-sensitive")
                 or not calendar.client.features.is_supported("search.time-range.accurate")
             )
@@ -662,7 +664,7 @@ class CalDAVSearcher(Searcher):
                     )
                     yield (
                         SearchAction.RETURN,
-                        self.filter(objects, post_filter, split_expanded, server_expand),
+                        self.filter(objects, True, split_expanded, server_expand),
                     )
                     return
 
