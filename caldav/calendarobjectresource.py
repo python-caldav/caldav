@@ -1574,6 +1574,7 @@ class CalendarObjectResource(DAVObject):
         self._data = vcal.fix(data)
         self._vobject_instance = None
         self._icalendar_instance = None
+        self._state = RawDataState(self._data)
         return self
 
     def _get_data(self):
@@ -1944,7 +1945,7 @@ class CalendarObjectResource(DAVObject):
                 start = datetime(start.year, start.month, start.day)
                 end = datetime(end.year, end.month, end.day)
             return end - start
-        elif "DTSTART" in i and not isinstance(i["DTSTART"], datetime):
+        elif "DTSTART" in i and not isinstance(i["DTSTART"].dt, datetime):
             return timedelta(days=1)
         else:
             return timedelta(0)
@@ -2141,7 +2142,7 @@ class Todo(CalendarObjectResource):
         completed.url = self.parent.url.join(completed.id + ".ics")
         completed.icalendar_component.pop("RRULE")
         completed.save()
-        completed.complete()
+        completed.complete(completion_timestamp=completion_timestamp)
 
         duration = self.get_duration()
         i = self.icalendar_component

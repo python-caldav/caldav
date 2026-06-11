@@ -208,28 +208,28 @@ line 617) and the post-filter default block ignores it. On a fully-capable
 server, RFC 4791 substring `text-match` semantics leak through: `'=='`
 `'rain'` matches "Training".
 
-### 2.9 `calendarobjectresource.py:1570` — `_set_data` leaves a stale `DataState` cache `[repro]`
+### 2.9 `calendarobjectresource.py:1570` — `_set_data` leaves a stale `DataState` cache `[repro]` ✅ FIXED
 The raw-string branch clears the legacy instance attributes but never resets
 `self._state`. Sequence: fetch event → touch `event.id` / `is_loaded()`
 (caches state v1) → `event.load()` assigns `self.data = r.raw` → afterwards
 `get_data()` / `get_icalendar_instance()` / `id` still serve the **pre-reload
 content** while `.data` returns the new content.
 
-### 2.10 `datastate.py:152` (+ `:67`, `:78`) — `BEGIN:FREEBUSY` never matches `VFREEBUSY` `[repro]`
+### 2.10 `datastate.py:152` (+ `:67`, `:78`) — `BEGIN:FREEBUSY` never matches `VFREEBUSY` `[repro]` ✅ FIXED
 The component-type sniffing tests for `BEGIN:FREEBUSY`; real data says
 `BEGIN:VFREEBUSY`. A `FreeBusy` object holding raw data gets
 `get_component_type() → None`, so `is_loaded()`/`has_component()` are False,
 `save()` **silently no-ops** at the early return, and
 `load(only_if_unloaded=True)` reloads spuriously.
 
-### 2.11 `calendarobjectresource.py:1943` — `_get_duration` isinstance check on the wrapper, not `.dt` `[repro]`
+### 2.11 `calendarobjectresource.py:1943` — `_get_duration` isinstance check on the wrapper, not `.dt` `[repro]` ✅ FIXED
 `isinstance(i["DTSTART"], datetime)` tests the icalendar `vDDDTypes` wrapper
 (never a datetime), so the date-vs-datetime branch always takes the date
 path: a VTODO with a timed DTSTART and no DUE/DURATION gets duration **1 day
 instead of 0**. Completing a recurring task then sets the next DUE a full day
 late, and `Todo._next` shifts the recurrence.
 
-### 2.12 `calendarobjectresource.py:2140` — sync safe-mode completion ignores `completion_timestamp` `[code]`
+### 2.12 `calendarobjectresource.py:2140` — sync safe-mode completion ignores `completion_timestamp` `[code]` ✅ FIXED
 `_complete_recurring_safe` calls `completed.complete()` (defaults to *now*)
 while the async twin passes the caller's timestamp through. Sync/async
 divergence with user-visible effect on the recorded COMPLETED time.
@@ -264,14 +264,14 @@ literal `"section"` instead of the variable. `disable` only works under
 `section='*'`; sections pulled in via a meta-section's `contains` list (or by
 name) connect to servers the user explicitly disabled.
 
-### 2.18 `config.py:265` — explicit params without url/features silently discarded `[code]`
+### 2.18 `config.py:265` — explicit params without url/features silently discarded `[code]` ✅ FIXED
 `get_connection_params` honors `explicit_params` only when `url` or
 `features` is present, and never merges them with the env/file source that
 wins: `get_davclient(password='secret')` with `CALDAV_URL`/`CALDAV_USERNAME`
 in env returns a config **without the password**, contradicting the
 docstring's "explicit parameters take highest priority".
 
-### 2.19 `config.py:180` + `testing.py:127`/`:263` — shared module-level hint dicts get mutated `[repro]`
+### 2.19 `config.py:180` + `testing.py:127`/`:263` — shared module-level hint dicts get mutated `[repro]` ✅ FIXED
 `resolve_features` with a string name returns the module-level
 `compatibility_hints` dict itself (the `base` branch deepcopies; this branch
 doesn't). `XandikosServer`/`RadicaleServer` then do a *shallow* `.copy()` and
