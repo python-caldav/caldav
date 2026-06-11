@@ -131,6 +131,23 @@ class TestVcal(TestCase):
         )
         assert re.search(b"DTSTART(;VALUE=DATE-TIME)?:20321010T101010Z", some_ical)
 
+        ## ical_fragment with alarm_* props: fragment must land in VEVENT, not VALARM (§2.2)
+        raw_ical = create_ical(
+            summary="alarm-test",
+            dtstart=datetime(2032, 10, 10, 10, 10, 10, tzinfo=utc),
+            duration=timedelta(hours=1),
+            alarm_action="DISPLAY",
+            alarm_description="reminder",
+            alarm_trigger=timedelta(minutes=-15),
+            ical_fragment="RRULE:FREQ=DAILY;COUNT=3",
+        )
+        raw_bytes = to_wire(raw_ical)
+        assert b"RRULE:FREQ=DAILY" in raw_bytes, "ical_fragment must appear in output"
+        assert b"BEGIN:VALARM" in raw_bytes, "alarm must be present"
+        end_valarm_pos = raw_bytes.index(b"END:VALARM")
+        rrule_pos = raw_bytes.index(b"RRULE:FREQ=DAILY")
+        assert rrule_pos > end_valarm_pos, "RRULE must not be inside VALARM"
+
     def test_vcal_fixups(self):
         """
         There is an obscure function lib.vcal that attempts to fix up
@@ -280,6 +297,124 @@ END:VCALENDAR""",
 
         for ical in non_broken_ical:
             assert vcal.fix(ical) == ical
+
+    def test_trailing_whitespace_stripped_per_line(self) -> None:
+        """Bug §2.3: re.sub(' *$', '', fixed) without re.MULTILINE only strips
+        trailing spaces at the very end of the document, leaving per-line
+        trailing spaces intact.  Trailing whitespace on a line that is not
+        continued by a folded line cannot be part of the value, so it is
+        stripped."""
+        ical = (
+            "BEGIN:VCALENDAR\n"
+            "VERSION:2.0\n"
+            "BEGIN:VEVENT\n"
+            "UID:test\n"
+            "DTSTAMP:20190103T070319Z\n"
+            "DTSTART:20190117T180000Z\n"
+            "SUMMARY:test   \n"
+            "LOCATION:somewhere \n"
+            "END:VEVENT\n"
+            "END:VCALENDAR\n"
+        )
+
+        fixed = vcal.fix(ical)
+        assert not re.search(r" +\n", fixed), (
+            "fix() must strip trailing spaces from each line, not just the document end"
+        )
+
+    def test_fold_before_space_is_not_corrupted(self) -> None:
+        """RFC 5545 3.1 folds blind at 75 octets, so a fold may land right
+        after a space that is part of the value.  Stripping trailing
+        whitespace per line joins the two words together, silently corrupting
+        every folded description loaded from a server -- and, since save()
+        writes the result back, corrupting it on the server as well."""
+        ical = (
+            "BEGIN:VCALENDAR\n"
+            "VERSION:2.0\n"
+            "BEGIN:VEVENT\n"
+            "UID:test\n"
+            "DTSTAMP:20190103T070319Z\n"
+            "DTSTART:20190117T180000Z\n"
+            "DESCRIPTION:Please bring the following \n"
+            " items and also a pen\n"
+            "END:VEVENT\n"
+            "END:VCALENDAR\n"
+        )
+
+        fixed = vcal.fix(ical)
+        event = list(icalendar.Calendar.from_ical(fixed).walk("VEVENT"))[0]
+        assert str(event["DESCRIPTION"]) == "Please bring the following items and also a pen", (
+            "fix() must not strip whitespace that a fold made trailing"
+        )
+
+    def test_compliant_ical_with_folded_lines_is_left_alone(self) -> None:
+        """Modifying compliant data also fires the rate-limited "your calendar
+        server breaks the icalendar standard" warning at servers that did
+        nothing wrong."""
+        ical = (
+            "BEGIN:VCALENDAR\n"
+            "VERSION:2.0\n"
+            "BEGIN:VEVENT\n"
+            "UID:test\n"
+            "DTSTAMP:20190103T070319Z\n"
+            "DTSTART:20190117T180000Z\n"
+            "DESCRIPTION:Please bring the following \n"
+            " items and also a pen\n"
+            "END:VEVENT\n"
+            "END:VCALENDAR\n"
+        )
+        assert vcal.fix(ical) == ical
+
+    def test_backslash_unescape_single_and_double_quotes(self) -> None:
+        """Bug §2.4: re.sub(r"\\+('\")", r"\1", fixed) used a group ('\"')
+        which matches only the literal two-char sequence '\" — not a character
+        class.  Backslash before a lone single quote or lone double quote was
+        therefore not unescaped."""
+        ical_single = (
+            "BEGIN:VCALENDAR\n"
+            "VERSION:2.0\n"
+            "BEGIN:VEVENT\n"
+            "UID:test\n"
+            "DTSTAMP:20190103T070319Z\n"
+            "DTSTART:20190117T180000Z\n"
+            "SUMMARY:it\\'s here\n"
+            "END:VEVENT\n"
+            "END:VCALENDAR\n"
+        )
+        ical_double = ical_single.replace("\\'", '\\"')
+        fixed_single = vcal.fix(ical_single)
+        fixed_double = vcal.fix(ical_double)
+        assert "SUMMARY:it's here" in fixed_single, "fix() must strip backslash before single quote"
+        assert 'SUMMARY:it"s here' in fixed_double, "fix() must strip backslash before double quote"
+
+    def test_completed_date_fixup_preserves_next_property(self) -> None:
+        """Bug §2.1: COMPLETED date fixup regex consumed the trailing newline,
+        merging the next property line into COMPLETED and destroying it."""
+        ical = """BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Example Corp.//CalDAV Client//EN
+BEGIN:VTODO
+UID:20070313T123432Z-456553@example.com
+DTSTAMP:20070313T123432Z
+COMPLETED:20070501
+SUMMARY:Submit Quebec Income Tax Return for 2006
+STATUS:NEEDS-ACTION
+END:VTODO
+END:VCALENDAR"""
+        fixed = vcal.fix(ical)
+        cal = icalendar.Calendar.from_ical(fixed)
+        todo = list(cal.walk("VTODO"))[0]
+        assert str(todo["SUMMARY"]) == "Submit Quebec Income Tax Return for 2006", (
+            "SUMMARY was destroyed by COMPLETED fixup (newline consumed)"
+        )
+        ## The COMPLETED date is given without a time, so fix() adds one;
+        ## asserting the resulting value is what actually pins the regex down.
+        ## (The previous check -- "SUMMARY" not in str(todo["COMPLETED"].dt) --
+        ## could not fail: .dt is a datetime, whose str() is never going to
+        ## contain a summary.)
+        assert todo["COMPLETED"].dt == datetime(2007, 5, 1, 12, 0, 0, tzinfo=utc), (
+            "COMPLETED was not parsed as the fixed-up 20070501T120000Z"
+        )
 
     def test_missing_dtstamp_fix(self) -> None:
         """
