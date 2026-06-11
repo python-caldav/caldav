@@ -184,7 +184,7 @@ then overwrites `url_raw`/`url_parsed` **in place** — a mere `==` comparison
 silently rewrites the URL (port added, path re-quoted; a literal `+` becomes
 `%2B`), so subsequent requests can go to a different resource.
 
-### 2.6 `search.py:648` — `combined-is-logical-and` workaround silently drops property filters `[code]`
+### 2.6 `search.py:648` — `combined-is-logical-and` workaround silently drops property filters `[code]` ✅ FIXED
 The workaround strips property filters from the server query but passes the
 *ambient* `post_filter` (still `None` on otherwise-capable servers — e.g.
 Nextcloud, whose only relevant flag is `search.combined-is-logical-and:
@@ -194,14 +194,14 @@ range. The sibling workarounds at 597–604 and 625–632 correctly force
 `post_filter=True`; this branch also uniquely lacks the
 `post_filter is not False` guard.
 
-### 2.7 `search.py:193` — `undef` operator misses the category→CATEGORIES alias `[code]`
+### 2.7 `search.py:193` — `undef` operator misses the category→CATEGORIES alias `[code]` ✅ FIXED
 The `undef` branch emits `PropFilter(property.upper())` without the alias
 mapping the non-undef branch applies, so
 `add_property_filter('category', '', operator='undef')` queries the
 nonexistent property `CATEGORY` — `is-not-defined` on it matches *every*
 object, returning events that do have categories.
 
-### 2.8 `search.py:362`/`:506` — documented `'=='` exact-match is never enforced `[code]`
+### 2.8 `search.py:362`/`:506` — documented `'=='` exact-match is never enforced `[code]` ✅ FIXED
 The docstring promises "`==` — exact match required, enforced client-side",
 but no code path inspects the `==` operator (only `'contains'` is checked at
 line 617) and the post-filter default block ignores it. On a fully-capable
