@@ -1781,6 +1781,9 @@ END:VCALENDAR
                 "basic",
                 "digest",
             }
+            # §1.8: trailing comma (seen in the wild) must not raise IndexError
+            assert client.extract_auth_types("Basic,") == {"basic"}
+            assert client.extract_auth_types('Basic realm="x",') == {"basic"}
 
     def testAutoUrlEcloudWithEmailUsername(self) -> None:
         """
@@ -2896,6 +2899,26 @@ class TestExpandConfigSection:
             "all": {"contains": ["ab", "c"]},
         }
         assert set(expand_config_section(config, "all")) == {"a", "b", "c"}
+
+    def test_missing_section_returns_empty(self):
+        """§1.9: expand_config_section(config, "default") when "default" is absent must
+        return [] rather than raising KeyError."""
+        from caldav.config import expand_config_section
+
+        config = {"work": {"caldav_url": "https://work.example.com/"}}
+        # Requesting a section that doesn't exist should return [] (no match), not crash
+        assert expand_config_section(config, "default") == []
+
+    def test_disable_respected_for_named_sections(self):
+        """§2.17: disable:true must suppress named sections, not just glob '*' results.
+
+        The old code used the literal string 'section' instead of the variable,
+        so disable was only effective under the '*' glob path.
+        """
+        from caldav.config import expand_config_section
+
+        config = {"work": {"caldav_url": "https://work.example.com/", "disable": True}}
+        assert expand_config_section(config, "work") == []
 
 
 class TestConfigSectionInheritance:
