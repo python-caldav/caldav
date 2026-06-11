@@ -16,6 +16,7 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 
 ### Fixed
 
+* `jmap/client.py` and `jmap/async_client.py` `create_task()`: a JMAP server response that returned an empty `created` dict (with neither a `created` entry nor a `notCreated` entry for `"new-0"`) raised a bare `KeyError` instead of the documented `JMAPMethodError`.  The `create_event()` method already had the required guard; `create_task()` was missing it in both sync and async clients.
 * `lib/vcal.py` `fix()`: truncated iCalendar data (no `END:` line) triggered a bare `assert` which gave no useful message and was silently skipped under `python -O`.  Now logs a warning and returns the data unchanged instead.
 * `compatibility_hints.py` `FeatureSet.copyFeatureSet()`: merging a plain-string feature value over an existing string-valued entry in the feature set raised a bare `AssertionError` — the `'support' not in server_node` guard blocked the update branch and fell through to `else: raise AssertionError`.  Plain strings are the dominant style in the hint dicts, so any two-layer server config expressing the same feature crashed.  Fixed by removing the `not in server_node` condition.
 * `compatibility_hints.py` `FeatureSet.copyFeatureSet()`: an unknown feature name in a config file produced only a `UserWarning` but still stored the bad key in `_server_features`; a later `collapse()`/`is_supported()` call then raised a message-less `AssertionError` far from the original config.  Fixed by `continue`-ing after the warning so unknown keys are never stored.

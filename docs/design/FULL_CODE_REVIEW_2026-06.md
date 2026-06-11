@@ -138,7 +138,7 @@ Truncated/garbage iCalendar without DTSTAMP and without an `END:` line makes
 the DTSTAMP fixup logic it guards) is silently skipped. Should be
 `error.assert_` or a proper parse error.
 
-### 1.13 `jmap/client.py:576` / `jmap/async_client.py:461` — `create_task` missing the guard `create_event` has `[code]`
+### 1.13 `jmap/client.py:576` / `jmap/async_client.py:461` — `create_task` missing the guard `create_event` has `[code]` ✅ FIXED
 `create_event` handles an empty `created` dict with a descriptive
 `JMAPMethodError` (`client.py:294–298`); `create_task` does
 `created["new-0"]["id"]` unguarded → bare KeyError, bypassing the JMAP error
