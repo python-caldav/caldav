@@ -173,7 +173,7 @@ prevent still occurs.
 sequence `'"`; the group should be a character class `['\"]`. Harmless for
 compliant data, but the fix does nothing.
 
-### 2.5 `lib/url.py:143` + `:159` — `canonical()` keeps credentials and mutates self `[repro]`
+### 2.5 `lib/url.py:143` + `:159` — `canonical()` keeps credentials and mutates self `[repro]` ✅ FIXED
 Two related bugs: (a) `canonical()` builds its result from `self.url_parsed`
 instead of the `unauth()`'ed URL, so
 `URL('https://user:pass@example.com/cal/').canonical()` **retains the
