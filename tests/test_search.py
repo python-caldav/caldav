@@ -1196,3 +1196,78 @@ class TestCombinedIsLogicalAndWorkaround:
         summaries = [str(r.icalendar_component["SUMMARY"]) for r in results]
         assert len(results) == 1, f"Expected 1 result, got {len(results)}: {summaries}"
         assert "Special" in summaries[0]
+
+
+class TestExactMatchOperator:
+    """§2.8: operator='==' must be enforced client-side via post-filtering.
+
+    The docstring documents that '==' means exact match enforced client-side,
+    but no code path inspected the '==' operator — post_filter was never set
+    for '==' searches, so server substring semantics leaked through.
+    """
+
+    _exact_match_event = """BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//Test//EN
+BEGIN:VEVENT
+UID:exact-event@example.com
+DTSTAMP:20240101T120000Z
+DTSTART:20240615T140000Z
+DTEND:20240615T150000Z
+SUMMARY:rain
+END:VEVENT
+END:VCALENDAR"""
+
+    _substring_event = """BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//Test//EN
+BEGIN:VEVENT
+UID:substring-event@example.com
+DTSTAMP:20240101T120000Z
+DTSTART:20240615T160000Z
+DTEND:20240615T170000Z
+SUMMARY:Training session
+END:VEVENT
+END:VCALENDAR"""
+
+    def _make_calendar_with_features(self):
+        from caldav.lib.url import URL
+
+        client = mock.Mock(spec=DAVClient)
+        client.url = URL("https://cal.example.com/")
+        features = mock.Mock()
+        features.is_supported = mock.Mock(return_value=False)
+        client.features = features
+        cal = mock.Mock()
+        cal.client = client
+        cal.url = URL("https://cal.example.com/cal/")
+        return client, cal
+
+    def test_exact_match_excludes_substrings(self):
+        """operator='==' must exclude events where the value is a substring of the summary."""
+        client, cal = self._make_calendar_with_features()
+
+        exact_ev = Event(
+            client=client,
+            url="https://cal.example.com/cal/exact.ics",
+            data=self._exact_match_event,
+            parent=cal,
+        )
+        substring_ev = Event(
+            client=client,
+            url="https://cal.example.com/cal/substring.ics",
+            data=self._substring_event,
+            parent=cal,
+        )
+
+        cal._request_report_build_resultlist = mock.Mock(
+            return_value=(mock.MagicMock(), [exact_ev, substring_ev])
+        )
+
+        searcher = CalDAVSearcher(event=True)
+        searcher.add_property_filter("SUMMARY", "rain", operator="==")
+        results = searcher.search(cal)
+
+        summaries = [str(r.icalendar_component["SUMMARY"]) for r in results]
+        assert len(results) == 1, f"Expected 1 result (exact), got {len(results)}: {summaries}"
+        assert results[0].icalendar_component["SUMMARY"] == "rain"

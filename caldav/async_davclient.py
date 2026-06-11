@@ -484,7 +484,11 @@ class AsyncDAVClient(BaseDAVClient):
                 # Retry original request with auth
                 request_kwargs["auth"] = self.auth
                 r = await self.session.request(**request_kwargs)
-            response = DAVResponse(r, self)
+                response = DAVResponse(r, self)
+            else:
+                # Probe GET did not give us a 401+WWW-Authenticate challenge —
+                # auth negotiation failed; re-raise the original connection error
+                raise
 
         # Handle 429/503 rate-limit responses
         error.raise_if_rate_limited(r.status_code, str(url_obj), r.headers.get("Retry-After"))

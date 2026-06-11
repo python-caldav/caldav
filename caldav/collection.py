@@ -598,22 +598,27 @@ class Principal(DAVObject):
         freebusy_ical.add_component(freebusy_comp)
         outbox = self.schedule_outbox()
         caldavobj = FreeBusy(data=freebusy_ical, parent=self)
-        for attendee in attendees:
-            caldavobj.add_attendee(attendee, no_default_parameters=True)
 
         if self.is_async_client:
-            return self._async_freebusy_request(outbox, caldavobj)
+            return self._async_freebusy_request(outbox, caldavobj, attendees)
+
+        for attendee in attendees:
+            caldavobj.add_attendee(attendee, no_default_parameters=True)
 
         caldavobj.add_organizer()
 
         response = self.client.post(outbox.url, caldavobj.data, headers=ICALH)
         return response._parse_scheduling_response_objects(parent=self)
 
-    async def _async_freebusy_request(self, outbox, fb_obj) -> dict:
+    async def _async_freebusy_request(self, outbox, fb_obj, attendees) -> dict:
         """Async implementation of freebusy_request() for async clients."""
         ## TODO: could we have common headers as global variable?
         headers = ICALH
         outbox = await outbox
+        for attendee in attendees:
+            if isinstance(attendee, Principal):
+                attendee = await attendee.get_vcal_address()
+            fb_obj.add_attendee(attendee, no_default_parameters=True)
         ## TODO: it's really bad that arbitrary methods returns
         ## a coroutine in async mode.  It's needed to make it much
         ## more clear what methods involves I/O and what methods

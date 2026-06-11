@@ -85,7 +85,7 @@ coroutine → TypeError (swallowed into an empty result when
 `raise_errors=False`). Name-based calendar lookup via `caldav.aio` is broken
 end-to-end.
 
-### 1.5 `collection.py:601` — async `freebusy_request` with Principal attendees → AttributeError `[code]`
+### 1.5 `collection.py:601` — async `freebusy_request` with Principal attendees → AttributeError `[code]` ✅ FIXED
 `add_attendee(attendee)` is called *before* the `is_async_client` branch at
 line 604. For a `Principal` attendee on an async client,
 `get_vcal_address()` returns a coroutine, and `add_attendee` then does
@@ -201,7 +201,7 @@ mapping the non-undef branch applies, so
 nonexistent property `CATEGORY` — `is-not-defined` on it matches *every*
 object, returning events that do have categories.
 
-### 2.8 `search.py:362`/`:506` — documented `'=='` exact-match is never enforced `[code]`
+### 2.8 `search.py:362`/`:506` — documented `'=='` exact-match is never enforced `[code]` ✅ FIXED
 The docstring promises "`==` — exact match required, enforced client-side",
 but no code path inspects the `==` operator (only `'contains'` is checked at
 line 617) and the post-filter default block ignores it. On a fully-capable
@@ -245,7 +245,7 @@ Sync `get_calendars()` (`davclient.py:486–489`) falls back to the principal
 URL when `calendar-home-set` is missing; async returns `[]` for the same
 server. Parity gap.
 
-### 2.15 `async_davclient.py:487` — issue-#158 workaround can return the probe response as the real one `[code]`
+### 2.15 `async_davclient.py:487` — issue-#158 workaround can return the probe response as the real one `[code]` ✅ FIXED
 When the original request dies with a connection abort, the workaround sends
 a probe GET; if that GET is *not* 401+WWW-Authenticate (e.g. 200 with a login
 page), the code falls through and returns the **probe GET's response as the
