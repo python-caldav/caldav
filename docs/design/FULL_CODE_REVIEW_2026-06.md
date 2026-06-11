@@ -294,7 +294,7 @@ guarantee to plaintext, and credentials follow. (Otherwise the discovery
 module's security posture is good: require_tls defaults True, same-domain
 redirect validation, single manual redirect hop.)
 
-### 3.2 `response.py:277` — XML parser for untrusted server data lacks entity hardening `[code]`
+### 3.2 `response.py:277` — XML parser for untrusted server data lacks entity hardening `[code]` ✅ FIXED
 `etree.XMLParser(remove_blank_text=True, huge_tree=self.huge_tree)` relies on
 libxml2 defaults for entity resolution. Current libxml2 blocks the classic
 XXE paths, but the library makes no guarantee across the unpinned dependency
@@ -302,6 +302,8 @@ range, and `huge_tree=True` lifts expansion limits. This is the *only* parser
 of server data in the package — one line fixes it: add
 `resolve_entities=False` (and consider `no_network=True`, `dtd_validation=False`
 explicitly).
+
+**Fixed**: added `resolve_entities=False, no_network=True` to the `etree.XMLParser` call in `response.py:277`.  `dtd_validation=False` is lxml's default so was not added explicitly.
 
 ### 3.3 `lib/error.py:51` — `PYTHON_CALDAV_COMMDUMP` persists bodies/headers in /tmp (low) `[code]`
 `NamedTemporaryFile(delete=False)` dumps full request/response headers and
