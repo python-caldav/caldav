@@ -274,7 +274,12 @@ class DAVResponse:
                 # We'll try to parse the content as XML no matter the content type.
                 self.tree = etree.XML(
                     self._raw,
-                    parser=etree.XMLParser(remove_blank_text=True, huge_tree=self.huge_tree),
+                    parser=etree.XMLParser(
+                        remove_blank_text=True,
+                        huge_tree=self.huge_tree,
+                        resolve_entities=False,
+                        no_network=True,
+                    ),
                 )
             except Exception:
                 # Content wasn't XML.  What does the content-type say?
