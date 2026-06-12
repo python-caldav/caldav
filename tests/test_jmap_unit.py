@@ -968,8 +968,9 @@ class TestUtils:
         assert _duration_to_timedelta(_timedelta_to_duration(td)) == td
 
     def test_format_local_dt_utc(self):
+        # RFC 8984: LocalDateTime slots (override keys, RRULE until) must not carry Z suffix.
         dt = datetime(2024, 6, 15, 9, 0, 0, tzinfo=timezone.utc)
-        assert _format_local_dt(dt) == "2024-06-15T09:00:00Z"
+        assert _format_local_dt(dt) == "2024-06-15T09:00:00"
 
     def test_format_local_dt_naive(self):
         dt = datetime(2024, 6, 15, 9, 0, 0)
@@ -2558,3 +2559,126 @@ class TestAsyncJMAPClient:
         create_args = captured["json"]["methodCalls"][0][1]
         new_task = create_args["create"]["new-0"]
         assert new_task["taskListId"] == "tl-target"
+
+
+class TestOverrideWithoutStartUsesOccurrenceTime:
+    """§4.1: override child VEVENT must use occurrence time as DTSTART, not master start."""
+
+    def test_title_only_override_dtstart_equals_occurrence(self):
+        # Master: 2024-06-17T09:00:00Z (UTC), weekly recurrence.
+        # Override for 2024-06-24T09:00:00Z changes only title — no "start" in patch.
+        # Child DTSTART must be 20240624T090000Z, not 20240617T090000Z.
+        jscal = {
+            "uid": "override-dtstart@example.com",
+            "title": "Master Title",
+            "start": "2024-06-17T09:00:00Z",
+            "duration": "PT1H",
+            "recurrenceRules": [{"@type": "RecurrenceRule", "frequency": "weekly"}],
+            "recurrenceOverrides": {
+                "2024-06-24T09:00:00Z": {"title": "Changed Title"},
+            },
+        }
+        result = jscal_to_ical(jscal)
+        import icalendar as _ic
+
+        cal = _ic.Calendar.from_ical(result)
+        events = [c for c in cal.subcomponents if isinstance(c, _ic.Event)]
+        assert len(events) == 2
+        child = next(e for e in events if e.get("RECURRENCE-ID") is not None)
+        # DTSTART of the child must match its own occurrence, not the master start
+        child_dtstart = child["DTSTART"].dt
+        if hasattr(child_dtstart, "utctimetuple"):
+            import datetime as _dt
+
+            assert child_dtstart == _dt.datetime(2024, 6, 24, 9, 0, 0, tzinfo=_dt.timezone.utc)
+        else:
+            assert str(child_dtstart) == "2024-06-24"
+
+
+class TestExdateValueType:
+    """§4.2: EXDATE value type must match DTSTART (TZID or DATE, not floating)."""
+
+    def test_exdate_for_tzid_event_has_tzid_param(self):
+        # A TZID-anchored event's excluded override must produce EXDATE with TZID,
+        # not a floating EXDATE (which per RFC 5545 won't match the instance).
+        jscal = _minimal_jscal(
+            start="2024-06-17T14:00:00",
+            timeZone="Europe/Berlin",
+            recurrenceRules=[{"@type": "RecurrenceRule", "frequency": "weekly"}],
+            recurrenceOverrides={"2024-06-24T14:00:00": {"excluded": True}},
+        )
+        result = jscal_to_ical(jscal)
+        # Must have TZID on EXDATE; a plain EXDATE:... without TZID is a floating datetime
+        assert "EXDATE;TZID=Europe/Berlin:" in result
+
+    def test_exdate_for_allday_event_is_date_value(self):
+        jscal = {
+            "uid": "allday-exdate@example.com",
+            "title": "All Day Recurring",
+            "start": "2024-06-17T00:00:00",
+            "showWithoutTime": True,
+            "duration": "P1D",
+            "recurrenceRules": [{"@type": "RecurrenceRule", "frequency": "weekly"}],
+            "recurrenceOverrides": {"2024-06-24T00:00:00": {"excluded": True}},
+        }
+        result = jscal_to_ical(jscal)
+        # All-day EXDATE must be a DATE value (8-digit YYYYMMDD, not YYYYMMDDTHHMMSS datetime).
+        # The icalendar library may or may not emit explicit VALUE=DATE — either form is acceptable.
+        assert "EXDATE" in result
+        assert "20240624" in result
+        assert "20240624T" not in result  # must not be a datetime
+
+
+class TestStatusMapping:
+    """§4.4: STATUS must be mapped in both ical→jscal and jscal→ical directions."""
+
+    def test_ical_status_cancelled_to_jscal(self):
+        ical = _make_ical(
+            "DTSTART:20240615T100000Z\r\nSUMMARY:Cancelled Meeting\r\nSTATUS:CANCELLED\r\n"
+        )
+        result = ical_to_jscal(ical)
+        assert result.get("status") == "cancelled"
+
+    def test_ical_status_tentative_to_jscal(self):
+        ical = _make_ical(
+            "DTSTART:20240615T100000Z\r\nSUMMARY:Tentative Meeting\r\nSTATUS:TENTATIVE\r\n"
+        )
+        result = ical_to_jscal(ical)
+        assert result.get("status") == "tentative"
+
+    def test_ical_status_confirmed_to_jscal(self):
+        ical = _make_ical(
+            "DTSTART:20240615T100000Z\r\nSUMMARY:Confirmed Meeting\r\nSTATUS:CONFIRMED\r\n"
+        )
+        result = ical_to_jscal(ical)
+        assert result.get("status") == "confirmed"
+
+    def test_ical_no_status_omits_jscal_status(self):
+        ical = _make_ical("DTSTART:20240615T100000Z\r\nSUMMARY:No Status\r\n")
+        result = ical_to_jscal(ical)
+        assert "status" not in result
+
+    def test_jscal_status_cancelled_to_ical(self):
+        result = jscal_to_ical(_minimal_jscal(status="cancelled"))
+        assert "STATUS:CANCELLED" in result
+
+    def test_jscal_status_tentative_to_ical(self):
+        result = jscal_to_ical(_minimal_jscal(status="tentative"))
+        assert "STATUS:TENTATIVE" in result
+
+    def test_jscal_status_confirmed_to_ical(self):
+        result = jscal_to_ical(_minimal_jscal(status="confirmed"))
+        assert "STATUS:CONFIRMED" in result
+
+    def test_jscal_no_status_omits_ical_status(self):
+        result = jscal_to_ical(_minimal_jscal())
+        assert "STATUS:" not in result
+
+    def test_status_cancelled_round_trips(self):
+        original = _make_ical(
+            "DTSTART:20240615T100000Z\r\nSUMMARY:Cancelled\r\nSTATUS:CANCELLED\r\n"
+        )
+        jscal = ical_to_jscal(original)
+        assert jscal.get("status") == "cancelled"
+        round_tripped = jscal_to_ical(jscal)
+        assert "STATUS:CANCELLED" in round_tripped

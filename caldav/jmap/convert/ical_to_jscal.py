@@ -386,6 +386,17 @@ def ical_to_jscal(ical_str: str, calendar_id: str | None = None) -> dict:
     if location:
         jscal["locations"] = _location_str_to_jscal(str(location))
 
+    status = master.get("STATUS")
+    if status:
+        _STATUS_ICAL_TO_JSCAL = {
+            "CONFIRMED": "confirmed",
+            "TENTATIVE": "tentative",
+            "CANCELLED": "cancelled",
+        }
+        jscal_status = _STATUS_ICAL_TO_JSCAL.get(str(status).upper())
+        if jscal_status:
+            jscal["status"] = jscal_status
+
     participants: dict = {}
     organizer = master.get("ORGANIZER")
     if organizer is not None:
