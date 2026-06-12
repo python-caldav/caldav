@@ -1605,6 +1605,37 @@ class TestJMAPClientEvents:
         patch = update_args["update"]["ev1"]
         assert "uid" not in patch
 
+    def test_update_event_nulls_removed_optional_properties(self, monkeypatch):
+        # RFC 8620 §3.3: absent keys in a PatchObject preserve the server value.
+        # To actually delete a property the patch must set it to null.
+        # An ical → jscal conversion that omits LOCATION/DESCRIPTION must send
+        # {"locations": null, "description": null, ...} so the server removes them.
+        _ICAL_WITH_LOCATION = (
+            "BEGIN:VCALENDAR\r\nVERSION:2.0\r\n"
+            "BEGIN:VEVENT\r\n"
+            "UID:loc-uid@example.com\r\n"
+            "DTSTART:20240615T090000Z\r\n"
+            "SUMMARY:Event with Location\r\n"
+            "LOCATION:Old Conference Room\r\n"
+            "END:VEVENT\r\nEND:VCALENDAR\r\n"
+        )
+        _ICAL_WITHOUT_LOCATION = (
+            "BEGIN:VCALENDAR\r\nVERSION:2.0\r\n"
+            "BEGIN:VEVENT\r\n"
+            "UID:loc-uid@example.com\r\n"
+            "DTSTART:20240615T090000Z\r\n"
+            "SUMMARY:Event without Location\r\n"
+            "END:VEVENT\r\nEND:VCALENDAR\r\n"
+        )
+        resp = self._set_response(updated={"ev1": None})
+        client, captured = self._capturing_client(monkeypatch, resp)
+        # First, pretend the event had a location (we don't need to call create; just update)
+        client.update_event("ev1", _ICAL_WITHOUT_LOCATION)
+        patch = captured["json"]["methodCalls"][0][1]["update"]["ev1"]
+        # The patch must contain explicit null for 'locations' to remove it from the server
+        assert "locations" in patch
+        assert patch["locations"] is None
+
     def test_delete_event_success(self, monkeypatch):
         resp = self._set_response(destroyed=["ev1"])
         client = _make_client_with_mocked_session(monkeypatch, resp)
