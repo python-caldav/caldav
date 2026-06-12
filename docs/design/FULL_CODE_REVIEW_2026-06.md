@@ -321,27 +321,27 @@ cross-host redirects (auth applied via auth callable, stripped by
 
 ## 4. JMAP backend
 
-### 4.1 `jmap/convert/jscal_to_ical.py:384` — override child VEVENT gets the master's DTSTART `[repro]`
+### 4.1 `jmap/convert/jscal_to_ical.py:384` — override child VEVENT gets the master's DTSTART `[repro]` ✅ FIXED
 `child_start = patch.get("start", start_str)` defaults to the master start.
 An override that doesn't move the occurrence (e.g. title-only change — the
 common case) renders a child VEVENT with RECURRENCE-ID at the occurrence but
 DTSTART at the *master's* start, relocating the occurrence. Default must be
 the override key (`rid_dt`).
 
-### 4.2 `jmap/convert/jscal_to_ical.py:375` — EXDATE/RECURRENCE-ID value-type mismatch `[repro]`
+### 4.2 `jmap/convert/jscal_to_ical.py:375` — EXDATE/RECURRENCE-ID value-type mismatch `[repro]` ✅ FIXED
 Override keys are rendered as naive floating DATE-TIMEs regardless of the
 event's `timeZone`/`showWithoutTime`: a TZID-anchored event gets
 `EXDATE:20260620T100000` (floating — per RFC 5545 it does not match the
 instance, so the **excluded occurrence reappears**), and an all-day event
 gets a DATETIME EXDATE against a `VALUE=DATE` DTSTART.
 
-### 4.3 `jmap/convert/ical_to_jscal.py:100` (via `_utils.py:129`) — `Z`-suffix in LocalDateTime slots `[repro]`
+### 4.3 `jmap/convert/ical_to_jscal.py:100` (via `_utils.py:129`) — `Z`-suffix in LocalDateTime slots `[repro]` ✅ FIXED
 UTC inputs produce `...Z` strings for RRULE `until` and recurrenceOverrides
 keys; RFC 8984 requires LocalDateTime there. Strict servers reject with
 `invalidArguments`; lenient ones mis-set the boundary, and a `Z`-suffixed
 override key can never match a LocalDateTime occurrence key.
 
-### 4.4 `jmap/convert/*` — STATUS dropped in both directions `[code]`
+### 4.4 `jmap/convert/*` — STATUS dropped in both directions `[code]` ✅ FIXED
 Neither converter maps `STATUS` ↔ `status` (only
 participationStatus/freeBusyStatus exist). `STATUS:CANCELLED` round-trips to
 the JSCalendar default `confirmed`; cancelled meetings come back as active.

@@ -111,11 +111,12 @@ def _duration_to_timedelta(duration_str: str) -> timedelta:
 
 
 def _format_local_dt(dt: datetime | date) -> str:
-    """Format a datetime or date as a JSCalendar LocalDateTime or UTCDateTime string.
+    """Format a datetime or date as a JSCalendar LocalDateTime string.
 
-    JSCalendar uses:
-      - LocalDateTime: "2024-03-15T09:00:00"    (no TZ suffix)
-      - UTCDateTime:   "2024-03-15T09:00:00Z"   (uppercase Z)
+    RFC 8984 requires LocalDateTime (no Z suffix) for override keys and RRULE
+    ``until`` values.  Timezone information is stripped — callers must convert
+    UTC datetimes to the event's local timezone before calling if the event uses
+    TZID; for floating or all-day events the naive value is already correct.
 
     For date objects (all-day), uses T00:00:00 suffix.
 
@@ -123,10 +124,8 @@ def _format_local_dt(dt: datetime | date) -> str:
         dt: A datetime (with or without tzinfo) or a date.
 
     Returns:
-        Formatted string suitable for use as a JSCalendar override key or datetime value.
+        Formatted string suitable for use as a JSCalendar override key or RRULE until.
     """
     if isinstance(dt, datetime):
-        if dt.tzinfo is not None and dt.utcoffset() == timedelta(0):
-            return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
         return dt.strftime("%Y-%m-%dT%H:%M:%S")
     return f"{dt.isoformat()}T00:00:00"
