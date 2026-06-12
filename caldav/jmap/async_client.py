@@ -34,6 +34,7 @@ from caldav.jmap._methods.task import (
 )
 from caldav.jmap.client import _DEFAULT_USING, _TASK_USING, _JMAPClientBase
 from caldav.jmap.convert import ical_to_jscal
+from caldav.jmap.convert._patch import _NULL_FOR_UPDATE
 from caldav.jmap.error import JMAPAuthError, JMAPMethodError
 from caldav.jmap.objects.calendar import JMAPCalendar
 from caldav.jmap.objects.calendar_object import JMAPCalendarObject
@@ -232,6 +233,9 @@ class AsyncJMAPClient(_JMAPClientBase):
         session = await self._get_session()
         patch = ical_to_jscal(ical_str)
         patch.pop("uid", None)  # uid is server-immutable after creation; patch must omit it
+        for key in _NULL_FOR_UPDATE:
+            if key not in patch:
+                patch[key] = None
         call = build_event_set_update(session.account_id, {event_id: patch})
         responses = await self._request([call])
 

@@ -346,7 +346,7 @@ Neither converter maps `STATUS` ↔ `status` (only
 participationStatus/freeBusyStatus exist). `STATUS:CANCELLED` round-trips to
 the JSCalendar default `confirmed`; cancelled meetings come back as active.
 
-### 4.5 `jmap/client.py:346` / `async_client.py:233` — `update_event` patch never clears removed properties `[code]`
+### 4.5 `jmap/client.py:346` / `async_client.py:233` — `update_event` patch never clears removed properties `[code]` ✅ FIXED
 The full converted object is sent as the RFC 8620 PatchObject; the converter
 only includes keys conditionally, so a property deleted client-side (e.g.
 LOCATION, VALARM) is simply *absent* from the patch and **persists on the
