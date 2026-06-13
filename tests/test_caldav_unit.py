@@ -3368,7 +3368,7 @@ class TestResolveFeaturesMutation:
 
     def test_resolve_features_string_returns_independent_copy(self):
         """resolve_features('xandikos') must return a deep copy, not the module object."""
-        import caldav.compatibility_hints as hints
+        from caldav import compatibility_hints as hints
         from caldav.config import resolve_features
 
         original_domain = hints.xandikos.get("auto-connect.url", {}).get("domain", "<sentinel>")
