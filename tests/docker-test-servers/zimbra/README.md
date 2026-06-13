@@ -45,7 +45,7 @@ The start script will:
 
 ```bash
 cd ../../..
-TEST_ZIMBRA=true pytest tests/test_caldav.py -k Zimbra -v
+pytest tests/test_caldav.py -k Zimbra -v
 ```
 
 ## Notes

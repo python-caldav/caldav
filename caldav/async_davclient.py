@@ -372,13 +372,13 @@ class AsyncDAVClient(BaseDAVClient):
                 self.rate_limit_default_sleep,
                 self.rate_limit_max_sleep,
             )
-            if rate_limit_time_slept:
-                sleep_seconds += rate_limit_time_slept / 2
             if sleep_seconds is None or (
                 self.rate_limit_max_sleep is not None
                 and rate_limit_time_slept > self.rate_limit_max_sleep
             ):
                 raise
+            if rate_limit_time_slept:
+                sleep_seconds += rate_limit_time_slept / 2
             await asyncio.sleep(sleep_seconds)
             return await self.request(
                 url, method, body, headers, rate_limit_time_slept + sleep_seconds
@@ -432,7 +432,7 @@ class AsyncDAVClient(BaseDAVClient):
             log.debug(f"server responded with {r.status_code} {reason}")
             if (
                 r.status_code == 401
-                and "text/html" in self.headers.get("Content-Type", "")
+                and "text/html" in r.headers.get("Content-Type", "")
                 and not self.auth
             ):
                 msg = (
@@ -484,7 +484,11 @@ class AsyncDAVClient(BaseDAVClient):
                 # Retry original request with auth
                 request_kwargs["auth"] = self.auth
                 r = await self.session.request(**request_kwargs)
-            response = DAVResponse(r, self)
+                response = DAVResponse(r, self)
+            else:
+                # Probe GET did not give us a 401+WWW-Authenticate challenge —
+                # auth negotiation failed; re-raise the original connection error
+                raise
 
         # Handle 429/503 rate-limit responses
         error.raise_if_rate_limited(r.status_code, str(url_obj), r.headers.get("Retry-After"))
@@ -955,7 +959,9 @@ class AsyncDAVClient(BaseDAVClient):
         )
         calendar_home_url = extract_home_set(response.results)
         if not calendar_home_url:
-            return []
+            # Fall back to the principal URL as calendar home
+            # (some servers like GMX don't support calendar-home-set)
+            calendar_home_url = str(principal.url)
 
         # Make URL absolute if relative
         calendar_home_url = self._make_absolute_url(calendar_home_url)
@@ -1267,13 +1273,26 @@ async def get_calendars(
                     raise
 
         # Fetch specific calendars by name
-        for cal_name in calendar_names:
+        if calendar_names:
             try:
-                calendar = await principal.calendar(name=cal_name)
-                if calendar:
-                    calendars.append(calendar)
+                all_cals_for_name = await principal.get_calendars()
+                for cal_name in calendar_names:
+                    for cal in all_cals_for_name:
+                        try:
+                            display_name = await cal.get_display_name()
+                            if display_name == cal_name:
+                                calendars.append(cal)
+                                break
+                        except Exception:
+                            pass
+                    else:
+                        log.error(f"No calendar with name '{cal_name}' found")
+                        if raise_errors:
+                            raise error.NotFoundError(f"No calendar with name '{cal_name}' found")
+            except error.NotFoundError:
+                raise
             except Exception as e:
-                log.error(f"Problems fetching calendar by name '{cal_name}': {e}")
+                log.error(f"Problems fetching calendars by name: {e}")
                 if raise_errors:
                     raise
 

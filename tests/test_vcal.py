@@ -131,6 +131,23 @@ class TestVcal(TestCase):
         )
         assert re.search(b"DTSTART(;VALUE=DATE-TIME)?:20321010T101010Z", some_ical)
 
+        ## ical_fragment with alarm_* props: fragment must land in VEVENT, not VALARM (§2.2)
+        raw_ical = create_ical(
+            summary="alarm-test",
+            dtstart=datetime(2032, 10, 10, 10, 10, 10, tzinfo=utc),
+            duration=timedelta(hours=1),
+            alarm_action="DISPLAY",
+            alarm_description="reminder",
+            alarm_trigger=timedelta(minutes=-15),
+            ical_fragment="RRULE:FREQ=DAILY;COUNT=3",
+        )
+        raw_bytes = to_wire(raw_ical)
+        assert b"RRULE:FREQ=DAILY" in raw_bytes, "ical_fragment must appear in output"
+        assert b"BEGIN:VALARM" in raw_bytes, "alarm must be present"
+        end_valarm_pos = raw_bytes.index(b"END:VALARM")
+        rrule_pos = raw_bytes.index(b"RRULE:FREQ=DAILY")
+        assert rrule_pos > end_valarm_pos, "RRULE must not be inside VALARM"
+
     def test_vcal_fixups(self):
         """
         There is an obscure function lib.vcal that attempts to fix up
@@ -281,6 +298,77 @@ END:VCALENDAR""",
         for ical in non_broken_ical:
             assert vcal.fix(ical) == ical
 
+    def test_trailing_whitespace_stripped_per_line(self) -> None:
+        """Bug §2.3: re.sub(' *$', '', fixed) without re.MULTILINE only strips
+        trailing spaces at the very end of the document, leaving per-line
+        trailing spaces intact (e.g. iCloud X-APPLE-STRUCTURED-LOCATION fold
+        lines with trailing spaces that distort base64 content)."""
+        ical = (
+            "BEGIN:VCALENDAR\n"
+            "VERSION:2.0\n"
+            "BEGIN:VEVENT\n"
+            "UID:test\n"
+            "DTSTAMP:20190103T070319Z\n"
+            "DTSTART:20190117T180000Z\n"
+            "SUMMARY:test\n"
+            "X-APPLE-STRUCTURED-LOCATION;X-TITLE=Somewhere:CAESvAEaEgmX     \n"
+            " 5esy/OVJQBGXkXpP5aQYQCJi=\n"
+            "END:VEVENT\n"
+            "END:VCALENDAR\n"
+        )
+        import re
+
+        fixed = vcal.fix(ical)
+        assert not re.search(r" +\n", fixed), (
+            "fix() must strip trailing spaces from each line, not just the document end"
+        )
+
+    def test_backslash_unescape_single_and_double_quotes(self) -> None:
+        """Bug §2.4: re.sub(r"\\+('\")", r"\1", fixed) used a group ('\"')
+        which matches only the literal two-char sequence '\" — not a character
+        class.  Backslash before a lone single quote or lone double quote was
+        therefore not unescaped."""
+        ical_single = (
+            "BEGIN:VCALENDAR\n"
+            "VERSION:2.0\n"
+            "BEGIN:VEVENT\n"
+            "UID:test\n"
+            "DTSTAMP:20190103T070319Z\n"
+            "DTSTART:20190117T180000Z\n"
+            "SUMMARY:it\\'s here\n"
+            "END:VEVENT\n"
+            "END:VCALENDAR\n"
+        )
+        ical_double = ical_single.replace("\\'", '\\"')
+        fixed_single = vcal.fix(ical_single)
+        fixed_double = vcal.fix(ical_double)
+        assert "SUMMARY:it's here" in fixed_single, "fix() must strip backslash before single quote"
+        assert 'SUMMARY:it"s here' in fixed_double, "fix() must strip backslash before double quote"
+
+    def test_completed_date_fixup_preserves_next_property(self) -> None:
+        """Bug §2.1: COMPLETED date fixup regex consumed the trailing newline,
+        merging the next property line into COMPLETED and destroying it."""
+        ical = """BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Example Corp.//CalDAV Client//EN
+BEGIN:VTODO
+UID:20070313T123432Z-456553@example.com
+DTSTAMP:20070313T123432Z
+COMPLETED:20070501
+SUMMARY:Submit Quebec Income Tax Return for 2006
+STATUS:NEEDS-ACTION
+END:VTODO
+END:VCALENDAR"""
+        fixed = vcal.fix(ical)
+        cal = icalendar.Calendar.from_ical(fixed)
+        todo = list(cal.walk("VTODO"))[0]
+        assert str(todo["SUMMARY"]) == "Submit Quebec Income Tax Return for 2006", (
+            "SUMMARY was destroyed by COMPLETED fixup (newline consumed)"
+        )
+        assert "SUMMARY" not in str(todo["COMPLETED"].dt), (
+            "COMPLETED value should not contain SUMMARY text"
+        )
+
     def test_missing_dtstamp_fix(self) -> None:
         """
         Test that missing DTSTAMP is added by the fix function.
@@ -355,3 +443,14 @@ END:VCALENDAR"""
 
             # Verify the fixed ical is valid
             self.verifyICal(fixed)
+
+    def test_fix_does_not_crash_on_truncated_input(self) -> None:
+        """§1.12: vcal.fix() must not raise AssertionError on truncated/garbage iCalendar.
+
+        Truncated data (no END: line) previously triggered a bare assert on line 93
+        which gave no useful error message and failed silently under python -O.
+        """
+        truncated = "BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nUID:trunc@example.com\n"
+        # Must not raise — return something (possibly unchanged input)
+        result = vcal.fix(truncated)
+        assert result is not None

@@ -62,8 +62,6 @@ baikal:
   enabled: false
 ```
 
-Or use the environment variable: `TEST_BAIKAL=false`.
-
 Or simply don't install Docker - the tests will automatically skip Baikal if Docker is not available.
 
 ## GitHub Actions (CI/CD)
@@ -99,7 +97,7 @@ You can add more secrets in GitHub Actions settings for credentials.
 
 The test suite will automatically detect and use Baikal if configured. Configuration is in `tests/caldav_test_servers.yaml` (copy from `tests/caldav_test_servers.yaml.example` and customize).
 
-To enable Baikal testing, set `enabled: true` (or `enabled: auto` to auto-detect Docker availability) in the YAML config:
+To enable Baikal testing, set `enabled: true` in the YAML config:
 
 ```yaml
 baikal:
@@ -107,7 +105,9 @@ baikal:
   enabled: true
 ```
 
-Or use the environment variable: `TEST_BAIKAL=true`.
+Docker servers are also auto-detected: a running container is picked up by the
+test suite even without an explicit config entry, and is skipped automatically
+when Docker is not available.
 
 ## Troubleshooting
 

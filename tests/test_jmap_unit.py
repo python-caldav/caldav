@@ -207,6 +207,8 @@ class TestFetchSession:
         assert session.account_id == "user_calendar"
 
 
+from datetime import datetime, timezone
+
 from caldav.jmap.objects.calendar import JMAPCalendar
 from caldav.jmap.objects.calendar_object import JMAPCalendarObject
 
@@ -371,6 +373,26 @@ class TestJMAPCalendar:
         query_args = captured["json"]["methodCalls"][0][1]
         assert query_args["filter"]["after"] == "2026-01-01T00:00:00"
         assert query_args["filter"]["before"] == "2026-12-31T23:59:59"
+
+    def test_calendar_search_datetime_converted_to_utcdate(self, monkeypatch):
+        """§4.6: datetime.isoformat() produced wrong format for JMAP UTCDate.
+        Naive datetimes produce no Z, aware non-UTC produce +HH:MM offset;
+        JMAP requires ...Z (UTC, no microseconds)."""
+        import datetime as _dt
+
+        resp = self._query_get_response([self._RAW_EVENT])
+        cal, captured = self._capturing_calendar(monkeypatch, resp)
+        tz_plus2 = _dt.timezone(_dt.timedelta(hours=2))
+        start_aware = datetime(2026, 6, 1, 12, 0, 0, tzinfo=tz_plus2)  # +02:00 noon → UTC 10:00
+        end_utc = datetime(2026, 12, 31, 23, 59, 59, tzinfo=timezone.utc)
+        cal.search(start=start_aware, end=end_utc)
+        query_args = captured["json"]["methodCalls"][0][1]
+        assert query_args["filter"]["after"] == "2026-06-01T10:00:00Z", (
+            f"Expected UTC Z-format, got {query_args['filter']['after']!r}"
+        )
+        assert query_args["filter"]["before"] == "2026-12-31T23:59:59Z", (
+            f"Expected UTC Z-format, got {query_args['filter']['before']!r}"
+        )
 
     def test_calendar_search_ignores_unknown_params(self, monkeypatch):
         """Verify that unknown search parameters are silently ignored."""
@@ -899,7 +921,7 @@ class TestEventMethodBuilders:
         assert not_destroyed["ev-old"]["type"] == "notFound"
 
 
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, timedelta
 
 import icalendar as _icalendar
 
@@ -968,8 +990,9 @@ class TestUtils:
         assert _duration_to_timedelta(_timedelta_to_duration(td)) == td
 
     def test_format_local_dt_utc(self):
+        # RFC 8984: LocalDateTime slots (override keys, RRULE until) must not carry Z suffix.
         dt = datetime(2024, 6, 15, 9, 0, 0, tzinfo=timezone.utc)
-        assert _format_local_dt(dt) == "2024-06-15T09:00:00Z"
+        assert _format_local_dt(dt) == "2024-06-15T09:00:00"
 
     def test_format_local_dt_naive(self):
         dt = datetime(2024, 6, 15, 9, 0, 0)
@@ -1604,6 +1627,37 @@ class TestJMAPClientEvents:
         patch = update_args["update"]["ev1"]
         assert "uid" not in patch
 
+    def test_update_event_nulls_removed_optional_properties(self, monkeypatch):
+        # RFC 8620 §3.3: absent keys in a PatchObject preserve the server value.
+        # To actually delete a property the patch must set it to null.
+        # An ical → jscal conversion that omits LOCATION/DESCRIPTION must send
+        # {"locations": null, "description": null, ...} so the server removes them.
+        _ICAL_WITH_LOCATION = (
+            "BEGIN:VCALENDAR\r\nVERSION:2.0\r\n"
+            "BEGIN:VEVENT\r\n"
+            "UID:loc-uid@example.com\r\n"
+            "DTSTART:20240615T090000Z\r\n"
+            "SUMMARY:Event with Location\r\n"
+            "LOCATION:Old Conference Room\r\n"
+            "END:VEVENT\r\nEND:VCALENDAR\r\n"
+        )
+        _ICAL_WITHOUT_LOCATION = (
+            "BEGIN:VCALENDAR\r\nVERSION:2.0\r\n"
+            "BEGIN:VEVENT\r\n"
+            "UID:loc-uid@example.com\r\n"
+            "DTSTART:20240615T090000Z\r\n"
+            "SUMMARY:Event without Location\r\n"
+            "END:VEVENT\r\nEND:VCALENDAR\r\n"
+        )
+        resp = self._set_response(updated={"ev1": None})
+        client, captured = self._capturing_client(monkeypatch, resp)
+        # First, pretend the event had a location (we don't need to call create; just update)
+        client.update_event("ev1", _ICAL_WITHOUT_LOCATION)
+        patch = captured["json"]["methodCalls"][0][1]["update"]["ev1"]
+        # The patch must contain explicit null for 'locations' to remove it from the server
+        assert "locations" in patch
+        assert patch["locations"] is None
+
     def test_delete_event_success(self, monkeypatch):
         resp = self._set_response(destroyed=["ev1"])
         client = _make_client_with_mocked_session(monkeypatch, resp)
@@ -1777,7 +1831,7 @@ class TestJMAPClientSync:
         monkeypatch.setattr(
             "caldav.jmap.client.requests.post", lambda *a, **kw: self._make_mock(resp)
         )
-        added, modified, deleted = self._make_client().get_objects_by_sync_token("state-1")
+        added, modified, deleted, _ = self._make_client().get_objects_by_sync_token("state-1")
         assert added == [] and modified == [] and deleted == []
 
     def test_get_objects_deleted_returns_ids(self, monkeypatch):
@@ -1785,7 +1839,7 @@ class TestJMAPClientSync:
         monkeypatch.setattr(
             "caldav.jmap.client.requests.post", lambda *a, **kw: self._make_mock(resp)
         )
-        added, modified, deleted = self._make_client().get_objects_by_sync_token("state-1")
+        added, modified, deleted, _ = self._make_client().get_objects_by_sync_token("state-1")
         assert deleted == ["ev1"] and added == [] and modified == []
 
     def test_get_objects_added_returns_ical(self, monkeypatch):
@@ -1795,7 +1849,7 @@ class TestJMAPClientSync:
             side_effect=[self._make_mock(changes_resp), self._make_mock(get_resp)]
         )
         monkeypatch.setattr("caldav.jmap.client.requests.post", mock_post)
-        added, modified, deleted = self._make_client().get_objects_by_sync_token("state-1")
+        added, modified, deleted, _ = self._make_client().get_objects_by_sync_token("state-1")
         assert len(added) == 1
         assert isinstance(added[0], JMAPCalendarObject)
         assert added[0].id == "ev1"
@@ -1808,7 +1862,7 @@ class TestJMAPClientSync:
             side_effect=[self._make_mock(changes_resp), self._make_mock(get_resp)]
         )
         monkeypatch.setattr("caldav.jmap.client.requests.post", mock_post)
-        added, modified, deleted = self._make_client().get_objects_by_sync_token("state-1")
+        added, modified, deleted, _ = self._make_client().get_objects_by_sync_token("state-1")
         assert len(modified) == 1
         assert isinstance(modified[0], JMAPCalendarObject)
         assert modified[0].id == "ev1"
@@ -1822,6 +1876,20 @@ class TestJMAPClientSync:
         with pytest.raises(JMAPMethodError) as exc_info:
             self._make_client().get_objects_by_sync_token("state-1")
         assert exc_info.value.error_type == "serverPartialFail"
+
+    def test_get_objects_returns_new_sync_token(self, monkeypatch):
+        """§4.7: newState from /changes was discarded into _.  Callers had no
+        way to chain sync calls without a separate get_sync_token() round-trip,
+        creating a race window where intervening changes would be silently missed."""
+        resp = self._changes_resp(new_state="state-99")
+        monkeypatch.setattr(
+            "caldav.jmap.client.requests.post", lambda *a, **kw: self._make_mock(resp)
+        )
+        result = self._make_client().get_objects_by_sync_token("state-1")
+        assert len(result) == 4, "expected 4-tuple (added, modified, deleted, new_sync_token)"
+        added, modified, deleted, new_token = result
+        assert new_token == "state-99"
+        assert added == [] and modified == [] and deleted == []
 
     def test_parse_event_changes_all_fields(self):
         resp_args = {
@@ -2008,6 +2076,16 @@ class TestJMAPClientTasks:
         with pytest.raises(JMAPMethodError) as exc_info:
             self._make_client().create_task("tl1", "Test")
         assert exc_info.value.error_type == "invalidArguments"
+
+    def test_create_task_raises_jmap_error_when_created_is_empty(self, monkeypatch):
+        """§1.13: create_task must raise JMAPMethodError (not KeyError) when the server
+        returns a Task/set response with an empty 'created' dict and no 'notCreated' entry."""
+        resp = self._set_response(created={}, notCreated={})
+        monkeypatch.setattr(
+            "caldav.jmap.client.requests.post", lambda *a, **kw: self._make_mock(resp)
+        )
+        with pytest.raises(JMAPMethodError):
+            self._make_client().create_task("tl1", "Test")
 
     def test_get_task_returns_task_object(self, monkeypatch):
         resp = self._get_response([self._MINIMAL_TASK])
@@ -2327,7 +2405,7 @@ class TestAsyncJMAPClient:
         mock_http.__aexit__ = AsyncMock(return_value=None)
         mock_http.post = AsyncMock(return_value=self._make_mock_response(self._changes_resp()))
         monkeypatch.setattr("caldav.jmap.async_client.AsyncSession", lambda: mock_http)
-        added, modified, deleted = await self._make_client().get_objects_by_sync_token("state-1")
+        added, modified, deleted, _ = await self._make_client().get_objects_by_sync_token("state-1")
         assert added == [] and modified == [] and deleted == []
 
     @pytest.mark.asyncio
@@ -2339,7 +2417,7 @@ class TestAsyncJMAPClient:
             return_value=self._make_mock_response(self._changes_resp(destroyed=["ev1"]))
         )
         monkeypatch.setattr("caldav.jmap.async_client.AsyncSession", lambda: mock_http)
-        added, modified, deleted = await self._make_client().get_objects_by_sync_token("state-1")
+        added, modified, deleted, _ = await self._make_client().get_objects_by_sync_token("state-1")
         assert deleted == ["ev1"] and added == [] and modified == []
 
     @pytest.mark.asyncio
@@ -2354,7 +2432,7 @@ class TestAsyncJMAPClient:
             ]
         )
         monkeypatch.setattr("caldav.jmap.async_client.AsyncSession", lambda: mock_http)
-        added, modified, deleted = await self._make_client().get_objects_by_sync_token("state-1")
+        added, modified, deleted, _ = await self._make_client().get_objects_by_sync_token("state-1")
         assert len(added) == 1
         assert isinstance(added[0], JMAPCalendarObject)
         assert added[0].id == "ev-async-1"
@@ -2534,7 +2612,7 @@ class TestAsyncJMAPClient:
             ]
         )
         monkeypatch.setattr("caldav.jmap.async_client.AsyncSession", lambda: mock_http)
-        added, modified, deleted = await self._make_client().get_objects_by_sync_token("state-1")
+        added, modified, deleted, _ = await self._make_client().get_objects_by_sync_token("state-1")
         assert len(modified) == 1
         assert isinstance(modified[0], JMAPCalendarObject)
         assert modified[0].id == "ev-async-1"
@@ -2548,3 +2626,126 @@ class TestAsyncJMAPClient:
         create_args = captured["json"]["methodCalls"][0][1]
         new_task = create_args["create"]["new-0"]
         assert new_task["taskListId"] == "tl-target"
+
+
+class TestOverrideWithoutStartUsesOccurrenceTime:
+    """§4.1: override child VEVENT must use occurrence time as DTSTART, not master start."""
+
+    def test_title_only_override_dtstart_equals_occurrence(self):
+        # Master: 2024-06-17T09:00:00Z (UTC), weekly recurrence.
+        # Override for 2024-06-24T09:00:00Z changes only title — no "start" in patch.
+        # Child DTSTART must be 20240624T090000Z, not 20240617T090000Z.
+        jscal = {
+            "uid": "override-dtstart@example.com",
+            "title": "Master Title",
+            "start": "2024-06-17T09:00:00Z",
+            "duration": "PT1H",
+            "recurrenceRules": [{"@type": "RecurrenceRule", "frequency": "weekly"}],
+            "recurrenceOverrides": {
+                "2024-06-24T09:00:00Z": {"title": "Changed Title"},
+            },
+        }
+        result = jscal_to_ical(jscal)
+        import icalendar as _ic
+
+        cal = _ic.Calendar.from_ical(result)
+        events = [c for c in cal.subcomponents if isinstance(c, _ic.Event)]
+        assert len(events) == 2
+        child = next(e for e in events if e.get("RECURRENCE-ID") is not None)
+        # DTSTART of the child must match its own occurrence, not the master start
+        child_dtstart = child["DTSTART"].dt
+        if hasattr(child_dtstart, "utctimetuple"):
+            import datetime as _dt
+
+            assert child_dtstart == _dt.datetime(2024, 6, 24, 9, 0, 0, tzinfo=_dt.timezone.utc)
+        else:
+            assert str(child_dtstart) == "2024-06-24"
+
+
+class TestExdateValueType:
+    """§4.2: EXDATE value type must match DTSTART (TZID or DATE, not floating)."""
+
+    def test_exdate_for_tzid_event_has_tzid_param(self):
+        # A TZID-anchored event's excluded override must produce EXDATE with TZID,
+        # not a floating EXDATE (which per RFC 5545 won't match the instance).
+        jscal = _minimal_jscal(
+            start="2024-06-17T14:00:00",
+            timeZone="Europe/Berlin",
+            recurrenceRules=[{"@type": "RecurrenceRule", "frequency": "weekly"}],
+            recurrenceOverrides={"2024-06-24T14:00:00": {"excluded": True}},
+        )
+        result = jscal_to_ical(jscal)
+        # Must have TZID on EXDATE; a plain EXDATE:... without TZID is a floating datetime
+        assert "EXDATE;TZID=Europe/Berlin:" in result
+
+    def test_exdate_for_allday_event_is_date_value(self):
+        jscal = {
+            "uid": "allday-exdate@example.com",
+            "title": "All Day Recurring",
+            "start": "2024-06-17T00:00:00",
+            "showWithoutTime": True,
+            "duration": "P1D",
+            "recurrenceRules": [{"@type": "RecurrenceRule", "frequency": "weekly"}],
+            "recurrenceOverrides": {"2024-06-24T00:00:00": {"excluded": True}},
+        }
+        result = jscal_to_ical(jscal)
+        # All-day EXDATE must be a DATE value (8-digit YYYYMMDD, not YYYYMMDDTHHMMSS datetime).
+        # The icalendar library may or may not emit explicit VALUE=DATE — either form is acceptable.
+        assert "EXDATE" in result
+        assert "20240624" in result
+        assert "20240624T" not in result  # must not be a datetime
+
+
+class TestStatusMapping:
+    """§4.4: STATUS must be mapped in both ical→jscal and jscal→ical directions."""
+
+    def test_ical_status_cancelled_to_jscal(self):
+        ical = _make_ical(
+            "DTSTART:20240615T100000Z\r\nSUMMARY:Cancelled Meeting\r\nSTATUS:CANCELLED\r\n"
+        )
+        result = ical_to_jscal(ical)
+        assert result.get("status") == "cancelled"
+
+    def test_ical_status_tentative_to_jscal(self):
+        ical = _make_ical(
+            "DTSTART:20240615T100000Z\r\nSUMMARY:Tentative Meeting\r\nSTATUS:TENTATIVE\r\n"
+        )
+        result = ical_to_jscal(ical)
+        assert result.get("status") == "tentative"
+
+    def test_ical_status_confirmed_to_jscal(self):
+        ical = _make_ical(
+            "DTSTART:20240615T100000Z\r\nSUMMARY:Confirmed Meeting\r\nSTATUS:CONFIRMED\r\n"
+        )
+        result = ical_to_jscal(ical)
+        assert result.get("status") == "confirmed"
+
+    def test_ical_no_status_omits_jscal_status(self):
+        ical = _make_ical("DTSTART:20240615T100000Z\r\nSUMMARY:No Status\r\n")
+        result = ical_to_jscal(ical)
+        assert "status" not in result
+
+    def test_jscal_status_cancelled_to_ical(self):
+        result = jscal_to_ical(_minimal_jscal(status="cancelled"))
+        assert "STATUS:CANCELLED" in result
+
+    def test_jscal_status_tentative_to_ical(self):
+        result = jscal_to_ical(_minimal_jscal(status="tentative"))
+        assert "STATUS:TENTATIVE" in result
+
+    def test_jscal_status_confirmed_to_ical(self):
+        result = jscal_to_ical(_minimal_jscal(status="confirmed"))
+        assert "STATUS:CONFIRMED" in result
+
+    def test_jscal_no_status_omits_ical_status(self):
+        result = jscal_to_ical(_minimal_jscal())
+        assert "STATUS:" not in result
+
+    def test_status_cancelled_round_trips(self):
+        original = _make_ical(
+            "DTSTART:20240615T100000Z\r\nSUMMARY:Cancelled\r\nSTATUS:CANCELLED\r\n"
+        )
+        jscal = ical_to_jscal(original)
+        assert jscal.get("status") == "cancelled"
+        round_tripped = jscal_to_ical(jscal)
+        assert "STATUS:CANCELLED" in round_tripped

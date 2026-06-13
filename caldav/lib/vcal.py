@@ -77,20 +77,24 @@ def fix(event):
 
     ## TODO: add ^ before COMPLETED and CREATED?
     ## 1) Add an arbitrary time if completed is given as date
-    fixed = re.sub(r"COMPLETED(?:;VALUE=DATE)?:(\d+)\s", r"COMPLETED:\g<1>T120000Z", event)
+    fixed = re.sub(r"COMPLETED(?:;VALUE=DATE)?:(\d+)(?=\s)", r"COMPLETED:\g<1>T120000Z", event)
 
     ## 2) CREATED timestamps prior to epoch does not make sense,
     ## change from year 0001 to epoch.
     fixed = re.sub("CREATED:00001231T000000Z", "CREATED:19700101T000000Z", fixed)
-    fixed = re.sub(r"\\+('\")", r"\1", fixed)
+    fixed = re.sub(r"\\+(['\"])", r"\1", fixed)
 
     ## 4) trailing whitespace probably never makes sense
-    fixed = re.sub(" *$", "", fixed)
+    fixed = re.sub(" *$", "", fixed, flags=re.MULTILINE)
 
     ## 6) add DTSTAMP if not given
     ## (corner case that DTSTAMP is given in one but not all the recurrences is ignored)
     if "\nDTSTAMP:" not in fixed:
-        assert "\nEND" in fixed
+        if "\nEND" not in fixed:
+            logging.getLogger(__name__).warning(
+                "vcal.fix(): truncated iCalendar data (no END: line) — skipping DTSTAMP fixup"
+            )
+            return fixed
         dtstamp = datetime.datetime.now(tz=datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         fixed = re.sub("(\nEND:(VTODO|VEVENT|VJOURNAL))", f"\nDTSTAMP:{dtstamp}\\1", fixed)
 
@@ -240,8 +244,8 @@ def create_ical(ical_fragment=None, objtype=None, language="en_DK", **props):
     ret = to_normal_str(my_instance.to_ical())
     if ical_fragment and ical_fragment.strip():
         ret = re.sub(
-            "^END:V",
-            ical_fragment.strip() + "\nEND:V",
+            "^(END:V(?:EVENT|TODO|JOURNAL))",
+            ical_fragment.strip() + "\n\\1",
             ret,
             flags=re.MULTILINE,
             count=1,

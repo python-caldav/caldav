@@ -598,22 +598,27 @@ class Principal(DAVObject):
         freebusy_ical.add_component(freebusy_comp)
         outbox = self.schedule_outbox()
         caldavobj = FreeBusy(data=freebusy_ical, parent=self)
-        for attendee in attendees:
-            caldavobj.add_attendee(attendee, no_default_parameters=True)
 
         if self.is_async_client:
-            return self._async_freebusy_request(outbox, caldavobj)
+            return self._async_freebusy_request(outbox, caldavobj, attendees)
+
+        for attendee in attendees:
+            caldavobj.add_attendee(attendee, no_default_parameters=True)
 
         caldavobj.add_organizer()
 
         response = self.client.post(outbox.url, caldavobj.data, headers=ICALH)
         return response._parse_scheduling_response_objects(parent=self)
 
-    async def _async_freebusy_request(self, outbox, fb_obj) -> dict:
+    async def _async_freebusy_request(self, outbox, fb_obj, attendees) -> dict:
         """Async implementation of freebusy_request() for async clients."""
         ## TODO: could we have common headers as global variable?
         headers = ICALH
         outbox = await outbox
+        for attendee in attendees:
+            if isinstance(attendee, Principal):
+                attendee = await attendee.get_vcal_address()
+            fb_obj.add_attendee(attendee, no_default_parameters=True)
         ## TODO: it's really bad that arbitrary methods returns
         ## a coroutine in async mode.  It's needed to make it much
         ## more clear what methods involves I/O and what methods
@@ -747,14 +752,20 @@ class Calendar(DAVObject):
 
         prop = dav.Prop()
         display_name = None
-        # Some servers (e.g. Zimbra) use the DisplayName from the MKCALENDAR body
-        # as the calendar URL, ignoring the actual request path.  When the server
-        # does not support setting a separate display name, omit it from the body so
-        # the request URL path is used as the calendar identifier.
+        # Some servers (e.g. Zimbra) couple the display name to the calendar URL:
+        # applying a display name renames/moves the collection, relocating its
+        # canonical URL to a display-name-derived path (an alias may linger at the
+        # request path, but unreliably).  When the server cannot set a display name
+        # without moving the calendar (create-calendar.set-displayname.stable-url
+        # unsupported), or cannot set one at all, omit it from the body so the
+        # request URL path stays the calendar identifier.
         supports_displayname = not self.client or self.client.features.is_supported(
             "create-calendar.set-displayname"
         )
-        if name and supports_displayname:
+        stable_url = not self.client or self.client.features.is_supported(
+            "create-calendar.set-displayname.stable-url"
+        )
+        if name and supports_displayname and stable_url:
             display_name = dav.DisplayName(name)
             prop += [display_name]
         if supported_calendar_component_set:
@@ -1417,6 +1428,7 @@ class Calendar(DAVObject):
         filters=None,
         post_filter=None,
         _hacks=None,
+        compatibility_workarounds: bool | None = None,
         **searchargs,
     ) -> "list[_CC] | Coroutine[Any, Any, list[_CC]]":
         """Sends a search request towards the server, processes the
@@ -1529,11 +1541,25 @@ class Calendar(DAVObject):
         # For async clients, use async_search
         if self.is_async_client:
             return my_searcher.async_search(
-                self, server_expand, split_expanded, props, xml, post_filter, _hacks
+                self,
+                server_expand,
+                split_expanded,
+                props,
+                xml,
+                post_filter,
+                _hacks,
+                compatibility_workarounds,
             )
 
         return my_searcher.search(
-            self, server_expand, split_expanded, props, xml, post_filter, _hacks
+            self,
+            server_expand,
+            split_expanded,
+            props,
+            xml,
+            post_filter,
+            _hacks,
+            compatibility_workarounds,
         )
 
     def freebusy_request(

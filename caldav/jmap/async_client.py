@@ -34,6 +34,7 @@ from caldav.jmap._methods.task import (
 )
 from caldav.jmap.client import _DEFAULT_USING, _TASK_USING, _JMAPClientBase
 from caldav.jmap.convert import ical_to_jscal
+from caldav.jmap.convert._patch import _NULL_FOR_UPDATE
 from caldav.jmap.error import JMAPAuthError, JMAPMethodError
 from caldav.jmap.objects.calendar import JMAPCalendar
 from caldav.jmap.objects.calendar_object import JMAPCalendarObject
@@ -232,6 +233,9 @@ class AsyncJMAPClient(_JMAPClientBase):
         session = await self._get_session()
         patch = ical_to_jscal(ical_str)
         patch.pop("uid", None)  # uid is server-immutable after creation; patch must omit it
+        for key in _NULL_FOR_UPDATE:
+            if key not in patch:
+                patch[key] = None
         call = build_event_set_update(session.account_id, {event_id: patch})
         responses = await self._request([call])
 
@@ -311,7 +315,7 @@ class AsyncJMAPClient(_JMAPClientBase):
 
     async def get_objects_by_sync_token(
         self, sync_token: str
-    ) -> tuple[list[JMAPCalendarObject], list[JMAPCalendarObject], list[str]]:
+    ) -> tuple[list[JMAPCalendarObject], list[JMAPCalendarObject], list[str], str]:
         """Fetch events changed since a previous sync token.
 
         Calls ``CalendarEvent/changes`` to discover which events were created,
@@ -325,11 +329,12 @@ class AsyncJMAPClient(_JMAPClientBase):
                 or by a prior call to this method.
 
         Returns:
-            A 3-tuple ``(added, modified, deleted)``:
+            A 4-tuple ``(added, modified, deleted, new_sync_token)``:
 
             - ``added``: objects for newly created events (``parent`` is ``None``).
             - ``modified``: objects for updated events (``parent`` is ``None``).
             - ``deleted``: Event IDs that were destroyed.
+            - ``new_sync_token``: Pass to the next call to this method as ``sync_token``.
 
         Raises:
             JMAPMethodError: If the server reports ``hasMoreChanges: true``.
@@ -341,10 +346,13 @@ class AsyncJMAPClient(_JMAPClientBase):
         created_ids: list[str] = []
         updated_ids: list[str] = []
         destroyed: list[str] = []
+        new_sync_token: str = ""
 
         for method_name, resp_args, _ in responses:
             if method_name == "CalendarEvent/changes":
-                _, _, has_more, created_ids, updated_ids, destroyed = parse_event_changes(resp_args)
+                _, new_sync_token, has_more, created_ids, updated_ids, destroyed = (
+                    parse_event_changes(resp_args)
+                )
                 if has_more:
                     raise JMAPMethodError(
                         url=session.api_url,
@@ -358,7 +366,7 @@ class AsyncJMAPClient(_JMAPClientBase):
 
         fetch_ids = created_ids + updated_ids
         if not fetch_ids:
-            return [], [], destroyed
+            return [], [], destroyed, new_sync_token
 
         get_call = build_event_get(session.account_id, ids=fetch_ids)
         get_responses = await self._request([get_call])
@@ -371,7 +379,7 @@ class AsyncJMAPClient(_JMAPClientBase):
 
         added = [events_by_id[i] for i in created_ids if i in events_by_id]
         modified = [events_by_id[i] for i in updated_ids if i in events_by_id]
-        return added, modified, destroyed
+        return added, modified, destroyed, new_sync_token
 
     async def delete_event(self, event_id: str) -> None:
         """Delete a calendar event.
@@ -458,6 +466,11 @@ class AsyncJMAPClient(_JMAPClientBase):
                 created, _, _, not_created, _, _ = parse_task_set(resp_args)
                 if "new-0" in not_created:
                     self._raise_set_error(session, not_created["new-0"])
+                if "new-0" not in created:
+                    raise JMAPMethodError(
+                        url=session.api_url,
+                        reason="Task/set response missing created entry for new-0",
+                    )
                 return created["new-0"]["id"]
 
         raise JMAPMethodError(url=session.api_url, reason="No Task/set response")
