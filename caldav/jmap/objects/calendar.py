@@ -8,7 +8,7 @@ Properties are defined in the JMAP Calendars specification.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 from caldav.jmap.objects.calendar_object import JMAPCalendarObject
@@ -16,6 +16,17 @@ from caldav.jmap.objects.calendar_object import JMAPCalendarObject
 if TYPE_CHECKING:
     from caldav.jmap.async_client import AsyncJMAPClient
     from caldav.jmap.client import JMAPClient
+
+
+def _to_utcdate(dt: datetime) -> str:
+    """Convert a datetime to JMAP UTCDate format (YYYY-MM-DDTHH:MM:SSZ).
+
+    Naive datetimes are assumed to be UTC.  Aware datetimes are converted to
+    UTC before formatting.  Microseconds are dropped as JMAP does not allow them.
+    """
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 @dataclass
@@ -111,9 +122,9 @@ class JMAPCalendar:
         start = searchargs.get("start")
         end = searchargs.get("end")
         if isinstance(start, datetime):
-            start = start.isoformat()
+            start = _to_utcdate(start)
         if isinstance(end, datetime):
-            end = end.isoformat()
+            end = _to_utcdate(end)
         return self._client._search(
             calendar_id=self.id,
             start=start,
@@ -126,9 +137,9 @@ class JMAPCalendar:
         start = searchargs.get("start")
         end = searchargs.get("end")
         if isinstance(start, datetime):
-            start = start.isoformat()
+            start = _to_utcdate(start)
         if isinstance(end, datetime):
-            end = end.isoformat()
+            end = _to_utcdate(end)
         return await self._client._search(
             calendar_id=self.id,
             start=start,

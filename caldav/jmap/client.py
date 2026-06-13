@@ -430,7 +430,7 @@ class JMAPClient(_JMAPClientBase):
 
     def get_objects_by_sync_token(
         self, sync_token: str
-    ) -> tuple[list[JMAPCalendarObject], list[JMAPCalendarObject], list[str]]:
+    ) -> tuple[list[JMAPCalendarObject], list[JMAPCalendarObject], list[str], str]:
         """Fetch events changed since a previous sync token.
 
         Calls ``CalendarEvent/changes`` to discover which events were created,
@@ -444,11 +444,12 @@ class JMAPClient(_JMAPClientBase):
                 or by a prior call to this method.
 
         Returns:
-            A 3-tuple ``(added, modified, deleted)``:
+            A 4-tuple ``(added, modified, deleted, new_sync_token)``:
 
             - ``added``: objects for newly created events (``parent`` is ``None``).
             - ``modified``: objects for updated events (``parent`` is ``None``).
             - ``deleted``: Event IDs that were destroyed.
+            - ``new_sync_token``: Pass to the next call to this method as ``sync_token``.
 
         Raises:
             JMAPMethodError: If the server reports ``hasMoreChanges: true``.
@@ -460,10 +461,13 @@ class JMAPClient(_JMAPClientBase):
         created_ids: list[str] = []
         updated_ids: list[str] = []
         destroyed: list[str] = []
+        new_sync_token: str = ""
 
         for method_name, resp_args, _ in responses:
             if method_name == "CalendarEvent/changes":
-                _, _, has_more, created_ids, updated_ids, destroyed = parse_event_changes(resp_args)
+                _, new_sync_token, has_more, created_ids, updated_ids, destroyed = (
+                    parse_event_changes(resp_args)
+                )
                 if has_more:
                     raise JMAPMethodError(
                         url=session.api_url,
@@ -477,7 +481,7 @@ class JMAPClient(_JMAPClientBase):
 
         fetch_ids = created_ids + updated_ids
         if not fetch_ids:
-            return [], [], destroyed
+            return [], [], destroyed, new_sync_token
 
         get_call = build_event_get(session.account_id, ids=fetch_ids)
         get_responses = self._request([get_call])
@@ -490,7 +494,7 @@ class JMAPClient(_JMAPClientBase):
 
         added = [events_by_id[i] for i in created_ids if i in events_by_id]
         modified = [events_by_id[i] for i in updated_ids if i in events_by_id]
-        return added, modified, destroyed
+        return added, modified, destroyed, new_sync_token
 
     def delete_event(self, event_id: str) -> None:
         """Delete a calendar event.

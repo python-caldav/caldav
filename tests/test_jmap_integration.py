@@ -220,7 +220,7 @@ class TestJMAPEventIntegration:
         token_before = client.get_sync_token()
         event_id = client.create_event(calendar_id, _minimal_ical("Sync Test Event"))
         try:
-            added, _modified, _deleted = client.get_objects_by_sync_token(token_before)
+            added, _modified, _deleted, _new_token = client.get_objects_by_sync_token(token_before)
             assert any("Sync Test Event" in jscal_to_ical(a.get_data()) for a in added)
         finally:
             client.delete_event(event_id)
@@ -280,7 +280,9 @@ class TestAsyncJMAPEventIntegration:
             async_calendar_id, _minimal_ical("Async Sync Test Event")
         )
         try:
-            added, _modified, _deleted = await async_client.get_objects_by_sync_token(token_before)
+            added, _modified, _deleted, _new_token = await async_client.get_objects_by_sync_token(
+                token_before
+            )
             assert any("Async Sync Test Event" in jscal_to_ical(a.get_data()) for a in added)
         finally:
             await async_client.delete_event(event_id)

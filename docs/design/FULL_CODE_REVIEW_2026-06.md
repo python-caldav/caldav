@@ -310,7 +310,7 @@ explicitly).
 bodies (calendar PII, custom auth headers) to files that accumulate
 indefinitely. Files are 0600, and the niquests-applied Authorization header
 is added after the dump point, so exposure is limited — but a cleanup policy
-or a documented warning would be appropriate.
+or a documented warning would be appropriate.  **Human notes:** This is in /tmp, so we should expect some kind of cleanup on the OS level.  There does exist some security notes in the CHANGELOG for the revision adding the feature, but the CHANGELOG has been pruned, so it's needed to consult git history to find it - it should definitively be lifted up to a more visible place.
 
 **Ruled out** (checked, found safe): SSRF via server-returned hrefs
 (`_normalize_href` reduces absolute URLs to path-only); credential leak on
@@ -405,7 +405,7 @@ producing drift bugs.
    purelymail 404) must be maintained twice; the TODO at line 577 already
    acknowledges this.
 8. **`search.py` sync/async driver loops duplicated** (~80 lines including
-   the Phase-1/Phase-2 exception-rethrow protocol and
+   the hase-1/Phase-2 exception-rethrow protocol and
    `_search_with_comptypes`). A small executor object with sync/async
    implementations would leave one driver.
 
@@ -425,6 +425,8 @@ producing drift bugs.
    considering parser-level normalization (icalendar) or at least
    regression-testing each fixup against the exact server output it was
    written for.
+
+   **Human comment:** we've been discussing a bit moving this logic into the icalendar library - but it's hard to make good solutions, so we'll need to keep the stop-gap implementation as for now.
 
 ---
 
