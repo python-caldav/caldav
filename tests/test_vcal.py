@@ -131,6 +131,23 @@ class TestVcal(TestCase):
         )
         assert re.search(b"DTSTART(;VALUE=DATE-TIME)?:20321010T101010Z", some_ical)
 
+        ## ical_fragment with alarm_* props: fragment must land in VEVENT, not VALARM (§2.2)
+        raw_ical = create_ical(
+            summary="alarm-test",
+            dtstart=datetime(2032, 10, 10, 10, 10, 10, tzinfo=utc),
+            duration=timedelta(hours=1),
+            alarm_action="DISPLAY",
+            alarm_description="reminder",
+            alarm_trigger=timedelta(minutes=-15),
+            ical_fragment="RRULE:FREQ=DAILY;COUNT=3",
+        )
+        raw_bytes = to_wire(raw_ical)
+        assert b"RRULE:FREQ=DAILY" in raw_bytes, "ical_fragment must appear in output"
+        assert b"BEGIN:VALARM" in raw_bytes, "alarm must be present"
+        end_valarm_pos = raw_bytes.index(b"END:VALARM")
+        rrule_pos = raw_bytes.index(b"RRULE:FREQ=DAILY")
+        assert rrule_pos > end_valarm_pos, "RRULE must not be inside VALARM"
+
     def test_vcal_fixups(self):
         """
         There is an obscure function lib.vcal that attempts to fix up
