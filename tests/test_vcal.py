@@ -298,6 +298,31 @@ END:VCALENDAR""",
         for ical in non_broken_ical:
             assert vcal.fix(ical) == ical
 
+    def test_trailing_whitespace_stripped_per_line(self) -> None:
+        """Bug §2.3: re.sub(' *$', '', fixed) without re.MULTILINE only strips
+        trailing spaces at the very end of the document, leaving per-line
+        trailing spaces intact (e.g. iCloud X-APPLE-STRUCTURED-LOCATION fold
+        lines with trailing spaces that distort base64 content)."""
+        ical = (
+            "BEGIN:VCALENDAR\n"
+            "VERSION:2.0\n"
+            "BEGIN:VEVENT\n"
+            "UID:test\n"
+            "DTSTAMP:20190103T070319Z\n"
+            "DTSTART:20190117T180000Z\n"
+            "SUMMARY:test\n"
+            "X-APPLE-STRUCTURED-LOCATION;X-TITLE=Somewhere:CAESvAEaEgmX     \n"
+            " 5esy/OVJQBGXkXpP5aQYQCJi=\n"
+            "END:VEVENT\n"
+            "END:VCALENDAR\n"
+        )
+        import re
+
+        fixed = vcal.fix(ical)
+        assert not re.search(r" +\n", fixed), (
+            "fix() must strip trailing spaces from each line, not just the document end"
+        )
+
     def test_completed_date_fixup_preserves_next_property(self) -> None:
         """Bug §2.1: COMPLETED date fixup regex consumed the trailing newline,
         merging the next property line into COMPLETED and destroying it."""

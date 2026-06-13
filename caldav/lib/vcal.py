@@ -85,7 +85,7 @@ def fix(event):
     fixed = re.sub(r"\\+('\")", r"\1", fixed)
 
     ## 4) trailing whitespace probably never makes sense
-    fixed = re.sub(" *$", "", fixed)
+    fixed = re.sub(" *$", "", fixed, flags=re.MULTILINE)
 
     ## 6) add DTSTAMP if not given
     ## (corner case that DTSTAMP is given in one but not all the recurrences is ignored)
