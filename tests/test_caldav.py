@@ -2263,7 +2263,7 @@ END:VCALENDAR"""
         ## ADDING yet another object ... and it should also be reported
         if is_time_based:
             time.sleep(1)
-        obj3 = c.add_event(near_now_ics(ev3))
+        c.add_event(near_now_ics(ev3))
         if is_time_based:
             time.sleep(1)
         my_changed_objects = c.get_objects_by_sync_token(sync_token=my_changed_objects.sync_token)
