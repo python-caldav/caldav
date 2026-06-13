@@ -207,6 +207,8 @@ class TestFetchSession:
         assert session.account_id == "user_calendar"
 
 
+from datetime import datetime, timezone
+
 from caldav.jmap.objects.calendar import JMAPCalendar
 from caldav.jmap.objects.calendar_object import JMAPCalendarObject
 
@@ -371,6 +373,26 @@ class TestJMAPCalendar:
         query_args = captured["json"]["methodCalls"][0][1]
         assert query_args["filter"]["after"] == "2026-01-01T00:00:00"
         assert query_args["filter"]["before"] == "2026-12-31T23:59:59"
+
+    def test_calendar_search_datetime_converted_to_utcdate(self, monkeypatch):
+        """§4.6: datetime.isoformat() produced wrong format for JMAP UTCDate.
+        Naive datetimes produce no Z, aware non-UTC produce +HH:MM offset;
+        JMAP requires ...Z (UTC, no microseconds)."""
+        import datetime as _dt
+
+        resp = self._query_get_response([self._RAW_EVENT])
+        cal, captured = self._capturing_calendar(monkeypatch, resp)
+        tz_plus2 = _dt.timezone(_dt.timedelta(hours=2))
+        start_aware = datetime(2026, 6, 1, 12, 0, 0, tzinfo=tz_plus2)  # +02:00 noon → UTC 10:00
+        end_utc = datetime(2026, 12, 31, 23, 59, 59, tzinfo=timezone.utc)
+        cal.search(start=start_aware, end=end_utc)
+        query_args = captured["json"]["methodCalls"][0][1]
+        assert query_args["filter"]["after"] == "2026-06-01T10:00:00Z", (
+            f"Expected UTC Z-format, got {query_args['filter']['after']!r}"
+        )
+        assert query_args["filter"]["before"] == "2026-12-31T23:59:59Z", (
+            f"Expected UTC Z-format, got {query_args['filter']['before']!r}"
+        )
 
     def test_calendar_search_ignores_unknown_params(self, monkeypatch):
         """Verify that unknown search parameters are silently ignored."""
@@ -899,7 +921,7 @@ class TestEventMethodBuilders:
         assert not_destroyed["ev-old"]["type"] == "notFound"
 
 
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, timedelta
 
 import icalendar as _icalendar
 
@@ -1809,7 +1831,7 @@ class TestJMAPClientSync:
         monkeypatch.setattr(
             "caldav.jmap.client.requests.post", lambda *a, **kw: self._make_mock(resp)
         )
-        added, modified, deleted = self._make_client().get_objects_by_sync_token("state-1")
+        added, modified, deleted, _ = self._make_client().get_objects_by_sync_token("state-1")
         assert added == [] and modified == [] and deleted == []
 
     def test_get_objects_deleted_returns_ids(self, monkeypatch):
@@ -1817,7 +1839,7 @@ class TestJMAPClientSync:
         monkeypatch.setattr(
             "caldav.jmap.client.requests.post", lambda *a, **kw: self._make_mock(resp)
         )
-        added, modified, deleted = self._make_client().get_objects_by_sync_token("state-1")
+        added, modified, deleted, _ = self._make_client().get_objects_by_sync_token("state-1")
         assert deleted == ["ev1"] and added == [] and modified == []
 
     def test_get_objects_added_returns_ical(self, monkeypatch):
@@ -1827,7 +1849,7 @@ class TestJMAPClientSync:
             side_effect=[self._make_mock(changes_resp), self._make_mock(get_resp)]
         )
         monkeypatch.setattr("caldav.jmap.client.requests.post", mock_post)
-        added, modified, deleted = self._make_client().get_objects_by_sync_token("state-1")
+        added, modified, deleted, _ = self._make_client().get_objects_by_sync_token("state-1")
         assert len(added) == 1
         assert isinstance(added[0], JMAPCalendarObject)
         assert added[0].id == "ev1"
@@ -1840,7 +1862,7 @@ class TestJMAPClientSync:
             side_effect=[self._make_mock(changes_resp), self._make_mock(get_resp)]
         )
         monkeypatch.setattr("caldav.jmap.client.requests.post", mock_post)
-        added, modified, deleted = self._make_client().get_objects_by_sync_token("state-1")
+        added, modified, deleted, _ = self._make_client().get_objects_by_sync_token("state-1")
         assert len(modified) == 1
         assert isinstance(modified[0], JMAPCalendarObject)
         assert modified[0].id == "ev1"
@@ -1854,6 +1876,20 @@ class TestJMAPClientSync:
         with pytest.raises(JMAPMethodError) as exc_info:
             self._make_client().get_objects_by_sync_token("state-1")
         assert exc_info.value.error_type == "serverPartialFail"
+
+    def test_get_objects_returns_new_sync_token(self, monkeypatch):
+        """§4.7: newState from /changes was discarded into _.  Callers had no
+        way to chain sync calls without a separate get_sync_token() round-trip,
+        creating a race window where intervening changes would be silently missed."""
+        resp = self._changes_resp(new_state="state-99")
+        monkeypatch.setattr(
+            "caldav.jmap.client.requests.post", lambda *a, **kw: self._make_mock(resp)
+        )
+        result = self._make_client().get_objects_by_sync_token("state-1")
+        assert len(result) == 4, "expected 4-tuple (added, modified, deleted, new_sync_token)"
+        added, modified, deleted, new_token = result
+        assert new_token == "state-99"
+        assert added == [] and modified == [] and deleted == []
 
     def test_parse_event_changes_all_fields(self):
         resp_args = {
@@ -2369,7 +2405,7 @@ class TestAsyncJMAPClient:
         mock_http.__aexit__ = AsyncMock(return_value=None)
         mock_http.post = AsyncMock(return_value=self._make_mock_response(self._changes_resp()))
         monkeypatch.setattr("caldav.jmap.async_client.AsyncSession", lambda: mock_http)
-        added, modified, deleted = await self._make_client().get_objects_by_sync_token("state-1")
+        added, modified, deleted, _ = await self._make_client().get_objects_by_sync_token("state-1")
         assert added == [] and modified == [] and deleted == []
 
     @pytest.mark.asyncio
@@ -2381,7 +2417,7 @@ class TestAsyncJMAPClient:
             return_value=self._make_mock_response(self._changes_resp(destroyed=["ev1"]))
         )
         monkeypatch.setattr("caldav.jmap.async_client.AsyncSession", lambda: mock_http)
-        added, modified, deleted = await self._make_client().get_objects_by_sync_token("state-1")
+        added, modified, deleted, _ = await self._make_client().get_objects_by_sync_token("state-1")
         assert deleted == ["ev1"] and added == [] and modified == []
 
     @pytest.mark.asyncio
@@ -2396,7 +2432,7 @@ class TestAsyncJMAPClient:
             ]
         )
         monkeypatch.setattr("caldav.jmap.async_client.AsyncSession", lambda: mock_http)
-        added, modified, deleted = await self._make_client().get_objects_by_sync_token("state-1")
+        added, modified, deleted, _ = await self._make_client().get_objects_by_sync_token("state-1")
         assert len(added) == 1
         assert isinstance(added[0], JMAPCalendarObject)
         assert added[0].id == "ev-async-1"
@@ -2576,7 +2612,7 @@ class TestAsyncJMAPClient:
             ]
         )
         monkeypatch.setattr("caldav.jmap.async_client.AsyncSession", lambda: mock_http)
-        added, modified, deleted = await self._make_client().get_objects_by_sync_token("state-1")
+        added, modified, deleted, _ = await self._make_client().get_objects_by_sync_token("state-1")
         assert len(modified) == 1
         assert isinstance(modified[0], JMAPCalendarObject)
         assert modified[0].id == "ev-async-1"
