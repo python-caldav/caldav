@@ -910,7 +910,7 @@ class AsyncFunctionalTestsBaseClass:
         c1 = async_calendar
         c2 = async_calendar2
 
-        e1_ = await c1.add_event(near_now_ics(ev1_static))
+        await c1.add_event(near_now_ics(ev1_static))
         events = await c1.get_events()
         e1 = events[0]
 
@@ -1052,7 +1052,7 @@ class AsyncFunctionalTestsBaseClass:
 
         if is_time_based:
             await asyncio.sleep(1)
-        obj3 = await c.add_event(near_now_ics(ev3_static))
+        await c.add_event(near_now_ics(ev3_static))
         if is_time_based:
             await asyncio.sleep(1)
         my_changed_objects = await c.get_objects_by_sync_token(
