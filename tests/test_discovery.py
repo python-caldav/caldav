@@ -7,9 +7,7 @@ No network communication; DNS and HTTP are mocked.
 
 from unittest import mock
 
-import pytest
-
-from caldav.discovery import ServiceInfo, _well_known_lookup, discover_service
+from caldav.discovery import discover_service
 
 
 def _make_redirect_response(location: str, status_code: int = 302):
