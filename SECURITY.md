@@ -46,3 +46,16 @@ The library comes with a number of dependencies, one may need to evaluate the se
 * recurring-ical-events and icalendar both has the same maintainer (Nicco Kunzmann).  He is considered trustworthy.
 * Tobias now has a policy of moving code not related to CalDAV into separate packages.  Packages under the `python-caldav` ownership on GitHub should be considered to be of the same quality and security level as the CalDAV library.
 * No security review have been done of the other dependencies.
+
+## PYTHON_CALDAV_COMMDUMP debug hook
+
+The following was written when `PYTHON_CALDAV_COMMDUMP` was introduced in v1.4.0:
+
+The debug information gathering hook has been in the limbo for a long time, due to security concerns:
+
+* An attacker that has access to alter the environment the application is running under may cause a DoS-attack, filling up available disk space with debug logging.
+* An attacker that has access to alter the environment the application is running under, and access to read files under /tmp (files being 0600 and owned by the uid the application is running under), will be able to read the communication between the server and the client, communication that may be private and confidential.
+
+Thinking it through three times, I'm not too concerned — if someone has access to alter the environment the process is running under and access to read files run by the uid of the application, then this someone should already be trusted and will probably have the possibility to DoS the system or gather this communication through other means.
+
+As of v3.4, a warning is logged at import time when this variable is set, reminding the operator that request/response bodies and headers (including credentials and calendar PII) are written to uniquely-named files under `/tmp` that accumulate indefinitely.
