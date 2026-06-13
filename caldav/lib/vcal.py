@@ -82,7 +82,7 @@ def fix(event):
     ## 2) CREATED timestamps prior to epoch does not make sense,
     ## change from year 0001 to epoch.
     fixed = re.sub("CREATED:00001231T000000Z", "CREATED:19700101T000000Z", fixed)
-    fixed = re.sub(r"\\+('\")", r"\1", fixed)
+    fixed = re.sub(r"\\+(['\"])", r"\1", fixed)
 
     ## 4) trailing whitespace probably never makes sense
     fixed = re.sub(" *$", "", fixed, flags=re.MULTILINE)

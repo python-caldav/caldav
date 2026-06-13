@@ -323,6 +323,28 @@ END:VCALENDAR""",
             "fix() must strip trailing spaces from each line, not just the document end"
         )
 
+    def test_backslash_unescape_single_and_double_quotes(self) -> None:
+        """Bug §2.4: re.sub(r"\\+('\")", r"\1", fixed) used a group ('\"')
+        which matches only the literal two-char sequence '\" — not a character
+        class.  Backslash before a lone single quote or lone double quote was
+        therefore not unescaped."""
+        ical_single = (
+            "BEGIN:VCALENDAR\n"
+            "VERSION:2.0\n"
+            "BEGIN:VEVENT\n"
+            "UID:test\n"
+            "DTSTAMP:20190103T070319Z\n"
+            "DTSTART:20190117T180000Z\n"
+            "SUMMARY:it\\'s here\n"
+            "END:VEVENT\n"
+            "END:VCALENDAR\n"
+        )
+        ical_double = ical_single.replace("\\'", '\\"')
+        fixed_single = vcal.fix(ical_single)
+        fixed_double = vcal.fix(ical_double)
+        assert "SUMMARY:it's here" in fixed_single, "fix() must strip backslash before single quote"
+        assert 'SUMMARY:it"s here' in fixed_double, "fix() must strip backslash before double quote"
+
     def test_completed_date_fixup_preserves_next_property(self) -> None:
         """Bug §2.1: COMPLETED date fixup regex consumed the trailing newline,
         merging the next property line into COMPLETED and destroying it."""
