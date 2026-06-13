@@ -814,7 +814,7 @@ class AsyncFunctionalTestsBaseClass:
         if self.is_supported("save-load.mutable") and self.is_supported(
             "save-load.mutable.if-match-optional"
         ):
-            e2 = await c.add_event(ev1_now)
+            await c.add_event(ev1_now)
 
             # no_create on an existing event must succeed
             e2 = await c.add_event(ev1_now, no_create=True)
