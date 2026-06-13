@@ -316,7 +316,6 @@ END:VCALENDAR""",
             "END:VEVENT\n"
             "END:VCALENDAR\n"
         )
-        import re
 
         fixed = vcal.fix(ical)
         assert not re.search(r" +\n", fixed), (
