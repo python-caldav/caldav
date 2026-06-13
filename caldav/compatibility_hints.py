@@ -168,6 +168,11 @@ class FeatureSet:
             "description": "Setting a calendar's display name does not change the calendar's URL.  When 'full' (the normal case) the display name and the calendar URL are independent: the calendar stays addressable at the URL derived from the requested cal_id.  When 'unsupported', the server couples the two and relocates the calendar's canonical URL to a display-name-derived path when a display name is set (Zimbra applies the display name via a rename that moves the collection; an alias may linger at the original cal_id URL but is unreliable, cf. save-load.get-by-url).  Clients that need a predictable calendar URL should therefore omit the display name from the MKCALENDAR request for such servers.",
             "default": {"support": "full"},
         },
+        "propfind.displayname": {
+            "description": "Server returns the DAV:displayname property for a calendar collection via PROPFIND (RFC4918 section 15.2). This is a standard live property; virtually all CalDAV servers support it. 'broken' means the property is absent from the PROPFIND response even though a displayname was supplied at creation time.",
+            "default": {"support": "full"},
+            "links": ["https://datatracker.ietf.org/doc/html/rfc4918#section-15.2"],
+        },
         "delete-calendar": {
             "description": "RFC4791 says nothing about deletion of calendars, so the server implementation is free to choose weather this should be supported or not.  Section 3.2.3.2 in RFC 6638 says that if a calendar is deleted, all the calendarobjectresources on the calendar should also be deleted - but it's a bit unclear if this only applies to scheduling objects or not.  Some calendar servers moves the object to a trashcan rather than deleting it",
             ## Independent feature (directly probed): the default marks it so the
