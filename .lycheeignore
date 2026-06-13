@@ -2,6 +2,7 @@
 https?://your\.server\.example\.com/.*
 https?://.*\.example\.com(:\d+)?(/.*)?$
 https?://domain/.*
+https?://evil.attacker.com/caldav/
 
 # Localhost URLs for test servers (not accessible in CI)
 http://localhost:\d+/.*

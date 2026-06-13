@@ -156,19 +156,19 @@ hierarchy callers are told to catch. Copy-paste gap in both clients.
 destroyed and the object parses with corrupted data. This runs on every
 inbound object.
 
-### 2.2 `lib/vcal.py:242` — `create_ical(ical_fragment=...)` injects the fragment inside VALARM `[repro]`
+### 2.2 `lib/vcal.py:242` — `create_ical(ical_fragment=...)` injects the fragment inside VALARM `[repro]` ✅ FIXED
 The fragment is re-inserted before the first `^END:V` line — which is
 `END:VALARM` when any `alarm_*` props were given. `ical_fragment='RRULE:...'`
 plus an alarm produces an event *without* recurrence and with an invalid
 RRULE inside the alarm. Should target `END:VEVENT|VTODO|VJOURNAL`.
 
-### 2.3 `lib/vcal.py:88` — trailing-whitespace fixup is dead code `[repro]`
+### 2.3 `lib/vcal.py:88` — trailing-whitespace fixup is dead code `[repro]` ✅ FIXED
 `re.sub(" *$", "", fixed)` without `re.MULTILINE` only touches the document
 end, never the per-line trailing spaces (iCloud X-APPLE-STRUCTURED-EVENT)
 that docstring fix #4 targets. The vobject traceback it was written to
 prevent still occurs.
 
-### 2.4 `lib/vcal.py:85` — backslash-unescape regex is a no-op `[repro]`
+### 2.4 `lib/vcal.py:85` — backslash-unescape regex is a no-op `[repro]` ✅ FIXED
 `re.sub(r"\\+('\")", r"\1", fixed)` matches only the literal two-character
 sequence `'"`; the group should be a character class `['\"]`. Harmless for
 compliant data, but the fix does nothing.
@@ -305,7 +305,7 @@ explicitly).
 
 **Fixed**: added `resolve_entities=False, no_network=True` to the `etree.XMLParser` call in `response.py:277`.  `dtd_validation=False` is lxml's default so was not added explicitly.
 
-### 3.3 `lib/error.py:51` — `PYTHON_CALDAV_COMMDUMP` persists bodies/headers in /tmp (low) `[code]`
+### 3.3 `lib/error.py:51` — `PYTHON_CALDAV_COMMDUMP` persists bodies/headers in /tmp (low) `[code]` ✅ FIXED
 `NamedTemporaryFile(delete=False)` dumps full request/response headers and
 bodies (calendar PII, custom auth headers) to files that accumulate
 indefinitely. Files are 0600, and the niquests-applied Authorization header
@@ -352,12 +352,12 @@ only includes keys conditionally, so a property deleted client-side (e.g.
 LOCATION, VALARM) is simply *absent* from the patch and **persists on the
 server**. Clearing requires explicit `null` entries.
 
-### 4.6 `jmap/objects/calendar.py:113` — search `after`/`before` are not UTCDate `[code]`
+### 4.6 `jmap/objects/calendar.py:113` — search `after`/`before` are not UTCDate `[code]` ✅ FIXED
 `datetime.isoformat()` is passed straight through (naive → no `Z`, aware →
 `+02:00` offset, plus microseconds); JMAP requires `...Z` UTCDate. Strict
 servers reject the query; lenient ones interpret the window inconsistently.
 
-### 4.7 `jmap/client.py:462` / `async_client.py:347` — `newState` from `/changes` discarded `[code]`
+### 4.7 `jmap/client.py:462` / `async_client.py:347` — `newState` from `/changes` discarded `[code]` ✅ FIXED
 `get_objects_by_sync_token` unpacks `new_state` into `_`. Callers' only
 option for a new baseline is a separate `get_sync_token()` call — changes
 landing in between are silently skipped on the next sync.
