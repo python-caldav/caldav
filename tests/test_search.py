@@ -10,11 +10,12 @@ Disclaimer: AI-generated tests
 
 from datetime import datetime, timezone
 from unittest import mock
+from urllib.parse import quote
 
 import icalendar
 import pytest
 
-from caldav import Event, Journal, Todo
+from caldav import Calendar, Event, Journal, Todo
 from caldav.davclient import DAVClient
 from caldav.lib import error
 from caldav.lib.url import URL
@@ -1034,7 +1035,6 @@ class TestCompTypeOptionalTimeRange:
         the comp-type-less time-range query with a 400, the library must retry
         by splitting into per-component queries."""
         from caldav.compatibility_hints import FeatureSet
-        from caldav.lib import error
 
         ## Feature explicitly configured as supported, so the library optimistically
         ## sends the comp-type-less time-range query that SabreDAV rejects.
@@ -1165,22 +1165,25 @@ class TestSearchDriverExceptionHandling:
         mock_client.features.is_supported = mock.Mock(side_effect=mock_is_supported)
         mock_client.features.backward_compatibility_mode = False
 
-    def test_load_error_is_delivered_into_generator_and_skips_object(
+    def test_unloaded_object_not_returned_by_batch_is_excluded(
         self, mock_client: DAVClient, mock_url: str
     ) -> None:
-        """If loading one returned object raises, the driver throws it into the
-        generator, whose try/except skips that object instead of failing the
-        whole search."""
+        """Objects that remain unloaded after _batch_load_objects are excluded from results.
+
+        With the old per-object LOAD_OBJECT loop, exceptions were thrown into the generator
+        to skip objects.  With the new LOAD_OBJECTS_BATCH approach, _batch_load_objects
+        handles errors internally; objects it cannot populate remain unloaded and are
+        filtered out by the post-batch is_loaded()/has_component() check.
+        """
         self._mock_features_all_supported(mock_client)
 
         good = Event(client=mock_client, url=mock_url + "/good", data=SIMPLE_EVENT)
-        bad = Event(client=mock_client, url=mock_url + "/bad", data=SIMPLE_EVENT)
-        ## Make the bad object raise whenever the driver tries to load it
-        bad.load = mock.Mock(side_effect=error.DAVError("server refuses to reveal object"))
+        bad = Event(client=mock_client, url=mock_url + "/bad")  # unloaded: server skipped it
 
         calendar = mock.Mock()
         calendar.client = mock_client
         calendar._request_report_build_resultlist.return_value = (mock.Mock(), [good, bad])
+        # Default mock._batch_load_objects does nothing: bad remains unloaded
 
         searcher = CalDAVSearcher(event=True)
         result = searcher.search(calendar)
@@ -1344,3 +1347,174 @@ END:VCALENDAR"""
         summaries = [str(r.icalendar_component["SUMMARY"]) for r in results]
         assert len(results) == 1, f"Expected 1 result (exact), got {len(results)}: {summaries}"
         assert results[0].icalendar_component["SUMMARY"] == "rain"
+
+
+class TestBatchLoadObjects:
+    """Calendar._batch_load_objects fetches N objects with one _multiget REPORT.
+
+    Replaces the per-object LOAD_OBJECT loop in search post-processing (issue #5.4).
+    Before this fix, a 200-event search triggered 200 individual GET requests;
+    after, one batched calendar-multiget REPORT is sent.
+    """
+
+    CAL_URL = "https://cal.example.com/cal/"
+
+    def _make_calendar(self) -> Calendar:
+        client = mock.Mock(spec=DAVClient)
+        client.url = URL("https://cal.example.com/")
+        return Calendar(client=client, url=self.CAL_URL)
+
+    def test_batch_load_calls_multiget_once(self) -> None:
+        """_batch_load_objects calls _multiget exactly once for N unloaded objects."""
+        cal = self._make_calendar()
+        ev1 = Event(client=cal.client, url=self.CAL_URL + "ev1.ics")
+        ev2 = Event(client=cal.client, url=self.CAL_URL + "ev2.ics")
+
+        cal._multiget = mock.Mock(
+            return_value=iter([("/cal/ev1.ics", SIMPLE_EVENT), ("/cal/ev2.ics", SIMPLE_EVENT)])
+        )
+
+        cal._batch_load_objects([ev1, ev2])
+
+        assert cal._multiget.call_count == 1
+
+    def test_batch_load_populates_object_data(self) -> None:
+        """_batch_load_objects sets data on matched unloaded objects."""
+        cal = self._make_calendar()
+        ev = Event(client=cal.client, url=self.CAL_URL + "ev1.ics")
+        assert not ev.is_loaded()
+
+        cal._multiget = mock.Mock(return_value=iter([("/cal/ev1.ics", SIMPLE_EVENT)]))
+
+        cal._batch_load_objects([ev])
+
+        assert ev.is_loaded()
+
+    def test_batch_load_skips_already_loaded_in_multiget_request(self) -> None:
+        """Already-loaded objects are not included in the multiget URL list."""
+        cal = self._make_calendar()
+        loaded = Event(client=cal.client, url=self.CAL_URL + "loaded.ics", data=SIMPLE_EVENT)
+        unloaded = Event(client=cal.client, url=self.CAL_URL + "unloaded.ics")
+
+        cal._multiget = mock.Mock(return_value=iter([("/cal/unloaded.ics", SIMPLE_EVENT)]))
+
+        cal._batch_load_objects([loaded, unloaded])
+
+        assert cal._multiget.called
+        urls_passed = [str(u) for u in cal._multiget.call_args[0][0]]
+        assert not any("loaded.ics" in u and "unloaded" not in u for u in urls_passed)
+
+    def test_batch_load_matches_href_with_at_sign(self) -> None:
+        """UIDs are conventionally `<something>@<domain>` and the resource is
+        conventionally named `<uid>.ics`, so an "@" in the href is the common
+        case.  The result keys were normalised with `safe="/:@"` (literal "@")
+        while the object URLs come out of `quote()` with the default
+        `safe="/"` (percent-encoded "%40"), so nothing matched, nothing was
+        assigned, and the objects were then silently dropped by the
+        `has_component()` filter -- `search()` returned [] with no exception
+        and no log line."""
+        cal = self._make_calendar()
+        href = "/cal/" + quote("20200516T060000Z-123401@example.com.ics")
+        assert "%40" in href
+        ev = Event(client=cal.client, url=cal.url.join(href))
+
+        cal._multiget = mock.Mock(return_value=iter([(href, SIMPLE_EVENT)]))
+
+        cal._batch_load_objects([ev])
+
+        assert ev.is_loaded()
+
+    def test_batch_load_matches_unencoded_at_sign_in_href(self) -> None:
+        """The same, for a server that echoes the "@" back unencoded."""
+        cal = self._make_calendar()
+        ev = Event(
+            client=cal.client,
+            url=cal.url.join("/cal/" + quote("20200516T060000Z-123401@example.com.ics")),
+        )
+
+        cal._multiget = mock.Mock(
+            return_value=iter([("/cal/20200516T060000Z-123401@example.com.ics", SIMPLE_EVENT)])
+        )
+
+        cal._batch_load_objects([ev])
+
+        assert ev.is_loaded()
+
+    def test_batch_load_fallback_on_multiget_error(self) -> None:
+        """When _multiget raises, _batch_load_objects falls back to individual obj.load()."""
+        cal = self._make_calendar()
+        ev = Event(client=cal.client, url=self.CAL_URL + "ev1.ics")
+        ev.load = mock.Mock()
+        cal._multiget = mock.Mock(side_effect=RuntimeError("network error"))
+
+        cal._batch_load_objects([ev])
+
+        ev.load.assert_called()
+
+
+class TestSearchBatchLoadIntegration:
+    """search() must use one batched _multiget call instead of N individual load() calls.
+
+    The fix replaces the per-object LOAD_OBJECT loops in _search_impl with a single
+    LOAD_OBJECTS_BATCH action that delegates to Calendar._batch_load_objects.
+    """
+
+    def _make_calendar_all_supported(self) -> "tuple[mock.Mock, Calendar]":
+        """Return (client, calendar) with all features marked supported."""
+        client = mock.Mock(spec=DAVClient)
+        client.url = URL("https://cal.example.com/")
+
+        def mock_is_supported(feat: str, type_: type = bool):
+            return "full" if type_ is str else True
+
+        client.features.is_supported = mock.Mock(side_effect=mock_is_supported)
+        client.features.backward_compatibility_mode = False
+
+        cal = Calendar(client=client, url="https://cal.example.com/cal/")
+        return client, cal
+
+    def test_search_calls_multiget_once_not_n_individual_loads(self) -> None:
+        """For N unloaded search results, search() must call _multiget once, not load() N times.
+
+        With the old per-object LOAD_OBJECT loop, 2 unloaded objects caused 2 GET requests.
+        With the new LOAD_OBJECTS_BATCH action, a single calendar-multiget REPORT is issued.
+        """
+        client, cal = self._make_calendar_all_supported()
+
+        ev1 = Event(client=client, url="https://cal.example.com/cal/ev1.ics", parent=cal)
+        ev2 = Event(client=client, url="https://cal.example.com/cal/ev2.ics", parent=cal)
+        ev1.load = mock.Mock(return_value=ev1)
+        ev2.load = mock.Mock(return_value=ev2)
+
+        cal._request_report_build_resultlist = mock.Mock(return_value=(mock.Mock(), [ev1, ev2]))
+        cal._multiget = mock.Mock(
+            return_value=iter(
+                [
+                    ("/cal/ev1.ics", SIMPLE_EVENT),
+                    ("/cal/ev2.ics", SIMPLE_EVENT),
+                ]
+            )
+        )
+
+        searcher = CalDAVSearcher(event=True)
+        searcher.search(cal)
+
+        assert cal._multiget.call_count == 1, (
+            f"Expected one batched _multiget call, got {cal._multiget.call_count}. "
+            "search() is still loading unloaded objects one-by-one."
+        )
+
+    def test_search_results_populated_after_batch_load(self) -> None:
+        """search() returns populated objects when batch-loading succeeds."""
+        client, cal = self._make_calendar_all_supported()
+
+        ev = Event(client=client, url="https://cal.example.com/cal/ev1.ics", parent=cal)
+        ev.load = mock.Mock(return_value=ev)
+
+        cal._request_report_build_resultlist = mock.Mock(return_value=(mock.Mock(), [ev]))
+        cal._multiget = mock.Mock(return_value=iter([("/cal/ev1.ics", SIMPLE_EVENT)]))
+
+        searcher = CalDAVSearcher(event=True)
+        results = searcher.search(cal)
+
+        assert len(results) == 1

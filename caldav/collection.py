@@ -10,6 +10,7 @@ There are also some Mailbox classes to deal with RFC6638.
 A SynchronizableCalendarObjectCollection contains a local copy of objects from a calendar on the server.
 """
 
+import inspect
 import logging
 import uuid
 import warnings
@@ -1338,6 +1339,84 @@ class Calendar(DAVObject):
         return self._post_multiget(
             await self._async_multiget(event_urls, raise_notfound=raise_notfound)
         )
+
+    def _assign_multiget_data(self, unloaded: list, results: Iterable[tuple[str, str]]) -> None:
+        """Assign multiget (href, data) results onto the matching unloaded objects.
+
+        Shared post-processing for _batch_load_objects and its async twin: index
+        the results by normalised URL (quoting to match servers that return
+        unencoded spaces, e.g. Zimbra) and set obj.data on each match.
+
+        Both sides of the comparison are unquoted before matching.  Servers
+        disagree on what to percent-encode, and the object URLs themselves
+        went through `quote()` with the default `safe="/"` -- so a UID of the
+        conventional `<something>@<domain>` form ends up as `%40` on one side
+        and `@` on the other.  Comparing the unquoted forms makes the two
+        spellings equal instead of silently dropping the object.
+        """
+        url_to_data = {
+            unquote(str(self.url.join(quote(unquote(str(href)), safe="/:@")))): data
+            for href, data in results
+        }
+        for obj in unloaded:
+            key = unquote(str(obj.url))
+            if key in url_to_data:
+                obj.data = url_to_data[key]
+
+    def _batch_load_objects(self, objects: list) -> None:
+        """Load unloaded objects from the list in a single calendar-multiget REPORT.
+
+        Already-loaded objects are skipped.  If the REPORT fails, falls back to
+        individual obj.load(only_if_unloaded=True) calls per object; a per-object
+        failure is logged at debug level and otherwise swallowed, so callers can
+        filter on is_loaded() afterward.
+        """
+        unloaded = [o for o in objects if not o.is_loaded()]
+        if not unloaded:
+            return
+        try:
+            self._assign_multiget_data(unloaded, self._multiget([o.url for o in unloaded]))
+        except Exception:
+            logging.error("Batch multiget failed, falling back to individual loads", exc_info=True)
+            for obj in unloaded:
+                try:
+                    obj.load(only_if_unloaded=True)
+                except Exception:
+                    ## Deliberate: this method's contract is that the caller
+                    ## filters on is_loaded() afterwards, so one object that
+                    ## cannot be fetched must not abort the rest.  Logged at
+                    ## debug rather than warning because the batch failure above
+                    ## is already an error-level line, and a large batch would
+                    ## otherwise produce a wall of warnings.
+                    log.debug("Individual load failed for %s", obj.url, exc_info=True)
+
+    async def _async_batch_load_objects(self, objects: list) -> None:
+        """Async version of _batch_load_objects.
+
+        The post-processing is shared via _assign_multiget_data(); the only
+        sync/async difference is the await on the multiget REPORT and on the
+        per-object fallback load().
+        """
+        unloaded = [o for o in objects if not o.is_loaded()]
+        if not unloaded:
+            return
+        try:
+            self._assign_multiget_data(
+                unloaded, await self._async_multiget([o.url for o in unloaded])
+            )
+        except Exception:
+            logging.error(
+                "Async batch multiget failed, falling back to individual loads", exc_info=True
+            )
+            for obj in unloaded:
+                try:
+                    load_result = obj.load(only_if_unloaded=True)
+                    if inspect.isawaitable(load_result):
+                        await load_result
+                except Exception:
+                    ## Same contract as the sync twin above: skip and let the
+                    ## caller filter on is_loaded().
+                    log.debug("Individual load failed for %s", obj.url, exc_info=True)
 
     def calendar_multiget(self, *largs, **kwargs):
         """
