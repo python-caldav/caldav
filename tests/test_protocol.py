@@ -208,6 +208,53 @@ END:VCALENDAR</C:calendar-data>
         assert result.deleted[0] == "/cal/deleted.ics"
         assert result.sync_token == "new-token"
 
+    def test_parse_sync_collection_generic_responsedescription(self):
+        """A 404 <response> may carry an arbitrary <responsedescription>.
+
+        Per RFC 4918 <responsedescription> is an optional child of
+        <response>; its text is server-defined.  We must not hardcode
+        any particular server's wording (e.g. Stalwart's "No resources
+        found").
+        """
+        xml = b"""<?xml version="1.0"?>
+        <D:multistatus xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
+            <D:response>
+                <D:href>/cal/gone.ics</D:href>
+                <D:status>HTTP/1.1 404 Not Found</D:status>
+                <D:responsedescription>The thing you asked for is not here anymore</D:responsedescription>
+            </D:response>
+            <D:sync-token>tok</D:sync-token>
+        </D:multistatus>"""
+
+        result = DAVResponse.from_bytes(xml).parse_sync_collection()
+
+        assert result.deleted == ["/cal/gone.ics"]
+        assert result.changed == []
+
+    def test_parse_sync_collection_generic_error(self):
+        """A 404 <response> may carry an arbitrary <error> element.
+
+        Per RFC 4918 <error> is an optional child of <response> and its
+        children are server-defined.  We must not hardcode any
+        particular server's error condition (e.g. purelymail's
+        {https://purelymail.com}does-not-exist).
+        """
+        xml = b"""<?xml version="1.0"?>
+        <D:multistatus xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav"
+                       xmlns:X="https://example.com/ns">
+            <D:response>
+                <D:href>/cal/gone.ics</D:href>
+                <D:status>HTTP/1.1 404 Not Found</D:status>
+                <D:error><X:resource-must-be-null/></D:error>
+            </D:response>
+            <D:sync-token>tok</D:sync-token>
+        </D:multistatus>"""
+
+        result = DAVResponse.from_bytes(xml).parse_sync_collection()
+
+        assert result.deleted == ["/cal/gone.ics"]
+        assert result.changed == []
+
     def test_parse_complex_properties(self):
         """Parse complex properties like supported-calendar-component-set."""
         xml = b"""<?xml version="1.0"?>

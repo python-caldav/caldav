@@ -454,11 +454,20 @@ producing drift bugs.
 ## 6. Altitude / design notes
 
 1. **`response.py:464` — server fingerprints hardcoded in the generic
-   parser.** purelymail's `{https://purelymail.com}does-not-exist` tag,
-   Stalwart's "No resources found" string, and SOGo status notes live in the
-   core multistatus path instead of going through the compatibility-hints
-   feature matrix. Adding the next server's 404 shape means editing generic
+   parser.** ✅ FIXED. purelymail's `{https://purelymail.com}does-not-exist`
+   tag, Stalwart's "No resources found" string, and SOGo status notes lived in
+   the core multistatus path instead of going through the compatibility-hints
+   feature matrix. Adding the next server's 404 shape meant editing generic
    parsing — the exact inversion the hints mechanism exists to avoid.
+
+   **Resolution:** `<error>` and `<responsedescription>` are optional children
+   of `<response>` per RFC 4918 with server-defined content, so no per-server
+   config (nor content fingerprint) is warranted at all — `_parse_response`
+   now accepts either element generically. A genuinely novel tag still hits
+   `error.weirdness()`. The `check_404` debug guard was made `None`-safe (a
+   server may legally send these without a response-level status). Tests:
+   `test_parse_sync_collection_generic_responsedescription` /
+   `test_parse_sync_collection_generic_error` in `tests/test_protocol.py`.
 2. **`vcal.fix()` is a regex-rewriting layer applied to every inbound
    object.** §2.1–§2.4 show the current fixups are individually broken in
    four different ways; the module's own TODOs flag the approach. Worth
