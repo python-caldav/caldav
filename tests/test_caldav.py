@@ -4401,23 +4401,27 @@ END:VCALENDAR"""
         assert summary_on(3) == "daily testing"
         assert summary_on(7) == "six months of daily testing"
 
-        ## Last ... let's change the dtend and dtstart of the recurrence
-        recurrence = search(9)
-        recurrence.icalendar_component.pop("dtstart")
-        recurrence.icalendar_component.add("dtstart", day_start(9).replace(hour=8))
-        recurrence.icalendar_component.pop("dtend")
-        recurrence.icalendar_component.add("dtend", day_start(9).replace(hour=10))
-        recurrence.save(all_recurrences=True)
+        ## Last ... let's change the dtend and dtstart of the recurrence.
+        ## This reschedules the whole series (moves the master DTSTART) while the
+        ## two exceptions above are still attached - some servers (e.g. OX) reject
+        ## that re-anchoring with a 409 Conflict, so it is gated on its own flag.
+        if self.is_supported("save-load.event.recurrences.exception.reschedule"):
+            recurrence = search(9)
+            recurrence.icalendar_component.pop("dtstart")
+            recurrence.icalendar_component.add("dtstart", day_start(9).replace(hour=8))
+            recurrence.icalendar_component.pop("dtend")
+            recurrence.icalendar_component.add("dtend", day_start(9).replace(hour=10))
+            recurrence.save(all_recurrences=True)
 
-        recurrence = search(8)
-        assert (
-            recurrence.icalendar_component.start.astimezone()
-            == day_start(8).replace(hour=8).astimezone()
-        )
-        assert (
-            recurrence.icalendar_component.end.astimezone()
-            == day_start(8).replace(hour=10).astimezone()
-        )
+            recurrence = search(8)
+            assert (
+                recurrence.icalendar_component.start.astimezone()
+                == day_start(8).replace(hour=8).astimezone()
+            )
+            assert (
+                recurrence.icalendar_component.end.astimezone()
+                == day_start(8).replace(hour=10).astimezone()
+            )
 
     def testOffsetURL(self):
         """

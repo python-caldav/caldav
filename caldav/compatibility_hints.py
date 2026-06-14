@@ -213,6 +213,7 @@ class FeatureSet:
         ## information was simply discarded, and the current search behaviour would in
         ## such a case be incorrect if the exception is simply discarded.
         "save-load.event.recurrences.exception": {"description": "When a VCALENDAR containing a master VEVENT (with RRULE) and exception VEVENT(s) (with RECURRENCE-ID) is stored, the server keeps them together as a single calendar object resource. When unsupported, the server splits exception VEVENTs into separate calendar objects, making client-side expansion unreliable (the master expands without knowing about its exceptions)."},
+        "save-load.event.recurrences.exception.reschedule": {"description": "The server accepts a PUT that reschedules an entire recurring event - changing the master VEVENT's DTSTART (re-anchoring the whole series) while detached exception VEVENT(s) (with RECURRENCE-ID) are present and their RECURRENCE-IDs are shifted to line up with the new series.  This is unsupported for Ox, the server rejects such a PUT with 409 Conflict even when a matching If-Match etag is supplied.  Rescheduling a recurring event that has no exceptions still works.  Exercised by save(all_recurrences=True) after changing dtstart/dtend.", "default": {"support": "full"}},
         "save-load.todo": {
             "description": "it's possible to save and load tasks to the calendar",
             "default": { "support": "full" }
@@ -1772,6 +1773,11 @@ ox = {
     'search.recurrences.includes-implicit.infinite-scope': {'support': 'unsupported'},
     'search.recurrences.expanded.event': {'support': 'unsupported'},
     'search.recurrences.expanded.todo': {'support': 'unsupported'},
+    ## Rescheduling the whole series (changing the master DTSTART) is rejected with
+    ## 409 Conflict once detached exceptions exist - even with a matching If-Match
+    ## etag.  Shifting the DTSTART of an exception-free recurring event still works.
+    ## Confirmed by direct probe 2026-06-14.
+    'save-load.event.recurrences.exception.reschedule': {'support': 'unsupported'},
     ## OX ignores the time-range on VTODO queries and returns every task
     'search.time-range.todo.strict': {'support': 'broken'},
     ## OX silently ignores the is-not-defined prop-filter and returns the whole

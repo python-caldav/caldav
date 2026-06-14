@@ -14,6 +14,10 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 
 ## [Unreleased]
 
+### Added
+
+* New compatibility flag `save-load.event.recurrences.exception.reschedule`: whether the server accepts re-anchoring a whole recurring event (moving the master `DTSTART`) while detached exceptions (`RECURRENCE-ID`) are attached.  OX App Suite rejects this with `409 Conflict` even with a matching `If-Match` etag, although rescheduling an exception-free recurring event works there.  `testEditSingleRecurrence` now gates its final `save(all_recurrences=True)` dtstart/dtend step on this flag.
+
 ### Fixed
 
 * `jmap/client.py` and `jmap/async_client.py` `update_event()`: to honour RFC 8620 PatchObject merge semantics, the update null-injects every optional property absent from the new iCalendar so removed properties are actually cleared server-side.  Some servers (observed with Stalwart) reject a property they do not support — e.g. `recurrenceRules`/`excludedRecurrenceRules` — as `invalidProperties` even when it is being set to `null`, which made every `update_event()` against such a server fail.  Nulling an absent property is harmless cleanup, so the update now drops the server-rejected null-cleanup keys and retries (looping, since some servers report only one offending property per response) until the update succeeds.  A rejection of a property the client actually assigned a value still surfaces as `JMAPMethodError`.
