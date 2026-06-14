@@ -116,22 +116,38 @@ def _strip_to_multistatus(tree: _Element) -> "_Element | list[_Element]":
     return [tree]
 
 
-def _extract_properties(propstats: "list[_Element]") -> "dict[str, Any]":
-    """Extract properties from propstat elements into a flat dict."""
-    properties: dict[str, Any] = {}
+def _collect_prop_elements(propstats: "list[_Element]") -> "dict[str, _Element]":
+    """Collect ``{proptag: element}`` from a list of propstat elements.
+
+    Each propstat status is validated first: anything but 200/201/207/404
+    raises :class:`error.ResponseError`, since a ``500``/``403``/``507``
+    propstat means the server failed to answer, not that the property is
+    unset.  Swallowing it would hand the caller a silently-empty value.
+
+    Propstats whose status reports 404 are then skipped — that is the single,
+    shared expression of the "a 404 propstat means the property is absent on
+    the resource" quirk.  This helper is the one place both the dataclass
+    parsers (via :func:`_extract_properties`) and the legacy
+    :meth:`DAVResponse._find_objects_and_props` collect prop children, so both
+    the validation and the quirk stop having to be maintained in two parallel
+    loops (code-review §5.7).
+    """
+    collected: dict[str, _Element] = {}
     for propstat in propstats:
         status_elem = propstat.find(dav.Status.tag)
-        if status_elem is not None and status_elem.text and " 404 " in status_elem.text:
-            continue
-        prop = propstat.find(dav.Prop.tag)
-        if prop is None:
-            continue
-        for child in prop:
-            if len(child) == 0:
-                properties[child.tag] = child.text
-            else:
-                properties[child.tag] = _element_to_value(child)
-    return properties
+        if status_elem is not None and status_elem.text:
+            _validate_status(status_elem.text)
+            if " 404 " in status_elem.text:
+                continue
+        for prop in propstat.iterfind(dav.Prop.tag):
+            for child in prop:
+                collected[child.tag] = child
+    return collected
+
+
+def _extract_properties(propstats: "list[_Element]") -> "dict[str, Any]":
+    """Extract properties from propstat elements into a flat dict of parsed values."""
+    return {tag: _element_to_value(el) for tag, el in _collect_prop_elements(propstats).items()}
 
 
 def _element_to_value(elem: _Element) -> Any:
@@ -611,27 +627,11 @@ class DAVResponse:
                 self.objects[href] = {}
                 self.statuses[href] = status
 
-            ## The properties may be delivered either in one
-            ## propstat with multiple props or in multiple
-            ## propstat
-            for propstat in propstats:
-                cnt = 0
-                status = propstat.find(dav.Status.tag)
-                error.assert_(status is not None)
-                if status is not None and status.text is not None:
-                    error.assert_(len(status) == 0)
-                    cnt += 1
-                    self.validate_status(status.text)
-                    ## if a prop was not found, ignore it
-                    if " 404 " in status.text:
-                        continue
-                for prop in propstat.iterfind(dav.Prop.tag):
-                    cnt += 1
-                    for theprop in prop:
-                        self.objects[href][theprop.tag] = theprop
-
-                ## there shouldn't be any more elements except for status and prop
-                error.assert_(cnt == len(propstat))
+            ## The properties may be delivered either in one propstat
+            ## with multiple props or in multiple propstats; the 404-skip
+            ## quirk is shared with the dataclass parsers via
+            ## _collect_prop_elements (code-review §5.7).
+            self.objects[href].update(_collect_prop_elements(propstats))
 
         return self.objects
 

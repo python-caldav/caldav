@@ -1268,28 +1268,41 @@ class Calendar(DAVObject):
 
     # def data2object_class
 
-    def _multiget(self, event_urls: Iterable[URL], raise_notfound: bool = False) -> Iterable[str]:
-        """
-        get multiple events' data.
-        TODO: Does it overlap the _request_report_build_resultlist method
-        ## WARNING: async logic is duplicated in _async_multiget — mirror any changes there
+    def _build_multiget_root(self, event_urls: Iterable[URL]) -> cdav.CalendarMultiGet:
+        """Build the calendar-multiget REPORT body for the given hrefs.
+
+        Pure (no I/O) — shared by the sync and async multiget twins.
         """
         if self.url is None:
             raise ValueError("Unexpected value None for self.url")
-
         prop = dav.Prop() + cdav.CalendarData()
-        root = cdav.CalendarMultiGet() + prop + [dav.Href(value=u.path) for u in event_urls]
-        # RFC 4791 section 7.9: "the 'Depth' header MUST be ignored by the
-        # server and SHOULD NOT be sent by the client" for calendar-multiget
-        response = self._query(root, None, "report")
+        return cdav.CalendarMultiGet() + prop + [dav.Href(value=u.path) for u in event_urls]
+
+    def _extract_multiget_results(
+        self, response: Any, raise_notfound: bool
+    ) -> list[tuple[str, str]]:
+        """Turn a multiget REPORT response into ``(href, calendar_data)`` tuples.
+
+        Pure (no I/O) — shared by the sync and async multiget twins.
+        """
         results = response.expand_simple_props([cdav.CalendarData()])
         if raise_notfound:
-            for href in response.statuses:
-                status = response.statuses[href]
+            for href, status in response.statuses.items():
                 if status and "404" in status:
                     raise error.NotFoundError(f"Status {status} in {href}")
-        for r in results:
-            yield (r, results[r][cdav.CalendarData.tag])
+        return [(r, results[r][cdav.CalendarData.tag]) for r in results]
+
+    def _multiget(
+        self, event_urls: Iterable[URL], raise_notfound: bool = False
+    ) -> list[tuple[str, str]]:
+        """get multiple events' data.
+
+        TODO: Does it overlap the _request_report_build_resultlist method?
+        """
+        # RFC 4791 section 7.9: "the 'Depth' header MUST be ignored by the
+        # server and SHOULD NOT be sent by the client" for calendar-multiget
+        response = self._query(self._build_multiget_root(event_urls), None, "report")
+        return self._extract_multiget_results(response, raise_notfound)
 
     def _post_multiget(self, results: Iterable[tuple[str, str]]) -> list[_CC]:
         """Post-processing shared by multiget and _async_multiget_objects."""
@@ -1317,20 +1330,8 @@ class Calendar(DAVObject):
     async def _async_multiget(
         self, event_urls: Iterable[URL], raise_notfound: bool = False
     ) -> list[tuple[str, str]]:
-        ## WARNING: sync logic is duplicated in _multiget — mirror any changes there
-        if self.url is None:
-            raise ValueError("Unexpected value None for self.url")
-
-        prop = dav.Prop() + cdav.CalendarData()
-        root = cdav.CalendarMultiGet() + prop + [dav.Href(value=u.path) for u in event_urls]
-        response = await self._query(root, None, "report")
-        results = response.expand_simple_props([cdav.CalendarData()])
-        if raise_notfound:
-            for href in response.statuses:
-                status = response.statuses[href]
-                if status and "404" in status:
-                    raise error.NotFoundError(f"Status {status} in {href}")
-        return [(r, results[r][cdav.CalendarData.tag]) for r in results]
+        response = await self._query(self._build_multiget_root(event_urls), None, "report")
+        return self._extract_multiget_results(response, raise_notfound)
 
     async def _async_multiget_objects(
         self, event_urls: Iterable[URL], raise_notfound: bool = False

@@ -252,3 +252,48 @@ END:VCALENDAR</C:calendar-data>
         # calendar-home-set - extracted href
         home_set = props["{urn:ietf:params:xml:ns:caldav}calendar-home-set"]
         assert home_set == "/calendars/user/"
+
+
+class TestParserStackEquivalence:
+    """Guard the shared propstat-collection logic (code-review §5.7).
+
+    The dataclass parsers (parse_propfind -> _extract_properties) and the
+    legacy _find_objects_and_props path must agree on the duplicated quirks
+    that used to be implemented twice: the "a 404 propstat means the property
+    is absent" skip and which prop elements get collected per href.
+    """
+
+    # one href with a found prop (200) and an absent prop (404 propstat),
+    # plus a second href that 404s entirely.
+    _xml = b"""<?xml version="1.0"?>
+    <D:multistatus xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
+        <D:response>
+            <D:href>/cal/a/</D:href>
+            <D:propstat>
+                <D:prop><D:displayname>A</D:displayname></D:prop>
+                <D:status>HTTP/1.1 200 OK</D:status>
+            </D:propstat>
+            <D:propstat>
+                <D:prop><C:calendar-color/></D:prop>
+                <D:status>HTTP/1.1 404 Not Found</D:status>
+            </D:propstat>
+        </D:response>
+        <D:response>
+            <D:href>/cal/missing/</D:href>
+            <D:status>HTTP/1.1 404 Not Found</D:status>
+        </D:response>
+    </D:multistatus>"""
+
+    def test_404_propstat_skipped_in_both_stacks(self):
+        dataclass_props = DAVResponse.from_bytes(self._xml).parse_propfind()
+        legacy = DAVResponse.from_bytes(self._xml)._find_objects_and_props()
+
+        # dataclass stack: /cal/a/ keeps displayname, drops the 404 color prop
+        a_result = next(r for r in dataclass_props if r.href == "/cal/a/")
+        assert "{DAV:}displayname" in a_result.properties
+        assert "{http://apple.com/ns/ical/}calendar-color" not in a_result.properties
+
+        # legacy stack: same set of collected prop tags for the same href
+        assert set(legacy["/cal/a/"].keys()) == set(a_result.properties.keys())
+        # the entirely-404 href is present but carries no props in either stack
+        assert legacy["/cal/missing/"] == {}

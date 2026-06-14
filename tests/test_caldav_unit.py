@@ -3815,6 +3815,46 @@ class TestDAVClientCredentialPrecedence:
         assert client.password == b"s3cret"
 
 
+class TestPropstatStatusValidation:
+    """Gate finding F7: a failing propstat status must raise, not vanish.
+
+    Deduplicating the propstat loops dropped the per-propstat
+    ``validate_status()`` call, so a ``500``/``403``/``507`` propstat yielded
+    a silently-empty value instead of a ``ResponseError`` -- and the calendar
+    was then dropped from ``get_calendars()`` with only a log line.
+    ``_validate_status`` raises unconditionally; it is not an assert, so
+    ``python -O`` does not disable it either.
+    """
+
+    XML = """
+<multistatus xmlns="DAV:">
+  <response>
+    <href>/dav/calendars/user/broken/</href>
+    <propstat>
+      <prop><displayname/></prop>
+      <status>HTTP/1.1 500 Internal Server Error</status>
+    </propstat>
+  </response>
+</multistatus>
+"""
+
+    def test_server_error_propstat_raises(self):
+        with pytest.raises(error.ResponseError):
+            MockedDAVResponse(self.XML).expand_simple_props(props=[dav.DisplayName()])
+
+    def test_insufficient_storage_propstat_raises(self):
+        xml = self.XML.replace("500 Internal Server Error", "507 Insufficient Storage")
+        with pytest.raises(error.ResponseError):
+            MockedDAVResponse(xml).expand_simple_props(props=[dav.DisplayName()])
+
+    def test_404_propstat_is_still_a_missing_property(self):
+        """The 404 quirk must survive: a 404 propstat means "not set here",
+        not "the request failed"."""
+        xml = self.XML.replace("500 Internal Server Error", "404 Not Found")
+        result = MockedDAVResponse(xml).expand_simple_props(props=[dav.DisplayName()])
+        assert result == {"/dav/calendars/user/broken/": {"{DAV:}displayname": None}}
+
+
 class TestAsyncDAVClientCredentialPairing:
     """Gate finding F6, async twin: same field-by-field merge, same result."""
 
