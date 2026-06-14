@@ -407,7 +407,12 @@ producing drift bugs.
 8. **`search.py` sync/async driver loops duplicated** (~80 lines including
    the hase-1/Phase-2 exception-rethrow protocol and
    `_search_with_comptypes`). A small executor object with sync/async
-   implementations would leave one driver.
+   implementations would leave one driver. ✅ FIXED — the drift-prone
+   Phase-2 generator protocol (`gen.throw`/`gen.send`/`StopIteration`) now
+   lives once in the shared module-level `_advance_search_gen()`; each
+   driver loop is reduced to priming + a `while` that defers Phase-1 to a
+   `_dispatch_search_action` / `_async_dispatch_search_action` method. Only
+   the irreducible `await` and the per-action one-liners remain duplicated.
 
 ---
 
