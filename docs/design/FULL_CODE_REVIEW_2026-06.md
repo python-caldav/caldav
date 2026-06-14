@@ -408,7 +408,13 @@ producing drift bugs.
    sync twin** (the file says "TERRIBLY much code duplication here"), and
    the async safe-variant has drifted: it PUTs the completed copy twice.
    Extract a pure icalendar-mutation helper; keep 5-line sync/async
-   wrappers.
+   wrappers. ✅ FIXED — the icalendar mutation now lives once in the pure
+   (no-I/O) `_prepare_recurring_thisandfuture()` and
+   `_build_recurring_safe_completed()`; each sync/async twin is reduced to
+   a thin wrapper that does only the `await`-able save(s). The double-PUT of
+   the completed copy is gone (the copy is now completed in memory and PUT
+   once). New offline unit tests in `TestRecurringCompleteHelpers` cover the
+   mutation and the single-PUT invariant.
 7. **`response.py` carries two parallel multistatus-parsing stacks** —
    legacy `_find_objects_and_props`/`expand_simple_props` (still load-bearing
    for `_multiget`, report-result building, `search_principals`) vs the

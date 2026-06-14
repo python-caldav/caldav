@@ -8,6 +8,7 @@ to emulate server communication.
 
 import pickle
 from datetime import date, datetime, timedelta, timezone
+from typing import Any
 from unittest import mock
 from urllib.parse import urlparse
 
@@ -3836,3 +3837,69 @@ class TestWarnUnreadableDisplayName:
         with caplog.at_level("WARNING", logger="caldav"):
             _warn_unreadable_display_name(client, mock.MagicMock(), "Work", Exception("boom"))
         assert any("Could not read display name" in r.message for r in caplog.records)
+
+
+class TestRecurringCompleteHelpers:
+    """Pure (no-I/O) unit tests for the recurring-task completion helpers.
+
+    These exercise the icalendar-mutation logic shared by the sync and async
+    ``complete()`` paths without touching a server.
+    ref https://github.com/python-caldav/caldav code-review §5.6
+    """
+
+    def _make_todo(self, data: str = todo6) -> Todo:
+        client = MockedDAVClient("")
+        cal_url = "https://somwhere.in.the.universe.example/some/caldav/root/cal/"
+        calendar = Calendar(client, url=cal_url)
+        return Todo(client, data=data, parent=calendar, url=cal_url + "t.ics")
+
+    def test_prepare_thisandfuture_advances_series(self) -> None:
+        todo = self._make_todo()
+        before = len(todo.icalendar_instance.subcomponents)
+        todo._prepare_recurring_thisandfuture(datetime(2026, 6, 14, tzinfo=timezone.utc))
+        subs = todo.icalendar_instance.subcomponents
+        ## a completed recurrence + a new THISANDFUTURE instance were added
+        assert len(subs) == before + 2
+        last = subs[-1]
+        assert last["RECURRENCE-ID"].params.get("RANGE") == "THISANDFUTURE"
+        ## one of the recurrences is now marked COMPLETED
+        assert any(str(s.get("STATUS")) == "COMPLETED" for s in subs)
+
+    def test_build_safe_completed_returns_completed_copy(self) -> None:
+        todo = self._make_todo()
+        orig_dtstart = todo.icalendar_component["DTSTART"].dt
+        completed = todo._build_recurring_safe_completed(datetime(2026, 6, 14, tzinfo=timezone.utc))
+        assert completed is not None
+        ## the standalone copy is completed and no longer recurring
+        assert str(completed.icalendar_component["STATUS"]) == "COMPLETED"
+        assert "RRULE" not in completed.icalendar_component
+        ## the master task advanced to its next occurrence and stays recurring
+        assert todo.icalendar_component["DTSTART"].dt > orig_dtstart
+        assert "RRULE" in todo.icalendar_component
+
+    def test_build_safe_completed_none_when_count_one(self) -> None:
+        ## A recurring task with COUNT=1 is not really recurring
+        todo = self._make_todo()
+        todo.icalendar_component["RRULE"]["COUNT"] = [1]
+        assert (
+            todo._build_recurring_safe_completed(datetime(2026, 6, 14, tzinfo=timezone.utc)) is None
+        )
+
+    def test_safe_completion_issues_two_puts(self, monkeypatch: Any) -> None:
+        """The standalone completed copy must not be PUT twice.
+
+        The old async twin had drifted into saving the completed copy once
+        as still-pending and again as completed (3 PUTs total for the
+        operation).  Completing in memory first means one PUT per object.
+        """
+        saves: list[Todo] = []
+
+        def fake_save(self: Todo, *a: Any, **k: Any) -> Todo:
+            saves.append(self)
+            return self
+
+        monkeypatch.setattr(Todo, "save", fake_save)
+        todo = self._make_todo()
+        todo._complete_recurring_safe(datetime(2026, 6, 14, tzinfo=timezone.utc))
+        ## one PUT for the standalone completed copy, one for the advanced master
+        assert len(saves) == 2
