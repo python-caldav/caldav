@@ -468,6 +468,20 @@ class TestImplicitDerivation:
                 "search.text",
                 "full",  # partial+mixed: cannot conclude unsupported; default applies
             ),
+            (
+                ## Regression: setting a sibling child (search.text=full) caused
+                ## _derive_from_subfeatures on the grandparent "search" to return
+                ## full, which then bled into independent sibling features that have
+                ## their own explicit default.  search.time-range.comp-type-optional
+                ## has default=unsupported and must not be overridden by a derived
+                ## (not explicitly set) ancestor status.
+                "derived_parent_does_not_bleed_into_independent_sibling",
+                {
+                    "search.text": {"support": "full"},
+                },
+                "search.time-range.comp-type-optional",
+                "unsupported",  # own explicit default, must not inherit derived "full" from ancestor
+            ),
         ],
         ids=lambda x: x if isinstance(x, str) and "_" in x else "",
     )
@@ -496,13 +510,16 @@ class TestResolveFeatures:
         import caldav.compatibility_hints as ch
 
         result = _resolve_features("synology")
-        assert result is ch.synology
+        assert result == ch.synology
+        # deepcopy ensures the caller cannot mutate the shared profile
+        assert result is not ch.synology
 
     def test_string_with_prefix(self) -> None:
         import caldav.compatibility_hints as ch
 
         result = _resolve_features("compatibility_hints.synology")
-        assert result is ch.synology
+        assert result == ch.synology
+        assert result is not ch.synology
 
     def test_dict_without_base_passes_through(self) -> None:
         features = {"search.text": {"support": "unsupported"}}

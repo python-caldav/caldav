@@ -747,7 +747,12 @@ class FeatureSet:
             if 'default' not in current_info:
                 derived = self._derive_from_subfeatures(feature_, current_info, return_type, accept_fragile)
                 if derived is not None:
-                    return derived
+                    # When visiting an ancestor node (feature_ != feature), only propagate
+                    # the derived status downward if the *original* queried feature is also
+                    # a grouping node (no explicit default). Independent features have their
+                    # own explicit default and must not be overridden by a derived ancestor.
+                    if feature_ == feature or 'default' not in feature_info:
+                        return derived
             if '.' not in feature_:
                 if not return_defaults:
                     return None
@@ -1748,14 +1753,9 @@ ox = {
     ## 2026-06-09.  Contrast bedework, which drops the todos (data loss = broken).
     'search.comp-type': {'support': 'unsupported'},
     ## Text search (case-sensitive, case-insensitive, substring) now works in OX.
-    ## Confirmed full 2026-06-13.  Category search and time-range comp-type-optional
-    ## remain unsupported.  The time-range.comp-type-optional entry is pinned
-    ## explicitly because setting search.text=full causes the FeatureSet to derive
-    ## the whole 'search' node as positive, which would otherwise bleed into
-    ## the time-range.comp-type-optional default via parent traversal.
+    ## Confirmed full 2026-06-13.  Category search remains unsupported.
     'search.text': {'support': 'full'},
     'search.text.category': {'support': 'unsupported'},
-    'search.time-range.comp-type-optional': {'support': 'unsupported'},
     ## Recurrence searching: the sliding window hides far-past/far-future
     ## occurrences, but implicit expansion of *datetime* events and server-side
     ## expansion of exceptions work within the window (detectable now that the
