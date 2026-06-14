@@ -375,7 +375,7 @@ producing drift bugs.
    modulo `await`. The build-side is already shared via `_JMAPClientBase` /
    `jmap/_methods`; moving the response-parsing glue into shared pure
    methods would shrink each sync/async method to ~3 lines. (The §1.13 and
-   §4.5 bugs are duplicated exactly because of this.)
+   §4.5 bugs are duplicated exactly because of this.) ✅ FIXED (commit ed3c47b0)
 2. **`calendarobjectresource.py:1166–1205` — `_post_put` block pasted twice
    in sequence**; the second `elif r.status not in (204, 201)` is
    unreachable. Also factor the Etag/Schedule-Tag header→props snippet
