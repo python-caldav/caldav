@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 from collections.abc import Coroutine, Iterable, Iterator, Sequence
 from typing import Literal
 
-from .base_client import ICALH
+from .base_client import ICALH, _warn_unreadable_display_name
 from .calendarobjectresource import (
     CalendarObjectResource,
     Event,
@@ -264,7 +264,14 @@ class CalendarSet(DAVObject):
         # For name-based lookup, use calendars() which already uses async delegation
         if name and not cal_id:
             for calendar in self.get_calendars():
-                display_name = calendar.get_display_name()
+                try:
+                    display_name = calendar.get_display_name()
+                except Exception as e:
+                    # Skip calendars whose display name can't be read; warn only
+                    # when the failure is unexpected (see helper).  Continuing
+                    # ensures one unreadable calendar doesn't abort the lookup.
+                    _warn_unreadable_display_name(self.client, calendar, name, e)
+                    continue
                 if display_name == name:
                     return calendar
         if name and not cal_id:

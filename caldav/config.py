@@ -320,7 +320,10 @@ def get_connection_params(
             conn_params.update(explicit_conn)
             return conn_params
 
-    return explicit_conn or None
+    # No env/config source matched.  At this point explicit_conn has neither
+    # 'url' nor 'features' (those return early above), so it cannot produce a
+    # connectable client — treat it as "no configuration found".
+    return None
 
 
 def _get_env_config() -> dict[str, Any] | None:
