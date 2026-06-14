@@ -161,6 +161,64 @@ class _JMAPClientBase:
         )
         return [query_call, get_call]
 
+    @staticmethod
+    def _build_event_update_patch(ical_str: str) -> tuple[dict, frozenset[str]]:
+        """Build a JSCalendar PatchObject for a ``CalendarEvent/set`` update.
+
+        RFC 8620 merge semantics preserve properties absent from the patch, so
+        any optional property removed client-side must be explicitly nulled to
+        actually clear it server-side.  Returns the patch together with the set
+        of keys that were null-injected purely for this cleanup (i.e. were not
+        present in the converted iCalendar) so the caller can drop them if the
+        server refuses to null a property it does not support.
+        """
+        patch = ical_to_jscal(ical_str)
+        patch.pop("uid", None)  # uid is server-immutable after creation; patch must omit it
+        nulled: set[str] = set()
+        for key in _NULL_FOR_UPDATE:
+            if key not in patch:
+                patch[key] = None
+                nulled.add(key)
+        return patch, frozenset(nulled)
+
+    @staticmethod
+    def _unsupported_null_keys(
+        responses: list, event_id: str, patch: dict, nulled: frozenset[str]
+    ) -> set[str] | None:
+        """Detect an update that failed *only* because the server rejects
+        null-clearing of properties it does not support.
+
+        Some servers (e.g. Stalwart for ``recurrenceRules``) reject a property
+        outright in ``CalendarEvent/set``, even when it is being set to ``null``.
+        Nulling such a property is harmless cleanup — it was absent from the new
+        iCalendar — so we report it as droppable, letting the caller retry the
+        update without it.
+
+        Returns the set of droppable keys when the failure is exactly this case,
+        or ``None`` when the update succeeded or failed for a genuine reason (in
+        which case the caller proceeds to :meth:`_parse_update_event_response`,
+        which raises the real error).  Some servers report only one offending
+        property per response, so the caller retries in a loop, dropping the
+        reported keys until the update succeeds or hits a genuine error; each
+        returned key is guaranteed still present in ``patch``, so the loop
+        strictly shrinks the patch and terminates.
+        """
+        for method_name, resp_args, _ in responses:
+            if method_name == "CalendarEvent/set":
+                _, _, _, _, not_updated, _ = parse_event_set(resp_args)
+                err = not_updated.get(event_id)
+                if not err or err.get("type") != "invalidProperties":
+                    return None
+                props = set(err.get("properties") or [])
+                droppable = {p for p in props if p in nulled and p in patch and patch[p] is None}
+                # Only retry when every offending property is null-cleanup we can
+                # safely omit; if the client actually set one of them to a value,
+                # the rejection is genuine and must surface.
+                if props and props == droppable:
+                    return droppable
+                return None
+        return None
+
     # ---------------------------------------------------------------------------
     # Shared response parsers — pure synchronous; used by both sync and async
     # clients.  Each method takes the raw ``methodResponses`` list returned by
@@ -512,13 +570,16 @@ class JMAPClient(_JMAPClientBase):
             JMAPMethodError: If the server rejects the update.
         """
         session = self._get_session()
-        patch = ical_to_jscal(ical_str)
-        patch.pop("uid", None)  # uid is server-immutable after creation; patch must omit it
-        for key in _NULL_FOR_UPDATE:
-            if key not in patch:
-                patch[key] = None
-        call = build_event_set_update(session.account_id, {event_id: patch})
-        responses = self._request([call])
+        patch, nulled = self._build_event_update_patch(ical_str)
+        while True:
+            responses = self._request(
+                [build_event_set_update(session.account_id, {event_id: patch})]
+            )
+            drop = self._unsupported_null_keys(responses, event_id, patch, nulled)
+            if not drop:
+                break
+            for key in drop:
+                patch.pop(key, None)
         self._parse_update_event_response(responses, session.api_url, event_id)
 
     def _search(

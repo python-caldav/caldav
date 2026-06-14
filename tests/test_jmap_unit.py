@@ -1691,6 +1691,81 @@ class TestJMAPClientEvents:
         assert "locations" in patch
         assert patch["locations"] is None
 
+    def _sequence_client(self, responses):
+        """Return (client, captured) replaying ``responses`` POST-by-POST.
+
+        ``captured["patches"]`` collects the ``update`` patch dict sent on each
+        CalendarEvent/set POST, in order.
+        """
+        captured: dict = {"patches": []}
+        client = JMAPClient(url=_JMAP_URL, username=_USERNAME, password=_PASSWORD)
+        client._session_cache = Session(api_url=_API_URL, account_id=_USERNAME, state="state-abc")
+        seq = iter(responses)
+
+        def post(*args, **kwargs):
+            body = kwargs.get("json", {})
+            update = body["methodCalls"][0][1].get("update")
+            if update:
+                captured["patches"].append(dict(update["ev1"]))  # copy: caller mutates in place
+            mock_resp = MagicMock()
+            mock_resp.status_code = 200
+            mock_resp.json.return_value = next(seq)
+            mock_resp.raise_for_status = MagicMock()
+            return mock_resp
+
+        mock_http = MagicMock()
+        mock_http.post.side_effect = post
+        client._http_session = mock_http
+        return client, captured
+
+    def test_update_event_retries_dropping_server_rejected_null_keys(self, monkeypatch):
+        # A server (e.g. Stalwart) rejects null-clearing of recurrence properties
+        # it does not support, reporting one offending property per response.
+        # update_event must drop each reported null-cleanup key and retry until
+        # the update succeeds — never failing on harmless cleanup.
+        def reject(prop):
+            return self._set_response(
+                notUpdated={
+                    "ev1": {
+                        "type": "invalidProperties",
+                        "description": "Invalid property.",
+                        "properties": [prop],
+                    }
+                }
+            )
+
+        responses = [
+            reject("recurrenceRules"),
+            reject("excludedRecurrenceRules"),
+            self._set_response(updated={"ev1": None}),
+        ]
+        client, captured = self._sequence_client(responses)
+        client.update_event("ev1", self._MINIMAL_ICAL)
+
+        assert len(captured["patches"]) == 3
+        # First attempt nulled both recurrence keys; the final accepted patch dropped them.
+        assert captured["patches"][0]["recurrenceRules"] is None
+        assert "recurrenceRules" not in captured["patches"][2]
+        assert "excludedRecurrenceRules" not in captured["patches"][2]
+
+    def test_update_event_does_not_drop_explicitly_set_property(self, monkeypatch):
+        # If the rejected property was actually assigned a value by the client
+        # (not null-cleanup), the rejection is genuine and must surface — no retry.
+        resp = self._set_response(
+            notUpdated={
+                "ev1": {
+                    "type": "invalidProperties",
+                    "description": "Invalid property.",
+                    "properties": ["title"],
+                }
+            }
+        )
+        client, captured = self._sequence_client([resp])
+        with pytest.raises(JMAPMethodError) as exc_info:
+            client.update_event("ev1", self._MINIMAL_ICAL)
+        assert exc_info.value.error_type == "invalidProperties"
+        assert len(captured["patches"]) == 1  # no retry
+
     def test_delete_event_success(self, monkeypatch):
         resp = self._set_response(destroyed=["ev1"])
         client = _make_client_with_mocked_session(monkeypatch, resp)

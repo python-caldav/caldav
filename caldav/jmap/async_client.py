@@ -32,7 +32,6 @@ from caldav.jmap._methods.task import (
 )
 from caldav.jmap.client import _DEFAULT_USING, _TASK_USING, _JMAPClientBase
 from caldav.jmap.convert import ical_to_jscal
-from caldav.jmap.convert._patch import _NULL_FOR_UPDATE
 from caldav.jmap.error import JMAPAuthError, JMAPMethodError
 from caldav.jmap.objects.calendar import JMAPCalendar
 from caldav.jmap.objects.calendar_object import JMAPCalendarObject
@@ -202,13 +201,16 @@ class AsyncJMAPClient(_JMAPClientBase):
             JMAPMethodError: If the server rejects the update.
         """
         session = await self._get_session()
-        patch = ical_to_jscal(ical_str)
-        patch.pop("uid", None)  # uid is server-immutable after creation; patch must omit it
-        for key in _NULL_FOR_UPDATE:
-            if key not in patch:
-                patch[key] = None
-        call = build_event_set_update(session.account_id, {event_id: patch})
-        responses = await self._request([call])
+        patch, nulled = self._build_event_update_patch(ical_str)
+        while True:
+            responses = await self._request(
+                [build_event_set_update(session.account_id, {event_id: patch})]
+            )
+            drop = self._unsupported_null_keys(responses, event_id, patch, nulled)
+            if not drop:
+                break
+            for key in drop:
+                patch.pop(key, None)
         self._parse_update_event_response(responses, session.api_url, event_id)
 
     async def _search(
