@@ -80,6 +80,11 @@ class FeatureSet:
         "url": {
             "type": "client-hints",
         },
+        "well-known": {
+            "description": "Server handles /.well-known/caldav discovery as specified in RFC 6764 section 5. A conformant server should respond with a redirect (301/302/307/308) from /.well-known/caldav to the actual CalDAV endpoint. 'full' means a redirect was observed; 'unsupported' means the server returned 404 or similar; 'unknown' means the check was skipped (e.g. localhost or request failed). Note: well-known is often provided by infrastructure (reverse proxy/hosting) rather than the CalDAV server itself, so 'unknown' is the expected default for self-hosted or test setups.",
+            "default": {"support": "unknown"},
+            "links": ["https://datatracker.ietf.org/doc/html/rfc6764#section-5"],
+        },
         "get-current-user-principal": {
             "description": "Support for RFC5397, current principal extension.  Most CalDAV servers have this, but it is an extension to the DAV standard.  Possibly observed missing on mail.ru, DavMail gateway and it is possible to configure the support in some sabre-based servers",
             ## Independent feature (directly probed): the default marks it so the
