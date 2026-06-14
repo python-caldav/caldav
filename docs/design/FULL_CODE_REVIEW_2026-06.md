@@ -420,7 +420,25 @@ producing drift bugs.
    for `_multiget`, report-result building, `search_principals`) vs the
    newer dataclass parsers. Every parsing quirk (Confluence %2540,
    purelymail 404) must be maintained twice; the TODO at line 577 already
-   acknowledges this.
+   acknowledges this. ✅ FIXED (the duplicated structural parsing) — the
+   *named* quirks were already shared: Confluence `%2540` and absolute-URL
+   normalization live in `_normalize_href`, and the purelymail/stalwart 404
+   response shapes in `_parse_response`, both of which both stacks call. The
+   remaining genuinely-duplicated piece — the propstat iteration plus the
+   "a 404 propstat means the property is absent" skip — is now in the single
+   `_collect_prop_elements()` helper, used by both `_extract_properties`
+   (dataclass stack) and `_find_objects_and_props` (legacy stack). As a side
+   effect the legacy path dropped its over-strict per-propstat asserts
+   (status-present / `cnt == len(propstat)` / non-404-status validation) that
+   the dataclass path never had, so the two stacks now treat odd-shaped
+   propstats identically. `TestParserStackEquivalence` guards the agreement.
+   What is *not* collapsed (and was not, to avoid touching the slow
+   integration-tested `_multiget`/report/`search_principals` paths): the two
+   value-conversion APIs — `_element_to_value` (pre-parsed values for the
+   dataclass results) vs `_expand_simple_prop` (caller-directed text
+   expansion). Those are two output formats, not a duplicated quirk; fully
+   migrating the `expand_simple_props` consumers onto the dataclass results
+   remains a larger follow-on.
 8. **`search.py` sync/async driver loops duplicated** (~80 lines including
    the hase-1/Phase-2 exception-rethrow protocol and
    `_search_with_comptypes`). A small executor object with sync/async
