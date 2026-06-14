@@ -2057,6 +2057,64 @@ class Calendar(DAVObject):
         hash_value = hashlib.md5(combined.encode(), usedforsecurity=False).hexdigest()
         return f"fake-{hash_value}"
 
+    ## The three helpers below carry the pure (no-I/O) logic shared between the
+    ## get_objects_by_sync_token sync/async twins, so only the awaited
+    ## server round-trips differ between them.
+
+    def _should_use_sync_token(self, sync_token: Any, disable_fallback: bool) -> bool:
+        """Decide whether to attempt a real sync-collection REPORT.
+
+        Raises ReportError when the server can't do sync-tokens and the caller
+        forbade the full-retrieval fallback.
+        """
+        sync_support = self.client.features.is_supported("sync-token", return_type=dict)
+        if sync_support.get("support") == "unsupported":
+            if disable_fallback:
+                raise error.ReportError("Sync tokens are not supported by the server")
+            return False
+        ## A fake token means we emulated sync support last time; don't try a real one.
+        if sync_token and isinstance(sync_token, str) and sync_token.startswith("fake-"):
+            return False
+        return True
+
+    def _apply_fallback_etags(self, response: Any, all_objects: list) -> None:
+        """Map ETags from a depth-1 PROPFIND response onto the given objects.
+
+        ETags are crucial for detecting content changes in the fallback
+        mechanism (which can otherwise only see additions/deletions).
+        """
+        etag_props = response.expand_simple_props([dav.GetEtag()])
+        url_to_obj = {str(obj.url.canonical()): obj for obj in all_objects}
+        log.debug(f"Fallback: Fetching ETags for {len(url_to_obj)} objects")
+        for url_str, props in etag_props.items():
+            canonical_url_str = str(self.url.join(url_str).canonical())
+            if canonical_url_str in url_to_obj:
+                if not hasattr(url_to_obj[canonical_url_str], "props"):
+                    url_to_obj[canonical_url_str].props = {}
+                url_to_obj[canonical_url_str].props.update(props)
+                log.debug(f"Fallback: Added ETag to {canonical_url_str}")
+
+    def _build_fallback_sync_result(
+        self, all_objects: list, sync_token: Any
+    ) -> "SynchronizableCalendarObjectCollection":
+        """Build the fallback collection from a full object list, emulating
+        sync-token semantics: if the caller passed back our previous fake
+        token and nothing changed, return an empty collection.
+        """
+        fake_sync_token = self._generate_fake_sync_token(all_objects)
+        if (
+            sync_token
+            and isinstance(sync_token, str)
+            and sync_token.startswith("fake-")
+            and sync_token == fake_sync_token
+        ):
+            return SynchronizableCalendarObjectCollection(
+                calendar=self, objects=[], sync_token=fake_sync_token
+            )
+        return SynchronizableCalendarObjectCollection(
+            calendar=self, objects=all_objects, sync_token=fake_sync_token
+        )
+
     def get_objects_by_sync_token(
         self,
         sync_token: Any | None = None,
@@ -2092,23 +2150,9 @@ class Calendar(DAVObject):
         the server truly supports sync tokens.
         """
         if self.is_async_client:
-            ## TODO: lots of code duplication here.  It's difficult, since there is a lot of
-            ## forth and back between the client and the server in this method.
             return self._async_get_objects_by_sync_token(sync_token, load_objects, disable_fallback)
 
-        ## Check if we should attempt to use sync tokens
-        ## (either server supports them, or we haven't checked yet, or this is a fake token)
-        use_sync_token = True
-        sync_support = self.client.features.is_supported("sync-token", return_type=dict)
-        if sync_support.get("support") == "unsupported":
-            if disable_fallback:
-                raise error.ReportError("Sync tokens are not supported by the server")
-            use_sync_token = False
-        ## If sync_token looks like a fake token, don't try real sync-collection
-        if sync_token and isinstance(sync_token, str) and sync_token.startswith("fake-"):
-            use_sync_token = False
-
-        if use_sync_token:
+        if self._should_use_sync_token(sync_token, disable_fallback):
             try:
                 root = self.client._build_sync_collection_body(
                     sync_token=sync_token, props=["getetag"]
@@ -2154,50 +2198,17 @@ class Calendar(DAVObject):
                         pass
 
         ## Fetch ETags for all objects if not already present
-        ## ETags are crucial for detecting changes in the fallback mechanism
         if all_objects and (
             not hasattr(all_objects[0], "props") or dav.GetEtag.tag not in all_objects[0].props
         ):
-            ## Use PROPFIND to fetch ETags for all objects
             try:
                 ## Do a depth-1 PROPFIND on the calendar to get all ETags
                 response = self._query_properties([dav.GetEtag()], depth=1)
-                etag_props = response.expand_simple_props([dav.GetEtag()])
-
-                ## Map ETags to objects by URL (using string keys for reliable comparison)
-                url_to_obj = {str(obj.url.canonical()): obj for obj in all_objects}
-                log.debug(f"Fallback: Fetching ETags for {len(url_to_obj)} objects")
-                for url_str, props in etag_props.items():
-                    canonical_url_str = str(self.url.join(url_str).canonical())
-                    if canonical_url_str in url_to_obj:
-                        if not hasattr(url_to_obj[canonical_url_str], "props"):
-                            url_to_obj[canonical_url_str].props = {}
-                        url_to_obj[canonical_url_str].props.update(props)
-                        log.debug(f"Fallback: Added ETag to {canonical_url_str}")
+                self._apply_fallback_etags(response, all_objects)
             except Exception as e:
-                ## If fetching ETags fails, we'll fall back to URL-based tokens
-                ## which can't detect content changes, only additions/deletions
                 log.debug(f"Failed to fetch ETags for fallback sync: {e}")
-                pass
 
-        ## Generate a fake sync token based on current state
-        fake_sync_token = self._generate_fake_sync_token(all_objects)
-
-        ## If a sync_token was provided, check if anything has changed
-        if sync_token and isinstance(sync_token, str) and sync_token.startswith("fake-"):
-            ## Compare the provided token with the new token
-            if sync_token == fake_sync_token:
-                ## Nothing has changed, return empty collection
-                return SynchronizableCalendarObjectCollection(
-                    calendar=self, objects=[], sync_token=fake_sync_token
-                )
-            ## If tokens differ, return all objects (emulating a full sync)
-            ## In a real implementation, we'd return only changed objects,
-            ## but that requires storing previous state which we don't have
-
-        return SynchronizableCalendarObjectCollection(
-            calendar=self, objects=all_objects, sync_token=fake_sync_token
-        )
+        return self._build_fallback_sync_result(all_objects, sync_token)
 
     def objects_by_sync_token(
         self, *largs, **kwargs
@@ -2219,20 +2230,7 @@ class Calendar(DAVObject):
         disable_fallback: bool = False,
     ) -> "SynchronizableCalendarObjectCollection":
         """Async implementation of get_objects_by_sync_token."""
-
-        ## TODO: lots of code duplication here.  It's difficult, since there is a lot of
-        ## forth and back between the client and the server in this method.
-
-        use_sync_token = True
-        sync_support = self.client.features.is_supported("sync-token", return_type=dict)
-        if sync_support.get("support") == "unsupported":
-            if disable_fallback:
-                raise error.ReportError("Sync tokens are not supported by the server")
-            use_sync_token = False
-        if sync_token and isinstance(sync_token, str) and sync_token.startswith("fake-"):
-            use_sync_token = False
-
-        if use_sync_token:
+        if self._should_use_sync_token(sync_token, disable_fallback):
             try:
                 root = self.client._build_sync_collection_body(
                     sync_token=sync_token, props=["getetag"]
@@ -2271,30 +2269,11 @@ class Calendar(DAVObject):
         ):
             try:
                 response = await self._query_properties([dav.GetEtag()], depth=1)
-                etag_props = response.expand_simple_props([dav.GetEtag()])
-                url_to_obj = {str(obj.url.canonical()): obj for obj in all_objects}
-                log.debug(f"Fallback: Fetching ETags for {len(url_to_obj)} objects")
-                for url_str, props in etag_props.items():
-                    canonical_url_str = str(self.url.join(url_str).canonical())
-                    if canonical_url_str in url_to_obj:
-                        if not hasattr(url_to_obj[canonical_url_str], "props"):
-                            url_to_obj[canonical_url_str].props = {}
-                        url_to_obj[canonical_url_str].props.update(props)
-                        log.debug(f"Fallback: Added ETag to {canonical_url_str}")
+                self._apply_fallback_etags(response, all_objects)
             except Exception as e:
                 log.debug(f"Failed to fetch ETags for fallback sync: {e}")
 
-        fake_sync_token = self._generate_fake_sync_token(all_objects)
-
-        if sync_token and isinstance(sync_token, str) and sync_token.startswith("fake-"):
-            if sync_token == fake_sync_token:
-                return SynchronizableCalendarObjectCollection(
-                    calendar=self, objects=[], sync_token=fake_sync_token
-                )
-
-        return SynchronizableCalendarObjectCollection(
-            calendar=self, objects=all_objects, sync_token=fake_sync_token
-        )
+        return self._build_fallback_sync_result(all_objects, sync_token)
 
     def get_journals(self) -> "list[Journal] | Coroutine[Any, Any, list[Journal]]":
         """
