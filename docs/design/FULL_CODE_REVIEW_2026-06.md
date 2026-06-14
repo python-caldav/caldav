@@ -388,6 +388,14 @@ producing drift bugs.
    (init tail, get_calendars, rate-limit retry loop — byte-identical except
    `time.sleep` vs `asyncio.sleep`). The §2.14 GMX gap and §1.3 retry bug
    are direct drift products. Move into `BaseDAVClient` / `lib/error.py`.
+   ✅ FIXED — the byte-identical pure logic is now shared via
+   `BaseDAVClient`: `_init_rate_limit_config()` (the rate-limit init tail),
+   `_rate_limit_sleep_seconds()` (the retry sleep-decision — where §1.3
+   lived), and `_calendar_home_url()` / `_build_calendars_from_propfind()`
+   (the get_calendars post-processing — where §2.14 lived). Only the
+   irreducible per-twin parts remain duplicated: the actual `time.sleep` vs
+   `await asyncio.sleep`, the awaited PROPFIND/principal I/O, and the
+   library-specific session/header setup in `__init__`.
 4. **`search.py:869` — post-processing loads unloaded results one GET at a
    time**; `Calendar._multiget` can fetch them in a single REPORT. On the
    issue-#201 workaround path a 200-event search costs ~200 extra
