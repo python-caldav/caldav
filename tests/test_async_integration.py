@@ -186,9 +186,15 @@ class AsyncFunctionalTestsBaseClass:
         return flag in getattr(self._features, "_old_flags", [])
 
     @pytest.fixture(scope="class")
-    def test_server(self) -> TestServer:
-        """Get the test server for this class."""
-        server = self.server
+    @classmethod
+    def test_server(cls) -> TestServer:
+        """Get the test server for this class.
+
+        Defined as a classmethod because pytest deprecates class-scoped
+        fixtures written as plain instance methods (each test gets a fresh
+        instance, so per-instance state set here would not be visible anyway).
+        """
+        server = cls.server
         server.start()
         yield server
         # Stop the server to free the port for other test modules
