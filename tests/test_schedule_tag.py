@@ -242,3 +242,30 @@ class TestScheduleTagUnit:
         assert event.schedule_tag == new_tag, (
             "schedule_tag prop not updated after successful conditional save"
         )
+
+    # ------------------------------------------------------------------ #
+    # 7. _post_put header handling (characterization for the dedup of    #
+    #    the block that used to be pasted twice)                          #
+    # ------------------------------------------------------------------ #
+
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def test_etag_captured_from_put_response(self, mocked):
+        """A PUT returning an Etag header must store it in props."""
+        mocked.return_value = _make_put_response(201, {"Etag": '"etag-from-put"'})
+
+        event = _make_event_with_tag(None)
+        event.save()
+
+        assert event.props[dav.GetEtag.tag] == '"etag-from-put"'
+
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def test_302_on_put_updates_url(self, mocked):
+        """A 302 in response to a PUT must follow the Location header."""
+        mocked.return_value = _make_put_response(
+            302, {"location": "http://cal.example.com/cal/moved.ics"}
+        )
+
+        event = _make_event_with_tag(None)
+        event.save()
+
+        assert str(event.url) == "http://cal.example.com/cal/moved.ics"

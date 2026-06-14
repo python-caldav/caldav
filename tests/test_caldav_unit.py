@@ -8,6 +8,7 @@ to emulate server communication.
 
 import pickle
 from datetime import date, datetime, timedelta, timezone
+from typing import Any
 from unittest import mock
 from urllib.parse import urlparse
 
