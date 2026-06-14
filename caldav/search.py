@@ -17,6 +17,8 @@ from .elements import cdav, dav
 from .lib import error
 
 if TYPE_CHECKING:
+    from collections.abc import Generator
+
     from .calendarobjectresource import (
         CalendarObjectResource as AsyncCalendarObjectResource,
     )
@@ -272,6 +274,33 @@ class SearchAction(Enum):
         auto()
     )  # (calendar, objects) -> batch-load via calendar._batch_load_objects
     RETURN = auto()  # (result) -> return this value
+
+
+def _advance_search_gen(
+    gen: "Generator[tuple[SearchAction, Any], Any, None]",
+    result: Any = None,
+    exc: BaseException | None = None,
+) -> "tuple[SearchAction, Any] | None":
+    """Phase 2 of the search driver protocol, shared by sync and async drivers.
+
+    Feed the Phase-1 ``result`` (or the ``exc`` raised while executing the
+    yielded action) back into the search generator.  Feeding an exception via
+    ``gen.throw()`` lets the search logic's own try/except blocks act on it
+    (the issue #681 time-range fallback, per-object load error handling, ...);
+    if the generator does not handle it, ``gen.throw()`` re-raises it out of
+    here, which is the correct propagation.
+
+    Passing ``result=None, exc=None`` on a fresh generator primes it.
+
+    :return: the next ``(action, data)`` to execute, or ``None`` when the
+             generator is exhausted (StopIteration → the driver returns ``[]``).
+    """
+    try:
+        if exc is not None:
+            return gen.throw(exc)
+        return gen.send(result)
+    except StopIteration:
+        return None
 
 
 @dataclass
@@ -941,51 +970,47 @@ class CalDAVSearcher(Searcher):
         gen = self._search_impl(
             calendar, server_expand, split_expanded, props, xml, post_filter, _hacks
         )
-        result = None
 
-        try:
-            action, data = gen.send(result)
-        except StopIteration:
-            return []
-
-        while True:
-            ## Phase 1: execute the action, capturing either a result or an exception.
-            ## The exception is fed back into the generator via gen.throw() (Phase 2)
-            ## so the search logic's own try/except blocks (e.g. the issue #681
-            ## time-range fallback, or the per-object load error handling) can act on it.
-            exc = None
+        ## The driver alternates Phase 1 (execute the yielded action, here) and
+        ## Phase 2 (feed the result/exception back, in _advance_search_gen).  Only
+        ## Phase 1 differs between sync and async; the generator protocol is shared.
+        step = _advance_search_gen(gen)  # prime the generator
+        while step is not None:
+            action, data = step
+            if action == SearchAction.RETURN:
+                return data
+            result = exc = None
             try:
-                if action == SearchAction.RECURSIVE_SEARCH:
-                    clone, cal, srv_exp, spl_exp, prp, xm, pf, hk = data
-                    result = clone.search(cal, srv_exp, spl_exp, prp, xm, pf, hk)
-                elif action == SearchAction.SEARCH_WITH_COMPTYPES:
-                    cal, srv_exp, spl_exp, prp, xm, hk, pf = data
-                    result = self._search_with_comptypes(cal, srv_exp, spl_exp, prp, xm, hk, pf)
-                elif action == SearchAction.REQUEST_REPORT:
-                    cal, xm, comp_cls, prp = data
-                    result = cal._request_report_build_resultlist(xm, comp_cls, props=prp)
-                elif action == SearchAction.LOAD_OBJECT:
-                    data.load(only_if_unloaded=True)
-                    result = None
-                elif action == SearchAction.LOAD_OBJECTS_BATCH:
-                    cal, objs = data
-                    cal._batch_load_objects(objs)
-                    result = None
-                elif action == SearchAction.RETURN:
-                    return data
+                result = self._dispatch_search_action(action, data)
             except Exception as e:
                 exc = e
+            step = _advance_search_gen(gen, result, exc)
+        return []
 
-            ## Phase 2: advance the generator.  If the action raised, throw the
-            ## exception in at the yield point; if the generator does not handle it,
-            ## gen.throw() re-raises it out of here (correct propagation).
-            try:
-                if exc is not None:
-                    action, data = gen.throw(exc)
-                else:
-                    action, data = gen.send(result)
-            except StopIteration:
-                return []
+    def _dispatch_search_action(self, action: SearchAction, data: Any) -> Any:
+        """Phase 1 of the sync search driver: execute one yielded SearchAction.
+
+        Returns the value to feed back into the generator (``None`` for actions
+        whose effect is a side effect).  ``RETURN`` is handled by the driver
+        loop itself.  Sync twin of :meth:`_async_dispatch_search_action`.
+        """
+        if action == SearchAction.RECURSIVE_SEARCH:
+            clone, cal, srv_exp, spl_exp, prp, xm, pf, hk = data
+            return clone.search(cal, srv_exp, spl_exp, prp, xm, pf, hk)
+        if action == SearchAction.SEARCH_WITH_COMPTYPES:
+            cal, srv_exp, spl_exp, prp, xm, hk, pf = data
+            return self._search_with_comptypes(cal, srv_exp, spl_exp, prp, xm, hk, pf)
+        if action == SearchAction.REQUEST_REPORT:
+            cal, xm, comp_cls, prp = data
+            return cal._request_report_build_resultlist(xm, comp_cls, props=prp)
+        if action == SearchAction.LOAD_OBJECT:
+            data.load(only_if_unloaded=True)
+            return None
+        if action == SearchAction.LOAD_OBJECTS_BATCH:
+            cal, objs = data
+            cal._batch_load_objects(objs)
+            return None
+        raise AssertionError(f"unhandled search action {action!r}")
 
     def _search_with_comptypes(
         self,
@@ -1046,55 +1071,47 @@ class CalDAVSearcher(Searcher):
         gen = self._search_impl(
             calendar, server_expand, split_expanded, props, xml, post_filter, _hacks
         )
-        result = None
 
-        try:
-            action, data = gen.send(result)
-        except StopIteration:
-            return []
-
-        while True:
-            ## Phase 1: execute the action, capturing either a result or an exception.
-            ## The exception is fed back into the generator via gen.throw() (Phase 2)
-            ## so the search logic's own try/except blocks (e.g. the issue #681
-            ## time-range fallback, or the per-object load error handling) can act on it.
-            exc = None
+        ## See the sync search() driver: only Phase 1 (the action execution) is
+        ## awaited here; the Phase-2 generator protocol is shared via
+        ## _advance_search_gen.
+        step = _advance_search_gen(gen)  # prime the generator
+        while step is not None:
+            action, data = step
+            if action == SearchAction.RETURN:
+                return data
+            result = exc = None
             try:
-                if action == SearchAction.RECURSIVE_SEARCH:
-                    clone, cal, srv_exp, spl_exp, prp, xm, pf, hk = data
-                    result = await clone.async_search(cal, srv_exp, spl_exp, prp, xm, pf, hk)
-                elif action == SearchAction.SEARCH_WITH_COMPTYPES:
-                    cal, srv_exp, spl_exp, prp, xm, hk, pf = data
-                    result = await self._async_search_with_comptypes(
-                        cal, srv_exp, spl_exp, prp, xm, hk, pf
-                    )
-                elif action == SearchAction.REQUEST_REPORT:
-                    cal, xm, comp_cls, prp = data
-                    result = await cal._request_report_build_resultlist(xm, comp_cls, props=prp)
-                elif action == SearchAction.LOAD_OBJECT:
-                    load_result = data.load(only_if_unloaded=True)
-                    if inspect.isawaitable(load_result):
-                        await load_result
-                    result = None
-                elif action == SearchAction.LOAD_OBJECTS_BATCH:
-                    cal, objs = data
-                    await cal._async_batch_load_objects(objs)
-                    result = None
-                elif action == SearchAction.RETURN:
-                    return data
+                result = await self._async_dispatch_search_action(action, data)
             except Exception as e:
                 exc = e
+            step = _advance_search_gen(gen, result, exc)
+        return []
 
-            ## Phase 2: advance the generator.  If the action raised, throw the
-            ## exception in at the yield point; if the generator does not handle it,
-            ## gen.throw() re-raises it out of here (correct propagation).
-            try:
-                if exc is not None:
-                    action, data = gen.throw(exc)
-                else:
-                    action, data = gen.send(result)
-            except StopIteration:
-                return []
+    async def _async_dispatch_search_action(self, action: SearchAction, data: Any) -> Any:
+        """Phase 1 of the async search driver: execute one yielded SearchAction.
+
+        Async twin of :meth:`_dispatch_search_action`; see it for semantics.
+        """
+        if action == SearchAction.RECURSIVE_SEARCH:
+            clone, cal, srv_exp, spl_exp, prp, xm, pf, hk = data
+            return await clone.async_search(cal, srv_exp, spl_exp, prp, xm, pf, hk)
+        if action == SearchAction.SEARCH_WITH_COMPTYPES:
+            cal, srv_exp, spl_exp, prp, xm, hk, pf = data
+            return await self._async_search_with_comptypes(cal, srv_exp, spl_exp, prp, xm, hk, pf)
+        if action == SearchAction.REQUEST_REPORT:
+            cal, xm, comp_cls, prp = data
+            return await cal._request_report_build_resultlist(xm, comp_cls, props=prp)
+        if action == SearchAction.LOAD_OBJECT:
+            load_result = data.load(only_if_unloaded=True)
+            if inspect.isawaitable(load_result):
+                await load_result
+            return None
+        if action == SearchAction.LOAD_OBJECTS_BATCH:
+            cal, objs = data
+            await cal._async_batch_load_objects(objs)
+            return None
+        raise AssertionError(f"unhandled search action {action!r}")
 
     async def _async_search_with_comptypes(
         self,
