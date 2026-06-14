@@ -213,18 +213,24 @@ class XandikosServer(EmbeddedServer):
 
         if self.xapp_loop and self.xapp_runner:
 
-            async def cleanup_and_stop() -> None:
+            async def cleanup() -> None:
                 await self.xapp_runner.cleanup()
-                self.xapp_loop.stop()
 
             try:
-                asyncio.run_coroutine_threadsafe(cleanup_and_stop(), self.xapp_loop).result(
-                    timeout=10
-                )
+                asyncio.run_coroutine_threadsafe(cleanup(), self.xapp_loop).result(timeout=10)
             except Exception:
-                if self.xapp_loop:
-                    self.xapp_loop.call_soon_threadsafe(self.xapp_loop.stop)
-        elif self.xapp_loop:
+                # Best-effort cleanup: we swallow anything it raises (timeout,
+                # CancelledError, aiohttp errors).  The Xandikos server is
+                # ephemeral per test against a throwaway serverdir, so there is
+                # no shared state to release and nothing to recover here.
+                pass
+
+        # Stop the loop from *outside* any coroutine running on it.  Calling
+        # loop.stop() from within a coroutine scheduled via
+        # run_coroutine_threadsafe can stop the loop before it delivers that
+        # coroutine's result to the concurrent.futures.Future, so .result()
+        # would block until its timeout (~10s) on every single stop().
+        if self.xapp_loop:
             self.xapp_loop.call_soon_threadsafe(self.xapp_loop.stop)
 
         if self.thread:
