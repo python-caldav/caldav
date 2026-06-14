@@ -63,11 +63,23 @@ class AsyncJMAPClient(_JMAPClientBase):
         timeout: HTTP request timeout in seconds.
     """
 
+    def _get_http_session(self) -> AsyncSession:
+        """Return the persistent async HTTP session, creating it on first call."""
+        if self._http_session is None:
+            sess = AsyncSession()
+            sess.auth = self._auth
+            sess.headers.update({"Content-Type": "application/json", "Accept": "application/json"})
+            self._http_session = sess
+        return self._http_session
+
     async def __aenter__(self) -> AsyncJMAPClient:
+        self._get_http_session()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
-        return None
+        if self._http_session is not None:
+            await self._http_session.close()
+            self._http_session = None
 
     async def _get_session(self) -> Session:
         """Return the cached Session, fetching it on first call."""
@@ -102,14 +114,11 @@ class AsyncJMAPClient(_JMAPClientBase):
 
         log.debug("JMAP POST to %s: %d method call(s)", session.api_url, len(method_calls))
 
-        async with AsyncSession() as http:
-            response = await http.post(
-                session.api_url,
-                json=payload,
-                auth=self._auth,
-                headers={"Content-Type": "application/json", "Accept": "application/json"},
-                timeout=self.timeout,
-            )
+        response = await self._get_http_session().post(
+            session.api_url,
+            json=payload,
+            timeout=self.timeout,
+        )
 
         if response.status_code in (401, 403):
             raise JMAPAuthError(

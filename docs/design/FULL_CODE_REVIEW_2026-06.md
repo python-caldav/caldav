@@ -392,7 +392,7 @@ producing drift bugs.
 5. **JMAP clients open a fresh HTTP connection per request** (async:
    `async with AsyncSession()` per `_request`; sync: module-level
    `requests.post`). `__exit__`/`__aexit__` already exist but do nothing —
-   hold one session in `_JMAPClientBase` and close it there.
+   hold one session in `_JMAPClientBase` and close it there. ✅ FIXED
 6. **`Todo._async_complete_recurring_thisandfuture` copies ~60 lines of its
    sync twin** (the file says "TERRIBLY much code duplication here"), and
    the async safe-variant has drifted: it PUTs the completed copy twice.

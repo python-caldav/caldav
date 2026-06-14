@@ -343,7 +343,9 @@ class TestJMAPCalendar:
             mock_resp.raise_for_status = MagicMock()
             return mock_resp
 
-        monkeypatch.setattr("caldav.jmap.client.requests.post", capturing_post)
+        mock_http = MagicMock()
+        mock_http.post.side_effect = capturing_post
+        client._http_session = mock_http
         cal = JMAPCalendar(id=calendar_id, name="Test")
         cal._client = client
         cal._is_async = False
@@ -589,7 +591,9 @@ def _make_client_with_mocked_session(monkeypatch, api_response_json):
     mock_resp.status_code = 200
     mock_resp.json.return_value = api_response_json
     mock_resp.raise_for_status = MagicMock()
-    monkeypatch.setattr("caldav.jmap.client.requests.post", lambda *a, **kw: mock_resp)
+    mock_http = MagicMock()
+    mock_http.post.return_value = mock_resp
+    client._http_session = mock_http
     return client
 
 
@@ -606,6 +610,33 @@ class TestJMAPClient:
     def test_context_manager(self):
         with JMAPClient(url="http://x", username="u", password="p") as client:
             assert isinstance(client, JMAPClient)
+
+    def test_context_manager_closes_http_session(self):
+        mock_close = MagicMock()
+        mock_http = MagicMock()
+        mock_http.close = mock_close
+        with patch("caldav.jmap.client.requests.Session", return_value=mock_http):
+            client = JMAPClient(url="http://x", username="u", password="p")
+            with client:
+                assert client._http_session is mock_http
+            mock_close.assert_called_once()
+            assert client._http_session is None
+
+    def test_http_session_reused_across_requests(self, monkeypatch):
+        client = JMAPClient(url=_JMAP_URL, username=_USERNAME, password=_PASSWORD)
+        client._session_cache = Session(api_url=_API_URL, account_id=_USERNAME, state="s")
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"methodResponses": []}
+        mock_resp.raise_for_status = MagicMock()
+        with patch("caldav.jmap.client.requests.Session") as MockSession:
+            mock_sess = MagicMock()
+            mock_sess.post.return_value = mock_resp
+            MockSession.return_value = mock_sess
+            client._request([("Calendar/get", {}, "c0")])
+            client._request([("Calendar/get", {}, "c1")])
+        MockSession.assert_called_once()
+        assert mock_sess.post.call_count == 2
 
     def test_build_auth_basic_when_username_given(self):
         client = JMAPClient(url="http://x", username="u", password="p")
@@ -667,7 +698,9 @@ class TestJMAPClient:
         mock_resp = MagicMock()
         mock_resp.status_code = 401
         mock_resp.raise_for_status = MagicMock()
-        monkeypatch.setattr("caldav.jmap.client.requests.post", lambda *a, **kw: mock_resp)
+        mock_http = MagicMock()
+        mock_http.post.return_value = mock_resp
+        client._http_session = mock_http
 
         with pytest.raises(JMAPAuthError):
             client._request([("Calendar/get", {"accountId": _USERNAME, "ids": None}, "c0")])
@@ -1684,7 +1717,9 @@ class TestJMAPClientEvents:
             mock_resp.raise_for_status = MagicMock()
             return mock_resp
 
-        monkeypatch.setattr("caldav.jmap.client.requests.post", capturing_post)
+        mock_http = MagicMock()
+        mock_http.post.side_effect = capturing_post
+        client._http_session = mock_http
         return client, captured
 
     def _query_get_response(self, items):
@@ -1807,14 +1842,22 @@ class TestJMAPClientSync:
         client._session_cache = Session(api_url=_API_URL, account_id=_USERNAME, state="state-abc")
         return client
 
-    def test_get_sync_token_returns_state(self, monkeypatch):
-        resp = self._get_resp_with_state([], state="tok-1")
-        monkeypatch.setattr(
-            "caldav.jmap.client.requests.post", lambda *a, **kw: self._make_mock(resp)
-        )
-        assert self._make_client().get_sync_token() == "tok-1"
+    def _mock_http(self, client, response=None, side_effect=None):
+        mock_http = MagicMock()
+        if side_effect is not None:
+            mock_http.post.side_effect = side_effect
+        elif response is not None:
+            mock_http.post.return_value = response
+        client._http_session = mock_http
+        return mock_http
 
-    def test_get_sync_token_sends_empty_ids(self, monkeypatch):
+    def test_get_sync_token_returns_state(self):
+        resp = self._get_resp_with_state([], state="tok-1")
+        client = self._make_client()
+        self._mock_http(client, self._make_mock(resp))
+        assert client.get_sync_token() == "tok-1"
+
+    def test_get_sync_token_sends_empty_ids(self):
         captured = {}
         resp = self._get_resp_with_state([])
 
@@ -1822,70 +1865,69 @@ class TestJMAPClientSync:
             captured["json"] = kwargs.get("json", {})
             return self._make_mock(resp)
 
-        monkeypatch.setattr("caldav.jmap.client.requests.post", capturing_post)
-        self._make_client().get_sync_token()
+        client = self._make_client()
+        self._mock_http(client, side_effect=capturing_post)
+        client.get_sync_token()
         assert captured["json"]["methodCalls"][0][1]["ids"] == []
 
-    def test_get_objects_no_changes(self, monkeypatch):
+    def test_get_objects_no_changes(self):
         resp = self._changes_resp()
-        monkeypatch.setattr(
-            "caldav.jmap.client.requests.post", lambda *a, **kw: self._make_mock(resp)
-        )
-        added, modified, deleted, _ = self._make_client().get_objects_by_sync_token("state-1")
+        client = self._make_client()
+        self._mock_http(client, self._make_mock(resp))
+        added, modified, deleted, _ = client.get_objects_by_sync_token("state-1")
         assert added == [] and modified == [] and deleted == []
 
-    def test_get_objects_deleted_returns_ids(self, monkeypatch):
+    def test_get_objects_deleted_returns_ids(self):
         resp = self._changes_resp(destroyed=["ev1"])
-        monkeypatch.setattr(
-            "caldav.jmap.client.requests.post", lambda *a, **kw: self._make_mock(resp)
-        )
-        added, modified, deleted, _ = self._make_client().get_objects_by_sync_token("state-1")
+        client = self._make_client()
+        self._mock_http(client, self._make_mock(resp))
+        added, modified, deleted, _ = client.get_objects_by_sync_token("state-1")
         assert deleted == ["ev1"] and added == [] and modified == []
 
-    def test_get_objects_added_returns_ical(self, monkeypatch):
+    def test_get_objects_added_returns_ical(self):
         changes_resp = self._changes_resp(created=["ev1"])
         get_resp = self._get_resp_with_state([self._RAW_EVENT])
-        mock_post = MagicMock(
-            side_effect=[self._make_mock(changes_resp), self._make_mock(get_resp)]
+        client = self._make_client()
+        self._mock_http(
+            client,
+            side_effect=[self._make_mock(changes_resp), self._make_mock(get_resp)],
         )
-        monkeypatch.setattr("caldav.jmap.client.requests.post", mock_post)
-        added, modified, deleted, _ = self._make_client().get_objects_by_sync_token("state-1")
+        added, modified, deleted, _ = client.get_objects_by_sync_token("state-1")
         assert len(added) == 1
         assert isinstance(added[0], JMAPCalendarObject)
         assert added[0].id == "ev1"
         assert modified == [] and deleted == []
 
-    def test_get_objects_modified_returns_ical(self, monkeypatch):
+    def test_get_objects_modified_returns_ical(self):
         changes_resp = self._changes_resp(updated=["ev1"])
         get_resp = self._get_resp_with_state([self._RAW_EVENT])
-        mock_post = MagicMock(
-            side_effect=[self._make_mock(changes_resp), self._make_mock(get_resp)]
+        client = self._make_client()
+        self._mock_http(
+            client,
+            side_effect=[self._make_mock(changes_resp), self._make_mock(get_resp)],
         )
-        monkeypatch.setattr("caldav.jmap.client.requests.post", mock_post)
-        added, modified, deleted, _ = self._make_client().get_objects_by_sync_token("state-1")
+        added, modified, deleted, _ = client.get_objects_by_sync_token("state-1")
         assert len(modified) == 1
         assert isinstance(modified[0], JMAPCalendarObject)
         assert modified[0].id == "ev1"
         assert added == [] and deleted == []
 
-    def test_get_objects_has_more_raises(self, monkeypatch):
+    def test_get_objects_has_more_raises(self):
         resp = self._changes_resp(created=["ev1"], has_more=True)
-        monkeypatch.setattr(
-            "caldav.jmap.client.requests.post", lambda *a, **kw: self._make_mock(resp)
-        )
+        client = self._make_client()
+        self._mock_http(client, self._make_mock(resp))
         with pytest.raises(JMAPMethodError) as exc_info:
-            self._make_client().get_objects_by_sync_token("state-1")
+            client.get_objects_by_sync_token("state-1")
         assert exc_info.value.error_type == "serverPartialFail"
 
-    def test_get_objects_returns_new_sync_token(self, monkeypatch):
+    def test_get_objects_returns_new_sync_token(self):
         """§4.7: newState from /changes was discarded into _.  Callers had no
         way to chain sync calls without a separate get_sync_token() round-trip,
         creating a race window where intervening changes would be silently missed."""
         resp = self._changes_resp(new_state="state-99")
-        monkeypatch.setattr(
-            "caldav.jmap.client.requests.post", lambda *a, **kw: self._make_mock(resp)
-        )
-        result = self._make_client().get_objects_by_sync_token("state-1")
+        client = self._make_client()
+        self._mock_http(client, self._make_mock(resp))
+        result = client.get_objects_by_sync_token("state-1")
         assert len(result) == 4, "expected 4-tuple (added, modified, deleted, new_sync_token)"
         added, modified, deleted, new_token = result
         assert new_token == "state-99"
@@ -2037,25 +2079,32 @@ class TestJMAPClientTasks:
         client._session_cache = Session(api_url=_API_URL, account_id=_USERNAME, state="state-abc")
         return client
 
-    def test_get_task_lists_returns_list(self, monkeypatch):
+    def _mock_http(self, client, response=None, side_effect=None):
+        mock_http = MagicMock()
+        if side_effect is not None:
+            mock_http.post.side_effect = side_effect
+        elif response is not None:
+            mock_http.post.return_value = response
+        client._http_session = mock_http
+        return mock_http
+
+    def test_get_task_lists_returns_list(self):
         resp = self._tasklist_response([self._MINIMAL_TASKLIST])
-        monkeypatch.setattr(
-            "caldav.jmap.client.requests.post", lambda *a, **kw: self._make_mock(resp)
-        )
-        result = self._make_client().get_task_lists()
+        client = self._make_client()
+        self._mock_http(client, self._make_mock(resp))
+        result = client.get_task_lists()
         assert len(result) == 1
         assert isinstance(result[0], dict)
         assert result[0]["name"] == "My Tasks"
 
-    def test_create_task_returns_server_id(self, monkeypatch):
+    def test_create_task_returns_server_id(self):
         resp = self._set_response(created={"new-0": {"id": "sv-task-1"}})
-        monkeypatch.setattr(
-            "caldav.jmap.client.requests.post", lambda *a, **kw: self._make_mock(resp)
-        )
-        task_id = self._make_client().create_task("tl1", "Buy groceries")
+        client = self._make_client()
+        self._mock_http(client, self._make_mock(resp))
+        task_id = client.create_task("tl1", "Buy groceries")
         assert task_id == "sv-task-1"
 
-    def test_create_task_passes_task_list_id(self, monkeypatch):
+    def test_create_task_passes_task_list_id(self):
         captured = {}
         resp = self._set_response(created={"new-0": {"id": "sv-task-1"}})
 
@@ -2063,81 +2112,74 @@ class TestJMAPClientTasks:
             captured["json"] = kwargs.get("json", {})
             return self._make_mock(resp)
 
-        monkeypatch.setattr("caldav.jmap.client.requests.post", capturing_post)
-        self._make_client().create_task("my-list", "Test Task")
+        client = self._make_client()
+        self._mock_http(client, side_effect=capturing_post)
+        client.create_task("my-list", "Test Task")
         create_args = captured["json"]["methodCalls"][0][1]
         assert create_args["create"]["new-0"]["taskListId"] == "my-list"
 
-    def test_create_task_raises_on_failure(self, monkeypatch):
+    def test_create_task_raises_on_failure(self):
         resp = self._set_response(notCreated={"new-0": {"type": "invalidArguments"}})
-        monkeypatch.setattr(
-            "caldav.jmap.client.requests.post", lambda *a, **kw: self._make_mock(resp)
-        )
+        client = self._make_client()
+        self._mock_http(client, self._make_mock(resp))
         with pytest.raises(JMAPMethodError) as exc_info:
-            self._make_client().create_task("tl1", "Test")
+            client.create_task("tl1", "Test")
         assert exc_info.value.error_type == "invalidArguments"
 
-    def test_create_task_raises_jmap_error_when_created_is_empty(self, monkeypatch):
+    def test_create_task_raises_jmap_error_when_created_is_empty(self):
         """§1.13: create_task must raise JMAPMethodError (not KeyError) when the server
         returns a Task/set response with an empty 'created' dict and no 'notCreated' entry."""
         resp = self._set_response(created={}, notCreated={})
-        monkeypatch.setattr(
-            "caldav.jmap.client.requests.post", lambda *a, **kw: self._make_mock(resp)
-        )
+        client = self._make_client()
+        self._mock_http(client, self._make_mock(resp))
         with pytest.raises(JMAPMethodError):
-            self._make_client().create_task("tl1", "Test")
+            client.create_task("tl1", "Test")
 
-    def test_get_task_returns_task_object(self, monkeypatch):
+    def test_get_task_returns_task_object(self):
         resp = self._get_response([self._MINIMAL_TASK])
-        monkeypatch.setattr(
-            "caldav.jmap.client.requests.post", lambda *a, **kw: self._make_mock(resp)
-        )
-        task = self._make_client().get_task("task1")
+        client = self._make_client()
+        self._mock_http(client, self._make_mock(resp))
+        task = client.get_task("task1")
         assert isinstance(task, dict)
         assert task["id"] == "task1"
 
-    def test_get_task_raises_on_not_found(self, monkeypatch):
+    def test_get_task_raises_on_not_found(self):
         resp = self._get_response([])
-        monkeypatch.setattr(
-            "caldav.jmap.client.requests.post", lambda *a, **kw: self._make_mock(resp)
-        )
+        client = self._make_client()
+        self._mock_http(client, self._make_mock(resp))
         with pytest.raises(JMAPMethodError) as exc_info:
-            self._make_client().get_task("missing")
+            client.get_task("missing")
         assert exc_info.value.error_type == "notFound"
 
-    def test_update_task_success(self, monkeypatch):
+    def test_update_task_success(self):
         resp = self._set_response(updated={"task1": None})
-        monkeypatch.setattr(
-            "caldav.jmap.client.requests.post", lambda *a, **kw: self._make_mock(resp)
-        )
-        self._make_client().update_task("task1", {"title": "Updated"})
+        client = self._make_client()
+        self._mock_http(client, self._make_mock(resp))
+        client.update_task("task1", {"title": "Updated"})
 
-    def test_update_task_raises_on_failure(self, monkeypatch):
+    def test_update_task_raises_on_failure(self):
         resp = self._set_response(notUpdated={"task1": {"type": "notFound"}})
-        monkeypatch.setattr(
-            "caldav.jmap.client.requests.post", lambda *a, **kw: self._make_mock(resp)
-        )
+        client = self._make_client()
+        self._mock_http(client, self._make_mock(resp))
         with pytest.raises(JMAPMethodError) as exc_info:
-            self._make_client().update_task("task1", {"title": "X"})
+            client.update_task("task1", {"title": "X"})
         assert exc_info.value.error_type == "notFound"
 
-    def test_delete_task_success(self, monkeypatch):
+    def test_delete_task_success(self):
         resp = self._set_response(destroyed=["task1"])
-        monkeypatch.setattr(
-            "caldav.jmap.client.requests.post", lambda *a, **kw: self._make_mock(resp)
-        )
-        self._make_client().delete_task("task1")
+        client = self._make_client()
+        self._mock_http(client, self._make_mock(resp))
+        client.delete_task("task1")
 
-    def test_delete_task_raises_on_failure(self, monkeypatch):
+    def test_delete_task_raises_on_failure(self):
         resp = self._set_response(notDestroyed={"task1": {"type": "notFound"}})
-        monkeypatch.setattr(
-            "caldav.jmap.client.requests.post", lambda *a, **kw: self._make_mock(resp)
-        )
+        client = self._make_client()
+        self._mock_http(client, self._make_mock(resp))
         with pytest.raises(JMAPMethodError) as exc_info:
-            self._make_client().delete_task("task1")
+            client.delete_task("task1")
         assert exc_info.value.error_type == "notFound"
 
-    def test_task_requests_use_task_capability(self, monkeypatch):
+    def test_task_requests_use_task_capability(self):
         captured = {}
         resp = self._tasklist_response([self._MINIMAL_TASKLIST])
 
@@ -2145,8 +2187,9 @@ class TestJMAPClientTasks:
             captured["json"] = kwargs.get("json", {})
             return self._make_mock(resp)
 
-        monkeypatch.setattr("caldav.jmap.client.requests.post", capturing_post)
-        self._make_client().get_task_lists()
+        client = self._make_client()
+        self._mock_http(client, side_effect=capturing_post)
+        client.get_task_lists()
         assert TASK_CAPABILITY in captured["json"]["using"]
         assert CALENDAR_CAPABILITY not in captured["json"]["using"]
 
@@ -2300,6 +2343,33 @@ class TestAsyncJMAPClient:
     async def test_context_manager(self):
         async with AsyncJMAPClient(url=_JMAP_URL, username=_USERNAME, password=_PASSWORD) as client:
             assert isinstance(client, AsyncJMAPClient)
+
+    @pytest.mark.asyncio
+    async def test_context_manager_closes_http_session(self, monkeypatch):
+        mock_close = AsyncMock()
+        mock_http = MagicMock()
+        mock_http.close = mock_close
+        mock_http.headers = MagicMock()
+        monkeypatch.setattr("caldav.jmap.async_client.AsyncSession", lambda: mock_http)
+        client = AsyncJMAPClient(url=_JMAP_URL, username=_USERNAME, password=_PASSWORD)
+        async with client:
+            assert client._http_session is mock_http
+        mock_close.assert_called_once()
+        assert client._http_session is None
+
+    @pytest.mark.asyncio
+    async def test_http_session_reused_across_requests(self, monkeypatch):
+        client = self._make_client()
+        mock_resp = self._make_mock_response({"methodResponses": []})
+        mock_http = MagicMock()
+        mock_http.post = AsyncMock(return_value=mock_resp)
+        mock_http.headers = MagicMock()
+        with patch("caldav.jmap.async_client.AsyncSession") as MockAsyncSession:
+            MockAsyncSession.return_value = mock_http
+            await client._request([("Calendar/get", {}, "c0")])
+            await client._request([("Calendar/get", {}, "c1")])
+        MockAsyncSession.assert_called_once()
+        assert mock_http.post.call_count == 2
 
     @pytest.mark.asyncio
     async def test_get_calendars_returns_list(self, monkeypatch):

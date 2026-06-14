@@ -71,6 +71,7 @@ class _JMAPClientBase:
         self.password = password
         self.timeout = timeout
         self._session_cache: Session | None = None
+        self._http_session = None
 
         if auth is not None:
             self._auth = auth
@@ -373,11 +374,23 @@ class JMAPClient(_JMAPClientBase):
         timeout: HTTP request timeout in seconds.
     """
 
+    def _get_http_session(self):
+        """Return the persistent HTTP session, creating it on first call."""
+        if self._http_session is None:
+            sess = requests.Session()
+            sess.auth = self._auth
+            sess.headers.update({"Content-Type": "application/json", "Accept": "application/json"})
+            self._http_session = sess
+        return self._http_session
+
     def __enter__(self) -> JMAPClient:
+        self._get_http_session()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
-        return None
+        if self._http_session is not None:
+            self._http_session.close()
+            self._http_session = None
 
     def _get_session(self) -> Session:
         """Return the cached Session, fetching it on first call."""
@@ -411,11 +424,9 @@ class JMAPClient(_JMAPClientBase):
 
         log.debug("JMAP POST to %s: %d method call(s)", session.api_url, len(method_calls))
 
-        response = requests.post(
+        response = self._get_http_session().post(
             session.api_url,
             json=payload,
-            auth=self._auth,
-            headers={"Content-Type": "application/json", "Accept": "application/json"},
             timeout=self.timeout,
         )
 
