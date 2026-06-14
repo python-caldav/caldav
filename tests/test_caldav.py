@@ -3936,6 +3936,10 @@ END:VCALENDAR"""
             try:
                 c.set_properties([dav.DisplayName("Yep")])
             except error.PropsetError:
+                ## Best-effort cleanup only: the assertion of interest has
+                ## already run above.  Some servers reject setting the display
+                ## name (PropsetError); if so there's nothing to restore and
+                ## nothing actionable to do here, so swallow it silently.
                 pass
 
         ## calendar color and calendar order are extra properties not

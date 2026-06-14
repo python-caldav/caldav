@@ -645,6 +645,32 @@ def _normalize_to_list(obj: Any) -> list:
     return list(obj)
 
 
+def _warn_unreadable_display_name(client: Any, calendar: Any, name: Any, exc: Exception) -> None:
+    """Log a warning when a calendar's display name couldn't be read during a
+    lookup by name -- unless the failure is expected per the compatibility matrix.
+
+    Shared by the sync (:meth:`caldav.collection.CalendarSet.calendar`) and async
+    (:func:`caldav.async_davclient.get_calendars`) name-matching loops so the
+    warn-or-suppress decision lives in one place.
+
+    The failure is treated as expected (and silently skipped) only when we
+    positively know the server doesn't support reading the DAV:displayname
+    property via PROPFIND (``propfind.displayname`` non-supported -- which falls
+    back to the ``propfind`` parent when not probed explicitly).  When the
+    feature is supported, or when we have no feature matrix to consult, the
+    failure is unexpected and is warned about.
+
+    The caller is responsible for continuing the loop afterwards, so that one
+    unreadable calendar never aborts the whole name lookup.
+    """
+    features = getattr(client, "features", None)
+    if features is None or features.is_supported("propfind.displayname"):
+        log.warning(
+            f"Could not read display name for calendar "
+            f"{getattr(calendar, 'url', calendar)} while matching name '{name}': {exc}"
+        )
+
+
 def _fetch_calendars_for_client(
     client: Any,
     calendar_url: Any | None,
