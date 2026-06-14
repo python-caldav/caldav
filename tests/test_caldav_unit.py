@@ -3767,3 +3767,62 @@ class TestPostPutRedirect:
         )
         event.save()
         assert str(event.url) == new_url
+
+
+class TestWarnUnreadableDisplayName:
+    """§5 (DRY): the shared helper backing the sync/async name-matching loops.
+
+    Warn unless we positively know the server can't read DAV:displayname via
+    PROPFIND (propfind.displayname non-supported); warn when the feature is
+    supported or when there is no feature matrix to consult.
+    """
+
+    @staticmethod
+    def _client(features):
+        client = mock.MagicMock()
+        client.features = features
+        return client
+
+    def test_warns_when_feature_supported(self, caplog):
+        from caldav.base_client import _warn_unreadable_display_name
+        from caldav.compatibility_hints import FeatureSet
+
+        cal = mock.MagicMock()
+        cal.url = "http://cal.example.com/cal/"
+        with caplog.at_level("WARNING", logger="caldav"):
+            _warn_unreadable_display_name(
+                self._client(FeatureSet()), cal, "Work", Exception("boom")
+            )
+        assert any("Could not read display name" in r.message for r in caplog.records)
+
+    def test_silent_when_feature_unsupported(self, caplog):
+        from caldav.base_client import _warn_unreadable_display_name
+        from caldav.compatibility_hints import FeatureSet
+
+        features = FeatureSet({"propfind.displayname": {"support": "unsupported"}})
+        with caplog.at_level("WARNING", logger="caldav"):
+            _warn_unreadable_display_name(
+                self._client(features), mock.MagicMock(), "Work", Exception("boom")
+            )
+        assert not caplog.records
+
+    def test_silent_when_parent_propfind_unsupported(self, caplog):
+        from caldav.base_client import _warn_unreadable_display_name
+        from caldav.compatibility_hints import FeatureSet
+
+        # propfind.displayname falls back to the propfind parent when not probed
+        features = FeatureSet({"propfind": {"support": "unsupported"}})
+        with caplog.at_level("WARNING", logger="caldav"):
+            _warn_unreadable_display_name(
+                self._client(features), mock.MagicMock(), "Work", Exception("boom")
+            )
+        assert not caplog.records
+
+    def test_warns_when_no_feature_matrix(self, caplog):
+        from caldav.base_client import _warn_unreadable_display_name
+
+        client = mock.MagicMock()
+        client.features = None
+        with caplog.at_level("WARNING", logger="caldav"):
+            _warn_unreadable_display_name(client, mock.MagicMock(), "Work", Exception("boom"))
+        assert any("Could not read display name" in r.message for r in caplog.records)

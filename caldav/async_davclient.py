@@ -1228,7 +1228,11 @@ async def get_calendars(
                 for cal in calendars:
                     print(await cal.get_display_name())
     """
-    from caldav.base_client import CalendarCollection, _normalize_to_list
+    from caldav.base_client import (
+        CalendarCollection,
+        _normalize_to_list,
+        _warn_unreadable_display_name,
+    )
 
     def _try(coro_result, errmsg):
         """Handle errors based on raise_errors flag."""
@@ -1283,8 +1287,13 @@ async def get_calendars(
                             if display_name == cal_name:
                                 calendars.append(cal)
                                 break
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            # Skip calendars whose display name can't be read; warn
+                            # only when the failure is unexpected (see helper).
+                            # Continuing ensures one unreadable calendar doesn't abort
+                            # the whole name lookup.
+                            _warn_unreadable_display_name(client, cal, cal_name, e)
+                            continue
                     else:
                         log.error(f"No calendar with name '{cal_name}' found")
                         if raise_errors:
