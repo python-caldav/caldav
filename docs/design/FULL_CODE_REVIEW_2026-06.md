@@ -388,7 +388,7 @@ producing drift bugs.
 4. **`search.py:869` — post-processing loads unloaded results one GET at a
    time**; `Calendar._multiget` can fetch them in a single REPORT. On the
    issue-#201 workaround path a 200-event search costs ~200 extra
-   round-trips.
+   round-trips. ✅ FIXED
 5. **JMAP clients open a fresh HTTP connection per request** (async:
    `async with AsyncSession()` per `_request`; sync: module-level
    `requests.post`). `__exit__`/`__aexit__` already exist but do nothing —

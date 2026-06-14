@@ -656,6 +656,14 @@ class TestCalDAV:
     def _load(self, only_if_unloaded=True):
         self.data = todo6
 
+    def _batch_load(self, objects):
+        ## Search results are batch-loaded via a single calendar-multiget REPORT
+        ## (Calendar._batch_load_objects); the mocked server returns no
+        ## calendar-data, so inject todo6 here the same way _load does per object.
+        for obj in objects:
+            obj.data = todo6
+
+    @mock.patch("caldav.collection.Calendar._batch_load_objects", new=_batch_load)
     @mock.patch("caldav.calendarobjectresource.CalendarObjectResource.load", new=_load)
     def testDateSearch(self):
         """
@@ -708,6 +716,8 @@ class TestCalDAV:
 """
         client = MockedDAVClient(xml)
         calendar = Calendar(client, url="/principals/calendar/home@petroski.example.com/963/")
+        ## expand=False does no client-side time-range filtering, so all three
+        ## server-returned hrefs are returned regardless of the search window.
         with pytest.deprecated_call():
             results = calendar.date_search(datetime(2021, 2, 1), datetime(2021, 2, 7), expand=False)
             assert len(results) == 3

@@ -285,6 +285,9 @@ class SearchAction(Enum):
     SEARCH_WITH_COMPTYPES = auto()  # (args) -> search with all comp types
     REQUEST_REPORT = auto()  # (xml, comp_class, props) -> make CalDAV request
     LOAD_OBJECT = auto()  # (obj) -> load object data
+    LOAD_OBJECTS_BATCH = (
+        auto()
+    )  # (calendar, objects) -> batch-load via calendar._batch_load_objects
     RETURN = auto()  # (result) -> return this value
 
 
@@ -878,29 +881,17 @@ class CalDAVSearcher(Searcher):
                     )
                     return
 
-        # Post-process: load objects
-        obj2 = []
-        for o in objects:
-            try:
-                yield (SearchAction.LOAD_OBJECT, o)
-                obj2.append(o)
-            except Exception:
-                logging.error(
-                    "Server does not want to reveal details about the calendar object",
-                    exc_info=True,
-                )
-        objects = obj2
+        # Post-process: batch-load unloaded objects in one REPORT instead of N GETs
+        yield (SearchAction.LOAD_OBJECTS_BATCH, (calendar, objects))
+        objects = [o for o in objects if o.is_loaded() or o.has_component()]
 
         # Google sometimes returns empty objects
         objects = [o for o in objects if o.has_component()]
         objects = self.filter(objects, post_filter, split_expanded, server_expand)
 
         # Partial workaround for https://github.com/python-caldav/caldav/issues/201
-        for obj in objects:
-            try:
-                yield (SearchAction.LOAD_OBJECT, obj)
-            except Exception:
-                pass
+        # Re-issue a batch load in case any objects need a second fetch
+        yield (SearchAction.LOAD_OBJECTS_BATCH, (calendar, objects))
 
         yield (SearchAction.RETURN, self.sort(objects))
 
@@ -987,6 +978,10 @@ class CalDAVSearcher(Searcher):
                     result = cal._request_report_build_resultlist(xm, comp_cls, props=prp)
                 elif action == SearchAction.LOAD_OBJECT:
                     data.load(only_if_unloaded=True)
+                    result = None
+                elif action == SearchAction.LOAD_OBJECTS_BATCH:
+                    cal, objs = data
+                    cal._batch_load_objects(objs)
                     result = None
                 elif action == SearchAction.RETURN:
                     return data
@@ -1096,6 +1091,10 @@ class CalDAVSearcher(Searcher):
                     load_result = data.load(only_if_unloaded=True)
                     if inspect.isawaitable(load_result):
                         await load_result
+                    result = None
+                elif action == SearchAction.LOAD_OBJECTS_BATCH:
+                    cal, objs = data
+                    await cal._async_batch_load_objects(objs)
                     result = None
                 elif action == SearchAction.RETURN:
                     return data
