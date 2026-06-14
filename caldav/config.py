@@ -112,9 +112,13 @@ def read_config(fn, interactive_error=False):
                     f"config file {fn} is not valid JSON, and pyyaml is not installed"
                 ) from None
 
-    except FileNotFoundError:
-        ## File not found
-        logging.debug(f"config file {fn} not found")
+    except OSError as e:
+        ## Optional config file is unusable (missing, a directory, no
+        ## permission, ...).  Treat any of these as "no config here" rather
+        ## than letting e.g. IsADirectoryError propagate out of an optional
+        ## config-file probe (happens when HOME is unset and the path expands
+        ## to something like '//.config//caldav/calendar.conf').
+        logging.debug(f"config file {fn} not usable: {e}")
         return {}
     except ValueError:
         # Re-raise ValueError so caller can handle config errors
