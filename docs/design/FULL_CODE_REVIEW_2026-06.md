@@ -380,7 +380,10 @@ producing drift bugs.
    in sequence**; the second `elif r.status not in (204, 201)` is
    unreachable. Also factor the Etag/Schedule-Tag header→props snippet
    repeated in `load`/`_async_load` (the code itself carries a "consider
-   refactoring - this is repeated many places now" comment).
+   refactoring - this is repeated many places now" comment). ✅ FIXED — the
+   dead second copy in `_post_put` was removed and the Etag/Schedule-Tag
+   capture extracted into a shared `_update_tag_props()` helper now used by
+   `_post_put`, `load`, and `_async_load`.
 3. **`async_davclient.py` re-implements ~200 lines of `DAVClient`**
    (init tail, get_calendars, rate-limit retry loop — byte-identical except
    `time.sleep` vs `asyncio.sleep`). The §2.14 GMX gap and §1.3 retry bug

@@ -1000,11 +1000,7 @@ class CalendarObjectResource(DAVObject):
         except Exception:
             return self.load_by_multiget()
 
-        ## consider refactoring - this is repeated many places now
-        if "Etag" in r.headers:
-            self.props[dav.GetEtag.tag] = r.headers["Etag"]
-        if "Schedule-Tag" in r.headers:
-            self.props[cdav.ScheduleTag.tag] = r.headers["Schedule-Tag"]
+        self._update_tag_props(r)
         return self
 
     async def _async_load(self, only_if_unloaded: bool = False) -> Self:
@@ -1046,10 +1042,7 @@ class CalendarObjectResource(DAVObject):
         except Exception:
             return await self.load_by_multiget()
 
-        if "Etag" in r.headers:
-            self.props[dav.GetEtag.tag] = r.headers["Etag"]
-        if "Schedule-Tag" in r.headers:
-            self.props[cdav.ScheduleTag.tag] = r.headers["Schedule-Tag"]
+        self._update_tag_props(r)
         return self
 
     def load_by_multiget(self) -> "Self | Coroutine[Any, Any, Self]":
@@ -1155,6 +1148,20 @@ class CalendarObjectResource(DAVObject):
             # _post_put returned a retry coroutine (self._put(False) for async client)
             await result
 
+    def _update_tag_props(self, r) -> None:
+        """Capture the ETag / Schedule-Tag response headers into self.props.
+
+        Called after both PUT (`_post_put`) and GET (`load`/`_async_load`);
+        keys are matched case-insensitively by the response header dict.
+        See RFC 6638 for Schedule-Tag.
+        """
+        if not r.headers:
+            return
+        if "Etag" in r.headers:
+            self.props[dav.GetEtag.tag] = r.headers["Etag"]
+        if r.headers.get("Schedule-Tag"):
+            self.props[cdav.ScheduleTag.tag] = r.headers["Schedule-Tag"]
+
     def _post_put(self, r, retry_on_failure):
         if r.status == 412:
             if self.schedule_tag:
@@ -1178,30 +1185,7 @@ class CalendarObjectResource(DAVObject):
                 return self._put(False)
             else:
                 raise error.PutError(errmsg(r))
-        if "Etag" in r.headers:
-            self.props[dav.GetEtag.tag] = r.headers["Etag"]
-        if r.headers and r.headers.get("schedule-tag"):
-            self.props[cdav.ScheduleTag.tag] = r.headers["schedule-tag"]
-
-        if r.status == 302:
-            self.url = URL.objectify(r.headers.get("location"))
-        elif r.status not in (204, 201):
-            if retry_on_failure:
-                try:
-                    import vobject  # noqa: F401
-                except ImportError:
-                    retry_on_failure = False
-            if retry_on_failure:
-                ## This seems like a noop, but it may "wash" the object
-                dummy = self.vobject_instance
-                return self._put(False)
-            else:
-                raise error.PutError(errmsg(r))
-        ## TODO: refactor - those code lines are repeated all over the place
-        if "Etag" in r.headers:
-            self.props[dav.GetEtag.tag] = r.headers["Etag"]
-        if r.headers and r.headers.get("schedule-tag"):
-            self.props[cdav.ScheduleTag.tag] = r.headers["schedule-tag"]
+        self._update_tag_props(r)
 
     def _create(
         self, id=None, path=None, retry_on_failure=True
