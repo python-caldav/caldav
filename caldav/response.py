@@ -495,28 +495,23 @@ class DAVResponse:
                 href = _normalize_href(elem.text or "")
             elif elem.tag == dav.PropStat.tag:
                 propstats.append(elem)
-            elif elem.tag == "{DAV:}responsedescription":
-                ## This happens with Stalwart on a 404.
-                ## This code is mostly moot, but in debug
-                ## mode I want to be sure we do not toss away any data
-                error.assert_(elem.text == "No resources found")
-                check_404 = True
-            elif elem.tag == "{DAV:}error":
-                ## This happens with purelymail on a 404.
-                ## This code is mostly moot, but in debug
-                ## mode I want to be sure we do not toss away any data
-                children = elem.getchildren()
-                error.assert_(len(children) == 1)
-                error.assert_(children[0].tag == "{https://purelymail.com}does-not-exist")
+            elif elem.tag in ("{DAV:}responsedescription", "{DAV:}error"):
+                ## Both are optional children of <response> per RFC 4918
+                ## and carry server-defined content.  We've seen them on
+                ## 404s (Stalwart sends <responsedescription>No resources
+                ## found</responsedescription>, purelymail sends
+                ## <error><…:does-not-exist/></error>).
                 check_404 = True
             else:
-                ## i.e. purelymail may contain one more tag, <error>...</error>
-                ## This is probably not a breach of the standard.  It may
-                ## probably be ignored.  But it's something we may want to
-                ## know.
+                ## A tag we don't recognise at all (e.g. a server inventing
+                ## an <errortext> element).  Not necessarily a standards
+                ## breach and probably ignorable, but worth surfacing.
                 error.weirdness("unexpected element found in response", elem)
         error.assert_(href)
-        if check_404:
+        if check_404 and status:
+            ## We've only ever observed <error>/<responsedescription> on
+            ## 404s; flag it in debug mode if a server pairs them with some
+            ## other status so we notice and revisit this handling.
             error.assert_("404" in status)
         return (cast(str, href), propstats, status)
 
