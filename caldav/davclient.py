@@ -343,19 +343,9 @@ class DAVClient(BaseDAVClient):
 
         self._principal = None
 
-        rate_limit = self.features.is_supported("rate-limit", dict)
-        if rate_limit_handle is None:
-            if rate_limit and rate_limit.get("enable"):
-                rate_limit_handle = True
-                if "default_sleep" in rate_limit:
-                    rate_limit_default_sleep = rate_limit["default_sleep"]
-                if "max_sleep" in rate_limit:
-                    rate_limit_max_sleep = rate_limit["max_sleep"]
-            else:
-                rate_limit_handle = False
-        self.rate_limit_handle = rate_limit_handle
-        self.rate_limit_default_sleep = rate_limit_default_sleep
-        self.rate_limit_max_sleep = rate_limit_max_sleep
+        self._init_rate_limit_config(
+            rate_limit_handle, rate_limit_default_sleep, rate_limit_max_sleep
+        )
 
     def __enter__(self) -> Self:
         ## Used for tests, to set up a temporarily test server
@@ -478,13 +468,6 @@ class DAVClient(BaseDAVClient):
             for cal in calendars:
                 print(f"Calendar: {cal.get_display_name()}")
         """
-        from caldav.collection import (
-            _extract_calendar_home_set_from_results as extract_home_set,
-        )
-        from caldav.collection import (
-            _extract_calendars_from_propfind_results as extract_calendars,
-        )
-
         if principal is None:
             principal = self.principal()
 
@@ -494,14 +477,7 @@ class DAVClient(BaseDAVClient):
             props=self.CALENDAR_HOME_SET_PROPS,
             depth=0,
         )
-        calendar_home_url = extract_home_set(response.results)
-        if not calendar_home_url:
-            # Fall back to the principal URL as calendar home
-            # (some servers like GMX don't support calendar-home-set)
-            calendar_home_url = str(principal.url)
-
-        # Make URL absolute if relative
-        calendar_home_url = self._make_absolute_url(calendar_home_url)
+        calendar_home_url = self._calendar_home_url(response, principal)
 
         # Fetch calendars via PROPFIND
         response = self.propfind(
@@ -510,14 +486,7 @@ class DAVClient(BaseDAVClient):
             depth=1,
         )
 
-        # Process results using shared helper
-        calendar_infos = extract_calendars(response.results)
-
-        # Convert CalendarInfo objects to Calendar objects
-        return [
-            Calendar(client=self, url=info.url, name=info.name, id=info.cal_id)
-            for info in calendar_infos
-        ]
+        return self._build_calendars_from_propfind(response)
 
     def search_calendar(
         self,
@@ -837,20 +806,7 @@ class DAVClient(BaseDAVClient):
         try:
             return self._sync_request(url, method, body, headers)
         except error.RateLimitError as e:
-            if not self.rate_limit_handle:
-                raise
-            sleep_seconds = error.compute_sleep_seconds(
-                e.retry_after_seconds,
-                self.rate_limit_default_sleep,
-                self.rate_limit_max_sleep,
-            )
-            if sleep_seconds is None or (
-                self.rate_limit_max_sleep is not None
-                and rate_limit_time_slept > self.rate_limit_max_sleep
-            ):
-                raise
-            if rate_limit_time_slept:
-                sleep_seconds += rate_limit_time_slept / 2
+            sleep_seconds = self._rate_limit_sleep_seconds(e, rate_limit_time_slept)
             time.sleep(sleep_seconds)
             return self.request(url, method, body, headers, rate_limit_time_slept + sleep_seconds)
 
