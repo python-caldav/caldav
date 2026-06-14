@@ -1747,10 +1747,15 @@ ox = {
     ## "unsupported" (silently ignored), not "broken".  Confirmed by direct probe
     ## 2026-06-09.  Contrast bedework, which drops the todos (data loss = broken).
     'search.comp-type': {'support': 'unsupported'},
-    'search.text': {'support': 'unsupported'},
+    ## Text search (case-sensitive, case-insensitive, substring) now works in OX.
+    ## Confirmed full 2026-06-13.  Category search and time-range comp-type-optional
+    ## remain unsupported.  The time-range.comp-type-optional entry is pinned
+    ## explicitly because setting search.text=full causes the FeatureSet to derive
+    ## the whole 'search' node as positive, which would otherwise bleed into
+    ## the time-range.comp-type-optional default via parent traversal.
+    'search.text': {'support': 'full'},
     'search.text.category': {'support': 'unsupported'},
-    'search.text.case-sensitive': {'support': 'unsupported'},
-    'search.text.case-insensitive': {'support': 'unsupported'},
+    'search.time-range.comp-type-optional': {'support': 'unsupported'},
     ## Recurrence searching: the sliding window hides far-past/far-future
     ## occurrences, but implicit expansion of *datetime* events and server-side
     ## expansion of exceptions work within the window (detectable now that the
