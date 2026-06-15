@@ -1815,4 +1815,53 @@ ox = {
     'search.time-range.open.start.duration': {'support': 'full'},
 }
 
+## Infomaniak (https://www.infomaniak.com/) - kSuite calendar, CalDAV served at
+## https://sync.infomaniak.com/ (/.well-known/caldav redirects there).  Runs
+## SabreDAV 4.3.1.  Profiled 2026-06-15 against a freshly created dedicated
+## calendar; save-load and most search features work well.
+infomaniak = {
+    ## MKCALENDAR returns success but the calendar is created *asynchronously*:
+    ## the new collection 404s ("Node could not be found") for ~5-8s before it
+    ## becomes queryable.  A client must poll/wait after creating a calendar.
+    ## (The caldav-server-tester now polls; before that it both mis-detected this
+    ## as "unsupported" AND leaked orphan calendars, never having waited to delete
+    ## the ones it thought had failed to create.)
+    'create-calendar': {'support': 'quirk', 'behaviour': 'created asynchronously - not queryable until ~5-8s after MKCALENDAR returns'},
+    ## DELETE likewise only takes effect after a short delay.
+    'delete-calendar': {'support': 'fragile', 'behaviour': 'delayed deletion'},
+    ## Re-using a just-deleted cal_id does not work immediately - a side effect of
+    ## the delayed deletion above.
+    'delete-calendar.free-namespace': {'support': 'unsupported', 'behaviour': 'cal_id not freed immediately (delayed deletion)'},
+    ## VJOURNAL is not supported.
+    'save-load.journal': {'support': 'unsupported'},
+    ## Calendar colour/order are read-only: a set is accepted but never changes
+    ## the stored value (every read returns the server's own value regardless).
+    'calendar-color': {'support': 'broken'},
+    'calendar-color.hex': {'support': 'broken'},
+    'calendar-order': {'support': 'broken'},
+    ## The CALDAV comp-filter is silently ignored: a calendar-query that requests
+    ## one component type returns the calendar's whole contents regardless (a
+    ## VJOURNAL query returned a VEVENT).  No right-typed objects are dropped, so
+    ## the library recovers by post-filtering - hence "unsupported", not "broken".
+    'search.comp-type': {'support': 'unsupported', 'behaviour': 'comp-filter silently ignored - returns the whole calendar regardless of requested component type'},
+    ## A combined (logical-AND) filter is not honoured.
+    'search.combined-is-logical-and': {'support': 'unsupported'},
+    ## VTODO recurrence searching is not supported (datetime VEVENT recurrence
+    ## search, including server-side expand and infinite scope, works fine).
+    'search.recurrences.includes-implicit.todo': {'support': 'unsupported'},
+    'search.recurrences.includes-implicit.todo.pending': {'support': 'unsupported'},
+    'search.recurrences.expanded.todo': {'support': 'unsupported'},
+    ## Scheduling is advertised and the calendar-user-address-set and scheduling
+    ## mailbox are present, but the server never returns a Schedule-Tag (neither
+    ## on GET nor via PROPFIND).
+    'scheduling.schedule-tag': {'support': 'unsupported', 'behaviour': 'no Schedule-Tag returned on GET or via PROPFIND'},
+    'scheduling.schedule-tag.stable-partstat': {'support': 'unsupported'},
+    ## PUTting a second object with the same UID into another calendar errors out.
+    'save.duplicate-uid.cross-calendar': {'support': 'ungraceful'},
+    ## Principal search is effectively unsupported (lists nothing / errors out).
+    'principal-search': {'support': 'ungraceful'},
+    'principal-search.by-name.self': {'support': 'unsupported'},
+    'principal-search.list-all': {'support': 'ungraceful'},
+}
+
 # fmt: on
