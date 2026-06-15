@@ -58,6 +58,27 @@ def _async_delay_decorator(f, t=20):
     return wrapper
 
 
+## HTTP methods that change server state; a "write-delay" server settles each of
+## these asynchronously, so we sleep AFTER every such request (the write-side
+## counterpart of the search-cache delay, which only delays searches).
+_WRITE_HTTP_METHODS = frozenset(
+    {"PUT", "DELETE", "MKCALENDAR", "MKCOL", "PROPPATCH", "MOVE", "COPY", "POST"}
+)
+
+
+def _async_write_delay_decorator(f, t=10):
+    """Sleep after every write request, to let an asynchronous server settle."""
+
+    @wraps(f)
+    async def wrapper(url, method="GET", *args, **kwargs):
+        response = await f(url, method, *args, **kwargs)
+        if str(method).upper() in _WRITE_HTTP_METHODS:
+            await asyncio.sleep(t)
+        return response
+
+    return wrapper
+
+
 # Dynamic test data generators - use near-future dates to avoid
 # min-date-time restrictions on servers like CCS.
 _base_date = None
@@ -221,6 +242,17 @@ class AsyncFunctionalTestsBaseClass:
                 AsyncCalendar,
                 "search",
                 _async_delay_decorator(AsyncCalendar.search, t=delay),
+            )
+
+        ## Apply write-delay (sleep after every write) for asynchronous servers.
+        ## Wrapped on the client instance, so monkeypatch reverts it after the test.
+        write_delay_config = client.features.is_supported("write-delay", dict)
+        if write_delay_config.get("behaviour") == "delay":
+            delay = write_delay_config.get("delay", 10)
+            monkeypatch.setattr(
+                client,
+                "request",
+                _async_write_delay_decorator(client.request, t=delay),
             )
 
         yield client

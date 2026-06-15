@@ -146,6 +146,15 @@ class FeatureSet:
                 "delay": "after this number of seconds, we may be reasonably sure that the search results are updated",
             }
         },
+        "write-delay": {
+            "type": "server-peculiarity",
+            "default": {"support": "full"},
+            "description": "The server processes write operations (PUT/DELETE/MKCALENDAR/PROPPATCH/...) asynchronously: the request returns success before the change has fully taken effect, so an immediate read-back (of any kind, not just a search) may 404 or return stale data.  A client must wait a bit after every write.  This is the general, write-side counterpart of 'search-cache' (which only delays searches).  'full' (the default) means writes take effect synchronously.",
+            "extra_keys": {
+                "behaviour": "'delay' to enable the post-write sleep",
+                "delay": "sleep this number of seconds after every write request before relying on the change being visible",
+            }
+        },
         "tests-cleanup-calendar": {
             "type": "tests-behaviour",
             "description": "Deleting a calendar does not delete the objects, or perhaps create/delete of calendars does not work at all.  For each test run, every calendar resource object should be deleted for every test run",
@@ -1820,17 +1829,14 @@ ox = {
 ## SabreDAV 4.3.1.  Profiled 2026-06-15 against a freshly created dedicated
 ## calendar; save-load and most search features work well.
 infomaniak = {
-    ## MKCALENDAR returns success but the calendar is created *asynchronously*:
-    ## the new collection 404s ("Node could not be found") for ~5-8s before it
-    ## becomes queryable.  A client must poll/wait after creating a calendar.
-    ## (The caldav-server-tester now polls; before that it both mis-detected this
-    ## as "unsupported" AND leaked orphan calendars, never having waited to delete
-    ## the ones it thought had failed to create.)
-    'create-calendar': {'support': 'quirk', 'behaviour': 'created asynchronously - not queryable until ~5-8s after MKCALENDAR returns'},
-    ## DELETE likewise only takes effect after a short delay.
-    'delete-calendar': {'support': 'fragile', 'behaviour': 'delayed deletion'},
-    ## Re-using a just-deleted cal_id does not work immediately - a side effect of
-    ## the delayed deletion above.
+    ## SabreDAV processes writes asynchronously - MKCALENDAR/PUT/DELETE return
+    ## before the change is queryable, so an immediate read-back 404s or returns
+    ## stale data for several seconds.  This is server-wide (not just searches),
+    ## so we sleep after every write rather than only before searches.
+    'write-delay': {'behaviour': 'delay', 'delay': 10},
+    ## Re-using a just-deleted cal_id does not work immediately - another facet of
+    ## the asynchronous write handling above (the namespace is freed late even
+    ## after the post-write delay).
     'delete-calendar.free-namespace': {'support': 'unsupported', 'behaviour': 'cal_id not freed immediately (delayed deletion)'},
     ## VJOURNAL is not supported.
     'save-load.journal': {'support': 'unsupported'},

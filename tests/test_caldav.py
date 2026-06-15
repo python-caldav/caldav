@@ -1307,6 +1307,25 @@ def _delay_decorator(f, t=20):
     return foo
 
 
+## HTTP methods that change server state.  A "write-delay" server settles each of
+## these asynchronously, so we sleep AFTER every such request to let the change
+## become visible before the test reads it back (the general, write-side
+## counterpart of the search-cache delay, which only delays searches).
+_WRITE_HTTP_METHODS = frozenset(
+    {"PUT", "DELETE", "MKCALENDAR", "MKCOL", "PROPPATCH", "MOVE", "COPY", "POST"}
+)
+
+
+def _write_delay_decorator(f, t=10):
+    def foo(url, method="GET", *a, **kwa):
+        response = f(url, method, *a, **kwa)
+        if str(method).upper() in _WRITE_HTTP_METHODS:
+            time.sleep(t)
+        return response
+
+    return foo
+
+
 class RepeatedFunctionalTestsBaseClass:
     """This is a class with functional tests (tests that goes through
     basic functionality and actively communicates with third parties)
@@ -1382,6 +1401,12 @@ class RepeatedFunctionalTestsBaseClass:
         if foo.get("behaviour") == "delay":
             Calendar._search = Calendar.search
             Calendar.search = _delay_decorator(Calendar.search, t=foo["delay"])
+        foo = self.is_supported("write-delay", dict)
+        if foo.get("behaviour") == "delay":
+            ## Every write goes through the client request(); sleep after the
+            ## write verbs so the asynchronous change has settled before read-back.
+            ## Instance-level wrap (like rate-limit), torn down with the client.
+            self.caldav.request = _write_delay_decorator(self.caldav.request, t=foo["delay"])
 
         if False and self.check_compatibility_flag("no-current-user-principal"):
             self.principal = Principal(client=self.caldav, url=self.server_params["principal_url"])

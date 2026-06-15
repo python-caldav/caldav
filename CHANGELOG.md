@@ -16,6 +16,7 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 
 ### Added
 
+* New `write-delay` server-peculiarity in `compatibility_hints.py`: for servers that process writes asynchronously (a PUT/DELETE/MKCALENDAR/PROPPATCH/... returns before the change is queryable, so an immediate read-back 404s or returns stale data), a client must wait a bit after every write.  This is the general, write-side counterpart of `search-cache` (which only delays searches).  Configured as `{'behaviour': 'delay', 'delay': <seconds>}`; the integration test suites (sync and async) honour it by sleeping after every write request.  The Infomaniak profile now uses `write-delay` (10s) instead of its former `search-cache` delay, since the asynchronicity there is server-wide rather than search-specific.
 * New compatibility flag `save-load.event.recurrences.exception.reschedule`: whether the server accepts re-anchoring a whole recurring event (moving the master `DTSTART`) while detached exceptions (`RECURRENCE-ID`) are attached.  OX App Suite rejects this with `409 Conflict` even with a matching `If-Match` etag, although rescheduling an exception-free recurring event works there.  `testEditSingleRecurrence` now gates its final `save(all_recurrences=True)` dtstart/dtend step on this flag.
 
 ### Fixed
