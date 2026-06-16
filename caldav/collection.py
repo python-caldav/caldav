@@ -78,6 +78,19 @@ def _extract_calendar_id_from_url(url: str) -> str | None:
     return None
 
 
+def _safe_display_name(cal) -> str | None:
+    """Return ``cal``'s DAV:displayname, or None if it can't be read.
+
+    Used when discovering a relocated calendar's canonical URL after creation
+    (see Calendar._adopt_canonical_url); a calendar that refuses to report its
+    display name simply isn't a match.
+    """
+    try:
+        return cal.get_display_name()
+    except Exception:
+        return None
+
+
 def _quote_url_path(url: str) -> str:
     """Quote the path component of a URL to handle unencoded spaces (e.g. Zimbra)."""
     parsed = urlparse(url)
@@ -747,16 +760,38 @@ class Calendar(DAVObject):
 
         prop = dav.Prop()
         display_name = None
-        # Some servers (e.g. Zimbra) use the DisplayName from the MKCALENDAR body
-        # as the calendar URL, ignoring the actual request path.  When the server
-        # does not support setting a separate display name, omit it from the body so
-        # the request URL path is used as the calendar identifier.
         supports_displayname = not self.client or self.client.features.is_supported(
             "create-calendar.set-displayname"
         )
+        stable_url = not self.client or self.client.features.is_supported(
+            "create-calendar.stable-url"
+        )
+        # A few servers assign a calendar a canonical URL that differs from the
+        # requested cal_id when a display name is set: Zimbra relocates the
+        # collection to a display-name-derived path (a collection-level alias
+        # lingers at the cal_id and answers PROPFIND/REPORT, but a GET on a child
+        # object under it 404s, so the cal_id is not a usable address), while OX
+        # always exposes an opaque cal://0/NNN canonical URL.  We still send the
+        # display name (it sticks); afterwards, for such servers
+        # (create-calendar.stable-url unsupported), we DISCOVER and ADOPT the
+        # canonical URL (see _adopt_canonical_url) so that self.url - and every
+        # later URL-based operation - points at the address that actually
+        # resolves.  This replaces the older "drop the display name" workaround
+        # and behaves identically for Zimbra and OX.  We only omit the display
+        # name when the server cannot set one at creation at all
+        # (create-calendar.set-displayname unsupported).
         if name and supports_displayname:
             display_name = dav.DisplayName(name)
             prop += [display_name]
+        elif name:  # not supports_displayname
+            log.warning(
+                "Creating calendar %r without the requested display name %r: the "
+                "server does not support setting a display name when a calendar is "
+                "created (create-calendar.set-displayname). The calendar keeps its "
+                "requested URL but will have no display name.",
+                id,
+                name,
+            )
         if supported_calendar_component_set:
             sccs = cdav.SupportedCalendarComponentSet()
             for scc in supported_calendar_component_set:
@@ -769,7 +804,7 @@ class Calendar(DAVObject):
         mkcol = (dav.Mkcol() if method == "mkcol" else cdav.Mkcalendar()) + set
 
         if self.is_async_client:
-            return self._async_create(path, mkcol, method, name, display_name)
+            return self._async_create(path, mkcol, method, name, display_name, stable_url)
 
         self._query(root=mkcol, query_method=method, url=path, expected_return_value=201)
 
@@ -792,7 +827,84 @@ class Calendar(DAVObject):
                         exc_info=True,
                     )
 
-    async def _async_create(self, path, mkcol, method, name, display_name) -> None:
+        # On servers that don't keep the calendar at the requested cal_id when a
+        # display name is set (create-calendar.stable-url unsupported), re-point
+        # self.url to the canonical URL the server actually assigned.
+        if display_name and not stable_url:
+            self._adopt_canonical_url(name)
+
+    def _adopt_canonical_url(self, name) -> None:
+        """Re-point ``self.url`` to the server's canonical URL for this calendar.
+
+        Called only for servers where ``create-calendar.stable-url`` is
+        unsupported: the calendar just created is reachable under a canonical URL
+        that differs from the requested cal_id (Zimbra: a display-name-derived
+        path; OX: an opaque ``cal://0/NNN`` segment).  The requested cal_id is not
+        a reliable address there (on Zimbra a collection alias answers
+        PROPFIND/REPORT but a GET on a child object 404s).  We locate the calendar
+        by the display name we just set and adopt its URL so later URL-based
+        operations resolve.
+
+        Best effort: if the calendar can't be located (or its name is ambiguous
+        because another calendar already shares it), ``self.url`` is left at the
+        requested URL.
+        """
+        requested = self.url.canonical()
+        try:
+            relocated = [
+                cal.url
+                for cal in self.parent.calendars()
+                if _safe_display_name(cal) == name and cal.url.canonical() != requested
+            ]
+        except Exception:
+            log.warning("Could not list calendars to discover canonical URL", exc_info=True)
+            return
+        self._adopt_relocated_url(name, relocated)
+
+    async def _async_adopt_canonical_url(self, name) -> None:
+        """Async twin of :meth:`_adopt_canonical_url`."""
+        try:
+            cals = await self.parent.calendars()
+        except Exception:
+            log.warning("Could not list calendars to discover canonical URL (async)", exc_info=True)
+            return
+        requested = self.url.canonical()
+        relocated = []
+        for cal in cals:
+            try:
+                display_name = await cal.get_display_name()
+            except Exception:
+                ## a calendar that refuses to report its display name is not a match
+                continue
+            if display_name == name and cal.url.canonical() != requested:
+                relocated.append(cal.url)
+        self._adopt_relocated_url(name, relocated)
+
+    def _adopt_relocated_url(self, name, relocated: list) -> None:
+        """Adopt the one relocated URL found, or keep the requested one.
+
+        Shared by :meth:`_adopt_canonical_url` and its async twin.  An
+        ambiguous display name is deliberately *not* resolved by picking the
+        first candidate: the other candidate is typically a pre-existing,
+        unrelated calendar, and adopting it would send every later
+        ``add_event()``, ``search()`` and ``delete()`` to the wrong calendar
+        while orphaning the one just created.
+        """
+        if not relocated:
+            return
+        if len(relocated) > 1:
+            log.warning(
+                "%d calendars are named %r, so the canonical URL of the calendar just "
+                "created is ambiguous; keeping the requested URL (%s) rather than risk "
+                "adopting a pre-existing unrelated calendar",
+                len(relocated),
+                name,
+                self.url,
+            )
+            return
+        self.url = relocated[0]
+
+    async def _async_create(self, path, mkcol, method, name, display_name, stable_url) -> None:
         """Async implementation of _create (call via _create, not directly)."""
         await self._query(root=mkcol, query_method=method, url=path, expected_return_value=201)
 
@@ -809,6 +921,10 @@ class Calendar(DAVObject):
                         "calendar server does not support display name on calendar?  Ignoring",
                         exc_info=True,
                     )
+
+        # See _adopt_canonical_url (sync) - re-point self.url on unstable servers.
+        if display_name and not stable_url:
+            await self._async_adopt_canonical_url(name)
 
     def delete(self, wipe=None):
         """Delete the calendar.
