@@ -870,6 +870,79 @@ class TestSearchWithCompTypesFullXML:
         calendar._request_report_build_resultlist.assert_called_once_with(full_xml, None, None)
 
 
+class TestCompTypeLessSearchSplit:
+    """Gate findings F10 and F11: the comp-type split path.
+
+    Since `search.time-range.comp-type-optional` and
+    `search.text.comp-type-optional` both default to `unsupported`, this
+    split now fires on essentially every server, so everything it gets wrong
+    is a common bug rather than an exotic one.
+    """
+
+    @staticmethod
+    def _split_client(mock_client: DAVClient) -> DAVClient:
+        def mock_is_supported(feat, type_=bool):
+            if feat == "search.comp-type.optional":
+                return False
+            if type_ is str:
+                return "full"
+            return True
+
+        mock_client.features.is_supported = mock.Mock(side_effect=mock_is_supported)
+        mock_client.features.backward_compatibility_mode = False
+        return mock_client
+
+    def _calendar(self, mock_client: DAVClient, objects: list) -> mock.Mock:
+        calendar = mock.Mock()
+        calendar.client = self._split_client(mock_client)
+        calendar._request_report_build_resultlist.return_value = (mock.Mock(), objects)
+        return calendar
+
+    def test_event_false_does_not_raise_assertionerror(
+        self, mock_client: DAVClient, mock_url: str
+    ) -> None:
+        """F10: `search(event=False, ...)` tripped a bare, message-less
+        `AssertionError` -- on a perfectly legal call to a public API."""
+        event = Event(client=mock_client, url=mock_url, data=SIMPLE_EVENT)
+        calendar = self._calendar(mock_client, [event])
+
+        searcher = CalDAVSearcher(event=False)
+        result = searcher.search(calendar)
+
+        assert result == [event]
+
+    def test_results_are_deduplicated_by_url(self, mock_client: DAVClient, mock_url: str) -> None:
+        """F11: one query per component type is sent, and a resource that
+        legally holds both a VEVENT and a VTODO comes back from more than one
+        of them.  The `include_completed` split deduplicates by URL; this one
+        did not, so the object was returned twice."""
+        event = Event(client=mock_client, url=mock_url, data=SIMPLE_EVENT)
+        calendar = self._calendar(mock_client, [event])
+
+        searcher = CalDAVSearcher()
+        result = searcher.search(calendar)
+
+        assert calendar._request_report_build_resultlist.call_count > 1, (
+            "expected one REPORT per component type"
+        )
+        assert [o.url for o in result] == [event.url]
+
+    def test_searcher_is_not_mutated_by_the_split(
+        self, mock_client: DAVClient, mock_url: str
+    ) -> None:
+        """F11: the split set `include_completed` on the caller's searcher --
+        the issue-#650 class of bug, where a reused searcher silently changes
+        meaning between calls."""
+        event = Event(client=mock_client, url=mock_url, data=SIMPLE_EVENT)
+        calendar = self._calendar(mock_client, [event])
+
+        searcher = CalDAVSearcher()
+        assert searcher.include_completed is None
+        searcher.search(calendar)
+
+        assert searcher.include_completed is None, "search() mutated the caller's searcher"
+
+
 class TestCompTypeOptionalTimeRange:
     """Regression tests for https://github.com/python-caldav/caldav/issues/681.
 
