@@ -207,19 +207,27 @@ class TestFeatureSetCollapse:
         assert fs._server_features["search.text"] == {"support": "fragile"}
 
     def test_collapse_parent_exists_same_value(self) -> None:
-        """When parent exists with same value as subfeatures, should still collapse"""
+        """When parent exists with same value as subfeatures, should still collapse.
+
+        Uses a genuine *grouping* parent (principal-search.by-name has no
+        explicit default); independent parents such as sync-token are
+        intentionally never collapsed (see
+        test_collapse_independent_parent_not_collapsed).  by-name's parent
+        principal-search has a second, unset child (list-all), so the collapse
+        does not cascade further up.
+        """
         fs = FeatureSet()
 
         fs._server_features = {
-            "sync-token": {"support": "unsupported"},
-            "sync-token.delete": {"support": "unsupported"},
+            "principal-search.by-name": {"support": "unsupported"},
+            "principal-search.by-name.self": {"support": "unsupported"},
         }
 
         fs.collapse()
 
         # All have same value, so subfeature should be removed
-        assert "sync-token.delete" not in fs._server_features
-        assert fs._server_features["sync-token"] == {"support": "unsupported"}
+        assert "principal-search.by-name.self" not in fs._server_features
+        assert fs._server_features["principal-search.by-name"] == {"support": "unsupported"}
 
     def test_collapse_empty_featureset(self) -> None:
         """Collapse should handle empty featureset without errors"""
@@ -243,19 +251,19 @@ class TestFeatureSetCollapse:
         assert fs._server_features == {"sync-token": {"support": "full"}}
 
     def test_collapse_single_subfeature(self) -> None:
-        """Single subfeature should collapse since parent derives from children"""
+        """Single subfeature should collapse since a grouping parent derives from children"""
         fs = FeatureSet()
 
-        # sync-token only has one subfeature: delete
+        # principal-search.by-name (a grouping node) only has one subfeature: self
         fs._server_features = {
-            "sync-token.delete": {"support": "unsupported"},
+            "principal-search.by-name.self": {"support": "unsupported"},
         }
 
         fs.collapse()
 
         # Parent status is derived from the single child, so collapse is valid
-        assert "sync-token" in fs._server_features
-        assert "sync-token.delete" not in fs._server_features
+        assert "principal-search.by-name" in fs._server_features
+        assert "principal-search.by-name.self" not in fs._server_features
 
     def test_collapse_with_complex_dict_values(self) -> None:
         """Collapse should handle complex dictionary values"""
@@ -263,20 +271,20 @@ class TestFeatureSetCollapse:
 
         complex_value = {
             "support": "fragile",
-            "behaviour": "time-based",
+            "behaviour": "inconsistent",
             "extra": "metadata",
         }
 
         fs._server_features = {
-            "sync-token": complex_value.copy(),
-            "sync-token.delete": complex_value.copy(),
+            "principal-search.by-name": complex_value.copy(),
+            "principal-search.by-name.self": complex_value.copy(),
         }
 
         fs.collapse()
 
         # Both have same value, should collapse
-        assert "sync-token.delete" not in fs._server_features
-        assert fs._server_features["sync-token"] == complex_value
+        assert "principal-search.by-name.self" not in fs._server_features
+        assert fs._server_features["principal-search.by-name"] == complex_value
 
     def test_collapse_principal_search_real_scenario(self) -> None:
         """Test user's real scenario: principal-search subfeatures with same value should collapse"""
@@ -302,139 +310,65 @@ class TestFeatureSetCollapse:
         assert "principal-search.list-all" not in fs._server_features
         assert "principal-search" in fs._server_features
 
-    def test_independent_subfeature_not_derived(self) -> None:
-        """Test that independent subfeatures (with explicit defaults) don't affect parent derivation"""
-        fs = FeatureSet()
+    def test_collapse_independent_parent_not_collapsed(self) -> None:
+        """An independent parent (one with its own explicit default) is never
+        folded away by its children.
 
-        # Scenario: create-calendar.auto is set to unsupported, but it's an independent
-        # feature (has explicit default) and should NOT cause create-calendar to be
-        # derived as unsupported
-        fs._server_features = {
-            "create-calendar.auto": {"support": "unsupported"},
-        }
-
-        # create-calendar should return its default (full), NOT derive from .auto
-        result = fs.is_supported("create-calendar", return_type=dict)
-        assert result == {"support": "full"}, (
-            f"create-calendar should default to 'full' when only independent "
-            f"subfeature .auto is set, but got {result}"
-        )
-
-        # Verify that the independent subfeature itself is still accessible
-        auto_result = fs.is_supported("create-calendar.auto", return_type=dict)
-        assert auto_result == {"support": "unsupported"}
-
-    def test_parent_default_not_overridden_by_subfeature_derivation(self) -> None:
-        """Test that a parent with an explicit default is not overridden by subfeature derivation.
-
-        Zimbra scenario: create-calendar.set-displayname is unsupported, but
-        create-calendar has an explicit default of 'full'.  The parent feature
-        represents an independent capability (calendar creation works), so the
-        subfeature status should not override the default.
+        sync-token carries a default, so even when its only child
+        sync-token.delete is unsupported the parent keeps its own (separately
+        probed) status: the two represent distinct capabilities and must not be
+        conflated.
         """
         fs = FeatureSet()
         fs._server_features = {
-            "create-calendar.set-displayname": {"support": "unsupported"},
+            "sync-token": {"support": "full"},
+            "sync-token.delete": {"support": "unsupported"},
         }
 
-        # create-calendar should return its default (full), NOT derive unsupported
-        # from .set-displayname
-        result = fs.is_supported("create-calendar", return_type=dict)
-        assert result == {"support": "full"}, (
-            f"create-calendar should default to 'full' even when "
-            f".set-displayname is unsupported, but got {result}"
+        fs.collapse()
+
+        assert fs._server_features["sync-token"] == {"support": "full"}
+        assert fs._server_features["sync-token.delete"] == {"support": "unsupported"}
+
+    def test_collapse_does_not_alter_independent_sibling(self) -> None:
+        """collapse() must be lossless w.r.t. is_supported() for *every*
+        subfeature, including independent siblings.
+
+        Regression for the save.duplicate-event compatibility-test breakage:
+        only save.duplicate-uid.cross-calendar was declared (ungraceful).  The
+        grouping chain duplicate-uid -> save would have collapsed into an
+        explicit save=ungraceful, which the independent sibling
+        save.duplicate-event (own default "full") then inherited - flipping it
+        from "full" to "ungraceful".  collapse() must not fold up to a parent
+        that has an independent child whose resolution would change.
+        """
+        fs = FeatureSet({"save.duplicate-uid.cross-calendar": {"support": "ungraceful"}})
+
+        before = fs.is_supported("save.duplicate-event", return_type=str)
+        assert before == "full"
+
+        fs.collapse()
+
+        after = fs.is_supported("save.duplicate-event", return_type=str)
+        assert after == "full", (
+            f"collapse() changed save.duplicate-event from {before!r} to {after!r}"
         )
-
-    def test_hierarchical_vs_independent_subfeatures(self) -> None:
-        """Test that hierarchical subfeatures derive parent, but independent ones don't"""
-        fs = FeatureSet()
-
-        # Hierarchical subfeatures: principal-search.by-name and principal-search.list-all
-        # These should cause parent to derive to "unknown" when mixed
-        fs.set_feature("principal-search.by-name", {"support": "unknown"})
-        fs.set_feature("principal-search.list-all", {"support": "unsupported"})
-
-        # Should derive to "unknown" due to mixed hierarchical subfeatures
-        result = fs.is_supported("principal-search", return_type=dict)
-        assert result == {"support": "unknown"}, (
-            f"principal-search should derive to 'unknown' from mixed hierarchical "
-            f"subfeatures, but got {result}"
-        )
-
-        # Now test independent subfeature: create-calendar.auto
-        # This should NOT affect create-calendar parent
-        fs2 = FeatureSet()
-        fs2.set_feature("create-calendar.auto", {"support": "unsupported"})
-
-        # Should return default, NOT derive from independent subfeature
-        result2 = fs2.is_supported("create-calendar", return_type=dict)
-        assert result2 == {"support": "full"}, (
-            f"create-calendar should default to 'full' ignoring independent "
-            f"subfeature .auto, but got {result2}"
-        )
-
-    def test_intermediate_feature_derives_from_children(self) -> None:
-        """Test that intermediate features (e.g. search.text) derive status from their children"""
-        # search.text has 4 direct children: case-sensitive, case-insensitive,
-        # substring, category (none have explicit defaults)
-
-        # All children set with mixed statuses -> derive "unknown"
-        fs = FeatureSet(
-            {
-                "search.text.case-sensitive": {"support": "unsupported"},
-                "search.text.case-insensitive": {"support": "unsupported"},
-                "search.text.substring": {"support": "unsupported"},
-                "search.text.category": {"support": "fragile"},
-            }
-        )
-        assert not fs.is_supported("search.text")
-        assert fs.is_supported("search.text", return_type=dict) == {"support": "unknown"}
-
-        # Partial children set with mixed non-positive statuses -> inconclusive,
-        # falls back to default ("full")
-        fs1b = FeatureSet(
-            {
-                "search.text.case-sensitive": {"support": "unsupported"},
-                "search.text.category.substring": {"support": "fragile"},
-            }
-        )
-        assert fs1b.is_supported("search.text")
-
-        # All children unsupported -> parent derives as "unsupported"
-        fs2 = FeatureSet(
-            {
-                "search.text.case-sensitive": {"support": "unsupported"},
-                "search.text.case-insensitive": {"support": "unsupported"},
-                "search.text.substring": {"support": "unsupported"},
-                "search.text.category": {"support": "unsupported"},
-            }
-        )
-        assert not fs2.is_supported("search.text")
-        assert fs2.is_supported("search.text", return_type=dict) == {"support": "unsupported"}
-
-        # No children set -> falls back to default ("full")
-        fs3 = FeatureSet({})
-        assert fs3.is_supported("search.text")
-
-        # Explicit parent value takes precedence over children
-        fs4 = FeatureSet(
-            {
-                "search.text": {"support": "full"},
-                "search.text.case-sensitive": {"support": "unsupported"},
-            }
-        )
-        assert fs4.is_supported("search.text")
+        # The genuine observation is preserved either way.
+        assert fs.is_supported("save.duplicate-uid.cross-calendar", return_type=str) == "ungraceful"
 
 
-class TestDeriveFromSubfeatures:
-    """Test _derive_from_subfeatures with partial and complete subfeature configs.
+class TestImplicitDerivation:
+    """Test is_supported() implicit derivation: parent→child, child→parent, explicit defaults.
 
-    Uses search.recurrences which has two relevant children without defaults:
-    - search.recurrences.expanded
-    - search.recurrences.includes-implicit
-
-    The default for search.recurrences (a server-feature) is {"support": "full"}.
+    Covers:
+    - Children without explicit defaults derive the parent value.
+    - Parent set explicitly propagates down to unset children.
+    - Features with explicit defaults ignore subfeature derivation.
+    - Partial/incomplete child sets fall through to the feature's default.
     """
+
+    ## TODO: the tests covering "all children" may need to be
+    ## protected against future additions in compatibility_hints.py
 
     @pytest.mark.parametrize(
         "scenario, config, query, expected_support",
@@ -446,6 +380,22 @@ class TestDeriveFromSubfeatures:
                     "search.recurrences.includes-implicit": {"support": "unsupported"},
                 },
                 "search.recurrences",
+                "unsupported",
+            ),
+            (
+                "parent_unsupported",
+                {
+                    "save-load": {"support": "unsupported"},
+                },
+                "save-load.event",
+                "unsupported",
+            ),
+            (
+                "parent_with_explicit_default_unsupported",
+                {
+                    "create-calendar": {"support": "unsupported"},
+                },
+                "create-calendar.auto",
                 "unsupported",
             ),
             (
@@ -483,6 +433,16 @@ class TestDeriveFromSubfeatures:
                 "full",  # any positive support → derive as supported
             ),
             (
+                ## Earlier logic had it that if a node has only one child, the parent should not be affected by the child, but if there are more children and all are unsupported, the parent is automatically flipped to unsupported.  However, this special case logic should have been rendered obsolete by the new logic that every node having an explicit default is considered independent
+                "independent_feature_always_trumps",
+                {
+                    "save-load.mutable.attendee-partstat": {"support": "unsupported"},
+                    "save-load.mutable.if-match-optional": {"support": "unsupported"},
+                },
+                "save-load.mutable",
+                "full",
+            ),
+            (
                 "gmx_partial_unsupported_query_unset_sibling_child",
                 {
                     "search.recurrences.expanded": {"support": "unsupported"},
@@ -506,6 +466,47 @@ class TestDeriveFromSubfeatures:
                 },
                 "search.recurrences.includes-implicit.todo",
                 "full",
+            ),
+            (
+                "mixed_children_incomplete_unset_sibling_falls_to_default",
+                {
+                    "save-load.todo": {"support": "full"},
+                    "save-load.journal": {"support": "unsupported"},
+                },
+                "save-load.event",
+                "full",  # incomplete set: cannot derive anything about unset siblings
+            ),
+            (
+                "explicit_default_overrides_children",
+                {
+                    "create-calendar.auto": {"support": "unsupported"},
+                    "create-calendar.set-displayname": {"support": "unsupported"},
+                },
+                "create-calendar",
+                "full",  # this feature does not depend on the sub-features
+            ),
+            (
+                "partial_mixed_children_query_parent_falls_to_default",
+                {
+                    "search.text.case-sensitive": {"support": "unsupported"},
+                    "search.text.case-insensitive": {"support": "full"},
+                },
+                "search.text",
+                "full",  # partial+mixed: cannot conclude unsupported; default applies
+            ),
+            (
+                ## Regression: setting a sibling child (search.text=full) caused
+                ## _derive_from_subfeatures on the grandparent "search" to return
+                ## full, which then bled into independent sibling features that have
+                ## their own explicit default.  search.time-range.comp-type-optional
+                ## has default=unsupported and must not be overridden by a derived
+                ## (not explicitly set) ancestor status.
+                "derived_parent_does_not_bleed_into_independent_sibling",
+                {
+                    "search.text": {"support": "full"},
+                },
+                "search.time-range.comp-type-optional",
+                "unsupported",  # own explicit default, must not inherit derived "full" from ancestor
             ),
         ],
         ids=lambda x: x if isinstance(x, str) and "_" in x else "",
@@ -535,13 +536,16 @@ class TestResolveFeatures:
         import caldav.compatibility_hints as ch
 
         result = _resolve_features("synology")
-        assert result is ch.synology
+        assert result == ch.synology
+        # deepcopy ensures the caller cannot mutate the shared profile
+        assert result is not ch.synology
 
     def test_string_with_prefix(self) -> None:
         import caldav.compatibility_hints as ch
 
         result = _resolve_features("compatibility_hints.synology")
-        assert result is ch.synology
+        assert result == ch.synology
+        assert result is not ch.synology
 
     def test_dict_without_base_passes_through(self) -> None:
         features = {"search.text": {"support": "unsupported"}}
@@ -579,3 +583,50 @@ class TestResolveFeatures:
         assert result["sync-token"] == "full"
         # Original base feature should be overridden
         assert result["sync-token"] != "fragile"
+
+
+class TestFeatureSetCompare:
+    """Test FeatureSet.compare(): declared (expected) vs observed feature sets."""
+
+    def test_matching_sets_no_mismatch(self) -> None:
+        expected = FeatureSet({"search.comp-type": {"support": "unsupported"}})
+        observed = FeatureSet()
+        observed.set_feature("search.comp-type", "unsupported")
+        assert expected.compare(observed) == []
+
+    def test_subfeature_observed_default_conflicts_with_inherited_unsupported(
+        self,
+    ) -> None:
+        """Regression for the Infomaniak ``search.comp-type.optional`` blind spot.
+
+        The parent ``search.comp-type`` is declared ``unsupported``, so the child
+        ``search.comp-type.optional`` inherits ``unsupported``.  The server is
+        observed to *support* the child (``full``) - but ``full`` happens to be
+        the child's implicit default, so it is dropped from the compacted
+        observed dict.  The mismatch must still be reported (it previously
+        slipped through because the feature was in neither compacted dict).
+        """
+        expected = FeatureSet({"search.comp-type": {"support": "unsupported"}})
+        observed = FeatureSet()
+        observed.set_feature("search.comp-type", "unsupported")
+        observed.set_feature("search.comp-type.optional")  # -> {"support": "full"}
+
+        mismatches = expected.compare(observed)
+
+        by_feature = {m["feature"]: m for m in mismatches}
+        assert "search.comp-type.optional" in by_feature
+        assert by_feature["search.comp-type.optional"]["expected"] == "unsupported"
+        assert by_feature["search.comp-type.optional"]["observed"] == "full"
+
+    def test_unprobed_declared_feature_is_not_flagged(self) -> None:
+        """A feature declared unsupported but never probed by the tester must not
+        be reported - we have no observation to contradict it."""
+        expected = FeatureSet({"search.comp-type": {"support": "unsupported"}})
+        observed = FeatureSet()  # tester probed nothing
+        assert expected.compare(observed) == []
+
+    def test_fragile_and_unknown_are_ignored(self) -> None:
+        expected = FeatureSet({"search.comp-type": {"support": "unsupported"}})
+        observed = FeatureSet()
+        observed.set_feature("search.comp-type", "fragile")
+        assert expected.compare(observed) == []
