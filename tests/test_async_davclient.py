@@ -6,6 +6,7 @@ Rule: None of the tests in this file should initiate any internet
 communication. We use Mock/MagicMock to emulate server communication.
 """
 
+import inspect
 import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -1058,3 +1059,112 @@ class TestAsyncRateLimiting:
         with patch("caldav.async_davclient.asyncio.sleep", new_callable=AsyncMock):
             with pytest.raises(error.RateLimitError):
                 await client.request("/")
+
+
+class TestAsyncPrincipalCalendar:
+    """``principal.calendar()`` must work with async clients.
+
+    Regression test: ``principal.calendar(cal_id=<plain id>)`` used to raise
+    ``TypeError: argument of type 'coroutine' is not a container or iterable``
+    for async clients, because the synchronous ``calendar_home_set`` property
+    evaluated ``"@" in <coroutine>`` without awaiting the async ``get_property``.
+    The cleanup blocks in the integration tests wrapped the call in a bare
+    ``except``, so calendars leaked silently and a later MKCALENDAR 405'd.
+    """
+
+    @pytest.mark.asyncio
+    async def test_calendar_by_cal_id_returns_awaitable(self) -> None:
+        """A plain cal_id needs the home set, so async returns a coroutine."""
+        from caldav.collection import Calendar, Principal
+
+        client = AsyncDAVClient(url="https://caldav.example.com/dav/")
+        principal = Principal(client=client, url="https://caldav.example.com/dav/principals/user/")
+
+        ## The calendar-home-set discovery is the only would-be round-trip; mock
+        ## the async get_property so the test stays offline.
+        with patch.object(
+            Principal,
+            "get_property",
+            new=AsyncMock(return_value="https://caldav.example.com/dav/calendars/user/"),
+        ):
+            result = principal.calendar(cal_id="testcal")
+            assert inspect.iscoroutine(result), "async calendar() must return a coroutine"
+            calendar = await result
+
+        assert isinstance(calendar, Calendar)
+        assert str(calendar.url).endswith("/calendars/user/testcal/")
+
+    @pytest.mark.asyncio
+    async def test_calendar_by_full_url_stays_synchronous(self) -> None:
+        """A full-URL cal_id needs no home set, so it must NOT become a coroutine.
+
+        ``test_calendar_by_full_url`` calls this without ``await`` and reads
+        ``.url`` directly, so the sync short-circuit must be preserved.
+        """
+        from caldav.collection import Calendar, Principal
+
+        client = AsyncDAVClient(url="https://caldav.example.com/dav/")
+        principal = Principal(client=client, url="https://caldav.example.com/dav/principals/user/")
+
+        calendar = principal.calendar(
+            cal_id="https://caldav.example.com/dav/calendars/user/testcal/"
+        )
+        assert isinstance(calendar, Calendar)
+        assert str(calendar.url).endswith("/calendars/user/testcal/")
+
+    @pytest.mark.asyncio
+    async def test_calendar_by_name_returns_awaitable(self) -> None:
+        """Gate finding F5: only the bare-``cal_id`` half was fixed.  A
+        ``name`` lookup went on to iterate the *coroutine* returned by the
+        async ``get_calendars()``, raising ``TypeError: 'coroutine' object is
+        not iterable``."""
+        from caldav.collection import Calendar, CalendarSet, Principal
+
+        client = AsyncDAVClient(url="https://caldav.example.com/dav/")
+        principal = Principal(client=client, url="https://caldav.example.com/dav/principals/user/")
+
+        wanted = Calendar(client, url="https://caldav.example.com/dav/calendars/user/wanted/")
+        other = Calendar(client, url="https://caldav.example.com/dav/calendars/user/other/")
+
+        async def fake_display_name(self: Calendar) -> str:
+            return "Wanted" if str(self.url).endswith("/wanted/") else "Other"
+
+        with (
+            patch.object(
+                Principal,
+                "get_property",
+                new=AsyncMock(return_value="https://caldav.example.com/dav/calendars/user/"),
+            ),
+            patch.object(CalendarSet, "get_calendars", new=AsyncMock(return_value=[other, wanted])),
+            patch.object(Calendar, "get_display_name", new=fake_display_name),
+        ):
+            result = principal.calendar(name="Wanted")
+            assert inspect.iscoroutine(result), "async calendar() must return a coroutine"
+            calendar = await result
+
+        assert isinstance(calendar, Calendar)
+        assert str(calendar.url).endswith("/calendars/user/wanted/")
+
+    @pytest.mark.asyncio
+    async def test_calendar_by_unknown_name_raises_notfound(self) -> None:
+        from caldav.collection import Calendar, CalendarSet, Principal
+        from caldav.lib import error
+
+        client = AsyncDAVClient(url="https://caldav.example.com/dav/")
+        principal = Principal(client=client, url="https://caldav.example.com/dav/principals/user/")
+        other = Calendar(client, url="https://caldav.example.com/dav/calendars/user/other/")
+
+        async def fake_display_name(self: Calendar) -> str:
+            return "Other"
+
+        with (
+            patch.object(
+                Principal,
+                "get_property",
+                new=AsyncMock(return_value="https://caldav.example.com/dav/calendars/user/"),
+            ),
+            patch.object(CalendarSet, "get_calendars", new=AsyncMock(return_value=[other])),
+            patch.object(Calendar, "get_display_name", new=fake_display_name),
+        ):
+            with pytest.raises(error.NotFoundError):
+                await principal.calendar(name="Wanted")

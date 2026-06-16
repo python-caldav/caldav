@@ -7,6 +7,7 @@ For sync usage, see the davclient.py wrapper.
 """
 
 import asyncio
+import inspect
 import logging
 import sys
 from collections.abc import Mapping
@@ -1227,6 +1228,12 @@ async def get_calendars(
                 calendar = principal.calendar(cal_url=cal_url)
             else:
                 calendar = principal.calendar(cal_id=cal_url)
+            ## A bare cal_id has to resolve the calendar home set first, so
+            ## principal.calendar() hands back a coroutine here.  Without the
+            ## await the AttributeError below was caught by the broad except
+            ## and the calendar was silently dropped from the collection.
+            if inspect.isawaitable(calendar):
+                calendar = await calendar
 
             try:
                 display_name = await calendar.get_display_name()
