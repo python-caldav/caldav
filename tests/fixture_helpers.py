@@ -240,3 +240,27 @@ async def cleanup_calendar_objects(calendar: Any) -> None:
                 pass
     except Exception:
         pass
+
+
+async def adelete_calendar_if_present(principal: Any, cal_id: str) -> None:
+    """Best-effort removal of a leftover test calendar from a previous run.
+
+    A test that recreates a calendar with a fixed ``cal_id`` must first clear
+    any leftover, or the recreate MKCALENDAR 405s ("resource already exists").
+
+    Only ``NotFoundError`` (the calendar isn't there) is swallowed - everything
+    else propagates.  A previous incarnation wrapped this in a bare
+    ``except Exception: pass``, which silently hid a real bug (async
+    ``principal.calendar()`` raising ``TypeError``), so the cleanup never ran
+    and calendars leaked.  Keep the catch narrow so that can't recur.
+    """
+    from caldav.lib import error
+
+    calendar = await _maybe_await(principal.calendar(cal_id=cal_id))
+    await cleanup_calendar_objects(calendar)
+    try:
+        await _maybe_await(calendar.delete())
+    except error.NotFoundError:
+        # Already gone, which is exactly what this function wants.  Nothing
+        # wider is caught on purpose - see the docstring.
+        pass

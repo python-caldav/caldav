@@ -198,6 +198,43 @@ class CalendarSet(DAVObject):
         """
         return self.get_calendars()
 
+    def _find_calendar_by_name(
+        self, calendars: "list[tuple[Calendar, str | None]]", name: str
+    ) -> "Calendar":
+        """Pick the calendar whose display name is ``name``.
+
+        The display names are supplied already resolved, so that the sync and
+        async twins of :meth:`calendar` can share the matching and the error.
+        """
+        for calendar, display_name in calendars:
+            if display_name == name:
+                return calendar
+        raise error.NotFoundError(f"No calendar with name {name} found under {self.url}")
+
+    def _first_calendar(self, calendars: "list[Calendar]") -> "Calendar":
+        """Return the first calendar, or raise if there are none."""
+        if not calendars:
+            raise error.NotFoundError("no calendars found")
+        return calendars[0]
+
+    async def _async_calendar(self, name: str | None = None) -> "Calendar":
+        """Async twin of :meth:`calendar` for the lookups that need the server."""
+        calendars = await self.get_calendars()
+        if not name:
+            return self._first_calendar(calendars)
+        named = []
+        for calendar in calendars:
+            try:
+                display_name = await calendar.get_display_name()
+            except Exception as e:
+                ## Skip calendars whose display name can't be read; warn only
+                ## when the failure is unexpected (see helper).  Continuing
+                ## ensures one unreadable calendar doesn't abort the lookup.
+                _warn_unreadable_display_name(self.client, calendar, name, e)
+                continue
+            named.append((calendar, display_name))
+        return self._find_calendar_by_name(named, name)
+
     def make_calendar(
         self,
         name: str | None = None,
@@ -250,7 +287,9 @@ class CalendarSet(DAVObject):
         )
         return await calendar.save(method=method)
 
-    def calendar(self, name: str | None = None, cal_id: str | None = None) -> "Calendar":
+    def calendar(
+        self, name: str | None = None, cal_id: str | None = None
+    ) -> "Calendar | Coroutine[Any, Any, Calendar]":
         """
         The calendar method will return a calendar object.  If it gets a cal_id
         but no name, it will not initiate any communication with the server
@@ -260,28 +299,31 @@ class CalendarSet(DAVObject):
           cal_id: return the calendar with this calendar id or URL
 
         Returns:
-          Calendar(...)-object
+          Calendar(...)-object.  A lookup by ``name``, or with neither
+          argument, has to list the calendars on the server, so on an async
+          client it returns a coroutine that must be awaited.
         """
-        # For name-based lookup, use calendars() which already uses async delegation
+        ## A lookup by name (or with no arguments at all) lists the calendars
+        ## and reads their display names - round-trips, so the async client
+        ## needs its own path.  A cal_id is pure URL arithmetic and stays
+        ## synchronous for both.
+        if not cal_id and self.is_async_client:
+            return self._async_calendar(name)
         if name and not cal_id:
+            named = []
             for calendar in self.get_calendars():
                 try:
                     display_name = calendar.get_display_name()
                 except Exception as e:
-                    # Skip calendars whose display name can't be read; warn only
-                    # when the failure is unexpected (see helper).  Continuing
-                    # ensures one unreadable calendar doesn't abort the lookup.
+                    ## Skip calendars whose display name can't be read; warn only
+                    ## when the failure is unexpected (see helper).  Continuing
+                    ## ensures one unreadable calendar doesn't abort the lookup.
                     _warn_unreadable_display_name(self.client, calendar, name, e)
                     continue
-                if display_name == name:
-                    return calendar
-        if name and not cal_id:
-            raise error.NotFoundError(f"No calendar with name {name} found under {self.url}")
+                named.append((calendar, display_name))
+            return self._find_calendar_by_name(named, name)
         if not cal_id and not name:
-            cals = self.get_calendars()
-            if not cals:
-                raise error.NotFoundError("no calendars found")
-            return cals[0]
+            return self._first_calendar(self.get_calendars())
 
         if self.client is None:
             raise ValueError("Unexpected value None for self.client")
@@ -471,10 +513,15 @@ class Principal(DAVObject):
         name: str | None = None,
         cal_id: str | None = None,
         cal_url: str | None = None,
-    ) -> "Calendar":
+    ) -> "Calendar | Coroutine[Any, Any, Calendar]":
         """
         The calendar method will return a calendar object.
-        It will not initiate any communication with the server.
+
+        For a full-URL ``cal_id`` or a ``cal_url`` it does not initiate any
+        communication with the server and returns the Calendar directly (also
+        for async clients).  For a bare ``cal_id``/``name`` it needs the
+        calendar home set, which on an async client is resolved with a PROPFIND;
+        in that case it returns a coroutine that must be awaited.
         """
         if not cal_url:
             ## For full-URL cal_id, skip calendar_home_set (which may be async-lazy)
@@ -488,12 +535,31 @@ class Principal(DAVObject):
                 if self.client is None:
                     raise ValueError("Unexpected value None for self.client")
                 return Calendar(self.client, url=URL.objectify(cal_id))
+            ## A bare cal_id/name needs the calendar home set.  On async clients
+            ## that resolution awaits a PROPFIND, so we must hand back a coroutine
+            ## rather than evaluating the (lazy, coroutine-valued) home set here.
+            if self.is_async_client:
+                return self._async_calendar(name, cal_id)
             return self.calendar_home_set.calendar(name, cal_id)
         else:
             if self.client is None:
                 raise ValueError("Unexpected value None for self.client")
 
             return Calendar(self.client, url=self.client.url.join(cal_url))
+
+    async def _async_calendar(
+        self,
+        name: str | None = None,
+        cal_id: str | None = None,
+    ) -> "Calendar":
+        """Async implementation of calendar() for a bare cal_id/name."""
+        calendar_home_set = await self._async_get_calendar_home_set()
+        calendar = calendar_home_set.calendar(name, cal_id)
+        ## A bare cal_id resolves synchronously even on an async client; a
+        ## name lookup hands back a coroutine.
+        if inspect.isawaitable(calendar):
+            calendar = await calendar
+        return calendar
 
     def get_vcal_address(self) -> "vCalAddress | Coroutine[Any, Any, vCalAddress]":
         """

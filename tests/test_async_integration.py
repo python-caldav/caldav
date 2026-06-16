@@ -508,21 +508,25 @@ class AsyncFunctionalTestsBaseClass:
         from caldav.aio import AsyncCalendarSet, AsyncPrincipal
         from caldav.lib.error import AuthorizationError, MkcalendarError, NotFoundError
 
-        from .fixture_helpers import cleanup_calendar_objects
+        from .fixture_helpers import adelete_calendar_if_present, cleanup_calendar_objects
 
         cal_id = "pythoncaldav-async-test"
         calendar = None
         principal = None
 
-        # Try principal-based calendar creation (most servers)
+        # Try principal-based calendar creation (most servers).  Clear any
+        # leftover with this cal_id first, so we exercise real creation and
+        # don't accumulate calendars (some servers enforce a quota).
         try:
             principal = await AsyncPrincipal.create(async_client)
+            await adelete_calendar_if_present(principal, cal_id)
             calendar = await principal.make_calendar(name="Async Test", cal_id=cal_id)
         except (MkcalendarError, AuthorizationError):
-            # Calendar already exists from a previous run - reuse it
-            # (mirrors sync _fixCalendar_ pattern)
+            # Calendar exists and can't be (re)created (e.g. no delete support
+            # to clear it first) - reuse it.  Note: principal.calendar() returns
+            # a coroutine for async clients, so it must be awaited.
             if principal is not None:
-                calendar = principal.calendar(cal_id=cal_id)
+                calendar = await principal.calendar(cal_id=cal_id)
         except NotFoundError:
             # Principal discovery failed
             pass
@@ -533,17 +537,24 @@ class AsyncFunctionalTestsBaseClass:
             try:
                 calendar = await calendar_home.make_calendar(name="Async Test", cal_id=cal_id)
             except (MkcalendarError, AuthorizationError):
+                # client.calendar() builds a Calendar by URL with no I/O, so it
+                # is not a coroutine and must not be awaited.
                 calendar = async_client.calendar(cal_id=cal_id)
 
         assert calendar is not None
-        assert calendar.url is not None
-
-        # Clean up based on server capabilities
-        if self.is_supported("delete-calendar"):
-            await calendar.delete()
-        else:
-            # Can't delete the calendar, just wipe its objects
-            await cleanup_calendar_objects(calendar)
+        try:
+            assert calendar.url is not None
+        finally:
+            # Always clean up so calendars don't accumulate (quota safety).
+            try:
+                if self.is_supported("delete-calendar"):
+                    await calendar.delete()
+                else:
+                    # Can't delete the calendar, just wipe its objects
+                    await cleanup_calendar_objects(calendar)
+            except NotFoundError:
+                # Already gone - the cleanup got the outcome it wanted.
+                pass
 
     @pytest.mark.asyncio
     async def test_search_events(self, async_calendar: Any) -> None:
@@ -1929,7 +1940,7 @@ class AsyncFunctionalTestsBaseClass:
         from caldav.aio import AsyncPrincipal
         from caldav.lib.error import AuthorizationError, NotFoundError
 
-        from .fixture_helpers import cleanup_calendar_objects
+        from .fixture_helpers import adelete_calendar_if_present
 
         principal = None
         try:
@@ -1938,18 +1949,15 @@ class AsyncFunctionalTestsBaseClass:
             pytest.skip("Cannot discover principal")
 
         cal_id = "pythoncaldav-async-createdelete-test"
-        try:
-            existing = principal.calendar(cal_id=cal_id)
-            await cleanup_calendar_objects(existing)
-            await existing.delete()
-        except Exception:
-            pass
+        await adelete_calendar_if_present(principal, cal_id)
 
         c = await principal.make_calendar(name="Yep", cal_id=cal_id)
-        assert c.url is not None
-        events = await c.get_events()
-        assert len(events) == 0
-        await c.delete()
+        try:
+            assert c.url is not None
+            events = await c.get_events()
+            assert len(events) == 0
+        finally:
+            await c.delete()
 
     @pytest.mark.asyncio
     async def test_calendar_by_full_url(self, async_calendar: Any, async_client: Any) -> None:
@@ -1982,7 +1990,7 @@ class AsyncFunctionalTestsBaseClass:
         from caldav.elements import dav
         from caldav.lib.error import AuthorizationError, NotFoundError
 
-        from .fixture_helpers import cleanup_calendar_objects
+        from .fixture_helpers import adelete_calendar_if_present
 
         self.skip_unless_support("create-calendar.set-displayname")
         ## This test expects the display name to round-trip at a stable URL;
@@ -1998,26 +2006,23 @@ class AsyncFunctionalTestsBaseClass:
             pytest.skip("Cannot discover principal")
 
         cal_id = "pythoncaldav-async-props-test"
-        try:
-            existing = principal.calendar(cal_id=cal_id)
-            await cleanup_calendar_objects(existing)
-            await existing.delete()
-        except Exception:
-            pass
+        await adelete_calendar_if_present(principal, cal_id)
 
-        c = await principal.make_calendar(name="Yep", cal_id=cal_id)
+        ## Use a distinct display name (not the sync fixture's "Yep") so that an
+        ## interrupted run of this test can never leave behind a second calendar
+        ## named "Yep" that would make the sync suite's principal.calendar(name="Yep")
+        ## lookup ambiguous.  This test only checks that the display name round-trips,
+        ## so the actual name is irrelevant.
+        c = await principal.make_calendar(name="AsyncYep", cal_id=cal_id)
         try:
             props = await c.get_properties([dav.DisplayName()])
-            assert "Yep" == props[dav.DisplayName.tag]
+            assert "AsyncYep" == props[dav.DisplayName.tag]
 
-            await c.set_properties([dav.DisplayName("hooray")])
+            await c.set_properties([dav.DisplayName("hooray-async")])
             props = await c.get_properties([dav.DisplayName()])
-            assert props[dav.DisplayName.tag] == "hooray"
+            assert props[dav.DisplayName.tag] == "hooray-async"
         finally:
-            try:
-                await c.delete()
-            except Exception:
-                pass
+            await c.delete()
 
     # ==================== Group F – Regressions ====================
 
@@ -2332,7 +2337,7 @@ END:VCALENDAR"""
         from caldav.aio import AsyncPrincipal
         from caldav.lib.error import AuthorizationError, NotFoundError
 
-        from .fixture_helpers import cleanup_calendar_objects
+        from .fixture_helpers import adelete_calendar_if_present
 
         principal = None
         try:
@@ -2341,12 +2346,7 @@ END:VCALENDAR"""
             pytest.skip("Cannot discover principal")
 
         cal_id = "pythoncaldav-async-utf8-test"
-        try:
-            existing = await principal.calendar(cal_id=cal_id)
-            await cleanup_calendar_objects(existing)
-            await existing.delete()
-        except Exception:
-            pass
+        await adelete_calendar_if_present(principal, cal_id)
 
         c = await principal.make_calendar(name="Yølp", cal_id=cal_id)
         try:
@@ -2357,10 +2357,7 @@ END:VCALENDAR"""
             if "zimbra" not in str(c.url):
                 assert len(events) == 1
         finally:
-            try:
-                await c.delete()
-            except Exception:
-                pass
+            await c.delete()
 
     @pytest.mark.asyncio
     async def test_create_calendar_and_event_from_vobject(self, async_calendar: Any) -> None:
