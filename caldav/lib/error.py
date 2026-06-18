@@ -13,6 +13,12 @@ try:
     ## Environmental variables prepended with "PYTHON_CALDAV" are used for debug purposes,
     ## environmental variables prepended with "CALDAV_" are for connection parameters
     debug_dump_communication = os.environ.get("PYTHON_CALDAV_COMMDUMP", False)
+    if debug_dump_communication:
+        logging.getLogger("caldav").warning(
+            "PYTHON_CALDAV_COMMDUMP is set: request/response bodies and headers "
+            "(including credentials and calendar PII) will be written to uniquely-named "
+            "files under /tmp.  These files accumulate indefinitely — remove them when done."
+        )
     ## one of DEBUG_PDB, DEBUG, DEVELOPMENT, PRODUCTION
     debugmode = os.environ["PYTHON_CALDAV_DEBUGMODE"]
 except KeyError:
