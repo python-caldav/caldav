@@ -1177,38 +1177,6 @@ class TestIcalToJscal:
         overrides = result["recurrenceOverrides"]
         assert any(v == {"excluded": True} for v in overrides.values())
 
-    def test_rrule_until_utc_on_tzid_event_uses_event_local(self):
-        # §4.3 regression: a UTC UNTIL on a TZID event is a LocalDateTime in the
-        # event's own time zone per RFC 8984 — Europe/Berlin is UTC+2 in July,
-        # so 12:00:00Z must become 14:00:00 local, not stay 12:00:00 (which made
-        # the series end two hours early).
-        ical = _make_ical(
-            "DTSTART;TZID=Europe/Berlin:20240617T140000\r\n"
-            "DURATION:PT1H\r\n"
-            "SUMMARY:Recurring\r\n"
-            "RRULE:FREQ=WEEKLY;UNTIL=20240701T120000Z\r\n"
-        )
-        result = ical_to_jscal(ical)
-        assert result["recurrenceRules"][0]["until"] == "2024-07-01T14:00:00"
-        # Round-trip: RFC 5545 §3.3.10 requires a UTC UNTIL for a TZID DTSTART,
-        # so the local until must convert back to ...120000Z (with the Z suffix).
-        back = jscal_to_ical(result)
-        assert "UNTIL=20240701T120000Z" in back
-        assert "UNTIL=20240701T140000" not in back
-
-    def test_exdate_utc_on_tzid_event_uses_event_local(self):
-        # §4.3 regression for EXDATE: a UTC EXDATE on a TZID event becomes an
-        # override key in the event's local wall-clock.
-        ical = _make_ical(
-            "DTSTART;TZID=Europe/Berlin:20240617T140000\r\n"
-            "DURATION:PT1H\r\n"
-            "SUMMARY:Recurring\r\n"
-            "RRULE:FREQ=WEEKLY\r\n"
-            "EXDATE:20240624T120000Z\r\n"
-        )
-        result = ical_to_jscal(ical)
-        assert "2024-06-24T14:00:00" in result["recurrenceOverrides"]
-
     def test_valarm_relative(self):
         ical = _make_ical(
             "DTSTART:20240615T100000Z\r\n"
@@ -1697,6 +1665,15 @@ class TestJMAPClientEvents:
         # To actually delete a property the patch must set it to null.
         # An ical → jscal conversion that omits LOCATION/DESCRIPTION must send
         # {"locations": null, "description": null, ...} so the server removes them.
+        _ICAL_WITH_LOCATION = (
+            "BEGIN:VCALENDAR\r\nVERSION:2.0\r\n"
+            "BEGIN:VEVENT\r\n"
+            "UID:loc-uid@example.com\r\n"
+            "DTSTART:20240615T090000Z\r\n"
+            "SUMMARY:Event with Location\r\n"
+            "LOCATION:Old Conference Room\r\n"
+            "END:VEVENT\r\nEND:VCALENDAR\r\n"
+        )
         _ICAL_WITHOUT_LOCATION = (
             "BEGIN:VCALENDAR\r\nVERSION:2.0\r\n"
             "BEGIN:VEVENT\r\n"
@@ -2917,3 +2894,128 @@ class TestStatusMapping:
         assert jscal.get("status") == "cancelled"
         round_tripped = jscal_to_ical(jscal)
         assert "STATUS:CANCELLED" in round_tripped
+
+
+class TestLocalDateTimeIsEventLocal:
+    """Gate finding F3: RFC 8984 LocalDateTime slots (RRULE ``until``,
+    ``recurrenceOverrides`` keys) are expressed in the event's own timezone.
+    ``_format_local_dt()`` merely dropped the tzinfo, so a UTC value coming
+    off the wire was off by the UTC offset -- and the resulting floating
+    ``UNTIL`` against a TZID ``DTSTART`` is forbidden by RFC 5545 3.3.10."""
+
+    ICAL_HEAD = (
+        "BEGIN:VCALENDAR\r\n"
+        "VERSION:2.0\r\n"
+        "PRODID:-//Test//Test//EN\r\n"
+        "BEGIN:VEVENT\r\n"
+        "UID:tz-local@example.com\r\n"
+        "DTSTAMP:20240101T000000Z\r\n"
+        "DTSTART;TZID=Europe/Berlin:20240615T090000\r\n"
+        "DURATION:PT1H\r\n"
+    )
+
+    def _convert(self, extra: str) -> dict:
+        return ical_to_jscal(self.ICAL_HEAD + extra + "END:VEVENT\r\nEND:VCALENDAR\r\n")
+
+    def test_until_is_converted_to_event_timezone(self):
+        # 2024-06-30T07:00:00Z is 09:00 in Europe/Berlin (CEST, UTC+2).
+        jscal = self._convert("RRULE:FREQ=WEEKLY;UNTIL=20240630T070000Z\r\n")
+        assert jscal["recurrenceRules"][0]["until"] == "2024-06-30T09:00:00"
+
+    def test_exdate_key_is_converted_to_event_timezone(self):
+        jscal = self._convert("RRULE:FREQ=WEEKLY\r\nEXDATE;VALUE=DATE-TIME:20240622T070000Z\r\n")
+        assert "2024-06-22T09:00:00" in jscal["recurrenceOverrides"]
+
+    def test_until_round_trips_back_to_utc(self):
+        """The other half of the same rule: RFC 5545 3.3.10 requires a UTC UNTIL
+        whenever DTSTART carries a TZID, so the LocalDateTime ``until`` has to be
+        converted back -- not merely parsed as naive -- on the way out.  Raised in
+        review of https://github.com/python-caldav/caldav/pull/688 ("the round-trip
+        back through jscal_to_ical produces UNTIL=20240701T120000 with no Z
+        suffix, which RFC 5545 3.3.10 forbids for TZID events")."""
+        jscal = self._convert("RRULE:FREQ=WEEKLY;UNTIL=20240630T070000Z\r\n")
+        assert jscal["recurrenceRules"][0]["until"] == "2024-06-30T09:00:00"
+        ical = jscal_to_ical(jscal)
+        assert "DTSTART;TZID=Europe/Berlin:20240615T090000" in ical
+        assert "UNTIL=20240630T070000Z" in ical, (
+            "a TZID DTSTART requires a UTC UNTIL; got a floating one"
+        )
+
+    def test_recurrence_id_key_is_converted_to_event_timezone(self):
+        ical = (
+            self.ICAL_HEAD + "RRULE:FREQ=WEEKLY\r\n"
+            "END:VEVENT\r\n"
+            "BEGIN:VEVENT\r\n"
+            "UID:tz-local@example.com\r\n"
+            "DTSTAMP:20240101T000000Z\r\n"
+            "RECURRENCE-ID:20240622T070000Z\r\n"
+            "DTSTART;TZID=Europe/Berlin:20240622T100000\r\n"
+            "SUMMARY:Moved\r\n"
+            "END:VEVENT\r\n"
+            "END:VCALENDAR\r\n"
+        )
+        jscal = ical_to_jscal(ical)
+        assert "2024-06-22T09:00:00" in jscal["recurrenceOverrides"]
+
+    def test_naive_dtstart_leaves_utc_until_alone(self):
+        """A floating DTSTART has no timezone to convert into; the value is
+        passed through rather than guessed at."""
+        ical = (
+            "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Test//Test//EN\r\n"
+            "BEGIN:VEVENT\r\nUID:floating@example.com\r\n"
+            "DTSTAMP:20240101T000000Z\r\n"
+            "DTSTART:20240615T090000\r\nDURATION:PT1H\r\n"
+            "RRULE:FREQ=WEEKLY;UNTIL=20240630T070000Z\r\n"
+            "END:VEVENT\r\nEND:VCALENDAR\r\n"
+        )
+        jscal = ical_to_jscal(ical)
+        assert jscal["recurrenceRules"][0]["until"] == "2024-06-30T07:00:00"
+
+
+class TestJMAPSessionRelease:
+    """Gate finding F9: the persistent HTTP session was released only by
+    ``__exit__``/``__aexit__``.  The documented Quick Start does not use
+    ``with``, so a client built that way leaked its connection pool with no
+    way to release it short of dropping the object and hoping."""
+
+    def _make_client(self):
+        from caldav.jmap.client import JMAPClient
+
+        return JMAPClient(url="https://jmap.example.com/.well-known/jmap", password="token")
+
+    def test_close_releases_the_session(self):
+        client = self._make_client()
+        session = client._get_http_session()
+        assert session is not None
+        client.close()
+        assert client._http_session is None
+
+    def test_close_is_idempotent(self):
+        client = self._make_client()
+        client._get_http_session()
+        client.close()
+        client.close()
+        assert client._http_session is None
+
+    def test_context_manager_still_releases_the_session(self):
+        with self._make_client() as client:
+            client._get_http_session()
+        assert client._http_session is None
+
+    def _make_async_client(self):
+        from caldav.jmap.async_client import AsyncJMAPClient
+
+        return AsyncJMAPClient(url="https://jmap.example.com/.well-known/jmap", password="token")
+
+    @pytest.mark.asyncio
+    async def test_aclose_releases_the_session(self):
+        client = self._make_async_client()
+        client._get_http_session()
+        await client.aclose()
+        assert client._http_session is None
+
+    @pytest.mark.asyncio
+    async def test_async_context_manager_still_releases_the_session(self):
+        async with self._make_async_client() as client:
+            client._get_http_session()
+        assert client._http_session is None
