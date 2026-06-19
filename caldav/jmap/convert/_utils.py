@@ -5,6 +5,7 @@ Shared datetime and duration utilities for JSCalendar ↔ iCalendar conversion.
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta
+from datetime import tzinfo as tzinfo_t
 
 
 def _timedelta_to_duration(td: timedelta) -> str:
@@ -110,22 +111,31 @@ def _duration_to_timedelta(duration_str: str) -> timedelta:
     return sign * td
 
 
-def _format_local_dt(dt: datetime | date) -> str:
+def _format_local_dt(dt: datetime | date, tzinfo: tzinfo_t | None = None) -> str:
     """Format a datetime or date as a JSCalendar LocalDateTime string.
 
     RFC 8984 requires LocalDateTime (no Z suffix) for override keys and RRULE
-    ``until`` values.  Timezone information is stripped — callers must convert
-    UTC datetimes to the event's local timezone before calling if the event uses
-    TZID; for floating or all-day events the naive value is already correct.
+    ``until`` values, and those are expressed in the *event's* timezone.  An
+    aware datetime is therefore converted into ``tzinfo`` before the offset is
+    dropped; merely stripping it would shift the value by the UTC offset, and
+    a floating ``UNTIL`` against a TZID ``DTSTART`` is forbidden outright by
+    RFC 5545 3.3.10.
+
+    ``tzinfo`` is the event's timezone, normally ``DTSTART.dt.tzinfo``.  When
+    it is None the event is floating or all-day: there is nothing to convert
+    into, so the value is passed through as-is.
 
     For date objects (all-day), uses T00:00:00 suffix.
 
     Args:
         dt: A datetime (with or without tzinfo) or a date.
+        tzinfo: The event's timezone, or None for a floating/all-day event.
 
     Returns:
         Formatted string suitable for use as a JSCalendar override key or RRULE until.
     """
     if isinstance(dt, datetime):
+        if tzinfo is not None and dt.tzinfo is not None:
+            dt = dt.astimezone(tzinfo)
         return dt.strftime("%Y-%m-%dT%H:%M:%S")
     return f"{dt.isoformat()}T00:00:00"

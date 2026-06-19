@@ -43,7 +43,7 @@ _KIND_TO_CUTYPE = {
     "resource": "RESOURCE",
     "room": "ROOM",
 }
-# RFC 8984 status -> RFC 5545 STATUS
+# RFC 8984 status -> RFC 5545 STATUS; module-level constant (cf. _KIND_TO_CUTYPE etc.)
 _STATUS_JSCAL_TO_ICAL = {
     "confirmed": "CONFIRMED",
     "tentative": "TENTATIVE",

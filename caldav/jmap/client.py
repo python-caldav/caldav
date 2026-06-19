@@ -441,14 +441,33 @@ class JMAPClient(_JMAPClientBase):
             self._http_session = sess
         return self._http_session
 
+    def close(self) -> None:
+        """Release the persistent HTTP session and its connection pool.
+
+        Only needed when the client was not used as a context manager -- the
+        documented Quick Start builds one directly, and without this there
+        was no way to hand the sockets back.  Idempotent; the session is
+        recreated on the next request.
+        """
+        if self._http_session is not None:
+            self._http_session.close()
+            self._http_session = None
+
     def __enter__(self) -> JMAPClient:
         self._get_http_session()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
-        if self._http_session is not None:
-            self._http_session.close()
-            self._http_session = None
+        self.close()
+
+    def __del__(self) -> None:
+        ## Last-resort net for a client that was neither closed nor used as a
+        ## context manager.  Interpreter shutdown can have torn down enough
+        ## for this to fail, and an exception here is unraisable noise.
+        try:
+            self.close()
+        except Exception:
+            pass
 
     def _get_session(self) -> Session:
         """Return the cached Session, fetching it on first call."""

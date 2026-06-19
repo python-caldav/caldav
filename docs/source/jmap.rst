@@ -26,14 +26,19 @@ Quick Start
 
     from caldav.jmap import get_jmap_client
 
-    client = get_jmap_client(
+    with get_jmap_client(
         url="https://jmap.example.com/.well-known/jmap",
         username="alice",
         password="secret",
-    )
-    calendars = client.get_calendars()
-    for cal in calendars:
-        print(cal.name)
+    ) as client:
+        calendars = client.get_calendars()
+        for cal in calendars:
+            print(cal.name)
+
+The client keeps a persistent HTTP session, so connections are reused across
+requests.  The ``with`` block releases it at the end; if you would rather hold
+on to the client, call ``client.close()`` when you are done
+(``await client.aclose()`` on the async client).
 
 :func:`~caldav.jmap.get_jmap_client` reads configuration from the same sources
 as :func:`caldav.get_davclient`: explicit keyword arguments, then the
@@ -82,9 +87,9 @@ parameter (niquests is API-compatible with requests).
 Unlike CalDAV, JMAP does not use a 401-challenge-retry dance — credentials are sent
 on every request, and a 401 or 403 is a hard :class:`~caldav.jmap.error.JMAPAuthError`.
 
-Context manager usage is supported but not required — no persistent TCP connection is
-held between calls (the JMAP Session object is cached after the first request, but
-that is just a JSON document, not a socket):
+The client holds a persistent HTTP session so connections are reused between calls,
+so it is worth releasing it when you are done — either with a context manager or by
+calling ``close()`` (``aclose()`` on the async client):
 
 .. code-block:: python
 
@@ -197,7 +202,7 @@ scanning the full calendar:
     # ... time passes, events are created/modified/deleted ...
 
     # Fetch only the delta
-    added, modified, deleted = client.get_objects_by_sync_token(token)
+    added, modified, deleted, token = client.get_objects_by_sync_token(token)
 
     for ical_str in added:
         print("New:", ical_str)
@@ -208,7 +213,9 @@ scanning the full calendar:
 
 ``added`` and ``modified`` are lists of VCALENDAR strings.  ``deleted`` is a list
 of event IDs — the objects no longer exist on the server, so their data cannot be
-fetched.
+fetched.  The fourth element is the server's new sync token; chaining straight
+from it avoids the race window a separate
+:meth:`~caldav.jmap.client.JMAPClient.get_sync_token` round-trip would open.
 
 :meth:`~caldav.jmap.client.JMAPClient.get_objects_by_sync_token` raises
 :class:`~caldav.jmap.error.JMAPMethodError` (``error_type="serverPartialFail"``) if
@@ -238,9 +245,8 @@ A typical pattern is to persist the token between runs:
         token = client.get_sync_token()
         save_token(token)
     else:
-        added, modified, deleted = client.get_objects_by_sync_token(token)
+        added, modified, deleted, token = client.get_objects_by_sync_token(token)
         # process changes ...
-        token = client.get_sync_token()
         save_token(token)
 
 Tasks

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+import warnings
 
 from niquests import AsyncSession
 
@@ -71,14 +72,50 @@ class AsyncJMAPClient(_JMAPClientBase):
             self._http_session = sess
         return self._http_session
 
+    async def aclose(self) -> None:
+        """Release the persistent HTTP session and its connection pool.
+
+        Only needed when the client was not used as an async context manager
+        -- the documented Quick Start builds one directly.  Idempotent; the
+        session is recreated on the next request.
+        """
+        if self._http_session is not None:
+            await self._http_session.close()
+            self._http_session = None
+
     async def __aenter__(self) -> AsyncJMAPClient:
         self._get_http_session()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
-        if self._http_session is not None:
-            await self._http_session.close()
-            self._http_session = None
+        await self.aclose()
+
+    def __del__(self) -> None:
+        ## Closing an async session needs an event loop, which is long gone by the
+        ## time __del__ runs, so all we can do is say so.  getattr() rather than
+        ## attribute access: __init__ may have raised before setting it, and an
+        ## AttributeError here would be reported as "exception ignored in __del__"
+        ## on top of whatever actually went wrong.
+        if getattr(self, "_http_session", None) is None:
+            return
+        try:
+            warnings.warn(
+                f"{type(self).__name__} was garbage collected with an open HTTP "
+                "session; use 'async with' or await aclose()",
+                ResourceWarning,
+                ## stacklevel=1 on purpose, and explicitly because ruff's B028
+                ## wants it stated: pointing any higher is a lie in __del__, where
+                ## the caller is the garbage collector.  source= is what makes the
+                ## warning actionable instead - with `python -X tracemalloc` it
+                ## reports where the leaked client was allocated.
+                stacklevel=1,
+                source=self,
+            )
+        except Exception:
+            ## __del__ must not raise.  At interpreter shutdown the warnings
+            ## machinery may already be torn down and stderr may be closed, and
+            ## there is neither anything to recover nor anywhere to report it.
+            pass
 
     async def _get_session(self) -> Session:
         """Return the cached Session, fetching it on first call."""
