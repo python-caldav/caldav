@@ -1,21 +1,21 @@
 ---
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.9.4
+    rev: v0.15.20
     hooks:
-      - id: ruff
+      - id: ruff-check
         args: [--fix]
       - id: ruff-format
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
+    rev: v6.0.0
     hooks:
-      - id: check-byte-order-marker
+      - id: fix-byte-order-marker
       - id: trailing-whitespace
       - id: end-of-file-fixer
 
   - repo: https://github.com/pycalendar/ai-prompt-auto-commit
-    rev: v0.0.5
+    rev: v0.0.8
     hooks:
       - id: unstage-ai-prompts
       - id: append-ai-prompts
@@ -26,13 +26,13 @@ repos:
         stages: [manual]
 
   - repo: https://github.com/compilerla/conventional-pre-commit
-    rev: v3.4.0
+    rev: v4.4.0
     hooks:
       - id: conventional-pre-commit
         stages: [commit-msg]
 
   - repo: https://github.com/lycheeverse/lychee
-    rev: lychee-v0.24.1
+    rev: lychee-v0.24.2
     hooks:
       - id: lychee
         args: ["--no-progress", "--timeout", "10", "--exclude-path", ".lycheeignore", "--max-cache-age=30d", "--cache"]
