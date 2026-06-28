@@ -2235,8 +2235,8 @@ END:VCALENDAR"""
 
         created = []
         original_create = CalendarObjectResource._create
-        CalendarObjectResource._create = (
-            lambda self_, id=None, path=None, retry_on_failure=True: created.append(True)
+        CalendarObjectResource._create = lambda self_, id=None, path=None, retry_on_failure=True: (
+            created.append(True)
         )
         try:
             calendar.add_object(Event, self._orphan_ical)
