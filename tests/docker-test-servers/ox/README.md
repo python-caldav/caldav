@@ -1,6 +1,6 @@
 # OX App Suite CalDAV Test Server
 
-[OX App Suite](https://www.open-xchange.com/) is a commercial groupware platform with CalDAV/CardDAV support.
+[OX App Suite](https://ox.io/) is a commercial groupware platform with CalDAV/CardDAV support.
 
 ## Prerequisites
 

@@ -18,6 +18,7 @@ https://caldav\.gmx\.net/.*
 https://caldav\.icloud\.com/.*
 https://p\d+-caldav\.icloud\.com/.*
 https://posteo\.de:\d+/.*
+https://sync\.infomaniak\.com/.*
 https://purelymail\.com/.*
 https://webmail\.all-inkl\.com/.*
 https://www\.google\.com/calendar/dav/.*
@@ -36,6 +37,10 @@ https://oauth2\.googleapis\.com/.*
 
 # Personal/demo test server (may be down)
 https?://davical\.bekkenstenveien53c\.oslo\.no/.*
+
+# Sites that serve 403 to non-browser clients.  The links are fine in a
+# browser; lychee just isn't one.
+https://stackoverflow\.com/.*
 
 # Dead or broken links we can't fix
 http://fsf\.org/.*
