@@ -34,3 +34,5 @@ tests/docker-test-servers/*/baikal-backup/
 !tests/docker-test-servers/baikal/Specific/
 # Local test server configuration (may contain credentials)
 tests/caldav_test_servers.yaml
+# Lychee link checker cache
+.lycheecache
