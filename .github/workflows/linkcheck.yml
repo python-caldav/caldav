@@ -7,6 +7,10 @@ on:
   schedule:
    - cron: "03 22 * * *"
 
+concurrency:
+  group: linkcheck-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   linkcheck:
     runs-on: ubuntu-latest
@@ -14,6 +18,12 @@ jobs:
       issues: write
     steps:
     - uses: actions/checkout@v5
+    - name: Restore lychee cache
+      uses: actions/cache@v4
+      with:
+        path: .lycheecache
+        key: cache-lychee-${{ github.run_id }}
+        restore-keys: cache-lychee-
     - name: Check links with Lychee
       id: lychee
       uses: lycheeverse/lychee-action@v2
@@ -21,15 +31,41 @@ jobs:
         fail: false
         args: >-
           --root-dir "$(pwd)"
-          --timeout 20
-          --max-retries 3
+          --timeout 30
+          --max-retries 6
+          --retry-wait-time 2
           --cache
           --max-cache-age 14d
           .
-    - name: Create Issue From File
-      if: steps.lychee.outputs.exit_code != 0
-      uses: peter-evans/create-issue-from-file@v5
-      with:
-        title: Link Checker Report
-        content-filepath: ./lychee/out.md
-        labels: report, automated issue
+    # The exit_code comparisons are quoted on purpose.  A missing output is the
+    # empty string, and GitHub coerces '' to 0 when comparing against a number -
+    # so an unquoted `== 0` would treat "lychee did not run" as "all links are
+    # healthy" and close every open report.  Comparing two strings does no
+    # coercion.
+    - name: Create or update Link Checker issue
+      if: steps.lychee.outputs.exit_code != '' && steps.lychee.outputs.exit_code != '0' && github.ref == 'refs/heads/master'
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        # Keep the oldest open report issue as canonical, fold duplicates in.
+        # Both labels are required: `gh issue list` ANDs them, so a
+        # human-written issue that merely carries "report" cannot become the
+        # canonical one and have its body overwritten by lychee output.
+        ISSUES=$(gh issue list --label "report" --label "automated issue" --state open --json number --jq '.[].number' | sort -n)
+        CANON=$(printf '%s\n' "$ISSUES" | head -1)
+        for n in $(printf '%s\n' "$ISSUES" | tail -n +2); do
+          gh issue close "$n" --comment "Duplicate of #${CANON} - auto-closed by the link checker."
+        done
+        if [ -n "$CANON" ]; then
+          gh issue edit "$CANON" --body-file ./lychee/out.md
+        else
+          gh issue create --title "Link Checker Report" --body-file ./lychee/out.md --label "report" --label "automated issue"
+        fi
+    - name: Close Link Checker issue if all links are healthy
+      if: steps.lychee.outputs.exit_code == '0' && github.ref == 'refs/heads/master'
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        for n in $(gh issue list --label "report" --label "automated issue" --state open --json number --jq '.[].number'); do
+          gh issue close "$n" --comment "All links are now healthy."
+        done
