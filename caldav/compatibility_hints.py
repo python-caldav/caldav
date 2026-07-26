@@ -1814,7 +1814,7 @@ gmx = {
     ]
 }
 
-## https://www.open-xchange.com/
+## https://ox.io/
 ## OX App Suite CalDAV served at /caldav/ (Apache proxies to /servlet/dav/caldav on port 8009).
 ## The Docker image must be built locally before use (see tests/docker-test-servers/ox/build.sh).
 ox = {
