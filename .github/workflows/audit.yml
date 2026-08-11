@@ -1,0 +1,48 @@
+---
+name: audit
+
+# Dependency vulnerability audit (pip-audit, see the `audit` env in tox.ini).
+#
+# This is deliberately *not* wired into the `tests` workflow: a new advisory
+# can be published against an unchanged dependency tree, so the audit is
+# time-triggered rather than change-triggered.  The pull_request trigger is
+# narrowed to the files that can change the dependency tree.
+on:
+  pull_request:
+    paths:
+      - pyproject.toml
+      - tox.ini
+      - .github/workflows/audit.yml
+  workflow_dispatch:
+  schedule:
+    # Mondays 04:17 UTC, well clear of the nightly link check (22:03).
+    - cron: "17 4 * * 1"
+
+# Least privilege for GITHUB_TOKEN: this workflow only reads the repository.
+# Flagged by CodeQL, see https://github.com/python-caldav/caldav/pull/694
+permissions:
+  contents: read
+
+concurrency:
+  group: audit-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  pip-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # hatch-vcs derives the version from git tags; without them the
+          # project metadata pip-audit reads cannot be built.
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip|${{ hashFiles('pyproject.toml') }}|${{ hashFiles('tox.ini') }}
+      - run: pip install tox
+      - name: Audit dependencies for known vulnerabilities
+        run: tox -e audit
