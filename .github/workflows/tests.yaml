@@ -97,7 +97,7 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: ~/.cache/pip
-          key: pip|${{ hashFiles('setup.py') }}|${{ hashFiles('tox.ini') }}
+          key: pip|${{ hashFiles('pyproject.toml') }}|${{ hashFiles('tox.ini') }}
       - run: pip install tox
       - name: Configure Baikal with pre-seeded database
         run: |
@@ -326,7 +326,7 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: ~/.cache/pip
-          key: pip|${{ hashFiles('setup.py') }}|${{ hashFiles('tox.ini') }}
+          key: pip|${{ hashFiles('pyproject.toml') }}|${{ hashFiles('tox.ini') }}
       - run: pip install tox
       - run: tox -e docs
   style:
@@ -339,7 +339,7 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: ~/.cache/pip
-          key: pip|${{ hashFiles('setup.py') }}|${{ hashFiles('tox.ini') }}
+          key: pip|${{ hashFiles('pyproject.toml') }}|${{ hashFiles('tox.ini') }}
       - uses: actions/cache@v4
         with:
           path: ~/.cache/pre-commit
@@ -356,7 +356,7 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: ~/.cache/pip
-          key: pip|${{ hashFiles('setup.py') }}|${{ hashFiles('tox.ini') }}
+          key: pip|${{ hashFiles('pyproject.toml') }}|${{ hashFiles('tox.ini') }}
       - run: pip install tox
       - run: tox -e deptry
   # The three async-* jobs below exist to test the async backend *selection* logic,
