@@ -87,17 +87,6 @@ test = [
   #"caldav_server_tester"
   "deptry>=0.24.0; python_version >= '3.10'",
 ]
-[tool.setuptools_scm]
-write_to = "caldav/_version.py"
-
-[tool.setuptools]
-py-modules = ["caldav"]
-include-package-data = true
-
-[tool.setuptools.packages.find]
-exclude = ["tests"]
-namespaces = false
-
 [tool.deptry]
 ignore = ["DEP002"]  # Test dependencies (pytest, coverage, etc.) are not imported in main code
 
