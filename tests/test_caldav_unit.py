@@ -446,6 +446,57 @@ class TestCalDAV:
         with pytest.raises(error.NotFoundError):
             object.load_by_multiget()
 
+    def testPropfindResponseLevelNotFound(self):
+        """A PROPFIND answered with a response-level 404 must raise NotFoundError.
+
+        RFC 4918 section 14.24 lets a <response> carry either propstat
+        elements or a bare <status>, so a server may report "this resource
+        does not exist" inside a 207 Multi-Status rather than as a transport
+        level 404.  Xandikos does exactly that for PROPFIND on a missing
+        collection (while answering REPORT on the very same URL with a plain
+        404).  We used to look only at the propstats, find none, and hand the
+        caller a None value for every requested property.
+        """
+        xml = """
+<D:multistatus xmlns:D="DAV:">
+  <D:response>
+    <D:href>/calendars/shouldnotexist/</D:href>
+    <D:status>HTTP/1.1 404 Not Found</D:status>
+  </D:response>
+</D:multistatus>"""
+        client = MockedDAVClient(xml)
+        calendar = Calendar(client, url="/calendars/shouldnotexist/")
+        with pytest.raises(error.NotFoundError):
+            calendar.get_display_name()
+        with pytest.raises(error.NotFoundError):
+            calendar.get_properties([dav.DisplayName()])
+
+    def testPropfindResponseLevelNotFoundOnlyWhenAllAreMissing(self):
+        """A 404 for one href among several must NOT raise.
+
+        On a Depth: 1 PROPFIND a single missing child is a normal, expected
+        part of the reply - only a reply where nothing at all was found means
+        the requested resource is gone.
+        """
+        xml = """
+<D:multistatus xmlns:D="DAV:">
+  <D:response>
+    <D:href>/calendars/</D:href>
+    <D:propstat>
+      <D:prop><D:displayname>calendars</D:displayname></D:prop>
+      <D:status>HTTP/1.1 200 OK</D:status>
+    </D:propstat>
+  </D:response>
+  <D:response>
+    <D:href>/calendars/vanished/</D:href>
+    <D:status>HTTP/1.1 404 Not Found</D:status>
+  </D:response>
+</D:multistatus>"""
+        client = MockedDAVClient(xml)
+        calendar = Calendar(client, url="/calendars/")
+        props = calendar.get_properties([dav.DisplayName()], depth=1)
+        assert props[dav.DisplayName.tag] == "calendars"
+
     @mock.patch("caldav.davclient.requests.Session.request")
     def testRequestCustomHeaders(self, mocked):
         """
