@@ -4,6 +4,9 @@ services:
     container_name: nextcloud-test
     ports:
       - "8801:80"
+    # Read by the custom entrypoint below, not by the image's own entrypoint —
+    # keep the two in sync, an ignored variable here silently misconfigures the
+    # setup script (SQLITE_DATABASE decides the data/<name>.db file name).
     environment:
       - SQLITE_DATABASE=nextcloud
       - NEXTCLOUD_ADMIN_USER=admin
@@ -32,10 +35,11 @@ services:
           echo "Running Nextcloud installation..."
           su -s /bin/bash www-data -c "php /var/www/html/occ maintenance:install \
             --database=sqlite \
-            --admin-user=admin \
-            --admin-pass=admin"
+            --database-name=${SQLITE_DATABASE:-nextcloud} \
+            --admin-user=${NEXTCLOUD_ADMIN_USER:-admin} \
+            --admin-pass=${NEXTCLOUD_ADMIN_PASSWORD:-admin}"
           # Set trusted domains
-          su -s /bin/bash www-data -c "php /var/www/html/occ config:system:set trusted_domains 0 --value=localhost"
+          su -s /bin/bash www-data -c "php /var/www/html/occ config:system:set trusted_domains 0 --value=${NEXTCLOUD_TRUSTED_DOMAINS:-localhost}"
         fi
 
         # Start apache

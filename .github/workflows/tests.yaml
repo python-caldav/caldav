@@ -183,13 +183,28 @@ jobs:
           docker exec ${{ job.services.nextcloud.id }} php occ config:system:set ratelimit.whitelist.0 --value='172.17.0.0/16' || true
           docker exec ${{ job.services.nextcloud.id }} php occ config:system:set ratelimit.whitelist.1 --value='127.0.0.1' || true
 
-          # Clear rate limit cache
-          docker exec ${{ job.services.nextcloud.id }} php -r "
-          \$db = new PDO('sqlite:/var/www/html/data/nextcloud.db');
-          \$db->exec('DELETE FROM oc_ratelimit_entries');
-          \$db->exec('DELETE FROM oc_bruteforce_attempts');
-          echo 'Cleared rate limit and bruteforce caches\n';
-          " || true
+          # Clear rate limit cache.  The SQLite file is named after the `dbname`
+          # config value, which defaults to `owncloud` — look it up rather than
+          # guessing, and check it exists first: PDO creates a missing SQLite
+          # file, so a wrong path silently yields "no such table" for every
+          # DELETE below.
+          DB_NAME=$(docker exec ${{ job.services.nextcloud.id }} php occ config:system:get dbname 2>/dev/null | tr -d '\r\n')
+          DB_PATH="/var/www/html/data/${DB_NAME:-owncloud}.db"
+          if docker exec ${{ job.services.nextcloud.id }} test -f "$DB_PATH"; then
+            docker exec ${{ job.services.nextcloud.id }} php -r "
+            \$db = new PDO('sqlite:$DB_PATH');
+            foreach (['oc_ratelimit_entries', 'oc_bruteforce_attempts'] as \$table) {
+                try {
+                    \$db->exec(\"DELETE FROM \$table\");
+                } catch (PDOException \$e) {
+                    fwrite(STDERR, \"skipping \$table: \" . \$e->getMessage() . \"\n\");
+                }
+            }
+            echo \"Cleared rate limit and bruteforce caches\n\";
+            " || true
+          else
+            echo "No database found at $DB_PATH — skipping cache cleanup"
+          fi
 
           echo "Nextcloud is configured!"
       - name: Configure Cyrus

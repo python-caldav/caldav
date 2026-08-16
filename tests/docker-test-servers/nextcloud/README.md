@@ -94,6 +94,18 @@ docker-compose ps
 docker inspect nextcloud-test
 ```
 
+### Every request returns HTTP 500
+Usually a root-owned file inside `/var/www/html` that the server (running as
+`www-data`) cannot write — `config.php` and the files under `data/` are the
+usual suspects:
+```bash
+docker exec nextcloud-test find /var/www/html -user root -not -type l
+```
+`occ` must therefore always be invoked as the web server user
+(`docker exec -u www-data ...`, which is what `setup_nextcloud.sh` does); running
+it as root is what creates such files in the first place. `./stop.sh && ./start.sh`
+clears it, since the tree lives on tmpfs.
+
 ### Reset Nextcloud
 ```bash
 # Stop and remove container with volumes (WARNING: deletes all data)
