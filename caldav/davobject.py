@@ -407,6 +407,13 @@ class DAVObject:
         if not parse_response_xml:
             return response
 
+        ## A 207 whose responses are all bare 404s means the resource we
+        ## asked about is not there.  Without this the propstat-oriented
+        ## parsing below finds nothing and hands the caller a dict of None
+        ## values instead - see DAVResponse.all_responses_not_found().
+        if response.all_responses_not_found():
+            raise error.NotFoundError(f"{self.url} not found on the server")
+
         # Use protocol layer results when available and parse_props=True
         if parse_props and response.results:
             # Convert results to the expected {href: {tag: value}} format

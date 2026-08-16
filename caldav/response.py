@@ -595,6 +595,35 @@ class DAVResponse:
     ## protocol.xml_parsers layer is a better approach.  Look for more
     ## cases of old code that was is still remaining after the
     ## protocol layer refactoring
+    def all_responses_not_found(self) -> bool:
+        """True if the multistatus consists solely of response-level 404s.
+
+        RFC 4918 §14.24 lets a ``<response>`` carry a bare ``<status>``
+        instead of one or more ``<propstat>`` elements, so a server may
+        report "this resource does not exist" inside a 207 Multi-Status
+        rather than as a transport-level 404.  Xandikos answers PROPFIND on
+        a missing collection that way (while answering REPORT on the very
+        same URL with a plain 404).
+
+        A 404 for one href among several is normal on ``Depth: 1`` and must
+        not be treated as "the resource is gone", hence the requirement that
+        *every* response reports 404 and none carries properties.
+        """
+        if self.tree is None:
+            return False
+        responses = [r for r in self._strip_to_multistatus() if r.tag == dav.Response.tag]
+        if not responses:
+            return False
+        for response in responses:
+            ## a direct-child <status>; the ones nested inside <propstat>
+            ## are a different thing and handled by _collect_prop_elements
+            if response.find(dav.PropStat.tag) is not None:
+                return False
+            status = response.find(dav.Status.tag)
+            if status is None or "404" not in (status.text or ""):
+                return False
+        return True
+
     def _find_objects_and_props(self) -> dict[str, dict[str, _Element]]:
         """Internal implementation of find_objects_and_props without deprecation warning."""
         self.objects: dict[str, dict[str, _Element]] = {}
