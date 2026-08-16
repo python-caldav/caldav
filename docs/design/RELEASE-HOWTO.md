@@ -27,16 +27,24 @@ I have no clue on the proper procedures for doing releases, and I keep on doing 
 * Run tests (particularly the style check): `pytest` and `tox -e style`. TODO: is `tox -e style` still relevant?
 * Push the code to github: `cd ~/caldav ; git push ; git push --tags`
 * Some people relies on the github release system for finding releases - go to https://github.com/python-caldav/caldav/releases/new, choose the new tag, copy the version number and the release notes in.  Remember to check the box to make it the latest release.
-* The most important part - push to pypi:
+* The most important part - push to pypi.  Note that the virtualenv is created
+  *outside* the release clone: `python -m build` packages the directory it is
+  pointed at, and a venv sitting inside it goes straight into the tarball.
+  That is how `caldav-3.2.1.tar.gz` came to contain 1755 files under `venv/`.
   ```
+  python3 -m venv ~/caldav-release-venv
+  . ~/caldav-release-venv/bin/activate
+  pip install -U pip build twine tox
   cd ~/caldav-release
-  python3 -m venv venv
-  . venv/bin/activate
-  pip install -U pip build twine
+  tox -e package     # builds sdist+wheel and fails if anything untracked is in them
   python -m build
   python -m twine upload dist/*
   ```
-* Remove the release dir: `rm -r caldav-release`
+  `tox -e package` is the safety net for this whole class of mistake: it
+  compares the sdist file list against `git ls-files` and refuses anything git
+  does not track.  It runs in CI too, but run it here as well - CI checks the
+  *repository*, this checks the *tree you are about to upload*.
+* Remove the release dir and its venv: `rm -r ~/caldav-release ~/caldav-release-venv`
 
 ## List of mistakes to be avoided
 
@@ -48,5 +56,5 @@ This is most likely not complete, but should explain some of the "silly" steps a
 * Forgetting to add new files to the git repo
 * Having checked out a branch or tag or something, and tagging that as the new release rather than the latest HEAD.
 * Forgetting to push to pypi, or pushing something else than the tagged revision to pypi
-* Pushing out junk files in the pypi-release (i.e. .pyc-files, log files, temp files, `tests/conf_private.py`, `tests/caldav_test_servers.yaml`, etc
+* Pushing out junk files in the pypi-release (i.e. .pyc-files, log files, temp files, `tests/conf_private.py`, `tests/caldav_test_servers.yaml`, an entire `venv/`, etc).  `tox -e package` now catches this - see the build step above
 * Not adding the release to the "github releases" (I don't care much about this feature, but apparently some people check there to find the latest release version)
