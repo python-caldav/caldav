@@ -1,0 +1,62 @@
+---
+name: package
+
+# Builds the release artifacts and verifies their contents.
+#
+# Nothing in CI used to build an sdist at all, so what actually went into a
+# release was only ever discovered after it was published: caldav-3.2.1.tar.gz
+# shipped .claude/settings.json and 1755 files under venv/.  The check runs on
+# every change to the packaging configuration, and nightly, so a stray file in
+# a contributor's tree cannot ride along into a tarball unnoticed.
+#
+# See tests/tools/check_dist.py for what is verified.
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    paths:
+      - pyproject.toml
+      - tox.ini
+      - MANIFEST.in
+      - .gitignore
+      - tests/tools/check_dist.py
+      - .github/workflows/package.yml
+  workflow_dispatch:
+  schedule:
+    # Sundays 05:23 UTC, clear of the Monday audit (04:17) and the nightly
+    # link check (22:03).
+    - cron: "23 5 * * 0"
+
+concurrency:
+  group: package-${{ github.ref }}
+  cancel-in-progress: true
+
+# Least privilege for GITHUB_TOKEN: this workflow only reads the repository.
+# Flagged by CodeQL, see https://github.com/python-caldav/caldav/pull/694
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # hatch-vcs derives the version from git tags.
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip|${{ hashFiles('pyproject.toml') }}|${{ hashFiles('tox.ini') }}
+      - run: pip install tox
+      - name: Build sdist and wheel, and check what is in them
+        run: tox -e package
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: .tox/package/tmp/dist/*
+          if-no-files-found: error

@@ -9,19 +9,39 @@ source = "vcs"
 version-file = "caldav/_version.py"
 
 [tool.hatch.build.targets.sdist]
+## The release is built from a clean checkout (see docs/design/RELEASE-HOWTO.md)
+## and `tox -e package` fails if the sdist contains a single file git does not
+## track, so this list does not have to enumerate every kind of junk - it only
+## has to keep an *ordinary working tree* buildable.
+##
+## The reason it is needed at all: hatchling's VCS-ignore support honours only
+## the ROOT .gitignore.  A file hidden from `git status` by a nested .gitignore,
+## or by the developer's global git ignore file, is invisible locally and lands
+## in the tarball anyway.  caldav-3.2.1.tar.gz shipped .claude/settings.json and
+## 1755 files under venv/ that way - the venv because RELEASE-HOWTO used to
+## create it inside the release clone.
 exclude = [
-  ".#*",      # Emacs lock files
-  "#*#",      # Emacs auto-save files
-  "*~",       # Backup files
-  "*.swp",    # Vim swap files
-  "*.pyc",    # Python bytecode
+  ".#*",        # Emacs lock files
+  "\\#*\\#",    # Emacs auto-save files - a bare "#" starts a comment
+  "*~",         # Backup files
+  "*.swp",      # Vim swap files
+  "*.pyc",      # Python bytecode
   "__pycache__",
+  ".claude",    # per-directory AI harness settings
+  ".prompts",   # AI prompt archive
+  ".pytest_cache",
+  ".ruff_cache",
+  "venv",
+  "/docs/build",
+  "/tests/caldav_test_servers.yaml",  # may hold credentials
+  "/tests/conf_private.py",
 ]
 
 [tool.hatch.build.targets.wheel]
+packages = ["caldav"]
 exclude = [
   ".#*",
-  "#*#",
+  "\\#*\\#",
   "*~",
   "*.swp",
   "*.pyc",

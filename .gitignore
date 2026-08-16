@@ -21,12 +21,15 @@ accountific.db
 tests/.noseids
 *.bak
 *~
-#*#
+# Emacs auto-save files.  The backslashes are required: a bare "#" starts a
+# comment, so the pattern was silently a no-op.
+\#*\#
 caldav.egg-info/
 tests/conf_private.py
 .tox
 .eggs
 .venv
+venv
 caldav/_version.py
 tests/docker-test-servers/baikal/baikal-backup/
 tests/docker-test-servers/*/baikal-backup/
@@ -36,3 +39,5 @@ tests/docker-test-servers/*/baikal-backup/
 tests/caldav_test_servers.yaml
 # Lychee link checker cache
 .lycheecache
+# Scratch files from AI sessions (review notes, draft commit messages)
+docs/design/tmp-*
