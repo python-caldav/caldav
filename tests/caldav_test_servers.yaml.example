@@ -34,6 +34,9 @@ test-servers:
   # when Docker is not available, and a running container is auto-detected
   # even without a config entry, so listing them here is mainly to opt in or
   # out explicitly and to override credentials/ports.
+  #
+  # To switch off the docker servers as a group, without editing this file,
+  # set PYTHON_CALDAV_TEST_DOCKER=0 (see tests/README.md).
 
   baikal:
     type: docker

@@ -187,6 +187,16 @@ class ServerRegistry:
                 continue
 
             if not server_config.get("enabled", True):
+                # auto_discover() has already registered every
+                # docker-test-servers/* directory by the time this runs, so
+                # merely skipping the config entry would leave the server
+                # enabled - the opposite of what the config file says.
+                # Disable the registered instance instead.
+                already_registered = next(
+                    (k for k in self._servers if k.lower() == name.lower()), None
+                )
+                if already_registered is not None:
+                    self._servers[already_registered].config["enabled"] = False
                 continue
 
             # Keys that only carry test-specific metadata, not connection config.

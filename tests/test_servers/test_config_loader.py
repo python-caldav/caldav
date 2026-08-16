@@ -124,3 +124,56 @@ rfc6638_users:
         cfg = load_test_server_config(str(config_file))
         assert "rfc6638_users" in cfg
         assert cfg["rfc6638_users"][0]["url"] == "http://localhost:8802/dav/calendars/user/user1"
+
+
+class TestEnabledFalseDisablesRegisteredServer:
+    """Gate finding F16: `enabled: false` was a no-op for docker servers.
+
+    ``auto_discover()`` registers every ``docker-test-servers/*`` directory
+    before ``load_from_config()`` runs, and the ``enabled`` check only skipped
+    the *config entry* -- the already-registered server stayed enabled.  So a
+    user who copied the example file and had Docker got every server run
+    anyway, the opposite of what the file says.
+    """
+
+    def _registry_with_registered_server(self):
+        from .base import TestServer
+        from .registry import ServerRegistry
+
+        class _FakeDocker(TestServer):
+            server_type = "docker"
+
+            def start(self) -> None: ...
+
+            def stop(self) -> None: ...
+
+            def is_running(self) -> bool:
+                return True
+
+            def is_accessible(self) -> bool:
+                return True
+
+            @property
+            def url(self) -> str:
+                return "http://localhost:8800/"
+
+        registry = ServerRegistry()
+        registry.register(_FakeDocker({"name": "baikal", "host": "localhost", "port": 8800}))
+        return registry
+
+    def test_enabled_false_disables_an_autodiscovered_server(self, monkeypatch) -> None:
+        monkeypatch.delenv("PYTHON_CALDAV_TEST_DOCKER", raising=False)
+        registry = self._registry_with_registered_server()
+        assert [s.name for s in registry.enabled_servers()] == ["baikal"]
+
+        registry.load_from_config({"baikal": {"type": "docker", "enabled": False}})
+
+        assert registry.enabled_servers() == []
+
+    def test_enabled_true_leaves_it_alone(self, monkeypatch) -> None:
+        monkeypatch.delenv("PYTHON_CALDAV_TEST_DOCKER", raising=False)
+        registry = self._registry_with_registered_server()
+
+        registry.load_from_config({"baikal": {"type": "docker", "enabled": True}})
+
+        assert [s.name for s in registry.enabled_servers()] == ["baikal"]

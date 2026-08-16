@@ -96,6 +96,26 @@ my-server:
 
 You can also use defaults: `${VAR:-default_value}`
 
+Three environment variables switch off a whole *category* of test servers.
+Each defaults to enabled; set it to `0` (or `false`/`no`/`off`) to turn the
+category off:
+
+| Variable | Turns off |
+| --- | --- |
+| `PYTHON_CALDAV_TEST_EMBEDDED` | Xandikos and Radicale, which run in-process |
+| `PYTHON_CALDAV_TEST_DOCKER` | every server under `docker-test-servers/` |
+| `PYTHON_CALDAV_TEST_EXTERNAL` | servers configured in `caldav_test_servers.yaml` |
+
+This is the quickest way to skip the Docker servers on a machine that has
+Docker running but where you only want a fast offline test run:
+
+```bash
+PYTHON_CALDAV_TEST_DOCKER=0 pytest tests/test_caldav.py
+```
+
+Individual servers are switched off with `enabled: false` on their entry in
+`caldav_test_servers.yaml`.
+
 ### Migration from conf_private.py
 
 If you have an existing `conf_private.py`, a migration script is provided:
