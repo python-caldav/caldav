@@ -222,6 +222,35 @@ Tests run automatically on GitHub Actions for:
 
 See `.github/workflows/tests.yaml` for the full CI configuration.
 
+### testCheckCompatibility does not run in CI
+
+`testCheckCompatibility` is the test that validates the declared feature
+matrix in `caldav/compatibility_hints.py` against what the servers actually
+do.  It needs the [caldav-server-tester][cst] package, which is deliberately
+*not* in the `test` extra, so the test skips itself unless you install it
+yourself.  Two reasons:
+
+* `caldav_server_tester` depends on `caldav`, so listing it would put a
+  dependency cycle into the published metadata.
+* the checker's probe set has to move in lockstep with
+  `compatibility_hints.py`.  A *released* checker only probes the features
+  that existed when it shipped — 1.2.0 probes 63 where the current checkout
+  probes 82 — so CI would report success while covering none of the features
+  a feature branch has just added.  A green run that proves nothing is worse
+  than an honest skip.
+
+So run it by hand, against a checker checkout developed in step with the
+branch you are working on:
+
+```bash
+pip install --editable ../caldav-server-tester
+pytest tests/test_caldav.py -k testCheckCompatibility
+```
+
+Expect it to take a few minutes per configured server.
+
+[cst]: https://github.com/python-caldav/caldav-server-tester
+
 ## Coverage
 
 Generate a coverage report:

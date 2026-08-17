@@ -1586,7 +1586,14 @@ class RepeatedFunctionalTestsBaseClass:
         try:
             from caldav_server_tester import ServerQuirkChecker
         except ImportError:
-            pytest.skip("caldav_server_tester is not installed")
+            ## Not in the test extra on purpose - see tests/README.md,
+            ## "testCheckCompatibility does not run in CI".  Install a
+            ## caldav-server-tester checkout that matches this branch and this
+            ## test starts working.
+            pytest.skip(
+                "caldav_server_tester is not installed - install it to run this test, "
+                "see tests/README.md"
+            )
 
         # Use pdb debug mode if pytest was run with --pdb, otherwise use logging
         debug_mode = "pdb" if request.config.option.usepdb else "logging"
