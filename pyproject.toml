@@ -104,6 +104,19 @@ test = [
   "pyfakefs",
   "httpx",
   "httpxyz",
+  ## Deliberately NOT enabled, and not an oversight.  testCheckCompatibility
+  ## skips itself without caldav_server_tester, but enabling it here buys
+  ## nothing and costs something:
+  ##  * caldav_server_tester depends on caldav, so this is a dependency cycle
+  ##    in the published metadata that every downstream packager inherits.
+  ##  * its probe set has to move in lockstep with compatibility_hints.py.  A
+  ##    *released* checker only probes the features that existed when it
+  ##    shipped - 1.2.0 probes 63 of the 82 the current checkout does - so CI
+  ##    would go green while covering none of the features a feature branch
+  ##    just added.  Green-but-vacuous is worse than skipped-and-honest.
+  ## testCheckCompatibility is therefore run manually, against a
+  ## caldav-server-tester checkout developed in step with this branch.  See
+  ## tests/README.md.
   #"caldav_server_tester"
   "deptry>=0.24.0; python_version >= '3.10'",
 ]
