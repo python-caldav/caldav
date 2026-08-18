@@ -7,6 +7,7 @@ For sync usage, see the davclient.py wrapper.
 """
 
 import asyncio
+import importlib
 import inspect
 import logging
 import sys
@@ -19,11 +20,47 @@ if TYPE_CHECKING:
     from caldav.calendarobjectresource import CalendarObjectResource
     from caldav.collection import Calendar, Principal
 
-# Try niquests first (preferred), then httpxyz, then httpx
+## Async HTTP libraries, in order of preference.  niquests is the default and
+## the one this project depends on; it is also the only one of these with HTTP/3.
+## The rest are the httpx family and share a single API, so one code path covers
+## all of them.  httpx2 is Pydantic's continuation of httpx under a new name and
+## comes first of the three; httpxyz is a maintained community fork of httpx;
+## plain httpx is last.  Note that httpxyz registers itself in sys.modules as
+## "httpx" while httpx2 does not, so code must go through the module object
+## below rather than importing httpx by name.
+## ref https://github.com/python-caldav/caldav/issues/611
+_ASYNC_HTTPX_CANDIDATES = ("httpx2", "httpxyz", "httpx")
+
+_NO_ASYNC_LIBRARY_ERROR = (
+    "An async HTTP library is required for async_davclient.  Install one of: "
+    + ", ".join(f"pip install {name}" for name in ("niquests", *_ASYNC_HTTPX_CANDIDATES))
+    + "  (niquests is recommended)"
+)
+
 _USE_HTTPX = False
 _USE_HTTPXYZ = False
 _USE_NIQUESTS = False
 _H2_AVAILABLE = False
+_HTTPX_FLAVOUR: str | None = None
+
+
+def _import_first_available(
+    candidates: tuple[str, ...],
+    importer: Any = importlib.import_module,
+) -> tuple[str | None, Any]:
+    """Import the first importable module named in candidates.
+
+    Returns (name, module), or (None, None) when none of them is installed.
+    The importer is injectable so the ordering can be tested without having to
+    install or uninstall anything.
+    """
+    for name in candidates:
+        try:
+            return name, importer(name)
+        except ImportError:
+            continue
+    return None, None
+
 
 try:
     import niquests
@@ -35,11 +72,14 @@ except ImportError:
     pass
 
 if not _USE_NIQUESTS:
-    try:
-        import httpxyz as httpx
-
-        _USE_HTTPXYZ = True
+    _HTTPX_FLAVOUR, httpx = _import_first_available(_ASYNC_HTTPX_CANDIDATES)
+    if _HTTPX_FLAVOUR is not None:
         _USE_HTTPX = True
+        ## Nothing in this module reads _USE_HTTPXYZ; it exists for the
+        ## `async (httpxyz fallback)` CI job, which imports it to assert that the
+        ## fallback it set up is the one actually in use.  _HTTPX_FLAVOUR carries
+        ## the same information for anything new.
+        _USE_HTTPXYZ = _HTTPX_FLAVOUR == "httpxyz"
         try:
             import h2  # noqa: F401
 
@@ -48,7 +88,7 @@ if not _USE_NIQUESTS:
             pass
 
         class _HttpxBearerAuth(httpx.Auth):
-            """httpx/httpxyz-compatible bearer token auth."""
+            """Bearer token auth for the httpx family (httpx, httpxyz, httpx2)."""
 
             def __init__(self, password: str) -> None:
                 self.password = password
@@ -57,40 +97,9 @@ if not _USE_NIQUESTS:
                 request.headers["Authorization"] = f"Bearer {self.password}"
                 yield request
 
-    except ImportError:
-        pass
-
-if not _USE_NIQUESTS and not _USE_HTTPXYZ:
-    try:
-        import httpx
-
-        _USE_HTTPX = True
-        try:
-            import h2  # noqa: F401
-
-            _H2_AVAILABLE = True
-        except ImportError:
-            pass
-
-        class _HttpxBearerAuth(httpx.Auth):  # type: ignore[no-redef]
-            """httpx-compatible bearer token auth."""
-
-            def __init__(self, password: str) -> None:
-                self.password = password
-
-            def auth_flow(self, request):
-                request.headers["Authorization"] = f"Bearer {self.password}"
-                yield request
-
-    except ImportError:
-        pass
 
 if not _USE_HTTPX and not _USE_NIQUESTS:
-    raise ImportError(
-        "An async HTTP library is required for async_davclient. "
-        "Install with: pip install niquests  (or: pip install httpxyz  or: pip install httpx)"
-    )
-
+    raise ImportError(_NO_ASYNC_LIBRARY_ERROR)
 
 from caldav import __version__
 from caldav.base_client import BaseDAVClient
