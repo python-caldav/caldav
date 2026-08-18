@@ -187,7 +187,7 @@ class TestAsyncDAVClient:
         if not _USE_HTTPX:
             pytest.skip("test only relevant for httpx backend")
 
-        with patch("httpx.AsyncClient") as mock_client:
+        with patch("caldav.async_davclient.httpx.AsyncClient") as mock_client:
             AsyncDAVClient(url="https://caldav.example.com/dav/")
             _, call_kwargs = mock_client.call_args
             assert "proxy" not in call_kwargs, (
@@ -201,7 +201,7 @@ class TestAsyncDAVClient:
         if not _USE_HTTPX:
             pytest.skip("test only relevant for httpx backend")
 
-        with patch("httpx.AsyncClient") as mock_client:
+        with patch("caldav.async_davclient.httpx.AsyncClient") as mock_client:
             AsyncDAVClient(
                 url="https://caldav.example.com/dav/",
                 proxy="proxy.example.com:8080",
@@ -1168,3 +1168,68 @@ class TestAsyncPrincipalCalendar:
         ):
             with pytest.raises(error.NotFoundError):
                 await principal.calendar(name="Wanted")
+
+
+class TestAsyncHttpLibrarySelection:
+    """Which async HTTP library the module picks, and what happens when none is there.
+
+    niquests is preferred; failing that, the httpx family is tried in order.
+    These tests exercise the selection itself rather than whichever library the
+    test run happens to have installed - one process can only ever have made
+    one choice, so the choosing has to be testable on its own.
+    """
+
+    def test_httpx2_is_an_accepted_library(self) -> None:
+        """https://github.com/python-caldav/caldav/issues/611 - httpx2 is Pydantic's
+        continuation of httpx and has to be usable as a fallback."""
+        from caldav.async_davclient import _ASYNC_HTTPX_CANDIDATES
+
+        assert "httpx2" in _ASYNC_HTTPX_CANDIDATES
+
+    def test_httpx2_is_preferred_over_httpxyz_and_httpx(self) -> None:
+        """A deliberate ordering decision, not an accident of the list: httpx2 is
+        the maintained continuation of httpx, httpxyz is a fork of it."""
+        from caldav.async_davclient import _ASYNC_HTTPX_CANDIDATES
+
+        order = {name: i for i, name in enumerate(_ASYNC_HTTPX_CANDIDATES)}
+        assert order["httpx2"] < order["httpxyz"] < order["httpx"]
+
+    def test_candidates_are_tried_in_order_and_stop_at_the_first_hit(self) -> None:
+        from caldav.async_davclient import _import_first_available
+
+        wanted = MagicMock(name="httpx2")
+        tried = []
+
+        def importer(name: str) -> MagicMock:
+            tried.append(name)
+            if name == "httpx2":
+                return wanted
+            raise ImportError(f"No module named {name!r}")
+
+        assert _import_first_available(("httpxyz", "httpx2", "httpx"), importer) == (
+            "httpx2",
+            wanted,
+        )
+        assert tried == ["httpxyz", "httpx2"], "should not keep importing after a hit"
+
+    def test_nothing_importable_yields_no_library(self) -> None:
+        from caldav.async_davclient import _import_first_available
+
+        def importer(name: str) -> None:
+            raise ImportError(f"No module named {name!r}")
+
+        assert _import_first_available(("httpxyz", "httpx2", "httpx"), importer) == (None, None)
+
+    def test_the_missing_library_error_names_every_option(self) -> None:
+        """The error is the only guidance a user gets, so it must list all of them."""
+        from caldav.async_davclient import _ASYNC_HTTPX_CANDIDATES, _NO_ASYNC_LIBRARY_ERROR
+
+        for name in ("niquests", *_ASYNC_HTTPX_CANDIDATES):
+            assert name in _NO_ASYNC_LIBRARY_ERROR
+
+    def test_httpxyz_is_reported_as_httpxyz(self) -> None:
+        """_USE_HTTPXYZ is asserted on by the CI fallback jobs, so it has to keep
+        meaning "the httpxyz fork specifically", not "some httpx-alike"."""
+        from caldav.async_davclient import _HTTPX_FLAVOUR, _USE_HTTPXYZ
+
+        assert _USE_HTTPXYZ == (_HTTPX_FLAVOUR == "httpxyz")

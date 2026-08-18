@@ -265,7 +265,7 @@ private servers into tests/caldav_test_servers.yaml, see tests/caldav_test_serve
 Niquests vs Requests vs HTTPX
 =============================
 
-By default, CalDAV depends on the niquests library.  Some people are not happy with that, so there exists fallbacks to utilize httpx and requests.  See the :doc:`http-libraries` document.
+By default, CalDAV depends on the niquests library.  Some people are not happy with that, so there exists fallbacks to utilize the httpx family (httpx, httpxyz, httpx2) and requests.  See the :doc:`http-libraries` document.
 
 Documentation
 =============

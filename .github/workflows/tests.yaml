@@ -433,6 +433,41 @@ jobs:
           "
       - name: Run async tests with httpxyz
         run: pytest tests/test_async_davclient.py -v
+  async-httpx2:
+    # Uninstalls niquests and httpxyz and installs httpx2 - Pydantic's
+    # continuation of httpx, a separate package rather than a new httpx release.
+    # Unlike httpxyz it does not register itself in sys.modules as "httpx", so
+    # this job is what catches code that reaches for httpx by name.
+    # Runs unit tests plus the Xandikos async integration tests (embedded, no
+    # service container needed), so the backend is exercised over real HTTP.
+    name: async (httpx2 fallback)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies with httpx2, without niquests or httpxyz
+        run: |
+          pip install --editable .[test]
+          pip uninstall -y niquests httpxyz httpx
+          pip install httpx2
+      - name: Verify httpx2 is used
+        run: |
+          python -c "
+          from caldav.async_davclient import _HTTPX_FLAVOUR, _USE_HTTPX, _USE_HTTPXYZ, _USE_NIQUESTS
+          assert not _USE_NIQUESTS, 'niquests should not be available'
+          assert not _USE_HTTPXYZ, 'httpxyz should not be available'
+          assert _USE_HTTPX, '_USE_HTTPX should be set when httpx2 is used'
+          assert _HTTPX_FLAVOUR == 'httpx2', f'expected httpx2, got {_HTTPX_FLAVOUR}'
+          print('✓ Using httpx2 for async HTTP')
+          "
+      - name: Run async tests with httpx2
+        # Xandikos runs embedded, so no service container is needed; the
+        # selection is deliberately narrow rather than "everything not baikal",
+        # since the runner has docker and would otherwise auto-discover the
+        # docker test servers.
+        run: pytest tests/test_async_davclient.py tests/test_async_integration.py -v -k "xandikos or Xandikos"
   async-httpx:
     # Uninstalls both niquests and httpxyz to force the plain-httpx fallback path.
     # Runs unit tests + a real integration test against Baikal (the lightest server)
