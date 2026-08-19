@@ -18,6 +18,8 @@ from typing import TYPE_CHECKING
 
 import icalendar
 
+from caldav.lib.vcal import parse_ical
+
 if TYPE_CHECKING:
     import vobject
 
@@ -126,7 +128,11 @@ class RawDataState(DataState):
         return self._data
 
     def get_icalendar_copy(self) -> icalendar.Calendar:
-        return icalendar.Calendar.from_ical(self._data)
+        ## parse_ical() rather than from_ical(): this is the one parse that gets
+        ## fed straight from a server response, so an empty or non-iCalendar
+        ## body has to say so rather than surfacing as a bare ValueError from
+        ## deep inside icalendar.
+        return parse_ical(self._data)
 
     def get_vobject_copy(self) -> vobject.base.Component:
         import vobject
@@ -171,7 +177,7 @@ class IcalendarState(DataState):
 
     def get_icalendar_copy(self) -> icalendar.Calendar:
         # Parse from serialized form to get a true copy
-        return icalendar.Calendar.from_ical(self.get_data())
+        return parse_ical(self.get_data())
 
     def get_authoritative_icalendar(self) -> icalendar.Calendar:
         """Returns THE icalendar object (not a copy).
@@ -214,7 +220,7 @@ class VobjectState(DataState):
         return self._vobject.serialize()
 
     def get_icalendar_copy(self) -> icalendar.Calendar:
-        return icalendar.Calendar.from_ical(self.get_data())
+        return parse_ical(self.get_data())
 
     def get_vobject_copy(self) -> vobject.base.Component:
         import vobject

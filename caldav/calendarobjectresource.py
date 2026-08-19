@@ -1673,7 +1673,7 @@ class CalendarObjectResource(DAVObject):
         if not self._icalendar_instance:
             if not self.data:
                 return None
-            self.icalendar_instance = icalendar.Calendar.from_ical(to_unicode(self.data))
+            self.icalendar_instance = vcal.parse_ical(to_unicode(self.data), context=self.url)
         return self._icalendar_instance
 
     icalendar_instance: Any = property(

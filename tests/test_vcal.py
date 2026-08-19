@@ -501,3 +501,49 @@ END:VCALENDAR"""
         # Must not raise — return something (possibly unchanged input)
         result = vcal.fix(truncated)
         assert result is not None
+
+
+class TestParseIcal(TestCase):
+    """vcal.parse_ical() - the guard in front of icalendar.Calendar.from_ical().
+
+    A server may hand us a body with no iCalendar in it at all.  from_ical()
+    answers that with `ValueError: Found no components where exactly one is
+    required`, which says nothing about where the data came from.
+    """
+
+    def test_valid_calendar_parses(self) -> None:
+        cal = vcal.parse_ical(ev)
+        assert isinstance(cal, icalendar.Calendar)
+        assert [c.name for c in cal.subcomponents] == ["VEVENT"]
+
+    def test_empty_data_raises_a_caldav_error(self) -> None:
+        from caldav.lib import error
+
+        for empty in ("", "   ", "\r\n\r\n", None):
+            with pytest.raises(error.ResponseError):
+                vcal.parse_ical(empty)
+
+    def test_data_without_any_component_raises_a_caldav_error(self) -> None:
+        """An HTML error page, a bare header, a JSON body - anything with no BEGIN:."""
+        from caldav.lib import error
+
+        with pytest.raises(error.ResponseError):
+            vcal.parse_ical("<html><body>404 not found</body></html>")
+
+    def test_the_error_says_what_arrived_and_where_from(self) -> None:
+        from caldav.lib import error
+
+        with pytest.raises(error.ResponseError) as excinfo:
+            vcal.parse_ical("<html>404</html>", context="https://cal.example.com/inbox/1.ics")
+        message = str(excinfo.value)
+        assert "https://cal.example.com/inbox/1.ics" in message
+        assert "<html>404</html>" in message
+
+    def test_malformed_but_recognisable_ical_is_left_to_icalendar(self) -> None:
+        """The guard is deliberately narrow: data that does contain a component
+        keeps whatever icalendar makes of it, rather than being reclassified."""
+        with pytest.raises(ValueError) as excinfo:
+            vcal.parse_ical("BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\n")
+        from caldav.lib import error
+
+        assert not isinstance(excinfo.value, error.ResponseError)

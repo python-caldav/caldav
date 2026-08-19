@@ -6,10 +6,42 @@ import uuid
 
 import icalendar
 
+from caldav.lib import error
 from caldav.lib.python_utilities import to_normal_str
 
 ## Global counter.  We don't want to be too verbose on the users, ref https://github.com/home-assistant/core/issues/86938
 fixup_error_loggings = 0
+
+
+def parse_ical(data, context: str | None = None) -> icalendar.Calendar:
+    """icalendar.Calendar.from_ical(), with a usable error for a body that
+    holds no iCalendar at all.
+
+    Servers do send such bodies: an empty object in a scheduling inbox, an HTML
+    error page delivered with a 200, a notification carrying only headers.
+    from_ical() answers with `ValueError: Found no components where exactly one
+    is required`, which names neither the object the data came from nor the fact
+    that it came off the wire - so the traceback tells you almost nothing.
+
+    The guard is deliberately narrow.  Data that does contain a component is
+    handed to icalendar unchanged, whatever it then makes of it: reclassifying
+    every parse failure as a server error would hide client-side bugs.
+
+    Args:
+        data: the body, str or bytes.
+        context: where it came from, typically a URL.  Included in the error.
+
+    Raises:
+        error.ResponseError: when the body contains no iCalendar component.
+    """
+    text = to_normal_str(data) if data is not None else ""
+    if "BEGIN:" not in text.upper():
+        where = f" from {context}" if context else ""
+        raise error.ResponseError(
+            f"no iCalendar data{where}: the body holds no BEGIN: line, got {text.strip()[:200]!r}"
+        )
+    return icalendar.Calendar.from_ical(data)
+
 
 ## Fixups to the icalendar data to work around compatibility issues.
 
