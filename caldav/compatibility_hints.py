@@ -1924,6 +1924,14 @@ ox = {
     ## feature from the conclusive VEVENT result.  (Previously mis-reported as a
     ## VTODO/VEVENT asymmetry; see the old "checker problem" note here.)
     'search.time-range.open.start.duration': {'support': 'full'},
+    ## Rate limiting.  One may want to override this in production.
+    'rate-limit': {
+        'enable': True,
+        'interval': 300,
+        'count': 1500,
+        'max_sleep': 350,
+        'default_sleep': 20
+    }
 }
 
 ## Infomaniak (https://www.infomaniak.com/) - kSuite calendar, CalDAV served at
