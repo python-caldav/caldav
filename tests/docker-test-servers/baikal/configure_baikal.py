@@ -128,10 +128,12 @@ def create_baikal_database(db_path: Path, username: str, password: str) -> None:
 def main() -> int:
     """Main function."""
     # Get configuration from environment
+    ## BAIKAL_ADMIN_PASSWORD and BAIKAL_PASSWORD are read by
+    ## create_baikal_config() / create_baikal_database(), which main() only
+    ## prints instructions for rather than calling; both are documented in the
+    ## module docstring.
     baikal_url = os.environ.get("BAIKAL_URL", "http://localhost:8800")
-    admin_password = os.environ.get("BAIKAL_ADMIN_PASSWORD", "admin")
     username = os.environ.get("BAIKAL_USERNAME", "testuser")
-    password = os.environ.get("BAIKAL_PASSWORD", "testpass")
 
     print(f"Configuring Baikal at {baikal_url}")
     print(f"Test user: {username}")

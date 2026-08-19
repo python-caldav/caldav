@@ -625,7 +625,9 @@ class FeatureSet:
                 self._old_flags = feature_set[feature]
                 continue
             try:
-                feature_info = self.find_feature(feature)
+                ## called for the exception, not the return value: an unknown
+                ## feature name is a typo in the configuration and gets a warning
+                self.find_feature(feature)
             except (AssertionError, KeyError):
                 warnings.warn(
                     f"Unknown feature '{feature}' in configuration. "

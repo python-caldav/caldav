@@ -150,14 +150,14 @@ ignore = [
     "E722",    # Bare except — 28 violations, each needs case-by-case review
     "F401",    # Unused imports — many are re-exports or conditional; needs audit
     "F821",    # Undefined names — often in TYPE_CHECKING blocks or docstrings
-    "F841",    # Unused variables — often intentional (e.g. unpacking)
     "UP031",   # %-format — 31 violations; ruff only offers unsafe auto-fix
 ]
 
 [tool.ruff.lint.per-file-ignores]
-# Examples and docs may have undefined names for illustration
-"examples/*.py" = ["F821"]
-"docs/**/*.py" = ["F821"]
+# Examples and docs may have undefined names for illustration, and an unused
+# variable there is the point: it shows what a method hands back.
+"examples/*.py" = ["F821", "F841"]
+"docs/**/*.py" = ["F821", "F841"]
 # Tests may use assertions and have unusual patterns
 "tests/*.py" = ["B011", "B017"]
 
