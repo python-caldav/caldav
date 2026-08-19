@@ -1148,6 +1148,7 @@ class _TestSchedulingBase:
             _make_ical("Original summary"),
             [self.principals[0], attendee_addr],
         )
+        assert saved is not None
         self._auto_scheduled_event_uids.append(uid)
 
         ## Find the attendee's copy and record the tag
@@ -1662,7 +1663,9 @@ class RepeatedFunctionalTestsBaseClass:
     def testSchedulingInfo(self):
         self.skip_unless_support("scheduling.calendar-user-address-set")
         calendar_user_address_set = self.principal.calendar_user_address_set()
+        assert calendar_user_address_set is not None
         me_a_participant = self.principal.get_vcal_address()
+        assert me_a_participant is not None
 
     def testAddOrganizer(self):
         """add_organizer() sets ORGANIZER from the current principal (issue #524).
@@ -1754,7 +1757,9 @@ END:VCALENDAR
     def testSchedulingMailboxes(self):
         self.skip_unless_support("scheduling.mailbox")
         inbox = self.principal.schedule_inbox()
+        assert inbox is not None
         outbox = self.principal.schedule_outbox()
+        assert outbox is not None
 
     def testFindCalendarOwner(self):
         cal = self._fixCalendar()
@@ -1913,6 +1918,7 @@ END:VCALENDAR"""
 
         str_ = str(c)
         repr_ = repr(c)
+        assert str_ and repr_
 
         ## Not sure if those asserts make much sense, the main point here is to exercise
         ## the __str__ and __repr__ methods on the Calendar object.
@@ -2166,6 +2172,7 @@ END:VCALENDAR"""
         ## Parametrized test - we should test both with the Calendar object and the Event object
         obj = {"Calendar": icalcal, "Event": icalevent}[klass]
         event = c.add_event(obj)
+        assert event is not None
         events = c.get_events()
         assert len([x for x in events if x.icalendar_component["uid"] == "ctuid1"]) == 1
 
@@ -2180,6 +2187,7 @@ END:VCALENDAR"""
             alarm_trigger=timedelta(minutes=-15),
             alarm_action="AUDIO",
         )
+        assert ev is not None
 
         self.skip_unless_support("search.time-range.alarm")
 
@@ -2509,6 +2517,7 @@ END:VCALENDAR"""
             self._teardownCalendar(cal_id=self.testcal_id2)
         c1 = self._fixCalendar(name="Yep", cal_id=self.testcal_id)
         c2 = self._fixCalendar(name="Yapp", cal_id=self.testcal_id2)
+        assert c2 is not None
 
         e1_ = c1.add_event(near_now_ics(ev1))
         if not self.check_compatibility_flag("event_by_url_is_broken"):
@@ -2539,6 +2548,7 @@ END:VCALENDAR"""
         assert not len(c1.get_events())
         assert not len(c2.get_events())
         e1_ = c1.add_event(near_now_ics(ev1))
+        assert e1_ is not None
         e1 = c1.get_events()[0]
 
         if self.is_supported("save.duplicate-event"):
@@ -2808,17 +2818,20 @@ END:VCALENDAR"""
             dtstart=datetime.now() + timedelta(minutes=15),
             uid="test2",
         )
+        assert t2 is not None
         t3 = c.add_todo(
             summary="3 task future due",
             due=datetime.now() + timedelta(hours=15),
             dtstart=datetime(2022, 12, 11, 10, 9, 8),
             uid="test3",
         )
+        assert t3 is not None
         t4 = c.add_todo(
             summary="4 task priority is set to nine which is the lowest",
             priority=9,
             uid="test4",
         )
+        assert t4 is not None
         t5 = c.add_todo(
             summary="5 task status is set to COMPLETED and this will disappear from the ordinary todo search",
             status="COMPLETED",
@@ -2830,6 +2843,7 @@ END:VCALENDAR"""
             categories="home,garden,sunshine",
             uid="test6",
         )
+        assert t6 is not None
 
         def check_order(tasks, order):
             assert [str(x.icalendar_component["uid"]) for x in tasks] == [
@@ -2871,9 +2885,12 @@ END:VCALENDAR"""
         pre_cnt = len(c.get_todos())
 
         t1 = c.add_todo(todo)
+        assert t1 is not None
         t2 = c.add_todo(todo2)
+        assert t2 is not None
         t3 = c.add_todo(todo3)
         t4 = c.add_todo(todo4)
+        assert t4 is not None
         t5 = c.add_todo(todo5)
         t6 = c.add_todo(todo6)
 
@@ -3227,6 +3244,7 @@ END:VCALENDAR"""
             uid="ctuid4",
             parent=[some_todo.id],
         )
+        assert child is not None
 
         ## This should still work out (set the children due to some time before the parents due)
         ## (The fact that we now have a child does not affect it anyhow)
@@ -3261,6 +3279,7 @@ END:VCALENDAR"""
             description="A quick birth, in the middle of the night",
             uid="ctuid1",
         )
+        assert j2 is not None
         assert len(c.get_journals()) == 2
         assert len(c.search(journal=True)) == 2
         todos = c.get_todos()
@@ -3302,6 +3321,7 @@ END:VCALENDAR"""
         assert len(todos2) == 1
 
         t3 = c.add_todo(summary="mop the floor", categories=["housework"], priority=4, uid="ctuid1")
+        assert t3 is not None
         assert len(c.get_todos()) == 2
 
         # adding a todo without a UID, it should also work (library will add the missing UID)
@@ -3443,9 +3463,12 @@ END:VCALENDAR"""
         # add todo-item
         t1 = c.add_todo(todo)
         t2 = c.add_todo(todo2)
+        assert t2 is not None
         t3 = c.add_todo(todo3)
+        assert t3 is not None
         t4 = c.add_todo(todo4)
         t5 = c.add_todo(todo5)
+        assert t5 is not None
         t6 = c.add_todo(todo6)
         todos = c.get_todos()
         assert len(todos) == 6
@@ -3743,6 +3766,7 @@ END:VCALENDAR"""
 
         # add todo-items
         t1 = c.add_todo(todo)
+        assert t1 is not None
         t2 = c.add_todo(todo2)
         t3 = c.add_todo(todo3, status="NEEDS-ACTION")
 
@@ -3852,6 +3876,7 @@ END:VCALENDAR"""
         e1 = c.add_event(
             near_now_ics(ev1).replace("Bastille Day Party", "Bringebærsyltetøyfestival")
         )
+        assert e1 is not None
 
         # fetch it back
         events = c.get_events()
@@ -3879,6 +3904,7 @@ END:VCALENDAR"""
         e1 = c.add_event(
             to_str(near_now_ics(ev1).replace("Bastille Day Party", "Bringebærsyltetøyfestival"))
         )
+        assert e1 is not None
 
         # c.get_events() should give a full list of events
         events = c.get_events()
@@ -4243,6 +4269,7 @@ END:VCALENDAR"""
         # sliding-window servers (e.g. OX) can serve the time range.
         year, narrow_start, narrow_end, wide_end = next_anniversary_windows()
         e = c.add_event(evr)
+        assert e is not None
 
         ## Without "expand", we should still find it when searching the anniversary
         with pytest.deprecated_call():
@@ -4341,6 +4368,7 @@ END:VCALENDAR"""
         # evr2 is a bi-weekly event starting 2024-04-11
         ## It has an exception, edited summary for recurrence id 20240425T123000Z
         e = c.add_event(evr2)
+        assert e is not None
 
         rc = c.search(
             start=datetime(2024, 3, 31, 0, 0),
@@ -4530,6 +4558,8 @@ END:VCALENDAR"""
             conn = client(**connect_params, url=url)
             principal = conn.principal()
             calendars = principal.get_calendars()
+            assert calendars is not None
+            assert calendars is not None
 
     def testObjects(self):
         # TODO: description ... what are we trying to test for here?
@@ -4587,15 +4617,15 @@ class TestProxy(proxy.TestCase):
     def testNoProxyRaisesError(self):
         with client(**self.server_params) as conn:
             with pytest.raises(AssertionError):
-                principal = conn.principal()
+                conn.principal()
 
     def testWithProxyParams(self):
         with client(proxy=self.proxy, **self.server_params) as conn:
-            principal = conn.principal()
+            assert conn.principal() is not None
 
     def testWithProxyParamsWithoutScheme(self):
         with client(proxy=f"localhost:{self.PROXY.flags.port}", **self.server_params) as conn:
-            principal = conn.principal()
+            assert conn.principal() is not None
 
     ## TODO: figure out how to test this properly.
     @pytest.mark.skipif(True, reason="work in progress ... this doesn't seem to work")
@@ -4603,7 +4633,7 @@ class TestProxy(proxy.TestCase):
         os.environ["HTTP_PROXY"] = self.proxy
         os.environ["HTTPS_PROXY"] = self.proxy
         with client(**self.server_params) as conn:
-            principal = conn.principal()
+            assert conn.principal() is not None
 
     ## TODO: test socks proxy as well.
     ## TODO: test https proxying as well

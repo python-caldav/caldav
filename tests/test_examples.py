@@ -52,6 +52,7 @@ class TestExamples:
 
         with get_davclient() as dav_client:
             mycal = dav_client.principal().make_calendar(name="Test calendar")
+            assert mycal is not None
             collation_usage.run_examples()
 
     def test_rfc8764_test_conf(self):

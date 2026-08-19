@@ -128,6 +128,8 @@ def test_substring_workaround_applies_for_explicit_contains() -> None:
 
     # This SHOULD trigger the workaround
     result = searcher.search(calendar)
+    ## the capturing stub returns no objects, so the post-filter has none to keep
+    assert result == []
 
     # Verify that at least one query was sent
     assert len(xml_queries) >= 1
@@ -169,10 +171,12 @@ def test_mixed_explicit_and_implicit_operators() -> None:
     def check_build(*args, **kwargs):
         xml, comp_class = original_build(*args, **kwargs)
         xml_str = str(xml)
-        # SUMMARY should be in the query (implicit, server decides)
-        # LOCATION should NOT be in query (explicit contains, removed)
-        # STATUS should be in the query (explicit ==, supported)
-        # Note: Properties are lowercased in internal storage
+        ## These three were comments describing what the query should look like,
+        ## with nothing checking any of it.  Asserted now.  Note that properties
+        ## are lowercased in internal storage but emitted uppercased.
+        assert 'name="SUMMARY"' in xml_str, "implicit operator: the server decides"
+        assert 'name="LOCATION"' not in xml_str, "explicit contains: filtered client-side"
+        assert 'name="STATUS"' in xml_str, "explicit ==: the server can do this one"
         return xml, comp_class
 
     searcher.build_search_xml_query = check_build

@@ -1665,15 +1665,6 @@ class TestJMAPClientEvents:
         # To actually delete a property the patch must set it to null.
         # An ical → jscal conversion that omits LOCATION/DESCRIPTION must send
         # {"locations": null, "description": null, ...} so the server removes them.
-        _ICAL_WITH_LOCATION = (
-            "BEGIN:VCALENDAR\r\nVERSION:2.0\r\n"
-            "BEGIN:VEVENT\r\n"
-            "UID:loc-uid@example.com\r\n"
-            "DTSTART:20240615T090000Z\r\n"
-            "SUMMARY:Event with Location\r\n"
-            "LOCATION:Old Conference Room\r\n"
-            "END:VEVENT\r\nEND:VCALENDAR\r\n"
-        )
         _ICAL_WITHOUT_LOCATION = (
             "BEGIN:VCALENDAR\r\nVERSION:2.0\r\n"
             "BEGIN:VEVENT\r\n"

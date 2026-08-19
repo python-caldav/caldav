@@ -537,7 +537,8 @@ class TestCalDAV:
         mocked().status_code = 200
         mocked().headers = {"Content-Type": "text/xml"}
         mocked().content = ""
-        client = DAVClient(url="AsdfasDF").request("/")
+        response = DAVClient(url="AsdfasDF").request("/")
+        assert response.status == 200
 
     @mock.patch("caldav.davclient.requests.Session.request")
     def testNonValidXMLNoContentLength(self, mocked):
@@ -1212,6 +1213,14 @@ END:VCALENDAR
                 "{urn:ietf:params:xml:ns:caldav}calendar-data": None,
             },
         }
+        ## This assert was missing: the XML and the expected dict above were
+        ## built and then never compared.  Note the third href is
+        ## percent-encoded in the XML and plain in the expected keys, so this
+        ## also covers the unquoting.
+        assert (
+            MockedDAVResponse(xml).expand_simple_props(props=[dav.GetEtag(), cdav.CalendarData()])
+            == expected_results
+        )
 
     def testHugeTreeParam(self):
         """
@@ -1523,12 +1532,12 @@ END:VCALENDAR
         assert isinstance(event._state, RawDataState)
 
         # edit_icalendar_instance() SHOULD change state to IcalendarState
-        with event.edit_icalendar_instance() as cal:
+        with event.edit_icalendar_instance():
             pass
         assert isinstance(event._state, IcalendarState)
 
         # edit_vobject_instance() SHOULD change state to VobjectState
-        with event.edit_vobject_instance() as vobj:
+        with event.edit_vobject_instance():
             pass
         assert isinstance(event._state, VobjectState)
 
@@ -1673,9 +1682,9 @@ END:VCALENDAR
         # Test that nested borrowing (even same type) raises error
         # This prevents confusing ownership semantics
         event2 = Event(client, data=ev1)
-        with event2.edit_icalendar_instance() as cal1:
+        with event2.edit_icalendar_instance():
             with pytest.raises(RuntimeError):
-                with event2.edit_icalendar_instance() as cal2:
+                with event2.edit_icalendar_instance():
                     pass
 
         # Test sequential edits work fine
@@ -1707,7 +1716,13 @@ END:VCALENDAR
         assert my_todo2.get_duration() == timedelta(days=6)
         assert my_todo2.get_due() == orig_start
         assert my_todo3.get_duration() == timedelta(days=5)
-        foo6 = my_todo3.get_due().strftime("%s") == "1177945200"
+        ## This used to read `foo6 = ...strftime("%s") == "1177945200"`: an
+        ## assertion assigned to a variable and never checked.  It could not have
+        ## been asserted as written either - "%s" is a glibc extension that
+        ## ignores tzinfo, so the comparison only holds in the author's own
+        ## timezone (1177945200 is 2007-04-30T16:00+02:00; in UTC the same
+        ## datetime gives 1177948800).  Asserted on the value instead.
+        assert my_todo3.get_due() == datetime(2007, 4, 30, 16, 0, tzinfo=timezone.utc)
         some_date = date(2011, 1, 1)
 
         my_todo1.set_due(some_date)
@@ -1921,7 +1936,11 @@ END:VCALENDAR"""
                 )
             )
         )
-        # print(filter)
+        filter_xml = str(filter)
+        assert 'name="VCALENDAR"' in filter_xml
+        assert 'name="VEVENT"' in filter_xml
+        assert 'name="UID"' in filter_xml
+        assert "pouet" in filter_xml
 
         crash = cdav.CompFilter()
         value = None

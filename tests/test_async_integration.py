@@ -1396,33 +1396,39 @@ class AsyncFunctionalTestsBaseClass:
             dtstart=date(2022, 10, 11),
             uid="async-sort-test1",
         )
+        assert t1 is not None
         t2 = await c.add_todo(
             summary="2 task future",
             due=datetime.now() + timedelta(hours=15),
             dtstart=datetime.now() + timedelta(minutes=15),
             uid="async-sort-test2",
         )
+        assert t2 is not None
         t3 = await c.add_todo(
             summary="3 task future due",
             due=datetime.now() + timedelta(hours=15),
             dtstart=datetime(2022, 12, 11, 10, 9, 8),
             uid="async-sort-test3",
         )
+        assert t3 is not None
         t4 = await c.add_todo(
             summary="4 task priority is set to nine which is the lowest",
             priority=9,
             uid="async-sort-test4",
         )
+        assert t4 is not None
         t5 = await c.add_todo(
             summary="5 task status is set to COMPLETED and this will disappear from the ordinary todo search",
             status="COMPLETED",
             uid="async-sort-test5",
         )
+        assert t5 is not None
         t6 = await c.add_todo(
             summary="6 task has categories",
             categories="home,garden,sunshine",
             uid="async-sort-test6",
         )
+        assert t6 is not None
 
         def check_order(tasks: list, order: tuple) -> None:
             assert [str(x.icalendar_component["uid"]) for x in tasks] == [
@@ -1667,6 +1673,7 @@ class AsyncFunctionalTestsBaseClass:
         c = async_task_list
 
         t1 = await c.add_todo(todo_static)
+        assert t1 is not None
         t2 = await c.add_todo(todo2_static)
         t3 = await c.add_todo(todo3_static, status="NEEDS-ACTION")
 
@@ -1847,7 +1854,9 @@ class AsyncFunctionalTestsBaseClass:
         self.skip_unless_support("scheduling.calendar-user-address-set")
         principal = await async_client.principal()
         calendar_user_address_set = await principal.calendar_user_address_set()
+        assert calendar_user_address_set is not None
         me_a_participant = await principal.get_vcal_address()
+        assert me_a_participant is not None
 
     @pytest.mark.asyncio
     async def test_scheduling_mailboxes(self, async_client: Any) -> None:
@@ -1855,7 +1864,9 @@ class AsyncFunctionalTestsBaseClass:
         self.skip_unless_support("scheduling.mailbox")
         principal = await async_client.principal()
         inbox = await principal.schedule_inbox()
+        assert inbox is not None
         outbox = await principal.schedule_outbox()
+        assert outbox is not None
 
     @pytest.mark.asyncio
     async def test_propfind(self, async_client: Any) -> None:
@@ -2126,6 +2137,7 @@ END:VCALENDAR
         event.change_attendee_status(attendee="testuser@example.com", PARTSTAT="ACCEPTED")
         await event.save()
         event2 = await c.get_event_by_uid("test1")
+        assert event2 is not None
 
     @pytest.mark.asyncio
     async def test_add_orphaned_recurrence(self, async_calendar: Any) -> None:
@@ -2327,6 +2339,7 @@ END:VCALENDAR"""
             conn = await self._make_async_client_with_params(url=url)
             p = await conn.principal()
             calendars = await p.get_calendars()
+            assert calendars is not None
 
     @pytest.mark.asyncio
     async def test_utf8_event(self, async_client: Any) -> None:
@@ -2432,6 +2445,7 @@ END:VCALENDAR"""
         self.skip_unless_support("save-load.todo")
         c = async_task_list
         t = await c.add_todo(uid="well_known_t1", summary="Well-known async task")
+        assert t is not None
         todos = await c.get_todos()
         assert any(str(x.icalendar_component.get("uid", "")) == "well_known_t1" for x in todos)
         obj = await c.get_object_by_uid("well_known_t1")
