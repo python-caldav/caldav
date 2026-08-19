@@ -19,6 +19,7 @@ import pytest_asyncio
 
 from caldav import Event, FreeBusy, Todo
 from caldav.compatibility_hints import FeatureSet
+from caldav.lib import error
 
 from .test_caldav import (
     ev1 as ev1_static,  # old-date (2006); distinct from ev1() near-future generator
@@ -2587,31 +2588,49 @@ class _AsyncTestSchedulingBase:
         ## scheduling asynchronously, so poll with backoff before giving up.
         new_attendee_inbox_items: list[Any] = []
         auto_scheduled = False
+        last_scan_error: Exception | None = None
         for _ in range(30):
-            ## Correlate by UID: a late METHOD:CANCEL from another scheduling
-            ## test's teardown can otherwise land here as a stray "new" item
-            ## (see testAcceptInviteUsernameEmailFallback).
-            new_attendee_inbox_items = [
-                item
-                for item in await inbox1.get_items()
-                if item.url not in inbox_urls_before and item.id == event_uid
-            ]
-            ## Check whether the server auto-scheduled the event directly into
-            ## the attendee's calendar.  The event may land in any calendar,
-            ## so search all attendee calendars for the event UID.
-            ## Always check even when inbox items were found: some servers (e.g.
-            ## Davis/sabre/dav) deliver iTIP to the inbox AND auto-schedule.
-            if not auto_scheduled:
-                for cal in await principals[1].calendars():
-                    for event in await cal.get_events():
-                        if event.id == event_uid:
-                            auto_scheduled = True
+            try:
+                ## Correlate by UID: a late METHOD:CANCEL from another scheduling
+                ## test's teardown can otherwise land here as a stray "new" item
+                ## (see testAcceptInviteUsernameEmailFallback).
+                new_attendee_inbox_items = [
+                    item
+                    for item in await inbox1.get_items()
+                    if item.url not in inbox_urls_before and item.id == event_uid
+                ]
+                ## Check whether the server auto-scheduled the event directly into
+                ## the attendee's calendar.  The event may land in any calendar,
+                ## so search all attendee calendars for the event UID.
+                ## Always check even when inbox items were found: some servers (e.g.
+                ## Davis/sabre/dav) deliver iTIP to the inbox AND auto-schedule.
+                if not auto_scheduled:
+                    for cal in await principals[1].calendars():
+                        for event in await cal.get_events():
+                            if event.id == event_uid:
+                                auto_scheduled = True
+                                break
+                        if auto_scheduled:
                             break
-                    if auto_scheduled:
-                        break
+            except (error.ResponseError, ValueError) as scan_error:
+                ## A scheduling object that is present but not yet readable - an
+                ## empty or non-iCalendar body - is exactly what this poll exists
+                ## to wait out, so it must not abort it.  Seen against Zimbra as
+                ## icalendar's "Found no components where exactly one is
+                ## required".  Kept for the failure message if we run out of
+                ## rounds, so a permanently unreadable object is still reported
+                ## rather than silently timing out.
+                last_scan_error = scan_error
+                new_attendee_inbox_items = []
             if new_attendee_inbox_items or auto_scheduled:
                 break
             await asyncio.sleep(1)
+        else:
+            if last_scan_error is not None:
+                pytest.fail(
+                    "scheduling data never became readable within 30s; last error: "
+                    f"{last_scan_error!r}"
+                )
 
         if len(new_attendee_inbox_items) == 0 or auto_scheduled:
             ## Server implements automatic scheduling.  Some servers (e.g.
