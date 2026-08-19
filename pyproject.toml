@@ -128,7 +128,11 @@ DEP001 = ["conf", "h2"]  # conf: Local test config, h2: Optional HTTP/2 support.
 ## httpxyz needed an entry here while it was imported by name; the httpx-family
 ## libraries are now imported dynamically (see _ASYNC_HTTPX_CANDIDATES), which
 ## deptry does not see at all.
-DEP003 = ["aiohttp"]  # aiohttp: optional dep used only in caldav/testing.py (XandikosServer)
+DEP003 = ["aiohttp", "h2"]  # aiohttp: optional dep used only in caldav/testing.py
+## h2 needs an entry in both DEP001 and DEP003: which of the two the optional
+## `import h2` in async_davclient.py trips depends on whether h2 happens to be
+## installed - DEP001 "missing" when it is not (CI), DEP003 "transitive" when it
+## is (a local checkout, where niquests or httpx has pulled it in).
 
 [tool.ruff]
 line-length = 100
