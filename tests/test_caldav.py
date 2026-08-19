@@ -834,27 +834,40 @@ class _TestSchedulingBase:
         ## process scheduling asynchronously, so poll with backoff before giving up.
         new_attendee_inbox_items = []
         auto_scheduled = False
+        last_scan_error = None
         for _ in range(30):
-            ## Correlate by UID: a late METHOD:CANCEL from another scheduling
-            ## test's teardown can otherwise land here as a stray "new" item
-            ## (see testAcceptInviteUsernameEmailFallback).
-            new_attendee_inbox_items = [
-                item
-                for item in self.principals[1].schedule_inbox().get_items()
-                if item.url not in inbox_items and item.id == event_uid
-            ]
-            ## Check whether the server auto-scheduled the event directly into
-            ## the attendee's calendar (server-side automatic scheduling).
-            ## The event may land in any calendar (e.g. Cyrus uses Default, not the
-            ## test calendar), so search all attendee calendars for the event UID.
-            auto_scheduled = any(
-                event.id == event_uid
-                for cal in self.principals[1].calendars()
-                for event in cal.get_events()
-            )
+            try:
+                ## Correlate by UID: a late METHOD:CANCEL from another scheduling
+                ## test's teardown can otherwise land here as a stray "new" item
+                ## (see testAcceptInviteUsernameEmailFallback).
+                new_attendee_inbox_items = [
+                    item
+                    for item in self.principals[1].schedule_inbox().get_items()
+                    if item.url not in inbox_items and item.id == event_uid
+                ]
+                ## Check whether the server auto-scheduled the event directly into
+                ## the attendee's calendar (server-side automatic scheduling).
+                ## The event may land in any calendar (e.g. Cyrus uses Default, not the
+                ## test calendar), so search all attendee calendars for the event UID.
+                auto_scheduled = any(
+                    event.id == event_uid
+                    for cal in self.principals[1].calendars()
+                    for event in cal.get_events()
+                )
+            except (error.ResponseError, ValueError) as scan_error:
+                ## Same as the async twin: a scheduling object that is present but
+                ## not yet readable is what the poll is here to wait out.
+                last_scan_error = scan_error
+                new_attendee_inbox_items = []
             if new_attendee_inbox_items or auto_scheduled:
                 break
             time.sleep(1)
+        else:
+            if last_scan_error is not None:
+                pytest.fail(
+                    "scheduling data never became readable within 30s; last error: "
+                    f"{last_scan_error!r}"
+                )
 
         if len(new_attendee_inbox_items) == 0 or auto_scheduled:
             ## Server implements automatic scheduling.  Some servers (e.g.
