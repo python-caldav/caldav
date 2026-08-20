@@ -996,10 +996,9 @@ class _TestSchedulingBase:
     ## inbox/outbox?
 
     # ------------------------------------------------------------------ #
-    # Schedule-Tag tests (RFC 6638 section 3.2–3.3)                       #
-    # All tests below are expected to FAIL until the implementation is    #
-    # complete.  See docs/design/TODO_SCHEDULE_TAG.md and                 #
-    # https://github.com/python-caldav/caldav/issues/660                  #
+    # Schedule-Tag tests (RFC 6638 section 3.2–3.3)                      #
+    # Implemented in v3.2.0, see                                         #
+    # https://github.com/python-caldav/caldav/issues/660                 #
     # ------------------------------------------------------------------ #
 
     def testScheduleTagReturnedOnSave(self):

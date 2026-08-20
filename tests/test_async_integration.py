@@ -2710,8 +2710,6 @@ class _AsyncTestSchedulingBase:
         """Saving a scheduling object must return a Schedule-Tag header.
 
         Async counterpart of testScheduleTagReturnedOnSave.
-        Expected to fail: _async_put() does not yet capture the Schedule-Tag
-        response header into event.props.
         """
         import uuid
 
@@ -2831,8 +2829,6 @@ class _AsyncTestSchedulingBase:
         """Organizer update must advance the Schedule-Tag on the attendee's copy.
 
         Async counterpart of testScheduleTagChangesOnOrganizerUpdate.
-        Expected to fail: _async_load() does not yet capture the Schedule-Tag
-        response header.
         """
         import uuid
 
@@ -2911,8 +2907,6 @@ class _AsyncTestSchedulingBase:
         """save() with a stale Schedule-Tag must raise ScheduleTagMismatchError.
 
         Async counterpart of testScheduleTagMismatchRaisesError.
-        Expected to fail: _async_put() does not yet send If-Schedule-Tag-Match
-        or raise ScheduleTagMismatchError on a 412 response.
         """
         import uuid
 
@@ -2965,8 +2959,6 @@ class _AsyncTestSchedulingBase:
         """save() with the correct Schedule-Tag must succeed.
 
         Async counterpart of testScheduleTagMatchSucceeds.
-        Expected to fail: _async_put() does not yet send If-Schedule-Tag-Match,
-        so the conditional PUT is not exercised.
         """
         import uuid
 

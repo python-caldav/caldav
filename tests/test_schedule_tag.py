@@ -77,7 +77,7 @@ def _make_event_with_tag(schedule_tag='"tag-abc"'):
 class TestScheduleTagUnit:
     """
     Pure unit tests — no server communication.
-    All tests in this class are expected to FAIL until the implementation is complete.
+    Covers the Schedule-Tag support added in v3.2.0 (RFC 6638 sections 3.2-3.3).
     """
 
     # ------------------------------------------------------------------ #
@@ -87,8 +87,6 @@ class TestScheduleTagUnit:
     def test_schedule_tag_property_returns_cached_value(self):
         """
         CalendarObjectResource.schedule_tag should expose the cached tag.
-
-        Currently fails because the property does not exist.
         """
         event = _make_event_with_tag('"tag-xyz"')
         assert event.schedule_tag == '"tag-xyz"'
@@ -160,16 +158,13 @@ class TestScheduleTagUnit:
         sent_headers = call_kwargs[1].get(
             "headers", call_kwargs[0][2] if len(call_kwargs[0]) > 2 else {}
         )
-        assert "If-Schedule-Tag-Match" in sent_headers, (
-            "If-Schedule-Tag-Match header was not sent; save() is still a no-op"
-        )
+        assert "If-Schedule-Tag-Match" in sent_headers, "If-Schedule-Tag-Match header was not sent"
         assert sent_headers["If-Schedule-Tag-Match"] == '"tag-abc"'
 
     @mock.patch("caldav.davclient.requests.Session.request")
-    def test_if_schedule_tag_match_not_sent_when_flag_false(self, mocked):
+    def test_if_schedule_tag_match_not_sent_when_no_tag_cached(self, mocked):
         """
-        save() without if_schedule_tag_match=True must NOT send the header,
-        even when a tag is cached.
+        save() must NOT send the header when no schedule-tag has been cached.
         """
         ok_resp = _make_put_response(204)
         mocked.return_value = ok_resp
@@ -197,12 +192,8 @@ class TestScheduleTagUnit:
     def test_stale_schedule_tag_raises_mismatch_error(self, mocked):
         """
         When the server returns 412 in response to an If-Schedule-Tag-Match
-        PUT, the client must raise ScheduleTagMismatchError (a subclass of
-        PutError).
-
-        Currently fails: ScheduleTagMismatchError does not exist, and the
-        generic PutError is raised instead (or not at all because the header
-        is never sent).
+        PUT, the client must raise ScheduleTagMismatchError rather than the
+        generic PutError.
         """
         mocked.return_value = _make_put_response(412)
 
@@ -219,7 +210,7 @@ class TestScheduleTagUnit:
         mocked.return_value = _make_put_response(412)
 
         event = _make_event_with_tag(None)
-        # save() without if_schedule_tag_match — any 412 is a plain PutError
+        # No schedule-tag and no etag cached — any 412 is a plain PutError
         with pytest.raises(error.PutError):
             event.save()
 
