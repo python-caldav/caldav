@@ -1,13 +1,12 @@
 # Feature-Complete CalDAV Library Roadmap
 
-**Created:** 2026-01-28
-**Author:** AI-generated based on RFC analysis and open issues
-**Status:** Planning document for work after issue #599 completion
-**Branch:** v3.0-dev
+- **Created:** 2026-01-28, **updated** 2026-08-20
+- **Author:** AI-generated and human-edited based on RFC analysis and open issues
+- **Status:** Planning document for work after issue [#599](https://github.com/python-caldav/caldav/issues/599) completion
 
 ## Overview
 
-This document outlines the work needed to make the caldav library a **feature-complete CalDAV client** per the relevant IETF RFCs. It is intended as a continuation of the roadmap in issue #599, covering features beyond the v3.0 and v3.2 releases.
+This document outlines the work needed to make the caldav library a **feature-complete CalDAV client** per the relevant IETF RFCs. It is intended as a continuation of the roadmap in issue [#599](https://github.com/python-caldav/caldav/issues/599), covering features beyond v3.3.
 
 ### Scope
 
@@ -18,8 +17,11 @@ The caldav library already implements:
 - WebDAV sync (RFC 6578)
 - Extensive search capabilities
 - Async support
+- JMAP (`caldav/jmap/`) — not a CalDAV RFC, and not covered by this roadmap
 
 This roadmap covers the **remaining gaps** to achieve full RFC compliance and addresses open feature requests.
+
+Items are ordered by phase and priority; which release they land in is decided when the release is planned.  Work that has to break the API is marked as v4.0 material where it appears.
 
 ---
 
@@ -27,9 +29,10 @@ This roadmap covers the **remaining gaps** to achieve full RFC compliance and ad
 
 ### 1.1 WebDAV Access Control (RFC 3744) - ACL Support
 
-**Priority:** High
-**Estimated effort:** 40-60 hours
-**RFC:** [RFC 3744](https://datatracker.ietf.org/doc/html/rfc3744)
+- **Priority:** High
+- **Estimated effort:** 40-60 hours
+- **RFC:** [RFC 3744](https://datatracker.ietf.org/doc/html/rfc3744)
+- **Related issues:** [#699](https://github.com/python-caldav/caldav/issues/699), [#701](https://github.com/python-caldav/caldav/issues/701) (3.2 — the sharing alternative to the same problem)
 
 Current state: The library has basic principal support but lacks ACL manipulation.
 
@@ -42,37 +45,34 @@ Current state: The library has basic principal support but lacks ACL manipulatio
 - [ ] Implement inherited ACL support
 - [ ] Add helper methods for common permission patterns (read-only, read-write, owner)
 
-**Related issues:** None currently open
-
 ---
 
 ### 1.2 Improved Scheduling (RFC 6638)
 
-**Priority:** High
-**Estimated effort:** 40 hours (partially covered in #599 for v3.2)
-**RFC:** [RFC 6638](https://datatracker.ietf.org/doc/html/rfc6638)
+- **Priority:** High
+- **Estimated effort:** 40 hours (partially covered in [#599](https://github.com/python-caldav/caldav/issues/599) for v3.2)
+- **RFC:** [RFC 6638](https://datatracker.ietf.org/doc/html/rfc6638)
+- **Related issues:** [#524](https://github.com/python-caldav/caldav/issues/524), [#399](https://github.com/python-caldav/caldav/issues/399), [#596](https://github.com/python-caldav/caldav/issues/596), [#544](https://github.com/python-caldav/caldav/issues/544) — all four are now closed; what remains here is the iTIP/`SCHEDULE-AGENT`/delegation work, which has no issue of its own
 
 The v3.2 roadmap covers basic scheduling improvements. Additional work for full compliance:
 
 **Tasks:**
-- [ ] Complete Schedule-Tag header support (`If-Schedule-Tag-Match`)
+- [x] Complete Schedule-Tag header support (`If-Schedule-Tag-Match`) — **done in v3.2.0**, see [#660](https://github.com/python-caldav/caldav/issues/660)
 - [ ] Full iTIP method support: REQUEST, REPLY, CANCEL, ADD, REFRESH, COUNTER, DECLINECOUNTER
 - [ ] Implicit scheduling with `SCHEDULE-AGENT` parameter handling
-- [ ] `SEQUENCE` property management per iTIP requirements
+- [x] `SEQUENCE` property management per iTIP requirements — **done in v3.2.0**: absent SEQUENCE is treated as 0 (RFC 5546 2.1.4), and `save(increase_seqno=False)` opts out
 - [ ] Better conflict detection and resolution
 - [ ] Delegation support for scheduling
-- [ ] Add `organizer.change_status()` and similar convenience methods
-
-**Related issues:** #524, #399, #596, #544
+- [x] Add `organizer.change_status()` and similar convenience methods — **done**: `change_attendee_status()`, `accept_invite()`, `decline_invite()`, `tentatively_accept_invite()`, `add_organizer()`
 
 ---
 
 ### 1.3 Calendar Availability (RFC 7953)
 
-**Priority:** Medium
-**Estimated effort:** 16-24 hours
-**RFC:** [RFC 7953](https://datatracker.ietf.org/doc/html/rfc7953)
-**Related issue:** #425
+- **Priority:** Medium
+- **Estimated effort:** 16-24 hours
+- **RFC:** [RFC 7953](https://datatracker.ietf.org/doc/html/rfc7953)
+- **Related issue:** [#425](https://github.com/python-caldav/caldav/issues/425)
 
 **Tasks:**
 - [ ] Implement `VAVAILABILITY` component support
@@ -86,9 +86,10 @@ The v3.2 roadmap covers basic scheduling improvements. Additional work for full 
 
 ### 1.4 Extended iCalendar Properties (RFC 7986)
 
-**Priority:** Medium
-**Estimated effort:** 8-12 hours
-**RFC:** [RFC 7986](https://datatracker.ietf.org/doc/html/rfc7986)
+- **Priority:** Medium
+- **Estimated effort:** 8-12 hours
+- **RFC:** [RFC 7986](https://datatracker.ietf.org/doc/html/rfc7986)
+- **Note:** We may stop short doing only some research, estimated at 2 hours effort
 
 **Tasks:**
 - [ ] Support calendar-level properties: `NAME`, `DESCRIPTION`, `COLOR`, `REFRESH-INTERVAL`, `SOURCE`
@@ -102,12 +103,12 @@ The v3.2 roadmap covers basic scheduling improvements. Additional work for full 
 
 ### 2.1 Negated Searches
 
-**Priority:** Medium
-**Estimated effort:** 12-16 hours
-**Related issue:** #568
+- **Priority:** Medium
+- **Estimated effort:** 12-16 hours
+- **Related issue:** [#568](https://github.com/python-caldav/caldav/issues/568)
 
 **Tasks:**
-- [ ] Add `negate="yes"` attribute support in text-match filters
+- [x] Add `negate="yes"` attribute support in text-match filters — the `cdav.TextMatch(..., negate=True)` element exists and is used internally (`search.py` `vNotCompleted`/`vNotCancelled`); what is missing is exposing it through the public search API
 - [ ] Update `CalDAVSearcher` to support `!=` operator
 - [ ] Add server compatibility detection
 - [ ] Implement client-side fallback filtering for non-supporting servers
@@ -117,13 +118,13 @@ The v3.2 roadmap covers basic scheduling improvements. Additional work for full 
 
 ### 2.2 Improved Collation Support
 
-**Priority:** Low
-**Estimated effort:** 8-12 hours
-**Related issue:** #567
+- **Priority:** Low
+- **Estimated effort:** 8-12 hours
+- **Related issue:** [#567](https://github.com/python-caldav/caldav/issues/567)
 
 **Tasks:**
-- [ ] Better support for `i;unicode-casemap` collation
-- [ ] Locale-aware case-insensitive matching
+- [x] Better support for `i;unicode-casemap` collation — `_collation_to_caldav()` in `search.py` maps the `Collation` enum to `i;octet` / `i;ascii-casemap` / `i;unicode-casemap`, selectable per property
+- [ ] Locale-aware case-insensitive matching — `Collation.LOCALE` currently falls back to `i;ascii-casemap`, so this is a stub
 - [ ] Server capability detection for collation support
 - [ ] Documentation of collation behavior per server
 
@@ -131,13 +132,13 @@ The v3.2 roadmap covers basic scheduling improvements. Additional work for full 
 
 ### 2.3 Multiget Optimization
 
-**Priority:** Medium
-**Estimated effort:** 8 hours
-**Related issue:** #487
+- **Priority:** Medium
+- **Estimated effort:** 8 hours
+- **Related issue:** [#487](https://github.com/python-caldav/caldav/issues/487)
 
 **Tasks:**
 - [ ] Use `calendar-multiget` REPORT when server doesn't return object data in search
-- [ ] Batch retrieval of multiple objects
+- [x] Batch retrieval of multiple objects — **done**: `Collection.multiget()`, `AsyncDAVClient.calendar_multiget()`, shared body builder `_build_calendar_multiget_body()`.  The remaining gap is the [#487](https://github.com/python-caldav/caldav/issues/487) ask: using it *automatically* when a search response carried no object data
 - [ ] Configurable batch sizes
 
 ---
@@ -146,9 +147,10 @@ The v3.2 roadmap covers basic scheduling improvements. Additional work for full 
 
 ### 3.1 Managed Attachments (RFC 8607)
 
-**Priority:** Low
-**Estimated effort:** 24-32 hours
-**RFC:** [RFC 8607](https://datatracker.ietf.org/doc/html/rfc8607)
+- **Priority:** Low
+- **Estimated effort:** 24-32 hours
+- **RFC:** [RFC 8607](https://datatracker.ietf.org/doc/html/rfc8607)
+- **Related issue:** [#700](https://github.com/python-caldav/caldav/issues/700)
 
 **Tasks:**
 - [ ] Detect server support for `calendar-managed-attachments`
@@ -161,9 +163,10 @@ The v3.2 roadmap covers basic scheduling improvements. Additional work for full 
 
 ### 3.2 Calendar Sharing
 
-**Priority:** Medium
-**Estimated effort:** 32-40 hours
-**Spec:** [draft-pot-caldav-sharing](https://datatracker.ietf.org/doc/html/draft-pot-caldav-sharing)
+- **Priority:** Medium
+- **Estimated effort:** 32-40 hours
+- **Spec:** [draft-pot-caldav-sharing](https://datatracker.ietf.org/doc/html/draft-pot-caldav-sharing)
+- **Related issues:** [#701](https://github.com/python-caldav/caldav/issues/701), [#699](https://github.com/python-caldav/caldav/issues/699) (the ACL alternative to the same problem)
 
 Note: This is a draft standard but widely implemented by major servers.
 
@@ -179,22 +182,24 @@ Note: This is a draft standard but widely implemented by major servers.
 
 ### 3.3 Extended MKCOL (RFC 5689)
 
-**Priority:** Low
-**Estimated effort:** 4-8 hours
-**RFC:** [RFC 5689](https://datatracker.ietf.org/doc/html/rfc5689)
+- **Priority:** Low
+- **Estimated effort:** 4-8 hours
+- **RFC:** [RFC 5689](https://datatracker.ietf.org/doc/html/rfc5689)
+- **Related issue:** [#702](https://github.com/python-caldav/caldav/issues/702)
 
 **Tasks:**
-- [ ] Support extended MKCOL as alternative to MKCALENDAR
-- [ ] Set calendar properties atomically during creation
-- [ ] Detect server support
+- [x] Support extended MKCOL as alternative to MKCALENDAR — **done**: `Calendar._create()` builds a `DAV:mkcol` with `resourcetype` = collection + calendar, and uses it when the server declares `create-calendar: {support: quirk, behaviour: mkcol-required}`
+- [x] Set calendar properties atomically during creation — display name and `supported-calendar-component-set` go into the creation request; PROPPATCH is only a fallback
+- [ ] Detect server support — today the MKCOL path is only taken when a server profile declares `mkcol-required` (only `baikal_old` does); nothing probes for it and nothing tests it
+- [ ] Handle a `207 Multi-Status` reply (RFC 5689 section 3, a property that could not be set): `expected_return_value=201` makes it raise instead
 
 ---
 
 ### 3.4 Quota Support (RFC 4331)
 
-**Priority:** Low
-**Estimated effort:** 4-8 hours
-**RFC:** [RFC 4331](https://datatracker.ietf.org/doc/html/rfc4331)
+- **Priority:** Low
+- **Estimated effort:** 4-8 hours
+- **RFC:** [RFC 4331](https://datatracker.ietf.org/doc/html/rfc4331)
 
 **Tasks:**
 - [ ] Add `calendar.get_quota()` method
@@ -203,17 +208,39 @@ Note: This is a draft standard but widely implemented by major servers.
 
 ---
 
+### 3.5 WebDAV Push
+
+- **Priority:** Medium
+- **Estimated effort:** 24-40 hours (rough)
+- **Spec:** [draft-bitfire-webdav-push](https://bitfireat.github.io/webdav-push/draft-bitfire-webdav-push-00.html)
+- **Related issue:** [#674](https://github.com/python-caldav/caldav/issues/674)
+
+Not an IETF standard — a proposal from the bitfire team (DAVx⁵), already
+implemented as a Nextcloud extension.  Replaces polling with server-pushed
+change notifications.  Requested by the proposal authors themselves.
+
+**Tasks:**
+- [ ] Decide whether to support a non-IETF draft at all, and how prominently
+- [ ] Detect push support on the collection
+- [ ] Subscribe / refresh / unsubscribe
+- [ ] Some way of receiving notifications that makes sense for a client library
+      (this is the hard part: the library does not own an event loop or a
+      public endpoint)
+- [ ] Server feature detection
+
+---
+
 ## Phase 4: Robustness and Edge Cases
 
 ### 4.1 Collision Avoidance
 
-**Priority:** High
-**Estimated effort:** 16-24 hours
-**Related issue:** #152
+- **Priority:** High
+- **Estimated effort:** 16-24 hours
+- **Related issue:** [#152](https://github.com/python-caldav/caldav/issues/152)
 
 **Tasks:**
-- [ ] Robust ETag-based collision detection
-- [ ] Proper `If-Match` / `If-None-Match` header usage
+- [x] Robust ETag-based collision detection — **done in v3.2.0**: the ETag from PUT/GET responses is cached in `self.props` and `ETagMismatchError` is raised on 412
+- [ ] Proper `If-Match` / `If-None-Match` header usage — half done: `If-Match` is sent when an ETag is cached (and `If-Schedule-Tag-Match` takes precedence when a Schedule-Tag is), but `If-None-Match` is not used for create-only semantics
 - [ ] Handle UID vs path name mismatches
 - [ ] Race condition mitigation
 - [ ] Clear error messages for conflicts
@@ -222,28 +249,40 @@ Note: This is a draft standard but widely implemented by major servers.
 
 ### 4.2 Recurrence Handling Improvements
 
-**Priority:** High
-**Estimated effort:** 24-32 hours
-**Related issues:** #398, #597, #598
+- **Priority:** High
+- **Estimated effort:** 24-32 hours (much of it now spent — see the ticked items)
+- **Related issues:** [#398](https://github.com/python-caldav/caldav/issues/398), [#597](https://github.com/python-caldav/caldav/issues/597), [#598](https://github.com/python-caldav/caldav/issues/598)
 
 **Tasks:**
-- [ ] Helper methods for identifying recurrence states
-- [ ] Intelligent deletion of single recurrences
-- [ ] Better RECURRENCE-ID handling
-- [ ] Documentation and examples for recurrence editing
-- [ ] Timezone-aware recurrence expansion
-- [ ] Tests for complex recurrence scenarios
+- [ ] Helper methods for identifying recurrence states ([#597](https://github.com/python-caldav/caldav/issues/597)) — still nothing; there is
+      no `is_recurring()` / `is_recurrence_instance()` / "find my master" on the object API
+- [ ] Intelligent deletion of single recurrences ([#598](https://github.com/python-caldav/caldav/issues/598)) — still nothing; the library never
+      writes `EXDATE`, so cancelling one occurrence is left entirely to the caller
+- [x] Better RECURRENCE-ID handling — **done**: `save()` grew `only_this_recurrence` (a tristate:
+      merge into the master, merge-or-PUT-as-is, or PUT as-is) and `all_recurrences`,
+      `_incorporate_recurrence_into_parent()` does the merge, orphaned recurrences no longer crash,
+      and `RANGE=THISANDFUTURE` is handled when completing recurring tasks
+- [x] Documentation and examples for recurrence editing ([#398](https://github.com/python-caldav/caldav/issues/398)) — largely done in
+      `docs/source/tutorial.rst`: the "big caveat" section explaining that one recurring event is
+      several components, and a worked example editing a single recurrence
+- [x] Timezone-aware recurrence expansion — **done**, but elsewhere: expansion moved to the
+      `icalendar_searcher` package (built on `recurring_ical_events`), and `expand_rrule()` is now
+      deprecated in this library
+- [x] Tests for complex recurrence scenarios — **done**: `testEditSingleRecurrence`,
+      `testAddOrphanedRecurrence`, the recurring-todo completion tests including THISANDFUTURE, and
+      their async twins.  Server quirks are captured as flags
+      (`save-load.event.recurrences.exception.reschedule`, `search.recurrences.expanded.exception`)
 
 ---
 
 ### 4.3 PROPFIND Redirect Handling
 
-**Priority:** Low
-**Estimated effort:** 4-8 hours
-**Related issue:** #552
+- **Priority:** Low
+- **Estimated effort:** 4-8 hours
+- **Related issue:** [#552](https://github.com/python-caldav/caldav/issues/552)
 
 **Tasks:**
-- [ ] Follow 3xx redirects on PROPFIND
+- [ ] Follow 3xx redirects on PROPFIND — still open, and there is a comment in `davclient.py` marking the spot
 - [ ] Update internal URLs after redirect
 - [ ] Prevent redirect loops
 
@@ -251,15 +290,36 @@ Note: This is a draft standard but widely implemented by major servers.
 
 ### 4.4 Alarm Support
 
-**Priority:** Medium
-**Estimated effort:** 12-16 hours
-**Related issue:** #132
+- **Priority:** Medium
+- **Estimated effort:** 12-16 hours
+- **Related issue:** [#132](https://github.com/python-caldav/caldav/issues/132)
 
 **Tasks:**
-- [ ] Add `event.add_alarm()`, `event.remove_alarm()` methods
+- [ ] Add `event.add_alarm()`, `event.remove_alarm()` methods — nothing on the object API; VALARM only appears in search filters and as `alarm_*` arguments to `vcal.create_ical()`
 - [ ] Support VALARM with ACTION (DISPLAY, AUDIO, EMAIL)
 - [ ] Trigger types: relative (before/after) and absolute
 - [ ] Snooze/dismiss support where servers allow
+
+---
+
+### 4.5 Transport Robustness: Retries and Rate Limiting
+
+- **Priority:** Medium
+- **Estimated effort:** 16-24 hours
+- **Related issues:** [#695](https://github.com/python-caldav/caldav/issues/695), [#620](https://github.com/python-caldav/caldav/issues/620), [#697](https://github.com/python-caldav/caldav/issues/697)
+
+Partly in place already: 429/503 `Retry-After` handling with `RateLimitError`
+and the `rate-limit` server peculiarity exist.  What is missing:
+
+**Tasks:**
+- [ ] Retry on connection failures, configurable ([#695](https://github.com/python-caldav/caldav/issues/695))
+- [ ] Retry by default when an idle keep-alive connection was closed by the
+      server — observed against Stalwart in the async suite ([#695](https://github.com/python-caldav/caldav/issues/695))
+- [ ] General opt-in sleep-and-retry on transient errors, configured through the
+      feature subsystem ([#620](https://github.com/python-caldav/caldav/issues/620))
+- [ ] Smarter rate-limit budgeting than "sleep a fixed slice between every
+      request": either burst-then-sleep-out-the-window, or a progressively
+      growing delay ([#697](https://github.com/python-caldav/caldav/issues/697))
 
 ---
 
@@ -267,10 +327,10 @@ Note: This is a draft standard but widely implemented by major servers.
 
 ### 5.1 DNSSEC Validation
 
-**Priority:** Medium
-**Estimated effort:** 16-24 hours
-**Related issue:** #571
-**RFC:** [RFC 6764 Section 8](https://datatracker.ietf.org/doc/html/rfc6764#section-8)
+- **Priority:** Medium
+- **Estimated effort:** 16-24 hours
+- **Related issue:** [#571](https://github.com/python-caldav/caldav/issues/571)
+- **RFC:** [RFC 6764 Section 8](https://datatracker.ietf.org/doc/html/rfc6764#section-8)
 
 **Tasks:**
 - [ ] Add optional DNSSEC validation for SRV/TXT lookups
@@ -283,15 +343,30 @@ Note: This is a draft standard but widely implemented by major servers.
 
 ### 5.2 Server Auto-Detection Improvements
 
-**Priority:** Medium
-**Estimated effort:** 16-24 hours
-**Related issue:** #600
+- **Priority:** Medium
+- **Estimated effort:** 16-24 hours
+- **Related issues:** [#600](https://github.com/python-caldav/caldav/issues/600), [#592](https://github.com/python-caldav/caldav/issues/592)
 
 **Tasks:**
 - [ ] Auto-detect server quirks on first connection
 - [ ] Cache detected quirks
 - [ ] Improve feature detection heuristics
 - [ ] Better handling of unknown servers
+- [ ] Composable feature configuration — `include` and/or `extra_features`, so a
+      deployment can start from a named profile and override individual
+      features ([#592](https://github.com/python-caldav/caldav/issues/592))
+
+---
+
+### 5.3 TLS Enforcement
+
+- **Priority:** Medium
+- **Estimated effort:** 2-4 hours
+- **Related issue:** [#687](https://github.com/python-caldav/caldav/issues/687)
+
+**Tasks:**
+- [ ] `require_tls` is only enforced on RFC 6764 discovery, not on an explicitly
+      passed URL — a plain `http://` URL is accepted despite the setting
 
 ---
 
@@ -299,9 +374,9 @@ Note: This is a draft standard but widely implemented by major servers.
 
 ### 6.1 jCal Support (RFC 7265)
 
-**Priority:** Low
-**Estimated effort:** 16-24 hours
-**RFC:** [RFC 7265](https://datatracker.ietf.org/doc/html/rfc7265)
+- **Priority:** Low
+- **Estimated effort:** 16-24 hours
+- **RFC:** [RFC 7265](https://datatracker.ietf.org/doc/html/rfc7265)
 
 **Tasks:**
 - [ ] Accept `application/calendar+json` responses
@@ -312,9 +387,9 @@ Note: This is a draft standard but widely implemented by major servers.
 
 ### 6.2 xCal Support (RFC 6321)
 
-**Priority:** Low
-**Estimated effort:** 16-24 hours
-**RFC:** [RFC 6321](https://datatracker.ietf.org/doc/html/rfc6321)
+- **Priority:** Low
+- **Estimated effort:** 16-24 hours
+- **RFC:** [RFC 6321](https://datatracker.ietf.org/doc/html/rfc6321)
 
 **Tasks:**
 - [ ] Accept `application/calendar+xml` responses
@@ -327,24 +402,27 @@ Note: This is a draft standard but widely implemented by major servers.
 
 ### 7.1 Test Coverage Expansion
 
-**Priority:** High
-**Estimated effort:** 40+ hours (ongoing)
-**Related issues:** #93, #45, #595
+- **Priority:** High
+- **Estimated effort:** 40+ hours (ongoing)
+- **Related issues:** [#93](https://github.com/python-caldav/caldav/issues/93), [#45](https://github.com/python-caldav/caldav/issues/45), [#595](https://github.com/python-caldav/caldav/issues/595), [#667](https://github.com/python-caldav/caldav/issues/667)
 
 **Tasks:**
 - [ ] Increase unit test coverage to 90%+
-- [ ] Add DAViCal docker container for testing (#595)
-- [ ] Add more server docker containers
+- [x] Add DAViCal docker container for testing ([#595](https://github.com/python-caldav/caldav/issues/595)) — **done**, `tests/docker-test-servers/davical/`
+- [x] Add more server docker containers — **done**: baikal, bedework, ccs, cyrus, davical, davis, nextcloud, ox, sogo, stalwart and zimbra all have docker test setups
 - [ ] Edge case testing for all RFCs
+- [x] Make the async test suite symmetric with the sync one ([#667](https://github.com/python-caldav/caldav/issues/667)) —
+      substantially done; the issue is still open for the remaining gap in
+      `change_attendee_status()` ([#678](https://github.com/python-caldav/caldav/issues/678))
 - [ ] Performance regression tests
 
 ---
 
 ### 7.2 Server Documentation
 
-**Priority:** Medium
-**Estimated effort:** 24-40 hours
-**Related issue:** #120
+- **Priority:** Medium
+- **Estimated effort:** 24-40 hours
+- **Related issue:** [#120](https://github.com/python-caldav/caldav/issues/120)
 
 **Tasks:**
 - [ ] Document setup and quirks for each major server:
@@ -366,17 +444,17 @@ Note: This is a draft standard but widely implemented by major servers.
 
 ### 7.3 Example Code and Tutorials
 
-**Priority:** Medium
-**Estimated effort:** 16-24 hours
-**Related issue:** #513, #541
+- **Priority:** Medium
+- **Estimated effort:** 16-24 hours
+- **Related issue:** [#513](https://github.com/python-caldav/caldav/issues/513), [#541](https://github.com/python-caldav/caldav/issues/541)
 
 **Tasks:**
 - [ ] Update all examples to use icalendar `.new()` method
-- [ ] Add howto guides for common tasks
+- [x] Add howto guides for common tasks — `docs/source/howtos.rst` exists ([#513](https://github.com/python-caldav/caldav/issues/513) is still open, so presumably not considered complete)
 - [ ] Scheduling example code
 - [ ] Recurrence editing examples
 - [ ] Service discovery examples
-- [ ] Migration guide from v2.x to v3.x
+- [x] Migration guide from v2.x to v3.x — `docs/source/v3-migration.rst`
 
 ---
 
@@ -384,41 +462,102 @@ Note: This is a draft standard but widely implemented by major servers.
 
 ### 8.1 Deprecation Cleanup
 
-**Priority:** Medium
-**Estimated effort:** 8-16 hours
-**Related issues:** #585, #482, #128
+- **Priority:** Medium
+- **Estimated effort:** 8-16 hours
+- **Related issues:** [#585](https://github.com/python-caldav/caldav/issues/585), [#482](https://github.com/python-caldav/caldav/issues/482), [#128](https://github.com/python-caldav/caldav/issues/128), [#619](https://github.com/python-caldav/caldav/issues/619), [#515](https://github.com/python-caldav/caldav/issues/515)
 
 **Tasks:**
-- [ ] Remove old incompatibility flags (#585)
-- [ ] Obsolete `get_duration`, `get_due`, `get_dtend` (#482)
-- [ ] Review `DAVObject.name` removal (#128)
+- [ ] Remove old incompatibility flags ([#585](https://github.com/python-caldav/caldav/issues/585))
+- [ ] Obsolete `get_duration`, `get_due`, `get_dtend` ([#482](https://github.com/python-caldav/caldav/issues/482))
+- [ ] v4.0: remove everything that raises a `DeprecationWarning`, and add the
+      warning to methods deprecated without one ([#619](https://github.com/python-caldav/caldav/issues/619))
+- [ ] Find and kill remaining uses of `event.component['uid']` and friends ([#515](https://github.com/python-caldav/caldav/issues/515))
+- [x] Review `DAVObject.name` removal ([#128](https://github.com/python-caldav/caldav/issues/128)) — **done**: [#128](https://github.com/python-caldav/caldav/issues/128) is closed and `name` is a property raising `DeprecationWarning`, pointing at `get_display_name()`.  Actual removal is a 4.0 matter
 
 ---
 
 ### 8.2 Test Infrastructure
 
-**Priority:** Medium
-**Estimated effort:** 16-24 hours
-**Related issues:** #577, #509, #593, #518
+- **Priority:** Medium
+- **Estimated effort:** 16-24 hours
+- **Related issues:** [#577](https://github.com/python-caldav/caldav/issues/577), [#593](https://github.com/python-caldav/caldav/issues/593) ([#509](https://github.com/python-caldav/caldav/issues/509) and [#518](https://github.com/python-caldav/caldav/issues/518) are closed)
 
 **Tasks:**
-- [ ] Clean up `tests/conf.py` (#577)
-- [ ] Refactor test configuration (#509)
-- [ ] Refactor setup/teardown methods (#593)
-- [ ] Mute expected error logging, break on unexpected (#518)
+- [ ] Clean up `tests/conf.py` ([#577](https://github.com/python-caldav/caldav/issues/577))
+- [x] Refactor test configuration ([#509](https://github.com/python-caldav/caldav/issues/509)) — issue closed
+- [ ] Refactor setup/teardown methods ([#593](https://github.com/python-caldav/caldav/issues/593))
+- [x] Mute expected error logging, break on unexpected ([#518](https://github.com/python-caldav/caldav/issues/518)) — issue closed
 
 ---
 
 ### 8.3 Search Module Refactoring
 
-**Priority:** Low
-**Estimated effort:** 16-24 hours
-**Related issue:** #580
+- **Priority:** Low
+- **Estimated effort:** 16-24 hours
+- **Related issue:** [#580](https://github.com/python-caldav/caldav/issues/580)
+
+**Status: largely done** — [#580](https://github.com/python-caldav/caldav/issues/580) is closed, and the matching logic now lives in the
+external `icalendar_searcher` library, which `search.py` imports.
 
 **Tasks:**
-- [ ] Refactor `search.py` for better maintainability
-- [ ] Separate concerns more cleanly
+- [x] Refactor `search.py` for better maintainability
+- [x] Separate concerns more cleanly
 - [ ] Improve documentation
+
+---
+
+### 8.4 Internal Refactoring Backlog
+
+- **Priority:** Medium
+- **Estimated effort:** 24-40 hours
+- **Related issues:** [#659](https://github.com/python-caldav/caldav/issues/659), [#664](https://github.com/python-caldav/caldav/issues/664), [#665](https://github.com/python-caldav/caldav/issues/665), [#698](https://github.com/python-caldav/caldav/issues/698), [#634](https://github.com/python-caldav/caldav/issues/634), [#94](https://github.com/python-caldav/caldav/issues/94)
+
+Housekeeping that does not change what the library can do, but that the code
+needs.  Collected here so the roadmap does not pretend the backlog is only
+features.
+
+**Tasks:**
+- [ ] `FeatureSet` cleanup — simplify the over-complex type-system remnants in
+      `compatibility_hints.py` ([#659](https://github.com/python-caldav/caldav/issues/659))
+- [ ] Decide the fate of the sans-I/O "protocol layer": XML parsing lives both in
+      `caldav/protocol/xml*.py` and in the `Response` class, and the two overlap
+      ([#664](https://github.com/python-caldav/caldav/issues/664))
+- [ ] Reduce the remaining sync/async code duplication ([#665](https://github.com/python-caldav/caldav/issues/665))
+- [ ] Parse all server iCalendar through `vcal.parse_ical()` consistently ([#698](https://github.com/python-caldav/caldav/issues/698))
+- [ ] Shrink the ruff ignore list ([#634](https://github.com/python-caldav/caldav/issues/634))
+- [ ] `object.id` should always work ([#94](https://github.com/python-caldav/caldav/issues/94))
+- [ ] v4.0: a major API review — no issue for this, and it is the kind of thing
+      that needs one before it means anything
+
+---
+
+### 8.5 Packaging and HTTP Dependencies
+
+- **Priority:** Medium
+- **Estimated effort:** 8-16 hours
+- **Related issues:** [#690](https://github.com/python-caldav/caldav/issues/690), [#611](https://github.com/python-caldav/caldav/issues/611), [#696](https://github.com/python-caldav/caldav/issues/696)
+
+**Tasks:**
+- [ ] Make the HTTP transport an extra, so `caldav` can be installed without
+      `niquests` ([#690](https://github.com/python-caldav/caldav/issues/690))
+- [ ] Settle the v4.0 HTTP-library question ([#611](https://github.com/python-caldav/caldav/issues/611))
+- [ ] Sync-mode support for the httpx family — async already has it ([#696](https://github.com/python-caldav/caldav/issues/696))
+
+---
+
+## Not Covered Here
+
+These open issues are bug reports, support questions or automated noise rather
+than roadmap items, and are deliberately left out:
+[#71](https://github.com/python-caldav/caldav/issues/71) (`add_event` can update as well),
+[#545](https://github.com/python-caldav/caldav/issues/545) (searches return full-day events of adjacent days),
+[#612](https://github.com/python-caldav/caldav/issues/612) (support question),
+[#624](https://github.com/python-caldav/caldav/issues/624) (GMX calendar creation),
+[#678](https://github.com/python-caldav/caldav/issues/678) (`change_attendee_status()` async safety — see 7.1),
+[#680](https://github.com/python-caldav/caldav/issues/680), [#681](https://github.com/python-caldav/caldav/issues/681), [#684](https://github.com/python-caldav/caldav/issues/684) (server-specific breakage reports),
+[#685](https://github.com/python-caldav/caldav/issues/685) (automated link-checker report).
+
+Bugs get fixed when they get fixed; they do not need a phase.
 
 ---
 
@@ -437,6 +576,10 @@ Note: This is a draft standard but widely implemented by major servers.
 | Medium | Alarm Support (4.4) | 12-16 |
 | Medium | DNSSEC (5.1) | 16-24 |
 | Medium | Server Auto-Detection (5.2) | 16-24 |
+| Medium | WebDAV Push (3.5) | 24-40 |
+| Medium | Transport Robustness (4.5) | 16-24 |
+| Medium | Internal Refactoring Backlog (8.4) | 24-40 |
+| Medium | Packaging / HTTP Dependencies (8.5) | 8-16 |
 | Medium | Server Documentation (7.2) | 24-40 |
 | Medium | Examples/Tutorials (7.3) | 16-24 |
 | Medium | Deprecation Cleanup (8.1) | 8-16 |
@@ -449,39 +592,12 @@ Note: This is a draft standard but widely implemented by major servers.
 | Low | PROPFIND Redirects (4.3) | 4-8 |
 | Low | jCal/xCal (6.1-6.2) | 32-48 |
 | Low | Search Refactoring (8.3) | 16-24 |
+| Low | TLS Enforcement (5.3) | 2-4 |
 
-**Total estimated effort:** 380-560 hours (depending on scope and depth)
+**Total estimated effort:** 455-685 hours (depending on scope and depth).
 
----
-
-## Version Planning Suggestion
-
-Based on the roadmap, suggested version milestones after v3.2:
-
-### v3.3 - Robustness Release
-- Collision avoidance (#152)
-- Recurrence handling improvements (#398, #597, #598)
-- PROPFIND redirect handling (#552)
-
-### v3.4 - Search & Sync Release
-- Negated searches (#568)
-- Multiget optimization (#487)
-- Improved collation (#567)
-
-### v3.5 - Extended Features Release
-- Alarm support (#132)
-- RFC 7986 iCalendar properties
-- RFC 7953 Availability (#425)
-
-### v4.0 - ACL & Sharing Release
-- Full ACL support (RFC 3744)
-- Calendar sharing (draft-pot-caldav-sharing)
-- Managed attachments (RFC 8607)
-- Major API review
-
-### v4.1 - Security & Discovery Release
-- DNSSEC validation (#571)
-- Server auto-detection improvements (#600)
+Note that this total is *not* adjusted for the items ticked off as already done
+in the 2026-08-20 QA pass, so the real remaining figure is lower.
 
 ---
 
