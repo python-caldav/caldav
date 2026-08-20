@@ -154,7 +154,7 @@ The two most significant news in v3.2 are **relatively well-tested support for s
 ### Added
 
 * `add_organizer()` now accepts an optional explicit *organizer* argument (a `Principal`, `vCalAddress`, or email string)
-* Complete support for **Schedule-Tag** (RFC 6638 §3.2–3.3) and **Etag**.  Headers from upstream will be catched and stored in the properties.  If those properties exists, `If-Schedule-Tag-Match` or `If-Match` headers will be sent.  A `ScheduleTagMismatchError` or `EtagMismatchError` will be raised on 412.
+* Complete support for **Schedule-Tag** (RFC 6638 §3.2–3.3) and **Etag**.  Headers from upstream will be caught and stored in the properties.  If those properties exists, `If-Schedule-Tag-Match` or `If-Match` headers will be sent.  A `ScheduleTagMismatchError` or `ETagMismatchError` will be raised on 412.
 
 ### Changed
 

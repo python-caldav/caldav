@@ -1290,7 +1290,11 @@ class CalendarObjectResource(DAVObject):
         obj_type is only used in conjunction with no_overwrite and
         no_create.
 
-        is_schedule_tag_match is currently ignored. (TODO - fix or remove)
+        Conditional requests are handled automatically: if a
+        Schedule-Tag or an ETag has been cached for the object, an
+        ``If-Schedule-Tag-Match`` or ``If-Match`` header is sent, and a
+        412 response is raised as ``ScheduleTagMismatchError`` or
+        ``ETagMismatchError``.
 
         The SEQUENCE should be increased when saving a new version of
         the object.  If this behaviour is unwanted, then
