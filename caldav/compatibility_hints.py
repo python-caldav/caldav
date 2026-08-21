@@ -121,6 +121,15 @@ class FeatureSet:
         "calendar-color": {
             "description": "Server stores the nonstandard Apple/Mozilla {http://apple.com/ns/ical/}calendar-color property (set with a colour name like 'blue') on a calendar collection.  'full' covers servers that normalise the name to a hex value (the set value still tracks the input); 'broken' is a read-only property (the same value comes back regardless of what is set).  Not described by RFC4791/RFC5545, so a server that rejects or ignores it ('unsupported') is not breaching any RFC.  The default is 'fragile' because the behaviour varies a lot between servers and is rarely worth asserting on.",
             "default": {"support": "fragile"},
+            "note":
+"""The real default ought to be False because this is not a part
+of any published standard AFAIK.  We should never expect servers
+to support this.  However, the compatibility test would trip on
+servers that supports it if we leave it as False.
+"Fragile" sort of makes sense, because until it has been tested
+one should assume the support to maybe exist and maybe not -
+hence, "fragile".
+"""
         },
         "calendar-color.hex": {
             "description": "Like calendar-color, but the property is set with a hex value (e.g. '#FF0000FF') rather than a colour name.  Some servers accept one form but not the other.",
