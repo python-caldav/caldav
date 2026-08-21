@@ -237,8 +237,17 @@ async def cleanup_calendar_objects(calendar: Any) -> None:
             try:
                 await _maybe_await(obj.delete())
             except Exception:
+                # Best-effort, and deliberately broad: one object that refuses
+                # to go must not stop the rest of the calendar from being
+                # emptied, and every caller treats a failed cleanup as
+                # acceptable.  The catch is wide enough to hide a client-side
+                # bug too - see adelete_calendar_if_present() below, where
+                # exactly that happened - so narrow it if you get the chance.
                 pass
     except Exception:
+        # Ditto for listing the calendar: if search() fails there is nothing
+        # this helper can clean up, and it is not the test's business to fail
+        # over it.
         pass
 
 
