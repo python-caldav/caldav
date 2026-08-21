@@ -60,6 +60,12 @@ How to use the protocol layer for testing and low-level access.
 ### [GET_DAVCLIENT_ANALYSIS.md](GET_DAVCLIENT_ANALYSIS.md)
 Analysis of `get_davclient()` factory function vs direct `DAVClient()` instantiation.
 
+### [RETRY_AND_RESILIENCE_DESIGN.md](RETRY_AND_RESILIENCE_DESIGN.md)
+**Proposal** - how the library should retry failed requests.  What the five
+supported HTTP libraries already offer (researched, with versions), which of the
+three failure classes belongs at which layer, the configuration surface, and why
+PR #648 was closed.  Consolidates issues #620, #647, #695 and PR #648.
+
 ### [TODO.md](TODO.md)
 Known issues and remaining work items.
 
