@@ -138,7 +138,7 @@ Truncated/garbage iCalendar without DTSTAMP and without an `END:` line makes
 the DTSTAMP fixup logic it guards) is silently skipped. Should be
 `error.assert_` or a proper parse error.
 
-### 1.13 `jmap/client.py:576` / `jmap/async_client.py:461` — `create_task` missing the guard `create_event` has `[code]`
+### 1.13 `jmap/client.py:576` / `jmap/async_client.py:461` — `create_task` missing the guard `create_event` has `[code]` ✅ FIXED
 `create_event` handles an empty `created` dict with a descriptive
 `JMAPMethodError` (`client.py:294–298`); `create_task` does
 `created["new-0"]["id"]` unguarded → bare KeyError, bypassing the JMAP error
@@ -308,7 +308,7 @@ explicitly).
 bodies (calendar PII, custom auth headers) to files that accumulate
 indefinitely. Files are 0600, and the niquests-applied Authorization header
 is added after the dump point, so exposure is limited — but a cleanup policy
-or a documented warning would be appropriate.
+or a documented warning would be appropriate.  **Human notes:** This is in /tmp, so we should expect some kind of cleanup on the OS level.  There does exist some security notes in the CHANGELOG for the revision adding the feature, but the CHANGELOG has been pruned, so it's needed to consult git history to find it - it should definitively be lifted up to a more visible place.
 
 **Ruled out** (checked, found safe): SSRF via server-returned hrefs
 (`_normalize_href` reduces absolute URLs to path-only); credential leak on
@@ -319,32 +319,32 @@ cross-host redirects (auth applied via auth callable, stripped by
 
 ## 4. JMAP backend
 
-### 4.1 `jmap/convert/jscal_to_ical.py:384` — override child VEVENT gets the master's DTSTART `[repro]`
+### 4.1 `jmap/convert/jscal_to_ical.py:384` — override child VEVENT gets the master's DTSTART `[repro]` ✅ FIXED
 `child_start = patch.get("start", start_str)` defaults to the master start.
 An override that doesn't move the occurrence (e.g. title-only change — the
 common case) renders a child VEVENT with RECURRENCE-ID at the occurrence but
 DTSTART at the *master's* start, relocating the occurrence. Default must be
 the override key (`rid_dt`).
 
-### 4.2 `jmap/convert/jscal_to_ical.py:375` — EXDATE/RECURRENCE-ID value-type mismatch `[repro]`
+### 4.2 `jmap/convert/jscal_to_ical.py:375` — EXDATE/RECURRENCE-ID value-type mismatch `[repro]` ✅ FIXED
 Override keys are rendered as naive floating DATE-TIMEs regardless of the
 event's `timeZone`/`showWithoutTime`: a TZID-anchored event gets
 `EXDATE:20260620T100000` (floating — per RFC 5545 it does not match the
 instance, so the **excluded occurrence reappears**), and an all-day event
 gets a DATETIME EXDATE against a `VALUE=DATE` DTSTART.
 
-### 4.3 `jmap/convert/ical_to_jscal.py:100` (via `_utils.py:129`) — `Z`-suffix in LocalDateTime slots `[repro]`
+### 4.3 `jmap/convert/ical_to_jscal.py:100` (via `_utils.py:129`) — `Z`-suffix in LocalDateTime slots `[repro]` ✅ FIXED
 UTC inputs produce `...Z` strings for RRULE `until` and recurrenceOverrides
 keys; RFC 8984 requires LocalDateTime there. Strict servers reject with
 `invalidArguments`; lenient ones mis-set the boundary, and a `Z`-suffixed
 override key can never match a LocalDateTime occurrence key.
 
-### 4.4 `jmap/convert/*` — STATUS dropped in both directions `[code]`
+### 4.4 `jmap/convert/*` — STATUS dropped in both directions `[code]` ✅ FIXED
 Neither converter maps `STATUS` ↔ `status` (only
 participationStatus/freeBusyStatus exist). `STATUS:CANCELLED` round-trips to
 the JSCalendar default `confirmed`; cancelled meetings come back as active.
 
-### 4.5 `jmap/client.py:346` / `async_client.py:233` — `update_event` patch never clears removed properties `[code]`
+### 4.5 `jmap/client.py:346` / `async_client.py:233` — `update_event` patch never clears removed properties `[code]` ✅ FIXED
 The full converted object is sent as the RFC 8620 PatchObject; the converter
 only includes keys conditionally, so a property deleted client-side (e.g.
 LOCATION, VALARM) is simply *absent* from the patch and **persists on the
@@ -373,7 +373,7 @@ producing drift bugs.
    modulo `await`. The build-side is already shared via `_JMAPClientBase` /
    `jmap/_methods`; moving the response-parsing glue into shared pure
    methods would shrink each sync/async method to ~3 lines. (The §1.13 and
-   §4.5 bugs are duplicated exactly because of this.)
+   §4.5 bugs are duplicated exactly because of this.) ✅ FIXED (commit ed3c47b0)
 2. **`calendarobjectresource.py:1166–1205` — `_post_put` block pasted twice
    in sequence**; the second `elif r.status not in (204, 201)` is
    unreachable. Also factor the Etag/Schedule-Tag header→props snippet
@@ -390,7 +390,7 @@ producing drift bugs.
 5. **JMAP clients open a fresh HTTP connection per request** (async:
    `async with AsyncSession()` per `_request`; sync: module-level
    `requests.post`). `__exit__`/`__aexit__` already exist but do nothing —
-   hold one session in `_JMAPClientBase` and close it there.
+   hold one session in `_JMAPClientBase` and close it there. ✅ FIXED
 6. **`Todo._async_complete_recurring_thisandfuture` copies ~60 lines of its
    sync twin** (the file says "TERRIBLY much code duplication here"), and
    the async safe-variant has drifted: it PUTs the completed copy twice.
@@ -403,7 +403,7 @@ producing drift bugs.
    purelymail 404) must be maintained twice; the TODO at line 577 already
    acknowledges this.
 8. **`search.py` sync/async driver loops duplicated** (~80 lines including
-   the Phase-1/Phase-2 exception-rethrow protocol and
+   the hase-1/Phase-2 exception-rethrow protocol and
    `_search_with_comptypes`). A small executor object with sync/async
    implementations would leave one driver.
 
@@ -423,6 +423,8 @@ producing drift bugs.
    considering parser-level normalization (icalendar) or at least
    regression-testing each fixup against the exact server output it was
    written for.
+
+   **Human comment:** we've been discussing a bit moving this logic into the icalendar library - but it's hard to make good solutions, so we'll need to keep the stop-gap implementation as for now.
 
 ---
 

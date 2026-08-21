@@ -43,6 +43,12 @@ _KIND_TO_CUTYPE = {
     "resource": "RESOURCE",
     "room": "ROOM",
 }
+# RFC 8984 status -> RFC 5545 STATUS
+_STATUS_JSCAL_TO_ICAL = {
+    "confirmed": "CONFIRMED",
+    "tentative": "TENTATIVE",
+    "cancelled": "CANCELLED",
+}
 
 
 def _start_to_dtstart(
@@ -86,11 +92,16 @@ def _start_to_dtstart(
         component.add("dtstart", dt_naive)
 
 
-def _jscal_rrule_to_rrule(rule: dict) -> dict:
+def _jscal_rrule_to_rrule(rule: dict, time_zone: str | None = None) -> dict:
     """Convert a JSCalendar RecurrenceRule dict to an iCalendar vRecur-compatible dict.
 
     Strips @type and NDay @type fields — icalendar library rejects them.
     Returns a plain dict suitable for icalendar.vRecur.
+
+    ``time_zone`` is the event's IANA time zone.  The JSCalendar ``until`` is a
+    LocalDateTime in that zone; RFC 5545 §3.3.10 requires the iCalendar UNTIL to
+    be UTC whenever DTSTART is a TZID or UTC date-time, so a non-Z ``until`` is
+    converted back to UTC here.
     """
     freq = rule.get("frequency", "").upper()
     if not freq:
@@ -112,6 +123,17 @@ def _jscal_rrule_to_rrule(rule: dict) -> dict:
             ical_rule["UNTIL"] = datetime.strptime(until, "%Y-%m-%dT%H:%M:%SZ").replace(
                 tzinfo=timezone.utc
             )
+        elif time_zone:
+            # RFC 5545 §3.3.10: a TZID/UTC DTSTART requires a UTC UNTIL.  The
+            # JSCalendar until is LocalDateTime in the event timeZone; convert
+            # it back to UTC so the emitted UNTIL carries the Z suffix.
+            naive = datetime.strptime(until[:19], "%Y-%m-%dT%H:%M:%S")
+            try:
+                ical_rule["UNTIL"] = naive.replace(tzinfo=ZoneInfo(time_zone)).astimezone(
+                    timezone.utc
+                )
+            except ZoneInfoNotFoundError:
+                ical_rule["UNTIL"] = naive
         else:
             ical_rule["UNTIL"] = datetime.strptime(until[:19], "%Y-%m-%dT%H:%M:%S")
 
@@ -353,13 +375,19 @@ def jscal_to_ical(jscal: dict) -> str:
         if loc_name:
             event.add("location", loc_name)
 
+    status = jscal.get("status")
+    if status:
+        ical_status = _STATUS_JSCAL_TO_ICAL.get(status)
+        if ical_status:
+            event.add("status", ical_status)
+
     for rule in jscal.get("recurrenceRules") or []:
-        ical_rule = _jscal_rrule_to_rrule(rule)
+        ical_rule = _jscal_rrule_to_rrule(rule, time_zone)
         if ical_rule:
             event.add("rrule", ical_rule)
 
     for rule in jscal.get("excludedRecurrenceRules") or []:
-        ical_rule = _jscal_rrule_to_rrule(rule)
+        ical_rule = _jscal_rrule_to_rrule(rule, time_zone)
         if ical_rule:
             event.add("exrule", ical_rule)
 
@@ -371,6 +399,15 @@ def jscal_to_ical(jscal: dict) -> str:
             rid_dt: datetime | date = datetime.strptime(override_key, "%Y-%m-%dT%H:%M:%SZ").replace(
                 tzinfo=timezone.utc
             )
+        elif show_without_time:
+            rid_dt = date.fromisoformat(override_key[:10])
+        elif time_zone:
+            try:
+                rid_dt = datetime.strptime(override_key[:19], "%Y-%m-%dT%H:%M:%S").replace(
+                    tzinfo=ZoneInfo(time_zone)
+                )
+            except ZoneInfoNotFoundError:
+                rid_dt = datetime.strptime(override_key[:19], "%Y-%m-%dT%H:%M:%S")
         else:
             rid_dt = datetime.strptime(override_key[:19], "%Y-%m-%dT%H:%M:%S")
 
@@ -381,7 +418,8 @@ def jscal_to_ical(jscal: dict) -> str:
             child.add("uid", uid)
             child.add("dtstamp", datetime.now(tz=timezone.utc))
             child.add("recurrence-id", rid_dt)
-            child_start = patch.get("start", start_str)
+            # Default child start to the occurrence time (override key), not the master start.
+            child_start = patch.get("start", override_key)
             child_tz = patch.get("timeZone", time_zone)
             child_swt = patch.get("showWithoutTime", show_without_time)
             if child_start:

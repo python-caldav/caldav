@@ -43,6 +43,7 @@ from caldav.jmap._methods.task import (
 )
 from caldav.jmap.constants import CALENDAR_CAPABILITY, CORE_CAPABILITY, TASK_CAPABILITY
 from caldav.jmap.convert import ical_to_jscal
+from caldav.jmap.convert._patch import _NULL_FOR_UPDATE
 from caldav.jmap.error import JMAPAuthError, JMAPMethodError
 from caldav.jmap.objects.calendar import JMAPCalendar
 from caldav.jmap.objects.calendar_object import JMAPCalendarObject
@@ -70,6 +71,7 @@ class _JMAPClientBase:
         self.password = password
         self.timeout = timeout
         self._session_cache: Session | None = None
+        self._http_session = None
 
         if auth is not None:
             self._auth = auth
@@ -118,9 +120,10 @@ class _JMAPClientBase:
                 reason=f"Unsupported auth_type {effective_type!r}. Use 'basic' or 'bearer'.",
             )
 
-    def _raise_set_error(self, session: Session, err: dict) -> None:
+    @staticmethod
+    def _raise_set_error(api_url: str, err: dict) -> None:
         raise JMAPMethodError(
-            url=session.api_url,
+            url=api_url,
             reason=f"set failed: {err}",
             error_type=err.get("type", "serverError"),
         )
@@ -158,6 +161,256 @@ class _JMAPClientBase:
         )
         return [query_call, get_call]
 
+    @staticmethod
+    def _build_event_update_patch(ical_str: str) -> tuple[dict, frozenset[str]]:
+        """Build a JSCalendar PatchObject for a ``CalendarEvent/set`` update.
+
+        RFC 8620 merge semantics preserve properties absent from the patch, so
+        any optional property removed client-side must be explicitly nulled to
+        actually clear it server-side.  Returns the patch together with the set
+        of keys that were null-injected purely for this cleanup (i.e. were not
+        present in the converted iCalendar) so the caller can drop them if the
+        server refuses to null a property it does not support.
+        """
+        patch = ical_to_jscal(ical_str)
+        patch.pop("uid", None)  # uid is server-immutable after creation; patch must omit it
+        nulled: set[str] = set()
+        for key in _NULL_FOR_UPDATE:
+            if key not in patch:
+                patch[key] = None
+                nulled.add(key)
+        return patch, frozenset(nulled)
+
+    @staticmethod
+    def _unsupported_null_keys(
+        responses: list, event_id: str, patch: dict, nulled: frozenset[str]
+    ) -> set[str] | None:
+        """Detect an update that failed *only* because the server rejects
+        null-clearing of properties it does not support.
+
+        Some servers (e.g. Stalwart for ``recurrenceRules``) reject a property
+        outright in ``CalendarEvent/set``, even when it is being set to ``null``.
+        Nulling such a property is harmless cleanup — it was absent from the new
+        iCalendar — so we report it as droppable, letting the caller retry the
+        update without it.
+
+        Returns the set of droppable keys when the failure is exactly this case,
+        or ``None`` when the update succeeded or failed for a genuine reason (in
+        which case the caller proceeds to :meth:`_parse_update_event_response`,
+        which raises the real error).  Some servers report only one offending
+        property per response, so the caller retries in a loop, dropping the
+        reported keys until the update succeeds or hits a genuine error; each
+        returned key is guaranteed still present in ``patch``, so the loop
+        strictly shrinks the patch and terminates.
+        """
+        for method_name, resp_args, _ in responses:
+            if method_name == "CalendarEvent/set":
+                _, _, _, _, not_updated, _ = parse_event_set(resp_args)
+                err = not_updated.get(event_id)
+                if not err or err.get("type") != "invalidProperties":
+                    return None
+                props = set(err.get("properties") or [])
+                droppable = {p for p in props if p in nulled and p in patch and patch[p] is None}
+                # Only retry when every offending property is null-cleanup we can
+                # safely omit; if the client actually set one of them to a value,
+                # the rejection is genuine and must surface.
+                if props and props == droppable:
+                    return droppable
+                return None
+        return None
+
+    # ---------------------------------------------------------------------------
+    # Shared response parsers — pure synchronous; used by both sync and async
+    # clients.  Each method takes the raw ``methodResponses`` list returned by
+    # ``_request()`` plus whatever extra context is needed to build the result
+    # or raise an informative error, and returns/raises exactly what the public
+    # method should return/raise.
+    # ---------------------------------------------------------------------------
+
+    @staticmethod
+    def _parse_get_calendars(responses: list, client, is_async: bool) -> list[JMAPCalendar]:
+        for method_name, resp_args, _ in responses:
+            if method_name == "Calendar/get":
+                calendars = parse_calendar_get(resp_args)
+                for cal in calendars:
+                    cal._client = client
+                    cal._is_async = is_async
+                return calendars
+        return []
+
+    @staticmethod
+    def _parse_create_event_response(responses: list, api_url: str) -> str:
+        for method_name, resp_args, _ in responses:
+            if method_name == "CalendarEvent/set":
+                created, _, _, not_created, _, _ = parse_event_set(resp_args)
+                if "new-0" in not_created:
+                    _JMAPClientBase._raise_set_error(api_url, not_created["new-0"])
+                if "new-0" not in created:
+                    raise JMAPMethodError(
+                        url=api_url,
+                        reason="CalendarEvent/set response missing created entry for new-0",
+                    )
+                return created["new-0"]["id"]
+        raise JMAPMethodError(url=api_url, reason="No CalendarEvent/set response")
+
+    @staticmethod
+    def _parse_get_event_response(
+        responses: list, api_url: str, event_id: str
+    ) -> JMAPCalendarObject:
+        for method_name, resp_args, _ in responses:
+            if method_name == "CalendarEvent/get":
+                items = parse_event_get(resp_args)
+                if not items:
+                    raise JMAPMethodError(
+                        url=api_url,
+                        reason=f"Event not found: {event_id}",
+                        error_type="notFound",
+                    )
+                return JMAPCalendarObject(data=items[0], parent=None)
+        raise JMAPMethodError(url=api_url, reason="No CalendarEvent/get response")
+
+    @staticmethod
+    def _parse_update_event_response(responses: list, api_url: str, event_id: str) -> None:
+        for method_name, resp_args, _ in responses:
+            if method_name == "CalendarEvent/set":
+                _, _, _, _, not_updated, _ = parse_event_set(resp_args)
+                if event_id in not_updated:
+                    _JMAPClientBase._raise_set_error(api_url, not_updated[event_id])
+                return
+        raise JMAPMethodError(url=api_url, reason="No CalendarEvent/set response")
+
+    @staticmethod
+    def _parse_search_response(
+        responses: list, parent: JMAPCalendar | None
+    ) -> list[JMAPCalendarObject]:
+        for method_name, resp_args, _ in responses:
+            if method_name == "CalendarEvent/get":
+                return [
+                    JMAPCalendarObject(data=item, parent=parent)
+                    for item in parse_event_get(resp_args)
+                ]
+        return []
+
+    @staticmethod
+    def _parse_get_sync_token_response(responses: list, api_url: str) -> str:
+        for method_name, resp_args, _ in responses:
+            if method_name == "CalendarEvent/get":
+                return resp_args.get("state", "")
+        raise JMAPMethodError(url=api_url, reason="No CalendarEvent/get response")
+
+    @staticmethod
+    def _parse_event_changes_response(
+        responses: list, api_url: str
+    ) -> tuple[list[str], list[str], list[str], str]:
+        """Parse a CalendarEvent/changes response.
+
+        Returns ``(created_ids, updated_ids, destroyed_ids, new_sync_token)``.
+        Raises :class:`JMAPMethodError` when the server truncated the result.
+        """
+        created_ids: list[str] = []
+        updated_ids: list[str] = []
+        destroyed: list[str] = []
+        new_sync_token: str = ""
+        for method_name, resp_args, _ in responses:
+            if method_name == "CalendarEvent/changes":
+                _, new_sync_token, has_more, created_ids, updated_ids, destroyed = (
+                    parse_event_changes(resp_args)
+                )
+                if has_more:
+                    raise JMAPMethodError(
+                        url=api_url,
+                        reason=(
+                            "CalendarEvent/changes response was truncated by the server "
+                            "(hasMoreChanges=true). Call get_sync_token() to obtain a "
+                            "fresh baseline and re-sync."
+                        ),
+                        error_type="serverPartialFail",
+                    )
+        return created_ids, updated_ids, destroyed, new_sync_token
+
+    @staticmethod
+    def _assemble_sync_token_result(
+        get_responses: list,
+        created_ids: list[str],
+        updated_ids: list[str],
+        destroyed: list[str],
+        new_sync_token: str,
+    ) -> tuple[list[JMAPCalendarObject], list[JMAPCalendarObject], list[str], str]:
+        events_by_id: dict[str, JMAPCalendarObject] = {}
+        for method_name, resp_args, _ in get_responses:
+            if method_name == "CalendarEvent/get":
+                for item in parse_event_get(resp_args):
+                    events_by_id[item["id"]] = JMAPCalendarObject(data=item, parent=None)
+        added = [events_by_id[i] for i in created_ids if i in events_by_id]
+        modified = [events_by_id[i] for i in updated_ids if i in events_by_id]
+        return added, modified, destroyed, new_sync_token
+
+    @staticmethod
+    def _parse_delete_event_response(responses: list, api_url: str, event_id: str) -> None:
+        for method_name, resp_args, _ in responses:
+            if method_name == "CalendarEvent/set":
+                _, _, _, _, _, not_destroyed = parse_event_set(resp_args)
+                if event_id in not_destroyed:
+                    _JMAPClientBase._raise_set_error(api_url, not_destroyed[event_id])
+                return
+        raise JMAPMethodError(url=api_url, reason="No CalendarEvent/set response")
+
+    @staticmethod
+    def _parse_get_task_lists_response(responses: list) -> list[dict]:
+        for method_name, resp_args, _ in responses:
+            if method_name == "TaskList/get":
+                return parse_task_list_get(resp_args)
+        return []
+
+    @staticmethod
+    def _parse_create_task_response(responses: list, api_url: str) -> str:
+        for method_name, resp_args, _ in responses:
+            if method_name == "Task/set":
+                created, _, _, not_created, _, _ = parse_task_set(resp_args)
+                if "new-0" in not_created:
+                    _JMAPClientBase._raise_set_error(api_url, not_created["new-0"])
+                if "new-0" not in created:
+                    raise JMAPMethodError(
+                        url=api_url,
+                        reason="Task/set response missing created entry for new-0",
+                    )
+                return created["new-0"]["id"]
+        raise JMAPMethodError(url=api_url, reason="No Task/set response")
+
+    @staticmethod
+    def _parse_get_task_response(responses: list, api_url: str, task_id: str) -> dict:
+        for method_name, resp_args, _ in responses:
+            if method_name == "Task/get":
+                items = resp_args.get("list", [])
+                if not items:
+                    raise JMAPMethodError(
+                        url=api_url,
+                        reason=f"Task not found: {task_id}",
+                        error_type="notFound",
+                    )
+                return items[0]
+        raise JMAPMethodError(url=api_url, reason="No Task/get response")
+
+    @staticmethod
+    def _parse_update_task_response(responses: list, api_url: str, task_id: str) -> None:
+        for method_name, resp_args, _ in responses:
+            if method_name == "Task/set":
+                _, _, _, _, not_updated, _ = parse_task_set(resp_args)
+                if task_id in not_updated:
+                    _JMAPClientBase._raise_set_error(api_url, not_updated[task_id])
+                return
+        raise JMAPMethodError(url=api_url, reason="No Task/set response")
+
+    @staticmethod
+    def _parse_delete_task_response(responses: list, api_url: str, task_id: str) -> None:
+        for method_name, resp_args, _ in responses:
+            if method_name == "Task/set":
+                _, _, _, _, _, not_destroyed = parse_task_set(resp_args)
+                if task_id in not_destroyed:
+                    _JMAPClientBase._raise_set_error(api_url, not_destroyed[task_id])
+                return
+        raise JMAPMethodError(url=api_url, reason="No Task/set response")
+
 
 class JMAPClient(_JMAPClientBase):
     """Synchronous JMAP client for calendar operations.
@@ -179,11 +432,23 @@ class JMAPClient(_JMAPClientBase):
         timeout: HTTP request timeout in seconds.
     """
 
+    def _get_http_session(self):
+        """Return the persistent HTTP session, creating it on first call."""
+        if self._http_session is None:
+            sess = requests.Session()
+            sess.auth = self._auth
+            sess.headers.update({"Content-Type": "application/json", "Accept": "application/json"})
+            self._http_session = sess
+        return self._http_session
+
     def __enter__(self) -> JMAPClient:
+        self._get_http_session()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
-        return None
+        if self._http_session is not None:
+            self._http_session.close()
+            self._http_session = None
 
     def _get_session(self) -> Session:
         """Return the cached Session, fetching it on first call."""
@@ -217,11 +482,9 @@ class JMAPClient(_JMAPClientBase):
 
         log.debug("JMAP POST to %s: %d method call(s)", session.api_url, len(method_calls))
 
-        response = requests.post(
+        response = self._get_http_session().post(
             session.api_url,
             json=payload,
-            auth=self._auth,
-            headers={"Content-Type": "application/json", "Accept": "application/json"},
             timeout=self.timeout,
         )
 
@@ -255,18 +518,8 @@ class JMAPClient(_JMAPClientBase):
             List of :class:`~caldav.jmap.objects.calendar.JMAPCalendar` objects.
         """
         session = self._get_session()
-        call = build_calendar_get(session.account_id)
-        responses = self._request([call])
-
-        for method_name, resp_args, _ in responses:
-            if method_name == "Calendar/get":
-                calendars = parse_calendar_get(resp_args)
-                for cal in calendars:
-                    cal._client = self
-                    cal._is_async = False
-                return calendars
-
-        return []
+        responses = self._request([build_calendar_get(session.account_id)])
+        return self._parse_get_calendars(responses, self, False)
 
     def create_event(self, calendar_id: str, ical_str: str) -> str:
         """Create a calendar event from an iCalendar string.
@@ -285,20 +538,7 @@ class JMAPClient(_JMAPClientBase):
         jscal = ical_to_jscal(ical_str, calendar_id=calendar_id)
         call = build_event_set_create(session.account_id, {"new-0": jscal})
         responses = self._request([call])
-
-        for method_name, resp_args, _ in responses:
-            if method_name == "CalendarEvent/set":
-                created, _, _, not_created, _, _ = parse_event_set(resp_args)
-                if "new-0" in not_created:
-                    self._raise_set_error(session, not_created["new-0"])
-                if "new-0" not in created:
-                    raise JMAPMethodError(
-                        url=session.api_url,
-                        reason="CalendarEvent/set response missing created entry for new-0",
-                    )
-                return created["new-0"]["id"]
-
-        raise JMAPMethodError(url=session.api_url, reason="No CalendarEvent/set response")
+        return self._parse_create_event_response(responses, session.api_url)
 
     def get_event(self, event_id: str) -> JMAPCalendarObject:
         """Fetch a calendar event by JMAP event ID.
@@ -316,21 +556,8 @@ class JMAPClient(_JMAPClientBase):
             JMAPMethodError: If the event is not found.
         """
         session = self._get_session()
-        call = build_event_get(session.account_id, ids=[event_id])
-        responses = self._request([call])
-
-        for method_name, resp_args, _ in responses:
-            if method_name == "CalendarEvent/get":
-                items = parse_event_get(resp_args)
-                if not items:
-                    raise JMAPMethodError(
-                        url=session.api_url,
-                        reason=f"Event not found: {event_id}",
-                        error_type="notFound",
-                    )
-                return JMAPCalendarObject(data=items[0], parent=None)
-
-        raise JMAPMethodError(url=session.api_url, reason="No CalendarEvent/get response")
+        responses = self._request([build_event_get(session.account_id, ids=[event_id])])
+        return self._parse_get_event_response(responses, session.api_url, event_id)
 
     def update_event(self, event_id: str, ical_str: str) -> None:
         """Update a calendar event from an iCalendar string.
@@ -343,19 +570,17 @@ class JMAPClient(_JMAPClientBase):
             JMAPMethodError: If the server rejects the update.
         """
         session = self._get_session()
-        patch = ical_to_jscal(ical_str)
-        patch.pop("uid", None)  # uid is server-immutable after creation; patch must omit it
-        call = build_event_set_update(session.account_id, {event_id: patch})
-        responses = self._request([call])
-
-        for method_name, resp_args, _ in responses:
-            if method_name == "CalendarEvent/set":
-                _, _, _, _, not_updated, _ = parse_event_set(resp_args)
-                if event_id in not_updated:
-                    self._raise_set_error(session, not_updated[event_id])
-                return
-
-        raise JMAPMethodError(url=session.api_url, reason="No CalendarEvent/set response")
+        patch, nulled = self._build_event_update_patch(ical_str)
+        while True:
+            responses = self._request(
+                [build_event_set_update(session.account_id, {event_id: patch})]
+            )
+            drop = self._unsupported_null_keys(responses, event_id, patch, nulled)
+            if not drop:
+                break
+            for key in drop:
+                patch.pop(key, None)
+        self._parse_update_event_response(responses, session.api_url, event_id)
 
     def _search(
         self,
@@ -368,15 +593,7 @@ class JMAPClient(_JMAPClientBase):
         session = self._get_session()
         calls = self._build_event_search_calls(session.account_id, calendar_id, start, end, text)
         responses = self._request(calls)
-
-        for method_name, resp_args, _ in responses:
-            if method_name == "CalendarEvent/get":
-                return [
-                    JMAPCalendarObject(data=item, parent=parent)
-                    for item in parse_event_get(resp_args)
-                ]
-
-        return []
+        return self._parse_search_response(responses, parent)
 
     def search_events(
         self,
@@ -417,16 +634,12 @@ class JMAPClient(_JMAPClientBase):
             retrieve only what changed since this point.
         """
         session = self._get_session()
-        call = build_event_get(session.account_id, ids=[])
-        responses = self._request([call])
-        for method_name, resp_args, _ in responses:
-            if method_name == "CalendarEvent/get":
-                return resp_args.get("state", "")
-        raise JMAPMethodError(url=session.api_url, reason="No CalendarEvent/get response")
+        responses = self._request([build_event_get(session.account_id, ids=[])])
+        return self._parse_get_sync_token_response(responses, session.api_url)
 
     def get_objects_by_sync_token(
         self, sync_token: str
-    ) -> tuple[list[JMAPCalendarObject], list[JMAPCalendarObject], list[str]]:
+    ) -> tuple[list[JMAPCalendarObject], list[JMAPCalendarObject], list[str], str]:
         """Fetch events changed since a previous sync token.
 
         Calls ``CalendarEvent/changes`` to discover which events were created,
@@ -440,53 +653,28 @@ class JMAPClient(_JMAPClientBase):
                 or by a prior call to this method.
 
         Returns:
-            A 3-tuple ``(added, modified, deleted)``:
+            A 4-tuple ``(added, modified, deleted, new_sync_token)``:
 
             - ``added``: objects for newly created events (``parent`` is ``None``).
             - ``modified``: objects for updated events (``parent`` is ``None``).
             - ``deleted``: Event IDs that were destroyed.
+            - ``new_sync_token``: Pass to the next call to this method as ``sync_token``.
 
         Raises:
             JMAPMethodError: If the server reports ``hasMoreChanges: true``.
         """
         session = self._get_session()
-        changes_call = build_event_changes(session.account_id, sync_token)
-        responses = self._request([changes_call])
-
-        created_ids: list[str] = []
-        updated_ids: list[str] = []
-        destroyed: list[str] = []
-
-        for method_name, resp_args, _ in responses:
-            if method_name == "CalendarEvent/changes":
-                _, _, has_more, created_ids, updated_ids, destroyed = parse_event_changes(resp_args)
-                if has_more:
-                    raise JMAPMethodError(
-                        url=session.api_url,
-                        reason=(
-                            "CalendarEvent/changes response was truncated by the server "
-                            "(hasMoreChanges=true). Call get_sync_token() to obtain a "
-                            "fresh baseline and re-sync."
-                        ),
-                        error_type="serverPartialFail",
-                    )
-
+        responses = self._request([build_event_changes(session.account_id, sync_token)])
+        created_ids, updated_ids, destroyed, new_sync_token = self._parse_event_changes_response(
+            responses, session.api_url
+        )
         fetch_ids = created_ids + updated_ids
         if not fetch_ids:
-            return [], [], destroyed
-
-        get_call = build_event_get(session.account_id, ids=fetch_ids)
-        get_responses = self._request([get_call])
-
-        events_by_id: dict[str, JMAPCalendarObject] = {}
-        for method_name, resp_args, _ in get_responses:
-            if method_name == "CalendarEvent/get":
-                for item in parse_event_get(resp_args):
-                    events_by_id[item["id"]] = JMAPCalendarObject(data=item, parent=None)
-
-        added = [events_by_id[i] for i in created_ids if i in events_by_id]
-        modified = [events_by_id[i] for i in updated_ids if i in events_by_id]
-        return added, modified, destroyed
+            return [], [], destroyed, new_sync_token
+        get_responses = self._request([build_event_get(session.account_id, ids=fetch_ids)])
+        return self._assemble_sync_token_result(
+            get_responses, created_ids, updated_ids, destroyed, new_sync_token
+        )
 
     def delete_event(self, event_id: str) -> None:
         """Delete a calendar event.
@@ -498,17 +686,8 @@ class JMAPClient(_JMAPClientBase):
             JMAPMethodError: If the server rejects the delete.
         """
         session = self._get_session()
-        call = build_event_set_destroy(session.account_id, [event_id])
-        responses = self._request([call])
-
-        for method_name, resp_args, _ in responses:
-            if method_name == "CalendarEvent/set":
-                _, _, _, _, _, not_destroyed = parse_event_set(resp_args)
-                if event_id in not_destroyed:
-                    self._raise_set_error(session, not_destroyed[event_id])
-                return
-
-        raise JMAPMethodError(url=session.api_url, reason="No CalendarEvent/set response")
+        responses = self._request([build_event_set_destroy(session.account_id, [event_id])])
+        self._parse_delete_event_response(responses, session.api_url, event_id)
 
     def _get_object_by_uid(
         self, uid: str, calendar_id: str | None = None, parent: JMAPCalendar | None = None
@@ -529,14 +708,8 @@ class JMAPClient(_JMAPClientBase):
             List of raw JMAP TaskList dicts as returned by the server.
         """
         session = self._get_session()
-        call = build_task_list_get(session.account_id)
-        responses = self._request([call], using=_TASK_USING)
-
-        for method_name, resp_args, _ in responses:
-            if method_name == "TaskList/get":
-                return parse_task_list_get(resp_args)
-
-        return []
+        responses = self._request([build_task_list_get(session.account_id)], using=_TASK_USING)
+        return self._parse_get_task_lists_response(responses)
 
     def create_task(self, task_list_id: str, title: str, **kwargs) -> str:
         """Create a task in a task list.
@@ -567,15 +740,7 @@ class JMAPClient(_JMAPClientBase):
         task_dict.update(kwargs)
         call = build_task_set_create(session.account_id, {"new-0": task_dict})
         responses = self._request([call], using=_TASK_USING)
-
-        for method_name, resp_args, _ in responses:
-            if method_name == "Task/set":
-                created, _, _, not_created, _, _ = parse_task_set(resp_args)
-                if "new-0" in not_created:
-                    self._raise_set_error(session, not_created["new-0"])
-                return created["new-0"]["id"]
-
-        raise JMAPMethodError(url=session.api_url, reason="No Task/set response")
+        return self._parse_create_task_response(responses, session.api_url)
 
     def get_task(self, task_id: str) -> dict:
         """Fetch a task by ID.
@@ -590,21 +755,10 @@ class JMAPClient(_JMAPClientBase):
             JMAPMethodError: If the task is not found.
         """
         session = self._get_session()
-        call = build_task_get(session.account_id, ids=[task_id])
-        responses = self._request([call], using=_TASK_USING)
-
-        for method_name, resp_args, _ in responses:
-            if method_name == "Task/get":
-                items = resp_args.get("list", [])
-                if not items:
-                    raise JMAPMethodError(
-                        url=session.api_url,
-                        reason=f"Task not found: {task_id}",
-                        error_type="notFound",
-                    )
-                return items[0]
-
-        raise JMAPMethodError(url=session.api_url, reason="No Task/get response")
+        responses = self._request(
+            [build_task_get(session.account_id, ids=[task_id])], using=_TASK_USING
+        )
+        return self._parse_get_task_response(responses, session.api_url, task_id)
 
     def update_task(self, task_id: str, patch: dict) -> None:
         """Update a task with a partial patch.
@@ -619,15 +773,7 @@ class JMAPClient(_JMAPClientBase):
         session = self._get_session()
         call = build_task_set_update(session.account_id, {task_id: patch})
         responses = self._request([call], using=_TASK_USING)
-
-        for method_name, resp_args, _ in responses:
-            if method_name == "Task/set":
-                _, _, _, _, not_updated, _ = parse_task_set(resp_args)
-                if task_id in not_updated:
-                    self._raise_set_error(session, not_updated[task_id])
-                return
-
-        raise JMAPMethodError(url=session.api_url, reason="No Task/set response")
+        self._parse_update_task_response(responses, session.api_url, task_id)
 
     def delete_task(self, task_id: str) -> None:
         """Delete a task.
@@ -639,14 +785,7 @@ class JMAPClient(_JMAPClientBase):
             JMAPMethodError: If the server rejects the delete.
         """
         session = self._get_session()
-        call = build_task_set_destroy(session.account_id, [task_id])
-        responses = self._request([call], using=_TASK_USING)
-
-        for method_name, resp_args, _ in responses:
-            if method_name == "Task/set":
-                _, _, _, _, _, not_destroyed = parse_task_set(resp_args)
-                if task_id in not_destroyed:
-                    self._raise_set_error(session, not_destroyed[task_id])
-                return
-
-        raise JMAPMethodError(url=session.api_url, reason="No Task/set response")
+        responses = self._request(
+            [build_task_set_destroy(session.account_id, [task_id])], using=_TASK_USING
+        )
+        self._parse_delete_task_response(responses, session.api_url, task_id)
