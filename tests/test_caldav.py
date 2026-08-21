@@ -2158,7 +2158,7 @@ END:VCALENDAR"""
             try:
                 cal.delete()
             except Exception:
-                pass
+                logging.warning(f"unable to delete calendar {cal.url} with name {name}")
             self._teardownCalendar(cal_id=cal_id)
 
     @pytest.mark.parametrize("klass", ["Calendar", "Event"])
