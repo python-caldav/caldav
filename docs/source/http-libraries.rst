@@ -44,7 +44,8 @@ The package **httpx2** seems to be the continuation of the httpx
 project.
 
 The fallback chain for async communication now is niquests, httpx2,
-httpxyz and finally httpx, whichever imports first.
+httpxyz and finally httpx, so whichever successfully imports first is
+used.
 
 The three httpx variants share one API, and the CalDAV library treats
 them interchangeably.  One difference is worth knowing if you write code
