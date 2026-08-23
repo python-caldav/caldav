@@ -565,8 +565,12 @@ class TestResolveFeatures:
         # Should have the overrides
         assert result["sync-token"] == "full"
         assert result["search.text.substring"] == {"support": "unsupported"}
-        # Should still have base features
-        assert result["search.text.case-sensitive"] == {"support": "unsupported"}
+        # Should still have base features.  Asserted over the whole base dict
+        # rather than one hand-picked key, so that re-probing a server and
+        # dropping a key from its profile cannot break this test again.
+        for key, value in ch.synology.items():
+            if key not in features:
+                assert result[key] == value
         # Should not have modified the original synology dict
         assert ch.synology.get("sync-token") == original_sync_token
         assert "search.text.substring" not in ch.synology
