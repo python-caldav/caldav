@@ -1345,21 +1345,6 @@ bedework = {
     ## save.duplicate-event is left at the default "full".)
 }
 
-synology = {
-    'principal-search': False,
-    'sync-token': 'fragile',
-    'delete-calendar': False,
-    'search.comp-type.optional': 'fragile',
-    'search.is-not-defined': {'support': 'fragile', 'behaviour': 'works for CLASS but not for CATEGORIES'},
-    'search.text.case-sensitive': {'support': 'unsupported'},
-    'search.time-range.alarm': {'support': 'unsupported'},
-    ## Synology skips VTODOs without DTSTART in date-range searches.
-    'search.time-range.todo.no-dtstart': {'support': 'unsupported'},
-    'test-calendar': {'cleanup-regime': 'wipe-calendar'},
-    'scheduling.schedule-tag': False,
-    'scheduling.mailbox.inbox-delivery': False,
-}
-
 baikal =  { ## version 0.10.1
     # Baikal (sabre/dav) delivers iTIP notifications to the attendee inbox AND auto-schedules
     # into their calendar.
@@ -1425,6 +1410,8 @@ cyrus = {
 #    'get_object_by_uid_is_broken'
 #]
 
+## See the synology profile above: Synology Calendar ships a modified DAViCal,
+## so the two profiles should be kept in sync where the fork has not diverged.
 davical = {
     # Disable HTTP/2 multiplexing - davical doesn't support it well and niquests
     # lazy responses cause MultiplexingError when accessing status_code
@@ -1452,6 +1439,29 @@ davical = {
     ## extra properties not specified in RFC4791/RFC5545
     "calendar-color": {"support": "full"},
     "calendar-order": {"support": "full"},
+}
+
+## Synology Calendar (the DSM package) embeds a modified DAViCal, hence
+## deriving from the davical profile above.
+##
+## Re-probed with caldav-server-tester against a DSM 7 Synology Calendar
+## 2026-08-23: every feature the checker could test matched davical except
+## calendar deletion, so only the deviations are listed here.
+synology = davical | {
+    ## The one real behavioural divergence of the fork: DSM manages calendars
+    ## through its own UI/API and refuses a CalDAV DELETE on the collection,
+    ## where upstream DAViCal allows it.  Consequence for callers: Calendar
+    ## .delete() degrades to wiping the objects, so a cal_id is never freed for
+    ## reuse and a later MKCALENDAR at the same id gets 405.
+    'delete-calendar': False,
+    ## (scheduling.mailbox.inbox-delivery used to be pinned False here.  It was
+    ## added in a bulk hints commit with no per-server evidence, and it cannot be
+    ## probed on the configured server - the checker needs a second user account,
+    ## and every test that reads it skips on the principal count first.  So it was
+    ## an unfalsifiable guess; it now inherits davical, which delivers iTIP
+    ## requests to the attendee inbox.  Pin it again only with a real observation.)
+    ## Test bookkeeping rather than a server feature.
+    'test-calendar': {'cleanup-regime': 'wipe-calendar'},
 }
 
 sogo = {
