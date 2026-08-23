@@ -1345,19 +1345,46 @@ bedework = {
     ## save.duplicate-event is left at the default "full".)
 }
 
+## Synology Calendar (the DSM package) embeds a modified DAViCal plus AWL:
+## Synology's own error logs point at @appstore/Calendar/davical/inc/... and
+## @appstore/Calendar/awl/inc/AwlQuery.php, Calendar 2.3.4-0631 shipped a fix
+## for CVE-2019-18345 (a DAViCal <=1.1.8 vulnerability), and CalDAV lives at
+## /caldav.php/<principal>/ - DAViCal's URL scheme verbatim.  Hence the family
+## resemblance to the davical profile below; the two agree on the distinctive
+## DAViCal quirks (no principal-search, no Schedule-Tag, no alarm time-range
+## search, VTODOs without DTSTART skipped in date-range searches).  The one
+## behaviour that really differs is calendar deletion.
+##
+## Feature levels below re-probed with caldav-server-tester against a DSM 7
+## Synology Calendar 2026-08-23.  Anything left out of this dict was observed at
+## its default - notably search.comp-type.optional and
+## search.text.case-sensitive, which used to be declared 'fragile' and
+## 'unsupported' here and are in fact 'full' (as on davical).
 synology = {
     'principal-search': False,
     'sync-token': 'fragile',
+    ## DSM manages calendars through its own UI/API and refuses a CalDAV DELETE
+    ## on the collection, so Calendar.delete() degrades to a wipe and a cal_id
+    ## can never be freed for reuse.  Upstream DAViCal allows the DELETE.
     'delete-calendar': False,
-    'search.comp-type.optional': 'fragile',
-    'search.is-not-defined': {'support': 'fragile', 'behaviour': 'works for CLASS but not for CATEGORIES'},
-    'search.text.case-sensitive': {'support': 'unsupported'},
+    'search.time-range.comp-type-optional': True,
+    ## was {'support': 'fragile', 'behaviour': 'works for CLASS but not for
+    ## CATEGORIES'} - a full run found CLASS, CATEGORIES and DTEND all working,
+    ## confirmed full 2026-08-23.
+    'search.is-not-defined': True,
     'search.time-range.alarm': {'support': 'unsupported'},
     ## Synology skips VTODOs without DTSTART in date-range searches.
     'search.time-range.todo.no-dtstart': {'support': 'unsupported'},
     'test-calendar': {'cleanup-regime': 'wipe-calendar'},
     'scheduling.schedule-tag': False,
+    ## Not re-probed: the checker needs a second user account on the server to
+    ## observe inbox delivery, and only one is configured.
     'scheduling.mailbox.inbox-delivery': False,
+    ## extra properties not specified in RFC4791/RFC5545.  Both default to
+    ## 'fragile', which here means "untested"; tested now - confirmed full
+    ## 2026-08-23.
+    'calendar-color': True,
+    'calendar-order': True,
 }
 
 baikal =  { ## version 0.10.1
@@ -1425,6 +1452,8 @@ cyrus = {
 #    'get_object_by_uid_is_broken'
 #]
 
+## See the synology profile above: Synology Calendar ships a modified DAViCal,
+## so the two profiles should be kept in sync where the fork has not diverged.
 davical = {
     # Disable HTTP/2 multiplexing - davical doesn't support it well and niquests
     # lazy responses cause MultiplexingError when accessing status_code
