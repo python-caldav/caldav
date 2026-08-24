@@ -511,7 +511,14 @@ class AsyncFunctionalTestsBaseClass:
 
         from .fixture_helpers import adelete_calendar_if_present, cleanup_calendar_objects
 
-        cal_id = "pythoncaldav-async-test"
+        ## A cal_id of its own: this test deletes the calendar it creates, and
+        ## the async_calendar fixture hands the same collection to other tests.
+        ## Sharing "pythoncaldav-async-test" with the fixture meant the delete
+        ## below raced the fixture's next MKCALENDAR, and the following test got
+        ## a calendar that was not there (403/404 on its first PUT against
+        ## Robur).  Only reachable since delete-calendar became supported there
+        ## again - before that this test wiped the objects instead of deleting.
+        cal_id = "pythoncaldav-async-mkcalendar"
         calendar = None
         principal = None
 
