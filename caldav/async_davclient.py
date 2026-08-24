@@ -535,12 +535,24 @@ class AsyncDAVClient(BaseDAVClient):
             depth: Maximum recursion depth.
             headers: Additional headers.
             props: List of property names to request (uses protocol layer).
+                A raw XML body belongs in ``body``, not here.
 
         Returns:
             DAVResponse with results attribute containing parsed PropfindResult list.
         """
         # Use protocol layer to build XML if props provided
         if props is not None and not body:
+            ## Guard the one mistake this signature invites.  A raw XML body
+            ## handed to _build_propfind_body() would be iterated character by
+            ## character and quietly produce an empty <D:prop/>, which most
+            ## servers answer with a well-formed but useless multistatus - so
+            ## the bug hides.  The sync client accepts a body here for
+            ## backward compatibility; this one is new and has ``body``.
+            if isinstance(props, str):
+                raise TypeError(
+                    "propfind(props=...) takes a list of property names; "
+                    "pass a raw XML request as propfind(body=...) instead"
+                )
             body = self._build_propfind_body(props).decode("utf-8")
 
         final_headers = self._build_method_headers("PROPFIND", depth, headers)
