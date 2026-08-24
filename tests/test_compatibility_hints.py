@@ -630,3 +630,56 @@ class TestFeatureSetCompare:
         observed = FeatureSet()
         observed.set_feature("search.comp-type", "fragile")
         assert expected.compare(observed) == []
+
+
+class TestNonExistingRaisesNotFound:
+    """``non-existing-raises-not-found`` and its ``.collection`` subfeature.
+
+    Robur is the reason the subfeature exists: it answers 403 for *everything*
+    that does not exist below ``/calendars/``, object and collection alike, but
+    ``CalendarObjectResource.load()`` retries a failed GET as a calendar-multiget
+    REPORT against the (existing) parent collection, where Robur reports the
+    missing href with an inner 404.  So an object lookup does end in
+    ``NotFoundError`` while a collection lookup ends in ``AuthorizationError``,
+    and the two must be declarable separately.
+    """
+
+    def test_collection_subfeature_exists(self) -> None:
+        assert "non-existing-raises-not-found.collection" in FeatureSet.FEATURES
+
+    def test_collection_defaults_to_the_parent(self) -> None:
+        """Undeclared, the subfeature follows the parent - both ways."""
+        assert FeatureSet().is_supported("non-existing-raises-not-found.collection")
+        unsupported = FeatureSet({"non-existing-raises-not-found": {"support": "unsupported"}})
+        assert not unsupported.is_supported("non-existing-raises-not-found.collection")
+
+    def test_unsupported_collection_does_not_drag_down_the_parent(self) -> None:
+        """The object-level behaviour is probed directly and must survive a
+        declaration that only the collection lookup misbehaves."""
+        features = FeatureSet(
+            {"non-existing-raises-not-found.collection": {"support": "unsupported"}}
+        )
+        assert features.is_supported("non-existing-raises-not-found")
+        assert not features.is_supported("non-existing-raises-not-found.collection")
+
+    def test_robur_declares_the_split(self) -> None:
+        features = FeatureSet(_resolve_features("robur"))
+        assert features.is_supported("non-existing-raises-not-found", str) == "full"
+        assert (
+            features.is_supported("non-existing-raises-not-found.collection", str) == "unsupported"
+        )
+
+    def test_the_split_is_still_compared(self) -> None:
+        """Unlike the ``fragile`` it replaces, the split stays observable: a
+        server that starts answering 404 for collections is reported."""
+        declared = FeatureSet(_resolve_features("robur"))
+        observed = FeatureSet()
+        observed.set_feature("non-existing-raises-not-found")
+        observed.set_feature("non-existing-raises-not-found.collection", "unsupported")
+        assert declared.compare(observed) == []
+
+        improved = FeatureSet()
+        improved.set_feature("non-existing-raises-not-found")
+        improved.set_feature("non-existing-raises-not-found.collection")
+        mismatches = {m["feature"]: m for m in declared.compare(improved)}
+        assert "non-existing-raises-not-found.collection" in mismatches
