@@ -1461,6 +1461,23 @@ class RepeatedFunctionalTestsBaseClass:
         if not was_created:
             self._preconfigured_calendar_urls.add(cal_url)
 
+    def _delete_used_calendar(self, cal, wipe):
+        """Clean up one tracked calendar, tolerating one the test already deleted.
+
+        A test that deletes a calendar it created (testSetCalendarProperties
+        does, with testcal_id2) leaves it in ``calendars_used``, so this
+        addresses a collection that is no longer there.  Most servers answer
+        the wipe's REPORT with 404 and `_post_delete()` accepts a 404 as
+        success, but Robur answers 403 - see the
+        ``non-existing-raises-not-found`` feature, which is why the tolerated
+        exception comes from ``_notFound()`` rather than being NotFoundError
+        outright.
+        """
+        try:
+            cal.delete(wipe=wipe)
+        except self._notFound():
+            pass
+
     def _cleanup(self, mode=None):
         if self.cleanup_regime == "none":
             return  ## no cleanup for ephemeral servers
@@ -1470,18 +1487,18 @@ class RepeatedFunctionalTestsBaseClass:
             return  ## no cleanup needed
         if self.cleanup_regime == "wipe-calendar":
             for cal in self.calendars_used:
-                cal.delete(wipe=True)
+                self._delete_used_calendar(cal, wipe=True)
             return  ## keep calendar alive; don't fall through to cal.delete() below
         elif not self.is_supported("create-calendar") or self.cleanup_regime == "thorough":
             for cal in self.calendars_used:
-                cal.delete(wipe=True)
+                self._delete_used_calendar(cal, wipe=True)
             return
         for cal in self.calendars_used:
             if str(cal.url) in self._preconfigured_calendar_urls:
                 ## Pre-configured calendar: wipe objects, don't delete the calendar
-                cal.delete(wipe=True)
+                self._delete_used_calendar(cal, wipe=True)
             else:
-                cal.delete()
+                self._delete_used_calendar(cal, wipe=None)
         for calid in (
             self.testcal_id,
             self.testcal_id2,
