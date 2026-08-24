@@ -634,3 +634,71 @@ class TestFeatureSetCompare:
         observed = FeatureSet()
         observed.set_feature("search.comp-type", "fragile")
         assert expected.compare(observed) == []
+
+
+class TestNonExistingRaisesNotFound:
+    """``non-existing-raises-not-found.object`` and ``.collection``, siblings.
+
+    Robur is the reason the split exists: it answers 403 for *everything* that
+    does not exist below ``/calendars/``, object and collection alike, but
+    ``CalendarObjectResource.load()`` retries a failed GET as a
+    calendar-multiget REPORT against the (existing) parent collection, where
+    Robur reports the missing href with an inner 404.  So an object lookup does
+    end in ``NotFoundError`` while a collection lookup ends in
+    ``AuthorizationError``.  Neither answer can be derived from the other,
+    which is why they are siblings under a grouping parent rather than parent
+    and child.
+    """
+
+    def test_both_subfeatures_exist(self) -> None:
+        assert "non-existing-raises-not-found.object" in FeatureSet.FEATURES
+        assert "non-existing-raises-not-found.collection" in FeatureSet.FEATURES
+
+    def test_the_parent_is_a_grouping_node_with_no_default(self) -> None:
+        """It decides nothing on its own; the siblings carry the observations."""
+        assert "default" not in FeatureSet.FEATURES["non-existing-raises-not-found"]
+
+    def test_each_sibling_has_its_own_default(self) -> None:
+        for name in ("object", "collection"):
+            assert "default" in FeatureSet.FEATURES[f"non-existing-raises-not-found.{name}"]
+            assert FeatureSet().is_supported(f"non-existing-raises-not-found.{name}")
+
+    def test_neither_sibling_drags_the_other_down(self) -> None:
+        """The point of the split: two observations, independently declarable."""
+        obj = FeatureSet({"non-existing-raises-not-found.object": {"support": "unsupported"}})
+        assert not obj.is_supported("non-existing-raises-not-found.object")
+        assert obj.is_supported("non-existing-raises-not-found.collection")
+
+        coll = FeatureSet({"non-existing-raises-not-found.collection": {"support": "unsupported"}})
+        assert coll.is_supported("non-existing-raises-not-found.object")
+        assert not coll.is_supported("non-existing-raises-not-found.collection")
+
+    def test_declaring_the_parent_claims_both(self) -> None:
+        """The ancestor walk reaches both siblings, so a profile declaring the
+        grouping node claims to have observed both - honest only when that is
+        true, which is why profiles declare the sibling instead."""
+        both = FeatureSet({"non-existing-raises-not-found": {"support": "unsupported"}})
+        assert not both.is_supported("non-existing-raises-not-found.object")
+        assert not both.is_supported("non-existing-raises-not-found.collection")
+
+    def test_robur_declares_the_split(self) -> None:
+        features = FeatureSet(_resolve_features("robur"))
+        assert features.is_supported("non-existing-raises-not-found.object")
+        assert (
+            features.is_supported("non-existing-raises-not-found.collection", str) == "unsupported"
+        )
+
+    def test_the_split_is_still_compared(self) -> None:
+        """Unlike the ``fragile`` it replaces, the split stays observable: a
+        server that starts answering 404 for collections is reported."""
+        declared = FeatureSet(_resolve_features("robur"))
+        observed = FeatureSet()
+        observed.set_feature("non-existing-raises-not-found.object")
+        observed.set_feature("non-existing-raises-not-found.collection", "unsupported")
+        assert declared.compare(observed) == []
+
+        improved = FeatureSet()
+        improved.set_feature("non-existing-raises-not-found.object")
+        improved.set_feature("non-existing-raises-not-found.collection")
+        mismatches = {m["feature"]: m for m in declared.compare(improved)}
+        assert "non-existing-raises-not-found.collection" in mismatches
