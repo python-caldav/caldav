@@ -261,7 +261,39 @@ hence, "fragile".
             "description": "GET requests to calendar object resource URLs work correctly. When unsupported, the server returns 404 on GET even for valid object URLs. The client works around this by falling back to UID-based lookup.",
         },
         "non-existing-raises-not-found": {
-            "description": "Looking up a non-existing calendar object resource raises NotFoundError (the server answers 404).  'full' (the default) is the expected behaviour; some servers answer 403 instead (raising AuthorizationError) - e.g. Robur, probably to avoid leaking whether a resource exists - which is a legitimate choice rather than an RFC breach, so it is recorded as 'unsupported' rather than 'broken'.",
+            "description": (
+                "Looking up something that does not exist raises NotFoundError.  A grouping "
+                "node: the two subfeatures below are siblings, neither derived from the other, "
+                "because a server is perfectly free to answer one way for a missing calendar "
+                "*object* and another for a missing *collection* - Robur does - and because the "
+                "library reaches the two by different code paths.  Declaring this parent claims "
+                "both at once, which is only honest when both were actually observed."
+            ),
+        },
+        "non-existing-raises-not-found.object": {
+            "description": (
+                "Looking up a non-existing calendar *object* resource raises NotFoundError.  "
+                "'full' (the default) is the expected behaviour; when 'unsupported', the lookup "
+                "ends in some other DAVError - typically AuthorizationError, because the server "
+                "answers 403 rather than 404 to avoid leaking whether a resource exists, which is "
+                "a legitimate choice rather than an RFC breach, hence 'unsupported' rather than "
+                "'broken'.  Note that this describes the *client-visible* outcome, not the raw "
+                "status code: `CalendarObjectResource.load()` retries a failed GET as a "
+                "calendar-multiget REPORT against the parent collection, so a server that answers "
+                "403 on the object URL still ends up raising NotFoundError if it reports the "
+                "missing href with a 404 inside the multistatus (Robur does)."
+            ),
+            "default": {"support": "full"},
+        },
+        "non-existing-raises-not-found.collection": {
+            "description": (
+                "Looking up a non-existing calendar *collection* raises NotFoundError.  A sibling "
+                "of '.object' rather than its child: there is no multiget fallback for a "
+                "collection, so a server answering 403 for anything non-existing (Robur) is "
+                "rescued into NotFoundError for a missing object while a missing calendar "
+                "surfaces the AuthorizationError.  Neither observation tells you anything about "
+                "the other, so neither may be derived from the other."
+            ),
             "default": {"support": "full"},
         },
         "save-load.stable-url": {
@@ -1561,27 +1593,35 @@ robur = {
     },
     "save-load.journal": { "support": "ungraceful" },
     ## delete-calendar (and delete-calendar.free-namespace) used to be
-    ## "unsupported" here; the server checker observes "full" (caldav
-    ## 2ea7ea1e / caldav-server-tester 75aa8ce, 2026-08-24).  The stale entry
+    ## "unsupported" here; the server checker observes "full" (observed
+    ## 2026-08-24).  The stale entry
     ## made Calendar.delete() fall back to wipe=True, so every test run left
     ## its calendars behind - the test account had 228 of them.
     "search.is-not-defined": { "support": "unsupported" },
     "search.time-range.todo": { "support": "unsupported" },
     "search.time-range.alarm": {'support': 'unsupported'},
     "search.text": { "support": "unsupported", "behaviour": "a text search ignores the filter and returns all elements" },
-    ## search.comp-type.optional was "ungraceful"; "full" observed (caldav
-    ## 2ea7ea1e / caldav-server-tester 75aa8ce, 2026-08-24)
+    ## search.comp-type.optional was "ungraceful"; "full" observed
+    ## 2026-08-24
     "search.recurrences.expanded.todo": { "support": "unsupported" },
     "search.recurrences.expanded.event": { "support": "fragile" },
     'search.recurrences.includes-implicit.todo': {'support': 'unsupported'},
     'principal-search': {'support': 'ungraceful'},
     'freebusy-query': {'support': 'ungraceful'},
     "scheduling": {"support": "unsupported"},
-    ## Robur used to answer 403 (AuthorizationError) instead of 404
-    ## (NotFoundError) for a non-existing resource; that value was carried over
-    ## from the old 'non_existing_raises_other' flag and never re-probed.  It
-    ## now answers 404 - "full" observed (caldav 2ea7ea1e /
-    ## caldav-server-tester 75aa8ce, 2026-08-24).
+    ## Robur answers 403, not 404, for everything that does not exist below
+    ## /calendars/ and /principals/ - a non-existing calendar *object* included
+    ## (verified 2026-08-26: GET and PROPFIND on a missing .ics in an existing
+    ## calendar both give 403).  The object-level lookup nevertheless ends in
+    ## NotFoundError, because load() retries the failed GET as a
+    ## calendar-multiget REPORT against the existing parent collection and Robur
+    ## reports the missing href with an inner 404 - so the parent feature stays
+    ## at its "full" default.  A missing *collection* has no such fallback and
+    ## surfaces the 403 as AuthorizationError, which is what the old
+    ## "unsupported" on the parent was really recording.
+    'non-existing-raises-not-found.collection': {
+        'support': 'unsupported',
+        'behaviour': 'a non-existing calendar collection raises AuthorizationError (403), not NotFoundError'},
     'save-load.icalendar.related-to': {'support': 'unsupported'},
     'test-calendar': {'cleanup-regime': 'wipe-calendar'},
     "sync-token": {"support": "ungraceful"},
