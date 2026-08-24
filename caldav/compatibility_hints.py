@@ -9,6 +9,7 @@ TODO: it should probably be split with the "feature definitions",
 """
 import copy
 import warnings
+from typing import Any
 
 # Valid support levels for features
 VALID_SUPPORT_LEVELS = frozenset({
@@ -78,7 +79,45 @@ class FeatureSet:
             }
         },
         "url": {
+            ## Grouping node for facts about how the server wants its URLs
+            ## spelled.  Kept as client-hints: the node itself is not probed,
+            ## it only collects sub-features such as url.encode-at.
             "type": "client-hints",
+        },
+        "url.encode-at": {
+            "description": (
+                "Server resolves a resource whose path contains a literal '@' when that '@' is "
+                "sent percent-encoded as '%40'.  RFC3986 section 3.3 allows '@' literally in a path "
+                "segment, and section 6.2.2.2 does not license decoding '%40' back to '@', so the two "
+                "spellings are formally distinct and servers disagree about whether they name the same "
+                "resource.  This matters wherever the path embeds an email-like identifier - an "
+                "ownCloud/Nextcloud calendar-home-set (/remote.php/dav/calendars/user@example.com/) or "
+                "an object whose UID is an email address.  "
+                "The support level is a severity only and is never read by the URL code: "
+                "'full' means both spellings resolve and there is nothing to do, 'quirk' that the "
+                "server insists on one of them, 'unsupported' that a literal '@' in a path does not "
+                "work at all, 'unknown' (the default) that it was never probed.  Which spelling a "
+                "'quirk' server insists on is the 'at-spelling' extra key, because another "
+                "implementation's '@' quirk may be something else entirely - depending on where in "
+                "the path the '@' sits, say - and a severity word must not be made to mean one "
+                "particular behaviour.  With no 'at-spelling' configured every call site keeps the "
+                "heuristic it used before this feature existed, so nothing changes for a server you "
+                "have not configured this for."
+            ),
+            "default": {"support": "unknown"},
+            "extra_keys": {
+                "at-spelling": (
+                    "which spelling of a literal '@' the server resolves, when it insists on one: "
+                    "'encoded' - only '%40' works, so the client must percent-encode; 'literal' - "
+                    "only '@' works, so the client must not.  Omit it unless the server really does "
+                    "reject one spelling; the client then keeps its historic behaviour."
+                ),
+                "behaviour": "free text for a deviation that 'at-spelling' cannot express",
+            },
+            "links": [
+                "https://datatracker.ietf.org/doc/html/rfc3986#section-3.3",
+                "https://datatracker.ietf.org/doc/html/rfc3986#section-6.2.2.2",
+            ],
         },
         "well-known": {
             "description": "Server handles /.well-known/caldav discovery as specified in RFC 6764 section 5. A conformant server should respond with a redirect (301/302/307/308) from /.well-known/caldav to the actual CalDAV endpoint. 'full' means a redirect was observed; 'unsupported' means the server returned 404 or similar; 'unknown' means the check was skipped (e.g. localhost or request failed). Note: well-known is often provided by infrastructure (reverse proxy/hosting) rather than the CalDAV server itself, so 'unknown' is the expected default for self-hosted or test setups.",
@@ -1992,3 +2031,33 @@ infomaniak = {
 }
 
 # fmt: on
+
+
+def _at_spelling(features: Any) -> str | None:
+    """Which spelling of a literal ``@`` the server insists on, if any.
+
+    Read from the ``url.encode-at`` node's ``at-spelling`` extra key, never
+    from its support *level*: a level such as ``quirk`` records that the
+    server deviates, not how, and another implementation's ``@`` quirk may be
+    something else entirely.  ``None`` - the normal case - means nothing was
+    configured, and every caller then keeps the heuristic it used before this
+    feature existed.  An unrecognised value is treated as ``None`` rather than
+    guessed at, so a typo cannot silently rewrite URLs.
+    """
+    if features is None:
+        return None
+    node = features.is_supported("url.encode-at", dict, return_defaults=False)
+    if not isinstance(node, dict):
+        return None
+    spelling = node.get("at-spelling")
+    return spelling if spelling in ("encoded", "literal") else None
+
+
+def _requires_encoded_at(features: Any) -> bool:
+    """True only for a server declared to resolve nothing but ``%40``."""
+    return _at_spelling(features) == "encoded"
+
+
+def _rejects_encoded_at(features: Any) -> bool:
+    """True only for a server declared to resolve nothing but a literal ``@``."""
+    return _at_spelling(features) == "literal"
