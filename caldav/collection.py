@@ -40,6 +40,7 @@ from .calendarobjectresource import (
     Journal,
     Todo,
 )
+from .compatibility_hints import _rejects_encoded_at, _requires_encoded_at
 from .davobject import DAVObject
 from .elements import cdav, dav
 from .lib import error, vcal
@@ -92,10 +93,21 @@ def _safe_display_name(cal) -> str | None:
         return None
 
 
-def _quote_url_path(url: str) -> str:
-    """Quote the path component of a URL to handle unencoded spaces (e.g. Zimbra)."""
+def _quote_url_path(url: str, features: Any = None) -> str:
+    """Quote the path component of a URL to handle unencoded spaces (e.g. Zimbra).
+
+    A literal ``@`` in the path is left as-is by default: it is a legal ``pchar``
+    (RFC3986 section 3.3) and most servers serve both spellings, so rewriting it
+    would be churn at best and a 404 at worst.  Only a server explicitly
+    declared ``url.encode-at-required`` - one where the literal ``@`` actually
+    404s - gets the ``@`` rewritten to ``%40``.  That is a fact of its own, not
+    a support *level*: ``quirk`` on ``url.encode-at`` records that the server
+    deviates, not how, so nothing branches on it.  The netloc is never touched,
+    so credentials embedded in the URL survive intact.
+    """
     parsed = urlparse(url)
-    quoted_path = quote(unquote(parsed.path), safe="/@")
+    safe = "/" if _requires_encoded_at(features) else "/@"
+    quoted_path = quote(unquote(parsed.path), safe=safe)
     return urlunparse(parsed._replace(path=quoted_path))
 
 
@@ -106,13 +118,15 @@ def _is_calendar_resource(properties: dict[str, Any]) -> bool:
     return "{urn:ietf:params:xml:ns:caldav}calendar" in rt
 
 
-def _extract_calendars_from_propfind_results(results: list[Any] | None) -> list[CalendarInfo]:
+def _extract_calendars_from_propfind_results(
+    results: list[Any] | None, features: Any = None
+) -> list[CalendarInfo]:
     """Extract CalendarInfo objects from a list of PropfindResult objects."""
     calendars = []
     for result in results or []:
         if not _is_calendar_resource(result.properties):
             continue
-        url = _quote_url_path(result.href)
+        url = _quote_url_path(result.href, features=features)
         name = result.properties.get("{DAV:}displayname")
         cal_id = _extract_calendar_id_from_url(url)
         if not cal_id:
@@ -128,21 +142,31 @@ def _extract_calendars_from_propfind_results(results: list[Any] | None) -> list[
     return calendars
 
 
-def _sanitize_calendar_home_set_url(url: str | None) -> str | None:
-    """Quote @ in owncloud-style URLs that are not full URLs."""
+def _sanitize_calendar_home_set_url(url: str | None, features: Any = None) -> str | None:
+    """Quote @ in owncloud-style URLs that are not full URLs.
+
+    Skipped for a server explicitly configured with ``url.encode-at`` =
+    ``unsupported``, i.e. one known to 404 on the percent-encoded form; there
+    the literal ``@`` has to survive into the request.  With the feature
+    unconfigured the historic unconditional quoting stands.
+    """
     if url is None:
         return None
+    if _rejects_encoded_at(features):
+        return url
     if "@" in url and "://" not in url and "%40" not in url:
         return quote(url)
     return url
 
 
-def _extract_calendar_home_set_from_results(results: list[Any] | None) -> str | None:
+def _extract_calendar_home_set_from_results(
+    results: list[Any] | None, features: Any = None
+) -> str | None:
     """Extract calendar-home-set URL from a list of PropfindResult objects."""
     for result in results or []:
         home_set = result.properties.get("{urn:ietf:params:xml:ns:caldav}calendar-home-set")
         if home_set:
-            return _sanitize_calendar_home_set_url(home_set)
+            return _sanitize_calendar_home_set_url(home_set, features=features)
     return None
 
 
@@ -153,7 +177,8 @@ class CalendarSet(DAVObject):
 
     def _calendars_from_results(self, results) -> list["Calendar"]:
         """Convert PropfindResult list into Calendar objects."""
-        calendar_infos = _extract_calendars_from_propfind_results(results)
+        features = self.client.features if self.client else None
+        calendar_infos = _extract_calendars_from_propfind_results(results, features=features)
         return [
             Calendar(client=self.client, url=info.url, name=info.name, id=info.cal_id, parent=self)
             for info in calendar_infos
@@ -495,13 +520,9 @@ class Principal(DAVObject):
             return self._calendar_home_set
 
         calendar_home_set_url = await self.get_property(cdav.CalendarHomeSet())
-        if (
-            calendar_home_set_url is not None
-            and "@" in calendar_home_set_url
-            and "://" not in calendar_home_set_url
-        ):
-            calendar_home_set_url = quote(calendar_home_set_url)
-        self.calendar_home_set = calendar_home_set_url
+        self.calendar_home_set = _sanitize_calendar_home_set_url(
+            calendar_home_set_url, self.client.features
+        )
         return self._calendar_home_set
 
     ## TODO: the parameter names name, cal_id and cal_url is quite inconsistent
@@ -601,16 +622,9 @@ class Principal(DAVObject):
     def calendar_home_set(self):
         if not self._calendar_home_set:
             calendar_home_set_url = self.get_property(cdav.CalendarHomeSet())
-            ## owncloud returns /remote.php/dav/calendars/tobixen@e.email/
-            ## in that case the @ should be quoted.  Perhaps other
-            ## implementations return already quoted URLs.  Hacky workaround:
-            if (
-                calendar_home_set_url is not None
-                and "@" in calendar_home_set_url
-                and "://" not in calendar_home_set_url
-            ):
-                calendar_home_set_url = quote(calendar_home_set_url)
-            self.calendar_home_set = calendar_home_set_url
+            self.calendar_home_set = _sanitize_calendar_home_set_url(
+                calendar_home_set_url, self.client.features
+            )
         return self._calendar_home_set
 
     @calendar_home_set.setter

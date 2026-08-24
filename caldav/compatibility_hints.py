@@ -9,6 +9,7 @@ TODO: it should probably be split with the "feature definitions",
 """
 import copy
 import warnings
+from typing import Any
 
 # Valid support levels for features
 VALID_SUPPORT_LEVELS = frozenset({
@@ -78,7 +79,55 @@ class FeatureSet:
             }
         },
         "url": {
+            ## Grouping node for facts about how the server wants its URLs
+            ## spelled.  Kept as client-hints: the node itself is not probed,
+            ## it only collects sub-features such as url.encode-at.
             "type": "client-hints",
+        },
+        "url.encode-at": {
+            "description": (
+                "Server resolves a resource whose path contains a literal '@' when that '@' is "
+                "sent percent-encoded as '%40'.  RFC3986 section 3.3 allows '@' literally in a path "
+                "segment, and section 6.2.2.2 does not license decoding '%40' back to '@', so the two "
+                "spellings are formally distinct and servers disagree about whether they name the same "
+                "resource.  This matters wherever the path embeds an email-like identifier - an "
+                "ownCloud/Nextcloud calendar-home-set (/remote.php/dav/calendars/user@example.com/) or "
+                "an object whose UID is an email address.  "
+                "'full' means '%40' resolves, so the client may encode.  "
+                "'unsupported' means '%40' does not resolve and the client must send the literal '@'.  "
+                "'unknown' (the default) means the server was never probed; the library then keeps its "
+                "historic per-call-site heuristic rather than rewriting anything.  "
+                "This feature says only whether '%40' resolves.  Whether the literal '@' *fails*, so "
+                "that encoding is forced, is the separate fact url.encode-at-required - a server can "
+                "accept both, exactly one, or neither.  'quirk' here is a severity, not a behaviour: it "
+                "records that the server deviates in a way the client can work around, and the profile "
+                "entry should carry a 'behaviour' string saying what the deviation actually is, since "
+                "another implementation's '@' quirk may be something else entirely (e.g. depending on "
+                "where in the path the '@' sits).  Code must therefore never read 'quirk' as naming one "
+                "particular behaviour."
+            ),
+            "default": {"support": "unknown"},
+            "links": [
+                "https://datatracker.ietf.org/doc/html/rfc3986#section-3.3",
+                "https://datatracker.ietf.org/doc/html/rfc3986#section-6.2.2.2",
+            ],
+        },
+        "url.encode-at-required": {
+            "description": (
+                "The literal '@' does NOT resolve, so the client is forced to percent-encode it as "
+                "'%40'.  Note the polarity: the boolean view is true when encoding is *required*, "
+                "not when it is merely safe - that is the parent url.encode-at.  The two are "
+                "orthogonal facts about the same server, which is why this carries its own default "
+                "instead of inheriting: a 'full' parent means both spellings resolve, which is "
+                "precisely the case where encoding is not required, so inheriting would invert the "
+                "meaning.  Left 'unknown' (the default) the client does not rewrite a literal '@'.  "
+                "As for the parent, a 'quirk' here needs a 'behaviour' string in the profile entry "
+                "describing the actual deviation."
+            ),
+            "default": {"support": "unknown"},
+            "links": [
+                "https://datatracker.ietf.org/doc/html/rfc3986#section-3.3",
+            ],
         },
         "well-known": {
             "description": "Server handles /.well-known/caldav discovery as specified in RFC 6764 section 5. A conformant server should respond with a redirect (301/302/307/308) from /.well-known/caldav to the actual CalDAV endpoint. 'full' means a redirect was observed; 'unsupported' means the server returned 404 or similar; 'unknown' means the check was skipped (e.g. localhost or request failed). Note: well-known is often provided by infrastructure (reverse proxy/hosting) rather than the CalDAV server itself, so 'unknown' is the expected default for self-hosted or test setups.",
@@ -1992,3 +2041,36 @@ infomaniak = {
 }
 
 # fmt: on
+
+
+def _encode_at_support(features: Any) -> str | None:
+    """The *explicitly configured* ``url.encode-at`` support level, or None.
+
+    ``None`` means the server was never probed for this, which is the normal
+    case - the feature defaults to "unknown".  Every caller treats ``None`` as
+    "keep doing whatever you did before this feature existed", so adding the
+    feature cannot change behaviour against an unconfigured server.
+    """
+    if features is None:
+        return None
+    return features.is_supported("url.encode-at", str, return_defaults=False)
+
+
+def _requires_encoded_at(features: Any) -> bool:
+    """True only for servers explicitly declared to reject a literal ``@``.
+
+    Reads ``url.encode-at-required``, never the parent's support *level*: a
+    level such as ``quirk`` records that the server deviates, not how, so
+    branching on it would bake one server's behaviour into a severity.
+    """
+    if features is None:
+        return False
+    return bool(
+        features.is_supported("url.encode-at-required", str, return_defaults=False)
+        and features.is_supported("url.encode-at-required")
+    )
+
+
+def _rejects_encoded_at(features: Any) -> bool:
+    """True only for servers explicitly known to 404 on ``%40``."""
+    return _encode_at_support(features) == "unsupported"
