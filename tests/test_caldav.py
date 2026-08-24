@@ -2123,6 +2123,7 @@ END:VCALENDAR"""
         self.skip_unless_support("create-calendar")
         self.skip_unless_support("create-calendar.set-displayname")
         self.skip_unless_support("save-load.event")
+        self.skip_unless_support("delete-calendar")
 
         cal_id = self.testcal_id + "-named-url"
         name = "csc-repoint-" + str(uuid.uuid4())
