@@ -1,6 +1,6 @@
 # Feature-Complete CalDAV Library Roadmap
 
-- **Created:** 2026-01-28, **updated** 2026-08-20
+- **Created:** 2026-01-28, **updated** 2026-08-24
 - **Author:** AI-generated and human-edited based on RFC analysis and open issues
 - **Status:** Planning document for work after issue [#599](https://github.com/python-caldav/caldav/issues/599) completion
 
@@ -89,7 +89,6 @@ The v3.2 roadmap covers basic scheduling improvements. Additional work for full 
 - **Priority:** Medium
 - **Estimated effort:** 8-12 hours
 - **RFC:** [RFC 7986](https://datatracker.ietf.org/doc/html/rfc7986)
-- **Note:** We may stop short doing only some research, estimated at 2 hours effort
 
 **Tasks:**
 - [ ] Support calendar-level properties: `NAME`, `DESCRIPTION`, `COLOR`, `REFRESH-INTERVAL`, `SOURCE`
@@ -302,24 +301,19 @@ change notifications.  Requested by the proposal authors themselves.
 
 ---
 
-### 4.5 Transport Robustness: Retries and Rate Limiting
+### 4.5 Transport Robustness: Connection Retries and Rate Limiting
 
 - **Priority:** Medium
-- **Estimated effort:** 16-24 hours
-- **Related issues:** [#695](https://github.com/python-caldav/caldav/issues/695), [#620](https://github.com/python-caldav/caldav/issues/620), [#697](https://github.com/python-caldav/caldav/issues/697)
+- **Estimated effort:** 8-12 hours
+- **Design document:** [`RETRY_AND_RESILIENCE_DESIGN.md`](RETRY_AND_RESILIENCE_DESIGN.md) — specifies all of the retry work below; read it first
+- **Related issues:** [#695](https://github.com/python-caldav/caldav/issues/695), [#647](https://github.com/python-caldav/caldav/issues/647), [#620](https://github.com/python-caldav/caldav/issues/620) (superseded by the design document), [#697](https://github.com/python-caldav/caldav/issues/697), [PR #648](https://github.com/python-caldav/caldav/pull/648) (to be closed, not merged)
 
 Partly in place already: 429/503 `Retry-After` handling with `RateLimitError`
-and the `rate-limit` server peculiarity exist.  What is missing:
+and the `rate-limit` server peculiarity exist.
 
-**Tasks:**
-- [ ] Retry on connection failures, configurable ([#695](https://github.com/python-caldav/caldav/issues/695))
-- [ ] Retry by default when an idle keep-alive connection was closed by the
-      server — observed against Stalwart in the async suite ([#695](https://github.com/python-caldav/caldav/issues/695))
-- [ ] General opt-in sleep-and-retry on transient errors, configured through the
-      feature subsystem ([#620](https://github.com/python-caldav/caldav/issues/620))
-- [ ] Smarter rate-limit budgeting than "sleep a fixed slice between every
-      request": either burst-then-sleep-out-the-window, or a progressively
-      growing delay ([#697](https://github.com/python-caldav/caldav/issues/697))
+**Tasks:** see the ordered steps in the design document linked above.
+
+Also related: [#697](https://github.com/python-caldav/caldav/issues/697) - smarter rate-limit throttling
 
 ---
 
@@ -577,7 +571,7 @@ Bugs get fixed when they get fixed; they do not need a phase.
 | Medium | DNSSEC (5.1) | 16-24 |
 | Medium | Server Auto-Detection (5.2) | 16-24 |
 | Medium | WebDAV Push (3.5) | 24-40 |
-| Medium | Transport Robustness (4.5) | 16-24 |
+| Medium | Transport Robustness (4.5) | 8-12 |
 | Medium | Internal Refactoring Backlog (8.4) | 24-40 |
 | Medium | Packaging / HTTP Dependencies (8.5) | 8-16 |
 | Medium | Server Documentation (7.2) | 24-40 |
@@ -594,7 +588,7 @@ Bugs get fixed when they get fixed; they do not need a phase.
 | Low | Search Refactoring (8.3) | 16-24 |
 | Low | TLS Enforcement (5.3) | 2-4 |
 
-**Total estimated effort:** 455-685 hours (depending on scope and depth).
+**Total estimated effort:** 447-673 hours (depending on scope and depth).
 
 Note that this total is *not* adjusted for the items ticked off as already done
 in the 2026-08-20 QA pass, so the real remaining figure is lower.
