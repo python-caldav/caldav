@@ -1469,13 +1469,13 @@ class RepeatedFunctionalTestsBaseClass:
         addresses a collection that is no longer there.  Most servers answer
         the wipe's REPORT with 404 and `_post_delete()` accepts a 404 as
         success, but Robur answers 403 - see the
-        ``non-existing-raises-not-found`` feature, which is why the tolerated
-        exception comes from ``_notFound()`` rather than being NotFoundError
-        outright.
+        ``non-existing-raises-not-found.collection`` feature, which is why the
+        tolerated exception comes from ``_notFound()`` rather than being
+        NotFoundError outright.
         """
         try:
             cal.delete(wipe=wipe)
-        except self._notFound():
+        except self._notFound(collection=True):
             pass
 
     def _cleanup(self, mode=None):
@@ -1959,8 +1959,19 @@ END:VCALENDAR"""
         assert "Calendar" in repr(c)
         assert str(c.url) in repr(c)
 
-    def _notFound(self):
-        if self.is_supported("non-existing-raises-not-found"):
+    def _notFound(self, collection=False):
+        """The exception class a lookup of something non-existing may raise.
+
+        ``collection=True`` for a lookup of a missing *calendar*, which some
+        servers answer differently from a missing calendar *object*: Robur
+        answers 403 for both, but ``load()`` retries a missing object as a
+        multiget against the existing parent calendar and gets a 404 out of it,
+        so only the collection lookup surfaces the AuthorizationError.
+        """
+        feature = "non-existing-raises-not-found"
+        if collection:
+            feature += ".collection"
+        if self.is_supported(feature):
             return error.NotFoundError
         else:
             ## Some servers answer 403 instead of 404 (e.g. Robur); accept any
@@ -2010,9 +2021,9 @@ END:VCALENDAR"""
             # leaving it untested (and on auto-create servers get_events()
             # doesn't raise at all, so the block passed only because
             # get_display_name() happened to 404).
-            with pytest.raises(self._notFound()):
+            with pytest.raises(self._notFound(collection=True)):
                 self.principal.calendar(cal_id="shouldnotexist").get_events()
-            with pytest.raises(self._notFound()):
+            with pytest.raises(self._notFound(collection=True)):
                 self.principal.calendar(cal_id="shouldnotexist").get_display_name()
 
     def testChangeAttendeeStatusWithEmailGiven(self):
