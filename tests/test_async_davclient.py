@@ -14,6 +14,7 @@ import pytest
 
 from caldav.async_davclient import AsyncDAVClient, DAVResponse, get_davclient
 from caldav.lib import error
+from caldav.lib.python_utilities import to_wire
 
 # Sample XML responses for testing
 SAMPLE_MULTISTATUS_XML = b"""<?xml version="1.0" encoding="utf-8" ?>
@@ -340,6 +341,51 @@ class TestAsyncDAVClient:
         call_args = client.session.request.call_args
         # httpx uses kwargs for url
         assert "calendars" in call_args.kwargs["url"]
+
+    @pytest.mark.asyncio
+    async def test_propfind_props_as_raw_xml_string_is_rejected(self) -> None:
+        """A raw XML body belongs in ``body``, not in ``props``.
+
+        ``DAVClient.propfind`` accepts either a list of property names or a raw
+        XML body in ``props``; that is its legacy shape.  The async twin used
+        to assume a list, so a string was iterated character by character and
+        silently turned into an empty ``<D:prop/>`` request - servers answered
+        that with an empty or useless multistatus (Robur returns an empty
+        body), which is why the bug went unnoticed.  Rather than copy the
+        legacy shape into a new API, the async client has a dedicated ``body``
+        parameter and rejects a string here outright.
+        """
+        client = AsyncDAVClient(url="https://caldav.example.com/dav/")
+        client.session.request = AsyncMock()
+
+        raw = (
+            '<?xml version="1.0" encoding="UTF-8"?>'
+            '<D:propfind xmlns:D="DAV:"><D:allprop/></D:propfind>'
+        )
+        with pytest.raises(TypeError, match="body"):
+            await client.propfind("https://caldav.example.com/dav/", props=raw)
+        client.session.request.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_propfind_body_is_sent_verbatim(self) -> None:
+        """The supported way to send a raw request: ``body``."""
+        client = AsyncDAVClient(url="https://caldav.example.com/dav/")
+
+        mock_response = create_mock_response(
+            content=SAMPLE_PROPFIND_XML,
+            status_code=207,
+            headers={"Content-Type": "text/xml"},
+        )
+        client.session.request = AsyncMock(return_value=mock_response)
+
+        raw = (
+            '<?xml version="1.0" encoding="UTF-8"?>'
+            '<D:propfind xmlns:D="DAV:"><D:allprop/></D:propfind>'
+        )
+        await client.propfind("https://caldav.example.com/dav/", body=raw)
+
+        kwargs = client.session.request.call_args.kwargs
+        assert "allprop" in str(kwargs.get("data") or kwargs.get("content") or "")
 
     @pytest.mark.asyncio
     async def test_report_method(self) -> None:

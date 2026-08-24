@@ -1775,7 +1775,7 @@ class AsyncFunctionalTestsBaseClass:
         principal = await async_client.principal()
         foo = await async_client.propfind(
             principal.url,
-            props='<?xml version="1.0" encoding="UTF-8"?>'
+            body='<?xml version="1.0" encoding="UTF-8"?>'
             '<D:propfind xmlns:D="DAV:">'
             "  <D:allprop/>"
             "</D:propfind>",
