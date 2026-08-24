@@ -1560,24 +1560,28 @@ robur = {
         'basepath': '/principals/', # TODO: this seems fishy
     },
     "save-load.journal": { "support": "ungraceful" },
-    "delete-calendar": { "support": "unsupported" },
+    ## delete-calendar (and delete-calendar.free-namespace) used to be
+    ## "unsupported" here; the server checker observes "full" (caldav
+    ## 2ea7ea1e / caldav-server-tester 75aa8ce, 2026-08-24).  The stale entry
+    ## made Calendar.delete() fall back to wipe=True, so every test run left
+    ## its calendars behind - the test account had 228 of them.
     "search.is-not-defined": { "support": "unsupported" },
     "search.time-range.todo": { "support": "unsupported" },
     "search.time-range.alarm": {'support': 'unsupported'},
     "search.text": { "support": "unsupported", "behaviour": "a text search ignores the filter and returns all elements" },
-    "search.comp-type.optional": { "support": "ungraceful" },
+    ## search.comp-type.optional was "ungraceful"; "full" observed (caldav
+    ## 2ea7ea1e / caldav-server-tester 75aa8ce, 2026-08-24)
     "search.recurrences.expanded.todo": { "support": "unsupported" },
     "search.recurrences.expanded.event": { "support": "fragile" },
     'search.recurrences.includes-implicit.todo': {'support': 'unsupported'},
     'principal-search': {'support': 'ungraceful'},
     'freebusy-query': {'support': 'ungraceful'},
     "scheduling": {"support": "unsupported"},
-    ## Robur answers 403 (AuthorizationError) instead of 404 (NotFoundError) when
-    ## looking up a non-existing resource - probably to avoid leaking whether a
-    ## resource exists.  (Not re-probed during this migration: the Robur test
-    ## server was down; value carried over from the old 'non_existing_raises_other'
-    ## flag.)
-    'non-existing-raises-not-found': {'support': 'unsupported', 'behaviour': 'raises AuthorizationError (403) instead of NotFoundError (404)'},
+    ## Robur used to answer 403 (AuthorizationError) instead of 404
+    ## (NotFoundError) for a non-existing resource; that value was carried over
+    ## from the old 'non_existing_raises_other' flag and never re-probed.  It
+    ## now answers 404 - "full" observed (caldav 2ea7ea1e /
+    ## caldav-server-tester 75aa8ce, 2026-08-24).
     'save-load.icalendar.related-to': {'support': 'unsupported'},
     'test-calendar': {'cleanup-regime': 'wipe-calendar'},
     "sync-token": {"support": "ungraceful"},
