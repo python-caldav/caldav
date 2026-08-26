@@ -17,7 +17,7 @@ from caldav.elements import cdav, dav
 from caldav.elements.base import BaseElement
 from caldav.lib import error
 from caldav.lib.python_utilities import to_normal_str
-from caldav.lib.url import URL
+from caldav.lib.url import URL, unquote_preserving_at
 
 if TYPE_CHECKING:
     Response = Any
@@ -68,14 +68,20 @@ def _normalize_href(text: str) -> str:
 
     Handles the Confluence double-encoding bug (%2540 → %40) and converts
     absolute URLs to path-only strings so callers always work with paths.
+
+    An ``@`` keeps whatever spelling the server used.  This is the first thing
+    to touch an href, and an href is the server naming a resource: decoding a
+    ``%40`` here renames it, to something that may be a different resource
+    (RFC3986 section 2.2) or simply not served, and nothing downstream can
+    recover what was lost.
     """
     # Fix for https://github.com/python-caldav/caldav/issues/471
     if "%2540" in text:
         text = text.replace("%2540", "%40")
-    href = unquote(text)
+    href = unquote_preserving_at(text)
     # Ref https://github.com/python-caldav/caldav/issues/435
     if ":" in href:
-        href = unquote(URL(href).path)
+        href = unquote_preserving_at(URL(href).path)
     return href
 
 

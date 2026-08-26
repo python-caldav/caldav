@@ -42,7 +42,7 @@ from caldav.base_client import BaseDAVClient
 from caldav.base_client import get_calendars as _base_get_calendars
 from caldav.base_client import get_davclient as _base_get_davclient
 from caldav.collection import Calendar, Principal
-from caldav.compatibility_hints import FeatureSet
+from caldav.compatibility_hints import FeatureSet, at_spellings_are_aliased
 
 # Re-export CONNKEYS for backward compatibility
 from caldav.config import CONNKEYS  # noqa: F401
@@ -276,6 +276,11 @@ class DAVClient(BaseDAVClient):
 
         log.debug("url: " + str(url))
         self.url = URL.objectify(url)
+        ## Whether this server aliases the two "@" spellings travels with the
+        ## URL, and every URL the library builds is joined onto this one, so
+        ## setting it here reaches canonical(), __eq__ and __hash__ everywhere
+        ## without threading the feature set through them.
+        self.url = self.url.with_alias_at(at_spellings_are_aliased(self.features))
         # Prepare proxy info
         if proxy is not None:
             _proxy = proxy

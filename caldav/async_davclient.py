@@ -104,7 +104,7 @@ if not _USE_HTTPX and not _USE_NIQUESTS:
 from caldav import __version__
 from caldav.base_client import BaseDAVClient
 from caldav.base_client import get_davclient as _base_get_davclient
-from caldav.compatibility_hints import FeatureSet
+from caldav.compatibility_hints import FeatureSet, at_spellings_are_aliased
 from caldav.lib import error
 from caldav.lib.python_utilities import to_wire
 from caldav.lib.url import URL
@@ -235,6 +235,11 @@ class AsyncDAVClient(BaseDAVClient):
 
         # Parse and store URL
         self.url = URL.objectify(url_str)
+        ## Whether this server aliases the two "@" spellings travels with the
+        ## URL, and every URL the library builds is joined onto this one, so
+        ## setting it here reaches canonical(), __eq__ and __hash__ everywhere
+        ## without threading the feature set through them.
+        self.url = self.url.with_alias_at(at_spellings_are_aliased(self.features))
 
         # Combine credentials (explicit params take precedence).
         # An explicit username discards the URL credentials wholesale: they

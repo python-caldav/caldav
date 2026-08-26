@@ -9,6 +9,7 @@ TODO: it should probably be split with the "feature definitions",
 """
 import copy
 import warnings
+from typing import Any
 
 # Valid support levels for features
 VALID_SUPPORT_LEVELS = frozenset({
@@ -78,7 +79,83 @@ class FeatureSet:
             }
         },
         "url": {
+            ## Grouping node for facts about how the server wants its URLs
+            ## spelled.  Kept as client-hints: the node itself is not probed,
+            ## it only collects sub-features such as url.encode-at.
             "type": "client-hints",
+        },
+        "url.encode-at": {
+            "description": (
+                "How the server treats a literal '@' in a resource path versus its percent-encoded "
+                "spelling '%40'.  A grouping node - the three subfeatures below carry the facts, "
+                "one per thing a probe can actually observe, and the client reads only those.  "
+                "RFC3986 section 3.3 makes '@' a legal pchar, so a producer never has to encode "
+                "it, and section 2.2 makes it a *reserved* character, so the two spellings are "
+                "formally NOT equivalent: section 6.2.2.2 licenses decoding only the octets of "
+                "*unreserved* characters (section 2.3).  A server serving both spellings as one "
+                "resource is being lenient, not conformant, and servers disagree.  This matters "
+                "wherever a path embeds an email-like identifier: an ownCloud/Nextcloud "
+                "calendar-home-set (/remote.php/dav/calendars/user@example.com/), or an object "
+                "whose UID is an email address.  The client's rule is that it does not rewrite a "
+                "spelling it was given - not into '%40', not out of it - so none of this bites "
+                "unless a server refuses the spelling the client would naturally use, which is "
+                "what 'url.encode-at.literal' records.  "
+                "Not covered here: a server that stores a resource at one spelling and later "
+                "reports it back under the other.  That is one flavour of save-load.stable-url "
+                "(create-calendar.stable-url for collections) and is handled there."
+            ),
+            "links": [
+                "https://datatracker.ietf.org/doc/html/rfc3986#section-2.2",
+                "https://datatracker.ietf.org/doc/html/rfc3986#section-3.3",
+                "https://datatracker.ietf.org/doc/html/rfc3986#section-6.2.2.2",
+            ],
+        },
+        "url.encode-at.identity": {
+            "description": (
+                "Whether the server treats '/x/foo@bar/' and '/x/foo%40bar/' as two *different* "
+                "resources.  'full' is the RFC3986-conformant reading - '@' is reserved, so the "
+                "encoded form is a different path - and a client told that must not treat the two "
+                "as interchangeable: two URLs spelling the same '@' differently do not compare "
+                "equal.  'unsupported' records a server that aliases them, which is lenient rather "
+                "than broken.  Nothing here asks the client to rewrite anything either way; it "
+                "only decides whether two spellings may be taken for one URL.  "
+                "NOTE THE DEFAULT, which is deliberately the non-conformant one for the 3.x "
+                "series: treating the two spellings as one is what this library has always done, "
+                "and making the conformant reading the default would change URL identity for every "
+                "existing user of an unprobed server.  It is also what every server probed so far "
+                "actually does - 2026-08-26, against the twelve test servers in tests/, every one "
+                "that resolved both spellings served them as one resource - so the conservative "
+                "default is the accurate one as well.  A server that really is conformant has to "
+                "say so in its profile.  4.0 should flip this round."
+            ),
+            "default": {"support": "unsupported"},
+        },
+        "url.encode-at.literal": {
+            "description": (
+                "Whether a literal '@' in a resource path is accepted and resolves.  'full' (the "
+                "default) is the conformant case: RFC3986 section 3.3 makes '@' a legal pchar, so "
+                "a server has no business refusing it, and the client therefore spells an '@' as "
+                "'@' whenever it has to mint a path itself (an object whose UID is an email "
+                "address, say).  'unsupported' is the ownCloud/Nextcloud case: the server hands "
+                "out a calendar-home-set containing a literal '@' and then refuses to serve it, so "
+                "the client has to send '%40' instead - the one situation in which it rewrites a "
+                "spelling at all, and it does so only because this says the natural one does not "
+                "work."
+            ),
+            "default": {"support": "full"},
+        },
+        "url.encode-at.encoded": {
+            "description": (
+                "Whether the percent-encoded spelling '%40' is accepted and resolves.  'full' is "
+                "the default: a server that rejects a legally percent-encoded octet outright is "
+                "hard to defend.  Note what this does *not* say - on a server whose "
+                "'url.encode-at.identity' is 'full', '%40' resolving means it resolves to a "
+                "*different* resource than '@' does, which is correct rather than a problem.  The "
+                "client reads this only as the fallback for 'url.encode-at.literal: unsupported'; "
+                "with both unsupported it cannot put an '@' in a path at all and sends '%40' so "
+                "the failure comes from the server rather than from a guess here."
+            ),
+            "default": {"support": "full"},
         },
         "well-known": {
             "description": "Server handles /.well-known/caldav discovery as specified in RFC 6764 section 5. A conformant server should respond with a redirect (301/302/307/308) from /.well-known/caldav to the actual CalDAV endpoint. 'full' means a redirect was observed; 'unsupported' means the server returned 404 or similar; 'unknown' means the check was skipped (e.g. localhost or request failed). Note: well-known is often provided by infrastructure (reverse proxy/hosting) rather than the CalDAV server itself, so 'unknown' is the expected default for self-hosted or test setups.",
@@ -1156,6 +1233,17 @@ nextcloud = {
     'auto-connect.url': {
         'basepath': '/remote.php/dav',
     },
+    ## Probed 2026-08-26 against the docker test server with a user actually
+    ## named "at@e.email": both spellings resolve, at the collection level and
+    ## at the object level, and a PROPFIND on the "%40" form reports the href
+    ## back with a literal "@".  Aliased, i.e. the url.encode-at.identity
+    ## default - so nothing is declared here.
+    ##
+    ## Recorded because it retires a hack from 2021 (72e30326, "owncloud
+    ## returns remote.php/dav/calendars/tobixen@e.email/ ... the @ should be
+    ## quoted"), which percent-encoded every relative home-set containing an
+    ## "@" for every server ever since.  Whatever that worked around, this
+    ## server does not need it today, and no other profile asks for it.
     ## Historically this flip-flopped between "ungraceful" and "full" - that
     ## instability was a checker bug (https://github.com/python-caldav/caldav/issues/681):
     ## the comp-type.optional probe used to send a comp-type-less query carrying a
@@ -1257,8 +1345,12 @@ zimbra = {
     "search.recurrences.includes-implicit.infinite-scope": False,
     # sometimes throws a 500
     'search.text.category': {'support': 'ungraceful'},
-    'search.recurrences.expanded.todo': { "support": "unsupported" },
-    ## was 'fragile' - that was the checker bug (it compared a comp-type-less
+    ## search.recurrences.expanded.todo was 'unsupported'; 'full' observed
+    ## 2026-08-26.  The declaration dated from when the probe searched the
+    ## *event* calendar for the recurring todo, so a server that keeps tasks
+    ## in a collection of their own could only ever come out unsupported
+    ## (caldav-server-tester 7a66c18).
+    ## search.comp-type.optional was 'fragile' - that was the checker bug (it compared a comp-type-less
     ## search against cnt, which counts objects stored in a separate
     ## task/journal calendar).  Confirmed full 2026-06-06.
     'search.comp-type.optional': {'support': 'full'},
@@ -1695,9 +1787,13 @@ ccs = {
     ## Recurrence expansion actually works within the (near-future) search window;
     ## this was previously reported "unsupported" only because the test fixtures
     ## lived in year 2000, which CCS's min-date-time restriction hid.  Only infinite
-    ## scope (far-future) and server-side VTODO expansion remain unsupported.
+    ## scope (far-future) remains unsupported.
     "search.recurrences.includes-implicit.infinite-scope": {"support": "unsupported"},
-    "search.recurrences.expanded.todo": {"support": "unsupported"},
+    ## search.recurrences.expanded.todo was 'unsupported'; 'full' observed
+    ## 2026-08-26.  The declaration dated from when the probe searched the
+    ## *event* calendar for the recurring todo, so a server that keeps tasks
+    ## in a collection of their own could only ever come out unsupported
+    ## (caldav-server-tester 7a66c18).
     "principal-search": {"support": "unsupported"},
     # Ephemeral Docker container: wipe objects (avoids UID conflicts across calendars)
     "test-calendar": {"cleanup-regime": "wipe-calendar"},
@@ -1713,6 +1809,16 @@ ccs = {
 ## CalDAV served at /dav/cal/<username>/ over HTTP on port 8080.
 ## Feature support mostly unknown until tested; starting with empty hints.
 stalwart = {
+    ## url.encode-at probed 2026-08-26 against the docker test server: an
+    ## object PUT to the literal "@" path comes back only under "%40" - the
+    ## server canonicalises the path.  This is the shape the 2021 ownCloud
+    ## hack was written for, and the only case in which the client encodes an
+    ## "@" it was handed.  identity is not observable while one of the two
+    ## spellings does not resolve, so it is left at its default.
+    'url.encode-at.literal': {
+        'support': 'unsupported',
+        'behaviour': "an object PUT to the literal '@' path is reachable only under '%40'"},
+    'url.encode-at.encoded': {'support': 'full'},
     'rate-limit': {
         'enable': True,
         'default_sleep': 3,
@@ -2007,3 +2113,40 @@ infomaniak = {
 }
 
 # fmt: on
+
+
+## --- url.encode-at readers -------------------------------------------------
+##
+## The URL code asks these, never the support level of the grouping parent: a
+## level such as "quirk" records that the server deviates, not how.  The rule
+## the two readers below encode is that the client does not rewrite a spelling
+## it was handed - it only picks one when it has to mint a path of its own, and
+## only picks "%40" when told the literal "@" is refused.
+
+
+def at_spelling_to_mint(features: Any) -> str:
+    """The ``@`` spelling to use when the client has to build a path itself.
+
+    A literal ``@`` unless ``url.encode-at.literal`` says the server refuses
+    it, which is the ownCloud/Nextcloud case.  With both subfeatures declared
+    unsupported the client cannot win; ``%40`` is returned so the failure comes
+    from the server rather than from a guess made here.
+    """
+    if features is None:
+        return "@"
+    if features.is_supported("url.encode-at.literal"):
+        return "@"
+    return "%40"
+
+
+def at_spellings_are_aliased(features: Any) -> bool:
+    """True only for a server declared to serve both spellings as one resource.
+
+    ``url.encode-at.identity`` defaults to ``full`` - the conformant reading,
+    two spellings meaning two resources - so this is False unless a profile
+    says otherwise, and two URLs differing only in the spelling of an ``@`` do
+    not compare equal.
+    """
+    if features is None:
+        return False
+    return not features.is_supported("url.encode-at.identity")
