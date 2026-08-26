@@ -16,12 +16,13 @@ if sys.version_info < (3, 11):
 else:
     from typing import Self
 
+from .compatibility_hints import at_spelling_to_mint
 from .elements import cdav, dav
 from .elements.base import BaseElement
 from .lib import error
 from .lib.error import errmsg
 from .lib.python_utilities import to_wire
-from .lib.url import URL
+from .lib.url import URL, requote_path
 
 _CC = TypeVar("_CC", bound="CalendarObjectResource")
 log = logging.getLogger("caldav")
@@ -48,6 +49,16 @@ class DAVObject:
     url: URL | None = None
     client: Optional["DAVClient"] = None
     parent: Optional["DAVObject"] = None
+
+    @property
+    def _at_spelling(self) -> str:
+        """The ``@`` spelling to use where this object has to mint a path.
+
+        A literal ``@`` unless ``url.encode-at.literal`` says the server
+        refuses it.  Nowhere else may rewrite a spelling it was handed - see
+        ``url.requote_path``.
+        """
+        return at_spelling_to_mint(getattr(self.client, "features", None))
 
     def __init__(
         self,
@@ -160,7 +171,7 @@ class DAVObject:
                 url = URL(path)
                 if url.hostname is None:
                     # Quote when path is not a full URL
-                    path = quote(path)
+                    path = requote_path(path)
                 # TODO: investigate the RFCs thoroughly - why does a "get
                 # members of this collection"-request also return the
                 # collection URL itself?

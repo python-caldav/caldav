@@ -330,7 +330,7 @@ class BaseDAVClient(ABC):
             _extract_calendar_home_set_from_results as extract_home_set,
         )
 
-        calendar_home_url = extract_home_set(home_set_response.results)
+        calendar_home_url = extract_home_set(home_set_response.results, features=self.features)
         if not calendar_home_url:
             calendar_home_url = str(principal.url)
         return self._make_absolute_url(calendar_home_url)
@@ -342,7 +342,7 @@ class BaseDAVClient(ABC):
             _extract_calendars_from_propfind_results as extract_calendars,
         )
 
-        calendar_infos = extract_calendars(list_response.results)
+        calendar_infos = extract_calendars(list_response.results, features=self.features)
         return [
             Calendar(client=self, url=info.url, name=info.name, id=info.cal_id)
             for info in calendar_infos

@@ -12,6 +12,7 @@ A SynchronizableCalendarObjectCollection contains a local copy of objects from a
 
 import inspect
 import logging
+import re
 import uuid
 import warnings
 from dataclasses import dataclass
@@ -40,11 +41,14 @@ from .calendarobjectresource import (
     Journal,
     Todo,
 )
+from .compatibility_hints import (
+    at_spelling_to_mint,
+)
 from .davobject import DAVObject
 from .elements import cdav, dav
 from .lib import error, vcal
 from .lib.python_utilities import to_wire
-from .lib.url import URL
+from .lib.url import URL, requote_path
 
 _CC = TypeVar("_CC", bound="CalendarObjectResource")
 log = logging.getLogger("caldav")
@@ -93,10 +97,16 @@ def _safe_display_name(cal) -> str | None:
 
 
 def _quote_url_path(url: str) -> str:
-    """Quote the path component of a URL to handle unencoded spaces (e.g. Zimbra)."""
+    """Quote the path component of a URL to handle unencoded spaces (e.g. Zimbra).
+
+    The spelling of an ``@`` is preserved, never rewritten - see
+    ``url.requote_path``.  This quotes a path the *server* gave us, so there is
+    always an existing spelling to keep, and keeping it is the whole policy.
+    The netloc is never touched, so credentials embedded in the URL survive
+    intact.
+    """
     parsed = urlparse(url)
-    quoted_path = quote(unquote(parsed.path), safe="/@")
-    return urlunparse(parsed._replace(path=quoted_path))
+    return urlunparse(parsed._replace(path=requote_path(parsed.path, safe="/")))
 
 
 def _is_calendar_resource(properties: dict[str, Any]) -> bool:
@@ -106,8 +116,16 @@ def _is_calendar_resource(properties: dict[str, Any]) -> bool:
     return "{urn:ietf:params:xml:ns:caldav}calendar" in rt
 
 
-def _extract_calendars_from_propfind_results(results: list[Any] | None) -> list[CalendarInfo]:
-    """Extract CalendarInfo objects from a list of PropfindResult objects."""
+def _extract_calendars_from_propfind_results(
+    results: list[Any] | None, features: Any = None
+) -> list[CalendarInfo]:
+    """Extract CalendarInfo objects from a list of PropfindResult objects.
+
+    ``features`` is accepted and unused: these URLs come from the server, so
+    their ``@`` spelling is preserved rather than chosen.  The parameter is
+    kept because ``base_client`` passes it, and because it is the obvious place
+    someone would reach for if a server-specific quirk ever did belong here.
+    """
     calendars = []
     for result in results or []:
         if not _is_calendar_resource(result.properties):
@@ -128,21 +146,41 @@ def _extract_calendars_from_propfind_results(results: list[Any] | None) -> list[
     return calendars
 
 
-def _sanitize_calendar_home_set_url(url: str | None) -> str | None:
-    """Quote @ in owncloud-style URLs that are not full URLs."""
+def _sanitize_calendar_home_set_url(url: str | None, features: Any = None) -> str | None:
+    """Rewrite an ``@`` in a calendar-home-set only where the server needs it.
+
+    ownCloud and Nextcloud report a home-set containing a literal ``@``
+    (``/remote.php/dav/calendars/tobixen@e.email/``) and then refuse to serve
+    that path, so there the client has to send ``%40`` - one of only two
+    places it ever rewrites a spelling, and it does so because
+    ``url.encode-at.literal`` says the natural spelling does not work.  For
+    every other server the bytes the server sent are the bytes that reach it
+    again.
+
+    Historically this rewrote unconditionally for any relative URL containing
+    an ``@``, which is why the profiles for those two servers now have to say
+    so out loud.
+    """
     if url is None:
         return None
-    if "@" in url and "://" not in url and "%40" not in url:
-        return quote(url)
-    return url
+    if at_spelling_to_mint(features) == "@":
+        return url
+    parsed = urlparse(url)
+    ## requote_path() would preserve the spelling; this is the one call that
+    ## must change it, so the "@" is replaced before the path is normalised.
+    ## quote() on its own would also turn an existing "%20" into "%2520".
+    path = requote_path(parsed.path, safe="/").replace("@", "%40")
+    return urlunparse(parsed._replace(path=path))
 
 
-def _extract_calendar_home_set_from_results(results: list[Any] | None) -> str | None:
+def _extract_calendar_home_set_from_results(
+    results: list[Any] | None, features: Any = None
+) -> str | None:
     """Extract calendar-home-set URL from a list of PropfindResult objects."""
     for result in results or []:
         home_set = result.properties.get("{urn:ietf:params:xml:ns:caldav}calendar-home-set")
         if home_set:
-            return _sanitize_calendar_home_set_url(home_set)
+            return _sanitize_calendar_home_set_url(home_set, features=features)
     return None
 
 
@@ -153,7 +191,8 @@ class CalendarSet(DAVObject):
 
     def _calendars_from_results(self, results) -> list["Calendar"]:
         """Convert PropfindResult list into Calendar objects."""
-        calendar_infos = _extract_calendars_from_propfind_results(results)
+        features = self.client.features if self.client else None
+        calendar_infos = _extract_calendars_from_propfind_results(results, features=features)
         return [
             Calendar(client=self.client, url=info.url, name=info.name, id=info.cal_id, parent=self)
             for info in calendar_infos
@@ -348,7 +387,10 @@ class CalendarSet(DAVObject):
             if cal_id is None:
                 raise ValueError("Unexpected value None for cal_id")
 
-            url = self.url.join(quote(cal_id) + "/")
+            ## a cal_id is minted, not preserved - the one other place the
+            ## client picks an "@" spelling for itself
+            safe = "/@" if self._at_spelling == "@" else "/"
+            url = self.url.join(quote(unquote(cal_id), safe=safe) + "/")
 
         return Calendar(self.client, name=name, parent=self, url=url, id=cal_id)
 
@@ -495,13 +537,9 @@ class Principal(DAVObject):
             return self._calendar_home_set
 
         calendar_home_set_url = await self.get_property(cdav.CalendarHomeSet())
-        if (
-            calendar_home_set_url is not None
-            and "@" in calendar_home_set_url
-            and "://" not in calendar_home_set_url
-        ):
-            calendar_home_set_url = quote(calendar_home_set_url)
-        self.calendar_home_set = calendar_home_set_url
+        self.calendar_home_set = _sanitize_calendar_home_set_url(
+            calendar_home_set_url, features=self.client.features
+        )
         return self._calendar_home_set
 
     ## TODO: the parameter names name, cal_id and cal_url is quite inconsistent
@@ -601,16 +639,9 @@ class Principal(DAVObject):
     def calendar_home_set(self):
         if not self._calendar_home_set:
             calendar_home_set_url = self.get_property(cdav.CalendarHomeSet())
-            ## owncloud returns /remote.php/dav/calendars/tobixen@e.email/
-            ## in that case the @ should be quoted.  Perhaps other
-            ## implementations return already quoted URLs.  Hacky workaround:
-            if (
-                calendar_home_set_url is not None
-                and "@" in calendar_home_set_url
-                and "://" not in calendar_home_set_url
-            ):
-                calendar_home_set_url = quote(calendar_home_set_url)
-            self.calendar_home_set = calendar_home_set_url
+            self.calendar_home_set = _sanitize_calendar_home_set_url(
+                calendar_home_set_url, features=self.client.features
+            )
         return self._calendar_home_set
 
     @calendar_home_set.setter
@@ -1376,7 +1407,7 @@ class Calendar(DAVObject):
             self._calendar_comp_class_by_data(data)(
                 self.client,
                 # Quote path to handle servers returning unencoded spaces (e.g., Zimbra)
-                url=self.url.join(quote(unquote(str(url)), safe="/:@")),
+                url=self.url.join(requote_path(str(url), safe="/:")),
                 data=data,
                 parent=self,
             )
@@ -1585,7 +1616,7 @@ class Calendar(DAVObject):
             url = URL(r)
             if url.hostname is None:
                 # Quote when result is not a full URL
-                url = quote(r)
+                url = requote_path(r)
             ## icloud hack - icloud returns the calendar URL as well as the calendar item URLs
             if self.url.join(url) == self.url:
                 continue

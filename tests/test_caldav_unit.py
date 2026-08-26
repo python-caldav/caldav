@@ -1064,7 +1064,10 @@ END:VCALENDAR
             "/17149682/calendars/testcalendar-84439d0b-ce46-4416-b978-7b4009122c64/": {
                 "{urn:ietf:params:xml:ns:caldav}calendar-data": None
             },
-            "/17149682/calendars/testcalendar-84439d0b-ce46-4416-b978-7b4009122c64/20010712T182145Z-123401@example.com.ics": {
+            ## the server spelled the "@" as "%40"; an href is the server
+            ## naming a resource, so the spelling is kept rather than decoded
+            ## (RFC3986 section 2.2 - see url.encode-at)
+            "/17149682/calendars/testcalendar-84439d0b-ce46-4416-b978-7b4009122c64/20010712T182145Z-123401%40example.com.ics": {
                 "{urn:ietf:params:xml:ns:caldav}calendar-data": "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Example Corp.//CalDAV Client//EN\nBEGIN:VEVENT\nUID:20010712T182145Z-123401@example.com\nDTSTAMP:20060712T182145Z\nDTSTART:20060714T170000Z\nDTEND:20060715T040000Z\nSUMMARY:Bastille Day Party\nEND:VEVENT\nEND:VCALENDAR\n"
             },
         }
@@ -1208,15 +1211,16 @@ END:VCALENDAR
                 "{DAV:}getetag": '"kkkgorwx"',
                 "{urn:ietf:params:xml:ns:caldav}calendar-data": None,
             },
-            "/17149682/calendars/testcalendar-f96b3bf0-09e1-4f3d-b891-3a25c99a2894/20010712T182145Z-123401@example.com.ics": {
+            "/17149682/calendars/testcalendar-f96b3bf0-09e1-4f3d-b891-3a25c99a2894/20010712T182145Z-123401%40example.com.ics": {
                 "{DAV:}getetag": '"kkkgoqqu"',
                 "{urn:ietf:params:xml:ns:caldav}calendar-data": None,
             },
         }
         ## This assert was missing: the XML and the expected dict above were
         ## built and then never compared.  Note the third href is
-        ## percent-encoded in the XML and plain in the expected keys, so this
-        ## also covers the unquoting.
+        ## percent-encoded in the XML and stays that way in the expected keys:
+        ## everything but an "@" is decoded, and an "@" keeps whatever spelling
+        ## the server chose (RFC3986 section 2.2 - see url.encode-at).
         assert (
             MockedDAVResponse(xml).expand_simple_props(props=[dav.GetEtag(), cdav.CalendarData()])
             == expected_results

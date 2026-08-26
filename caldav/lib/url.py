@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import re
 import sys
 import urllib.parse
 from typing import Any, cast
@@ -10,6 +11,46 @@ if sys.version_info < (3, 11):
     from typing_extensions import Self
 else:
     from typing import Self
+
+
+def requote_path(path: str, safe: str = "/") -> str:
+    """Normalise ``path`` without ever rewriting the spelling of an ``@``.
+
+    Everything else is decoded and re-encoded, which is what fixes servers
+    handing out unencoded spaces.  ``@`` and ``%40`` are lifted out of that
+    round-trip and put back verbatim: RFC3986 section 2.2 makes ``@`` reserved,
+    so the two spellings are different paths, and a client that "normalises"
+    one into the other is renaming the resource it was asked about.  Which
+    spelling to *mint* when there is no existing one to preserve is a separate
+    question - see ``compatibility_hints.at_spelling_to_mint``.
+    """
+    safe = safe.replace("@", "")
+    parts = re.split("(%40|@)", path)
+    return "".join(
+        part if part in ("%40", "@") else quote(unquote(part), safe=safe) for part in parts
+    )
+
+
+def alias_at_path(path: str, safe: str = "/") -> str:
+    """``requote_path`` for a server that serves both spellings as one resource.
+
+    Only for ``url.encode-at.identity: unsupported``.  The two spellings are
+    then interchangeable, so collapsing them onto one gives a stable key to
+    compare and hash by - which is what this library did unconditionally
+    before it knew the difference.
+    """
+    return quote(unquote(path), safe=safe.replace("@", ""))
+
+
+def unquote_preserving_at(text: str) -> str:
+    """``unquote(text)``, except that ``%40`` is left as it stands.
+
+    An href is the server telling us the name of a resource.  Decoding a
+    ``%40`` in it renames that resource - to one that may not exist, and on a
+    server that refuses the literal spelling, to one that cannot be fetched.
+    """
+    parts = re.split("(%40)", text)
+    return "".join(part if part == "%40" else unquote(part) for part in parts)
 
 
 class URL:
@@ -42,13 +83,33 @@ class URL:
 
     """
 
-    def __init__(self, url: str | ParseResult | SplitResult) -> None:
+    def __init__(self, url: str | ParseResult | SplitResult, alias_at: bool = True) -> None:
         if isinstance(url, ParseResult) or isinstance(url, SplitResult):
             self.url_parsed: ParseResult | SplitResult | None = url
             self.url_raw = None
         else:
             self.url_raw = url
             self.url_parsed = None
+        ## Whether this URL's server serves "@" and "%40" as one resource
+        ## (url.encode-at.identity: unsupported).  True is the default in the
+        ## 3.x series - see the feature description: it is what this library
+        ## has always done, and what every server probed so far does.  False is
+        ## the RFC3986-conformant reading, in which two spellings of an "@" are
+        ## two URLs.  It travels with the URL because
+        ## canonical(), __eq__ and __hash__ need it and take no arguments;
+        ## every URL derived from this one inherits it, so setting it once on
+        ## the client's root URL reaches everything joined onto it.
+        self.alias_at = alias_at
+
+    def _derive(self, url: "str | ParseResult | SplitResult") -> "URL":
+        """A new URL from ``url``, carrying this one's ``alias_at`` along."""
+        return URL(url, alias_at=self.alias_at)
+
+    def with_alias_at(self, alias_at: bool) -> "URL":
+        """This URL, told whether its server aliases the two ``@`` spellings."""
+        if alias_at == self.alias_at:
+            return self
+        return URL(self.url_parsed if self.url_raw is None else self.url_raw, alias_at=alias_at)
 
     def __bool__(self) -> bool:
         if self.url_raw or self.url_parsed:
@@ -75,11 +136,14 @@ class URL:
     # TODO: better naming?  Will return url if url is already a URL
     # object, else will instantiate a new URL object
     @classmethod
-    def objectify(self, url: Self | str | ParseResult | SplitResult) -> "URL":
-        if url is None or isinstance(url, URL):
+    def objectify(
+        self, url: Self | str | ParseResult | SplitResult, alias_at: bool | None = None
+    ) -> "URL":
+        if url is None:
             return url
-        else:
-            return URL(url)
+        if isinstance(url, URL):
+            return url if alias_at is None else url.with_alias_at(alias_at)
+        return URL(url) if alias_at is None else URL(url, alias_at=alias_at)
 
     # To deal with all kind of methods/properties in the ParseResult
     # class
@@ -111,7 +175,7 @@ class URL:
 
     def strip_trailing_slash(self) -> "URL":
         if str(self)[-1] == "/":
-            return URL.objectify(str(self)[:-1])
+            return self._derive(str(self)[:-1])
         else:
             return self
 
@@ -121,7 +185,7 @@ class URL:
     def unauth(self) -> "URL":
         if not self.is_auth():
             return self
-        return URL.objectify(
+        return self._derive(
             ParseResult(
                 self.scheme,
                 "%s:%s" % (self.hostname, self.port or {"https": 443, "http": 80}[self.scheme]),
@@ -147,8 +211,12 @@ class URL:
         if url.url_parsed is None:
             url.url_parsed = cast(urllib.parse.ParseResult, urlparse(str(url)))
         arr = list(url.url_parsed)
-        ## quoting path and removing double slashes
-        arr[2] = quote(unquote(url.path.replace("//", "/")))
+        ## quoting path and removing double slashes.  The "@" spelling is
+        ## preserved rather than normalised, unless the server is declared to
+        ## alias the two spellings - then collapsing them is what makes two
+        ## spellings of one resource compare and hash alike.
+        collapse = alias_at_path if self.alias_at else requote_path
+        arr[2] = collapse(url.path.replace("//", "/"))
         ## sensible defaults
         if not arr[0]:
             arr[0] = "https"
@@ -161,7 +229,7 @@ class URL:
                 portpart = ""
             arr[1] += portpart
 
-        return URL(urlunparse(arr))
+        return self._derive(urlunparse(arr))
 
     def join(self, path: Any) -> "URL":
         """
@@ -189,7 +257,7 @@ class URL:
             if self.path.endswith("/"):
                 sep = ""
             ret_path = "%s%s%s" % (self.path, sep, path.path)
-        return URL(
+        return self._derive(
             ParseResult(
                 self.scheme or path.scheme,
                 self.netloc or path.netloc,
