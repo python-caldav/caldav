@@ -314,11 +314,11 @@ hence, "fragile".
             "description": "GET requests to calendar object resource URLs work correctly. When unsupported, the server returns 404 on GET even for valid object URLs. The client works around this by falling back to UID-based lookup.",
         },
         "non-existing-raises-not-found": {
-            "description": "Looking up a non-existing calendar *object* resource raises NotFoundError.  'full' (the default) is the expected behaviour; when 'unsupported', the lookup ends in some other DAVError - typically AuthorizationError, because the server answers 403 rather than 404 to avoid leaking whether a resource exists, which is a legitimate choice rather than an RFC breach, hence 'unsupported' rather than 'broken'.  Note that this describes the *client-visible* outcome, not the raw status code: `CalendarObjectResource.load()` retries a failed GET as a calendar-multiget REPORT against the parent collection, so a server that answers 403 on the object URL still ends up raising NotFoundError if it reports the missing href with a 404 inside the multistatus (Robur does).",
+            "description": "Looking up a non-existing calendar *object* resource raises NotFoundError.  'full' (the default) is the expected behaviour: the server itself answers 404.  'quirk' when the caller still ends up with a NotFoundError, but only because the library worked around what the server actually answered - `CalendarObjectResource.load()` retries a failed GET as a calendar-multiget REPORT against the parent collection, and a server answering 403 on the object URL may report the missing href with a 404 inside that multistatus (Robur does); read the `behaviour` field for what a given server does.  Anything reaching past `load()` sees the raw answer, and `load(multiget_fallback=False)` asks for it deliberately.  'unsupported' when the lookup ends in some other DAVError - typically AuthorizationError, because the server answers 403 rather than 404 to avoid leaking whether a resource exists, which is a legitimate choice rather than an RFC breach, hence 'unsupported' rather than 'broken'.",
             "default": {"support": "full"},
         },
         "non-existing-raises-not-found.collection": {
-            "description": "Looking up a non-existing calendar *collection* raises NotFoundError.  Declared separately from the object-level parent because the two genuinely differ: there is no multiget fallback for a collection, so a server answering 403 for anything non-existing (Robur) raises NotFoundError for a missing object but AuthorizationError for a missing calendar.  It carries no default of its own: an *explicitly declared* parent is inherited through the ancestor walk, while against an undeclared parent it falls back to the generic server-feature default ('full'), which is the same answer the parent's own default gives.",
+            "description": "Looking up a non-existing calendar *collection* raises NotFoundError.  Declared separately from the object-level parent because the two genuinely differ: there is no multiget fallback for a collection, so a server answering 403 for anything non-existing (Robur) is rescued into NotFoundError for a missing object but raises AuthorizationError for a missing calendar.  It carries no default of its own: an *explicitly declared* parent is inherited through the ancestor walk, while against an undeclared parent it falls back to the generic server-feature default ('full'), which is the same answer the parent's own default gives.",
         },
         "save-load.stable-url": {
             "description": "The server reports a calendar object resource under the same URL the client used to store it. When 'unsupported', the server canonicalizes the URL: e.g. OX App Suite exposes a calendar both under its display name and under an internal 'cal://0/NNN' identifier, so an object looked up via a calendar-query REPORT (object_by_uid / search) is reported under a different calendar path than the PUT URL.  A direct GET on the original URL still works (the server keeps an alias).  Clients should therefore not assume that a searched object's URL equals the URL it was created at.",
@@ -1610,17 +1610,12 @@ robur = {
         'basepath': '/principals/', # TODO: this seems fishy
     },
     "save-load.journal": { "support": "ungraceful" },
-    ## delete-calendar (and delete-calendar.free-namespace) used to be
-    ## "unsupported" here; the server checker observes "full" (observed
-    ## 2026-08-24).  The stale entry
-    ## made Calendar.delete() fall back to wipe=True, so every test run left
-    ## its calendars behind - the test account had 228 of them.
     "search.is-not-defined": { "support": "unsupported" },
     "search.time-range.todo": { "support": "unsupported" },
     "search.time-range.alarm": {'support': 'unsupported'},
     "search.text": { "support": "unsupported", "behaviour": "a text search ignores the filter and returns all elements" },
     ## search.comp-type.optional was "ungraceful"; "full" observed
-    ## 2026-08-24
+    ## 2026-08-24, possibly because the feature has been split
     "search.recurrences.expanded.todo": { "support": "unsupported" },
     "search.recurrences.expanded.event": { "support": "fragile" },
     'search.recurrences.includes-implicit.todo': {'support': 'unsupported'},
@@ -1630,13 +1625,12 @@ robur = {
     ## Robur answers 403, not 404, for everything that does not exist below
     ## /calendars/ and /principals/ - a non-existing calendar *object* included
     ## (verified 2026-08-26: GET and PROPFIND on a missing .ics in an existing
-    ## calendar both give 403).  The object-level lookup nevertheless ends in
-    ## NotFoundError, because load() retries the failed GET as a
-    ## calendar-multiget REPORT against the existing parent collection and Robur
-    ## reports the missing href with an inner 404 - so the parent feature stays
-    ## at its "full" default.  A missing *collection* has no such fallback and
-    ## surfaces the 403 as AuthorizationError, which is what the old
-    ## "unsupported" on the parent was really recording.
+    ## calendar both give 403).  An object lookup nevertheless ends in
+    ## NotFoundError, so callers are not surprised; a collection lookup has no
+    ## such rescue and surfaces the 403.
+    'non-existing-raises-not-found': {
+        'support': 'quirk',
+        'behaviour': "a direct lookup raises AuthorizationError (403); the NotFoundError comes out of load()'s calendar-multiget fallback, where Robur reports the missing href with an inner 404"},
     'non-existing-raises-not-found.collection': {
         'support': 'unsupported',
         'behaviour': 'a non-existing calendar collection raises AuthorizationError (403), not NotFoundError'},
