@@ -311,9 +311,7 @@ change notifications.  Requested by the proposal authors themselves.
 Partly in place already: 429/503 `Retry-After` handling with `RateLimitError`
 and the `rate-limit` server peculiarity exist.
 
-**Tasks:**
-
-See the design document.
+**Tasks:** see the ordered steps in the design document linked above.
 
 Also related: [#697](https://github.com/python-caldav/caldav/issues/697) - smarter rate-limit throttling
 

@@ -647,9 +647,18 @@ class TestNonExistingRaisesNotFound:
     def test_collection_subfeature_exists(self) -> None:
         assert "non-existing-raises-not-found.collection" in FeatureSet.FEATURES
 
-    def test_collection_defaults_to_the_parent(self) -> None:
-        """Undeclared, the subfeature follows the parent - both ways."""
+    def test_collection_falls_back_to_the_generic_default(self) -> None:
+        """With nothing declared the subfeature has no default of its own.
+
+        It resolves through the generic 'server-feature' default rather than
+        by inheriting the parent - the two happen to agree ('full'), so this
+        pins *why* the answer is True, not merely that it is.
+        """
         assert FeatureSet().is_supported("non-existing-raises-not-found.collection")
+        assert "default" not in FeatureSet.FEATURES["non-existing-raises-not-found.collection"]
+
+    def test_collection_follows_an_explicitly_declared_parent(self) -> None:
+        """The ancestor walk is what makes a declared parent reach the child."""
         unsupported = FeatureSet({"non-existing-raises-not-found": {"support": "unsupported"}})
         assert not unsupported.is_supported("non-existing-raises-not-found.collection")
 
