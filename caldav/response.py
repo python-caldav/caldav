@@ -13,11 +13,12 @@ from lxml import etree
 from lxml.etree import _Element
 
 from caldav.calendarobjectresource import FreeBusy
+from caldav.compatibility_hints import at_spelling_is_significant
 from caldav.elements import cdav, dav
 from caldav.elements.base import BaseElement
 from caldav.lib import error
 from caldav.lib.python_utilities import to_normal_str
-from caldav.lib.url import URL
+from caldav.lib.url import URL, unquote_preserving_at
 
 if TYPE_CHECKING:
     Response = Any
@@ -63,19 +64,27 @@ class SyncCollectionResult:
 # ---------------------------------------------------------------------------
 
 
-def _normalize_href(text: str) -> str:
+def _normalize_href(text: str, preserve_at: bool = False) -> str:
     """Normalize an href string from a DAV response element.
 
     Handles the Confluence double-encoding bug (%2540 → %40) and converts
     absolute URLs to path-only strings so callers always work with paths.
+
+    ``preserve_at`` - set for a server whose ``url.encode-at.identity`` says
+    the two spellings are two resources - stops the ``%40`` being decoded with
+    everything else.  This is the first thing to touch an href, and an href is
+    the server naming a resource, so on such a server decoding it here renames
+    it and nothing downstream can recover what was lost.  Off by default, which
+    is the unconditional decode this has always done.
     """
     # Fix for https://github.com/python-caldav/caldav/issues/471
     if "%2540" in text:
         text = text.replace("%2540", "%40")
-    href = unquote(text)
+    decode = unquote_preserving_at if preserve_at else unquote
+    href = decode(text)
     # Ref https://github.com/python-caldav/caldav/issues/435
     if ":" in href:
-        href = unquote(URL(href).path)
+        href = decode(URL(href).path)
     return href
 
 
@@ -473,6 +482,12 @@ class DAVResponse:
             )
         return SyncCollectionResult(changed=changed, deleted=deleted, sync_token=sync_token)
 
+    @property
+    def _preserve_at(self) -> bool:
+        """Whether this connection's server makes the ``@`` spelling significant."""
+        features = getattr(self.davclient, "features", None)
+        return at_spelling_is_significant(features) if features is not None else False
+
     def _parse_response(self, response: _Element) -> tuple[str, list[_Element], Any | None]:
         """
         One response should contain one or zero status children, one
@@ -492,7 +507,7 @@ class DAVResponse:
                 self.validate_status(status)
             elif elem.tag == dav.Href.tag:
                 error.assert_(not href)
-                href = _normalize_href(elem.text or "")
+                href = _normalize_href(elem.text or "", self._preserve_at)
             elif elem.tag == dav.PropStat.tag:
                 propstats.append(elem)
             elif elem.tag in ("{DAV:}responsedescription", "{DAV:}error"):
