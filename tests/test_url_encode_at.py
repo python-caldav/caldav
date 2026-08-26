@@ -111,7 +111,7 @@ class TestFeatureRegistration:
 
 
 class TestQuoteUrlPath:
-    URL = "http://dav.example.com/cal/user@example.com/csc_encode_at@example.com.ics"
+    URL = "http://dav.example.com/cal/user@example.com/encode_at@example.com.ics"
 
     def test_unencoded_spaces_are_quoted(self) -> None:
         """The pre-existing job of this helper must keep working."""
@@ -136,9 +136,7 @@ class TestQuoteUrlPath:
     def test_at_is_encoded_when_server_requires_it(self) -> None:
         """A declared at-spelling of 'encoded' means a literal @ 404s."""
         got = _quote_url_path(self.URL, features=_fs("quirk", "encoded"))
-        assert got == (
-            "http://dav.example.com/cal/user%40example.com/csc_encode_at%40example.com.ics"
-        )
+        assert got == ("http://dav.example.com/cal/user%40example.com/encode_at%40example.com.ics")
 
     def test_netloc_is_never_touched(self) -> None:
         """Credentials in the netloc must survive a forced rewrite untouched."""
