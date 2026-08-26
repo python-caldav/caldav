@@ -947,12 +947,25 @@ class CalendarObjectResource(DAVObject):
 
     ## TODO: move get-logics to a load_by_get method.
     ## The load method should deal with "server quirks".
-    def load(self, only_if_unloaded: bool = False) -> "Self | Coroutine[Any, Any, Self]":
+    def load(
+        self, only_if_unloaded: bool = False, multiget_fallback: bool = True
+    ) -> "Self | Coroutine[Any, Any, Self]":
         """
         (Re)load the object from the caldav server.
 
         For sync clients, loads and returns self.
         For async clients, returns a coroutine that must be awaited.
+
+        :param only_if_unloaded: skip the server round-trip if the object
+            already carries data.
+        :param multiget_fallback: when the GET fails, retry it as a
+            calendar-multiget REPORT against the parent collection.  Some
+            servers do not serve calendar object resources over GET at all,
+            and some (Robur) answer 403 rather than 404 for anything that
+            does not exist, so the fallback is what makes them usable and is
+            on by default.  Pass False to see what the server itself
+            answered - a compatibility checker probing whether a missing
+            object really raises NotFoundError needs the unrescued error.
 
         Example (sync):
             obj.load()
@@ -974,7 +987,9 @@ class CalendarObjectResource(DAVObject):
 
         # Dual-mode support: async clients return a coroutine
         if self.is_async_client:
-            return self._async_load(only_if_unloaded=only_if_unloaded)
+            return self._async_load(
+                only_if_unloaded=only_if_unloaded, multiget_fallback=multiget_fallback
+            )
 
         if self.url is None:
             raise ValueError("Unexpected value None for self.url")
@@ -993,10 +1008,11 @@ class CalendarObjectResource(DAVObject):
             uid = self.id
             if uid:
                 # Fallback 1: try multiget (REPORT may work even when GET fails)
-                try:
-                    return self.load_by_multiget()
-                except Exception:
-                    pass
+                if multiget_fallback:
+                    try:
+                        return self.load_by_multiget()
+                    except Exception:
+                        pass
                 # Fallback 2: re-fetch by UID (server may have changed the URL)
                 if self.parent and hasattr(self.parent, "get_object_by_uid"):
                     try:
@@ -1011,12 +1027,16 @@ class CalendarObjectResource(DAVObject):
                         pass
             raise
         except Exception:
+            if not multiget_fallback:
+                raise
             return self.load_by_multiget()
 
         self._update_tag_props(r)
         return self
 
-    async def _async_load(self, only_if_unloaded: bool = False) -> Self:
+    async def _async_load(
+        self, only_if_unloaded: bool = False, multiget_fallback: bool = True
+    ) -> Self:
         """Async implementation of load."""
         if only_if_unloaded and self.is_loaded():
             return self
@@ -1035,10 +1055,11 @@ class CalendarObjectResource(DAVObject):
             uid = self.id
             if uid:
                 # Fallback 1: try multiget (REPORT may work even when GET fails)
-                try:
-                    return await self.load_by_multiget()
-                except Exception:
-                    pass
+                if multiget_fallback:
+                    try:
+                        return await self.load_by_multiget()
+                    except Exception:
+                        pass
                 # Fallback 2: re-fetch by UID (server may have changed the URL)
                 if self.parent and hasattr(self.parent, "get_object_by_uid"):
                     try:
@@ -1053,6 +1074,8 @@ class CalendarObjectResource(DAVObject):
                         pass
             raise
         except Exception:
+            if not multiget_fallback:
+                raise
             return await self.load_by_multiget()
 
         self._update_tag_props(r)
