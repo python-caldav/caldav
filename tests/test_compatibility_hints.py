@@ -642,6 +642,10 @@ class TestNonExistingRaisesNotFound:
     missing href with an inner 404.  So an object lookup does end in
     ``NotFoundError`` while a collection lookup ends in ``AuthorizationError``,
     and the two must be declarable separately.
+
+    The object level is a ``quirk`` rather than ``full``: the caller gets the
+    exception it expects, so nothing downstream has to care, but the server did
+    not answer 404 and the profile must not claim it did.
     """
 
     def test_collection_subfeature_exists(self) -> None:
@@ -673,22 +677,48 @@ class TestNonExistingRaisesNotFound:
 
     def test_robur_declares_the_split(self) -> None:
         features = FeatureSet(_resolve_features("robur"))
-        assert features.is_supported("non-existing-raises-not-found", str) == "full"
+        assert features.is_supported("non-existing-raises-not-found", str) == "quirk"
         assert (
             features.is_supported("non-existing-raises-not-found.collection", str) == "unsupported"
         )
+
+    def test_the_quirk_still_counts_as_supported(self) -> None:
+        """A quirk is True to every caller asking the boolean question, so
+        declaring Robur's object lookup as one changes no library behaviour -
+        it only stops the profile from claiming a 404 the server never sends.
+        """
+        features = FeatureSet(_resolve_features("robur"))
+        assert features.is_supported("non-existing-raises-not-found")
+
+    def test_the_quirk_carries_its_behaviour(self) -> None:
+        """The support level is a severity; what the server actually does
+        belongs in `behaviour`."""
+        features = FeatureSet(_resolve_features("robur"))
+        behaviour = features.is_supported("non-existing-raises-not-found", dict)["behaviour"]
+        assert "AuthorizationError" in behaviour
+        assert "multiget" in behaviour
 
     def test_the_split_is_still_compared(self) -> None:
         """Unlike the ``fragile`` it replaces, the split stays observable: a
         server that starts answering 404 for collections is reported."""
         declared = FeatureSet(_resolve_features("robur"))
         observed = FeatureSet()
-        observed.set_feature("non-existing-raises-not-found")
+        observed.set_feature("non-existing-raises-not-found", "quirk")
         observed.set_feature("non-existing-raises-not-found.collection", "unsupported")
         assert declared.compare(observed) == []
 
         improved = FeatureSet()
-        improved.set_feature("non-existing-raises-not-found")
+        improved.set_feature("non-existing-raises-not-found", "quirk")
         improved.set_feature("non-existing-raises-not-found.collection")
         mismatches = {m["feature"]: m for m in declared.compare(improved)}
         assert "non-existing-raises-not-found.collection" in mismatches
+
+    def test_a_server_that_starts_answering_404_is_reported(self) -> None:
+        """The quirk is observable too: if Robur ever answers 404 on the object
+        URL itself, the checker reports 'full' and the declaration is stale."""
+        declared = FeatureSet(_resolve_features("robur"))
+        observed = FeatureSet()
+        observed.set_feature("non-existing-raises-not-found")
+        observed.set_feature("non-existing-raises-not-found.collection", "unsupported")
+        mismatches = {m["feature"]: m for m in declared.compare(observed)}
+        assert "non-existing-raises-not-found" in mismatches

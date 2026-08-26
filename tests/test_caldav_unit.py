@@ -337,6 +337,26 @@ class MockedDAVClient(DAVClient):
         return MockedDAVResponse(self.xml_returned)
 
 
+class GetRefusedDAVClient(DAVClient):
+    """
+    For unit testing - a mocked DAVClient that refuses a plain GET with 403
+    and answers a REPORT with some specific content.  This is the Robur
+    shape: the server answers 403 rather than 404 for anything that does
+    not exist, but a calendar-multiget REPORT against the existing parent
+    collection still reports the missing href.
+    """
+
+    def __init__(self, report_xml):
+        self.report_xml = report_xml
+        DAVClient.__init__(self, url="https://somwhere.in.the.universe.example/some/caldav/root")
+
+    def request(self, *largs, **kwargs):
+        raise error.AuthorizationError(url=largs[0] if largs else None, reason="Forbidden")
+
+    def report(self, *largs, **kwargs):
+        return MockedDAVResponse(self.report_xml)
+
+
 class TestCalDAV:
     """
     Test class for "pure" unit tests (small internal tests, testing that
@@ -445,6 +465,91 @@ class TestCalDAV:
         object = Event(url="/calendar/issue491/notfound.ics", parent=calendar)
         with pytest.raises(error.NotFoundError):
             object.load_by_multiget()
+
+    MULTIGET_FOUND = """
+<D:multistatus xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
+  <D:response>
+    <D:href>/calendar/robur/found.ics</D:href>
+    <D:propstat>
+      <D:prop>
+        <C:calendar-data>BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+UID:found@example.com
+DTSTAMP:20260826T120000Z
+DTSTART:20260827T120000Z
+SUMMARY:found through multiget
+END:VEVENT
+END:VCALENDAR
+</C:calendar-data>
+      </D:prop>
+      <D:status>HTTP/1.1 200 OK</D:status>
+    </D:propstat>
+  </D:response>
+</D:multistatus>"""
+
+    MULTIGET_NOT_FOUND = """
+<D:multistatus xmlns:D="DAV:">
+  <D:response>
+    <D:href>/calendar/robur/gone.ics</D:href>
+    <D:status>HTTP/1.1 404 Not Found</D:status>
+  </D:response>
+</D:multistatus>"""
+
+    MULTIGET_FORBIDDEN = """
+<D:multistatus xmlns:D="DAV:">
+  <D:response>
+    <D:href>/calendar/robur/secret.ics</D:href>
+    <D:status>HTTP/1.1 403 Forbidden</D:status>
+  </D:response>
+</D:multistatus>"""
+
+    def _robur_object(self, report_xml, path):
+        client = GetRefusedDAVClient(report_xml)
+        calendar = Calendar(client, url="/calendar/robur/")
+        return Event(url=path, parent=calendar)
+
+    def testLoadFallsBackToMultigetByDefault(self):
+        """A GET refused with 403 is retried as a calendar-multiget REPORT.
+
+        This is what makes Robur look like a well-behaved server from the
+        outside: the object is loaded even though the GET was refused.
+        """
+        object = self._robur_object(self.MULTIGET_FOUND, "/calendar/robur/found.ics")
+        object.load()
+        assert "found through multiget" in object.data
+
+    def testLoadWithoutMultigetFallbackRaisesTheServersOwnError(self):
+        """load(multiget_fallback=False) surfaces what the server actually said.
+
+        Without this, no caller can tell a server that answers 404 from one
+        that answers 403 and is rescued by the REPORT - which is precisely
+        what "non-existing-raises-not-found" is supposed to describe.
+        """
+        object = self._robur_object(self.MULTIGET_FOUND, "/calendar/robur/found.ics")
+        with pytest.raises(error.AuthorizationError):
+            object.load(multiget_fallback=False)
+
+    def testTheMultigetFallbackDoesNotLaunderARealForbidden(self):
+        """A genuine 403 does not come out of the multiget fallback as a 404.
+
+        The fallback only turns a refused GET into NotFoundError when the
+        REPORT itself reports the href as missing: _extract_multiget_results
+        raises NotFoundError on an inner 404, and _post_load_by_multiget
+        raises it on an empty result set.  An inner 403 hits neither -
+        validate_status rejects it, and the caller gets a ResponseError.  So
+        "it is forbidden" and "it is not there" stay distinguishable, which
+        is why non-existing-raises-not-found can be observed at all.
+        """
+        object = self._robur_object(self.MULTIGET_FORBIDDEN, "/calendar/robur/secret.ics")
+        with pytest.raises(error.ResponseError):
+            object.load()
+
+    def testLoadFallsBackToNotFoundWhenTheReportSaysSo(self):
+        """A refused GET plus a REPORT reporting an inner 404 gives NotFoundError."""
+        object = self._robur_object(self.MULTIGET_NOT_FOUND, "/calendar/robur/gone.ics")
+        with pytest.raises(error.NotFoundError):
+            object.load()
 
     def testPropfindResponseLevelNotFound(self):
         """A PROPFIND answered with a response-level 404 must raise NotFoundError.

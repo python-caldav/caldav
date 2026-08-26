@@ -957,6 +957,59 @@ END:VCALENDAR"""
         _ = event.url  # must not raise AttributeError
 
 
+class TestAsyncLoadMultigetFallback:
+    """load(multiget_fallback=...) on the async twin.
+
+    Mirrors testLoadFallsBackToMultigetByDefault and
+    testLoadWithoutMultigetFallbackRaisesTheServersOwnError in
+    test_caldav_unit.py.
+    """
+
+    def _forbidden_event(self):
+        from caldav.aio import AsyncEvent
+        from caldav.collection import Calendar
+
+        client = AsyncDAVClient(url="https://caldav.example.com/dav/")
+        client.request = AsyncMock(
+            side_effect=error.AuthorizationError(
+                url="https://caldav.example.com/dav/calendars/test/x.ics",
+                reason="Forbidden",
+            )
+        )
+        calendar = Calendar(client=client, url="https://caldav.example.com/dav/calendars/test/")
+        return AsyncEvent(
+            client=client,
+            url="https://caldav.example.com/dav/calendars/test/x.ics",
+            parent=calendar,
+        )
+
+    @pytest.mark.asyncio
+    async def test_load_falls_back_to_multiget_by_default(self) -> None:
+        """A refused GET is retried as a calendar-multiget REPORT."""
+        from caldav.aio import AsyncCalendarObjectResource
+
+        event = self._forbidden_event()
+        with patch.object(
+            AsyncCalendarObjectResource, "load_by_multiget", new_callable=AsyncMock
+        ) as multiget:
+            multiget.return_value = event
+            assert await event.load() is event
+        multiget.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_load_without_multiget_fallback_raises_the_servers_own_error(self) -> None:
+        """multiget_fallback=False surfaces the 403 and sends no REPORT."""
+        from caldav.aio import AsyncCalendarObjectResource
+
+        event = self._forbidden_event()
+        with patch.object(
+            AsyncCalendarObjectResource, "load_by_multiget", new_callable=AsyncMock
+        ) as multiget:
+            with pytest.raises(error.AuthorizationError):
+                await event.load(multiget_fallback=False)
+        multiget.assert_not_awaited()
+
+
 class TestAsyncRateLimiting:
     """
     Unit tests for 429/503 rate-limit handling in AsyncDAVClient.
