@@ -40,6 +40,7 @@ else:
 from contextlib import contextmanager
 
 from .base_client import ICALH
+from .compatibility_hints import _rejects_encoded_at
 from .datastate import DataState, IcalendarState, NoDataState, RawDataState, VobjectState
 from .davobject import DAVObject
 from .elements import cdav, dav
@@ -51,13 +52,21 @@ from .lib.url import URL
 log = logging.getLogger("caldav")
 
 
-def _quote_uid(uid: str) -> str:
+def _quote_uid(uid: str, features: Any = None) -> str:
     """URL-quote a UID for use in a CalDAV object URL.
 
     Slashes are double-quoted (replaced with %2F before percent-encoding)
     per https://github.com/python-caldav/caldav/issues/143.
+
+    A UID that is an email address puts a literal ``@`` in the path.  It is
+    percent-encoded by default, which is what this has always done and which
+    is a spelling the client itself chooses - so nothing changes for a server
+    whose two spellings are merely distinct.  Only a server whose
+    ``url.encode-at`` entry declares ``at-spelling: literal``, i.e. one known
+    to 404 on ``%40``, gets the literal ``@`` instead.
     """
-    return quote(uid.replace("/", "%2F"))
+    safe = "/@" if _rejects_encoded_at(features) else "/"
+    return quote(uid.replace("/", "%2F"), safe=safe)
 
 
 class CalendarObjectResource(DAVObject):
@@ -1204,7 +1213,8 @@ class CalendarObjectResource(DAVObject):
         ## See https://github.com/python-caldav/caldav/issues/143 for the rationale behind double-quoting slashes
         ## TODO: should try to wrap my head around issues that arises when id contains weird characters.  maybe it's
         ## better to generate a new uuid here, particularly if id is in some unexpected format.
-        url = self.parent.url.join(_quote_uid(self.id) + ".ics")
+        features = self.client.features if self.client is not None else None
+        url = self.parent.url.join(_quote_uid(self.id, features) + ".ics")
         assert " " not in str(url)
         return url
 

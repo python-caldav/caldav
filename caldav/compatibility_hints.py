@@ -9,6 +9,7 @@ TODO: it should probably be split with the "feature definitions",
 """
 import copy
 import warnings
+from typing import Any
 
 # Valid support levels for features
 VALID_SUPPORT_LEVELS = frozenset({
@@ -78,7 +79,59 @@ class FeatureSet:
             }
         },
         "url": {
+            ## Grouping node for facts about how the server wants its URLs
+            ## spelled.  Kept as client-hints: the node itself is not probed,
+            ## it only collects sub-features such as url.encode-at.
             "type": "client-hints",
+        },
+        "url.encode-at": {
+            "description": (
+                "How the server treats a literal '@' in a resource path versus its percent-encoded "
+                "spelling '%40'.  RFC3986 section 3.3 makes '@' a legal pchar, so a producer never "
+                "has to encode it, and section 2.2 makes it a *reserved* character, so the two "
+                "spellings are formally NOT equivalent - section 6.2.2.2 licenses decoding only the "
+                "octets of *unreserved* characters (section 2.3).  A server that serves both "
+                "spellings as one resource is therefore being lenient, not conformant, and servers "
+                "disagree.  This matters wherever a path embeds an email-like identifier: an "
+                "ownCloud/Nextcloud calendar-home-set (/remote.php/dav/calendars/user@example.com/), "
+                "or an object whose UID is an email address.  It only bites because the client "
+                "rewrites spellings - one that echoed the server's own bytes back would never "
+                "observe the difference - and where it bites it is silent: you write one resource "
+                "and read another.  "
+                "is_supported() True claims exactly one thing: sending '%40' reaches the resource "
+                "that a literal '@' names.  The support level is a severity and nothing else - the "
+                "URL code never reads it - because another implementation's '@' quirk may be "
+                "something else entirely (depending on where in the path the '@' sits, say) and a "
+                "severity word must not be made to name one particular behaviour.  What the client "
+                "acts on is the 'at-spelling' and 'at-identity' extra keys.  With neither "
+                "configured every call site keeps the heuristic it used before this feature "
+                "existed, so nothing changes for a server you have not configured this for.  "
+                "Not covered here: a server that stores a resource at one spelling and later "
+                "reports it back under the other.  That is one flavour of save-load.stable-url "
+                "(create-calendar.stable-url for collections) and is handled there."
+            ),
+            "default": {"support": "unknown"},
+            "extra_keys": {
+                "at-spelling": (
+                    "which spellings of a literal '@' in a path resolve at all: 'both', 'literal' "
+                    "(only the raw '@' - the client must not encode), 'encoded' (only '%40' - the "
+                    "client must encode).  Omit it unless it was actually observed; the client then "
+                    "keeps its historic behaviour."
+                ),
+                "at-identity": (
+                    "with at-spelling 'both', whether the two spellings name one resource or two: "
+                    "'aliased' (one - nothing to worry about) or 'distinct' (two, which is the "
+                    "RFC3986-conformant reading, and means the client must never rewrite one "
+                    "spelling into the other).  Meaningless without at-spelling 'both'; omit it "
+                    "when it was not observed."
+                ),
+                "behaviour": "free text for a deviation the two keys above cannot express",
+            },
+            "links": [
+                "https://datatracker.ietf.org/doc/html/rfc3986#section-2.2",
+                "https://datatracker.ietf.org/doc/html/rfc3986#section-3.3",
+                "https://datatracker.ietf.org/doc/html/rfc3986#section-6.2.2.2",
+            ],
         },
         "well-known": {
             "description": "Server handles /.well-known/caldav discovery as specified in RFC 6764 section 5. A conformant server should respond with a redirect (301/302/307/308) from /.well-known/caldav to the actual CalDAV endpoint. 'full' means a redirect was observed; 'unsupported' means the server returned 404 or similar; 'unknown' means the check was skipped (e.g. localhost or request failed). Note: well-known is often provided by infrastructure (reverse proxy/hosting) rather than the CalDAV server itself, so 'unknown' is the expected default for self-hosted or test setups.",
@@ -1257,8 +1310,12 @@ zimbra = {
     "search.recurrences.includes-implicit.infinite-scope": False,
     # sometimes throws a 500
     'search.text.category': {'support': 'ungraceful'},
-    'search.recurrences.expanded.todo': { "support": "unsupported" },
-    ## was 'fragile' - that was the checker bug (it compared a comp-type-less
+    ## search.recurrences.expanded.todo was 'unsupported'; 'full' observed
+    ## 2026-08-26.  The declaration dated from when the probe searched the
+    ## *event* calendar for the recurring todo, so a server that keeps tasks
+    ## in a collection of their own could only ever come out unsupported
+    ## (caldav-server-tester 7a66c18).
+    ## search.comp-type.optional was 'fragile' - that was the checker bug (it compared a comp-type-less
     ## search against cnt, which counts objects stored in a separate
     ## task/journal calendar).  Confirmed full 2026-06-06.
     'search.comp-type.optional': {'support': 'full'},
@@ -1695,9 +1752,13 @@ ccs = {
     ## Recurrence expansion actually works within the (near-future) search window;
     ## this was previously reported "unsupported" only because the test fixtures
     ## lived in year 2000, which CCS's min-date-time restriction hid.  Only infinite
-    ## scope (far-future) and server-side VTODO expansion remain unsupported.
+    ## scope (far-future) remains unsupported.
     "search.recurrences.includes-implicit.infinite-scope": {"support": "unsupported"},
-    "search.recurrences.expanded.todo": {"support": "unsupported"},
+    ## search.recurrences.expanded.todo was 'unsupported'; 'full' observed
+    ## 2026-08-26.  The declaration dated from when the probe searched the
+    ## *event* calendar for the recurring todo, so a server that keeps tasks
+    ## in a collection of their own could only ever come out unsupported
+    ## (caldav-server-tester 7a66c18).
     "principal-search": {"support": "unsupported"},
     # Ephemeral Docker container: wipe objects (avoids UID conflicts across calendars)
     "test-calendar": {"cleanup-regime": "wipe-calendar"},
@@ -2007,3 +2068,61 @@ infomaniak = {
 }
 
 # fmt: on
+
+
+## --- url.encode-at readers -------------------------------------------------
+##
+## The URL code asks these, never the support level: a level such as "quirk"
+## records that the server deviates, not how.  An unrecognised value is treated
+## as "nothing was declared" rather than guessed at, so a typo in a profile
+## cannot silently rewrite URLs.
+
+_AT_SPELLINGS = frozenset({"both", "literal", "encoded"})
+
+
+def _encode_at_node(features: Any) -> dict:
+    """The declared ``url.encode-at`` node, or an empty dict."""
+    if features is None:
+        return {}
+    node = features.is_supported("url.encode-at", dict, return_defaults=False)
+    return node if isinstance(node, dict) else {}
+
+
+def _at_path_policy(features: Any) -> str | None:
+    """What the URL code must do with an ``@`` in a path.
+
+    * ``"encode"`` - only ``%40`` resolves, so rewrite ``@`` to ``%40``
+    * ``"literal"`` - only ``@`` resolves, so never send ``%40``
+    * ``"preserve"`` - both resolve but name *different* resources, so neither
+      spelling may be rewritten into the other; pass through what we were given
+    * ``None`` - nothing usable declared (including "both, aliased", where the
+      spellings are interchangeable and there is nothing to do).  Every caller
+      then keeps the heuristic it had before this feature existed.
+    """
+    node = _encode_at_node(features)
+    spelling = node.get("at-spelling")
+    if spelling not in _AT_SPELLINGS:
+        return None
+    if spelling == "encoded":
+        return "encode"
+    if spelling == "literal":
+        return "literal"
+    ## at-spelling "both": harmless when the two are aliased, data loss when
+    ## they are distinct.  Anything but an explicit "distinct" is not enough to
+    ## start deviating from the historic behaviour.
+    return "preserve" if node.get("at-identity") == "distinct" else None
+
+
+def _requires_encoded_at(features: Any) -> bool:
+    """True only for a server declared to resolve nothing but ``%40``."""
+    return _at_path_policy(features) == "encode"
+
+
+def _rejects_encoded_at(features: Any) -> bool:
+    """True only for a server declared to resolve nothing but a literal ``@``."""
+    return _at_path_policy(features) == "literal"
+
+
+def _preserves_at_spelling(features: Any) -> bool:
+    """True only for a server where the two spellings are declared distinct."""
+    return _at_path_policy(features) == "preserve"
