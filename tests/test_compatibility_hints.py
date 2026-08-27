@@ -374,6 +374,22 @@ class TestImplicitDerivation:
         "scenario, config, query, expected_support",
         [
             (
+                "group_parent_unknown_gives_unknown_child",
+                {
+                    "save-load": {"support": "unknown"},
+                },
+                "save-load.event",
+                "unknown",
+            ),
+            (
+                "real_parent_unknown_gives_unknown_child",
+                {
+                    "scheduling": {"support": "unknown"},
+                },
+                "scheduling.freebusy-query",
+                "unknown",
+            ),
+            (
                 "all_children_unsupported",
                 {
                     "search.recurrences.expanded": {"support": "unsupported"},
