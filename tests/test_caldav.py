@@ -1471,23 +1471,24 @@ class RepeatedFunctionalTestsBaseClass:
         success, but Robur answers 403 - see the
         ``non-existing-raises-not-found.collection`` feature, which is why the
         tolerated exception comes from ``_notFound()`` rather than being
-        NotFoundError outright.  Anything wider than NotFoundError is logged,
-        so a genuine delete failure is still visible in the test output.
+        NotFoundError outright.  A NotFoundError is tolerated silently; on the
+        servers where ``_notFound()`` widens to DAVError, anything else that is
+        caught is logged, so a genuine delete failure is still visible in the
+        test output.
         """
         try:
             cal.delete(wipe=wipe)
-        except error.NotFoundError:
-            pass
         except self._notFound(collection=True) as e:
-            ## On a server that answers 403 rather than 404 for a missing
-            ## collection (Robur), _notFound() widens to DAVError - which would
-            ## also swallow a real failure to delete a calendar that is still
-            ## there.  Tolerate it, but do not let it be silent: leftover
-            ## calendars accumulating unnoticed is what the Robur profile
-            ## refresh in this series had to undo.
-            logging.warning(
-                "cleanup: tolerated %s while deleting %s: %s", type(e).__name__, cal.url, e
-            )
+            if not isinstance(e, error.NotFoundError):
+                ## On a server that answers 403 rather than 404 for a missing
+                ## collection (Robur), _notFound() widens to DAVError - which
+                ## would also swallow a real failure to delete a calendar that
+                ## is still there.  Tolerate it, but do not let it be silent:
+                ## leftover calendars accumulating unnoticed is what the Robur
+                ## profile refresh in this series had to undo.
+                logging.warning(
+                    "cleanup: tolerated %s while deleting %s: %s", type(e).__name__, cal.url, e
+                )
 
     def _cleanup(self, mode=None):
         if self.cleanup_regime == "none":

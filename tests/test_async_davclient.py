@@ -14,7 +14,6 @@ import pytest
 
 from caldav.async_davclient import AsyncDAVClient, DAVResponse, get_davclient
 from caldav.lib import error
-from caldav.lib.python_utilities import to_wire
 
 # Sample XML responses for testing
 SAMPLE_MULTISTATUS_XML = b"""<?xml version="1.0" encoding="utf-8" ?>
