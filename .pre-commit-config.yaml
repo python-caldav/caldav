@@ -15,7 +15,10 @@ repos:
       - id: end-of-file-fixer
 
   - repo: https://github.com/pycalendar/ai-prompt-auto-commit
-    rev: v0.0.8
+    # Temporary SHA pin: PR #8 (fix/hook-model-and-synthetic-turns), unreleased.
+    # Fixes the recorded model and stops machine-injected turns being recorded
+    # as prompts.  Replace with rev: v0.0.10 once that is tagged.
+    rev: 91a5d369ead98df8dc11aed5adc7484f1dd53a0c
     hooks:
       - id: unstage-ai-prompts
       - id: append-ai-prompts

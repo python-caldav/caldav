@@ -41,3 +41,4 @@ tests/caldav_test_servers.yaml
 .lycheecache
 # Scratch files from AI sessions (review notes, draft commit messages)
 docs/design/tmp-*
+/.prompts/
