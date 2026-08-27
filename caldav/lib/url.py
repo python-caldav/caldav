@@ -150,7 +150,7 @@ class URL:
     # object, else will instantiate a new URL object
     @classmethod
     def objectify(
-        self, url: Self | str | ParseResult | SplitResult, alias_at: bool | None = None
+        cls, url: Self | str | ParseResult | SplitResult, alias_at: bool | None = None
     ) -> "URL":
         if url is None:
             return url

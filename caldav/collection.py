@@ -44,7 +44,6 @@ from .calendarobjectresource import (
 from .compatibility_hints import (
     at_literal_is_refused,
     at_spelling_is_significant,
-    at_spelling_to_mint,
 )
 from .davobject import DAVObject
 from .elements import cdav, dav
