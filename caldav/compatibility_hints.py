@@ -1278,14 +1278,8 @@ nextcloud = {
     ## quoted"), which percent-encoded every relative home-set containing an
     ## "@" for every server ever since.  Whatever that worked around, this
     ## server does not need it today, and no other profile asks for it.
-    ## Historically this flip-flopped between "ungraceful" and "full" - that
-    ## instability was a checker bug (https://github.com/python-caldav/caldav/issues/681):
-    ## the comp-type.optional probe used to send a comp-type-less query carrying a
-    ## time-range, which SabreDAV rejects (the time-range belongs in a VEVENT/...
-    ## comp-filter, not under VCALENDAR).  Now that the probe omits the time-range,
-    ## Nextcloud correctly accepts the bare comp-type-less query.  The time-range
-    ## variant is tracked separately as search.time-range.comp-type-optional
-    ## (unsupported on SabreDAV, the default).
+    ## The time-range variant is tracked separately as
+    ## search.time-range.comp-type-optional (unsupported on SabreDAV, the default).
     'search.comp-type.optional': {'support': 'full'},
     'search.recurrences.expanded.todo': {'support': 'unsupported'},
     "search.recurrences.includes-implicit.infinite-scope": False,
@@ -1384,9 +1378,6 @@ zimbra = {
     ## *event* calendar for the recurring todo, so a server that keeps tasks
     ## in a collection of their own could only ever come out unsupported
     ## (caldav-server-tester 7a66c18).
-    ## search.comp-type.optional was 'fragile' - that was the checker bug (it compared a comp-type-less
-    ## search against cnt, which counts objects stored in a separate
-    ## task/journal calendar).  Confirmed full 2026-06-06.
     'search.comp-type.optional': {'support': 'full'},
     'search.time-range.alarm': {'support': 'unsupported'},
     'principal-search': "unsupported",
@@ -1444,8 +1435,6 @@ bedework = {
     "search.recurrences": False,
     "sync-token": { "support": "fragile" },
     'search.comp-type': {'support': 'broken', 'behaviour': 'Server returns everything when searching for events and nothing when searching for todos'},
-    ## was 'ungraceful' - that was the checker bug (cnt counted the separately
-    ## stored journal); confirmed full 2026-06-06.
     'search.comp-type.optional': {'support': 'full'},
     ## Flaps between full and unsupported across runs - the comp-type-less
     ## time-range query intermittently returns the in-range object vs nothing,
@@ -1504,9 +1493,6 @@ baikal_old = baikal | {
 }
 
 cyrus = {
-    ## A bare comp-type-less query is accepted; the previous "ungraceful" was a
-    ## checker bug where the probe carried a time-range
-    ## (https://github.com/python-caldav/caldav/issues/681).
     "search.comp-type.optional": {"support": "full"},
     "search.recurrences.includes-implicit.infinite-scope": False,
     "search.time-range.alarm": {"support": "ungraceful"},
@@ -1548,7 +1534,6 @@ davical = {
     # DAViCal delivers iTIP notifications to the attendee inbox AND auto-schedules
     # into their calendar.
     "scheduling.schedule-tag": False,
-    ## was 'fragile' - that was the checker bug (cnt mismatch); confirmed full 2026-06-06.
     "search.comp-type.optional": { "support": "full" },
     ## Genuinely returns matching objects for a comp-type-less query that carries
     ## a time-range (verified: the event is returned, not just "no error").
@@ -1693,8 +1678,6 @@ robur = {
     "search.time-range.todo": { "support": "unsupported" },
     "search.time-range.alarm": {'support': 'unsupported'},
     "search.text": { "support": "unsupported", "behaviour": "a text search ignores the filter and returns all elements" },
-    ## search.comp-type.optional was "ungraceful"; "full" observed
-    ## 2026-08-24, possibly because the feature has been split
     "search.recurrences.expanded.todo": { "support": "unsupported" },
     "search.recurrences.expanded.event": { "support": "fragile" },
     'search.recurrences.includes-implicit.todo': {'support': 'unsupported'},
@@ -1730,9 +1713,6 @@ posteo = {
     ## TODO1: we should ignore cases where observations are unknown while configuration is known
     ## TODO2: there are more calendars available at the posteo account, so it should be possible to check this.
     "save.duplicate-uid.cross-calendar": { "support": "unknown" },
-    ## foo ... "full" observed for the next two, 70938dc1cbb6a839978eee4315699746d38ee5f0/3cae24cf99da1702b851b5a74a9b88c8e5317dad, 2026-02-17
-    ## bar ... 3cae24cf99da1702b851b5a74a9b88c8e5317dad was probably the rotten commit, ungraceful again in  be26d42b1ca3ff3b4fd183761b4a9b024ce12b84 / 537a23b145487006bb987dee5ab9e00cdebb0492
-    'search.comp-type.optional': {'support': 'ungraceful'},
     'search.recurrences.includes-implicit.infinite-scope': False,
     #'search.text.case-sensitive': {'support': 'unsupported'},
     ## Comment from claude:
@@ -1807,11 +1787,6 @@ ccs = {
     "save.duplicate-uid.cross-calendar": {"support": "ungraceful"},
     # CCS rejects multi-instance VTODOs (thisandfuture recurring completion)
     "save-load.todo.recurrences.thisandfuture": {"support": "unsupported"},
-    ## was 'ungraceful' - that was the checker bug (cnt mismatch: it counted a
-    ## journal object that CCS could not store, so the comp-type-less count never
-    ## matched).  Confirmed full 2026-06-06.
-    ## ("full" had also been observed 2026-02-17, then "unsupported"/"ungraceful"
-    ## - all that flapping was the same checker bug, now fixed.)
     "search.comp-type.optional": {"support": "full"},
     "search.text.case-sensitive": {"support": "unsupported"},
     "search.time-range.event": {"support": "full"},
@@ -1911,7 +1886,6 @@ purelymail = {
     ## 409 Conflict with <must-have-parent> when PUTting to a URL not under an existing calendar
     #'save-load.get-by-url': {'support': 'unknown'},
     #'save-load.todo': {'support': 'ungraceful'},
-    'search.comp-type.optional': {'support': 'unsupported'},
     ## The search features below are unreliable on purelymail, likely due
     ## to the 160s search-cache delay.  Results flip between unsupported
     ## and ungraceful across runs.  Marked fragile so the checker skips them.
