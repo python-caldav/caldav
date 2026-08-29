@@ -26,6 +26,7 @@ from caldav.calendarobjectresource import _quote_uid
 from caldav.collection import _quote_url_path, _sanitize_calendar_home_set_url
 from caldav.compatibility_hints import (
     FeatureSet,
+    at_literal_is_refused,
     at_spelling_is_significant,
     at_spelling_to_mint,
     at_spellings_are_aliased,
@@ -170,6 +171,52 @@ class TestWhichSpellingGetsMinted:
         encoding at all.  Objects stored by older versions of this library are
         at the '%40' URL, and that is the only thing deciding it."""
         assert at_spelling_to_mint(FeatureSet()) == "%40"
+
+    @pytest.mark.parametrize("level", ["unknown", "fragile"])
+    def test_a_non_observation_does_not_move_the_minted_spelling(self, level) -> None:
+        """ "We could not tell" is not "'%40' will not work".
+
+        A probe that could not reach a verdict records the subfeature
+        explicitly - 'unknown', or 'fragile' where two probes disagreed - and
+        such a node overrides the 'full' default.  Read as a plain boolean that
+        lands in the same bucket as 'unsupported', so a server nobody could
+        measure would silently move every minted email-UID object off the '%40'
+        URL this library has always used, onto '@'.  Only an actual observation
+        that the encoded spelling does not resolve may do that.
+        """
+        assert at_spelling_to_mint(features(encoded=level)) == "%40"
+
+    def test_an_observed_refusal_still_moves_it(self) -> None:
+        """The counterpart: a real observation must keep working, or the
+        ownCloud-shaped server this exists for gets a URL it cannot serve."""
+        assert at_spelling_to_mint(features(encoded="unsupported")) == "@"
+
+
+class TestANonObservationNeverRewritesAGivenSpelling:
+    """The same rule on the other switch, where it bites the opposite way.
+
+    ``at_literal_is_refused`` is only consulted for a server declared
+    conformant, and there the two spellings are two resources - so rewriting
+    the ``@`` the server handed out addresses something else.  Doing that
+    because a probe recorded ``unknown`` would 404 a home-set that worked.
+    """
+
+    HOME = "/remote.php/dav/calendars/tobixen@e.email/"
+
+    @pytest.mark.parametrize("level", ["unknown", "fragile"])
+    def test_an_undecided_probe_leaves_a_conformant_home_set_alone(self, level) -> None:
+        fs = features(identity="full", literal=level)
+        assert at_literal_is_refused(fs) is False
+        assert _sanitize_calendar_home_set_url(self.HOME, fs) == self.HOME
+
+    def test_an_observed_refusal_still_encodes_it(self) -> None:
+        """The ownCloud case itself must keep working."""
+        fs = features(identity="full", literal="unsupported")
+        assert at_literal_is_refused(fs) is True
+        assert _sanitize_calendar_home_set_url(self.HOME, fs) == self.HOME.replace("@", "%40")
+
+    def test_an_unprobed_conformant_server_keeps_its_bytes(self) -> None:
+        assert _sanitize_calendar_home_set_url(self.HOME, features(identity="full")) == self.HOME
 
 
 class TestWhetherTheSpellingMatters:
