@@ -2143,10 +2143,20 @@ def at_spelling_to_mint(features: Any) -> str:
     UID is an email address keeps landing on the URL it has always landed on.
     The only reason to deviate is a server declared not to resolve ``%40`` at
     all, and then the literal ``@`` is all that is left to try.
+
+    "Declared" is meant strictly, which is why this reads the support level
+    rather than asking ``is_supported()``.  A probe that could not reach a
+    verdict writes the subfeature explicitly - ``unknown``, or ``fragile``
+    where two observations disagreed - and such a node overrides the ``full``
+    default.  As a plain boolean those land in the same bucket as
+    ``unsupported``, so a server nobody managed to measure would move every
+    minted email-UID object off the URL this library has always used, on no
+    evidence at all.  Not observed is not the same as observed not to work.
     """
     if features is None:
         return "%40"
-    return "%40" if features.is_supported("url.encode-at.encoded") else "@"
+    level = features.is_supported("url.encode-at.encoded", str)
+    return "@" if level in ("unsupported", "broken", "ungraceful") else "%40"
 
 
 def at_spellings_are_aliased(features: Any) -> bool:
@@ -2168,10 +2178,18 @@ def at_literal_is_refused(features: Any) -> bool:
     out a calendar-home-set containing an ``@`` and then will not serve that
     path.  It is the one thing that makes the client encode a spelling it was
     given rather than one it minted.
+
+    Read as a support level rather than a boolean, for the same reason as
+    :func:`at_spelling_to_mint`, though it bites in the opposite direction and
+    only on a server declared conformant - which is the only kind that reaches
+    this function.  There, rewriting the ``@`` the server handed out addresses
+    a *different* resource, so doing it because a probe recorded ``unknown``
+    would 404 a home-set that was working.
     """
     if features is None:
         return False
-    return not features.is_supported("url.encode-at.literal")
+    level = features.is_supported("url.encode-at.literal", str)
+    return level in ("unsupported", "broken", "ungraceful")
 
 
 def at_spelling_is_significant(features: Any) -> bool:
