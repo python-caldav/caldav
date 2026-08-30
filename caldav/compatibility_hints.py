@@ -129,7 +129,9 @@ class FeatureSet:
                 "actually does - 2026-08-26, against the twelve test servers in tests/, every one "
                 "that resolved both spellings served them as one resource - so the conservative "
                 "default is the accurate one as well.  A server that really is conformant has to "
-                "say so in its profile.  4.0 should flip this round."
+                "say so in its profile.  If servers are observed handling identity differently "
+                "dependent on weather the at-sign exists in a cal_id, uid or username part of an "
+                "URL, then we should consider to create children features."
             ),
             "default": {"support": "unsupported"},
         },
@@ -2122,6 +2124,12 @@ infomaniak = {
     'principal-search': {'support': 'ungraceful'},
     'principal-search.by-name.self': {'support': 'unsupported'},
     'principal-search.list-all': {'support': 'ungraceful'},
+    ## This was added 2026-08-28.  I believe the compatibility tests have passed
+    ## before.  I don't think this part of the test suite has changed.  It could
+    ## be that the behaviour has changed at the server side.  418 was originally an
+    ## April joke and may mean anything ... but it's sometimes used as a rate-limit
+    ## response.  However, it seems to consistently break exactly here.
+    'sync-token': {'support': 'ungraceful', 'behaviour': "418 I'm a teapot"},
 }
 
 # fmt: on
