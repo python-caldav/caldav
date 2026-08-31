@@ -54,9 +54,10 @@ class DAVObject:
     def _at_spelling(self) -> str:
         """The ``@`` spelling to use where this object has to mint a path.
 
-        A literal ``@`` unless ``url.encode-at.literal`` says the server
-        refuses it.  Nowhere else may rewrite a spelling it was handed - see
-        ``url.requote_path``.
+        ``%40``, which is what this library has always sent, unless
+        ``url.encode-at.encoded`` says the server will not resolve it - see
+        ``compatibility_hints.at_spelling_to_mint``.  Nowhere else may rewrite
+        a spelling it was handed - see ``url.requote_path``.
         """
         return at_spelling_to_mint(getattr(self.client, "features", None))
 

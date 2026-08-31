@@ -160,9 +160,12 @@ def _sanitize_calendar_home_set_url(url: str | None, features: Any = None) -> st
 
     It is skipped for a server whose ``url.encode-at.identity`` makes the
     spelling significant, because there rewriting it addresses a different
-    resource - unless ``url.encode-at.literal`` says the literal spelling is
-    the one the server will not serve, which is the case the hack was written
-    for in the first place.
+    resource - unless ``url.encode-at.literal.principal`` says the literal
+    spelling is the one the server will not serve, which is the case the hack
+    was written for in the first place.  That is the *principal* axis
+    specifically: a home-set is a username inside a path the server minted,
+    and an object-name observation must not switch this on (Stalwart refuses a
+    literal ``@`` in an object name and serves one in a principal path).
     """
     if url is None:
         return None
