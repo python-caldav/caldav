@@ -232,3 +232,43 @@ class TestAsyncOnlyInstall:
             "an httpx-only install must not need the sync HTTP library:\n"
             + (result.stderr or result.stdout)
         )
+
+
+class TestBackwardCompatibleReExports:
+    """``caldav.davclient`` used to do the HTTP-library import itself, so a few
+    of the library's own names have been reachable from it for years.  The
+    import moved to :mod:`caldav.lib.http_sync` in v3.3.0 and the names stayed
+    behind as re-exports; nothing in the library uses them, which is exactly
+    why they need a test - an unused-import sweep would otherwise delete them
+    and silently break whoever imports them.
+
+    The ``from caldav.davclient import ...`` line is the assert that matters in
+    each case: it raises if the name is gone.  Comparing the values afterwards
+    is nearly free for the two flags, since ``True`` and ``False`` are
+    interned, so do not read those as proof that the re-export is *correct* -
+    only that it is there."""
+
+    def test_the_use_flags_resolve(self) -> None:
+        """Read by the one CI fallback job that checks which HTTP library got
+        selected (.github/workflows/tests.yaml)."""
+        from caldav.davclient import _USE_NIQUESTS, _USE_REQUESTS
+        from caldav.lib import http_sync
+
+        assert _USE_NIQUESTS == http_sync.USE_NIQUESTS
+        assert _USE_REQUESTS == http_sync.USE_REQUESTS
+
+    def test_connkeys_resolves(self) -> None:
+        """Read by tests/test_caldav.py, which imports it from here."""
+        from caldav.config import CONNKEYS as SharedCONNKEYS
+        from caldav.davclient import CONNKEYS
+
+        assert CONNKEYS is SharedCONNKEYS
+
+    def test_response_resolves(self) -> None:
+        """Importable from davclient since 2023 and shipped in v3.0 and v3.2;
+        no consumer at all, kept so that removing it is a decision someone
+        makes rather than an accident."""
+        from caldav.davclient import Response
+        from caldav.lib.http_sync import Response as SharedResponse
+
+        assert Response is SharedResponse
