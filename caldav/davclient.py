@@ -16,6 +16,11 @@ from types import TracebackType
 from typing import TYPE_CHECKING, Any, Optional
 from urllib.parse import unquote
 
+from caldav.lib.http_libraries import (
+    SYNC_CANDIDATES,
+    no_http_library_error,
+)
+
 # Try niquests first (preferred), fall back to requests
 _USE_NIQUESTS = False
 _USE_REQUESTS = False
@@ -28,12 +33,15 @@ try:
 
     _USE_NIQUESTS = True
 except ImportError:
-    import requests
-    from requests.auth import AuthBase
-    from requests.models import Response
-    from requests.structures import CaseInsensitiveDict
+    try:
+        import requests
+        from requests.auth import AuthBase
+        from requests.models import Response
+        from requests.structures import CaseInsensitiveDict
 
-    _USE_REQUESTS = True
+        _USE_REQUESTS = True
+    except ImportError as e:
+        raise ImportError(no_http_library_error(SYNC_CANDIDATES)) from e
 
 from collections.abc import Mapping
 

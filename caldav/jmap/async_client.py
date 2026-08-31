@@ -14,7 +14,15 @@ import logging
 import uuid
 import warnings
 
-from niquests import AsyncSession
+from caldav.lib.http_libraries import no_http_library_error
+
+try:
+    from niquests import AsyncSession
+except ImportError as e:
+    ## The async JMAP client is built on niquests' AsyncSession; unlike the
+    ## CalDAV clients it has no fallback, so say so rather than letting a bare
+    ## "No module named 'niquests'" out.
+    raise ImportError(no_http_library_error(("niquests",), mode="async JMAP")) from e
 
 from caldav.jmap._methods.calendar import build_calendar_get
 from caldav.jmap._methods.event import (

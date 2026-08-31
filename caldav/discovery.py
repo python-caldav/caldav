@@ -43,10 +43,18 @@ from urllib.parse import urljoin, urlparse
 import dns.exception
 import dns.resolver
 
+from caldav.lib.http_libraries import (
+    SYNC_CANDIDATES,
+    no_http_library_error,
+)
+
 try:
     import niquests as requests
 except ImportError:
-    import requests
+    try:
+        import requests
+    except ImportError as e:
+        raise ImportError(no_http_library_error(SYNC_CANDIDATES)) from e
 
 from caldav.lib.error import DAVError
 
