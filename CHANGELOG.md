@@ -36,7 +36,7 @@ The JMAP support has been declared experimental and `compatibility_hints.py` has
 
 * Work has been done on the HTTP library support and usage:
   * `caldav[niquests]` is now a valid install target.  See also "Breaking changes" above.
-  * Installing caldav with no HTTP library at all now fails with a message saying what to install - `pip install niquests`, or a dependency on `caldav[niquests]` rather than plain `caldav` - plus a link to the [HTTP Library Configuration](https://caldav.readthedocs.io/en/latest/http-libraries.html) documentation.  Previously it surfaced as a bare `ModuleNotFoundError: No module named 'requests'` from somewhere in the import chain.  Covers the sync and async CalDAV clients, `discovery`, `caldav.testing` and the JMAP clients; the async JMAP client is niquests-only and now says so.
+  * Installing caldav with no HTTP library at all now fails with a message saying what to install - `pip install niquests`, or a dependency on `caldav[niquests]` rather than plain `caldav` - plus a link to the [HTTP Library Configuration](https://caldav.readthedocs.io/stable/http-libraries.html) documentation.  Previously it surfaced as a bare `ModuleNotFoundError: No module named 'requests'` from somewhere in the import chain.  Covers the sync and async CalDAV clients, `discovery`, `caldav.testing` and the JMAP clients; the async JMAP client is niquests-only and now says so.
   * The async client can now use **httpx2** - Pydantic's continuation of httpx - as its HTTP library.  The async fallback chain is niquests, httpx2, httpxyz, then httpx; the first one installed wins, and niquests remains the default and the recommended choice.  See also https://github.com/python-caldav/caldav/issues/611
   * The JMAP clients now keep a persistent HTTP session, so connections are reused across requests instead of a fresh TCP+TLS handshake per JMAP call.  `JMAPClient` and `AsyncJMAPClient` can be used as (async) context managers, and the session can also be released explicitly with `client.close()` / `await client.aclose()`.
 * Infomaniak added to the list of tested servers, with a section in `compatibility_hints.py`
@@ -609,8 +609,6 @@ In addition, lots of time spent on things that aren't covered by the roadmap:
 * Communication and collaboration
 * The release itself (running tests towards lots of servers with quirks - like having to wait for several minutes from when an event is edited until it can be found through a search operation - looking through and making sure the CHANGELOG is complete, etc) is quite tedious and easily takes several days - weeks if it's needed to tweak on workarounds and compatibility hints to get the tests passing.
 
-[3.3.1]: https://github.com/python-caldav/caldav/compare/v3.3.0...v3.3.1
-[3.3.0]: https://github.com/python-caldav/caldav/compare/v3.2.1...v3.3.0
 [3.2.1]: https://github.com/python-caldav/caldav/compare/v3.2.0...v3.2.1
 [3.2.0]: https://github.com/python-caldav/caldav/compare/v3.1.0...v3.2.0
 [3.1.0]: https://github.com/python-caldav/caldav/compare/v3.0.2...v3.1.0

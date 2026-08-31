@@ -10,7 +10,7 @@ sync import lives in :mod:`caldav.lib.http_sync`, and the async one in
 :mod:`caldav.async_davclient`.
 """
 
-DOCS_URL = "https://caldav.readthedocs.io/en/latest/http-libraries.html"
+DOCS_URL = "https://caldav.readthedocs.io/stable/http-libraries.html"
 
 ## In the order they are tried.  Sync has no httpx support yet, see
 ## https://github.com/python-caldav/caldav/issues/696
