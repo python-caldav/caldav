@@ -20,7 +20,7 @@ if TYPE_CHECKING:
     from caldav.calendarobjectresource import CalendarObjectResource
     from caldav.collection import Calendar, Principal
 
-from caldav.lib.http_libraries import no_http_library_error
+from caldav.lib.http_libraries import ASYNC_HTTPX_CANDIDATES, no_http_library_error
 
 ## Async HTTP libraries, in order of preference.  niquests is the default and
 ## the one this project depends on; it is also the only one of these with HTTP/3.
@@ -31,7 +31,7 @@ from caldav.lib.http_libraries import no_http_library_error
 ## "httpx" while httpx2 does not, so code must go through the module object
 ## below rather than importing httpx by name.
 ## ref https://github.com/python-caldav/caldav/issues/611
-_ASYNC_HTTPX_CANDIDATES = ("httpx2", "httpxyz", "httpx")
+_ASYNC_HTTPX_CANDIDATES = ASYNC_HTTPX_CANDIDATES
 
 _NO_ASYNC_LIBRARY_ERROR = no_http_library_error(
     ("niquests", *_ASYNC_HTTPX_CANDIDATES), mode="async"
@@ -108,7 +108,6 @@ from caldav.compatibility_hints import FeatureSet, at_spellings_are_aliased
 from caldav.lib import error
 from caldav.lib.python_utilities import to_wire
 from caldav.lib.url import URL
-from caldav.requests import HTTPBearerAuth
 from caldav.response import CalendarQueryResult, DAVResponse, PropfindResult
 
 log = logging.getLogger("caldav")
@@ -870,6 +869,11 @@ class AsyncDAVClient(BaseDAVClient):
             if _USE_HTTPX:
                 self.auth = _HttpxBearerAuth(self.password)
             else:
+                ## Imported here rather than at module level: it subclasses
+                ## the sync library's AuthBase, and an httpx-only install has
+                ## no sync library to subclass.  Only niquests reaches this.
+                from caldav.requests import HTTPBearerAuth
+
                 self.auth = HTTPBearerAuth(self.password)
         elif auth_type == "digest":
             if _USE_HTTPX:

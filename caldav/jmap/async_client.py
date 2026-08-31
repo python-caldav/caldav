@@ -2,7 +2,8 @@
 Asynchronous JMAP client.
 
 Mirrors JMAPClient with all public methods as coroutines.
-Uses niquests.AsyncSession for HTTP — niquests is a core dependency.
+Uses niquests' AsyncSession for HTTP - the one part of caldav with no
+fallback to another HTTP library, see caldav.lib.http_sync.
 
 All response-parsing logic lives in _JMAPClientBase (client.py); each method
 here is a ~3-line async wrapper: get session, send request, delegate to parser.
@@ -14,15 +15,11 @@ import logging
 import uuid
 import warnings
 
-from caldav.lib.http_libraries import no_http_library_error
+from caldav.lib.http_sync import require_async_session
 
-try:
-    from niquests import AsyncSession
-except ImportError as e:
-    ## The async JMAP client is built on niquests' AsyncSession; unlike the
-    ## CalDAV clients it has no fallback, so say so rather than letting a bare
-    ## "No module named 'niquests'" out.
-    raise ImportError(no_http_library_error(("niquests",), mode="async JMAP")) from e
+## The async JMAP client is built on niquests' AsyncSession and, unlike the
+## CalDAV clients, has no httpx fallback - so this raises if niquests is absent.
+AsyncSession = require_async_session()
 
 from caldav.jmap._methods.calendar import build_calendar_get
 from caldav.jmap._methods.event import (

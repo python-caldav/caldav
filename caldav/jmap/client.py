@@ -13,21 +13,6 @@ from __future__ import annotations
 import logging
 import uuid
 
-from caldav.lib.http_libraries import (
-    SYNC_CANDIDATES,
-    no_http_library_error,
-)
-
-try:
-    import niquests as requests
-    from niquests.auth import HTTPBasicAuth
-except ImportError:
-    try:
-        import requests  # type: ignore[no-redef]
-        from requests.auth import HTTPBasicAuth  # type: ignore[no-redef]
-    except ImportError as e:
-        raise ImportError(no_http_library_error(SYNC_CANDIDATES)) from e
-
 from caldav.jmap._methods.calendar import build_calendar_get, parse_calendar_get
 from caldav.jmap._methods.event import (
     build_event_changes,
@@ -56,6 +41,7 @@ from caldav.jmap.error import JMAPAuthError, JMAPMethodError
 from caldav.jmap.objects.calendar import JMAPCalendar
 from caldav.jmap.objects.calendar_object import JMAPCalendarObject
 from caldav.jmap.session import Session, fetch_session
+from caldav.lib.http_sync import HTTPBasicAuth, requests
 from caldav.requests import HTTPBearerAuth
 
 log = logging.getLogger("caldav.jmap")
