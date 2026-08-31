@@ -422,7 +422,7 @@ hence, "fragile".
             "default": {"support": "full"},
         },
         "save-load.stable-url": {
-            "description": "The server reports a calendar object resource under the same URL the client used to store it, so that a client may compare a searched object's URL with one it constructed as '<collection>/<uid>.ics'.  When 'unsupported' it may not, and has to read the URL off the response.  Two different things make it 'unsupported'.  The server may assign the resource a name of its own choosing.  Or - the OX App Suite case - the *collection* may be served at more than one address (OX exposes a calendar both at the requested cal_id and at an opaque internal 'cal://0/NNN' path, a direct GET on either working), in which case a constructed object URL matches only when the client happens to be holding the address the server reports objects under, and a client is handed either one depending on how it got the Calendar: make_calendar adopts the canonical URL, a calendar listing reports it, while the cal_id shortcut is pure URL arithmetic and never round-trips.  That second case is 'create-calendar.stable-url' seen from the object end, and it is read from there rather than measured again here - measuring it made this feature's verdict depend on which address the probe run happened to be holding.",
+            "description": "The server reports a calendar object resource under the same URL the client used to store it, so that a client may compare a searched object's URL with one it constructed as '<collection>/<uid>.ics'.  When 'unsupported' it may not, and has to read the URL off the response.  Two different things make it 'unsupported'.  The server may assign the resource a name of its own choosing.  Or the *collection* may not stay at the address it was created at, in which case a constructed object URL is only usable from the address the server reports objects under - and a client is handed either address depending on how it got the Calendar: make_calendar adopts the canonical URL, a calendar listing reports it, while the cal_id shortcut is pure URL arithmetic and never round-trips.  That comes in two flavours.  OX App Suite exposes a calendar both at the requested cal_id and at an opaque internal 'cal://0/NNN' path, a direct GET on either working, so a constructed URL resolves but is not the URL the server reports.  Zimbra instead relocates the collection to a display-name-derived path and leaves an alias at the cal_id that answers PROPFIND but 404s on child objects, so a constructed URL under the cal_id does not resolve at all.  That second case is 'create-calendar.stable-url' seen from the object end, and it is read from there rather than measured again here - measuring it made this feature's verdict depend on which address the probe run happened to be holding.",
             "default": {"support": "full"},
         },
         "save-load.reuse-deleted-uid": {
@@ -1407,6 +1407,16 @@ zimbra = {
     ##     "404 most of the time but sometimes 200" observation.)
     'create-calendar.set-displayname': {'support': 'full'},
     'create-calendar.stable-url': {'support': 'unsupported', 'behaviour': 'a display name set at creation relocates the collection to a display-name-derived canonical URL; a collection alias lingers at the requested cal_id but child object GETs under it 404'},
+    ## The object end of the same relocation.  Zimbra keeps the name the object
+    ## was stored under, so this is not a rename - but the collection moved, and
+    ## the alias left behind at the requested cal_id does not serve child
+    ## objects, so a URL a client constructed as '<cal_id>/<uid>.ics' 404s.  Only
+    ## a client holding the canonical collection URL can construct an object URL
+    ## at all, and the library hands out either address depending on how the
+    ## Calendar was obtained.  See the OX profile for the other flavour of this:
+    ## there both collection addresses work, so the constructed URL resolves but
+    ## may not be the one the server reports.
+    'save-load.stable-url': {'support': 'unsupported', 'behaviour': "the object keeps the name it was stored under, but the collection moved to its display-name-derived canonical URL and the cal_id alias 404s on child objects, so an object URL constructed under the requested cal_id does not resolve"},
     'save-load.todo.mixed-calendar': {'support': 'unsupported'},
     'save-load.todo.recurrences.count': {'support': 'unsupported'}, ## This is a new problem?
     'save-load.journal': {'support': 'ungraceful'},
