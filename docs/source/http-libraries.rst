@@ -65,6 +65,17 @@ Fallbacks
 
 To enable the fallbacks, just ensure the requests and/or httpxyz/httpx2/httpx library is available and that niquests isn't available.  In virtual environments, pin things to the latest even release.
 
+If *no* HTTP library at all is available, importing the client raises an
+``ImportError`` naming the libraries that were tried and pointing at this
+document.  Install one of them (``pip install niquests`` is the recommended
+choice), or, if you are declaring caldav as a dependency of your own project,
+depend on ``caldav[niquests]`` rather than plain ``caldav``.
+
+Note that the async *JMAP* client is the one exception to the fallback chain:
+it is built on niquests' ``AsyncSession`` and has no httpx equivalent, so
+``caldav.jmap`` requires niquests regardless of what the CalDAV clients are
+using.
+
 Recommendations
 ---------------
 

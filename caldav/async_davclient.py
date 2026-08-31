@@ -20,6 +20,8 @@ if TYPE_CHECKING:
     from caldav.calendarobjectresource import CalendarObjectResource
     from caldav.collection import Calendar, Principal
 
+from caldav.lib.http_libraries import no_http_library_error
+
 ## Async HTTP libraries, in order of preference.  niquests is the default and
 ## the one this project depends on; it is also the only one of these with HTTP/3.
 ## The rest are the httpx family and share a single API, so one code path covers
@@ -31,10 +33,8 @@ if TYPE_CHECKING:
 ## ref https://github.com/python-caldav/caldav/issues/611
 _ASYNC_HTTPX_CANDIDATES = ("httpx2", "httpxyz", "httpx")
 
-_NO_ASYNC_LIBRARY_ERROR = (
-    "An async HTTP library is required for async_davclient.  Install one of: "
-    + ", ".join(f"pip install {name}" for name in ("niquests", *_ASYNC_HTTPX_CANDIDATES))
-    + "  (niquests is recommended)"
+_NO_ASYNC_LIBRARY_ERROR = no_http_library_error(
+    ("niquests", *_ASYNC_HTTPX_CANDIDATES), mode="async"
 )
 
 _USE_HTTPX = False
