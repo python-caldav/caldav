@@ -232,3 +232,34 @@ class TestAsyncOnlyInstall:
             "an httpx-only install must not need the sync HTTP library:\n"
             + (result.stderr or result.stdout)
         )
+
+
+class TestBackwardCompatibleReExports:
+    """``caldav.davclient`` used to do the HTTP-library import itself, so a few
+    of the library's own names have been reachable from it for years.  The
+    import moved to :mod:`caldav.lib.http_sync` in v3.3.0 and the names stayed
+    behind as re-exports; nothing in the tree uses them, which is exactly why
+    they need a test - an unused-import sweep would otherwise delete them and
+    silently break whoever imports them."""
+
+    def test_the_use_flags_resolve(self) -> None:
+        """The CI fallback jobs import these two from here by hand."""
+        from caldav.davclient import _USE_NIQUESTS, _USE_REQUESTS
+
+        assert _USE_NIQUESTS or _USE_REQUESTS
+
+    def test_the_use_flags_are_the_shared_ones(self) -> None:
+        from caldav import davclient
+        from caldav.lib import http_sync
+
+        assert davclient._USE_NIQUESTS is http_sync.USE_NIQUESTS
+        assert davclient._USE_REQUESTS is http_sync.USE_REQUESTS
+
+    def test_response_resolves(self) -> None:
+        """Importable from davclient since 2023 and shipped in v3.0 and v3.2;
+        not part of the documented API, kept so removing it is a decision
+        rather than an accident."""
+        from caldav.davclient import Response
+        from caldav.lib.http_sync import Response as SharedResponse
+
+        assert Response is SharedResponse
