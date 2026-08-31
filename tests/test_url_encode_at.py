@@ -375,3 +375,70 @@ class TestObjectUrlsFromTheServer:
         encoded = cal._post_multiget([(self.HREF_ENCODED, EVENT)])[0]
         assert str(literal.url) != str(encoded.url)
         assert literal.url != encoded.url
+
+
+class TestLiteralIsPerAxis:
+    """``url.encode-at.literal`` has one child per thing a path can put an ``@`` in.
+
+    The other two subfeatures stay shared.  This one had to be split because a
+    real server was seen to differ between the axes: Stalwart re-encodes an
+    ``@`` in an *object* name (a PUT to the literal path is accepted and the
+    resource is then reachable only under ``%40``) while serving a *calendar*
+    path under whichever spelling it was asked for.  Merged into one verdict
+    that came out ``fragile``, which says "somewhere this does not work" and
+    leaves the one consumer - the ownCloud home-set hack - no way to know
+    whether it was talking about the segment it cares about.
+    """
+
+    def test_the_children_exist(self) -> None:
+        for axis in ("object", "collection", "principal"):
+            assert f"url.encode-at.literal.{axis}" in FeatureSet.FEATURES
+
+    def test_an_unprobed_axis_still_resolves_the_way_it_always_did(self) -> None:
+        fs = FeatureSet()
+        for axis in ("object", "collection", "principal"):
+            assert fs.is_supported(f"url.encode-at.literal.{axis}")
+
+    def test_an_old_profile_declaring_the_parent_still_reaches_the_children(self) -> None:
+        """~40 profiles predate the split and none of them will be re-probed."""
+        fs = features(literal="unsupported")
+        for axis in ("object", "collection", "principal"):
+            assert not fs.is_supported(f"url.encode-at.literal.{axis}")
+
+    def test_a_child_does_not_decide_for_its_siblings(self) -> None:
+        fs = features(**{"literal.object": "unsupported"})
+        assert not fs.is_supported("url.encode-at.literal.object")
+        assert fs.is_supported("url.encode-at.literal.collection")
+        assert fs.is_supported("url.encode-at.literal.principal")
+
+
+class TestTheHomeSetHackReadsThePrincipalAxis:
+    """``at_literal_is_refused`` gates one thing: rewriting an ``@`` the server
+    handed out in a calendar-home-set.  That is a username inside a path the
+    server minted - the principal axis - and nothing else may switch it on."""
+
+    def test_an_old_flat_declaration_still_switches_it_on(self) -> None:
+        assert at_literal_is_refused(features(literal="unsupported"))
+
+    def test_the_principal_axis_switches_it_on(self) -> None:
+        assert at_literal_is_refused(features(**{"literal.principal": "unsupported"}))
+
+    def test_an_object_name_observation_does_not(self) -> None:
+        """The Stalwart shape.  Its object paths refuse the literal spelling and
+        its principal path does not; encoding the ``@`` in a home-set it serves
+        fine would address a different resource on a server declared
+        conformant, which is the only kind that reaches this function."""
+        assert not at_literal_is_refused(features(**{"literal.object": "unsupported"}))
+
+    def test_a_calendar_id_observation_does_not_either(self) -> None:
+        assert not at_literal_is_refused(features(**{"literal.collection": "unsupported"}))
+
+    def test_the_stalwart_profile_leaves_a_given_home_set_alone(self) -> None:
+        """End to end, through the call site: conformant server, object paths
+        that refuse a literal ``@``, and a home-set that must survive intact."""
+        fs = features(identity="full", **{"literal.object": "unsupported"})
+        assert _sanitize_calendar_home_set_url(HOME_SET, fs) == HOME_SET
+
+    def test_a_real_owncloud_observation_still_encodes(self) -> None:
+        fs = features(identity="full", **{"literal.principal": "unsupported"})
+        assert _sanitize_calendar_home_set_url(HOME_SET, fs) == ENCODED_HOME_SET
