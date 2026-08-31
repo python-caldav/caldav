@@ -41,3 +41,9 @@ tests/caldav_test_servers.yaml
 .lycheecache
 # Scratch files from AI sessions (review notes, draft commit messages)
 docs/design/tmp-*
+
+## Scratch files: test-run output, review documents, handover notes.
+## docs/design/tmp-* has been ignored since long; this is the same rule
+## at the top level.  Two tmp-* files have ever been committed, both
+## scratch, both on playground branches in 2025, neither on master.
+tmp-*
