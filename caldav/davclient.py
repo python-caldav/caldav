@@ -12,38 +12,10 @@ import logging
 import sys
 import time
 import warnings
+from collections.abc import Mapping
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, Optional
 from urllib.parse import unquote
-
-from caldav.lib.http_libraries import (
-    SYNC_CANDIDATES,
-    no_http_library_error,
-)
-
-# Try niquests first (preferred), fall back to requests
-_USE_NIQUESTS = False
-_USE_REQUESTS = False
-
-try:
-    import niquests as requests
-    from niquests.auth import AuthBase
-    from niquests.models import Response
-    from niquests.structures import CaseInsensitiveDict
-
-    _USE_NIQUESTS = True
-except ImportError:
-    try:
-        import requests
-        from requests.auth import AuthBase
-        from requests.models import Response
-        from requests.structures import CaseInsensitiveDict
-
-        _USE_REQUESTS = True
-    except ImportError as e:
-        raise ImportError(no_http_library_error(SYNC_CANDIDATES)) from e
-
-from collections.abc import Mapping
 
 from caldav import __version__
 from caldav.base_client import BaseDAVClient
@@ -55,6 +27,22 @@ from caldav.compatibility_hints import FeatureSet, at_spellings_are_aliased
 # Re-export CONNKEYS for backward compatibility
 from caldav.config import CONNKEYS  # noqa: F401
 from caldav.lib import error
+
+## The HTTP library is imported in caldav.lib.http_sync and nowhere else.
+## The two flags are re-exported under their old private names because the CI
+## fallback jobs import them from here.
+from caldav.lib.http_sync import (
+    USE_NIQUESTS as _USE_NIQUESTS,
+)
+from caldav.lib.http_sync import (
+    USE_REQUESTS as _USE_REQUESTS,
+)
+from caldav.lib.http_sync import (
+    AuthBase,
+    CaseInsensitiveDict,
+    Response,
+    requests,
+)
 from caldav.lib.python_utilities import to_wire
 from caldav.lib.url import URL
 from caldav.requests import HTTPBearerAuth

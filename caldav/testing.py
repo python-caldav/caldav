@@ -16,18 +16,7 @@ import threading
 import time
 from typing import Any
 
-from caldav.lib.http_libraries import (
-    SYNC_CANDIDATES,
-    no_http_library_error,
-)
-
-try:
-    import niquests as requests
-except ImportError:
-    try:
-        import requests  # type: ignore[no-redef]
-    except ImportError as e:
-        raise ImportError(no_http_library_error(SYNC_CANDIDATES)) from e
+from caldav.lib.http_sync import requests
 
 # ── Constants ────────────────────────────────────────────────────────────────
 
