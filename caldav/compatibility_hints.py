@@ -145,7 +145,48 @@ class FeatureSet:
                 "out a calendar-home-set containing a literal '@' and then refuses to serve it.  "
                 "That is the one thing that makes the client rewrite a spelling it was *given* "
                 "rather than one it minted, and on a server declared conformant it is what keeps "
-                "the historic home-set workaround switched on."
+                "the historic home-set workaround switched on.  "
+                "Servers were expected to answer this the same way wherever the '@' sits, and "
+                "one does not: Stalwart re-encodes an '@' in an object name (a PUT to the "
+                "literal path is accepted and the resource is then reachable only under '%40') "
+                "while serving a calendar path under whichever spelling it was asked for.  So "
+                "the three children below carry the per-axis facts and the consumers read the "
+                "child they are actually about.  This node keeps its 'full' default and still "
+                "answers for every child a profile does not mention, so the ~40 profiles written "
+                "before the split - and any that declare this key flatly - mean exactly what "
+                "they meant before."
+            ),
+            "default": {"support": "full"},
+        },
+        "url.encode-at.literal.object": {
+            "description": (
+                "Whether a literal '@' in the name of a calendar object resource ('<uid>.ics' "
+                "for a UID that is an email address) is accepted and resolves.  'unsupported' "
+                "covers both a server that refuses such a PUT outright and one that accepts it "
+                "and then serves the resource only under '%40' - from a client holding the URL "
+                "it minted, those are the same problem.  Note that it does not decide the "
+                "spelling the client mints; 'url.encode-at.encoded' does."
+            ),
+            "default": {"support": "full"},
+        },
+        "url.encode-at.literal.collection": {
+            "description": (
+                "Whether a literal '@' in a calendar id - a collection segment the *client* "
+                "chose - is accepted and resolves.  Distinct from the object axis because a "
+                "server may route a collection quite differently from an '.ics' inside one, and "
+                "from the principal axis because the client minted this spelling rather than "
+                "being handed it."
+            ),
+            "default": {"support": "full"},
+        },
+        "url.encode-at.literal.principal": {
+            "description": (
+                "Whether a literal '@' in a path the *server* handed out - a principal or "
+                "calendar-home-set carrying an email-like username - is accepted and resolves.  "
+                "This is the ownCloud/Nextcloud case the 2021 workaround was written for "
+                "(/remote.php/dav/calendars/user@example.com/, served only as '%40'), and it is "
+                "the only one of the three that makes the client rewrite a spelling it was "
+                "given: 'at_literal_is_refused' reads this child and nothing else."
             ),
             "default": {"support": "full"},
         },
@@ -381,7 +422,7 @@ hence, "fragile".
             "default": {"support": "full"},
         },
         "save-load.stable-url": {
-            "description": "The server reports a calendar object resource under the same URL the client used to store it. When 'unsupported', the server canonicalizes the URL: e.g. OX App Suite exposes a calendar both under its display name and under an internal 'cal://0/NNN' identifier, so an object looked up via a calendar-query REPORT (object_by_uid / search) is reported under a different calendar path than the PUT URL.  A direct GET on the original URL still works (the server keeps an alias).  Clients should therefore not assume that a searched object's URL equals the URL it was created at.",
+            "description": "The server reports a calendar object resource under the same URL the client used to store it, so that a client may compare a searched object's URL with one it constructed as '<collection>/<uid>.ics'.  When 'unsupported' it may not, and has to read the URL off the response.  Two different things make it 'unsupported'.  The server may assign the resource a name of its own choosing.  Or - the OX App Suite case - the *collection* may be served at more than one address (OX exposes a calendar both at the requested cal_id and at an opaque internal 'cal://0/NNN' path, a direct GET on either working), in which case a constructed object URL matches only when the client happens to be holding the address the server reports objects under, and a client is handed either one depending on how it got the Calendar: make_calendar adopts the canonical URL, a calendar listing reports it, while the cal_id shortcut is pure URL arithmetic and never round-trips.  That second case is 'create-calendar.stable-url' seen from the object end, and it is read from there rather than measured again here - measuring it made this feature's verdict depend on which address the probe run happened to be holding.",
             "default": {"support": "full"},
         },
         "save-load.reuse-deleted-uid": {
@@ -1824,15 +1865,40 @@ ccs = {
 ## CalDAV served at /dav/cal/<username>/ over HTTP on port 8080.
 ## Feature support mostly unknown until tested; starting with empty hints.
 stalwart = {
-    ## url.encode-at probed 2026-08-26 against the docker test server: an
-    ## object PUT to the literal "@" path comes back only under "%40" - the
-    ## server canonicalises the path.  This is the shape the 2021 ownCloud
-    ## hack was written for, and the only case in which the client encodes an
-    ## "@" it was handed.  identity is not observable while one of the two
-    ## spellings does not resolve, so it is left at its default.
-    'url.encode-at.literal': {
+    ## url.encode-at, re-probed 2026-08-31 against the docker test server with
+    ## all three axes.  Stalwart answers them differently, and it is the server
+    ## that made url.encode-at.literal grow per-axis children:
+    ##  * object names: a PUT to the literal "@" path is accepted (201), but the
+    ##    resource is then reachable only under "%40".
+    ##  * calendar ids: both spellings are served, and they are two separate
+    ##    collections, each holding its own objects.
+    ##  * principal paths: the server-given path answers under both spellings.
+
+    ## Hence identity is "full" for calendar ids, it is correct
+    ## according to RFC3986 section 6.2.2.2 and section 3.3.  A
+    ## calendar ID with "@" (reserved) in the spelling is different
+    ## from the same ID with "%40" in the spelling.  A calendar ID
+    ## with "A" (unreserved) in the ID is the same as a calendar ID
+    ## with "%41" in the spelling.  The feature is set full.
+
+    ## HOWEVER, for the principal part of the URL, "/someone@example.com/"
+    ## points to the same resource as "/someone%40example.com/".
+
+    ## And for the filename, there is even a third behaviour.  A PUT towards
+    ## "foo@bar.ics" will place things under a canonical file name
+    ## "foo%40bar.ics".  A GET towards "foo@bar.ics" will yield 404.
+
+    ## Probably the right thing to do here is to split url.encode-at.identity
+    ## into three, but Claude didn't agree and thinks everything is fine as
+    ## it is now.  At least the tests pass.
+    'url.encode-at.identity': {
+        'support': 'full',
+        'behaviour': "the two spellings of a calendar ID are two separate collections, each holding its own objects.  However, the behaviour is different for objects and principals"},
+    'url.encode-at.literal.object': {
         'support': 'unsupported',
         'behaviour': "an object PUT to the literal '@' path is reachable only under '%40'"},
+    'url.encode-at.literal.collection': {'support': 'full'},
+    'url.encode-at.literal.principal': {'support': 'full'},
     'url.encode-at.encoded': {'support': 'full'},
     'rate-limit': {
         'enable': True,
@@ -1986,10 +2052,13 @@ ox = {
     'save-load.todo.recurrences': {'support': 'ungraceful'},
     ## VJOURNAL is not supported
     'save-load.journal': {'support': 'unsupported'},
-    ## OX exposes the calendar both under its display name and under an internal
-    ## "cal://0/NNN" id, so objects looked up via REPORT come back under a
-    ## different calendar URL than the one used to PUT them (GET on the original
-    ## URL still works via an alias).
+    ## OX exposes the calendar both under the requested cal_id and under an
+    ## internal "cal://0/NNN" id, so an object looked up via REPORT comes back
+    ## under a different calendar URL than the one used to PUT them (GET on the
+    ## original URL still works via an alias).  The object's own *name* is
+    ## preserved; it is the collection that has two addresses, and a client
+    ## holding the alias therefore cannot compare a searched object's URL with
+    ## one it constructed.  See create-calendar.stable-url for the other half.
     'save-load.stable-url': {'support': 'unsupported'},
     ## OX enforces optimistic concurrency: a no-If-Match overwrite PUT is rejected
     ## with 409 Conflict (etag-conditional save() still works).
@@ -2193,10 +2262,17 @@ def at_literal_is_refused(features: Any) -> bool:
     this function.  There, rewriting the ``@`` the server handed out addresses
     a *different* resource, so doing it because a probe recorded ``unknown``
     would 404 a home-set that was working.
+
+    Reads ``url.encode-at.literal.principal``, not the parent: a home-set is a
+    username inside a path the server minted, and that is the only axis this
+    hack is about.  Stalwart is why the distinction matters - its *object*
+    paths refuse the literal spelling while its principal path serves it - and
+    a profile that declares the parent flatly still reaches this child, so
+    nothing written before the split changes meaning.
     """
     if features is None:
         return False
-    level = features.is_supported("url.encode-at.literal", str)
+    level = features.is_supported("url.encode-at.literal.principal", str)
     return level in ("unsupported", "broken", "ungraceful")
 
 
