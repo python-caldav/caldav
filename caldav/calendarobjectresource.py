@@ -60,14 +60,16 @@ def _quote_uid(uid: str, features: Any = None) -> str:
 
     A UID that is an email address puts an ``@`` in the path, and this is one
     of the two places where the client has no existing spelling to preserve
-    and must pick one.  It picks the literal ``@``: RFC3986 section 3.3 makes
-    it a legal ``pchar``, so encoding it is a rewrite nobody asked for.  Only
-    a server whose ``url.encode-at.literal`` is declared unsupported - the
-    ownCloud/Nextcloud case - gets ``%40`` instead.
+    and must pick one.  It picks ``%40`` - not because RFC3986 asks for it
+    (section 3.3 makes ``@`` a legal ``pchar``, so encoding it is a rewrite
+    nobody needs) but because that is where every object this library has ever
+    stored under an email-like UID already lives.  The one server that gets
+    the literal ``@`` instead is one whose ``url.encode-at.encoded`` is
+    declared not to resolve, where ``%40`` is simply not an address.
 
-    This used to encode unconditionally.  An object whose UID contains an
-    ``@``, stored by an older caldav, therefore lives at the ``%40`` spelling;
-    ``load()`` finds it anyway through its multiget and by-UID fallbacks.
+    See ``compatibility_hints.at_spelling_to_mint``, which is where that rule
+    lives; ``url.encode-at.literal`` is a different question - whether a
+    literal ``@`` the client was *handed* resolves - and is not read here.
     """
     safe = "/@" if at_spelling_to_mint(features) == "@" else "/"
     return quote(uid.replace("/", "%2F"), safe=safe)
