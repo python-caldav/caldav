@@ -32,15 +32,18 @@ from caldav.lib import error
 ## The two flags are re-exported under their old private names because the CI
 ## fallback jobs import them from here.
 from caldav.lib.http_sync import (
-    USE_NIQUESTS as _USE_NIQUESTS,
+    USE_NIQUESTS as _USE_NIQUESTS,  # noqa: F401
 )
 from caldav.lib.http_sync import (
-    USE_REQUESTS as _USE_REQUESTS,
+    USE_REQUESTS as _USE_REQUESTS,  # noqa: F401
 )
+
+## `Response` is unused here, but has been importable from this module since
+## long before the HTTP import was moved out of it, so it stays as a re-export.
 from caldav.lib.http_sync import (
     AuthBase,
     CaseInsensitiveDict,
-    Response,
+    Response,  # noqa: F401
     requests,
 )
 from caldav.lib.python_utilities import to_wire
