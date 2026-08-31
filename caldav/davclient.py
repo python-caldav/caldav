@@ -17,36 +17,40 @@ from types import TracebackType
 from typing import TYPE_CHECKING, Any, Optional
 from urllib.parse import unquote
 
-from caldav import __version__
+from caldav import __version__, config
 from caldav.base_client import BaseDAVClient
 from caldav.base_client import get_calendars as _base_get_calendars
 from caldav.base_client import get_davclient as _base_get_davclient
 from caldav.collection import Calendar, Principal
 from caldav.compatibility_hints import FeatureSet, at_spellings_are_aliased
-
-# Re-export CONNKEYS for backward compatibility
-from caldav.config import CONNKEYS  # noqa: F401
-from caldav.lib import error
+from caldav.lib import error, http_sync
 
 ## The HTTP library is imported in caldav.lib.http_sync and nowhere else.
-## The two flags are re-exported under their old private names because the CI
-## fallback jobs import them from here.
-from caldav.lib.http_sync import (
-    USE_NIQUESTS as _USE_NIQUESTS,
-)
-from caldav.lib.http_sync import (
-    USE_REQUESTS as _USE_REQUESTS,
-)
 from caldav.lib.http_sync import (
     AuthBase,
     CaseInsensitiveDict,
-    Response,
     requests,
 )
 from caldav.lib.python_utilities import to_wire
 from caldav.lib.url import URL
 from caldav.requests import HTTPBearerAuth
 from caldav.response import DAVResponse
+
+## Names that used to live here, back when davclient did the HTTP-library
+## import itself, and that nothing in the library uses any more.  Assignments
+## rather than imports on purpose: an unused import is what every linter and
+## code-quality bot goes looking for, and a re-export is by definition unused
+## where it sits.
+##
+## ``CONNKEYS`` is read by tests/test_caldav.py, and the two flags by the one
+## CI fallback job that checks which HTTP library got selected
+## (.github/workflows/tests.yaml).  ``Response`` has no consumer at all: it
+## has simply been importable from here since 2023 and shipped that way in
+## v3.0 and v3.2.  tests/test_http_libraries.py pins all four.
+CONNKEYS = config.CONNKEYS
+_USE_NIQUESTS = http_sync.USE_NIQUESTS
+_USE_REQUESTS = http_sync.USE_REQUESTS
+Response = http_sync.Response
 
 log = logging.getLogger("caldav")
 

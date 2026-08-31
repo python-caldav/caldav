@@ -54,8 +54,10 @@ if USE_NIQUESTS:
     ## the requests branch and flip USE_NIQUESTS off on an install that does
     ## have niquests.  Only the async JMAP client needs it.
     try:
-        from niquests import AsyncSession  # noqa: F811
+        from niquests import AsyncSession
     except ImportError:
+        ## Old niquests without AsyncSession: leave it None, and let
+        ## require_async_session() explain it if anything asks for it.
         pass
 
 
