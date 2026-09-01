@@ -263,7 +263,7 @@ an identical parameter list in `urllib3` 2.7.0 and `urllib3_future` 2.15.901, an
 (`urllib3_ensure_type()` when `"urllib3_future" not in str(type(self.retries))`).
 So one builder serves both; only the import differs
 (`niquests.RetryConfiguration` when niquests is in use, `urllib3.util.retry.Retry`
-otherwise - and the module already has `_USE_NIQUESTS` to branch on):
+otherwise - and `caldav.lib.http_sync.USE_NIQUESTS` is there to branch on):
 
 ```python
 except TypeError:

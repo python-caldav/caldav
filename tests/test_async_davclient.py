@@ -1325,9 +1325,12 @@ class TestAsyncHttpLibrarySelection:
         for name in ("niquests", *_ASYNC_HTTPX_CANDIDATES):
             assert name in _NO_ASYNC_LIBRARY_ERROR
 
-    def test_httpxyz_is_reported_as_httpxyz(self) -> None:
-        """_USE_HTTPXYZ is asserted on by the CI fallback jobs, so it has to keep
-        meaning "the httpxyz fork specifically", not "some httpx-alike"."""
-        from caldav.async_davclient import _HTTPX_FLAVOUR, _USE_HTTPXYZ
+    def test_the_flavour_names_the_library_that_was_imported(self) -> None:
+        """_HTTPX_FLAVOUR is asserted on by name in the CI fallback jobs, so it
+        has to keep saying which fork specifically got imported rather than
+        just "some httpx-alike".  None means the httpx family was not reached
+        at all, which is niquests' case."""
+        from caldav.async_davclient import _ASYNC_HTTPX_CANDIDATES, _HTTPX_FLAVOUR, _USE_HTTPX
 
-        assert _USE_HTTPXYZ == (_HTTPX_FLAVOUR == "httpxyz")
+        assert _HTTPX_FLAVOUR in (None, *_ASYNC_HTTPX_CANDIDATES)
+        assert _USE_HTTPX == (_HTTPX_FLAVOUR is not None)

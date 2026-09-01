@@ -376,7 +376,7 @@ jobs:
       - run: tox -e deptry
   # The three async-* jobs below exist to test the async backend *selection* logic,
   # not to re-run the async integration tests.  The async HTTP library
-  # (_USE_HTTPX / _USE_NIQUESTS / _USE_HTTPXYZ) is chosen at import time based on
+  # (_USE_HTTPX / _USE_NIQUESTS / _HTTPX_FLAVOUR) is chosen at import time based on
   # what is installed, so the only way to exercise each fallback path is to
   # manipulate the installed packages before running pytest.  The main `tests`
   # job above already covers async tests with niquests (the default install);
@@ -425,9 +425,9 @@ jobs:
       - name: Verify httpxyz is used
         run: |
           python -c "
-          from caldav.async_davclient import _USE_HTTPX, _USE_HTTPXYZ, _USE_NIQUESTS
+          from caldav.async_davclient import _HTTPX_FLAVOUR, _USE_HTTPX, _USE_NIQUESTS
           assert not _USE_NIQUESTS, 'niquests should not be available'
-          assert _USE_HTTPXYZ, 'httpxyz should be used'
+          assert _HTTPX_FLAVOUR == 'httpxyz', f'expected httpxyz, got {_HTTPX_FLAVOUR}'
           assert _USE_HTTPX, '_USE_HTTPX should be set when httpxyz is used'
           print('✓ Using httpxyz for async HTTP')
           "
@@ -455,9 +455,8 @@ jobs:
       - name: Verify httpx2 is used
         run: |
           python -c "
-          from caldav.async_davclient import _HTTPX_FLAVOUR, _USE_HTTPX, _USE_HTTPXYZ, _USE_NIQUESTS
+          from caldav.async_davclient import _HTTPX_FLAVOUR, _USE_HTTPX, _USE_NIQUESTS
           assert not _USE_NIQUESTS, 'niquests should not be available'
-          assert not _USE_HTTPXYZ, 'httpxyz should not be available'
           assert _USE_HTTPX, '_USE_HTTPX should be set when httpx2 is used'
           assert _HTTPX_FLAVOUR == 'httpx2', f'expected httpx2, got {_HTTPX_FLAVOUR}'
           print('✓ Using httpx2 for async HTTP')
@@ -512,9 +511,9 @@ jobs:
       - name: Verify httpx is used
         run: |
           python -c "
-          from caldav.async_davclient import _USE_HTTPX, _USE_HTTPXYZ, _USE_NIQUESTS
+          from caldav.async_davclient import _HTTPX_FLAVOUR, _USE_HTTPX, _USE_NIQUESTS
           assert not _USE_NIQUESTS, 'niquests should not be available'
-          assert not _USE_HTTPXYZ, 'httpxyz should not be available'
+          assert _HTTPX_FLAVOUR == 'httpx', f'expected httpx, got {_HTTPX_FLAVOUR}'
           assert _USE_HTTPX, 'httpx should be used'
           print('✓ Using httpx for async HTTP')
           "
@@ -565,9 +564,9 @@ jobs:
       - name: Verify requests is used
         run: |
           python -c "
-          from caldav.davclient import _USE_REQUESTS, _USE_NIQUESTS
-          assert _USE_REQUESTS, 'requests should be available'
-          assert not _USE_NIQUESTS, 'niquests should not be available'
+          from caldav.lib.http_sync import USE_REQUESTS, USE_NIQUESTS
+          assert USE_REQUESTS, 'requests should be available'
+          assert not USE_NIQUESTS, 'niquests should not be available'
           print('✓ Using requests for sync HTTP')
           "
       - name: Run sync tests with requests

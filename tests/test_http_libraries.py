@@ -242,20 +242,10 @@ class TestBackwardCompatibleReExports:
     why they need a test - an unused-import sweep would otherwise delete them
     and silently break whoever imports them.
 
-    The ``from caldav.davclient import ...`` line is the assert that matters in
-    each case: it raises if the name is gone.  Comparing the values afterwards
-    is nearly free for the two flags, since ``True`` and ``False`` are
-    interned, so do not read those as proof that the re-export is *correct* -
-    only that it is there."""
-
-    def test_the_use_flags_resolve(self) -> None:
-        """Read by the one CI fallback job that checks which HTTP library got
-        selected (.github/workflows/tests.yaml)."""
-        from caldav.davclient import _USE_NIQUESTS, _USE_REQUESTS
-        from caldav.lib import http_sync
-
-        assert _USE_NIQUESTS == http_sync.USE_NIQUESTS
-        assert _USE_REQUESTS == http_sync.USE_REQUESTS
+    ``_USE_NIQUESTS`` and ``_USE_REQUESTS`` were re-exported here too, until
+    the code-quality bot pointed out that a private name nobody reads is just
+    dead weight; they are only ever read as
+    :data:`caldav.lib.http_sync.USE_NIQUESTS` now."""
 
     def test_connkeys_resolves(self) -> None:
         """Read by tests/test_caldav.py, which imports it from here."""
