@@ -42,14 +42,12 @@ from caldav.response import DAVResponse
 ## code-quality bot goes looking for, and a re-export is by definition unused
 ## where it sits.
 ##
-## ``CONNKEYS`` is read by tests/test_caldav.py, and the two flags by the one
-## CI fallback job that checks which HTTP library got selected
-## (.github/workflows/tests.yaml).  ``Response`` has no consumer at all: it
-## has simply been importable from here since 2023 and shipped that way in
-## v3.0 and v3.2.  tests/test_http_libraries.py pins all four.
+## ``CONNKEYS`` is read by tests/test_caldav.py; ``Response`` has no consumer
+## at all and is here only because it has been importable from this module
+## since 2023 and shipped that way in v3.0 and v3.2.  Both are pinned by
+## tests/test_http_libraries.py.  The two ``_USE_*`` flags used to sit here
+## too - see caldav.lib.http_sync for those.
 CONNKEYS = config.CONNKEYS
-_USE_NIQUESTS = http_sync.USE_NIQUESTS
-_USE_REQUESTS = http_sync.USE_REQUESTS
 Response = http_sync.Response
 
 log = logging.getLogger("caldav")

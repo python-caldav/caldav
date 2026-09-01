@@ -38,7 +38,6 @@ _NO_ASYNC_LIBRARY_ERROR = no_http_library_error(
 )
 
 _USE_HTTPX = False
-_USE_HTTPXYZ = False
 _USE_NIQUESTS = False
 _H2_AVAILABLE = False
 _HTTPX_FLAVOUR: str | None = None
@@ -75,11 +74,6 @@ if not _USE_NIQUESTS:
     _HTTPX_FLAVOUR, httpx = _import_first_available(_ASYNC_HTTPX_CANDIDATES)
     if _HTTPX_FLAVOUR is not None:
         _USE_HTTPX = True
-        ## Nothing in this module reads _USE_HTTPXYZ; it exists for the
-        ## `async (httpxyz fallback)` CI job, which imports it to assert that the
-        ## fallback it set up is the one actually in use.  _HTTPX_FLAVOUR carries
-        ## the same information for anything new.
-        _USE_HTTPXYZ = _HTTPX_FLAVOUR == "httpxyz"
         try:
             import h2  # noqa: F401
 
