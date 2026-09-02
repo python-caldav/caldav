@@ -12,17 +12,11 @@ Changelogs prior to v3.0 are pruned, but are available in the v3.1 release
 
 This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html), though for pre-releases PEP 440 takes precedence.
 
-## [3.3.1] - **TODO: RELEASE-DATE**
-
-No changes from 3.3.0, except that the niquests dependency has been reintroduced (see the 3.3.0 breaking changes below).
-
-## [3.3.0] - **TODO: RELEASE-DATE**
+## [3.3.0] - 2026-09-02
 
 3.3 is mostly a maintenance and QA release.  The major news here is that we've done an AI-based (Claude Fable) review of all the code, this has resulted in quite a lot of hammering on the code to get all the issues found smoothened out.
 
 ### Breaking changes
-
-Niquests dependency dropped, to satisfy consumers wanting to depend on caldav without pulling in the niquests dependency.  If you want to continue using niquests, change the dependency from `caldav` to `caldav[niquests]`.  This change will be reverted in 3.3.1, to avoid breaking anything for consumers depending on "latest caldav".  If you don't want to drag in the niquests dependency, pin your dependency to 3.3.0 as for now (but look out and bump it if 3.3.2 will be released).  This is hacky ... but considered the only way to make everyone happy.
 
 The JMAP support has been declared experimental and `compatibility_hints.py` has been declared unstable, hence the two changes below are deemed allowable in a minor release:
 
