@@ -12,17 +12,13 @@ Changelogs prior to v3.0 are pruned, but are available in the v3.1 release
 
 This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html), though for pre-releases PEP 440 takes precedence.
 
-## [3.3.1] - **TODO: RELEASE-DATE**
+## [3.3.0] - 2026-09-02
 
-No changes from 3.3.0, except that the niquests dependency has been reintroduced (see the 3.3.0 breaking changes below).
+3.3.0 is mostly a maintenance and QA release.  The major news here is that we've done an AI-based (Claude Fable) review of all the code, this has resulted in quite a lot of hammering on the code to get all the issues found smoothened out.
 
-## [3.3.0] - **TODO: RELEASE-DATE**
-
-3.3 is mostly a maintenance and QA release.  The major news here is that we've done an AI-based (Claude Fable) review of all the code, this has resulted in quite a lot of hammering on the code to get all the issues found smoothened out.
+3.3.0a1 is a variant without any http-library in the dependencies - allowing projects that bring their own http-library to pin a caldav-version that does not bring in niquests.
 
 ### Breaking changes
-
-Niquests dependency dropped, to satisfy consumers wanting to depend on caldav without pulling in the niquests dependency.  If you want to continue using niquests, change the dependency from `caldav` to `caldav[niquests]`.  This change will be reverted in 3.3.1, to avoid breaking anything for consumers depending on "latest caldav".  If you don't want to drag in the niquests dependency, pin your dependency to 3.3.0 as for now (but look out and bump it if 3.3.2 will be released).  This is hacky ... but considered the only way to make everyone happy.
 
 The JMAP support has been declared experimental and `compatibility_hints.py` has been declared unstable, hence the two changes below are deemed allowable in a minor release:
 
@@ -35,7 +31,7 @@ The JMAP support has been declared experimental and `compatibility_hints.py` has
 ### Added
 
 * Work has been done on the HTTP library support and usage:
-  * `caldav[niquests]` is now a valid install target.  See also "Breaking changes" above.
+  * `caldav[niquests]` is now a valid install target.  Perhaps 4.x will come without any http library in the dependency-list.
   * Installing caldav with no HTTP library at all now fails with a message saying what to install - `pip install niquests`, or a dependency on `caldav[niquests]` rather than plain `caldav` - plus a link to the [HTTP Library Configuration](https://caldav.readthedocs.io/stable/http-libraries.html) documentation.  Previously it surfaced as a bare `ModuleNotFoundError: No module named 'requests'` from somewhere in the import chain.  Covers the sync and async CalDAV clients, `discovery`, `caldav.testing` and the JMAP clients; the async JMAP client is niquests-only and now says so.
   * The async client can now use **httpx2** - Pydantic's continuation of httpx - as its HTTP library.  The async fallback chain is niquests, httpx2, httpxyz, then httpx; the first one installed wins, and niquests remains the default and the recommended choice.  See also https://github.com/python-caldav/caldav/issues/611
   * The JMAP clients now keep a persistent HTTP session, so connections are reused across requests instead of a fresh TCP+TLS handshake per JMAP call.  `JMAPClient` and `AsyncJMAPClient` can be used as (async) context managers, and the session can also be released explicitly with `client.close()` / `await client.aclose()`.
@@ -609,6 +605,7 @@ In addition, lots of time spent on things that aren't covered by the roadmap:
 * Communication and collaboration
 * The release itself (running tests towards lots of servers with quirks - like having to wait for several minutes from when an event is edited until it can be found through a search operation - looking through and making sure the CHANGELOG is complete, etc) is quite tedious and easily takes several days - weeks if it's needed to tweak on workarounds and compatibility hints to get the tests passing.
 
+[3.3.0]: https://github.com/python-caldav/caldav/compare/v3.2.1...v3.3.0
 [3.2.1]: https://github.com/python-caldav/caldav/compare/v3.2.0...v3.2.1
 [3.2.0]: https://github.com/python-caldav/caldav/compare/v3.1.0...v3.2.0
 [3.1.0]: https://github.com/python-caldav/caldav/compare/v3.0.2...v3.1.0

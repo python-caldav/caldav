@@ -56,3 +56,8 @@ http://x/
 https://ecloud\.global/remote\.php/.*
 https://tobixen@e\.email/remote\.php/dav
 https://dav\.qq\.com/.*
+
+# The CHANGELOG compare link for the release being prepared.  RELEASE-HOWTO
+# pushes the code before the tag, so this view 404s until `v3.3.0` is pushed -
+# delete this entry once it is.
+https://github\.com/python-caldav/caldav/compare/v3\.2\.1\.\.\.v3\.3\.0
