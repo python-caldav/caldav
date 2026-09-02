@@ -45,6 +45,27 @@ I have no clue on the proper procedures for doing releases, and I keep on doing 
   does not track.  It runs in CI too, but run it here as well - CI checks the
   *repository*, this checks the *tree you are about to upload*.
 * Remove the release dir and its venv: `rm -r ~/caldav-release ~/caldav-release-venv`
+* Publish the companion alpha - the `niquests`-free variant.  Since 3.3.0, every
+  release has one, so that consumers who cannot pull in `niquests` (and the
+  `urllib3_future.pth` it brings - see
+  https://github.com/python-caldav/caldav/issues/690) have something to pin.
+  **Tag it on a throwaway branch, never on the release branch:**
+  ```
+  git checkout -b tmp-${VERSION}a1 v${VERSION}
+  ## drop "niquests" from [project] dependencies in pyproject.toml
+  git commit -am "chore: build ${VERSION}a1 without the niquests dependency"
+  git tag -as v${VERSION}a1
+  ```
+  then build and upload it exactly as above, from its own clean clone.  Push the
+  tag (`git push origin v${VERSION}a1`) but **do not push or merge the branch**,
+  and delete it locally afterwards.  The reason for the side branch is that
+  `hatch-vcs` derives the version from the nearest tag: an `a1` tag sitting on
+  the mainline as a descendant of `v${VERSION}` would make every subsequent dev
+  version be computed from `${VERSION}a1`, which under PEP 440 sorts *below*
+  `${VERSION}`.
+* Note in the release notes that the alpha exists and must be pinned exactly -
+  `caldav==${VERSION}a1`.  A range such as `caldav>=${VERSION}a1` still resolves
+  to the final release, since pip picks the highest eligible version.
 
 ## List of mistakes to be avoided
 
@@ -57,4 +78,5 @@ This is most likely not complete, but should explain some of the "silly" steps a
 * Having checked out a branch or tag or something, and tagging that as the new release rather than the latest HEAD.
 * Forgetting to push to pypi, or pushing something else than the tagged revision to pypi
 * Pushing out junk files in the pypi-release (i.e. .pyc-files, log files, temp files, `tests/conf_private.py`, `tests/caldav_test_servers.yaml`, an entire `venv/`, etc).  `tox -e package` now catches this - see the build step above
+* Forgetting the companion `a1` release, or tagging it on the release branch instead of a throwaway one (which poisons every later dev version number)
 * Not adding the release to the "github releases" (I don't care much about this feature, but apparently some people check there to find the latest release version)

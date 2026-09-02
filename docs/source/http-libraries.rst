@@ -5,7 +5,7 @@ As of v3.x, **niquests** is the preferred, recommended and supported library for
 
 Due to popular demand, fallbacks to **requests** and to the **httpx** family (httpx, httpxyz, httpx2) exist.
 
-v4.x is planned to come without explicit dependencies on any HTTP library - the logic is that the consumer probably already imports some HTTP-library, and probably does not want to drag in another dependency.  For backward compatibility, it will be necessary to depend on ``caldav[niquests]`` rather than just ``caldav``.  Going forward from 3.3.0, every odd patch release will have ``niquests`` included in the dependencies, while every even patch release will have no http library dependencies, allowing consumers that don't want to drag in ``niquests`` (and the related ``urllib3-future``) to avoid them without having to patch the ``pyproject.toml`` file.
+v4.x is planned to come without explicit dependencies on any HTTP library - the logic is that the consumer probably already imports some HTTP-library, and probably does not want to drag in another dependency.  For backward compatibility, it will be necessary to depend on ``caldav[niquests]`` rather than just ``caldav``.  Going forward from 3.3.0, every release will have an associated ``3.x.ya1``-release, which is the same just without ``niquests`` included in the dependencies, allowing consumers that don't want to drag in ``niquests`` (and the related ``urllib3-future``) to avoid them by pinning dependencies to an alpha-release.
 
 Context
 -------
@@ -63,7 +63,7 @@ More information in the issue tracker:
 Fallbacks
 ---------
 
-To enable the fallbacks, just ensure the requests and/or httpxyz/httpx2/httpx library is available and that niquests isn't available.  In virtual environments, pin things to the latest even release.
+To enable the fallbacks, just ensure the requests and/or httpxyz/httpx2/httpx library is available and that niquests isn't available.  In virtual environments, pin things to an alpha-release.
 
 If *no* HTTP library at all is available, importing the client raises an
 ``ImportError`` naming the libraries that were tried and pointing at this

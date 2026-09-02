@@ -62,7 +62,7 @@ The package is published at [Pypi](https://pypi.org/project/caldav)
 
 ## HTTP Libraries
 
-The sync client uses [niquests](https://github.com/jawah/niquests) by default (with fallback to [requests](https://requests.readthedocs.io/)). The async client uses [httpx](https://www.python-httpx.org/) if installed, otherwise falls back to niquests. See [HTTP Library Configuration](docs/source/http-libraries.rst) for details.
+The sync client uses [niquests](https://github.com/jawah/niquests) by default (with fallback to [requests](https://requests.readthedocs.io/)). The async client prefers niquests as well, falling back to the [httpx](https://www.python-httpx.org/) family (httpx2, httpxyz, httpx) - the first one installed wins. See [HTTP Library Configuration](docs/source/http-libraries.rst) for details.
 
 ## Licences
 

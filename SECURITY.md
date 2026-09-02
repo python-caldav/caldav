@@ -63,7 +63,7 @@ All code contributions are carefully reviewed by Tobias Brox.  Version tags are 
 
 The library comes with a number of dependencies, one may need to evaluate the security of those too.  The pyproject contains the current list.  Some notes:
 
-* niquests is an optional dependency - you may replace it with requests if you don't trust niquests
+* niquests is sort of an optional dependency - you may replace it with requests if you don't trust niquests, either by patching up pyproject.toml or by pinning your dependency to a designated alpha-version coming without this dependency.
 * recurring-ical-events and icalendar both have the same maintainer (Nicco Kunzmann).  He is considered trustworthy.
 * Tobias now has a policy of moving code not related to CalDAV into separate packages.  Those packages are most of the time either published under the `python-caldav` or `pycalendar` ownership on GitHub, and should be considered to be of the same quality and security level as the CalDAV library.
 * No independent security review has been done of the other dependencies - those are all considered to be mature and robust projects.
