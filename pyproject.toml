@@ -73,7 +73,7 @@ classifiers = [
 
 dependencies = [
   "lxml",
-  "niquests", ## see docs/source/http-libraries.rst
+  #"niquests", ## see docs/source/http-libraries.rst
   "recurring-ical-events>=2.0.0",
   "typing_extensions;python_version<'3.11'",
   "icalendar>6.0.0",
@@ -91,12 +91,7 @@ Documentation = "https://caldav.readthedocs.io/"
 Changelog = "https://github.com/python-caldav/caldav/blob/master/CHANGELOG.md"
 
 [project.optional-dependencies]
-## A no-op today, since niquests is an ordinary dependency above - it exists so
-## that `caldav[niquests]` already resolves.  v4.0 is planned to depend on no
-## HTTP library by default, and this is how consumers will keep the current
-## behaviour, so they can depend on it now and change nothing later.  See
-## docs/source/http-libraries.rst
-niquests = ["niquests"]
+niquests = ["niquests"] ## See docs/source/http-libraries.rst
 test = [
   "vobject",
   "pytest",
