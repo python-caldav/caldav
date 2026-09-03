@@ -61,3 +61,8 @@ https://dav\.qq\.com/.*
 # pushes the code before the tag, so this view 404s until `v3.3.0` is pushed -
 # delete this entry once it is.
 https://github\.com/python-caldav/caldav/compare/v3\.2\.1\.\.\.v3\.3\.0
+
+# Management pages behind a login - RELEASE-HOWTO links them for the
+# maintainer's benefit, lychee only sees a login page or a 404.
+https://pypi\.org/manage/project/caldav/.*
+https://github\.com/python-caldav/caldav/settings/.*
