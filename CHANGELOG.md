@@ -12,7 +12,7 @@ Changelogs prior to v3.0 are pruned, but are available in the v3.1 release
 
 This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html), though for pre-releases PEP 440 takes precedence.
 
-## [3.3.0] - 2026-09-02
+## [3.3.0] - 2026-09-03
 
 3.3.0 is mostly a maintenance and QA release.  The major news here is that we've done an AI-based (Claude Fable) review of all the code, this has resulted in quite a lot of hammering on the code to get all the issues found smoothened out.
 
