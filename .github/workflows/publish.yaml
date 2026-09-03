@@ -1,0 +1,185 @@
+---
+name: publish
+
+# Publishes a tagged release to PyPI using PyPI Trusted Publishing (OIDC), so
+# no API token is stored anywhere.  Meant to replace the long manual "build in
+# a clean clone and twine upload" dance in docs/design/RELEASE-HOWTO.md.
+#
+# ####  NOT ACTIVE YET - THE TAG TRIGGER IS DELIBERATELY ABSENT.  ####
+#
+# Trusted publishing has to be enabled under the PyPI project's settings, and
+# those belong to the project owner, which is not us.  Until that is sorted the
+# releases are cut by hand, and this workflow only runs on workflow_dispatch -
+# where it builds and checks and publishes nothing, so it can be kept honest
+# without a PyPI account being involved at all.
+#
+# The RELEASE-HOWTO's "Publishing from CI" section has the trigger to paste
+# back in, the required-reviewers gate to tick, and the tag-signature check
+# that has to land in the same change (without it, anyone who can push a tag
+# can publish to PyPI).
+#
+# When it is switched on, both flavours of tag go through here:
+#
+#   v3.3.1     - the real release, tagged on the release branch
+#   v3.3.1a1   - the companion niquests-free alpha, tagged on a throwaway
+#                branch that is never pushed (see the RELEASE-HOWTO).  The
+#                workflow file comes from the tagged tree, so the alpha builds
+#                with whatever pyproject.toml that branch carries.
+
+on:
+  # Rehearses the whole build+check path - on a tag, on a branch - and stops
+  # short of publishing.  Use it to shake out workflow mistakes.
+  workflow_dispatch:
+
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build and check the artifacts
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # hatch-vcs derives the version from the tags.
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install tox packaging
+      # Same check the nightly `package` workflow runs: builds the sdist and
+      # the wheel and refuses anything git does not track.  This is what keeps
+      # a stray venv/ or conf_private.py out of the tarball.
+      - name: Build sdist and wheel, and check what is in them
+        run: tox -e package
+      - name: Check the built version against the tag
+        id: version
+        env:
+          REF_NAME: ${{ github.ref_name }}
+          REF_TYPE: ${{ github.ref_type }}
+        run: python tests/tools/check_release_version.py .tox/package/tmp/dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: .tox/package/tmp/dist/*
+          if-no-files-found: error
+
+  smoke:
+    # The full suite already ran on master before the tag was pushed, and it
+    # needs half a dozen docker servers, so re-running it here would cost
+    # twenty minutes to learn nothing new.  What master CI has *not* seen is
+    # the alpha's tree, where a dependency was removed from pyproject.toml -
+    # hence the emphasis on installing the built wheel with only its declared
+    # dependencies and checking it still imports.
+    name: smoke test the wheel (${{ matrix.python }})
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.14"]
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # The editable install below goes through hatch-vcs too.
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+      - name: Install the wheel with only its declared dependencies
+        run: |
+          python -m venv /tmp/wheelenv
+          /tmp/wheelenv/bin/pip install --upgrade pip
+          /tmp/wheelenv/bin/pip install dist/*.whl
+          /tmp/wheelenv/bin/pip show caldav
+      # Run from /tmp, not from the repository root, where the caldav/ source
+      # tree shadows the installed package and this would be testing the
+      # checkout rather than the wheel.
+      #
+      # Only the bare import is checked against the declared dependencies
+      # alone, because the alpha declares no HTTP library at all: reaching
+      # DAVClient without one is *meant* to raise, and does.  A supported
+      # library is then installed - as the alpha's consumers have to - and the
+      # client is reached for real.
+      - name: Import the installed package
+        working-directory: /tmp
+        run: |
+          /tmp/wheelenv/bin/python -c "import caldav; print('bare import:', caldav.__version__)"
+          /tmp/wheelenv/bin/pip install requests
+          /tmp/wheelenv/bin/python -c "
+          import caldav
+          from caldav import DAVClient
+          print('caldav', caldav.__version__, 'imports cleanly')
+          "
+      # A fast sanity run over the tests that need no server at all - it takes
+      # seconds, and it catches a tag pointing at a tree that never built.
+      - name: Run the server-less tests
+        run: |
+          pip install --editable .[test]
+          pytest -q tests/test_caldav_unit.py tests/test_cdav.py tests/test_vcal.py \
+                    tests/test_utils.py tests/test_lazy_import.py tests/test_http_libraries.py
+
+  publish:
+    name: publish to PyPI
+    needs: [build, smoke]
+    # A workflow_dispatch run stops after the checks above, which is what makes
+    # it usable as a rehearsal.  With no tag trigger configured this is never
+    # true today - keep it when the trigger is added back.
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/caldav
+    permissions:
+      # Required for trusted publishing (and for the attestations the publish
+      # action generates).
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          verbose: true
+
+  github-release:
+    # Some people watch the github releases page rather than PyPI, and
+    # forgetting this entry is on the RELEASE-HOWTO's list of mistakes.
+    name: create the github release
+    needs: [build, publish]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+      # The annotated tag message is the release notes - it is written by hand
+      # at tagging time and there is no point in writing them twice.
+      - name: Create the release from the tag message
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          PRERELEASE: ${{ needs.build.outputs.prerelease }}
+        run: |
+          git tag -l --format='%(contents)' "$TAG" > /tmp/notes.md
+          gh release create "$TAG" dist/* \
+            --title "$TAG" \
+            --notes-file /tmp/notes.md \
+            $([ "$PRERELEASE" = "true" ] && echo --prerelease || echo --latest)
