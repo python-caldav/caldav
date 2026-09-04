@@ -1785,6 +1785,7 @@ posteo = {
     'sync-token': {'support': 'ungraceful'},
     'principal-search': {'support': 'unsupported'},
     "scheduling": {"support": "unsupported"},
+    "save-load.stable-url": False
 }
 
 #calendar_mail_ru = [
@@ -1852,9 +1853,11 @@ ccs = {
     "search.time-range.alarm": {"support": "unsupported"},
     ## Recurrence expansion actually works within the (near-future) search window;
     ## this was previously reported "unsupported" only because the test fixtures
-    ## lived in year 2000, which CCS's min-date-time restriction hid.  Only infinite
-    ## scope (far-future) remains unsupported.
-    "search.recurrences.includes-implicit.infinite-scope": {"support": "unsupported"},
+    ## lived in year 2000, which CCS's min-date-time restriction hid.  Only the
+    ## far-future (infinite-scope) probe still fails, and CCS rejects it outright
+    ## with a 403 max-date-time - an error rather than a silent non-answer, so
+    ## "ungraceful", the same grading its old-dates entries already carry.
+    "search.recurrences.includes-implicit.infinite-scope": {"support": "ungraceful"},
     ## search.recurrences.expanded.todo was 'unsupported'; 'full' observed
     ## 2026-08-26.  The declaration dated from when the probe searched the
     ## *event* calendar for the recurring todo, so a server that keeps tasks
@@ -2208,7 +2211,10 @@ infomaniak = {
     ## be that the behaviour has changed at the server side.  418 was originally an
     ## April joke and may mean anything ... but it's sometimes used as a rate-limit
     ## response.  However, it seems to consistently break exactly here.
-    'sync-token': {'support': 'ungraceful', 'behaviour': "418 I'm a teapot"},
+    ## The removed member comes back with status 418 inside the multistatus, which
+    ## caldav's _validate_status turns into a ResponseError - the sync raises rather
+    ## than silently coming back wrong, hence "ungraceful".
+    'sync-token.delete': {'support': 'ungraceful', 'behaviour': "418 I'm a teapot"},
 }
 
 # fmt: on
