@@ -649,7 +649,7 @@ Bugs get fixed when they get fixed; they do not need a phase.
 | Medium | Examples/Tutorials (7.3) | 16-24 |
 | Medium | Deprecation Cleanup (8.1) | 8-16 |
 | Medium | Test Infrastructure (8.2) | 16-24 |
-| Low | Multiget Optimization (2.2) | 8 |
+| Low | Multiget Optimization (2.3) | 8 |
 | Low | Collation Support (2.2) | 8-12 |
 | Low | Managed Attachments (3.1) | 24-32 |
 | Low | Extended MKCOL (3.3) | 4-8 |
