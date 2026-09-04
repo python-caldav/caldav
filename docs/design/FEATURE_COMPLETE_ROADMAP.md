@@ -23,6 +23,73 @@ This roadmap covers the **remaining gaps** to achieve full RFC compliance and ad
 
 Items are ordered by phase and priority; which release they land in is decided when the release is planned.  Work that has to break the API is marked as v4.0 material where it appears.
 
+### Funding, and how it relates to these estimates
+
+Part of this roadmap is funded through the [NGI Zero Core](https://nlnet.nl/core)
+fund, established by [NLnet](https://nlnet.nl/) with financial support from the
+European Commission's [Next Generation Internet](https://ngi.eu/) programme, under
+the aegis of DG Communications Networks, Content and Technology.  The MoU allocates
+365 hours to this library.  Three things about that number need saying plainly,
+because a reader who puts the MoU's line items next to this document's estimates
+will otherwise draw the wrong conclusion.
+
+TODO: add the MoU's signing date and a public link to the NLnet project page here
+as soon as they exist.  Until then the MoU figures below cannot be checked against
+anything outside this repository.
+
+**1. The MoU's estimates are more optimistic than this document's, deliberately so.**
+For the seven items below, the MoU line is at or below this roadmap's *low*
+estimate, and for several it is far below:
+
+| Item | MoU | This roadmap |
+|---|---|---|
+| 1.1 WebDAV ACL (RFC 3744) | 16 h | 40-60 h |
+| 1.2 Improved scheduling (RFC 6638) | 6 h | 40 h |
+| 1.3 Calendar availability (RFC 7953) | 8 h | 16-24 h |
+| 2.1 Negated searches | 6 h | 12-16 h |
+| 4.2 Recurrence handling | 20 h | 24-32 h |
+| 4.3 + 4.4 + 5.2 (as one "other issues" line) | 15 h | 32-48 h |
+| 7.1 + 8.1 + 8.2 + 8.3 (as one "code quality" line) | 30 h | 80+ h |
+
+The rest — RFC 7986, multiget, collations, managed attachments, sharing, extended
+MKCOL, quota, WebDAV Push, collision avoidance, retry logic — sits inside this
+roadmap's ranges.
+
+Two MoU lines run the other way, and they are why chapter 7 looks unfunded here:
+documentation is funded at 100 hours — 60 for keeping the documentation in sync
+with the work above, plus two 20-hour lines for documentation issues and for
+further documentation work — against this roadmap's 40-64 hours for **7.2 Server
+Documentation** and **7.3 Example Code and Tutorials**.  A further 4-hour line
+covers continued work on incoming issues and compatibility, which is ongoing
+maintenance rather than a roadmap item and has no counterpart in this document.
+
+The gap is not an error in either document.  The MoU funds *a useful increment* of
+each item, not each item to completion; this roadmap estimates each item to
+completion.  A funded line of 16 hours against an estimate of 40-60 means the ACL
+work will be started and partly delivered, not that it will be finished for 16
+hours.  Where an item cannot be usefully partly delivered, that will be noted on
+the item itself.
+
+**2. This roadmap begins after v3.3.0, and the v3.3.0 release is funded separately.**
+The MoU carries a 12-hour line for cutting that release.  It is not an item in this
+document, which is scoped as work *beyond* v3.3 — but it is charged to the same
+grant, and it comes first.
+
+**3. Some of this roadmap is deliberately outside the funded scope.**  Nothing in
+the MoU corresponds to:
+
+- **5.1 DNSSEC validation** — dropped from the funded scope as a deliberate call by
+  the maintainer: low value for the money, given how few deployments would benefit
+- **5.3 TLS enforcement** — small enough to fall out of other work
+- **Phase 6, jCal and xCal** — covered elsewhere in the ecosystem; the MoU funds
+  xCal support in the `icalendar` library and an `icalendar-converter` package
+- **8.4 Internal refactoring backlog** and **8.5 Packaging and HTTP dependencies** —
+  wanted, unfunded
+
+The MoU's own summary line for this library says it "covers only parts of the
+roadmap", and that is the accurate reading: it is a selection across chapters 1-5,
+7 and 8, not a prefix ending at some chapter number.
+
 ---
 
 ## Phase 1: RFC Compliance - Core Features
@@ -325,6 +392,10 @@ Also related: [#697](https://github.com/python-caldav/caldav/issues/697) - smart
 - **Estimated effort:** 16-24 hours
 - **Related issue:** [#571](https://github.com/python-caldav/caldav/issues/571)
 - **RFC:** [RFC 6764 Section 8](https://datatracker.ietf.org/doc/html/rfc6764#section-8)
+- **Not funded** — deliberately dropped from the NLnet scope as low value for the
+  money.  DNSSEC-signed SRV/TXT records for CalDAV are rare, and a client-side
+  validator helps only the deployments that already have them.  It stays on the
+  roadmap because it is the right thing to do eventually, not because it is next.
 
 **Tasks:**
 - [ ] Add optional DNSSEC validation for SRV/TXT lookups
