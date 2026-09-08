@@ -330,7 +330,7 @@ hence, "fragile".
             "links": ["https://datatracker.ietf.org/doc/html/rfc4918#section-15.2"],
         },
         "delete-calendar": {
-            "description": "RFC4791 says nothing about deletion of calendars, so the server implementation is free to choose weather this should be supported or not.  Section 3.2.3.2 in RFC 6638 says that if a calendar is deleted, all the calendarobjectresources on the calendar should also be deleted - but it's a bit unclear if this only applies to scheduling objects or not.  Some calendar servers moves the object to a trashcan rather than deleting it",
+            "description": "RFC4791 says nothing about deletion of calendars, so the server implementation is free to choose weather this should be supported or not.  Section 3.2.3.2 in RFC 6638 says that if a calendar is deleted, all the calendarobjectresources on the calendar should also be deleted - but it's a bit unclear if this only applies to scheduling objects or not.  Some calendar servers moves the object to a trashcan rather than deleting it.  'quirk' is the right grade for a delete that always goes through but takes a measurable time; 'fragile' is a negative status and additionally switches on Calendar.delete()'s retry-and-poll loop, which re-issues the DELETE",
             ## Independent feature (directly probed): the default marks it so the
             ## node uses its own probed value rather than being derived from
             ## .free-namespace.
@@ -1326,9 +1326,12 @@ nextcloud = {
     'search.comp-type.optional': {'support': 'full'},
     'search.recurrences.expanded.todo': {'support': 'unsupported'},
     "search.recurrences.includes-implicit.infinite-scope": False,
-    'delete-calendar': {
-        'support': 'fragile',
-        'behaviour': 'Deleting a recently created calendar fails'},
+    ## Re-verified 2026-09-08 against the docker test server: creating and
+    ## deleting a calendar works, immediately and without an error, and the
+    ## former 'fragile' verdict ('Deleting a recently created calendar fails')
+    ## could not be reproduced.  No delay observed either, unlike Cyrus, so
+    ## 'full' rather than the 'quirk' recorded there.
+    'delete-calendar': {'support': 'full'},
     'delete-calendar.free-namespace': { ## TODO: not caught by server-tester
         'behaviour': "deleting a calendar moves it to a trashbin, thrashbin has to be manually 'emptied' from the web-ui before the namespace is freed up",
         'support': 'fragile',
@@ -1374,7 +1377,17 @@ zimbra = {
     ## Genuinely returns matching objects for a comp-type-less query that carries
     ## a time-range (verified: the event is returned, not just "no error").
     'search.time-range.comp-type-optional': {'support': 'full'},
-    'delete-calendar': {'support': 'fragile', 'behaviour': 'may move to trashbin instead of deleting immediately'},
+    ## Re-verified 2026-09-08 against the docker test server: the calendar is
+    ## deleted immediately and the id is free for re-use afterwards; the former
+    ## 'may move to trashbin instead of deleting immediately' could not be
+    ## reproduced.  Unlike Cyrus, no delay has been observed here yet: 'full'
+    ## rather than 'quirk', since a delay too small to observe cannot be told
+    ## from none at all - an actual observation is what should put a 'quirk'
+    ## here, as it did for Cyrus.
+    'delete-calendar': {'support': 'full'},
+    ## The re-use half of the same observation, recorded rather than left to the
+    ## implicit default.
+    'delete-calendar.free-namespace': {'support': 'full'},
     ## This is a zimbra bug when creating calendars with a display
     ## name.  Now mitigated in the calendar creation code.
     #'save-load.get-by-url': {'support': 'fragile', 'behaviour': '404 most of the time - but sometimes 200.  Weird, should be investigated more'},
@@ -1554,9 +1567,24 @@ cyrus = {
     "save.duplicate-uid.cross-calendar": {"support": "ungraceful"},
     # Ephemeral Docker container: wipe objects but keep calendar (avoids UID conflicts)
     "test-calendar": {"cleanup-regime": "wipe-calendar"},
+    ## Re-probed against the docker test server.  The former 'fragile' verdict
+    ## ('Deleting a recently created calendar fails') could not be reproduced -
+    ## the DELETE is accepted without an error.  It is not synchronous, though:
+    ## a run on 2026-09-09 measured ~1s before the calendar stopped answering,
+    ## which is why this is 'quirk' and not 'full'.  'quirk' and not 'fragile'
+    ## either - the delete deterministically goes through and only the wait
+    ## varies, whereas 'fragile' is a negative status and would make
+    ## is_supported('delete-calendar') False, silently skipping the
+    ## free-namespace probe below.
     'delete-calendar': {
-        'support': 'fragile',
-        'behaviour': 'Deleting a recently created calendar fails'},
+        'support': 'quirk',
+        'behaviour': 'delayed deletion - the calendar stays queryable for ~1s',
+        'delay': 1,
+    },
+    ## Pinned rather than inherited: the parent is 'quirk' now, and the id is
+    ## observed to free up cleanly, so leaving this derived would declare a
+    ## delay on the re-use half that nobody measured.
+    'delete-calendar.free-namespace': {'support': 'full'},
     # Cyrus changes the Schedule-Tag even on attendee PARTSTAT-only updates,
     # violating RFC6638 section 3.2 which requires the tag to remain stable.
     "scheduling.schedule-tag.stable-partstat": {"support": "unsupported"},
