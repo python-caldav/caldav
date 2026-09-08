@@ -1326,9 +1326,11 @@ nextcloud = {
     'search.comp-type.optional': {'support': 'full'},
     'search.recurrences.expanded.todo': {'support': 'unsupported'},
     "search.recurrences.includes-implicit.infinite-scope": False,
-    'delete-calendar': {
-        'support': 'fragile',
-        'behaviour': 'Deleting a recently created calendar fails'},
+    ## Re-verified 2026-09-08 against the docker test server, same reasoning as
+    ## for Cyrus below: creating and deleting a calendar works, immediately and
+    ## without an error, and the former 'fragile' verdict ('Deleting a recently
+    ## created calendar fails') could not be reproduced.
+    'delete-calendar': {'support': 'full'},
     'delete-calendar.free-namespace': { ## TODO: not caught by server-tester
         'behaviour': "deleting a calendar moves it to a trashbin, thrashbin has to be manually 'emptied' from the web-ui before the namespace is freed up",
         'support': 'fragile',
@@ -1374,7 +1376,16 @@ zimbra = {
     ## Genuinely returns matching objects for a comp-type-less query that carries
     ## a time-range (verified: the event is returned, not just "no error").
     'search.time-range.comp-type-optional': {'support': 'full'},
-    'delete-calendar': {'support': 'fragile', 'behaviour': 'may move to trashbin instead of deleting immediately'},
+    ## Re-verified 2026-09-08 against the docker test server: the calendar is
+    ## deleted immediately and the id is free for re-use afterwards; the former
+    ## 'may move to trashbin instead of deleting immediately' could not be
+    ## reproduced.  As for Cyrus and Nextcloud: 'full' rather than 'quirk',
+    ## since a delay too small to observe cannot be told from none at all -
+    ## an actual observation is what should put a 'quirk' here.
+    'delete-calendar': {'support': 'full'},
+    ## The re-use half of the same observation, recorded rather than left to the
+    ## implicit default.
+    'delete-calendar.free-namespace': {'support': 'full'},
     ## This is a zimbra bug when creating calendars with a display
     ## name.  Now mitigated in the calendar creation code.
     #'save-load.get-by-url': {'support': 'fragile', 'behaviour': '404 most of the time - but sometimes 200.  Weird, should be investigated more'},
@@ -1554,9 +1565,15 @@ cyrus = {
     "save.duplicate-uid.cross-calendar": {"support": "ungraceful"},
     # Ephemeral Docker container: wipe objects but keep calendar (avoids UID conflicts)
     "test-calendar": {"cleanup-regime": "wipe-calendar"},
-    'delete-calendar': {
-        'support': 'fragile',
-        'behaviour': 'Deleting a recently created calendar fails'},
+    ## Re-verified 2026-09-08 against the docker test server: creating and
+    ## deleting a calendar works, immediately and without an error.  The former
+    ## 'fragile' verdict ('Deleting a recently created calendar fails') could
+    ## not be reproduced.  Note that "fast enough not to notice" and "actually
+    ## synchronous" are not distinguishable from the outside - if a run ever
+    ## observes a delay here, the server-tester will say so (it measures and
+    ## reports one now), and this should go back to 'quirk' with that
+    ## observation rather than to 'fragile'.
+    'delete-calendar': {'support': 'full'},
     # Cyrus changes the Schedule-Tag even on attendee PARTSTAT-only updates,
     # violating RFC6638 section 3.2 which requires the tag to remain stable.
     "scheduling.schedule-tag.stable-partstat": {"support": "unsupported"},
