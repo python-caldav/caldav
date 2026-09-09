@@ -47,9 +47,16 @@ class FeatureSet:
 
     TODO: use enums?  TODO: describe the different types  TODO: think more through the different types, consolidate?
       type -> "client-feature", "client-hints", "server-peculiarity", "tests-behaviour", "server-observation", "server-feature" (last is default)
-      support -> "full" (default), "unsupported", "fragile", "quirk", "broken", "ungraceful"
+      support -> "full" (default), "unsupported", "fragile", "quirk", "broken", "ungraceful", "unknown"
 
-    unsupported means that attempts to use the feature will be silently ignored (this may actually be the worst option, as it may cause data loss).  quirk means that the feature is suppored, but special handling needs to be done towards the server.  fragile means that it sometimes works and sometimes not - either it's arbitrary, or we didn't spend enough time doing research into the patterns.  My idea behind broken was that the server should do completely unexpected things.  Probably a lot of things classified as "unsupported" today should rather be classified as "broken".  Some AI-generated code is using"broken".  TODO: look through and clean up.  "ungraceful" means the server will throw some error (this may indeed be the most graceful, as the client may catch the error and handle it in the best possible way).
+    unsupported means that attempts to use the feature will be silently ignored (this may actually be the worst option, as it may cause data loss).
+    quirk means that the feature is supported, but not entirely as expected, and special handling may need to be done towards the server.
+    fragile means that it sometimes works and sometimes not - possibly it's non-deterministic, more likely we need better probes.
+    broken means the server does unexpected things - apparently supporting the feature, but in reality doing things wrongly.  Possibly some of the things classified as "unsupported" today should rather be classified as "broken" (and possibly vice-versa).  TODO: look more into this and clean up.
+    ungraceful means the server will come up with an error (which usually causes the library to raise an error).  ("ungraceful" may in some cases be the best handling as the client may catch the error and handle it in the best possible way - while support level "unsupported", "broken" and "fragile" often may involve data loss).
+    unknown means nobody has probed this yet.  It is the absence of a claim, not a claim that the feature is missing.
+
+    For a server-feature, is_supported(feature) returning a bool is True for "full" and "quirk" only.  "fragile" is True as well when called with accept_fragile=True; "unsupported", "broken", "ungraceful" and "unknown" are all False.  Note in particular that "ungraceful" is False even though the server does respond - the response is an error.
 
     types:
      * client-feature means the client is supposed to do special things (like, rate-limiting).  While the need for rate-limiting may be set by the server, it may not be possible to reliably establish it by probling the server, and the value may differ for different clients.
@@ -241,7 +248,7 @@ class FeatureSet:
             "description": "Server honours the supported-calendar-component-set restriction set at MKCALENDAR time.  When 'full', the server both advertises (or enforces) the restriction; when 'unsupported', the restriction is silently ignored (wrong-type objects can be saved to the calendar).  When 'ungraceful', the MKCALENDAR request itself fails when a component set is specified.",
         },
         "calendar-color": {
-            "description": "Server stores the nonstandard Apple/Mozilla {http://apple.com/ns/ical/}calendar-color property (set with a colour name like 'blue') on a calendar collection.  'full' covers servers that normalise the name to a hex value (the set value still tracks the input); 'broken' is a read-only property (the same value comes back regardless of what is set).  Not described by RFC4791/RFC5545, so a server that rejects or ignores it ('unsupported') is not breaching any RFC.  The default is 'fragile' because the behaviour varies a lot between servers and is rarely worth asserting on.",
+            "description": "Server stores the nonstandard Apple/Mozilla {http://apple.com/ns/ical/}calendar-color property (set with a colour name like 'blue') on a calendar collection.  'full' covers servers that normalise the name to a hex value (the set value still tracks the input); 'broken' is a read-only property (the same value comes back regardless of what is set).  Not described by RFC4791/RFC5545, so a server that rejects or ignores it ('unsupported') is not breaching any RFC.  The default is 'fragile' because the behaviour varies a lot between servers and is rarely worth asserting on (TODO: wouldn't unknown be better?).",
             "default": {"support": "fragile"},
             "note":
 """The real default ought to be False because this is not a part
