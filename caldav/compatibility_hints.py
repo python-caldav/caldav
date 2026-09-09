@@ -337,7 +337,7 @@ hence, "fragile".
             "links": ["https://datatracker.ietf.org/doc/html/rfc4918#section-15.2"],
         },
         "delete-calendar": {
-            "description": "RFC4791 says nothing about deletion of calendars, so the server implementation is free to choose weather this should be supported or not.  Section 3.2.3.2 in RFC 6638 says that if a calendar is deleted, all the calendarobjectresources on the calendar should also be deleted - but it's a bit unclear if this only applies to scheduling objects or not.  Some calendar servers moves the object to a trashcan rather than deleting it",
+            "description": "RFC4791 says nothing about deletion of calendars, so the server implementation is free to choose weather this should be supported or not.  Section 3.2.3.2 in RFC 6638 says that if a calendar is deleted, all the calendarobjectresources on the calendar should also be deleted - but it's a bit unclear if this only applies to scheduling objects or not.  Some calendar servers moves the object to a trashcan rather than deleting it.  Both 'quirk' and 'fragile' switch on the retry-and-poll loop in Calendar.delete() - 'quirk' when the delay is an observed property of the server, 'fragile' when we simply do not know whether the DELETE took effect",
             ## Independent feature (directly probed): the default marks it so the
             ## node uses its own probed value rather than being derived from
             ## .free-namespace.
