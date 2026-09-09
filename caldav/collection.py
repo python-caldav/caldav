@@ -1062,6 +1062,11 @@ class Calendar(DAVObject):
                            calendar itself (useful for servers where deletion
                            moves calendars to a trashbin)
           False          – always attempt to delete the calendar via HTTP DELETE
+
+        On a server whose delete-calendar is graded 'quirk' or 'fragile' the
+        DELETE is retried while polling for the calendar to disappear, since
+        neither grade promises the deletion has taken effect when the request
+        returns.
         """
         if self.is_async_client:
             return self._async_delete(wipe=wipe)
@@ -1079,12 +1084,13 @@ class Calendar(DAVObject):
             return
 
         ## TODO: remove quirk handling from the functional tests
-        ## TODO: this needs test code
         quirk_info = self.client.features.is_supported("delete-calendar", dict)
         if wipe is None:
             wipe = not self.client.features.is_supported("delete-calendar")
-        if quirk_info["support"] == "fragile":
-            ## Do some retries on deleting the calendar
+        if quirk_info["support"] in ("fragile", "quirk"):
+            ## Do some retries on deleting the calendar.  Both levels mean the
+            ## DELETE may not have taken effect yet - "quirk" when the delay is
+            ## an observed server property, "fragile" when we do not know.
             for _ in range(0, 20):
                 try:
                     super().delete()
@@ -1122,8 +1128,8 @@ class Calendar(DAVObject):
         if wipe is None:
             wipe = not self.client.features.is_supported("delete-calendar")
 
-        if quirk_info["support"] == "fragile":
-            # Do some retries on deleting the calendar
+        if quirk_info["support"] in ("fragile", "quirk"):
+            # Do some retries on deleting the calendar - see the sync path
             for _ in range(0, 20):
                 try:
                     await DAVObject._async_delete(self)

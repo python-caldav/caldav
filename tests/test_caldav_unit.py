@@ -4282,3 +4282,72 @@ class TestAdoptCanonicalUrl:
         )
         asyncio.run(calendar._async_adopt_canonical_url("My Calendar"))
         assert str(calendar.url) == self.REQUESTED
+
+
+class TestDeleteCalendarRetryLoop:
+    """Both 'fragile' and 'quirk' delete-calendar switch the retry loop on.
+
+    ``Calendar.delete()`` retries the DELETE while polling for the calendar to
+    disappear.  The compatibility vocabulary has two levels that mean "the
+    delete may not have taken effect yet" - 'fragile' and 'quirk' - and the
+    loop has to answer to both, or the recovery path the hints file documents
+    ("move it back to 'quirk' the first time we observe async behaviour") is a
+    no-op.  'full' must not retry: there is nothing to wait for.
+    """
+
+    @staticmethod
+    def _calendar(support: str) -> Calendar:
+        from caldav.compatibility_hints import FeatureSet
+
+        client = mock.MagicMock()
+        client.url = URL.objectify("https://cal.example.com/dav/")
+        client.features = FeatureSet({"delete-calendar": {"support": support}})
+        return Calendar(client=client, url="https://cal.example.com/dav/testcal/")
+
+    @staticmethod
+    def _run(calendar: Calendar) -> mock.MagicMock:
+        """Delete, with the parent DELETE stubbed and the calendar gone at once.
+
+        Returns the ``get_events`` mock: it is only ever consulted from inside
+        the retry loop, so a call to it is the signal that the loop ran.
+        """
+        from caldav.davobject import DAVObject
+
+        get_events = mock.MagicMock(side_effect=error.NotFoundError("gone"))
+        with (
+            mock.patch.object(DAVObject, "delete", autospec=True) as parent_delete,
+            mock.patch.object(Calendar, "get_events", get_events),
+        ):
+            calendar.delete()
+        assert parent_delete.called
+        return get_events
+
+    def test_fragile_retries(self) -> None:
+        assert self._run(self._calendar("fragile")).called
+
+    def test_quirk_retries(self) -> None:
+        assert self._run(self._calendar("quirk")).called
+
+    def test_full_does_not_retry(self) -> None:
+        assert not self._run(self._calendar("full")).called
+
+    @staticmethod
+    def _arun(calendar: Calendar) -> mock.AsyncMock:
+        """The async twin of :meth:`_run`; ``search`` is the async liveness probe."""
+        import asyncio
+
+        from caldav.davobject import DAVObject
+
+        search = mock.AsyncMock(side_effect=error.NotFoundError("gone"))
+        with (
+            mock.patch.object(DAVObject, "_async_delete", new=mock.AsyncMock()),
+            mock.patch.object(Calendar, "search", search),
+        ):
+            asyncio.run(calendar._async_delete())
+        return search
+
+    def test_quirk_retries_async(self) -> None:
+        assert self._arun(self._calendar("quirk")).called
+
+    def test_full_does_not_retry_async(self) -> None:
+        assert not self._arun(self._calendar("full")).called
