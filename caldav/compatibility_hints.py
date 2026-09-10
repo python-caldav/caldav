@@ -51,11 +51,14 @@ class FeatureSet:
 
     unsupported means that attempts to use the feature will be silently ignored (this may actually be the worst option, as it may cause data loss).
     quirk means that the feature is supported, but not entirely as expected, and special handling may need to be done towards the server.
-    fragile means that it sometimes works and sometimes not - possibly it's non-deterministic, more likely we need better probes.
+    fragile means that it sometimes works and sometimes not (or works in some cases and not in others) - possibly it's non-deterministic, more likely we need better probes.
     broken means the server does unexpected things - apparently supporting the feature, but in reality doing things wrongly.  Possibly some of the things classified as "unsupported" today should rather be classified as "broken" (and possibly vice-versa).  TODO: look more into this and clean up.
     ungraceful means the server will come up with an error (which usually causes the library to raise an error).  ("ungraceful" may in some cases be the best handling as the client may catch the error and handle it in the best possible way - while support level "unsupported", "broken" and "fragile" often may involve data loss).
     unknown means nobody has probed this yet.  It is the absence of a claim, not a claim that the feature is missing.
 
+    What "fragile" asks of a client depends on what is fragile.  An asynchronous operation is never retried, it is waited out:
+     * On a write operation such as create-calendar or delete-calendar, the write itself is fragile: it may or may not have gone through, and re-issuing it may help.  Calendar.delete() keys its retry-and-poll loop on exactly that.  A create or delete that always goes through but takes a measurable time to settle is a "quirk", not "fragile".
+     * On synchronous-write, it is the "synchronous" part that is fragile, not the write: the server may be asynchronous under the hood but settle too fast to be probed deterministically.  Writes are never re-issued; a read right after one may have to wait (the configured delay) or be retried if it does not show the change yet.  A server where only calendar creation and/or deletion is asynchronous supports synchronous-write, with the async part graded as a "quirk" on create-calendar or delete-calendar.
     For a server-feature, is_supported(feature) returning a bool is True for "full" and "quirk" only.  "fragile" is True as well when called with accept_fragile=True; "unsupported", "broken", "ungraceful" and "unknown" are all False.  Note in particular that "ungraceful" is False even though the server does respond - the response is an error.
 
     types:
