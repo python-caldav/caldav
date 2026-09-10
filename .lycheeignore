@@ -48,6 +48,8 @@ http://oxpedia\.org/.*
 http://httpd\.apache\.org/.*
 # GitHub URL template in sphinx conf (contains encoded braces, always 404)
 https://github\.com/python-caldav/caldav/blob/master/%7B.*
+# Shell/Dockerfile URL templates with an unexpanded ${VAR} (encoded as $%7B)
+.*\$%7B.*
 
 # Other junk that was never meant to be followed
 file://.*/scheme:.*

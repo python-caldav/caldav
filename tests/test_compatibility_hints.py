@@ -605,6 +605,51 @@ class TestResolveFeatures:
         assert result["sync-token"] != "fragile"
 
 
+class TestRenamedProfiles:
+    """Renamed hint profiles must fail with an explanation, not AttributeError.
+
+    The profile names are user-facing - they can appear as ``features:`` or
+    ``base:`` in a caller's own config - so renaming one has to say what it was
+    renamed to and why, rather than blowing up inside ``getattr``.
+    """
+
+    def test_bedework_profile_was_version_stamped(self) -> None:
+        import caldav.compatibility_hints as ch
+
+        assert hasattr(ch, "bedework_3_10_3")
+        assert not hasattr(ch, "bedework")
+
+    def test_bare_renamed_name_explains_itself(self) -> None:
+        with pytest.raises(ValueError) as exc_info:
+            _resolve_features("bedework")
+        message = str(exc_info.value)
+        assert "bedework_3_10_3" in message
+        assert "bedework_5_0_0" in message
+        assert "3.10.3" in message
+
+    def test_prefixed_renamed_name_explains_itself(self) -> None:
+        with pytest.raises(ValueError) as exc_info:
+            _resolve_features("compatibility_hints.bedework")
+        assert "bedework_3_10_3" in str(exc_info.value)
+
+    def test_renamed_name_as_base_explains_itself(self) -> None:
+        with pytest.raises(ValueError) as exc_info:
+            _resolve_features({"base": "bedework", "sync-token": "full"})
+        assert "bedework_3_10_3" in str(exc_info.value)
+
+    def test_new_name_resolves(self) -> None:
+        import caldav.compatibility_hints as ch
+
+        result = _resolve_features("bedework_3_10_3")
+        assert result == ch.bedework_3_10_3
+        assert result is not ch.bedework_3_10_3
+
+    def test_unknown_profile_names_the_offender(self) -> None:
+        with pytest.raises(ValueError) as exc_info:
+            _resolve_features("no_such_server")
+        assert "no_such_server" in str(exc_info.value)
+
+
 class TestFeatureSetCompare:
     """Test FeatureSet.compare(): declared (expected) vs observed feature sets."""
 

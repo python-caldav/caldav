@@ -79,7 +79,7 @@ jobs:
           sogo_pass: testpass
           sogo_name: Test User
           sogo_fqhn: example.com
-      bedework:
+      bedework3:
         image: ioggstream/bedework:latest
         ports:
           - 8804:8080
@@ -301,7 +301,7 @@ jobs:
             echo "✗ Error: SOGo CalDAV access failed"
             exit 1
           fi
-      - name: Configure Bedework
+      - name: Configure Bedework 3.10.3
         run: |
           echo "Waiting for Bedework..."
           # Bedework/JBoss takes longer to start up
@@ -330,7 +330,7 @@ jobs:
           BAIKAL_URL: http://localhost:8800
           CYRUS_URL: http://localhost:8802
           SOGO_URL: http://localhost:8803
-          BEDEWORK_URL: http://localhost:8804
+          BEDEWORK3_URL: http://localhost:8804
   docs:
     runs-on: ubuntu-latest
     steps:
