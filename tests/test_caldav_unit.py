@@ -4282,3 +4282,37 @@ class TestAdoptCanonicalUrl:
         )
         asyncio.run(calendar._async_adopt_canonical_url("My Calendar"))
         assert str(calendar.url) == self.REQUESTED
+
+
+class TestWrappedComponentHasNoCalendarUid:
+    """A bare icalendar component handed to caldav is wrapped in a VCALENDAR.
+    That wrapper must not carry an RFC 7986 UID of its own: servers that treat
+    the calendar-level UID as the identity of the calendar object resource
+    (Stalwart does) will see a randomly generated new UID on every save and
+    reject the PUT with 412 no-uid-conflict."""
+
+    def test_setting_a_bare_component_adds_no_calendar_uid(self) -> None:
+        ievent = icalendar.Event()
+        ievent.add("uid", "ctuid1")
+        ievent.add("dtstart", datetime(2026, 10, 10, 15, 15))
+
+        event = Event()
+        event.icalendar_instance = ievent
+
+        assert "UID" not in event.icalendar_instance
+        assert event.icalendar_component["UID"] == "ctuid1"
+
+    def test_two_wraps_yield_identical_data(self) -> None:
+        """Saving the same component twice must produce byte-identical data --
+        a fresh random calendar-level UID per wrap is what breaks the second
+        PUT."""
+        ievent = icalendar.Event()
+        ievent.add("uid", "ctuid1")
+        ievent.add("dtstart", datetime(2026, 10, 10, 15, 15))
+
+        first = Event()
+        first.icalendar_instance = ievent
+        second = Event()
+        second.icalendar_instance = ievent
+
+        assert first.data == second.data
