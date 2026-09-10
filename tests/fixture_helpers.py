@@ -273,11 +273,14 @@ async def afix_calendar(
     own calendar used to repeat inline:
 
     * a leftover calendar from an interrupted run is deleted first - but only
-      on servers where deleting actually frees the URL.  On servers where it
-      does not (``delete-calendar`` unsupported: Synology, Nextcloud), a
-      ``delete()`` is a no-op wipe, the MKCALENDAR that follows would 405 with
-      "a collection already exists at that location", and the correct move is
-      to reuse the calendar instead.
+      on servers where deleting actually frees the URL, which is what
+      ``delete-calendar.free-namespace`` records.  Two different servers fail
+      that: Synology refuses the DELETE outright (``delete-calendar``
+      unsupported), while Nextcloud accepts it but moves the calendar to a
+      trashbin, so the id stays taken.  Either way a ``delete()`` is a no-op
+      wipe, the MKCALENDAR that follows would 405 with "a collection already
+      exists at that location", and the correct move is to reuse the calendar
+      instead.
     * the display name is dropped on servers that cannot set one, or that move
       the calendar to a server-chosen URL when one is set, and on
       component-restricted calendars - same three-legged rule as
