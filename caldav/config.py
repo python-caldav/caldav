@@ -164,6 +164,42 @@ def expand_env_vars(value: Any) -> Any:
     return value
 
 
+## Profiles that have been renamed.  The names are user-facing - they turn up
+## as ``features:`` or ``base:`` in a caller's own config - so a rename has to
+## explain itself rather than surface as an AttributeError from getattr.
+RENAMED_FEATURE_PROFILES = {
+    "bedework": (
+        "bedework_3_10_3",
+        "the profile was only ever measured against a quickstart-3.10.3 "
+        "docker image from 2018; use bedework_5_0_0 for a current Bedework",
+    ),
+}
+
+
+def _lookup_feature_profile(name):
+    """Look up a named profile in compatibility_hints.
+
+    Accepts the name either bare ("synology") or module-qualified
+    ("compatibility_hints.synology").
+    """
+    import caldav.compatibility_hints
+
+    if name.startswith("compatibility_hints."):
+        name = name[len("compatibility_hints.") :]
+    if name in RENAMED_FEATURE_PROFILES:
+        new_name, reason = RENAMED_FEATURE_PROFILES[name]
+        raise ValueError(
+            f"The compatibility profile '{name}' has been renamed to "
+            f"'{new_name}' - {reason}.  Update your configuration."
+        )
+    try:
+        return copy.deepcopy(getattr(caldav.compatibility_hints, name))
+    except AttributeError:
+        raise ValueError(
+            f"No compatibility profile named '{name}' in caldav.compatibility_hints"
+        ) from None
+
+
 def resolve_features(features):
     """Resolve a features specification into a dict suitable for FeatureSet.
 
@@ -175,21 +211,14 @@ def resolve_features(features):
       e.g. {"base": "synology", "search.is-not-defined": {"support": "fragile"}}
     - dict without "base": used as-is
     """
-    import caldav.compatibility_hints
-
     if features is None:
         return None
     if isinstance(features, str):
-        feature_name = features
-        if feature_name.startswith("compatibility_hints."):
-            feature_name = feature_name[len("compatibility_hints.") :]
-        return copy.deepcopy(getattr(caldav.compatibility_hints, feature_name))
+        return _lookup_feature_profile(features)
     if isinstance(features, dict) and "base" in features:
         base_name = features["base"]
         if isinstance(base_name, str):
-            if base_name.startswith("compatibility_hints."):
-                base_name = base_name[len("compatibility_hints.") :]
-            base_features = copy.deepcopy(getattr(caldav.compatibility_hints, base_name))
+            base_features = _lookup_feature_profile(base_name)
             for key, value in features.items():
                 if key != "base":
                     base_features[key] = value
