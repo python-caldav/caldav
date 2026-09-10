@@ -1574,23 +1574,21 @@ cyrus = {
     "save.duplicate-uid.cross-calendar": {"support": "ungraceful"},
     # Ephemeral Docker container: wipe objects but keep calendar (avoids UID conflicts)
     "test-calendar": {"cleanup-regime": "wipe-calendar"},
-    ## Re-probed against the docker test server.  The former 'fragile' verdict
-    ## ('Deleting a recently created calendar fails') could not be reproduced -
-    ## the DELETE is accepted without an error.  It is not synchronous, though:
-    ## a run on 2026-09-09 measured ~1s before the calendar stopped answering,
-    ## which is why this is 'quirk' and not 'full'.  'quirk' and not 'fragile'
-    ## either - the delete deterministically goes through and only the wait
-    ## varies, whereas 'fragile' is a negative status and would make
-    ## is_supported('delete-calendar') False, silently skipping the
-    ## free-namespace probe below.
+    ## Calendar deletion has a very small fragility on Cyrus, one that
+    ## does not matter for ordinary users, but it matters when running
+    ## tests - if a calendar is deleted, recreated under the same URL
+    ## and then deleted again within a very short timeframe - then the
+    ## server gives 500 internal server error.  Due to this it's
+    ## flagged as 'fragile'.  Retry after one second (on the docker
+    ## test server on my laptop) and it works.
+    ## Reported upstream, with the root cause (the DELETED.* mailbox name
+    ## carries a whole-second timestamp, so two deletes of one name inside
+    ## the same second collide): https://github.com/cyrusimap/cyrus-imapd/issues/6383
     'delete-calendar': {
-        'support': 'quirk',
-        'behaviour': 'delayed deletion - the calendar stays queryable for ~1s',
+        'support': 'fragile',
+        'behaviour': 'deleting a calendar re-created on a just-deleted cal_id answers 500 for ~1s before it succeeds',
         'delay': 1,
     },
-    ## Pinned rather than inherited: the parent is 'quirk' now, and the id is
-    ## observed to free up cleanly, so leaving this derived would declare a
-    ## delay on the re-use half that nobody measured.
     'delete-calendar.free-namespace': {'support': 'full'},
     # Cyrus changes the Schedule-Tag even on attendee PARTSTAT-only updates,
     # violating RFC6638 section 3.2 which requires the tag to remain stable.
