@@ -224,7 +224,7 @@ class BedeworkTestServer(DockerTestServer):
         config.setdefault("password", os.environ.get("BEDEWORK_PASSWORD", "bedework"))
         # Set up Bedework-specific compatibility hints
         if "features" not in config:
-            config["features"] = compatibility_hints.bedework.copy()
+            config["features"] = compatibility_hints.bedework_3_10_3.copy()
         super().__init__(config)
 
     def _default_port(self) -> int:

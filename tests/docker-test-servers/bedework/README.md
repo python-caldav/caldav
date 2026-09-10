@@ -4,6 +4,14 @@
 
 Bedework is an enterprise calendar system built on JBoss. The Docker image used for testing is `ioggstream/bedework:latest`.
 
+**That image is ancient.** It is a `quickstart-3.10.3` tree on openjdk-8, built
+2018-11-05, and it cannot be rebuilt - the quickstart zip its Dockerfile fetches
+from `dev.bedework.org` is gone. Upstream Bedework is still active and has moved
+on a long way (5.0.0 was released 2025-09-04, installed via a Wildfly galleon
+feature pack rather than a quickstart zip). The compatibility profile in
+`caldav/compatibility_hints.py` is therefore named `bedework_3_10_3`: it says
+nothing about what a current Bedework does.
+
 ## Default Configuration
 
 The Bedework Docker image comes pre-configured and requires no additional setup files:
