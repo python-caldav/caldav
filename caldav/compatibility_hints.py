@@ -1574,23 +1574,25 @@ cyrus = {
     "save.duplicate-uid.cross-calendar": {"support": "ungraceful"},
     # Ephemeral Docker container: wipe objects but keep calendar (avoids UID conflicts)
     "test-calendar": {"cleanup-regime": "wipe-calendar"},
-    ## Re-probed against the docker test server.  The former 'fragile' verdict
-    ## ('Deleting a recently created calendar fails') could not be reproduced -
-    ## the DELETE is accepted without an error.  It is not synchronous, though:
-    ## a run on 2026-09-09 measured ~1s before the calendar stopped answering,
-    ## which is why this is 'quirk' and not 'full'.  'quirk' and not 'fragile'
-    ## either - the delete deterministically goes through and only the wait
-    ## varies, whereas 'fragile' is a negative status and would make
-    ## is_supported('delete-calendar') False, silently skipping the
-    ## free-namespace probe below.
+    ## Deleting a *freshly created* calendar answers 500 for about a second
+    ## before it starts working; the server-tester sees the same thing and
+    ## retries once a second until it succeeds.  'fragile' rather than the
+    ## 'quirk' the tester grades it, because 'fragile' is the only level
+    ## Calendar.delete() reads to switch on its retry-and-poll loop, and
+    ## without that loop testCreateDeleteCalendar and
+    ## test_principal_make_calendar fail on the 500.
+    ##
+    ## This is provisional.  The 500 may well be MKCALENDAR being asynchronous
+    ## rather than DELETE being unreliable, in which case the entry belongs on
+    ## create-calendar instead - see tmp-handover-2026-09-10-delete-calendar.md
+    ## in the caldav-server-tester project.  One consequence of 'fragile' is
+    ## that is_supported() is False here, so the free-namespace probe below
+    ## self-skips.
     'delete-calendar': {
-        'support': 'quirk',
-        'behaviour': 'delayed deletion - the calendar stays queryable for ~1s',
+        'support': 'fragile',
+        'behaviour': 'deleting a recently created calendar answers 500 for ~1s before it succeeds',
         'delay': 1,
     },
-    ## Pinned rather than inherited: the parent is 'quirk' now, and the id is
-    ## observed to free up cleanly, so leaving this derived would declare a
-    ## delay on the re-use half that nobody measured.
     'delete-calendar.free-namespace': {'support': 'full'},
     # Cyrus changes the Schedule-Tag even on attendee PARTSTAT-only updates,
     # violating RFC6638 section 3.2 which requires the tag to remain stable.
