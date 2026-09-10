@@ -56,6 +56,7 @@ class FeatureSet:
     ungraceful means the server will come up with an error (which usually causes the library to raise an error).  ("ungraceful" may in some cases be the best handling as the client may catch the error and handle it in the best possible way - while support level "unsupported", "broken" and "fragile" often may involve data loss).
     unknown means nobody has probed this yet.  It is the absence of a claim, not a claim that the feature is missing.
 
+    The line between "quirk" and "fragile" is whether a retry is needed: "fragile" means the request may have to be re-issued before it takes effect, "quirk" means it does not.  Calendar.delete() keys its retry-and-poll loop on exactly that.
     For a server-feature, is_supported(feature) returning a bool is True for "full" and "quirk" only.  "fragile" is True as well when called with accept_fragile=True; "unsupported", "broken", "ungraceful" and "unknown" are all False.  Note in particular that "ungraceful" is False even though the server does respond - the response is an error.
 
     types:
