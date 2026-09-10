@@ -61,9 +61,10 @@ class FakePrincipal:
     """Principal that only lets a calendar be created once, like a real server.
 
     A second MKCALENDAR at the same cal_id fails with ``MkcalendarError``, which
-    is what a server whose calendars cannot be deleted (Synology, Nextcloud)
-    replies with on the second run of a test - 405 "a collection already exists
-    at that location".
+    is what a server that does not free the cal_id on delete (Synology, which
+    refuses the DELETE; Nextcloud, which trashbins the calendar) replies with on
+    the second run of a test - 405 "a collection already exists at that
+    location".
     """
 
     def __init__(self, existing: dict[str, FakeCalendar] | None = None) -> None:
@@ -130,10 +131,12 @@ async def test_afix_calendar_creates_and_names() -> None:
 async def test_afix_calendar_reuses_and_wipes_when_calendar_cannot_be_deleted() -> None:
     """A leftover calendar on a no-delete server is reused and emptied.
 
-    This is the Synology/Nextcloud (and jeanes) case: ``delete()`` degrades to a
-    no-op wipe, so the leftover calendar survives and the MKCALENDAR that
-    follows 405s.  The helper must hand back that calendar, emptied, rather than
-    letting the MkcalendarError escape.
+    This is the Synology/Nextcloud (and jeanes) case - ``delete-calendar
+    .free-namespace`` false, whether because the DELETE is refused or because
+    the calendar only moves to a trashbin: ``delete()`` degrades to a no-op
+    wipe, so the leftover calendar survives and the MKCALENDAR that follows
+    405s.  The helper must hand back that calendar, emptied, rather than letting
+    the MkcalendarError escape.
     """
     leftover = FakeCalendar(url="http://dav.example.com/testcal/", n_objects=3)
     client = FakeClient({"delete-calendar": False})
