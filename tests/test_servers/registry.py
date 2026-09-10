@@ -235,8 +235,7 @@ class ServerRegistry:
             if server_class is None:
                 warnings.warn(
                     f"Server '{name}': unknown type '{server_type}'. "
-                    f"Valid types: embedded, docker, external, radicale, xandikos, "
-                    f"baikal, nextcloud, cyrus, sogo, bedework. "
+                    f"Valid types: {', '.join(sorted(_SERVER_CLASSES))}. "
                     f"Server will be skipped.",
                     UserWarning,
                     stacklevel=2,

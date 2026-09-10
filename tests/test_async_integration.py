@@ -288,7 +288,16 @@ class AsyncFunctionalTestsBaseClass:
         own name, docstring and cal_id while the create/wipe/teardown logic
         lives in exactly one place - see fixture_helpers.afix_calendar.
         """
-        from .fixture_helpers import afix_calendar, arelease_calendar, atry_principal
+        from .fixture_helpers import (
+            afix_calendar,
+            arelease_calendar,
+            atry_principal,
+            component_set_unobtainable,
+        )
+
+        reason = component_set_unobtainable(async_client, supported_calendar_component_set)
+        if reason:
+            pytest.skip(reason)
 
         principal = await atry_principal(async_client)
         calendar, created = await afix_calendar(
@@ -325,7 +334,15 @@ class AsyncFunctionalTestsBaseClass:
         calendar is used.  The calendar is reused across tests via a stable cal_id
         rather than being deleted and recreated, avoiding trashbin accumulation on
         servers like Nextcloud.
+
+        Skips when the server cannot store a task at all, so that every test
+        taking this fixture skips rather than failing on the PUT: Bedework 5 hands
+        out a calendar happily (it accepts the component set with a "200 ok"
+        propstat and then ignores it, ref
+        create-calendar.with-supported-component-types) and answers the VTODO PUT
+        with a 403.
         """
+        self.skip_unless_support("save-load.todo")
         ## Servers that can't hold VEVENTs and VTODOs in the same calendar
         ## (e.g. Zimbra, OX) need a component-restricted one.
         component_set = None if self.is_supported("save-load.todo.mixed-calendar") else ["VTODO"]
@@ -2036,8 +2053,11 @@ END:VCALENDAR
         ## direct PUT (403 Forbidden) and require iTIP scheduling instead.
         self.skip_unless_support("save-load.mutable.attendee-partstat")
         c = async_calendar
+        ## A SUMMARY, since some servers refuse an event without one
+        ## (save-load.event.no-summary) and this test is about PARTSTAT.
         event = await c.add_event(
             uid="test1",
+            summary="attendee status test",
             dtstart=datetime(2015, 10, 10, 8, 7, 6),
             dtend=datetime(2015, 10, 10, 9, 7, 6),
             ical_fragment="ATTENDEE;ROLE=OPT-PARTICIPANT;PARTSTAT=TENTATIVE:MAILTO:testuser@example.com",
