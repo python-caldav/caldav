@@ -14,6 +14,10 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 
 ## [Unreleased]
 
+### Changed
+
+* `compatibility_hints`: the `bedework` profile is renamed `bedework_3_10_3`.  It was only ever measured against `ioggstream/bedework:latest`, a `quickstart-3.10.3` tree built in 2018 that can no longer even be rebuilt, while upstream Bedework is alive and released 5.0.0 in 2025 - so a profile called `bedework` was claiming far more than we have observed.  `features="bedework"` now raises a `ValueError` naming the new profile rather than an `AttributeError`.  (`compatibility_hints` is declared unstable for the 3.x series.)
+
 ### Fixed
 
 * A bare `icalendar.Event`/`Todo`/`Journal` handed to caldav is wrapped in a `VCALENDAR` - that wrapper no longer gets a random RFC 7986 `UID` of its own (`icalendar.Calendar.new()` adds one).  Servers taking the calendar-level `UID` to be the identity of the calendar object resource (i.e. Stalwart) saw a brand new UID on every save and rejected it with `412 no-uid-conflict`.
