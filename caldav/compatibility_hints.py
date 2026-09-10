@@ -1487,7 +1487,14 @@ zimbra = {
     "calendar-order": {"support": "full"},
 }
 
-bedework = {
+## Measured against the `ioggstream/bedework:latest` docker image, which is
+## a quickstart-3.10.3 tree on openjdk-8 and was built 2018-11-05 - the image
+## cannot even be rebuilt, as the quickstart zip its Dockerfile fetches from
+## dev.bedework.org is gone.  Upstream Bedework is alive and well past this:
+## 5.0.0 was released 2025-09-04.  Nothing here has been checked against 4.x or
+## 5.x, hence the version-stamped name - a plain `bedework` would be claiming
+## far more than we have measured.
+bedework_3_10_3 = {
     ## If tests are yielding unexpected results, try to increase this:
     'search-cache': {'behaviour': 'delay', 'delay': 3},
     'scheduling.auto-schedule': {'support': 'unknown'},
