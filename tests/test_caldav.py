@@ -1563,7 +1563,13 @@ class RepeatedFunctionalTestsBaseClass:
         Delegates core create-or-find logic to fixture_helpers.get_or_create_test_calendar,
         handling test-infrastructure concerns (caching, cleanup, cal_id defaults) here.
         """
-        from .fixture_helpers import get_or_create_test_calendar
+        from .fixture_helpers import component_set_unobtainable, get_or_create_test_calendar
+
+        reason = component_set_unobtainable(
+            self.caldav, kwargs.get("supported_calendar_component_set")
+        )
+        if reason:
+            pytest.skip(reason)
 
         if not self.is_supported("create-calendar"):
             if not self._default_calendar:
@@ -2045,8 +2051,11 @@ END:VCALENDAR"""
         self.skip_unless_support("save-load.mutable.attendee-partstat")
         c = self._fixCalendar()
 
+        ## A SUMMARY, since some servers refuse an event without one
+        ## (save-load.event.no-summary) and this test is about PARTSTAT.
         event = c.add_event(
             uid="test1",
+            summary="attendee status test",
             dtstart=datetime(2015, 10, 10, 8, 7, 6),
             dtend=datetime(2015, 10, 10, 9, 7, 6),
             ical_fragment="ATTENDEE;ROLE=OPT-PARTICIPANT;PARTSTAT=TENTATIVE:MAILTO:testuser@example.com",
@@ -2288,6 +2297,7 @@ END:VCALENDAR"""
         """
         It should be possible to save a task and retrieve it by uid
         """
+        self.skip_unless_support("save-load.todo")
         c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
         c.add_todo(summary="Some test task with a well-known uid", uid="well_known_1")
         foo = c.get_object_by_uid("well_known_1")

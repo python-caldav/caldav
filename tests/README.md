@@ -144,7 +144,8 @@ The `docker-test-servers/` directory contains Docker configurations for:
 - **Nextcloud** - Full-featured cloud platform
 - **Cyrus** - Enterprise mail/calendaring server
 - **SOGo** - Groupware server
-- **Bedework** - Enterprise calendar server
+- **Bedework** - Enterprise calendar server (5.x, locally built image)
+- **Bedework3** - the 2018 3.10.3 image, kept for its compatibility profile
 - **DAViCal** - CalDAV server
 
 See [docker-test-servers/README.md](docker-test-servers/README.md) for details.

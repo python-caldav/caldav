@@ -307,6 +307,9 @@ hence, "fragile".
                 "https://datatracker.ietf.org/doc/html/rfc4791#section-5.3.1",
                 "https://datatracker.ietf.org/doc/html/rfc5689",
             ],
+            "extra_keys": {
+                "behaviour": "'mkcol-required' when MKCALENDAR is refused and the RFC5689 extended MKCOL has to be used instead - the library selects MKCOL for exactly this value.  'empty-207' when the server answers a successful creation with a multistatus whose DAV:response carries neither a DAV:status nor a DAV:propstat, in violation of RFC4918 section 13 (Bedework 5); purely descriptive, the library copes with it either way.  'delayed creation ...' when MKCALENDAR is accepted but the collection materialises later, with the wait in 'delay'.",
+            },
         },
         "create-calendar.auto": {
             "default": { "support": "unsupported" },
@@ -362,6 +365,7 @@ hence, "fragile".
             "description": "it's possible to save and load events to the calendar",
             "default": { "support": "full" }
         },
+        "save-load.event.no-summary": {"description": "The server stores a VEVENT without a SUMMARY property.  RFC 5545 section 3.6.1 makes SUMMARY optional.  'ungraceful' when the PUT is refused with an error (Bedework 5 answers 500 missingeventproperty).", "default": {"support": "full"}},
         "save-load.event.recurrences": {"description": "it's possible to save and load recurring events to the calendar - events with an RRULE property set, including recurrence sets", "default": {"support": "full"}},
         "save-load.event.recurrences.count": {"description": "The server will receive and store a recurring event with a count set in the RRULE", "default": {"support": "full"}},
         ## This was Claude's suggestion and it works as of today, the
@@ -624,7 +628,7 @@ hence, "fragile".
             "description": "expanding tasks"
         },
         "search.recurrences.expanded.event": {
-            "description": "exanding events"
+            "description": "exanding events.  'quirk' with a behaviour starting 'response-per-instance' when the server returns each expanded instance in a DAV:response of its own, all under the href of the resource, in violation of RFC4918 section 14.24 (Bedework 5); the library merges them into one calendar-data"
         },
         "search.recurrences.expanded.exception": {
             "description": "Server expand should work correctly also if a recurrence set with exceptions is given"
@@ -1489,7 +1493,14 @@ zimbra = {
     "calendar-order": {"support": "full"},
 }
 
-bedework = {
+## Measured against the `ioggstream/bedework:latest` docker image, which is
+## a quickstart-3.10.3 tree on openjdk-8 and was built 2018-11-05 - the image
+## cannot even be rebuilt, as the quickstart zip its Dockerfile fetches from
+## dev.bedework.org is gone.  Upstream Bedework is alive and well past this:
+## 5.0.0 was released 2025-09-04.  Nothing here has been checked against 4.x or
+## 5.x, hence the version-stamped name - a plain `bedework` would be claiming
+## far more than we have measured.
+bedework_3_10_3 = {
     ## If tests are yielding unexpected results, try to increase this:
     'search-cache': {'behaviour': 'delay', 'delay': 3},
     'scheduling.auto-schedule': {'support': 'unknown'},
@@ -1537,6 +1548,138 @@ bedework = {
     ## (The old 'duplicates_not_allowed' flag was stale: Bedework does store a
     ## second event with the same content under a different UID, so
     ## save.duplicate-event is left at the default "full".)
+}
+
+## Bedework 5.0.0, measured 2026-09-12 with caldav-server-tester against the
+## locally built image in the caldav repo
+## (tests/docker-test-servers/bedework/), demo user `vbede`.  Several full runs;
+## where they disagreed the difference is noted below.  This is a different
+## server from `bedework_3_10_3` in every way that matters - it creates and
+## deletes calendars, its sync-token and text search behave differently - so
+## nothing is inherited from that profile.
+bedework_5_0_0 = {
+    ## Writes are asynchronous: a read-back issued immediately after a PUT may
+    ## 404 or hand back the pre-write copy.  That is what separated the two
+    ## measurement runs - save-load.mutable came out "broken" (modification not
+    ## reflected after save and reload) in one and "full" in the other, and the
+    ## timezone probe's load() 404ed on a resource the PUT had just accepted.
+    ## The delay is what makes the rest of this profile reproducible.
+    "write-delay": {"behaviour": "delay", "delay": 3},
+
+    ## MKCALENDAR works, but a successful one that sets no properties is
+    ## answered with a 207 whose DAV:response carries neither a DAV:status nor
+    ## a DAV:propstat - just the href of the collection it created.  RFC4918
+    ## section 13 requires one or the other, so there is nothing in the answer
+    ## that says the creation succeeded; the collection is nevertheless there,
+    ## and the same request over raw HTTP answers 201.  Recorded so the
+    ## deviation is written down somewhere; nothing in the library keys off it.
+    ## (A caldav older than this measurement read that body as a failure and
+    ## fell back to the extended MKCOL, which is why an early run of the tester
+    ## reported this as 'mkcol-required'.)
+    "create-calendar": {"support": "quirk", "behaviour": "empty-207"},
+    ## Spelled out so the parent's "quirk" does not bleed down into them.
+    "create-calendar.auto": {"support": "unsupported"},
+    "create-calendar.set-displayname": {"support": "full"},
+    "create-calendar.stable-url": {"support": "full"},
+    ## Not RFC properties; Bedework stores the Apple colour but not the order.
+    "calendar-color": {"support": "full"},
+    "calendar-color.hex": {"support": "full"},
+    "calendar-order": {"support": "unsupported"},
+
+    ## Bedework collections are typed, by default they can hold only
+    ## VEVENT, anything else is 403.  Bedework does not support
+    ## creating task lists or journal lists through the CalDAV
+    ## protocol.  Both MKCALENDAR and extended MKCOL answer "200 ok"
+    ## for CALDAV:supported-calendar-component-set and then ignore it.
+    ## A PROPPATCH of the same property afterwards is a 403.  Details,
+    ## ref https://github.com/Bedework/bedework/issues/5#issuecomment-5652203366
+    "create-calendar.with-supported-component-types": {
+        "support": "unsupported",
+        "behaviour": "the restriction is accepted with a 200 ok propstat and then ignored; the collection is VEVENT-only",
+    },
+    ## So whether Bedework stores tasks is unknown rather than unsupported: the
+    ## server has a task collection type, a CalDAV client just cannot make one.
+    ## What was measured is that a VTODO does not go into an event calendar;
+    ## together with the ignored component set that leaves a client nowhere to
+    ## put a task.  The children inherit "unknown".  The same goes for journals.
+    "save-load.todo": {"support": "unknown"},
+    "save-load.todo.mixed-calendar": {"support": "unsupported"},
+    "save-load.journal": {"support": "unknown"},
+    "save-load.journal.mixed-calendar": {"support": "unsupported"},
+    ## Not measured either: the tester had no tasks to search for.  A Bedework
+    ## user with a working `tasks` collection may well see this work.
+    "search.time-range.todo": {"support": "unknown"},
+
+    "save-load.event.recurrences.exception": {"support": "unsupported"},
+    "save-load.mutable.attendee-partstat": {"support": "unsupported"},
+    ## Seen 2026-09-13 in testChangeAttendeeStatusWithEmailGiven, which only
+    ## started running once save-load.mutable.attendee-partstat came out full.
+    "save-load.event.no-summary": {
+        "support": "ungraceful",
+        "behaviour": "a VEVENT without SUMMARY is refused with 500 missingeventproperty, though RFC 5545 section 3.6.1 makes SUMMARY optional",
+    },
+    ## Expansion itself is right, but every instance comes back in a
+    ## DAV:response of its own under the same href, which RFC4918 section
+    ## 14.24 forbids.  Until the library merged them, all but the last
+    ## instance of a resource were silently dropped (2026-09-13).
+    "search.recurrences.expanded.event": {
+        "support": "quirk",
+        "behaviour": "response-per-instance: each expanded instance comes in a DAV:response of its own, all under the same href, in violation of RFC 4918 section 14.24",
+    },
+    ## Spelled out so the "quirk" above does not bleed into them via the parent.
+    "search.recurrences.expanded.exception": {"support": "full"},
+    "search.recurrences.expanded.todo": {"support": "unknown"},
+    ## Unchanged from 3.10.3, and still the open question in the tester's
+    ## docs/TODO.md.
+    "save-load.icalendar.related-to": {
+        "support": "broken",
+        "behaviour": "first RELATED-TO line preserved but subsequent RELATED-TO lines are stripped",
+    },
+    "save.duplicate-uid.cross-calendar": {
+        "support": "ungraceful",
+        "behaviour": "Server error: ETagMismatchError",
+    },
+
+    "non-existing-raises-not-found.collection": {
+        "support": "unsupported",
+        "behaviour": "a non-existing calendar raises ReportError instead of NotFoundError",
+    },
+    "principal-search": {"support": "ungraceful"},
+    "principal-search.by-name.self": {"support": "ungraceful"},
+    "principal-search.list-all": {"support": "ungraceful"},
+
+    ## Works for CATEGORIES and CLASS, not for DTEND; the children are spelled
+    ## out so the parent's "fragile" does not bleed down into them.
+    "search.is-not-defined": {"support": "fragile"},
+    "search.is-not-defined.category": {"support": "full"},
+    "search.is-not-defined.class": {"support": "full"},
+    "search.is-not-defined.dtend": {"support": "unsupported"},
+    ## Better than this feature's "unsupported" default: a time-range query
+    ## with no comp-type filter does return the objects in range.
+    "search.time-range.comp-type-optional": {"support": "full"},
+    ## No text-match matches anything on a text property: a match on SUMMARY
+    ## comes back empty for i;octet, i;ascii-casemap and i;unicode-casemap
+    ## alike, on the full property value as well as on a substring.  The parent
+    ## has to carry that verdict - with only the three children below set it
+    ## resolved to its default "full", which claimed a text search Bedework
+    ## cannot do and silently disarmed the deliberate
+    ## skip_unless_support("search.text") that keeps testEditSingleRecurrence
+    ## off this server.  Enumerated properties are a different story and are
+    ## measured separately: a CLASS match does work, but only under
+    ## i;ascii-casemap, which is what search.text.case-sensitive records.
+    "search.text": {"support": "unsupported"},
+    "search.text.case-sensitive": {"support": "unsupported"},
+    "search.text.case-insensitive": {"support": "unsupported"},
+    "search.text.category": {"support": "unsupported"},
+    "search.time-range.alarm": {"support": "unsupported"},
+
+    ## The sync-token probe aborted on an ETagMismatchError (412) from its own
+    ## setup in every run, the configured write-delay included, so nothing
+    ## about sync-collection has been measured.
+    "sync-token": {"support": "unknown"},
+    ## One account is configured, so the cross-user half of scheduling is
+    ## untested; the server advertises scheduling and the mailboxes are there.
+    "scheduling.auto-schedule": {"support": "unknown"},
 }
 
 baikal =  { ## version 0.10.1
