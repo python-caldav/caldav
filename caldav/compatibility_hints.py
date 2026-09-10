@@ -1575,23 +1575,24 @@ cyrus = {
     "save.duplicate-uid.cross-calendar": {"support": "ungraceful"},
     # Ephemeral Docker container: wipe objects but keep calendar (avoids UID conflicts)
     "test-calendar": {"cleanup-regime": "wipe-calendar"},
-    ## Deleting a *freshly created* calendar answers 500 for about a second
-    ## before it starts working; the server-tester sees the same thing and
-    ## retries once a second until it succeeds.  'fragile' rather than the
-    ## 'quirk' the tester grades it, because 'fragile' is the only level
-    ## Calendar.delete() reads to switch on its retry-and-poll loop, and
-    ## without that loop testCreateDeleteCalendar and
-    ## test_principal_make_calendar fail on the 500.
+    ## Deleting a calendar that was created on a *just-deleted* cal_id answers
+    ## 500 for about a second; the previous DELETE is still settling
+    ## server-side.  Measured 2026-09-10 against the docker test server: 17 of
+    ## 20 attempts fail that way and every one of them is accepted on a retry a
+    ## second later, while a fresh cal_id deletes cleanly 20 of 20 times and one
+    ## second between the delete and the re-creation makes it clean again.  The
+    ## window is per-name and blocks only DELETE - reads and writes work
+    ## throughout - so MKCALENDAR is not asynchronous here and the deletion is
+    ## not slow; it is the earlier delete that has not finished.
     ##
-    ## This is provisional.  The 500 may well be MKCALENDAR being asynchronous
-    ## rather than DELETE being unreliable, in which case the entry belongs on
-    ## create-calendar instead - see tmp-handover-2026-09-10-delete-calendar.md
-    ## in the caldav-server-tester project.  One consequence of 'fragile' is
-    ## that is_supported() is False here, so the free-namespace probe below
-    ## self-skips.
+    ## 'fragile' is both the accurate grade (17 of 20 is not deterministic) and
+    ## the only level Calendar.delete() reads to switch on its retry-and-poll
+    ## loop, without which testCreateDeleteCalendar and
+    ## test_principal_make_calendar hit the 500 - they tear the calendar down
+    ## and make it again, which is exactly the shape that provokes it.
     'delete-calendar': {
         'support': 'fragile',
-        'behaviour': 'deleting a recently created calendar answers 500 for ~1s before it succeeds',
+        'behaviour': 'deleting a calendar re-created on a just-deleted cal_id answers 500 for ~1s before it succeeds',
         'delay': 1,
     },
     'delete-calendar.free-namespace': {'support': 'full'},
