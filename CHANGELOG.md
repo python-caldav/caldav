@@ -12,6 +12,12 @@ Changelogs prior to v3.0 are pruned, but are available in the v3.1 release
 
 This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html), though for pre-releases PEP 440 takes precedence.
 
+## [Unreleased]
+
+### Fixed
+
+* A bare `icalendar.Event`/`Todo`/`Journal` handed to caldav is wrapped in a `VCALENDAR` - that wrapper no longer gets a random RFC 7986 `UID` of its own (`icalendar.Calendar.new()` adds one).  Servers taking the calendar-level `UID` to be the identity of the calendar object resource (i.e. Stalwart) saw a brand new UID on every save and rejected it with `412 no-uid-conflict`.
+
 ## [3.3.0] - 2026-09-03
 
 3.3.0 is mostly a maintenance and QA release.  The major news here is that we've done an AI-based (Claude Fable) review of all the code, this has resulted in quite a lot of hammering on the code to get all the issues found smoothened out.

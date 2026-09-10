@@ -1696,13 +1696,14 @@ class CalendarObjectResource(DAVObject):
         if not isinstance(inst, icalendar.Calendar):
             ## assume inst is an Event, Journal or Todo.
             ## TODO: perhaps a bit better sanity checking here?
-            try:  ## DEPRECATION TODO: remove this try/except the future
-                ## icalendar 7.x behaviour (not released yet as of 2025-09
-                cal = icalendar.Calendar.new()
-            except AttributeError:
-                cal = icalendar.Calendar()
-                cal.add("prodid", "-//python-caldav//caldav//en_DK")
-                cal.add("version", "2.0")
+            ## Deliberately not using icalendar.Calendar.new() here - it adds a
+            ## random RFC 7986 UID to the VCALENDAR wrapper, and some servers
+            ## (i.e. Stalwart) take that UID to be the identity of the calendar
+            ## object resource.  A fresh random UID on every wrap then makes
+            ## the second save of the same object fail with 412 no-uid-conflict.
+            cal = icalendar.Calendar()
+            cal.add("prodid", "-//python-caldav//caldav//en_DK")
+            cal.add("version", "2.0")
             cal.add_component(inst)
             inst = cal
         self._icalendar_instance = inst
