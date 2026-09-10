@@ -1577,21 +1577,13 @@ cyrus = {
     "save.duplicate-uid.cross-calendar": {"support": "ungraceful"},
     # Ephemeral Docker container: wipe objects but keep calendar (avoids UID conflicts)
     "test-calendar": {"cleanup-regime": "wipe-calendar"},
-    ## Deleting a calendar that was created on a *just-deleted* cal_id answers
-    ## 500 for about a second; the previous DELETE is still settling
-    ## server-side.  Measured 2026-09-10 against the docker test server: 17 of
-    ## 20 attempts fail that way and every one of them is accepted on a retry a
-    ## second later, while a fresh cal_id deletes cleanly 20 of 20 times and one
-    ## second between the delete and the re-creation makes it clean again.  The
-    ## window is per-name and blocks only DELETE - reads and writes work
-    ## throughout - so MKCALENDAR is not asynchronous here and the deletion is
-    ## not slow; it is the earlier delete that has not finished.
-    ##
-    ## 'fragile' is both the accurate grade (17 of 20 is not deterministic) and
-    ## the only level Calendar.delete() reads to switch on its retry-and-poll
-    ## loop, without which testCreateDeleteCalendar and
-    ## test_principal_make_calendar hit the 500 - they tear the calendar down
-    ## and make it again, which is exactly the shape that provokes it.
+    ## Calendar deletion has a very small fragility on Cyrus, one that
+    ## does not matter for ordinary users, but it matters when running
+    ## tests - if a calendar is deleted, recreated under the same URL
+    ## and then deleted again within a very short timeframe - then the
+    ## server gives 500 internal server error.  Due to this it's
+    ## flagged as 'fragile'.  Retry after one second (on the docker
+    ## test server on my laptop) and it works.
     'delete-calendar': {
         'support': 'fragile',
         'behaviour': 'deleting a calendar re-created on a just-deleted cal_id answers 500 for ~1s before it succeeds',
