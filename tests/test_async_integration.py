@@ -2299,9 +2299,10 @@ END:VCALENDAR"""
         events = await c.get_events()
         assert len(events) == cnt
 
+    @pytest.mark.parametrize("klass", ["Calendar", "Event"])
     @pytest.mark.asyncio
-    async def test_create_event_from_ical(self, async_calendar: Any) -> None:
-        """Add event from icalendar.Calendar and icalendar.Event objects."""
+    async def test_create_event_from_ical(self, async_calendar: Any, klass: str) -> None:
+        """Add event from an icalendar.Calendar or an icalendar.Event object."""
         self.skip_unless_support("save-load.event")
         c = async_calendar
         try:
@@ -2319,12 +2320,16 @@ END:VCALENDAR"""
         )
         icalcal.add_component(icalevent)
 
-        for obj in [icalcal, icalevent]:
-            await c.add_event(obj)
-            events = await c.get_events()
-            assert any(e.icalendar_component["uid"] == "ctuid1" for e in events), (
-                f"Event with uid ctuid1 not found after adding {type(obj).__name__}"
-            )
+        ## Both the Calendar object and the Event object should be accepted.
+        ## They are tested one at a time, on a fresh calendar - putting both to
+        ## the same URL would change the VCALENDAR-level UID of an existing
+        ## calendar object resource, which some servers refuse (i.e. Stalwart).
+        obj = {"Calendar": icalcal, "Event": icalevent}[klass]
+        await c.add_event(obj)
+        events = await c.get_events()
+        assert any(e.icalendar_component["uid"] == "ctuid1" for e in events), (
+            f"Event with uid ctuid1 not found after adding {klass}"
+        )
 
     @pytest.mark.asyncio
     async def test_set_due(self, async_task_list: Any) -> None:
