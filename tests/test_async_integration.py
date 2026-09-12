@@ -325,7 +325,15 @@ class AsyncFunctionalTestsBaseClass:
         calendar is used.  The calendar is reused across tests via a stable cal_id
         rather than being deleted and recreated, avoiding trashbin accumulation on
         servers like Nextcloud.
+
+        Skips when the server cannot store a task at all, so that every test
+        taking this fixture skips rather than failing on the PUT: Bedework 5 hands
+        out a calendar happily (it accepts the component set with a "200 ok"
+        propstat and then ignores it, ref
+        create-calendar.with-supported-component-types) and answers the VTODO PUT
+        with a 403.
         """
+        self.skip_unless_support("save-load.todo")
         ## Servers that can't hold VEVENTs and VTODOs in the same calendar
         ## (e.g. Zimbra, OX) need a component-restricted one.
         component_set = None if self.is_supported("save-load.todo.mixed-calendar") else ["VTODO"]

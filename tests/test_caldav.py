@@ -2288,6 +2288,7 @@ END:VCALENDAR"""
         """
         It should be possible to save a task and retrieve it by uid
         """
+        self.skip_unless_support("save-load.todo")
         c = self._fixCalendar(supported_calendar_component_set=["VTODO"])
         c.add_todo(summary="Some test task with a well-known uid", uid="well_known_1")
         foo = c.get_object_by_uid("well_known_1")

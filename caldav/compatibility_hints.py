@@ -1584,16 +1584,30 @@ bedework_5_0_0 = {
     "calendar-order": {"support": "unsupported"},
 
     ## Bedework collections are typed, and a client cannot choose the type:
-    ## MKCALENDAR, extended MKCOL and PROPPATCH all answer "200 ok" for
-    ## CALDAV:supported-calendar-component-set and then ignore it, so every
-    ## collection a client can create is VEVENT-only and a VTODO or VJOURNAL
-    ## PUT into one is 403.  A per-user `tasks` collection exists in the demo
-    ## data, but only for users whose demo data ships one: for `vbede` and
-    ## `caluser`, `tasks`, `Notifications` and `.pendingInbox` are listed in the
-    ## Depth:1 PROPFIND of the calendar home - with a getlastmodified of "now",
-    ## renewed on every listing - and 404 on every direct request.  So a client
-    ## that has not been handed an existing task collection has nowhere to put a
-    ## task at all.
+    ## MKCALENDAR and extended MKCOL both answer "200 ok" for
+    ## CALDAV:supported-calendar-component-set and then ignore it (a PROPPATCH
+    ## of the same property afterwards is a 403), so every collection a client
+    ## can create is VEVENT-only and a VTODO or VJOURNAL PUT into one is 403.
+    ## It is not a lookup that goes missing on the way in:
+    ## CaldavCalNode.setProperty() does store the client's component set (as a
+    ## Qproperty), but BwCollection.getSupportedComponents() resolves the set
+    ## from a static calType->components map first and only falls back to the
+    ## stored property when that map has no entry for the type.  The type a
+    ## MKCALENDAR produces is calTypeCalendarCollection, which maps to
+    ## [VEVENT].  calTypeTasks exists, but nothing in setProperty() can select a
+    ## calType - resourcetype only accepts collection+calendar - so the
+    ## component set is a function of a collection property CalDAV cannot set.
+    ## A per-user `tasks` collection is listed in the Depth:1 PROPFIND of the
+    ## calendar home for `vbede` and `caluser` (with VTODO in its component set
+    ## and a getlastmodified of "now", renewed on every listing), but it is a
+    ## phantom: every direct PROPFIND, GET, OPTIONS and PUT 404s, and a
+    ## MKCALENDAR on its path answers 201 - nothing was there.  So a client that
+    ## has not been handed a task collection made by other means (the web client
+    ## at /cal/, the admin client at /caladmin/) has nowhere to put a task.
+    "create-calendar.with-supported-component-types": {
+        "support": "unsupported",
+        "behaviour": "the restriction is accepted with a 200 ok propstat and then ignored; the collection is VEVENT-only",
+    },
     "save-load.todo": {"support": "ungraceful"},
     "save-load.todo.mixed-calendar": {"support": "unsupported"},
     "save-load.todo.recurrences": {"support": "unsupported"},
@@ -1635,6 +1649,17 @@ bedework_5_0_0 = {
     ## Better than this feature's "unsupported" default: a time-range query
     ## with no comp-type filter does return the objects in range.
     "search.time-range.comp-type-optional": {"support": "full"},
+    ## No text-match matches anything on a text property: a match on SUMMARY
+    ## comes back empty for i;octet, i;ascii-casemap and i;unicode-casemap
+    ## alike, on the full property value as well as on a substring.  The parent
+    ## has to carry that verdict - with only the three children below set it
+    ## resolved to its default "full", which claimed a text search Bedework
+    ## cannot do and silently disarmed the deliberate
+    ## skip_unless_support("search.text") that keeps testEditSingleRecurrence
+    ## off this server.  Enumerated properties are a different story and are
+    ## measured separately: a CLASS match does work, but only under
+    ## i;ascii-casemap, which is what search.text.case-sensitive records.
+    "search.text": {"support": "unsupported"},
     "search.text.case-sensitive": {"support": "unsupported"},
     "search.text.case-insensitive": {"support": "unsupported"},
     "search.text.category": {"support": "unsupported"},
