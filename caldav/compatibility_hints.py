@@ -1591,6 +1591,9 @@ cyrus = {
     ## server gives 500 internal server error.  Due to this it's
     ## flagged as 'fragile'.  Retry after one second (on the docker
     ## test server on my laptop) and it works.
+    ## Reported upstream, with the root cause (the DELETED.* mailbox name
+    ## carries a whole-second timestamp, so two deletes of one name inside
+    ## the same second collide): https://github.com/cyrusimap/cyrus-imapd/issues/6383
     'delete-calendar': {
         'support': 'fragile',
         'behaviour': 'deleting a calendar re-created on a just-deleted cal_id answers 500 for ~1s before it succeeds',
