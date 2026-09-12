@@ -643,12 +643,19 @@ class DAVResponse:
         """True if the multistatus reports success and nothing but success.
 
         Every status in it - the response-level ones and the ones nested
-        inside ``<propstat>`` alike - has to be a 2xx, and there has to be at
-        least one.  Used to tell a multistatus that merely spells out a
-        success apart from one reporting a failure: a server answering a
-        collection creation with 207 (Bedework 5 does, whenever the request
-        carries properties) has created the collection only if no status in
-        the body says otherwise.
+        inside ``<propstat>`` alike - has to be a 2xx.  Used to tell a
+        multistatus that merely spells out a success apart from one reporting
+        a failure: a server answering a collection creation with 207 (Bedework
+        5 does, whenever the request carries properties) has created the
+        collection only if no status in the body says otherwise.
+
+        There has to be at least one ``DAV:response``, but a response carrying
+        no status at all does not make the answer a failure.  RFC 4918 section
+        13 requires every response to carry either a ``DAV:status`` or at least
+        one ``DAV:propstat``, and Bedework 5 answers a property-less
+        MKCALENDAR with a response holding nothing but the href of the
+        collection it just created - reading that as a failure raised
+        ``MkcalendarError`` for a calendar that was there.
 
         This deliberately does not go through ``validate_status()``: a status
         we do not accept is an answer here, not a parse error.
@@ -659,10 +666,7 @@ class DAVResponse:
         if not responses:
             return False
         for response in responses:
-            statuses = list(response.iter(dav.Status.tag))
-            if not statuses:
-                return False
-            for status in statuses:
+            for status in response.iter(dav.Status.tag):
                 ## _status_to_code() falls back to 200 for anything it cannot
                 ## parse, which would turn a garbled status into a success
                 parts = (status.text or "").split()
