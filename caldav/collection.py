@@ -48,11 +48,33 @@ from .compatibility_hints import (
 from .davobject import DAVObject
 from .elements import cdav, dav
 from .lib import error, vcal
+from .lib.error import errmsg
 from .lib.python_utilities import to_wire
 from .lib.url import URL, normalise_path, requote_path
 
 _CC = TypeVar("_CC", bound="CalendarObjectResource")
 log = logging.getLogger("caldav")
+
+## RFC 4791 §5.3.1 (MKCALENDAR) and RFC 5689 §3 (extended MKCOL) have the
+## server answer 201 Created when the collection was made and every property
+## set, and reserve the multistatus for reporting what went wrong.  Bedework 5
+## nevertheless answers 207 as soon as the request carries properties, listing
+## each of them as 200 ok.  Both are accepted here; _assert_created() then
+## sorts a 207 that spells out a success from one reporting a failure.
+_CREATED_STATUSES = (201, 207)
+
+
+def _assert_created(response, method: str) -> None:
+    """Raise unless the server really did create the collection.
+
+    A 207 counts as success only when every status in it is a 2xx - a
+    multistatus reporting that a property could not be set (or that the
+    collection could not be made) is the failure the RFCs use it for, and must
+    raise the same way any other unexpected answer does.
+    """
+    if response.status == 201 or response.all_statuses_ok():
+        return
+    raise error.exception_by_method[method](errmsg(response))
 
 
 # ---------------------------------------------------------------------------
@@ -930,7 +952,10 @@ class Calendar(DAVObject):
         if self.is_async_client:
             return self._async_create(path, mkcol, method, name, display_name, stable_url)
 
-        self._query(root=mkcol, query_method=method, url=path, expected_return_value=201)
+        response = self._query(
+            root=mkcol, query_method=method, url=path, expected_return_value=_CREATED_STATUSES
+        )
+        _assert_created(response, method)
 
         # COMPATIBILITY ISSUE
         # name should already be set, but we've seen caldav servers failing
@@ -1030,7 +1055,10 @@ class Calendar(DAVObject):
 
     async def _async_create(self, path, mkcol, method, name, display_name, stable_url) -> None:
         """Async implementation of _create (call via _create, not directly)."""
-        await self._query(root=mkcol, query_method=method, url=path, expected_return_value=201)
+        response = await self._query(
+            root=mkcol, query_method=method, url=path, expected_return_value=_CREATED_STATUSES
+        )
+        _assert_created(response, method)
 
         # COMPATIBILITY ISSUE - try to set display name explicitly
         if display_name:

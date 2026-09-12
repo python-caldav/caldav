@@ -18,8 +18,13 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 
 * `compatibility_hints`: the `bedework` profile is renamed `bedework_3_10_3`.  It was only ever measured against `ioggstream/bedework:latest`, a `quickstart-3.10.3` tree built in 2018 that can no longer even be rebuilt, while upstream Bedework is alive and released 5.0.0 in 2025 - so a profile called `bedework` was claiming far more than we have observed.  `features="bedework"` now raises a `ValueError` naming the new profile rather than an `AttributeError`.  (`compatibility_hints` is declared unstable for the 3.x series.)
 
+### Added
+
+* A test server for a current Bedework.  `tests/docker-test-servers/bedework/` builds an image from the upstream Wildfly galleon feature pack (5.0.0), since there is no public image newer than 2018 and no single repository to build from.  Three upstream bugs have to be patched at build time before the feature pack comes up at all - the pre-seeded H2 databases predate the H2 driver installed beside them, a shared module cannot load a class it needs through the war serving the request, and the bundled ApacheDS does not run on the JDK upstream prescribes.  Nothing is measured into `compatibility_hints` yet.  The 2018 image moves to `bedework3`.
+
 ### Fixed
 
+* Creating a calendar no longer fails on a server answering `MKCALENDAR`/`MKCOL` with a `207 Multi-Status` that reports nothing but success.  RFC 4791 has the server answer `201 Created` and reserves the multistatus for reporting what could not be done, but Bedework 5 answers 207 as soon as the request carries properties - with every propstat `200 ok` and the calendar created and named.  Insisting on 201 raised `MkcalendarError` for a calendar that was in fact there.  A multistatus carrying a non-2xx status still raises.
 * A bare `icalendar.Event`/`Todo`/`Journal` handed to caldav is wrapped in a `VCALENDAR` - that wrapper no longer gets a random RFC 7986 `UID` of its own (`icalendar.Calendar.new()` adds one).  Servers taking the calendar-level `UID` to be the identity of the calendar object resource (i.e. Stalwart) saw a brand new UID on every save and rejected it with `412 no-uid-conflict`.
 
 ## [3.3.0] - 2026-09-03
