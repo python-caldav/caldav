@@ -1,14 +1,27 @@
-version: '3.8'
-
 services:
   bedework:
-    image: ioggstream/bedework:latest
-    container_name: bedework-test
+    image: bedework-caldav-test
+    # Not "bedework-test": that is what the 3.10.3 compose file called its
+    # container before ../bedework3/ was split out of this directory, so a
+    # checkout from before the split - another clone, an older branch - would
+    # silently destroy this container and put 3.10.3 up in its place.
+    container_name: bedework5-test
     ports:
-      - "8804:8080"
+      - "8811:8080"
+    volumes:
+      # OpenSearch dies at startup if its node.lock sits on the container's
+      # overlay filesystem ("Underlying file changed by an external force").
+      # The directory only holds runtime state, and stop.sh removes the volume,
+      # so every run still starts from an empty index.
+      - opensearch-data:/home/bedework/wildfly/opensearch/data
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/bedework/"]
+      test: ["CMD", "curl", "-fs", "-o", "/dev/null", "-X", "PROPFIND",
+              "-H", "Depth: 0", "-u", "vbede:bedework",
+              "http://localhost:8080/ucaldav/user/vbede/"]
       interval: 10s
       timeout: 5s
-      retries: 15
-      start_period: 120s
+      retries: 30
+      start_period: 180s
+
+volumes:
+  opensearch-data:

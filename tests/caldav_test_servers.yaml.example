@@ -85,13 +85,15 @@ test-servers:
     username: ${SOGO_USERNAME:-testuser}
     password: ${SOGO_PASSWORD:-testpassword}
 
-  bedework:
+  # Bedework 3.10.3 - the 2018 ioggstream image, kept for the historical
+  # compatibility profile.  A current Bedework is `bedework` below.
+  bedework3:
     type: docker
     enabled: false
-    host: ${BEDEWORK_HOST:-localhost}
-    port: ${BEDEWORK_PORT:-8804}
-    username: ${BEDEWORK_USERNAME:-admin}
-    password: ${BEDEWORK_PASSWORD:-bedework}
+    host: ${BEDEWORK3_HOST:-localhost}
+    port: ${BEDEWORK3_PORT:-8804}
+    username: ${BEDEWORK3_USERNAME:-vbede}
+    password: ${BEDEWORK3_PASSWORD:-bedework}
 
   davical:
     type: docker
@@ -135,6 +137,15 @@ test-servers:
     # v0.16+: username is a full email address; password must not be in zxcvbn common-word list.
     username: ${STALWART_USERNAME:-testuser@example.org}
     password: ${STALWART_PASSWORD:-testcaldav}
+
+  # Bedework 5 requires a locally built Docker image — run build.sh first.
+  bedework:
+    type: docker
+    enabled: false
+    host: ${BEDEWORK_HOST:-localhost}
+    port: ${BEDEWORK_PORT:-8811}
+    username: ${BEDEWORK_USERNAME:-vbede}
+    password: ${BEDEWORK_PASSWORD:-bedework}
 
   # OX App Suite requires a locally built Docker image — run build.sh first.
   ox:
