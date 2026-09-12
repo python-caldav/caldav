@@ -4316,3 +4316,113 @@ class TestWrappedComponentHasNoCalendarUid:
         second.icalendar_instance = ievent
 
         assert first.data == second.data
+
+
+class TestMkcalendarMultistatus:
+    """A ``207 Multi-Status`` where every status is a success means the
+    calendar was created.
+
+    RFC 4791 section 5.3.1 has MKCALENDAR answer ``201 Created`` on success and
+    reserves the multistatus for the case where the collection could not be
+    created or a property could not be set.  Bedework 5 answers 207
+    unconditionally as soon as the request carries properties -- every propstat
+    ``200 ok``, the collection created, the display name set.  Insisting on 201
+    turned that into a ``MkcalendarError`` for a calendar that was in fact
+    there.  A multistatus that reports a real failure must still raise.
+    """
+
+    URL = "http://cal.example.com/dav/user/mycal/"
+
+    def _multistatus(self, status: str) -> str:
+        return (
+            '<multistatus xmlns="DAV:">\n'
+            "  <response>\n"
+            "    <href>/dav/user/mycal</href>\n"
+            "    <propstat>\n"
+            "      <prop><displayname/></prop>\n"
+            f"      <status>{status}</status>\n"
+            "    </propstat>\n"
+            "  </response>\n"
+            "</multistatus>\n"
+        )
+
+    def _save_calendar(self, mocked, status_code: int, content: str) -> Calendar:
+        mocked().status_code = status_code
+        mocked().reason = "Multi-Status"
+        mocked().headers = {"Content-Type": "text/xml"}
+        mocked().content = content
+        client = DAVClient(url="http://cal.example.com/dav/")
+        calendar_set = CalendarSet(client, url="http://cal.example.com/dav/user/")
+        calendar = Calendar(client, parent=calendar_set, name="My Calendar", id="mycal")
+        return calendar.save()
+
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def test_all_ok_multistatus_is_a_created_calendar(self, mocked) -> None:
+        calendar = self._save_calendar(mocked, 207, self._multistatus("HTTP/1.1 200 ok"))
+        assert str(calendar.url) == self.URL
+
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def test_201_is_still_accepted(self, mocked) -> None:
+        calendar = self._save_calendar(mocked, 201, "")
+        assert str(calendar.url) == self.URL
+
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def test_failing_propstat_still_raises(self, mocked) -> None:
+        with pytest.raises(error.MkcalendarError):
+            self._save_calendar(mocked, 207, self._multistatus("HTTP/1.1 403 Forbidden"))
+
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def test_unexpected_status_still_raises(self, mocked) -> None:
+        """Only 201 and an all-success 207 mean "created"; the 200 some
+        servers might answer with is not a status we have ever accepted."""
+        with pytest.raises(error.MkcalendarError):
+            self._save_calendar(mocked, 200, "")
+
+    def _statusless_multistatus(self) -> str:
+        """Bedework 5's answer to a MKCALENDAR that sets no properties.
+
+        RFC 4918 section 13 requires a ``DAV:response`` to carry either a
+        ``DAV:status`` or at least one ``DAV:propstat``; this one carries
+        neither, just the href of the collection it created.
+        """
+        return (
+            '<multistatus xmlns="DAV:">\n'
+            "  <response>\n"
+            "    <href>/dav/user/mycal</href>\n"
+            "  </response>\n"
+            "</multistatus>\n"
+        )
+
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def test_statusless_response_is_a_created_calendar(self, mocked) -> None:
+        """Nothing in the body says the creation failed, and the collection is
+        there afterwards - verified against Bedework 5.0.0, where the same
+        request through raw HTTP answers 201."""
+        calendar = self._save_calendar(mocked, 207, self._statusless_multistatus())
+        assert str(calendar.url) == self.URL
+
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def test_empty_multistatus_still_raises(self, mocked) -> None:
+        """A multistatus with no response at all reports nothing about any
+        collection, so it cannot be read as a success."""
+        with pytest.raises(error.MkcalendarError):
+            self._save_calendar(mocked, 207, '<multistatus xmlns="DAV:"></multistatus>\n')
+
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def test_statusless_response_beside_a_failing_one_still_raises(self, mocked) -> None:
+        content = (
+            '<multistatus xmlns="DAV:">\n'
+            "  <response>\n"
+            "    <href>/dav/user/mycal</href>\n"
+            "  </response>\n"
+            "  <response>\n"
+            "    <href>/dav/user/mycal</href>\n"
+            "    <propstat>\n"
+            "      <prop><displayname/></prop>\n"
+            "      <status>HTTP/1.1 403 Forbidden</status>\n"
+            "    </propstat>\n"
+            "  </response>\n"
+            "</multistatus>\n"
+        )
+        with pytest.raises(error.MkcalendarError):
+            self._save_calendar(mocked, 207, content)

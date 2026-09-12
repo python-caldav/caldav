@@ -639,6 +639,43 @@ class DAVResponse:
                 return False
         return True
 
+    def all_statuses_ok(self) -> bool:
+        """True if the multistatus reports success and nothing but success.
+
+        Every status in it - the response-level ones and the ones nested
+        inside ``<propstat>`` alike - has to be a 2xx.  Used to tell a
+        multistatus that merely spells out a success apart from one reporting
+        a failure: a server answering a collection creation with 207 (Bedework
+        5 does, whenever the request carries properties) has created the
+        collection only if no status in the body says otherwise.
+
+        There has to be at least one ``DAV:response``, but a response carrying
+        no status at all does not make the answer a failure.  RFC 4918 section
+        13 requires every response to carry either a ``DAV:status`` or at least
+        one ``DAV:propstat``, and Bedework 5 answers a property-less
+        MKCALENDAR with a response holding nothing but the href of the
+        collection it just created - reading that as a failure raised
+        ``MkcalendarError`` for a calendar that was there.
+
+        This deliberately does not go through ``validate_status()``: a status
+        we do not accept is an answer here, not a parse error.
+        """
+        if self.tree is None:
+            return False
+        responses = [r for r in self._strip_to_multistatus() if r.tag == dav.Response.tag]
+        if not responses:
+            return False
+        for response in responses:
+            for status in response.iter(dav.Status.tag):
+                ## _status_to_code() falls back to 200 for anything it cannot
+                ## parse, which would turn a garbled status into a success
+                parts = (status.text or "").split()
+                if len(parts) < 2 or not parts[1].isdigit():
+                    return False
+                if not 200 <= int(parts[1]) < 300:
+                    return False
+        return True
+
     def _find_objects_and_props(self) -> dict[str, dict[str, _Element]]:
         """Internal implementation of find_objects_and_props without deprecation warning."""
         self.objects: dict[str, dict[str, _Element]] = {}
