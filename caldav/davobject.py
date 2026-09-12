@@ -28,6 +28,20 @@ _CC = TypeVar("_CC", bound="CalendarObjectResource")
 log = logging.getLogger("caldav")
 
 
+def _unexpected_status(status: int, expected: "int | Sequence[int] | None") -> bool:
+    """Whether ``status`` is outside what the caller asked for.
+
+    ``expected_return_value`` is usually a single status code, but a caller
+    that accepts more than one (a collection creation may be answered either
+    with a ``201`` or with a multistatus) may hand in a sequence.
+    """
+    if expected is None:
+        return False
+    if isinstance(expected, int):
+        return status != expected
+    return status not in expected
+
+
 """
 This file contains one class, the DAVObject which is the base
 class for Calendar, Principal, CalendarObjectResource (Event) and many
@@ -268,9 +282,7 @@ class DAVObject:
         ret = getattr(self.client, query_method)(url, body, depth)
         if ret.status == 404:
             raise error.NotFoundError(errmsg(ret))
-        if (
-            expected_return_value is not None and ret.status != expected_return_value
-        ) or ret.status >= 400:
+        if _unexpected_status(ret.status, expected_return_value) or ret.status >= 400:
             ## COMPATIBILITY HACK - see https://github.com/python-caldav/caldav/issues/309
             ## TODO: server quirks!
             body = to_wire(body)
@@ -295,9 +307,7 @@ class DAVObject:
         ret = await getattr(self.client, query_method)(url, body, depth)
         if ret.status == 404:
             raise error.NotFoundError(errmsg(ret))
-        if (
-            expected_return_value is not None and ret.status != expected_return_value
-        ) or ret.status >= 400:
+        if _unexpected_status(ret.status, expected_return_value) or ret.status >= 400:
             ## COMPATIBILITY HACK - see https://github.com/python-caldav/caldav/issues/309
             body = to_wire(body)
             if ret.status == 500 and b"D:getetag" not in body and b"<C:calendar-data" in body:
