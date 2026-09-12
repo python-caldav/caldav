@@ -1,36 +1,59 @@
 #!/bin/bash
-# Start script for Bedework CalDAV test server
+# Start the Bedework 5 CalDAV test server.
+#
+# The Docker image must be built first:
+#   ./build.sh
+#
+# The container starts four processes (apacheds, h2, opensearch, wildfly) and
+# builds its opensearch indexes on every start, which takes a few minutes.
+#
+# Usage: ./start.sh
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-echo "Starting Bedework CalDAV server..."
+if ! docker image inspect bedework-caldav-test >/dev/null 2>&1; then
+    echo "ERROR: Docker image 'bedework-caldav-test' not found."
+    echo "Please build it first with:  ./build.sh"
+    exit 1
+fi
+
+echo "Starting Bedework 5 container (startup takes a few minutes)..."
 docker-compose up -d
 
-echo ""
-echo "Waiting for Bedework to initialize (this may take up to 2 minutes)..."
-timeout=120
-elapsed=0
-while [ $elapsed -lt $timeout ]; do
-    if curl -f http://localhost:8804/bedework/ >/dev/null 2>&1; then
-        echo "✓ Bedework is ready!"
+echo "Waiting for Bedework to finish deploying..."
+for i in $(seq 1 90); do
+    if curl -sf -o /dev/null -X PROPFIND -H "Depth: 0" \
+            -u vbede:bedework "http://localhost:8811/ucaldav/user/vbede/"; then
         echo ""
-        echo "CalDAV endpoint: http://localhost:8804/ucaldav/user/vbede/"
-        echo "Username: vbede"
-        echo "Password: bedework"
-        echo ""
-        echo "To stop Bedework: ./stop.sh"
-        echo "To view logs: docker-compose logs -f bedework"
-        exit 0
+        echo "Bedework is ready."
+        break
     fi
-    sleep 5
-    elapsed=$((elapsed + 5))
+    if ! docker ps -q -f name=bedework5-test | grep -q .; then
+        echo "ERROR: Bedework container stopped unexpectedly."
+        docker-compose logs --tail=40 bedework
+        exit 1
+    fi
+    if [ "$i" -eq 90 ]; then
+        echo ""
+        echo "Timeout waiting for Bedework to deploy."
+        docker-compose logs --tail=40 bedework
+        exit 1
+    fi
     echo -n "."
+    sleep 5
 done
 
 echo ""
-echo "✗ Bedework did not start within ${timeout}s"
-echo "Check logs with: docker-compose logs bedework"
-exit 1
+echo "Bedework 5 is running on http://localhost:8811/"
+echo "  CalDAV: http://localhost:8811/ucaldav/user/vbede/"
+echo "  User:   vbede / bedework"
+echo ""
+echo "Run tests from project root:"
+echo "  cd ../../.."
+echo "  pytest tests/test_caldav.py -k Bedework -v"
+echo ""
+echo "To stop: ./stop.sh"
+echo "To view logs: docker-compose logs -f bedework"

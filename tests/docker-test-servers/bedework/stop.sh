@@ -1,5 +1,5 @@
 #!/bin/bash
-# Stop script for Bedework test server
+# Stop Bedework 5 test server
 
 set -e
 
@@ -9,4 +9,4 @@ cd "$SCRIPT_DIR"
 echo "Stopping Bedework and removing volumes..."
 docker-compose down -v
 
-echo "✓ Bedework stopped and volumes removed"
+echo "Bedework stopped."

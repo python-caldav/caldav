@@ -61,6 +61,12 @@ def load_conf_private(path: Path) -> dict[str, Any]:
     return module
 
 
+#: Legacy conf_private attribute prefixes whose test-server key was renamed.
+#: `test_bedework` in a pre-3.0 conf_private.py always meant the 3.10.3
+#: docker image, which is now called `bedework3`.
+SERVER_KEY_RENAMES = {"bedework": "bedework3"}
+
+
 def convert_to_yaml_config(conf_private: Any) -> dict[str, Any]:
     """Convert conf_private module to new YAML config format."""
     result: dict[str, Any] = {"test-servers": {}}
@@ -101,7 +107,9 @@ def convert_to_yaml_config(conf_private: Any) -> dict[str, Any]:
 
             servers[key] = config
 
-    # Handle boolean enable/disable switches
+    # Handle boolean enable/disable switches.  These are the legacy
+    # conf_private attribute prefixes; SERVER_KEY_RENAMES maps the ones whose
+    # test-server key has since changed.
     server_names = [
         "radicale",
         "xandikos",
@@ -113,8 +121,9 @@ def convert_to_yaml_config(conf_private: Any) -> dict[str, Any]:
         "davical",
     ]
 
-    for server_name in server_names:
-        test_attr = f"test_{server_name}"
+    for legacy_name in server_names:
+        server_name = SERVER_KEY_RENAMES.get(legacy_name, legacy_name)
+        test_attr = f"test_{legacy_name}"
         if hasattr(conf_private, test_attr):
             if server_name not in servers:
                 # Determine type based on server name
@@ -126,9 +135,10 @@ def convert_to_yaml_config(conf_private: Any) -> dict[str, Any]:
             servers[server_name]["enabled"] = getattr(conf_private, test_attr)
 
     # Handle host/port overrides
-    for server_name in server_names:
-        host_attr = f"{server_name}_host"
-        port_attr = f"{server_name}_port"
+    for legacy_name in server_names:
+        server_name = SERVER_KEY_RENAMES.get(legacy_name, legacy_name)
+        host_attr = f"{legacy_name}_host"
+        port_attr = f"{legacy_name}_port"
 
         if hasattr(conf_private, host_attr):
             if server_name not in servers:
@@ -141,9 +151,10 @@ def convert_to_yaml_config(conf_private: Any) -> dict[str, Any]:
             servers[server_name]["port"] = getattr(conf_private, port_attr)
 
     # Handle username/password for known servers
-    for server_name in server_names:
-        user_attr = f"{server_name}_username"
-        pass_attr = f"{server_name}_password"
+    for legacy_name in server_names:
+        server_name = SERVER_KEY_RENAMES.get(legacy_name, legacy_name)
+        user_attr = f"{legacy_name}_username"
+        pass_attr = f"{legacy_name}_password"
 
         if hasattr(conf_private, user_attr):
             if server_name not in servers:
