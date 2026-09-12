@@ -2,7 +2,8 @@
 Docker-based test server implementations.
 
 This module provides test server implementations for servers that run
-in Docker containers: Baikal, Nextcloud, Cyrus, SOGo, Bedework, DAViCal, Davis, CCS, Zimbra, and Stalwart.
+in Docker containers: Baikal, Nextcloud, Cyrus, SOGo, Bedework (5.x and 3.10.3),
+DAViCal, Davis, CCS, Zimbra, Stalwart and OX.
 """
 
 import os
@@ -207,21 +208,23 @@ class SOGoTestServer(DockerTestServer):
             return False
 
 
-class BedeworkTestServer(DockerTestServer):
+class Bedework3TestServer(DockerTestServer):
     """
-    Bedework calendar server in Docker.
+    Bedework 3.10.3 calendar server in Docker.
 
-    Bedework is an enterprise-class open-source calendar system.
+    This is the ancient `ioggstream/bedework` image from 2018; see
+    tests/docker-test-servers/bedework3/README.md.  For a current Bedework
+    use :class:`BedeworkTestServer`.
     """
 
-    name = "Bedework"
+    name = "Bedework3"
 
     def __init__(self, config: dict[str, Any] | None = None) -> None:
         config = config or {}
-        config.setdefault("host", os.environ.get("BEDEWORK_HOST", "localhost"))
-        config.setdefault("port", int(os.environ.get("BEDEWORK_PORT", "8804")))
-        config.setdefault("username", os.environ.get("BEDEWORK_USERNAME", "vbede"))
-        config.setdefault("password", os.environ.get("BEDEWORK_PASSWORD", "bedework"))
+        config.setdefault("host", os.environ.get("BEDEWORK3_HOST", "localhost"))
+        config.setdefault("port", int(os.environ.get("BEDEWORK3_PORT", "8804")))
+        config.setdefault("username", os.environ.get("BEDEWORK3_USERNAME", "vbede"))
+        config.setdefault("password", os.environ.get("BEDEWORK3_PASSWORD", "bedework"))
         # Set up Bedework-specific compatibility hints
         if "features" not in config:
             config["features"] = compatibility_hints.bedework_3_10_3.copy()
@@ -229,6 +232,48 @@ class BedeworkTestServer(DockerTestServer):
 
     def _default_port(self) -> int:
         return 8804
+
+    @property
+    def url(self) -> str:
+        return f"http://{self.host}:{self.port}/ucaldav/user/{self.username}"
+
+    def is_accessible(self) -> bool:
+        """Check if Bedework is accessible using PROPFIND."""
+        try:
+            response = requests.request(
+                "PROPFIND",
+                f"http://{self.host}:{self.port}/ucaldav/",
+                timeout=DEFAULT_HTTP_TIMEOUT,
+            )
+            return response.status_code in (200, 207, 401, 403, 404)
+        except Exception:
+            return False
+
+
+class BedeworkTestServer(DockerTestServer):
+    """
+    Bedework 5 calendar server in Docker.
+
+    Built locally from the upstream galleon feature pack - see
+    tests/docker-test-servers/bedework/README.md - so there is no image to
+    pull and no CI job; ./build.sh has to be run by hand first.
+
+    No compatibility profile yet: the 3.10.3 numbers say nothing about a 5.x
+    server, so every feature starts out unknown until measured.
+    """
+
+    name = "Bedework"
+
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
+        config = config or {}
+        config.setdefault("host", os.environ.get("BEDEWORK_HOST", "localhost"))
+        config.setdefault("port", int(os.environ.get("BEDEWORK_PORT", "8811")))
+        config.setdefault("username", os.environ.get("BEDEWORK_USERNAME", "vbede"))
+        config.setdefault("password", os.environ.get("BEDEWORK_PASSWORD", "bedework"))
+        super().__init__(config)
+
+    def _default_port(self) -> int:
+        return 8811
 
     @property
     def url(self) -> str:
@@ -537,6 +582,7 @@ register_server_class("baikal", BaikalTestServer)
 register_server_class("nextcloud", NextcloudTestServer)
 register_server_class("cyrus", CyrusTestServer)
 register_server_class("sogo", SOGoTestServer)
+register_server_class("bedework3", Bedework3TestServer)
 register_server_class("bedework", BedeworkTestServer)
 register_server_class("davical", DavicalTestServer)
 register_server_class("davis", DavisTestServer)
