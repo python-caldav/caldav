@@ -258,8 +258,8 @@ class BedeworkTestServer(DockerTestServer):
     tests/docker-test-servers/bedework/README.md - so there is no image to
     pull and no CI job; ./build.sh has to be run by hand first.
 
-    No compatibility profile yet: the 3.10.3 numbers say nothing about a 5.x
-    server, so every feature starts out unknown until measured.
+    Measured 2026-09-12 into compatibility_hints.bedework_5_0_0; nothing is
+    inherited from the 3.10.3 profile, which describes a different server.
     """
 
     name = "Bedework"
@@ -270,6 +270,8 @@ class BedeworkTestServer(DockerTestServer):
         config.setdefault("port", int(os.environ.get("BEDEWORK_PORT", "8811")))
         config.setdefault("username", os.environ.get("BEDEWORK_USERNAME", "vbede"))
         config.setdefault("password", os.environ.get("BEDEWORK_PASSWORD", "bedework"))
+        if "features" not in config:
+            config["features"] = compatibility_hints.bedework_5_0_0.copy()
         super().__init__(config)
 
     def _default_port(self) -> int:

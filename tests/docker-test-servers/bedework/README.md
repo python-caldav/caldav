@@ -82,8 +82,26 @@ with the details in its header:
 volume: on the container's overlay filesystem OpenSearch dies at startup with
 `AlreadyClosedException: Underlying file changed by an external force`.
 
-## No compatibility profile yet
+## Compatibility profile
 
-`caldav/compatibility_hints.py` has `bedework_3_10_3` and nothing for 5.x — the
-old numbers say nothing about this server.  Every feature is `unknown` until
-someone measures it with caldav-server-tester.
+`caldav/compatibility_hints.py` has `bedework_5_0_0`, measured 2026-09-12 with
+caldav-server-tester against this image as user `vbede`.  Nothing is inherited
+from `bedework_3_10_3` — that is a different server.
+
+Two things are worth knowing before reading a measurement against it:
+
+- **Writes are asynchronous.**  A read-back issued immediately after a PUT may
+  404 or hand back the pre-write copy, which made `save-load.mutable`,
+  `save-load.event.timezone` and `search.time-range.comp-type-optional` come
+  out differently in two consecutive runs.  The profile carries
+  `write-delay: 3s`; without it a run measures the race rather than the server.
+- **A client cannot create a collection that holds tasks.**  MKCALENDAR,
+  extended MKCOL and PROPPATCH all answer `200 ok` for
+  `CALDAV:supported-calendar-component-set` and then ignore it, so every
+  collection a client creates is VEVENT-only and a VTODO PUT into it is 403.
+  `vbede` has no usable `tasks` collection either: the Depth:1 PROPFIND of the
+  calendar home lists `tasks`, `Notifications` and `.pendingInbox` with a
+  `getlastmodified` of "now" that is renewed on every listing, and all three
+  404 on any direct request.  `douglm`, whose demo data ships a real one, can
+  store tasks in it.  So every task-related feature in the profile is measured
+  on a server that had nowhere to put a task.
