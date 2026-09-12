@@ -624,6 +624,7 @@ class TestRenamedProfiles:
             _resolve_features("bedework")
         message = str(exc_info.value)
         assert "bedework_3_10_3" in message
+        assert "bedework_5_0_0" in message
         assert "3.10.3" in message
 
     def test_prefixed_renamed_name_explains_itself(self) -> None:

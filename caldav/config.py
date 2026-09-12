@@ -171,7 +171,7 @@ RENAMED_FEATURE_PROFILES = {
     "bedework": (
         "bedework_3_10_3",
         "the profile was only ever measured against a quickstart-3.10.3 "
-        "docker image from 2018, and upstream Bedework is at 5.x",
+        "docker image from 2018; use bedework_5_0_0 for a current Bedework",
     ),
 }
 

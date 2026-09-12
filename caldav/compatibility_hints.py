@@ -307,6 +307,9 @@ hence, "fragile".
                 "https://datatracker.ietf.org/doc/html/rfc4791#section-5.3.1",
                 "https://datatracker.ietf.org/doc/html/rfc5689",
             ],
+            "extra_keys": {
+                "behaviour": "'mkcol-required' when MKCALENDAR is refused and the RFC5689 extended MKCOL has to be used instead - the library selects MKCOL for exactly this value.  'empty-207' when the server answers a successful creation with a multistatus whose DAV:response carries neither a DAV:status nor a DAV:propstat, in violation of RFC4918 section 13 (Bedework 5); purely descriptive, the library copes with it either way.  'delayed creation ...' when MKCALENDAR is accepted but the collection materialises later, with the wait in 'delay'.",
+            },
         },
         "create-calendar.auto": {
             "default": { "support": "unsupported" },
@@ -1544,6 +1547,108 @@ bedework_3_10_3 = {
     ## (The old 'duplicates_not_allowed' flag was stale: Bedework does store a
     ## second event with the same content under a different UID, so
     ## save.duplicate-event is left at the default "full".)
+}
+
+## Bedework 5.0.0, measured 2026-09-12 with caldav-server-tester against the
+## locally built image in the caldav repo
+## (tests/docker-test-servers/bedework/), demo user `vbede`.  Several full runs;
+## where they disagreed the difference is noted below.  This is a different
+## server from `bedework_3_10_3` in every way that matters - it creates and
+## deletes calendars, its sync-token and text search behave differently - so
+## nothing is inherited from that profile.
+bedework_5_0_0 = {
+    ## Writes are asynchronous: a read-back issued immediately after a PUT may
+    ## 404 or hand back the pre-write copy.  That is what separated the two
+    ## measurement runs - save-load.mutable came out "broken" (modification not
+    ## reflected after save and reload) in one and "full" in the other, and the
+    ## timezone probe's load() 404ed on a resource the PUT had just accepted.
+    ## The delay is what makes the rest of this profile reproducible.
+    "write-delay": {"behaviour": "delay", "delay": 3},
+
+    ## MKCALENDAR works, but a successful one that sets no properties is
+    ## answered with a 207 whose DAV:response carries neither a DAV:status nor
+    ## a DAV:propstat - just the href of the collection it created.  RFC4918
+    ## section 13 requires one or the other, so there is nothing in the answer
+    ## that says the creation succeeded; the collection is nevertheless there,
+    ## and the same request over raw HTTP answers 201.  Recorded so the
+    ## deviation is written down somewhere; nothing in the library keys off it.
+    ## (A caldav older than this measurement read that body as a failure and
+    ## fell back to the extended MKCOL, which is why an early run of the tester
+    ## reported this as 'mkcol-required'.)
+    "create-calendar": {"support": "quirk", "behaviour": "empty-207"},
+    ## Spelled out so the parent's "quirk" does not bleed down into them.
+    "create-calendar.auto": {"support": "unsupported"},
+    "create-calendar.set-displayname": {"support": "full"},
+    "create-calendar.stable-url": {"support": "full"},
+    ## Not RFC properties; Bedework stores the Apple colour but not the order.
+    "calendar-color": {"support": "full"},
+    "calendar-color.hex": {"support": "full"},
+    "calendar-order": {"support": "unsupported"},
+
+    ## Bedework collections are typed, and a client cannot choose the type:
+    ## MKCALENDAR, extended MKCOL and PROPPATCH all answer "200 ok" for
+    ## CALDAV:supported-calendar-component-set and then ignore it, so every
+    ## collection a client can create is VEVENT-only and a VTODO or VJOURNAL
+    ## PUT into one is 403.  A per-user `tasks` collection exists in the demo
+    ## data, but only for users whose demo data ships one: for `vbede` and
+    ## `caluser`, `tasks`, `Notifications` and `.pendingInbox` are listed in the
+    ## Depth:1 PROPFIND of the calendar home - with a getlastmodified of "now",
+    ## renewed on every listing - and 404 on every direct request.  So a client
+    ## that has not been handed an existing task collection has nowhere to put a
+    ## task at all.
+    "save-load.todo": {"support": "ungraceful"},
+    "save-load.todo.mixed-calendar": {"support": "unsupported"},
+    "save-load.todo.recurrences": {"support": "unsupported"},
+    "save-load.todo.recurrences.count": {"support": "unsupported"},
+    "save-load.journal": {"support": "ungraceful"},
+    ## Consequences of the above rather than independent measurements: the
+    ## tester had no tasks to search for.  A Bedework user with a working
+    ## `tasks` collection may well see these work.
+    "search.time-range.todo": {"support": "ungraceful"},
+    "search.time-range.todo.old-dates": {"support": "unsupported"},
+
+    "save-load.event.recurrences.exception": {"support": "unsupported"},
+    "save-load.mutable.attendee-partstat": {"support": "unsupported"},
+    ## Unchanged from 3.10.3, and still the open question in the tester's
+    ## docs/TODO.md.
+    "save-load.icalendar.related-to": {
+        "support": "broken",
+        "behaviour": "first RELATED-TO line preserved but subsequent RELATED-TO lines are stripped",
+    },
+    "save.duplicate-uid.cross-calendar": {
+        "support": "ungraceful",
+        "behaviour": "Server error: ETagMismatchError",
+    },
+
+    "non-existing-raises-not-found.collection": {
+        "support": "unsupported",
+        "behaviour": "a non-existing calendar raises ReportError instead of NotFoundError",
+    },
+    "principal-search": {"support": "ungraceful"},
+    "principal-search.by-name.self": {"support": "ungraceful"},
+    "principal-search.list-all": {"support": "ungraceful"},
+
+    ## Works for CATEGORIES and CLASS, not for DTEND; the children are spelled
+    ## out so the parent's "fragile" does not bleed down into them.
+    "search.is-not-defined": {"support": "fragile"},
+    "search.is-not-defined.category": {"support": "full"},
+    "search.is-not-defined.class": {"support": "full"},
+    "search.is-not-defined.dtend": {"support": "unsupported"},
+    ## Better than this feature's "unsupported" default: a time-range query
+    ## with no comp-type filter does return the objects in range.
+    "search.time-range.comp-type-optional": {"support": "full"},
+    "search.text.case-sensitive": {"support": "unsupported"},
+    "search.text.case-insensitive": {"support": "unsupported"},
+    "search.text.category": {"support": "unsupported"},
+    "search.time-range.alarm": {"support": "unsupported"},
+
+    ## The sync-token probe aborted on an ETagMismatchError (412) from its own
+    ## setup in every run, the configured write-delay included, so nothing
+    ## about sync-collection has been measured.
+    "sync-token": {"support": "unknown"},
+    ## One account is configured, so the cross-user half of scheduling is
+    ## untested; the server advertises scheduling and the mailboxes are there.
+    "scheduling.auto-schedule": {"support": "unknown"},
 }
 
 baikal =  { ## version 0.10.1
