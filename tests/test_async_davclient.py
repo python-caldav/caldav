@@ -1334,3 +1334,46 @@ class TestAsyncHttpLibrarySelection:
 
         assert _HTTPX_FLAVOUR in (None, *_ASYNC_HTTPX_CANDIDATES)
         assert _USE_HTTPX == (_HTTPX_FLAVOUR is not None)
+
+
+class TestAsyncMkcalendarMultistatus:
+    """Async twin of ``TestMkcalendarMultistatus`` in test_caldav_unit.py:
+    a MKCALENDAR answered with an all-success 207 Multi-Status (Bedework 5)
+    created the calendar; one reporting a failing propstat did not."""
+
+    URL = "https://caldav.example.com/dav/user/mycal/"
+
+    def _multistatus(self, status: str) -> bytes:
+        return (
+            '<multistatus xmlns="DAV:">'
+            "<response><href>/dav/user/mycal</href>"
+            "<propstat><prop><displayname/></prop>"
+            f"<status>{status}</status>"
+            "</propstat></response></multistatus>"
+        ).encode()
+
+    async def _save_calendar(self, status_code: int, content: bytes):
+        from caldav import Calendar, CalendarSet
+
+        client = AsyncDAVClient(url="https://caldav.example.com/dav/")
+        client.session.request = AsyncMock(
+            return_value=create_mock_response(
+                content=content,
+                status_code=status_code,
+                reason="Multi-Status",
+                headers={"Content-Type": "text/xml"},
+            )
+        )
+        calendar_set = CalendarSet(client, url="https://caldav.example.com/dav/user/")
+        calendar = Calendar(client, parent=calendar_set, name="My Calendar", id="mycal")
+        return await calendar.save()
+
+    @pytest.mark.asyncio
+    async def test_all_ok_multistatus_is_a_created_calendar(self) -> None:
+        calendar = await self._save_calendar(207, self._multistatus("HTTP/1.1 200 ok"))
+        assert str(calendar.url) == self.URL
+
+    @pytest.mark.asyncio
+    async def test_failing_propstat_still_raises(self) -> None:
+        with pytest.raises(error.MkcalendarError):
+            await self._save_calendar(207, self._multistatus("HTTP/1.1 403 Forbidden"))
