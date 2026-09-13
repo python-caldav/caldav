@@ -1589,8 +1589,9 @@ bedework_5_0_0 = {
     ## of the same property afterwards is a 403), so every collection a client
     ## can create is VEVENT-only and a VTODO or VJOURNAL PUT into one is 403.
     ## It is not a lookup that goes missing on the way in:
-    ## CaldavCalNode.setProperty() does store the client's component set (as a
-    ## Qproperty), but BwCollection.getSupportedComponents() resolves the set
+    ## CaldavCalNode.setProperty() does store the client's component set (via
+    ## setQproperty(): a plain string property on the collection, keyed by the
+    ## prefixed XML name), but BwCollection.getSupportedComponents() resolves the set
     ## from a static calType->components map first and only falls back to the
     ## stored property when that map has no entry for the type.  The type a
     ## MKCALENDAR produces is calTypeCalendarCollection, which maps to
@@ -1608,16 +1609,18 @@ bedework_5_0_0 = {
         "support": "unsupported",
         "behaviour": "the restriction is accepted with a 200 ok propstat and then ignored; the collection is VEVENT-only",
     },
-    "save-load.todo": {"support": "ungraceful"},
+    ## So whether Bedework stores tasks is unknown rather than unsupported: the
+    ## server has a task collection type, a CalDAV client just cannot make one.
+    ## What was measured is that a VTODO does not go into an event calendar;
+    ## together with the ignored component set that leaves a client nowhere to
+    ## put a task.  The children inherit "unknown".  The same goes for journals.
+    "save-load.todo": {"support": "unknown"},
     "save-load.todo.mixed-calendar": {"support": "unsupported"},
-    "save-load.todo.recurrences": {"support": "unsupported"},
-    "save-load.todo.recurrences.count": {"support": "unsupported"},
-    "save-load.journal": {"support": "ungraceful"},
-    ## Consequences of the above rather than independent measurements: the
-    ## tester had no tasks to search for.  A Bedework user with a working
-    ## `tasks` collection may well see these work.
-    "search.time-range.todo": {"support": "ungraceful"},
-    "search.time-range.todo.old-dates": {"support": "unsupported"},
+    "save-load.journal": {"support": "unknown"},
+    "save-load.journal.mixed-calendar": {"support": "unsupported"},
+    ## Not measured either: the tester had no tasks to search for.  A Bedework
+    ## user with a working `tasks` collection may well see this work.
+    "search.time-range.todo": {"support": "unknown"},
 
     "save-load.event.recurrences.exception": {"support": "unsupported"},
     "save-load.mutable.attendee-partstat": {"support": "unsupported"},
