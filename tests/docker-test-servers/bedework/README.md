@@ -95,13 +95,15 @@ Two things are worth knowing before reading a measurement against it:
   `save-load.event.timezone` and `search.time-range.comp-type-optional` come
   out differently in two consecutive runs.  The profile carries
   `write-delay: 3s`; without it a run measures the race rather than the server.
-- **A client cannot create a collection that holds tasks.**  MKCALENDAR,
-  extended MKCOL and PROPPATCH all answer `200 ok` for
-  `CALDAV:supported-calendar-component-set` and then ignore it, so every
-  collection a client creates is VEVENT-only and a VTODO PUT into it is 403.
+- **A client cannot create a collection that holds tasks.**  MKCALENDAR and
+  extended MKCOL both answer `200 ok` for
+  `CALDAV:supported-calendar-component-set` and then ignore it, and a
+  PROPPATCH of the property afterwards is 403, so every collection a client
+  creates is VEVENT-only and a VTODO PUT into it is 403.
   `vbede` has no usable `tasks` collection either: the Depth:1 PROPFIND of the
   calendar home lists `tasks`, `Notifications` and `.pendingInbox` with a
   `getlastmodified` of "now" that is renewed on every listing, and all three
   404 on any direct request.  `douglm`, whose demo data ships a real one, can
-  store tasks in it.  So every task-related feature in the profile is measured
-  on a server that had nowhere to put a task.
+  store tasks in it.  So the profile grades task and journal storage `unknown`
+  rather than unsupported: the tester had nowhere to put one.  The analysis is
+  in https://github.com/Bedework/bedework/issues/5#issuecomment-5652203366
