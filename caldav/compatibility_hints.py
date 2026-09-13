@@ -287,13 +287,12 @@ hence, "fragile".
                 "delay": "after this number of seconds, we may be reasonably sure that the search results are updated",
             }
         },
-        "write-delay": {
-            "type": "server-peculiarity",
+        "synchronous-write": {
             "default": {"support": "full"},
-            "description": "The server processes write operations (PUT/DELETE/MKCALENDAR/PROPPATCH/...) asynchronously: the request returns success before the change has fully taken effect, so an immediate read-back (of any kind, not just a search) may 404 or return stale data.  A client must wait a bit after every write.  This is the general, write-side counterpart of 'search-cache' (which only delays searches).  'full' (the default) means writes take effect synchronously.",
+            "description": "A write operation (PUT/DELETE/MKCALENDAR/PROPPATCH/...) has taken effect by the time the server answers it with success, so an immediate read-back of any kind - not just a search - observes the change.  'full' (the default) is that.  'unsupported' means the server processes writes asynchronously: there may be a delay between the success response and the change being stored and observable, so an immediate read-back may 404 or return stale data.  'fragile' means writes are asynchronous too, but settle fast enough that the delay is hard to observe - a single probe will usually read it as 'full'.  Where a 'delay' is given, a client should sleep that long after every write before relying on the change (see write_delay()).  This is the general, write-side counterpart of 'search-cache' (which only delays searches).  Formerly the 'write-delay' server-peculiarity, still accepted in a configuration and translated.",
             "extra_keys": {
-                "behaviour": "'delay' to enable the post-write sleep",
-                "delay": "sleep this number of seconds after every write request before relying on the change being visible",
+                "delay": "sleep this number of seconds after every write request before relying on the change being visible.  Ignored when the support is 'full'",
+                "save-load-delay": "observed by caldav-server-tester: seconds until a freshly PUT object could be read back",
             }
         },
         "tests-cleanup-calendar": {
@@ -812,6 +811,15 @@ hence, "fragile".
             ## TODO: temp - should be removed
             if feature == 'old_flags':
                 self._old_flags = feature_set[feature]
+                continue
+            if feature == 'write-delay':
+                warnings.warn(
+                    "The 'write-delay' feature is deprecated - use 'synchronous-write', "
+                    "e.g. {'support': 'unsupported', 'delay': 3} for {'behaviour': 'delay', 'delay': 3}",
+                    DeprecationWarning,
+                    stacklevel=3,
+                )
+                self.copyFeatureSet({'synchronous-write': _from_write_delay(feature_set[feature])}, collapse=False)
                 continue
             try:
                 ## called for the exception, not the return value: an unknown
@@ -1573,8 +1581,11 @@ bedework_5_0_0 = {
     ## measurement runs - save-load.mutable came out "broken" (modification not
     ## reflected after save and reload) in one and "full" in the other, and the
     ## timezone probe's load() 404ed on a resource the PUT had just accepted.
-    ## The delay is what makes the rest of this profile reproducible.
-    "write-delay": {"behaviour": "delay", "delay": 3},
+    ## The delay is what makes the rest of this profile reproducible.  Yet the
+    ## synchronous-write probe itself - one PUT, one direct GET - reads the
+    ## object back at once (save-load-delay 0, 2026-09-13), so it is too fast
+    ## to catch reliably: fragile, not unsupported.
+    "synchronous-write": {"support": "fragile", "delay": 3},
 
     ## MKCALENDAR works, but a successful one that sets no properties is
     ## answered with a 207 whose DAV:response carries neither a DAV:status nor
@@ -2331,7 +2342,7 @@ infomaniak = {
     ## before the change is queryable, so an immediate read-back 404s or returns
     ## stale data for several seconds.  This is server-wide (not just searches),
     ## so we sleep after every write rather than only before searches.
-    'write-delay': {'behaviour': 'delay', 'delay': 16},
+    'synchronous-write': {'support': 'unsupported', 'delay': 16},
     ## VJOURNAL is not supported.
     'save-load.journal': {'support': 'unsupported'},
     ## Calendar colour/order work once the post-write delay is honoured (the
@@ -2468,3 +2479,30 @@ def at_spelling_is_significant(features: Any) -> bool:
     encoded on the way out.
     """
     return not at_spellings_are_aliased(features)
+
+
+def write_delay(features: Any) -> float:
+    """Seconds to sleep after every write request before reading the change back.
+
+    Read off ``synchronous-write``: its ``delay``, unless writes are declared
+    synchronous.  An asynchronous server with no ``delay`` given yields 0 -
+    nobody has said how long to wait, and guessing would slow every write.
+    """
+    if features is None:
+        return 0
+    node = features.is_supported("synchronous-write", dict)
+    if node.get("support", "full") == "full":
+        return 0
+    return node.get("delay", 0)
+
+
+def _from_write_delay(value: Any) -> Any:
+    """Translate a value of the deprecated ``write-delay`` peculiarity."""
+    if not isinstance(value, dict):
+        return value
+    if value.get("behaviour") != "delay":
+        return {"support": "full"}
+    new = {"support": "unsupported"}
+    if "delay" in value:
+        new["delay"] = value["delay"]
+    return new
