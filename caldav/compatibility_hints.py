@@ -631,7 +631,7 @@ hence, "fragile".
             "description": "expanding tasks"
         },
         "search.recurrences.expanded.event": {
-            "description": "exanding events.  'quirk' with behaviour 'response-per-instance' when the server returns each expanded instance in a DAV:response of its own, all under the href of the resource, in violation of RFC4918 section 14.24 (Bedework 5); the library merges them into one calendar-data"
+            "description": "exanding events.  'quirk' with a behaviour starting 'response-per-instance' when the server returns each expanded instance in a DAV:response of its own, all under the href of the resource, in violation of RFC4918 section 14.24 (Bedework 5); the library merges them into one calendar-data"
         },
         "search.recurrences.expanded.exception": {
             "description": "Server expand should work correctly also if a recurrence set with exceptions is given"
@@ -1635,7 +1635,13 @@ bedework_5_0_0 = {
     ## DAV:response of its own under the same href, which RFC4918 section
     ## 14.24 forbids.  Until the library merged them, all but the last
     ## instance of a resource were silently dropped (2026-09-13).
-    "search.recurrences.expanded.event": {"support": "quirk", "behaviour": "response-per-instance"},
+    "search.recurrences.expanded.event": {
+        "support": "quirk",
+        "behaviour": "response-per-instance: each expanded instance comes in a DAV:response of its own, all under the same href, in violation of RFC 4918 section 14.24",
+    },
+    ## Spelled out so the "quirk" above does not bleed into them via the parent.
+    "search.recurrences.expanded.exception": {"support": "full"},
+    "search.recurrences.expanded.todo": {"support": "unknown"},
     ## Unchanged from 3.10.3, and still the open question in the tester's
     ## docs/TODO.md.
     "save-load.icalendar.related-to": {
