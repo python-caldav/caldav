@@ -11,7 +11,7 @@ import warnings
 
 import pytest
 
-from caldav.compatibility_hints import VALID_SUPPORT_LEVELS, FeatureSet
+from caldav.compatibility_hints import VALID_SUPPORT_LEVELS, FeatureSet, write_delay
 from caldav.config import resolve_features as _resolve_features
 
 
@@ -793,3 +793,69 @@ class TestNonExistingRaisesNotFound:
         observed.set_feature("non-existing-raises-not-found.collection", "unsupported")
         mismatches = {m["feature"]: m for m in declared.compare(observed)}
         assert "non-existing-raises-not-found.object" in mismatches
+
+
+class TestSynchronousWrite:
+    """``synchronous-write``: is a change observable once the server said 200?
+
+    Formerly the ``write-delay`` server-peculiarity, which could be neither
+    supported nor unsupported.  Turned around it is a server-feature, and the
+    `delay` a client sleeps after every write is read off it by
+    :func:`write_delay`.
+    """
+
+    def test_writes_are_synchronous_by_default(self) -> None:
+        features = FeatureSet()
+        assert features.is_supported("synchronous-write")
+        assert write_delay(features) == 0
+        assert write_delay(None) == 0
+
+    @pytest.mark.parametrize(
+        ("value", "expected"),
+        [
+            ({"support": "unsupported", "delay": 16}, 16),
+            ## async, but fast enough to be hard to observe - still worth a nap
+            ({"support": "fragile", "delay": 1}, 1),
+            ## asynchronous, but nobody has said how long to wait
+            ({"support": "unsupported"}, 0),
+            ## a delay on a synchronous server is a contradiction; do not sleep
+            ({"support": "full", "delay": 16}, 0),
+        ],
+    )
+    def test_write_delay(self, value: dict, expected: int) -> None:
+        features = FeatureSet({"synchronous-write": value})
+        assert write_delay(features) == expected
+
+    @pytest.mark.parametrize(
+        ("old", "new"),
+        [
+            ({"behaviour": "delay", "delay": 3}, {"support": "unsupported", "delay": 3}),
+            ({"behaviour": "normal"}, {"support": "full"}),
+        ],
+    )
+    def test_write_delay_is_a_deprecated_alias(self, old: dict, new: dict) -> None:
+        """``write-delay`` shipped in 3.3.0, so configurations carrying it keep working."""
+        with pytest.warns(DeprecationWarning, match="synchronous-write"):
+            features = FeatureSet({"write-delay": old})
+        assert features.is_supported("synchronous-write", dict) == new
+        assert "write-delay" not in features.dotted_feature_set_list()
+
+    @pytest.mark.parametrize(("profile", "delay"), [("bedework_5_0_0", 3), ("infomaniak", 16)])
+    def test_profiles(self, profile: str, delay: int) -> None:
+        features = FeatureSet(_resolve_features(profile))
+        assert not features.is_supported("synchronous-write")
+        assert write_delay(features) == delay
+
+    def test_is_compared(self) -> None:
+        """A server-feature the tester measures, unlike the peculiarity it replaces."""
+        declared = FeatureSet({"synchronous-write": {"support": "unsupported", "delay": 3}})
+        observed = FeatureSet()
+        observed.set_feature("synchronous-write", {"support": "full", "save-load-delay": 0})
+        assert [m["feature"] for m in declared.compare(observed)] == ["synchronous-write"]
+
+    def test_fragile_is_not_compared(self) -> None:
+        """Too fast to observe reliably - a single run reading 'full' is no news."""
+        declared = FeatureSet({"synchronous-write": {"support": "fragile", "delay": 1}})
+        observed = FeatureSet()
+        observed.set_feature("synchronous-write", {"support": "full", "save-load-delay": 0})
+        assert declared.compare(observed) == []
