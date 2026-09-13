@@ -18,7 +18,7 @@ import warnings
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any, ClassVar, Optional
-from urllib.parse import ParseResult, SplitResult, quote
+from urllib.parse import ParseResult, SplitResult, quote, unquote
 
 import icalendar
 from dateutil.rrule import rrulestr
@@ -1196,7 +1196,13 @@ class CalendarObjectResource(DAVObject):
         if not r.headers:
             return
         if "Etag" in r.headers:
-            self.props[dav.GetEtag.tag] = r.headers["Etag"]
+            etag = r.headers["Etag"]
+            ## Bedework 5 percent-encodes the quotes in a PUT response and then
+            ## refuses that form in If-Match.  RFC 9110 has an entity-tag start
+            ## with '"' or 'W/"', so a leading %22 can only be that encoding.
+            if etag.startswith(("%22", "W/%22")):
+                etag = unquote(etag)
+            self.props[dav.GetEtag.tag] = etag
         if r.headers.get("Schedule-Tag"):
             self.props[cdav.ScheduleTag.tag] = r.headers["Schedule-Tag"]
 

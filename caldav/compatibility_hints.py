@@ -461,6 +461,11 @@ hence, "fragile".
             "description": "The If-Match precondition is optional when overwriting an existing calendar object resource: the server accepts a PUT that carries no If-Match etag (i.e. add_event()/save() on an object that was not first fetched).  When 'unsupported', the server requires an If-Match etag for updates and rejects a no-If-Match overwrite with 409 Conflict (e.g. OX App Suite enforces optimistic concurrency).  Such servers still support save-load.mutable via a fetch-then-save (etag-conditional) update; only the blind-overwrite path is affected.",
             "default": {"support": "full"},
         },
+        "save-load.mutable.if-match-wildcard": {
+            "description": "An overwrite carrying If-Match: * is accepted.  RFC 9110 section 13.1.1 has '*' match any current representation, so it means 'overwrite, but only if the object exists'.  When 'unsupported', the server answers 412 Precondition Failed even though the object is there (Bedework 5).  The library does not send If-Match: * itself.",
+            "default": {"support": "full"},
+            "links": ["https://datatracker.ietf.org/doc/html/rfc9110#section-13.1.1"],
+        },
         "search": {
             "description": "calendar MUST support searching for objects using the REPORT method, as specified in RFC4791, section 7",
             "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-7"],
@@ -717,6 +722,11 @@ hence, "fragile".
             "description": "Server rejects requests with wrong password by returning an authorization error. Some servers may not properly reject wrong passwords in certain configurations."
         },
         "save": {},
+        "save.etag": {
+            "description": "The ETag header of a PUT response is a valid entity-tag (RFC 9110 section 8.8.3: a quoted string, optionally prefixed W/), and a conditional PUT carrying it in If-Match is accepted.  'broken' with behaviour 'percent-encoded' when the header comes back URL-encoded - Bedework 5 answers a PUT with ETag: %22...%22 while a GET gives the quoted form, and refuses the encoded form in If-Match with 412.  The library decodes a leading %22, so a client is not affected by that shape.",
+            "default": {"support": "full"},
+            "links": ["https://datatracker.ietf.org/doc/html/rfc9110#section-8.8.3"],
+        },
         "save.duplicate-uid": {},
         "save.duplicate-uid.cross-calendar": {
             "description": "Server allows events with the same UID to exist in different calendars and treats them as separate entities. Support can be 'full' (allowed), 'ungraceful' (rejected with error), or 'unsupported' (silently ignored or moved). Behaviour 'silently-ignored' means the duplicate is not saved but no error is thrown. Behaviour 'moved-instead-of-copied' means the event is moved from the original calendar to the new calendar (Zimbra behavior)"
@@ -1541,6 +1551,8 @@ bedework_3_10_3 = {
     'save-load.icalendar.related-to': {'support': 'broken', 'behaviour': 'first RELATED-TO line is preserved but subsequent RELATED-TO lines are stripped'},
     ## Bedework omits DAV:resourcetype from an allprop PROPFIND response.
     "propfind.allprop.resourcetype": {"support": "unsupported"},
+    ## If-Match: * is 412 here as on 5.0.0; the PUT etag is not encoded yet.
+    "save-load.mutable.if-match-wildcard": {"support": "unsupported"},
     ## (The old 'duplicates_not_allowed' flag was stale: Bedework does store a
     ## second event with the same content under a different UID, so
     ## save.duplicate-event is left at the default "full".)
@@ -1605,17 +1617,20 @@ bedework_5_0_0 = {
     "search.time-range.todo": {"support": "unknown"},
 
     "save-load.event.recurrences.exception": {"support": "unsupported"},
-    "save-load.mutable.attendee-partstat": {"support": "unsupported"},
     ## Unchanged from 3.10.3, and still the open question in the tester's
     ## docs/TODO.md.
     "save-load.icalendar.related-to": {
         "support": "broken",
         "behaviour": "first RELATED-TO line preserved but subsequent RELATED-TO lines are stripped",
     },
-    "save.duplicate-uid.cross-calendar": {
-        "support": "ungraceful",
-        "behaviour": "Server error: ETagMismatchError",
-    },
+    ## bw-webdav WebdavNsIntf.putContent URL-encodes the header, GetMethod does
+    ## not, and CaldavBWIntf.putEvent compares If-Match as a raw string.  The
+    ## library decodes it.  Before it did, every second save() raised
+    ## ETagMismatchError, which had graded save.duplicate-uid.cross-calendar
+    ## "ungraceful" and save-load.mutable.attendee-partstat "unsupported"; both
+    ## are full.
+    "save.etag": {"support": "broken", "behaviour": "percent-encoded"},
+    "save-load.mutable.if-match-wildcard": {"support": "unsupported"},
 
     "non-existing-raises-not-found.collection": {
         "support": "unsupported",
@@ -1644,10 +1659,13 @@ bedework_5_0_0 = {
     "search.text": {"support": "unsupported"},
     "search.time-range.alarm": {"support": "unsupported"},
 
-    ## The sync-token probe aborted on an ETagMismatchError (412) from its own
-    ## setup in every run, the configured write-delay included, so nothing
-    ## about sync-collection has been measured.
-    "sync-token": {"support": "unknown"},
+    ## Until the library decoded the PUT etag, the sync-token probe aborted on an
+    ## ETagMismatchError from its own setup.  Measured 2026-09-13 after that:
+    ## sync-collection works, a delete does not show up in it.
+    "sync-token.delete": {
+        "support": "unsupported",
+        "behaviour": "the sync-collection report after a delete listed no changes",
+    },
     ## One account is configured, so the cross-user half of scheduling is
     ## untested; the server advertises scheduling and the mailboxes are there.
     "scheduling.auto-schedule": {"support": "unknown"},
