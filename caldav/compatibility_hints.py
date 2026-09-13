@@ -287,7 +287,7 @@ hence, "fragile".
         },
         "synchronous-write": {
             "default": {"support": "full"},
-            "description": "A write operation (PUT/DELETE/MKCALENDAR/PROPPATCH/...) has taken effect by the time the server answers it with success, so an immediate read-back of any kind - not just a search - observes the change.  'full' (the default) is that.  'unsupported' means the server processes writes asynchronously: there may be a delay between the success response and the change being stored and observable, so an immediate read-back may 404 or return stale data.  'fragile' means writes are asynchronous too, but settle fast enough that the delay is hard to observe - a single probe will usually read it as 'full'.  Where a 'delay' is given, a client should sleep that long after every write before relying on the change (see write_delay()).  This is the general, write-side counterpart of 'search-cache' (which only delays searches).  Formerly the 'write-delay' server-peculiarity, still accepted in a configuration and translated.",
+            "description": "A write operation is complete and immediately observable when receiving a 2XX-response from the server.  'unsupported' means the server processes writes asynchronously: the change request is received and may be queued up.  For a fast server it may not be possible to reliably observe that it's asynchronous, 'fragile' can be used if the probe is non-deterministic or if a server know to be async is observed to be sync.  A delay can be given, and the test code will sleep with the configured delay after each write operation",
             "extra_keys": {
                 "delay": "sleep this number of seconds after every write request before relying on the change being visible.  Ignored when the support is 'full'",
                 "save-load-delay": "observed by caldav-server-tester: seconds until a freshly PUT object could be read back",
@@ -1672,7 +1672,12 @@ bedework_5_0_0 = {
 
     ## Until the library decoded the PUT etag, the sync-token probe aborted on an
     ## ETagMismatchError from its own setup.  Measured 2026-09-13 after that:
-    ## sync-collection works, a delete does not show up in it.
+    ## the token is a timestamp of second precision (data:,20260913T125156Z-1d6a),
+    ## and a change made in the same second as the token was handed out is not
+    ## reported (0/5 with no pause, 3/3 after 1.5s).  The tester graded it plain
+    ## "full" because its own modification happens to land a second later.  A
+    ## delete is never reported, pause or not (0/11).
+    "sync-token": {"support": "full", "behaviour": "time-based"},
     "sync-token.delete": {
         "support": "unsupported",
         "behaviour": "the sync-collection report after a delete listed no changes",
