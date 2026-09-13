@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, cast
 from urllib.parse import unquote
 
+import icalendar
 from lxml import etree
 from lxml.etree import _Element
 
@@ -200,6 +201,26 @@ def _element_to_value(elem: _Element) -> Any:
         return children_texts
 
     return elem
+
+
+def _merge_calendar_data(earlier: str, later: str) -> str:
+    """Add the components of ``later`` that ``earlier`` does not already hold.
+
+    A component is identified by its name, UID and RECURRENCE-ID, so a
+    response repeated verbatim does not duplicate anything.
+    """
+    merged = icalendar.Calendar.from_ical(earlier)
+
+    def key(component: icalendar.Component) -> tuple:
+        rid = component.get("RECURRENCE-ID")
+        return (component.name, str(component.get("UID")), rid.to_ical() if rid else None)
+
+    seen = {key(c) for c in merged.subcomponents}
+    for component in icalendar.Calendar.from_ical(later).subcomponents:
+        if key(component) not in seen:
+            seen.add(key(component))
+            merged.add_component(component)
+    return merged.to_ical().decode()
 
 
 class DAVResponse:
@@ -707,7 +728,18 @@ class DAVResponse:
             ## with multiple props or in multiple propstats; the 404-skip
             ## quirk is shared with the dataclass parsers via
             ## _collect_prop_elements (code-review §5.7).
-            self.objects[href].update(_collect_prop_elements(propstats))
+            props = _collect_prop_elements(propstats)
+
+            ## RFC 4918 section 14.24 forbids an href to appear twice, but
+            ## Bedework 5 answers an expanded calendar-query with one response
+            ## per recurrence instance, all under the href of the resource.
+            ## Merge the instances rather than let the last one overwrite them.
+            earlier = self.objects[href].get(cdav.CalendarData.tag)
+            later = props.get(cdav.CalendarData.tag)
+            if earlier is not None and later is not None and earlier.text and later.text:
+                later.text = _merge_calendar_data(earlier.text, later.text)
+
+            self.objects[href].update(props)
 
         return self.objects
 
