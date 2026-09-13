@@ -18,7 +18,7 @@ import pytest
 import pytest_asyncio
 
 from caldav import Event, FreeBusy, Todo
-from caldav.compatibility_hints import FeatureSet
+from caldav.compatibility_hints import FeatureSet, write_delay
 from caldav.lib import error
 
 from .test_caldav import (
@@ -59,7 +59,7 @@ def _async_delay_decorator(f, t=20):
     return wrapper
 
 
-## HTTP methods that change server state; a "write-delay" server settles each of
+## HTTP methods that change server state; a server without "synchronous-write" settles each of
 ## these asynchronously, so we sleep AFTER every such request (the write-side
 ## counterpart of the search-cache delay, which only delays searches).
 _WRITE_HTTP_METHODS = frozenset(
@@ -245,11 +245,10 @@ class AsyncFunctionalTestsBaseClass:
                 _async_delay_decorator(AsyncCalendar.search, t=delay),
             )
 
-        ## Apply write-delay (sleep after every write) for asynchronous servers.
+        ## Sleep after every write for servers without synchronous writes.
         ## Wrapped on the client instance, so monkeypatch reverts it after the test.
-        write_delay_config = client.features.is_supported("write-delay", dict)
-        if write_delay_config.get("behaviour") == "delay":
-            delay = write_delay_config.get("delay", 10)
+        delay = write_delay(client.features)
+        if delay:
             monkeypatch.setattr(
                 client,
                 "request",
