@@ -53,8 +53,9 @@ _config = load_test_server_config()
 rfc6638_users = _config.get("rfc6638_users", [])
 from caldav import Calendar, DAVObject, Event, FreeBusy, Principal, Todo
 from caldav.compatibility_hints import (
-    incompatibility_description,
-)  ## TEMP - should be removed in the future
+    incompatibility_description,  ## TEMP - should be removed in the future
+    write_delay,
+)
 from caldav.davclient import CONNKEYS, DAVClient, DAVResponse
 from caldav.elements import cdav, dav, ical
 from caldav.lib import error
@@ -1320,7 +1321,7 @@ def _delay_decorator(f, t=20):
     return foo
 
 
-## HTTP methods that change server state.  A "write-delay" server settles each of
+## HTTP methods that change server state.  A server without "synchronous-write" settles each of
 ## these asynchronously, so we sleep AFTER every such request to let the change
 ## become visible before the test reads it back (the general, write-side
 ## counterpart of the search-cache delay, which only delays searches).
@@ -1414,12 +1415,12 @@ class RepeatedFunctionalTestsBaseClass:
         if foo.get("behaviour") == "delay":
             Calendar._search = Calendar.search
             Calendar.search = _delay_decorator(Calendar.search, t=foo["delay"])
-        foo = self.is_supported("write-delay", dict)
-        if foo.get("behaviour") == "delay":
+        delay = write_delay(self.caldav.features)
+        if delay:
             ## Every write goes through the client request(); sleep after the
             ## write verbs so the asynchronous change has settled before read-back.
             ## Instance-level wrap (like rate-limit), torn down with the client.
-            self.caldav.request = _write_delay_decorator(self.caldav.request, t=foo["delay"])
+            self.caldav.request = _write_delay_decorator(self.caldav.request, t=delay)
 
         if False and self.check_compatibility_flag("no-current-user-principal"):
             self.principal = Principal(client=self.caldav, url=self.server_params["principal_url"])
