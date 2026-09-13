@@ -249,6 +249,33 @@ class TestScheduleTagUnit:
 
         assert event.props[dav.GetEtag.tag] == '"etag-from-put"'
 
+    @pytest.mark.parametrize(
+        "header, expected",
+        [
+            ("%2220260912T213103Z-218e%22", '"20260912T213103Z-218e"'),
+            ("W/%22weak-tag%22", 'W/"weak-tag"'),
+            ## Legal etag syntax is left alone, even with a %22 inside the quotes
+            ('"a%22b"', '"a%22b"'),
+        ],
+    )
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def test_percent_encoded_etag_from_put_is_decoded(self, mocked, header, expected):
+        """Bedework 5 percent-encodes the quotes of the ETag in a PUT response
+        (a GET gives the plain form) and then refuses its own encoded etag in
+        If-Match with 412.  RFC 9110 has an entity-tag start with a quote or
+        W/ and a quote, so a leading %22 can only be that encoding.
+        """
+        mocked.return_value = _make_put_response(201, {"Etag": header})
+
+        event = _make_event_with_tag(None)
+        event.save()
+        assert event.props[dav.GetEtag.tag] == expected
+
+        mocked.return_value = _make_put_response(204, {"Etag": header})
+        event.save()
+        sent_headers = mocked.call_args.kwargs["headers"]
+        assert sent_headers["if-match"] == expected
+
     @mock.patch("caldav.davclient.requests.Session.request")
     def test_302_on_put_updates_url(self, mocked):
         """A 302 in response to a PUT must follow the Location header."""
