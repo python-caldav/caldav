@@ -3990,6 +3990,92 @@ class TestDAVClientCredentialPrecedence:
         assert client.password == b"s3cret"
 
 
+class TestRepeatedHrefCalendarData:
+    """RFC 4918 section 14.24 forbids an href to appear in more than one
+    DAV:response, but Bedework 5 answers an expanded calendar-query with one
+    response per recurrence instance, all under the href of the resource."""
+
+    @staticmethod
+    def _response(recurrence_id: str) -> str:
+        return f"""  <DAV:response>
+    <DAV:href>/ucaldav/user/vbede/cal/yearly.ics</DAV:href>
+    <DAV:propstat>
+      <DAV:prop>
+    <calendar-data content-type="text/calendar"><![CDATA[BEGIN:VCALENDAR
+PRODID://Bedework.org//BedeWork V3.14//EN
+VERSION:2.0
+BEGIN:VEVENT
+RECURRENCE-ID;VALUE=DATE:{recurrence_id}
+DTEND;VALUE=DATE:{int(recurrence_id) + 1}
+DTSTAMP:20260913T141843Z
+DTSTART;VALUE=DATE:{recurrence_id}
+SUMMARY:yearly
+UID:yearly
+END:VEVENT
+END:VCALENDAR
+]]></calendar-data>
+      </DAV:prop>
+      <DAV:status>HTTP/1.1 200 ok</DAV:status>
+    </DAV:propstat>
+  </DAV:response>
+"""
+
+    def _calendar_data(self, *recurrence_ids: str) -> str:
+        xml = (
+            '<DAV:multistatus xmlns="urn:ietf:params:xml:ns:caldav" xmlns:DAV="DAV:">\n'
+            + "".join(self._response(rid) for rid in recurrence_ids)
+            + "</DAV:multistatus>"
+        )
+        result = MockedDAVResponse(xml).expand_simple_props(props=[cdav.CalendarData()])
+        assert list(result) == ["/ucaldav/user/vbede/cal/yearly.ics"]
+        return result["/ucaldav/user/vbede/cal/yearly.ics"][cdav.CalendarData.tag]
+
+    def test_instances_are_merged(self) -> None:
+        cal = icalendar.Calendar.from_ical(self._calendar_data("20261102", "20271102"))
+        recurrence_ids = [str(e["RECURRENCE-ID"].to_ical(), "ascii") for e in cal.walk("VEVENT")]
+        assert recurrence_ids == ["20261102", "20271102"]
+
+    def test_repeated_instance_is_not_duplicated(self) -> None:
+        cal = icalendar.Calendar.from_ical(self._calendar_data("20261102", "20261102"))
+        assert len(cal.walk("VEVENT")) == 1
+
+    @staticmethod
+    def _with_timezone(tzid: str, uid: str) -> str:
+        return (
+            "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//EN\r\n"
+            f"BEGIN:VTIMEZONE\r\nTZID:{tzid}\r\n"
+            "BEGIN:STANDARD\r\nDTSTART:19701025T030000\r\n"
+            "TZOFFSETFROM:+0200\r\nTZOFFSETTO:+0100\r\nEND:STANDARD\r\n"
+            "END:VTIMEZONE\r\n"
+            f"BEGIN:VEVENT\r\nUID:{uid}\r\nDTSTAMP:20260913T141843Z\r\n"
+            f"DTSTART;TZID={tzid}:20261102T100000\r\nSUMMARY:{uid}\r\nEND:VEVENT\r\n"
+            "END:VCALENDAR\r\n"
+        )
+
+    def test_distinct_timezones_are_all_kept(self) -> None:
+        from caldav.response import _merge_calendar_data
+
+        merged = _merge_calendar_data(
+            self._with_timezone("Europe/Oslo", "a"),
+            self._with_timezone("America/New_York", "b"),
+        )
+        tzids = sorted(
+            str(tz["TZID"]) for tz in icalendar.Calendar.from_ical(merged).walk("VTIMEZONE")
+        )
+        assert tzids == ["America/New_York", "Europe/Oslo"]
+
+    def test_repeated_timezone_is_not_duplicated(self) -> None:
+        from caldav.response import _merge_calendar_data
+
+        merged = _merge_calendar_data(
+            self._with_timezone("Europe/Oslo", "a"),
+            self._with_timezone("Europe/Oslo", "b"),
+        )
+        cal = icalendar.Calendar.from_ical(merged)
+        assert len(cal.walk("VTIMEZONE")) == 1
+        assert len(cal.walk("VEVENT")) == 2
+
+
 class TestPropstatStatusValidation:
     """Gate finding F7: a failing propstat status must raise, not vanish.
 
