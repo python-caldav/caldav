@@ -631,7 +631,7 @@ hence, "fragile".
             "description": "expanding tasks"
         },
         "search.recurrences.expanded.event": {
-            "description": "exanding events"
+            "description": "exanding events.  'quirk' with behaviour 'response-per-instance' when the server returns each expanded instance in a DAV:response of its own, all under the href of the resource, in violation of RFC4918 section 14.24 (Bedework 5); the library merges them into one calendar-data"
         },
         "search.recurrences.expanded.exception": {
             "description": "Server expand should work correctly also if a recurrence set with exceptions is given"
@@ -1631,6 +1631,11 @@ bedework_5_0_0 = {
     "search.time-range.todo": {"support": "unknown"},
 
     "save-load.event.recurrences.exception": {"support": "unsupported"},
+    ## Expansion itself is right, but every instance comes back in a
+    ## DAV:response of its own under the same href, which RFC4918 section
+    ## 14.24 forbids.  Until the library merged them, all but the last
+    ## instance of a resource were silently dropped (2026-09-13).
+    "search.recurrences.expanded.event": {"support": "quirk", "behaviour": "response-per-instance"},
     ## Unchanged from 3.10.3, and still the open question in the tester's
     ## docs/TODO.md.
     "save-load.icalendar.related-to": {

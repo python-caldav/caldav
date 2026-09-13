@@ -24,6 +24,7 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 
 ### Fixed
 
+* An expanded search against Bedework 5 no longer drops all but the last occurrence of a recurring event.  Bedework returns each expanded instance in a `DAV:response` of its own, all under the href of the resource, which RFC 4918 §14.24 forbids; the multistatus parser let every later `calendar-data` overwrite the earlier ones.  Repeated `calendar-data` for one href is now merged into a single `VCALENDAR`, the shape RFC 4791 §7.8.3 shows.  Recorded as `search.recurrences.expanded.event: quirk` with behaviour `response-per-instance` in the `bedework_5_0_0` profile.
 * A bare `icalendar.Event`/`Todo`/`Journal` handed to caldav is wrapped in a `VCALENDAR` - that wrapper no longer gets a random RFC 7986 `UID` of its own (`icalendar.Calendar.new()` adds one).  Servers taking the calendar-level `UID` to be the identity of the calendar object resource (i.e. Stalwart) saw a brand new UID on every save and rejected it with `412 no-uid-conflict`.
 
 ## [3.3.0] - 2026-09-03
