@@ -93,8 +93,9 @@ Two things are worth knowing before reading a measurement against it:
 - **Writes are asynchronous.**  A read-back issued immediately after a PUT may
   404 or hand back the pre-write copy, which made `save-load.mutable`,
   `save-load.event.timezone` and `search.time-range.comp-type-optional` come
-  out differently in two consecutive runs.  The profile carries
-  `write-delay: 3s`; without it a run measures the race rather than the server.
+  out differently in two consecutive runs.  The profile declares
+  `synchronous-write` fragile - the dedicated probe does not catch it - with a
+  3s `delay`; without it a run measures the race rather than the server.
 - **A client cannot create a collection that holds tasks.**  MKCALENDAR,
   extended MKCOL and PROPPATCH all answer `200 ok` for
   `CALDAV:supported-calendar-component-set` and then ignore it, so every
