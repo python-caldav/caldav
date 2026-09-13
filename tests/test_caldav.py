@@ -1563,7 +1563,13 @@ class RepeatedFunctionalTestsBaseClass:
         Delegates core create-or-find logic to fixture_helpers.get_or_create_test_calendar,
         handling test-infrastructure concerns (caching, cleanup, cal_id defaults) here.
         """
-        from .fixture_helpers import get_or_create_test_calendar
+        from .fixture_helpers import component_set_unobtainable, get_or_create_test_calendar
+
+        reason = component_set_unobtainable(
+            self.caldav, kwargs.get("supported_calendar_component_set")
+        )
+        if reason:
+            pytest.skip(reason)
 
         if not self.is_supported("create-calendar"):
             if not self._default_calendar:

@@ -241,6 +241,29 @@ def _supports(client: Any, feature: str) -> bool:
     return features.is_supported(feature) if features else True
 
 
+def component_set_unobtainable(client: Any, comp_set: list[str] | None) -> str | None:
+    """Why a calendar restricted to ``comp_set`` cannot be had, or ``None``.
+
+    Asking for a VTODO-only (or VJOURNAL-only) calendar is how the fixtures get
+    somewhere to put tasks on servers that will not mix them with events.  When
+    the server also ignores the requested component set (Bedework 5: every
+    calendar a client creates is VEVENT-only), there is nowhere to put them,
+    and the caller should skip rather than fail on the PUT.
+    """
+    if not comp_set or "VEVENT" in comp_set:
+        return None
+    if _supports(client, "create-calendar.with-supported-component-types"):
+        return None
+    for component in comp_set:
+        mixed = f"save-load.{component[1:].lower()}.mixed-calendar"
+        if not _supports(client, mixed):
+            return (
+                f"server ignores supported-calendar-component-set and {component} "
+                "cannot share a calendar with events"
+            )
+    return None
+
+
 async def atry_principal(client: Any) -> Any:
     """Discover the principal, or ``None`` if the server won't tell us.
 
