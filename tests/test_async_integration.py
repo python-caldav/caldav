@@ -288,7 +288,16 @@ class AsyncFunctionalTestsBaseClass:
         own name, docstring and cal_id while the create/wipe/teardown logic
         lives in exactly one place - see fixture_helpers.afix_calendar.
         """
-        from .fixture_helpers import afix_calendar, arelease_calendar, atry_principal
+        from .fixture_helpers import (
+            afix_calendar,
+            arelease_calendar,
+            atry_principal,
+            component_set_unobtainable,
+        )
+
+        reason = component_set_unobtainable(async_client, supported_calendar_component_set)
+        if reason:
+            pytest.skip(reason)
 
         principal = await atry_principal(async_client)
         calendar, created = await afix_calendar(
