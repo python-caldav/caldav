@@ -1503,7 +1503,6 @@ zimbra = {
 bedework_3_10_3 = {
     ## If tests are yielding unexpected results, try to increase this:
     'search-cache': {'behaviour': 'delay', 'delay': 3},
-    'scheduling.auto-schedule': {'support': 'unknown'},
     'scheduling.calendar-user-address-set': {'support': 'full'},
     'scheduling.freebusy-query': {'support': 'full'},
     'scheduling.mailbox': {'support': 'full'},
@@ -1583,7 +1582,6 @@ bedework_5_0_0 = {
     "create-calendar.stable-url": {"support": "full"},
     ## Not RFC properties; Bedework stores the Apple colour but not the order.
     "calendar-color": {"support": "full"},
-    "calendar-color.hex": {"support": "full"},
     "calendar-order": {"support": "unsupported"},
 
     ## Bedework collections are typed, by default they can hold only
@@ -1645,8 +1643,6 @@ bedework_5_0_0 = {
         "behaviour": "a non-existing calendar raises ReportError instead of NotFoundError",
     },
     "principal-search": {"support": "ungraceful"},
-    "principal-search.by-name.self": {"support": "ungraceful"},
-    "principal-search.list-all": {"support": "ungraceful"},
 
     ## Works for CATEGORIES and CLASS, not for DTEND; the children are spelled
     ## out so the parent's "fragile" does not bleed down into them.
@@ -1659,18 +1655,14 @@ bedework_5_0_0 = {
     "search.time-range.comp-type-optional": {"support": "full"},
     ## No text-match matches anything on a text property: a match on SUMMARY
     ## comes back empty for i;octet, i;ascii-casemap and i;unicode-casemap
-    ## alike, on the full property value as well as on a substring.  The parent
-    ## has to carry that verdict - with only the three children below set it
-    ## resolved to its default "full", which claimed a text search Bedework
-    ## cannot do and silently disarmed the deliberate
+    ## alike, on the full property value as well as on a substring.  The verdict
+    ## goes on the parent, which its children inherit - with only the children
+    ## set it resolved to its default "full", which claimed a text search
+    ## Bedework cannot do and silently disarmed the deliberate
     ## skip_unless_support("search.text") that keeps testEditSingleRecurrence
-    ## off this server.  Enumerated properties are a different story and are
-    ## measured separately: a CLASS match does work, but only under
-    ## i;ascii-casemap, which is what search.text.case-sensitive records.
+    ## off this server.  (A CLASS match does work, but only under
+    ## i;ascii-casemap.)
     "search.text": {"support": "unsupported"},
-    "search.text.case-sensitive": {"support": "unsupported"},
-    "search.text.case-insensitive": {"support": "unsupported"},
-    "search.text.category": {"support": "unsupported"},
     "search.time-range.alarm": {"support": "unsupported"},
 
     ## The sync-token probe aborted on an ETagMismatchError (412) from its own
@@ -1696,7 +1688,6 @@ baikal =  { ## version 0.10.1
     'save-load.journal.mixed-calendar': {'support': 'unsupported'},
     'principal-search': {'support': 'ungraceful'},
     'principal-search.by-name.self': {'support': 'unsupported'},
-    'principal-search.list-all': {'support': 'ungraceful'},
     #'sync-token.delete': {'support': 'unsupported'}, ## Perhaps on some older servers?
     ## extra properties not specified in RFC4791/RFC5545
     "calendar-color": {"support": "full"},
@@ -1773,7 +1764,6 @@ davical = {
     "search.time-range.alarm": { "support": "unsupported" },
     'sync-token': {'support': 'fragile'},
     'principal-search': {'support': 'unsupported'},
-    'principal-search.list-all': {'support': 'unsupported'},
     ## DAViCal skips VTODOs without DTSTART in date-range searches.
     'search.time-range.todo.no-dtstart': {'support': 'unsupported'},
     "old_flags": [
@@ -2156,8 +2146,6 @@ purelymail = {
     ## was: ungraceful - observed unsupported 2026-02 (for .old-dates)
     'search.time-range.todo': {'support': 'fragile'},
     'principal-search': {'support': 'ungraceful'},
-    'principal-search.by-name.self': {'support': 'ungraceful'},
-    'principal-search.list-all': {'support': 'ungraceful'},
     'auto-connect.url': {
         'basepath': '/webdav/',
         'domain': 'purelymail.com',
@@ -2284,7 +2272,6 @@ ox = {
     ## datetime-event server-side expansion, and infinite scope remain unsupported.
     ## (event and exception expansion are left at the default "full".)
     'search.recurrences.includes-implicit.todo': {'support': 'unsupported'},
-    'search.recurrences.includes-implicit.todo.pending': {'support': 'unsupported'},
     'search.recurrences.includes-implicit.infinite-scope': {'support': 'unsupported'},
     'search.recurrences.expanded.event': {'support': 'unsupported'},
     'search.recurrences.expanded.todo': {'support': 'unsupported'},
@@ -2302,17 +2289,12 @@ ox = {
     ## search still returns the categorised event; a no_class search still
     ## returns the CONFIDENTIAL event).  Same "filter ignored" behaviour as
     ## search.comp-type above - silently ignored, hence unsupported.
+    ## (DTEND included.)
     'search.is-not-defined': {'support': 'unsupported'},
-    'search.is-not-defined.category': {'support': 'unsupported'},
-    'search.is-not-defined.class': {'support': 'unsupported'},
-    ## is-not-defined for DTEND is not supported
-    'search.is-not-defined.dtend': {'support': 'unsupported'},
     ## Freebusy queries are not supported (returns 400)
     'freebusy-query': {'support': 'ungraceful'},
     ## Principal search not supported
     'principal-search': {'support': 'unsupported'},
-    'principal-search.by-name.self': {'support': 'unsupported'},
-    'principal-search.list-all': {'support': 'unsupported'},
     ## Cross-calendar duplicate UID test fails (AuthorizationError creating second calendar)
     'save.duplicate-uid.cross-calendar': {'support': 'ungraceful'},
     'save-load.icalendar.related-to': {'support': 'broken'},
@@ -2358,7 +2340,6 @@ infomaniak = {
     ## returned the stale value, an artifact of the asynchronous writes above.
     ## Set explicitly to 'full' since the feature default is the weaker 'fragile'.
     'calendar-color': {'support': 'full'},
-    'calendar-color.hex': {'support': 'full'},
     'calendar-order': {'support': 'full'},
     ## The CALDAV comp-filter is silently ignored: a calendar-query that requests
     ## one component type returns the calendar's whole contents regardless (a
@@ -2375,7 +2356,6 @@ infomaniak = {
     ## VTODO recurrence searching is not supported (datetime VEVENT recurrence
     ## search, including server-side expand and infinite scope, works fine).
     'search.recurrences.includes-implicit.todo': {'support': 'unsupported'},
-    'search.recurrences.includes-implicit.todo.pending': {'support': 'unsupported'},
     'search.recurrences.expanded.todo': {'support': 'unsupported'},
     ## Scheduling is advertised and the calendar-user-address-set and scheduling
     ## mailbox are present, but the server never returns a Schedule-Tag (neither
@@ -2385,7 +2365,6 @@ infomaniak = {
     ## Principal search is effectively unsupported (lists nothing / errors out).
     'principal-search': {'support': 'ungraceful'},
     'principal-search.by-name.self': {'support': 'unsupported'},
-    'principal-search.list-all': {'support': 'ungraceful'},
     ## This was added 2026-08-28.  I believe the compatibility tests have passed
     ## before.  I don't think this part of the test suite has changed.  It could
     ## be that the behaviour has changed at the server side.  418 was originally an
