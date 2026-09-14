@@ -2052,8 +2052,11 @@ END:VCALENDAR"""
         self.skip_unless_support("save-load.mutable.attendee-partstat")
         c = self._fixCalendar()
 
+        ## A SUMMARY, since some servers refuse an event without one
+        ## (save-load.event.no-summary) and this test is about PARTSTAT.
         event = c.add_event(
             uid="test1",
+            summary="attendee status test",
             dtstart=datetime(2015, 10, 10, 8, 7, 6),
             dtend=datetime(2015, 10, 10, 9, 7, 6),
             ical_fragment="ATTENDEE;ROLE=OPT-PARTICIPANT;PARTSTAT=TENTATIVE:MAILTO:testuser@example.com",
