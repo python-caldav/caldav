@@ -364,6 +364,7 @@ hence, "fragile".
             "description": "it's possible to save and load events to the calendar",
             "default": { "support": "full" }
         },
+        "save-load.event.no-summary": {"description": "The server stores a VEVENT without a SUMMARY property.  RFC 5545 section 3.6.1 makes SUMMARY optional.  'ungraceful' when the PUT is refused with an error (Bedework 5 answers 500 missingeventproperty).", "default": {"support": "full"}},
         "save-load.event.recurrences": {"description": "it's possible to save and load recurring events to the calendar - events with an RRULE property set, including recurrence sets", "default": {"support": "full"}},
         "save-load.event.recurrences.count": {"description": "The server will receive and store a recurring event with a count set in the RRULE", "default": {"support": "full"}},
         ## This was Claude's suggestion and it works as of today, the
@@ -1631,6 +1632,12 @@ bedework_5_0_0 = {
     "search.time-range.todo": {"support": "unknown"},
 
     "save-load.event.recurrences.exception": {"support": "unsupported"},
+    ## Seen 2026-09-13 in testChangeAttendeeStatusWithEmailGiven, which only
+    ## started running once save-load.mutable.attendee-partstat came out full.
+    "save-load.event.no-summary": {
+        "support": "ungraceful",
+        "behaviour": "a VEVENT without SUMMARY is refused with 500 missingeventproperty, though RFC 5545 section 3.6.1 makes SUMMARY optional",
+    },
     ## Expansion itself is right, but every instance comes back in a
     ## DAV:response of its own under the same href, which RFC4918 section
     ## 14.24 forbids.  Until the library merged them, all but the last
