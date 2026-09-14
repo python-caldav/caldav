@@ -8,11 +8,6 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-# Clean up any existing container to ensure fresh state
-# (No volumes used, so each start creates fresh users)
-echo "Cleaning up previous Cyrus instance..."
-docker-compose down 2>/dev/null || true
-
 echo "Starting Cyrus IMAP CalDAV server..."
 docker-compose up -d
 
