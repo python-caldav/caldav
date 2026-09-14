@@ -723,7 +723,7 @@ hence, "fragile".
         },
         "save": {},
         "save.etag": {
-            "description": "The ETag header of a PUT response is a valid entity-tag (RFC 9110 section 8.8.3: a quoted string, optionally prefixed W/), and a conditional PUT carrying it in If-Match is accepted.  'broken' with behaviour 'percent-encoded' when the header comes back URL-encoded - Bedework 5 answers a PUT with ETag: %22...%22 while a GET gives the quoted form, and refuses the encoded form in If-Match with 412.  The library decodes a leading %22, so a client is not affected by that shape.",
+            "description": "The ETag header of a PUT response is a valid entity-tag (RFC 9110 section 8.8.3: a quoted string, optionally prefixed W/), and a conditional PUT carrying it in If-Match is accepted.  'quirk' with behaviour 'percent-encoded' when the header comes back URL-encoded but the decoded form is accepted - Bedework 5 answers a PUT with ETag: %22...%22 while a GET gives the quoted form, and refuses the encoded form in If-Match with 412.  The library decodes a leading %22, so a client is not affected by that shape; 'broken' when the decoded form is refused too.",
             "default": {"support": "full"},
             "links": ["https://datatracker.ietf.org/doc/html/rfc9110#section-8.8.3"],
         },
@@ -1658,7 +1658,7 @@ bedework_5_0_0 = {
     ## ETagMismatchError, which had graded save.duplicate-uid.cross-calendar
     ## "ungraceful" and save-load.mutable.attendee-partstat "unsupported"; both
     ## are full.
-    "save.etag": {"support": "broken", "behaviour": "percent-encoded"},
+    "save.etag": {"support": "quirk", "behaviour": "percent-encoded"},
     "save-load.mutable.if-match-wildcard": {"support": "unsupported"},
 
     "non-existing-raises-not-found.collection": {
