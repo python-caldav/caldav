@@ -12,6 +12,16 @@ Changelogs prior to v3.0 are pruned, but are available in the v3.1 release
 
 This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html), though for pre-releases PEP 440 takes precedence.
 
+## [Unreleased]
+
+### Changed
+
+* `caldav.jmap` no longer carries its own JMAP client implementation. It's now a thin re-export of the standalone [calendaring-jmap](https://pypi.org/project/calendaring-jmap/) package, added as an optional dependency (`caldav[jmap]`).
+  * Old imports still work: `from caldav.jmap import JMAPClient` etc. are unchanged.
+  * They now emit a `DeprecationWarning`. Use `from calendaring_jmap import JMAPClient` going forward.
+  * `get_jmap_client()`/`get_async_jmap_client()` still resolve configuration the same way `get_davclient()` does.
+  * JMAP errors remain catchable as `DAVError`.
+
 ## [3.3.1] - 2026-09-16
 
 The two main things in this release:

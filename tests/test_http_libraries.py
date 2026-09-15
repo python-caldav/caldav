@@ -24,11 +24,10 @@ from caldav.lib.http_libraries import (
 )
 
 ## Modules that reach the HTTP-library import on their own, so the message has
-## to come out of their own import.  caldav.jmap.client and caldav.jmap.session
-## are deliberately absent: importing either runs caldav/jmap/__init__.py
-## first, which imports async_client -> http_sync, so the error never comes
-## from the module under test and the case would pass even if the module were
-## reverted.  TestOnlyOneModuleImportsTheHTTPLibrary is what covers those two.
+## to come out of their own import.  caldav.jmap.* is deliberately absent:
+## since caldav/jmap became a thin wrapper around the standalone
+## calendaring-jmap package, its HTTP-library selection is calendaring-jmap's
+## own concern, not caldav's.
 SYNC_MODULES = [
     "caldav.davclient",
     "caldav.discovery",
@@ -197,13 +196,6 @@ class TestRequiredLibraryMessage:
         message = required_library_error("niquests", "the async JMAP client")
         assert "caldav[niquests]" in message
         assert DOCS_URL in message
-
-    def test_jmap_async_client_uses_it(self) -> None:
-        """Only niquests blocked: the sync stack is fine on requests, so the
-        "nothing is installed" wording would be a lie."""
-        message = _import_with_libraries_blocked("caldav.jmap.async_client", ("niquests",))
-        assert "none of the supported" not in message
-        assert "niquests" in message
 
 
 class TestAsyncOnlyInstall:
