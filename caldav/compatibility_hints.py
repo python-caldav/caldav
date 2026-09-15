@@ -464,7 +464,7 @@ hence, "fragile".
             "default": {"support": "full"},
         },
         "save-load.mutable.if-match-wildcard": {
-            "description": "An overwrite carrying If-Match: * is accepted, and a PUT carrying it to a missing object is refused.  RFC 9110 section 13.1.1 has '*' match any current representation, so it means 'overwrite, but only if the object exists'.  When 'unsupported', the server answers 412 Precondition Failed even though the object is there (Zimbra).  When 'broken', a missing object is created: the condition is backwards (Bedework, 412 on an existing object) or ignored (SOGo).  If-None-Match: * (section 13.1.2) has no feature of its own; the behaviour text notes where it overwrites or refuses to create.  The library sends neither itself.",
+            "description": "An overwrite carrying If-Match: * is accepted, and a PUT carrying it to a missing object is refused.  RFC 9110 section 13.1.1 has '*' match any current representation, so it means 'overwrite, but only if the object exists'.  When 'unsupported', the server answers 412 Precondition Failed even though the object is there (Zimbra, Radicale - both compare '*' as a literal etag).  When 'broken', a missing object is created: the condition is backwards (Bedework, 412 on an existing object) or ignored (SOGo).  If-None-Match: * (section 13.1.2) has no feature of its own; the behaviour text notes where it overwrites or refuses to create.  The library sends neither itself.",
             "default": {"support": "full"},
             "links": ["https://datatracker.ietf.org/doc/html/rfc9110#section-13.1.1"],
         },
@@ -1314,6 +1314,16 @@ xandikos = {
     "auto-connect.url": {"domain": "localhost", "scheme": "http", "basepath": "/"},
 
     "scheduling": {"support": "unsupported"},
+
+    ## Every collection reports and takes the same hardcoded component list
+    ## (xandikos/web.py), and the supported-calendar-component-set property has
+    ## no setter - yet MKCALENDAR still answers 201, though RFC 4791 section
+    ## 5.3.1 has it fail when a property cannot be set.  Measured on 0.4.5,
+    ## 2026-09-15.
+    "create-calendar.with-supported-component-types": {
+        "support": "unsupported",
+        "behaviour": "the component set is ignored: a VTODO-only calendar advertises VEVENT, VTODO, VJOURNAL, VFREEBUSY and VAVAILABILITY, and a VEVENT can be saved to it",
+    },
 }
 
 ## This seems to work as of version 3.5.4 of Radicale.
@@ -1325,6 +1335,13 @@ radicale = {
     "search.time-range.comp-type-optional": {"support": "full"},
     "search.is-not-defined": {"support": "full"},
     "search.text.case-sensitive": {"support": "unsupported"},
+    ## radicale/app/put.py compares the If-Match value with the item's etag
+    ## literally, so '*' never matches.  If-None-Match: * is handled right.
+    ## Measured on 3.8.0, 2026-09-15.
+    "save-load.mutable.if-match-wildcard": {
+        "support": "unsupported",
+        "behaviour": "If-Match: * is compared as a literal etag: an overwrite of an existing object is refused with 412",
+    },
     "search.recurrences.includes-implicit.todo.pending": {"support": "fragile", "behaviour": "inconsistent results between runs"},
     "search.recurrences.expanded.todo": {"support": "unsupported"},
     "search.recurrences.expanded.exception": {"support": "full"},
@@ -1901,6 +1918,11 @@ sogo = {
         "support": "broken",
         "behaviour": "If-Match: * is ignored: it created a missing object (201); If-None-Match: * overwrote an existing object",
     },
+    ## Measured 2026-09-15.
+    "create-calendar.with-supported-component-types": {
+        "support": "unsupported",
+        "behaviour": "the component set is ignored: a VTODO-only calendar advertises VEVENT, VFREEBUSY and VTODO, and a VEVENT can be saved to it",
+    },
     # Ephemeral Docker container: wipe objects (delete-calendar fragile)
     'test-calendar': {'cleanup-regime': 'wipe-calendar'},
 
@@ -2312,10 +2334,19 @@ ox = {
     ## "unsupported" (silently ignored), not "broken".  Confirmed by direct probe
     ## 2026-06-09.  Contrast bedework, which drops the todos (data loss = broken).
     'search.comp-type': {'support': 'unsupported'},
-    ## Text search (case-sensitive, case-insensitive, substring) now works in OX.
+    ## Text search (case-insensitive, substring) now works in OX.
     ## Confirmed full 2026-06-13.  Category search remains unsupported.
     'search.text': {'support': 'full'},
     'search.text.category': {'support': 'unsupported'},
+    ## The i;octet collation is ignored.  A direct probe 2026-09-15 sent
+    ## <text-match collation="i;octet">Simple</text-match>, and "Simple" and
+    ## "SIMPLE" both matched "simple event ...".  This probe has been flapping:
+    ## declared unsupported until b5e26c4c (2026-06-15) dropped it as working,
+    ## and observed unsupported in three runs out of three on 2026-09-15.
+    'search.text.case-sensitive': {
+        'support': 'unsupported',
+        'behaviour': 'the i;octet collation is ignored: a case-sensitive search matches case-insensitively',
+    },
     ## Recurrence searching: the sliding window hides far-past/far-future
     ## occurrences, but implicit expansion of *datetime* events and server-side
     ## expansion of exceptions work within the window (detectable now that the
