@@ -464,7 +464,7 @@ hence, "fragile".
             "default": {"support": "full"},
         },
         "save-load.mutable.if-match-wildcard": {
-            "description": "An overwrite carrying If-Match: * is accepted.  RFC 9110 section 13.1.1 has '*' match any current representation, so it means 'overwrite, but only if the object exists'.  When 'unsupported', the server answers 412 Precondition Failed even though the object is there (Bedework 5).  The library does not send If-Match: * itself.",
+            "description": "An overwrite carrying If-Match: * is accepted, and a PUT carrying it to a missing object is refused.  RFC 9110 section 13.1.1 has '*' match any current representation, so it means 'overwrite, but only if the object exists'.  When 'unsupported', the server answers 412 Precondition Failed even though the object is there (Zimbra).  When 'broken', a missing object is created: the condition is backwards (Bedework, 412 on an existing object) or ignored (SOGo).  If-None-Match: * (section 13.1.2) has no feature of its own; the behaviour text notes where it overwrites or refuses to create.  The library sends neither itself.",
             "default": {"support": "full"},
             "links": ["https://datatracker.ietf.org/doc/html/rfc9110#section-13.1.1"],
         },
@@ -1425,6 +1425,10 @@ zimbra = {
     #'save-load.get-by-url': {'support': 'fragile', 'behaviour': '404 most of the time - but sometimes 200.  Weird, should be investigated more'},
     ## Zimbra treats same-UID events across calendars as aliases of the same event
     'save.duplicate-uid.cross-calendar': {'support': 'unsupported'},
+    ## '*' is compared as a literal etag, so If-Match: * never holds and
+    ## If-None-Match: * always does.  Measured 2026-09-15 against the docker
+    ## image and, repeatedly, an external Zimbra.
+    'save-load.mutable.if-match-wildcard': {'support': 'unsupported', 'behaviour': 'If-None-Match: * overwrote an existing object'},
     ## Zimbra DOES apply a display name set at creation (the name sticks, so
     ## set-displayname is 'full') - but it couples the display name to the
     ## calendar URL.  MKCALENDAR lands the calendar at the requested cal_id path;
@@ -1562,8 +1566,11 @@ bedework_3_10_3 = {
     'save-load.icalendar.related-to': {'support': 'broken', 'behaviour': 'first RELATED-TO line is preserved but subsequent RELATED-TO lines are stripped'},
     ## Bedework omits DAV:resourcetype from an allprop PROPFIND response.
     "propfind.allprop.resourcetype": {"support": "unsupported"},
-    ## If-Match: * is 412 here as on 5.0.0; the PUT etag is not encoded yet.
-    "save-load.mutable.if-match-wildcard": {"support": "unsupported"},
+    ## If-Match: * is backwards here as on 5.0.0; the PUT etag is not encoded yet.
+    "save-load.mutable.if-match-wildcard": {
+        "support": "broken",
+        "behaviour": "If-Match: * holds backwards: refused with 412 on an existing object, and creates a missing object",
+    },
     ## (The old 'duplicates_not_allowed' flag was stale: Bedework does store a
     ## second event with the same content under a different UID, so
     ## save.duplicate-event is left at the default "full".)
@@ -1662,7 +1669,11 @@ bedework_5_0_0 = {
     ## "ungraceful" and save-load.mutable.attendee-partstat "unsupported"; both
     ## are full.
     "save.etag": {"support": "quirk", "behaviour": "percent-encoded"},
-    "save-load.mutable.if-match-wildcard": {"support": "unsupported"},
+    ## 412 on an existing object, 201 on a missing one (measured 2026-09-15).
+    "save-load.mutable.if-match-wildcard": {
+        "support": "broken",
+        "behaviour": "If-Match: * holds backwards: refused with 412 on an existing object, and creates a missing object",
+    },
 
     "non-existing-raises-not-found.collection": {
         "support": "unsupported",
@@ -1883,6 +1894,12 @@ sogo = {
     "principal-search": {
         "support": "ungraceful",
         "behaviour": "Search by name failed: ReportError at '501 Not Implemented - <?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\n<body><h3>An error occurred during object publishing</h3><p>did not find the specified REPORT</p></body>\n</html>\n', reason no reason",
+    },
+    ## Both '*' conditions are ignored: If-Match: * creates a missing object and
+    ## If-None-Match: * overwrites an existing one (measured 2026-09-15).
+    "save-load.mutable.if-match-wildcard": {
+        "support": "broken",
+        "behaviour": "If-Match: * is ignored: it created a missing object (201); If-None-Match: * overwrote an existing object",
     },
     # Ephemeral Docker container: wipe objects (delete-calendar fragile)
     'test-calendar': {'cleanup-regime': 'wipe-calendar'},

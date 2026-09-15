@@ -1368,6 +1368,10 @@ class CalendarObjectResource(DAVObject):
          * self
 
         """
+
+        # TODO: the overwrite/no-overwrite logic can be handled server-side for
+        # servers that adheres to the RFC: "If-Match: *" and "If-None-Match: *"
+
         # Early return if there's no data (no-op case)
         if not self.is_loaded():
             return self
