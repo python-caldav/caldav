@@ -83,7 +83,8 @@ echo "Disabling CalDAV trashbin (calendar retention)..."
 # causing UNIQUE constraint violations when tests recreate a calendar with the same slug
 # (Nextcloud 33+ reuses the calendarid, keeping old soft-deleted objects, so adding
 # an event with the same UID fails).
-occ config:app:set dav calendarRetentionObligation --value=0 || true
+occ config:app:set dav calendarRetentionObligation --value=0 \
+    || echo "WARNING: could not disable the CalDAV trashbin - deleted calendars will not free their namespace" >&2
 # Purge any leftover soft-deleted calendars/objects from previous runs
 occ dav:retention:clean-up || true
 
