@@ -16,15 +16,14 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 
 ### Added
 
-* Support for Bedework 5.0.  The earlier Bedework tests were targetting the docker image `ioggstream/bedework:latest` which has been locked towards Bedework 3.10.3 since 2018.  Now there is a script for building a bedework container in the docker test servers.  The old Bedework docker image has been kept, but renamed into bedework3.  Workarounds for varioud server quirks have been implemented.
+* Support for Bedework 5.0.  The earlier Bedework tests were targetting the docker image `ioggstream/bedework:latest` which has been locked towards Bedework 3.10.3 since 2018.  Now there is a script for building a bedework container in the docker test servers.  The old Bedework docker image has been kept, but renamed into bedework3.  Workarounds for various server quirks have been implemented.
 
 ### Changed
 
-* `compatibility_hints`: the `write-delay` server-peculiarity is turned around into the `synchronous-write` server-feature.  While the delay (relevant for tests and the caldav server tester) has to be hand-edited, the fact that the server does the writes asynchronously with a significant delay can be probed by the caldav-server-tester.  Fast asynconous servers may not be possible to probe reliably, support level should be set to `fragile` if the probe is non-deterministically, or if one knows the server is behaving asyncronously under the hood.  The `delay`-field is kept as is.  Lookups have been consolidated in a helper function `compatibility_hints.write_delay()` .  The old  `write-delay` peculiarity will still work, but yield a DeprecationWarning.
+* `compatibility_hints`: the `write-delay` server-peculiarity is turned around into the `synchronous-write` server-feature.  The delay (relevant for tests and the caldav server tester) should still be hand-configured.
 
 ### Fixed
 
-* An expanded search against Bedework 5 no longer drops all but the last occurrence of a recurring event.  Bedework returns each expanded instance in a `DAV:response` of its own, all under the href of the resource, which RFC 4918 §14.24 forbids; the multistatus parser let every later `calendar-data` overwrite the earlier ones.  Repeated `calendar-data` for one href is now merged into a single `VCALENDAR`, the shape RFC 4791 §7.8.3 shows.  Recorded as `search.recurrences.expanded.event: quirk` with behaviour `response-per-instance` in the `bedework_5_0_0` profile.
 * A bare `icalendar.Event`/`Todo`/`Journal` handed to caldav is wrapped in a `VCALENDAR` - that wrapper no longer gets a random RFC 7986 `UID` of its own (`icalendar.Calendar.new()` adds one).  Servers taking the calendar-level `UID` to be the identity of the calendar object resource (i.e. Stalwart) saw a brand new UID on every save and rejected it with `412 no-uid-conflict`.
 
 ## [3.3.0] - 2026-09-03
