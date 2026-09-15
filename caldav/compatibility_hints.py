@@ -1354,7 +1354,9 @@ radicale = {
     "calendar-order": {"support": "full"},
 }
 
-## Be aware that nextcloud by default have different rate limits, including how often a user is allowed to create a new calendar.  This may break test runs badly.
+## Nextcloud can be configured a lot.  What particularly affects the compatibility
+## matrix and test runs are rate limits, including how often a user is allowed
+## to create a new calendar.  This may break test runs badly.
 nextcloud = {
     'auto-connect.url': {
         'basepath': '/remote.php/dav',
@@ -1381,12 +1383,24 @@ nextcloud = {
     ## could not be reproduced.  No delay observed either, unlike Cyrus, so
     ## 'full' rather than the 'quirk' recorded there.
     'delete-calendar': {'support': 'full'},
-    'delete-calendar.free-namespace': { ## TODO: not caught by server-tester
-        'behaviour': "deleting a calendar moves it to a trashbin, thrashbin has to be manually 'emptied' from the web-ui before the namespace is freed up",
+    ## For a regular installation, there is a trashbin problem,
+    ## a deleted calendar's id is only available after things have been cleared
+    ## out from the trashbin - hence `delete-calendar.free-namespace` should be
+    ## set to unsupported.  However, the docker test container in this project
+    ## has the trashbin disabled by setup_nextcloud.sh.  The grade here is
+    ## "fragile" - as in "varies by deployment".  There is never any fragility
+    ## for a specific installation.
+    ## A DELETE carrying 'X-NC-CalDAV-No-Trashbin: 1' skips the
+    ## trashbin, but only for a whole calendar, not for its objects: the
+    ## plugin sets a calendar-level flag, and only Calendar::delete() reads it.
+    ## https://github.com/nextcloud/server/blob/19acca6a7fd45b1bfb76952659809f858b6cd6de/apps/dav/lib/CalDAV/Trashbin/Plugin.php
+    ## https://github.com/nextcloud/server/blob/19acca6a7fd45b1bfb76952659809f858b6cd6de/apps/dav/lib/CalDAV/Calendar.php
+    'delete-calendar.free-namespace': {
+        'behaviour': "with the trashbin enabled (the default), deleting a calendar moves it to a trashbin, the trashbin has to be manually 'emptied' from the web-ui before the namespace is freed up",
         'support': 'fragile',
     },
-    # Calendar deletion goes to trashbin so delete-and-recreate doesn't give a
-    # fresh empty calendar.  Wipe objects instead of deleting the calendar itself.
+    # On an install with the trashbin enabled, delete-and-recreate doesn't give
+    # a fresh empty calendar.  Wipe objects instead of deleting the calendar itself.
     "test-calendar": {"cleanup-regime": "wipe-calendar"},
     'search.recurrences.includes-implicit.todo': {'support': 'unsupported'},
     #'save-load.todo.mixed-calendar': {'support': 'unsupported'}, ## Why?  It started complaining about this just recently.
@@ -1400,10 +1414,10 @@ nextcloud = {
     'scheduling.schedule-tag': False,
 }
 
-## TODO: Latest - mismatch between config and test script in delete-calendar.free-namespace ... and create-calendar.set-displayname?
 ecloud = nextcloud | {
     #'search.is-not-defined': {'support': 'unsupported'}, ## observed to work at 4bc0de765a2b53e6f223e0b9ac51c653bac11fb7 (caldav) / 3cae24cf99da1702b851b5a74a9b88c8e5317dad (server checker)
     #'search.text.case-sensitive': {'support': 'unsupported'}, ## observed to work at 4bc0de765a2b53e6f223e0b9ac51c653bac11fb7 (caldav) / 3cae24cf99da1702b851b5a74a9b88c8e5317dad (server checker)
+    'delete-calendar.free-namespace': False,
     ## TODO: this applies only to test runs, not to ordinary usage
     'rate-limit': {
         'enable': True,
@@ -1995,6 +2009,7 @@ robur = {
     'test-calendar': {'cleanup-regime': 'wipe-calendar'},
     "sync-token": {"support": "ungraceful"},
     "get-supported-components": {"support": "unsupported"},
+    "save.etag": {'support': 'broken', 'behaviour': "malformed etag 'a22ccfb2985aed13f50b4991a110d32253fd99aa'"},
 }
 
 posteo = {
