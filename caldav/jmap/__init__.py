@@ -1,6 +1,11 @@
 """
 JMAP calendar support for python-caldav.
 
+.. deprecated::
+   Thin re-export of the standalone `calendaring-jmap
+   <https://pypi.org/project/calendaring-jmap/>`_ package. Import from
+   ``calendaring_jmap`` directly instead.
+
 Provides synchronous and asynchronous JMAP clients with the same public API as
 the CalDAV client, so user code works regardless of server protocol.
 
@@ -27,16 +32,26 @@ Async usage::
         calendars = await client.get_calendars()
 """
 
-from caldav.jmap.async_client import AsyncJMAPClient
-from caldav.jmap.client import JMAPClient
-from caldav.jmap.error import (
+import warnings
+
+from calendaring_jmap import (
+    AsyncJMAPClient,
     JMAPAuthError,
+    JMAPCalendar,
+    JMAPCalendarObject,
     JMAPCapabilityError,
+    JMAPClient,
     JMAPError,
     JMAPMethodError,
 )
-from caldav.jmap.objects.calendar import JMAPCalendar
-from caldav.jmap.objects.calendar_object import JMAPCalendarObject
+
+warnings.warn(
+    "caldav.jmap is deprecated; import from the standalone calendaring-jmap "
+    "package instead (pip install calendaring-jmap). caldav.jmap now just "
+    "re-exports it and will be removed in a future release.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 _JMAP_KEYS = {"url", "username", "password", "auth", "auth_type", "timeout"}
 

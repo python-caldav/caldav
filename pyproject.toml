@@ -97,6 +97,10 @@ Changelog = "https://github.com/python-caldav/caldav/blob/master/CHANGELOG.md"
 ## behaviour, so they can depend on it now and change nothing later.  See
 ## docs/source/http-libraries.rst
 niquests = ["niquests"]
+## caldav.jmap is a thin wrapper around the standalone calendaring-jmap
+## package (JMAP support was extracted out of this repo, see CHANGELOG).
+## Optional because caldav/__init__.py never imports caldav.jmap eagerly.
+jmap = ["calendaring-jmap>=1.1.0"]
 test = [
   "vobject",
   "pytest",
@@ -130,7 +134,7 @@ test = [
 ignore = ["DEP002"]  # Test dependencies (pytest, coverage, etc.) are not imported in main code
 
 [tool.deptry.per_rule_ignores]
-DEP001 = ["conf", "h2", "tests"]  # conf: Local test config, h2: Optional HTTP/2 support.
+DEP001 = ["conf", "h2", "tests", "calendaring_jmap"]  # conf: Local test config, h2: Optional HTTP/2 support, calendaring_jmap: optional dep for caldav.jmap.
 ## httpxyz needed an entry here while it was imported by name; the httpx-family
 ## libraries are now imported dynamically (see _ASYNC_HTTPX_CANDIDATES), which
 ## deptry does not see at all.
@@ -203,6 +207,10 @@ filterwarnings = [
 
     # Show conf_private.py deprecation warning once (not as error) during migration period
     "once:conf_private.py is deprecated:DeprecationWarning",
+
+    # caldav.jmap is deprecated in favour of the standalone calendaring-jmap
+    # package (see caldav/jmap/__init__.py); show it once, not as an error
+    "once:caldav.jmap is deprecated:DeprecationWarning",
 
     # Zimbra test server uses HTTPS with self-signed cert (ssl_verify_cert=False)
     "ignore:Unverified HTTPS request:urllib3_future.exceptions.InsecureRequestWarning",

@@ -379,7 +379,8 @@ JMAP client (experimental)
 
 A new ``caldav.jmap`` package provides ``JMAPClient`` and ``AsyncJMAPClient``
 for servers implementing :rfc:`8620` (JMAP Core) and :rfc:`8984` (JMAP Calendars).
-The public API may change in minor releases.  See :doc:`jmap`.
+The public API may change in minor releases. ``caldav.jmap`` is now a thin
+wrapper around the standalone ``calendaring-jmap`` package. See :doc:`jmap`.
 
 Advanced search
 ---------------

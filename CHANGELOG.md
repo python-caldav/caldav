@@ -19,6 +19,14 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 * `compatibility_hints`: `auth.www-authenticate` records whether the server sends the `WWW-Authenticate` header RFC7235 section 3.1 requires on a 401, and `auth.www-authenticate.usable-scheme` whether the schemes it offers include one this library implements.  A server failing either one never receives your password, and the 401 looks like a rejected one - so it needs `auth_type` pinned in the configuration, and a profile can now say which.  Probed by caldav-server-tester.  See https://github.com/python-caldav/caldav/issues/713.
 * `compatibility_hints`: new feature `scheduling.calendar-user-address-set.populated`, for a server that advertises `calendar-user-address-set` but returns it empty.  Graded `unsupported` for Xandikos.
 
+### Changed
+
+* `caldav.jmap` no longer carries its own JMAP client implementation. It's now a thin re-export of the standalone [calendaring-jmap](https://pypi.org/project/calendaring-jmap/) package, added as an optional dependency (`caldav[jmap]`).
+  * Old imports still work: `from caldav.jmap import JMAPClient` etc. are unchanged.
+  * They now emit a `DeprecationWarning`. Use `from calendaring_jmap import JMAPClient` going forward.
+  * `get_jmap_client()`/`get_async_jmap_client()` still resolve configuration the same way `get_davclient()` does.
+  * JMAP errors remain catchable as `DAVError`.
+
 ### Fixed
 
 * `Principal.get_vcal_address()` raised `IndexError: list index out of range` when the server returned an empty `calendar-user-address-set`.  It now falls back to the principal URL, as RFC 6638 section 2.4.1 provides for a user with no well-defined calendar user address.  `add_organizer()` and `add_attendee()` go through the same method, so they were affected too.  Seen on Xandikos 0.4.7, which advertises `calendar-auto-schedule` and serves schedule-inbox/outbox, but leaves the address set empty.  `change_attendee_status()` accepts that same URL back, so an event the library invited a principal to can still have its PARTSTAT changed.  A property that is *absent* still raises `NotFoundError`; per the same section that means the user is not enabled for scheduling.  En passant, the Xandikos profile is regraded for 0.4.7: scheduling is no longer declared unsupported, and `create-calendar.with-supported-component-types` no longer unsupported either, so `is_supported()` may answer differently with `features: xandikos` configured.
