@@ -72,4 +72,4 @@ Consider this procedures to be a more of a guideline than a rigid procedure.  Us
 
 ## Code of Conduct
 
-Code of Conduct has been moved to a [separate document](CODE_OF_CONDUCT]
+Code of Conduct has been moved to a [separate document](CODE_OF_CONDUCT)

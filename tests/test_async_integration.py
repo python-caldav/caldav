@@ -1968,6 +1968,10 @@ class AsyncFunctionalTestsBaseClass:
             try:
                 await c.set_properties([dav.DisplayName("AsyncYep")])
             except error.PropsetError:
+                ## Best-effort cleanup only: the assertion of interest has
+                ## already run above.  Some servers reject setting the display
+                ## name (PropsetError); if so there's nothing to restore and
+                ## nothing actionable to do here, so swallow it silently.
                 pass
             await arelease_calendar(async_client, c, created)
 
