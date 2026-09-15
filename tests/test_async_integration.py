@@ -1917,6 +1917,7 @@ class AsyncFunctionalTestsBaseClass:
     async def test_set_calendar_properties(self, async_client: Any) -> None:
         """get_properties/set_properties round-trip for DisplayName."""
         from caldav.elements import dav
+        from caldav.lib import error
 
         from .fixture_helpers import afix_calendar, arelease_calendar, atry_principal
 
@@ -1942,14 +1943,18 @@ class AsyncFunctionalTestsBaseClass:
             cal_id="pythoncaldav-async-props-test",
             calendar_name="AsyncYep",
         )
+        assert c is not None, "no test calendar could be created or found"
         try:
-            ## Given the skips above (delete-calendar, create-calendar and
-            ## set-displayname/stable-url support) a fresh calendar must have been
-            ## created.  If it wasn't, the server regressed on a feature it
-            ## advertises as supported - that is a failure, not a reason to skip,
-            ## which is how the pre-consolidation version of this test behaved
-            ## (make_calendar() simply raised).
-            assert created, "server advertises delete- and create-calendar, but no fresh calendar"
+            ## A fresh calendar is only guaranteed where deletion frees the URL.
+            ## On a trashbin server (Nextcloud) the calendar from the previous run
+            ## is reused, so only the creation cannot be checked there - but it
+            ## still has to be this test's own calendar, not a fallback.
+            if self.is_supported("delete-calendar.free-namespace"):
+                ## Here a reused calendar means the server regressed on a
+                ## feature it advertises - a failure, not a reason to skip.
+                assert created, "server frees the namespace on delete, but no fresh calendar"
+            else:
+                assert "pythoncaldav-async-props-test" in str(c.url)
             props = await c.get_properties([dav.DisplayName()])
             assert "AsyncYep" == props[dav.DisplayName.tag]
 
@@ -1957,6 +1962,13 @@ class AsyncFunctionalTestsBaseClass:
             props = await c.get_properties([dav.DisplayName()])
             assert props[dav.DisplayName.tag] == "hooray-async"
         finally:
+            ## Put the name back, as testSetCalendarProperties does, so a
+            ## calendar reused by the next run starts from "AsyncYep" and the
+            ## rename above is a real change rather than a no-op.
+            try:
+                await c.set_properties([dav.DisplayName("AsyncYep")])
+            except error.PropsetError:
+                pass
             await arelease_calendar(async_client, c, created)
 
     # ==================== Group F – Regressions ====================
