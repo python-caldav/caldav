@@ -1381,8 +1381,13 @@ nextcloud = {
     ## could not be reproduced.  No delay observed either, unlike Cyrus, so
     ## 'full' rather than the 'quirk' recorded there.
     'delete-calendar': {'support': 'full'},
-    'delete-calendar.free-namespace': { ## TODO: not caught by server-tester
-        'behaviour': "deleting a calendar moves it to a trashbin, thrashbin has to be manually 'emptied' from the web-ui before the namespace is freed up",
+    ## Describes a default install (ecloud).  The server-tester grades the
+    ## docker test server 'full' instead: setup_nextcloud.sh disables the
+    ## trashbin there, since soft-deleted objects keep their UIDs and break
+    ## re-runs.  A DELETE carrying 'X-NC-CalDAV-No-Trashbin: 1' skips the
+    ## trashbin, but only for a whole calendar, not for its objects.
+    'delete-calendar.free-namespace': {
+        'behaviour': "deleting a calendar moves it to a trashbin, the trashbin has to be manually 'emptied' from the web-ui before the namespace is freed up",
         'support': 'fragile',
     },
     # Calendar deletion goes to trashbin so delete-and-recreate doesn't give a
