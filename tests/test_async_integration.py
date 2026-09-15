@@ -1943,15 +1943,16 @@ class AsyncFunctionalTestsBaseClass:
             calendar_name="AsyncYep",
         )
         try:
-            ## Given the skips above (delete-calendar, create-calendar and
-            ## set-displayname/stable-url support) a fresh calendar must have been
-            ## created.  If it wasn't, the server regressed on a feature it
-            ## advertises as supported - that is a failure, not a reason to skip,
-            ## which is how the pre-consolidation version of this test behaved
-            ## (make_calendar() simply raised).
-            assert created, "server advertises delete- and create-calendar, but no fresh calendar"
-            props = await c.get_properties([dav.DisplayName()])
-            assert "AsyncYep" == props[dav.DisplayName.tag]
+            ## A fresh calendar is only guaranteed where deletion frees the URL.
+            ## On a trashbin server (Nextcloud) the calendar from the previous run
+            ## is reused, still carrying the "hooray-async" set below, so neither
+            ## the creation nor the creation-time name can be checked there.
+            if self.is_supported("delete-calendar.free-namespace"):
+                ## Here a reused calendar means the server regressed on a
+                ## feature it advertises - a failure, not a reason to skip.
+                assert created, "server frees the namespace on delete, but no fresh calendar"
+                props = await c.get_properties([dav.DisplayName()])
+                assert "AsyncYep" == props[dav.DisplayName.tag]
 
             await c.set_properties([dav.DisplayName("hooray-async")])
             props = await c.get_properties([dav.DisplayName()])
