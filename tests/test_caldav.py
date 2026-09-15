@@ -1693,9 +1693,15 @@ class RepeatedFunctionalTestsBaseClass:
         fe = self.caldav.features
 
         mismatches = fe.compare(fo)
-        assert not mismatches, "compatibility mismatches:\n" + "\n".join(
-            f"  {m['feature']}: declared {m['expected']!r}, observed {m['observed']!r}"
+        ## pytest's short test summary shows only the first line of the
+        ## message, so the first mismatch has to go on that line
+        lines = [
+            f"{m['feature']}: declared {m['expected']!r}, observed {m['observed']!r}"
             for m in mismatches
+        ]
+        assert not mismatches, (
+            f"{len(mismatches)} compatibility mismatch(es): {lines[0]}\n"
+            + "\n".join(f"  {line}" for line in lines)
         )
 
     def testSupport(self):
