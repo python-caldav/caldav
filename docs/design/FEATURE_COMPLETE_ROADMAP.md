@@ -1,6 +1,6 @@
 # Feature-Complete CalDAV Library Roadmap
 
-- **Created:** 2026-01-28, **updated** 2026-08-24
+- **Created:** 2026-01-28, **updated** 2026-09-15
 - **Author:** AI-generated and human-edited based on RFC analysis and open issues
 - **Status:** Planning document for work after issue [#599](https://github.com/python-caldav/caldav/issues/599) completion
 
@@ -198,13 +198,14 @@ The v3.2 roadmap covers basic scheduling improvements. Additional work for full 
 
 ### 2.3 Multiget Optimization
 
-- **Priority:** Medium
+- **Priority:** Low (the main part is done)
 - **Estimated effort:** 8 hours
 - **Related issue:** [#487](https://github.com/python-caldav/caldav/issues/487)
 
 **Tasks:**
-- [ ] Use `calendar-multiget` REPORT when server doesn't return object data in search
-- [x] Batch retrieval of multiple objects — **done**: `Collection.multiget()`, `AsyncDAVClient.calendar_multiget()`, shared body builder `_build_calendar_multiget_body()`.  The remaining gap is the [#487](https://github.com/python-caldav/caldav/issues/487) ask: using it *automatically* when a search response carried no object data
+- [x] Use `calendar-multiget` REPORT when server doesn't return object data in search — **done in v3.3.0**: `search()` loads all unloaded results with one REPORT via `Calendar._batch_load_objects()` (and its async twin), falling back to per-object GET if the REPORT fails
+- [x] Batch retrieval of multiple objects — **done**: `Collection.multiget()`, `AsyncDAVClient.calendar_multiget()`, shared body builder `_build_calendar_multiget_body()`
+- [ ] caldav-server-tester probe for servers omitting object data in search responses
 - [ ] Configurable batch sizes
 
 ---
@@ -603,7 +604,7 @@ features.
 - **Related issues:** [#690](https://github.com/python-caldav/caldav/issues/690), [#611](https://github.com/python-caldav/caldav/issues/611), [#696](https://github.com/python-caldav/caldav/issues/696)
 
 **Tasks:**
-- [ ] Make the HTTP transport an extra, so `caldav` can be installed without
+- [x] Make the HTTP transport an extra, so `caldav` can be installed without
       `niquests` ([#690](https://github.com/python-caldav/caldav/issues/690))
 - [ ] Settle the v4.0 HTTP-library question ([#611](https://github.com/python-caldav/caldav/issues/611))
 - [ ] Sync-mode support for the httpx family — async already has it ([#696](https://github.com/python-caldav/caldav/issues/696))
@@ -614,13 +615,16 @@ features.
 
 These open issues are bug reports, support questions or automated noise rather
 than roadmap items, and are deliberately left out:
-[#71](https://github.com/python-caldav/caldav/issues/71) (`add_event` can update as well),
-[#545](https://github.com/python-caldav/caldav/issues/545) (searches return full-day events of adjacent days),
-[#612](https://github.com/python-caldav/caldav/issues/612) (support question),
-[#624](https://github.com/python-caldav/caldav/issues/624) (GMX calendar creation),
-[#678](https://github.com/python-caldav/caldav/issues/678) (`change_attendee_status()` async safety — see 7.1),
-[#680](https://github.com/python-caldav/caldav/issues/680), [#681](https://github.com/python-caldav/caldav/issues/681), [#684](https://github.com/python-caldav/caldav/issues/684) (server-specific breakage reports),
-[#685](https://github.com/python-caldav/caldav/issues/685) (automated link-checker report).
+- [ ] [#71](https://github.com/python-caldav/caldav/issues/71) (`add_event` can update as well),
+- [ ] [#545](https://github.com/python-caldav/caldav/issues/545) (searches return full-day events of adjacent days),
+- [ ] [#612](https://github.com/python-caldav/caldav/issues/612) (support question),
+- [ ] [#624](https://github.com/python-caldav/caldav/issues/624) (GMX calendar creation),
+- [ ] [#678](https://github.com/python-caldav/caldav/issues/678) (`change_attendee_status()` async safety — see 7.1),
+- [ ] server-specific breakage reports ...
+  - [ ] [#680](https://github.com/python-caldav/caldav/issues/680)
+  - [x] [#681](https://github.com/python-caldav/caldav/issues/681)
+  - [ ] [#684](https://github.com/python-caldav/caldav/issues/684)
+- [x] [#685](https://github.com/python-caldav/caldav/issues/685) (automated link-checker report).
 
 Bugs get fixed when they get fixed; they do not need a phase.
 

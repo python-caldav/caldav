@@ -12,7 +12,11 @@ Changelogs prior to v3.0 are pruned, but are available in the v3.1 release
 
 This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html), though for pre-releases PEP 440 takes precedence.
 
-## [Unreleased]
+## [3.3.1] - 2026-09-16
+
+The two main things in this release:
+* Changes in the compatibility_hints.py needed for the upcoming caldav-server-tester 1.3.0 release.
+* Workarounds for broken behaviour in the Bedework 5 calendaring server.
 
 ### Added
 
@@ -21,9 +25,14 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 ### Changed
 
 * **Breaking:** the `bedework` compatibility profile is renamed `bedework_3_10_3`, and `bedework_5_0_0` is added.  `features: bedework` or `base: bedework` in a config now raises a `ValueError` naming both.
-* `compatibility_hints`: the `write-delay` server-peculiarity is turned around into the `synchronous-write` server-feature.  The delay (relevant for tests and the caldav server tester) should still be hand-configured.
+* `compatibility_hints`: the `write-delay` server-peculiarity is turned around into the `synchronous-write` server-feature.  While the caldav-server-tester does probe it, the delay (relevant for tests and the caldav server tester) should still be hand-configured.
+* `compatibility_hints`: new caldav-server-tester probes caused the Xandikos, SOGo, Radicale, OX, Zimbra, Bedework and Cyrus profiles to be regraded.  With `features: <server>` configured, `is_supported()` may give a different answer than in 3.3.0.
 
 ### Fixed
+
+* `make_calendar()` raised `MkcalendarError` when the server answered MKCALENDAR with `207 Multi-Status` instead of `201 Created`, even though the calendar was created.  A multistatus reporting no failure is now accepted (seen on Bedework 5).
+* An ETag delivered percent-encoded (`%22...%22`) in a PUT response is now decoded; previously every second `save()` of an object raised `ETagMismatchError` (seen on Bedework 5).
+* Expanded searches lost all but the last occurrence when the server answered with one `DAV:response` per recurrence instance, all under the same href.  The instances are now merged (seen on Bedework 5).
 
 * A bare `icalendar.Event`/`Todo`/`Journal` handed to caldav is wrapped in a `VCALENDAR` - that wrapper no longer gets a random RFC 7986 `UID` of its own (`icalendar.Calendar.new()` adds one).  Servers taking the calendar-level `UID` to be the identity of the calendar object resource (i.e. Stalwart) saw a brand new UID on every save and rejected it with `412 no-uid-conflict`.
 
