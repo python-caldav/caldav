@@ -6,7 +6,7 @@
 
 ## Overview
 
-This document outlines the work needed to make the caldav library a **feature-complete CalDAV client** per the relevant IETF RFCs. It is intended as a continuation of the roadmap in issue [#599](https://github.com/python-caldav/caldav/issues/599), covering features beyond v3.3.
+This document outlines the work needed to make the caldav library a **feature-complete CalDAV client** per the relevant IETF RFCs. It is intended as a continuation of the roadmap in issue [#599](https://github.com/python-caldav/caldav/issues/599), covering features beyond v3.2.
 
 ### Scope
 
@@ -37,7 +37,8 @@ TODO: add the MoU's signing date and a public link to the NLnet project page her
 as soon as they exist.  Until then the MoU figures below cannot be checked against
 anything outside this repository.
 
-**1. The MoU's estimates are more optimistic than this document's, deliberately so.**
+**1. The MoU's estimates are more optimistic than this document's**
+
 For the seven items below, the MoU line is at or below this roadmap's *low*
 estimate, and for several it is far below:
 
@@ -63,17 +64,18 @@ Documentation** and **7.3 Example Code and Tutorials**.  A further 4-hour line
 covers continued work on incoming issues and compatibility, which is ongoing
 maintenance rather than a roadmap item and has no counterpart in this document.
 
-The gap is not an error in either document.  The MoU funds *a useful increment* of
-each item, not each item to completion; this roadmap estimates each item to
-completion.  A funded line of 16 hours against an estimate of 40-60 means the ACL
-work will be started and partly delivered, not that it will be finished for 16
-hours.  Where an item cannot be usefully partly delivered, that will be noted on
-the item itself.
+There are two reasons for the differences, the first is that the
+maintainer is chronically optimistic, the second is that making *a
+useful increment* of a roadmap item may be much more cost-efficient
+thanmaking a complete implementation covering all corner cases and
+weird usage scenarios; this roadmap estimates each item to completion.
+A funded line of 16 hours against an estimate of 40-60 means the ACL
+work will be started and partly delivered, not that it will be
+finished for 16 hours.  Where an item cannot be usefully partly
+delivered, that will be noted on the item itself.
 
 **2. This roadmap begins after v3.3.0, and the v3.3.0 release is funded separately.**
-The MoU carries a 12-hour line for cutting that release.  It is not an item in this
-document, which is scoped as work *beyond* v3.3 — but it is charged to the same
-grant, and it comes first.
+When this roadmap was written, it was assumed that v3.3.0 would be released before the funding date.  Unfortuantely the review and QA process on previously written code took lots of efforts and revealed more improvement needs.  Testing each release against all the test servers (and handling changes in behaviour, both in the caldav library and on the server side) is also tedious work.  As the maintainer realized it would be impossible to land v3.3.0 before the signing date of the MoU, some funds have been allocated to the v3.3.0-release.
 
 **3. Some of this roadmap is deliberately outside the funded scope.**  Nothing in
 the MoU corresponds to:
