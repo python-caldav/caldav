@@ -34,16 +34,23 @@ Async usage::
 
 import warnings
 
-from calendaring_jmap import (
-    AsyncJMAPClient,
-    JMAPAuthError,
-    JMAPCalendar,
-    JMAPCalendarObject,
-    JMAPCapabilityError,
-    JMAPClient,
-    JMAPError,
-    JMAPMethodError,
-)
+try:
+    from calendaring_jmap import (
+        AsyncJMAPClient,
+        JMAPAuthError,
+        JMAPCalendar,
+        JMAPCalendarObject,
+        JMAPCapabilityError,
+        JMAPClient,
+        JMAPError,
+        JMAPMethodError,
+    )
+except ImportError as e:
+    raise ImportError(
+        "caldav.jmap requires the standalone calendaring-jmap package, which is "
+        "not installed.  Install it with `pip install caldav[jmap]` or "
+        "`pip install calendaring-jmap`."
+    ) from e
 
 warnings.warn(
     "caldav.jmap is deprecated; import from the standalone calendaring-jmap "
