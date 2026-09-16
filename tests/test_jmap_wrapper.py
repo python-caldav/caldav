@@ -50,6 +50,46 @@ class TestDeprecationWarning:
         assert "ok" in result.stdout
 
 
+class TestMissingDependency:
+    """caldav.jmap must explain itself when calendaring-jmap isn't installed,
+    not surface a bare ModuleNotFoundError."""
+
+    def test_import_without_calendaring_jmap_raises_helpful_error(self):
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                textwrap.dedent(
+                    """
+                    import sys
+
+                    class Blocker:
+                        def find_spec(self, fullname, path=None, target=None):
+                            if fullname.split(".")[0] == "calendaring_jmap":
+                                raise ImportError("blocked by test")
+                            return None
+
+                    sys.meta_path.insert(0, Blocker())
+
+                    try:
+                        import caldav.jmap
+                    except ImportError as e:
+                        assert "caldav[jmap]" in str(e)
+                        assert "calendaring-jmap" in str(e)
+                        print("ok")
+                    else:
+                        print("no ImportError raised")
+                    """
+                ),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        assert result.returncode == 0, result.stderr
+        assert "ok" in result.stdout
+
+
 class TestPublicSurface:
     """The wrapper must keep exactly the same __all__ as before extraction."""
 
