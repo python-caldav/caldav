@@ -14,11 +14,16 @@ import subprocess
 import sys
 import textwrap
 
-import calendaring_jmap
 import pytest
 
-import caldav.jmap as jmap
-from caldav.lib.error import AuthorizationError, DAVError
+## calendaring-jmap is the `jmap` extra, which `pip install -e ".[test]"` does
+## not bring in - skip rather than error the whole module out at collection.
+## It has to be resolved before caldav.jmap is imported, since that is what
+## caldav.jmap itself imports.
+calendaring_jmap = pytest.importorskip("calendaring_jmap")
+
+import caldav.jmap as jmap  # noqa: E402
+from caldav.lib.error import AuthorizationError, DAVError  # noqa: E402
 
 
 class TestDeprecationWarning:
