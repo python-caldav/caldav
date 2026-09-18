@@ -67,7 +67,7 @@ maintenance rather than a roadmap item and has no counterpart in this document.
 There are two reasons for the differences, the first is that the
 maintainer is chronically optimistic, the second is that making *a
 useful increment* of a roadmap item may be much more cost-efficient
-thanmaking a complete implementation covering all corner cases and
+than making a complete implementation covering all corner cases and
 weird usage scenarios; this roadmap estimates each item to completion.
 A funded line of 16 hours against an estimate of 40-60 means the ACL
 work will be started and partly delivered, not that it will be
@@ -75,7 +75,7 @@ finished for 16 hours.  Where an item cannot be usefully partly
 delivered, that will be noted on the item itself.
 
 **2. This roadmap begins after v3.3.0, and the v3.3.0 release is funded separately.**
-When this roadmap was written, it was assumed that v3.3.0 would be released before the funding date.  Unfortuantely the review and QA process on previously written code took lots of efforts and revealed more improvement needs.  Testing each release against all the test servers (and handling changes in behaviour, both in the caldav library and on the server side) is also tedious work.  As the maintainer realized it would be impossible to land v3.3.0 before the signing date of the MoU, some funds have been allocated to the v3.3.0-release.
+When this roadmap was written, it was assumed that v3.3.0 would be released before the funding date.  Unfortunately the review and QA process on previously written code took lots of efforts and revealed more improvement needs.  Testing each release against all the test servers (and handling changes in behaviour, both in the caldav library and on the server side) is also tedious work.  As the maintainer realized it would be impossible to land v3.3.0 before the signing date of the MoU, some funds have been allocated to the v3.3.0-release.
 
 **3. Some of this roadmap is deliberately outside the funded scope.**  Nothing in
 the MoU corresponds to:
