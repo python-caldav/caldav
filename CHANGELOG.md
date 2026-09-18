@@ -24,6 +24,7 @@ The JMAP support was declared experimental in 3.0, hence the changes below are d
 
 ### Changed
 
+* `caldav.lib.http_sync` no longer exports `AsyncSession` or `require_async_session()`.  They existed only for the async JMAP client, which has moved out of this library; `caldav.lib.http_libraries.required_library_error()` is kept, but has no caller in caldav today.
 * `caldav.jmap` no longer carries its own JMAP client implementation.  It's now a thin re-export of calendaring-jmap.
   * Old imports still work, including the submodule paths the 3.3 documentation used: `from caldav.jmap import JMAPClient`, `from caldav.jmap.error import JMAPAuthError`, `caldav.jmap.convert.jscal_to_ical` and so on all resolve to calendaring-jmap's own modules.
   * Importing `caldav.jmap` now emits a `DeprecationWarning`.  Use `from calendaring_jmap import JMAPClient` going forward; the wrapper will be removed in a future release.

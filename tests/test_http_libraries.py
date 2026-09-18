@@ -181,19 +181,26 @@ class TestSharedCandidateLists:
 
 class TestRequiredLibraryMessage:
     """A library that has no fallback needs different wording from "none of
-    them is installed" - the sync stack may well be running on requests."""
+    them is installed" - the sync stack may well be running on requests.
+
+    The helper has no caller in caldav today; its last one was
+    require_async_session(), removed when JMAP moved out into
+    calendaring-jmap.  It is kept because the condition it describes recurs
+    whenever a component is built on one library, and the example below is
+    written as a hypothetical rather than naming something that no longer
+    exists."""
 
     def test_names_the_required_library(self) -> None:
-        message = required_library_error("niquests", "the async JMAP client")
+        message = required_library_error("niquests", "some niquests-only component")
         assert "niquests" in message
-        assert "the async JMAP client" in message
+        assert "some niquests-only component" in message
 
     def test_does_not_claim_nothing_is_installed(self) -> None:
-        message = required_library_error("niquests", "the async JMAP client")
+        message = required_library_error("niquests", "some niquests-only component")
         assert "none of the supported" not in message
 
     def test_still_points_at_the_extra_and_the_docs(self) -> None:
-        message = required_library_error("niquests", "the async JMAP client")
+        message = required_library_error("niquests", "some niquests-only component")
         assert "caldav[niquests]" in message
         assert DOCS_URL in message
 
