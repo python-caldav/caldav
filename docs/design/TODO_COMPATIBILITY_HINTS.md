@@ -128,6 +128,30 @@ Possibly into three files (or four, with the original compatibility_hints.py bei
 
 There are three quite different things in the file now, the database of the feature names/flags, the database of server compatibility, and the match logic.
 
+## 8. A grouping node cannot derive from a child that has a default
+
+**Location**: `FeatureSet._derive_from_subfeatures`, the `continue` on
+`'default' in subfeature_info`
+
+A parent *with* its own default rightly ignores its children: it is an
+independent capability (`create-calendar` is supported even where
+`create-calendar.set-displayname` is not).  But the skip is applied from the
+other end too — a parent *without* a default, which exists only to group, still
+skips every child that has one, and a child having a default is precisely what
+marks it as independently probed.  So a grouping node whose children are all
+real, probed features derives nothing, falls through to `_default()`, and
+answers `full` whatever its children say.
+
+Six nodes have that shape today: `http`, `non-existing-raises-not-found`,
+`save-load.event.recurrences.exception`, `save-load.icalendar`,
+`url.encode-at` and `auth`.  `is_supported("non-existing-raises-not-found")`
+returns `full` on a server where both children are `unsupported`.
+
+**Fix**: skip a child with its own default only when the *parent* has one too.
+A grouping node should derive from all its children, real ones included.  The
+existing OR-semantics note on `principal-search` suggests the derivation rules
+want a second look at the same time.
+
 ## Ordering / dependencies
 
 Items 3 (old_flags) and 6 (rename) are independent and safe to do first.  Items 1, 2,
