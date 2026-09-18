@@ -12,6 +12,12 @@ Changelogs prior to v3.0 are pruned, but are available in the v3.1 release
 
 This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html), though for pre-releases PEP 440 takes precedence.
 
+## Unreleased
+
+### Added
+
+* `compatibility_hints`: `auth.www-authenticate` records whether the server sends the `WWW-Authenticate` header RFC7235 section 3.1 requires on a 401, and `auth.www-authenticate.usable-scheme` whether the schemes it offers include one this library implements.  A server failing either one never receives your password, and the 401 looks like a rejected one - so it needs `auth_type` pinned in the configuration, and a profile can now say which.  Probed by caldav-server-tester.  See https://github.com/python-caldav/caldav/issues/713.
+
 ## [3.3.1] - 2026-09-16
 
 The two main things in this release:

@@ -212,6 +212,27 @@ class FeatureSet:
             ),
             "default": {"support": "full"},
         },
+        "auth": {
+            ## Grouping node, needed so that the dotted children below resolve;
+            ## it carries no verdict of its own.  Note that it does not derive
+            ## one from those children either: _derive_from_subfeatures skips
+            ## every child that has an explicit default, which both of them do,
+            ## so is_supported("auth") answers from the type default whatever
+            ## the children say.  Five existing nodes have the same shape.
+        },
+        "auth.www-authenticate": {
+            "description": "Server includes a WWW-Authenticate header in a 401 response, as RFC7235 section 3.1 requires.  Without it a client has no scheme to negotiate with: this library builds no auth object, the supplied credentials are never transmitted, and the bare 401 surfaces as an AuthorizationError indistinguishable from a rejected password.  'unsupported' means a 401 came back carrying no WWW-Authenticate at all (Yahoo Calendar); the cure is to pin auth_type so the credentials go out unprompted - which scheme to pin is not something such a server tells you.  'unknown' means no 401 could be provoked, so the question was never put.  The behaviour field carries the challenge the server sent, where it sent one.",
+            "default": {"support": "full"},
+            "links": [
+                "https://datatracker.ietf.org/doc/html/rfc7235#section-3.1",
+                "https://github.com/python-caldav/caldav/issues/713",
+            ],
+        },
+        "auth.www-authenticate.usable-scheme": {
+            "description": "At least one authentication scheme the server offers in its WWW-Authenticate header is one this library implements (basic, digest or bearer - see _build_auth_from_401).  A server naming only Negotiate or NTLM sends a conformant challenge and is still unreachable by negotiation: the library raises NotImplementedError instead, which is the same dead end as a missing header one step later.  'unknown' means no challenge was seen to judge - either no 401 came back, or the 401 carried no header at all (see the parent feature).  The behaviour field lists the schemes offered.  This is a property of the server, not of the run: it does not take into account which credentials happen to be configured.",
+            "default": {"support": "full"},
+            "links": ["https://datatracker.ietf.org/doc/html/rfc7235#section-2.1"],
+        },
         "well-known": {
             "description": "Server handles /.well-known/caldav discovery as specified in RFC 6764 section 5. A conformant server should respond with a redirect (301/302/307/308) from /.well-known/caldav to the actual CalDAV endpoint. 'full' means a redirect was observed; 'unsupported' means the server returned 404 or similar; 'unknown' means the check was skipped (e.g. localhost or request failed). Note: well-known is often provided by infrastructure (reverse proxy/hosting) rather than the CalDAV server itself, so 'unknown' is the expected default for self-hosted or test setups.",
             "default": {"support": "unknown"},
