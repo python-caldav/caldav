@@ -2,22 +2,38 @@
 JMAP
 ====
 
-**The JMAP support in v3.0 is experimental, the API may change in v3.1 of the library**
+JMAP (:rfc:`8620`, JMAP Core, plus the JMAP Calendars protocol using
+:rfc:`8984` JSCalendar) support moved out of this library into the standalone
+`calendaring-jmap <https://pypi.org/project/calendaring-jmap/>`_ package.
+``caldav.jmap`` is now a thin wrapper around it, so the ``from caldav.jmap
+import get_jmap_client`` usage you may already have keeps working - it emits
+a ``DeprecationWarning`` and will be removed in a future release.  Import
+from ``calendaring_jmap`` directly in new code.
 
-The caldav library includes a JMAP client for servers that speak
-:rfc:`8620` (JMAP Core) and
-the JMAP Calendars protocol (``urn:ietf:params:jmap:calendars``), which uses
-:rfc:`8984` (JSCalendar) as its data format.
-It covers calendar listing, event CRUD, incremental sync, and task CRUD — the same
-operations as the CalDAV client — so the choice of protocol comes down to what the
-server supports.
+calendaring-jmap is an optional dependency; ``caldav.jmap`` raises an
+``ImportError`` without it.  Install it with:
+
+.. code-block:: shell
+
+   pip install caldav[jmap]
+
+The extra brings dependencies caldav itself does not have: calendaring-jmap
+requires ``icalendar>=7.3.0``, which is a higher floor than caldav's own
+``icalendar>6.0.0``, and it requires both ``niquests`` and ``requests``, so
+``requests`` arrives even in an environment built to avoid it (see
+:doc:`http-libraries`).
 
 .. note::
 
-   The JMAP client targets servers implementing
-   ``urn:ietf:params:jmap:calendars``.  Cyrus IMAP is the primary tested server.
-   Task support (``urn:ietf:params:jmap:tasks``) requires a separate server
-   capability; Cyrus does not implement it yet.
+   calendaring-jmap is licensed **AGPL-3.0-or-later**, while caldav itself
+   is ``GPL-3.0-or-later OR Apache-2.0``.  Pulling in the ``jmap`` extra
+   therefore brings the AGPL network-copyleft obligation into your
+   dependency tree, even though the import path is unchanged.  This does
+   not affect caldav installed without the extra.
+
+For the full client API, calendar/event/task operations, and conversion
+details, see `calendaring-jmap's own documentation
+<https://calendaring-jmap.readthedocs.io/en/stable/>`_.
 
 Quick Start
 ===========
@@ -35,390 +51,42 @@ Quick Start
         for cal in calendars:
             print(cal.name)
 
-The client keeps a persistent HTTP session, so connections are reused across
-requests.  The ``with`` block releases it at the end; if you would rather hold
-on to the client, call ``client.close()`` when you are done
-(``await client.aclose()`` on the async client).
+Configuration
+=============
 
-:func:`~caldav.jmap.get_jmap_client` reads configuration from the same sources
-as :func:`caldav.get_davclient`: explicit keyword arguments, then the
-``CALDAV_URL`` / ``CALDAV_USERNAME`` / ``CALDAV_PASSWORD`` environment variables,
-then a config file.  If none of those are set it returns ``None``.
-
-With environment variables or a config file in place, no arguments are needed:
+Unlike calendaring-jmap used standalone (which reads ``JMAP_*`` env vars and
+its own config file), :func:`~caldav.jmap.get_jmap_client` reads
+configuration from the same sources as :func:`caldav.get_davclient`: explicit
+keyword arguments, then ``CALDAV_URL`` / ``CALDAV_USERNAME`` /
+``CALDAV_PASSWORD`` environment variables, then a config file, the same file
+CalDAV settings live in, so both protocols can share one config. See
+:doc:`configfile` for file locations and section options.
 
 .. code-block:: python
 
     client = get_jmap_client()   # reads env vars or config file
 
-Authentication
-==============
-
-HTTP Basic auth is used when a ``username`` is supplied alongside a ``password``.
-Bearer token auth is used when only a ``password`` (token) is given and no username.
-You can also pass any ``requests``-compatible auth object directly via the ``auth``
-parameter (niquests is API-compatible with requests).
-
-.. code-block:: python
-
-    # Basic auth
-    client = get_jmap_client(
-        url="https://jmap.example.com/.well-known/jmap",
-        username="alice",
-        password="secret",
-    )
-
-    # Bearer token (password argument holds the token; no username supplied)
-    client = get_jmap_client(
-        url="https://jmap.example.com/.well-known/jmap",
-        password="my-bearer-token",
-    )
-
-    # Pre-built auth object
-    try:
-        from niquests.auth import HTTPBasicAuth
-    except ImportError:
-        from requests.auth import HTTPBasicAuth
-    client = get_jmap_client(
-        url="https://jmap.example.com/.well-known/jmap",
-        auth=HTTPBasicAuth("alice", "secret"),
-    )
-
-Unlike CalDAV, JMAP does not use a 401-challenge-retry dance — credentials are sent
-on every request, and a 401 or 403 is a hard :class:`~caldav.jmap.error.JMAPAuthError`.
-
-The client holds a persistent HTTP session so connections are reused between calls,
-so it is worth releasing it when you are done — either with a context manager or by
-calling ``close()`` (``aclose()`` on the async client):
-
-.. code-block:: python
-
-    with get_jmap_client(...) as client:
-        calendars = client.get_calendars()
-
-Listing Calendars
-=================
-
-.. code-block:: python
-
-    calendars = client.get_calendars()
-    for cal in calendars:
-        print(cal.id, cal.name, cal.color)
-
-Each item is a :class:`~caldav.jmap.objects.calendar.JMAPCalendar` dataclass.
-The fields are ``id``, ``name``, ``description``, ``color`` (CSS string or ``None``),
-``is_subscribed``, ``my_rights`` (dict), ``sort_order``, and ``is_visible``.
-
-Working with Events
-===================
-
-Events are passed as iCalendar strings — the same format used by the CalDAV client
-— so existing iCalendar-producing code works unchanged.
-
-The calendar-scoped API mirrors :class:`caldav.collection.Calendar`:
-
-.. code-block:: python
-
-    cal = calendars[0]
-
-    ical = (
-        "BEGIN:VCALENDAR\r\n"
-        "VERSION:2.0\r\n"
-        "PRODID:-//example//EN\r\n"
-        "BEGIN:VEVENT\r\n"
-        "UID:meeting-2026-01-15@example.com\r\n"
-        "SUMMARY:Team meeting\r\n"
-        "DTSTART:20260115T100000Z\r\n"
-        "DTEND:20260115T110000Z\r\n"
-        "END:VEVENT\r\n"
-        "END:VCALENDAR\r\n"
-    )
-
-    # Add an event to this calendar — returns the server-assigned JMAP event ID
-    event_id = cal.add_event(ical)
-
-    # Look up an event by its iCalendar UID — returns a VCALENDAR string
-    ical_str = cal.get_object_by_uid("meeting-2026-01-15@example.com")
-
-If you already have a JMAP event ID (from :meth:`~caldav.jmap.client.JMAPClient.get_sync_token`
-results, for example), you can also use the lower-level client methods directly:
-
-.. code-block:: python
-
-    # Fetch by JMAP event ID — returns a VCALENDAR string
-    ical_str = client.get_event(event_id)
-
-    # Update — pass a complete VCALENDAR string with the changes applied
-    updated = ical_str.replace("Team meeting", "Team standup")
-    client.update_event(event_id, updated)
-
-    # Delete
-    client.delete_event(event_id)
-
-Searching Events
-================
-
-Use :meth:`~caldav.jmap.objects.calendar.JMAPCalendar.search` on a calendar object,
-mirroring the CalDAV :meth:`caldav.collection.Calendar.search` interface:
-
-.. code-block:: python
-
-    cal = calendars[0]
-
-    # All events in this calendar
-    results = cal.search(event=True)
-
-    # Time-range filter: events that overlap [start, end)
-    #   start — only events ending after this datetime
-    #   end   — only events starting before this datetime
-    results = cal.search(
-        event=True,
-        start="2026-01-01T00:00:00",
-        end="2026-02-01T00:00:00",
-    )
-
-    # Free-text search across title, description, locations, and participants
-    results = cal.search(text="standup")
-
-    for ical_str in results:
-        print(ical_str)
-
-All parameters are optional; omitting all returns every event in the calendar.
-Results are returned as a list of VCALENDAR strings.  The search uses a single batched
-JMAP request (``CalendarEvent/query`` + result reference into ``CalendarEvent/get``),
-so only one HTTP round-trip is made regardless of how many events match.
-
-Incremental Sync
-================
-
-JMAP's state-based sync lets you fetch only what changed since the last call, without
-scanning the full calendar:
-
-.. code-block:: python
-
-    # Record the current state
-    token = client.get_sync_token()
-
-    # ... time passes, events are created/modified/deleted ...
-
-    # Fetch only the delta
-    added, modified, deleted, token = client.get_objects_by_sync_token(token)
-
-    for ical_str in added:
-        print("New:", ical_str)
-    for ical_str in modified:
-        print("Updated:", ical_str)
-    for event_id in deleted:
-        print("Deleted ID:", event_id)
-
-``added`` and ``modified`` are lists of VCALENDAR strings.  ``deleted`` is a list
-of event IDs — the objects no longer exist on the server, so their data cannot be
-fetched.  The fourth element is the server's new sync token; chaining straight
-from it avoids the race window a separate
-:meth:`~caldav.jmap.client.JMAPClient.get_sync_token` round-trip would open.
-
-:meth:`~caldav.jmap.client.JMAPClient.get_objects_by_sync_token` raises
-:class:`~caldav.jmap.error.JMAPMethodError` (``error_type="serverPartialFail"``) if
-the server truncated the change list (``hasMoreChanges: true``).  If this happens,
-call :meth:`~caldav.jmap.client.JMAPClient.get_sync_token` to establish a fresh
-baseline and re-sync from scratch.
-
-A typical pattern is to persist the token between runs:
-
-.. code-block:: python
-
-    import json
-    import pathlib
-
-    TOKEN_FILE = pathlib.Path("sync_token.json")
-
-    def load_token():
-        if TOKEN_FILE.exists():
-            return json.loads(TOKEN_FILE.read_text())["token"]
-        return None
-
-    def save_token(token):
-        TOKEN_FILE.write_text(json.dumps({"token": token}))
-
-    token = load_token()
-    if token is None:
-        token = client.get_sync_token()
-        save_token(token)
-    else:
-        added, modified, deleted, token = client.get_objects_by_sync_token(token)
-        # process changes ...
-        save_token(token)
-
-Tasks
-=====
-
-Task support requires a server implementing ``urn:ietf:params:jmap:tasks``
-(the JMAP Tasks specification).  If the server does not support this capability,
-:meth:`~caldav.jmap.client.JMAPClient.get_task_lists` will raise
-:class:`~caldav.jmap.error.JMAPMethodError`.
-
-.. code-block:: python
-
-    # List task lists
-    task_lists = client.get_task_lists()
-    for tl in task_lists:
-        print(tl.id, tl.name)
-
-    task_list_id = task_lists[0].id
-
-    # Create a task — title is required; everything else is optional
-    task_id = client.create_task(
-        task_list_id,
-        title="Review pull request",
-        due="2026-02-15T17:00:00",
-        time_zone="Europe/Oslo",
-    )
-
-    # Fetch — returns a JMAPTask dataclass
-    task = client.get_task(task_id)
-    print(task.title)          # str
-    print(task.progress)       # "needs-action" (default)
-    print(task.percent_complete)  # 0 (default)
-
-    # Update — pass a partial patch dict using JMAP wire property names
-    client.update_task(task_id, {"progress": "completed", "percentComplete": 100})
-
-    # Delete
-    client.delete_task(task_id)
-
-Optional kwargs for :meth:`~caldav.jmap.client.JMAPClient.create_task`:
-``description``, ``start``, ``due``, ``time_zone``, ``estimated_duration``,
-``percent_complete``, ``progress``, ``priority``.
-
-Each item from :meth:`~caldav.jmap.client.JMAPClient.get_task` is a
-:class:`~caldav.jmap.objects.task.JMAPTask` with fields ``id``, ``uid``,
-``task_list_id``, ``title``, ``description``, ``start``, ``due``, ``time_zone``,
-``estimated_duration``, ``percent_complete``, ``progress``, ``progress_updated``,
-``priority``, ``is_draft``, ``keywords``, ``recurrence_rules``,
-``recurrence_overrides``, ``alerts``, ``participants``, ``color``, ``privacy``.
-
-Each item from :meth:`~caldav.jmap.client.JMAPClient.get_task_lists` is a
-:class:`~caldav.jmap.objects.task.JMAPTaskList` with fields ``id``, ``name``,
-``description``, ``color``, ``is_subscribed``, ``my_rights``, ``sort_order``,
-``time_zone``, ``role`` (``"inbox"``, ``"trash"``, or ``None``).
-
-Async API
-=========
-
-:class:`~caldav.jmap.async_client.AsyncJMAPClient` mirrors every method of
-:class:`~caldav.jmap.client.JMAPClient` as a coroutine.  Use it as an
-``async with`` context manager (sync ``with`` is not supported):
-
-.. code-block:: python
-
-    import asyncio
-    from caldav.jmap import get_async_jmap_client
-
-    async def main():
-        async with get_async_jmap_client(
-            url="https://jmap.example.com/.well-known/jmap",
-            username="alice",
-            password="secret",
-        ) as client:
-            calendars = await client.get_calendars()
-            for cal in calendars:
-                print(cal.name)
-
-            # Calendar-scoped methods return coroutines when the calendar
-            # was obtained from an async client
-            cal = calendars[0]
-            results = await cal.search(event=True)
-            ical_str = await cal.get_object_by_uid("some-uid@example.com")
-            event_id = await cal.add_event(ical)
-
-    asyncio.run(main())
-
-All methods — event CRUD, search, sync, and task operations — are available as
-coroutines with identical signatures.  The async client uses ``niquests.AsyncSession``
-internally; ``niquests`` is a required dependency.
-
 Error Handling
 ==============
 
-All JMAP errors extend :class:`~caldav.jmap.error.JMAPError`, which itself extends
-:class:`~caldav.lib.error.DAVError`.  Existing CalDAV error handlers will catch JMAP
-errors too if they catch ``DAVError``.
+JMAP errors raised through ``caldav.jmap`` (:class:`~caldav.jmap.JMAPError`
+and subclasses) are also :class:`caldav.lib.error.DAVError` subclasses, so
+existing ``except DAVError`` handling around CalDAV code catches JMAP errors
+too:
 
 .. code-block:: python
 
     from caldav.lib.error import DAVError
-    from caldav.jmap.error import JMAPAuthError, JMAPCapabilityError, JMAPMethodError
 
     try:
-        event_id = client.create_event(calendar_id, ical)
-    except JMAPAuthError:
-        print("Authentication failed (401/403)")
-    except JMAPCapabilityError:
-        print("Server does not support urn:ietf:params:jmap:calendars")
-    except JMAPMethodError as e:
-        print(f"Server rejected the request: {e.error_type} — {e.reason}")
+        client.get_calendars()
     except DAVError as e:
-        print(f"Protocol error: {e}")
-
-The three specific error classes:
-
-* :class:`~caldav.jmap.error.JMAPAuthError` — HTTP 401 or 403.  JMAP sends no
-  401-challenge, so this is always a hard failure.
-* :class:`~caldav.jmap.error.JMAPCapabilityError` — the server's Session object
-  does not advertise ``urn:ietf:params:jmap:calendars``.
-* :class:`~caldav.jmap.error.JMAPMethodError` — a JMAP method call returned an error
-  response.  The ``error_type`` attribute holds the :rfc:`8620` error type string
-  (e.g. ``"invalidArguments"``, ``"notFound"``, ``"stateMismatch"``).
-
-Configuration File
-==================
-
-The JMAP client reads from the same configuration file as the CalDAV client.
-Connection parameters use the ``caldav_`` prefix:
-
-.. code-block:: yaml
-
-   ---
-   default:
-       caldav_url: https://jmap.example.com/.well-known/jmap
-       caldav_username: alice
-       caldav_password: secret
-
-With the file in place, no arguments are needed:
-
-.. code-block:: python
-
-    client = get_jmap_client()
-
-JMAP and CalDAV settings can coexist in the same file using separate named sections:
-
-.. code-block:: yaml
-
-   ---
-   default:
-       caldav_url: https://caldav.example.com
-       caldav_username: alice
-       caldav_password: secret
-
-   jmap:
-       caldav_url: https://jmap.example.com/.well-known/jmap
-       caldav_username: alice
-       caldav_password: secret
-       protocol: jmap
-
-.. code-block:: python
-
-    from caldav.jmap import get_jmap_client
-    client = get_jmap_client(config_section="jmap")
-
-See :doc:`configfile` for file locations, section inheritance, and other options.
+        print(f"JMAP request failed: {e}")
 
 API Reference
 =============
 
-* :doc:`caldav/jmap_client` — :class:`~caldav.jmap.client.JMAPClient` and
-  :class:`~caldav.jmap.async_client.AsyncJMAPClient` full method reference
-* :doc:`caldav/jmap_objects` — :class:`~caldav.jmap.objects.calendar.JMAPCalendar`,
-  :class:`~caldav.jmap.objects.event.JMAPEvent`,
-  :class:`~caldav.jmap.objects.task.JMAPTask`,
-  :class:`~caldav.jmap.objects.task.JMAPTaskList`, and error classes
+* :doc:`caldav/jmap_wrapper`: the wrapper's own surface (:func:`~caldav.jmap.get_jmap_client`,
+  :func:`~caldav.jmap.get_async_jmap_client`, and the ``DAVError``-compatible error classes)
+* `calendaring-jmap reference docs <https://calendaring-jmap.readthedocs.io/en/stable/>`_:
+  full ``JMAPClient``/``AsyncJMAPClient`` method reference, ``JMAPCalendar``, ``JMAPCalendarObject``

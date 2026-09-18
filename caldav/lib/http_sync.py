@@ -9,22 +9,13 @@ The async httpx-family selection is a different set of libraries in a
 different order and lives in :mod:`caldav.async_davclient`.
 """
 
-from typing import Any
-
 from caldav.lib.http_libraries import (
     SYNC_CANDIDATES,
     no_http_library_error,
-    required_library_error,
 )
 
 USE_NIQUESTS = False
 USE_REQUESTS = False
-
-## niquests' AsyncSession has no requests equivalent, so it is None on the
-## fallback.  The JMAP async client is the only thing that needs it; it goes
-## through require_async_session() to get a decent error rather than a
-## TypeError on None.
-AsyncSession: Any = None
 
 try:
     import niquests as requests
@@ -49,31 +40,7 @@ except ImportError:
     except ImportError as e:
         raise ImportError(no_http_library_error(SYNC_CANDIDATES)) from e
 
-if USE_NIQUESTS:
-    ## Deliberately its own try: an ImportError here must not fall through to
-    ## the requests branch and flip USE_NIQUESTS off on an install that does
-    ## have niquests.  Only the async JMAP client needs it.
-    try:
-        from niquests import AsyncSession
-    except ImportError:
-        ## Old niquests without AsyncSession: leave it None, and let
-        ## require_async_session() explain it if anything asks for it.
-        pass
-
-
-def require_async_session() -> Any:
-    """Return niquests' ``AsyncSession``, or explain why there isn't one.
-
-    Used by the async JMAP client, which is built on it and has no httpx
-    equivalent to fall back to.
-    """
-    if AsyncSession is None:
-        raise ImportError(required_library_error("niquests", "The async JMAP client"))
-    return AsyncSession
-
-
 __all__ = [
-    "AsyncSession",
     "AuthBase",
     "CaseInsensitiveDict",
     "HTTPBasicAuth",
@@ -81,5 +48,4 @@ __all__ = [
     "USE_NIQUESTS",
     "USE_REQUESTS",
     "requests",
-    "require_async_session",
 ]
