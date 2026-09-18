@@ -14,12 +14,20 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 
 ## [Unreleased]
 
+### Breaking changes
+
+The JMAP support was declared experimental in 3.0, hence the changes below are deemed allowable in a minor release:
+
+* **Breaking:** `caldav.jmap` no longer works on a plain `pip install caldav`.  The implementation moved to the standalone [calendaring-jmap](https://pypi.org/project/calendaring-jmap/) package, which is an optional dependency - install `caldav[jmap]` (or `calendaring-jmap`).  Importing `caldav.jmap` without it raises an `ImportError` saying so.
+* **Breaking:** `caldav[jmap]` brings dependencies caldav itself does not have.  calendaring-jmap 1.1.0 requires `icalendar>=7.3.0` (caldav asks only for `icalendar>6.0.0`, so the extra raises the floor), and it requires both `niquests` and `requests` outright - so `requests` is installed even in the environments that deliberately avoid it, see [HTTP Library Configuration](https://caldav.readthedocs.io/stable/http-libraries.html).
+* **Breaking:** the JMAP code is licensed differently from the rest of caldav.  caldav is `GPL-3.0-or-later OR Apache-2.0`; calendaring-jmap is `AGPL-3.0-or-later`.  The import path is unchanged, so this is easy to miss: if you relied on the Apache-2.0 option, note that the JMAP code you get through `caldav[jmap]` carries the AGPL network-copyleft obligation.  Nothing changes for users of caldav without the `jmap` extra.
+
 ### Changed
 
-* `caldav.jmap` no longer carries its own JMAP client implementation. It's now a thin re-export of the standalone [calendaring-jmap](https://pypi.org/project/calendaring-jmap/) package, added as an optional dependency (`caldav[jmap]`).
-  * Old imports still work: `from caldav.jmap import JMAPClient` etc. are unchanged.
-  * They now emit a `DeprecationWarning`. Use `from calendaring_jmap import JMAPClient` going forward.
-  * `get_jmap_client()`/`get_async_jmap_client()` still resolve configuration the same way `get_davclient()` does.
+* `caldav.jmap` no longer carries its own JMAP client implementation.  It's now a thin re-export of calendaring-jmap.
+  * Old imports still work, including the submodule paths the 3.3 documentation used: `from caldav.jmap import JMAPClient`, `from caldav.jmap.error import JMAPAuthError`, `caldav.jmap.convert.jscal_to_ical` and so on all resolve to calendaring-jmap's own modules.
+  * Importing `caldav.jmap` now emits a `DeprecationWarning`.  Use `from calendaring_jmap import JMAPClient` going forward; the wrapper will be removed in a future release.
+  * `get_jmap_client()`/`get_async_jmap_client()` still resolve configuration the same way `get_davclient()` does - that is the one thing the wrapper adds over importing calendaring-jmap directly.
   * JMAP errors remain catchable as `DAVError`.
 
 ## [3.3.1] - 2026-09-16
