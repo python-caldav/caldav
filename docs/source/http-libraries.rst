@@ -71,10 +71,11 @@ document.  Install one of them (``pip install niquests`` is the recommended
 choice), or, if you are declaring caldav as a dependency of your own project,
 depend on ``caldav[niquests]`` rather than plain ``caldav``.
 
-Note that the async *JMAP* client is the one exception to the fallback chain:
-it is built on niquests' ``AsyncSession`` and has no httpx equivalent, so
-``caldav.jmap`` requires niquests regardless of what the CalDAV clients are
-using.
+Note that none of this governs JMAP.  The JMAP client moved out into the
+standalone `calendaring-jmap <https://pypi.org/project/calendaring-jmap/>`_
+package, which picks its own HTTP library and requires both niquests and
+requests outright; ``caldav.jmap`` is only a wrapper around it.  See
+:doc:`jmap`.
 
 Recommendations
 ---------------
