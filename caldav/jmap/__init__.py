@@ -32,6 +32,8 @@ Async usage::
         calendars = await client.get_calendars()
 """
 
+import importlib
+import sys
 import warnings
 
 try:
@@ -51,6 +53,32 @@ except ImportError as e:
         "not installed.  Install it with `pip install caldav[jmap]` or "
         "`pip install calendaring-jmap`."
     ) from e
+
+## calendaring-jmap mirrors the submodule layout caldav.jmap used to have,
+## so alias each public submodule into place.  Without this, the import line
+## the v3.3 documentation spelled out - `from caldav.jmap.error import
+## JMAPAuthError` - dies with ModuleNotFoundError instead of going through
+## the DeprecationWarning below.  sys.modules is what `from X.Y import Z`
+## consults; globals() is what makes `caldav.jmap.error` work as an
+## attribute, which the import machinery would otherwise have set itself.
+for _name in (
+    "async_client",
+    "client",
+    "constants",
+    "convert",
+    "convert.ical_to_jscal",
+    "convert.jscal_to_ical",
+    "error",
+    "objects",
+    "objects.calendar",
+    "objects.calendar_object",
+    "session",
+):
+    _module = importlib.import_module(f"calendaring_jmap.{_name}")
+    sys.modules[f"{__name__}.{_name}"] = _module
+    if "." not in _name:
+        globals()[_name] = _module
+del _name, _module
 
 warnings.warn(
     "caldav.jmap is deprecated; import from the standalone calendaring-jmap "

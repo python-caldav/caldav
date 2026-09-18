@@ -9,6 +9,7 @@ still read caldav's config sources, and are JMAP errors still catchable as
 DAVError.
 """
 
+import importlib
 import subprocess
 import sys
 import textwrap
@@ -88,6 +89,58 @@ class TestMissingDependency:
         )
         assert result.returncode == 0, result.stderr
         assert "ok" in result.stdout
+
+
+class TestSubmoduleCompat:
+    """The old submodule layout must keep resolving.
+
+    ``caldav.jmap`` used to be a package with submodules, and the v3.3
+    documentation told people to write e.g. ``from caldav.jmap.error import
+    JMAPAuthError``.  calendaring-jmap mirrors that layout 1:1, so the
+    wrapper aliases each public submodule rather than letting those imports
+    die with ModuleNotFoundError - which is not a deprecation path, just a
+    break.
+    """
+
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "async_client",
+            "client",
+            "constants",
+            "convert",
+            "convert.ical_to_jscal",
+            "convert.jscal_to_ical",
+            "error",
+            "objects",
+            "objects.calendar",
+            "objects.calendar_object",
+            "session",
+        ],
+    )
+    def test_submodule_is_calendaring_jmap_s(self, name):
+        assert importlib.import_module(f"caldav.jmap.{name}") is importlib.import_module(
+            f"calendaring_jmap.{name}"
+        )
+
+    def test_documented_error_import_works(self):
+        """docs/source/jmap.rst in v3.3 spelled this one out verbatim."""
+        from caldav.jmap.error import (
+            JMAPAuthError,
+            JMAPCapabilityError,
+            JMAPMethodError,
+        )
+
+        assert JMAPAuthError is calendaring_jmap.JMAPAuthError
+        assert JMAPCapabilityError is calendaring_jmap.JMAPCapabilityError
+        assert JMAPMethodError is calendaring_jmap.JMAPMethodError
+
+    def test_submodule_attribute_access_works(self):
+        """``import caldav.jmap.error`` must also bind the attribute."""
+        import caldav.jmap.error
+
+        assert caldav.jmap.error.JMAPError is calendaring_jmap.JMAPError
+        assert jmap.session.fetch_session is calendaring_jmap.session.fetch_session
 
 
 class TestPublicSurface:
