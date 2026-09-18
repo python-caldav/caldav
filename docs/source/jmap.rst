@@ -6,13 +6,30 @@ JMAP (:rfc:`8620`, JMAP Core, plus the JMAP Calendars protocol using
 :rfc:`8984` JSCalendar) support moved out of this library into the standalone
 `calendaring-jmap <https://pypi.org/project/calendaring-jmap/>`_ package.
 ``caldav.jmap`` is now a thin wrapper around it, so the ``from caldav.jmap
-import get_jmap_client`` usage you may already have keeps working unchanged.
+import get_jmap_client`` usage you may already have keeps working - it emits
+a ``DeprecationWarning`` and will be removed in a future release.  Import
+from ``calendaring_jmap`` directly in new code.
 
-Install it with:
+calendaring-jmap is an optional dependency; ``caldav.jmap`` raises an
+``ImportError`` without it.  Install it with:
 
 .. code-block:: shell
 
    pip install caldav[jmap]
+
+The extra brings dependencies caldav itself does not have: calendaring-jmap
+requires ``icalendar>=7.3.0``, which is a higher floor than caldav's own
+``icalendar>6.0.0``, and it requires both ``niquests`` and ``requests``, so
+``requests`` arrives even in an environment built to avoid it (see
+:doc:`http-libraries`).
+
+.. note::
+
+   calendaring-jmap is licensed **AGPL-3.0-or-later**, while caldav itself
+   is ``GPL-3.0-or-later OR Apache-2.0``.  Pulling in the ``jmap`` extra
+   therefore brings the AGPL network-copyleft obligation into your
+   dependency tree, even though the import path is unchanged.  This does
+   not affect caldav installed without the extra.
 
 For the full client API, calendar/event/task operations, and conversion
 details, see `calendaring-jmap's own documentation
