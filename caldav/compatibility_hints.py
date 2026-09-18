@@ -212,6 +212,19 @@ class FeatureSet:
             ),
             "default": {"support": "full"},
         },
+        "auth": {
+            ## Grouping node for what the server says about authentication.  No
+            ## default of its own: nothing probes "authentication" as a whole -
+            ## a run that gets this far has authenticated successfully.
+        },
+        "auth.www-authenticate": {
+            "description": "Server includes a WWW-Authenticate header in a 401 response, as RFC7235 section 3.1 requires.  Without it a client has no scheme to negotiate with: this library builds no auth object, the supplied credentials are never transmitted, and the bare 401 surfaces as an AuthorizationError indistinguishable from a rejected password.  'unsupported' means a 401 came back carrying no WWW-Authenticate at all (Yahoo Calendar); the cure is to configure auth_type='basic' so the credentials go out unprompted.  'unknown' means no 401 could be provoked, so the question was never put.  The behaviour field carries the authentication schemes offered, where there were any.",
+            "default": {"support": "full"},
+            "links": [
+                "https://datatracker.ietf.org/doc/html/rfc7235#section-3.1",
+                "https://github.com/python-caldav/caldav/issues/713",
+            ],
+        },
         "well-known": {
             "description": "Server handles /.well-known/caldav discovery as specified in RFC 6764 section 5. A conformant server should respond with a redirect (301/302/307/308) from /.well-known/caldav to the actual CalDAV endpoint. 'full' means a redirect was observed; 'unsupported' means the server returned 404 or similar; 'unknown' means the check was skipped (e.g. localhost or request failed). Note: well-known is often provided by infrastructure (reverse proxy/hosting) rather than the CalDAV server itself, so 'unknown' is the expected default for self-hosted or test setups.",
             "default": {"support": "unknown"},
