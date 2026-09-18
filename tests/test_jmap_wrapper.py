@@ -9,6 +9,7 @@ still read caldav's config sources, and are JMAP errors still catchable as
 DAVError.
 """
 
+import importlib
 import subprocess
 import sys
 import textwrap
@@ -66,7 +67,11 @@ class TestMissingDependency:
                     class Blocker:
                         def find_spec(self, fullname, path=None, target=None):
                             if fullname.split(".")[0] == "calendaring_jmap":
-                                raise ImportError("blocked by test")
+                                ## as the real import system reports it: a
+                                ## ModuleNotFoundError carrying the name
+                                raise ModuleNotFoundError(
+                                    "blocked by test", name=fullname
+                                )
                             return None
 
                     sys.meta_path.insert(0, Blocker())
@@ -76,6 +81,7 @@ class TestMissingDependency:
                     except ImportError as e:
                         assert "caldav[jmap]" in str(e)
                         assert "calendaring-jmap" in str(e)
+                        assert ">=1.1.0" in str(e)
                         print("ok")
                     else:
                         print("no ImportError raised")
@@ -88,6 +94,109 @@ class TestMissingDependency:
         )
         assert result.returncode == 0, result.stderr
         assert "ok" in result.stdout
+
+
+class TestSubmoduleCompat:
+    """The old submodule layout must keep resolving.
+
+    ``caldav.jmap`` used to be a package with submodules, and the v3.3
+    documentation told people to write e.g. ``from caldav.jmap.error import
+    JMAPAuthError``.  calendaring-jmap mirrors that layout 1:1, so the
+    wrapper aliases each public submodule rather than letting those imports
+    die with ModuleNotFoundError - which is not a deprecation path, just a
+    break.
+    """
+
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "async_client",
+            "client",
+            "constants",
+            "convert",
+            "convert.ical_to_jscal",
+            "convert.jscal_to_ical",
+            "error",
+            "objects",
+            "objects.calendar",
+            "objects.calendar_object",
+            "session",
+        ],
+    )
+    def test_submodule_is_calendaring_jmap_s(self, name):
+        assert importlib.import_module(f"caldav.jmap.{name}") is importlib.import_module(
+            f"calendaring_jmap.{name}"
+        )
+
+    def test_documented_error_import_works(self):
+        """docs/source/jmap.rst in v3.3 spelled this one out verbatim."""
+        from caldav.jmap.error import (
+            JMAPAuthError,
+            JMAPCapabilityError,
+            JMAPMethodError,
+        )
+
+        assert JMAPAuthError is calendaring_jmap.JMAPAuthError
+        assert JMAPCapabilityError is calendaring_jmap.JMAPCapabilityError
+        assert JMAPMethodError is calendaring_jmap.JMAPMethodError
+
+    def test_submodule_attribute_access_works(self):
+        """``import caldav.jmap.error`` must also bind the attribute."""
+        import caldav.jmap.error
+
+        assert caldav.jmap.error.JMAPError is calendaring_jmap.JMAPError
+        assert jmap.session.fetch_session is calendaring_jmap.session.fetch_session
+
+
+class TestBrokenInstall:
+    """A calendaring-jmap that is present but broken must not be reported as
+    missing - that diagnosis sends the reader off to install what they already
+    have."""
+
+    def _run(self, blocked):
+        return subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                textwrap.dedent(
+                    f"""
+                    import sys
+
+                    class Blocker:
+                        def find_spec(self, fullname, path=None, target=None):
+                            if fullname == {blocked!r}:
+                                raise ModuleNotFoundError(
+                                    "blocked by test", name={blocked!r}
+                                )
+                            return None
+
+                    sys.meta_path.insert(0, Blocker())
+
+                    try:
+                        import caldav.jmap
+                    except ImportError as e:
+                        print("ERROR:" + str(e))
+                        print("NAME:" + str(e.name))
+                    """
+                ),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+
+    def test_broken_submodule_is_not_reported_as_not_installed(self):
+        result = self._run("calendaring_jmap.session")
+        assert result.returncode == 0, result.stderr
+        lines = result.stdout.splitlines()
+        error = [line for line in lines if line.startswith("ERROR:")]
+        name = [line for line in lines if line.startswith("NAME:")]
+        assert error, result.stdout
+        ## the original error is re-raised untouched, naming the module that
+        ## actually failed - not caldav.jmap's "go and install it" message
+        assert name == ["NAME:calendaring_jmap.session"], name
+        assert "is not installed" not in error[0]
+        assert "caldav[jmap]" not in error[0]
 
 
 class TestPublicSurface:

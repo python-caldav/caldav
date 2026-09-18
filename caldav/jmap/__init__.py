@@ -32,7 +32,23 @@ Async usage::
         calendars = await client.get_calendars()
 """
 
+import importlib
+import sys
 import warnings
+
+_SUBMODULES = (
+    "async_client",
+    "client",
+    "constants",
+    "convert",
+    "convert.ical_to_jscal",
+    "convert.jscal_to_ical",
+    "error",
+    "objects",
+    "objects.calendar",
+    "objects.calendar_object",
+    "session",
+)
 
 try:
     from calendaring_jmap import (
@@ -45,11 +61,39 @@ try:
         JMAPError,
         JMAPMethodError,
     )
+
+    ## calendaring-jmap mirrors the submodule layout caldav.jmap used to have,
+    ## so alias each public submodule into place.  Without this, the import
+    ## line the v3.3 documentation spelled out - `from caldav.jmap.error import
+    ## JMAPAuthError` - dies with ModuleNotFoundError instead of going through
+    ## the DeprecationWarning below.  sys.modules is what `from X.Y import Z`
+    ## consults; globals() is what makes `caldav.jmap.error` work as an
+    ## attribute, which the import machinery would otherwise have set itself.
+    for _name in _SUBMODULES:
+        _module = importlib.import_module(f"calendaring_jmap.{_name}")
+        sys.modules[f"{__name__}.{_name}"] = _module
+        if "." not in _name:
+            globals()[_name] = _module
+    del _name, _module
 except ImportError as e:
+    ## Python removes a half-imported caldav.jmap from sys.modules, but not the
+    ## aliases the loop above may already have registered.  Left behind, a
+    ## later `from caldav.jmap.error import ...` would resolve against a
+    ## package that never finished importing.  (calendaring-jmap 1.1.0 imports
+    ## all of these eagerly, so the loop cannot currently be the thing that
+    ## fails - this is here for the version that makes one of them lazy.)
+    for _name in _SUBMODULES:
+        sys.modules.pop(f"{__name__}.{_name}", None)
+    ## Only the top-level package being absent means "not installed".  Anything
+    ## raised from inside calendaring-jmap is a broken install or a version
+    ## mismatch, and saying "install it" sends the reader after something they
+    ## already have.
+    if e.name != "calendaring_jmap":
+        raise
     raise ImportError(
-        "caldav.jmap requires the standalone calendaring-jmap package, which is "
-        "not installed.  Install it with `pip install caldav[jmap]` or "
-        "`pip install calendaring-jmap`."
+        "caldav.jmap requires the standalone calendaring-jmap package "
+        "(>=1.1.0), which is not installed.  Install it with "
+        "`pip install caldav[jmap]` or `pip install 'calendaring-jmap>=1.1.0'`."
     ) from e
 
 warnings.warn(
