@@ -9,9 +9,10 @@ from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, NoReturn
+from urllib.parse import urlparse
 
 from lxml import etree
 
@@ -98,6 +99,11 @@ class BaseDAVClient(ABC):
     auth_type: str | None = None
     features: FeatureSet | None = None
     url: Any = None  # URL object, set by subclasses
+
+    # Set once _build_unprompted_basic_auth() has guessed Basic for a bare 401
+    # (see _should_attempt_unprompted_basic); never cleared, so the guess is
+    # only ever made once per client.
+    _unprompted_basic_tried: bool = False
 
     def calendar(self, **kwargs):
         """Returns a calendar object.
@@ -247,8 +253,94 @@ class BaseDAVClient(ABC):
                 "supported authentication methods: basic, digest, bearer"
             )
 
+    def _response_scheme(self, response: Any, url_obj: URL) -> str:
+        """Scheme the response actually came back over, falling back to the
+        requested URL and then the client's base URL.
+
+        Both niquests/requests and httpx set ``response.url`` to the final
+        URL after following any redirects - checking that instead of the
+        originally requested ``url_obj`` means a 401 that arrived after an
+        https-to-http redirect is judged by where it actually landed, not by
+        where the request started.
+        """
+        response_url = getattr(response, "url", None)
+        if response_url:
+            scheme = urlparse(str(response_url)).scheme
+            if scheme:
+                return scheme
+        return url_obj.scheme or getattr(self.url, "scheme", "")
+
+    def _should_attempt_unprompted_basic(
+        self, status_code: int, headers: Any, get_scheme: Callable[[], str]
+    ) -> bool:
+        """Return True when a bare 401 (no WWW-Authenticate) warrants a one-shot
+        Basic-auth guess (issue #713).
+
+        RFC 7235 section 3.1 requires a 401 to name a scheme; a server that omits
+        it (e.g. Yahoo Calendar) leaves nothing to negotiate, so
+        ``_should_negotiate_auth`` never fires and the credentials are never
+        sent.  Absent a declared scheme there is no way to pick the *right*
+        one, so this guesses Basic - once, and only:
+
+        - over TLS: never send credentials unprompted towards a plaintext
+          endpoint.
+        - when nothing already picked a scheme: neither ``auth_type`` (which
+          builds the auth object eagerly at init) nor a prior negotiation or
+          guess (which would have already set ``self.auth``) took effect.
+        - when both a username and a password are configured: there is
+          nothing to put in the header otherwise.
+        - only once per client: ``_unprompted_basic_tried`` stays set even
+          after a wrong guess is unwound (see ``_raise_authorization_error``),
+          so a failed guess is not retried on every subsequent request.
+
+        ``get_scheme`` is a callback rather than a plain string so the (lazy,
+        occasionally fragile - see URL.__getattr__) scheme lookup only runs on
+        the rare unchallenged-401 path, not on every request.
+        """
+        if not (
+            status_code == 401
+            and "WWW-Authenticate" not in headers
+            and not self.auth
+            and self.auth_type is None
+            and not self._unprompted_basic_tried
+            and self.username is not None
+            and self.password is not None
+        ):
+            return False
+        return get_scheme() == "https"
+
+    def _build_unprompted_basic_auth(self) -> None:
+        """Build a Basic auth object without a server challenge.
+
+        See ``_should_attempt_unprompted_basic`` for the guard. Sets
+        ``self.auth_type`` so the guess is visible on introspection, same as
+        if the caller had passed ``auth_type="basic"`` themselves.  Marks
+        ``_unprompted_basic_tried`` so the guess is never repeated, even after
+        ``_raise_authorization_error`` unwinds it below.
+        """
+        log.warning(
+            "Server sent 401 without a WWW-Authenticate header (RFC7235 "
+            "violation) - retrying once with Basic auth since no auth_type "
+            "was configured. Pass auth_type='basic' explicitly to silence "
+            "this warning."
+        )
+        self._unprompted_basic_tried = True
+        self.auth_type = "basic"
+        self.build_auth_object()
+
     def _raise_authorization_error(self, url_str: str, reason_source: Any) -> NoReturn:
-        """Raise AuthorizationError, extracting reason from reason_source.reason."""
+        """Raise AuthorizationError, extracting reason from reason_source.reason.
+
+        If this failure is the unprompted-Basic guess coming back wrong (issue
+        #713), unwind it first: clear ``self.auth``/``self.auth_type`` so a
+        *later* request from the same client can still negotiate a
+        server-declared scheme, rather than being permanently stuck sending a
+        guess that has already proven wrong. ``_unprompted_basic_tried`` stays
+        set, so the guess itself is not repeated.
+        """
+        if self._unprompted_basic_tried and self.auth_type == "basic":
+            self.auth = None
+            self.auth_type = None
         try:
             reason = reason_source.reason
         except AttributeError:
