@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, NoReturn
 
@@ -246,6 +246,55 @@ class BaseDAVClient(ABC):
                 "The server does not provide any of the currently "
                 "supported authentication methods: basic, digest, bearer"
             )
+
+    def _should_attempt_unprompted_basic(
+        self, status_code: int, headers: Any, get_scheme: Callable[[], str]
+    ) -> bool:
+        """Return True when a bare 401 (no WWW-Authenticate) warrants a one-shot
+        Basic-auth guess (issue #713).
+
+        RFC 7235 section 3.1 requires a 401 to name a scheme; a server that omits
+        it (e.g. Yahoo Calendar) leaves nothing to negotiate, so
+        ``_should_negotiate_auth`` never fires and the credentials are never
+        sent.  Absent a declared scheme there is no way to pick the *right*
+        one, so this guesses Basic - once, and only:
+
+        - over TLS: never send credentials unprompted towards a plaintext
+          endpoint.
+        - when nothing already picked a scheme: neither ``auth_type`` (which
+          builds the auth object eagerly at init) nor a prior negotiation or
+          guess (which would have already set ``self.auth``) took effect.
+
+        ``get_scheme`` is a callback rather than a plain string so the (lazy,
+        occasionally fragile - see URL.__getattr__) scheme lookup only runs on
+        the rare unchallenged-401 path, not on every request.
+        """
+        if not (
+            status_code == 401
+            and "WWW-Authenticate" not in headers
+            and not self.auth
+            and self.auth_type is None
+            and self.username is not None
+            and self.password is not None
+        ):
+            return False
+        return get_scheme() == "https"
+
+    def _build_unprompted_basic_auth(self) -> None:
+        """Build a Basic auth object without a server challenge.
+
+        See ``_should_attempt_unprompted_basic`` for the guard. Sets
+        ``self.auth_type`` so the guess is visible on introspection, same as
+        if the caller had passed ``auth_type="basic"`` themselves.
+        """
+        log.warning(
+            "Server sent 401 without a WWW-Authenticate header (RFC7235 "
+            "violation) - retrying once with Basic auth since no auth_type "
+            "was configured. Pass auth_type='basic' explicitly to silence "
+            "this warning."
+        )
+        self.auth_type = "basic"
+        self.build_auth_object()
 
     def _raise_authorization_error(self, url_str: str, reason_source: Any) -> NoReturn:
         """Raise AuthorizationError, extracting reason from reason_source.reason."""

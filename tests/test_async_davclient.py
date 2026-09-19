@@ -1159,6 +1159,59 @@ class TestAsyncRateLimiting:
                 await client.request("/")
 
 
+class TestAsyncUnpromptedBasicAuth:
+    """Issue #713, async side. Mirrors TestUnpromptedBasicAuth in test_caldav_unit.py."""
+
+    def _make_response(self, status_code, headers=None):
+        resp = MagicMock()
+        resp.status_code = status_code
+        resp.headers = headers or {}
+        resp.reason = "Unauthorized" if status_code == 401 else "OK"
+        resp.reason_phrase = resp.reason
+        return resp
+
+    @pytest.mark.asyncio
+    async def test_401_without_www_authenticate_retries_with_basic_over_tls(self):
+        client = AsyncDAVClient(url="https://cal.example.com/", username="user", password="pass")
+        client.session.request = AsyncMock(
+            side_effect=[self._make_response(401), self._make_response(200)]
+        )
+        response = await client.request("/")
+        assert response.status == 200
+        assert client.session.request.call_count == 2
+        assert client.auth_type == "basic"
+
+    @pytest.mark.asyncio
+    async def test_401_without_www_authenticate_over_plain_http_does_not_guess(self):
+        client = AsyncDAVClient(url="http://cal.example.com/", username="user", password="pass")
+        client.session.request = AsyncMock(return_value=self._make_response(401))
+        with pytest.raises(error.AuthorizationError):
+            await client.request("/")
+        assert client.session.request.call_count == 1
+        assert client.auth is None
+
+    @pytest.mark.asyncio
+    async def test_401_without_www_authenticate_does_not_loop_forever(self):
+        client = AsyncDAVClient(url="https://cal.example.com/", username="user", password="pass")
+        client.session.request = AsyncMock(return_value=self._make_response(401))
+        with pytest.raises(error.AuthorizationError):
+            await client.request("/")
+        assert client.session.request.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_explicit_auth_type_is_not_overridden(self):
+        client = AsyncDAVClient(
+            url="https://cal.example.com/",
+            username="user",
+            password="pass",
+            auth_type="digest",
+        )
+        client.session.request = AsyncMock(return_value=self._make_response(401))
+        with pytest.raises(error.AuthorizationError):
+            await client.request("/")
+        assert client.auth_type == "digest"
+
+
 class TestAsyncPrincipalCalendar:
     """``principal.calendar()`` must work with async clients.
 

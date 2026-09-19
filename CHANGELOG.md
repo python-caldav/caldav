@@ -12,6 +12,12 @@ Changelogs prior to v3.0 are pruned, but are available in the v3.1 release
 
 This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html), though for pre-releases PEP 440 takes precedence.
 
+## [Unreleased]
+
+### Fixed
+
+* A `401` response with no `WWW-Authenticate` header (RFC 7235 §3.1 requires one, but e.g. Yahoo Calendar omits it) left nothing to negotiate with: `build_auth_object()` was never reached, the credentials were never sent, and the bare 401 surfaced as `AuthorizationError` - indistinguishable from a genuinely rejected password.  Over TLS, with no `auth_type`/`auth` already configured, the client now guesses `basic` once before giving up.  See #713.
+
 ## [3.3.1] - 2026-09-16
 
 The two main things in this release:
