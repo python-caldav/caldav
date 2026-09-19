@@ -3071,6 +3071,126 @@ class TestRateLimiting:
                 client.request("/")
 
 
+class TestUnpromptedBasicAuth:
+    """Issue #713: a 401 without WWW-Authenticate leaves nothing to negotiate with,
+    so build_auth_object() is never reached and the credentials are never sent
+    (Yahoo Calendar does this). Over TLS, with no auth_type/auth pinned, the client
+    should guess Basic once rather than give up silently.
+    """
+
+    def _make_response(self, status_code, headers=None, body=b""):
+        r = mock.MagicMock()
+        r.status_code = status_code
+        r.headers = headers or {}
+        r.reason = "Unauthorized" if status_code == 401 else "OK"
+        r.content = body
+        r.text = body.decode() if body else ""
+        return r
+
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def test_401_without_www_authenticate_retries_with_basic_over_tls(self, mocked):
+        """No WWW-Authenticate, https, no auth_type configured: retry once with Basic."""
+        ok = self._make_response(200)
+        mocked.side_effect = [self._make_response(401), ok]
+        client = DAVClient(url="https://cal.example.com/", username="user", password="pass")
+        response = client.request("/")
+        assert response.status == 200
+        assert mocked.call_count == 2
+        assert client.auth_type == "basic"
+        second_call_kwargs = mocked.call_args_list[1].kwargs
+        assert second_call_kwargs["auth"] is not None
+
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def test_401_without_www_authenticate_over_plain_http_does_not_guess(self, mocked):
+        """Same server behaviour, but plain http:// - never send credentials unprompted."""
+        mocked.return_value = self._make_response(401)
+        client = DAVClient(url="http://cal.example.com/", username="user", password="pass")
+        with pytest.raises(error.AuthorizationError):
+            client.request("/")
+        assert mocked.call_count == 1
+        assert client.auth is None
+
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def test_401_without_www_authenticate_does_not_loop_forever(self, mocked):
+        """If the Basic guess also gets a bare 401, raise rather than retry again."""
+        mocked.return_value = self._make_response(401)
+        client = DAVClient(url="https://cal.example.com/", username="user", password="pass")
+        with pytest.raises(error.AuthorizationError):
+            client.request("/")
+        assert mocked.call_count == 2
+
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def test_explicit_auth_type_is_not_overridden(self, mocked):
+        """auth_type set explicitly already builds the auth object at init time,
+        so this path must never touch it."""
+        mocked.return_value = self._make_response(401)
+        client = DAVClient(
+            url="https://cal.example.com/",
+            username="user",
+            password="pass",
+            auth_type="digest",
+        )
+        with pytest.raises(error.AuthorizationError):
+            client.request("/")
+        assert client.auth_type == "digest"
+
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def test_explicit_auth_object_is_not_overridden(self, mocked):
+        """An auth= object passed in directly (no auth_type) must also suppress the guess."""
+        mocked.return_value = self._make_response(401)
+        client = DAVClient(
+            url="https://cal.example.com/",
+            username="user",
+            password="pass",
+            auth=object(),
+        )
+        with pytest.raises(error.AuthorizationError):
+            client.request("/")
+        assert mocked.call_count == 1
+        assert client.auth_type is None
+
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def test_401_with_www_authenticate_still_negotiates_normally(self, mocked):
+        """A 401 that DOES carry WWW-Authenticate must still take the normal
+        negotiation branch, not the new unprompted-basic one."""
+        ok = self._make_response(200)
+        mocked.side_effect = [self._make_response(401, {"WWW-Authenticate": 'Basic realm="x"'}), ok]
+        client = DAVClient(url="https://cal.example.com/", username="user", password="pass")
+        response = client.request("/")
+        assert response.status == 200
+        assert mocked.call_count == 2
+        # normal negotiation builds self.auth but (pre-existing behaviour) never sets
+        # self.auth_type - unlike the unprompted-basic guess, which does.
+        assert client.auth is not None
+        assert client.auth_type is None
+
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def test_failed_guess_does_not_stick_and_does_not_retry(self, mocked):
+        """A wrong guess is unwound (self.auth/auth_type reset), so a later request from
+        the same client can still negotiate a server-declared scheme - but the guess
+        itself is not repeated a second time."""
+        mocked.return_value = self._make_response(401)
+        client = DAVClient(url="https://cal.example.com/", username="user", password="pass")
+        with pytest.raises(error.AuthorizationError):
+            client.request("/")
+        assert mocked.call_count == 2
+        assert client.auth is None
+        assert client.auth_type is None
+        assert client._unprompted_basic_tried is True
+
+        # A later request on the same client, now facing a real challenge, still negotiates.
+        mocked.reset_mock()
+        ok = self._make_response(200)
+        mocked.side_effect = [
+            self._make_response(401, {"WWW-Authenticate": 'Digest realm="x"'}),
+            ok,
+        ]
+        response = client.request("/")
+        assert response.status == 200
+        assert client.auth is not None
+        assert client.auth_type is None  # negotiation doesn't set auth_type, only auth
+
+
 class TestAsyncProbeResponseNotReturnedAsReal:
     """§2.15: async _async_request: when the probe GET for issue-#158 workaround does
     not receive a 401+WWW-Authenticate response, the original exception must be re-raised.
