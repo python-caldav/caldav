@@ -18,6 +18,10 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 
 * `compatibility_hints`: `auth.www-authenticate` records whether the server sends the `WWW-Authenticate` header RFC7235 section 3.1 requires on a 401, and `auth.www-authenticate.usable-scheme` whether the schemes it offers include one this library implements.  A server failing either one never receives your password, and the 401 looks like a rejected one - so it needs `auth_type` pinned in the configuration, and a profile can now say which.  Probed by caldav-server-tester.  See https://github.com/python-caldav/caldav/issues/713.
 
+### Fixed
+
+* A `401` response with no `WWW-Authenticate` header (RFC 7235 §3.1 requires one, but e.g. Yahoo Calendar omits it) left nothing to negotiate with: `build_auth_object()` was never reached, the credentials were never sent, and the bare 401 surfaced as `AuthorizationError` - indistinguishable from a genuinely rejected password.  Over TLS, with no `auth_type`/`auth` already configured, the client now guesses `basic` once before giving up.  See https://github.com/python-caldav/caldav/issues/713.
+
 ## [3.3.1] - 2026-09-16
 
 The two main things in this release:
