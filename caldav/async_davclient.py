@@ -157,7 +157,11 @@ class AsyncDAVClient(BaseDAVClient):
             username: Username for authentication.
             password: Password for authentication.
             auth: Custom auth object (httpx.Auth or niquests AuthBase).
-            auth_type: Auth type ('bearer', 'digest', or 'basic').
+            auth_type: Auth type ('bearer', 'digest', or 'basic'). If left unset and a 401
+                comes back with no WWW-Authenticate header at all (a server bug per RFC 7235 -
+                seen on Yahoo Calendar), the client guesses 'basic' once, but only over TLS;
+                pin auth_type explicitly to avoid the guess or to reach such a server over
+                plain HTTP.
             timeout: Request timeout in seconds.
             ssl_verify_cert: SSL certificate verification (bool or CA bundle path).
             ssl_cert: Client SSL certificate (path or (cert, key) tuple).
@@ -503,6 +507,15 @@ class AsyncDAVClient(BaseDAVClient):
             # Set multiplexing to False BEFORE retry to prevent infinite loop
             self.features.set_feature("http.multiplexing", False)
             return await self._async_request(str(url_obj), method, body, headers)
+
+        # Handle a 401 with no WWW-Authenticate at all (issue #713): guess Basic once
+        elif self._should_attempt_unprompted_basic(
+            r.status_code,
+            r.headers,
+            lambda: self._response_scheme(r, url_obj),
+        ):
+            self._build_unprompted_basic_auth()
+            return await self._async_request(url, method, body, headers)
 
         # Raise AuthorizationError for 401/403 responses
         if response.status in (401, 403):

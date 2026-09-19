@@ -204,7 +204,7 @@ class DAVClient(BaseDAVClient):
           auth: A niquests.auth.AuthBase or requests.auth.AuthBase object, may be passed instead of username/password.  username and password should be passed as arguments or in the URL
           timeout and ssl_verify_cert are passed to niquests.request.
           if auth_type is given, the auth-object will be auto-created. Auth_type can be ``bearer``, ``digest`` or ``basic``. Things are likely to work without ``auth_type`` set, but if nothing else the number of requests to the server will be reduced, and some servers may require this to squelch warnings of unexpected HTML delivered from the
-           server etc.
+           server etc.  If left unset and a 401 comes back with no WWW-Authenticate header at all (a server bug per RFC 7235 - seen on Yahoo Calendar), the client guesses ``basic`` once, but only over TLS; pin auth_type explicitly to avoid the guess or to reach such a server over plain HTTP.
           ssl_verify_cert can be the path of a CA-bundle or False.
           huge_tree: boolean, enable XMLParser huge_tree to handle big events, beware of security issues, see : https://lxml.de/api/lxml.etree.XMLParser-class.html
           features: The default, None, will in version 2.x enable all existing workarounds in the code for backward compability.  Otherwise it will expect a FeatureSet or a dict as defined in `caldav.compatibility_hints` and use that to figure out what workarounds are needed.
@@ -850,6 +850,15 @@ class DAVClient(BaseDAVClient):
         # Handle 401: negotiate auth then retry
         if self._should_negotiate_auth(r.status_code, r_headers):
             self._build_auth_from_401(r_headers["WWW-Authenticate"])
+            return self._sync_request(url, method, body, headers)
+
+        # Handle a 401 with no WWW-Authenticate at all (issue #713): guess Basic once
+        if self._should_attempt_unprompted_basic(
+            r.status_code,
+            r_headers,
+            lambda: self._response_scheme(r, url_obj),
+        ):
+            self._build_unprompted_basic_auth()
             return self._sync_request(url, method, body, headers)
 
         # Raise AuthorizationError for 401/403 after auth attempt
