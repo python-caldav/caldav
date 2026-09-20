@@ -689,6 +689,11 @@ hence, "fragile".
             "description": "Server provides the calendar-user-address-set property on the principal (RFC6638 section 2.4.1), used to identify a user's email/URI for scheduling purposes. When unsupported, calendar_user_address_set() raises NotFoundError.",
             "links": ["https://datatracker.ietf.org/doc/html/rfc6638#section-2.4.1"],
         },
+        "scheduling.calendar-user-address-set.populated": {
+            "description": "The calendar-user-address-set property actually carries at least one address.  A server can advertise the property (so scheduling.calendar-user-address-set is supported) and still return it empty - Xandikos does, while advertising calendar-auto-schedule and serving schedule-inbox/outbox.  When unsupported, the principal has no calendar user address of its own, and RFC 6638 section 2.4.1 has the URI of the principal resource used instead: that is what get_vcal_address() returns and what add_organizer() and add_attendee() put in ORGANIZER/ATTENDEE.",
+            "links": ["https://datatracker.ietf.org/doc/html/rfc6638#section-2.4.1"],
+            "default": {"support": "full"},
+        },
         "scheduling.mailbox.inbox-delivery": {
             "description": "Server delivers incoming scheduling REQUEST messages to the attendee's schedule-inbox (RFC6638 section 4.1). See also scheduling.auto-schedule for whether the server additionally auto-processes invitations into the attendee's calendar.",
             "links": [
@@ -1333,6 +1338,15 @@ xandikos = {
 
     ## this only applies for very simple installations
     "auto-connect.url": {"domain": "localhost", "scheme": "http", "basepath": "/"},
+
+    ## Scheduling is implemented (calendar-auto-schedule in the DAV header,
+    ## schedule-inbox/outbox served), but the principal has no address of its
+    ## own: the property is returned as an empty <C:calendar-user-address-set/>.
+    ## Measured on 0.4.7, 2026-09-20.
+    "scheduling.calendar-user-address-set.populated": {
+        "support": "unsupported",
+        "behaviour": "the property is advertised but empty, so the principal URL is used as the calendar user address",
+    },
 }
 
 ## This seems to work as of version 3.5.4 of Radicale.

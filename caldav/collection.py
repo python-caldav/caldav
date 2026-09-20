@@ -647,7 +647,13 @@ class Principal(DAVObject):
         cn = self.get_display_name()
         ids = self.calendar_user_address_set()
         cutype = self.get_property(cdav.CalendarUserType())
-        ret = vCalAddress(ids[0])
+        ## A server may advertise calendar-user-address-set and still return it
+        ## empty (Xandikos does).  RFC 6638 section 2.4.1: "In the event that a
+        ## user has no well-defined identifier for his calendar user address,
+        ## the URI of his principal resource can be used."  An *absent*
+        ## property is a different thing - that means the user is not enabled
+        ## for scheduling at all, and calendar_user_address_set() raises.
+        ret = vCalAddress(next((i for i in ids if i), None) or str(self.url))
         ret.params["cn"] = vText(cn)
         ret.params["cutype"] = vText(cutype)
         return ret
@@ -666,7 +672,9 @@ class Principal(DAVObject):
         assert not [x for x in addresses_el if x.tag != dav.Href().tag]
         addresses = sorted(list(addresses_el), key=lambda x: -int(x.get("preferred", 0)))
         cutype = await self.get_property(cdav.CalendarUserType())
-        ret = vCalAddress(addresses[0].text)
+        ## empty-but-present property: the principal URL is the address,
+        ## see the comment in the sync get_vcal_address()
+        ret = vCalAddress(next((a.text for a in addresses if a.text), None) or str(self.url))
         ret.params["cn"] = vText(cn)
         ret.params["cutype"] = vText(cutype)
         return ret
