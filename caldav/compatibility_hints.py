@@ -1333,18 +1333,6 @@ xandikos = {
 
     ## this only applies for very simple installations
     "auto-connect.url": {"domain": "localhost", "scheme": "http", "basepath": "/"},
-
-    "scheduling": {"support": "unsupported"},
-
-    ## Every collection reports and takes the same hardcoded component list
-    ## (xandikos/web.py), and the supported-calendar-component-set property has
-    ## no setter - yet MKCALENDAR still answers 201, though RFC 4791 section
-    ## 5.3.1 has it fail when a property cannot be set.  Measured on 0.4.5,
-    ## 2026-09-15.
-    "create-calendar.with-supported-component-types": {
-        "support": "unsupported",
-        "behaviour": "the component set is ignored: a VTODO-only calendar advertises VEVENT, VTODO, VJOURNAL, VFREEBUSY and VAVAILABILITY, and a VEVENT can be saved to it",
-    },
 }
 
 ## This seems to work as of version 3.5.4 of Radicale.
