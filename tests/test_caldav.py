@@ -1757,9 +1757,18 @@ class RepeatedFunctionalTestsBaseClass:
         org = event.icalendar_component.get("organizer")
         assert org is not None, "ORGANIZER should be set when add_organizer() uses principal"
         principal_addresses = self.principal.calendar_user_address_set()
-        assert any(addr in str(org) for addr in principal_addresses), (
-            f"ORGANIZER {org!r} should contain one of the principal's addresses {principal_addresses!r}"
-        )
+        if self.is_supported("scheduling.calendar-user-address-set.populated"):
+            assert any(addr in str(org) for addr in principal_addresses), (
+                f"ORGANIZER {org!r} should contain one of the principal's addresses {principal_addresses!r}"
+            )
+        else:
+            ## The server advertises the property but leaves it empty, so the
+            ## principal has no address of its own and RFC 6638 section 2.4.1
+            ## has its URL stand in.
+            assert str(self.principal.url) in str(org), (
+                f"ORGANIZER {org!r} should fall back to the principal URL {self.principal.url!r} "
+                f"when the address set is empty"
+            )
 
     def testIssue399ChangeAttendeeStatusUsernameEmailFallback(self):
         """change_attendee_status() works when the attendee is identified
