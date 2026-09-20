@@ -1270,6 +1270,11 @@ class CalendarObjectResource(DAVObject):
         if isinstance(attendee, Principal):
             try:
                 attendee_emails = attendee.calendar_user_address_set()
+                ## Served but empty: the principal has no address of its own,
+                ## so it was invited under its URL - see get_vcal_address()
+                ## and RFC 6638 section 2.4.1.
+                if not attendee_emails:
+                    attendee_emails = [str(attendee.url)]
             except error.NotFoundError:
                 ## Server does not expose calendar-user-address-set (RFC6638 §2.4.1).
                 ## Fall back to client.username if it looks like an email address.

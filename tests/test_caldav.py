@@ -1757,9 +1757,46 @@ class RepeatedFunctionalTestsBaseClass:
         org = event.icalendar_component.get("organizer")
         assert org is not None, "ORGANIZER should be set when add_organizer() uses principal"
         principal_addresses = self.principal.calendar_user_address_set()
-        assert any(addr in str(org) for addr in principal_addresses), (
-            f"ORGANIZER {org!r} should contain one of the principal's addresses {principal_addresses!r}"
-        )
+        populated = self.is_supported("scheduling.calendar-user-address-set.populated", str)
+        if populated == "unknown":
+            pytest.skip("nobody has probed whether this server populates the address set")
+        if populated != "unsupported":
+            assert any(addr in str(org) for addr in principal_addresses), (
+                f"ORGANIZER {org!r} should contain one of the principal's addresses {principal_addresses!r}"
+            )
+        else:
+            ## The server advertises the property but leaves it empty, so the
+            ## principal has no address of its own and RFC 6638 section 2.4.1
+            ## has its URL stand in.
+            assert str(self.principal.url) in str(org), (
+                f"ORGANIZER {org!r} should fall back to the principal URL {self.principal.url!r} "
+                f"when the address set is empty"
+            )
+
+    def testChangeAttendeeStatusWithEmptyAddressSet(self):
+        """add_attendee(principal) then change_attendee_status(principal) on a
+        server whose calendar-user-address-set is served but empty.
+
+        The library writes the principal URL as the ATTENDEE (RFC6638 section
+        2.4.1), so it has to accept that same URL back when asked to change
+        the PARTSTAT - otherwise it builds an event it cannot itself update.
+        """
+        self.skip_unless_support("scheduling.calendar-user-address-set")
+        if (
+            self.is_supported("scheduling.calendar-user-address-set.populated", str)
+            != "unsupported"
+        ):
+            pytest.skip("server populates calendar-user-address-set; nothing to fall back to")
+
+        cal = self._fixCalendar()
+        event = cal.save_event(ev1)
+        event.add_attendee(self.principal)
+        event.save()
+
+        event.change_attendee_status(self.principal, PARTSTAT="ACCEPTED")
+        attendee = event.icalendar_component.get("attendee")
+        assert attendee is not None
+        assert str(attendee.params.get("PARTSTAT")) == "ACCEPTED"
 
     def testIssue399ChangeAttendeeStatusUsernameEmailFallback(self):
         """change_attendee_status() works when the attendee is identified
