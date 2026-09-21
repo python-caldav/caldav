@@ -2496,6 +2496,123 @@ infomaniak = {
     'sync-token.delete': {'support': 'ungraceful', 'behaviour': "418 I'm a teapot"},
 }
 
+## Yahoo Calendar (https://caldav.calendar.yahoo.com/), a hosted service.
+## Probed 2026-09-21 with the caldav-server-tester, see
+## https://github.com/python-caldav/caldav/issues/713 - the profile in that
+## issue was run with CALDAV_AUTH_TYPE=basic, because the server cannot be
+## reached at all without pinning the auth type (see auth.www-authenticate).
+yahoo = {
+    'auto-connect.url': {
+        'scheme': 'https',
+        'domain': 'caldav.calendar.yahoo.com',
+        'basepath': '/',
+    },
+    ## The 401 carries a JSON error body and no WWW-Authenticate header of any
+    ## kind, so there is no scheme to negotiate with: the credentials are never
+    ## transmitted and the bare 401 surfaces as an AuthorizationError.  Pass
+    ## auth_type="basic" (verified to work) to get through.
+    'auth.www-authenticate': {
+        'support': 'unsupported',
+        'behaviour': 'the 401 carries no WWW-Authenticate header at all, only a JSON error body',
+    },
+    ## No challenge was ever seen, so there is nothing to judge the offered
+    ## schemes by - the parent above is the whole story.
+    'auth.www-authenticate.usable-scheme': {'support': 'unknown'},
+    ## Redirects to https://caldav.calendar.yahoo.com/principals/
+    'well-known': {'support': 'full'},
+    'get-current-user-principal.has-calendar': {'support': 'full'},
+
+    ## Colour and order are stored and read back (the colour name is
+    ## normalised: 'blue' comes back as '#0252D4').  Stated explicitly since
+    ## the feature default is the weaker 'fragile'.
+    'calendar-color': {'support': 'full'},
+    'calendar-color.hex': {'support': 'full'},
+    'calendar-order': {'support': 'full'},
+
+    ## MKCALENDAR works and the display name given at creation time sticks,
+    ## but the collection is served under a numeric id of the server's own
+    ## choosing rather than under the requested name - so a client has to
+    ## adopt the canonical URL it is handed back.
+    'create-calendar.stable-url': {
+        'support': 'unsupported',
+        'behaviour': "the created calendar's canonical URL segment is a numeric id (e.g. '869'), not the requested name",
+    },
+    ## Inconclusive: the MKCALENDAR carrying a component-set restriction was
+    ## accepted, but the collection never became queryable, so whether the
+    ## restriction is honoured could not be established.
+    'create-calendar.with-supported-component-types': {
+        'support': 'unknown',
+        'behaviour': 'the restricted calendar was accepted but never became queryable',
+    },
+
+    ## VJOURNAL is rejected.
+    'save-load.journal': {'support': 'ungraceful'},
+    ## A task may not share a calendar with events - it needs one of its own.
+    'save-load.todo.mixed-calendar': {'support': 'unsupported'},
+    ## RRULE:...;COUNT=n on a VTODO does not survive the round trip (the
+    ## feature carries an explicit 'full' default, hence stated here).
+    'save-load.todo.recurrences.count': {'support': 'unsupported'},
+    ## An event carrying timezone information is accepted by the PUT and
+    ## cannot be read back afterwards.
+    'save-load.event.timezone': {
+        'support': 'broken',
+        'behaviour': 'Event with timezone was saved but could not be loaded',
+    },
+    ## A RELATED-TO search is answered with 400 Bad Request.
+    'save-load.icalendar.related-to': {'support': 'ungraceful', 'behaviour': '400 Bad Request'},
+    ## The same UID in two calendars is refused with a PutError.
+    'save.duplicate-uid.cross-calendar': {'support': 'ungraceful', 'behaviour': 'Server error: PutError'},
+    ## Measured 2026-09-21: 412 on an object that exists, 201 on one that does
+    ## not - i.e. exactly the inverse of RFC9110 section 13.1.1.
+    'save-load.mutable.if-match-wildcard': {
+        'support': 'broken',
+        'behaviour': 'If-Match: * holds backwards: refused with 412 on an existing object, and creates a missing object',
+    },
+
+    ## The CALDAV comp-filter is silently ignored: a calendar-query asking for
+    ## one component type returns the whole calendar regardless (a VJOURNAL
+    ## query returned a VEVENT, and so did a VTODO query).  Nothing of the
+    ## right type is dropped, so the library recovers by post-filtering -
+    ## hence "unsupported" rather than "broken".
+    'search.comp-type': {
+        'support': 'unsupported',
+        'behaviour': 'comp-filter silently ignored - the whole calendar is returned regardless of the requested component type',
+    },
+    ## ... but leaving the comp-filter out, which the RFC permits, is an
+    ## error.  Note the contrast with search.time-range.comp-type-optional
+    ## below: a filter-less query carrying a time-range is answered fine.
+    'search.comp-type.optional': {'support': 'ungraceful'},
+    'search.time-range.comp-type-optional': {'support': 'full'},
+    ## is-not-defined is ignored (all three probed children behave alike, so
+    ## the parent carries it).
+    'search.is-not-defined': {'support': 'unsupported'},
+    ## Text search works, but not on categories.
+    'search.text.category': {'support': 'unsupported'},
+    ## No server-side recurrence handling at all - neither expansion nor
+    ## implicit recurrences.  The library does the expansion client-side.
+    'search.recurrences.expanded': {'support': 'unsupported'},
+    'search.recurrences.includes-implicit': {'support': 'unsupported'},
+    ## Carries an explicit 'full' default, so it does not inherit the above.
+    'search.recurrences.includes-implicit.todo.pending': {'support': 'unsupported'},
+    'search.time-range.alarm': {'support': 'unsupported'},
+    ## Dated searches work, including far-past ones, but a search without a
+    ## time range does not reach year-2000 objects.
+    'search.unlimited-time-range': {
+        'support': 'broken',
+        'behaviour': 'far-past objects (year 2000) are outside the search window',
+    },
+
+    'freebusy-query': {'support': 'ungraceful', 'behaviour': '500 Internal Server Error'},
+    'principal-search': {'support': 'ungraceful'},
+    'scheduling': {'support': 'unsupported'},
+    'sync-token': {'support': 'unsupported'},
+
+    ## Not concluded by the probe run, so left at their defaults and recorded
+    ## here only as "still open": save-load.get-by-url, save-load.stable-url,
+    ## save.etag, search.combined-is-logical-and and
+    ## url.encode-at.literal.principal.
+}
+
 # fmt: on
 
 
