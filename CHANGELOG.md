@@ -25,6 +25,7 @@ The JMAP support was declared experimental in 3.0, hence the changes below are d
 ### Added
 
 * `compatibility_hints`: `auth.www-authenticate` records whether the server sends the `WWW-Authenticate` header RFC7235 section 3.1 requires on a 401, and `auth.www-authenticate.usable-scheme` whether the schemes it offers include one this library implements.  A server failing either one never receives your password, and the 401 looks like a rejected one - so it needs `auth_type` pinned in the configuration, and a profile can now say which.  Probed by caldav-server-tester.  See https://github.com/python-caldav/caldav/issues/713.
+* `compatibility_hints`: new server profile `yahoo`, for Yahoo Calendar (`https://caldav.calendar.yahoo.com/`), probed with caldav-server-tester.  Note that the server sends no `WWW-Authenticate` header, so `auth_type` has to be pinned (`basic` works) before anything can be reached at all - see https://github.com/python-caldav/caldav/issues/713.  The notable gradings: the comp-filter is silently ignored, `If-Match: *` holds backwards, sync-token and server-side recurrence handling are missing, and a created calendar is served under a numeric id rather than the requested name.
 * `compatibility_hints`: new feature `scheduling.calendar-user-address-set.populated`, for a server that advertises `calendar-user-address-set` but returns it empty.  Graded `unsupported` for Xandikos.
 
 ### Changed

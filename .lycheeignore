@@ -13,6 +13,7 @@ http://.*@localhost:\d+/.*
 http://oxhost2:\d+/.*
 
 # CalDAV endpoints that require authentication (401/403 expected)
+https://caldav\.calendar\.yahoo\.com/.*
 https://caldav\.fastmail\.com/.*
 https://caldav\.gmx\.net/.*
 https://caldav\.icloud\.com/.*
