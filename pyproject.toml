@@ -130,10 +130,12 @@ test = [
 ignore = ["DEP002"]  # Test dependencies (pytest, coverage, etc.) are not imported in main code
 
 [tool.deptry.per_rule_ignores]
-DEP001 = ["conf", "h2"]  # conf: Local test config, h2: Optional HTTP/2 support.
+DEP001 = ["conf", "h2", "tests"]  # conf: Local test config, h2: Optional HTTP/2 support.
 ## httpxyz needed an entry here while it was imported by name; the httpx-family
 ## libraries are now imported dynamically (see _ASYNC_HTTPX_CANDIDATES), which
 ## deptry does not see at all.
+## tests: caldav/config.py optionally imports tests.test_servers.registry (source
+## tree only, guarded by ImportError) to auto-start a test server from a checkout.
 DEP003 = ["aiohttp", "h2"]  # aiohttp: optional dep used only in caldav/testing.py
 ## h2 needs an entry in both DEP001 and DEP003: which of the two the optional
 ## `import h2` in async_davclient.py trips depends on whether h2 happens to be
