@@ -320,6 +320,11 @@ There is some extra functionality around tasks, including the possibility to :me
             todo=True, include_completed=True)
         assert my_tasks
 
+        ## Some servers (i.e. Xandikos) will refuse to store events in a
+        ## VTODO-only calendar, so let's clean up and leave the server as we
+        ## found it.
+        cal.delete()
+
 Further Reading
 ---------------
 
