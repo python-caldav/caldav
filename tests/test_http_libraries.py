@@ -24,11 +24,10 @@ from caldav.lib.http_libraries import (
 )
 
 ## Modules that reach the HTTP-library import on their own, so the message has
-## to come out of their own import.  caldav.jmap.client and caldav.jmap.session
-## are deliberately absent: importing either runs caldav/jmap/__init__.py
-## first, which imports async_client -> http_sync, so the error never comes
-## from the module under test and the case would pass even if the module were
-## reverted.  TestOnlyOneModuleImportsTheHTTPLibrary is what covers those two.
+## to come out of their own import.  caldav.jmap.* is deliberately absent:
+## since caldav/jmap became a thin wrapper around the standalone
+## calendaring-jmap package, its HTTP-library selection is calendaring-jmap's
+## own concern, not caldav's.
 SYNC_MODULES = [
     "caldav.davclient",
     "caldav.discovery",
@@ -182,28 +181,28 @@ class TestSharedCandidateLists:
 
 class TestRequiredLibraryMessage:
     """A library that has no fallback needs different wording from "none of
-    them is installed" - the sync stack may well be running on requests."""
+    them is installed" - the sync stack may well be running on requests.
+
+    The helper has no caller in caldav today; its last one was
+    require_async_session(), removed when JMAP moved out into
+    calendaring-jmap.  It is kept because the condition it describes recurs
+    whenever a component is built on one library, and the example below is
+    written as a hypothetical rather than naming something that no longer
+    exists."""
 
     def test_names_the_required_library(self) -> None:
-        message = required_library_error("niquests", "the async JMAP client")
+        message = required_library_error("niquests", "some niquests-only component")
         assert "niquests" in message
-        assert "the async JMAP client" in message
+        assert "some niquests-only component" in message
 
     def test_does_not_claim_nothing_is_installed(self) -> None:
-        message = required_library_error("niquests", "the async JMAP client")
+        message = required_library_error("niquests", "some niquests-only component")
         assert "none of the supported" not in message
 
     def test_still_points_at_the_extra_and_the_docs(self) -> None:
-        message = required_library_error("niquests", "the async JMAP client")
+        message = required_library_error("niquests", "some niquests-only component")
         assert "caldav[niquests]" in message
         assert DOCS_URL in message
-
-    def test_jmap_async_client_uses_it(self) -> None:
-        """Only niquests blocked: the sync stack is fine on requests, so the
-        "nothing is installed" wording would be a lie."""
-        message = _import_with_libraries_blocked("caldav.jmap.async_client", ("niquests",))
-        assert "none of the supported" not in message
-        assert "niquests" in message
 
 
 class TestAsyncOnlyInstall:
