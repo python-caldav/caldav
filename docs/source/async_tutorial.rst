@@ -332,6 +332,11 @@ Tasks work just like events, with ``await`` added:
             my_tasks = await cal.search(todo=True, include_completed=True)
             assert my_tasks
 
+            ## Some servers (i.e. Xandikos) will refuse to store events in a
+            ## VTODO-only calendar, so let's clean up and leave the server as
+            ## we found it.
+            await cal.delete()
+
     asyncio.run(main())
 
 The :meth:`~caldav.calendarobjectresource.Todo.complete` method is awaitable in
