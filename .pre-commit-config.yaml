@@ -35,6 +35,10 @@ repos:
     rev: lychee-v0.24.2
     hooks:
       - id: lychee
-        args: ["--no-progress", "--timeout", "10", "--exclude-path", ".lycheeignore", "--max-cache-age=30d", "--cache"]
+        args: ["--no-progress", "--timeout", "10", "--max-cache-age=30d", "--cache"]
         stages: [pre-push]
-        exclude: ^tests/test_caldav_unit\.py$
+        ## lychee reads the URL patterns from .lycheeignore by itself.  The
+        ## dropped "--exclude-path .lycheeignore" arg did something else: it
+        ## kept that file out of the *inputs*, which is needed, as lychee
+        ## otherwise reads it as text and extracts junk URLs from the regexes.
+        exclude: ^(tests/test_caldav_unit\.py|\.lycheeignore)$
