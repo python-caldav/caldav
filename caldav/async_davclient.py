@@ -480,8 +480,15 @@ class AsyncDAVClient(BaseDAVClient):
                 request_kwargs["auth"] = self.auth
                 r = await self.session.request(**request_kwargs)
                 response = DAVResponse(r, self)
+            elif self._should_attempt_unprompted_basic(
+                r.status_code,
+                r.headers,
+                lambda: self._response_scheme(r, url_obj),
+            ):
+                self._build_unprompted_basic_auth()
+                return await self._async_request(url, method, body, headers)
             else:
-                # Probe GET did not give us a 401+WWW-Authenticate challenge —
+                # Probe GET offered neither a challenge nor a safe Basic-auth guess —
                 # auth negotiation failed; re-raise the original connection error
                 raise
 
