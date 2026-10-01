@@ -235,19 +235,26 @@ def _build_search_xml_query(
     return (root, comp_class)
 
 
-def _dedup_by_url(matches: list) -> list:
+def _dedup_resources(matches: list) -> list:
     """Drop repeated resources, keeping the first occurrence and the order.
 
     A search that is split into several server queries can return the same
     resource more than once: the include-completed split issues overlapping
     queries, and in a comp-type split a resource that legally holds both a
     VEVENT and a VTODO matches two of the three queries.
+
+    The RECURRENCE-ID is part of the key: with ``expand=True`` every
+    occurrence of a recurring event is a separate object carrying the URL of
+    the resource, and those must all be kept.
+    See https://github.com/python-caldav/caldav/issues/722
     """
     objects = []
     seen = set()
     for item in matches:
-        if item.url not in seen:
-            seen.add(item.url)
+        recurrence_id = item.icalendar_component.get("RECURRENCE-ID")
+        key = (item.url, recurrence_id.to_ical() if recurrence_id is not None else None)
+        if key not in seen:
+            seen.add(key)
             objects.append(item)
     return objects
 
@@ -760,7 +767,7 @@ class CalDAVSearcher(Searcher):
                     (clone, calendar, server_expand, False, props, xml, None, _hacks),
                 )
 
-            objects = _dedup_by_url(matches)
+            objects = _dedup_resources(matches)
         else:
             orig_xml = xml
 
@@ -1062,7 +1069,7 @@ class CalDAVSearcher(Searcher):
             objects += clone.search(
                 calendar, server_expand, split_expanded, props, xml, post_filter, _hacks
             )
-        return self.sort(_dedup_by_url(objects))
+        return self.sort(_dedup_resources(objects))
 
     async def async_search(
         self,
@@ -1162,7 +1169,7 @@ class CalDAVSearcher(Searcher):
                 calendar, server_expand, split_expanded, props, xml, post_filter, _hacks
             )
             objects.extend(results)
-        return self.sort(_dedup_by_url(objects))
+        return self.sort(_dedup_resources(objects))
 
     def filter(
         self,
