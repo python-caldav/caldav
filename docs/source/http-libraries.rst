@@ -1,7 +1,7 @@
 HTTP Library Configuration
 ==========================
 
-As of v3.x, **niquests** is the preferred, recommended and supported library for HTTP communication. niquests is a backwards-compatible fork of the requests library.  It's a modern HTTP library with support for HTTP/2 and HTTP/3 and many other things.
+As of v3.x, **niquests** is the preferred, recommended and supported library for HTTP communication. niquests is a backwards-compatible fork of the requests library.  It's a modern HTTP library with support for HTTP/2 and HTTP/3 and many other things.  It works for me - but there may be some sharp edges.
 
 Due to popular demand, fallbacks to **requests** and to the **httpx** family (httpx, httpxyz, httpx2) exist.
 
