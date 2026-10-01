@@ -1028,6 +1028,35 @@ class TestCompTypeOptionalTimeRange:
         ## split into one query per component type (VEVENT/VTODO/VJOURNAL)
         assert len(calls) == 3
 
+    def test_untyped_expanded_search_keeps_all_occurrences(
+        self, mock_client: DAVClient, mock_url: str
+    ) -> None:
+        """https://github.com/python-caldav/caldav/issues/722: expanded
+        occurrences share the URL of their resource, so deduplicating the
+        comp-type split by URL alone dropped all but the first occurrence."""
+        from caldav.compatibility_hints import FeatureSet
+
+        mock_client.features = FeatureSet(None)
+        calendar = mock.Mock()
+        calendar.client = mock_client
+
+        def rep(xml, comp_cls, props=None):
+            if comp_cls is not Event:
+                return (mock.Mock(), [])
+            return (mock.Mock(), [Event(client=mock_client, url=mock_url, data=RECURRING_EVENT)])
+
+        calendar._request_report_build_resultlist.side_effect = rep
+
+        searcher = CalDAVSearcher(
+            start=datetime(2024, 6, 1, tzinfo=timezone.utc),
+            end=datetime(2024, 7, 1, tzinfo=timezone.utc),
+            expand=True,
+        )
+        result = searcher.search(calendar)
+
+        assert len(result) == 3
+        assert all("RRULE" not in o.data for o in result)
+
     def test_reactive_workaround_on_vcalendar_timerange_rejection(
         self, mock_client: DAVClient, mock_url: str
     ) -> None:

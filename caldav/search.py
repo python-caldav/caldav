@@ -242,12 +242,18 @@ def _dedup_by_url(matches: list) -> list:
     resource more than once: the include-completed split issues overlapping
     queries, and in a comp-type split a resource that legally holds both a
     VEVENT and a VTODO matches two of the three queries.
+
+    The data is part of the key: with ``expand=True`` every occurrence of a
+    recurring event is a separate object carrying the URL of the resource,
+    and those must all be kept.
+    See https://github.com/python-caldav/caldav/issues/722
     """
     objects = []
     seen = set()
     for item in matches:
-        if item.url not in seen:
-            seen.add(item.url)
+        key = (item.url, item.data)
+        if key not in seen:
+            seen.add(key)
             objects.append(item)
     return objects
 
