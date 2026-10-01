@@ -896,6 +896,47 @@ class TestSearchWithCompTypesFullXML:
         calendar._request_report_build_resultlist.assert_called_once_with(full_xml, None, None)
 
 
+class TestDedupResources:
+    """The helper that merges the results of a split search."""
+
+    def test_regenerated_copies_of_one_resource_collapse(
+        self, mock_client: DAVClient, mock_url: str
+    ) -> None:
+        """Two sub-queries can return the same resource with content the
+        server regenerated in between (a fresh DTSTAMP, say); that is still
+        one resource."""
+        from caldav.search import _dedup_resources
+
+        first = Event(client=mock_client, url=mock_url, data=SIMPLE_EVENT)
+        second = Event(
+            client=mock_client,
+            url=mock_url,
+            data=SIMPLE_EVENT.replace("DTSTAMP:20240101T120000Z", "DTSTAMP:20240102T120000Z"),
+        )
+
+        assert _dedup_resources([first, second]) == [first]
+
+    def test_occurrences_of_one_resource_are_kept(
+        self, mock_client: DAVClient, mock_url: str
+    ) -> None:
+        """Expanded occurrences share the URL but differ in RECURRENCE-ID."""
+        from caldav.search import _dedup_resources
+
+        occurrences = [
+            Event(
+                client=mock_client,
+                url=mock_url,
+                data=SIMPLE_EVENT.replace(
+                    "DTSTART:20240615T140000Z",
+                    f"DTSTART:202406{day}T140000Z\nRECURRENCE-ID:202406{day}T140000Z",
+                ),
+            )
+            for day in (15, 22)
+        ]
+
+        assert _dedup_resources(occurrences + occurrences) == occurrences
+
+
 class TestCompTypeLessSearchSplit:
     """Gate findings F10 and F11: the comp-type split path.
 
@@ -1027,6 +1068,57 @@ class TestCompTypeOptionalTimeRange:
             )
         ## split into one query per component type (VEVENT/VTODO/VJOURNAL)
         assert len(calls) == 3
+
+    @staticmethod
+    def _expanded_split_calendar(mock_client: DAVClient, mock_url: str, report) -> mock.Mock:
+        """A calendar whose comp-type split finds RECURRING_EVENT in the
+        VEVENT query only.  `report` is `mock.Mock` or `mock.AsyncMock`."""
+        from caldav.compatibility_hints import FeatureSet
+
+        mock_client.features = FeatureSet(None)
+        calendar = mock.Mock()
+        calendar.client = mock_client
+
+        def rep(xml, comp_cls, props=None):
+            if comp_cls is not Event:
+                return (mock.Mock(), [])
+            return (mock.Mock(), [Event(client=mock_client, url=mock_url, data=RECURRING_EVENT)])
+
+        calendar._request_report_build_resultlist = report(side_effect=rep)
+        calendar._async_batch_load_objects = mock.AsyncMock()
+        return calendar
+
+    _JUNE_2024 = {
+        "start": datetime(2024, 6, 1, tzinfo=timezone.utc),
+        "end": datetime(2024, 7, 1, tzinfo=timezone.utc),
+        "expand": True,
+    }
+
+    @staticmethod
+    def _assert_three_distinct_occurrences(result: list) -> None:
+        assert all("RRULE" not in o.data for o in result)
+        starts = sorted(o.icalendar_component["DTSTART"].dt for o in result)
+        assert starts == [datetime(2024, 6, day, 10, tzinfo=timezone.utc) for day in (1, 8, 15)]
+
+    def test_untyped_expanded_search_keeps_all_occurrences(
+        self, mock_client: DAVClient, mock_url: str
+    ) -> None:
+        """https://github.com/python-caldav/caldav/issues/722: expanded
+        occurrences share the URL of their resource, so deduplicating the
+        comp-type split by URL alone dropped all but the first occurrence."""
+        calendar = self._expanded_split_calendar(mock_client, mock_url, mock.Mock)
+        result = CalDAVSearcher(**self._JUNE_2024).search(calendar)
+        self._assert_three_distinct_occurrences(result)
+
+    def test_untyped_expanded_async_search_keeps_all_occurrences(
+        self, mock_client: DAVClient, mock_url: str
+    ) -> None:
+        """Async twin of the issue-722 test above."""
+        import asyncio
+
+        calendar = self._expanded_split_calendar(mock_client, mock_url, mock.AsyncMock)
+        result = asyncio.run(CalDAVSearcher(**self._JUNE_2024).async_search(calendar))
+        self._assert_three_distinct_occurrences(result)
 
     def test_reactive_workaround_on_vcalendar_timerange_rejection(
         self, mock_client: DAVClient, mock_url: str
