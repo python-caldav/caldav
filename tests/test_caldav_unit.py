@@ -4632,3 +4632,97 @@ class TestMkcalendarMultistatus:
         )
         with pytest.raises(error.MkcalendarError):
             self._save_calendar(mocked, 207, content)
+
+
+class TestCompTypeFilterIgnored:
+    """``search.comp-type`` graded ``unsupported`` means the server silently
+    ignores the comp-filter and returns the whole calendar.  The library must
+    then post-filter by component type, while still sending the comp-filter:
+    some such servers (Yahoo) reject a comp-filter-less query."""
+
+    whole_calendar_response = """<d:multistatus xmlns:d="DAV:" xmlns:cal="urn:ietf:params:xml:ns:caldav">
+  <d:response>
+    <d:href>/cal/event1.ics</d:href>
+    <d:propstat>
+      <d:prop>
+        <cal:calendar-data>BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//test//EN\r\nBEGIN:VEVENT\r\nUID:event1\r\nDTSTAMP:20250101T000000Z\r\nDTSTART:20250102T100000Z\r\nDTEND:20250102T110000Z\r\nSUMMARY:Event\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n</cal:calendar-data>
+      </d:prop>
+      <d:status>HTTP/1.1 200 OK</d:status>
+    </d:propstat>
+  </d:response>
+  <d:response>
+    <d:href>/cal/todo1.ics</d:href>
+    <d:propstat>
+      <d:prop>
+        <cal:calendar-data>BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//test//EN\r\nBEGIN:VTODO\r\nUID:todo1\r\nDTSTAMP:20250101T000000Z\r\nSUMMARY:Todo\r\nEND:VTODO\r\nEND:VCALENDAR\r\n</cal:calendar-data>
+      </d:prop>
+      <d:status>HTTP/1.1 200 OK</d:status>
+    </d:propstat>
+  </d:response>
+</d:multistatus>"""
+
+    completed_todo_response = whole_calendar_response.replace(
+        "SUMMARY:Todo\r\n", "SUMMARY:Todo\r\nSTATUS:COMPLETED\r\n"
+    )
+
+    def _client(self, support, response=None):
+        from caldav.compatibility_hints import FeatureSet
+
+        class CapturingClient(MockedDAVClient):
+            def __init__(self, xml):
+                super().__init__(xml)
+                self.report_bodies = []
+
+            def request(self, url, method="GET", body=None, headers=None):
+                if method == "REPORT" and body:
+                    self.report_bodies.append(to_normal_str(body))
+                return super().request(url, method, body, headers)
+
+        client = CapturingClient(response or self.whole_calendar_response)
+        client.features = FeatureSet({"search.comp-type": {"support": support}})
+        return client
+
+    def test_unsupported_post_filters_by_component_type(self):
+        client = self._client("unsupported")
+        events = Calendar(client, url="/cal/").search(event=True)
+        assert [e.component.name for e in events] == ["VEVENT"]
+
+    def test_unsupported_keeps_the_comp_filter(self):
+        client = self._client("unsupported")
+        Calendar(client, url="/cal/").search(event=True)
+        assert client.report_bodies
+        assert all('name="VEVENT"' in body for body in client.report_bodies)
+
+    def test_unsupported_comp_class_todo_keeps_completed_tasks(self):
+        ## comp_class=Todo means "all tasks", completed ones included
+        client = self._client("unsupported", self.completed_todo_response)
+        todos = Calendar(client, url="/cal/").search(comp_class=Todo)
+        assert [t.component.name for t in todos] == ["VTODO"]
+
+    def test_unsupported_comp_class_event_post_filters(self):
+        client = self._client("unsupported")
+        events = Calendar(client, url="/cal/").search(comp_class=Event)
+        assert [e.component.name for e in events] == ["VEVENT"]
+
+    def test_unsupported_raw_xml_with_comp_class_post_filters(self):
+        ## A caller-supplied calendar-query skips build_search_xml_query, so
+        ## the type has to come from comp_class alone
+        xml = (
+            '<c:calendar-query xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">'
+            "<d:prop><c:calendar-data/></d:prop>"
+            '<c:filter><c:comp-filter name="VCALENDAR"><c:comp-filter name="VEVENT"/>'
+            "</c:comp-filter></c:filter></c:calendar-query>"
+        )
+        client = self._client("unsupported")
+        events = Calendar(client, url="/cal/").search(xml=xml, comp_class=Event)
+        assert [e.component.name for e in events] == ["VEVENT"]
+
+    def test_unsupported_explicit_post_filter_false_is_honoured(self):
+        client = self._client("unsupported")
+        objs = Calendar(client, url="/cal/").search(event=True, post_filter=False)
+        assert len(objs) == 2
+
+    def test_unsupported_without_workarounds_returns_raw_result(self):
+        client = self._client("unsupported")
+        objs = Calendar(client, url="/cal/").search(event=True, compatibility_workarounds=False)
+        assert len(objs) == 2
