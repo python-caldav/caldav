@@ -221,7 +221,7 @@ class FeatureSet:
             ## the children say.  Five existing nodes have the same shape.
         },
         "auth.www-authenticate": {
-            "description": "Server includes a WWW-Authenticate header in a 401 response, as RFC7235 section 3.1 requires.  Without it a client has no scheme to negotiate with: this library builds no auth object, the supplied credentials are never transmitted, and the bare 401 surfaces as an AuthorizationError indistinguishable from a rejected password.  'unsupported' means a 401 came back carrying no WWW-Authenticate at all (Yahoo Calendar); the cure is to pin auth_type so the credentials go out unprompted - which scheme to pin is not something such a server tells you.  'unknown' means no 401 could be provoked, so the question was never put.  The behaviour field carries the challenge the server sent, where it sent one.",
+            "description": "Server includes a WWW-Authenticate header in a 401 response, as RFC7235 section 3.1 requires.  Without it a client has no scheme to negotiate with.  Over TLS, with no auth_type configured, this library guesses Basic once (logging a warning); otherwise the supplied credentials are never transmitted, and the bare 401 surfaces as an AuthorizationError indistinguishable from a rejected password.  'unsupported' means a 401 came back carrying no WWW-Authenticate at all (Yahoo Calendar); pinning auth_type skips the guess and its warning, and is the only cure over plain HTTP or for a server wanting a scheme other than Basic - which scheme to pin is not something such a server tells you.  'unknown' means no 401 could be provoked, so the question was never put.  The behaviour field carries the challenge the server sent, where it sent one.",
             "default": {"support": "full"},
             "links": [
                 "https://datatracker.ietf.org/doc/html/rfc7235#section-3.1",
@@ -2499,8 +2499,9 @@ infomaniak = {
 ## Yahoo Calendar (https://caldav.calendar.yahoo.com/), a hosted service.
 ## Probed 2026-09-21 with the caldav-server-tester, see
 ## https://github.com/python-caldav/caldav/issues/713 - the profile in that
-## issue was run with CALDAV_AUTH_TYPE=basic, because the server cannot be
-## reached at all without pinning the auth type (see auth.www-authenticate).
+## issue was run with CALDAV_AUTH_TYPE=basic, because at the time the server
+## could not be reached at all without pinning the auth type (see
+## auth.www-authenticate).
 yahoo = {
     'auto-connect.url': {
         'scheme': 'https',
@@ -2508,9 +2509,9 @@ yahoo = {
         'basepath': '/',
     },
     ## The 401 carries a JSON error body and no WWW-Authenticate header of any
-    ## kind, so there is no scheme to negotiate with: the credentials are never
-    ## transmitted and the bare 401 surfaces as an AuthorizationError.  Pass
-    ## auth_type="basic" (verified to work) to get through.
+    ## kind, so there is no scheme to negotiate with.  The client falls back to
+    ## a one-shot Basic guess, which works; pass auth_type="basic" (verified to
+    ## work) to skip the probe and silence the warning.
     'auth.www-authenticate': {
         'support': 'unsupported',
         'behaviour': 'the 401 carries no WWW-Authenticate header at all, only a JSON error body',
@@ -2558,7 +2559,7 @@ yahoo = {
         'support': 'broken',
         'behaviour': 'Event with timezone was saved but could not be loaded',
     },
-    ## A RELATED-TO search is answered with 400 Bad Request.
+    ## A PUT carrying RELATED-TO is answered with 400 Bad Request.
     'save-load.icalendar.related-to': {'support': 'ungraceful', 'behaviour': '400 Bad Request'},
     ## The same UID in two calendars is refused with a PutError.
     'save.duplicate-uid.cross-calendar': {'support': 'ungraceful', 'behaviour': 'Server error: PutError'},
