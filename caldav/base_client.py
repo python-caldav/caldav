@@ -328,6 +328,17 @@ class BaseDAVClient(ABC):
         self.auth_type = "basic"
         self.build_auth_object()
 
+    def _unwind_unprompted_basic(self) -> None:
+        """Drop an unprompted-Basic guess (issue #713) that did not succeed.
+
+        Clears ``self.auth``/``self.auth_type``, keeping ``_unprompted_basic_tried``
+        set so the guess is not repeated.  A no-op unless the current auth is that
+        guess.
+        """
+        if self._unprompted_basic_tried and self.auth_type == "basic":
+            self.auth = None
+            self.auth_type = None
+
     def _raise_authorization_error(self, url_str: str, reason_source: Any) -> NoReturn:
         """Raise AuthorizationError, extracting reason from reason_source.reason.
 
@@ -338,9 +349,7 @@ class BaseDAVClient(ABC):
         guess that has already proven wrong. ``_unprompted_basic_tried`` stays
         set, so the guess itself is not repeated.
         """
-        if self._unprompted_basic_tried and self.auth_type == "basic":
-            self.auth = None
-            self.auth_type = None
+        self._unwind_unprompted_basic()
         try:
             reason = reason_source.reason
         except AttributeError:
