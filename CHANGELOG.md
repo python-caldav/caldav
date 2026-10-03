@@ -43,6 +43,8 @@ The JMAP support was declared experimental in 3.0, hence the changes below are d
 
 * A `401` response with no `WWW-Authenticate` header (RFC 7235 §3.1 requires one, but e.g. Yahoo Calendar omits it) left nothing to negotiate with: `build_auth_object()` was never reached, the credentials were never sent, and the bare 401 surfaced as `AuthorizationError` - indistinguishable from a genuinely rejected password.  Over TLS, with no `auth_type`/`auth` already configured, the client now guesses `basic` once before giving up - also on the async client's path for servers that abort the connection on an unauthenticated request.  See https://github.com/python-caldav/caldav/issues/713 and https://github.com/python-caldav/caldav/issues/717.
 
+* `search(event=True)`, `search(journal=True)` and `search(comp_class=...)` could return objects of the wrong component type from a server graded `search.comp-type: unsupported` - one that silently ignores the comp-filter and returns the whole calendar.  Only `broken` triggered client-side filtering.  `unsupported` now does too, keeping the comp-filter in the query.  Affected profiles: `ox` and `infomaniak` (and `yahoo`, new in this release).  En passant, `search(comp_class=Todo)` no longer drops completed tasks on servers graded `broken` (`bedework`).
+
 ## [3.3.1] - 2026-09-16
 
 The two main things in this release:

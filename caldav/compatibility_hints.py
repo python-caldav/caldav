@@ -497,7 +497,7 @@ hence, "fragile".
             "description": "In all the search examples in the RFC, comptype is given during a search, the client specifies if it's event or tasks or journals that is wanted.  However, as I read the RFC this is not required.  If omitted, the server should deliver all objects.  Many servers will not return anything if the COMPTYPE filter is not set.  Other servers will return 404"
         },
         "search.comp-type": {
-            "description": "Server correctly filters calendar-query results by component type. When 'broken', server may misclassify component types (e.g., returning TODOs when VEVENTs are requested). The library will perform client-side filtering to work around this issue",
+            "description": "Server correctly filters calendar-query results by component type.  'unsupported': the comp-filter is silently ignored and the whole calendar is returned, but nothing of the requested type is dropped - the library keeps the comp-filter and filters the result client-side.  'broken': a typed query drops objects of the requested type (e.g. Bedework returns VTODOs for a VEVENT query and nothing for a VTODO query) - the library leaves the comp-filter out of the query and filters client-side.",
             "default": {"support": "full"}
         },
         ## TODO - there is still quite a lot of search-related
