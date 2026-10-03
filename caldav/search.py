@@ -97,6 +97,22 @@ def _filter_search_results(
 filter_search_results = _filter_search_results
 
 
+def _flag_component_type(searcher: "Searcher", flag: str) -> None:
+    """Set the todo/event/journal flag the client-side filter goes by.
+
+    A type given by comp_class or a comp-filter rather than by todo=True means
+    all tasks, completed ones included - also when the result is post-filtered
+    (search.comp-type unsupported/broken).
+    """
+    if (
+        flag == "todo"
+        and not getattr(searcher, "todo", False)
+        and searcher.include_completed is None
+    ):
+        searcher.include_completed = True
+    setattr(searcher, flag, True)
+
+
 def _build_search_xml_query(
     searcher: "Searcher",
     server_expand: bool = False,
@@ -168,20 +184,13 @@ def _build_search_xml_query(
 
         if comp_filter and comp_filter.attributes.get("name") == comp_name:
             comp_class = sync_class
-            if (
-                flag == "todo"
-                and not getattr(searcher, "todo", False)
-                and searcher.include_completed is None
-            ):
-                searcher.include_completed = True
-            setattr(searcher, flag, True)
 
         if comp_class is sync_class:
             if comp_filter:
                 assert comp_filter.attributes.get("name") == comp_name
             else:
                 comp_filter = cdav.CompFilter(comp_name)
-            setattr(searcher, flag, True)
+            _flag_component_type(searcher, flag)
 
     if comp_class and not comp_filter:
         raise error.ConsistencyError(f"unsupported comp class {comp_class} for search")
@@ -558,6 +567,30 @@ class CalDAVSearcher(Searcher):
             if not _hacks:
                 _hacks = "no_comp_filter"
             post_filter = True
+
+        ## Servers silently ignoring the comp-filter (e.g. OX, Yahoo) return
+        ## the whole calendar.  The comp-filter is kept - Yahoo rejects a query
+        ## without one - and the wrong-typed objects are dropped client-side.
+        if (
+            cw
+            and (self.comp_class or self.todo or self.event or self.journal)
+            and comp_type_support == "unsupported"
+            and post_filter is None
+        ):
+            post_filter = True
+
+        ## The client-side filter goes by the todo/event/journal flags.  A
+        ## caller-supplied calendar-query bypasses build_search_xml_query,
+        ## which would otherwise set them from comp_class.
+        if (
+            post_filter
+            and comp_type_support in ("broken", "unsupported")
+            and self.comp_class
+            and not (self.todo or self.event or self.journal)
+        ):
+            flag = self.comp_class.__name__.lower()
+            if flag in ("event", "todo", "journal"):
+                _flag_component_type(self, flag)
 
         ## Setting default value for post_filter
         if (
