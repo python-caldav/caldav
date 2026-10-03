@@ -60,6 +60,20 @@ The most common ones are:
    * - ``caldav_ssl_verify_cert``
      - ``ssl_verify_cert``
      - ``false`` to skip TLS verification
+   * - ``caldav_auth_type``
+     - ``auth_type``
+     - ``basic``, ``digest`` or ``bearer``.  Usually not needed, but saves a
+       round-trip to the server, and some servers need it to avoid an HTML
+       login page being served on the first request.  For ``bearer``, the
+       token goes in ``caldav_password``.
+
+Any other parameter accepted by the :class:`~caldav.davclient.DAVClient`
+constructor can be given the same way, as long as it is listed in
+``caldav.config.CONNKEYS`` — currently also ``caldav_headers``,
+``caldav_huge_tree``, ``caldav_ssl_cert``, ``caldav_enable_rfc6764`` and
+``caldav_require_tls``.  (``auth`` is in that list too, but it takes an
+authentication object and can therefore only be passed from code, not from a
+config file.)
 
 The special ``features`` key (not prefixed with ``caldav_``) names a
 server-compatibility profile — e.g. ``xandikos``, ``radicale``, ``baikal``.
@@ -211,10 +225,20 @@ config file.  The variables are mapped as follows:
      - ``username``
    * - ``CALDAV_PASSWORD`` or ``CALDAV_PASS``
      - ``password``
+   * - ``CALDAV_AUTH_TYPE``
+     - ``auth_type``
    * - ``CALDAV_CONFIG_FILE``
      - Path to config file
    * - ``CALDAV_CONFIG_SECTION``
      - Section name (may be a glob)
+
+``CALDAV_`` followed by the upper-cased name of any other connection
+parameter works as well.  Beware that environment variables are always
+strings and are not converted, so the boolean-ish parameters
+(``ssl_verify_cert``, ``huge_tree``, ``enable_rfc6764``, ``require_tls``)
+cannot be turned off this way — ``CALDAV_REQUIRE_TLS=false`` sets the
+parameter to the non-empty, hence true, string ``"false"``.  Use the config
+file or a keyword argument for those.
 
 Examples
 ========
