@@ -1224,6 +1224,71 @@ class TestAsyncUnpromptedBasicAuth:
         assert client.auth is None
 
     @pytest.mark.asyncio
+    async def test_connection_abort_after_basic_guess_unwinds_the_guess(self):
+        """A guessed Basic retry that is aborted again must not leave the guess set."""
+        client = AsyncDAVClient(url="https://cal.example.com/", username="user", password="pass")
+        second_error = ConnectionError("aborted again")
+        client.session.request = AsyncMock(
+            side_effect=[
+                ConnectionError("server aborted connection"),
+                self._make_response(401),
+                second_error,
+            ]
+        )
+
+        with pytest.raises(ConnectionError) as exc_info:
+            await client.request("/calendar/item.ics", "PUT", "calendar data")
+
+        assert exc_info.value is second_error
+        assert client.auth is None
+        assert client.auth_type is None
+        assert client._unprompted_basic_tried is True
+
+    @pytest.mark.asyncio
+    async def test_connection_abort_guess_kept_when_server_answers(self):
+        """A guessed retry the server answers (here: 429) keeps the guessed auth."""
+        client = AsyncDAVClient(
+            url="https://cal.example.com/",
+            username="user",
+            password="pass",
+            rate_limit_handle=False,
+        )
+        client.session.request = AsyncMock(
+            side_effect=[
+                ConnectionError("server aborted connection"),
+                self._make_response(401),
+                self._make_response(429, {"Retry-After": "4"}),
+            ]
+        )
+        with pytest.raises(error.RateLimitError):
+            await client.request("/calendar/item.ics", "PUT", "calendar data")
+        assert client.auth is not None
+        assert client.auth_type == "basic"
+
+    @pytest.mark.asyncio
+    async def test_connection_abort_probe_does_not_guess_twice(self):
+        """After a failed guess, a later abort-probe-401 re-raises without guessing again."""
+        client = AsyncDAVClient(url="https://cal.example.com/", username="user", password="pass")
+        client.session.request = AsyncMock(
+            side_effect=[
+                ConnectionError("server aborted connection"),
+                self._make_response(401),
+                self._make_response(401),
+            ]
+        )
+        with pytest.raises(error.AuthorizationError):
+            await client.request("/calendar/item.ics", "PUT", "calendar data")
+
+        original_error = ConnectionError("server aborted connection")
+        client.session.request = AsyncMock(side_effect=[original_error, self._make_response(401)])
+        with pytest.raises(ConnectionError) as exc_info:
+            await client.request("/calendar/item.ics", "PUT", "calendar data")
+
+        assert exc_info.value is original_error
+        assert client.session.request.call_count == 2
+        assert client.auth is None
+
+    @pytest.mark.asyncio
     async def test_401_without_www_authenticate_retries_with_basic_over_tls(self):
         client = AsyncDAVClient(url="https://cal.example.com/", username="user", password="pass")
         client.session.request = AsyncMock(

@@ -486,7 +486,16 @@ class AsyncDAVClient(BaseDAVClient):
                 lambda: self._response_scheme(r, url_obj),
             ):
                 self._build_unprompted_basic_auth()
-                return await self._async_request(url, method, body, headers)
+                try:
+                    return await self._async_request(url, method, body, headers)
+                except error.DAVError:
+                    # The server answered the guessed retry; a rejected guess
+                    # has already been unwound by _raise_authorization_error
+                    raise
+                except Exception:
+                    # The guessed retry was aborted too - don't keep the guess
+                    self._unwind_unprompted_basic()
+                    raise
             else:
                 # Probe GET offered neither a challenge nor a safe Basic-auth guess —
                 # auth negotiation failed; re-raise the original connection error
