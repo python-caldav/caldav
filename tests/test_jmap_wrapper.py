@@ -13,6 +13,7 @@ import importlib
 import subprocess
 import sys
 import textwrap
+import warnings
 
 import pytest
 
@@ -22,7 +23,11 @@ import pytest
 ## caldav.jmap itself imports.
 calendaring_jmap = pytest.importorskip("calendaring_jmap")
 
-import caldav.jmap as jmap  # noqa: E402
+## The deprecation warning on import is asserted in a clean subprocess by
+## TestDeprecationWarning; here it would only be collection-time noise.
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore", DeprecationWarning)
+    import caldav.jmap as jmap  # noqa: E402
 from caldav.lib.error import AuthorizationError, DAVError  # noqa: E402
 
 
