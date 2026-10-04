@@ -348,6 +348,9 @@ class CalendarObjectResource(DAVObject):
     ) -> "None | Coroutine[Any, Any, None]":  ## TODO: logic to find and set siblings?
         """
         Sets a relation between this object and another object (given by uid or object).
+
+        Each object is saved only if it lacked the relation; an object that
+        already holds it is not saved, even if it has other unsaved changes.
         """
         ##TODO: test coverage
         reltype = reltype.upper()
@@ -373,18 +376,20 @@ class CalendarObjectResource(DAVObject):
             reltype_reverse = self.RELTYPE_REVERSE_MAP[reltype]
             other_obj.set_relation(other=self, reltype=reltype_reverse, set_reverse=False)
 
-        self._add_relation_to_ical(uid, reltype)
-        self.save()
+        if self._add_relation_to_ical(uid, reltype):
+            self.save()
 
-    def _add_relation_to_ical(self, uid, reltype) -> None:
-        """Add a RELATED-TO property to the icalendar component (no-op if already present)."""
+    def _add_relation_to_ical(self, uid, reltype) -> bool:
+        """Add a RELATED-TO property to the icalendar component.
+
+        Returns False (and changes nothing) if the relation is already present."""
         existing_relation = self.icalendar_component.get("related-to", None)
         existing_relations = (
             existing_relation if isinstance(existing_relation, list) else [existing_relation]
         )
         for rel in existing_relations:
             if rel == uid:
-                return
+                return False
 
         # without str(…), icalendar ignores properties
         #  because if type(uid) == vText
@@ -394,6 +399,7 @@ class CalendarObjectResource(DAVObject):
         self.icalendar_component.add(
             "related-to", str(uid), parameters={"RELTYPE": reltype}, encode=True
         )
+        return True
 
     async def _async_set_relation(self, uid, other_obj, reltype, set_reverse) -> None:
         """Async implementation of set_relation() for async clients."""
@@ -405,8 +411,8 @@ class CalendarObjectResource(DAVObject):
             # set_relation() returns a coroutine when is_async_client, so await it
             await other_obj.set_relation(other=self, reltype=reltype_reverse, set_reverse=False)
 
-        self._add_relation_to_ical(uid, reltype)
-        await self.save()
+        if self._add_relation_to_ical(uid, reltype):
+            await self.save()
 
     ## TODO: this method is undertested in the caldav library.
     ## However, as this consolidated and eliminated quite some duplicated code in the
@@ -522,7 +528,7 @@ class CalendarObjectResource(DAVObject):
         if not reverse_reltype:
             logging.error("Reltype %s not supported in object uid %s" % (reltype, self.id))
             return
-        other.set_relation(self, reverse_reltype, other)
+        other.set_relation(self, reverse_reltype, set_reverse=False)
 
     async def _async_set_reverse_relation(self, other, reltype):
         """Async implementation of _set_reverse_relation."""
@@ -530,7 +536,7 @@ class CalendarObjectResource(DAVObject):
         if not reverse_reltype:
             logging.error("Reltype %s not supported in object uid %s" % (reltype, self.id))
             return
-        await other.set_relation(self, reverse_reltype, other)
+        await other.set_relation(self, reverse_reltype, set_reverse=False)
 
     def _verify_reverse_relation(self, other, reltype) -> tuple:
         if self.is_async_client:
