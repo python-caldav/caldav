@@ -49,6 +49,8 @@ The JMAP support was declared experimental in 3.0, hence the changes below are d
 
 * `save()` on a recurrence instance whose master is missing from the server (an "orphan" `RECURRENCE-ID`) recursed until `RecursionError`.  This happened whenever the object was fetched from the server, since the UID lookup for the master returned the orphan itself.  The object is now saved as-is.
 
+* `add_object()` with `RELATED-TO` properties re-saved the new object once per relation, and saved each related object even when it already pointed back.  `set_relation()` no longer saves when the relation was already there.
+
 ## [3.3.1] - 2026-09-16
 
 The two main things in this release:
