@@ -1239,6 +1239,161 @@ class TestCompTypeOptionalPropFilter:
         ## split into one query per component type (VEVENT/VTODO/VJOURNAL)
         assert len(calls) == 3
 
+    def _uid_search_report(self, mock_client, mock_url, calls, found_in):
+        """A REPORT stub where only the ``found_in`` comp-type holds the UID.
+        A query that still carries the UID filter gets just that object; one
+        stripped of it (the "insist" fallback) gets the whole collection."""
+        from lxml import etree
+
+        event = Event(client=mock_client, url=mock_url, data=SIMPLE_EVENT)
+        others = [
+            Event(
+                client=mock_client,
+                url=f"{mock_url}other{i}.ics",
+                data=SIMPLE_EVENT.replace("simple-event@example.com", f"other{i}@example.com"),
+            )
+            for i in range(3)
+        ]
+
+        def rep(xml, comp_cls, props=None):
+            has_uid = b"UID" in etree.tostring(xml.xmlelement())
+            calls.append((comp_cls, has_uid))
+            if not has_uid:
+                return (mock.Mock(), others + ([event] if comp_cls is found_in else []))
+            return (mock.Mock(), [event] if comp_cls is found_in else [])
+
+        return event, rep
+
+    def test_insist_uid_search_does_not_fetch_everything(
+        self, mock_client: DAVClient, mock_url: str
+    ) -> None:
+        """get_object_by_uid() searches with _hacks="insist".  When the UID is
+        found in one comp-type, the empty answers for the other comp-types are
+        genuine; they must not trigger a retry without the UID filter, which
+        downloads and parses the whole calendar on the client."""
+        from caldav.compatibility_hints import FeatureSet
+
+        mock_client.features = FeatureSet(None)
+        calls = []
+        calendar = mock.Mock()
+        calendar.client = mock_client
+        event, rep = self._uid_search_report(mock_client, mock_url, calls, Event)
+        calendar._request_report_build_resultlist.side_effect = rep
+
+        searcher = CalDAVSearcher()
+        searcher.add_property_filter("UID", "simple-event@example.com")
+        result = searcher.search(calendar, post_filter=True, _hacks="insist")
+
+        assert result == [event]
+        assert all(has_uid for _, has_uid in calls), calls
+
+    def test_insist_uid_search_does_not_fetch_everything_async(
+        self, mock_client: DAVClient, mock_url: str
+    ) -> None:
+        """Async twin of test_insist_uid_search_does_not_fetch_everything."""
+        import asyncio
+
+        from caldav.compatibility_hints import FeatureSet
+
+        mock_client.features = FeatureSet(None)
+        calls = []
+        calendar = mock.Mock()
+        calendar.client = mock_client
+        event, rep = self._uid_search_report(mock_client, mock_url, calls, Event)
+        calendar._request_report_build_resultlist = mock.AsyncMock(side_effect=rep)
+        calendar._async_batch_load_objects = mock.AsyncMock()
+
+        searcher = CalDAVSearcher()
+        searcher.add_property_filter("UID", "simple-event@example.com")
+        result = asyncio.run(searcher.async_search(calendar, post_filter=True, _hacks="insist"))
+
+        assert result == [event]
+        assert all(has_uid for _, has_uid in calls), calls
+
+    def test_insist_uid_search_falls_back_when_nothing_found(
+        self, mock_client: DAVClient, mock_url: str
+    ) -> None:
+        """When no comp-type yields anything, "insist" still retries without the
+        text filter (for servers whose text search silently matches nothing)."""
+        from caldav.compatibility_hints import FeatureSet
+
+        mock_client.features = FeatureSet(None)
+        calls = []
+        calendar = mock.Mock()
+        calendar.client = mock_client
+        event, rep = self._uid_search_report(mock_client, mock_url, calls, Event)
+
+        def broken_text_search(xml, comp_cls, props=None):
+            resp, objs = rep(xml, comp_cls, props)
+            return (resp, objs if not calls[-1][1] else [])
+
+        calendar._request_report_build_resultlist.side_effect = broken_text_search
+
+        searcher = CalDAVSearcher()
+        searcher.add_property_filter("UID", "simple-event@example.com")
+        result = searcher.search(calendar, post_filter=True, _hacks="insist")
+
+        assert result == [event]
+        assert any(not has_uid for _, has_uid in calls)
+
+    def _missing_uid_search(self, mock_client, mock_url, calls, features):
+        from caldav.compatibility_hints import FeatureSet
+
+        mock_client.features = FeatureSet(features)
+        calendar = mock.Mock()
+        calendar.client = mock_client
+        _, rep = self._uid_search_report(mock_client, mock_url, calls, None)
+        calendar._request_report_build_resultlist.side_effect = rep
+        searcher = CalDAVSearcher()
+        searcher.add_property_filter("UID", "missing@example.com")
+        return calendar, searcher
+
+    def test_insist_missing_uid_trusts_configured_text_search(
+        self, mock_client: DAVClient, mock_url: str
+    ) -> None:
+        """A UID that is not on the server is a legitimate miss.  When the
+        server has a feature profile saying its text search works, "insist"
+        must not fall back to downloading the whole calendar."""
+        calls = []
+        calendar, searcher = self._missing_uid_search(mock_client, mock_url, calls, {})
+        result = searcher.search(calendar, post_filter=True, _hacks="insist")
+
+        assert result == []
+        assert all(has_uid for _, has_uid in calls), calls
+        assert len(calls) == 3
+
+    def test_insist_missing_uid_trusts_configured_text_search_async(
+        self, mock_client: DAVClient, mock_url: str
+    ) -> None:
+        """Async twin of test_insist_missing_uid_trusts_configured_text_search."""
+        import asyncio
+
+        calls = []
+        calendar, searcher = self._missing_uid_search(mock_client, mock_url, calls, {})
+        calendar._request_report_build_resultlist = mock.AsyncMock(
+            side_effect=calendar._request_report_build_resultlist.side_effect
+        )
+        calendar._async_batch_load_objects = mock.AsyncMock()
+        result = asyncio.run(searcher.async_search(calendar, post_filter=True, _hacks="insist"))
+
+        assert result == []
+        assert all(has_uid for _, has_uid in calls), calls
+        assert len(calls) == 3
+
+    def test_insist_missing_uid_falls_back_without_case_sensitive_search(
+        self, mock_client: DAVClient, mock_url: str
+    ) -> None:
+        """The UID filter is sent with the i;octet collation.  A server that
+        does not support it (CCS) may match nothing, so "insist" still retries
+        without the filter there."""
+        calls = []
+        calendar, searcher = self._missing_uid_search(
+            mock_client, mock_url, calls, {"search.text.case-sensitive": "unsupported"}
+        )
+        searcher.search(calendar, post_filter=True, _hacks="insist")
+
+        assert any(not has_uid for _, has_uid in calls), calls
+
 
 class TestSearchDriverExceptionHandling:
     """The search() driver runs the generator's yielded actions and must feed any
