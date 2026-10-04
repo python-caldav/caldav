@@ -2422,6 +2422,59 @@ END:VCALENDAR"""
             "add_object() with orphaned recurrence must PUT without raising NotFoundError"
         )
 
+    def test_save_orphan_found_by_uid_does_not_recurse(self):
+        """The UID lookup for the master may return the orphan itself.  The
+        merged result must be PUT once, not treated as a recurrence again
+        (that recursed until RecursionError)."""
+        event, mock_calendar = self._make_orphan_event()
+        mock_calendar.get_event_by_uid.side_effect = None
+        mock_calendar.get_event_by_uid.side_effect = lambda uid: Event(
+            client=event.client,
+            url="/calendar/orphan.ics",
+            data=self._orphan_ical,
+            parent=mock_calendar,
+        )
+        created = []
+        with mock.patch.object(
+            CalendarObjectResource,
+            "_create",
+            lambda self_, id=None, path=None, retry_on_failure=True: created.append(self_),
+        ):
+            event.save()
+        assert len(created) == 1
+        assert mock_calendar.get_event_by_uid.call_count == 1
+
+    def test_save_orphan_found_by_uid_does_not_recurse_async(self):
+        """Async twin of test_save_orphan_found_by_uid_does_not_recurse."""
+        import asyncio
+
+        from caldav.async_davclient import AsyncDAVClient
+
+        client = MockedDAVClient("")
+        client.__class__ = type("MockedAsyncDAVClient", (MockedDAVClient, AsyncDAVClient), {})
+        calendar = Calendar(client, url="/calendar/")
+        lookups = []
+
+        async def get_event_by_uid(uid):
+            lookups.append(uid)
+            return Event(
+                client=client, url="/calendar/orphan.ics", data=self._orphan_ical, parent=calendar
+            )
+
+        calendar.get_event_by_uid = get_event_by_uid
+        event = Event(
+            client=client, url="/calendar/orphan.ics", data=self._orphan_ical, parent=calendar
+        )
+        created = []
+
+        async def fake_create(self_, id=None, path=None, retry_on_failure=True):
+            created.append(self_)
+
+        with mock.patch.object(CalendarObjectResource, "_create", fake_create):
+            asyncio.run(event.save())
+        assert len(created) == 1
+        assert len(lookups) == 1
+
 
 class TestAsyncCalendarObjectResource:
     """Tests that CalendarObjectResource methods return coroutines (not None) for async clients.
