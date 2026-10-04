@@ -1437,7 +1437,10 @@ class CalendarObjectResource(DAVObject):
                 self._incorporate_recurrence_into_parent(
                     obj, only_this_recurrence is not False, all_recurrences
                 )
-                return obj.save(increase_seqno=increase_seqno)
+                ## obj now holds the whole resource; PUT it as-is.  Treating it
+                ## as a recurrence again recursed forever on an orphan, which
+                ## is its own "master" in the UID lookup.
+                return obj.save(increase_seqno=increase_seqno, only_this_recurrence=False)
 
         self._maybe_increment_sequence(increase_seqno)
         path = self.url.path if self.url else None
@@ -1561,7 +1564,8 @@ class CalendarObjectResource(DAVObject):
                 self._incorporate_recurrence_into_parent(
                     obj, only_this_recurrence is not False, all_recurrences
                 )
-                return await obj.save(increase_seqno=increase_seqno)
+                ## See save() for why only_this_recurrence=False.
+                return await obj.save(increase_seqno=increase_seqno, only_this_recurrence=False)
 
         self._maybe_increment_sequence(increase_seqno)
         path = self.url.path if self.url else None
