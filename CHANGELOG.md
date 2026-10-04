@@ -45,6 +45,10 @@ The JMAP support was declared experimental in 3.0, hence the changes below are d
 
 * `search(event=True)`, `search(journal=True)` and `search(comp_class=...)` could return objects of the wrong component type from a server graded `search.comp-type: unsupported` - one that silently ignores the comp-filter and returns the whole calendar.  Only `broken` triggered client-side filtering.  `unsupported` now does too, keeping the comp-filter in the query.  Affected profiles: `ox` and `infomaniak` (and `yahoo`, new in this release).  En passant, `search(comp_class=Todo)` no longer drops completed tasks on servers graded `broken` (`bedework`).
 
+* `get_object_by_uid()` (and through it `add_object()` for an object carrying `RELATED-TO`, `get_relatives()` and `set_relation()`) downloaded and parsed the whole calendar when called without `comp_class` on a server that needs the per-component-type split.  The VTODO uid came back empty from the VEVENT and VJOURNAL queries, and each empty answer was retried without the UID filter.  That retry now happens only when no component type matched.  Seen as ~4 s per `add_object()` against a 2500-object calendar on Xandikos.
+
+* `get_object_by_uid()` for a UID not on the server also downloaded and parsed the whole calendar before raising `NotFoundError`: an empty UID search was always retried without the UID filter, in case the server's text search was broken.  That retry now happens only when the server has no feature profile, or when its profile does not mark `search.text.case-sensitive` as supported (the UID filter uses the `i;octet` collation).  A profile that wrongly claims working text search now gets a `NotFoundError` instead.
+
 ## [3.3.1] - 2026-09-16
 
 The two main things in this release:
