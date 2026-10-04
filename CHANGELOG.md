@@ -49,6 +49,8 @@ The JMAP support was declared experimental in 3.0, hence the changes below are d
 
 * `get_object_by_uid()` for a UID not on the server also downloaded and parsed the whole calendar before raising `NotFoundError`: an empty UID search was always retried without the UID filter, in case the server's text search was broken.  That retry now happens only when the server has no feature profile, or when its profile does not mark `search.text.case-sensitive` as supported (the UID filter uses the `i;octet` collation).  A profile that wrongly claims working text search now gets a `NotFoundError` instead.
 
+* `save()` on a recurrence instance whose master is missing from the server (an "orphan" `RECURRENCE-ID`) recursed until `RecursionError`.  This happened whenever the object was fetched from the server, since the UID lookup for the master returned the orphan itself.  The object is now saved as-is.
+
 ## [3.3.1] - 2026-09-16
 
 The two main things in this release:
