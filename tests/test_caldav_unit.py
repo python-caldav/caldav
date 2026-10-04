@@ -2772,6 +2772,71 @@ END:VCALENDAR"""
         result.close()
 
 
+class TestReverseRelationSaves:
+    """add_object() fixes up reverse relations.  It should PUT only the objects
+    that actually change - not a related object that already points back, and
+    not the new object itself a second time."""
+
+    @staticmethod
+    def _todo(uid, related=None):
+        rel = "RELATED-TO;RELTYPE=%s:%s\n" % related if related else ""
+        return (
+            "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//test//EN\nBEGIN:VTODO\n"
+            f"UID:{uid}\nDTSTAMP:20260101T000000Z\nSUMMARY:{uid}\n{rel}"
+            "END:VTODO\nEND:VCALENDAR\n"
+        )
+
+    def _setup(self, client, calendar, parent_has_reverse):
+        child = Todo(
+            client=client,
+            url="/calendar/child.ics",
+            data=self._todo("child", ("PARENT", "parent")),
+            parent=calendar,
+        )
+        parent = Todo(
+            client=client,
+            url="/calendar/parent.ics",
+            data=self._todo("parent", ("CHILD", "child") if parent_has_reverse else None),
+            parent=calendar,
+        )
+        return child, parent
+
+    @pytest.mark.parametrize("parent_has_reverse", [True, False])
+    def test_fix_reverse_relations_saves_only_changed(self, parent_has_reverse):
+        client = MockedDAVClient("")
+        calendar = Calendar(client, url="/calendar/")
+        child, parent = self._setup(client, calendar, parent_has_reverse)
+        calendar.get_object_by_uid = lambda uid: parent
+        saved = []
+        with mock.patch.object(Todo, "save", lambda self, *a, **kw: saved.append(self.id)):
+            child._handle_reverse_relations(fix=True)
+        assert saved == ([] if parent_has_reverse else ["parent"])
+        assert "child" in parent.get_relatives(fetch_objects=False)["CHILD"]
+
+    @pytest.mark.parametrize("parent_has_reverse", [True, False])
+    def test_fix_reverse_relations_saves_only_changed_async(self, parent_has_reverse):
+        import asyncio
+
+        from caldav.async_davclient import AsyncDAVClient
+
+        client = MockedDAVClient("")
+        client.__class__ = type("MockedAsyncDAVClient", (MockedDAVClient, AsyncDAVClient), {})
+        calendar = Calendar(client, url="/calendar/")
+        child, parent = self._setup(client, calendar, parent_has_reverse)
+
+        async def get_object_by_uid(uid):
+            return parent
+
+        async def save(self, *a, **kw):
+            saved.append(self.id)
+
+        calendar.get_object_by_uid = get_object_by_uid
+        saved = []
+        with mock.patch.object(Todo, "save", save):
+            asyncio.run(child._handle_reverse_relations(fix=True))
+        assert saved == ([] if parent_has_reverse else ["parent"])
+
+
 class TestFreeBusyScheduleResponse:
     """Unit tests for parsing RFC6638 schedule-response to a freebusy request.
 
