@@ -1085,16 +1085,24 @@ class CalDAVSearcher(Searcher):
 
         base = self._comptype_split_base()
 
-        for comp_class in (Event, Todo, Journal):
-            if not calendar.client.features.is_supported(
-                f"save-load.{comp_class.__name__.lower()}"
-            ):
-                continue
-            clone = replace(base)
-            clone.comp_class = comp_class
-            objects += clone.search(
-                calendar, server_expand, split_expanded, props, xml, post_filter, _hacks
-            )
+        ## With _hacks="insist", a comp-type that comes back empty retries
+        ## without the text filters and downloads everything of that type.
+        ## An empty answer is genuine as long as some other comp-type matched
+        ## (get_object_by_uid on a VTODO used to fetch all events and journals),
+        ## so insist only when the whole split came back empty.
+        for hacks in [None, _hacks] if _hacks == "insist" else [_hacks]:
+            for comp_class in (Event, Todo, Journal):
+                if not calendar.client.features.is_supported(
+                    f"save-load.{comp_class.__name__.lower()}"
+                ):
+                    continue
+                clone = replace(base)
+                clone.comp_class = comp_class
+                objects += clone.search(
+                    calendar, server_expand, split_expanded, props, xml, post_filter, hacks
+                )
+            if objects:
+                break
         return self.sort(_dedup_by_url(objects))
 
     async def async_search(
@@ -1184,17 +1192,21 @@ class CalDAVSearcher(Searcher):
 
         base = self._comptype_split_base()
 
-        for comp_class in (Event, Todo, Journal):
-            if not calendar.client.features.is_supported(
-                f"save-load.{comp_class.__name__.lower()}"
-            ):
-                continue
-            clone = replace(base)
-            clone.comp_class = comp_class
-            results = await clone.async_search(
-                calendar, server_expand, split_expanded, props, xml, post_filter, _hacks
-            )
-            objects.extend(results)
+        ## See _search_with_comptypes for why "insist" is deferred.
+        for hacks in [None, _hacks] if _hacks == "insist" else [_hacks]:
+            for comp_class in (Event, Todo, Journal):
+                if not calendar.client.features.is_supported(
+                    f"save-load.{comp_class.__name__.lower()}"
+                ):
+                    continue
+                clone = replace(base)
+                clone.comp_class = comp_class
+                results = await clone.async_search(
+                    calendar, server_expand, split_expanded, props, xml, post_filter, hacks
+                )
+                objects.extend(results)
+            if objects:
+                break
         return self.sort(_dedup_by_url(objects))
 
     def filter(
