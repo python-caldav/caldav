@@ -322,7 +322,7 @@ hence, "fragile".
         },
         "create-calendar": {
             "default": { "support": "full" },
-            "description": "RFC4791 section 5.3.1 says that \"support for MKCALENDAR on the server is only RECOMMENDED and not REQUIRED because some calendar stores only support one calendar per user (or principal), and those are typically pre-created for each account\".  Hence a conformant server may opt to not support creating calendars, this is often seen for cloud services (some services allows extra calendars to be made, but not through the CalDAV protocol).  (RFC5689 extended MKCOL may also be used to create calendar collections as an alternative to MKCALENDAR.  We should consider testing this as well)",
+            "description": "RFC4791 section 5.3.1 says that \"support for MKCALENDAR on the server is only RECOMMENDED and not REQUIRED because some calendar stores only support one calendar per user (or principal), and those are typically pre-created for each account\".  Hence a conformant server may opt to not support creating calendars, this is often seen for cloud services (some services allows extra calendars to be made, but not through the CalDAV protocol).  (RFC5689 extended MKCOL may also be used to create calendar collections as an alternative to MKCALENDAR.  We should consider testing this as well)  'quirk' with a 'delay' (seconds) is for a server creating calendars asynchronously: the library polls the new calendar for up to that long before using it.",
             "links": [
                 "https://datatracker.ietf.org/doc/html/rfc4791#section-5.3.1",
                 "https://datatracker.ietf.org/doc/html/rfc5689",
@@ -2447,11 +2447,14 @@ ox = {
 ## SabreDAV 4.3.1.  Profiled 2026-06-15 against a freshly created dedicated
 ## calendar; save-load and most search features work well.
 infomaniak = {
-    ## SabreDAV processes writes asynchronously - MKCALENDAR/PUT/DELETE return
-    ## before the change is queryable, so an immediate read-back 404s or returns
-    ## stale data for several seconds.  This is server-wide (not just searches),
-    ## so we sleep after every write rather than only before searches.
-    'synchronous-write': {'support': 'unsupported', 'delay': 16},
+    ## Calendar collections are created and deleted asynchronously: MKCALENDAR
+    ## and DELETE return before the change takes effect, ~8s and ~6s measured
+    ## 2026-10-05.  A PUT into a calendar created moments before 404s, so the
+    ## library polls for the new calendar for up to `delay` seconds.  Object
+    ## writes were asynchronous too in 2026-06 (a 16s sleep after every write
+    ## was configured), but a PUT is readable at once since 2026-10.
+    'create-calendar': {'support': 'quirk', 'behaviour': 'delayed creation', 'delay': 15},
+    'delete-calendar': {'support': 'fragile', 'delay': 8},
     ## VJOURNAL is not supported.
     'save-load.journal': {'support': 'unsupported'},
     ## Calendar colour/order work once the post-write delay is honoured (the
