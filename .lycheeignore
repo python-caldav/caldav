@@ -55,7 +55,7 @@ https://github\.com/python-caldav/caldav/blob/master/%7B.*
 # Other junk that was never meant to be followed
 file://.*/scheme:.*
 /17149682/.*
-http://x/
+^https?://x/$
 https://ecloud\.global/remote\.php/.*
 https://tobixen@e\.email/remote\.php/dav
 https://dav\.qq\.com/.*
