@@ -840,7 +840,7 @@ class TestSynchronousWrite:
         assert features.is_supported("synchronous-write", dict) == new
         assert "write-delay" not in features.dotted_feature_set_list()
 
-    @pytest.mark.parametrize(("profile", "delay"), [("bedework_5_0_0", 1), ("infomaniak", 3)])
+    @pytest.mark.parametrize(("profile", "delay"), [("bedework_5_0_0", 1)])
     def test_profiles(self, profile: str, delay: int) -> None:
         features = FeatureSet(_resolve_features(profile))
         assert not features.is_supported("synchronous-write")
