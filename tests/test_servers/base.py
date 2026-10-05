@@ -8,6 +8,8 @@ This module provides abstract base classes for different types of test servers:
 """
 
 from abc import ABC, abstractmethod
+from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import Any
 
 try:
@@ -350,10 +352,35 @@ class DockerTestServer(TestServer):
             ) from self._start_error
 
         try:
-            self._start_container()
+            with self._lock():
+                # Another process may have started it while we waited
+                if self.is_accessible():
+                    self._started = True
+                    print(f"[OK] {self.name} was started by another process")
+                    return
+                self._start_container()
         except Exception as e:
             self._start_error = e
             raise
+
+    @contextmanager
+    def _lock(self) -> Iterator[None]:
+        """Serialise start.sh/stop.sh for this server across processes.
+
+        Keyed by server name rather than docker_dir, since clones of the
+        repo share the same containers and ports.
+        """
+        import fcntl
+        import tempfile
+        from pathlib import Path
+
+        lock_path = Path(tempfile.gettempdir()) / f"caldav-test-server-{self.name.lower()}.lock"
+        with open(lock_path, "w") as lock_file:
+            fcntl.flock(lock_file, fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(lock_file, fcntl.LOCK_UN)
 
     def _start_container(self) -> None:
         import subprocess
@@ -401,12 +428,13 @@ class DockerTestServer(TestServer):
         stop_script = self.docker_dir / "stop.sh"
         if stop_script.exists():
             print(f"Stopping {self.name}...")
-            subprocess.run(
-                [str(stop_script)],
-                cwd=self.docker_dir,
-                check=True,
-                capture_output=True,
-            )
+            with self._lock():
+                subprocess.run(
+                    [str(stop_script)],
+                    cwd=self.docker_dir,
+                    check=True,
+                    capture_output=True,
+                )
         self._started = False
         self._started_by_us = False
 
