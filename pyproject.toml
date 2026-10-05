@@ -4,6 +4,10 @@ build-backend = "hatchling.build"
 
 [tool.hatch.version]
 source = "vcs"
+# Only v<digit>* tags are releases. The default describe matches any tag
+# containing a digit, so a non-release tag with a number in it could
+# become the version and break the build.
+raw-options = { scm = { git = { describe_command = "git describe --dirty --tags --long --abbrev=40 --match v[0-9]*" } } }
 
 [tool.hatch.build.hooks.vcs]
 version-file = "caldav/_version.py"
