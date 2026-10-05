@@ -4752,6 +4752,489 @@ class TestMkcalendarMultistatus:
             self._save_calendar(mocked, 207, content)
 
 
+def _scripted_response(status: int, davclient=None) -> DAVResponse:
+    resp = mock.MagicMock()
+    resp.status_code = status
+    resp.reason = {
+        201: "Created",
+        204: "No Content",
+        207: "Multi-Status",
+        404: "Not Found",
+        500: "Internal Server Error",
+    }[status]
+    resp.headers = {"Content-Type": "text/xml"}
+    resp.content = (
+        '<multistatus xmlns="DAV:"><response><href>/dav/user/mycal/</href>'
+        "<propstat><prop><resourcetype><collection/></resourcetype></prop>"
+        "<status>HTTP/1.1 200 OK</status></propstat></response></multistatus>"
+        if status == 207
+        else ""
+    )
+    return DAVResponse(resp, davclient)
+
+
+class TestDelayedCalendarCreation:
+    """``synchronous-write.create-calendar`` declared unsupported with a ``delay``: MKCALENDAR
+    answers 201 before the collection exists (Infomaniak), so a PUT issued
+    right after it 404s.  The library polls the new calendar for up to
+    ``delay`` seconds before handing it back."""
+
+    URL = "http://cal.example.com/dav/user/"
+    FEATURES = {"synchronous-write.create-calendar": {"support": "unsupported", "delay": 10}}
+
+    def _client(self, propfind_404s: int, features=None, base=DAVClient, missing_status=404):
+        methods = []
+
+        def request(url, method="GET", body="", headers=None):
+            methods.append(method.upper())
+            if method.upper() == "MKCALENDAR":
+                return _scripted_response(201)
+            if methods.count("PROPFIND") <= propfind_404s:
+                return _scripted_response(missing_status)
+            return _scripted_response(207)
+
+        from caldav.compatibility_hints import FeatureSet
+
+        client = base(url="http://cal.example.com/dav/")
+        client.features = FeatureSet(self.FEATURES if features is None else features)
+        return client, request, methods
+
+    def _calendar(self, client) -> Calendar:
+        calendar_set = CalendarSet(client, url=self.URL)
+        return Calendar(client, parent=calendar_set, id="mycal")
+
+    def test_polls_until_the_calendar_exists(self) -> None:
+        client, request, methods = self._client(propfind_404s=2)
+        client.request = request
+        with mock.patch("caldav.davobject.sleep") as slept:
+            self._calendar(client).save()
+        assert methods == ["MKCALENDAR", "PROPFIND", "PROPFIND", "PROPFIND"]
+        assert slept.call_count == 2
+
+    def test_gives_up_after_the_delay(self) -> None:
+        """A calendar that never shows up is not an error here: the next
+        request reports the 404 as it always did."""
+        client, request, methods = self._client(propfind_404s=1000)
+        client.request = request
+        with (
+            mock.patch("caldav.davobject.sleep"),
+            mock.patch("caldav.davobject.monotonic", side_effect=[0, 0, 5, 11]),
+        ):
+            self._calendar(client).save()
+        assert methods == ["MKCALENDAR", "PROPFIND", "PROPFIND", "PROPFIND"]
+
+    def test_inherits_the_synchronous_write_delay(self) -> None:
+        client, request, methods = self._client(
+            propfind_404s=1, features={"synchronous-write": {"support": "unsupported", "delay": 10}}
+        )
+        client.request = request
+        with mock.patch("caldav.davobject.sleep"):
+            self._calendar(client).save()
+        assert methods == ["MKCALENDAR", "PROPFIND", "PROPFIND"]
+
+    def test_a_create_calendar_quirk_says_nothing_about_timing(self) -> None:
+        """The delay lives under synchronous-write; create-calendar's own
+        grade (e.g. mkcol-required) is a different question."""
+        client, request, methods = self._client(
+            propfind_404s=1000, features={"create-calendar": {"support": "quirk", "delay": 10}}
+        )
+        client.request = request
+        self._calendar(client).save()
+        assert methods == ["MKCALENDAR"]
+
+    def test_a_failing_poll_is_logged_not_raised(self, caplog) -> None:
+        """The MKCALENDAR succeeded; a read-back answering 500 ends the wait,
+        visibly, and does not make the creation look failed."""
+        client, request, methods = self._client(propfind_404s=1000, missing_status=500)
+        client.request = request
+        with caplog.at_level("WARNING", logger="caldav"):
+            self._calendar(client).save()
+        assert methods == ["MKCALENDAR", "PROPFIND"]
+        assert "gave up waiting" in caplog.text
+
+    def test_async_inherits_the_synchronous_write_delay(self) -> None:
+        import asyncio
+
+        from caldav.async_davclient import AsyncDAVClient
+
+        client, sync_request, methods = self._client(
+            propfind_404s=1,
+            features={"synchronous-write": {"support": "unsupported", "delay": 10}},
+            base=AsyncDAVClient,
+        )
+
+        async def request(*args, **kwargs):
+            return sync_request(*args, **kwargs)
+
+        client.request = request
+
+        async def no_sleep(_):
+            pass
+
+        with mock.patch("asyncio.sleep", no_sleep):
+            asyncio.run(self._calendar(client).save())
+        assert methods == ["MKCALENDAR", "PROPFIND", "PROPFIND"]
+
+    def test_quirk_without_behaviour_does_not_raise(self) -> None:
+        """A create-calendar quirk without a behaviour once raised KeyError."""
+        client, request, methods = self._client(
+            propfind_404s=0, features={"create-calendar": {"support": "quirk"}}
+        )
+        client.request = request
+        self._calendar(client).save()
+        assert methods == ["MKCALENDAR"]
+
+    def test_async_polls_until_the_calendar_exists(self) -> None:
+        import asyncio
+
+        from caldav.async_davclient import AsyncDAVClient
+
+        client, sync_request, methods = self._client(propfind_404s=2, base=AsyncDAVClient)
+
+        async def request(*args, **kwargs):
+            return sync_request(*args, **kwargs)
+
+        client.request = request
+
+        async def no_sleep(_):
+            pass
+
+        with mock.patch("asyncio.sleep", no_sleep):
+            asyncio.run(self._calendar(client).save())
+        assert methods == ["MKCALENDAR", "PROPFIND", "PROPFIND", "PROPFIND"]
+
+    def test_async_gives_up_after_the_delay(self) -> None:
+        import asyncio
+
+        from caldav.async_davclient import AsyncDAVClient
+
+        client, sync_request, methods = self._client(propfind_404s=1000, base=AsyncDAVClient)
+
+        async def request(*args, **kwargs):
+            return sync_request(*args, **kwargs)
+
+        client.request = request
+
+        async def no_sleep(_):
+            pass
+
+        with (
+            mock.patch("asyncio.sleep", no_sleep),
+            mock.patch("caldav.davobject.monotonic", side_effect=[0, 0, 5, 11]),
+        ):
+            asyncio.run(self._calendar(client).save())
+        assert methods == ["MKCALENDAR", "PROPFIND", "PROPFIND", "PROPFIND"]
+
+
+class TestDelayedCalendarDeletion:
+    """``synchronous-write.delete-calendar`` declared unsupported with a ``delay``: DELETE answers
+    before the collection is gone (Infomaniak), so a calendar re-created
+    under the same id right after it may clash with the old one.  The
+    library polls the deleted calendar for up to ``delay`` seconds."""
+
+    URL = "http://cal.example.com/dav/user/"
+    FEATURES = {"synchronous-write.delete-calendar": {"support": "unsupported", "delay": 10}}
+
+    def _client(self, propfind_207s: int, features=None, base=DAVClient):
+        methods = []
+
+        def request(url, method="GET", body="", headers=None):
+            methods.append(method.upper())
+            if method.upper() == "DELETE":
+                return _scripted_response(204)
+            if methods.count("PROPFIND") <= propfind_207s:
+                return _scripted_response(207)
+            return _scripted_response(404)
+
+        from caldav.compatibility_hints import FeatureSet
+
+        client = base(url="http://cal.example.com/dav/")
+        client.features = FeatureSet(self.FEATURES if features is None else features)
+        return client, request, methods
+
+    def _calendar(self, client) -> Calendar:
+        calendar_set = CalendarSet(client, url=self.URL)
+        return Calendar(client, parent=calendar_set, id="mycal", url=self.URL + "mycal/")
+
+    def test_polls_until_the_calendar_is_gone(self) -> None:
+        client, request, methods = self._client(propfind_207s=2)
+        client.request = request
+        with mock.patch("caldav.davobject.sleep") as slept:
+            self._calendar(client).delete()
+        assert methods == ["DELETE", "PROPFIND", "PROPFIND", "PROPFIND"]
+        assert slept.call_count == 2
+
+    def test_gives_up_after_the_delay(self) -> None:
+        client, request, methods = self._client(propfind_207s=1000)
+        client.request = request
+        with (
+            mock.patch("caldav.davobject.sleep"),
+            mock.patch("caldav.davobject.monotonic", side_effect=[0, 0, 5, 11]),
+        ):
+            self._calendar(client).delete()
+        assert methods == ["DELETE", "PROPFIND", "PROPFIND", "PROPFIND"]
+
+    def test_inherits_the_synchronous_write_delay(self) -> None:
+        client, request, methods = self._client(
+            propfind_207s=1, features={"synchronous-write": {"support": "unsupported", "delay": 10}}
+        )
+        client.request = request
+        with mock.patch("caldav.davobject.sleep"):
+            self._calendar(client).delete()
+        assert methods == ["DELETE", "PROPFIND", "PROPFIND"]
+
+    def test_a_delete_calendar_quirk_says_nothing_about_timing(self) -> None:
+        client, request, methods = self._client(
+            propfind_207s=1000, features={"delete-calendar": {"support": "quirk", "delay": 10}}
+        )
+        client.request = request
+        self._calendar(client).delete()
+        assert methods == ["DELETE"]
+
+    def test_async_inherits_the_synchronous_write_delay(self) -> None:
+        import asyncio
+
+        from caldav.async_davclient import AsyncDAVClient
+
+        client, sync_request, methods = self._client(
+            propfind_207s=1,
+            features={"synchronous-write": {"support": "unsupported", "delay": 10}},
+            base=AsyncDAVClient,
+        )
+
+        async def request(*args, **kwargs):
+            return sync_request(*args, **kwargs)
+
+        client.request = request
+
+        async def no_sleep(_):
+            pass
+
+        with mock.patch("asyncio.sleep", no_sleep):
+            asyncio.run(self._calendar(client).delete())
+        assert methods == ["DELETE", "PROPFIND", "PROPFIND"]
+
+    def test_async_polls_until_the_calendar_is_gone(self) -> None:
+        import asyncio
+
+        from caldav.async_davclient import AsyncDAVClient
+
+        client, sync_request, methods = self._client(propfind_207s=2, base=AsyncDAVClient)
+
+        async def request(*args, **kwargs):
+            return sync_request(*args, **kwargs)
+
+        client.request = request
+
+        async def no_sleep(_):
+            pass
+
+        with mock.patch("asyncio.sleep", no_sleep):
+            asyncio.run(self._calendar(client).delete())
+        assert methods == ["DELETE", "PROPFIND", "PROPFIND", "PROPFIND"]
+
+    def test_async_gives_up_after_the_delay(self) -> None:
+        import asyncio
+
+        from caldav.async_davclient import AsyncDAVClient
+
+        client, sync_request, methods = self._client(propfind_207s=1000, base=AsyncDAVClient)
+
+        async def request(*args, **kwargs):
+            return sync_request(*args, **kwargs)
+
+        client.request = request
+
+        async def no_sleep(_):
+            pass
+
+        with (
+            mock.patch("asyncio.sleep", no_sleep),
+            mock.patch("caldav.davobject.monotonic", side_effect=[0, 0, 5, 11]),
+        ):
+            asyncio.run(self._calendar(client).delete())
+        assert methods == ["DELETE", "PROPFIND", "PROPFIND", "PROPFIND"]
+
+
+class TestDelayedPropertyWrite:
+    """``synchronous-write.proppatch`` declared unsupported with a ``delay``:
+    a PROPPATCH is answered at once but a PROPFIND keeps returning the old
+    value for a while (~10s on Infomaniak).  set_properties() polls until the
+    change shows, for up to ``delay`` seconds."""
+
+    URL = "http://cal.example.com/dav/user/mycal/"
+    FEATURES = {"synchronous-write.proppatch": {"support": "unsupported", "delay": 10}}
+
+    def _client(
+        self, stale_reads: int, features=None, stored=lambda v: v, base=DAVClient, failing_polls=0
+    ):
+        """A server answering the first ``stale_reads`` PROPFINDs after a
+        PROPPATCH with the old display name, and storing ``stored(value)``."""
+        from caldav.compatibility_hints import FeatureSet
+
+        methods = []
+        bodies = []
+        failing_reads = [None] * failing_polls
+        state = {"visible": "old", "pending": None, "stale": 0}
+
+        def multistatus(prop):
+            resp = mock.MagicMock()
+            resp.status_code = 207
+            resp.reason = "Multi-Status"
+            resp.headers = {"Content-Type": "text/xml"}
+            resp.content = (
+                f'<multistatus xmlns="DAV:"><response><href>{self.URL}</href>'
+                f"<propstat><prop>{prop}</prop>"
+                "<status>HTTP/1.1 200 OK</status></propstat></response></multistatus>"
+            )
+            return DAVResponse(resp, client)
+
+        def request(url, method="GET", body="", headers=None):
+            method = method.upper()
+            methods.append(method)
+            bodies.append(to_normal_str(to_wire(body)) if body else "")
+            if method == "PROPFIND" and failing_reads and len(methods) > 2:
+                failing_reads.pop()
+                raise error.DAVError("transient")
+            if method == "PROPPATCH":
+                state["pending"] = stored(
+                    lxml.etree.fromstring(to_wire(body)).findtext(".//{DAV:}displayname")
+                )
+                state["stale"] = stale_reads
+                return multistatus("<displayname/>")
+            if state["pending"] is not None:
+                if state["stale"]:
+                    state["stale"] -= 1
+                else:
+                    state["visible"], state["pending"] = state["pending"], None
+            return multistatus(f"<displayname>{state['visible']}</displayname>")
+
+        client = base(url="http://cal.example.com/dav/")
+        client.features = FeatureSet(self.FEATURES if features is None else features)
+        client.request = request
+        client.bodies = bodies
+        return client, methods
+
+    def _calendar(self, client) -> Calendar:
+        return Calendar(client, url=self.URL)
+
+    def test_polls_until_the_change_shows(self) -> None:
+        client, methods = self._client(stale_reads=2)
+        cal = self._calendar(client)
+        with mock.patch("caldav.davobject.sleep") as slept:
+            cal.set_properties([dav.DisplayName("new")])
+        assert methods == ["PROPFIND", "PROPPATCH", "PROPFIND", "PROPFIND", "PROPFIND"]
+        assert slept.call_count == 2
+        assert cal.get_display_name() == "new"
+
+    def test_a_normalised_value_counts_as_the_change(self) -> None:
+        """The server may store something else than what was sent (the hex
+        colour '#FF0000FF' comes back as '#ff0000' on Infomaniak): the poll
+        waits for the old value to go away, not for the new one verbatim."""
+        client, methods = self._client(stale_reads=1, stored=str.upper)
+        with mock.patch("caldav.davobject.sleep"):
+            self._calendar(client).set_properties([dav.DisplayName("new")])
+        assert methods == ["PROPFIND", "PROPPATCH", "PROPFIND", "PROPFIND"]
+
+    def test_setting_the_current_value_does_not_poll(self) -> None:
+        client, methods = self._client(stale_reads=1000)
+        self._calendar(client).set_properties([dav.DisplayName("old")])
+        assert methods == ["PROPFIND", "PROPPATCH"]
+
+    def test_gives_up_after_the_delay(self) -> None:
+        client, methods = self._client(stale_reads=1000)
+        with (
+            mock.patch("caldav.davobject.sleep"),
+            mock.patch("caldav.davobject.monotonic", side_effect=[0, 0, 5, 11]),
+        ):
+            self._calendar(client).set_properties([dav.DisplayName("new")])
+        assert methods == ["PROPFIND", "PROPPATCH", "PROPFIND", "PROPFIND", "PROPFIND"]
+
+    def test_a_failing_poll_does_not_fail_the_write(self) -> None:
+        """The PROPPATCH went through; a PROPFIND failing afterwards only
+        ends the wait."""
+        client, methods = self._client(stale_reads=1000, failing_polls=1)
+        with mock.patch("caldav.davobject.sleep"):
+            self._calendar(client).set_properties([dav.DisplayName("new")])
+        assert methods == ["PROPFIND", "PROPPATCH", "PROPFIND"]
+
+    def test_a_failing_poll_is_logged(self, caplog) -> None:
+        """Ending the wait on an error must not hide it."""
+        client, methods = self._client(stale_reads=1000, failing_polls=1)
+        with mock.patch("caldav.davobject.sleep"), caplog.at_level("WARNING", logger="caldav"):
+            self._calendar(client).set_properties([dav.DisplayName("new")])
+        assert "transient" in caplog.text
+
+    def test_the_first_propfind_asks_for_empty_properties(self) -> None:
+        """RFC 4918 PROPFIND names the properties; it does not carry values."""
+        client, methods = self._client(stale_reads=0)
+        self._calendar(client).set_properties([dav.DisplayName("new")])
+        assert methods[0] == "PROPFIND"
+        assert "new" not in client.bodies[0]
+
+    def test_giving_up_is_logged(self, caplog) -> None:
+        client, methods = self._client(stale_reads=1000)
+        with (
+            mock.patch("caldav.davobject.sleep"),
+            mock.patch("caldav.davobject.monotonic", side_effect=[0, 0, 11]),
+            caplog.at_level("WARNING", logger="caldav"),
+        ):
+            self._calendar(client).set_properties([dav.DisplayName("new")])
+        assert "gave up waiting" in caplog.text
+
+    def test_synchronous_server_sends_only_the_proppatch(self) -> None:
+        client, methods = self._client(stale_reads=0, features={})
+        self._calendar(client).set_properties([dav.DisplayName("new")])
+        assert methods == ["PROPPATCH"]
+
+    def test_inherits_the_synchronous_write_delay(self) -> None:
+        """A profile from before the split declares every write asynchronous;
+        a PROPPATCH is one of them."""
+        client, methods = self._client(
+            stale_reads=1, features={"synchronous-write": {"support": "unsupported", "delay": 10}}
+        )
+        with mock.patch("caldav.davobject.sleep"):
+            self._calendar(client).set_properties([dav.DisplayName("new")])
+        assert methods == ["PROPFIND", "PROPPATCH", "PROPFIND", "PROPFIND"]
+
+    def test_async_failing_poll_is_logged_not_raised(self, caplog) -> None:
+        import asyncio
+
+        from caldav.async_davclient import AsyncDAVClient
+
+        client, methods = self._client(stale_reads=1000, failing_polls=1, base=AsyncDAVClient)
+        sync_request = client.request
+
+        async def request(*args, **kwargs):
+            return sync_request(*args, **kwargs)
+
+        client.request = request
+        with caplog.at_level("WARNING", logger="caldav"):
+            asyncio.run(self._calendar(client).set_properties([dav.DisplayName("new")]))
+        assert methods == ["PROPFIND", "PROPPATCH", "PROPFIND"]
+        assert "transient" in caplog.text
+
+    def test_async_polls_until_the_change_shows(self) -> None:
+        import asyncio
+
+        from caldav.async_davclient import AsyncDAVClient
+
+        client, methods = self._client(stale_reads=2, base=AsyncDAVClient)
+        sync_request = client.request
+
+        async def request(*args, **kwargs):
+            return sync_request(*args, **kwargs)
+
+        client.request = request
+
+        async def no_sleep(_):
+            pass
+
+        with mock.patch("asyncio.sleep", no_sleep):
+            asyncio.run(self._calendar(client).set_properties([dav.DisplayName("new")]))
+        assert methods == ["PROPFIND", "PROPPATCH", "PROPFIND", "PROPFIND", "PROPFIND"]
+
+
 class TestCompTypeFilterIgnored:
     """``search.comp-type`` graded ``unsupported`` means the server silently
     ignores the comp-filter and returns the whole calendar.  The library must
