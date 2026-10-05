@@ -40,16 +40,30 @@ The caller then does either `obj.save()` or `await obj.save()` depending on cont
 ### Silent coroutine discard
 
 The single biggest problem: **if a method calls `self.save()` internally and
-forgets the async check, the coroutine is silently discarded with no error**.
+forgets the async check, the coroutine is discarded with no error**.
 
 ```python
 def uncomplete(self):
     ...ical manipulation...
-    self.save()          # BUG: returns a coroutine in async mode, discarded silently
+    self.save()          # BUG: returns a coroutine in async mode, discarded
 ```
 
 The object appears to work — `uncomplete()` returns `None` as expected — but the
-change is never written to the server.  There is no exception, no warning, nothing.
+change is never written to the server.  There is no exception.  There is a
+warning — `RuntimeWarning: coroutine '..._async_save' was never awaited` — but
+it is weak in four ways:
+
+1. It is only a warning, printed once per location.  On CPython it fires at
+   once and names the offending line; on interpreters without reference
+   counting it fires at garbage-collection time, far from the call site.
+2. It names the *private* method (`_async_save`), not the public method the
+   caller used (though CPython's source line does show the public call).
+3. `python -W ignore`, or a `logging` setup that swallows warnings, hides it
+   outright.  pytest does print it, but in a non-failing warnings summary that
+   a green run invites you to scroll past.
+4. It does not stop execution, so the program carries on with false data.
+
+So the failure is not literally silent, but it is silent enough in practice.
 
 Commit e819a3a5 fixed `save()` and `complete()`.  The subsequent commit fixed
 `uncomplete()`, `set_relation()`, `get_relatives()`, and the invite-reply methods.
@@ -66,7 +80,8 @@ The pattern requires that **every** method touching I/O has:
 
 Miss any one of these three and you have a silent bug.  There is no compiler
 enforcement, no type checker that catches it (the return type annotations currently
-lie — `-> None` but actually `-> Coroutine | None`), and no runtime warning.
+lie — `-> None` but actually `-> Coroutine | None`), and only a weak runtime
+warning (see above).
 
 ### Type annotations are incorrect
 
