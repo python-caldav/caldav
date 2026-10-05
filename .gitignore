@@ -47,3 +47,4 @@ docs/design/tmp-*
 ## at the top level.  Two tmp-* files have ever been committed, both
 ## scratch, both on playground branches in 2025, neither on master.
 tmp-*
+/.prompts/
