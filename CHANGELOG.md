@@ -47,6 +47,8 @@ The JMAP support was declared experimental in 3.0, hence the changes below are d
 
 * `get_object_by_uid()` (and through it `add_object()` for an object carrying `RELATED-TO`, `get_relatives()` and `set_relation()`) downloaded and parsed the whole calendar when called without `comp_class` on a server that needs the per-component-type split.  The VTODO uid came back empty from the VEVENT and VJOURNAL queries, and each empty answer was retried without the UID filter.  That retry now happens only when no component type matched.  Seen as ~4 s per `add_object()` against a 2500-object calendar on Xandikos.
 
+* `get_object_by_uid()` for a UID not on the server also downloaded and parsed the whole calendar before raising `NotFoundError`: an empty UID search was always retried without the UID filter, in case the server's text search was broken.  That retry now happens only when the server has no feature profile, or when its profile does not mark `search.text.case-sensitive` as supported (the UID filter uses the `i;octet` collation).  A profile that wrongly claims working text search now gets a `NotFoundError` instead.
+
 * `save()` on a recurrence instance whose master is missing from the server (an "orphan" `RECURRENCE-ID`) recursed until `RecursionError`.  This happened whenever the object was fetched from the server, since the UID lookup for the master returned the orphan itself.  The object is now saved as-is.
 
 * `add_object()` with `RELATED-TO` properties re-saved the new object once per relation, and saved each related object even when it already pointed back.  `set_relation()` no longer saves when the relation was already there.

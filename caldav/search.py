@@ -261,6 +261,20 @@ def _dedup_by_url(matches: list) -> list:
     return objects
 
 
+def _text_search_untrusted(features: Any) -> bool:
+    """Whether an empty text search may be the server failing rather than a miss.
+
+    Decides if ``_hacks="insist"`` retries without the text filters, which
+    downloads everything and filters client-side.  A server with a feature
+    profile is trusted unless it says otherwise; the filter is sent with the
+    i;octet collation, hence search.text.case-sensitive (CCS lacks it).  A
+    server with no profile at all is not trusted.
+    """
+    return features.backward_compatibility_mode or not features.is_supported(
+        "search.text.case-sensitive"
+    )
+
+
 def _is_not_defined_supported(features: Any, prop: str) -> bool:
     """Check if is-not-defined search is supported for a specific property.
 
@@ -918,7 +932,14 @@ class CalDAVSearcher(Searcher):
             ## filters, the server may not support text search (e.g. purelymail,
             ## CCS with i;octet collation).  Retry without the text filters and rely
             ## on client-side post_filter (which is guaranteed True in get_object_by_uid).
-            if not objects and _hacks == "insist" and self._property_filters:
+            ## Not on a server whose profile vouches for its text search: there an
+            ## empty answer is a genuine miss, and the retry fetches everything.
+            if (
+                not objects
+                and _hacks == "insist"
+                and self._property_filters
+                and _text_search_untrusted(calendar.client.features)
+            ):
                 non_undef_filters = [
                     prop for prop, op in self._property_operator.items() if op != "undef"
                 ]
@@ -1090,7 +1111,8 @@ class CalDAVSearcher(Searcher):
         ## An empty answer is genuine as long as some other comp-type matched
         ## (get_object_by_uid on a VTODO used to fetch all events and journals),
         ## so insist only when the whole split came back empty.
-        for hacks in [None, _hacks] if _hacks == "insist" else [_hacks]:
+        insist_twice = _hacks == "insist" and _text_search_untrusted(calendar.client.features)
+        for hacks in [None, _hacks] if insist_twice else [_hacks]:
             for comp_class in (Event, Todo, Journal):
                 if not calendar.client.features.is_supported(
                     f"save-load.{comp_class.__name__.lower()}"
@@ -1193,7 +1215,8 @@ class CalDAVSearcher(Searcher):
         base = self._comptype_split_base()
 
         ## See _search_with_comptypes for why "insist" is deferred.
-        for hacks in [None, _hacks] if _hacks == "insist" else [_hacks]:
+        insist_twice = _hacks == "insist" and _text_search_untrusted(calendar.client.features)
+        for hacks in [None, _hacks] if insist_twice else [_hacks]:
             for comp_class in (Event, Todo, Journal):
                 if not calendar.client.features.is_supported(
                     f"save-load.{comp_class.__name__.lower()}"

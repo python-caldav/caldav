@@ -1244,6 +1244,64 @@ class TestCompTypeOptionalPropFilter:
         assert result == [event]
         assert any(not has_uid for _, has_uid in calls)
 
+    def _missing_uid_search(self, mock_client, mock_url, calls, features):
+        from caldav.compatibility_hints import FeatureSet
+
+        mock_client.features = FeatureSet(features)
+        calendar = mock.Mock()
+        calendar.client = mock_client
+        _, rep = self._uid_search_report(mock_client, mock_url, calls, None)
+        calendar._request_report_build_resultlist.side_effect = rep
+        searcher = CalDAVSearcher()
+        searcher.add_property_filter("UID", "missing@example.com")
+        return calendar, searcher
+
+    def test_insist_missing_uid_trusts_configured_text_search(
+        self, mock_client: DAVClient, mock_url: str
+    ) -> None:
+        """A UID that is not on the server is a legitimate miss.  When the
+        server has a feature profile saying its text search works, "insist"
+        must not fall back to downloading the whole calendar."""
+        calls = []
+        calendar, searcher = self._missing_uid_search(mock_client, mock_url, calls, {})
+        result = searcher.search(calendar, post_filter=True, _hacks="insist")
+
+        assert result == []
+        assert all(has_uid for _, has_uid in calls), calls
+        assert len(calls) == 3
+
+    def test_insist_missing_uid_trusts_configured_text_search_async(
+        self, mock_client: DAVClient, mock_url: str
+    ) -> None:
+        """Async twin of test_insist_missing_uid_trusts_configured_text_search."""
+        import asyncio
+
+        calls = []
+        calendar, searcher = self._missing_uid_search(mock_client, mock_url, calls, {})
+        calendar._request_report_build_resultlist = mock.AsyncMock(
+            side_effect=calendar._request_report_build_resultlist.side_effect
+        )
+        calendar._async_batch_load_objects = mock.AsyncMock()
+        result = asyncio.run(searcher.async_search(calendar, post_filter=True, _hacks="insist"))
+
+        assert result == []
+        assert all(has_uid for _, has_uid in calls), calls
+        assert len(calls) == 3
+
+    def test_insist_missing_uid_falls_back_without_case_sensitive_search(
+        self, mock_client: DAVClient, mock_url: str
+    ) -> None:
+        """The UID filter is sent with the i;octet collation.  A server that
+        does not support it (CCS) may match nothing, so "insist" still retries
+        without the filter there."""
+        calls = []
+        calendar, searcher = self._missing_uid_search(
+            mock_client, mock_url, calls, {"search.text.case-sensitive": "unsupported"}
+        )
+        searcher.search(calendar, post_filter=True, _hacks="insist")
+
+        assert any(not has_uid for _, has_uid in calls), calls
+
 
 class TestSearchDriverExceptionHandling:
     """The search() driver runs the generator's yielded actions and must feed any
