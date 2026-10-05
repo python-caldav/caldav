@@ -297,6 +297,9 @@ class DockerTestServer(TestServer):
             Path(__file__).parent.parent / "docker-test-servers" / self.name.lower()
         )
         self.docker_dir = Path(self.config.get("docker_dir", default_docker_dir))
+        # Set when start() fails, so later tests fail fast instead of
+        # re-running start.sh and waiting for the full timeout every time.
+        self._start_error: Exception | None = None
 
     def _default_port(self) -> int:
         """Return the default port for this server type."""
@@ -335,14 +338,26 @@ class DockerTestServer(TestServer):
         Raises:
             RuntimeError: If Docker is not available or container fails to start
         """
-        import subprocess
-        import time
-
         if self._started or self.is_accessible():
             self._started = True  # Mark as started even if already running
             # Don't set _started_by_us - we didn't start it this time
             print(f"[OK] {self.name} is already running")
             return
+
+        if self._start_error is not None:
+            raise RuntimeError(
+                f"{self.name} previously failed to start: {self._start_error}"
+            ) from self._start_error
+
+        try:
+            self._start_container()
+        except Exception as e:
+            self._start_error = e
+            raise
+
+    def _start_container(self) -> None:
+        import subprocess
+        import time
 
         if not self.verify_docker():
             raise RuntimeError(f"Docker not available for {self.name}")
