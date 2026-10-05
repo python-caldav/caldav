@@ -27,6 +27,7 @@ The JMAP support was declared experimental in 3.0, hence the changes below are d
 * `compatibility_hints`: `auth.www-authenticate` records whether the server sends the `WWW-Authenticate` header RFC7235 section 3.1 requires on a 401, and `auth.www-authenticate.usable-scheme` whether the schemes it offers include one this library implements.  A server failing either one may never receive your password, and the 401 looks like a rejected one - so it may need `auth_type` pinned in the configuration, and a profile can now say which.  Probed by caldav-server-tester.  See https://github.com/python-caldav/caldav/issues/713.
 * `compatibility_hints`: new server profile `yahoo`, for Yahoo Calendar (`https://caldav.calendar.yahoo.com/`), probed with caldav-server-tester.  Note that the server sends no `WWW-Authenticate` header; the client falls back to guessing Basic auth (see Fixed below), and pinning `auth_type: basic` skips that guess and its warning - see https://github.com/python-caldav/caldav/issues/713.  The notable gradings: the comp-filter is silently ignored, `If-Match: *` holds backwards, sync-token and server-side recurrence handling are missing, and a created calendar is served under a numeric id rather than the requested name.
 * `compatibility_hints`: new feature `scheduling.calendar-user-address-set.populated`, for a server that advertises `calendar-user-address-set` but returns it empty.  Graded `unsupported` for Xandikos.
+* `compatibility_hints`: `create-calendar` and `delete-calendar` graded `quirk` may carry a `delay`, for a server that creates or deletes calendars asynchronously.  `make_calendar()` then waits, up to that many seconds, until the new calendar exists, so the first object saved into it no longer 404s; `Calendar.delete()` likewise waits until the calendar is gone.
 
 ### Changed
 
@@ -36,6 +37,7 @@ The JMAP support was declared experimental in 3.0, hence the changes below are d
   * Importing `caldav.jmap` now emits a `DeprecationWarning`.  Use `from calendaring_jmap import JMAPClient` going forward; the wrapper will be removed in a future release.
   * `get_jmap_client()`/`get_async_jmap_client()` still resolve configuration the same way `get_davclient()` does - that is the one thing the wrapper adds over importing calendaring-jmap directly.
   * JMAP errors remain catchable as `DAVError`.
+* The `infomaniak` profile drops its blanket 16-second sleep after every write: object writes there are no longer asynchronous, only calendar creation and deletion are, and those are now graded `quirk` with a `delay` (see Added).  `delete-calendar` was `fragile`, which made `Calendar.delete()` re-issue the DELETE and, if the calendar outlived its retries, wipe the objects and leave the calendar behind.
 
 ### Fixed
 
@@ -50,6 +52,8 @@ The JMAP support was declared experimental in 3.0, hence the changes below are d
 * `get_object_by_uid()` for a UID not on the server also downloaded and parsed the whole calendar before raising `NotFoundError`: an empty UID search was always retried without the UID filter, in case the server's text search was broken.  That retry now happens only when the server has no feature profile, or when its profile does not mark `search.text.case-sensitive` as supported (the UID filter uses the `i;octet` collation).  A profile that wrongly claims working text search now gets a `NotFoundError` instead.
 
 * `save()` on a recurrence instance whose master is missing from the server (an "orphan" `RECURRENCE-ID`) recursed until `RecursionError`.  This happened whenever the object was fetched from the server, since the UID lookup for the master returned the orphan itself.  The object is now saved as-is.
+
+* `make_calendar()` raised `KeyError: 'behaviour'` on a server whose `create-calendar` was configured as `quirk` without a `behaviour`.
 
 * `add_object()` with `RELATED-TO` properties re-saved the new object once per relation, and saved each related object even when it already pointed back.  `set_relation()` no longer saves when the relation was already there.
 

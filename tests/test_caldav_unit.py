@@ -4752,6 +4752,219 @@ class TestMkcalendarMultistatus:
             self._save_calendar(mocked, 207, content)
 
 
+def _scripted_response(status: int, davclient=None) -> DAVResponse:
+    resp = mock.MagicMock()
+    resp.status_code = status
+    resp.reason = {201: "Created", 204: "No Content", 207: "Multi-Status", 404: "Not Found"}[status]
+    resp.headers = {"Content-Type": "text/xml"}
+    resp.content = (
+        '<multistatus xmlns="DAV:"><response><href>/dav/user/mycal/</href>'
+        "<propstat><prop><resourcetype><collection/></resourcetype></prop>"
+        "<status>HTTP/1.1 200 OK</status></propstat></response></multistatus>"
+        if status == 207
+        else ""
+    )
+    return DAVResponse(resp, davclient)
+
+
+class TestDelayedCalendarCreation:
+    """``create-calendar`` graded ``quirk`` with a ``delay``: MKCALENDAR
+    answers 201 before the collection exists (Infomaniak), so a PUT issued
+    right after it 404s.  The library polls the new calendar for up to
+    ``delay`` seconds before handing it back."""
+
+    URL = "http://cal.example.com/dav/user/"
+    FEATURES = {"create-calendar": {"support": "quirk", "delay": 10}}
+
+    def _client(self, propfind_404s: int, features=None, base=DAVClient):
+        methods = []
+
+        def request(url, method="GET", body="", headers=None):
+            methods.append(method.upper())
+            if method.upper() == "MKCALENDAR":
+                return _scripted_response(201)
+            if methods.count("PROPFIND") <= propfind_404s:
+                return _scripted_response(404)
+            return _scripted_response(207)
+
+        from caldav.compatibility_hints import FeatureSet
+
+        client = base(url="http://cal.example.com/dav/")
+        client.features = FeatureSet(self.FEATURES if features is None else features)
+        return client, request, methods
+
+    def _calendar(self, client) -> Calendar:
+        calendar_set = CalendarSet(client, url=self.URL)
+        return Calendar(client, parent=calendar_set, id="mycal")
+
+    def test_polls_until_the_calendar_exists(self) -> None:
+        client, request, methods = self._client(propfind_404s=2)
+        client.request = request
+        with mock.patch("caldav.collection.sleep") as slept:
+            self._calendar(client).save()
+        assert methods == ["MKCALENDAR", "PROPFIND", "PROPFIND", "PROPFIND"]
+        assert slept.call_count == 2
+
+    def test_gives_up_after_the_delay(self) -> None:
+        """A calendar that never shows up is not an error here: the next
+        request reports the 404 as it always did."""
+        client, request, methods = self._client(propfind_404s=1000)
+        client.request = request
+        with (
+            mock.patch("caldav.collection.sleep"),
+            mock.patch("caldav.collection.monotonic", side_effect=[0, 0, 5, 11]),
+        ):
+            self._calendar(client).save()
+        assert methods == ["MKCALENDAR", "PROPFIND", "PROPFIND", "PROPFIND"]
+
+    def test_quirk_without_behaviour_or_delay_does_not_poll(self) -> None:
+        client, request, methods = self._client(
+            propfind_404s=0, features={"create-calendar": {"support": "quirk"}}
+        )
+        client.request = request
+        self._calendar(client).save()
+        assert methods == ["MKCALENDAR"]
+
+    def test_async_polls_until_the_calendar_exists(self) -> None:
+        import asyncio
+
+        from caldav.async_davclient import AsyncDAVClient
+
+        client, sync_request, methods = self._client(propfind_404s=2, base=AsyncDAVClient)
+
+        async def request(*args, **kwargs):
+            return sync_request(*args, **kwargs)
+
+        client.request = request
+
+        async def no_sleep(_):
+            pass
+
+        with mock.patch("asyncio.sleep", no_sleep):
+            asyncio.run(self._calendar(client).save())
+        assert methods == ["MKCALENDAR", "PROPFIND", "PROPFIND", "PROPFIND"]
+
+    def test_async_gives_up_after_the_delay(self) -> None:
+        import asyncio
+
+        from caldav.async_davclient import AsyncDAVClient
+
+        client, sync_request, methods = self._client(propfind_404s=1000, base=AsyncDAVClient)
+
+        async def request(*args, **kwargs):
+            return sync_request(*args, **kwargs)
+
+        client.request = request
+
+        async def no_sleep(_):
+            pass
+
+        with (
+            mock.patch("asyncio.sleep", no_sleep),
+            mock.patch("caldav.collection.monotonic", side_effect=[0, 0, 5, 11]),
+        ):
+            asyncio.run(self._calendar(client).save())
+        assert methods == ["MKCALENDAR", "PROPFIND", "PROPFIND", "PROPFIND"]
+
+
+class TestDelayedCalendarDeletion:
+    """``delete-calendar`` graded ``quirk`` with a ``delay``: DELETE answers
+    before the collection is gone (Infomaniak), so a calendar re-created
+    under the same id right after it may clash with the old one.  The
+    library polls the deleted calendar for up to ``delay`` seconds."""
+
+    URL = "http://cal.example.com/dav/user/"
+    FEATURES = {"delete-calendar": {"support": "quirk", "delay": 10}}
+
+    def _client(self, propfind_207s: int, features=None, base=DAVClient):
+        methods = []
+
+        def request(url, method="GET", body="", headers=None):
+            methods.append(method.upper())
+            if method.upper() == "DELETE":
+                return _scripted_response(204)
+            if methods.count("PROPFIND") <= propfind_207s:
+                return _scripted_response(207)
+            return _scripted_response(404)
+
+        from caldav.compatibility_hints import FeatureSet
+
+        client = base(url="http://cal.example.com/dav/")
+        client.features = FeatureSet(self.FEATURES if features is None else features)
+        return client, request, methods
+
+    def _calendar(self, client) -> Calendar:
+        calendar_set = CalendarSet(client, url=self.URL)
+        return Calendar(client, parent=calendar_set, id="mycal", url=self.URL + "mycal/")
+
+    def test_polls_until_the_calendar_is_gone(self) -> None:
+        client, request, methods = self._client(propfind_207s=2)
+        client.request = request
+        with mock.patch("caldav.collection.sleep") as slept:
+            self._calendar(client).delete()
+        assert methods == ["DELETE", "PROPFIND", "PROPFIND", "PROPFIND"]
+        assert slept.call_count == 2
+
+    def test_gives_up_after_the_delay(self) -> None:
+        client, request, methods = self._client(propfind_207s=1000)
+        client.request = request
+        with (
+            mock.patch("caldav.collection.sleep"),
+            mock.patch("caldav.collection.monotonic", side_effect=[0, 0, 5, 11]),
+        ):
+            self._calendar(client).delete()
+        assert methods == ["DELETE", "PROPFIND", "PROPFIND", "PROPFIND"]
+
+    def test_quirk_without_delay_does_not_poll(self) -> None:
+        client, request, methods = self._client(
+            propfind_207s=0, features={"delete-calendar": {"support": "quirk"}}
+        )
+        client.request = request
+        self._calendar(client).delete()
+        assert methods == ["DELETE"]
+
+    def test_async_polls_until_the_calendar_is_gone(self) -> None:
+        import asyncio
+
+        from caldav.async_davclient import AsyncDAVClient
+
+        client, sync_request, methods = self._client(propfind_207s=2, base=AsyncDAVClient)
+
+        async def request(*args, **kwargs):
+            return sync_request(*args, **kwargs)
+
+        client.request = request
+
+        async def no_sleep(_):
+            pass
+
+        with mock.patch("asyncio.sleep", no_sleep):
+            asyncio.run(self._calendar(client).delete())
+        assert methods == ["DELETE", "PROPFIND", "PROPFIND", "PROPFIND"]
+
+    def test_async_gives_up_after_the_delay(self) -> None:
+        import asyncio
+
+        from caldav.async_davclient import AsyncDAVClient
+
+        client, sync_request, methods = self._client(propfind_207s=1000, base=AsyncDAVClient)
+
+        async def request(*args, **kwargs):
+            return sync_request(*args, **kwargs)
+
+        client.request = request
+
+        async def no_sleep(_):
+            pass
+
+        with (
+            mock.patch("asyncio.sleep", no_sleep),
+            mock.patch("caldav.collection.monotonic", side_effect=[0, 0, 5, 11]),
+        ):
+            asyncio.run(self._calendar(client).delete())
+        assert methods == ["DELETE", "PROPFIND", "PROPFIND", "PROPFIND"]
+
+
 class TestCompTypeFilterIgnored:
     """``search.comp-type`` graded ``unsupported`` means the server silently
     ignores the comp-filter and returns the whole calendar.  The library must
