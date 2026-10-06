@@ -3426,10 +3426,10 @@ class TestDateToUtcConversion:
                 super().__init__("<multistatus xmlns='DAV:'/>")
                 self.report_bodies = []
 
-            def request(self, url, method="GET", body=None, headers=None):
+            def request(self, url=None, method="GET", body=None, headers=None, *args, **kwargs):
                 if method == "REPORT" and body:
                     self.report_bodies.append(body)
-                return super().request(url, method, body, headers)
+                return super().request(url, method, body, headers, *args, **kwargs)
 
         client = CapturingClient()
         calendar = Calendar(client, url="/cal/")
@@ -5004,10 +5004,10 @@ class TestCompTypeFilterIgnored:
                 super().__init__(xml)
                 self.report_bodies = []
 
-            def request(self, url, method="GET", body=None, headers=None):
+            def request(self, url=None, method="GET", body=None, headers=None, *args, **kwargs):
                 if method == "REPORT" and body:
                     self.report_bodies.append(to_normal_str(body))
-                return super().request(url, method, body, headers)
+                return super().request(url, method, body, headers, *args, **kwargs)
 
         client = CapturingClient(response or self.whole_calendar_response)
         client.features = FeatureSet({"search.comp-type": {"support": support}})
