@@ -1570,7 +1570,9 @@ class CalendarObjectResource(DAVObject):
                 self._incorporate_recurrence_into_parent(
                     obj, only_this_recurrence is not False, all_recurrences
                 )
-                ## See save() for why only_this_recurrence=False.
+                ## obj now holds the whole resource; PUT it as-is.  An orphan
+                ## is its own "master" in the UID lookup, so merging again
+                ## would recurse forever (see the twin comment in save()).
                 return await obj.save(increase_seqno=increase_seqno, only_this_recurrence=False)
 
         self._maybe_increment_sequence(increase_seqno)
