@@ -1,6 +1,7 @@
 import logging
 import sys
 import warnings
+from time import monotonic, sleep
 from typing import TYPE_CHECKING, Any, Optional, TypeVar
 from urllib.parse import ParseResult, SplitResult, quote, unquote
 
@@ -503,18 +504,97 @@ class DAVObject:
             raise ValueError("Unexpected value None for self.client")
 
         if self.is_async_client:
-            return self._async_set_properties(body)
+            return self._async_set_properties(body, props)
 
-        return self._post_set_properties(self.client.proppatch(str(self.url), body))
+        delay = self._proppatch_delay()
+        ## Empty elements: a PROPFIND names the properties, it carries no values.
+        query = [type(prop)() for prop in props]
+        try:
+            old = self._old_values(props, self.get_properties(query)) if delay else {}
+        except error.DAVError:
+            ## Nothing to compare against, so nothing to wait for; the
+            ## PROPPATCH itself still deserves its chance.
+            old = {}
+        self._post_set_properties(self.client.proppatch(str(self.url), body))
+
+        ## A server applying PROPPATCH asynchronously (Infomaniak) keeps
+        ## answering PROPFIND with the old value for a while; wait for it to go
+        ## away rather than for the new one, which the server may normalise.
+        ## TODO: a property the server dropped (a 207 with a per-property 403
+        ## or 404) never changes and costs the whole delay; poll only those
+        ## the PROPPATCH answered with 200.
+        if old:
+            query = [prop for prop in query if prop.tag in old]
+            deadline = monotonic() + delay
+            try:
+                while self._still_old(old, self.get_properties(query)):
+                    if monotonic() >= deadline:
+                        self._warn_unsettled(old, delay)
+                        break
+                    sleep(0.5)
+            except error.DAVError:
+                ## The write went through; a failing read-back only ends the wait.
+                pass
+        return self
+
+    def _proppatch_delay(self) -> float:
+        """Seconds a PROPPATCH may take to become visible, per the server profile."""
+        if self.client is None or self.client.features is None:
+            return 0
+        node = self.client.features.is_supported("synchronous-write.proppatch", dict)
+        return 0 if node.get("support", "full") == "full" else node.get("delay", 0)
+
+    @staticmethod
+    def _old_values(props: Sequence[Any], current: dict) -> dict:
+        """``{tag: value before the PROPPATCH}`` for the props it will change."""
+        return {
+            prop.tag: current.get(prop.tag)
+            for prop in props
+            if current.get(prop.tag) != (prop.value or None)
+        }
+
+    @staticmethod
+    def _still_old(old: dict, current: dict) -> bool:
+        return any(current.get(tag) == value for tag, value in old.items())
+
+    def _warn_unsettled(self, old: dict, delay: float) -> None:
+        log.warning(
+            "%s still shows the old value of %s %ss after a PROPPATCH",
+            self.url,
+            ", ".join(old),
+            delay,
+        )
 
     def _post_set_properties(self, r) -> Self:
         if r.status >= 400:
             raise error.PropsetError(errmsg(r))
         return self
 
-    async def _async_set_properties(self, body) -> Self:
+    async def _async_set_properties(self, body, props) -> Self:
         """Async implementation of set_properties."""
-        return self._post_set_properties(await self.client.proppatch(str(self.url), body))
+        import asyncio
+
+        delay = self._proppatch_delay()
+        query = [type(prop)() for prop in props]
+        try:
+            old = self._old_values(props, await self.get_properties(query)) if delay else {}
+        except error.DAVError:
+            old = {}
+        self._post_set_properties(await self.client.proppatch(str(self.url), body))
+
+        # See set_properties (sync) - wait for an asynchronous PROPPATCH to land.
+        if old:
+            query = [prop for prop in query if prop.tag in old]
+            deadline = monotonic() + delay
+            try:
+                while self._still_old(old, await self.get_properties(query)):
+                    if monotonic() >= deadline:
+                        self._warn_unsettled(old, delay)
+                        break
+                    await asyncio.sleep(0.5)
+            except error.DAVError:
+                pass
+        return self
 
     def save(self) -> Self:
         """
