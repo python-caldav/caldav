@@ -1,8 +1,18 @@
 # Changelog
 
-## HTTP Library Dependencies
+## Notable changes during the last releases
+
+### HTTP Library Dependencies
 
 As of v3.x, **niquests** is the supported and recommended package for HTTP communication. It's a backward-compatible fork of requests that supports both sync and async operations, as well as HTTP/2 and HTTP/3 and many other things.  Fallbacks to other packages are implemented - read more in [HTTP Library Configuration](docs/source/http-libraries.rst).
+
+### Configuration and "features"
+
+This is "old news", but the 3.4-release may hold a regression making this more relevant (see "Breaking changes" for the 3.4-release below).
+
+When configuring the server it's now possible to pass a `features`-parameter.  This may contain a dict describing the server capabilities, but for end-users the intended usage pattern is to pass a server name, e.g. `features: cyrus`.
+
+Support for configuring things like server credentials through a **configuration file** or through **environment** was added a while ago - the idea being that independent applications built using the caldav library can share the same configuration file / environment settings.  Use `get_davclient()` rather than `DAVClient()` to support fetching server configuration through a config file or environment.
 
 ## Meta
 
@@ -14,48 +24,54 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 
 ## Unreleased
 
+The main things in this release:
+* The JMAP client has moved out into the standalone [calendaring-jmap](https://pypi.org/project/calendaring-jmap/) package; `caldav.jmap` is now a deprecated re-export of it, available through the `caldav[jmap]` extra.
+* Yahoo Calendar support - including credentials being sent to a server that answers 401 without a `WWW-Authenticate` header.
+* If setting `features='infomaniak'` there will be a sleep-probe-loop ensuring methods for calendar creation, deletion and PROPPATCH will only return after the changes have become visible.
+* Fixes for `search(expand=True)` (a regression in 3.3.0), component-type filtering and UID lookups.
+
 ### Breaking changes
+
+`Calendar.get_object_by_uid()` had two bugs causing it (under some circumstances) to fetch the whole calendar to search for a UID on a perfectly compliant server.  This is unacceptably expensive in some scenarios and has been fixed - at the cost of breaking support for some non-compliant servers.  The method is used internally, so this matters.  The mitigation is to specify server capabilities through the `features`-configuration (see above).
 
 The JMAP support was declared experimental in 3.0, hence the changes below are deemed allowable in a minor release:
 
 * **Breaking:** `caldav.jmap` no longer works on a plain `pip install caldav`.  The implementation moved to the standalone [calendaring-jmap](https://pypi.org/project/calendaring-jmap/) package, which is an optional dependency - install `caldav[jmap]` (or `calendaring-jmap`).  Importing `caldav.jmap` without it raises an `ImportError` saying so.
-* **Breaking:** `caldav[jmap]` brings dependencies caldav itself does not have.  calendaring-jmap 1.1.0 requires `icalendar>=7.3.0` (caldav asks only for `icalendar>6.0.0`, so the extra raises the floor), and it requires both `niquests` and `requests` outright - so `requests` is installed even in the environments that deliberately avoid it, see [HTTP Library Configuration](https://caldav.readthedocs.io/stable/http-libraries.html).
+* **Breaking:** `caldav[jmap]` brings dependencies caldav itself does not have.  calendaring-jmap 1.1.0 requires `icalendar>=7.3.0`, `niquests>=3.21.1` and `pyyaml>=6.0.3` (caldav asks only for `icalendar>6.0.0` and unpinned `niquests` and `PyYAML`, so the extra raises those floors), and it requires `requests` as well.
 * **Breaking:** the JMAP code is licensed differently from the rest of caldav.  caldav is `GPL-3.0-or-later OR Apache-2.0`; calendaring-jmap is `AGPL-3.0-or-later`.  The import path is unchanged, so this is easy to miss: if you relied on the Apache-2.0 option, note that the JMAP code you get through `caldav[jmap]` carries the AGPL network-copyleft obligation.  Nothing changes for users of caldav without the `jmap` extra.
+* **Breaking:** `caldav.lib.http_sync` no longer exports `AsyncSession` or `require_async_session()`.  They existed only for the async JMAP client, which has moved out of this library; `caldav.lib.http_libraries.required_library_error()` is kept, but has no caller in caldav today.
 
 ### Added
 
-* `compatibility_hints`: `auth.www-authenticate` records whether the server sends the `WWW-Authenticate` header RFC7235 section 3.1 requires on a 401, and `auth.www-authenticate.usable-scheme` whether the schemes it offers include one this library implements.  A server failing either one may never receive your password, and the 401 looks like a rejected one - so it may need `auth_type` pinned in the configuration, and a profile can now say which.  Probed by caldav-server-tester.  See https://github.com/python-caldav/caldav/issues/713.
-* `compatibility_hints`: new server profile `yahoo`, for Yahoo Calendar (`https://caldav.calendar.yahoo.com/`), probed with caldav-server-tester.  Note that the server sends no `WWW-Authenticate` header; the client falls back to guessing Basic auth (see Fixed below), and pinning `auth_type: basic` skips that guess and its warning - see https://github.com/python-caldav/caldav/issues/713.  The notable gradings: the comp-filter is silently ignored, `If-Match: *` holds backwards, sync-token and server-side recurrence handling are missing, and a created calendar is served under a numeric id rather than the requested name.
-* `compatibility_hints`: new feature `scheduling.calendar-user-address-set.populated`, for a server that advertises `calendar-user-address-set` but returns it empty.  Graded `unsupported` for Xandikos.
-* `compatibility_hints`: new features `synchronous-write.create-calendar`, `synchronous-write.delete-calendar` and `synchronous-write.proppatch`, for a server that answers MKCALENDAR, DELETE of a calendar or PROPPATCH before the change shows.  With a `delay`, `make_calendar()` waits until the new calendar exists (so the first object saved into it no longer 404s), `Calendar.delete()` until it is gone, and `set_properties()` until the old values are gone - each for up to that many seconds, stopping as soon as the change shows.  A read-back failing during that wait is logged and ends it; the write itself succeeded, so it is not raised.  Each inherits from `synchronous-write`, so a profile declaring it anything but `full`, with a `delay` (such as `bedework_5_0_0`, `fragile`) gets these waits too.
+* `compatibility_hints`: new server profile `yahoo`, for Yahoo Calendar (`https://caldav.calendar.yahoo.com/`), probed with caldav-server-tester.
+* `compatibility_hints`: `auth.www-authenticate` records whether the server sends the `WWW-Authenticate` header RFC 7235 §3.1 requires on a 401 (yahoo doesn't), and `auth.www-authenticate.usable-scheme` whether the schemes it offers include one this library implements.
+* `compatibility_hints`: new feature `scheduling.calendar-user-address-set.populated`, for a server that advertises `calendar-user-address-set` but returns it empty (Xandikos).
+* `compatibility_hints`: new features `synchronous-write.create-calendar`, `synchronous-write.delete-calendar` and `synchronous-write.proppatch`, for a server that answers MKCALENDAR, DELETE of a calendar or PROPPATCH before the change shows.  If a `delay` is configured, the methods for creating/deleting calendars and changing properties will block until the change is visible.
 
 ### Changed
 
-* `caldav.lib.http_sync` no longer exports `AsyncSession` or `require_async_session()`.  They existed only for the async JMAP client, which has moved out of this library; `caldav.lib.http_libraries.required_library_error()` is kept, but has no caller in caldav today.
 * `caldav.jmap` no longer carries its own JMAP client implementation.  It's now a thin re-export of calendaring-jmap.
   * Old imports still work, including the submodule paths the 3.3 documentation used: `from caldav.jmap import JMAPClient`, `from caldav.jmap.error import JMAPAuthError`, `caldav.jmap.convert.jscal_to_ical` and so on all resolve to calendaring-jmap's own modules.
   * Importing `caldav.jmap` now emits a `DeprecationWarning`.  Use `from calendaring_jmap import JMAPClient` going forward; the wrapper will be removed in a future release.
   * `get_jmap_client()`/`get_async_jmap_client()` still resolve configuration the same way `get_davclient()` does - that is the one thing the wrapper adds over importing calendaring-jmap directly.
   * JMAP errors remain catchable as `DAVError`.
-* The `infomaniak` profile drops its blanket 16-second sleep after every write: object writes there are no longer asynchronous, only calendar creation, calendar deletion and PROPPATCH are, and those are now declared on `synchronous-write.create-calendar`, `.delete-calendar` and `.proppatch` with a `delay` (see Added).  A PROPPATCH there reads back stale for ~10s.  `delete-calendar` was `fragile`, which made `Calendar.delete()` re-issue the DELETE and, if the calendar outlived its retries, wipe the objects and leave the calendar behind.
+* Xandikos has added support for scheduling, this is reflected in the `compatibility_hints`.
 
 ### Fixed
 
-* `search(start=..., end=..., expand=True)` without `event=True` (or another component type) returned only the first occurrence of a recurring event - a regression in v3.3.0.  The comp-type-less search is split into one query per component type, and the results were deduplicated by URL, which all expanded occurrences of an event share.  Passing `event=True` or `compatibility_workarounds=False` avoided it.  See https://github.com/python-caldav/caldav/issues/722.
-* `Principal.get_vcal_address()` raised `IndexError: list index out of range` when the server returned an empty `calendar-user-address-set`.  It now falls back to the principal URL, as RFC 6638 section 2.4.1 provides for a user with no well-defined calendar user address.  `add_organizer()` and `add_attendee()` go through the same method, so they were affected too.  Seen on Xandikos 0.4.7, which advertises `calendar-auto-schedule` and serves schedule-inbox/outbox, but leaves the address set empty.  `change_attendee_status()` accepts that same URL back, so an event the library invited a principal to can still have its PARTSTAT changed.  A property that is *absent* still raises `NotFoundError`; per the same section that means the user is not enabled for scheduling.  En passant, the Xandikos profile is regraded for 0.4.7: scheduling is no longer declared unsupported, and `create-calendar.with-supported-component-types` no longer unsupported either, so `is_supported()` may answer differently with `features: xandikos` configured.
-* A `401` response with no `WWW-Authenticate` header (RFC 7235 §3.1 requires one, but e.g. Yahoo Calendar omits it) left nothing to negotiate with: `build_auth_object()` was never reached, the credentials were never sent, and the bare 401 surfaced as `AuthorizationError` - indistinguishable from a genuinely rejected password.  Over TLS, with no `auth_type`/`auth` already configured, the client now guesses `basic` once before giving up - also on the async client's path for servers that abort the connection on an unauthenticated request.  See https://github.com/python-caldav/caldav/issues/713 and https://github.com/python-caldav/caldav/issues/717.
-
+* `search(start=..., end=..., expand=True)` without `event=True` (or another component type) returned only the first occurrence of a recurring event on DAViCal - a regression in v3.3.0. Passing `event=True` or `compatibility_workarounds=False` avoided it.  See https://github.com/python-caldav/caldav/issues/722
+* `Principal.get_vcal_address()` raised `IndexError: list index out of range` when the server returned an empty `calendar-user-address-set`.  It now falls back to the principal URL, as RFC 6638 §2.4.1 provides for a user with no well-defined calendar user address.  `add_organizer()` and `add_attendee()` go through the same method, so they were affected too.  Seen on Xandikos 0.4.7, which advertises `calendar-auto-schedule` and serves schedule-inbox/outbox, but leaves the address set empty.  `change_attendee_status()` accepts that same URL back, so an event the library invited a principal to can still have its PARTSTAT changed.  A property that is *absent* still raises `NotFoundError`; per the same section that means the user is not enabled for scheduling.
+* A `401` response with no `WWW-Authenticate` header (Yahoo Calendar) would cause the 401 to surface as `AuthorizationError` - indistinguishable from a genuinely rejected password.  Over TLS, with no `auth_type`/`auth` already configured, the client now guesses `basic` once before giving up.  See https://github.com/python-caldav/caldav/issues/713 and https://github.com/python-caldav/caldav/issues/717.
 * `search(event=True)`, `search(journal=True)` and `search(comp_class=...)` could return objects of the wrong component type from a server graded `search.comp-type: unsupported` - one that silently ignores the comp-filter and returns the whole calendar.  Only `broken` triggered client-side filtering.  `unsupported` now does too, keeping the comp-filter in the query.  Affected profiles: `ox` and `infomaniak` (and `yahoo`, new in this release).  En passant, `search(comp_class=Todo)` no longer drops completed tasks on servers graded `broken` (`bedework`).
-
-* `get_object_by_uid()` (and through it `add_object()` for an object carrying `RELATED-TO`, `get_relatives()` and `set_relation()`) downloaded and parsed the whole calendar when called without `comp_class` on a server that needs the per-component-type split.  The VTODO uid came back empty from the VEVENT and VJOURNAL queries, and each empty answer was retried without the UID filter.  That retry now happens only when no component type matched.  Seen as ~4 s per `add_object()` against a 2500-object calendar on Xandikos.
-
-* `get_object_by_uid()` for a UID not on the server also downloaded and parsed the whole calendar before raising `NotFoundError`: an empty UID search was always retried without the UID filter, in case the server's text search was broken.  That retry now happens only when the server has no feature profile, or when its profile does not mark `search.text.case-sensitive` as supported (the UID filter uses the `i;octet` collation).  A profile that wrongly claims working text search now gets a `NotFoundError` instead.
-
-* `save()` on a recurrence instance whose master is missing from the server (an "orphan" `RECURRENCE-ID`) recursed until `RecursionError`.  This happened whenever the object was fetched from the server, since the UID lookup for the master returned the orphan itself.  The object is now saved as-is.
-
+* `get_object_by_uid()` (and through it `add_object()` for an object carrying `RELATED-TO`, `get_relatives()` and `set_relation()`) downloaded and parsed the whole calendar when called without `comp_class` on a server that needs the per-component-type split.  Seen as ~4 s per `add_object()` against a 2500-object calendar on Xandikos.
+* `get_object_by_uid()` for a UID not on the server also downloaded and parsed the whole calendar before raising `NotFoundError`: an empty UID search was always retried without the UID filter, in case the server's text search was broken.  This can in some situations be a very expensive operation.  That retry now depends on the configured `features` profile.  This may be a **breaking change** for non-compliant servers unless you have configured `features` correctly.
+* `save()` on a recurrence instance whose master is missing from the server (an "orphan" `RECURRENCE-ID`) recursed until `RecursionError`.  The object is now saved as-is.
 * `make_calendar()` raised `KeyError: 'behaviour'` on a server whose `create-calendar` was configured as `quirk` without a `behaviour`.
-
 * `add_object()` with `RELATED-TO` properties re-saved the new object once per relation, and saved each related object even when it already pointed back.  `set_relation()` no longer saves when the relation was already there.
+
+### Tests and documentation
+
+* The configuration file documentation now covers `auth_type` and notes that any other connection parameter can be given the same way.
 
 ## [3.3.1] - 2026-09-16
 
