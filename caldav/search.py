@@ -272,14 +272,19 @@ def _text_search_untrusted(features: Any) -> bool:
     """Whether an empty text search may be the server failing rather than a miss.
 
     Decides if ``_hacks="insist"`` retries without the text filters, which
-    downloads everything and filters client-side.  A server with a feature
-    profile is trusted unless it says otherwise; the filter is sent with the
-    i;octet collation, hence search.text.case-sensitive (CCS lacks it).  A
-    server with no profile at all is not trusted.
+    downloads everything and filters client-side.  Only a feature profile
+    saying so makes it untrusted; the filter is sent with the i;octet
+    collation, hence search.text.case-sensitive (CCS lacks it).  A
+    search-cache delay counts too: until the index catches up, a text filter
+    matches nothing while an unfiltered REPORT finds the object (purelymail).
+    With no profile configured nothing says the text search is broken, and
+    fetching the whole calendar on every miss is too disruptive to do on a guess.
     """
-    return features.backward_compatibility_mode or not features.is_supported(
-        "search.text.case-sensitive"
-    )
+    if features.backward_compatibility_mode:
+        return False
+    if not features.is_supported("search.text.case-sensitive"):
+        return True
+    return features.is_supported("search-cache", dict).get("behaviour", "normal") == "delay"
 
 
 def _is_not_defined_supported(features: Any, prop: str) -> bool:
@@ -643,7 +648,7 @@ class CalDAVSearcher(Searcher):
                 raise error.ReportError("can't expand without a date range")
 
         ## special compatibility-case for servers that do not support text search at all
-        ## (e.g. purelymail where both i;octet and i;ascii-casemap collations are unsupported).
+        ## (e.g. Zimbra and Robur, which ignore the filter and return everything).
         ## Remove all text-value filters and rely on client-side post_filter instead.
         if (
             cw
@@ -936,11 +941,13 @@ class CalDAVSearcher(Searcher):
                 return
 
             ## If _hacks=="insist" and still no results despite having text property
-            ## filters, the server may not support text search (e.g. purelymail,
-            ## CCS with i;octet collation).  Retry without the text filters and rely
+            ## filters, the server may not support text search (e.g. CCS with i;octet
+            ## collation), or its search index may lag behind the writes (e.g.
+            ## purelymail, for minutes).  Retry without the text filters and rely
             ## on client-side post_filter (which is guaranteed True in get_object_by_uid).
-            ## Not on a server whose profile vouches for its text search: there an
-            ## empty answer is a genuine miss, and the retry fetches everything.
+            ## Only on a server whose profile says its text search fails: anywhere
+            ## else an empty answer is taken as a genuine miss, as the retry
+            ## fetches everything.
             if (
                 not objects
                 and _hacks == "insist"
