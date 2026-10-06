@@ -1314,10 +1314,10 @@ class TestCompTypeOptionalPropFilter:
         self, mock_client: DAVClient, mock_url: str
     ) -> None:
         """When no comp-type yields anything, "insist" still retries without the
-        text filter (for servers whose text search silently matches nothing)."""
+        text filter on a server whose profile says its text search fails."""
         from caldav.compatibility_hints import FeatureSet
 
-        mock_client.features = FeatureSet(None)
+        mock_client.features = FeatureSet({"search.text.case-sensitive": "unsupported"})
         calls = []
         calendar = mock.Mock()
         calendar.client = mock_client
@@ -1379,6 +1379,37 @@ class TestCompTypeOptionalPropFilter:
         assert result == []
         assert all(has_uid for _, has_uid in calls), calls
         assert len(calls) == 3
+
+    def test_insist_missing_uid_without_features_does_not_fetch_everything(
+        self, mock_client: DAVClient, mock_url: str
+    ) -> None:
+        """With no feature profile configured, nothing says the server's text
+        search is broken, and downloading the whole calendar on every missed
+        UID is too disruptive to do on a guess: "insist" must not retry without
+        the UID filter."""
+        calls = []
+        calendar, searcher = self._missing_uid_search(mock_client, mock_url, calls, None)
+        result = searcher.search(calendar, post_filter=True, _hacks="insist")
+
+        assert result == []
+        assert all(has_uid for _, has_uid in calls), calls
+
+    def test_insist_missing_uid_without_features_does_not_fetch_everything_async(
+        self, mock_client: DAVClient, mock_url: str
+    ) -> None:
+        """Async twin of test_insist_missing_uid_without_features_does_not_fetch_everything."""
+        import asyncio
+
+        calls = []
+        calendar, searcher = self._missing_uid_search(mock_client, mock_url, calls, None)
+        calendar._request_report_build_resultlist = mock.AsyncMock(
+            side_effect=calendar._request_report_build_resultlist.side_effect
+        )
+        calendar._async_batch_load_objects = mock.AsyncMock()
+        result = asyncio.run(searcher.async_search(calendar, post_filter=True, _hacks="insist"))
+
+        assert result == []
+        assert all(has_uid for _, has_uid in calls), calls
 
     def test_insist_missing_uid_falls_back_without_case_sensitive_search(
         self, mock_client: DAVClient, mock_url: str
