@@ -57,8 +57,8 @@ class FeatureSet:
     unknown means nobody has probed this yet.  It is the absence of a claim, not a claim that the feature is missing.
 
     What "fragile" asks of a client depends on what is fragile.  An asynchronous operation is never retried, it is waited out:
-     * On a write operation such as create-calendar or delete-calendar, the write itself is fragile: it may or may not have gone through, and re-issuing it may help.  Calendar.delete() keys its retry-and-poll loop on exactly that.  A create or delete that always goes through but takes a measurable time to settle is a "quirk", not "fragile".
-     * On synchronous-write, it is the "synchronous" part that is fragile, not the write: the server may be asynchronous under the hood but settle too fast to be probed deterministically.  Writes are never re-issued; a read right after one may have to wait (the configured delay) or be retried if it does not show the change yet.  A server where only calendar creation and/or deletion is asynchronous supports synchronous-write, with the async part graded as a "quirk" on create-calendar or delete-calendar.
+     * On a write operation such as create-calendar or delete-calendar, the write itself is fragile: it may or may not have gone through, and re-issuing it may help.  Calendar.delete() keys its retry-and-poll loop on exactly that.  A create or delete that always goes through but takes a measurable time to settle is not fragile: it is declared on synchronous-write.create-calendar or synchronous-write.delete-calendar.
+     * On synchronous-write, it is the "synchronous" part that is fragile, not the write: the server may be asynchronous under the hood but settle too fast to be probed deterministically.  Writes are never re-issued; a read right after one may have to wait (the configured delay) or be retried if it does not show the change yet.  A server where only calendar creation, deletion or a PROPPATCH is asynchronous supports synchronous-write, with the async part declared on synchronous-write.create-calendar, .delete-calendar or .proppatch.
     For a server-feature, is_supported(feature) returning a bool is True for "full" and "quirk" only.  "fragile" is True as well when called with accept_fragile=True; "unsupported", "broken", "ungraceful" and "unknown" are all False.  Note in particular that "ungraceful" is False even though the server does respond - the response is an error.
 
     types:
@@ -316,6 +316,18 @@ hence, "fragile".
                 "save-load-delay": "observed by caldav-server-tester: seconds until a freshly PUT object could be read back",
             }
         },
+        "synchronous-write.create-calendar": {
+            "description": "A calendar created with MKCALENDAR (or MKCOL) exists as soon as the server has answered.  'unsupported' means the server creates it asynchronously, so a PUT into it right away may 404 (Infomaniak, ~8s).  With a 'delay', make_calendar() polls the new calendar for up to that many seconds before returning it.  Inherits from synchronous-write when not given",
+            "extra_keys": {
+                "delay": "poll for up to this number of seconds after creating a calendar until it exists",
+            }
+        },
+        "synchronous-write.delete-calendar": {
+            "description": "A deleted calendar is gone as soon as the server has answered the DELETE.  'unsupported' means the server deletes it asynchronously, so a calendar re-created under the same id right away may meet the old one (Infomaniak, ~6s).  With a 'delay', Calendar.delete() polls the calendar for up to that many seconds until it is gone.  Inherits from synchronous-write when not given.  A delete that fails and needs re-issuing is a different thing: delete-calendar 'fragile'",
+            "extra_keys": {
+                "delay": "poll for up to this number of seconds after deleting a calendar until it is gone",
+            }
+        },
         "synchronous-write.proppatch": {
             "description": "A PROPPATCH (e.g. setting a calendar's display name or colour) is observable by PROPFIND as soon as the server has answered it.  'unsupported' means a PROPFIND keeps returning the old value for a while.  Infomaniak was observed to do this for ~10s while PUTs were readable at once.  With a 'delay', set_properties() polls the properties until the change shows, for up to that many seconds.  Inherits from synchronous-write when not given, so a server declared to process every write asynchronously is waited for here too",
             "extra_keys": {
@@ -328,13 +340,13 @@ hence, "fragile".
         },
         "create-calendar": {
             "default": { "support": "full" },
-            "description": "RFC4791 section 5.3.1 says that \"support for MKCALENDAR on the server is only RECOMMENDED and not REQUIRED because some calendar stores only support one calendar per user (or principal), and those are typically pre-created for each account\".  Hence a conformant server may opt to not support creating calendars, this is often seen for cloud services (some services allows extra calendars to be made, but not through the CalDAV protocol).  (RFC5689 extended MKCOL may also be used to create calendar collections as an alternative to MKCALENDAR.  We should consider testing this as well)  'quirk' with a 'delay' (seconds) is for a server creating calendars asynchronously: the library polls the new calendar for up to that long before using it.",
+            "description": "RFC4791 section 5.3.1 says that \"support for MKCALENDAR on the server is only RECOMMENDED and not REQUIRED because some calendar stores only support one calendar per user (or principal), and those are typically pre-created for each account\".  Hence a conformant server may opt to not support creating calendars, this is often seen for cloud services (some services allows extra calendars to be made, but not through the CalDAV protocol).  (RFC5689 extended MKCOL may also be used to create calendar collections as an alternative to MKCALENDAR.  We should consider testing this as well)",
             "links": [
                 "https://datatracker.ietf.org/doc/html/rfc4791#section-5.3.1",
                 "https://datatracker.ietf.org/doc/html/rfc5689",
             ],
             "extra_keys": {
-                "behaviour": "'mkcol-required' when MKCALENDAR is refused and the RFC5689 extended MKCOL has to be used instead - the library selects MKCOL for exactly this value.  'empty-207' when the server answers a successful creation with a multistatus whose DAV:response carries neither a DAV:status nor a DAV:propstat, in violation of RFC4918 section 13 (Bedework 5); purely descriptive, the library copes with it either way.  'delayed creation ...' when MKCALENDAR is accepted but the collection materialises later, with the wait in 'delay'.",
+                "behaviour": "'mkcol-required' when MKCALENDAR is refused and the RFC5689 extended MKCOL has to be used instead - the library selects MKCOL for exactly this value.  'empty-207' when the server answers a successful creation with a multistatus whose DAV:response carries neither a DAV:status nor a DAV:propstat, in violation of RFC4918 section 13 (Bedework 5); purely descriptive, the library copes with it either way.  A creation that is accepted but materialises later is synchronous-write.create-calendar.",
             },
         },
         "create-calendar.auto": {
@@ -369,7 +381,7 @@ hence, "fragile".
             "links": ["https://datatracker.ietf.org/doc/html/rfc4918#section-15.2"],
         },
         "delete-calendar": {
-            "description": "RFC4791 says nothing about deletion of calendars, so the server implementation is free to choose weather this should be supported or not.  Section 3.2.3.2 in RFC 6638 says that if a calendar is deleted, all the calendarobjectresources on the calendar should also be deleted - but it's a bit unclear if this only applies to scheduling objects or not.  Some calendar servers moves the object to a trashcan rather than deleting it.  'quirk' is the right grade for a delete that always goes through but takes a measurable time; 'fragile' is a negative status and additionally switches on Calendar.delete()'s retry-and-poll loop, which re-issues the DELETE.  'quirk' with a 'delay' (seconds) makes Calendar.delete() poll the calendar for up to that long, until it is gone",
+            "description": "RFC4791 says nothing about deletion of calendars, so the server implementation is free to choose weather this should be supported or not.  Section 3.2.3.2 in RFC 6638 says that if a calendar is deleted, all the calendarobjectresources on the calendar should also be deleted - but it's a bit unclear if this only applies to scheduling objects or not.  Some calendar servers moves the object to a trashcan rather than deleting it.  'fragile' is a negative status and additionally switches on Calendar.delete()'s retry-and-poll loop, which re-issues the DELETE.  A delete that always goes through but takes a measurable time to settle is not fragile: that is synchronous-write.delete-calendar",
             ## Independent feature (directly probed): the default marks it so the
             ## node uses its own probed value rather than being derived from
             ## .free-namespace.
@@ -2459,8 +2471,8 @@ infomaniak = {
     ## library polls the calendar for up to `delay` seconds after either one.
     ## Object writes were asynchronous too in 2026-06 (a 16s sleep after every
     ## write was configured), but a PUT is readable at once since 2026-10.
-    'create-calendar': {'support': 'quirk', 'behaviour': 'delayed creation', 'delay': 15},
-    'delete-calendar': {'support': 'quirk', 'behaviour': 'delayed deletion', 'delay': 8},
+    'synchronous-write.create-calendar': {'support': 'unsupported', 'delay': 15},
+    'synchronous-write.delete-calendar': {'support': 'unsupported', 'delay': 8},
     ## A PROPPATCH is not: PROPFIND returns the old display name or colour for
     ## a steady ~10s (2026-10-06), on a fresh connection as well, while a PUT,
     ## an overwrite and a DELETE of an object are visible at once.

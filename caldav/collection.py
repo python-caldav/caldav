@@ -18,7 +18,7 @@ import warnings
 from dataclasses import dataclass
 from datetime import date as _date
 from datetime import datetime, timezone
-from time import monotonic, sleep
+from time import sleep
 from typing import TYPE_CHECKING, Any, Optional, TypeVar
 from urllib.parse import ParseResult, SplitResult, quote, unquote, urlparse, urlunparse
 
@@ -914,11 +914,7 @@ class Calendar(DAVObject):
         ## A server creating calendars asynchronously (Infomaniak) answers the
         ## MKCALENDAR before the collection exists; the profile says how long
         ## it may take, and we poll for it rather than sleeping that long.
-        creation_delay = 0
-        if self.client:
-            creation_delay = self.client.features.is_supported("create-calendar", dict).get(
-                "delay", 0
-            )
+        creation_delay = self._settle_delay("synchronous-write.create-calendar")
 
         # TODO: mkcalendar seems to ignore the body on most servers?
         # at least the name doesn't get set this way.
@@ -980,9 +976,7 @@ class Calendar(DAVObject):
         _assert_created(response, method)
 
         if creation_delay:
-            deadline = monotonic() + creation_delay
-            while not self._exists() and monotonic() < deadline:
-                sleep(0.5)
+            self._wait_until(self._exists, creation_delay, "the new calendar")
 
         # COMPATIBILITY ISSUE
         # name should already be set, but we've seen caldav servers failing
@@ -1108,9 +1102,7 @@ class Calendar(DAVObject):
         _assert_created(response, method)
 
         if creation_delay:
-            deadline = monotonic() + creation_delay
-            while not await self._async_exists() and monotonic() < deadline:
-                await asyncio.sleep(0.5)
+            await self._async_wait_until(self._async_exists, creation_delay, "the new calendar")
 
         # COMPATIBILITY ISSUE - try to set display name explicitly
         if display_name:
@@ -1184,11 +1176,9 @@ class Calendar(DAVObject):
         ## A server deleting calendars asynchronously (Infomaniak) answers the
         ## DELETE before the collection is gone; poll for up to the delay, so
         ## a calendar re-created under the same id does not meet the old one.
-        deletion_delay = quirk_info.get("delay", 0) if quirk_info["support"] == "quirk" else 0
+        deletion_delay = self._settle_delay("synchronous-write.delete-calendar")
         if deletion_delay:
-            deadline = monotonic() + deletion_delay
-            while self._exists() and monotonic() < deadline:
-                sleep(0.5)
+            self._wait_until(lambda: not self._exists(), deletion_delay, "the deletion")
 
     async def _async_delete(self, wipe=None):
         """Async implementation of Calendar.delete()."""
@@ -1230,11 +1220,13 @@ class Calendar(DAVObject):
         await DAVObject._async_delete(self)
 
         # See delete() (sync) - wait for an asynchronous deletion to land.
-        deletion_delay = quirk_info.get("delay", 0) if quirk_info["support"] == "quirk" else 0
+        deletion_delay = self._settle_delay("synchronous-write.delete-calendar")
         if deletion_delay:
-            deadline = monotonic() + deletion_delay
-            while await self._async_exists() and monotonic() < deadline:
-                await asyncio.sleep(0.5)
+
+            async def gone() -> bool:
+                return not await self._async_exists()
+
+            await self._async_wait_until(gone, deletion_delay, "the deletion")
 
     def _supported_components_from_response(self, response: Any, with_fallback: bool) -> list[Any]:
         """Extract supported component types from a propfind DAVResponse.
