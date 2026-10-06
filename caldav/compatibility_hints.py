@@ -316,6 +316,12 @@ hence, "fragile".
                 "save-load-delay": "observed by caldav-server-tester: seconds until a freshly PUT object could be read back",
             }
         },
+        "synchronous-write.proppatch": {
+            "description": "A PROPPATCH (e.g. setting a calendar's display name or colour) is observable by PROPFIND as soon as the server has answered it.  'unsupported' means a PROPFIND keeps returning the old value for a while.  Infomaniak was observed to do this for ~10s while PUTs were readable at once.  With a 'delay', set_properties() polls the properties until the change shows, for up to that many seconds.  Inherits from synchronous-write when not given, so a server declared to process every write asynchronously is waited for here too",
+            "extra_keys": {
+                "delay": "poll for up to this number of seconds after a PROPPATCH until the change is visible",
+            }
+        },
         "tests-cleanup-calendar": {
             "type": "tests-behaviour",
             "description": "Deleting a calendar does not delete the objects, or perhaps create/delete of calendars does not work at all.  For each test run, every calendar resource object should be deleted for every test run",
@@ -2455,12 +2461,16 @@ infomaniak = {
     ## write was configured), but a PUT is readable at once since 2026-10.
     'create-calendar': {'support': 'quirk', 'behaviour': 'delayed creation', 'delay': 15},
     'delete-calendar': {'support': 'quirk', 'behaviour': 'delayed deletion', 'delay': 8},
+    ## A PROPPATCH is not: PROPFIND returns the old display name or colour for
+    ## a steady ~10s (2026-10-06), on a fresh connection as well, while a PUT,
+    ## an overwrite and a DELETE of an object are visible at once.
+    'synchronous-write.proppatch': {'support': 'unsupported', 'delay': 15},
     ## VJOURNAL is not supported.
     'save-load.journal': {'support': 'unsupported'},
     ## Calendar colour/order work (the hex form is normalised, e.g.
-    ## '#FF0000FF' is stored as '#ff0000').  These looked 'broken' (read-only)
-    ## in 2026-06: a read-back issued too soon returned the stale value, an
-    ## artifact of the then-asynchronous writes noted above.
+    ## '#FF0000FF' is stored as '#ff0000').  A read-back issued too soon
+    ## returns the stale value and makes them look 'broken' (read-only); see
+    ## synchronous-write.proppatch above.
     ## Set explicitly to 'full' since the feature default is the weaker 'fragile'.
     'calendar-color': {'support': 'full'},
     'calendar-order': {'support': 'full'},
