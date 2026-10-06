@@ -643,7 +643,7 @@ class CalDAVSearcher(Searcher):
                 raise error.ReportError("can't expand without a date range")
 
         ## special compatibility-case for servers that do not support text search at all
-        ## (e.g. purelymail where both i;octet and i;ascii-casemap collations are unsupported).
+        ## (e.g. Zimbra and Robur, which ignore the filter and return everything).
         ## Remove all text-value filters and rely on client-side post_filter instead.
         if (
             cw
@@ -936,8 +936,9 @@ class CalDAVSearcher(Searcher):
                 return
 
             ## If _hacks=="insist" and still no results despite having text property
-            ## filters, the server may not support text search (e.g. purelymail,
-            ## CCS with i;octet collation).  Retry without the text filters and rely
+            ## filters, the server may not support text search (e.g. CCS with i;octet
+            ## collation), or its search index may lag behind the writes (e.g.
+            ## purelymail, for minutes).  Retry without the text filters and rely
             ## on client-side post_filter (which is guaranteed True in get_object_by_uid).
             ## Not on a server whose profile vouches for its text search: there an
             ## empty answer is a genuine miss, and the retry fetches everything.
