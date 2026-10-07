@@ -2257,7 +2257,7 @@ stalwart = {
 purelymail = {
     ## Purelymail claims that the search indexes are "lazily" populated,
     ## so search works some minutes after the event was created/edited.
-    'search-cache': {'behaviour': 'delay', 'delay': 180},
+    'search-cache': {'behaviour': 'delay', 'delay': 120},
     #'search-cache': {'behaviour': 'delay', 'delay': 0.3},
     ## Hmmm .... weird, this is flapping in the caldav-server-tester?
     "create-calendar.auto": {"support": "full"},
