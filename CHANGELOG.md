@@ -22,7 +22,7 @@ Changelogs prior to v3.0 are pruned, but are available in the v3.1 release
 
 This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html), though for pre-releases PEP 440 takes precedence.
 
-## Unreleased
+## 3.4.0
 
 The main things in this release:
 * The JMAP client has moved out into the standalone [calendaring-jmap](https://pypi.org/project/calendaring-jmap/) package; `caldav.jmap` is now a deprecated re-export of it, available through the `caldav[jmap]` extra.
