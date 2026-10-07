@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
-"""
-Code contributed by github user seidnerj in
+"""Code contributed by github user seidnerj in
 https://github.com/python-caldav/caldav/issues/119#issuecomment-2561980368
 
-This code has not been tested by the maintainer of the caldav library.
+This code has not been tested nor revieed by the maintainer of the
+caldav library. It's also quite old code - most of this example is
+probably obsolete and seems to be far away from what is "best current
+practice" in the maintainers perspective as of 2026.
+
 """
 
+import logging
 import os
 
 from flask import Flask, Response, jsonify
@@ -15,6 +19,7 @@ from caldav import get_davclient
 from caldav.requests import HTTPBearerAuth
 
 app = Flask(__name__)
+logger = logging.getLogger(__name__)
 
 # Constants
 CREDENTIALS_FILE = "credentials.json"
@@ -102,7 +107,8 @@ def serve_calendar_ics(calendar_name):
         # serve the calendar as an ICS file
         return Response(ics_data, mimetype="text/calendar")
     except Exception as ex:
-        return jsonify({"error": str(ex)}), 500
+        logger.exception("Failed to serve ICS for calendar '%s'", calendar_name)
+        return jsonify({"error": "An internal error has occurred"}), 500
 
 
 # requirements: flask, caldav, google-auth, google-auth-oauthlib, google-api-python-client
