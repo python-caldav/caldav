@@ -56,3 +56,4 @@ This is most likely not complete, but should explain some of the "silly" steps a
 * Forgetting to push to pypi, or pushing something else than the tagged revision to pypi
 * Pushing out junk files in the pypi-release (i.e. .pyc-files, log files, temp files, `tests/conf_private.py`, `tests/caldav_test_servers.yaml`, an entire `venv/`, etc).  `tox -e package` now catches this - see the build step above
 * Not adding the release to the "github releases" (I don't care much about this feature, but apparently some people check there to find the latest release version)
+* Not committing after doing a s/unreleased/$VERSION/ on the CHANGELOG
