@@ -32,7 +32,7 @@ The main things in this release:
 
 ### Breaking changes
 
-The `cal.object_by_uid` had two bugs causing it (under some circumstances) to fetch the whole calendar to search for an UID on a perfectly compliant server.  This is unacceptably expensive in some scenarioes and has been fixed - on the cost of breaking support for some non-compliant servers.  The method is used internally, so this matters.  The mitigation is to specify server capabilities through the `features`-configuration (see above).
+`Calendar.get_object_by_uid()` had two bugs causing it (under some circumstances) to fetch the whole calendar to search for a UID on a perfectly compliant server.  This is unacceptably expensive in some scenarios and has been fixed - at the cost of breaking support for some non-compliant servers.  The method is used internally, so this matters.  The mitigation is to specify server capabilities through the `features`-configuration (see above).
 
 The JMAP support was declared experimental in 3.0, hence the changes below are deemed allowable in a minor release:
 
