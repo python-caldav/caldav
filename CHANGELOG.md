@@ -1,8 +1,18 @@
 # Changelog
 
-## HTTP Library Dependencies
+## Notable changes during the last releases
+
+### HTTP Library Dependencies
 
 As of v3.x, **niquests** is the supported and recommended package for HTTP communication. It's a backward-compatible fork of requests that supports both sync and async operations, as well as HTTP/2 and HTTP/3 and many other things.  Fallbacks to other packages are implemented - read more in [HTTP Library Configuration](docs/source/http-libraries.rst).
+
+### Configuration and "features"
+
+This is "old news", but the 3.4-release may hold a regression making this more relevant (see "Breaking changes" for the 3.4-release below).
+
+When configuring the server it's now possible to pass a `features`-parameter.  This may contain a dict describing the server capabilities, but for end-users the intended usage pattern is to pass a server name, e.g. `features: cyrus`.
+
+Support for configuring things like server credentials through a **configuration file** or through **environment** was added a while ago - the idea being that independent applications built using the caldav library can share the same configuration file / environment settings.  Use `get_davclient()` rather than `DAVClient()` to support fetching server configuration through a config file or environment.
 
 ## Meta
 
@@ -21,6 +31,8 @@ The main things in this release:
 * Fixes for `search(expand=True)` (a regression in 3.3.0), component-type filtering and UID lookups.
 
 ### Breaking changes
+
+The `cal.object_by_uid` had two bugs causing it (under some circumstances) to fetch the whole calendar to search for an UID on a perfectly compliant server.  This is unacceptably expensive in some scenarioes and has been fixed - on the cost of breaking support for some non-compliant servers.  The method is used internally, so this matters.  The mitigation is to specify server capabilities through the `features`-configuration (see above).
 
 The JMAP support was declared experimental in 3.0, hence the changes below are deemed allowable in a minor release:
 
@@ -52,7 +64,7 @@ The JMAP support was declared experimental in 3.0, hence the changes below are d
 * A `401` response with no `WWW-Authenticate` header (Yahoo Calendar) would cause the 401 to surface as `AuthorizationError` - indistinguishable from a genuinely rejected password.  Over TLS, with no `auth_type`/`auth` already configured, the client now guesses `basic` once before giving up.  See https://github.com/python-caldav/caldav/issues/713 and https://github.com/python-caldav/caldav/issues/717.
 * `search(event=True)`, `search(journal=True)` and `search(comp_class=...)` could return objects of the wrong component type from a server graded `search.comp-type: unsupported` - one that silently ignores the comp-filter and returns the whole calendar.  Only `broken` triggered client-side filtering.  `unsupported` now does too, keeping the comp-filter in the query.  Affected profiles: `ox` and `infomaniak` (and `yahoo`, new in this release).  En passant, `search(comp_class=Todo)` no longer drops completed tasks on servers graded `broken` (`bedework`).
 * `get_object_by_uid()` (and through it `add_object()` for an object carrying `RELATED-TO`, `get_relatives()` and `set_relation()`) downloaded and parsed the whole calendar when called without `comp_class` on a server that needs the per-component-type split.  Seen as ~4 s per `add_object()` against a 2500-object calendar on Xandikos.
-* `get_object_by_uid()` for a UID not on the server also downloaded and parsed the whole calendar before raising `NotFoundError`: an empty UID search was always retried without the UID filter, in case the server's text search was broken.  That retry now happens only when the configured `features` profile does not mark `search.text.case-sensitive` as supported (the UID filter uses the `i;octet` collation), or gives the server a `search-cache` delay: on purelymail a text filter matches nothing for the first couple of minutes after a save, while an unfiltered search finds the object at once.  Without `features`, or with a profile that wrongly claims working text search, a `NotFoundError` is raised instead.  This may be a **breaking change** if you don't configure `features` and your server does not support text searches.  I've verified that it won't break with Zimbra, SOGo and Bedework.  On purelymail, `get_object_by_uid()` right after a save needs `features="purelymail"`.
+* `get_object_by_uid()` for a UID not on the server also downloaded and parsed the whole calendar before raising `NotFoundError`: an empty UID search was always retried without the UID filter, in case the server's text search was broken.  This can in some situations be a very expensive operation.  That retry now depends on the configured `features` profile.  This may be a **breaking change** for non-compliant servers unless you have configured `features` correctly.
 * `save()` on a recurrence instance whose master is missing from the server (an "orphan" `RECURRENCE-ID`) recursed until `RecursionError`.  The object is now saved as-is.
 * `make_calendar()` raised `KeyError: 'behaviour'` on a server whose `create-calendar` was configured as `quirk` without a `behaviour`.
 * `add_object()` with `RELATED-TO` properties re-saved the new object once per relation, and saved each related object even when it already pointed back.  `set_relation()` no longer saves when the relation was already there.
