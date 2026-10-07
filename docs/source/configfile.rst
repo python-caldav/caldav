@@ -78,6 +78,8 @@ config file.)
 The special ``features`` key (not prefixed with ``caldav_``) names a
 server-compatibility profile — e.g. ``xandikos``, ``radicale``, ``baikal``.
 See :mod:`caldav.compatibility_hints` for the full list of known profiles.
+Various compatibility workarounds may be turned off or on dependent on
+the configured features.
 
 Environment variable expansion
 -------------------------------
