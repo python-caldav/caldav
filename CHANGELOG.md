@@ -124,6 +124,10 @@ The JMAP support was declared experimental in 3.0, hence the changes below are d
 * `make_calendar()` raised `KeyError: 'behaviour'` on a server whose `create-calendar` was configured as `quirk` without a `behaviour`.
 * `add_object()` with `RELATED-TO` properties re-saved the new object once per relation, and saved each related object even when it already pointed back.  `set_relation()` no longer saves when the relation was already there.
 
+### Security
+
+* `vcal.fix()`, run on every iCalendar object fetched from the server, took quadratic time on a long run of blanks or backslashes - 100 kB took more than 20 s, so a hostile server or a shared calendar could stall the client.  It is now linear; the output is unchanged.  See https://github.com/python-caldav/caldav/security/advisories/GHSA-5h4q-xm57-3mh5
+
 ### Tests and documentation
 
 * The configuration file documentation now covers `auth_type` and notes that any other connection parameter can be given the same way.
