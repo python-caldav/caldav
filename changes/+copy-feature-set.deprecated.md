@@ -1,0 +1,1 @@
+`FeatureSet.copyFeatureSet()` in `caldav.compatibility_hints` has been renamed to `copy_feature_set()`, in line with the naming of the other methods.  The old name still works but emits a `DeprecationWarning`.

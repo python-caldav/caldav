@@ -133,10 +133,10 @@ def test_from_features() -> None:
 
     features = FeatureSet()
     assert SearchCacheDelay.from_features(features) is None
-    features.copyFeatureSet({"search-cache": {"behaviour": "delay", "delay": 3}}, collapse=False)
+    features.copy_feature_set({"search-cache": {"behaviour": "delay", "delay": 3}}, collapse=False)
     state = SearchCacheDelay.from_features(features)
     assert (state.delay, state.filtered_only) == (3, False)
-    features.copyFeatureSet(
+    features.copy_feature_set(
         {"search-cache": {"behaviour": "delay", "delay": 180, "filtered-only": True}},
         collapse=False,
     )

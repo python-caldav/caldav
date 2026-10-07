@@ -840,6 +840,21 @@ class TestSynchronousWrite:
         assert features.is_supported("synchronous-write", dict) == new
         assert "write-delay" not in features.dotted_feature_set_list()
 
+    @pytest.mark.parametrize("method", [None, "copy_feature_set", "copyFeatureSet", "set_feature"])
+    def test_write_delay_warning_points_at_the_caller(self, method: str | None) -> None:
+        old = {"behaviour": "normal"}
+        fs = FeatureSet({})
+        with warnings.catch_warnings(record=True) as rec:
+            warnings.simplefilter("always")
+            if method is None:
+                FeatureSet({"write-delay": old})
+            elif method == "set_feature":
+                fs.set_feature("write-delay", old)
+            else:
+                getattr(fs, method)({"write-delay": old})
+        [warning] = [w for w in rec if "synchronous-write" in str(w.message)]
+        assert warning.filename == __file__
+
     @pytest.mark.parametrize(("profile", "delay"), [("bedework_5_0_0", 1)])
     def test_profiles(self, profile: str, delay: int) -> None:
         features = FeatureSet(_resolve_features(profile))

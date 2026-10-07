@@ -850,7 +850,7 @@ hence, "fragile".
         ## TODO: remove this when it can be removed
         self._old_flags = []
         if feature_set_dict:
-            self.copyFeatureSet(feature_set_dict, collapse=False)
+            self._copy_feature_set(feature_set_dict, collapse=False)
 
 
     ## The key a bool is stored under, for the types where a bool is not a
@@ -874,11 +874,28 @@ hence, "fragile".
             fc = {feature: {"support": "unknown"}}
         else:
             raise AssertionError
-        self.copyFeatureSet(fc, collapse=False)
+        self._copy_feature_set(fc, collapse=False)
 
 
-    ## TODO: Why is this camelCase while every other method is with under_score?  rename ...
     def copyFeatureSet(self, feature_set, collapse=True):
+        """Deprecated alias for :meth:`copy_feature_set`."""
+        warnings.warn(
+            "FeatureSet.copyFeatureSet() is deprecated - use copy_feature_set()",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._copy_feature_set(feature_set, collapse=collapse)
+
+    def copy_feature_set(self, feature_set, collapse=True):
+        """Merge ``feature_set`` (same format as the constructor takes) into this one.
+
+        With ``collapse``, :meth:`collapse` is run afterwards.
+        """
+        return self._copy_feature_set(feature_set, collapse=collapse)
+
+    ## Every public entry point calls this directly, so a deprecation
+    ## warning with stacklevel=3 points at the user's code
+    def _copy_feature_set(self, feature_set, collapse=True):
         for feature in feature_set:
             ## TODO: temp - should be removed
             if feature == 'old_flags':
@@ -891,7 +908,7 @@ hence, "fragile".
                     DeprecationWarning,
                     stacklevel=3,
                 )
-                self.copyFeatureSet({'synchronous-write': _from_write_delay(feature_set[feature])}, collapse=False)
+                self._copy_feature_set({'synchronous-write': _from_write_delay(feature_set[feature])}, collapse=False)
                 continue
             try:
                 ## called for the exception, not the return value: an unknown
@@ -1025,7 +1042,7 @@ hence, "fragile".
 
             for sub in grouping_children:
                 self._server_features.pop(f"{parent}.{sub}", None)
-            self.copyFeatureSet({parent: derived})
+            self._copy_feature_set({parent: derived})
 
     def _default(self, feature_info):
         if isinstance(feature_info, str):

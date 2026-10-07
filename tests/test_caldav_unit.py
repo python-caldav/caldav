@@ -5196,7 +5196,7 @@ END:VCALENDAR
 
 
 class TestFeatureSetCopyFeatureSet:
-    """§1.10 + §1.11: FeatureSet.copyFeatureSet() correctness bugs.
+    """§1.10 + §1.11: FeatureSet.copy_feature_set() correctness bugs.
 
     §1.10: Merging a plain-string feature over an existing string-valued feature raised
     bare AssertionError because the 'support' not in server_node guard prevented the
@@ -5209,11 +5209,11 @@ class TestFeatureSetCopyFeatureSet:
     """
 
     def test_string_feature_can_be_overridden(self):
-        """copyFeatureSet must accept a string value that overrides an existing string."""
+        """copy_feature_set must accept a string value that overrides an existing string."""
         from caldav.compatibility_hints import FeatureSet
 
         fs = FeatureSet({"scheduling": "unsupported"})
-        fs.copyFeatureSet({"scheduling": "fragile"})
+        fs.copy_feature_set({"scheduling": "fragile"})
         assert fs.is_supported("scheduling") is False  # fragile → False per is_supported semantics
 
     def test_string_feature_full_override(self):
@@ -5221,7 +5221,7 @@ class TestFeatureSetCopyFeatureSet:
         from caldav.compatibility_hints import FeatureSet
 
         fs = FeatureSet({"scheduling": "unsupported"})
-        fs.copyFeatureSet({"scheduling": "full"})
+        fs.copy_feature_set({"scheduling": "full"})
         assert fs.is_supported("scheduling") is True
 
     def test_unknown_feature_warns_and_does_not_store(self):
@@ -5233,11 +5233,22 @@ class TestFeatureSetCopyFeatureSet:
         fs = FeatureSet({})
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            fs.copyFeatureSet({"totally_nonexistent_feature_xyz": "full"})
+            fs.copy_feature_set({"totally_nonexistent_feature_xyz": "full"})
 
         assert any("totally_nonexistent_feature_xyz" in str(warning.message) for warning in w)
         # The bad key must NOT be in the internal feature dict
         assert "totally_nonexistent_feature_xyz" not in fs._server_features
+
+    def test_copyFeatureSet_is_deprecated_alias(self):
+        """The old camelCase name still works but emits DeprecationWarning."""
+        from caldav.compatibility_hints import FeatureSet
+
+        fs = FeatureSet({"scheduling": "unsupported"})
+        with pytest.warns(DeprecationWarning, match="copy_feature_set") as rec:
+            fs.copyFeatureSet({"scheduling": "full"})
+        assert fs.is_supported("scheduling") is True
+        ## the warning should point at the caller, not at the alias
+        assert rec[0].filename == __file__
 
 
 class TestXMLEntityHardening:

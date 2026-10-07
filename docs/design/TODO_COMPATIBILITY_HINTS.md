@@ -46,7 +46,7 @@ conditions are truly independent and the second call is simply redundant.
 
 ## 3. `_old_flags` — in-progress migration, clear removal path
 
-**Location**: `FeatureSet.__init__`, `FeatureSet.copyFeatureSet`, and ~12 server config
+**Location**: `FeatureSet.__init__`, `FeatureSet.copy_feature_set`, and ~12 server config
 dicts in `compatibility_hints.py`
 
 `_old_flags` is explicitly marked `## TODO: remove this when it can be removed`.  It is
@@ -60,7 +60,7 @@ flags are known strings.  The test at line 1015-1016 confirms all flags are pres
 **Fix**: For each server dict that still has `'old_flags': [...]`, translate the listed
 flags into equivalent new-style features and remove the `old_flags` key.  Once all server
 dicts are migrated:
-- Remove the `if feature == 'old_flags':` special-case in `copyFeatureSet`
+- Remove the `if feature == 'old_flags':` special-case in `copy_feature_set`
 - Remove `self._old_flags = []` from `__init__`
 - Remove the `_old_flags` copy in the copy-constructor branch
 - Remove the validation in `test_caldav.py`
@@ -110,15 +110,11 @@ from `old_flags`).  The extra slots add noise without effect.
 **Fix**: Simplify to `return feature_dict.get('support')` once the broader type-system
 simplification is settled.
 
-## 6. `copyFeatureSet` — rename to `copy_feature_set`
+## 6. `copyFeatureSet` — rename to `copy_feature_set` ✅ DONE
 
-**Location**: `FeatureSet.copyFeatureSet`
-
-There is already a TODO comment on the method noting the camelCase name is inconsistent.
-The method has no external callers (grepping the repo outside `compatibility_hints.py`
-finds none); all calls originate within the class itself plus `set_feature`.
-
-**Fix**: Rename to `copy_feature_set`.  Trivial.
+Renamed to `FeatureSet.copy_feature_set`.  `copyFeatureSet` is kept as a
+deprecated alias emitting `DeprecationWarning`, since `FeatureSet` is
+reachable by library users.
 
 ## 7. Split this file
 
