@@ -72,7 +72,6 @@ The JMAP support was declared experimental in 3.0, hence the changes below are d
 ### Tests and documentation
 
 * The configuration file documentation now covers `auth_type` and notes that any other connection parameter can be given the same way.
-* Concurrent test runs no longer run the same docker test server's `start.sh`/`stop.sh` in parallel, and a docker test server that failed once is not restarted for every following test.
 
 ## [3.3.1] - 2026-09-16
 
