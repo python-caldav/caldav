@@ -2265,7 +2265,7 @@ purelymail = {
     #'save-load.get-by-url': {'support': 'unknown'},
     #'save-load.todo': {'support': 'ungraceful'},
     ## The search features below are unreliable on purelymail, likely due
-    ## to the 160s search-cache delay.  Results flip between unsupported
+    ## to the search-cache delay.  Results flip between unsupported
     ## and ungraceful across runs.  Marked fragile so the checker skips them.
     ## was: (default, i.e. full) - observed ungraceful 2026-02
     'search.is-not-defined': {'support': 'fragile'},
