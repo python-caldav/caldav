@@ -62,10 +62,10 @@ class FeatureSet:
     For a server-feature, is_supported(feature) returning a bool is True for "full" and "quirk" only.  "fragile" is True as well when called with accept_fragile=True; "unsupported", "broken", "ungraceful" and "unknown" are all False.  Note in particular that "ungraceful" is False even though the server does respond - the response is an error.
 
     types:
-     * client-feature means the client is supposed to do special things (like, rate-limiting).  While the need for rate-limiting may be set by the server, it may not be possible to reliably establish it by probling the server, and the value may differ for different clients.
+     * client-feature means the client is supposed to do special things (like, rate-limiting).  While the need for rate-limiting may be set by the server, it may not be possible to reliably establish it by probing the server, and the value may differ for different clients.
      * server-peculiarity - weird behaviour detected at the server side, behaviour that is too odd to be described as "missing support for a feature".  Example: there is some cache working, causing a delay from some object is sent to the server and until it can be retrieved.  The difference between an "unsupported server-feature" and a "server-peculiarity" may be a bit floating - like, arguably "instant updates" may be considered a feature.
-     * tests-behaviour - configuration for the tests.  Like, it's OK to wipe everyhting from the test calendar, location of test calendar, rate-limiting that only should apply to test runs, etc.
-     * server-observation - not features, but other facts found about the server
+     * tests-behaviour - configuration for the tests.  Like, it's OK to wipe everything from the test calendar, location of test calendar, rate-limiting that only should apply to test runs, etc.
+     * server-observation - not features, but other facts found about the server.  Currently the only one is get-current-user-principal.has-calendar (does the account come with a pre-defined calendar on first login?).  This has to be observed manually.  While it may be a characteristic of some cloud providers, it's not necessarily true for self-hosted servers - sometimes this may depend on the docker container setup or the server configuration.  For those reasons it does not fit as a "feature".  An observation is not supported or unsupported, it is observed to be True or False: ``{"value": True}`` (the default) or ``{"value": False}``, and ``set_feature(observation, some_bool)`` stores ``{"value": some_bool}``.  Likewise a bool given for a client-feature is stored as ``{"enable": some_bool}``.  For both, ``is_supported(feature, str)`` spells the bool out as ``"True"`` or ``"False"``; server-peculiarity, tests-behaviour and client-hints have no bool meaning, and ``is_supported(feature)`` raises TypeError for them.
      * server-feature - some feature (preferably rooted with a pointer to some specific section of the RFC)
        * "support" -> "quirk" if we have a server-peculiarity where it's needed with special care to get the request through.
 
@@ -248,7 +248,7 @@ class FeatureSet:
         },
         "get-current-user-principal.has-calendar": {
             "type": "server-observation",
-            "description": "Principal has one or more calendars.  Some servers and providers comes with a pre-defined calendar for each user, for other servers a calendar has to be explicitly created (supported means there exists a calendar - it may be because the calendar was already provisioned together with the principal, or it may be because a calendar was created manually, the checks can't see the difference)"},
+            "description": "Principal has one or more calendars.  Some servers and providers come with a pre-defined calendar for each user, for other servers a calendar has to be explicitly created (True means there exists a calendar - it may be because the calendar was already provisioned together with the principal, or it may be because a calendar was created manually, the checks can't see the difference)"},
         "get-supported-components": {
             "description": "Server returns the supported-calendar-component-set property (RFC 4791 section 5.2.3).  The property is optional: when absent the RFC mandates that all component types are accepted, so 'unsupported' here is not a protocol violation, but the client cannot determine the actual supported set without trying.",
             "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-5.2.3"],
@@ -834,8 +834,16 @@ hence, "fragile".
             self.copyFeatureSet(feature_set_dict, collapse=False)
 
 
+    ## The key a bool is stored under, for the types where a bool is not a
+    ## support level: an observation is observed to be True or False, and a
+    ## client-feature is enabled or not.
+    _BOOL_KEYS = {'server-observation': 'value', 'client-feature': 'enable'}
+
+    def _bool_key(self, feature):
+        return self._BOOL_KEYS.get(self.find_feature(feature).get('type'))
+
     def set_feature(self, feature, value=True):
-        if isinstance(value, dict):
+        if isinstance(value, dict) or (isinstance(value, bool) and self._bool_key(feature)):
             fc = {feature: value}
         elif isinstance(value, str):
             fc = {feature: {"support": value}}
@@ -882,7 +890,9 @@ hence, "fragile".
             if feature not in self._server_features:
                 self._server_features[feature] = {}
             server_node = self._server_features[feature]
-            if isinstance(value, bool):
+            if isinstance(value, bool) and self._bool_key(feature):
+                server_node[self._bool_key(feature)] = value
+            elif isinstance(value, bool):
                 server_node['support'] = "full" if value else "unsupported"
             elif isinstance(value, str):
                 self._validate_support_level(value, feature)
@@ -910,7 +920,7 @@ hence, "fragile".
         """
         Extract the key part of a feature dictionary for comparison during collapse.
 
-        For collapse purposes, we compare the 'support' level (or 'enable', 'behaviour', 'observed')
+        For collapse purposes, we compare the 'support' level (or 'enable', 'value', 'observed')
         but ignore differences in detailed behaviour messages, as those are often implementation-specific
         error messages that shouldn't prevent collapsing.
         """
@@ -921,6 +931,7 @@ hence, "fragile".
         return (
             feature_dict.get('support'),
             feature_dict.get('enable'),
+            feature_dict.get('value'),
             feature_dict.get('observed'),
         )
 
@@ -1011,7 +1022,7 @@ hence, "fragile".
         elif feature_type == 'server-peculiarity':
             return { "behaviour": "normal" }
         elif feature_type == 'server-observation':
-            return { "observed": True }
+            return { "value": True }
         elif feature_type in ('tests-behaviour', 'client-hints'):
             return { }
         else:
@@ -1141,25 +1152,34 @@ hence, "fragile".
         hierarchical dict, hence the naming of the method.  I
         considered it too complicated though)
         """
-        if return_type is str:
-            ## TODO: consider feature_info['type'], be smarter about it
-            return node.get('support', node.get('enable', node.get('behaviour')))
-        elif return_type is dict:
+        feature_type = feature_info.get('type', 'server-feature')
+        if return_type is dict:
             return node
-        elif return_type is bool:
-            ## TODO: consider feature_info['type'], be smarter about this
-            support = node.get('support', 'full')
-            if support == 'quirk':
-                return True
-            if accept_fragile and support == 'fragile':
-                support = 'full'
-            if feature_info.get('type', 'server-feature') == 'server-feature':
-                return support == 'full'
-            else:
-                ## TODO: this may be improved
-                return not node.get('enable') and not node.get('behaviour') and not node.get('observed')
-        else:
+        if return_type is str:
+            if feature_type in self._BOOL_KEYS:
+                ## There is no support level to report - spell out the bool
+                return str(self._convert_node(node, feature_info, bool, accept_fragile))
+            return node.get('support', node.get('behaviour'))
+        if return_type is not bool:
             raise AssertionError
+        bool_key = self._BOOL_KEYS.get(feature_type)
+        if bool_key in node:
+            return bool(node[bool_key])
+        if feature_type == 'server-observation' and 'observed' in node:
+            ## legacy spelling of 'value'
+            return bool(node['observed'])
+        if feature_type not in ('server-feature', 'server-observation', 'client-feature'):
+            ## server-peculiarity, tests-behaviour and client-hints carry
+            ## settings, not a yes/no answer
+            raise TypeError(
+                f"{feature_info.get('name')} is a {feature_type}, which has no bool meaning - ask for a dict"
+            )
+        ## A support level - the native form for a server-feature, a legacy
+        ## one for an observation or a client-feature
+        support = node.get('support', 'full' if feature_type != 'client-feature' else 'unsupported')
+        if accept_fragile and support == 'fragile':
+            support = 'full'
+        return support in ('full', 'quirk')
 
     @classmethod
     def find_feature(cls, feature: str) -> dict:
@@ -1371,6 +1391,8 @@ xandikos = {
 ## There is much development going on at Radicale as of summar 2025,
 ## so I'm expecting this list to shrink a lot soon.
 radicale = {
+    ## A fresh account comes without a calendar (observed on the docker test server)
+    "get-current-user-principal.has-calendar": {"value": False},
     ## Genuinely returns matching objects for a comp-type-less query that carries
     ## a time-range (verified: the event is returned, not just "no error").
     "search.time-range.comp-type-optional": {"support": "full"},
@@ -1868,6 +1890,8 @@ cyrus = {
 ## See the synology profile above: Synology Calendar ships a modified DAViCal,
 ## so the two profiles should be kept in sync where the fork has not diverged.
 davical = {
+    ## A fresh account comes without a calendar (observed on the docker test server)
+    "get-current-user-principal.has-calendar": {"value": False},
     # Disable HTTP/2 multiplexing - davical doesn't support it well and niquests
     # lazy responses cause MultiplexingError when accessing status_code
     "http.multiplexing": { "support": "unsupported" },
@@ -2102,6 +2126,8 @@ posteo = {
 ## Davis uses sabre/dav (same backend as Baikal), so hints are similar.
 ## TODO: consolidate, make a sabredav dict and let davis/baikal build on it
 davis = {
+    ## A fresh account comes without a calendar (observed on the docker test server)
+    "get-current-user-principal.has-calendar": {"value": False},
     # Davis uses sabre/dav (same backend as Baikal): delivers iTIP notifications to the
     # attendee inbox AND auto-schedules into their calendar.
     "scheduling.schedule-tag": False,
@@ -2547,7 +2573,7 @@ yahoo = {
     'auth.www-authenticate.usable-scheme': {'support': 'unknown'},
     ## Redirects to https://caldav.calendar.yahoo.com/principals/
     'well-known': {'support': 'full'},
-    'get-current-user-principal.has-calendar': {'support': 'full'},
+    'get-current-user-principal.has-calendar': {'value': True},
 
     ## Colour and order are stored and read back (the colour name is
     ## normalised: 'blue' comes back as '#0252D4').  Stated explicitly since
