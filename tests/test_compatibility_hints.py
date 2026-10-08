@@ -859,3 +859,100 @@ class TestSynchronousWrite:
         observed = FeatureSet()
         observed.set_feature("synchronous-write", {"support": "full", "save-load-delay": 0})
         assert declared.compare(observed) == []
+
+
+class TestObservationBool:
+    """A server-observation is not supported or unsupported - it is observed
+    to be True or False, stored as ``{"value": <bool>}``.  A client-feature
+    reads as its ``enable`` flag.  Neither is inverted."""
+
+    HAS_CAL = "get-current-user-principal.has-calendar"
+
+    def test_set_false_stores_value_false(self) -> None:
+        features = FeatureSet()
+        features.set_feature(self.HAS_CAL, False)
+        assert features.is_supported(self.HAS_CAL, dict) == {"value": False}
+        assert features.is_supported(self.HAS_CAL) is False
+
+    def test_set_true_stores_value_true(self) -> None:
+        features = FeatureSet()
+        features.set_feature(self.HAS_CAL, True)
+        assert features.is_supported(self.HAS_CAL, dict) == {"value": True}
+        assert features.is_supported(self.HAS_CAL) is True
+
+    def test_bool_in_config_dict(self) -> None:
+        assert FeatureSet({self.HAS_CAL: False}).is_supported(self.HAS_CAL) is False
+        assert FeatureSet({self.HAS_CAL: True}).is_supported(self.HAS_CAL) is True
+
+    def test_default_is_true(self) -> None:
+        assert FeatureSet().is_supported(self.HAS_CAL) is True
+
+    @pytest.mark.parametrize(
+        ("node", "expected"),
+        [
+            ({"observed": True}, True),
+            ({"observed": False}, False),
+            ({"support": "full"}, True),
+            ({"support": "unsupported"}, False),
+        ],
+    )
+    def test_legacy_nodes(self, node: dict, expected: bool) -> None:
+        assert FeatureSet({self.HAS_CAL: node}).is_supported(self.HAS_CAL) is expected
+
+    def test_profiles_use_value(self) -> None:
+        """Server profiles should describe an observation with 'value' only."""
+        from caldav import compatibility_hints
+
+        for name, profile in vars(compatibility_hints).items():
+            if not isinstance(profile, dict) or self.HAS_CAL not in profile:
+                continue
+            assert set(profile[self.HAS_CAL]) == {"value"}, name
+
+    def test_rate_limit_bool_follows_enable(self) -> None:
+        assert FeatureSet().is_supported("rate-limit") is False
+        assert FeatureSet({"rate-limit": {"enable": False}}).is_supported("rate-limit") is False
+        assert FeatureSet({"rate-limit": {"enable": True}}).is_supported("rate-limit") is True
+
+    @pytest.mark.parametrize("value", [True, False])
+    def test_client_feature_bool_stores_enable(self, value: bool) -> None:
+        assert FeatureSet({"rate-limit": value}).is_supported("rate-limit", dict) == {
+            "enable": value
+        }
+        features = FeatureSet()
+        features.set_feature("rate-limit", value)
+        assert features.is_supported("rate-limit", dict) == {"enable": value}
+        assert features.is_supported("rate-limit") is value
+
+    @pytest.mark.parametrize(("support", "expected"), [("full", True), ("unsupported", False)])
+    def test_client_feature_legacy_support(self, support: str, expected: bool) -> None:
+        features = FeatureSet({"rate-limit": {"support": support}})
+        assert features.is_supported("rate-limit") is expected
+
+    def test_str_is_the_bool_spelled_out(self) -> None:
+        assert FeatureSet({self.HAS_CAL: False}).is_supported(self.HAS_CAL, str) == "False"
+        assert FeatureSet().is_supported(self.HAS_CAL, str) == "True"
+        assert (
+            FeatureSet({"rate-limit": {"enable": True}}).is_supported("rate-limit", str) == "True"
+        )
+        assert FeatureSet().is_supported("rate-limit", str) == "False"
+
+    @pytest.mark.parametrize("feature", ["search-cache", "test-calendar", "auto-connect.url"])
+    def test_bool_raises_for_types_without_a_bool_meaning(self, feature: str) -> None:
+        with pytest.raises(TypeError):
+            FeatureSet().is_supported(feature)
+
+    def test_value_wins_over_legacy_keys(self) -> None:
+        features = FeatureSet({self.HAS_CAL: {"support": "unsupported"}})
+        features.set_feature(self.HAS_CAL, True)
+        assert features.is_supported(self.HAS_CAL) is True
+
+    def test_compact_keeps_value_node(self) -> None:
+        features = FeatureSet({self.HAS_CAL: False})
+        assert features.dotted_feature_set_list(compact=True)[self.HAS_CAL] == {"value": False}
+
+    @pytest.mark.parametrize("profile", ["radicale", "davical", "davis"])
+    def test_fresh_account_has_no_calendar(self, profile: str) -> None:
+        from caldav import compatibility_hints
+
+        features = FeatureSet(getattr(compatibility_hints, profile))
+        assert features.is_supported(self.HAS_CAL) is False

@@ -6,34 +6,31 @@ type-system vision (multiple feature types with different semantics, collapsible
 sub-feature hierarchies) that was only partially realised.  Several methods carry dead
 code or over-complexity that can now be trimmed.
 
-## 1. Dead/buggy bool branch in `_convert_node`
+## 1. Bool branch in `_convert_node` for non-server-feature types (fixed)
 
-**Location**: `FeatureSet._convert_node`, the final `else` branch (~line 708)
+**Location**: `FeatureSet._convert_node`, the `return_type is bool` branch
 
-```python
-else:
-    ## TODO: this may be improved
-    return not node.get('enable') and not node.get('behaviour') and not node.get('observed')
-```
+This used to end in `return not node.get('enable') and not node.get('behaviour') and
+not node.get('observed')` for every non-`server-feature` type.  The logic was
+**inverted**, and the branch was *not* unreachable as once claimed here:
+`skip_unless_support("get-current-user-principal.has-calendar")` in the test suites
+(and caldav-server-tester's mocked checks) asks for a `server-observation` as a bool.
+`set_feature(has-calendar, False)` read back as True, the default read back as False,
+and a disabled `rate-limit` read back as True.
 
-This branch handles `bool` return for non-`server-feature` types (i.e. `client-feature`,
-`server-peculiarity`, `server-observation`).  The logic is **inverted**: when
-`enable=False`, `not False` returns `True`, which would read a disabled client-feature as
-"supported".
+Fixed: a `server-observation` is observed to be True or False and is stored as
+`{"value": <bool>}` (`set_feature(observation, some_bool)` writes that); the bool
+read returns `value`, falling back to the legacy `observed` key and then to a legacy
+`support` level.  A `client-feature` reads as its `enable` flag.
 
-In practice this branch is unreachable: every `is_supported` call on features of those
-types uses `return_type=dict` (e.g. `is_supported("rate-limit", dict)`,
-`is_supported("search-cache", dict)`).  Nobody queries them for a bool.
-
-**Fix**: Replace the else-branch with a guard that surfaces misuse:
-```python
-else:
-    raise AssertionError(
-        f"is_supported(return_type=bool) is not meaningful for feature type "
-        f"{feature_info.get('type')!r}; use return_type=dict"
-    )
-```
-Or simply document the restriction.
+A bool given for a client-feature is stored as `{"enable": <bool>}` (a legacy `support`
+level is still read).  Asked for as a str, an observation or a client-feature spells
+its bool out as `"True"`/`"False"`.  `server-peculiarity`, `tests-behaviour` and
+`client-hints` carry settings, not a yes/no answer: asking for one as a bool raises
+`TypeError` (nobody did), and the str return stays `support`/`behaviour`, since
+`compare()` asks every type for a str.  The key-name split is deliberate:
+a client-feature's `enable` is a setting, an observation's `value` is a fact found
+about the server (an absent key means not observed, falling back to the default).
 
 ## 2. Redundant `_derive_from_subfeatures` call in `is_supported`
 
@@ -92,7 +89,7 @@ questions its own existence ("TODO: is this in use at all?").
 **Note**: Before removing `feature_tree`, confirm no external code (e.g.
 `caldav-server-tester`) calls it.
 
-## 5. `_collapse_key` — vestigial `enable`/`observed` fields
+## 5. `_collapse_key` — vestigial `enable`/`value`/`observed` fields
 
 **Location**: `FeatureSet._collapse_key`
 
@@ -100,11 +97,12 @@ questions its own existence ("TODO: is this in use at all?").
 return (
     feature_dict.get('support'),
     feature_dict.get('enable'),
+    feature_dict.get('value'),
     feature_dict.get('observed'),
 )
 ```
 
-The `enable` and `observed` slots exist to correctly compare `client-feature` and
+The `enable`, `value` and `observed` slots exist to correctly compare `client-feature` and
 `server-observation` nodes during collapse.  In practice, collapse is only ever invoked
 on server-feature nodes (the only type that appears in the server config dicts, aside
 from `old_flags`).  The extra slots add noise without effect.
