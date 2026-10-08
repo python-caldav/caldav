@@ -24,6 +24,7 @@ from .fixture_helpers import (
     arelease_calendar,
     component_set_unobtainable,
 )
+from .test_caldav import RepeatedFunctionalTestsBaseClass
 
 
 class FakeObject:
@@ -110,6 +111,144 @@ class FakePrincipal:
 class FakeClient:
     def __init__(self, hints: dict[str, Any] | None = None) -> None:
         self.features = FeatureSet(hints or {})
+
+
+class FunctionalEvent:
+    def __init__(self, calendar: "FunctionalCalendar", data: str) -> None:
+        self.calendar = calendar
+        self.data = data
+        self.url = f"{calendar.url}event-{len(calendar.events)}.ics"
+
+
+class FunctionalCalendar(FakeCalendar):
+    """Small synchronous calendar adapter for the real functional test methods."""
+
+    def __init__(self, owner: "FunctionalPrincipal", name: str | None, cal_id: str) -> None:
+        super().__init__(url=f"http://dav.example.com/{cal_id}/")
+        self.owner = owner
+        self.cal_id = cal_id
+        self.display_name = name
+        self.events: list[FunctionalEvent] = []
+
+    def add_event(self, data: str) -> FunctionalEvent:
+        event = FunctionalEvent(self, data)
+        self.events.append(event)
+        return event
+
+    def get_events(self) -> list[FunctionalEvent]:
+        return list(self.events)
+
+    def get_todos(self) -> list[Any]:
+        return []
+
+    def delete(self, wipe: bool | None = None) -> None:
+        if wipe:
+            self.events.clear()
+            return
+        self.owner.calendars.pop(self.cal_id, None)
+        self.deleted = True
+
+
+class FunctionalPrincipal(FakePrincipal):
+    """Synchronous adapter over the fake calendar state used by fixture tests."""
+
+    def make_calendar(self, **kwargs: Any) -> FunctionalCalendar:
+        self.make_calendar_calls.append(kwargs)
+        cal_id = kwargs.get("cal_id")
+        if cal_id in self.calendars:
+            raise error.MkcalendarError("405 Method Not Allowed - a collection already exists")
+        if any(calendar.display_name == kwargs.get("name") for calendar in self.calendars.values()):
+            raise error.MkcalendarError("409 Conflict - calendar name already exists")
+        calendar = FunctionalCalendar(self, kwargs.get("name"), cal_id)
+        self.calendars[cal_id] = calendar
+        return calendar
+
+    def calendar(
+        self,
+        name: str | None = None,
+        cal_id: str | None = None,
+        cal_url: str | None = None,
+    ) -> FunctionalCalendar:
+        self.calendar_calls.append({"name": name, "cal_id": cal_id, "cal_url": cal_url})
+        if cal_url is not None:
+            raise error.NotFoundError(f"no such calendar: {cal_url}")
+        if cal_id is not None:
+            calendar = self.calendars.get(cal_id)
+            if calendar is None or (name is not None and calendar.display_name != name):
+                raise error.NotFoundError(f"no such calendar: {name or cal_id}")
+            return calendar
+        for calendar in self.calendars.values():
+            if calendar.display_name == name:
+                return calendar
+        raise error.NotFoundError(f"no such calendar: {name}")
+
+    def get_calendars(self) -> list[FunctionalCalendar]:
+        return list(self.calendars.values())
+
+
+class FunctionalFixtureProbe(RepeatedFunctionalTestsBaseClass):
+    """Adapter that keeps the production fixture methods under test synchronous."""
+
+    def __init__(self, cleanup_regime: str = "wipe-calendar") -> None:
+        self.principal = FunctionalPrincipal()
+        self.caldav = FakeClient()
+        self.cleanup_regime = cleanup_regime
+        self.calendars_used: list[FunctionalCalendar] = []
+        self._preconfigured_calendar_urls: set[str] = set()
+        self.testcal_id = "pythoncaldav-test"
+        self.testcal_id2 = "pythoncaldav-test2"
+        self.teardown_calls: list[tuple[str | None, str | None]] = []
+        self._default_calendar = None
+
+    def is_supported(self, feature: str, return_type: type = bool, **_: Any) -> Any:
+        if return_type is dict and feature == "test-calendar":
+            return {}
+        if return_type is str:
+            return "unknown"
+        return True
+
+    def skip_unless_support(self, _: str) -> None:
+        return None
+
+    def _teardownCalendar(self, name: str | None = None, cal_id: str | None = None) -> None:
+        self.teardown_calls.append((name, cal_id))
+        try:
+            self.principal.calendar(name=name, cal_id=cal_id).delete()
+        except Exception:
+            pass
+
+
+def test_unicode_functional_fixtures_do_not_poison_shared_calendar_name() -> None:
+    """The real event tests must leave the wipe-calendar fixture name usable."""
+    fixture = FunctionalFixtureProbe()
+
+    fixture.testUtf8Event()
+    fixture.testUnicodeEvent()
+
+    shared = fixture._fixCalendar()
+    assert shared.display_name == "Yep"
+    assert fixture.principal.calendar(name="Yep", cal_id=fixture.testcal_id) is shared
+
+    utf8_calendar = fixture.principal.calendars[fixture.testcal_id + "-utf8"]
+    unicode_calendar = fixture.principal.calendars[fixture.testcal_id + "-unicode"]
+    assert utf8_calendar is not unicode_calendar
+    assert {utf8_calendar.display_name, unicode_calendar.display_name} == {
+        "Yølp UTF-8",
+        "Yølp Unicode",
+    }
+    for calendar in (utf8_calendar, unicode_calendar):
+        assert len(calendar.get_events()) == 1
+        assert "Bringebærsyltetøyfestival" in calendar.get_events()[0].data
+
+
+def test_unicode_fixture_ids_are_cleaned_by_known_calendar_cleanup() -> None:
+    fixture = FunctionalFixtureProbe(cleanup_regime="light")
+
+    fixture._cleanup()
+
+    cleaned_ids = {cal_id for _, cal_id in fixture.teardown_calls}
+    assert fixture.testcal_id + "-utf8" in cleaned_ids
+    assert fixture.testcal_id + "-unicode" in cleaned_ids
 
 
 @pytest.mark.asyncio
