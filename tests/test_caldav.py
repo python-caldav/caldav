@@ -1515,6 +1515,8 @@ class RepeatedFunctionalTestsBaseClass:
         for calid in (
             self.testcal_id,
             self.testcal_id2,
+            self.testcal_id + "-utf8",
+            self.testcal_id + "-unicode",
             self.testcal_id + "-tasks",
             self.testcal_id + "-journals",
         ):
@@ -1524,8 +1526,12 @@ class RepeatedFunctionalTestsBaseClass:
                 "Yep",
                 "Yapp",
                 "Yølp",
+                "Yølp UTF-8",
+                "Yølp Unicode",
                 self.testcal_id,
                 self.testcal_id2,
+                self.testcal_id + "-utf8",
+                self.testcal_id + "-unicode",
                 self.testcal_id + "-tasks",
                 self.testcal_id + "-journals",
             ):
@@ -1620,11 +1626,6 @@ class RepeatedFunctionalTestsBaseClass:
             else:
                 kwargs["cal_id"] = self.testcal_id
 
-        ## TODO: when the calendar already exists, MKCALENDAR fails and the
-        ## existing one is reused with whatever display name it has - a
-        ## requested name is not enforced.  Combined with tests passing their
-        ## own name for testcal_id (testUtf8Event, testUnicodeEvent), that
-        ## leaks a wrong name into later runs on wipe-calendar servers.
         ret, was_created = get_or_create_test_calendar(
             self.caldav,
             self.principal,
@@ -3979,20 +3980,10 @@ END:VCALENDAR"""
         # TODO: split up in creating a calendar with non-ascii name
         # and an event with non-ascii description
         self.skip_unless_support("create-calendar")
+        cal_id = self.testcal_id + "-utf8"
         if self.cleanup_regime in ("light", "pre"):
-            self._teardownCalendar(cal_id=self.testcal_id)
-
-        ## TODO: this reuses the shared fixture cal_id under another display
-        ## name.  If this test is the one creating the calendar, it stays named
-        ## "Yølp"; under the wipe-calendar cleanup regime (Bedework 3) it is
-        ## never deleted, so testCreateEvent's principal.calendar(name="Yep")
-        ## fails in every later run (observed 2026-10-06).  An existing
-        ## calendar is reused without a rename, so the name does not heal.
-        ## Fix: give this test a cal_id of its own, as the async twin does
-        ## (pythoncaldav-async-utf8-test), point the _teardownCalendar call
-        ## above at it, and add it to _cleanup's teardown list so a calendar
-        ## left by an interrupted run is removed.  Same for testUnicodeEvent.
-        c = self._fixCalendar(name="Yølp", cal_id=self.testcal_id)
+            self._teardownCalendar(cal_id=cal_id)
+        c = self._fixCalendar(name="Yølp UTF-8", cal_id=cal_id)
 
         # add event
         e1 = c.add_event(
@@ -4013,16 +4004,15 @@ END:VCALENDAR"""
             assert len(events) == 1
 
         if self.cleanup_regime == "post":
-            self._teardownCalendar(cal_id=self.testcal_id)
+            self._teardownCalendar(cal_id=cal_id)
 
     def testUnicodeEvent(self):
         self.skip_unless_support("save-load.event")
         self.skip_unless_support("create-calendar")
+        cal_id = self.testcal_id + "-unicode"
         if self.cleanup_regime in ("light", "pre"):
-            self._teardownCalendar(cal_id=self.testcal_id)
-        ## TODO: may create the shared fixture calendar as "Yølp" - see
-        ## testUtf8Event.
-        c = self._fixCalendar(name="Yølp", cal_id=self.testcal_id)
+            self._teardownCalendar(cal_id=cal_id)
+        c = self._fixCalendar(name="Yølp Unicode", cal_id=cal_id)
 
         # add event
         e1 = c.add_event(
