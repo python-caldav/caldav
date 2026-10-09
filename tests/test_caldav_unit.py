@@ -4542,6 +4542,109 @@ END:VCALENDAR
         with pytest.raises(caldav_error.NotFoundError):
             ev.change_attendee_status(partstat="ACCEPTED")
 
+    @pytest.mark.asyncio
+    async def test_change_attendee_status_auto_detects_async_principal(self):
+        """Async auto-detection updates only the current principal's attendee."""
+        from caldav.aio import AsyncDAVClient
+
+        client = AsyncDAVClient(
+            url="https://calendar.example.com/",
+            username="attendee@example.com",
+            enable_rfc6764=False,
+        )
+        principal = Principal(client=client, url="https://calendar.example.com/principal/")
+        principal.calendar_user_address_set = mock.AsyncMock(
+            return_value=["mailto:attendee@example.com"]
+        )
+        client.principal = mock.AsyncMock(return_value=principal)
+        event_data = self._invite.replace(
+            "ATTENDEE;PARTSTAT=NEEDS-ACTION:mailto:attendee@example.com",
+            "ATTENDEE;PARTSTAT=NEEDS-ACTION:mailto:attendee@example.com\n"
+            "ATTENDEE;PARTSTAT=TENTATIVE:mailto:other@example.com",
+        )
+        ev = Event(client=client, data=event_data)
+
+        try:
+            result = ev.change_attendee_status(partstat="ACCEPTED")
+            assert hasattr(result, "__await__")
+            await result
+        finally:
+            await client.close()
+
+        attendees = ev.icalendar_component.get("attendee")
+        assert isinstance(attendees, list)
+        assert attendees[0].params["PARTSTAT"] == "ACCEPTED"
+        assert attendees[1].params["PARTSTAT"] == "TENTATIVE"
+
+    @pytest.mark.asyncio
+    async def test_change_attendee_status_async_falls_back_to_email_username(self):
+        """Async auto-detection falls back when address-set is unavailable."""
+        from caldav.aio import AsyncDAVClient
+
+        client = AsyncDAVClient(
+            url="https://calendar.example.com/",
+            username="attendee@example.com",
+            enable_rfc6764=False,
+        )
+        principal = Principal(client=client, url="https://calendar.example.com/principal/")
+        principal.calendar_user_address_set = mock.AsyncMock(
+            side_effect=error.NotFoundError("calendar-user-address-set unavailable")
+        )
+        client.principal = mock.AsyncMock(return_value=principal)
+        ev = Event(client=client, data=self._invite)
+
+        try:
+            await ev.change_attendee_status(partstat="ACCEPTED")
+        finally:
+            await client.close()
+
+        attendee = ev.icalendar_component["attendee"]
+        assert attendee.params["PARTSTAT"] == "ACCEPTED"
+
+    @pytest.mark.asyncio
+    async def test_change_attendee_status_async_missing_attendee_uses_principal_url(self):
+        """Async missing-attendee errors use the principal URL without sync I/O."""
+        from caldav.aio import AsyncDAVClient
+
+        client = AsyncDAVClient(
+            url="https://calendar.example.com/",
+            username="attendee@example.com",
+            enable_rfc6764=False,
+        )
+        principal = Principal(client=client, url="https://calendar.example.com/principal/")
+        principal.calendar_user_address_set = mock.AsyncMock(
+            return_value=["mailto:not-in-event@example.com"]
+        )
+        client.principal = mock.AsyncMock(return_value=principal)
+        ev = Event(client=client, data=self._invite)
+
+        try:
+            with pytest.raises(error.NotFoundError, match=str(principal.url)):
+                await ev.change_attendee_status(partstat="ACCEPTED")
+        finally:
+            await client.close()
+
+    @pytest.mark.asyncio
+    async def test_change_attendee_status_explicit_async_attendee_is_synchronous(self):
+        """An explicit attendee keeps the in-memory synchronous API on async clients."""
+        from caldav.aio import AsyncDAVClient
+
+        client = AsyncDAVClient(
+            url="https://calendar.example.com/",
+            username="attendee@example.com",
+            enable_rfc6764=False,
+        )
+        ev = Event(client=client, data=self._invite)
+
+        try:
+            result = ev.change_attendee_status("attendee@example.com", partstat="ACCEPTED")
+        finally:
+            await client.close()
+
+        assert result is None
+        attendee = ev.icalendar_component["attendee"]
+        assert attendee.params["PARTSTAT"] == "ACCEPTED"
+
 
 class TestAddAttendee:
     """§1.6: add_attendee() crashes with UnboundLocalError on uppercase MAILTO: scheme.

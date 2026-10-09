@@ -1301,15 +1301,25 @@ class CalendarObjectResource(DAVObject):
         assert " " not in str(url)
         return url
 
-    def change_attendee_status(self, attendee: Any | None = None, **kwargs) -> None:
+    def change_attendee_status(
+        self, attendee: Any | None = None, **kwargs
+    ) -> "None | Coroutine[Any, Any, None]":
         """
-        Updates the attendee-line according to the arguments received
+        Updates the attendee line according to the arguments received.
+
+        For async clients, omitting *attendee* returns a coroutine that must be
+        awaited while the current principal is resolved.  Passing an explicit
+        attendee remains synchronous because it only changes the in-memory
+        iCalendar data.
         """
         from .collection import Principal  ## late import to avoid cycling imports
 
         if not attendee:
             if self.client is None:
                 raise ValueError("Unexpected value None for self.client")
+
+            if self.is_async_client:
+                return self._async_change_attendee_status(**kwargs)
 
             attendee = self.client.principal()
 
@@ -1368,6 +1378,45 @@ class CalendarObjectResource(DAVObject):
                 cnt += 1
         if not cnt:
             raise error.NotFoundError(f"Participant {attendee!r} not found in attendee list")
+        error.assert_(cnt == 1)
+
+    async def _async_change_attendee_status(self, **kwargs) -> None:
+        """Async implementation of change_attendee_status() auto-detection."""
+        if self.client is None:
+            raise ValueError("Unexpected value None for self.client")
+
+        principal = await self.client.principal()
+        try:
+            attendee_emails = await principal.calendar_user_address_set()
+            ## Served but empty: the principal has no address of its own,
+            ## so it was invited under its URL - see get_vcal_address()
+            ## and RFC 6638 section 2.4.1.
+            if not attendee_emails:
+                attendee_emails = [str(principal.url)]
+        except error.NotFoundError:
+            ## Server does not expose calendar-user-address-set (RFC6638 §2.4.1).
+            ## Fall back to client.username if it looks like an email address.
+            ## See https://github.com/python-caldav/caldav/issues/399
+            username = getattr(self.client, "username", None)
+            if username and "@" in str(username):
+                attendee_emails = ["mailto:" + username]
+            else:
+                raise error.NotFoundError(
+                    "Server does not provide the calendar-user-address-set property "
+                    "(RFC6638 §2.4.1) and the client username is not an email address. "
+                    "Cannot determine which attendee to update. "
+                    "Pass the attendee email address explicitly to change_attendee_status()."
+                ) from None
+
+        cnt = 0
+        for addr in attendee_emails:
+            try:
+                self.change_attendee_status(addr, **kwargs)
+                cnt += 1
+            except error.NotFoundError:
+                pass
+        if not cnt:
+            raise error.NotFoundError("Principal %s is not invited to event" % str(principal.url))
         error.assert_(cnt == 1)
 
     def save(
