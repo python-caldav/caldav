@@ -24,6 +24,10 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 
 ## Unreleased
 
+### Added
+
+* A `features="icloud"` profile, from a caldav-server-tester run by a user - the documentation already referred to it, but it did not exist.  https://github.com/python-caldav/caldav/issues/730
+
 ### Fixed
 
 * `compatibility_hints`: `FeatureSet.is_supported()` answered inverted for a `server-observation` (such as `get-current-user-principal.has-calendar`) or a `client-feature` (such as `rate-limit`) asked for as a bool: a has-calendar set to False read as True, the default as False, and a disabled rate-limit as True.  An observation is now stored as `{"value": <bool>}` - `set_feature(observation, False)` writes `{"value": False}` rather than `{"support": "unsupported"}` - and read back as that; the legacy `observed` key and `support` levels are still understood.  A client-feature reads as its `enable` flag, and a bool given for one is stored as `{"enable": <bool>}`.  Asked for as a str, both spell the bool out (`"True"`/`"False"`); asking for a server-peculiarity, tests-behaviour or client-hints as a bool now raises `TypeError`.  The Radicale, DAViCal and Davis profiles declare that a fresh account has no calendar.
