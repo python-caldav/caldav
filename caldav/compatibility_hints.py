@@ -1875,17 +1875,61 @@ cyrus = {
     # AND delivers an iTIP notification copy to the attendee's schedule-inbox.
 }
 
-## See comments on https://github.com/python-caldav/caldav/issues/3
-#icloud = [
-#    'duplicate_in_other_calendar_with_same_uid_breaks',
-#    'sticky_events',
-#    'no_journal', ## it threw a 500 internal server error!
-#    'no_todo',
-#    "no_freebusy_rfc4791",
-#    'no_recurring',
-#    'propfind_allprop_failure',
-#    'get_object_by_uid_is_broken'
-#]
+## iCloud (https://caldav.icloud.com/).  Not among the servers the maintainer
+## tests against; probed 2026-10-09 by a user with caldav-server-tester 1.4.0
+## (caldav 3.4.0), see https://github.com/python-caldav/caldav/issues/730 .
+## Earlier, older observations are in https://github.com/python-caldav/caldav/issues/3
+##
+## The calendar-home-set lives on a per-account partition host
+## (pNN-caldav.icloud.com), and the client root URL is moved there - but iCloud
+## may still return hrefs on caldav.icloud.com.  That is handled in the
+## calendar_home_set setter, not through this profile.
+##
+## The 401 offers 'X-MobileMe-AuthToken realm="MMCalDav", Basic realm="MMCalDav"'
+## - Basic, with an app-specific password, is what works.
+icloud = {
+    'auto-connect.url': {
+        'scheme': 'https',
+        'domain': 'caldav.icloud.com',
+        'basepath': '/',
+    },
+    'get-current-user-principal.has-calendar': {'value': True},
+    'calendar-color': {'support': 'broken', 'behaviour': "read-only (set 'blue'/'green', both return '#CB30E0FF')"},
+    'calendar-color.hex': {'support': 'full'},
+    'calendar-order': {'support': 'full'},
+    'freebusy-query': {'support': 'ungraceful', 'behaviour': '400 Bad Request'},
+    'principal-search': {'support': 'ungraceful'},
+    'propfind.allprop.resourcetype': {'support': 'unsupported'},
+    'save-load.journal': {'support': 'unsupported'},
+    ## A task needs a calendar of its own
+    'save-load.todo.mixed-calendar': {'support': 'unsupported'},
+    'save-load.mutable.if-match-wildcard': {
+        'support': 'broken',
+        'behaviour': 'If-Match: * holds backwards: refused with 412 on an existing object, and creates a missing object',
+    },
+    'save.duplicate-uid.cross-calendar': {'support': 'ungraceful', 'behaviour': 'PUT refused'},
+    'scheduling.schedule-tag': {'support': 'unsupported', 'behaviour': 'no Schedule-Tag returned on GET or via PROPFIND'},
+    'search.is-not-defined': {'support': 'fragile', 'behaviour': 'works for category, class but not all properties'},
+    'search.is-not-defined.category': {'support': 'full'},
+    'search.is-not-defined.class': {'support': 'full'},
+    'search.is-not-defined.dtend': {'support': 'unsupported'},
+    'search.text.category': {'support': 'unsupported'},
+    'search.time-range.alarm': {'support': 'unsupported'},
+    'search.time-range.todo': {'support': 'unsupported'},
+    ## Like OX, the search window does not reach far into the past: objects in
+    ## year 2000 are not found, neither by an open search nor by a time-range
+    ## search.  The checker reports search.unlimited-time-range as broken, but
+    ## it is deliberately left at its default here: the workaround for it
+    ## (sending a 1970-2126 time range with every open search) cannot help when
+    ## old-dates time-range searches fail too, and with the recurrence search
+    ## problems below it might drop recurring events an open search returns.
+    'search.time-range.event.old-dates': {'support': 'unsupported'},
+    ## TODO: all recurrence searches came back unsupported.  This may be an
+    ## artifact of the search window above rather than missing recurrence
+    ## support - the save-load.*.recurrences checks were inconclusive in the
+    ## same run.  Needs a closer look.
+    'search.recurrences': {'support': 'unsupported'},
+}
 
 ## See the synology profile above: Synology Calendar ships a modified DAViCal,
 ## so the two profiles should be kept in sync where the fork has not diverged.
