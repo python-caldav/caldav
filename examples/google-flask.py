@@ -2,10 +2,10 @@
 """Code contributed by github user seidnerj in
 https://github.com/python-caldav/caldav/issues/119#issuecomment-2561980368
 
-This code has not been tested nor revieed by the maintainer of the
+This code has been neither tested nor reviewed by the maintainer of the
 caldav library. It's also quite old code - most of this example is
 probably obsolete and seems to be far away from what is "best current
-practice" in the maintainers perspective as of 2026.
+practice" in the maintainer's perspective as of 2026.
 
 """
 
