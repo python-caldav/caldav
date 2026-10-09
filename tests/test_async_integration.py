@@ -2014,7 +2014,7 @@ END:VCALENDAR
 
     @pytest.mark.asyncio
     async def test_issue_399_change_attendee_status(self, async_client: Any) -> None:
-        """change_attendee_status() works with username-as-email fallback (issue #399)."""
+        """change_attendee_status() auto-detects the current attendee (issue #399)."""
         self.skip_unless_support("scheduling")
         username = getattr(async_client, "username", None)
         if not username or "@" not in str(username):
@@ -2034,9 +2034,7 @@ END:VCALENDAR
             "END:VEVENT\r\nEND:VCALENDAR\r\n"
         )
         ev = Event(client=async_client, data=invite_data)
-        ## Pass the email explicitly since change_attendee_status() without attendee
-        ## calls self.client.principal() which is async-only and can't work synchronously.
-        ev.change_attendee_status(attendee=username, partstat="ACCEPTED")
+        await ev.change_attendee_status(partstat="ACCEPTED")
         attendee = ev.icalendar_component["attendee"]
         assert attendee.params.get("PARTSTAT") == "ACCEPTED"
 
@@ -2765,9 +2763,7 @@ class _AsyncTestSchedulingBase:
         assert tag_before is not None, "No Schedule-Tag on attendee's calendar event after accept"
 
         ## PARTSTAT-only change — tag must not move.
-        ## Pass attendee_addr explicitly: without an arg, change_attendee_status() resolves
-        ## the principal via self.client.principal(), which returns a coroutine in async mode.
-        attendee_event.change_attendee_status(str(attendee_addr), partstat="TENTATIVE")
+        await attendee_event.change_attendee_status(partstat="TENTATIVE")
         await attendee_event.save()
         await attendee_event.load()
         tag_after = attendee_event.schedule_tag

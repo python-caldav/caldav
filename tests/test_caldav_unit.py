@@ -3140,10 +3140,14 @@ class TestSequenceOnSave:
         client = self._async_client()
         client.username = "attendee@example.com"
         invite = self._invite(client)
+        invite.add_attendee("mailto:attendee@example.com")
         target = mock.MagicMock()
         target.add_event = mock.AsyncMock()
         principal = mock.MagicMock()
         principal.get_property = mock.AsyncMock(return_value=None)
+        principal.calendar_user_address_set = mock.AsyncMock(
+            return_value=["mailto:attendee@example.com"]
+        )
         with (
             mock.patch.object(client.features, "is_supported", return_value=False),
             mock.patch.object(client, "principal", mock.AsyncMock(return_value=principal)),
@@ -3159,6 +3163,7 @@ class TestSequenceOnSave:
         client = self._async_client()
         client.username = "attendee@example.com"
         invite = self._invite(client)
+        invite.add_attendee("mailto:attendee@example.com")
         existing = mock.MagicMock()
         existing.load = mock.AsyncMock()
         existing.save = mock.AsyncMock()
@@ -3166,6 +3171,9 @@ class TestSequenceOnSave:
         cal.event_by_uid = mock.AsyncMock(return_value=existing)
         principal = mock.MagicMock()
         principal.get_property = mock.AsyncMock(return_value=None)
+        principal.calendar_user_address_set = mock.AsyncMock(
+            return_value=["mailto:attendee@example.com"]
+        )
         principal.calendars = mock.AsyncMock(return_value=[cal])
         with (
             mock.patch.object(client.features, "is_supported", return_value=True),
@@ -4577,6 +4585,30 @@ END:VCALENDAR
         assert attendees[1].params["PARTSTAT"] == "TENTATIVE"
 
     @pytest.mark.asyncio
+    async def test_change_attendee_status_async_principal_argument_is_awaited(self):
+        """An explicit Principal is resolved asynchronously before matching."""
+        from caldav.aio import AsyncDAVClient
+
+        client = AsyncDAVClient(
+            url="https://calendar.example.com/",
+            username="attendee@example.com",
+            enable_rfc6764=False,
+        )
+        principal = Principal(client=client, url="https://calendar.example.com/principal/")
+        principal.calendar_user_address_set = mock.AsyncMock(
+            return_value=["mailto:attendee@example.com"]
+        )
+        ev = Event(client=client, data=self._invite)
+
+        try:
+            await ev.change_attendee_status(principal, partstat="ACCEPTED")
+        finally:
+            await client.close()
+
+        attendee = ev.icalendar_component["attendee"]
+        assert attendee.params["PARTSTAT"] == "ACCEPTED"
+
+    @pytest.mark.asyncio
     async def test_change_attendee_status_async_falls_back_to_email_username(self):
         """Async auto-detection falls back when address-set is unavailable."""
         from caldav.aio import AsyncDAVClient
@@ -4623,6 +4655,29 @@ END:VCALENDAR
                 await ev.change_attendee_status(partstat="ACCEPTED")
         finally:
             await client.close()
+
+    @pytest.mark.asyncio
+    async def test_change_attendee_status_async_empty_addresses_do_not_false_succeed(self):
+        """Empty address hrefs fall back to the principal URL and still require a match."""
+        from caldav.aio import AsyncDAVClient
+
+        client = AsyncDAVClient(
+            url="https://calendar.example.com/",
+            username="attendee@example.com",
+            enable_rfc6764=False,
+        )
+        principal = Principal(client=client, url="https://calendar.example.com/principal/")
+        principal.calendar_user_address_set = mock.AsyncMock(return_value=[None, ""])
+        client.principal = mock.AsyncMock(return_value=principal)
+        ev = Event(client=client, data=self._invite)
+
+        try:
+            with pytest.raises(error.NotFoundError) as exc_info:
+                await ev.change_attendee_status(partstat="ACCEPTED")
+        finally:
+            await client.close()
+
+        assert str(principal.url) in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_change_attendee_status_explicit_async_attendee_is_synchronous(self):

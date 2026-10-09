@@ -32,8 +32,10 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 
 * Completing a recurring task with `Todo.complete(handle_rrule=True, rrule_mode="this_and_future")` raised `AttributeError`; only the undeclared `"thisandfuture"` worked.  Both spellings are now accepted.  Fix by @muratatar06 in https://github.com/python-caldav/caldav/pull/736 - https://github.com/python-caldav/caldav/issues/735
 * `change_attendee_status()` now awaits async principal and address discovery
-  when the attendee is omitted, updating the current attendee correctly. See
-  issue #678.
+  when the attendee is omitted or a Principal is passed, filters empty
+  addresses, and shares the principal URL and username fallbacks with invite
+  replies. Explicit attendee strings remain synchronous. See
+  https://github.com/python-caldav/caldav/issues/678.
 
 * `get_calendars()` returned an empty list when a PROPFIND for the calendar-home-set or the calendar list failed (e.g. a 503 from Nextcloud under concurrent requests): a failed home-set lookup was taken for a server not advertising one, and the principal URL was listed instead.  A non-2xx response now raises, as it did in 2.x: `NotFoundError` for a 404, `PropfindError` otherwise.  The same goes for `CalendarSet.get_calendars()`.  https://github.com/python-caldav/caldav/issues/741
 * `compatibility_hints`: `FeatureSet.is_supported()` answered inverted for a `server-observation` (such as `get-current-user-principal.has-calendar`) or a `client-feature` (such as `rate-limit`) asked for as a bool: a has-calendar set to False read as True, the default as False, and a disabled rate-limit as True.  An observation is now stored as `{"value": <bool>}` - `set_feature(observation, False)` writes `{"value": False}` rather than `{"support": "unsupported"}` - and read back as that; the legacy `observed` key and `support` levels are still understood.  A client-feature reads as its `enable` flag, and a bool given for one is stored as `{"enable": <bool>}`.  Asked for as a str, both spell the bool out (`"True"`/`"False"`); asking for a server-peculiarity, tests-behaviour or client-hints as a bool now raises `TypeError`.  The Radicale, DAViCal and Davis profiles declare that a fresh account has no calendar.

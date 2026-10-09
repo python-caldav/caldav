@@ -480,8 +480,9 @@ Also related: [#697](https://github.com/python-caldav/caldav/issues/697) - smart
 - [x] Add more server docker containers — **done**: baikal, bedework, ccs, cyrus, davical, davis, nextcloud, ox, sogo, stalwart and zimbra all have docker test setups
 - [ ] Edge case testing for all RFCs
 - [x] Make the async test suite symmetric with the sync one ([#667](https://github.com/python-caldav/caldav/issues/667)) —
-      substantially done; the issue is still open for the remaining gap in
-      `change_attendee_status()` ([#678](https://github.com/python-caldav/caldav/issues/678))
+      substantially done; `change_attendee_status()` async auto-detection is
+      covered by the saved-event and invite integration paths in
+      [#678](https://github.com/python-caldav/caldav/issues/678)
 - [ ] Performance regression tests
 
 ---
@@ -621,7 +622,6 @@ than roadmap items, and are deliberately left out:
 - [ ] [#545](https://github.com/python-caldav/caldav/issues/545) (searches return full-day events of adjacent days),
 - [ ] [#612](https://github.com/python-caldav/caldav/issues/612) (support question),
 - [ ] [#624](https://github.com/python-caldav/caldav/issues/624) (GMX calendar creation),
-- [ ] [#678](https://github.com/python-caldav/caldav/issues/678) (`change_attendee_status()` async safety — see 7.1),
 - [ ] server-specific breakage reports ...
   - [ ] [#680](https://github.com/python-caldav/caldav/issues/680)
   - [x] [#681](https://github.com/python-caldav/caldav/issues/681)
