@@ -96,7 +96,16 @@ class URL:
 
     """
 
-    def __init__(self, url: str | ParseResult | SplitResult, alias_at: bool = True) -> None:
+    ## Class-level defaults, for URL objects pickled before the attributes existed
+    alias_at: bool = True
+    host_aliases: frozenset[str] = frozenset()
+
+    def __init__(
+        self,
+        url: str | ParseResult | SplitResult,
+        alias_at: bool = True,
+        host_aliases: frozenset[str] = frozenset(),
+    ) -> None:
         if isinstance(url, ParseResult) or isinstance(url, SplitResult):
             self.url_parsed: ParseResult | SplitResult | None = url
             self.url_raw = None
@@ -113,16 +122,40 @@ class URL:
         ## every URL derived from this one inherits it, so setting it once on
         ## the client's root URL reaches everything joined onto it.
         self.alias_at = alias_at
+        ## Other hostnames serving the same resources as this one (iCloud's
+        ## generic host and the account's partition host).  join() accepts an
+        ## href on an alias, and moves it onto this URL's host.  Like
+        ## alias_at, it is inherited by every URL derived from this one.
+        self.host_aliases = host_aliases
 
     def _derive(self, url: "str | ParseResult | SplitResult") -> "URL":
-        """A new URL from ``url``, carrying this one's ``alias_at`` along."""
-        return URL(url, alias_at=self.alias_at)
+        """A new URL from ``url``, carrying this one's ``alias_at`` and ``host_aliases`` along."""
+        return URL(url, alias_at=self.alias_at, host_aliases=self.host_aliases)
+
+    def _raw(self) -> "str | ParseResult | SplitResult":
+        return self.url_parsed if self.url_raw is None else self.url_raw
 
     def with_alias_at(self, alias_at: bool) -> "URL":
         """This URL, told whether its server aliases the two ``@`` spellings."""
         if alias_at == self.alias_at:
             return self
-        return URL(self.url_parsed if self.url_raw is None else self.url_raw, alias_at=alias_at)
+        return URL(self._raw(), alias_at=alias_at, host_aliases=self.host_aliases)
+
+    def with_host_alias(self, hostname: str) -> "URL":
+        """This URL, told that ``hostname`` serves the same resources as its own host."""
+        hostname = hostname.lower()
+        if hostname in self.host_aliases or hostname == self.hostname:
+            return self
+        return URL(self._raw(), alias_at=self.alias_at, host_aliases=self.host_aliases | {hostname})
+
+    def relocate(self, url: "URL | str | ParseResult | SplitResult") -> "URL":
+        """``url`` as a replacement for this URL as a root: it keeps this URL's
+        settings, and this URL's host becomes an alias of the new host."""
+        new = URL.objectify(url)
+        aliases = self.host_aliases - {new.hostname}
+        if self.hostname and self.hostname != new.hostname:
+            aliases |= {self.hostname}
+        return URL(new._raw(), alias_at=self.alias_at, host_aliases=aliases)
 
     def __bool__(self) -> bool:
         if self.url_raw or self.url_parsed:
@@ -261,7 +294,10 @@ class URL:
             or (path.hostname and self.hostname and path.hostname != self.hostname)
             or (path.port and self.port and path.port != self.port)
         ):
-            raise ValueError("%s can't be joined with %s" % (self, path))
+            if path.hostname not in self.host_aliases or (
+                path.scheme and self.scheme and path.scheme != self.scheme
+            ):
+                raise ValueError("%s can't be joined with %s" % (self, path))
 
         if path.path and path.path[0] == "/":
             ret_path = path.path

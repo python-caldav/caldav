@@ -698,16 +698,7 @@ class Principal(DAVObject):
         ## research.  added here as it solves real-world issues, ref
         ## https://github.com/python-caldav/caldav/pull/56
         if sanitized_url is not None:
-            if sanitized_url.hostname and sanitized_url.hostname != self.client.url.hostname:
-                # icloud (and others?) having a load balanced system,
-                # where each principal resides on one named host
-                ## TODO:
-                ## Here be dragons.  sanitized_url will be the root
-                ## of all future objects derived from client.  Changing
-                ## the client.url root by doing a principal.get_calendars()
-                ## is an unacceptable side effect and may be a cause of
-                ## incompatibilities with icloud.  Do more research!
-                self.client.url = sanitized_url
+            self.client._follow_calendar_home(sanitized_url)
         self._calendar_home_set = CalendarSet(self.client, self.client.url.join(sanitized_url))
 
     def get_calendars(self) -> "list[Calendar] | Coroutine[Any, Any, list[Calendar]]":
