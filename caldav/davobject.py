@@ -637,22 +637,53 @@ class DAVObject:
         Example (async):
             await obj.delete()
         """
+        return self._delete()
+
+    def _delete(self, headers: dict[str, str] | None = None) -> "None | Coroutine[Any, Any, None]":
+        """Send the DELETE, with optional precondition headers.
+
+        Without ``headers`` a 404 counts as success (the object is gone
+        either way).  With precondition headers it does not: the caller
+        asserted a specific version, so 404 raises ``NotFoundError``.
+        """
         if self.url is None:
             return
         if self.client is None:
             raise ValueError("Unexpected value None for self.client")
         if self.is_async_client:
-            return self._async_delete()
+            return self._async_delete(headers)
         # TODO: find out why we get 404
-        self._post_delete(self.client.delete(str(self.url)))
+        ## Only pass headers when there are any, so a client.delete(url)
+        ## override with the old signature keeps working
+        r = (
+            self.client.delete(str(self.url), headers)
+            if headers
+            else self.client.delete(str(self.url))
+        )
+        self._post_delete(r, headers)
 
-    def _post_delete(self, r) -> None:
+    def _post_delete(self, r, headers: dict[str, str] | None = None) -> None:
+        if headers:
+            if r.status == 412:
+                self._raise_precondition_failed(r, headers)
+            if r.status == 404:
+                raise error.NotFoundError(errmsg(r))
         if r.status not in (200, 204, 404):
             raise error.DeleteError(errmsg(r))
 
-    async def _async_delete(self) -> None:
+    def _raise_precondition_failed(self, r, headers: dict[str, str]) -> None:
+        """Raise the error matching the precondition header that failed."""
+        if "if-schedule-tag-match" in headers:
+            raise error.ScheduleTagMismatchError(errmsg(r))
+        raise error.ETagMismatchError(errmsg(r))
+
+    async def _async_delete(self, headers: dict[str, str] | None = None) -> None:
         """Async implementation of delete."""
-        self._post_delete(await self.client.delete(str(self.url)))
+        if headers:
+            r = await self.client.delete(str(self.url), headers)
+        else:
+            r = await self.client.delete(str(self.url))
+        self._post_delete(r, headers)
 
     def get_display_name(self) -> "str | None | Coroutine[Any, Any, str | None]":
         """

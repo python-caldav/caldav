@@ -309,7 +309,7 @@ change notifications.  Requested by the proposal authors themselves.
 
 **Tasks:**
 - [x] Robust ETag-based collision detection — **done in v3.2.0**: the ETag from PUT/GET responses is cached in `self.props` and `ETagMismatchError` is raised on 412
-- [ ] Proper `If-Match` / `If-None-Match` header usage — half done: `If-Match` is sent when an ETag is cached (and `If-Schedule-Tag-Match` takes precedence when a Schedule-Tag is), but `If-None-Match` is not used for create-only semantics
+- [ ] Proper `If-Match` / `If-None-Match` header usage — half done: `If-Match` is sent when an ETag is cached (and `If-Schedule-Tag-Match` takes precedence when a Schedule-Tag is) on save, and on delete with `delete(if_match=True)` (https://github.com/python-caldav/caldav/issues/740), but `If-None-Match` is not used for create-only semantics
 - [ ] Handle UID vs path name mismatches
 - [ ] Race condition mitigation
 - [ ] Clear error messages for conflicts

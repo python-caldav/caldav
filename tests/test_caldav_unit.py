@@ -5559,6 +5559,138 @@ class TestDelayedCalendarDeletion:
         assert methods == ["DELETE", "PROPFIND", "PROPFIND", "PROPFIND"]
 
 
+class TestConditionalDelete:
+    """``delete(if_match=...)`` sends a precondition, so a resource changed
+    by someone else since it was last seen is not silently deleted.
+    https://github.com/python-caldav/caldav/issues/740"""
+
+    URL = "http://cal.example.com/dav/user/mycal/"
+
+    @pytest.fixture(params=["sync", "async"])
+    def base(self, request):
+        if request.param == "sync":
+            return DAVClient
+        from caldav.async_davclient import AsyncDAVClient
+
+        return AsyncDAVClient
+
+    def _event(self, base, etag='"etag-a"', schedule_tag=None, status=204):
+        sent = []
+        client = base(url="http://cal.example.com/dav/")
+
+        def request(url, method="GET", body="", headers=None):
+            sent.append((method.upper(), {k.lower(): v for k, v in (headers or {}).items()}))
+            resp = mock.MagicMock()
+            resp.status_code = status
+            resp.reason = "whatever"
+            resp.headers = {}
+            resp.content = b""
+            return DAVResponse(resp, client)
+
+        if base is DAVClient:
+            client.request = request
+        else:
+
+            async def async_request(*args, **kwargs):
+                return request(*args, **kwargs)
+
+            client.request = async_request
+        cal = Calendar(client, url=self.URL)
+        event = Event(client, url=self.URL + "ev1.ics", data=ev1, parent=cal)
+        if etag:
+            event.props[dav.GetEtag.tag] = etag
+        if schedule_tag:
+            event.props[cdav.ScheduleTag.tag] = schedule_tag
+        return event, sent
+
+    @staticmethod
+    def _run(event, **kwargs) -> None:
+        import asyncio
+
+        result = event.delete(**kwargs)
+        if asyncio.iscoroutine(result):
+            asyncio.run(result)
+
+    def test_plain_delete_sends_no_precondition(self, base) -> None:
+        event, sent = self._event(base)
+        self._run(event)
+        assert sent == [("DELETE", {})]
+
+    def test_plain_delete_works_with_one_argument_client_delete(self, base) -> None:
+        """Subclasses or wrappers of ``client.delete(url)`` with the old
+        signature keep working for a plain delete()."""
+        event, sent = self._event(base)
+        real_delete = event.client.delete
+
+        if base is DAVClient:
+
+            def delete(url):
+                return real_delete(url)
+
+        else:
+
+            async def delete(url):
+                return await real_delete(url)
+
+        event.client.delete = delete
+        self._run(event)
+        assert sent == [("DELETE", {})]
+
+    @pytest.mark.parametrize("value", ["", None])
+    def test_empty_if_match_is_refused_or_plain(self, base, value) -> None:
+        """An empty string must not silently turn into an unconditional
+        delete; None means "no precondition", like False."""
+        event, sent = self._event(base)
+        if value == "":
+            with pytest.raises(ValueError):
+                self._run(event, if_match=value)
+            assert sent == []
+        else:
+            self._run(event, if_match=value)
+            assert sent == [("DELETE", {})]
+
+    def test_plain_delete_still_accepts_404(self, base) -> None:
+        event, sent = self._event(base, status=404)
+        self._run(event)
+        assert sent == [("DELETE", {})]
+
+    def test_if_match_true_sends_cached_etag(self, base) -> None:
+        event, sent = self._event(base)
+        self._run(event, if_match=True)
+        assert sent == [("DELETE", {"if-match": '"etag-a"'})]
+
+    def test_if_match_true_prefers_schedule_tag_like_save(self, base) -> None:
+        event, sent = self._event(base, schedule_tag='"stag-1"')
+        self._run(event, if_match=True)
+        assert sent == [("DELETE", {"if-schedule-tag-match": '"stag-1"'})]
+
+    def test_if_match_string_sends_that_etag(self, base) -> None:
+        event, sent = self._event(base, schedule_tag='"stag-1"')
+        self._run(event, if_match='"etag-b"')
+        assert sent == [("DELETE", {"if-match": '"etag-b"'})]
+
+    def test_if_match_true_without_known_tag_refuses(self, base) -> None:
+        event, sent = self._event(base, etag=None)
+        with pytest.raises(ValueError):
+            self._run(event, if_match=True)
+        assert sent == []
+
+    def test_412_raises_etag_mismatch(self, base) -> None:
+        event, _ = self._event(base, status=412)
+        with pytest.raises(error.ETagMismatchError):
+            self._run(event, if_match=True)
+
+    def test_412_with_schedule_tag_raises_schedule_tag_mismatch(self, base) -> None:
+        event, _ = self._event(base, schedule_tag='"stag-1"', status=412)
+        with pytest.raises(error.ScheduleTagMismatchError):
+            self._run(event, if_match=True)
+
+    def test_404_with_precondition_raises_not_found(self, base) -> None:
+        event, _ = self._event(base, status=404)
+        with pytest.raises(error.NotFoundError):
+            self._run(event, if_match=True)
+
+
 class TestDelayedPropertyWrite:
     """``synchronous-write.proppatch`` declared unsupported with a ``delay``:
     a PROPPATCH is answered at once but a PROPFIND keeps returning the old

@@ -24,6 +24,10 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 
 ## Unreleased
 
+### Added
+
+* `delete(if_match=...)` on events, todos and journals: with `if_match=True` the DELETE carries the same precondition `save()` sends (`If-Schedule-Tag-Match` if a Schedule-Tag is cached, else `If-Match` with the cached ETag); a string is sent as `If-Match`.  A 412 raises `ScheduleTagMismatchError` / `ETagMismatchError`, and a 404 raises `NotFoundError` instead of counting as success.  Plain `delete()` is unchanged.  `DAVClient.delete()` takes a `headers` argument, like `AsyncDAVClient.delete()` already did.  https://github.com/python-caldav/caldav/issues/740
+
 ### Fixed
 
 * `get_calendars()` returned an empty list when a PROPFIND for the calendar-home-set or the calendar list failed (e.g. a 503 from Nextcloud under concurrent requests): a failed home-set lookup was taken for a server not advertising one, and the principal URL was listed instead.  A non-2xx response now raises, as it did in 2.x: `NotFoundError` for a 404, `PropfindError` otherwise.  The same goes for `CalendarSet.get_calendars()`.  https://github.com/python-caldav/caldav/issues/741
