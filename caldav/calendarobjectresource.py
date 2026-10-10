@@ -2225,11 +2225,15 @@ class Todo(CalendarObjectResource):
         copy (one PUT each).
         """
         ## If count is one, then it is not really recurring
-        if not self._reduce_count():
+        count = self.icalendar_component["RRULE"].get("COUNT")
+        if count and count[0] == 1:
             return None
+        ## Look for the next occurrence before touching COUNT, so the
+        ## plain-completion fallback does not save a lowered COUNT
         next_dtstart = self._next(completion_timestamp)
         if not next_dtstart:
             return None
+        self._reduce_count()
 
         completed = self.copy()
         completed.url = self.parent.url.join(completed.id + ".ics")
