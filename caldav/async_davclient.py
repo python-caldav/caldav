@@ -861,9 +861,8 @@ class AsyncDAVClient(BaseDAVClient):
         )
 
         if response.status in (200, 207) and response._raw:
-            sync_result = response.parse_sync_collection()
-            response.results = sync_result.changed
-            response.sync_token = sync_result.sync_token
+            ## also sets response.sync_token and response.sync_truncated
+            response.results = response.parse_sync_collection().changed
 
         return response
 

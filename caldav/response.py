@@ -58,6 +58,9 @@ class SyncCollectionResult:
     changed: list[CalendarQueryResult] = field(default_factory=list)
     deleted: list[str] = field(default_factory=list)
     sync_token: str | None = None
+    #: The server truncated the reply (RFC 6578 section 3.6): ``changed``
+    #: and ``deleted`` are incomplete, repeat the REPORT with ``sync_token``.
+    truncated: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -98,6 +101,24 @@ def _validate_status(status: str | None) -> None:
         return
     if not any(code in status for code in (" 200 ", " 201 ", " 207 ", " 404 ")):
         raise error.ResponseError(status)
+
+
+def _is_sync_truncation(response: _Element, siblings: Iterable[_Element]) -> bool:
+    """Is ``response`` the RFC 6578 section 3.6 "reply truncated" marker?
+
+    A server limiting a sync-collection reply sends the changes it has room
+    for, a new ``sync-token``, and one extra ``<response>`` for the request
+    URL with a bare ``507`` status.  The ``sync-token`` sibling tells this
+    apart from a 507 in any other multistatus, which still fails parsing.
+    The href is not checked here, since the request URL is not known; see
+    ``Calendar._sync_page_truncated``.
+    """
+    status = response.find(dav.Status.tag)
+    if status is None or _status_to_code(status.text) != 507:
+        return False
+    if response.find(dav.PropStat.tag) is not None:
+        return False
+    return any(elem.tag == dav.SyncToken.tag for elem in siblings)
 
 
 def _status_to_code(status: str | None) -> int:
@@ -247,6 +268,23 @@ class DAVResponse:
     davclient: Any = None
     results: list[PropfindResult | CalendarQueryResult] | None = None
     _sync_token: str | None = None
+    #: href of the RFC 6578 section 3.6 truncation marker, if the reply had one
+    sync_truncated_href: str | None = None
+
+    @property
+    def sync_truncated(self) -> bool:
+        """True if this was a truncated sync-collection reply (RFC 6578 section 3.6)."""
+        return self.sync_truncated_href is not None
+
+    def _skip_sync_truncation(self, response: _Element, siblings: Any) -> bool:
+        """Record and skip the RFC 6578 section 3.6 truncation marker."""
+        if not _is_sync_truncation(response, siblings):
+            return False
+        href = response.find(dav.Href.tag)
+        self.sync_truncated_href = _normalize_href(
+            href.text if href is not None and href.text else "", self._preserve_at
+        )
+        return True
 
     def __init__(self, response: "Response", davclient: Any = None) -> None:
         self._init_from_response(response, davclient)
@@ -487,12 +525,15 @@ class DAVResponse:
         changed: list[CalendarQueryResult] = []
         deleted: list[str] = []
         sync_token: str | None = None
-        for elem in self._strip_to_multistatus():
+        multistatus = self._strip_to_multistatus()
+        for elem in multistatus:
             if elem.tag == dav.SyncToken.tag:
                 sync_token = elem.text
                 self._sync_token = elem.text
                 continue
             if elem.tag != dav.Response.tag:
+                continue
+            if self._skip_sync_truncation(elem, multistatus):
                 continue
             href, propstats, status_str = self._parse_response(elem)
             status_code = _status_to_code(status_str) if status_str else 200
@@ -508,7 +549,12 @@ class DAVResponse:
                     status=status_code,
                 )
             )
-        return SyncCollectionResult(changed=changed, deleted=deleted, sync_token=sync_token)
+        return SyncCollectionResult(
+            changed=changed,
+            deleted=deleted,
+            sync_token=sync_token,
+            truncated=self.sync_truncated,
+        )
 
     @property
     def _preserve_at(self) -> bool:
@@ -722,6 +768,8 @@ class DAVResponse:
                 self._sync_token = r.text
                 continue
             error.assert_(r.tag == dav.Response.tag)
+            if self._skip_sync_truncation(r, responses):
+                continue
 
             (href, propstats, status) = self._parse_response(r)
             ## I would like to do this assert here ...

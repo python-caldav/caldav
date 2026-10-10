@@ -208,6 +208,80 @@ END:VCALENDAR</C:calendar-data>
         assert result.deleted[0] == "/cal/deleted.ics"
         assert result.sync_token == "new-token"
 
+    truncated_sync_xml = b"""<?xml version="1.0"?>
+        <D:multistatus xmlns:D="DAV:">
+            <D:response>
+                <D:href>/cal/new.ics</D:href>
+                <D:propstat>
+                    <D:prop><D:getetag>"new-etag"</D:getetag></D:prop>
+                    <D:status>HTTP/1.1 200 OK</D:status>
+                </D:propstat>
+            </D:response>
+            <D:response>
+                <D:href>/cal/</D:href>
+                <D:status>HTTP/1.1 507 Insufficient Storage</D:status>
+                <D:error><D:number-of-matches-within-limits/></D:error>
+            </D:response>
+            <D:sync-token>page-2</D:sync-token>
+        </D:multistatus>"""
+
+    def test_parse_sync_collection_truncated(self):
+        """RFC 6578 section 3.6: a 507 for the collection marks a truncated page.
+
+        https://github.com/python-caldav/caldav/issues/737 - the members
+        and the token that did arrive must be kept, not raised away.
+        """
+        response = DAVResponse.from_bytes(self.truncated_sync_xml)
+        result = response.parse_sync_collection()
+
+        assert result.truncated is True
+        assert [c.href for c in result.changed] == ["/cal/new.ics"]
+        assert result.deleted == []
+        assert result.sync_token == "page-2"
+        assert response.sync_truncated is True
+
+    def test_parse_sync_collection_not_truncated(self):
+        xml = b"""<?xml version="1.0"?>
+        <D:multistatus xmlns:D="DAV:">
+            <D:response>
+                <D:href>/cal/new.ics</D:href>
+                <D:propstat>
+                    <D:prop><D:getetag>"new-etag"</D:getetag></D:prop>
+                    <D:status>HTTP/1.1 200 OK</D:status>
+                </D:propstat>
+            </D:response>
+            <D:sync-token>tok</D:sync-token>
+        </D:multistatus>"""
+        response = DAVResponse.from_bytes(xml)
+        assert response.parse_sync_collection().truncated is False
+        assert response.sync_truncated is False
+
+    def test_expand_simple_props_skips_sync_truncation(self):
+        """The legacy parser used by Calendar.get_objects_by_sync_token."""
+        from caldav.elements import dav
+
+        response = DAVResponse.from_bytes(self.truncated_sync_xml)
+        props = response.expand_simple_props([dav.GetEtag()])
+
+        assert list(props) == ["/cal/new.ics"]
+        assert response.sync_truncated is True
+        assert response.sync_token == "page-2"
+
+    def test_507_outside_sync_reply_still_raises(self):
+        """Without a sync-token this is no RFC 6578 truncation marker."""
+        from caldav.elements import dav
+        from caldav.lib import error
+
+        xml = b"""<?xml version="1.0"?>
+        <D:multistatus xmlns:D="DAV:">
+            <D:response>
+                <D:href>/cal/</D:href>
+                <D:status>HTTP/1.1 507 Insufficient Storage</D:status>
+            </D:response>
+        </D:multistatus>"""
+        with pytest.raises(error.ResponseError):
+            DAVResponse.from_bytes(xml).expand_simple_props([dav.GetEtag()])
+
     def test_parse_sync_collection_generic_responsedescription(self):
         """A 404 <response> may carry an arbitrary <responsedescription>.
 
