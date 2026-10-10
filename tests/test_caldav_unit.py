@@ -5399,3 +5399,151 @@ class TestGetCalendarsPropfindErrors:
         with mock.patch.object(client, "propfind", return_value=self._response(status)):
             with pytest.raises(exc):
                 calendar_set.get_calendars()
+
+
+def sync_page(
+    members: dict[str, str | None],
+    token: str | None,
+    truncated: bool,
+    base: str = "/dav/cal/",
+    status_507: str = "HTTP/1.1 507 Insufficient Storage",
+) -> bytes:
+    """A sync-collection reply for the calendar at ``base``.
+
+    ``members`` maps a member name to its etag, or to None for a deleted
+    member.  ``truncated`` adds the RFC 6578 section 3.6 507 response for
+    the collection itself.  Shared with the async twin in
+    test_async_davclient.py.
+    """
+    parts = ['<?xml version="1.0"?><D:multistatus xmlns:D="DAV:">']
+    for name, etag in members.items():
+        if etag is None:
+            parts.append(
+                f"<D:response><D:href>{base}{name}</D:href>"
+                "<D:status>HTTP/1.1 404 Not Found</D:status></D:response>"
+            )
+        else:
+            parts.append(
+                f"<D:response><D:href>{base}{name}</D:href><D:propstat>"
+                f"<D:prop><D:getetag>{etag}</D:getetag></D:prop>"
+                "<D:status>HTTP/1.1 200 OK</D:status></D:propstat></D:response>"
+            )
+    if truncated:
+        parts.append(
+            f"<D:response><D:href>{base}</D:href>"
+            f"<D:status>{status_507}</D:status>"
+            "<D:error><D:number-of-matches-within-limits/></D:error></D:response>"
+        )
+    if token is not None:
+        parts.append(f"<D:sync-token>{token}</D:sync-token>")
+    parts.append("</D:multistatus>")
+    return "".join(parts).encode()
+
+
+class TestSyncCollectionTruncated:
+    """A truncated sync-collection reply (RFC 6578 section 3.6).
+
+    https://github.com/python-caldav/caldav/issues/737 - the members and
+    the token of a truncated page used to be thrown away in favour of a
+    full fetch.  The async twin is TestAsyncSyncCollectionTruncated in
+    test_async_davclient.py.
+    """
+
+    def _calendar(self, *pages: bytes, path: str = "/dav/cal/"):
+        client = DAVClient(url="https://caldav.example.com/dav/")
+        client.report = mock.Mock(side_effect=[DAVResponse.from_bytes(p) for p in pages])
+        calendar = Calendar(client=client, url="https://caldav.example.com" + path)
+        calendar.search = mock.Mock(side_effect=AssertionError("fell back to a full fetch"))
+        return client, calendar
+
+    def test_follows_the_token_until_complete(self):
+        client, calendar = self._calendar(
+            sync_page({"a.ics": '"a1"', "b.ics": '"b1"'}, "tok-2", truncated=True),
+            sync_page({"c.ics": '"c1"', "a.ics": None}, "tok-3", truncated=False),
+        )
+        result = calendar.get_objects_by_sync_token("tok-1")
+
+        assert client.report.call_count == 2
+        bodies = [to_normal_str(c.args[1]) for c in client.report.call_args_list]
+        assert "tok-1" in bodies[0]
+        assert "tok-2" in bodies[1]
+        assert result.sync_token == "tok-3"
+        assert result.truncated is False
+        assert sorted(str(o.url.path) for o in result) == [
+            "/dav/cal/a.ics",
+            "/dav/cal/b.ics",
+            "/dav/cal/c.ics",
+        ]
+        ## the later page wins: a.ics was deleted after the first page
+        by_name = {str(o.url.path).rsplit("/", 1)[1]: o for o in result}
+        assert by_name["a.ics"].props.get(dav.GetEtag.tag) is None
+        assert by_name["c.ics"].props[dav.GetEtag.tag] == '"c1"'
+
+    def test_untruncated_reply_is_a_single_request(self):
+        client, calendar = self._calendar(sync_page({"a.ics": '"a1"'}, "tok-2", truncated=False))
+        result = calendar.get_objects_by_sync_token("tok-1")
+        assert client.report.call_count == 1
+        assert result.truncated is False
+        assert result.sync_token == "tok-2"
+        assert len(result) == 1
+
+    def test_stops_when_the_token_does_not_move(self):
+        client, calendar = self._calendar(
+            sync_page({"a.ics": '"a1"'}, "tok-1", truncated=True),
+        )
+        result = calendar.get_objects_by_sync_token("tok-1")
+        assert client.report.call_count == 1
+        assert result.truncated is True
+        assert result.sync_token == "tok-1"
+        assert len(result) == 1
+
+    def test_iteration_cap(self):
+        pages = [
+            sync_page({f"{i}.ics": f'"e{i}"'}, f"tok-{i + 2}", truncated=True)
+            for i in range(Calendar.sync_max_pages + 5)
+        ]
+        client, calendar = self._calendar(*pages)
+        result = calendar.get_objects_by_sync_token("tok-1")
+        assert client.report.call_count == Calendar.sync_max_pages
+        assert result.truncated is True
+        assert result.sync_token == f"tok-{Calendar.sync_max_pages + 1}"
+        assert len(result) == Calendar.sync_max_pages
+
+    def test_at_sign_in_calendar_path(self):
+        """Nextcloud-style paths keep a literal @ in the calendar URL."""
+        base = "/dav/u@example.com/cal/"
+        client, calendar = self._calendar(
+            sync_page({"a.ics": '"a1"'}, "tok-2", truncated=True, base=base),
+            sync_page({"b.ics": '"b1"'}, "tok-3", truncated=False, base=base),
+            path=base,
+        )
+        result = calendar.get_objects_by_sync_token("tok-1", disable_fallback=True)
+        assert client.report.call_count == 2
+        assert result.sync_token == "tok-3"
+        assert len(result) == 2
+
+    def test_507_without_reason_phrase(self):
+        client, calendar = self._calendar(
+            sync_page({"a.ics": '"a1"'}, "tok-2", truncated=True, status_507="HTTP/1.1 507"),
+            sync_page({"b.ics": '"b1"'}, "tok-3", truncated=False),
+        )
+        result = calendar.get_objects_by_sync_token("tok-1", disable_fallback=True)
+        assert client.report.call_count == 2
+        assert result.sync_token == "tok-3"
+
+    def test_sync_max_pages_below_one_still_makes_one_request(self):
+        client, calendar = self._calendar(sync_page({"a.ics": '"a1"'}, "tok-2", truncated=True))
+        calendar.sync_max_pages = 0
+        result = calendar.get_objects_by_sync_token("tok-1")
+        assert client.report.call_count == 1
+        assert result.truncated is True
+        assert result.sync_token == "tok-2"
+
+    def test_507_for_another_href_is_not_a_truncation(self):
+        """Only a 507 for the request URL marks the page truncated."""
+        page = sync_page({"a.ics": '"a1"'}, "tok-2", truncated=True).replace(
+            b"<D:href>/dav/cal/</D:href>", b"<D:href>/dav/othercal/</D:href>"
+        )
+        _, calendar = self._calendar(page)
+        with pytest.raises(error.DAVError):
+            calendar.get_objects_by_sync_token("tok-1", disable_fallback=True)

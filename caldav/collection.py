@@ -1721,10 +1721,7 @@ class Calendar(DAVObject):
             if comp_class_ is None:
                 ## no CalendarData fetched - which is normal i.e. when doing a sync-token report and only asking for the URLs
                 comp_class_ = CalendarObjectResource
-            url = URL(r)
-            if url.hostname is None:
-                # Quote when result is not a full URL
-                url = requote_path(r) if self._preserve_at else quote(r)
+            url = self._href_to_url(r)
             ## icloud hack - icloud returns the calendar URL as well as the calendar item URLs
             if self.url.join(url) == self.url:
                 continue
@@ -1738,6 +1735,14 @@ class Calendar(DAVObject):
                 )
             )
         return (response, matches)
+
+    def _href_to_url(self, href: str) -> "URL | str":
+        """An href from a multistatus, ready for ``self.url.join()``."""
+        url = URL(href)
+        if url.hostname is None:
+            # Quote when result is not a full URL
+            return requote_path(href) if self._preserve_at else quote(href)
+        return url
 
     def _request_report_build_resultlist(
         self, xml, comp_class=None, props=None, no_calendardata=False
@@ -2262,9 +2267,51 @@ class Calendar(DAVObject):
         hash_value = hashlib.md5(combined.encode(), usedforsecurity=False).hexdigest()
         return f"fake-{hash_value}"
 
-    ## The three helpers below carry the pure (no-I/O) logic shared between the
+    ## The helpers below carry the pure (no-I/O) logic shared between the
     ## get_objects_by_sync_token sync/async twins, so only the awaited
     ## server round-trips differ between them.
+
+    #: How many truncated sync-collection pages (RFC 6578 section 3.6)
+    #: get_objects_by_sync_token follows before giving up and returning a
+    #: collection flagged ``truncated``.
+    sync_max_pages: int = 100
+
+    def _sync_page_truncated(self, response: Any) -> bool:
+        """Did the server truncate this sync-collection reply?
+
+        RFC 6578 section 3.6 marks a truncated reply with a 507 response
+        for the request URL.  A 507 for some other href is not that marker,
+        and is reported as the failure it is.
+        """
+        href = getattr(response, "sync_truncated_href", None)
+        if href is None:
+            return False
+        ## Compare unquoted: the marker href went through quote() (@ -> %40)
+        ## while the calendar URL may keep a literal @ (Nextcloud).
+        marker = unquote(self.url.join(self._href_to_url(href)).path).rstrip("/")
+        if marker != unquote(self.url.path).rstrip("/"):
+            raise error.ResponseError(f"sync-collection: 507 Insufficient Storage for {href}")
+        return True
+
+    def _absorb_sync_page(
+        self, response: Any, objects: list, collected: dict, previous_token: Any
+    ) -> tuple[Any, bool, bool]:
+        """Add one sync-collection page to ``collected`` (url -> object).
+
+        A member may turn up on more than one page; the later page wins.
+        Returns ``(sync_token, truncated, fetch_another_page)``.
+        """
+        for obj in objects:
+            collected[obj.url.canonical()] = obj
+        token = response.sync_token
+        truncated = self._sync_page_truncated(response)
+        again = truncated and bool(token) and token != previous_token
+        if truncated and not again:
+            log.warning(
+                "Server truncated the sync-collection reply without a new sync-token; "
+                "returning an incomplete result"
+            )
+        return (token, truncated, again)
 
     def _should_use_sync_token(self, sync_token: Any, disable_fallback: bool) -> bool:
         """Decide whether to attempt a real sync-collection REPORT.
@@ -2359,12 +2406,25 @@ class Calendar(DAVObject):
 
         if self._should_use_sync_token(sync_token, disable_fallback):
             try:
-                root = self.client._build_sync_collection_body(
-                    sync_token=sync_token, props=["getetag"]
-                )
-                (response, objects) = self._request_report_build_resultlist(
-                    root, props=[dav.GetEtag()], no_calendardata=True
-                )
+                ## A truncated reply (RFC 6578 section 3.6) is followed up
+                ## with the new token until the server says it is complete
+                collected: dict = {}
+                token = sync_token
+                for _page in range(max(1, self.sync_max_pages)):
+                    root = self.client._build_sync_collection_body(
+                        sync_token=token, props=["getetag"]
+                    )
+                    (response, objects) = self._request_report_build_resultlist(
+                        root, props=[dav.GetEtag()], no_calendardata=True
+                    )
+                    (token, truncated, again) = self._absorb_sync_page(
+                        response, objects, collected, token
+                    )
+                    if not again:
+                        break
+                else:
+                    log.warning(f"sync-collection still truncated after {_page + 1} pages")
+                objects = list(collected.values())
 
                 ## this is not quite right - the etag we've fetched can already be outdated
                 if load_objects:
@@ -2375,7 +2435,7 @@ class Calendar(DAVObject):
                             ## The object was deleted
                             pass
                 return SynchronizableCalendarObjectCollection(
-                    calendar=self, objects=objects, sync_token=response.sync_token
+                    calendar=self, objects=objects, sync_token=token, truncated=truncated
                 )
             except (error.ReportError, error.DAVError) as e:
                 ## Server doesn't support sync tokens or the sync-collection REPORT failed
@@ -2437,12 +2497,23 @@ class Calendar(DAVObject):
         """Async implementation of get_objects_by_sync_token."""
         if self._should_use_sync_token(sync_token, disable_fallback):
             try:
-                root = self.client._build_sync_collection_body(
-                    sync_token=sync_token, props=["getetag"]
-                )
-                (response, objects) = await self._request_report_build_resultlist(
-                    root, props=[dav.GetEtag()], no_calendardata=True
-                )
+                collected: dict = {}
+                token = sync_token
+                for _page in range(max(1, self.sync_max_pages)):
+                    root = self.client._build_sync_collection_body(
+                        sync_token=token, props=["getetag"]
+                    )
+                    (response, objects) = await self._request_report_build_resultlist(
+                        root, props=[dav.GetEtag()], no_calendardata=True
+                    )
+                    (token, truncated, again) = self._absorb_sync_page(
+                        response, objects, collected, token
+                    )
+                    if not again:
+                        break
+                else:
+                    log.warning(f"sync-collection still truncated after {_page + 1} pages")
+                objects = list(collected.values())
                 if load_objects:
                     for obj in objects:
                         try:
@@ -2450,7 +2521,7 @@ class Calendar(DAVObject):
                         except error.NotFoundError:
                             pass
                 return SynchronizableCalendarObjectCollection(
-                    calendar=self, objects=objects, sync_token=response.sync_token
+                    calendar=self, objects=objects, sync_token=token, truncated=truncated
                 )
             except (error.ReportError, error.DAVError) as e:
                 if disable_fallback:
@@ -2654,12 +2725,18 @@ class SynchronizableCalendarObjectCollection:
 
     To create a SynchronizableCalendarObjectCollection object, use
     calendar.objects(load_objects=True)
+
+    ``truncated`` is set when the server kept truncating the sync-collection
+    reply (RFC 6578 section 3.6) beyond ``Calendar.sync_max_pages`` pages,
+    or without moving the token on: the collection is then incomplete, and
+    ``sync()`` will continue from ``sync_token``.
     """
 
-    def __init__(self, calendar, objects, sync_token) -> None:
+    def __init__(self, calendar, objects, sync_token, truncated: bool = False) -> None:
         self.calendar = calendar
         self.sync_token = sync_token
         self.objects = objects
+        self.truncated = truncated
         self._objects_by_url = None
 
     def __iter__(self) -> Iterator[Any]:
@@ -2705,6 +2782,7 @@ class SynchronizableCalendarObjectCollection:
         self.objects = list(current_by_url.values())
         self._objects_by_url = None
         self.sync_token = self.calendar._generate_fake_sync_token(self.objects)
+        self.truncated = False
         return (updated_objs, deleted_objs)
 
     def sync(
@@ -2759,6 +2837,7 @@ class SynchronizableCalendarObjectCollection:
                     self.objects = list(obu.values())
                     self._objects_by_url = None
                     self.sync_token = updates.sync_token
+                    self.truncated = updates.truncated
                     return (updated_objs, deleted_objs)
             except (error.ReportError, error.DAVError):
                 is_fake_token = True
@@ -2815,6 +2894,7 @@ class SynchronizableCalendarObjectCollection:
                     self.objects = list(obu.values())
                     self._objects_by_url = None
                     self.sync_token = updates.sync_token
+                    self.truncated = updates.truncated
                     return (updated_objs, deleted_objs)
             except (error.ReportError, error.DAVError):
                 is_fake_token = True

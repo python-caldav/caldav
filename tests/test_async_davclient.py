@@ -1677,3 +1677,125 @@ class TestAsyncGetCalendarsPropfindErrors:
         with patch.object(client, "propfind", new=AsyncMock(return_value=self._response(status))):
             with pytest.raises(exc):
                 await calendar_set.get_calendars()
+
+
+class TestAsyncSyncCollectionTruncated:
+    """A truncated sync-collection reply (RFC 6578 section 3.6), async.
+
+    Mirrors TestSyncCollectionTruncated in test_caldav_unit.py;
+    https://github.com/python-caldav/caldav/issues/737
+    """
+
+    def _calendar(self, *pages: bytes, path: str = "/dav/cal/"):
+        from caldav.collection import Calendar
+
+        client = AsyncDAVClient(url="https://caldav.example.com/dav/")
+        client.report = AsyncMock(side_effect=[DAVResponse.from_bytes(p) for p in pages])
+        calendar = Calendar(client=client, url="https://caldav.example.com" + path)
+        calendar.search = AsyncMock(side_effect=AssertionError("fell back to a full fetch"))
+        return client, calendar
+
+    @pytest.mark.asyncio
+    async def test_follows_the_token_until_complete(self) -> None:
+        from caldav.elements import dav
+        from caldav.lib.python_utilities import to_normal_str
+
+        from .test_caldav_unit import sync_page
+
+        client, calendar = self._calendar(
+            sync_page({"a.ics": '"a1"', "b.ics": '"b1"'}, "tok-2", truncated=True),
+            sync_page({"c.ics": '"c1"', "a.ics": None}, "tok-3", truncated=False),
+        )
+        result = await calendar.get_objects_by_sync_token("tok-1")
+
+        assert client.report.await_count == 2
+        bodies = [to_normal_str(c.args[1]) for c in client.report.call_args_list]
+        assert "tok-1" in bodies[0]
+        assert "tok-2" in bodies[1]
+        assert result.sync_token == "tok-3"
+        assert result.truncated is False
+        assert sorted(str(o.url.path) for o in result) == [
+            "/dav/cal/a.ics",
+            "/dav/cal/b.ics",
+            "/dav/cal/c.ics",
+        ]
+        by_name = {str(o.url.path).rsplit("/", 1)[1]: o for o in result}
+        assert by_name["a.ics"].props.get(dav.GetEtag.tag) is None
+
+    @pytest.mark.asyncio
+    async def test_iteration_cap(self) -> None:
+        from caldav.collection import Calendar
+
+        from .test_caldav_unit import sync_page
+
+        pages = [
+            sync_page({f"{i}.ics": f'"e{i}"'}, f"tok-{i + 2}", truncated=True)
+            for i in range(Calendar.sync_max_pages + 5)
+        ]
+        client, calendar = self._calendar(*pages)
+        result = await calendar.get_objects_by_sync_token("tok-1")
+        assert client.report.await_count == Calendar.sync_max_pages
+        assert result.truncated is True
+        assert len(result) == Calendar.sync_max_pages
+
+    @pytest.mark.asyncio
+    async def test_stops_when_the_token_does_not_move(self) -> None:
+        from .test_caldav_unit import sync_page
+
+        client, calendar = self._calendar(sync_page({"a.ics": '"a1"'}, "tok-1", truncated=True))
+        result = await calendar.get_objects_by_sync_token("tok-1")
+        assert client.report.await_count == 1
+        assert result.truncated is True
+        assert result.sync_token == "tok-1"
+
+    @pytest.mark.asyncio
+    async def test_507_for_another_href_is_not_a_truncation(self) -> None:
+        from .test_caldav_unit import sync_page
+
+        page = sync_page({"a.ics": '"a1"'}, "tok-2", truncated=True).replace(
+            b"<D:href>/dav/cal/</D:href>", b"<D:href>/dav/othercal/</D:href>"
+        )
+        _, calendar = self._calendar(page)
+        with pytest.raises(error.DAVError):
+            await calendar.get_objects_by_sync_token("tok-1", disable_fallback=True)
+
+    @pytest.mark.asyncio
+    async def test_at_sign_in_calendar_path(self) -> None:
+        from .test_caldav_unit import sync_page
+
+        base = "/dav/u@example.com/cal/"
+        client, calendar = self._calendar(
+            sync_page({"a.ics": '"a1"'}, "tok-2", truncated=True, base=base),
+            sync_page({"b.ics": '"b1"'}, "tok-3", truncated=False, base=base),
+            path=base,
+        )
+        result = await calendar.get_objects_by_sync_token("tok-1", disable_fallback=True)
+        assert client.report.await_count == 2
+        assert result.sync_token == "tok-3"
+        assert len(result) == 2
+
+    @pytest.mark.asyncio
+    async def test_sync_max_pages_below_one_still_makes_one_request(self) -> None:
+        from .test_caldav_unit import sync_page
+
+        client, calendar = self._calendar(sync_page({"a.ics": '"a1"'}, "tok-2", truncated=True))
+        calendar.sync_max_pages = 0
+        result = await calendar.get_objects_by_sync_token("tok-1")
+        assert client.report.await_count == 1
+        assert result.truncated is True
+
+    @pytest.mark.asyncio
+    async def test_sync_collection_reports_truncation(self) -> None:
+        """AsyncDAVClient.sync_collection() keeps the members of a truncated page."""
+        from .test_caldav_unit import sync_page
+
+        client = AsyncDAVClient(url="https://caldav.example.com/dav/cal/")
+        client.request = AsyncMock(
+            return_value=DAVResponse.from_bytes(
+                sync_page({"a.ics": '"a1"'}, "tok-2", truncated=True)
+            )
+        )
+        response = await client.sync_collection(sync_token="tok-1")
+        assert response.sync_truncated is True
+        assert response.sync_token == "tok-2"
+        assert [r.href for r in response.results] == ["/dav/cal/a.ics"]
