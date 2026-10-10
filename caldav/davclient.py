@@ -480,16 +480,18 @@ class DAVClient(BaseDAVClient):
             props=self.CALENDAR_HOME_SET_PROPS,
             depth=0,
         )
-        calendar_home_url = self._calendar_home_url(response, principal)
-
-        # Fetch calendars via PROPFIND
-        response = self.propfind(
-            calendar_home_url,
-            props=self.CALENDAR_LIST_PROPS,
-            depth=1,
-        )
-
-        return self._build_calendars_from_propfind(response)
+        # Fetch calendars via PROPFIND, from the first URL that has any
+        calendars = []
+        for calendar_home_url in self._calendar_home_urls(response, principal):
+            response = self.propfind(
+                calendar_home_url,
+                props=self.CALENDAR_LIST_PROPS,
+                depth=1,
+            )
+            calendars = self._build_calendars_from_propfind(response)
+            if calendars:
+                break
+        return calendars
 
     def search_calendar(
         self,

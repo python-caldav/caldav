@@ -1690,6 +1690,57 @@ class TestAsyncPrincipalCalendar:
                 await principal.calendar(name="Wanted")
 
 
+class TestAsyncGetCalendarsWithoutHomeSet:
+    """Async twin of the sync no-calendar-home-set discovery tests."""
+
+    @staticmethod
+    def _client(principal_depth1_xml):
+        from .test_caldav_unit import PUBLIC_SHARE_URL, public_share_propfind_xml
+
+        client = AsyncDAVClient(url=PUBLIC_SHARE_URL)
+        client.requests = []
+
+        async def fake_request(url, method="GET", body="", headers=None):
+            depth = headers["Depth"]
+            client.requests.append((str(url), depth))
+            xml = public_share_propfind_xml(url, depth, principal_depth1_xml)
+            return DAVResponse(create_mock_response(xml.encode(), status_code=207))
+
+        client.request = fake_request
+        return client
+
+    @pytest.mark.asyncio
+    async def test_client_url_is_calendar(self) -> None:
+        from caldav.collection import Principal
+
+        from .test_caldav_unit import (
+            PUBLIC_SHARE_PRINCIPAL_DEPTH1_XML,
+            PUBLIC_SHARE_PRINCIPAL_URL,
+            PUBLIC_SHARE_URL,
+        )
+
+        client = self._client(PUBLIC_SHARE_PRINCIPAL_DEPTH1_XML)
+        principal = Principal(client=client, url=PUBLIC_SHARE_PRINCIPAL_URL)
+        calendars = await client.get_calendars(principal)
+        assert [str(c.url) for c in calendars] == [PUBLIC_SHARE_URL + "/"]
+
+    @pytest.mark.asyncio
+    async def test_prefers_principal(self) -> None:
+        from caldav.collection import Principal
+
+        from .test_caldav_unit import (
+            GMX_LIKE_PRINCIPAL_DEPTH1_XML,
+            PUBLIC_SHARE_PRINCIPAL_URL,
+            PUBLIC_SHARE_URL,
+        )
+
+        client = self._client(GMX_LIKE_PRINCIPAL_DEPTH1_XML)
+        principal = Principal(client=client, url=PUBLIC_SHARE_PRINCIPAL_URL)
+        calendars = await client.get_calendars(principal)
+        assert [str(c.url) for c in calendars] == [PUBLIC_SHARE_PRINCIPAL_URL + "work/"]
+        assert all(PUBLIC_SHARE_URL not in url for url, _ in client.requests)
+
+
 class TestAsyncHttpLibrarySelection:
     """Which async HTTP library the module picks, and what happens when none is there.
 

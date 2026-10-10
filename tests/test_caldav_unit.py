@@ -357,6 +357,109 @@ class GetRefusedDAVClient(DAVClient):
         return MockedDAVResponse(self.report_xml)
 
 
+## Nextcloud public calendar share: the client URL is the calendar itself, the
+## principal is a system principal without calendars and without a
+## calendar-home-set.
+PUBLIC_SHARE_URL = "https://nc.example.com/remote.php/dav/public-calendars/ABC123"
+PUBLIC_SHARE_PRINCIPAL_URL = "https://nc.example.com/remote.php/dav/principals/system/public/"
+
+PUBLIC_SHARE_PRINCIPAL_DEPTH0_XML = """<?xml version="1.0"?>
+<d:multistatus xmlns:d="DAV:" xmlns:cal="urn:ietf:params:xml:ns:caldav">
+  <d:response>
+    <d:href>/remote.php/dav/principals/system/public/</d:href>
+    <d:propstat>
+      <d:prop><cal:calendar-home-set/></d:prop>
+      <d:status>HTTP/1.1 404 Not Found</d:status>
+    </d:propstat>
+  </d:response>
+</d:multistatus>
+"""
+
+PUBLIC_SHARE_PRINCIPAL_DEPTH1_XML = """<?xml version="1.0"?>
+<d:multistatus xmlns:d="DAV:">
+  <d:response>
+    <d:href>/remote.php/dav/principals/system/public/</d:href>
+    <d:propstat>
+      <d:prop><d:resourcetype><d:principal/></d:resourcetype></d:prop>
+      <d:status>HTTP/1.1 200 OK</d:status>
+    </d:propstat>
+  </d:response>
+</d:multistatus>
+"""
+
+PUBLIC_SHARE_CALENDAR_DEPTH1_XML = """<?xml version="1.0"?>
+<d:multistatus xmlns:d="DAV:" xmlns:cal="urn:ietf:params:xml:ns:caldav">
+  <d:response>
+    <d:href>/remote.php/dav/public-calendars/ABC123/</d:href>
+    <d:propstat>
+      <d:prop>
+        <d:resourcetype><d:collection/><cal:calendar/></d:resourcetype>
+        <d:displayname>Personal (alice)</d:displayname>
+      </d:prop>
+      <d:status>HTTP/1.1 200 OK</d:status>
+    </d:propstat>
+  </d:response>
+  <d:response>
+    <d:href>/remote.php/dav/public-calendars/ABC123/event1.ics</d:href>
+    <d:propstat>
+      <d:prop><d:resourcetype/></d:prop>
+      <d:status>HTTP/1.1 200 OK</d:status>
+    </d:propstat>
+  </d:response>
+</d:multistatus>
+"""
+
+## GMX-like server: no calendar-home-set, calendars live below the principal.
+GMX_LIKE_PRINCIPAL_DEPTH1_XML = """<?xml version="1.0"?>
+<d:multistatus xmlns:d="DAV:" xmlns:cal="urn:ietf:params:xml:ns:caldav">
+  <d:response>
+    <d:href>/remote.php/dav/principals/system/public/</d:href>
+    <d:propstat>
+      <d:prop><d:resourcetype><d:principal/></d:resourcetype></d:prop>
+      <d:status>HTTP/1.1 200 OK</d:status>
+    </d:propstat>
+  </d:response>
+  <d:response>
+    <d:href>/remote.php/dav/principals/system/public/work/</d:href>
+    <d:propstat>
+      <d:prop>
+        <d:resourcetype><d:collection/><cal:calendar/></d:resourcetype>
+        <d:displayname>Work</d:displayname>
+      </d:prop>
+      <d:status>HTTP/1.1 200 OK</d:status>
+    </d:propstat>
+  </d:response>
+</d:multistatus>
+"""
+
+
+def public_share_propfind_xml(url, depth, principal_depth1_xml=PUBLIC_SHARE_PRINCIPAL_DEPTH1_XML):
+    """Return the mocked PROPFIND body for a URL and depth on a public share server."""
+    path = urlparse(str(url)).path.rstrip("/")
+    if path == urlparse(PUBLIC_SHARE_PRINCIPAL_URL).path.rstrip("/"):
+        return PUBLIC_SHARE_PRINCIPAL_DEPTH0_XML if depth == "0" else principal_depth1_xml
+    if path == urlparse(PUBLIC_SHARE_URL).path.rstrip("/") and depth == "1":
+        return PUBLIC_SHARE_CALENDAR_DEPTH1_XML
+    raise AssertionError(f"unexpected PROPFIND {url} depth {depth}")
+
+
+class PublicShareDAVClient(DAVClient):
+    """
+    For unit testing - a mocked DAVClient pointed at a public calendar share,
+    recording the PROPFIND requests it receives.
+    """
+
+    def __init__(self, principal_depth1_xml=PUBLIC_SHARE_PRINCIPAL_DEPTH1_XML):
+        self.principal_depth1_xml = principal_depth1_xml
+        self.requests = []
+        DAVClient.__init__(self, url=PUBLIC_SHARE_URL)
+
+    def request(self, url, method="GET", body="", headers=None):
+        depth = headers["Depth"]
+        self.requests.append((str(url), depth))
+        return MockedDAVResponse(public_share_propfind_xml(url, depth, self.principal_depth1_xml))
+
+
 class TestCalDAV:
     """
     Test class for "pure" unit tests (small internal tests, testing that
@@ -1016,6 +1119,27 @@ END:VCALENDAR
         client = MockedDAVClient(xml)
         calendar_home_set = CalendarSet(client, url="/dav/tobias%40redpill-linpro.com/")
         assert len(calendar_home_set.get_calendars()) == 1
+
+    def test_get_calendars_client_url_is_calendar_without_home_set(self):
+        """
+        No calendar-home-set and no calendars below the principal: the
+        calendar at the client URL is returned (Nextcloud public share).
+        """
+        client = PublicShareDAVClient()
+        principal = Principal(client=client, url=PUBLIC_SHARE_PRINCIPAL_URL)
+        calendars = client.get_calendars(principal)
+        assert [str(c.url) for c in calendars] == [PUBLIC_SHARE_URL + "/"]
+
+    def test_get_calendars_without_home_set_prefers_principal(self):
+        """
+        No calendar-home-set, but calendars below the principal (GMX): those
+        are returned and the client URL is not queried.
+        """
+        client = PublicShareDAVClient(principal_depth1_xml=GMX_LIKE_PRINCIPAL_DEPTH1_XML)
+        principal = Principal(client=client, url=PUBLIC_SHARE_PRINCIPAL_URL)
+        calendars = client.get_calendars(principal)
+        assert [str(c.url) for c in calendars] == [PUBLIC_SHARE_PRINCIPAL_URL + "work/"]
+        assert all(PUBLIC_SHARE_URL not in url for url, _ in client.requests)
 
     def test_xml_parsing(self):
         """
