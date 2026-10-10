@@ -68,6 +68,21 @@ def _prop_name_to_element(name: str, value: Any | None = None) -> BaseElement | 
     return None
 
 
+def _raise_unless_propfind_ok(response: Any) -> None:
+    """Raise on a non-2xx PROPFIND, as ``DAVObject._query`` does.
+
+    A 404 raises :class:`~caldav.lib.error.NotFoundError`, anything else
+    :class:`~caldav.lib.error.PropfindError`.  ``propfind()`` leaves
+    ``results`` unset on an error response, which would otherwise read as
+    "no properties"/"no calendars", ref
+    https://github.com/python-caldav/caldav/issues/741
+    """
+    if response.status == 404:
+        raise error.NotFoundError(error.errmsg(response))
+    if not 200 <= response.status < 300:
+        raise error.PropfindError(error.errmsg(response))
+
+
 class BaseDAVClient(ABC):
     """
     Base class for DAV clients providing shared authentication and configuration logic.
@@ -431,6 +446,7 @@ class BaseDAVClient(ABC):
             _extract_calendar_home_set_from_results as extract_home_set,
         )
 
+        _raise_unless_propfind_ok(home_set_response)
         calendar_home_url = extract_home_set(home_set_response.results, features=self.features)
         if not calendar_home_url:
             calendar_home_url = str(principal.url)
@@ -443,6 +459,7 @@ class BaseDAVClient(ABC):
             _extract_calendars_from_propfind_results as extract_calendars,
         )
 
+        _raise_unless_propfind_ok(list_response)
         calendar_infos = extract_calendars(list_response.results, features=self.features)
         return [
             Calendar(client=self, url=info.url, name=info.name, id=info.cal_id)

@@ -5327,3 +5327,75 @@ class TestCompTypeFilterIgnored:
         client = self._client("unsupported")
         objs = Calendar(client, url="/cal/").search(event=True, compatibility_workarounds=False)
         assert len(objs) == 2
+
+
+class TestGetCalendarsPropfindErrors:
+    """A failing PROPFIND in ``get_calendars()`` must raise, not return ``[]``.
+
+    The principal-URL fallback is for servers that do not advertise a
+    calendar-home-set (GMX), not for failed requests, ref
+    https://github.com/python-caldav/caldav/issues/741
+    """
+
+    HOME_SET_XML = """
+<d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
+  <d:response>
+    <d:href>/principals/user/</d:href>
+    <d:propstat>
+      <d:prop><c:calendar-home-set><d:href>/calendars/user/</d:href></c:calendar-home-set></d:prop>
+      <d:status>HTTP/1.1 200 OK</d:status>
+    </d:propstat>
+  </d:response>
+</d:multistatus>
+"""
+
+    @staticmethod
+    def _response(status: int, text: str = "") -> DAVResponse:
+        resp = mock.MagicMock()
+        resp.status_code = status
+        resp.reason = "whatever"
+        resp.headers = {}
+        resp.content = text
+        return DAVResponse(resp)
+
+    def _get_calendars(self, *responses):
+        client = DAVClient(url="https://cal.example.com/")
+        principal = Principal(client=client, url="https://cal.example.com/principals/user/")
+        with mock.patch.object(client, "propfind", side_effect=list(responses)):
+            return client.get_calendars(principal)
+
+    @pytest.mark.parametrize(
+        ("status", "exc"),
+        [
+            (503, error.PropfindError),
+            (500, error.PropfindError),
+            (405, error.PropfindError),
+            (404, error.NotFoundError),
+        ],
+    )
+    def test_home_set_propfind_failure_raises(self, status, exc):
+        with pytest.raises(exc):
+            self._get_calendars(self._response(status), self._response(207, "<multistatus/>"))
+
+    @pytest.mark.parametrize(
+        ("status", "exc"),
+        [
+            (503, error.PropfindError),
+            (500, error.PropfindError),
+            (405, error.PropfindError),
+            (404, error.NotFoundError),
+        ],
+    )
+    def test_calendar_list_propfind_failure_raises(self, status, exc):
+        with pytest.raises(exc):
+            self._get_calendars(self._response(207, self.HOME_SET_XML), self._response(status))
+
+    @pytest.mark.parametrize(
+        ("status", "exc"), [(503, error.PropfindError), (404, error.NotFoundError)]
+    )
+    def test_calendar_set_propfind_failure_raises(self, status, exc):
+        client = DAVClient(url="https://cal.example.com/")
+        calendar_set = CalendarSet(client, url="https://cal.example.com/calendars/user/")
+        with mock.patch.object(client, "propfind", return_value=self._response(status)):
+            with pytest.raises(exc):
+                calendar_set.get_calendars()

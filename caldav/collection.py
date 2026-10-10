@@ -33,7 +33,7 @@ if TYPE_CHECKING:
 from collections.abc import Coroutine, Iterable, Iterator, Sequence
 from typing import Literal
 
-from .base_client import ICALH, _warn_unreadable_display_name
+from .base_client import ICALH, _raise_unless_propfind_ok, _warn_unreadable_display_name
 from .calendarobjectresource import (
     CalendarObjectResource,
     Event,
@@ -225,10 +225,13 @@ class CalendarSet(DAVObject):
     A CalendarSet is a set of calendars.
     """
 
-    def _calendars_from_results(self, results) -> list["Calendar"]:
-        """Convert PropfindResult list into Calendar objects."""
+    def _calendars_from_response(self, response) -> list["Calendar"]:
+        """Convert a calendar-list PROPFIND response into Calendar objects."""
+        _raise_unless_propfind_ok(response)
         features = self.client.features if self.client else None
-        calendar_infos = _extract_calendars_from_propfind_results(results, features=features)
+        calendar_infos = _extract_calendars_from_propfind_results(
+            response.results, features=features
+        )
         return [
             Calendar(client=self.client, url=info.url, name=info.name, id=info.cal_id, parent=self)
             for info in calendar_infos
@@ -256,14 +259,14 @@ class CalendarSet(DAVObject):
         response = self.client.propfind(
             str(self.url), props=self.client.CALENDAR_LIST_PROPS, depth=1
         )
-        return self._calendars_from_results(response.results)
+        return self._calendars_from_response(response)
 
     async def _async_get_calendars(self) -> list["Calendar"]:
         """Async implementation of get_calendars()."""
         response = await self.client.propfind(
             str(self.url), props=self.client.CALENDAR_LIST_PROPS, depth=1
         )
-        return self._calendars_from_results(response.results)
+        return self._calendars_from_response(response)
 
     def calendars(self) -> "list[Calendar] | Coroutine[Any, Any, list[Calendar]]":
         """
