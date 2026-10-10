@@ -2016,10 +2016,17 @@ END:VCALENDAR
     async def test_issue_399_change_attendee_status(self, async_client: Any) -> None:
         """change_attendee_status() auto-detects the current attendee (issue #399)."""
         self.skip_unless_support("scheduling")
+        principal = await async_client.principal()
         username = getattr(async_client, "username", None)
-        if not username or "@" not in str(username):
-            pytest.skip("Client username is not an email address; cannot build matching ATTENDEE")
-        my_email = "mailto:" + username
+        try:
+            my_email = str(await principal.get_vcal_address())
+        except error.NotFoundError:
+            if not username or "@" not in str(username):
+                pytest.skip(
+                    "Server has no calendar-user-address-set and the client username "
+                    "is not an email address"
+                )
+            my_email = "mailto:" + username
 
         invite_data = (
             "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Test//Test//EN\r\nMETHOD:REQUEST\r\n"

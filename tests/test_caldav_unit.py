@@ -4557,7 +4557,7 @@ END:VCALENDAR
 
         client = AsyncDAVClient(
             url="https://calendar.example.com/",
-            username="attendee@example.com",
+            username="xandikos-user",
             enable_rfc6764=False,
         )
         principal = Principal(client=client, url="https://calendar.example.com/principal/")
@@ -4583,6 +4583,7 @@ END:VCALENDAR
         assert isinstance(attendees, list)
         assert attendees[0].params["PARTSTAT"] == "ACCEPTED"
         assert attendees[1].params["PARTSTAT"] == "TENTATIVE"
+        principal.calendar_user_address_set.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_change_attendee_status_async_principal_argument_is_awaited(self):

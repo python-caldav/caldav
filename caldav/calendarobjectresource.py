@@ -884,11 +884,9 @@ class CalendarObjectResource(DAVObject):
             address_set = await principal.calendar_user_address_set()
         except error.NotFoundError:
             address_set = None
-        attendee_addresses = self._resolve_attendee_addresses(principal, address_set)
-        cnt = self._change_attendee_status_for_addresses(attendee_addresses, partstat=partstat)
-        if not cnt:
-            raise error.NotFoundError("Principal is not invited to event")
-        error.assert_(cnt == 1)
+        attendee_addresses = self._change_attendee_status_for_principal(
+            principal, address_set, partstat=partstat
+        )
         uid = self.id
         if uid and self.client.features.is_supported("scheduling.auto-schedule"):
             for cal in await principal.calendars():
@@ -1331,6 +1329,17 @@ class CalendarObjectResource(DAVObject):
                 pass
         return cnt
 
+    def _change_attendee_status_for_principal(
+        self, principal: Any, address_set: list[str | None] | None, **kwargs
+    ) -> list[str]:
+        """Update the attendee matching a principal's resolved address set."""
+        attendee_addresses = self._resolve_attendee_addresses(principal, address_set)
+        cnt = self._change_attendee_status_for_addresses(attendee_addresses, **kwargs)
+        if not cnt:
+            raise error.NotFoundError(f"Principal {principal.url} is not invited to event")
+        error.assert_(cnt == 1)
+        return attendee_addresses
+
     def change_attendee_status(
         self, attendee: Any | None = None, **kwargs
     ) -> "None | Coroutine[Any, Any, None]":
@@ -1357,11 +1366,7 @@ class CalendarObjectResource(DAVObject):
                 address_set = attendee.calendar_user_address_set()
             except error.NotFoundError:
                 address_set = None
-            attendee_emails = self._resolve_attendee_addresses(attendee, address_set)
-            cnt = self._change_attendee_status_for_addresses(attendee_emails, **kwargs)
-            if not cnt:
-                raise error.NotFoundError("Principal %s is not invited to event" % str(attendee))
-            error.assert_(cnt == 1)
+            self._change_attendee_status_for_principal(attendee, address_set, **kwargs)
             return
 
         self._change_attendee_status_for_address(attendee, **kwargs)
@@ -1376,11 +1381,7 @@ class CalendarObjectResource(DAVObject):
             address_set = await principal.calendar_user_address_set()
         except error.NotFoundError:
             address_set = None
-        attendee_emails = self._resolve_attendee_addresses(principal, address_set)
-        cnt = self._change_attendee_status_for_addresses(attendee_emails, **kwargs)
-        if not cnt:
-            raise error.NotFoundError("Principal %s is not invited to event" % str(principal.url))
-        error.assert_(cnt == 1)
+        self._change_attendee_status_for_principal(principal, address_set, **kwargs)
 
     def save(
         self,
