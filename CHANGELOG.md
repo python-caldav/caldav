@@ -22,12 +22,17 @@ Changelogs prior to v3.0 are pruned, but are available in the v3.1 release
 
 This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html), though for pre-releases PEP 440 takes precedence.
 
-## 3.4.0
+## Unreleased
+
+### Added
+
+* A `features="icloud"` profile, from a caldav-server-tester run by a user - the documentation already referred to it, but it did not exist.  https://github.com/python-caldav/caldav/issues/730
 
 ### Fixed
 
 * `get_calendars()` returned an empty list when a PROPFIND for the calendar-home-set or the calendar list failed (e.g. a 503 from Nextcloud under concurrent requests): a failed home-set lookup was taken for a server not advertising one, and the principal URL was listed instead.  A non-2xx response now raises, as it did in 2.x: `NotFoundError` for a 404, `PropfindError` otherwise.  The same goes for `CalendarSet.get_calendars()`.  https://github.com/python-caldav/caldav/issues/741
 * `compatibility_hints`: `FeatureSet.is_supported()` answered inverted for a `server-observation` (such as `get-current-user-principal.has-calendar`) or a `client-feature` (such as `rate-limit`) asked for as a bool: a has-calendar set to False read as True, the default as False, and a disabled rate-limit as True.  An observation is now stored as `{"value": <bool>}` - `set_feature(observation, False)` writes `{"value": False}` rather than `{"support": "unsupported"}` - and read back as that; the legacy `observed` key and `support` levels are still understood.  A client-feature reads as its `enable` flag, and a bool given for one is stored as `{"enable": <bool>}`.  Asked for as a str, both spell the bool out (`"True"`/`"False"`); asking for a server-peculiarity, tests-behaviour or client-hints as a bool now raises `TypeError`.  The Radicale, DAViCal and Davis profiles declare that a fresh account has no calendar.
+* iCloud: searches could fail with `ValueError: ... can't be joined with ...` once the client had moved to the account's `pNN-caldav.icloud.com` host, on calendars found before the move.  Also, a configured `url.encode-at.*` feature was lost at the move.  https://github.com/python-caldav/caldav/issues/730
 
 ## [3.4.0] - 2026-10-07
 

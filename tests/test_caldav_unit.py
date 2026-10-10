@@ -2033,6 +2033,112 @@ END:VCALENDAR"""
         # 10) pickle
         assert pickle.loads(pickle.dumps(url1)) == url1
 
+    def testURLJoinHostAlias(self):
+        """An href on an aliased host is joined by path onto self's host,
+        ref https://github.com/python-caldav/caldav/issues/730"""
+        base = URL("https://p49-caldav.example.com:443/123/calendars/").with_host_alias(
+            "caldav.example.com"
+        )
+        joined = base.join("https://caldav.example.com/123/calendars/cal/event.ics")
+        assert str(joined) == "https://p49-caldav.example.com:443/123/calendars/cal/event.ics"
+        ## The alias travels with every URL derived from the base
+        cal = base.join("cal/")
+        assert cal.join("https://caldav.example.com/123/calendars/cal/x.ics") == URL(
+            "https://p49-caldav.example.com:443/123/calendars/cal/x.ics"
+        )
+        assert pickle.loads(pickle.dumps(cal)).host_aliases == cal.host_aliases
+        ## Any other host, or a scheme change, still refuses to join
+        with pytest.raises(ValueError):
+            base.join("https://evil.example.org/123/calendars/cal/event.ics")
+        with pytest.raises(ValueError):
+            base.join("http://caldav.example.com/123/calendars/cal/event.ics")
+        ## Without the alias, nothing changes
+        with pytest.raises(ValueError):
+            URL("https://p49-caldav.example.com/").join("https://caldav.example.com/x.ics")
+        ## Moving back to the original host must not make it an alias of
+        ## itself - that would bypass the port check
+        back = base.relocate("https://caldav.example.com:443/123/calendars/")
+        assert back.host_aliases == {"p49-caldav.example.com"}
+        with pytest.raises(ValueError):
+            back.join("https://caldav.example.com:8443/123/calendars/x.ics")
+        ## A URL pickled before host_aliases existed still works
+        old = URL("https://caldav.example.com/123/")
+        del old.__dict__["host_aliases"]
+        old = pickle.loads(pickle.dumps(old))
+        assert str(old.join("cal/")) == "https://caldav.example.com/123/cal/"
+
+    def testCalendarHomeSetOnOtherHost(self):
+        """iCloud puts calendar-home-set on a partition host, but may still
+        return hrefs on the host the client was configured with, ref
+        https://github.com/python-caldav/caldav/issues/730"""
+        client = DAVClient(url="https://caldav.example.com/")
+        client.url = client.url.with_alias_at(False)
+        principal = Principal(client=client, url="https://caldav.example.com/123/principal/")
+        ## A calendar built before the root moved, as client.get_calendars()
+        ## did - responses carry paths only, so it lands on the generic host
+        early_calendar = Calendar(client, url="/123/calendars/cal/")
+        principal.calendar_home_set = "https://p49-caldav.example.com:443/123/calendars/"
+        assert client.url.hostname == "p49-caldav.example.com"
+        ## The rewritten root keeps the client's settings
+        assert client.url.alias_at is False
+        event = Event(client, url="https://caldav.example.com/123/calendars/cal/event.ics")
+        assert str(event.url) == "https://p49-caldav.example.com:443/123/calendars/cal/event.ics"
+        calendar = Calendar(client, url="https://caldav.example.com/123/calendars/cal/")
+        assert calendar.url.hostname == "p49-caldav.example.com"
+
+        ## The traceback in issue 730: a search on the early calendar.  The
+        ## hrefs are reduced to paths when parsed, and joined onto the
+        ## calendar URL - which is on the generic host.
+        client.request = lambda *a, **kw: MockedDAVResponse(
+            """<multistatus xmlns="DAV:">
+  <response>
+    <href>https://caldav.example.com/123/calendars/cal/event.ics</href>
+    <propstat>
+      <prop><calendar-data xmlns="urn:ietf:params:xml:ns:caldav">%s</calendar-data></prop>
+      <status>HTTP/1.1 200 OK</status>
+    </propstat>
+  </response>
+</multistatus>"""
+            % ev1
+        )
+        _, objects = early_calendar._request_report_build_resultlist("<report/>")
+        assert [str(o.url) for o in objects] == [
+            "https://p49-caldav.example.com:443/123/calendars/cal/event.ics"
+        ]
+
+    def testGetCalendarsOnOtherHost(self):
+        """client.get_calendars() takes the calendar-home-set without the
+        Principal setter, and must relocate the client root the same way,
+        ref https://github.com/python-caldav/caldav/issues/730"""
+        home_set = """<multistatus xmlns="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
+  <response>
+    <href>/123/principal/</href>
+    <propstat>
+      <prop><C:calendar-home-set><href>https://p49-caldav.example.com:443/123/calendars/</href></C:calendar-home-set></prop>
+      <status>HTTP/1.1 200 OK</status>
+    </propstat>
+  </response>
+</multistatus>"""
+        calendar_list = """<multistatus xmlns="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
+  <response>
+    <href>https://p49-caldav.example.com:443/123/calendars/cal/</href>
+    <propstat>
+      <prop><resourcetype><collection/><C:calendar/></resourcetype><displayname>cal</displayname></prop>
+      <status>HTTP/1.1 200 OK</status>
+    </propstat>
+  </response>
+</multistatus>"""
+        client = DAVClient(url="https://caldav.example.com/")
+        responses = iter([home_set, calendar_list])
+        client.request = lambda *a, **kw: MockedDAVResponse(next(responses))
+        principal = Principal(client=client, url="https://caldav.example.com/123/principal/")
+        calendars = client.get_calendars(principal)
+        assert [str(c.url) for c in calendars] == [
+            "https://p49-caldav.example.com:443/123/calendars/cal/"
+        ]
+        assert client.url.hostname == "p49-caldav.example.com"
+        assert "caldav.example.com" in client.url.host_aliases
+
     def testFilters(self):
         filter = cdav.Filter().append(
             cdav.CompFilter("VCALENDAR").append(

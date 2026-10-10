@@ -440,7 +440,8 @@ class BaseDAVClient(ABC):
         """Extract the calendar-home-set URL from a PROPFIND response.
 
         Falls back to the principal URL when the server does not advertise a
-        calendar-home-set (e.g. GMX), then makes the result absolute.
+        calendar-home-set (e.g. GMX), then makes the result absolute.  If the
+        home-set is on another host, the client root is moved there.
         """
         from caldav.collection import (
             _extract_calendar_home_set_from_results as extract_home_set,
@@ -450,7 +451,24 @@ class BaseDAVClient(ABC):
         calendar_home_url = extract_home_set(home_set_response.results, features=self.features)
         if not calendar_home_url:
             calendar_home_url = str(principal.url)
-        return self._make_absolute_url(calendar_home_url)
+        calendar_home_url = self._make_absolute_url(calendar_home_url)
+        self._follow_calendar_home(calendar_home_url)
+        return calendar_home_url
+
+    def _follow_calendar_home(self, calendar_home_url: Any) -> None:
+        """Move the client root to the host of the calendar-home-set.
+
+        iCloud (and others?) have a load balanced system, where each principal
+        resides on one named host.  The old host is kept as an alias, as iCloud
+        may still return hrefs on it, ref
+        https://github.com/python-caldav/caldav/issues/730
+        """
+        ## TODO: Here be dragons.  The new root will be the root of all future
+        ## objects derived from the client.  Changing the client root by doing a
+        ## principal.get_calendars() is an unacceptable side effect.  Do more research!
+        hostname = URL.objectify(calendar_home_url).hostname
+        if hostname and hostname != self.url.hostname:
+            self.url = self.url.relocate(calendar_home_url)
 
     def _build_calendars_from_propfind(self, list_response: Any) -> list:
         """Build Calendar objects from a calendar-home PROPFIND response."""
