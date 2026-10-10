@@ -1695,7 +1695,7 @@ class TestAsyncGetCalendarsWithoutHomeSet:
 
     @staticmethod
     def _client(principal_depth1_xml):
-        from .test_caldav_unit import PUBLIC_SHARE_URL, public_share_propfind_xml
+        from .public_share_fixtures import PUBLIC_SHARE_URL, public_share_propfind_xml
 
         client = AsyncDAVClient(url=PUBLIC_SHARE_URL)
         client.requests = []
@@ -1713,7 +1713,7 @@ class TestAsyncGetCalendarsWithoutHomeSet:
     async def test_client_url_is_calendar(self) -> None:
         from caldav.collection import Principal
 
-        from .test_caldav_unit import (
+        from .public_share_fixtures import (
             PUBLIC_SHARE_PRINCIPAL_DEPTH1_XML,
             PUBLIC_SHARE_PRINCIPAL_URL,
             PUBLIC_SHARE_URL,
@@ -1728,7 +1728,7 @@ class TestAsyncGetCalendarsWithoutHomeSet:
     async def test_prefers_principal(self) -> None:
         from caldav.collection import Principal
 
-        from .test_caldav_unit import (
+        from .public_share_fixtures import (
             GMX_LIKE_PRINCIPAL_DEPTH1_XML,
             PUBLIC_SHARE_PRINCIPAL_URL,
             PUBLIC_SHARE_URL,
@@ -1969,6 +1969,89 @@ class TestAsyncGetCalendarsPropfindErrors:
             await self._get_calendars(
                 self._response(207, self.HOME_SET_XML), self._response(status)
             )
+
+    NO_HOME_SET_XML = b"<d:multistatus xmlns:d='DAV:'/>"
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("status", [403, 404, 405, 500])
+    async def test_client_url_fallback_failure_returns_empty(self, status) -> None:
+        calendars = await self._get_calendars(
+            self._response(207, self.NO_HOME_SET_XML),
+            self._response(207, self.NO_HOME_SET_XML),
+            self._response(status),
+        )
+        assert calendars == []
+
+    @pytest.mark.asyncio
+    async def test_principal_propfind_failure_without_home_set_raises(self) -> None:
+        with pytest.raises(error.PropfindError):
+            await self._get_calendars(
+                self._response(207, self.NO_HOME_SET_XML),
+                self._response(503),
+                self._response(207, self.NO_HOME_SET_XML),
+            )
+
+    @pytest.mark.asyncio
+    async def test_client_url_fallback_refused_by_auth_returns_empty(self) -> None:
+        refused = error.AuthorizationError(url="https://cal.example.com/", reason="Forbidden")
+        calendars = await self._get_calendars(
+            self._response(207, self.NO_HOME_SET_XML),
+            self._response(207, self.NO_HOME_SET_XML),
+            refused,
+        )
+        assert calendars == []
+
+    @pytest.mark.asyncio
+    async def test_principal_refused_by_auth_without_home_set_raises(self) -> None:
+        refused = error.AuthorizationError(url="https://cal.example.com/", reason="Forbidden")
+        with pytest.raises(error.AuthorizationError):
+            await self._get_calendars(self._response(207, self.NO_HOME_SET_XML), refused)
+
+    @pytest.mark.asyncio
+    async def test_client_url_fallback_refusal_keeps_unprompted_basic_auth(self) -> None:
+        from caldav.collection import Principal
+
+        client = AsyncDAVClient(url="https://cal.example.com/")
+        principal = Principal(client=client, url="https://cal.example.com/principals/user/")
+        client._unprompted_basic_tried = True
+        client.auth_type = "basic"
+        client.auth = auth = object()
+        responses = iter([self._response(207, self.NO_HOME_SET_XML)] * 2)
+
+        async def propfind(*largs, **kwargs):
+            try:
+                return next(responses)
+            except StopIteration:
+                ## what _raise_authorization_error() does on a 401
+                client._unwind_unprompted_basic()
+                raise error.AuthorizationError(
+                    url="https://cal.example.com/", reason="no"
+                ) from None
+
+        with patch.object(client, "propfind", new=propfind):
+            assert await client.get_calendars(principal) == []
+        assert (client.auth, client.auth_type) == (auth, "basic")
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "client_url",
+        [
+            "https://cal.example.com/principals/user/",
+            "https://cal.example.com/principals/user",
+            "https://cal.example.com:443/principals/user/",
+            "https://user:pw@cal.example.com/principals/user/",
+        ],
+    )
+    async def test_client_url_equal_to_principal_is_not_queried_twice(self, client_url) -> None:
+        from caldav.collection import Principal
+
+        client = AsyncDAVClient(url=client_url)
+        principal = Principal(client=client, url="https://cal.example.com/principals/user/")
+        responses = [self._response(207, self.NO_HOME_SET_XML)] * 2
+        propfind = AsyncMock(side_effect=responses)
+        with patch.object(client, "propfind", new=propfind):
+            assert await client.get_calendars(principal) == []
+        assert propfind.call_count == 2
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(

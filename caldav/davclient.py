@@ -482,13 +482,22 @@ class DAVClient(BaseDAVClient):
         )
         # Fetch calendars via PROPFIND, from the first URL that has any
         calendars = []
-        for calendar_home_url in self._calendar_home_urls(response, principal):
-            response = self.propfind(
-                calendar_home_url,
-                props=self.CALENDAR_LIST_PROPS,
-                depth=1,
-            )
-            calendars = self._build_calendars_from_propfind(response)
+        for n, calendar_home_url in enumerate(self._calendar_home_urls(response, principal)):
+            auth = (self.auth, self.auth_type)
+            try:
+                response = self.propfind(
+                    calendar_home_url,
+                    props=self.CALENDAR_LIST_PROPS,
+                    depth=1,
+                )
+            except error.AuthorizationError:
+                # a refused guess means no calendars there; keep the auth
+                # that worked so far, which the refusal may have unwound
+                if not n:
+                    raise
+                self.auth, self.auth_type = auth
+                break
+            calendars = self._build_calendars_from_propfind(response, guess=n > 0)
             if calendars:
                 break
         return calendars

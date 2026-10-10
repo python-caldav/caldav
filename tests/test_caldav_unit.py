@@ -31,6 +31,14 @@ from caldav.lib import error
 from caldav.lib.python_utilities import to_normal_str, to_wire
 from caldav.lib.url import URL
 
+from .public_share_fixtures import (
+    GMX_LIKE_PRINCIPAL_DEPTH1_XML,
+    PUBLIC_SHARE_PRINCIPAL_DEPTH1_XML,
+    PUBLIC_SHARE_PRINCIPAL_URL,
+    PUBLIC_SHARE_URL,
+    public_share_propfind_xml,
+)
+
 ## Note on the imports - those two lines are equivalent:
 # from caldav.objects import foo
 # from caldav import foo
@@ -355,92 +363,6 @@ class GetRefusedDAVClient(DAVClient):
 
     def report(self, *largs, **kwargs):
         return MockedDAVResponse(self.report_xml)
-
-
-## Nextcloud public calendar share: the client URL is the calendar itself, the
-## principal is a system principal without calendars and without a
-## calendar-home-set.
-PUBLIC_SHARE_URL = "https://nc.example.com/remote.php/dav/public-calendars/ABC123"
-PUBLIC_SHARE_PRINCIPAL_URL = "https://nc.example.com/remote.php/dav/principals/system/public/"
-
-PUBLIC_SHARE_PRINCIPAL_DEPTH0_XML = """<?xml version="1.0"?>
-<d:multistatus xmlns:d="DAV:" xmlns:cal="urn:ietf:params:xml:ns:caldav">
-  <d:response>
-    <d:href>/remote.php/dav/principals/system/public/</d:href>
-    <d:propstat>
-      <d:prop><cal:calendar-home-set/></d:prop>
-      <d:status>HTTP/1.1 404 Not Found</d:status>
-    </d:propstat>
-  </d:response>
-</d:multistatus>
-"""
-
-PUBLIC_SHARE_PRINCIPAL_DEPTH1_XML = """<?xml version="1.0"?>
-<d:multistatus xmlns:d="DAV:">
-  <d:response>
-    <d:href>/remote.php/dav/principals/system/public/</d:href>
-    <d:propstat>
-      <d:prop><d:resourcetype><d:principal/></d:resourcetype></d:prop>
-      <d:status>HTTP/1.1 200 OK</d:status>
-    </d:propstat>
-  </d:response>
-</d:multistatus>
-"""
-
-PUBLIC_SHARE_CALENDAR_DEPTH1_XML = """<?xml version="1.0"?>
-<d:multistatus xmlns:d="DAV:" xmlns:cal="urn:ietf:params:xml:ns:caldav">
-  <d:response>
-    <d:href>/remote.php/dav/public-calendars/ABC123/</d:href>
-    <d:propstat>
-      <d:prop>
-        <d:resourcetype><d:collection/><cal:calendar/></d:resourcetype>
-        <d:displayname>Personal (alice)</d:displayname>
-      </d:prop>
-      <d:status>HTTP/1.1 200 OK</d:status>
-    </d:propstat>
-  </d:response>
-  <d:response>
-    <d:href>/remote.php/dav/public-calendars/ABC123/event1.ics</d:href>
-    <d:propstat>
-      <d:prop><d:resourcetype/></d:prop>
-      <d:status>HTTP/1.1 200 OK</d:status>
-    </d:propstat>
-  </d:response>
-</d:multistatus>
-"""
-
-## GMX-like server: no calendar-home-set, calendars live below the principal.
-GMX_LIKE_PRINCIPAL_DEPTH1_XML = """<?xml version="1.0"?>
-<d:multistatus xmlns:d="DAV:" xmlns:cal="urn:ietf:params:xml:ns:caldav">
-  <d:response>
-    <d:href>/remote.php/dav/principals/system/public/</d:href>
-    <d:propstat>
-      <d:prop><d:resourcetype><d:principal/></d:resourcetype></d:prop>
-      <d:status>HTTP/1.1 200 OK</d:status>
-    </d:propstat>
-  </d:response>
-  <d:response>
-    <d:href>/remote.php/dav/principals/system/public/work/</d:href>
-    <d:propstat>
-      <d:prop>
-        <d:resourcetype><d:collection/><cal:calendar/></d:resourcetype>
-        <d:displayname>Work</d:displayname>
-      </d:prop>
-      <d:status>HTTP/1.1 200 OK</d:status>
-    </d:propstat>
-  </d:response>
-</d:multistatus>
-"""
-
-
-def public_share_propfind_xml(url, depth, principal_depth1_xml=PUBLIC_SHARE_PRINCIPAL_DEPTH1_XML):
-    """Return the mocked PROPFIND body for a URL and depth on a public share server."""
-    path = urlparse(str(url)).path.rstrip("/")
-    if path == urlparse(PUBLIC_SHARE_PRINCIPAL_URL).path.rstrip("/"):
-        return PUBLIC_SHARE_PRINCIPAL_DEPTH0_XML if depth == "0" else principal_depth1_xml
-    if path == urlparse(PUBLIC_SHARE_URL).path.rstrip("/") and depth == "1":
-        return PUBLIC_SHARE_CALENDAR_DEPTH1_XML
-    raise AssertionError(f"unexpected PROPFIND {url} depth {depth}")
 
 
 class PublicShareDAVClient(DAVClient):
@@ -6222,6 +6144,89 @@ class TestGetCalendarsPropfindErrors:
         with mock.patch.object(client, "propfind", return_value=self._response(status)):
             with pytest.raises(exc):
                 calendar_set.get_calendars()
+
+    NO_HOME_SET_XML = "<d:multistatus xmlns:d='DAV:'/>"
+
+    @pytest.mark.parametrize("status", [403, 404, 405, 500])
+    def test_client_url_fallback_failure_returns_empty(self, status):
+        """Without a home-set, the client URL is only a guess (Nextcloud
+        public share); a refusal there means no calendars, not an error."""
+        assert (
+            self._get_calendars(
+                self._response(207, self.NO_HOME_SET_XML),
+                self._response(207, self.NO_HOME_SET_XML),
+                self._response(status),
+            )
+            == []
+        )
+
+    def test_principal_propfind_failure_without_home_set_raises(self):
+        with pytest.raises(error.PropfindError):
+            self._get_calendars(
+                self._response(207, self.NO_HOME_SET_XML),
+                self._response(503),
+                self._response(207, self.NO_HOME_SET_XML),
+            )
+
+    def test_client_url_fallback_refused_by_auth_returns_empty(self):
+        """The request layer raises AuthorizationError on 401/403 before
+        the response reaches get_calendars(); on the guessed client URL
+        that still means no calendars."""
+        refused = error.AuthorizationError(url="https://cal.example.com/", reason="Forbidden")
+        assert (
+            self._get_calendars(
+                self._response(207, self.NO_HOME_SET_XML),
+                self._response(207, self.NO_HOME_SET_XML),
+                refused,
+            )
+            == []
+        )
+
+    def test_principal_refused_by_auth_without_home_set_raises(self):
+        refused = error.AuthorizationError(url="https://cal.example.com/", reason="Forbidden")
+        with pytest.raises(error.AuthorizationError):
+            self._get_calendars(self._response(207, self.NO_HOME_SET_XML), refused)
+
+    def test_client_url_fallback_refusal_keeps_unprompted_basic_auth(self):
+        """A 401 on the guessed client URL must not drop an unprompted-Basic
+        guess (issue #713) that already worked for the principal URL."""
+        client = DAVClient(url="https://cal.example.com/")
+        principal = Principal(client=client, url="https://cal.example.com/principals/user/")
+        client._unprompted_basic_tried = True
+        client.auth_type = "basic"
+        client.auth = auth = object()
+        responses = iter([self._response(207, self.NO_HOME_SET_XML)] * 2)
+
+        def propfind(*largs, **kwargs):
+            try:
+                return next(responses)
+            except StopIteration:
+                ## what _raise_authorization_error() does on a 401
+                client._unwind_unprompted_basic()
+                raise error.AuthorizationError(
+                    url="https://cal.example.com/", reason="no"
+                ) from None
+
+        with mock.patch.object(client, "propfind", side_effect=propfind):
+            assert client.get_calendars(principal) == []
+        assert (client.auth, client.auth_type) == (auth, "basic")
+
+    @pytest.mark.parametrize(
+        "client_url",
+        [
+            "https://cal.example.com/principals/user/",
+            "https://cal.example.com/principals/user",
+            "https://cal.example.com:443/principals/user/",
+            "https://user:pw@cal.example.com/principals/user/",
+        ],
+    )
+    def test_client_url_equal_to_principal_is_not_queried_twice(self, client_url):
+        client = DAVClient(url=client_url)
+        principal = Principal(client=client, url="https://cal.example.com/principals/user/")
+        responses = [self._response(207, self.NO_HOME_SET_XML)] * 2
+        with mock.patch.object(client, "propfind", side_effect=responses) as propfind:
+            assert client.get_calendars(principal) == []
+        assert propfind.call_count == 2
 
 
 def sync_page(

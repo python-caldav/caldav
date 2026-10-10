@@ -471,13 +471,20 @@ class BaseDAVClient(ABC):
             urls.append(str(self.url))
         return urls
 
-    def _build_calendars_from_propfind(self, list_response: Any) -> list:
-        """Build Calendar objects from a calendar-home PROPFIND response."""
+    def _build_calendars_from_propfind(self, list_response: Any, guess: bool = False) -> list:
+        """Build Calendar objects from a calendar-home PROPFIND response.
+
+        ``guess`` marks a URL that is only tried in case it is a calendar (the
+        client URL without a calendar-home-set): an error there means no
+        calendars rather than a failure.
+        """
         from caldav.collection import Calendar
         from caldav.collection import (
             _extract_calendars_from_propfind_results as extract_calendars,
         )
 
+        if guess and not 200 <= list_response.status < 300:
+            return []
         _raise_unless_propfind_ok(list_response)
         calendar_infos = extract_calendars(list_response.results, features=self.features)
         return [
