@@ -39,6 +39,7 @@ class XandikosTestServer(EmbeddedTestServer):
         return self._core.is_accessible()
 
     def start(self) -> None:
+        self.claim()
         self._core.start()
         self._started = self._core._started
 
@@ -73,6 +74,7 @@ class RadicaleTestServer(EmbeddedTestServer):
         return self._core.is_accessible()
 
     def start(self) -> None:
+        self.claim()
         self._core.start()
         self._started = self._core._started
 

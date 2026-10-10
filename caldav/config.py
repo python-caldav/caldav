@@ -414,6 +414,8 @@ def _get_test_server_config(
     for server in _collect_test_servers(name, config_file):
         was_already_started = server._started
         try:
+            # Another process using this server: try the next one rather than wait
+            server.claim_server(server.name, 0)
             server.start()
         except Exception as e:
             logging.warning("Failed to start test server %s: %s", server.name, e)
