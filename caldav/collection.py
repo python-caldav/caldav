@@ -1141,7 +1141,7 @@ class Calendar(DAVObject):
           False          – always attempt to delete the calendar via HTTP DELETE
         """
         if self.is_async_client:
-            return self._async_delete(wipe=wipe)
+            return self._async_delete_calendar(wipe=wipe)
 
         if wipe is True:
             try:
@@ -1185,7 +1185,7 @@ class Calendar(DAVObject):
         if deletion_delay:
             self._wait_until(lambda: not self._exists(), deletion_delay, "the calendar to go away")
 
-    async def _async_delete(self, wipe=None):
+    async def _async_delete_calendar(self, wipe=None):
         """Async implementation of Calendar.delete()."""
         import asyncio
 
@@ -1209,7 +1209,7 @@ class Calendar(DAVObject):
             # Do some retries on deleting the calendar
             for _ in range(0, 20):
                 try:
-                    await DAVObject._async_delete(self)
+                    await self._async_delete()
                 except error.DeleteError:
                     pass
                 try:
@@ -1220,9 +1220,9 @@ class Calendar(DAVObject):
                     break
 
         if wipe:
-            await self._async_delete(wipe=True)
+            await self._async_delete_calendar(wipe=True)
             return
-        await DAVObject._async_delete(self)
+        await self._async_delete()
 
         # See delete() (sync) - wait for an asynchronous deletion to land.
         deletion_delay = self._settle_delay("synchronous-write.delete-calendar")

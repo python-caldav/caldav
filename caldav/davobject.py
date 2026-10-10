@@ -647,7 +647,7 @@ class DAVObject:
         asserted a specific version, so 404 raises ``NotFoundError``.
         """
         if self.url is None:
-            return
+            return None
         if self.client is None:
             raise ValueError("Unexpected value None for self.client")
         if self.is_async_client:
@@ -661,6 +661,7 @@ class DAVObject:
             else self.client.delete(str(self.url))
         )
         self._post_delete(r, headers)
+        return None
 
     def _post_delete(self, r, headers: dict[str, str] | None = None) -> None:
         if headers:

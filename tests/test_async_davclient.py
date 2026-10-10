@@ -1801,6 +1801,62 @@ class TestAsyncMkcalendarMultistatus:
             await self._save_calendar(207, self._multistatus("HTTP/1.1 403 Forbidden"))
 
 
+class TestAsyncCalendarDelete:
+    """Async ``Calendar.delete()``: its wipe logic lives in
+    ``_async_delete_calendar()``, and the plain DELETE in the inherited
+    ``DAVObject._async_delete()``."""
+
+    URL = "https://caldav.example.com/dav/user/mycal/"
+
+    def _calendar(self):
+        from caldav import Calendar
+
+        client = AsyncDAVClient(url="https://caldav.example.com/dav/")
+        client.delete = AsyncMock(
+            return_value=DAVResponse(create_mock_response(status_code=204, reason="No Content"))
+        )
+        return client, Calendar(client, url=self.URL)
+
+    @pytest.mark.asyncio
+    async def test_delete_sends_one_delete(self) -> None:
+        client, calendar = self._calendar()
+        assert await calendar.delete(wipe=False) is None
+        client.delete.assert_awaited_once_with(self.URL)
+
+    @pytest.mark.asyncio
+    async def test_wipe_deletes_the_objects_not_the_calendar(self) -> None:
+        client, calendar = self._calendar()
+        objects = [MagicMock(delete=AsyncMock()), MagicMock(delete=AsyncMock())]
+        calendar.search = AsyncMock(return_value=objects)
+        await calendar.delete(wipe=True)
+        client.delete.assert_not_awaited()
+        for obj in objects:
+            obj.delete.assert_awaited_once_with()
+
+    @pytest.mark.asyncio
+    async def test_unsupported_delete_falls_back_to_wipe(self) -> None:
+        client, calendar = self._calendar()
+        client.features.set_feature("delete-calendar", {"support": "unsupported"})
+        obj = MagicMock(delete=AsyncMock())
+        calendar.search = AsyncMock(return_value=[obj])
+        await calendar.delete()
+        client.delete.assert_not_awaited()
+        obj.delete.assert_awaited_once_with()
+
+    @pytest.mark.asyncio
+    async def test_fragile_delete_retries_until_gone(self) -> None:
+        """The retry loop re-issues the plain DELETE, not the wipe."""
+        client, calendar = self._calendar()
+        client.features.set_feature("delete-calendar", {"support": "fragile"})
+        calendar.search = AsyncMock(side_effect=[[MagicMock()], error.NotFoundError("gone")])
+        with patch("asyncio.sleep", new=AsyncMock()):
+            await calendar.delete()
+        ## two rounds of the loop, then the final DELETE once it is known gone
+        assert client.delete.await_count == 3
+        assert all(c.args == (self.URL,) for c in client.delete.await_args_list)
+        assert all(c.kwargs == {"event": True} for c in calendar.search.await_args_list)
+
+
 class TestAsyncGetCalendarsPropfindErrors:
     """Async twin of ``TestGetCalendarsPropfindErrors``: a failing PROPFIND
     in ``get_calendars()`` must raise, not return ``[]``, ref
