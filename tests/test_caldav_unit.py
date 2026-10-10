@@ -2772,6 +2772,70 @@ END:VCALENDAR"""
         result.close()
 
 
+class TestCompleteRruleMode:
+    """complete(handle_rrule=True) accepts both spellings of the
+    thisandfuture rrule_mode, for sync and async clients alike.
+    https://github.com/python-caldav/caldav/issues/735"""
+
+    recurring_todo = """BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Example Corp.//CalDAV Client//EN
+BEGIN:VTODO
+UID:rrule-mode-test@example.com
+DTSTAMP:20260101T000000Z
+DTSTART:20260101T090000Z
+DUE:20260101T100000Z
+RRULE:FREQ=WEEKLY;COUNT=5
+SUMMARY:Weekly chore
+STATUS:NEEDS-ACTION
+END:VTODO
+END:VCALENDAR"""
+
+    def _todo(self, client):
+        return Todo(
+            client=client,
+            url="/calendar/todo1.ics",
+            data=self.recurring_todo,
+            parent=Calendar(client, url="/calendar/"),
+        )
+
+    def _assert_thisandfuture(self, todo):
+        ranges = [
+            c["RECURRENCE-ID"].params.get("RANGE")
+            for c in todo.icalendar_instance.walk("VTODO")
+            if "RECURRENCE-ID" in c
+        ]
+        assert "THISANDFUTURE" in ranges
+
+    @pytest.mark.parametrize("mode", ["this_and_future", "thisandfuture"])
+    def test_thisandfuture_sync(self, mode):
+        todo = self._todo(MockedDAVClient(""))
+        saves = []
+        todo.save = lambda **kwargs: saves.append(kwargs)
+        todo.complete(handle_rrule=True, rrule_mode=mode)
+        assert saves == [{"increase_seqno": False}]
+        self._assert_thisandfuture(todo)
+
+    @pytest.mark.parametrize("mode", ["this_and_future", "thisandfuture"])
+    def test_thisandfuture_async(self, mode):
+        import asyncio
+
+        from caldav.async_davclient import AsyncDAVClient
+
+        client = MockedDAVClient("")
+        client.__class__ = type("MockedAsyncDAVClient", (MockedDAVClient, AsyncDAVClient), {})
+        todo = self._todo(client)
+        saves = []
+
+        async def fake_save(**kwargs):
+            saves.append(kwargs)
+
+        todo.save = fake_save
+        asyncio.run(todo.complete(handle_rrule=True, rrule_mode=mode))
+        assert saves == [{"increase_seqno": False}]
+        self._assert_thisandfuture(todo)
+
+
 class TestReverseRelationSaves:
     """add_object() fixes up reverse relations.  It should PUT only the objects
     that actually change - not a related object that already points back, and
