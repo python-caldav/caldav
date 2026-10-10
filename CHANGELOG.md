@@ -34,6 +34,7 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
   * `add_object()`, `add_event()`, `add_todo()`, `add_journal()` (and the deprecated `save_*()` aliases) took `increase_seqno` as an iCalendar property: it did not reach `save()`, so `SEQUENCE` was bumped anyway, and the bogus property was written to the object.  It is now passed through, and `save_with_invites()` accepts it too.
   * Saving a single modified recurrence bumped the master's `SEQUENCE` rather than the override's.  The override is now bumped (an override without `SEQUENCE` gets the master's plus one) and the master left alone (with `all_recurrences=True` the master is still bumped).
   * Accepting, declining or tentatively accepting an invite bumped the `SEQUENCE` on the attendee's copy.  Only the organizer revises an event; replies no longer bump it.
+* `Todo.complete(handle_rrule=True, rrule_mode="safe")` on a recurring task with no further occurrences (e.g. `COUNT=1`) ignored the given `completion_timestamp` and stamped `COMPLETED` with the current time.  The sync path now passes it on, as the async one already did.
 
 ## [3.4.0] - 2026-10-07
 
