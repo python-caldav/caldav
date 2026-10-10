@@ -3140,18 +3140,14 @@ class TestSequenceOnSave:
         client = self._async_client()
         client.username = "attendee@example.com"
         invite = self._invite(client)
-        invite.add_attendee("mailto:attendee@example.com")
         target = mock.MagicMock()
         target.add_event = mock.AsyncMock()
         principal = mock.MagicMock()
         principal.get_property = mock.AsyncMock(return_value=None)
-        principal.calendar_user_address_set = mock.AsyncMock(
-            return_value=["mailto:attendee@example.com"]
-        )
         with (
             mock.patch.object(client.features, "is_supported", return_value=False),
             mock.patch.object(client, "principal", mock.AsyncMock(return_value=principal)),
-            mock.patch.object(Event, "change_attendee_status"),
+            mock.patch.object(Event, "change_attendee_status", mock.AsyncMock()),
         ):
             asyncio.run(invite.accept_invite(calendar=target))
         target.add_event.assert_awaited_once()
@@ -3163,22 +3159,19 @@ class TestSequenceOnSave:
         client = self._async_client()
         client.username = "attendee@example.com"
         invite = self._invite(client)
-        invite.add_attendee("mailto:attendee@example.com")
         existing = mock.MagicMock()
         existing.load = mock.AsyncMock()
         existing.save = mock.AsyncMock()
+        existing.change_attendee_status = mock.AsyncMock()
         cal = mock.MagicMock()
         cal.event_by_uid = mock.AsyncMock(return_value=existing)
         principal = mock.MagicMock()
         principal.get_property = mock.AsyncMock(return_value=None)
-        principal.calendar_user_address_set = mock.AsyncMock(
-            return_value=["mailto:attendee@example.com"]
-        )
         principal.calendars = mock.AsyncMock(return_value=[cal])
         with (
             mock.patch.object(client.features, "is_supported", return_value=True),
             mock.patch.object(client, "principal", mock.AsyncMock(return_value=principal)),
-            mock.patch.object(Event, "change_attendee_status"),
+            mock.patch.object(Event, "change_attendee_status", mock.AsyncMock()),
         ):
             asyncio.run(invite.accept_invite(calendar=mock.MagicMock()))
         existing.save.assert_awaited_once_with(increase_seqno=False)
@@ -4557,7 +4550,7 @@ END:VCALENDAR
 
         client = AsyncDAVClient(
             url="https://calendar.example.com/",
-            username="xandikos-user",
+            username="not-an-email",
             enable_rfc6764=False,
         )
         principal = Principal(client=client, url="https://calendar.example.com/principal/")

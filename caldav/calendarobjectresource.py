@@ -879,25 +879,14 @@ class CalendarObjectResource(DAVObject):
         if not calendar:
             calendar = (await principal.get_calendars())[0]
         self.icalendar_instance.pop("METHOD")
-        ## Resolve principal addresses once and pass them through the direct matcher.
-        try:
-            address_set = await principal.calendar_user_address_set()
-        except error.NotFoundError:
-            address_set = None
-        attendee_addresses = self._change_attendee_status_for_principal(
-            principal, address_set, partstat=partstat
-        )
+        await self.change_attendee_status(principal, partstat=partstat)
         uid = self.id
         if uid and self.client.features.is_supported("scheduling.auto-schedule"):
             for cal in await principal.calendars():
                 try:
                     existing = await cal.event_by_uid(uid)
                     await existing.load()
-                    cnt2 = existing._change_attendee_status_for_addresses(
-                        attendee_addresses, partstat=partstat
-                    )
-                    if not cnt2:
-                        raise error.NotFoundError("Principal is not invited to existing event")
+                    await existing.change_attendee_status(principal, partstat=partstat)
                     await existing.save(increase_seqno=False)
                     return
                 except error.NotFoundError:
@@ -1289,7 +1278,7 @@ class CalendarObjectResource(DAVObject):
                 "(RFC6638 §2.4.1) and the client username is not an email address. "
                 "Cannot determine which attendee to update. "
                 "Pass the attendee email address explicitly to change_attendee_status()."
-            ) from None
+            )
 
         addresses = [address for address in address_set if address]
         return addresses or [str(principal.url)]
@@ -1331,14 +1320,13 @@ class CalendarObjectResource(DAVObject):
 
     def _change_attendee_status_for_principal(
         self, principal: Any, address_set: list[str | None] | None, **kwargs
-    ) -> list[str]:
+    ) -> None:
         """Update the attendee matching a principal's resolved address set."""
         attendee_addresses = self._resolve_attendee_addresses(principal, address_set)
         cnt = self._change_attendee_status_for_addresses(attendee_addresses, **kwargs)
         if not cnt:
             raise error.NotFoundError(f"Principal {principal.url} is not invited to event")
         error.assert_(cnt == 1)
-        return attendee_addresses
 
     def change_attendee_status(
         self, attendee: Any | None = None, **kwargs
