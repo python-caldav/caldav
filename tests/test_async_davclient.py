@@ -1623,7 +1623,8 @@ class TestAsyncCalendarDelete:
     @pytest.mark.asyncio
     async def test_delete_sends_one_delete(self) -> None:
         client, calendar = self._calendar()
-        assert await calendar.delete(wipe=False) is None
+        result = await calendar.delete(wipe=False)
+        assert result is None
         client.delete.assert_awaited_once_with(self.URL)
 
     @pytest.mark.asyncio
