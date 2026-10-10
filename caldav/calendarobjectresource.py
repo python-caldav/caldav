@@ -1174,12 +1174,7 @@ class CalendarObjectResource(DAVObject):
         ## TODO: quite much overlapping with _async_put, should consolidate
         ## TODO: this is low-level http-communication - shouldn't it be in the davclient file rather than in calendarobjectresource.py?
         ## SECURITY TODO: we should probably have a check here to verify that no such object exists already
-        headers = {}  ## TODO: use some caseinsensitivedict
-        if self.schedule_tag:
-            headers["if-schedule-tag-match"] = self.schedule_tag
-        elif self.etag:
-            headers["if-match"] = self.etag
-        headers |= ICALH
+        headers = self._precondition_headers() | ICALH
         if self.is_async_client:
             return self._async_put(headers, retry_on_failure)
         r = self.client.put(self.url, self.data, headers)
@@ -1212,14 +1207,61 @@ class CalendarObjectResource(DAVObject):
         if r.headers.get("Schedule-Tag"):
             self.props[cdav.ScheduleTag.tag] = r.headers["Schedule-Tag"]
 
+    def _precondition_headers(self) -> dict[str, str]:
+        """The conditional-request header for the cached version, if any.
+
+        A Schedule-Tag (RFC 6638 section 3.2) takes precedence over an
+        ETag.  Used by both ``save()`` and ``delete(if_match=True)``.
+        """
+        headers = {}  ## TODO: use some caseinsensitivedict
+        if self.schedule_tag:
+            headers["if-schedule-tag-match"] = self.schedule_tag
+        elif self.etag:
+            headers["if-match"] = self.etag
+        return headers
+
+    def delete(self, if_match: bool | str | None = False) -> "None | Coroutine[Any, Any, None]":
+        """Delete the object from the server.
+
+        By default the DELETE is unconditional, and a 404 counts as
+        success.
+
+        With ``if_match=True`` the DELETE carries the same precondition
+        ``save()`` sends: ``If-Schedule-Tag-Match`` if a Schedule-Tag is
+        cached, otherwise ``If-Match`` with the cached ETag.  A string
+        is sent verbatim as ``If-Match``.  If someone else changed the
+        object in the meantime, the server answers 412 and
+        ``ScheduleTagMismatchError`` or ``ETagMismatchError`` is
+        raised; if it is already gone, ``NotFoundError`` is raised,
+        since the caller asked to delete a specific version.
+        ``if_match=True`` with neither tag cached, or an empty string,
+        raises ``ValueError`` rather than deleting unconditionally.
+
+        See https://github.com/python-caldav/caldav/issues/740
+
+        For async clients, returns a coroutine that must be awaited.
+        """
+        if if_match is False or if_match is None:
+            return super().delete()
+        if if_match == "":
+            raise ValueError("delete(if_match=''): an empty ETag cannot be a precondition")
+        if if_match is True:
+            headers = self._precondition_headers()
+            if not headers:
+                raise ValueError(
+                    "delete(if_match=True): no ETag or Schedule-Tag is known for this "
+                    "object - load() it first or pass the ETag explicitly"
+                )
+        else:
+            headers = {"if-match": if_match}
+        return self._delete(headers)
+
     def _post_put(self, r, retry_on_failure):
         if r.status == 412:
-            if self.schedule_tag:
-                raise error.ScheduleTagMismatchError(errmsg(r))
-            elif self.etag:
-                raise error.ETagMismatchError(errmsg(r))
-            else:
-                raise error.PutError(errmsg(r))
+            headers = self._precondition_headers()
+            if headers:
+                self._raise_precondition_failed(r, headers)
+            raise error.PutError(errmsg(r))
         elif r.status == 302:
             self.url = URL.objectify(r.headers.get("location"))
         elif r.status not in (204, 201):

@@ -747,11 +747,11 @@ class DAVClient(BaseDAVClient):
         """
         return self.request(url, "POST", body, headers)
 
-    def delete(self, url: str) -> DAVResponse:
+    def delete(self, url: str, headers: Mapping[str, str] | None = None) -> DAVResponse:
         """
         Send a delete request.
         """
-        return self.request(url, "DELETE", "")
+        return self.request(url, "DELETE", "", headers)
 
     def options(self, url: str) -> DAVResponse:
         """

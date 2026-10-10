@@ -221,6 +221,7 @@ All methods that perform I/O are ``async`` and must be awaited:
 * ``await obj.load()`` - Load data from server
 * ``await obj.save()`` - Save changes to server
 * ``await obj.delete()`` - Delete the object
+* ``await obj.delete(if_match=True)`` - Delete only if unchanged since last seen (412 raises ``ETagMismatchError`` or ``ScheduleTagMismatchError``, 404 raises ``NotFoundError``)
 * ``await todo.complete()`` - Mark todo as complete
 
 Backward Compatibility
