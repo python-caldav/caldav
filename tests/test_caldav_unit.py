@@ -4813,6 +4813,30 @@ class TestRecurringCompleteHelpers:
         ## one PUT for the standalone completed copy, one for the advanced master
         assert len(saves) == 2
 
+    def test_safe_completion_count_one_keeps_timestamp(self, monkeypatch: Any) -> None:
+        """When the "safe" mode falls back to a plain completion (COUNT=1),
+        the caller's completion_timestamp must be kept, not replaced by now."""
+        monkeypatch.setattr(Todo, "save", lambda self, *a, **k: self)
+        todo = self._make_todo()
+        todo.icalendar_component["RRULE"]["COUNT"] = [1]
+        ts = datetime(2026, 6, 14, tzinfo=timezone.utc)
+        todo.complete(completion_timestamp=ts, handle_rrule=True, rrule_mode="safe")
+        assert todo.icalendar_component["COMPLETED"].dt == ts
+
+    def test_async_safe_completion_count_one_keeps_timestamp(self, monkeypatch: Any) -> None:
+        """Async twin of test_safe_completion_count_one_keeps_timestamp."""
+        import asyncio
+
+        async def fake_save(self: Todo, *a: Any, **k: Any) -> Todo:
+            return self
+
+        monkeypatch.setattr(Todo, "save", fake_save)
+        todo = self._make_todo()
+        todo.icalendar_component["RRULE"]["COUNT"] = [1]
+        ts = datetime(2026, 6, 14, tzinfo=timezone.utc)
+        asyncio.run(todo._async_complete(ts, handle_rrule=True, rrule_mode="safe"))
+        assert todo.icalendar_component["COMPLETED"].dt == ts
+
 
 class TestAdoptCanonicalUrl:
     """Gate finding F4: after creating a calendar on a server where

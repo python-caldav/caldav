@@ -2252,7 +2252,7 @@ class Todo(CalendarObjectResource):
         """
         completed = self._build_recurring_safe_completed(completion_timestamp)
         if completed is None:
-            self.complete(handle_rrule=False)
+            self.complete(completion_timestamp=completion_timestamp, handle_rrule=False)
             return
         completed.save()
         self.save()
