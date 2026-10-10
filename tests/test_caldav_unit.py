@@ -3584,6 +3584,183 @@ class TestUnpromptedBasicAuth:
         assert client.auth_type is None  # negotiation doesn't set auth_type, only auth
 
 
+VALID_SYNC_TOKEN_BODY = (
+    b'<?xml version="1.0" encoding="utf-8"?>\n'
+    b'<D:error xmlns:D="DAV:"><D:valid-sync-token/></D:error>'
+)
+
+
+class TestAuthorizationErrorPreconditions:
+    """Issue https://github.com/python-caldav/caldav/issues/738: a 403 may carry
+    its reason as a precondition in a DAV:error body (RFC 4918 section 16).
+    RFC 6578 section 3.2 answers an expired sync token that way, so the body
+    must survive onto the AuthorizationError for a caller to tell "resync"
+    from "forbidden".
+    """
+
+    def _make_response(self, status_code, body=b"", content_type="application/xml"):
+        r = mock.MagicMock()
+        r.status_code = status_code
+        r.headers = {"Content-Type": content_type} if body else {}
+        r.reason = "Forbidden"
+        r.content = body
+        r.text = body.decode() if body else ""
+        return r
+
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def test_403_precondition_is_kept(self, mocked):
+        mocked.return_value = self._make_response(403, VALID_SYNC_TOKEN_BODY)
+        client = DAVClient(url="https://cal.example.com/", username="user", password="pass")
+        with pytest.raises(error.AuthorizationError) as exc_info:
+            client.request("/")
+        assert exc_info.value.preconditions == [dav.ValidSyncToken.tag]
+        assert exc_info.value.body == VALID_SYNC_TOKEN_BODY
+        assert exc_info.value.reason == "Forbidden"
+
+    @pytest.mark.parametrize(
+        "body,content_type",
+        [
+            (b"", "application/xml"),
+            (b"<html><body>Forbidden</body></html>", "text/html"),
+            (b"not xml at all <", "text/plain"),
+            (b"<?xml version='1.0'?><foo><bar/></foo>", "application/xml"),
+        ],
+    )
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def test_403_without_precondition(self, mocked, body, content_type):
+        mocked.return_value = self._make_response(403, body, content_type)
+        client = DAVClient(url="https://cal.example.com/", username="user", password="pass")
+        with pytest.raises(error.AuthorizationError) as exc_info:
+            client.request("/")
+        assert exc_info.value.preconditions == []
+
+    def test_parse_preconditions_is_robust(self):
+        assert error.parse_preconditions(None) == []
+        assert error.parse_preconditions(b"") == []
+        assert error.parse_preconditions(mock.MagicMock()) == []
+        assert error.parse_preconditions(b"<<<") == []
+        assert error.parse_preconditions(VALID_SYNC_TOKEN_BODY.decode()) == [dav.ValidSyncToken.tag]
+        assert error.parse_preconditions(
+            b'<D:error xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">'
+            b"<C:no-uid-conflict><D:href>/x.ics</D:href></C:no-uid-conflict>"
+            b"</D:error>"
+        ) == ["{urn:ietf:params:xml:ns:caldav}no-uid-conflict"]
+
+    def test_authorization_error_defaults(self):
+        e = error.AuthorizationError(url="/", reason="Forbidden")
+        assert e.preconditions == []
+        assert e.body is None
+
+    def _calendar(self, report_error, sync_token_support=None):
+        client = DAVClient(url="https://cal.example.com/")
+        if sync_token_support:
+            client.features.set_feature("sync-token", sync_token_support)
+        calendar = Calendar(client=client, url="https://cal.example.com/cal/")
+        report = mock.patch.object(
+            Calendar, "_request_report_build_resultlist", side_effect=report_error
+        )
+        search = mock.patch.object(Calendar, "search", return_value=[])
+        return calendar, report, search
+
+    def test_sync_token_expired_falls_back(self):
+        e = error.AuthorizationError(
+            url="/cal/", reason="Forbidden", preconditions=[dav.ValidSyncToken.tag]
+        )
+        calendar, report, search = self._calendar(e)
+        with report, search as mocked_search:
+            result = calendar.get_objects_by_sync_token("http://example.com/sync/1")
+        mocked_search.assert_called_once()
+        assert result.sync_token.startswith("fake-")
+
+    def test_bare_403_propagates_when_sync_token_is_known_to_work(self):
+        e = error.AuthorizationError(url="/cal/", reason="Forbidden")
+        calendar, report, search = self._calendar(e, sync_token_support="full")
+        with report, search as mocked_search:
+            with pytest.raises(error.AuthorizationError):
+                calendar.get_objects_by_sync_token("http://example.com/sync/1")
+        mocked_search.assert_not_called()
+
+    @pytest.mark.parametrize("support", [None, "fragile"])
+    def test_bare_403_falls_back_unless_sync_token_is_known_to_work(self, support):
+        """A 403 without a body from a server whose sync-token support is
+        not configured as full (unconfigured, or fragile like Zimbra) is
+        taken as "can't sync", not as a permission problem."""
+        e = error.AuthorizationError(url="/cal/", reason="Forbidden")
+        calendar, report, search = self._calendar(e, sync_token_support=support)
+        with report, search as mocked_search:
+            result = calendar.get_objects_by_sync_token("http://example.com/sync/1")
+        mocked_search.assert_called_once()
+        assert result.sync_token.startswith("fake-")
+
+    @pytest.mark.parametrize("support", [None, "full"])
+    def test_403_unsupported_report_falls_back(self, support):
+        """Zimbra answers the sync REPORT with 403 and DAV:supported-report:
+        the report is not supported, which is no permission problem."""
+        e = error.AuthorizationError(
+            url="/cal/", reason="Forbidden", preconditions=[dav.SupportedReport.tag]
+        )
+        calendar, report, search = self._calendar(e, sync_token_support=support)
+        with report, search as mocked_search:
+            result = calendar.get_objects_by_sync_token("http://example.com/sync/1")
+        mocked_search.assert_called_once()
+        assert result.sync_token.startswith("fake-")
+
+    @pytest.mark.parametrize("support", [None, "full"])
+    def test_403_with_other_precondition_propagates(self, support):
+        e = error.AuthorizationError(
+            url="/cal/", reason="Forbidden", preconditions=["{DAV:}need-privileges"]
+        )
+        calendar, report, search = self._calendar(e, sync_token_support=support)
+        with report, search as mocked_search:
+            with pytest.raises(error.AuthorizationError):
+                calendar.get_objects_by_sync_token("http://example.com/sync/1")
+        mocked_search.assert_not_called()
+
+    def test_collection_sync_propagates_genuine_403(self):
+        """SynchronizableCalendarObjectCollection.sync() must not hide what
+        get_objects_by_sync_token() raises."""
+        from caldav.collection import SynchronizableCalendarObjectCollection
+
+        e = error.AuthorizationError(url="/cal/", reason="Forbidden")
+        calendar, report, search = self._calendar(e, sync_token_support="full")
+        collection = SynchronizableCalendarObjectCollection(
+            calendar, [], "http://example.com/sync/1"
+        )
+        with report, search:
+            with pytest.raises(error.AuthorizationError):
+                collection.sync()
+
+    @pytest.mark.parametrize("support,raises", [("full", True), (None, False)])
+    def test_collection_sync_load_403(self, support, raises):
+        """A 401/403 while loading a changed object inside sync() is raised
+        when it is a permission problem, else sync() falls back."""
+        from caldav.collection import SynchronizableCalendarObjectCollection
+
+        e = error.AuthorizationError(url="/cal/x.ics", reason="Forbidden")
+        calendar, _, search = self._calendar(e, sync_token_support=support)
+        obj = Event(calendar.client, url="https://cal.example.com/cal/x.ics", parent=calendar)
+        page = SynchronizableCalendarObjectCollection(calendar, [obj], "tok-2")
+        collection = SynchronizableCalendarObjectCollection(calendar, [], "tok-1")
+        with (
+            search as mocked_search,
+            mock.patch.object(Calendar, "get_objects_by_sync_token", return_value=page),
+            mock.patch.object(Event, "load", side_effect=e),
+        ):
+            if raises:
+                with pytest.raises(error.AuthorizationError):
+                    collection.sync()
+                mocked_search.assert_not_called()
+            else:
+                collection.sync()
+                mocked_search.assert_called_once()
+
+    def test_sync_report_error_still_falls_back(self):
+        calendar, report, search = self._calendar(error.ReportError("nope"))
+        with report, search as mocked_search:
+            calendar.get_objects_by_sync_token("http://example.com/sync/1")
+        mocked_search.assert_called_once()
+
+
 class TestAsyncProbeResponseNotReturnedAsReal:
     """§2.15: async _async_request: when the probe GET for issue-#158 workaround does
     not receive a 401+WWW-Authenticate response, the original exception must be re-raised.

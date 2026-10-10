@@ -363,13 +363,30 @@ class BaseDAVClient(ABC):
         server-declared scheme, rather than being permanently stuck sending a
         guess that has already proven wrong. ``_unprompted_basic_tried`` stays
         set, so the guess itself is not repeated.
+
+        The response body is kept on the exception, with any ``DAV:error``
+        precondition elements parsed out (issue #738) - a 403 with
+        ``DAV:valid-sync-token`` means "resync", not "forbidden".
+        ``reason_source`` is a raw HTTP response (``.content``) on the sync
+        path and a ``DAVResponse`` (``._raw``) on the async path.
         """
         self._unwind_unprompted_basic()
         try:
             reason = reason_source.reason
         except AttributeError:
             reason = "None given"
-        raise error.AuthorizationError(url=url_str, reason=reason)
+        body = None
+        for attr in ("content", "_raw"):
+            candidate = getattr(reason_source, attr, None)
+            if isinstance(candidate, (bytes, str)):
+                body = candidate or None
+                break
+        raise error.AuthorizationError(
+            url=url_str,
+            reason=reason,
+            preconditions=error.parse_preconditions(body),
+            body=body,
+        )
 
     # ── Rate-limit handling ─────────────────────────────────────────────────
     # Shared by the sync (DAVClient) and async (AsyncDAVClient) __init__ and

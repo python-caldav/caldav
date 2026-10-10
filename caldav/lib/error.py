@@ -121,14 +121,57 @@ class DAVError(Exception):
         )
 
 
+def parse_preconditions(body: object) -> list[str]:
+    """Return the precondition/postcondition element tags of a DAV:error body.
+
+    RFC 4918 section 16 lets a server explain a 403/409 with a body like
+    ``<D:error><D:valid-sync-token/></D:error>``; this returns the Clark-notation
+    tags of the DAV:error children (e.g. ``["{DAV:}valid-sync-token"]``).
+    Anything that is not a well-formed DAV:error document - an empty body, HTML,
+    plain text, some other XML root - yields an empty list rather than an error.
+    """
+    if isinstance(body, str):
+        body = body.encode("utf-8")
+    if not isinstance(body, bytes) or not body.strip():
+        return []
+    from lxml import etree
+
+    try:
+        root = etree.fromstring(
+            body,
+            parser=etree.XMLParser(resolve_entities=False, no_network=True),
+        )
+    except Exception:
+        return []
+    if root.tag != "{DAV:}error":
+        return []
+    return [child.tag for child in root if isinstance(child.tag, str)]
+
+
 class AuthorizationError(DAVError):
     """
-    The client encountered an HTTP 403 error and is passing it on
+    The client encountered an HTTP 401 or 403 error and is passing it on
     to the user. The url property will contain the url in question,
     the reason property will contain the excuse the server sent.
+
+    ``preconditions`` holds the Clark-notation tags of any
+    precondition elements in a ``DAV:error`` response body (RFC 4918
+    section 16), e.g. ``["{DAV:}valid-sync-token"]`` for an expired
+    sync token (RFC 6578 section 3.2), and ``body`` the raw response
+    body (or None).  A 403 with an empty ``preconditions`` list is most
+    likely a genuine permission problem.
     """
 
-    pass
+    def __init__(
+        self,
+        url: str | None = None,
+        reason: str | None = None,
+        preconditions: list[str] | None = None,
+        body: bytes | str | None = None,
+    ) -> None:
+        super().__init__(url=url, reason=reason)
+        self.preconditions = list(preconditions) if preconditions else []
+        self.body = body
 
 
 class PropsetError(DAVError):
