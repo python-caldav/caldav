@@ -355,7 +355,7 @@ class BaseDAVClient(ABC):
             self.auth_type = None
 
     def _raise_authorization_error(self, url_str: str, reason_source: Any) -> NoReturn:
-        """Raise AuthorizationError, extracting reason from reason_source.reason.
+        """Raise AuthorizationError built from the raw 401/403 response ``reason_source``.
 
         If this failure is the unprompted-Basic guess coming back wrong (issue
         #713), unwind it first: clear ``self.auth``/``self.auth_type`` so a
@@ -367,20 +367,18 @@ class BaseDAVClient(ABC):
         The response body is kept on the exception, with any ``DAV:error``
         precondition elements parsed out (issue #738) - a 403 with
         ``DAV:valid-sync-token`` means "resync", not "forbidden".
-        ``reason_source`` is a raw HTTP response (``.content``) on the sync
-        path and a ``DAVResponse`` (``._raw``) on the async path.
+        ``reason_source`` is the raw HTTP response on both clients; httpx
+        names the reason ``reason_phrase``.
         """
         self._unwind_unprompted_basic()
-        try:
-            reason = reason_source.reason
-        except AttributeError:
+        reason = getattr(reason_source, "reason", None) or getattr(
+            reason_source, "reason_phrase", None
+        )
+        if not isinstance(reason, str):
             reason = "None given"
-        body = None
-        for attr in ("content", "_raw"):
-            candidate = getattr(reason_source, attr, None)
-            if isinstance(candidate, (bytes, str)):
-                body = candidate or None
-                break
+        body = getattr(reason_source, "content", None)
+        if not isinstance(body, (bytes, str)) or not body:
+            body = None
         raise error.AuthorizationError(
             url=url_str,
             reason=reason,

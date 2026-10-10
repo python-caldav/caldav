@@ -3623,6 +3623,7 @@ class TestAuthorizationErrorPreconditions:
             (b"", "application/xml"),
             (b"<html><body>Forbidden</body></html>", "text/html"),
             (b"not xml at all <", "text/plain"),
+            (b"<html>forbidden", "application/xml"),
             (b"<?xml version='1.0'?><foo><bar/></foo>", "application/xml"),
         ],
     )
