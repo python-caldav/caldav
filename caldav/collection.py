@@ -1280,16 +1280,21 @@ class Calendar(DAVObject):
         return self._supported_components_from_response(response, with_fallback)
 
     def save_with_invites(
-        self, ical: str, attendees, **attendeeoptions
+        self, ical: str, attendees, increase_seqno: bool = True, **attendeeoptions
     ) -> "CalendarObjectResource | Coroutine[Any, Any, CalendarObjectResource]":
         """
         sends a schedule request to the server.  Equivalent with add_event, add_todo, etc,
         but the attendees will be added to the ical object before sending it to the server.
 
+        ``increase_seqno`` is passed on to
+        :meth:`CalendarObjectResource.save`, see there.
+
         For async clients, returns a coroutine that must be awaited.
         """
         if self.is_async_client:
-            return self._async_save_with_invites(ical, attendees, **attendeeoptions)
+            return self._async_save_with_invites(
+                ical, attendees, increase_seqno=increase_seqno, **attendeeoptions
+            )
         ## TODO: consolidate together with save_*
         obj = self._calendar_comp_class_by_data(ical)(data=ical, client=self.client)
         obj.parent = self
@@ -1297,10 +1302,12 @@ class Calendar(DAVObject):
         for attendee in attendees:
             obj.add_attendee(attendee, **attendeeoptions)
         obj.id = obj.icalendar_instance.walk("vevent")[0]["uid"]
-        obj.save()
+        obj.save(increase_seqno=increase_seqno)
         return obj
 
-    async def _async_save_with_invites(self, ical: str, attendees, **attendeeoptions):
+    async def _async_save_with_invites(
+        self, ical: str, attendees, increase_seqno: bool = True, **attendeeoptions
+    ):
         """Async implementation of save_with_invites() for async clients."""
         obj = self._calendar_comp_class_by_data(ical)(data=ical, client=self.client)
         obj.parent = self
@@ -1310,7 +1317,7 @@ class Calendar(DAVObject):
                 attendee = await attendee.get_vcal_address()
             obj.add_attendee(attendee, **attendeeoptions)
         obj.id = obj.icalendar_instance.walk("vevent")[0]["uid"]
-        await obj.save()
+        await obj.save(increase_seqno=increase_seqno)
         return obj
 
     def _use_or_create_ics(self, ical, objtype, **ical_data):
@@ -1333,6 +1340,7 @@ class Calendar(DAVObject):
         ical: str | None = None,
         no_overwrite: bool = False,
         no_create: bool = False,
+        increase_seqno: bool = True,
         **ical_data,
     ) -> "CalendarObjectResource | Coroutine[Any, Any, CalendarObjectResource]":
         """Add a new calendar object (event, todo, journal) to the calendar.
@@ -1345,6 +1353,9 @@ class Calendar(DAVObject):
           ical: ical object (text, icalendar or vobject instance)
           no_overwrite: existing calendar objects should not be overwritten
           no_create: don't create a new object, existing calendar objects should be updated
+          increase_seqno: bump SEQUENCE if the ical data carries one.  Defaults to
+            True; pass False when storing data verbatim (sync, copy, import).
+            See :meth:`CalendarObjectResource.save`.
           dtstart: properties to be inserted into the icalendar object
           dtend: properties to be inserted into the icalendar object
           summary: properties to be inserted into the icalendar object
@@ -1364,8 +1375,15 @@ class Calendar(DAVObject):
             parent=self,
         )
         if self.is_async_client:
-            return self._async_add_object_finish(o, no_overwrite=no_overwrite, no_create=no_create)
-        o = o.save(no_overwrite=no_overwrite, no_create=no_create, only_this_recurrence=None)
+            return self._async_add_object_finish(
+                o, no_overwrite=no_overwrite, no_create=no_create, increase_seqno=increase_seqno
+            )
+        o = o.save(
+            no_overwrite=no_overwrite,
+            no_create=no_create,
+            increase_seqno=increase_seqno,
+            only_this_recurrence=None,
+        )
         ## TODO: Saving nothing is currently giving an object with None as URL.
         ## This should probably be changed in some future version to raise an error
         ## See also CalendarObjectResource.save()
@@ -1373,9 +1391,16 @@ class Calendar(DAVObject):
             o._handle_reverse_relations(fix=True)
         return o
 
-    async def _async_add_object_finish(self, o, no_overwrite=False, no_create=False):
+    async def _async_add_object_finish(
+        self, o, no_overwrite=False, no_create=False, increase_seqno=True
+    ):
         """Async helper for add_object(): awaits save() then handles reverse relations."""
-        o = await o.save(no_overwrite=no_overwrite, no_create=no_create, only_this_recurrence=None)
+        o = await o.save(
+            no_overwrite=no_overwrite,
+            no_create=no_create,
+            increase_seqno=increase_seqno,
+            only_this_recurrence=None,
+        )
         if o.url is not None:
             await o._handle_reverse_relations(fix=True)
         return o

@@ -2837,6 +2837,281 @@ class TestReverseRelationSaves:
         assert saved == ([] if parent_has_reverse else ["parent"])
 
 
+class TestSequenceOnSave:
+    """SEQUENCE handling on the save paths, see
+    https://github.com/python-caldav/caldav/issues/739
+
+    save() bumps SEQUENCE by default; every public path that ends up in
+    save() must honour ``increase_seqno``, and paths that are not an
+    organizer revision must not bump it."""
+
+    _ical = (
+        "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//test//EN\nBEGIN:VEVENT\n"
+        "UID:seq-test@example.com\nDTSTAMP:20260101T000000Z\n"
+        "DTSTART:20260601T100000Z\nDURATION:PT1H\nSEQUENCE:3\nSUMMARY:seq\n"
+        "END:VEVENT\nEND:VCALENDAR\n"
+    )
+
+    _recurring = (
+        "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//test//EN\nBEGIN:VEVENT\n"
+        "UID:seq-rec@example.com\nDTSTAMP:20260101T000000Z\n"
+        "DTSTART:20260601T100000Z\nDURATION:PT1H\nRRULE:FREQ=DAILY;COUNT=5\n"
+        "SEQUENCE:2\nSUMMARY:master\nEND:VEVENT\nEND:VCALENDAR\n"
+    )
+
+    _override = (
+        "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//test//EN\nBEGIN:VEVENT\n"
+        "UID:seq-rec@example.com\nDTSTAMP:20260101T000000Z\n"
+        "RECURRENCE-ID:20260602T100000Z\n"
+        "DTSTART:20260602T120000Z\nDURATION:PT1H\n"
+        "SEQUENCE:2\nSUMMARY:moved\nEND:VEVENT\nEND:VCALENDAR\n"
+    )
+
+    @staticmethod
+    def _async_client():
+        from caldav.async_davclient import AsyncDAVClient
+
+        client = MockedDAVClient("")
+        client.__class__ = type("MockedAsyncDAVClient", (MockedDAVClient, AsyncDAVClient), {})
+        return client
+
+    @staticmethod
+    def _sequences(obj):
+        return [
+            int(c["SEQUENCE"])
+            for c in obj.icalendar_instance.subcomponents
+            if not isinstance(c, icalendar.Timezone)
+        ]
+
+    @staticmethod
+    def _put_sync(func):
+        put = []
+        with mock.patch.object(
+            CalendarObjectResource,
+            "_create",
+            lambda self_, id=None, path=None, retry_on_failure=True: put.append(self_),
+        ):
+            func()
+        assert len(put) == 1
+        return put[0]
+
+    @staticmethod
+    def _put_async(coro_func):
+        import asyncio
+
+        put = []
+
+        async def fake_create(self_, id=None, path=None, retry_on_failure=True):
+            put.append(self_)
+
+        with mock.patch.object(CalendarObjectResource, "_create", fake_create):
+            asyncio.run(coro_func())
+        assert len(put) == 1
+        return put[0]
+
+    def _event(self, client):
+        return Event(
+            client,
+            url="/calendar/x.ics",
+            data=self._ical,
+            parent=Calendar(client, url="/calendar/"),
+        )
+
+    def test_save_default_bumps(self):
+        event = self._event(MockedDAVClient(""))
+        assert self._sequences(self._put_sync(event.save)) == [4]
+
+    def test_save_increase_seqno_false(self):
+        event = self._event(MockedDAVClient(""))
+        put = self._put_sync(lambda: event.save(increase_seqno=False))
+        assert self._sequences(put) == [3]
+
+    @pytest.mark.parametrize("method", ["add_event", "save_event", "add_object", "save_object"])
+    def test_add_object_passes_increase_seqno(self, method):
+        client = MockedDAVClient("")
+        calendar = Calendar(client, url="/calendar/")
+        largs = (Event,) if method.endswith("object") else ()
+        put = self._put_sync(
+            lambda: getattr(calendar, method)(*largs, self._ical, increase_seqno=False)
+        )
+        assert self._sequences(put) == [3]
+        assert "SEQNO" not in put.data.upper()
+
+    def test_add_event_default_bumps(self):
+        ## Documents the (unchanged) default
+        client = MockedDAVClient("")
+        calendar = Calendar(client, url="/calendar/")
+        put = self._put_sync(lambda: calendar.add_event(self._ical))
+        assert self._sequences(put) == [4]
+
+    def test_add_event_passes_increase_seqno_async(self):
+        client = self._async_client()
+        calendar = Calendar(client, url="/calendar/")
+        put = self._put_async(lambda: calendar.add_event(self._ical, increase_seqno=False))
+        assert self._sequences(put) == [3]
+        assert "SEQNO" not in put.data.upper()
+
+    def test_save_with_invites_passes_increase_seqno(self):
+        client = MockedDAVClient("")
+        calendar = Calendar(client, url="/calendar/")
+        with mock.patch.object(CalendarObjectResource, "add_organizer"):
+            put = self._put_sync(
+                lambda: calendar.save_with_invites(self._ical, [], increase_seqno=False)
+            )
+        assert self._sequences(put) == [3]
+
+    def test_save_with_invites_passes_increase_seqno_async(self):
+        client = self._async_client()
+        calendar = Calendar(client, url="/calendar/")
+
+        async def add_organizer(self_):
+            pass
+
+        with mock.patch.object(CalendarObjectResource, "add_organizer", add_organizer):
+            put = self._put_async(
+                lambda: calendar.save_with_invites(self._ical, [], increase_seqno=False)
+            )
+        assert self._sequences(put) == [3]
+
+    def _override_setup(self, client, calendar):
+        master = Event(client, url="/calendar/rec.ics", data=self._recurring, parent=calendar)
+        override = Event(client, url="/calendar/rec.ics", data=self._override, parent=calendar)
+        return master, override
+
+    @pytest.mark.parametrize("increase_seqno", [True, False])
+    def test_save_recurrence_bumps_the_override_not_the_master(self, increase_seqno):
+        client = MockedDAVClient("")
+        calendar = Calendar(client, url="/calendar/")
+        master, override = self._override_setup(client, calendar)
+        calendar.get_event_by_uid = lambda uid: master
+        put = self._put_sync(lambda: override.save(increase_seqno=increase_seqno))
+        assert self._sequences(put) == [2, 3 if increase_seqno else 2]
+
+    @pytest.mark.parametrize("increase_seqno", [True, False])
+    def test_save_recurrence_bumps_the_override_not_the_master_async(self, increase_seqno):
+        client = self._async_client()
+        calendar = Calendar(client, url="/calendar/")
+        master, override = self._override_setup(client, calendar)
+
+        async def get_event_by_uid(uid):
+            return master
+
+        calendar.get_event_by_uid = get_event_by_uid
+        put = self._put_async(lambda: override.save(increase_seqno=increase_seqno))
+        assert self._sequences(put) == [2, 3 if increase_seqno else 2]
+
+    @pytest.mark.parametrize("increase_seqno", [True, False])
+    def test_save_recurrence_override_without_sequence(self, increase_seqno):
+        ## An override without SEQUENCE under a master that has one gets
+        ## the master's SEQUENCE + 1, so the change is still announced.
+        client = MockedDAVClient("")
+        calendar = Calendar(client, url="/calendar/")
+        master, override = self._override_setup(client, calendar)
+        override.icalendar_component.pop("SEQUENCE")
+        calendar.get_event_by_uid = lambda uid: master
+        put = self._put_sync(lambda: override.save(increase_seqno=increase_seqno))
+        comps = [c for c in put.icalendar_instance.subcomponents if "RECURRENCE-ID" in c]
+        assert int(put.icalendar_instance.subcomponents[0]["SEQUENCE"]) == 2
+        if increase_seqno:
+            assert int(comps[0]["SEQUENCE"]) == 3
+        else:
+            assert "SEQUENCE" not in comps[0]
+
+    @pytest.mark.parametrize("increase_seqno", [True, False])
+    def test_save_recurrence_override_without_sequence_async(self, increase_seqno):
+        client = self._async_client()
+        calendar = Calendar(client, url="/calendar/")
+        master, override = self._override_setup(client, calendar)
+        override.icalendar_component.pop("SEQUENCE")
+
+        async def get_event_by_uid(uid):
+            return master
+
+        calendar.get_event_by_uid = get_event_by_uid
+        put = self._put_async(lambda: override.save(increase_seqno=increase_seqno))
+        comps = [c for c in put.icalendar_instance.subcomponents if "RECURRENCE-ID" in c]
+        assert int(put.icalendar_instance.subcomponents[0]["SEQUENCE"]) == 2
+        if increase_seqno:
+            assert int(comps[0]["SEQUENCE"]) == 3
+        else:
+            assert "SEQUENCE" not in comps[0]
+
+    def _invite(self, client):
+        data = self._ical.replace("PRODID:-//test//EN\n", "PRODID:-//test//EN\nMETHOD:REQUEST\n")
+        return Event(client, url="/inbox/x.ics", data=data)
+
+    def test_reply_to_invite_does_not_bump(self):
+        """An attendee's PARTSTAT reply is not an organizer revision"""
+        client = MockedDAVClient("")
+        invite = self._invite(client)
+        target = mock.MagicMock()
+        with (
+            mock.patch.object(client.features, "is_supported", return_value=False),
+            mock.patch.object(client, "principal"),
+            mock.patch.object(Event, "change_attendee_status"),
+        ):
+            invite.accept_invite(calendar=target)
+        target.add_event.assert_called_once()
+        assert target.add_event.call_args.kwargs.get("increase_seqno") is False
+
+    def test_reply_to_invite_does_not_bump_auto_schedule(self):
+        client = MockedDAVClient("")
+        invite = self._invite(client)
+        existing = mock.MagicMock()
+        cal = mock.MagicMock()
+        cal.event_by_uid.return_value = existing
+        principal = mock.MagicMock()
+        principal.calendars.return_value = [cal]
+        with (
+            mock.patch.object(client.features, "is_supported", return_value=True),
+            mock.patch.object(client, "principal", return_value=principal),
+            mock.patch.object(Event, "change_attendee_status"),
+        ):
+            invite.accept_invite(calendar=mock.MagicMock())
+        existing.save.assert_called_once_with(increase_seqno=False)
+
+    def test_reply_to_invite_does_not_bump_async(self):
+        import asyncio
+
+        client = self._async_client()
+        client.username = "attendee@example.com"
+        invite = self._invite(client)
+        target = mock.MagicMock()
+        target.add_event = mock.AsyncMock()
+        principal = mock.MagicMock()
+        principal.get_property = mock.AsyncMock(return_value=None)
+        with (
+            mock.patch.object(client.features, "is_supported", return_value=False),
+            mock.patch.object(client, "principal", mock.AsyncMock(return_value=principal)),
+            mock.patch.object(Event, "change_attendee_status"),
+        ):
+            asyncio.run(invite.accept_invite(calendar=target))
+        target.add_event.assert_awaited_once()
+        assert target.add_event.call_args.kwargs.get("increase_seqno") is False
+
+    def test_reply_to_invite_does_not_bump_auto_schedule_async(self):
+        import asyncio
+
+        client = self._async_client()
+        client.username = "attendee@example.com"
+        invite = self._invite(client)
+        existing = mock.MagicMock()
+        existing.load = mock.AsyncMock()
+        existing.save = mock.AsyncMock()
+        cal = mock.MagicMock()
+        cal.event_by_uid = mock.AsyncMock(return_value=existing)
+        principal = mock.MagicMock()
+        principal.get_property = mock.AsyncMock(return_value=None)
+        principal.calendars = mock.AsyncMock(return_value=[cal])
+        with (
+            mock.patch.object(client.features, "is_supported", return_value=True),
+            mock.patch.object(client, "principal", mock.AsyncMock(return_value=principal)),
+            mock.patch.object(Event, "change_attendee_status"),
+        ):
+            asyncio.run(invite.accept_invite(calendar=mock.MagicMock()))
+        existing.save.assert_awaited_once_with(increase_seqno=False)
+
+
 class TestFreeBusyScheduleResponse:
     """Unit tests for parsing RFC6638 schedule-response to a freebusy request.
 

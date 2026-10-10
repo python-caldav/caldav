@@ -845,12 +845,12 @@ class CalendarObjectResource(DAVObject):
                     existing = cal.event_by_uid(uid)
                     existing.load()
                     existing.change_attendee_status(partstat=partstat)
-                    existing.save()
+                    existing.save(increase_seqno=False)
                     return
                 except error.NotFoundError:
                     pass
         try:
-            calendar.add_event(self.data)
+            calendar.add_event(self.data, increase_seqno=False)
         except Exception:
             ## add_event() failed — the event likely already exists (e.g. non-auto-scheduling
             ## server that still rejects duplicate UIDs).  Reload self from the inbox so we have
@@ -866,7 +866,7 @@ class CalendarObjectResource(DAVObject):
             if calendar.url != outbox.url:
                 self._reply_to_invite_request(partstat, calendar=outbox)
             else:
-                self.save()
+                self.save(increase_seqno=False)
 
     async def _async_reply_to_invite_request(self, partstat: str, calendar) -> None:
         """Async implementation of _reply_to_invite_request()."""
@@ -923,19 +923,19 @@ class CalendarObjectResource(DAVObject):
                             pass
                     if not cnt2:
                         raise error.NotFoundError("Principal is not invited to existing event")
-                    await existing.save()
+                    await existing.save(increase_seqno=False)
                     return
                 except error.NotFoundError:
                     pass
         try:
-            await calendar.add_event(self.data)
+            await calendar.add_event(self.data, increase_seqno=False)
         except Exception:
             await self.load()
             outbox = await principal.schedule_outbox()
             if calendar.url != outbox.url:
                 await self._reply_to_invite_request(partstat, calendar=outbox)
             else:
-                await self.save()
+                await self.save(increase_seqno=False)
 
     def copy(self, keep_uid: bool = False, new_parent: Any | None = None) -> Self:
         """
@@ -1440,13 +1440,16 @@ class CalendarObjectResource(DAVObject):
                     raise error.NotFoundError("Could not find parent recurring event")
                 ## only_this_recurrence is None: master not found, fall through to PUT as-is
             else:
+                master_seqno = self._bump_sequence_before_merge(
+                    obj, increase_seqno, all_recurrences
+                )
                 self._incorporate_recurrence_into_parent(
                     obj, only_this_recurrence is not False, all_recurrences
                 )
                 ## obj now holds the whole resource; PUT it as-is.  Treating it
                 ## as a recurrence again recursed forever on an orphan, which
                 ## is its own "master" in the UID lookup.
-                return obj.save(increase_seqno=increase_seqno, only_this_recurrence=False)
+                return obj.save(increase_seqno=master_seqno, only_this_recurrence=False)
 
         self._maybe_increment_sequence(increase_seqno)
         path = self.url.path if self.url else None
@@ -1526,6 +1529,27 @@ class CalendarObjectResource(DAVObject):
             seqno = self.icalendar_component.pop("SEQUENCE", 0)
             self.icalendar_component.add("SEQUENCE", seqno + 1)
 
+    def _bump_sequence_before_merge(self, master, increase_seqno, all_recurrences) -> bool:
+        """SEQUENCE handling when a recurrence instance is merged into its
+        master before saving.  SEQUENCE is per component: when only this
+        recurrence is saved, the override is what changed, so bump it
+        here and leave the master alone.  An override without SEQUENCE
+        under a master that has one gets the master's SEQUENCE + 1.
+        With all_recurrences the master is replaced by this instance and
+        is bumped on save.
+
+        Returns the increase_seqno value to pass to the master's save().
+        """
+        if all_recurrences:
+            return increase_seqno
+        comp = self.icalendar_component
+        master_comp = master.icalendar_component
+        if increase_seqno and "SEQUENCE" not in comp and "SEQUENCE" in master_comp:
+            comp.add("SEQUENCE", int(master_comp["SEQUENCE"]) + 1)
+        else:
+            self._maybe_increment_sequence(increase_seqno)
+        return False
+
     async def _async_save(
         self,
         no_overwrite: bool = False,
@@ -1567,13 +1591,16 @@ class CalendarObjectResource(DAVObject):
                     raise error.NotFoundError("Could not find parent recurring event")
                 ## only_this_recurrence is None: master not found, fall through to PUT as-is
             else:
+                master_seqno = self._bump_sequence_before_merge(
+                    obj, increase_seqno, all_recurrences
+                )
                 self._incorporate_recurrence_into_parent(
                     obj, only_this_recurrence is not False, all_recurrences
                 )
                 ## obj now holds the whole resource; PUT it as-is.  An orphan
                 ## is its own "master" in the UID lookup, so merging again
                 ## would recurse forever (see the twin comment in save()).
-                return await obj.save(increase_seqno=increase_seqno, only_this_recurrence=False)
+                return await obj.save(increase_seqno=master_seqno, only_this_recurrence=False)
 
         self._maybe_increment_sequence(increase_seqno)
         path = self.url.path if self.url else None
