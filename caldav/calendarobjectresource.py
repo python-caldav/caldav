@@ -2400,7 +2400,7 @@ class Todo(CalendarObjectResource):
         self,
         completion_timestamp: datetime | None = None,
         handle_rrule: bool = False,
-        rrule_mode: Literal["safe", "this_and_future"] = "safe",
+        rrule_mode: Literal["safe", "this_and_future", "thisandfuture"] = "safe",
     ) -> "None | Coroutine[Any, Any, None]":
         """Marks the task as completed.
 
@@ -2416,11 +2416,15 @@ class Todo(CalendarObjectResource):
             The RFC leaves a lot of room for interpretation on how
             to handle recurring tasks, and what works on one server may break at
             another.  The following modes are accepted:
-            * this_and_future - see doc for _complete_recurring_thisandfuture for details
+            * this_and_future (or thisandfuture) - see doc for
+              _complete_recurring_thisandfuture for details
             * safe - see doc for _complete_recurring_safe for details
         """
         if not completion_timestamp:
             completion_timestamp = datetime.now(timezone.utc)
+
+        if rrule_mode == "this_and_future":
+            rrule_mode = "thisandfuture"
 
         if self.is_async_client:
             return self._async_complete(completion_timestamp, handle_rrule, rrule_mode)
