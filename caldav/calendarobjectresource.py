@@ -2319,7 +2319,7 @@ class Todo(CalendarObjectResource):
         self,
         completion_timestamp: datetime | None = None,
         handle_rrule: bool = False,
-        rrule_mode: Literal["safe", "this_and_future"] = "safe",
+        rrule_mode: Literal["safe", "this_and_future", "thisandfuture"] = "safe",
     ) -> "None | Coroutine[Any, Any, None]":
         """Marks the task as completed.
 
@@ -2340,6 +2340,10 @@ class Todo(CalendarObjectResource):
         """
         if not completion_timestamp:
             completion_timestamp = datetime.now(timezone.utc)
+
+
+        if rrule_mode == "this_and_future":
+            rrule_mode = "thisandfuture"
 
         if self.is_async_client:
             return self._async_complete(completion_timestamp, handle_rrule, rrule_mode)
