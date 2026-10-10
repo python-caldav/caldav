@@ -2354,6 +2354,32 @@ class Calendar(DAVObject):
             return False
         return True
 
+    def _is_genuine_authorization_error(self, e: Exception) -> bool:
+        """True for an AuthorizationError that is not an expired sync token.
+
+        RFC 6578 section 3.2 answers an invalid sync token with 403 and a
+        DAV:valid-sync-token precondition; that one should trigger a full
+        resync, and so does DAV:supported-report (RFC 3253, Zimbra: the
+        report is not supported).  A 401/403 naming some other precondition is a real
+        permission problem and must not be hidden by the fallback (issue
+        #738).  A 401/403 naming no precondition at all is only taken as a
+        permission problem when the server is configured with full
+        sync-token support; otherwise (unconfigured, or fragile like
+        Zimbra) it is taken as "can't sync" and the fallback is used.
+        """
+        if not isinstance(e, error.AuthorizationError):
+            return False
+        ## An expired token, or (Zimbra) a server refusing the
+        ## sync-collection REPORT altogether: neither is a permission problem
+        if dav.ValidSyncToken.tag in e.preconditions or dav.SupportedReport.tag in e.preconditions:
+            return False
+        if e.preconditions:
+            return True
+        support = self.client.features.is_supported(
+            "sync-token", return_type=dict, return_defaults=False
+        )
+        return bool(support) and support.get("support") == "full"
+
     def _apply_fallback_etags(self, response: Any, all_objects: list) -> None:
         """Map ETags from a depth-1 PROPFIND response onto the given objects.
 
@@ -2421,6 +2447,8 @@ class Calendar(DAVObject):
         This method transparently falls back to retrieving all objects if the server
         doesn't support sync tokens. The fallback behavior is identical from the user's
         perspective, but less efficient as it transfers the entire calendar on each sync.
+        An expired sync token (403 with DAV:valid-sync-token, RFC 6578 section 3.2) also
+        triggers the fallback, while any other AuthorizationError is raised.
 
         If disable_fallback is set to True, the method will raise an exception instead
         of falling back to retrieving all objects. This is useful for testing whether
@@ -2464,6 +2492,8 @@ class Calendar(DAVObject):
                 )
             except (error.ReportError, error.DAVError) as e:
                 ## Server doesn't support sync tokens or the sync-collection REPORT failed
+                if self._is_genuine_authorization_error(e):
+                    raise
                 if disable_fallback:
                     raise
                 log.info(f"Sync-collection REPORT failed ({e}), falling back to full retrieval")
@@ -2549,6 +2579,8 @@ class Calendar(DAVObject):
                     calendar=self, objects=objects, sync_token=token, truncated=truncated
                 )
             except (error.ReportError, error.DAVError) as e:
+                if self._is_genuine_authorization_error(e):
+                    raise
                 if disable_fallback:
                     raise
                 log.info(f"Sync-collection REPORT failed ({e}), falling back to full retrieval")
@@ -2864,7 +2896,9 @@ class SynchronizableCalendarObjectCollection:
                     self.sync_token = updates.sync_token
                     self.truncated = updates.truncated
                     return (updated_objs, deleted_objs)
-            except (error.ReportError, error.DAVError):
+            except (error.ReportError, error.DAVError) as e:
+                if self.calendar._is_genuine_authorization_error(e):
+                    raise
                 is_fake_token = True
 
         ## FALLBACK: fetch all objects and compare
@@ -2921,7 +2955,9 @@ class SynchronizableCalendarObjectCollection:
                     self.sync_token = updates.sync_token
                     self.truncated = updates.truncated
                     return (updated_objs, deleted_objs)
-            except (error.ReportError, error.DAVError):
+            except (error.ReportError, error.DAVError) as e:
+                if self.calendar._is_genuine_authorization_error(e):
+                    raise
                 is_fake_token = True
 
         ## FALLBACK: fetch all objects and compare

@@ -49,6 +49,18 @@ class SyncLevel(BaseElement):
     tag: ClassVar[str] = ns("D", "sync-level")
 
 
+class ValidSyncToken(BaseElement):
+    """DAV:error precondition for an expired/unknown sync token, RFC 6578 section 3.2"""
+
+    tag: ClassVar[str] = ns("D", "valid-sync-token")
+
+
+class SupportedReport(BaseElement):
+    """DAV:error precondition for a REPORT the resource does not support, RFC 3253 section 3.6"""
+
+    tag: ClassVar[str] = ns("D", "supported-report")
+
+
 # Components / Data
 
 
