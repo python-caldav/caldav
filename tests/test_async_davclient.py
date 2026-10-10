@@ -1602,3 +1602,78 @@ class TestAsyncMkcalendarMultistatus:
     async def test_failing_propstat_still_raises(self) -> None:
         with pytest.raises(error.MkcalendarError):
             await self._save_calendar(207, self._multistatus("HTTP/1.1 403 Forbidden"))
+
+
+class TestAsyncGetCalendarsPropfindErrors:
+    """Async twin of ``TestGetCalendarsPropfindErrors``: a failing PROPFIND
+    in ``get_calendars()`` must raise, not return ``[]``, ref
+    https://github.com/python-caldav/caldav/issues/741
+    """
+
+    HOME_SET_XML = b"""<d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
+  <d:response>
+    <d:href>/principals/user/</d:href>
+    <d:propstat>
+      <d:prop><c:calendar-home-set><d:href>/calendars/user/</d:href></c:calendar-home-set></d:prop>
+      <d:status>HTTP/1.1 200 OK</d:status>
+    </d:propstat>
+  </d:response>
+</d:multistatus>
+"""
+
+    @staticmethod
+    def _response(status: int, content: bytes = b"") -> DAVResponse:
+        return DAVResponse(create_mock_response(content=content, status_code=status))
+
+    async def _get_calendars(self, *responses):
+        from caldav.collection import Principal
+
+        client = AsyncDAVClient(url="https://cal.example.com/")
+        principal = Principal(client=client, url="https://cal.example.com/principals/user/")
+        with patch.object(client, "propfind", new=AsyncMock(side_effect=list(responses))):
+            return await client.get_calendars(principal)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("status", "exc"),
+        [
+            (503, error.PropfindError),
+            (500, error.PropfindError),
+            (405, error.PropfindError),
+            (404, error.NotFoundError),
+        ],
+    )
+    async def test_home_set_propfind_failure_raises(self, status, exc) -> None:
+        with pytest.raises(exc):
+            await self._get_calendars(
+                self._response(status), self._response(207, b"<multistatus/>")
+            )
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("status", "exc"),
+        [
+            (503, error.PropfindError),
+            (500, error.PropfindError),
+            (405, error.PropfindError),
+            (404, error.NotFoundError),
+        ],
+    )
+    async def test_calendar_list_propfind_failure_raises(self, status, exc) -> None:
+        with pytest.raises(exc):
+            await self._get_calendars(
+                self._response(207, self.HOME_SET_XML), self._response(status)
+            )
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("status", "exc"), [(503, error.PropfindError), (404, error.NotFoundError)]
+    )
+    async def test_calendar_set_propfind_failure_raises(self, status, exc) -> None:
+        from caldav.collection import CalendarSet
+
+        client = AsyncDAVClient(url="https://cal.example.com/")
+        calendar_set = CalendarSet(client, url="https://cal.example.com/calendars/user/")
+        with patch.object(client, "propfind", new=AsyncMock(return_value=self._response(status))):
+            with pytest.raises(exc):
+                await calendar_set.get_calendars()
