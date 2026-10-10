@@ -4794,6 +4794,32 @@ class TestRecurringCompleteHelpers:
             todo._build_recurring_safe_completed(datetime(2026, 6, 14, tzinfo=timezone.utc)) is None
         )
 
+    def test_build_safe_completed_none_leaves_count_alone(self) -> None:
+        ## No next occurrence (here an RRULE carrying both COUNT and UNTIL,
+        ## invalid but seen in the wild): the caller falls back to a plain
+        ## completion, which must not save a COUNT lowered on the way.
+        todo = self._make_todo(
+            todo6.replace("RRULE:FREQ=YEARLY", "RRULE:FREQ=YEARLY;COUNT=3;UNTIL=19950101T000000Z")
+        )
+        assert (
+            todo._build_recurring_safe_completed(datetime(2026, 6, 14, tzinfo=timezone.utc)) is None
+        )
+        assert todo.icalendar_component["RRULE"]["COUNT"] == [3]
+
+    def test_build_safe_completed_count_one_skips_next(self) -> None:
+        ## COUNT=1 is the last occurrence: return None before looking for a
+        ## next one, so inputs _next() cannot handle (here an all-day
+        ## DTSTART with BYDAY) still fall back to a plain completion.
+        data = todo6.replace("DTSTART:19920415T133000Z", "DTSTART;VALUE=DATE:19920414").replace(
+            "DUE:19920516T045959Z\n", ""
+        )
+        data = data.replace("RRULE:FREQ=YEARLY", "RRULE:FREQ=WEEKLY;COUNT=1;BYDAY=TU")
+        todo = self._make_todo(data)
+        assert (
+            todo._build_recurring_safe_completed(datetime(2026, 6, 14, tzinfo=timezone.utc)) is None
+        )
+        assert todo.icalendar_component["RRULE"]["COUNT"] == [1]
+
     def test_safe_completion_issues_two_puts(self, monkeypatch: Any) -> None:
         """The standalone completed copy must not be PUT twice.
 
