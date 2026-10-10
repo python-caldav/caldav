@@ -1352,9 +1352,17 @@ class CalendarObjectResource(DAVObject):
         412 response is raised as ``ScheduleTagMismatchError`` or
         ``ETagMismatchError``.
 
-        The SEQUENCE should be increased when saving a new version of
-        the object.  If this behaviour is unwanted, then
-        increase_seqno should be set to False.
+        SEQUENCE: by default (``increase_seqno=True``) every save is
+        treated as a new revision by the organizer, so if the component
+        has a SEQUENCE property it is incremented before the PUT
+        (:rfc:`5545#section-3.8.7.4`).  Pass ``increase_seqno=False``
+        to store the data as it is - for cosmetic edits, and always
+        when syncing, copying, restoring or migrating data read from
+        elsewhere; otherwise each sync round bumps SEQUENCE again.  An
+        object without SEQUENCE is left without one.  When saving a
+        single recurrence, the recurrence's SEQUENCE is incremented,
+        not the master's.  ``Calendar.add_event()`` and friends take
+        the same parameter.  See also :ref:`howtos:sequence`.
 
         The behaviour when saving a single recurrence object to the
         server is as far as I can understand not defined in the RFCs,
