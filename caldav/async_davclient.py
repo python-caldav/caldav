@@ -444,7 +444,9 @@ class AsyncDAVClient(BaseDAVClient):
                     if auth_types:
                         msg += "\nSupported authentication types: {}".format(", ".join(auth_types))
                 log.warning(msg)
-            response = DAVResponse(r, self)
+            ## A 401/403 is raised from the raw response below, as on the sync
+            ## client: its body need not parse, even with an XML Content-Type
+            response = None if r.status_code in (401, 403) else DAVResponse(r, self)
         except Exception:
             # Workaround for servers that abort connection on unauthenticated requests
             # ref https://github.com/python-caldav/caldav/issues/158
@@ -479,7 +481,7 @@ class AsyncDAVClient(BaseDAVClient):
                 # Retry original request with auth
                 request_kwargs["auth"] = self.auth
                 r = await self.session.request(**request_kwargs)
-                response = DAVResponse(r, self)
+                response = None if r.status_code in (401, 403) else DAVResponse(r, self)
             elif self._should_attempt_unprompted_basic(
                 r.status_code,
                 r.headers,
@@ -534,9 +536,11 @@ class AsyncDAVClient(BaseDAVClient):
             return await self._async_request(url, method, body, headers)
 
         # Raise AuthorizationError for 401/403 responses
-        if response.status in (401, 403):
-            self._raise_authorization_error(str(url_obj), response)
+        if r.status_code in (401, 403):
+            self._raise_authorization_error(str(url_obj), r)
 
+        ## Only a 401/403 leaves response unset, and that has raised above
+        assert response is not None
         if error.debug_dump_communication:
             error._dump_communication(method, url, combined_headers, body, response)
 

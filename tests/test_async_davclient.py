@@ -1425,6 +1425,7 @@ class TestAsyncAuthorizationErrorPreconditions:
             (b"", "application/xml"),
             (b"<html><body>Forbidden</body></html>", "text/html"),
             (b"not xml at all <", "text/plain"),
+            (b"<html>forbidden", "application/xml"),
             (b"<?xml version='1.0'?><foo><bar/></foo>", "application/xml"),
         ],
     )
@@ -1436,6 +1437,24 @@ class TestAsyncAuthorizationErrorPreconditions:
         with pytest.raises(error.AuthorizationError) as exc_info:
             await client.request("/")
         assert exc_info.value.preconditions == []
+
+    def test_httpx_response_reason_phrase(self):
+        """httpx names the reason ``reason_phrase``; a real httpx.Response,
+        not a mock carrying both attributes."""
+        httpx = pytest.importorskip("httpx")
+        from caldav.elements import dav
+
+        client = AsyncDAVClient(url="https://cal.example.com/")
+        r = httpx.Response(
+            403,
+            content=self.VALID_SYNC_TOKEN_BODY,
+            headers={"Content-Type": "application/xml"},
+        )
+        with pytest.raises(error.AuthorizationError) as exc_info:
+            client._raise_authorization_error("https://cal.example.com/", r)
+        assert exc_info.value.reason == "Forbidden"
+        assert exc_info.value.body == self.VALID_SYNC_TOKEN_BODY
+        assert exc_info.value.preconditions == [dav.ValidSyncToken.tag]
 
     def _calendar(self, report_error, sync_token_support=None):
         from caldav.collection import Calendar
