@@ -2412,8 +2412,9 @@ gmx = {
     'create-calendar': {'support': 'fragile'},
     'create-calendar.auto': {'support': 'unsupported'},
     'create-calendar.with-supported-component-types': {'support': 'unsupported'},
-    'save.duplicate-uid.cross-calendar': {'support': 'ungraceful'},
-    'save-load.mutable.attendee-partstat': {'support': 'unsupported'},
+    ## save.duplicate-uid.cross-calendar and save-load.mutable.attendee-partstat
+    ## were once recorded as failing; that was caldav sending the weak PUT
+    ## ETag as If-Match on the follow-up save, not a GMX limitation.
     'save-load.mutable.if-match-wildcard': {'support': 'broken', 'behaviour': 'If-Match: * is ignored: it created a missing object (201)'},
     'save.etag': {'support': 'quirk', 'behaviour': 'weak on PUT, strong on GET'},
     'search.text.comp-type-optional': {'support': 'full'},
