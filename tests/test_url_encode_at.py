@@ -247,7 +247,10 @@ class TestAConformantServerKeepsEverySpelling:
         assert _quote_url_path(url, CONFORMANT) == url
 
     def test_a_path_is_still_quoted_for_everything_else(self) -> None:
-        assert _quote_url_path("http://x/a b/u@e/", CONFORMANT) == "http://x/a%20b/u@e/"
+        assert (
+            _quote_url_path("http://x.example.com/a b/u@e/", CONFORMANT)
+            == "http://x.example.com/a%20b/u@e/"
+        )
 
     def test_the_netloc_is_never_touched(self) -> None:
         """Credentials embedded in the URL survive."""
