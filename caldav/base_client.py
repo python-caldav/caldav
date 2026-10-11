@@ -451,11 +451,11 @@ class BaseDAVClient(ABC):
     # Pure result-handling shared by sync/async get_calendars; only the two
     # awaited PROPFIND calls and the principal lookup differ between the twins.
 
-    def _calendar_home_url(self, home_set_response: Any, principal: Any) -> str:
-        """Extract the calendar-home-set URL from a PROPFIND response.
+    def _calendar_home_urls(self, home_set_response: Any, principal: Any) -> list[str]:
+        """Return absolute URLs to search for calendars, in order of preference.
 
-        Falls back to the principal URL when the server does not advertise a
-        calendar-home-set (e.g. GMX), then makes the result absolute.
+        Without a calendar-home-set, try the principal URL (e.g. GMX), then the
+        client URL, which may be a calendar itself (e.g. Nextcloud public share).
         """
         from caldav.collection import (
             _extract_calendar_home_set_from_results as extract_home_set,
@@ -463,17 +463,28 @@ class BaseDAVClient(ABC):
 
         _raise_unless_propfind_ok(home_set_response)
         calendar_home_url = extract_home_set(home_set_response.results, features=self.features)
-        if not calendar_home_url:
-            calendar_home_url = str(principal.url)
-        return self._make_absolute_url(calendar_home_url)
+        if calendar_home_url:
+            return [self._make_absolute_url(calendar_home_url)]
+        urls = [self._make_absolute_url(str(principal.url))]
+        canonical = URL.objectify(urls[0]).canonical().strip_trailing_slash()
+        if canonical != self.url.canonical().strip_trailing_slash():
+            urls.append(str(self.url))
+        return urls
 
-    def _build_calendars_from_propfind(self, list_response: Any) -> list:
-        """Build Calendar objects from a calendar-home PROPFIND response."""
+    def _build_calendars_from_propfind(self, list_response: Any, guess: bool = False) -> list:
+        """Build Calendar objects from a calendar-home PROPFIND response.
+
+        ``guess`` marks a URL that is only tried in case it is a calendar (the
+        client URL without a calendar-home-set): an error there means no
+        calendars rather than a failure.
+        """
         from caldav.collection import Calendar
         from caldav.collection import (
             _extract_calendars_from_propfind_results as extract_calendars,
         )
 
+        if guess and not 200 <= list_response.status < 300:
+            return []
         _raise_unless_propfind_ok(list_response)
         calendar_infos = extract_calendars(list_response.results, features=self.features)
         return [

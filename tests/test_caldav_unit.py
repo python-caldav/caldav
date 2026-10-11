@@ -31,6 +31,14 @@ from caldav.lib import error
 from caldav.lib.python_utilities import to_normal_str, to_wire
 from caldav.lib.url import URL
 
+from .public_share_fixtures import (
+    GMX_LIKE_PRINCIPAL_DEPTH1_XML,
+    PUBLIC_SHARE_PRINCIPAL_DEPTH1_XML,
+    PUBLIC_SHARE_PRINCIPAL_URL,
+    PUBLIC_SHARE_URL,
+    public_share_propfind_xml,
+)
+
 ## Note on the imports - those two lines are equivalent:
 # from caldav.objects import foo
 # from caldav import foo
@@ -355,6 +363,23 @@ class GetRefusedDAVClient(DAVClient):
 
     def report(self, *largs, **kwargs):
         return MockedDAVResponse(self.report_xml)
+
+
+class PublicShareDAVClient(DAVClient):
+    """
+    For unit testing - a mocked DAVClient pointed at a public calendar share,
+    recording the PROPFIND requests it receives.
+    """
+
+    def __init__(self, principal_depth1_xml=PUBLIC_SHARE_PRINCIPAL_DEPTH1_XML):
+        self.principal_depth1_xml = principal_depth1_xml
+        self.requests = []
+        DAVClient.__init__(self, url=PUBLIC_SHARE_URL)
+
+    def request(self, url, method="GET", body="", headers=None):
+        depth = headers["Depth"]
+        self.requests.append((str(url), depth))
+        return MockedDAVResponse(public_share_propfind_xml(url, depth, self.principal_depth1_xml))
 
 
 class TestCalDAV:
@@ -1016,6 +1041,27 @@ END:VCALENDAR
         client = MockedDAVClient(xml)
         calendar_home_set = CalendarSet(client, url="/dav/tobias%40redpill-linpro.com/")
         assert len(calendar_home_set.get_calendars()) == 1
+
+    def test_get_calendars_client_url_is_calendar_without_home_set(self):
+        """
+        No calendar-home-set and no calendars below the principal: the
+        calendar at the client URL is returned (Nextcloud public share).
+        """
+        client = PublicShareDAVClient()
+        principal = Principal(client=client, url=PUBLIC_SHARE_PRINCIPAL_URL)
+        calendars = client.get_calendars(principal)
+        assert [str(c.url) for c in calendars] == [PUBLIC_SHARE_URL + "/"]
+
+    def test_get_calendars_without_home_set_prefers_principal(self):
+        """
+        No calendar-home-set, but calendars below the principal (GMX): those
+        are returned and the client URL is not queried.
+        """
+        client = PublicShareDAVClient(principal_depth1_xml=GMX_LIKE_PRINCIPAL_DEPTH1_XML)
+        principal = Principal(client=client, url=PUBLIC_SHARE_PRINCIPAL_URL)
+        calendars = client.get_calendars(principal)
+        assert [str(c.url) for c in calendars] == [PUBLIC_SHARE_PRINCIPAL_URL + "work/"]
+        assert all(PUBLIC_SHARE_URL not in url for url, _ in client.requests)
 
     def test_xml_parsing(self):
         """
@@ -6098,6 +6144,89 @@ class TestGetCalendarsPropfindErrors:
         with mock.patch.object(client, "propfind", return_value=self._response(status)):
             with pytest.raises(exc):
                 calendar_set.get_calendars()
+
+    NO_HOME_SET_XML = "<d:multistatus xmlns:d='DAV:'/>"
+
+    @pytest.mark.parametrize("status", [403, 404, 405, 500])
+    def test_client_url_fallback_failure_returns_empty(self, status):
+        """Without a home-set, the client URL is only a guess (Nextcloud
+        public share); a refusal there means no calendars, not an error."""
+        assert (
+            self._get_calendars(
+                self._response(207, self.NO_HOME_SET_XML),
+                self._response(207, self.NO_HOME_SET_XML),
+                self._response(status),
+            )
+            == []
+        )
+
+    def test_principal_propfind_failure_without_home_set_raises(self):
+        with pytest.raises(error.PropfindError):
+            self._get_calendars(
+                self._response(207, self.NO_HOME_SET_XML),
+                self._response(503),
+                self._response(207, self.NO_HOME_SET_XML),
+            )
+
+    def test_client_url_fallback_refused_by_auth_returns_empty(self):
+        """The request layer raises AuthorizationError on 401/403 before
+        the response reaches get_calendars(); on the guessed client URL
+        that still means no calendars."""
+        refused = error.AuthorizationError(url="https://cal.example.com/", reason="Forbidden")
+        assert (
+            self._get_calendars(
+                self._response(207, self.NO_HOME_SET_XML),
+                self._response(207, self.NO_HOME_SET_XML),
+                refused,
+            )
+            == []
+        )
+
+    def test_principal_refused_by_auth_without_home_set_raises(self):
+        refused = error.AuthorizationError(url="https://cal.example.com/", reason="Forbidden")
+        with pytest.raises(error.AuthorizationError):
+            self._get_calendars(self._response(207, self.NO_HOME_SET_XML), refused)
+
+    def test_client_url_fallback_refusal_keeps_unprompted_basic_auth(self):
+        """A 401 on the guessed client URL must not drop an unprompted-Basic
+        guess (issue #713) that already worked for the principal URL."""
+        client = DAVClient(url="https://cal.example.com/")
+        principal = Principal(client=client, url="https://cal.example.com/principals/user/")
+        client._unprompted_basic_tried = True
+        client.auth_type = "basic"
+        client.auth = auth = object()
+        responses = iter([self._response(207, self.NO_HOME_SET_XML)] * 2)
+
+        def propfind(*largs, **kwargs):
+            try:
+                return next(responses)
+            except StopIteration:
+                ## what _raise_authorization_error() does on a 401
+                client._unwind_unprompted_basic()
+                raise error.AuthorizationError(
+                    url="https://cal.example.com/", reason="no"
+                ) from None
+
+        with mock.patch.object(client, "propfind", side_effect=propfind):
+            assert client.get_calendars(principal) == []
+        assert (client.auth, client.auth_type) == (auth, "basic")
+
+    @pytest.mark.parametrize(
+        "client_url",
+        [
+            "https://cal.example.com/principals/user/",
+            "https://cal.example.com/principals/user",
+            "https://cal.example.com:443/principals/user/",
+            "https://user:pw@cal.example.com/principals/user/",
+        ],
+    )
+    def test_client_url_equal_to_principal_is_not_queried_twice(self, client_url):
+        client = DAVClient(url=client_url)
+        principal = Principal(client=client, url="https://cal.example.com/principals/user/")
+        responses = [self._response(207, self.NO_HOME_SET_XML)] * 2
+        with mock.patch.object(client, "propfind", side_effect=responses) as propfind:
+            assert client.get_calendars(principal) == []
+        assert propfind.call_count == 2
 
 
 def sync_page(
