@@ -2335,7 +2335,8 @@ gmx = {
     #'sync-token': {'support': 'unsupported'},
     'sync-token': {'support': 'ungraceful'},
     'principal-search': {'support': 'ungraceful'},
-    'principal-search.by-name.self': {'support': 'unsupported'},
+    ## flapping between unsupported and ungraceful (ungraceful 2026-10-11)
+    'principal-search.by-name.self': {'support': 'ungraceful'},
     ## TODO: flapping ...?
     #'freebusy-query': {'support': 'unsupported'},
     'freebusy-query': {'support': 'ungraceful'},
@@ -2343,17 +2344,37 @@ gmx = {
     #'search.is-not-defined.category': {'support': 'unsupported'},
     ## flapping ...?
     #'search.is-not-defined.dtend': {'support': 'unsupported'},
-    'create-calendar': {'support': 'unknown' }, ## https://github.com/python-caldav/caldav/issues/624
+    ## https://github.com/python-caldav/caldav/issues/624
+    ## 2026-10-11: two server-tester runs half an hour apart; in the first
+    ## every MKCALENDAR/MKCOL attempt failed, in the second calendars were
+    ## created (at the requested URL) and deleted on the first attempt.
+    'create-calendar': {'support': 'fragile'},
+    'create-calendar.auto': {'support': 'unsupported'},
+    'create-calendar.with-supported-component-types': {'support': 'unsupported'},
+    'save.duplicate-uid.cross-calendar': {'support': 'ungraceful'},
+    'save-load.mutable.attendee-partstat': {'support': 'unsupported'},
+    'save-load.mutable.if-match-wildcard': {'support': 'broken', 'behaviour': 'If-Match: * is ignored: it created a missing object (201)'},
+    'search.text.comp-type-optional': {'support': 'full'},
+    'search.time-range.comp-type-optional': {'support': 'full'},
+    'calendar-color': {'support': 'full'},
+    'calendar-order': {'support': 'full'},
+    'well-known': {'support': 'unsupported', 'behaviour': 'redirects to https://caldav.gmx.net/begenda/dav/users, which does not advertise calendar-access'},
     ## was apparently observed working for a while, possibly due to the master/more_checks split-brain git branching incident in the server-checker project.
     ## unsupported in be26d42b1ca3ff3b4fd183761b4a9b024ce12b84 / 537a23b145487006bb987dee5ab9e00cdebb0492 2026-02-19.  Supported when testing again short time after.  Either I'm confused or it's "fragile".
     #'search.time-range.alarm': {'support': 'unsupported'},
-    ## GMX advertises calendar-auto-schedule but inbox/mailbox and
-    ## calendar-user-address-set are not functional (RFC6638 sub-features).
+    ## GMX advertises calendar-auto-schedule.  Inbox/outbox and
+    ## calendar-user-address-set were earlier recorded as not functional, but
+    ## were observed working 2026-10-11.  Inbox delivery was not tested then
+    ## (only one user configured), so the old verdict is kept for it.
     "scheduling": {"support": "full"},
-    "scheduling.mailbox": {"support": "unsupported"},
-    "scheduling.calendar-user-address-set": {"support": "unsupported"},
-    ## GMX does not return results for open-end date searches (only start given)
-    'search.time-range.open.end': {'support': 'unsupported'},
+    "scheduling.mailbox.inbox-delivery": {"support": "unsupported"},
+    "scheduling.schedule-tag": {"support": "unsupported"},
+    ## Open-end date searches (only start given) used to return nothing,
+    ## but worked 2026-10-11
+    'search.time-range.open.end': {'support': 'fragile'},
+    ## Open-start searches used to work (no hint, so full), but were
+    ## rejected with 403 Forbidden 2026-10-11
+    'search.time-range.open.start': {'support': 'fragile'},
     "old_flags":  [
         #"text_search_is_case_insensitive",
         "vtodo-cannot-be-uncompleted",
