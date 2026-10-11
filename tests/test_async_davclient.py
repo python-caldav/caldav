@@ -2234,6 +2234,38 @@ class TestAsyncSyncCollectionTruncated:
         assert result.truncated is True
 
     @pytest.mark.asyncio
+    async def test_truncated_initial_sync_on_stalwart_stops_short(self) -> None:
+        from caldav.compatibility_hints import FeatureSet
+
+        from .test_caldav_unit import sync_page
+
+        client, calendar = self._calendar(
+            sync_page({"a.ics": '"a1"'}, "tok-9", truncated=True),
+            sync_page({}, "tok-9", truncated=False),
+        )
+        client.features = FeatureSet({"sync-token.limit.initial-sync": {"support": "broken"}})
+        client.propfind = AsyncMock(side_effect=AssertionError("listed by PROPFIND"))
+        result = await calendar.get_objects_by_sync_token(disable_fallback=True)
+        assert client.report.await_count == 1
+        assert [str(o.url.path) for o in result] == ["/dav/cal/a.ics"]
+        assert result.truncated is True
+        assert result.sync_token is None
+
+    @pytest.mark.asyncio
+    async def test_truncated_initial_sync_elsewhere_follows_the_checkpoint(self) -> None:
+        from .test_caldav_unit import sync_page
+
+        client, calendar = self._calendar(
+            sync_page({"a.ics": '"a1"'}, "tok-2", truncated=True),
+            sync_page({"b.ics": '"b1"'}, "tok-3", truncated=False),
+        )
+        result = await calendar.get_objects_by_sync_token(disable_fallback=True)
+        assert client.report.await_count == 2
+        assert result.sync_token == "tok-3"
+        assert result.truncated is False
+        assert len(result) == 2
+
+    @pytest.mark.asyncio
     async def test_sync_collection_reports_truncation(self) -> None:
         """AsyncDAVClient.sync_collection() keeps the members of a truncated page."""
         from .test_caldav_unit import sync_page

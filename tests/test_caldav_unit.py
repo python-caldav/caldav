@@ -6714,3 +6714,54 @@ class TestSyncCollectionTruncated:
         _, calendar = self._calendar(page)
         with pytest.raises(error.DAVError):
             calendar.get_objects_by_sync_token("tok-1", disable_fallback=True)
+
+    def test_truncated_initial_sync_on_stalwart_stops_short(self):
+        """Stalwart's checkpoint of a truncated initial sync skips members.
+
+        Stalwart lists a.ics, then answers its checkpoint (its newest
+        token) with nothing, so b.ics and c.ics would be lost for good.  The
+        page is returned flagged truncated, with the caller's own empty
+        token, so the next sync starts over instead of skipping them.  No
+        listing helps: Stalwart caps a PROPFIND at maxResults as well.
+        https://github.com/pycalendar/calendaring-sync/pull/19
+        """
+        from caldav.compatibility_hints import FeatureSet
+
+        client, calendar = self._calendar(
+            sync_page({"a.ics": '"a1"'}, "tok-9", truncated=True),
+            sync_page({}, "tok-9", truncated=False),
+        )
+        client.features = FeatureSet({"sync-token.limit.initial-sync": {"support": "broken"}})
+        client.propfind = mock.Mock(side_effect=AssertionError("listed by PROPFIND"))
+        result = calendar.get_objects_by_sync_token(disable_fallback=True)
+        assert client.report.call_count == 1
+        assert [str(o.url.path) for o in result] == ["/dav/cal/a.ics"]
+        assert result.truncated is True
+        assert result.sync_token is None
+
+    def test_stalwart_pages_from_an_issued_token(self):
+        """From an issued token Stalwart's checkpoints work."""
+        from caldav.compatibility_hints import FeatureSet
+
+        client, calendar = self._calendar(
+            sync_page({"a.ics": '"a1"'}, "tok-2", truncated=True),
+            sync_page({"b.ics": '"b1"'}, "tok-3", truncated=False),
+        )
+        client.features = FeatureSet({"sync-token.limit.initial-sync": {"support": "broken"}})
+        result = calendar.get_objects_by_sync_token("tok-1", disable_fallback=True)
+        assert client.report.call_count == 2
+        assert result.truncated is False
+        assert result.sync_token == "tok-3"
+        assert len(result) == 2
+
+    def test_truncated_initial_sync_elsewhere_follows_the_checkpoint(self):
+        """Without the hint, a truncated initial sync is paged as usual."""
+        client, calendar = self._calendar(
+            sync_page({"a.ics": '"a1"'}, "tok-2", truncated=True),
+            sync_page({"b.ics": '"b1"'}, "tok-3", truncated=False),
+        )
+        result = calendar.get_objects_by_sync_token(disable_fallback=True)
+        assert client.report.call_count == 2
+        assert result.sync_token == "tok-3"
+        assert result.truncated is False
+        assert len(result) == 2

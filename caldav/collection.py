@@ -2353,6 +2353,28 @@ class Calendar(DAVObject):
             )
         return (token, truncated, again)
 
+    def _initial_sync_cannot_be_paged(self, sync_token: Any, truncated: bool) -> bool:
+        """Does this truncated initial sync have a checkpoint that skips members?
+
+        Stalwart's checkpoint token of a truncated initial sync is its newest
+        token, so the remaining members are never reported (feature
+        ``sync-token.limit.initial-sync``).  It truncates on its own at its
+        maxResults setting, and caps a PROPFIND the same way, so the client
+        cannot list them either: the page is returned flagged truncated.
+        """
+        if sync_token or not truncated:
+            return False
+        support = self.client.features.is_supported(
+            "sync-token.limit.initial-sync", return_type=dict
+        )
+        if support.get("support") != "broken":
+            return False
+        log.warning(
+            "The server truncated the initial sync, and its checkpoint token skips the "
+            "remaining objects; returning an incomplete result"
+        )
+        return True
+
     def _should_use_sync_token(self, sync_token: Any, disable_fallback: bool) -> bool:
         """Decide whether to attempt a real sync-collection REPORT.
 
@@ -2488,6 +2510,9 @@ class Calendar(DAVObject):
                     (token, truncated, again) = self._absorb_sync_page(
                         response, objects, collected, token
                     )
+                    if self._initial_sync_cannot_be_paged(sync_token, truncated):
+                        token = sync_token
+                        break
                     if not again:
                         break
                 else:
@@ -2579,6 +2604,9 @@ class Calendar(DAVObject):
                     (token, truncated, again) = self._absorb_sync_page(
                         response, objects, collected, token
                     )
+                    if self._initial_sync_cannot_be_paged(sync_token, truncated):
+                        token = sync_token
+                        break
                     if not again:
                         break
                 else:

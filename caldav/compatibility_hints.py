@@ -691,6 +691,14 @@ hence, "fragile".
             "description": "A sync-collection report with a token the server never issued is refused with the DAV:valid-sync-token precondition and a 403, which RFC 4918 section 16 suggests for a request that will always fail, so the client knows to start over with a full sync.  'quirk' means the precondition comes with another status, which the library doesn't recognize (it only reads preconditions from a 401/403).  'ungraceful' means an error without the precondition (Xandikos and CCS answer 500 for a malformed token).  'broken' means the report succeeds (Stalwart returns a full listing), so a client can't tell a refused token from an ordinary report",
             "links": ["https://datatracker.ietf.org/doc/html/rfc6578#section-3.2"],
         },
+        "sync-token.limit": {
+            "description": "Server honours DAV:limit in a sync-collection report from an issued token: it truncates the reply with a 507 for the collection and a checkpoint token, and following the checkpoints yields every change.  'unsupported' means the limit is ignored and everything comes in one reply, which is harmless.  'broken' means changes are lost, e.g. the reply is cut without a 507 (Xandikos) or a checkpoint token skips changes",
+            "links": ["https://datatracker.ietf.org/doc/html/rfc6578#section-3.7"],
+        },
+        "sync-token.limit.initial-sync": {
+            "description": "Like sync-token.limit, but for the initial sync (an empty sync-token).  'broken' means members are lost, e.g. the checkpoint token of a truncated initial sync skips the remaining members (Stalwart, which also truncates on its own at its maxResults setting, default 2000, and caps a PROPFIND the same way).  When this is broken and the server truncates an initial sync, get_objects_by_sync_token() returns the first page flagged truncated, keeping the caller's empty token",
+            "links": ["https://datatracker.ietf.org/doc/html/rfc6578#section-3.6"],
+        },
         "scheduling": {
             "description": "Server supports CalDAV Scheduling (RFC6638). Detected via the presence of 'calendar-auto-schedule' in the DAV response header.",
             ## Independent feature (directly probed via the DAV header): the default
@@ -1397,6 +1405,12 @@ xandikos = {
         "support": "unsupported",
         "behaviour": "the property is advertised but empty, so the principal URL is used as the calendar user address",
     },
+    ## Probed 2026-10-11 by the server tester: a sync-collection reply is cut
+    ## at DAV:limit without a 507, and the newest token skips the rest
+    "sync-token.limit": {
+        "support": "broken",
+        "behaviour": "the reply is cut at DAV:limit without a 507, and the token skips the rest",
+    },
 }
 
 ## This seems to work as of version 3.5.4 of Radicale.
@@ -1427,6 +1441,8 @@ radicale = {
     ## extra properties not specified in RFC4791/RFC5545
     "calendar-color": {"support": "full"},
     "calendar-order": {"support": "full"},
+    ## Probed 2026-10-11 by the server tester
+    "sync-token.limit": {"support": "unsupported", "behaviour": "DAV:limit is ignored"},
 }
 
 ## Nextcloud can be configured a lot.  What particularly affects the compatibility
@@ -1844,7 +1860,11 @@ baikal =  { ## version 0.10.1
     "calendar-color": {"support": "full"},
     "calendar-order": {"support": "full"},
     ## I'm surprised, I'm quite sure this was passing earlier.  Caldav commit a98d50490b872e9b9d8e93e2e401c936ad193003, caldav server checker commit 3cae24cf99da1702b851b5a74a9b88c8e5317dad
-    'search.combined-is-logical-and': False
+    'search.combined-is-logical-and': False,
+    ## Probed 2026-10-11 by the server tester: from an issued token the limit
+    ## is honoured, on an initial sync it is ignored
+    "sync-token.limit": {"support": "full"},
+    "sync-token.limit.initial-sync": {"support": "unsupported", "behaviour": "DAV:limit is ignored"},
 } ## TODO: testPrincipals, testWrongAuthType, testTodoDatesearch fails
 
 ## Some unknown version of baikal has this
@@ -2338,6 +2358,17 @@ stalwart = {
     ## are skipped.  Marked 'fragile' so the checker skips it and the integration
     ## test (is_supported -> False) still treats the old-date task as skipped.
     'search.time-range.todo.no-dtstart': {'support': 'fragile'},
+    ## Probed 2026-10-11 on 0.16.11 (and on 0.16.21 in
+    ## https://github.com/pycalendar/calendaring-sync/pull/19): an initial
+    ## sync truncated at nresults=2 lists one member plus the collection
+    ## itself, then hands out the newest token as its checkpoint, so the
+    ## remaining members are never reported.  From an issued token the
+    ## checkpoints work.
+    'sync-token.limit': True,
+    'sync-token.limit.initial-sync': {
+        'support': 'broken',
+        'behaviour': 'the checkpoint of a truncated initial sync skips the remaining members',
+    },
 }
 
 ## Lots of transient problems with purelymail
