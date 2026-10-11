@@ -5937,6 +5937,13 @@ class TestConditionalDelete:
             self._run(event, if_match=True)
         assert sent == []
 
+    def test_if_match_true_with_only_weak_etag_refuses(self, base) -> None:
+        """A weak etag can never match If-Match (RFC 9110 section 13.1.1)."""
+        event, sent = self._event(base, etag='W/"etag-a"')
+        with pytest.raises(ValueError, match="weak"):
+            self._run(event, if_match=True)
+        assert sent == []
+
     def test_412_raises_etag_mismatch(self, base) -> None:
         event, _ = self._event(base, status=412)
         with pytest.raises(error.ETagMismatchError):
