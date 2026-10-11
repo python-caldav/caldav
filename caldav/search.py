@@ -122,12 +122,21 @@ def _build_search_xml_query(
 ) -> tuple[Any, type | None]:
     """Build a CalDAV calendar-query XML request body."""
     data = cdav.CalendarData()
+    tag_props = [dav.GetEtag, cdav.ScheduleTag]
     if server_expand:
         if not searcher.start or not searcher.end:
             raise error.ReportError("can't expand without a date range")
         data += cdav.Expand(searcher.start, searcher.end)
+        ## DAViCal ignores <C:expand> once schedule-tag is asked for.  An
+        ## expanded occurrence is not saved as it is anyway.
+        tag_props.remove(cdav.ScheduleTag)
 
     props_ = [data] if props is None else [data] + list(props)
+    ## The ETag and the Schedule-Tag let save() after a search send
+    ## If-Match or If-Schedule-Tag-Match
+    for tag_prop in tag_props:
+        if not any(p.tag == tag_prop.tag for p in props_):
+            props_.append(tag_prop())
     prop = dav.Prop() + props_
     vcalendar = cdav.CompFilter("VCALENDAR")
 

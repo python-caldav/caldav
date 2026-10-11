@@ -247,7 +247,10 @@ class TestAConformantServerKeepsEverySpelling:
         assert _quote_url_path(url, CONFORMANT) == url
 
     def test_a_path_is_still_quoted_for_everything_else(self) -> None:
-        assert _quote_url_path("http://x/a b/u@e/", CONFORMANT) == "http://x/a%20b/u@e/"
+        assert (
+            _quote_url_path("http://x.example.com/a b/u@e/", CONFORMANT)
+            == "http://x.example.com/a%20b/u@e/"
+        )
 
     def test_the_netloc_is_never_touched(self) -> None:
         """Credentials embedded in the URL survive."""
@@ -361,18 +364,18 @@ class TestObjectUrlsFromTheServer:
     @pytest.mark.parametrize("href", [HREF, HREF_ENCODED])
     def test_multiget_normalises_as_it_always_did(self, href) -> None:
         """``safe="/:@"`` since forever, so both spellings arrive as ``@``."""
-        obj = self._calendar(FeatureSet())._post_multiget([(href, EVENT)])[0]
+        obj = self._calendar(FeatureSet())._post_multiget([(href, EVENT, {})])[0]
         assert str(obj.url).endswith(self.HREF)
 
     @pytest.mark.parametrize("href", [HREF, HREF_ENCODED])
     def test_multiget_preserves_on_a_conformant_server(self, href) -> None:
-        obj = self._calendar(CONFORMANT)._post_multiget([(href, EVENT)])[0]
+        obj = self._calendar(CONFORMANT)._post_multiget([(href, EVENT, {})])[0]
         assert str(obj.url).endswith(href)
 
     def test_the_two_urls_stay_apart_on_a_conformant_server(self) -> None:
         cal = self._calendar(CONFORMANT)
-        literal = cal._post_multiget([(self.HREF, EVENT)])[0]
-        encoded = cal._post_multiget([(self.HREF_ENCODED, EVENT)])[0]
+        literal = cal._post_multiget([(self.HREF, EVENT, {})])[0]
+        encoded = cal._post_multiget([(self.HREF_ENCODED, EVENT, {})])[0]
         assert str(literal.url) != str(encoded.url)
         assert literal.url != encoded.url
 

@@ -1852,6 +1852,67 @@ class TestAsyncMkcalendarMultistatus:
             await self._save_calendar(207, self._multistatus("HTTP/1.1 403 Forbidden"))
 
 
+class TestAsyncMultigetTags:
+    """Async twin of ``testMultigetCachesEtag`` and
+    ``testMultigetCachesScheduleTag`` in test_caldav_unit.py: the ETag and
+    Schedule-Tag of a calendar-multiget reply are cached on the objects."""
+
+    REPORT = (
+        b'<D:multistatus xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">'
+        b"<D:response><D:href>/calendar/robur/found.ics</D:href><D:propstat><D:prop>"
+        b'<D:getetag>"tag-1"</D:getetag><C:schedule-tag>"stag-1"</C:schedule-tag>'
+        b"<C:calendar-data>BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\n"
+        b"UID:found@example.com\nDTSTAMP:20260826T120000Z\n"
+        b"DTSTART:20260827T120000Z\nSUMMARY:found\nEND:VEVENT\nEND:VCALENDAR\n"
+        b"</C:calendar-data></D:prop><D:status>HTTP/1.1 200 OK</D:status>"
+        b"</D:propstat></D:response></D:multistatus>"
+    )
+
+    def _calendar(self):
+        from caldav import Calendar
+
+        client = AsyncDAVClient(url="https://caldav.example.com/")
+        client.session.request = AsyncMock(
+            return_value=create_mock_response(
+                content=self.REPORT,
+                status_code=207,
+                reason="Multi-Status",
+                headers={"Content-Type": "text/xml"},
+            )
+        )
+        return Calendar(client, url="https://caldav.example.com/calendar/robur/")
+
+    def _assert_tags(self, event) -> None:
+        assert event.etag == '"tag-1"'
+        assert event.schedule_tag == '"stag-1"'
+
+    @pytest.mark.asyncio
+    async def test_multiget(self) -> None:
+        from caldav.lib.url import URL
+
+        calendar = self._calendar()
+        (event,) = await calendar.multiget([URL("/calendar/robur/found.ics")])
+        self._assert_tags(event)
+
+    @pytest.mark.asyncio
+    async def test_load_by_multiget(self) -> None:
+        from caldav import Event
+
+        calendar = self._calendar()
+        event = Event(calendar.client, url=calendar.url.join("found.ics"), parent=calendar)
+        await event.load_by_multiget()
+        self._assert_tags(event)
+
+    @pytest.mark.asyncio
+    async def test_batch_load(self) -> None:
+        from caldav import Event
+
+        calendar = self._calendar()
+        event = Event(calendar.client, url=calendar.url.join("found.ics"), parent=calendar)
+        await calendar._async_batch_load_objects([event])
+        self._assert_tags(event)
+
+
 class TestAsyncCalendarDelete:
     """Async ``Calendar.delete()``: its wipe logic lives in
     ``_async_delete_calendar()``, and the plain DELETE in the inherited

@@ -274,7 +274,44 @@ class TestScheduleTagUnit:
         mocked.return_value = _make_put_response(204, {"Etag": header})
         event.save()
         sent_headers = mocked.call_args.kwargs["headers"]
-        assert sent_headers["if-match"] == expected
+        if expected.startswith("W/"):
+            ## A weak etag is never sent as If-Match, see below
+            assert "if-match" not in sent_headers
+        else:
+            assert sent_headers["if-match"] == expected
+
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def test_tags_dropped_when_put_answers_without_them(self, mocked):
+        """RFC 4791 section 5.3.4 forbids a strong ETag in a PUT response
+        when the server changed the data, and many servers send none.  The
+        cached ETag (from a search, say) is then stale: the next save()
+        must not send it, or it gets 412."""
+        event = _make_event_with_tag('"stag-1"')
+        event.props[dav.GetEtag.tag] = '"e1"'
+        mocked.return_value = _make_put_response(204, {})
+        event.save()
+        assert event.etag is None
+        assert event.schedule_tag is None
+
+        event.save()
+        sent_headers = mocked.call_args.kwargs["headers"]
+        assert "if-match" not in sent_headers
+        assert "if-schedule-tag-match" not in sent_headers
+
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def test_weak_etag_is_not_sent_as_if_match(self, mocked):
+        """RFC 9110 section 13.1.1 compares If-Match strongly, so a weak
+        etag can never match.  GMX answers a PUT with a weak etag and
+        refuses it in If-Match with 412; the update must go out
+        unconditionally instead."""
+        mocked.return_value = _make_put_response(201, {"Etag": 'W/"weak-tag"'})
+        event = _make_event_with_tag(None)
+        event.save()
+        assert event.etag == 'W/"weak-tag"'
+
+        mocked.return_value = _make_put_response(204, {})
+        event.save()
+        assert "if-match" not in mocked.call_args.kwargs["headers"]
 
     @mock.patch("caldav.davclient.requests.Session.request")
     def test_302_on_put_updates_url(self, mocked):

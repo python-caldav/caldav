@@ -17,6 +17,7 @@ import pytest
 
 from caldav import Calendar, Event, Journal, Todo
 from caldav.davclient import DAVClient
+from caldav.elements import cdav, dav
 from caldav.lib import error
 from caldav.lib.url import URL
 from caldav.search import CalDAVSearcher
@@ -181,6 +182,28 @@ def mock_client() -> DAVClient:
 def mock_url() -> str:
     """Return a mocked URL for test objects."""
     return "https://calendar.example.com/calendars/user/event.ics"
+
+
+def test_build_search_xml_query_requests_etag() -> None:
+    """The calendar-query asks for getetag and schedule-tag, so save() after
+    a search can send If-Match or If-Schedule-Tag-Match."""
+    for props in (None, [dav.GetEtag()], [cdav.ScheduleTag()]):
+        xml, _ = CalDAVSearcher(event=True).build_search_xml_query(props=props)
+        assert str(xml).count("getetag") == 1
+        assert str(xml).count("schedule-tag") == 1
+
+
+def test_build_search_xml_query_expand_skips_schedule_tag() -> None:
+    """DAViCal ignores <C:expand> once schedule-tag is among the props, so an
+    expanding calendar-query asks for getetag only."""
+    searcher = CalDAVSearcher(
+        event=True,
+        start=datetime(2026, 7, 1, tzinfo=timezone.utc),
+        end=datetime(2026, 8, 1, tzinfo=timezone.utc),
+    )
+    xml, _ = searcher.build_search_xml_query(server_expand=True)
+    assert "getetag" in str(xml)
+    assert "schedule-tag" not in str(xml)
 
 
 class TestCalDAVSearcherFilterBasic:
@@ -1667,7 +1690,9 @@ class TestBatchLoadObjects:
         ev2 = Event(client=cal.client, url=self.CAL_URL + "ev2.ics")
 
         cal._multiget = mock.Mock(
-            return_value=iter([("/cal/ev1.ics", SIMPLE_EVENT), ("/cal/ev2.ics", SIMPLE_EVENT)])
+            return_value=iter(
+                [("/cal/ev1.ics", SIMPLE_EVENT, {}), ("/cal/ev2.ics", SIMPLE_EVENT, {})]
+            )
         )
 
         cal._batch_load_objects([ev1, ev2])
@@ -1680,7 +1705,7 @@ class TestBatchLoadObjects:
         ev = Event(client=cal.client, url=self.CAL_URL + "ev1.ics")
         assert not ev.is_loaded()
 
-        cal._multiget = mock.Mock(return_value=iter([("/cal/ev1.ics", SIMPLE_EVENT)]))
+        cal._multiget = mock.Mock(return_value=iter([("/cal/ev1.ics", SIMPLE_EVENT, {})]))
 
         cal._batch_load_objects([ev])
 
@@ -1692,7 +1717,7 @@ class TestBatchLoadObjects:
         loaded = Event(client=cal.client, url=self.CAL_URL + "loaded.ics", data=SIMPLE_EVENT)
         unloaded = Event(client=cal.client, url=self.CAL_URL + "unloaded.ics")
 
-        cal._multiget = mock.Mock(return_value=iter([("/cal/unloaded.ics", SIMPLE_EVENT)]))
+        cal._multiget = mock.Mock(return_value=iter([("/cal/unloaded.ics", SIMPLE_EVENT, {})]))
 
         cal._batch_load_objects([loaded, unloaded])
 
@@ -1714,7 +1739,7 @@ class TestBatchLoadObjects:
         assert "%40" in href
         ev = Event(client=cal.client, url=cal.url.join(href))
 
-        cal._multiget = mock.Mock(return_value=iter([(href, SIMPLE_EVENT)]))
+        cal._multiget = mock.Mock(return_value=iter([(href, SIMPLE_EVENT, {})]))
 
         cal._batch_load_objects([ev])
 
@@ -1729,7 +1754,7 @@ class TestBatchLoadObjects:
         )
 
         cal._multiget = mock.Mock(
-            return_value=iter([("/cal/20200516T060000Z-123401@example.com.ics", SIMPLE_EVENT)])
+            return_value=iter([("/cal/20200516T060000Z-123401@example.com.ics", SIMPLE_EVENT, {})])
         )
 
         cal._batch_load_objects([ev])
@@ -1786,8 +1811,8 @@ class TestSearchBatchLoadIntegration:
         cal._multiget = mock.Mock(
             return_value=iter(
                 [
-                    ("/cal/ev1.ics", SIMPLE_EVENT),
-                    ("/cal/ev2.ics", SIMPLE_EVENT),
+                    ("/cal/ev1.ics", SIMPLE_EVENT, {}),
+                    ("/cal/ev2.ics", SIMPLE_EVENT, {}),
                 ]
             )
         )
@@ -1808,7 +1833,7 @@ class TestSearchBatchLoadIntegration:
         ev.load = mock.Mock(return_value=ev)
 
         cal._request_report_build_resultlist = mock.Mock(return_value=(mock.Mock(), [ev]))
-        cal._multiget = mock.Mock(return_value=iter([("/cal/ev1.ics", SIMPLE_EVENT)]))
+        cal._multiget = mock.Mock(return_value=iter([("/cal/ev1.ics", SIMPLE_EVENT, {})]))
 
         searcher = CalDAVSearcher(event=True)
         results = searcher.search(cal)

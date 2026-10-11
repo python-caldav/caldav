@@ -1082,7 +1082,8 @@ class CalendarObjectResource(DAVObject):
             ## As of 2025-05-20, this code section is used by
             ## TestForServerECloud::testCreateOverwriteDeleteEvent
             raise error.NotFoundError(self.url)
-        _url, self.data = url_data
+        _url, self.data, tags = url_data
+        self.props.update(tags)
         error.assert_(self.data)
         error.assert_(next(items, None) is None)
         return self
@@ -1157,30 +1158,42 @@ class CalendarObjectResource(DAVObject):
         Called after both PUT (`_post_put`) and GET (`load`/`_async_load`);
         keys are matched case-insensitively by the response header dict.
         See RFC 6638 for Schedule-Tag.
+
+        A tag missing from the response is dropped from the cache: a PUT
+        that changed the data must not return a strong ETag (RFC 4791
+        section 5.3.4), and the one cached from before (from a search,
+        say) is stale.  Sent with the next save(), it would get 412.
         """
-        if not r.headers:
-            return
-        if "Etag" in r.headers:
-            etag = r.headers["Etag"]
+        headers = r.headers or {}
+        if "Etag" not in headers:
+            self.props.pop(dav.GetEtag.tag, None)
+        else:
+            etag = headers["Etag"]
             ## Bedework 5 percent-encodes the quotes in a PUT response and then
             ## refuses that form in If-Match.  RFC 9110 has an entity-tag start
             ## with '"' or 'W/"', so a leading %22 can only be that encoding.
             if etag.startswith(("%22", "W/%22")):
                 etag = unquote(etag)
             self.props[dav.GetEtag.tag] = etag
-        if r.headers.get("Schedule-Tag"):
-            self.props[cdav.ScheduleTag.tag] = r.headers["Schedule-Tag"]
+        if headers.get("Schedule-Tag"):
+            self.props[cdav.ScheduleTag.tag] = headers["Schedule-Tag"]
+        else:
+            self.props.pop(cdav.ScheduleTag.tag, None)
 
     def _precondition_headers(self) -> dict[str, str]:
         """The conditional-request header for the cached version, if any.
 
         A Schedule-Tag (RFC 6638 section 3.2) takes precedence over an
         ETag.  Used by both ``save()`` and ``delete(if_match=True)``.
+
+        A weak ETag is not sent: If-Match compares strongly (RFC 9110
+        section 13.1.1), so it could never match.  GMX hands out weak
+        ETags on PUT; an update after that goes out unconditionally.
         """
         headers = {}  ## TODO: use some caseinsensitivedict
         if self.schedule_tag:
             headers["if-schedule-tag-match"] = self.schedule_tag
-        elif self.etag:
+        elif self.etag and not self.etag.startswith("W/"):
             headers["if-match"] = self.etag
         return headers
 
@@ -1199,7 +1212,8 @@ class CalendarObjectResource(DAVObject):
         raised; if it is already gone, ``NotFoundError`` is raised,
         since the caller asked to delete a specific version.
         ``if_match=True`` with neither tag cached, or an empty string,
-        raises ``ValueError`` rather than deleting unconditionally.
+        raises ``ValueError`` rather than deleting unconditionally;
+        so does a cached ETag that is weak, as it can never match.
 
         See https://github.com/python-caldav/caldav/issues/740
 
@@ -1211,6 +1225,12 @@ class CalendarObjectResource(DAVObject):
             raise ValueError("delete(if_match=''): an empty ETag cannot be a precondition")
         if if_match is True:
             headers = self._precondition_headers()
+            if not headers and self.etag:
+                raise ValueError(
+                    f"delete(if_match=True): only a weak ETag ({self.etag}) is known "
+                    "for this object, which If-Match cannot match - load() it first "
+                    "or pass the ETag explicitly"
+                )
             if not headers:
                 raise ValueError(
                     "delete(if_match=True): no ETag or Schedule-Tag is known for this "
@@ -1391,7 +1411,8 @@ class CalendarObjectResource(DAVObject):
 
         Conditional requests are handled automatically: if a
         Schedule-Tag or an ETag has been cached for the object, an
-        ``If-Schedule-Tag-Match`` or ``If-Match`` header is sent, and a
+        ``If-Schedule-Tag-Match`` or ``If-Match`` header is sent (not
+        for a weak ETag, which If-Match never matches), and a
         412 response is raised as ``ScheduleTagMismatchError`` or
         ``ETagMismatchError``.
 
