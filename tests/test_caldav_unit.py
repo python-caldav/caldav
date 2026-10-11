@@ -457,6 +457,16 @@ END:VCALENDAR
         assert event.etag == '"z+n+T2Fun"'
         assert event._precondition_headers() == {"if-match": '"z+n+T2Fun"'}
 
+        client = MockedDAVClient(
+            xml.replace(
+                "<D:prop>",
+                '<D:prop><C:schedule-tag xmlns:C="urn:ietf:params:xml:ns:caldav">"s1"</C:schedule-tag>',
+            )
+        )
+        (event,) = Calendar(client, url="/calendar/").search(event=True)
+        assert event.schedule_tag == '"s1"'
+        assert event._precondition_headers() == {"if-schedule-tag-match": '"s1"'}
+
     def testSearcherReuseConsistency_Issue650(self):
         """
         Regression test for https://github.com/python-caldav/caldav/issues/650
@@ -553,6 +563,45 @@ END:VCALENDAR
     <D:status>HTTP/1.1 403 Forbidden</D:status>
   </D:response>
 </D:multistatus>"""
+
+    MULTIGET_ETAG = MULTIGET_FOUND.replace("<D:prop>", '<D:prop><D:getetag>"tag-1"</D:getetag>')
+
+    def testMultigetRequestsEtag(self):
+        """The calendar-multiget asks for getetag, so save() after a batch load can send If-Match."""
+        root = Calendar(MockedDAVClient(""), url="/calendar/robur/")._build_multiget_root(
+            [URL("/calendar/robur/found.ics")]
+        )
+        assert "getetag" in str(root)
+        assert "schedule-tag" in str(root)
+
+    def testMultigetCachesEtag(self):
+        calendar = Calendar(MockedDAVClient(self.MULTIGET_ETAG), url="/calendar/robur/")
+        (event,) = calendar.multiget([URL("/calendar/robur/found.ics")])
+        assert event.etag == '"tag-1"'
+
+        event = Event(url="/calendar/robur/found.ics", parent=calendar)
+        event.load_by_multiget()
+        assert event.etag == '"tag-1"'
+
+        event = Event(client=calendar.client, url=calendar.url.join("found.ics"), parent=calendar)
+        calendar._batch_load_objects([event])
+        assert event.etag == '"tag-1"'
+
+    def testMultigetCachesScheduleTag(self):
+        """With a Schedule-Tag at hand, save() sends If-Schedule-Tag-Match
+        (RFC 6638 section 3.2), so an attendee reply that only changed the
+        ETag does not make the update fail."""
+        xml = self.MULTIGET_ETAG.replace(
+            "<D:prop>", '<D:prop><C:schedule-tag>"stag-1"</C:schedule-tag>'
+        )
+        calendar = Calendar(MockedDAVClient(xml), url="/calendar/robur/")
+        (event,) = calendar.multiget([URL("/calendar/robur/found.ics")])
+        assert event.schedule_tag == '"stag-1"'
+        assert event._precondition_headers() == {"if-schedule-tag-match": '"stag-1"'}
+
+        event = Event(client=calendar.client, url=calendar.url.join("found.ics"), parent=calendar)
+        calendar._batch_load_objects([event])
+        assert event.schedule_tag == '"stag-1"'
 
     def _robur_object(self, report_xml, path):
         client = GetRefusedDAVClient(report_xml)

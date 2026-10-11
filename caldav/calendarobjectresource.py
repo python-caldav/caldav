@@ -1082,7 +1082,8 @@ class CalendarObjectResource(DAVObject):
             ## As of 2025-05-20, this code section is used by
             ## TestForServerECloud::testCreateOverwriteDeleteEvent
             raise error.NotFoundError(self.url)
-        _url, self.data = url_data
+        _url, self.data, tags = url_data
+        self.props.update(tags)
         error.assert_(self.data)
         error.assert_(next(items, None) is None)
         return self
@@ -1157,19 +1158,27 @@ class CalendarObjectResource(DAVObject):
         Called after both PUT (`_post_put`) and GET (`load`/`_async_load`);
         keys are matched case-insensitively by the response header dict.
         See RFC 6638 for Schedule-Tag.
+
+        A tag missing from the response is dropped from the cache: a PUT
+        that changed the data must not return a strong ETag (RFC 4791
+        section 5.3.4), and the one cached from before (from a search,
+        say) is stale.  Sent with the next save(), it would get 412.
         """
-        if not r.headers:
-            return
-        if "Etag" in r.headers:
-            etag = r.headers["Etag"]
+        headers = r.headers or {}
+        if "Etag" not in headers:
+            self.props.pop(dav.GetEtag.tag, None)
+        else:
+            etag = headers["Etag"]
             ## Bedework 5 percent-encodes the quotes in a PUT response and then
             ## refuses that form in If-Match.  RFC 9110 has an entity-tag start
             ## with '"' or 'W/"', so a leading %22 can only be that encoding.
             if etag.startswith(("%22", "W/%22")):
                 etag = unquote(etag)
             self.props[dav.GetEtag.tag] = etag
-        if r.headers.get("Schedule-Tag"):
-            self.props[cdav.ScheduleTag.tag] = r.headers["Schedule-Tag"]
+        if headers.get("Schedule-Tag"):
+            self.props[cdav.ScheduleTag.tag] = headers["Schedule-Tag"]
+        else:
+            self.props.pop(cdav.ScheduleTag.tag, None)
 
     def _precondition_headers(self) -> dict[str, str]:
         """The conditional-request header for the cached version, if any.

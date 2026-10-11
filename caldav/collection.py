@@ -1503,27 +1503,38 @@ class Calendar(DAVObject):
         """
         if self.url is None:
             raise ValueError("Unexpected value None for self.url")
-        prop = dav.Prop() + cdav.CalendarData()
+        prop = dav.Prop() + [cdav.CalendarData(), dav.GetEtag(), cdav.ScheduleTag()]
         return cdav.CalendarMultiGet() + prop + [dav.Href(value=u.path) for u in event_urls]
 
     def _extract_multiget_results(
         self, response: Any, raise_notfound: bool
-    ) -> list[tuple[str, str]]:
-        """Turn a multiget REPORT response into ``(href, calendar_data)`` tuples.
+    ) -> list[tuple[str, str, dict[str, str]]]:
+        """Turn a multiget REPORT response into ``(href, calendar_data, tags)``
+        tuples, ``tags`` being the ETag and Schedule-Tag props found.
 
         Pure (no I/O) — shared by the sync and async multiget twins.
         """
-        results = response.expand_simple_props([cdav.CalendarData()])
+        tag_names = (dav.GetEtag.tag, cdav.ScheduleTag.tag)
+        results = response.expand_simple_props(
+            [cdav.CalendarData(), dav.GetEtag(), cdav.ScheduleTag()]
+        )
         if raise_notfound:
             for href, status in response.statuses.items():
                 if status and "404" in status:
                     raise error.NotFoundError(f"Status {status} in {href}")
-        return [(r, results[r][cdav.CalendarData.tag]) for r in results]
+        return [
+            (
+                r,
+                results[r][cdav.CalendarData.tag],
+                {t: results[r][t] for t in tag_names if results[r].get(t)},
+            )
+            for r in results
+        ]
 
     def _multiget(
         self, event_urls: Iterable[URL], raise_notfound: bool = False
-    ) -> list[tuple[str, str]]:
-        """get multiple events' data.
+    ) -> list[tuple[str, str, dict[str, str]]]:
+        """get multiple events' data, ETags and Schedule-Tags.
 
         TODO: Does it overlap the _request_report_build_resultlist method?
         """
@@ -1532,7 +1543,7 @@ class Calendar(DAVObject):
         response = self._query(self._build_multiget_root(event_urls), None, "report")
         return self._extract_multiget_results(response, raise_notfound)
 
-    def _post_multiget(self, results: Iterable[tuple[str, str]]) -> list[_CC]:
+    def _post_multiget(self, results: Iterable[tuple[str, str, dict[str, str]]]) -> list[_CC]:
         """Post-processing shared by multiget and _async_multiget_objects."""
         return [
             self._calendar_comp_class_by_data(data)(
@@ -1543,8 +1554,9 @@ class Calendar(DAVObject):
                 ),
                 data=data,
                 parent=self,
+                props=dict(tags) or None,
             )
-            for url, data in results
+            for url, data, tags in results
         ]
 
     def multiget(self, event_urls: Iterable[URL], raise_notfound: bool = False) -> Iterable[_CC]:
@@ -1559,7 +1571,7 @@ class Calendar(DAVObject):
 
     async def _async_multiget(
         self, event_urls: Iterable[URL], raise_notfound: bool = False
-    ) -> list[tuple[str, str]]:
+    ) -> list[tuple[str, str, dict[str, str]]]:
         response = await self._query(self._build_multiget_root(event_urls), None, "report")
         return self._extract_multiget_results(response, raise_notfound)
 
@@ -1571,8 +1583,10 @@ class Calendar(DAVObject):
             await self._async_multiget(event_urls, raise_notfound=raise_notfound)
         )
 
-    def _assign_multiget_data(self, unloaded: list, results: Iterable[tuple[str, str]]) -> None:
-        """Assign multiget (href, data) results onto the matching unloaded objects.
+    def _assign_multiget_data(
+        self, unloaded: list, results: Iterable[tuple[str, str, dict[str, str]]]
+    ) -> None:
+        """Assign multiget (href, data, tags) results onto the matching unloaded objects.
 
         Shared post-processing for _batch_load_objects and its async twin: index
         the results by normalised URL (quoting to match servers that return
@@ -1586,13 +1600,14 @@ class Calendar(DAVObject):
         spellings equal instead of silently dropping the object.
         """
         url_to_data = {
-            unquote(str(self.url.join(quote(unquote(str(href)), safe="/:@")))): data
-            for href, data in results
+            unquote(str(self.url.join(quote(unquote(str(href)), safe="/:@")))): (data, tags)
+            for href, data, tags in results
         }
         for obj in unloaded:
             key = unquote(str(obj.url))
             if key in url_to_data:
-                obj.data = url_to_data[key]
+                obj.data, tags = url_to_data[key]
+                obj.props.update(tags)
 
     def _batch_load_objects(self, objects: list) -> None:
         """Load unloaded objects from the list in a single calendar-multiget REPORT.
@@ -1733,15 +1748,18 @@ class Calendar(DAVObject):
     def _post_request_report_build_resultlist(self, response, comp_class, props_):
         """Shared post-processing for _request_report_build_resultlist."""
         matches = []
-        ## Some servers (GMX) send getetag unasked; left unexpanded it would
-        ## be cached as an XML element rather than as the ETag string
-        if not any(p.tag == dav.GetEtag.tag for p in props_):
-            props_ = props_ + [dav.GetEtag()]
+        ## The search REPORT asks for getetag and schedule-tag (and some
+        ## servers, like GMX, send getetag anyway); left unexpanded they
+        ## would be cached as XML elements rather than as strings
+        for tag_prop in (dav.GetEtag, cdav.ScheduleTag):
+            if not any(p.tag == tag_prop.tag for p in props_):
+                props_ = props_ + [tag_prop()]
         results = response.expand_simple_props(props_)
         for r in results:
             pdata = results[r]
-            if pdata.get(dav.GetEtag.tag) is None:
-                pdata.pop(dav.GetEtag.tag, None)
+            for tag in (dav.GetEtag.tag, cdav.ScheduleTag.tag):
+                if pdata.get(tag) is None:
+                    pdata.pop(tag, None)
             if cdav.CalendarData.tag in pdata:
                 cdata = pdata.pop(cdav.CalendarData.tag)
                 comp_class_ = (
