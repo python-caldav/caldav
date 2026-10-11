@@ -769,7 +769,7 @@ hence, "fragile".
         },
         "save": {},
         "save.etag": {
-            "description": "The ETag header of a PUT response is a valid entity-tag (RFC 9110 section 8.8.3: a quoted string, optionally prefixed W/), and a conditional PUT carrying it in If-Match is accepted.  'quirk' with behaviour 'percent-encoded' when the header comes back URL-encoded but the decoded form is accepted - Bedework 5 answers a PUT with ETag: %22...%22 while a GET gives the quoted form, and refuses the encoded form in If-Match with 412.  The library decodes a leading %22, so a client is not affected by that shape; 'broken' when the decoded form is refused too.",
+            "description": "The ETag header of a PUT response is a valid entity-tag (RFC 9110 section 8.8.3: a quoted string, optionally prefixed W/), and a conditional PUT carrying it in If-Match is accepted.  'quirk' with behaviour 'percent-encoded' when the header comes back URL-encoded but the decoded form is accepted - Bedework 5 answers a PUT with ETag: %22...%22 while a GET gives the quoted form, and refuses the encoded form in If-Match with 412.  The library decodes a leading %22, so a client is not affected by that shape; 'broken' when the decoded form is refused too.  'quirk' with behaviour 'weak on PUT, strong on GET' when the PUT answers with a weak etag (W/...), which If-Match can never match (RFC 9110 section 13.1.1), while a GET of the object gives a strong one that If-Match accepts (GMX).  The library does not send a weak etag, so a save() right after a save() goes out without If-Match - no lost-update protection until the object is loaded again.",
             "default": {"support": "full"},
             "links": ["https://datatracker.ietf.org/doc/html/rfc9110#section-8.8.3"],
         },
@@ -2354,6 +2354,7 @@ gmx = {
     'save.duplicate-uid.cross-calendar': {'support': 'ungraceful'},
     'save-load.mutable.attendee-partstat': {'support': 'unsupported'},
     'save-load.mutable.if-match-wildcard': {'support': 'broken', 'behaviour': 'If-Match: * is ignored: it created a missing object (201)'},
+    'save.etag': {'support': 'quirk', 'behaviour': 'weak on PUT, strong on GET'},
     'search.text.comp-type-optional': {'support': 'full'},
     'search.time-range.comp-type-optional': {'support': 'full'},
     'calendar-color': {'support': 'full'},
