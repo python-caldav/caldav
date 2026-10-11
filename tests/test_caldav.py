@@ -2491,6 +2491,27 @@ END:VCALENDAR"""
         if not is_fragile:
             assert len(list(my_changed_objects)) == 0
 
+    def testObjectBySyncTokenNeverIssued(self):
+        """
+        A sync token the server never issued must be refused with the
+        DAV:valid-sync-token precondition (RFC 6578 section 3.2), so the
+        client knows to start over with a full sync.  The tokens are the
+        ones caldav-server-tester probes with.
+        """
+        ## 'quirk' is a status other than 403, whose precondition the
+        ## library doesn't read, so only 'full' can pass
+        if self.is_supported("sync-token.invalid-token", str) != "full":
+            self.skip_unless_support("sync-token.invalid-token")
+            pytest.skip("sync-token.invalid-token is a quirk on this server")
+        c = self._fixCalendar()
+        c.add_event(near_now_ics(ev1))
+        for token in ("http://example.invalid/never-issued", "0" * 40):
+            with pytest.raises(error.DAVError) as e:
+                c.objects_by_sync_token(sync_token=token, disable_fallback=True)
+            assert dav.ValidSyncToken.tag in getattr(e.value, "preconditions", []), (
+                f"token {token!r}: {e.value!r}"
+            )
+
     def testSync(self):
         """
         Support for sync-collection reports, ref https://github.com/python-caldav/caldav/issues/87.

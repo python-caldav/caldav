@@ -687,6 +687,10 @@ hence, "fragile".
         "sync-token.delete": {
             "description": "Server correctly handles sync-collection reports after objects have been deleted from the calendar (solved in Nextcloud in https://github.com/nextcloud/server/pull/44130)"
         },
+        "sync-token.invalid-token": {
+            "description": "A sync-collection report with a token the server never issued is refused with the DAV:valid-sync-token precondition and a 403, which RFC 4918 section 16 suggests for a request that will always fail, so the client knows to start over with a full sync.  'quirk' means the precondition comes with another status, which the library doesn't recognize (it only reads preconditions from a 401/403).  'ungraceful' means an error without the precondition (Xandikos and CCS answer 500 for a malformed token).  'broken' means the report succeeds (Stalwart returns a full listing), so a client can't tell a refused token from an ordinary report",
+            "links": ["https://datatracker.ietf.org/doc/html/rfc6578#section-3.2"],
+        },
         "scheduling": {
             "description": "Server supports CalDAV Scheduling (RFC6638). Detected via the presence of 'calendar-auto-schedule' in the DAV response header.",
             ## Independent feature (directly probed via the DAV header): the default
@@ -1365,6 +1369,14 @@ incompatibility_description = {
 }
 
 xandikos = {
+    ## Probed 2026-10-11 on 0.4.8, unchanged on master (0.4.9): a token that
+    ## isn't a hex SHA crashes the git store lookup, and a hex one is refused
+    ## as 412 rather than 403.
+    ## https://github.com/pycalendar/calendaring-sync/pull/19#issuecomment-6112378889
+    "sync-token.invalid-token": {
+        "support": "ungraceful",
+        "behaviour": "'http://example.invalid/never-issued': 500 without valid-sync-token; '0000000000000000000000000000000000000000': 412 with valid-sync-token",
+    },
     ## Genuinely returns matching objects for a comp-type-less query that carries
     ## a time-range (verified: the event is returned, not just "no error").
     "search.time-range.comp-type-optional": {"support": "full"},
@@ -2196,6 +2208,8 @@ davis = {
 ## cannot be changed.  The pre-provisioned "tasks" calendar supports VTODO only.
 ## VJOURNAL is not supported at all.
 ccs = {
+    ## Probed 2026-10-11: a 40-digit hex token gets 403 with valid-sync-token
+    "sync-token.invalid-token": {"support": "ungraceful", "behaviour": "'http://example.invalid/never-issued': 500 without valid-sync-token"},
     "scheduling.freebusy-query": {"support": "ungraceful"},
     "scheduling.mailbox.inbox-delivery": True,
     "scheduling.auto-schedule": True,
@@ -2245,6 +2259,9 @@ ccs = {
 ## CalDAV served at /dav/cal/<username>/ over HTTP on port 8080.
 ## Feature support mostly unknown until tested; starting with empty hints.
 stalwart = {
+    ## Probed 2026-10-11.  calendaring-sync found that it also answers a token
+    ## whose history is gone with a partial report and no error.
+    "sync-token.invalid-token": {"support": "broken", "behaviour": "'http://example.invalid/never-issued': 207, no error; '0000000000000000000000000000000000000000': 207, no error"},
     ## url.encode-at, re-probed 2026-08-31 against the docker test server with
     ## all three axes.  Stalwart answers them differently, and it is the server
     ## that made url.encode-at.literal grow per-axis children:
@@ -2408,6 +2425,8 @@ gmx = {
 ## OX App Suite CalDAV served at /caldav/ (Apache proxies to /servlet/dav/caldav on port 8009).
 ## The Docker image must be built locally before use (see tests/docker-test-servers/ox/build.sh).
 ox = {
+    ## Probed 2026-10-11
+    "sync-token.invalid-token": {"support": "broken", "behaviour": "'0000000000000000000000000000000000000000': 207, no error"},
     ## Renaming a calendar after creation via PROPPATCH is not supported, but
     ## setting the display name AT creation time is - and that's what the probe
     ## tests.  Was 'unsupported' (conflated the two operations, and masked by the
