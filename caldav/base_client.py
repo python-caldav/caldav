@@ -456,6 +456,7 @@ class BaseDAVClient(ABC):
 
         Without a calendar-home-set, try the principal URL (e.g. GMX), then the
         client URL, which may be a calendar itself (e.g. Nextcloud public share).
+        The client root is moved to the host of the first URL, if it differs.
         """
         from caldav.collection import (
             _extract_calendar_home_set_from_results as extract_home_set,
@@ -464,12 +465,29 @@ class BaseDAVClient(ABC):
         _raise_unless_propfind_ok(home_set_response)
         calendar_home_url = extract_home_set(home_set_response.results, features=self.features)
         if calendar_home_url:
-            return [self._make_absolute_url(calendar_home_url)]
-        urls = [self._make_absolute_url(str(principal.url))]
-        canonical = URL.objectify(urls[0]).canonical().strip_trailing_slash()
-        if canonical != self.url.canonical().strip_trailing_slash():
-            urls.append(str(self.url))
+            urls = [self._make_absolute_url(calendar_home_url)]
+        else:
+            urls = [self._make_absolute_url(str(principal.url))]
+            canonical = URL.objectify(urls[0]).canonical().strip_trailing_slash()
+            if canonical != self.url.canonical().strip_trailing_slash():
+                urls.append(str(self.url))
+        self._follow_calendar_home(urls[0])
         return urls
+
+    def _follow_calendar_home(self, calendar_home_url: Any) -> None:
+        """Move the client root to the host of the calendar-home-set.
+
+        iCloud (and others?) have a load balanced system, where each principal
+        resides on one named host.  The old host is kept as an alias, as iCloud
+        may still return hrefs on it, ref
+        https://github.com/python-caldav/caldav/issues/730
+        """
+        ## TODO: Here be dragons.  The new root will be the root of all future
+        ## objects derived from the client.  Changing the client root by doing a
+        ## principal.get_calendars() is an unacceptable side effect.  Do more research!
+        hostname = URL.objectify(calendar_home_url).hostname
+        if hostname and hostname != self.url.hostname:
+            self.url = self.url.relocate(calendar_home_url)
 
     def _build_calendars_from_propfind(self, list_response: Any, guess: bool = False) -> list:
         """Build Calendar objects from a calendar-home PROPFIND response.
