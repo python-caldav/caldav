@@ -1733,9 +1733,15 @@ class Calendar(DAVObject):
     def _post_request_report_build_resultlist(self, response, comp_class, props_):
         """Shared post-processing for _request_report_build_resultlist."""
         matches = []
+        ## Some servers (GMX) send getetag unasked; left unexpanded it would
+        ## be cached as an XML element rather than as the ETag string
+        if not any(p.tag == dav.GetEtag.tag for p in props_):
+            props_ = props_ + [dav.GetEtag()]
         results = response.expand_simple_props(props_)
         for r in results:
             pdata = results[r]
+            if pdata.get(dav.GetEtag.tag) is None:
+                pdata.pop(dav.GetEtag.tag, None)
             if cdav.CalendarData.tag in pdata:
                 cdata = pdata.pop(cdav.CalendarData.tag)
                 comp_class_ = (

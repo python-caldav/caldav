@@ -432,6 +432,31 @@ class TestCalDAV:
         )
         assert len(mytasks) == 9
 
+    def testSearchUnrequestedEtag(self):
+        """GMX includes getetag in a REPORT reply that asked only for
+        calendar-data; it must be cached as text, not as an XML element"""
+        xml = """<D:multistatus xmlns:D="DAV:"><D:response>
+<D:href>/calendar/test1.ics</D:href><D:propstat><D:prop>
+<D:getetag>"z+n+T2Fun"</D:getetag>
+<C:calendar-data xmlns:C="urn:ietf:params:xml:ns:caldav">BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//python-caldav//caldav//en_DK
+BEGIN:VEVENT
+SUMMARY:daily test
+DTSTART:20261013T060706Z
+DTEND:20261013T070706Z
+DTSTAMP:20261011T154549Z
+UID:test1
+END:VEVENT
+END:VCALENDAR
+</C:calendar-data></D:prop><D:status>HTTP/1.1 200 OK</D:status>
+</D:propstat></D:response></D:multistatus>"""
+        client = MockedDAVClient(xml)
+        calendar = Calendar(client, url="/calendar/")
+        (event,) = calendar.search(event=True)
+        assert event.etag == '"z+n+T2Fun"'
+        assert event._precondition_headers() == {"if-match": '"z+n+T2Fun"'}
+
     def testSearcherReuseConsistency_Issue650(self):
         """
         Regression test for https://github.com/python-caldav/caldav/issues/650
