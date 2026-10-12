@@ -1131,7 +1131,7 @@ END:VCALENDAR
 
     def test_get_calendars_without_home_set_prefers_principal(self):
         """
-        No calendar-home-set, but calendars below the principal: those
+        A synthetic no-home response has calendars below the principal: those
         are returned and the client URL is not queried.
         """
         client = PublicShareDAVClient(principal_depth1_xml=GMX_LIKE_PRINCIPAL_DEPTH1_XML)
@@ -1139,6 +1139,31 @@ END:VCALENDAR
         calendars = client.get_calendars(principal)
         assert [str(c.url) for c in calendars] == [PUBLIC_SHARE_PRINCIPAL_URL + "work/"]
         assert all(PUBLIC_SHARE_URL not in url for url, _ in client.requests)
+
+    def test_missing_home_set_uses_principal_without_discovery_for_lookup_and_creation(self):
+        """A missing home is the principal itself when discovery cannot use depth 1."""
+        client = DAVClient(url="https://cal.example.com/dav/")
+        principal = Principal(client=client, url="https://cal.example.com/dav/principals/user/")
+        original_client_url = str(client.url)
+
+        with (
+            mock.patch.object(principal, "get_property", return_value=None) as get_property,
+            mock.patch.object(
+                principal,
+                "get_calendars",
+                side_effect=AssertionError("missing-home access must not discover calendars"),
+            ) as get_calendars,
+            mock.patch.object(Calendar, "_create", autospec=True),
+        ):
+            looked_up = principal.calendar(cal_id="work")
+            created = principal.make_calendar(cal_id="new")
+
+        assert str(looked_up.url) == str(principal.url) + "work/"
+        assert str(created.parent.url) == str(principal.url)
+        assert principal._calendar_home_set is not None
+        get_property.assert_called_once()
+        get_calendars.assert_not_called()
+        assert str(client.url) == original_client_url
 
     def test_xml_parsing(self):
         """

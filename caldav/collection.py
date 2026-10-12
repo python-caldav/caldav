@@ -577,9 +577,12 @@ class Principal(DAVObject):
             return self._calendar_home_set
 
         calendar_home_set_url = await self.get_property(cdav.CalendarHomeSet())
-        self.calendar_home_set = _sanitize_calendar_home_set_url(
-            calendar_home_set_url, features=self.client.features
-        )
+        if calendar_home_set_url:
+            self.calendar_home_set = _sanitize_calendar_home_set_url(
+                calendar_home_set_url, features=self.client.features
+            )
+        else:
+            self.calendar_home_set = CalendarSet(client=self.client, url=self.url)
         return self._calendar_home_set
 
     ## TODO: the parameter names name, cal_id and cal_url is quite inconsistent
@@ -687,9 +690,12 @@ class Principal(DAVObject):
     def calendar_home_set(self):
         if not self._calendar_home_set:
             calendar_home_set_url = self.get_property(cdav.CalendarHomeSet())
-            self.calendar_home_set = _sanitize_calendar_home_set_url(
-                calendar_home_set_url, features=self.client.features
-            )
+            if calendar_home_set_url:
+                self.calendar_home_set = _sanitize_calendar_home_set_url(
+                    calendar_home_set_url, features=self.client.features
+                )
+            else:
+                self.calendar_home_set = CalendarSet(client=self.client, url=self.url)
         return self._calendar_home_set
 
     @calendar_home_set.setter

@@ -1740,6 +1740,39 @@ class TestAsyncGetCalendarsWithoutHomeSet:
         assert [str(c.url) for c in calendars] == [PUBLIC_SHARE_PRINCIPAL_URL + "work/"]
         assert all(PUBLIC_SHARE_URL not in url for url, _ in client.requests)
 
+    @pytest.mark.asyncio
+    async def test_missing_home_set_uses_principal_without_discovery_for_lookup_and_creation(
+        self,
+    ) -> None:
+        from caldav.collection import Calendar, Principal
+
+        client = AsyncDAVClient(url="https://cal.example.com/dav/")
+        principal = Principal(client=client, url="https://cal.example.com/dav/principals/user/")
+        original_client_url = str(client.url)
+
+        with (
+            patch.object(
+                principal, "get_property", new=AsyncMock(return_value=None)
+            ) as get_property,
+            patch.object(
+                principal,
+                "get_calendars",
+                new=AsyncMock(
+                    side_effect=AssertionError("missing-home access must not discover calendars")
+                ),
+            ) as get_calendars,
+            patch.object(Calendar, "_async_create", new=AsyncMock()),
+        ):
+            looked_up = await principal.calendar(cal_id="work")
+            created = await principal.make_calendar(cal_id="new")
+
+        assert str(looked_up.url) == str(principal.url) + "work/"
+        assert str(created.parent.url) == str(principal.url)
+        assert principal._calendar_home_set is not None
+        get_property.assert_awaited_once()
+        get_calendars.assert_not_awaited()
+        assert str(client.url) == original_client_url
+
 
 class TestAsyncHttpLibrarySelection:
     """Which async HTTP library the module picks, and what happens when none is there.
