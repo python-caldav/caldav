@@ -78,9 +78,9 @@ def _raise_unless_propfind_ok(response: Any) -> None:
     https://github.com/python-caldav/caldav/issues/741
     """
     if response.status == 404:
-        raise error.NotFoundError(error.errmsg(response))
+        raise error.error_from_response(error.NotFoundError, response)
     if not 200 <= response.status < 300:
-        raise error.PropfindError(error.errmsg(response))
+        raise error.error_from_response(error.PropfindError, response)
 
 
 class BaseDAVClient(ABC):

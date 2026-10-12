@@ -688,7 +688,7 @@ hence, "fragile".
             "description": "Server correctly handles sync-collection reports after objects have been deleted from the calendar (solved in Nextcloud in https://github.com/nextcloud/server/pull/44130)"
         },
         "sync-token.invalid-token": {
-            "description": "A sync-collection report with a token the server never issued is refused with the DAV:valid-sync-token precondition and a 403, which RFC 4918 section 16 suggests for a request that will always fail, so the client knows to start over with a full sync.  'quirk' means the precondition comes with another status, which the library doesn't recognize (it only reads preconditions from a 401/403).  'ungraceful' means an error without the precondition (Xandikos and CCS answer 500 for a malformed token).  'broken' means the report succeeds (Stalwart returns a full listing), so a client can't tell a refused token from an ordinary report",
+            "description": "A sync-collection report with a token the server never issued is refused with the DAV:valid-sync-token precondition and a 403, which RFC 4918 section 16 suggests for a request that will always fail, so the client knows to start over with a full sync.  'quirk' means the precondition comes with another status (Xandikos: 412).  'ungraceful' means an error without the precondition (Xandikos and CCS answer 500 for a malformed token).  'broken' means the report succeeds (Stalwart returns a full listing), so a client can't tell a refused token from an ordinary report",
             "links": ["https://datatracker.ietf.org/doc/html/rfc6578#section-3.2"],
         },
         "sync-token.limit": {

@@ -6765,3 +6765,257 @@ class TestSyncCollectionTruncated:
         assert result.sync_token == "tok-3"
         assert result.truncated is False
         assert len(result) == 2
+
+
+NO_UID_CONFLICT_BODY = (
+    b'<?xml version="1.0" encoding="utf-8"?>\n'
+    b'<D:error xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">'
+    b"<C:no-uid-conflict><D:href>/dav/user/mycal/other.ics</D:href></C:no-uid-conflict>"
+    b"</D:error>"
+)
+UNIQUE_SCHEDULING_BODY = (
+    b'<?xml version="1.0" encoding="utf-8"?>\n'
+    b'<D:error xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">'
+    b"<C:unique-scheduling-object-resource/></D:error>"
+)
+
+
+LOCK_TOKEN_BODY = (
+    b'<?xml version="1.0" encoding="utf-8"?>\n'
+    b'<D:error xmlns:D="DAV:"><D:lock-token-submitted>'
+    b"<D:href>/dav/user/mycal/ev1.ics</D:href></D:lock-token-submitted></D:error>"
+)
+MKCALENDAR_TAG = "{urn:ietf:params:xml:ns:caldav}calendar-collection-location-ok"
+MKCALENDAR_BODY = (
+    b'<?xml version="1.0" encoding="utf-8"?>\n'
+    b'<D:error xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">'
+    b"<C:calendar-collection-location-ok/></D:error>"
+)
+
+
+class TestPreconditionsOnOtherStatuses:
+    """Issue https://github.com/python-caldav/caldav/issues/756: a server may
+    explain any failure with a DAV:error body (RFC 4918 section 16), not
+    only a 401/403.  Xandikos refuses an expired sync token with 412
+    DAV:valid-sync-token; Radicale (409), Xandikos and Stalwart (412) refuse
+    a create whose UID is taken with CALDAV:no-uid-conflict, and Cyrus (403)
+    with CALDAV:unique-scheduling-object-resource."""
+
+    URL = "http://cal.example.com/dav/user/mycal/"
+
+    @pytest.fixture(params=["sync", "async"])
+    def base(self, request):
+        if request.param == "sync":
+            return DAVClient
+        from caldav.async_davclient import AsyncDAVClient
+
+        return AsyncDAVClient
+
+    def _client(self, base, status, body=b"", exc=None):
+        sent = []
+        client = base(url="http://cal.example.com/dav/")
+
+        def request(url, method="GET", body_=None, headers=None, **kwargs):
+            sent.append((method.upper(), {k.lower(): v for k, v in (headers or {}).items()}))
+            if exc is not None:
+                raise exc
+            resp = mock.MagicMock()
+            resp.status_code = status
+            resp.reason = "whatever"
+            resp.headers = {"Content-Type": "application/xml"} if body else {}
+            resp.content = body
+            resp.text = body.decode()
+            return DAVResponse(resp, client)
+
+        if base is DAVClient:
+            client.request = lambda url, method="GET", body="", headers=None: request(
+                url, method, body, headers
+            )
+        else:
+
+            async def async_request(url, method="GET", body="", headers=None):
+                return request(url, method, body, headers)
+
+            client.request = async_request
+        return client, sent
+
+    @staticmethod
+    def _run(result):
+        import asyncio
+
+        if asyncio.iscoroutine(result):
+            return asyncio.run(result)
+        return result
+
+    def test_davError_defaults(self) -> None:
+        e = error.PutError("/x.ics")
+        assert e.preconditions == []
+        assert e.body is None
+
+    def test_report_412_keeps_valid_sync_token(self, base) -> None:
+        client, _ = self._client(base, 412, VALID_SYNC_TOKEN_BODY)
+        calendar = Calendar(client, url=self.URL)
+        with pytest.raises(error.ReportError) as exc_info:
+            self._run(calendar.get_objects_by_sync_token("tok-1", disable_fallback=True))
+        assert exc_info.value.preconditions == [dav.ValidSyncToken.tag]
+        assert exc_info.value.body
+
+    def _event(self, client, etag=None):
+        cal = Calendar(client, url=self.URL)
+        event = Event(client, url=self.URL + "ev1.ics", data=ev1, parent=cal)
+        if etag:
+            event.props[dav.GetEtag.tag] = etag
+        return event
+
+    @pytest.mark.parametrize("status", [409, 412])
+    @pytest.mark.parametrize("etag", [None, '"etag-a"'])
+    def test_put_no_uid_conflict(self, base, status, etag) -> None:
+        """Not a reason to retry the PUT.  Where 3.4 raised
+        ETagMismatchError (a 412 on a save carrying If-Match), the error
+        is that as well, so existing handlers keep catching it."""
+        client, sent = self._client(base, status, NO_UID_CONFLICT_BODY)
+        event = self._event(client, etag)
+        with pytest.raises(error.UidConflictError) as exc_info:
+            self._run(event.save())
+        assert isinstance(exc_info.value, error.ETagMismatchError) == (
+            status == 412 and etag is not None
+        )
+        assert isinstance(exc_info.value, error.PutError)
+        assert exc_info.value.preconditions == ["{urn:ietf:params:xml:ns:caldav}no-uid-conflict"]
+        assert exc_info.value.body
+        assert [m for m, _ in sent] == ["PUT"]
+
+    def test_put_412_uid_conflict_with_schedule_tag(self, base) -> None:
+        client, _ = self._client(base, 412, NO_UID_CONFLICT_BODY)
+        event = self._event(client)
+        event.props[cdav.ScheduleTag.tag] = '"stag-1"'
+        with pytest.raises(error.UidConflictError) as exc_info:
+            self._run(event.save())
+        assert isinstance(exc_info.value, error.ScheduleTagMismatchError)
+
+    def test_put_409_without_precondition_is_retried_once(self, base) -> None:
+        client, sent = self._client(base, 409)
+        event = self._event(client)
+        with pytest.raises(error.PutError) as exc_info:
+            self._run(event.save())
+        assert not isinstance(exc_info.value, error.UidConflictError)
+        assert [m for m, _ in sent] == ["PUT", "PUT"]
+
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def test_put_403_body_reaches_uid_conflict(self, mocked) -> None:
+        """End to end: a real 403 body goes through the client's
+        AuthorizationError into a UidConflictError that still is one."""
+        r = mock.MagicMock()
+        r.status_code = 403
+        r.headers = {"Content-Type": "application/xml"}
+        r.reason = "Forbidden"
+        r.content = UNIQUE_SCHEDULING_BODY
+        r.text = UNIQUE_SCHEDULING_BODY.decode()
+        mocked.return_value = r
+        client = DAVClient(url="http://cal.example.com/dav/", username="u", password="p")
+        event = self._event(client)
+        with pytest.raises(error.UidConflictError) as exc_info:
+            event.save()
+        assert isinstance(exc_info.value, error.AuthorizationError)
+        assert exc_info.value.body == UNIQUE_SCHEDULING_BODY
+        assert exc_info.value.preconditions == [
+            "{urn:ietf:params:xml:ns:caldav}unique-scheduling-object-resource"
+        ]
+
+    def test_put_403_unique_scheduling_object_resource(self, base) -> None:
+        """A 403 is raised by the client as AuthorizationError; save() turns
+        it into a UidConflictError when it names a UID precondition."""
+        tag = "{urn:ietf:params:xml:ns:caldav}unique-scheduling-object-resource"
+        exc = error.AuthorizationError(
+            url=self.URL + "ev1.ics",
+            reason="Forbidden",
+            preconditions=[tag],
+            body=UNIQUE_SCHEDULING_BODY,
+        )
+        client, sent = self._client(base, 403, exc=exc)
+        event = self._event(client)
+        with pytest.raises(error.UidConflictError) as exc_info:
+            self._run(event.save())
+        assert isinstance(exc_info.value, error.AuthorizationError)
+        assert exc_info.value.preconditions == [tag]
+        assert exc_info.value.body == UNIQUE_SCHEDULING_BODY
+        assert [m for m, _ in sent] == ["PUT"]
+
+    def test_put_403_without_uid_precondition_stays_authorization_error(self, base) -> None:
+        exc = error.AuthorizationError(url=self.URL + "ev1.ics", reason="Forbidden")
+        client, _ = self._client(base, 403, exc=exc)
+        event = self._event(client)
+        with pytest.raises(error.AuthorizationError):
+            self._run(event.save())
+
+    def test_put_412_plain_is_still_etag_mismatch(self, base) -> None:
+        client, _ = self._client(base, 412)
+        event = self._event(client, '"etag-a"')
+        with pytest.raises(error.ETagMismatchError) as exc_info:
+            self._run(event.save())
+        assert exc_info.value.preconditions == []
+
+    def test_delete_412_keeps_preconditions(self, base) -> None:
+        client, _ = self._client(base, 412, LOCK_TOKEN_BODY)
+        event = self._event(client, '"etag-a"')
+        with pytest.raises(error.ETagMismatchError) as exc_info:
+            self._run(event.delete(if_match=True))
+        assert exc_info.value.preconditions == ["{DAV:}lock-token-submitted"]
+
+    def test_report_412_falls_back_without_disable_fallback(self, base) -> None:
+        """Not an AuthorizationError, so the fallback still runs."""
+        client, _ = self._client(base, 412, VALID_SYNC_TOKEN_BODY)
+        calendar = Calendar(client, url=self.URL)
+        if base is DAVClient:
+            search = mock.patch.object(Calendar, "search", return_value=[])
+        else:
+
+            async def no_objects(*args, **kwargs):
+                return []
+
+            search = mock.patch.object(Calendar, "search", side_effect=no_objects)
+        with search as mocked_search:
+            result = self._run(calendar.get_objects_by_sync_token("tok-1"))
+        mocked_search.assert_called_once()
+        assert result.sync_token.startswith("fake-")
+
+    def _response(self, client, status, body=MKCALENDAR_BODY):
+        resp = mock.MagicMock()
+        resp.status_code = status
+        resp.reason = "whatever"
+        resp.headers = {"Content-Type": "application/xml"}
+        resp.content = body
+        resp.text = body.decode()
+        return DAVResponse(resp, client)
+
+    @pytest.mark.parametrize("method", ["mkcalendar", "mkcol"])
+    def test_mkcalendar_failure_keeps_preconditions(self, method) -> None:
+        from caldav.collection import _assert_created
+
+        response = self._response(DAVClient(url=self.URL), 403)
+        with pytest.raises(error.exception_by_method[method]) as exc_info:
+            _assert_created(response, method)
+        assert exc_info.value.preconditions == [MKCALENDAR_TAG]
+        assert exc_info.value.body
+
+    def test_proppatch_failure_keeps_preconditions(self) -> None:
+        client = DAVClient(url=self.URL)
+        with pytest.raises(error.PropsetError) as exc_info:
+            Calendar(client, url=self.URL)._post_set_properties(self._response(client, 409))
+        assert exc_info.value.preconditions == [MKCALENDAR_TAG]
+
+    @pytest.mark.parametrize("status,cls", [(404, error.NotFoundError), (409, error.PropfindError)])
+    def test_propfind_failure_keeps_preconditions(self, status, cls) -> None:
+        from caldav.base_client import _raise_unless_propfind_ok
+
+        with pytest.raises(cls) as exc_info:
+            _raise_unless_propfind_ok(self._response(DAVClient(url=self.URL), status))
+        assert exc_info.value.preconditions == [MKCALENDAR_TAG]
+
+    def test_principal_search_failure_keeps_preconditions(self, base) -> None:
+        client, _ = self._client(base, 403, MKCALENDAR_BODY)
+        with pytest.raises(error.ReportError) as exc_info:
+            self._run(client.search_principals())
+        assert exc_info.value.preconditions == [MKCALENDAR_TAG]
+        ## the message format of earlier versions is kept
+        assert " - <?xml" in str(exc_info.value)

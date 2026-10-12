@@ -971,7 +971,7 @@ class CalendarObjectResource(DAVObject):
         try:
             r = self.client.request(str(self.url))
             if r.status and r.status == 404:
-                raise error.NotFoundError(errmsg(r))
+                raise error.error_from_response(error.NotFoundError, r)
             self.data = r.raw  # type: ignore
         except error.NotFoundError:
             # Only attempt fallbacks if the object was previously loaded
@@ -1021,7 +1021,7 @@ class CalendarObjectResource(DAVObject):
         try:
             r = await self.client.request(str(self.url))
             if r.status and r.status == 404:
-                raise error.NotFoundError(errmsg(r))
+                raise error.error_from_response(error.NotFoundError, r)
             self.data = r.raw  # type: ignore
         except error.NotFoundError:
             uid = self.id
@@ -1142,11 +1142,19 @@ class CalendarObjectResource(DAVObject):
         headers = self._precondition_headers() | ICALH
         if self.is_async_client:
             return self._async_put(headers, retry_on_failure)
-        r = self.client.put(self.url, self.data, headers)
+        try:
+            r = self.client.put(self.url, self.data, headers)
+        except error.AuthorizationError as e:
+            self._raise_uid_conflict(e)
+            raise
         return self._post_put(r, retry_on_failure)
 
     async def _async_put(self, headers, retry_on_failure=True):
-        r = await self.client.put(str(self.url), str(self.data), headers | ICALH)
+        try:
+            r = await self.client.put(str(self.url), str(self.data), headers | ICALH)
+        except error.AuthorizationError as e:
+            self._raise_uid_conflict(e)
+            raise
         result = self._post_put(r, retry_on_failure)
         if result is not None:
             # _post_put returned a retry coroutine (self._put(False) for async client)
@@ -1240,12 +1248,37 @@ class CalendarObjectResource(DAVObject):
             headers = {"if-match": if_match}
         return self._delete(headers)
 
+    @staticmethod
+    def _raise_uid_conflict(e: error.DAVError) -> None:
+        """Raise UidConflictError if ``e`` names a UID precondition.
+
+        Where ``e`` is what earlier versions raised (AuthorizationError for
+        Cyrus' 403, which the client raises before ``_post_put`` sees it, or
+        an ETag/Schedule-Tag mismatch), the UidConflictError is that too,
+        so existing handlers keep catching it (issue #756)."""
+        if error.UID_CONFLICT_PRECONDITIONS.intersection(e.preconditions):
+            cls = error.UID_CONFLICT_ERRORS.get(type(e), error.UidConflictError)
+            raise cls(e.url, e.reason, preconditions=e.preconditions, body=e.body) from e
+
     def _post_put(self, r, retry_on_failure):
+        if r.status >= 400:
+            ## The UID is taken (RFC 4791 section 5.3.2.1): not something a
+            ## retry would fix (issue #756).  A 412 on a conditional save
+            ## used to raise the mismatch error, so it still is one.
+            headers = self._precondition_headers()
+            cls = error.PutError
+            if r.status == 412 and headers:
+                cls = (
+                    error.ScheduleTagMismatchError
+                    if "if-schedule-tag-match" in headers
+                    else error.ETagMismatchError
+                )
+            self._raise_uid_conflict(error.error_from_response(cls, r))
         if r.status == 412:
             headers = self._precondition_headers()
             if headers:
                 self._raise_precondition_failed(r, headers)
-            raise error.PutError(errmsg(r))
+            raise error.error_from_response(error.PutError, r)
         elif r.status == 302:
             self.url = URL.objectify(r.headers.get("location"))
         elif r.status not in (204, 201):
@@ -1260,7 +1293,7 @@ class CalendarObjectResource(DAVObject):
                 self.get_vobject_instance()
                 return self._put(False)
             else:
-                raise error.PutError(errmsg(r))
+                raise error.error_from_response(error.PutError, r)
         self._update_tag_props(r)
 
     def _create(

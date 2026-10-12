@@ -74,7 +74,7 @@ def _assert_created(response, method: str) -> None:
     """
     if response.status == 201 or response.all_statuses_ok():
         return
-    raise error.exception_by_method[method](errmsg(response))
+    raise error.error_from_response(error.exception_by_method[method], response)
 
 
 # ---------------------------------------------------------------------------
@@ -2484,8 +2484,10 @@ class Calendar(DAVObject):
         This method transparently falls back to retrieving all objects if the server
         doesn't support sync tokens. The fallback behavior is identical from the user's
         perspective, but less efficient as it transfers the entire calendar on each sync.
-        An expired sync token (403 with DAV:valid-sync-token, RFC 6578 section 3.2) also
-        triggers the fallback, while any other AuthorizationError is raised.
+        An expired sync token (DAV:valid-sync-token, RFC 6578 section 3.2 - a 403, or a 412
+        on Xandikos) also triggers the fallback, while any other AuthorizationError is
+        raised.  With disable_fallback, the raised error's ``preconditions`` tells an
+        expired token apart from other failures.
 
         If disable_fallback is set to True, the method will raise an exception instead
         of falling back to retrieving all objects. This is useful for testing whether
