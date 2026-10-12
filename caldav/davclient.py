@@ -403,7 +403,11 @@ class DAVClient(BaseDAVClient):
         ## for now we're just treating it in the same way as 4xx and 5xx -
         ## probably the server did not support the operation
         if response.status >= 300:
-            raise error.ReportError(f"{response.status} {response.reason} - {response.raw}")
+            raise error.error_from_response(
+                error.ReportError,
+                response,
+                f"{response.status} {response.reason} - {response.raw}",
+            )
         return self._parse_principal_search_response(response._find_objects_and_props())
 
     def principals(self, name=None):

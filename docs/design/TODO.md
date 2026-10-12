@@ -36,3 +36,7 @@ Steps:
 5. Release checklist: `towncrier build --version X` → reorder/hand-edit → add summary → commit → tag.
 
 Known downsides: no Unreleased section visible on master (consider `sphinxcontrib-towncrier`), entries sorted by issue number rather than importance, `(issue URL)` appended to entries — use `+slug` names where URLs are cited inline.
+
+## An error response with a non-XML body labelled as XML
+
+A response whose `Content-Type` says XML but whose body is not XML (an HTML error page sent as `application/xml`) makes `DAVResponse.__init__` raise an lxml parse error, on any status.  The caller never gets the `DAVError` (with `body` and `preconditions`, https://github.com/python-caldav/caldav/issues/756) that the status calls for.  Only the async client's 401/403 path was fixed (https://github.com/python-caldav/caldav/issues/738).  Fix: tolerate a parse failure on a 4xx/5xx response and keep the raw body.  Found in the review of the #756 fix.
