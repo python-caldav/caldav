@@ -51,6 +51,10 @@ from .lib.url import URL
 
 log = logging.getLogger("caldav")
 
+## Which tag save() and delete(if_match=True) send as precondition.
+## https://github.com/python-caldav/caldav/issues/762
+Precondition = Literal["auto", "etag"]
+
 
 def _quote_uid(uid: str, features: Any = None) -> str:
     """URL-quote a UID for use in a CalDAV object URL.
@@ -1135,27 +1139,29 @@ class CalendarObjectResource(DAVObject):
 
         self.url = URL.objectify(path)
 
-    def _put(self, retry_on_failure=True) -> "None | Coroutine[Any, Any, None]":
+    def _put(
+        self, retry_on_failure=True, precondition: Precondition = "auto"
+    ) -> "None | Coroutine[Any, Any, None]":
         ## TODO: quite much overlapping with _async_put, should consolidate
         ## TODO: this is low-level http-communication - shouldn't it be in the davclient file rather than in calendarobjectresource.py?
         ## SECURITY TODO: we should probably have a check here to verify that no such object exists already
-        headers = self._precondition_headers() | ICALH
+        headers = self._precondition_headers(precondition) | ICALH
         if self.is_async_client:
-            return self._async_put(headers, retry_on_failure)
+            return self._async_put(headers, retry_on_failure, precondition)
         try:
             r = self.client.put(self.url, self.data, headers)
         except error.AuthorizationError as e:
             self._raise_uid_conflict(e)
             raise
-        return self._post_put(r, retry_on_failure)
+        return self._post_put(r, retry_on_failure, precondition)
 
-    async def _async_put(self, headers, retry_on_failure=True):
+    async def _async_put(self, headers, retry_on_failure=True, precondition: Precondition = "auto"):
         try:
             r = await self.client.put(str(self.url), str(self.data), headers | ICALH)
         except error.AuthorizationError as e:
             self._raise_uid_conflict(e)
             raise
-        result = self._post_put(r, retry_on_failure)
+        result = self._post_put(r, retry_on_failure, precondition)
         if result is not None:
             # _post_put returned a retry coroutine (self._put(False) for async client)
             await result
@@ -1188,24 +1194,35 @@ class CalendarObjectResource(DAVObject):
         else:
             self.props.pop(cdav.ScheduleTag.tag, None)
 
-    def _precondition_headers(self) -> dict[str, str]:
+    @staticmethod
+    def _check_precondition(precondition: Precondition) -> None:
+        if precondition not in ("auto", "etag"):
+            raise ValueError(f"precondition must be 'auto' or 'etag', not {precondition!r}")
+
+    def _precondition_headers(self, precondition: Precondition = "auto") -> dict[str, str]:
         """The conditional-request header for the cached version, if any.
 
-        A Schedule-Tag (RFC 6638 section 3.2) takes precedence over an
-        ETag.  Used by both ``save()`` and ``delete(if_match=True)``.
+        With ``precondition="auto"`` a Schedule-Tag (RFC 6638 section
+        3.2) takes precedence over an ETag; with ``"etag"`` the ETag
+        does, and the Schedule-Tag is only the fallback.  Used by both
+        ``save()`` and ``delete(if_match=True)``.
 
         A weak ETag is not sent: If-Match compares strongly (RFC 9110
         section 13.1.1), so it could never match.  GMX hands out weak
         ETags on PUT; an update after that goes out unconditionally.
         """
+        self._check_precondition(precondition)
         headers = {}  ## TODO: use some caseinsensitivedict
-        if self.schedule_tag:
+        strong_etag = self.etag if self.etag and not self.etag.startswith("W/") else None
+        if self.schedule_tag and not (precondition == "etag" and strong_etag):
             headers["if-schedule-tag-match"] = self.schedule_tag
-        elif self.etag and not self.etag.startswith("W/"):
-            headers["if-match"] = self.etag
+        elif strong_etag:
+            headers["if-match"] = strong_etag
         return headers
 
-    def delete(self, if_match: bool | str | None = False) -> "None | Coroutine[Any, Any, None]":
+    def delete(
+        self, if_match: bool | str | None = False, precondition: Precondition = "auto"
+    ) -> "None | Coroutine[Any, Any, None]":
         """Delete the object from the server.
 
         By default the DELETE is unconditional, and a 404 counts as
@@ -1223,16 +1240,21 @@ class CalendarObjectResource(DAVObject):
         raises ``ValueError`` rather than deleting unconditionally;
         so does a cached ETag that is weak, as it can never match.
 
+        ``precondition`` works as in ``save()``: ``"etag"`` makes
+        ``if_match=True`` prefer ``If-Match`` over a cached Schedule-Tag.
+
         See https://github.com/python-caldav/caldav/issues/740
 
         For async clients, returns a coroutine that must be awaited.
         """
+        ## Checked up front, so a typo is not ignored on a plain delete
+        self._check_precondition(precondition)
         if if_match is False or if_match is None:
             return super().delete()
         if if_match == "":
             raise ValueError("delete(if_match=''): an empty ETag cannot be a precondition")
         if if_match is True:
-            headers = self._precondition_headers()
+            headers = self._precondition_headers(precondition)
             if not headers and self.etag:
                 raise ValueError(
                     f"delete(if_match=True): only a weak ETag ({self.etag}) is known "
@@ -1260,12 +1282,14 @@ class CalendarObjectResource(DAVObject):
             cls = error.UID_CONFLICT_ERRORS.get(type(e), error.UidConflictError)
             raise cls(e.url, e.reason, preconditions=e.preconditions, body=e.body) from e
 
-    def _post_put(self, r, retry_on_failure):
+    def _post_put(
+        self, r, retry_on_failure, precondition: Precondition = "auto"
+    ) -> "None | Coroutine[Any, Any, None]":
         if r.status >= 400:
             ## The UID is taken (RFC 4791 section 5.3.2.1): not something a
             ## retry would fix (issue #756).  A 412 on a conditional save
             ## used to raise the mismatch error, so it still is one.
-            headers = self._precondition_headers()
+            headers = self._precondition_headers(precondition)
             cls = error.PutError
             if r.status == 412 and headers:
                 cls = (
@@ -1275,7 +1299,7 @@ class CalendarObjectResource(DAVObject):
                 )
             self._raise_uid_conflict(error.error_from_response(cls, r))
         if r.status == 412:
-            headers = self._precondition_headers()
+            headers = self._precondition_headers(precondition)
             if headers:
                 self._raise_precondition_failed(r, headers)
             raise error.error_from_response(error.PutError, r)
@@ -1291,23 +1315,27 @@ class CalendarObjectResource(DAVObject):
                 ## Accessing vobject_instance may "clean" the object.
                 ## See https://github.com/python-caldav/caldav/issues/43
                 self.get_vobject_instance()
-                return self._put(False)
+                return self._put(False, precondition)
             else:
                 raise error.error_from_response(error.PutError, r)
         self._update_tag_props(r)
+        return None
 
     def _create(
-        self, id=None, path=None, retry_on_failure=True
+        self, id=None, path=None, retry_on_failure=True, precondition: Precondition = "auto"
     ) -> "None | Coroutine[Any, Any, None]":
         ## TODO: Find a better method name
         self._find_id_path(id=id, path=path)
         if self.is_async_client:
-            return self._async_create(retry_on_failure)
-        self._put(retry_on_failure)
+            return self._async_create(retry_on_failure, precondition)
+        self._put(retry_on_failure, precondition)
+        return None
 
-    async def _async_create(self, retry_on_failure=True) -> None:
+    async def _async_create(
+        self, retry_on_failure=True, precondition: Precondition = "auto"
+    ) -> None:
         """Async implementation of _create."""
-        await self._put(retry_on_failure)
+        await self._put(retry_on_failure, precondition)
 
     def _generate_url(self):
         ## See https://github.com/python-caldav/caldav/issues/143 for the rationale behind double-quoting slashes
@@ -1432,6 +1460,7 @@ class CalendarObjectResource(DAVObject):
         increase_seqno: bool = True,
         only_this_recurrence: bool | None = True,
         all_recurrences: bool = False,
+        precondition: Precondition = "auto",
     ) -> "Self | Coroutine[Any, Any, Self]":
         """Save the object, can be used for creation and update.
 
@@ -1448,6 +1477,17 @@ class CalendarObjectResource(DAVObject):
         for a weak ETag, which If-Match never matches), and a
         412 response is raised as ``ScheduleTagMismatchError`` or
         ``ETagMismatchError``.
+
+        ``precondition="etag"`` prefers ``If-Match`` over a cached
+        Schedule-Tag.  Under ``If-Schedule-Tag-Match`` the server merges
+        an attendee's reply into the write instead of refusing it
+        (:rfc:`6638#section-3.2.10`), so the client is never told that
+        its copy is stale.  That is what an organizer's client wants; a
+        sync client wants a 412 for any change since it last saw the
+        object, and should pass ``"etag"`` - the RFC itself keeps ETag
+        preconditions for synchronization.  With no strong ETag cached,
+        ``"etag"`` falls back to the Schedule-Tag rather than saving
+        unconditionally.
 
         SEQUENCE: by default (``increase_seqno=True``) every save is
         treated as a new revision by the organizer, so if the component
@@ -1488,6 +1528,9 @@ class CalendarObjectResource(DAVObject):
         # TODO: the overwrite/no-overwrite logic can be handled server-side for
         # servers that adheres to the RFC: "If-Match: *" and "If-None-Match: *"
 
+        ## Checked before anything is sent
+        self._check_precondition(precondition)
+
         # Early return if there's no data (no-op case)
         if not self.is_loaded():
             return self
@@ -1502,6 +1545,7 @@ class CalendarObjectResource(DAVObject):
                 increase_seqno=increase_seqno,
                 only_this_recurrence=only_this_recurrence,
                 all_recurrences=all_recurrences,
+                precondition=precondition,
             )
 
         # Helper function to get the full object by UID
@@ -1554,11 +1598,15 @@ class CalendarObjectResource(DAVObject):
                 ## obj now holds the whole resource; PUT it as-is.  Treating it
                 ## as a recurrence again recursed forever on an orphan, which
                 ## is its own "master" in the UID lookup.
-                return obj.save(increase_seqno=master_seqno, only_this_recurrence=False)
+                return obj.save(
+                    increase_seqno=master_seqno,
+                    only_this_recurrence=False,
+                    precondition=precondition,
+                )
 
         self._maybe_increment_sequence(increase_seqno)
         path = self.url.path if self.url else None
-        self._create(id=self.id, path=path)
+        self._create(id=self.id, path=path, precondition=precondition)
         return self
 
     def _validate_save_constraints(self, existing, uid, no_overwrite, no_create):
@@ -1663,6 +1711,7 @@ class CalendarObjectResource(DAVObject):
         increase_seqno: bool = True,
         only_this_recurrence: bool | None = True,
         all_recurrences: bool = False,
+        precondition: Precondition = "auto",
     ) -> Self:
         """Async implementation of save() for async clients."""
         from caldav.lib import error
@@ -1705,11 +1754,15 @@ class CalendarObjectResource(DAVObject):
                 ## obj now holds the whole resource; PUT it as-is.  An orphan
                 ## is its own "master" in the UID lookup, so merging again
                 ## would recurse forever (see the twin comment in save()).
-                return await obj.save(increase_seqno=master_seqno, only_this_recurrence=False)
+                return await obj.save(
+                    increase_seqno=master_seqno,
+                    only_this_recurrence=False,
+                    precondition=precondition,
+                )
 
         self._maybe_increment_sequence(increase_seqno)
         path = self.url.path if self.url else None
-        await self._create(id=self.id, path=path)
+        await self._create(id=self.id, path=path, precondition=precondition)
         return self
 
     def is_loaded(self):

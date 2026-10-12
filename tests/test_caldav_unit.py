@@ -2643,7 +2643,9 @@ END:VCALENDAR"""
         """save(only_this_recurrence=None) calls _create() rather than raising when master absent."""
         event, _ = self._make_orphan_event()
         created = []
-        event._create = lambda id=None, path=None, retry_on_failure=True: created.append(True)
+        event._create = lambda id=None, path=None, retry_on_failure=True, precondition="auto": (
+            created.append(True)
+        )
         event.save(only_this_recurrence=None)
         assert created, "_create() must be called (PUT as-is) when master not found"
 
@@ -2651,7 +2653,9 @@ END:VCALENDAR"""
         """save(only_this_recurrence=False) skips the master lookup entirely and PUTs directly."""
         event, mock_calendar = self._make_orphan_event()
         created = []
-        event._create = lambda id=None, path=None, retry_on_failure=True: created.append(True)
+        event._create = lambda id=None, path=None, retry_on_failure=True, precondition="auto": (
+            created.append(True)
+        )
         event.save(only_this_recurrence=False)
         mock_calendar.get_event_by_uid.assert_not_called()
         assert created, "_create() must be called when only_this_recurrence=False"
@@ -2664,8 +2668,10 @@ END:VCALENDAR"""
 
         created = []
         original_create = CalendarObjectResource._create
-        CalendarObjectResource._create = lambda self_, id=None, path=None, retry_on_failure=True: (
-            created.append(True)
+        CalendarObjectResource._create = (
+            lambda self_, id=None, path=None, retry_on_failure=True, precondition="auto": (
+                created.append(True)
+            )
         )
         try:
             calendar.add_object(Event, self._orphan_ical)
@@ -2692,7 +2698,9 @@ END:VCALENDAR"""
         with mock.patch.object(
             CalendarObjectResource,
             "_create",
-            lambda self_, id=None, path=None, retry_on_failure=True: created.append(self_),
+            lambda self_, id=None, path=None, retry_on_failure=True, precondition="auto": (
+                created.append(self_)
+            ),
         ):
             event.save()
         assert len(created) == 1
@@ -2721,7 +2729,9 @@ END:VCALENDAR"""
         )
         created = []
 
-        async def fake_create(self_, id=None, path=None, retry_on_failure=True):
+        async def fake_create(
+            self_, id=None, path=None, retry_on_failure=True, precondition="auto"
+        ):
             created.append(self_)
 
         with mock.patch.object(CalendarObjectResource, "_create", fake_create):
@@ -3207,7 +3217,9 @@ class TestSequenceOnSave:
         with mock.patch.object(
             CalendarObjectResource,
             "_create",
-            lambda self_, id=None, path=None, retry_on_failure=True: put.append(self_),
+            lambda self_, id=None, path=None, retry_on_failure=True, precondition="auto": (
+                put.append(self_)
+            ),
         ):
             func()
         assert len(put) == 1
@@ -3219,7 +3231,9 @@ class TestSequenceOnSave:
 
         put = []
 
-        async def fake_create(self_, id=None, path=None, retry_on_failure=True):
+        async def fake_create(
+            self_, id=None, path=None, retry_on_failure=True, precondition="auto"
+        ):
             put.append(self_)
 
         with mock.patch.object(CalendarObjectResource, "_create", fake_create):
@@ -6145,10 +6159,12 @@ class TestDelayedCalendarDeletion:
         assert methods == ["DELETE", "PROPFIND", "PROPFIND", "PROPFIND"]
 
 
-class TestConditionalDelete:
-    """``delete(if_match=...)`` sends a precondition, so a resource changed
-    by someone else since it was last seen is not silently deleted.
-    https://github.com/python-caldav/caldav/issues/740"""
+class TestConditionalWrite:
+    """``delete(if_match=...)`` and ``save()`` send a precondition, so a
+    resource changed by someone else since it was last seen is not silently
+    deleted or overwritten.
+    https://github.com/python-caldav/caldav/issues/740
+    https://github.com/python-caldav/caldav/issues/762"""
 
     URL = "http://cal.example.com/dav/user/mycal/"
 
@@ -6160,14 +6176,16 @@ class TestConditionalDelete:
 
         return AsyncDAVClient
 
-    def _event(self, base, etag='"etag-a"', schedule_tag=None, status=204):
+    def _event(self, base, etag='"etag-a"', schedule_tag=None, status=204, data=ev1):
+        """``status`` may be a list, answered in turn (the last one repeats)."""
         sent = []
         client = base(url="http://cal.example.com/dav/")
+        statuses = list(status) if isinstance(status, list) else [status]
 
         def request(url, method="GET", body="", headers=None):
             sent.append((method.upper(), {k.lower(): v for k, v in (headers or {}).items()}))
             resp = mock.MagicMock()
-            resp.status_code = status
+            resp.status_code = statuses.pop(0) if len(statuses) > 1 else statuses[0]
             resp.reason = "whatever"
             resp.headers = {}
             resp.content = b""
@@ -6182,7 +6200,7 @@ class TestConditionalDelete:
 
             client.request = async_request
         cal = Calendar(client, url=self.URL)
-        event = Event(client, url=self.URL + "ev1.ics", data=ev1, parent=cal)
+        event = Event(client, url=self.URL + "ev1.ics", data=data, parent=cal)
         if etag:
             event.props[dav.GetEtag.tag] = etag
         if schedule_tag:
@@ -6282,6 +6300,116 @@ class TestConditionalDelete:
         event, _ = self._event(base, status=404)
         with pytest.raises(error.NotFoundError):
             self._run(event, if_match=True)
+
+    ## precondition="etag": a sync client wants any change, also an
+    ## attendee's reply that keeps the Schedule-Tag (RFC 6638 section
+    ## 3.2.10), to fail the write.
+    ## https://github.com/python-caldav/caldav/issues/762
+
+    @staticmethod
+    def _save(event, **kwargs) -> None:
+        import asyncio
+
+        result = event.save(increase_seqno=False, **kwargs)
+        if asyncio.iscoroutine(result):
+            asyncio.run(result)
+
+    def test_delete_precondition_etag_ignores_schedule_tag(self, base) -> None:
+        event, sent = self._event(base, schedule_tag='"stag-1"')
+        self._run(event, if_match=True, precondition="etag")
+        assert sent == [("DELETE", {"if-match": '"etag-a"'})]
+
+    def test_delete_precondition_etag_412_raises_etag_mismatch(self, base) -> None:
+        event, _ = self._event(base, schedule_tag='"stag-1"', status=412)
+        with pytest.raises(error.ETagMismatchError):
+            self._run(event, if_match=True, precondition="etag")
+
+    def test_delete_precondition_etag_without_etag_falls_back(self, base) -> None:
+        """A Schedule-Tag still beats no precondition at all."""
+        event, sent = self._event(base, etag=None, schedule_tag='"stag-1"')
+        self._run(event, if_match=True, precondition="etag")
+        assert sent == [("DELETE", {"if-schedule-tag-match": '"stag-1"'})]
+
+    def test_save_precondition_etag_without_etag_falls_back(self, base) -> None:
+        """A PUT answered without an ETag (RFC 4791 section 5.3.4) leaves only
+        the Schedule-Tag cached; the next save must not go out unconditionally."""
+        event, sent = self._event(base, etag=None, schedule_tag='"stag-1"')
+        self._save(event, precondition="etag")
+        assert sent[-1][1]["if-schedule-tag-match"] == '"stag-1"'
+        assert "if-match" not in sent[-1][1]
+
+    def test_save_precondition_etag_kept_on_retry(self, base) -> None:
+        event, sent = self._event(base, schedule_tag='"stag-1"', status=[500, 204])
+        self._save(event, precondition="etag")
+        puts = [headers for method, headers in sent if method == "PUT"]
+        assert len(puts) == 2
+        for headers in puts:
+            assert headers["if-match"] == '"etag-a"'
+            assert "if-schedule-tag-match" not in headers
+
+    def test_save_precondition_etag_kept_on_recurrence_merge(self, base) -> None:
+        """Saving one recurrence PUTs the master, which carries its own tags."""
+        override = """BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Example Corp.//CalDAV Client//EN
+BEGIN:VEVENT
+UID:20010712T182145Z-123401@example.com
+DTSTAMP:20060712T182145Z
+RECURRENCE-ID:20060714T170000Z
+DTSTART:20060714T180000Z
+DTEND:20060715T040000Z
+SUMMARY:Moved
+END:VEVENT
+END:VCALENDAR
+"""
+        master_data = ev1.replace("SUMMARY:", "RRULE:FREQ=DAILY;COUNT=3\nSUMMARY:")
+        event, sent = self._event(base, etag=None, data=override)
+        master = Event(
+            event.client,
+            url=self.URL + "ev1.ics",
+            data=master_data,
+            parent=event.parent,
+            props={dav.GetEtag.tag: '"etag-m"', cdav.ScheduleTag.tag: '"stag-m"'},
+        )
+        if base is DAVClient:
+            event.parent.get_event_by_uid = lambda uid: master
+        else:
+
+            async def get_event_by_uid(uid):
+                return master
+
+            event.parent.get_event_by_uid = get_event_by_uid
+        self._save(event, precondition="etag")
+        assert sent[-1][0] == "PUT"
+        assert sent[-1][1]["if-match"] == '"etag-m"'
+        assert "if-schedule-tag-match" not in sent[-1][1]
+
+    def test_save_prefers_schedule_tag_by_default(self, base) -> None:
+        event, sent = self._event(base, schedule_tag='"stag-1"')
+        self._save(event)
+        assert sent[-1][1]["if-schedule-tag-match"] == '"stag-1"'
+        assert "if-match" not in sent[-1][1]
+
+    def test_save_precondition_etag_ignores_schedule_tag(self, base) -> None:
+        event, sent = self._event(base, schedule_tag='"stag-1"')
+        self._save(event, precondition="etag")
+        assert sent[-1][0] == "PUT"
+        assert sent[-1][1]["if-match"] == '"etag-a"'
+        assert "if-schedule-tag-match" not in sent[-1][1]
+
+    def test_save_precondition_etag_412_raises_etag_mismatch(self, base) -> None:
+        event, _ = self._event(base, schedule_tag='"stag-1"', status=412)
+        with pytest.raises(error.ETagMismatchError):
+            self._save(event, precondition="etag")
+
+    @pytest.mark.parametrize("value", ["schedule-tag", "ETag", None])
+    def test_unknown_precondition_is_refused(self, base, value) -> None:
+        event, sent = self._event(base, schedule_tag='"stag-1"')
+        with pytest.raises(ValueError):
+            self._save(event, precondition=value)
+        with pytest.raises(ValueError):
+            self._run(event, if_match=True, precondition=value)
+        assert sent == []
 
 
 class TestDelayedPropertyWrite:
