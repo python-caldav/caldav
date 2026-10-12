@@ -25,6 +25,7 @@ from caldav import (
     Principal,
     Todo,
 )
+from caldav.collection import SynchronizableCalendarObjectCollection
 from caldav.davclient import DAVClient, DAVResponse
 from caldav.elements import cdav, dav
 from caldav.lib import error
@@ -4053,6 +4054,121 @@ class TestAuthorizationErrorPreconditions:
         mocked_search.assert_called_once()
 
 
+def _dav_response(status, body=b"", content_type="application/xml"):
+    """A DAVResponse for a REPORT answered with `status` and `body`."""
+    r = mock.MagicMock()
+    r.status_code = status
+    r.reason = "whatever"
+    r.headers = {"Content-Type": content_type} if body else {}
+    r.content = body
+    r.text = body.decode() if body else ""
+    return DAVResponse(r)
+
+
+SYNC_REPLY_WITH_REMOVAL = b"""<?xml version="1.0" encoding="utf-8"?>
+<D:multistatus xmlns:D="DAV:">
+  <D:response>
+    <D:href>/cal/changed.ics</D:href>
+    <D:propstat>
+      <D:prop><D:getetag>"2"</D:getetag></D:prop>
+      <D:status>HTTP/1.1 200 OK</D:status>
+    </D:propstat>
+  </D:response>
+  <D:response>
+    <D:href>/cal/removed.ics</D:href>
+    <D:status>HTTP/1.1 404 Not Found</D:status>
+  </D:response>
+  <D:response>
+    <D:href>/cal/recreated.ics</D:href>
+    <D:status>HTTP/1.1 404 Not Found</D:status>
+  </D:response>
+  <D:response>
+    <D:href>/cal/recreated.ics</D:href>
+    <D:propstat>
+      <D:prop><D:getetag>"3"</D:getetag></D:prop>
+      <D:status>HTTP/1.1 200 OK</D:status>
+    </D:propstat>
+  </D:response>
+  <D:sync-token>http://example.com/sync/2</D:sync-token>
+</D:multistatus>"""
+
+
+class TestSyncReportsRemovals:
+    """RFC 6578 section 3.2 reports a removed member as a response with a
+    404 status and no propstat.  The library returns an object for it like
+    for any other member; ``deleted_urls`` says which ones were removed, so
+    a caller doesn't have to guess from a missing ETag.  Cyrus lists a
+    member removed and then changed; the change wins.
+    """
+
+    def _calendar(self):
+        client = DAVClient(url="https://cal.example.com/")
+        client.report = mock.MagicMock(return_value=_dav_response(207, SYNC_REPLY_WITH_REMOVAL))
+        return Calendar(client=client, url="https://cal.example.com:443/cal/")
+
+    def test_deleted_urls(self):
+        result = self._calendar().get_objects_by_sync_token("http://example.com/sync/1")
+        assert {str(u) for u in result.deleted_urls} == {
+            "https://cal.example.com:443/cal/removed.ics"
+        }
+        assert len(result) == 3
+
+    def test_sync_does_not_fetch_a_removed_member(self):
+        calendar = self._calendar()
+        collection = SynchronizableCalendarObjectCollection(
+            calendar=calendar, objects=[], sync_token="http://example.com/sync/1"
+        )
+        with mock.patch.object(CalendarObjectResource, "load") as mocked_load:
+            (updated, deleted) = collection.sync()
+        assert [str(o.url) for o in deleted] == ["https://cal.example.com:443/cal/removed.ics"]
+        assert sorted(str(o.url) for o in updated) == [
+            "https://cal.example.com:443/cal/changed.ics",
+            "https://cal.example.com:443/cal/recreated.ics",
+        ]
+        assert mocked_load.call_count == 2
+
+    def _cached_collection(self, calendar):
+        """A collection that holds removed.ics from an earlier sync."""
+        cached = CalendarObjectResource(
+            calendar.client,
+            url="https://cal.example.com:443/cal/removed.ics",
+            parent=calendar,
+            props={dav.GetEtag.tag: '"1"'},
+        )
+        return SynchronizableCalendarObjectCollection(
+            calendar=calendar,
+            objects=[cached],
+            sync_token="http://example.com/sync/1",
+            deleted_urls=["https://cal.example.com:443/cal/stale.ics"],
+        )
+
+    def test_sync_drops_a_removed_member_from_the_cache(self):
+        collection = self._cached_collection(self._calendar())
+        with mock.patch.object(CalendarObjectResource, "load"):
+            (updated, deleted) = collection.sync()
+        assert [str(o.url) for o in deleted] == ["https://cal.example.com:443/cal/removed.ics"]
+        assert "https://cal.example.com:443/cal/removed.ics" not in {
+            str(o.url) for o in collection.objects
+        }
+        ## the removals were handed back and dropped, so none are left to report
+        assert collection.deleted_urls == set()
+
+    def test_load_objects_skips_a_removed_member(self):
+        with mock.patch.object(CalendarObjectResource, "load") as mocked_load:
+            self._calendar().get_objects_by_sync_token(
+                "http://example.com/sync/1", load_objects=True
+            )
+        assert mocked_load.call_count == 2
+
+    def test_fallback_reports_no_removals(self):
+        calendar = self._calendar()
+        calendar.client.report.side_effect = error.ReportError("500")
+        with mock.patch.object(Calendar, "search", return_value=[]):
+            result = calendar.get_objects_by_sync_token("http://example.com/sync/1")
+        assert result.sync_token.startswith("fake-")
+        assert result.deleted_urls == set()
+
+
 class TestAsyncProbeResponseNotReturnedAsReal:
     """§2.15: async _async_request: when the probe GET for issue-#158 workaround does
     not receive a 401+WWW-Authenticate response, the original exception must be re-raised.
@@ -6645,6 +6761,15 @@ class TestSyncCollectionTruncated:
         by_name = {str(o.url.path).rsplit("/", 1)[1]: o for o in result}
         assert by_name["a.ics"].props.get(dav.GetEtag.tag) is None
         assert by_name["c.ics"].props[dav.GetEtag.tag] == '"c1"'
+        assert [u.path for u in result.deleted_urls] == ["/dav/cal/a.ics"]
+
+    def test_a_member_removed_then_recreated_is_not_deleted(self):
+        client, calendar = self._calendar(
+            sync_page({"a.ics": None}, "tok-2", truncated=True),
+            sync_page({"a.ics": '"a2"'}, "tok-3", truncated=False),
+        )
+        result = calendar.get_objects_by_sync_token("tok-1")
+        assert result.deleted_urls == set()
 
     def test_untruncated_reply_is_a_single_request(self):
         client, calendar = self._calendar(sync_page({"a.ics": '"a1"'}, "tok-2", truncated=False))
