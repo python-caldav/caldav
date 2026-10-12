@@ -34,7 +34,6 @@ from caldav.lib.url import URL
 
 from .public_share_fixtures import (
     GMX_LIKE_PRINCIPAL_DEPTH1_XML,
-    PUBLIC_SHARE_PRINCIPAL_DEPTH0_XML,
     PUBLIC_SHARE_PRINCIPAL_DEPTH1_XML,
     PUBLIC_SHARE_PRINCIPAL_URL,
     PUBLIC_SHARE_URL,
@@ -1130,7 +1129,7 @@ END:VCALENDAR
 
     def test_get_calendars_without_home_set_prefers_principal(self):
         """
-        No calendar-home-set, but calendars below the principal: those
+        A synthetic no-home response has calendars below the principal: those
         are returned and the client URL is not queried.
         """
         client = PublicShareDAVClient(principal_depth1_xml=GMX_LIKE_PRINCIPAL_DEPTH1_XML)
@@ -1139,71 +1138,30 @@ END:VCALENDAR
         assert [str(c.url) for c in calendars] == [PUBLIC_SHARE_PRINCIPAL_URL + "work/"]
         assert all(PUBLIC_SHARE_URL not in url for url, _ in client.requests)
 
-    def test_missing_home_set_reuses_discovered_principal_for_lookup_and_creation(self):
-        """A successful principal fallback is also the lazy calendar home."""
-        client = PublicShareDAVClient(principal_depth1_xml=GMX_LIKE_PRINCIPAL_DEPTH1_XML)
-        principal = Principal(client=client, url=PUBLIC_SHARE_PRINCIPAL_URL)
+    def test_missing_home_set_uses_principal_without_discovery_for_lookup_and_creation(self):
+        """A missing home is the principal itself when discovery cannot use depth 1."""
+        client = DAVClient(url="https://cal.example.com/dav/")
+        principal = Principal(client=client, url="https://cal.example.com/dav/principals/user/")
+        original_client_url = str(client.url)
 
-        calendars = principal.get_calendars()
-        looked_up = principal.calendar(cal_id=calendars[0].id)
-        assert str(looked_up.url) == str(calendars[0].url)
-
-        with mock.patch.object(Calendar, "_create", autospec=True):
-            created = principal.make_calendar(cal_id="new")
-        assert str(created.parent.url) == PUBLIC_SHARE_PRINCIPAL_URL
-
-    def test_missing_home_set_discovers_before_first_lookup(self):
-        """A bare ID lookup discovers a missing home before building its URL."""
-        client = PublicShareDAVClient(principal_depth1_xml=GMX_LIKE_PRINCIPAL_DEPTH1_XML)
-        principal = Principal(client=client, url=PUBLIC_SHARE_PRINCIPAL_URL)
-
-        looked_up = principal.calendar(cal_id="work")
-
-        assert str(looked_up.url) == PUBLIC_SHARE_PRINCIPAL_URL + "work/"
-
-    def test_missing_home_set_discovers_before_first_creation(self):
-        """Creation uses the same missing-home discovery as a first lookup."""
-        client = PublicShareDAVClient(principal_depth1_xml=GMX_LIKE_PRINCIPAL_DEPTH1_XML)
-        principal = Principal(client=client, url=PUBLIC_SHARE_PRINCIPAL_URL)
-
-        with mock.patch.object(Calendar, "_create", autospec=True):
+        with (
+            mock.patch.object(principal, "get_property", return_value=None) as get_property,
+            mock.patch.object(
+                principal,
+                "get_calendars",
+                side_effect=AssertionError("missing-home access must not discover calendars"),
+            ) as get_calendars,
+            mock.patch.object(Calendar, "_create", autospec=True),
+        ):
+            looked_up = principal.calendar(cal_id="work")
             created = principal.make_calendar(cal_id="new")
 
-        assert str(created.parent.url) == PUBLIC_SHARE_PRINCIPAL_URL
-
-    @pytest.mark.parametrize("failure", ["authorization", "server"])
-    def test_failed_client_fallback_does_not_poison_home_for_retry(self, failure):
-        """A failed public-share fallback must not block a later retry."""
-        client = PublicShareDAVClient()
-        principal = Principal(client=client, url=PUBLIC_SHARE_PRINCIPAL_URL)
-        original_request = client.request
-        calls = 0
-
-        def request(url, method="GET", body="", headers=None):
-            nonlocal calls
-            calls += 1
-            if calls == 3:
-                if failure == "authorization":
-                    raise error.AuthorizationError(url=str(url), reason="Forbidden")
-                response = mock.MagicMock()
-                response.status_code = 500
-                response.reason = "Server Error"
-                response.headers = {}
-                response.content = b""
-                return DAVResponse(response)
-            return original_request(url, method, body, headers)
-
-        client.request = request
-        assert client.get_calendars(principal) == []
-        assert principal._calendar_home_set is None
-
-        client.request = original_request
-        assert client.get_calendars(principal)
-        looked_up = principal.calendar(cal_id="work")
-        assert str(looked_up.url) == PUBLIC_SHARE_URL + "/work/"
-        with mock.patch.object(Calendar, "_create", autospec=True):
-            created = principal.make_calendar(cal_id="new")
-        assert str(created.parent.url) == PUBLIC_SHARE_URL
+        assert str(looked_up.url) == str(principal.url) + "work/"
+        assert str(created.parent.url) == str(principal.url)
+        assert principal._calendar_home_set is not None
+        get_property.assert_called_once()
+        get_calendars.assert_not_called()
+        assert str(client.url) == original_client_url
 
     def test_xml_parsing(self):
         """
@@ -6703,25 +6661,6 @@ class TestGetCalendarsPropfindErrors:
             )
             == []
         )
-
-    def test_empty_account_creation_uses_principal_guess(self):
-        client = DAVClient(url="https://cal.example.com/")
-        principal = Principal(client=client, url="https://cal.example.com/principals/user/")
-        responses = [
-            self._response(207, self.NO_HOME_SET_XML),
-            self._response(207, self.NO_HOME_SET_XML),
-            self._response(404),
-            self._response(207, PUBLIC_SHARE_PRINCIPAL_DEPTH0_XML),
-            self._response(207, self.NO_HOME_SET_XML),
-            self._response(207, self.NO_HOME_SET_XML),
-            self._response(404),
-        ]
-        with mock.patch.object(client, "propfind", side_effect=responses):
-            assert client.get_calendars(principal) == []
-            assert principal._calendar_home_set is None
-            with mock.patch.object(Calendar, "_create", autospec=True):
-                created = principal.make_calendar(cal_id="new")
-        assert str(created.parent.url) == str(principal.url)
 
     def test_principal_refused_by_auth_without_home_set_raises(self):
         refused = error.AuthorizationError(url="https://cal.example.com/", reason="Forbidden")

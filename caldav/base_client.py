@@ -489,11 +489,6 @@ class BaseDAVClient(ABC):
         if hostname and hostname != self.url.hostname:
             self.url = self.url.relocate(calendar_home_url)
 
-    def _cache_calendar_home(self, principal: Any, calendar_home_url: str) -> None:
-        """Remember a home selected by calendar discovery for lazy operations."""
-        if getattr(principal, "_calendar_home_set", None) is None:
-            principal.calendar_home_set = calendar_home_url
-
     def _build_calendars_from_propfind(self, list_response: Any, guess: bool = False) -> list:
         """Build Calendar objects from a calendar-home PROPFIND response.
 

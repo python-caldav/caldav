@@ -1741,96 +1741,37 @@ class TestAsyncGetCalendarsWithoutHomeSet:
         assert all(PUBLIC_SHARE_URL not in url for url, _ in client.requests)
 
     @pytest.mark.asyncio
-    async def test_missing_home_set_reuses_discovered_principal_for_lookup_and_creation(
+    async def test_missing_home_set_uses_principal_without_discovery_for_lookup_and_creation(
         self,
     ) -> None:
         from caldav.collection import Calendar, Principal
 
-        from .public_share_fixtures import (
-            GMX_LIKE_PRINCIPAL_DEPTH1_XML,
-            PUBLIC_SHARE_PRINCIPAL_URL,
-        )
+        client = AsyncDAVClient(url="https://cal.example.com/dav/")
+        principal = Principal(client=client, url="https://cal.example.com/dav/principals/user/")
+        original_client_url = str(client.url)
 
-        client = self._client(GMX_LIKE_PRINCIPAL_DEPTH1_XML)
-        principal = Principal(client=client, url=PUBLIC_SHARE_PRINCIPAL_URL)
-
-        calendars = await principal.get_calendars()
-        looked_up = await principal.calendar(cal_id=calendars[0].id)
-        assert str(looked_up.url) == str(calendars[0].url)
-
-        with patch.object(Calendar, "_async_create", new=AsyncMock()):
-            created = await principal.make_calendar(cal_id="new")
-        assert str(created.parent.url) == PUBLIC_SHARE_PRINCIPAL_URL
-
-    @pytest.mark.asyncio
-    async def test_missing_home_set_discovers_before_first_lookup(self) -> None:
-        from caldav.collection import Principal
-
-        from .public_share_fixtures import (
-            GMX_LIKE_PRINCIPAL_DEPTH1_XML,
-            PUBLIC_SHARE_PRINCIPAL_URL,
-        )
-
-        client = self._client(GMX_LIKE_PRINCIPAL_DEPTH1_XML)
-        principal = Principal(client=client, url=PUBLIC_SHARE_PRINCIPAL_URL)
-
-        looked_up = await principal.calendar(cal_id="work")
-
-        assert str(looked_up.url) == PUBLIC_SHARE_PRINCIPAL_URL + "work/"
-
-    @pytest.mark.asyncio
-    async def test_missing_home_set_discovers_before_first_creation(self) -> None:
-        from caldav.collection import Calendar, Principal
-
-        from .public_share_fixtures import (
-            GMX_LIKE_PRINCIPAL_DEPTH1_XML,
-            PUBLIC_SHARE_PRINCIPAL_URL,
-        )
-
-        client = self._client(GMX_LIKE_PRINCIPAL_DEPTH1_XML)
-        principal = Principal(client=client, url=PUBLIC_SHARE_PRINCIPAL_URL)
-
-        with patch.object(Calendar, "_async_create", new=AsyncMock()):
+        with (
+            patch.object(
+                principal, "get_property", new=AsyncMock(return_value=None)
+            ) as get_property,
+            patch.object(
+                principal,
+                "get_calendars",
+                new=AsyncMock(
+                    side_effect=AssertionError("missing-home access must not discover calendars")
+                ),
+            ) as get_calendars,
+            patch.object(Calendar, "_async_create", new=AsyncMock()),
+        ):
+            looked_up = await principal.calendar(cal_id="work")
             created = await principal.make_calendar(cal_id="new")
 
-        assert str(created.parent.url) == PUBLIC_SHARE_PRINCIPAL_URL
-
-    @pytest.mark.asyncio
-    @pytest.mark.parametrize("failure", ["authorization", "server"])
-    async def test_failed_client_fallback_does_not_poison_home_for_retry(self, failure) -> None:
-        from caldav.collection import Calendar, Principal
-
-        from .public_share_fixtures import (
-            PUBLIC_SHARE_PRINCIPAL_DEPTH1_XML,
-            PUBLIC_SHARE_PRINCIPAL_URL,
-            PUBLIC_SHARE_URL,
-        )
-
-        client = self._client(PUBLIC_SHARE_PRINCIPAL_DEPTH1_XML)
-        principal = Principal(client=client, url=PUBLIC_SHARE_PRINCIPAL_URL)
-        original_request = client.request
-        calls = 0
-
-        async def request(url, method="GET", body="", headers=None):
-            nonlocal calls
-            calls += 1
-            if calls == 3:
-                if failure == "authorization":
-                    raise error.AuthorizationError(url=str(url), reason="Forbidden")
-                return DAVResponse(create_mock_response(status_code=500))
-            return await original_request(url, method, body, headers)
-
-        client.request = request
-        assert await client.get_calendars(principal) == []
-        assert principal._calendar_home_set is None
-
-        client.request = original_request
-        assert await client.get_calendars(principal)
-        looked_up = await principal.calendar(cal_id="work")
-        assert str(looked_up.url) == PUBLIC_SHARE_URL + "/work/"
-        with patch.object(Calendar, "_async_create", new=AsyncMock()):
-            created = await principal.make_calendar(cal_id="new")
-        assert str(created.parent.url) == PUBLIC_SHARE_URL
+        assert str(looked_up.url) == str(principal.url) + "work/"
+        assert str(created.parent.url) == str(principal.url)
+        assert principal._calendar_home_set is not None
+        get_property.assert_awaited_once()
+        get_calendars.assert_not_awaited()
+        assert str(client.url) == original_client_url
 
 
 class TestAsyncHttpLibrarySelection:
@@ -2153,29 +2094,6 @@ class TestAsyncGetCalendarsPropfindErrors:
             refused,
         )
         assert calendars == []
-
-    @pytest.mark.asyncio
-    async def test_empty_account_creation_uses_principal_guess(self) -> None:
-        from caldav.collection import Calendar, Principal
-        from tests.public_share_fixtures import PUBLIC_SHARE_PRINCIPAL_DEPTH0_XML
-
-        client = AsyncDAVClient(url="https://cal.example.com/")
-        principal = Principal(client=client, url="https://cal.example.com/principals/user/")
-        responses = [
-            self._response(207, PUBLIC_SHARE_PRINCIPAL_DEPTH0_XML.encode()),
-            self._response(207, self.NO_HOME_SET_XML),
-            self._response(404),
-            self._response(207, PUBLIC_SHARE_PRINCIPAL_DEPTH0_XML.encode()),
-            self._response(207, self.NO_HOME_SET_XML),
-            self._response(207, self.NO_HOME_SET_XML),
-            self._response(404),
-        ]
-        with patch.object(client, "propfind", new=AsyncMock(side_effect=responses)):
-            assert await client.get_calendars(principal) == []
-            assert principal._calendar_home_set is None
-            with patch.object(Calendar, "_async_create", new=AsyncMock()):
-                created = await principal.make_calendar(cal_id="new")
-        assert str(created.parent.url) == str(principal.url)
 
     @pytest.mark.asyncio
     async def test_principal_refused_by_auth_without_home_set_raises(self) -> None:

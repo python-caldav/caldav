@@ -991,8 +991,7 @@ class AsyncDAVClient(BaseDAVClient):
         )
         # Fetch calendars via PROPFIND, from the first URL that has any
         calendars = []
-        calendar_home_urls = self._calendar_home_urls(response, principal)
-        for n, calendar_home_url in enumerate(calendar_home_urls):
+        for n, calendar_home_url in enumerate(self._calendar_home_urls(response, principal)):
             auth = (self.auth, self.auth_type)
             try:
                 response = await self.propfind(
@@ -1009,7 +1008,6 @@ class AsyncDAVClient(BaseDAVClient):
                 break
             calendars = self._build_calendars_from_propfind(response, guess=n > 0)
             if calendars:
-                self._cache_calendar_home(principal, calendar_home_url)
                 break
         return calendars
 
