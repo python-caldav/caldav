@@ -11,6 +11,7 @@ Disclaimer: AI-generated tests
 from datetime import datetime, timezone
 from unittest import mock
 from urllib.parse import quote
+from zoneinfo import ZoneInfo
 
 import icalendar
 import pytest
@@ -1171,8 +1172,8 @@ class TestCompTypeOptionalTimeRange:
         calendar._request_report_build_resultlist.side_effect = rep
 
         searcher = CalDAVSearcher(
-            start=datetime(2024, 1, 1, tzinfo=timezone.utc),
-            end=datetime(2024, 2, 1, tzinfo=timezone.utc),
+            start=datetime(2024, 6, 1, tzinfo=timezone.utc),
+            end=datetime(2024, 7, 1, tzinfo=timezone.utc),
         )
         result = searcher.search(calendar)
 
@@ -1839,3 +1840,354 @@ class TestSearchBatchLoadIntegration:
         results = searcher.search(cal)
 
         assert len(results) == 1
+
+
+class TestNegatedOperators:
+    """The negated and presence operators: ``!=``, ``!contains`` and ``def``.
+
+    https://github.com/python-caldav/caldav/issues/568
+
+    A CalDAV ``text-match`` is a substring match, so ``negate-condition``
+    means "does not contain".  ``!contains`` maps onto it; ``!=`` does not -
+    sending a negated substring match for ``SUMMARY != "Training"`` would
+    drop "Training session".  Server support for either is unknown until
+    caldav-server-tester probes it, so search() decides all three
+    client-side, and the server query is never narrower than the answer.
+    """
+
+    _events = {
+        "training": "Training session",
+        "rain": "rain",
+        "none": None,
+    }
+
+    _category_events = {
+        "work": "work",
+        "both": "work,home",
+        "none": None,
+    }
+
+    def _event_data(self, uid: str, value: str | None, prop: str = "SUMMARY") -> str:
+        summary_line = f"{prop}:{value}\n" if value is not None else ""
+        return (
+            "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Test//Test//EN\nBEGIN:VEVENT\n"
+            f"UID:{uid}@example.com\nDTSTAMP:20240101T120000Z\n"
+            f"DTSTART:20240615T140000Z\n{summary_line}END:VEVENT\nEND:VCALENDAR"
+        )
+
+    def _calendar(self, supported: bool | str, prop: str = "SUMMARY") -> mock.Mock:
+        """supported: True/False for every feature, or the one feature unsupported."""
+        client = mock.Mock(spec=DAVClient)
+        client.url = URL("https://cal.example.com/")
+        client.features = mock.Mock()
+        if isinstance(supported, str):
+            unsupported = supported
+
+            def is_supported(feature: str, return_type: type = bool) -> object:
+                if return_type is str:
+                    return "unsupported" if feature == unsupported else "full"
+                return feature != unsupported
+
+            client.features.is_supported = mock.Mock(side_effect=is_supported)
+        else:
+            client.features.is_supported = mock.Mock(return_value=supported)
+        client.features.backward_compatibility_mode = False
+        cal = mock.Mock()
+        cal.client = client
+        cal.url = URL("https://cal.example.com/cal/")
+        objects = [
+            Event(
+                client=client,
+                url=f"https://cal.example.com/cal/{uid}.ics",
+                data=self._event_data(uid, value, prop),
+                parent=cal,
+            )
+            for uid, value in (
+                self._category_events if prop == "CATEGORIES" else self._events
+            ).items()
+        ]
+        ## The server ignores the filter and returns everything; the
+        ## client-side filter has to produce the answer.
+        cal._request_report_build_resultlist = mock.Mock(return_value=(mock.MagicMock(), objects))
+        return cal
+
+    @staticmethod
+    def _xml(searcher: CalDAVSearcher) -> bytes:
+        from lxml import etree
+
+        xml, _ = searcher.build_search_xml_query()
+        return etree.tostring(xml.xmlelement())
+
+    @pytest.mark.parametrize(
+        ("operator", "value", "expected"),
+        [
+            ("!=", "rain", {"training"}),
+            ("<>", "rain", {"training"}),
+            ("!=", "Training", {"training", "rain"}),
+            ("!contains", "rain", set()),
+            ("!contains", "session", {"rain"}),
+            ("def", None, {"training", "rain"}),
+        ],
+    )
+    @pytest.mark.parametrize(
+        "supported", [True, False, "search.text"], ids=["all", "none", "no-text-search"]
+    )
+    def test_search_filters_client_side(
+        self, operator: str, value: str | None, expected: set[str], supported: bool | str
+    ) -> None:
+        cal = self._calendar(supported)
+        searcher = CalDAVSearcher(event=True)
+        searcher.add_property_filter("SUMMARY", value, operator=operator)
+        results = searcher.search(cal)
+        uids = {str(r.icalendar_component["UID"]).split("@")[0] for r in results}
+        assert uids == expected
+
+    @pytest.mark.parametrize("operator", ["!=", "!contains", "def"])
+    def test_search_sends_no_positive_text_match(self, operator: str) -> None:
+        cal = self._calendar(True)
+        searcher = CalDAVSearcher(event=True)
+        searcher.add_property_filter("SUMMARY", "rain", operator=operator)
+        searcher.search(cal)
+        from lxml import etree
+
+        for call in cal._request_report_build_resultlist.call_args_list:
+            xml = call.args[0]
+            body = etree.tostring(xml.xmlelement()) if hasattr(xml, "xmlelement") else xml
+            assert b"text-match" not in body
+
+    def test_search_keeps_positive_filter_beside_negation(self) -> None:
+        """Stripping a negation leaves the other filters in the server query."""
+        from lxml import etree
+
+        cal = self._calendar(True)
+        searcher = CalDAVSearcher(event=True)
+        searcher.add_property_filter("SUMMARY", "rain", operator="!=")
+        searcher.add_property_filter("LOCATION", "Oslo", operator="contains")
+        searcher.search(cal)
+        bodies = [
+            etree.tostring(call.args[0].xmlelement())
+            for call in cal._request_report_build_resultlist.call_args_list
+        ]
+        assert bodies
+        for body in bodies:
+            assert b'prop-filter name="LOCATION"' in body
+            assert b">Oslo<" in body
+            assert b"SUMMARY" not in body
+
+    def test_xml_not_equal_is_a_bare_prop_filter(self) -> None:
+        """!= cannot be a negated substring match; only "defined" is sent."""
+        searcher = CalDAVSearcher(event=True)
+        searcher.add_property_filter("SUMMARY", "rain", operator="!=")
+        xml = self._xml(searcher)
+        assert b'prop-filter name="SUMMARY"' in xml
+        assert b"text-match" not in xml
+
+    def test_xml_def_is_a_bare_prop_filter(self) -> None:
+        searcher = CalDAVSearcher(event=True)
+        searcher.add_property_filter("SUMMARY", None, operator="def")
+        xml = self._xml(searcher)
+        assert b'prop-filter name="SUMMARY"' in xml
+        assert b"text-match" not in xml
+        assert b"is-not-defined" not in xml
+
+    def test_xml_not_contains_is_a_negated_text_match(self) -> None:
+        searcher = CalDAVSearcher(event=True)
+        searcher.add_property_filter("SUMMARY", "rain", operator="!contains")
+        xml = self._xml(searcher)
+        assert b'negate-condition="yes"' in xml
+        assert b">rain<" in xml
+
+    @pytest.mark.parametrize("key", ["categories", "category"])
+    def test_xml_not_contains_on_categories_is_a_bare_prop_filter(self, key: str) -> None:
+        """Negating each category separately would AND the negations, which is
+        not the negation of "has all of them"; send only "defined"."""
+        searcher = CalDAVSearcher(event=True)
+        searcher.add_property_filter(key, "work,home", operator="!contains")
+        xml = self._xml(searcher)
+        assert b'prop-filter name="CATEGORIES"' in xml
+        assert b"text-match" not in xml
+
+    @pytest.mark.parametrize(
+        ("key", "operator", "value", "expected"),
+        [
+            ("categories", "!contains", "work,home", {"work"}),
+            ("categories", "!contains", "work", set()),
+            ("categories", "!=", "work", {"both"}),
+            ("categories", "def", None, {"work", "both"}),
+            ("category", "!contains", "or", set()),
+            ("category", "!contains", "hom", {"work"}),
+            ("category", "!=", "home", {"work"}),
+        ],
+    )
+    @pytest.mark.parametrize(
+        "supported",
+        [True, False, "search.text.category"],
+        ids=["all", "none", "no-category-search"],
+    )
+    def test_search_filters_categories_client_side(
+        self,
+        key: str,
+        operator: str,
+        value: str | None,
+        expected: set[str],
+        supported: bool | str,
+    ) -> None:
+        cal = self._calendar(supported, prop="CATEGORIES")
+        searcher = CalDAVSearcher(event=True)
+        searcher.add_property_filter(key, value, operator=operator)
+        results = searcher.search(cal)
+        uids = {str(r.icalendar_component["UID"]).split("@")[0] for r in results}
+        assert uids == expected
+
+    def test_xml_not_contains_case_insensitive_collation(self) -> None:
+        searcher = CalDAVSearcher(event=True)
+        searcher.add_property_filter("SUMMARY", "rain", operator="!contains", case_sensitive=False)
+        xml = self._xml(searcher)
+        assert b'negate-condition="yes"' in xml
+        assert b'collation="i;ascii-casemap"' in xml
+
+
+def _all_day_event(day: int) -> str:
+    return (
+        "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Test//Test//EN\n"
+        f"BEGIN:VEVENT\nUID:oct-{day}@example.com\nDTSTAMP:20261001T000000Z\n"
+        f"DTSTART;VALUE=DATE:202610{day:02d}\nDTEND;VALUE=DATE:202610{day + 1:02d}\n"
+        f"SUMMARY:All day on Oct {day}\nEND:VEVENT\nEND:VCALENDAR"
+    )
+
+
+class TestAllDayTimeRange:
+    """Time-range searches and all-day (floating) events.
+
+    A CalDAV server compares DATE values as UTC midnights (RFC 4791
+    section 9.9), so it may leave out all-day events that fall in the
+    search range in the time zone of the search, and return some that
+    don't.  The server query is widened by a day on each side, and the
+    client-side filter makes the exact cut in the time zone of the
+    search range.  https://github.com/python-caldav/caldav/issues/545
+    """
+
+    _NS = {"C": "urn:ietf:params:xml:ns:caldav"}
+    _BERLIN = ZoneInfo("Europe/Berlin")
+
+    def _calendar(self, mock_client: DAVClient, mock_url: str, calls: list) -> mock.Mock:
+        from caldav.compatibility_hints import FeatureSet
+
+        mock_client.features = FeatureSet(None)
+        calendar = mock.Mock()
+        calendar.client = mock_client
+
+        def rep(xml, comp_cls, props=None):
+            calls.append(xml)
+            return (
+                mock.Mock(),
+                [
+                    Event(client=mock_client, url=f"{mock_url}-{day}", data=_all_day_event(day))
+                    for day in (11, 12, 13)
+                ],
+            )
+
+        calendar._request_report_build_resultlist.side_effect = rep
+        return calendar
+
+    def _attrs(self, xml, element: str) -> list[dict]:
+        return [
+            dict(x.attrib) for x in xml.xmlelement().xpath(f"//C:{element}", namespaces=self._NS)
+        ]
+
+    def _oct12_berlin(self, **kwargs) -> CalDAVSearcher:
+        return CalDAVSearcher(
+            event=True,
+            start=datetime(2026, 10, 12, tzinfo=self._BERLIN),
+            end=datetime(2026, 10, 13, tzinfo=self._BERLIN),
+            **kwargs,
+        )
+
+    def test_server_range_is_widened_by_a_day(self, mock_client: DAVClient, mock_url: str) -> None:
+        calls = []
+        self._oct12_berlin().search(self._calendar(mock_client, mock_url, calls))
+        assert self._attrs(calls[0], "time-range") == [
+            {"start": "20261010T220000Z", "end": "20261013T220000Z"}
+        ]
+
+    @pytest.mark.parametrize(
+        "process_tz", ["UTC", "America/New_York", "Pacific/Auckland"], indirect=True
+    )
+    def test_all_day_event_matched_in_search_time_zone(
+        self, mock_client: DAVClient, mock_url: str, process_tz: str
+    ) -> None:
+        calls = []
+        result = self._oct12_berlin().search(self._calendar(mock_client, mock_url, calls))
+        assert [str(o.icalendar_component["UID"]) for o in result] == ["oct-12@example.com"]
+
+    def test_expand_range_is_widened_and_cut_client_side(
+        self, mock_client: DAVClient, mock_url: str
+    ) -> None:
+        calls = []
+        result = self._oct12_berlin().search(
+            self._calendar(mock_client, mock_url, calls), server_expand=True
+        )
+        assert self._attrs(calls[0], "expand") == [
+            {"start": "20261010T220000Z", "end": "20261013T220000Z"}
+        ]
+        assert [str(o.icalendar_component["UID"]) for o in result] == ["oct-12@example.com"]
+
+    def test_alarm_range_is_widened(self, mock_client: DAVClient, mock_url: str) -> None:
+        calls = []
+        CalDAVSearcher(
+            event=True,
+            alarm_start=datetime(2026, 10, 12, tzinfo=self._BERLIN),
+            alarm_end=datetime(2026, 10, 13, tzinfo=self._BERLIN),
+        ).search(self._calendar(mock_client, mock_url, calls))
+        assert self._attrs(calls[0], "time-range") == [
+            {"start": "20261010T220000Z", "end": "20261013T220000Z"}
+        ]
+
+    @pytest.mark.parametrize(
+        "kwargs", [{"post_filter": False}, {"compatibility_workarounds": False}]
+    )
+    def test_no_widening_without_client_side_filter(
+        self, mock_client: DAVClient, mock_url: str, kwargs: dict
+    ) -> None:
+        """Without the client-side cut, the range is sent as given."""
+        calls = []
+        self._oct12_berlin().search(self._calendar(mock_client, mock_url, calls), **kwargs)
+        assert self._attrs(calls[0], "time-range") == [
+            {"start": "20261011T220000Z", "end": "20261012T220000Z"}
+        ]
+
+    def test_widening_does_not_overflow(self, mock_client: DAVClient, mock_url: str) -> None:
+        calls = []
+        calendar = self._calendar(mock_client, mock_url, calls)
+        calendar._request_report_build_resultlist.side_effect = lambda xml, *args, **kwargs: (
+            calls.append(xml) or (mock.Mock(), [])
+        )
+        CalDAVSearcher(
+            event=True,
+            start=datetime.min.replace(tzinfo=timezone.utc),
+            end=datetime.max.replace(tzinfo=timezone.utc),
+        ).search(calendar)
+        assert self._attrs(calls[0], "time-range") == [
+            {"start": "00010101T000000Z", "end": "99991231T235959Z"}
+        ]
+
+    def test_injected_sliding_window_range_is_not_widened(
+        self, mock_client: DAVClient, mock_url: str
+    ) -> None:
+        """The 1970-2126 range injected for servers with a sliding window
+        (search.unlimited-time-range broken) is no time range of the user's:
+        it is sent as is, and the result is not post-filtered (which would
+        expand every recurring event over 156 years)."""
+        from caldav.compatibility_hints import FeatureSet
+
+        calls = []
+        calendar = self._calendar(mock_client, mock_url, calls)
+        mock_client.features = FeatureSet({"search.unlimited-time-range": {"support": "broken"}})
+        with mock.patch.object(
+            CalDAVSearcher, "filter", autospec=True, side_effect=CalDAVSearcher.filter
+        ) as filter_:
+            CalDAVSearcher(event=True).search(calendar)
+        assert self._attrs(calls[0], "time-range") == [
+            {"start": "19700101T000000Z", "end": "21260101T000000Z"}
+        ]
+        assert not any(c.args[2] for c in filter_.call_args_list)

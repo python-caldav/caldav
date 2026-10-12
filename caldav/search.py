@@ -2,7 +2,7 @@ import inspect
 import logging
 from copy import deepcopy
 from dataclasses import dataclass, field, replace
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from enum import Enum, auto
 from typing import TYPE_CHECKING, Any, Optional
 
@@ -25,6 +25,28 @@ if TYPE_CHECKING:
     from .collection import Calendar as AsyncCalendar
 
 _icalendar_types = TypesFactory()
+
+## Dates and floating times have no time zone, and a CalDAV server
+## compares them as if they were in UTC (RFC 4791 section 9.9).  In the
+## time zone of the user they may be up to 14 hours off.  When the result
+## is filtered client-side, the time range sent to the server is widened
+## by this margin, and the client-side filter does the exact cut.
+## https://github.com/python-caldav/caldav/issues/545
+_TIME_RANGE_MARGIN = timedelta(days=1)
+
+
+def _widen(start: Any, end: Any, margin: timedelta | None) -> tuple[Any, Any]:
+    """Widen the range start-end by margin on each side (open ends stay open)."""
+    if not margin:
+        return (start, end)
+
+    def _shift(value: Any, delta: timedelta) -> Any:
+        try:
+            return value and value + delta
+        except OverflowError:  ## datetime.min / datetime.max
+            return value
+
+    return (_shift(start, -margin), _shift(end, margin))
 
 
 def _collation_to_caldav(collation: Collation, case_sensitive: bool = True) -> str:
@@ -113,20 +135,43 @@ def _flag_component_type(searcher: "Searcher", flag: str) -> None:
     setattr(searcher, flag, True)
 
 
+## Operators the server is never trusted with: negations and "defined".
+## Whether servers honour negate-condition, or a bare prop-filter, has not
+## been probed yet (caldav-server-tester), so search() decides these
+## client-side.  https://github.com/python-caldav/caldav/issues/568
+_NEGATED_OR_PRESENCE_OPERATORS = ("!=", "!contains", "def")
+
+
+def _collation_str(searcher: "Searcher", property: str) -> str:
+    """The CalDAV collation name for a property filter."""
+    if hasattr(searcher, "_property_collation") and property in searcher._property_collation:
+        case_sensitive = searcher._property_case_sensitive.get(property, True)
+        return _collation_to_caldav(searcher._property_collation[property], case_sensitive)
+    return "i;octet"
+
+
 def _build_search_xml_query(
     searcher: "Searcher",
     server_expand: bool = False,
     props: list[Any] | None = None,
     filters: Any = None,
     _hacks: str | None = None,
+    time_range_margin: timedelta | None = None,
 ) -> tuple[Any, type | None]:
-    """Build a CalDAV calendar-query XML request body."""
+    """Build a CalDAV calendar-query XML request body.
+
+    ``time_range_margin`` widens the time ranges (also for expansion and
+    alarms) sent to the server; see ``_TIME_RANGE_MARGIN``.
+    """
+    alarm_margin = time_range_margin
+    if getattr(searcher, "_injected_range", False):
+        time_range_margin = None
     data = cdav.CalendarData()
     tag_props = [dav.GetEtag, cdav.ScheduleTag]
     if server_expand:
         if not searcher.start or not searcher.end:
             raise error.ReportError("can't expand without a date range")
-        data += cdav.Expand(searcher.start, searcher.end)
+        data += cdav.Expand(*_widen(searcher.start, searcher.end, time_range_margin))
         ## DAViCal ignores <C:expand> once schedule-tag is asked for.  An
         ## expanded occurrence is not saved as it is anyway.
         tag_props.remove(cdav.ScheduleTag)
@@ -168,11 +213,12 @@ def _build_search_xml_query(
         filters.extend([vStatusNeedsAction])
 
     if searcher.start or searcher.end:
-        filters.append(cdav.TimeRange(searcher.start, searcher.end))
+        filters.append(cdav.TimeRange(*_widen(searcher.start, searcher.end, time_range_margin)))
 
     if searcher.alarm_start or searcher.alarm_end:
         filters.append(
-            cdav.CompFilter("VALARM") + cdav.TimeRange(searcher.alarm_start, searcher.alarm_end)
+            cdav.CompFilter("VALARM")
+            + cdav.TimeRange(*_widen(searcher.alarm_start, searcher.alarm_end, alarm_margin))
         )
 
     comp_mappings = [
@@ -208,10 +254,32 @@ def _build_search_xml_query(
         comp_filter = None
 
     for property in searcher._property_operator:
-        if searcher._property_operator[property] == "undef":
-            match = cdav.NotDefined()
-            prop_name = "CATEGORIES" if property.lower() == "category" else property.upper()
-            filters.append(cdav.PropFilter(prop_name) + match)
+        operator = searcher._property_operator[property]
+        prop_name = (
+            "CATEGORIES" if property.lower() in ("category", "categories") else property.upper()
+        )
+        if operator == "undef":
+            filters.append(cdav.PropFilter(prop_name) + cdav.NotDefined())
+        elif operator == "!contains" and prop_name != "CATEGORIES":
+            ## RFC 4791 9.7.5: a negated text-match is a negated substring match
+            value = searcher._property_filters[property]
+            if hasattr(value, "to_ical"):
+                value = value.to_ical()
+            filters.append(
+                cdav.PropFilter(prop_name)
+                + cdav.TextMatch(value, collation=_collation_str(searcher, property), negate=True)
+            )
+        elif operator in _NEGATED_OR_PRESENCE_OPERATORS:
+            ## A bare prop-filter matches any defined property (RFC 4791
+            ## 9.7.2).  That is all CalDAV can say about != (a negated
+            ## text-match means "does not contain", not "not equal") and
+            ## about def.  Nor does a negated text-match fit !contains on
+            ## categories: the plural form means "not all of these", which
+            ## is not the AND of one negation per category, and the
+            ## singular form matches within one category, which a match
+            ## against the whole comma-joined property value is not.  The
+            ## client-side filter has to decide the rest.
+            filters.append(cdav.PropFilter(prop_name))
         else:
             value = searcher._property_filters[property]
             property_ = property.upper()
@@ -226,17 +294,7 @@ def _build_search_xml_query(
                 if hasattr(value, "to_ical"):
                     value = value.to_ical()
 
-                collation_str = "i;octet"
-                if (
-                    hasattr(searcher, "_property_collation")
-                    and property in searcher._property_collation
-                ):
-                    case_sensitive = searcher._property_case_sensitive.get(property, True)
-                    collation_str = _collation_to_caldav(
-                        searcher._property_collation[property], case_sensitive
-                    )
-
-                match = cdav.TextMatch(value, collation=collation_str)
+                match = cdav.TextMatch(value, collation=_collation_str(searcher, property))
                 filters.append(cdav.PropFilter(property_) + match)
 
     if comp_filter and filters:
@@ -416,6 +474,10 @@ class CalDAVSearcher(Searcher):
     ## Used by the server-compatibility checker to observe raw server behaviour.
     ## Propagates to clones automatically via dataclasses.replace().
     _compatibility_workarounds: bool = True
+    ## True when start/end is the 1970-2126 range injected for servers with a
+    ## sliding window (search.unlimited-time-range), not a range of the
+    ## caller's: it is neither widened nor a reason to post-filter.
+    _injected_range: bool = field(default=False, repr=False)
 
     def add_property_filter(
         self,
@@ -435,7 +497,8 @@ class CalDAVSearcher(Searcher):
                    Special virtual property "category" (singular) is also supported
                    for substring matching within category names
         :param value: Filter value, should adhere to the type defined in the RFC
-        :param operator: Comparison operator ("contains", "==", "undef"). If not
+        :param operator: Comparison operator ("contains", "==", "!contains",
+                        "!=", "def", "undef"; see below). If not
                         specified, the server decides the matching behavior (usually
                         substring search per RFC). If explicitly set to "contains"
                         and the server doesn't support substring search, client-side
@@ -454,18 +517,31 @@ class CalDAVSearcher(Searcher):
         * **contains** - substring match (e.g., "rain" matches "Training session"
           and "Singing in the rain")
         * **==** - exact match required, enforced client-side
+        * **!contains** - no substring match; the property must be defined
+        * **!=** (or **<>**) - not an exact match; the property must be defined
+        * **def** - matches if property is defined (value parameter ignored)
         * **undef** - matches if property is not defined (value parameter ignored)
+
+        The negations and ``def`` need icalendar-searcher 1.1.0 or later.
+        search() decides them client-side and leaves them out of the
+        server query, unless ``post_filter=False``; then, as with
+        build_search_xml_query() on its own, they are sent as the
+        closest CalDAV filter that never excludes a match, and != and
+        def match any object where the property is defined.
 
         **Special handling for categories:**
 
         - **"categories"** (plural): Exact category name matching
           - "contains": subset check (all filter categories must be in component)
           - "==": exact set equality (same categories, order doesn't matter)
+          - "!contains": not all of the filter categories are in the component
+          - "!=": set inequality
           - Commas in filter values split into multiple categories
 
         - **"category"** (singular): Substring matching within category names
           - "contains": substring match (e.g., "out" matches "outdoor")
           - "==": exact match to at least one category name
+          - "!contains" / "!=": no category name contains / equals the value
           - Commas in filter values treated as literal characters
 
         Examples:
@@ -575,6 +651,7 @@ class CalDAVSearcher(Searcher):
                 self,
                 start=datetime(1970, 1, 1, tzinfo=timezone.utc),
                 end=datetime(2126, 1, 1, tzinfo=timezone.utc),
+                _injected_range=True,
             )
             result = yield (
                 SearchAction.RECURSIVE_SEARCH,
@@ -629,9 +706,17 @@ class CalDAVSearcher(Searcher):
                 or self.expand
                 or "categories" in self._property_filters
                 or "category" in self._property_filters
-                or any(op == "==" for op in self._property_operator.values())
+                or any(
+                    op == "==" or op in _NEGATED_OR_PRESENCE_OPERATORS
+                    for op in self._property_operator.values()
+                )
                 or not calendar.client.features.is_supported("search.text.case-sensitive")
                 or not calendar.client.features.is_supported("search.time-range.accurate")
+                ## the server can't place dates and floating times in the
+                ## time zone of the search, see _TIME_RANGE_MARGIN
+                or ((self.start or self.end) and not self._injected_range)
+                or self.alarm_start
+                or self.alarm_end
             )
         ):
             post_filter = True
@@ -698,6 +783,31 @@ class CalDAVSearcher(Searcher):
                 self.filter(objects, post_filter, split_expanded, server_expand),
             )
             return
+
+        ## Negated and "defined" filters are left out of the server query and
+        ## decided client-side; see _NEGATED_OR_PRESENCE_OPERATORS.
+        if cw and post_filter is not False:
+            untrusted = [
+                prop
+                for prop, op in self._property_operator.items()
+                if op in _NEGATED_OR_PRESENCE_OPERATORS
+            ]
+            if untrusted:
+                clone = self._clone_without_filters(untrusted)
+                objects = yield (
+                    SearchAction.RECURSIVE_SEARCH,
+                    (clone, calendar, server_expand, split_expanded, props, xml, None, None),
+                )
+                yield (
+                    SearchAction.RETURN,
+                    self.filter(
+                        objects,
+                        post_filter=True,
+                        split_expanded=split_expanded,
+                        server_expand=server_expand,
+                    ),
+                )
+                return
 
         ## special compatibility-case for servers that do not support is-not-defined
         ## for specific properties (e.g. search.is-not-defined.category or .dtend)
@@ -834,7 +944,11 @@ class CalDAVSearcher(Searcher):
 
             if not xml or (not isinstance(xml, str) and not xml.tag.endswith("calendar-query")):
                 (xml, self.comp_class) = self.build_search_xml_query(
-                    server_expand, props=props, filters=xml, _hacks=_hacks
+                    server_expand,
+                    props=props,
+                    filters=xml,
+                    _hacks=_hacks,
+                    _time_range_margin=_TIME_RANGE_MARGIN if cw and post_filter else None,
                 )
 
             ## A CALDAV:time-range (and VALARM) filter is a component-level filter:
@@ -1042,9 +1156,12 @@ class CalDAVSearcher(Searcher):
 
         ``post_filter`` takes three values, ``True`` will always
         filter the results, ``False`` will never filter the results,
-        and the default ``None`` will cause automagics to happen (not
-        implemented yet).  Or perhaps I'll just set it to True as
-        default.  TODO - make a decision here
+        and the default ``None`` filters when the search needs it: a
+        time-range search, an expanded search, pending tasks, or a
+        filter the server is known not to handle.  When the results are
+        filtered, the time ranges sent to the server are widened by a
+        day on each side, so all-day events and floating times can be
+        matched in the time zone of the search.
 
         In the CalDAV protocol, a VCALENDAR object returned from the
         server may contain only one event/task/journal - but if the
@@ -1310,7 +1427,9 @@ class CalDAVSearcher(Searcher):
             return replace(self, include_completed=True)
         return self
 
-    def build_search_xml_query(self, server_expand=False, props=None, filters=None, _hacks=None):
+    def build_search_xml_query(
+        self, server_expand=False, props=None, filters=None, _hacks=None, _time_range_margin=None
+    ):
         """Build a CalDAV calendar-query XML request.
 
         Delegates to the operations layer for the actual XML building.
@@ -1321,6 +1440,7 @@ class CalDAVSearcher(Searcher):
         :param props: Additional CalDAV properties to request
         :param filters: Pre-built filter elements (or None to build from self)
         :param _hacks: Compatibility hack mode
+        :param _time_range_margin: Widen the time ranges by this timedelta
         :return: Tuple of (xml_element, comp_class)
         """
         xml, comp_class = _build_search_xml_query(
@@ -1329,6 +1449,7 @@ class CalDAVSearcher(Searcher):
             props=props,
             filters=filters,
             _hacks=_hacks,
+            time_range_margin=_time_range_margin,
         )
         # Update self.comp_class from the result (side effect for compatibility)
         self.comp_class = comp_class
