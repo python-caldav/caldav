@@ -1741,7 +1741,9 @@ class TestAsyncGetCalendarsWithoutHomeSet:
         assert all(PUBLIC_SHARE_URL not in url for url, _ in client.requests)
 
     @pytest.mark.asyncio
-    async def test_missing_home_set_reuses_discovered_principal_for_lookup_and_creation(self) -> None:
+    async def test_missing_home_set_reuses_discovered_principal_for_lookup_and_creation(
+        self,
+    ) -> None:
         from caldav.collection import Calendar, Principal
 
         from .public_share_fixtures import (
