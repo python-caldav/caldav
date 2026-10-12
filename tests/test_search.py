@@ -1839,3 +1839,208 @@ class TestSearchBatchLoadIntegration:
         results = searcher.search(cal)
 
         assert len(results) == 1
+
+
+class TestNegatedOperators:
+    """The negated and presence operators: ``!=``, ``!contains`` and ``def``.
+
+    https://github.com/python-caldav/caldav/issues/568
+
+    A CalDAV ``text-match`` is a substring match, so ``negate-condition``
+    means "does not contain".  ``!contains`` maps onto it; ``!=`` does not -
+    sending a negated substring match for ``SUMMARY != "Training"`` would
+    drop "Training session".  Server support for either is unknown until
+    caldav-server-tester probes it, so search() decides all three
+    client-side, and the server query is never narrower than the answer.
+    """
+
+    _events = {
+        "training": "Training session",
+        "rain": "rain",
+        "none": None,
+    }
+
+    _category_events = {
+        "work": "work",
+        "both": "work,home",
+        "none": None,
+    }
+
+    def _event_data(self, uid: str, value: str | None, prop: str = "SUMMARY") -> str:
+        summary_line = f"{prop}:{value}\n" if value is not None else ""
+        return (
+            "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Test//Test//EN\nBEGIN:VEVENT\n"
+            f"UID:{uid}@example.com\nDTSTAMP:20240101T120000Z\n"
+            f"DTSTART:20240615T140000Z\n{summary_line}END:VEVENT\nEND:VCALENDAR"
+        )
+
+    def _calendar(self, supported: bool | str, prop: str = "SUMMARY") -> mock.Mock:
+        """supported: True/False for every feature, or the one feature unsupported."""
+        client = mock.Mock(spec=DAVClient)
+        client.url = URL("https://cal.example.com/")
+        client.features = mock.Mock()
+        if isinstance(supported, str):
+            unsupported = supported
+
+            def is_supported(feature: str, return_type: type = bool) -> object:
+                if return_type is str:
+                    return "unsupported" if feature == unsupported else "full"
+                return feature != unsupported
+
+            client.features.is_supported = mock.Mock(side_effect=is_supported)
+        else:
+            client.features.is_supported = mock.Mock(return_value=supported)
+        client.features.backward_compatibility_mode = False
+        cal = mock.Mock()
+        cal.client = client
+        cal.url = URL("https://cal.example.com/cal/")
+        objects = [
+            Event(
+                client=client,
+                url=f"https://cal.example.com/cal/{uid}.ics",
+                data=self._event_data(uid, value, prop),
+                parent=cal,
+            )
+            for uid, value in (
+                self._category_events if prop == "CATEGORIES" else self._events
+            ).items()
+        ]
+        ## The server ignores the filter and returns everything; the
+        ## client-side filter has to produce the answer.
+        cal._request_report_build_resultlist = mock.Mock(return_value=(mock.MagicMock(), objects))
+        return cal
+
+    @staticmethod
+    def _xml(searcher: CalDAVSearcher) -> bytes:
+        from lxml import etree
+
+        xml, _ = searcher.build_search_xml_query()
+        return etree.tostring(xml.xmlelement())
+
+    @pytest.mark.parametrize(
+        ("operator", "value", "expected"),
+        [
+            ("!=", "rain", {"training"}),
+            ("<>", "rain", {"training"}),
+            ("!=", "Training", {"training", "rain"}),
+            ("!contains", "rain", set()),
+            ("!contains", "session", {"rain"}),
+            ("def", None, {"training", "rain"}),
+        ],
+    )
+    @pytest.mark.parametrize(
+        "supported", [True, False, "search.text"], ids=["all", "none", "no-text-search"]
+    )
+    def test_search_filters_client_side(
+        self, operator: str, value: str | None, expected: set[str], supported: bool | str
+    ) -> None:
+        cal = self._calendar(supported)
+        searcher = CalDAVSearcher(event=True)
+        searcher.add_property_filter("SUMMARY", value, operator=operator)
+        results = searcher.search(cal)
+        uids = {str(r.icalendar_component["UID"]).split("@")[0] for r in results}
+        assert uids == expected
+
+    @pytest.mark.parametrize("operator", ["!=", "!contains", "def"])
+    def test_search_sends_no_positive_text_match(self, operator: str) -> None:
+        cal = self._calendar(True)
+        searcher = CalDAVSearcher(event=True)
+        searcher.add_property_filter("SUMMARY", "rain", operator=operator)
+        searcher.search(cal)
+        from lxml import etree
+
+        for call in cal._request_report_build_resultlist.call_args_list:
+            xml = call.args[0]
+            body = etree.tostring(xml.xmlelement()) if hasattr(xml, "xmlelement") else xml
+            assert b"text-match" not in body
+
+    def test_search_keeps_positive_filter_beside_negation(self) -> None:
+        """Stripping a negation leaves the other filters in the server query."""
+        from lxml import etree
+
+        cal = self._calendar(True)
+        searcher = CalDAVSearcher(event=True)
+        searcher.add_property_filter("SUMMARY", "rain", operator="!=")
+        searcher.add_property_filter("LOCATION", "Oslo", operator="contains")
+        searcher.search(cal)
+        bodies = [
+            etree.tostring(call.args[0].xmlelement())
+            for call in cal._request_report_build_resultlist.call_args_list
+        ]
+        assert bodies
+        for body in bodies:
+            assert b'prop-filter name="LOCATION"' in body
+            assert b">Oslo<" in body
+            assert b"SUMMARY" not in body
+
+    def test_xml_not_equal_is_a_bare_prop_filter(self) -> None:
+        """!= cannot be a negated substring match; only "defined" is sent."""
+        searcher = CalDAVSearcher(event=True)
+        searcher.add_property_filter("SUMMARY", "rain", operator="!=")
+        xml = self._xml(searcher)
+        assert b'prop-filter name="SUMMARY"' in xml
+        assert b"text-match" not in xml
+
+    def test_xml_def_is_a_bare_prop_filter(self) -> None:
+        searcher = CalDAVSearcher(event=True)
+        searcher.add_property_filter("SUMMARY", None, operator="def")
+        xml = self._xml(searcher)
+        assert b'prop-filter name="SUMMARY"' in xml
+        assert b"text-match" not in xml
+        assert b"is-not-defined" not in xml
+
+    def test_xml_not_contains_is_a_negated_text_match(self) -> None:
+        searcher = CalDAVSearcher(event=True)
+        searcher.add_property_filter("SUMMARY", "rain", operator="!contains")
+        xml = self._xml(searcher)
+        assert b'negate-condition="yes"' in xml
+        assert b">rain<" in xml
+
+    @pytest.mark.parametrize("key", ["categories", "category"])
+    def test_xml_not_contains_on_categories_is_a_bare_prop_filter(self, key: str) -> None:
+        """Negating each category separately would AND the negations, which is
+        not the negation of "has all of them"; send only "defined"."""
+        searcher = CalDAVSearcher(event=True)
+        searcher.add_property_filter(key, "work,home", operator="!contains")
+        xml = self._xml(searcher)
+        assert b'prop-filter name="CATEGORIES"' in xml
+        assert b"text-match" not in xml
+
+    @pytest.mark.parametrize(
+        ("key", "operator", "value", "expected"),
+        [
+            ("categories", "!contains", "work,home", {"work"}),
+            ("categories", "!contains", "work", set()),
+            ("categories", "!=", "work", {"both"}),
+            ("categories", "def", None, {"work", "both"}),
+            ("category", "!contains", "or", set()),
+            ("category", "!contains", "hom", {"work"}),
+            ("category", "!=", "home", {"work"}),
+        ],
+    )
+    @pytest.mark.parametrize(
+        "supported",
+        [True, False, "search.text.category"],
+        ids=["all", "none", "no-category-search"],
+    )
+    def test_search_filters_categories_client_side(
+        self,
+        key: str,
+        operator: str,
+        value: str | None,
+        expected: set[str],
+        supported: bool | str,
+    ) -> None:
+        cal = self._calendar(supported, prop="CATEGORIES")
+        searcher = CalDAVSearcher(event=True)
+        searcher.add_property_filter(key, value, operator=operator)
+        results = searcher.search(cal)
+        uids = {str(r.icalendar_component["UID"]).split("@")[0] for r in results}
+        assert uids == expected
+
+    def test_xml_not_contains_case_insensitive_collation(self) -> None:
+        searcher = CalDAVSearcher(event=True)
+        searcher.add_property_filter("SUMMARY", "rain", operator="!contains", case_sensitive=False)
+        xml = self._xml(searcher)
+        assert b'negate-condition="yes"' in xml
+        assert b'collation="i;ascii-casemap"' in xml
