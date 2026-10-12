@@ -974,10 +974,12 @@ END:VCALENDAR
 """
         client = MockedDAVClient(xml)
         calendar = Calendar(client, url="/principals/calendar/home@petroski.example.com/963/")
-        ## expand=False does no client-side time-range filtering, so all three
-        ## server-returned hrefs are returned regardless of the search window.
+        ## The results are filtered client-side, so search for tasks (the data
+        ## is todo6) in a window covering an occurrence of the yearly todo6.
         with pytest.deprecated_call():
-            results = calendar.date_search(datetime(2021, 2, 1), datetime(2021, 2, 7), expand=False)
+            results = calendar.date_search(
+                datetime(2021, 5, 1), datetime(2021, 5, 7), compfilter="VTODO", expand=False
+            )
             assert len(results) == 3
 
     def testCalendar(self):
@@ -4293,7 +4295,8 @@ class TestDateToUtcConversion:
 
         client = CapturingClient()
         calendar = Calendar(client, url="/cal/")
-        calendar.search(event=True, start=date(2026, 5, 1), end=date(2026, 6, 1))
+        ## post_filter=False, else the range is widened by a day on each side
+        calendar.search(event=True, start=date(2026, 5, 1), end=date(2026, 6, 1), post_filter=False)
 
         assert client.report_bodies, "expected at least one REPORT request"
         body = client.report_bodies[0]
