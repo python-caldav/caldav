@@ -2128,6 +2128,73 @@ class TestAsyncGetCalendarsPropfindErrors:
                 await calendar_set.get_calendars()
 
 
+class TestAsyncSyncReportsRemovals:
+    """Async twin of TestSyncReportsRemovals in test_caldav_unit.py."""
+
+    def _calendar(self, response):
+        from caldav.collection import Calendar
+
+        client = AsyncDAVClient(url="https://cal.example.com/")
+        client.report = AsyncMock(return_value=response)
+        return Calendar(client=client, url="https://cal.example.com/cal/")
+
+    @pytest.mark.asyncio
+    async def test_sync_does_not_fetch_a_removed_member(self) -> None:
+        from caldav.calendarobjectresource import CalendarObjectResource
+        from caldav.collection import SynchronizableCalendarObjectCollection
+
+        from .test_caldav_unit import SYNC_REPLY_WITH_REMOVAL, _dav_response
+
+        calendar = self._calendar(_dav_response(207, SYNC_REPLY_WITH_REMOVAL))
+        collection = SynchronizableCalendarObjectCollection(
+            calendar=calendar, objects=[], sync_token="http://example.com/sync/1"
+        )
+        with patch.object(CalendarObjectResource, "load", new=AsyncMock()) as mocked_load:
+            (updated, deleted) = await collection.sync()
+        assert [str(o.url) for o in deleted] == ["https://cal.example.com:443/cal/removed.ics"]
+        assert len(updated) == 2
+        assert mocked_load.await_count == 2
+
+    @pytest.mark.asyncio
+    async def test_deleted_urls(self) -> None:
+        from .test_caldav_unit import SYNC_REPLY_WITH_REMOVAL, _dav_response
+
+        calendar = self._calendar(_dav_response(207, SYNC_REPLY_WITH_REMOVAL))
+        result = await calendar.get_objects_by_sync_token("http://example.com/sync/1")
+        assert {str(u) for u in result.deleted_urls} == {
+            "https://cal.example.com:443/cal/removed.ics"
+        }
+
+    @pytest.mark.asyncio
+    async def test_sync_drops_a_removed_member_from_the_cache(self) -> None:
+        from caldav.calendarobjectresource import CalendarObjectResource
+        from caldav.collection import SynchronizableCalendarObjectCollection
+        from caldav.elements import dav
+
+        from .test_caldav_unit import SYNC_REPLY_WITH_REMOVAL, _dav_response
+
+        calendar = self._calendar(_dav_response(207, SYNC_REPLY_WITH_REMOVAL))
+        cached = CalendarObjectResource(
+            calendar.client,
+            url="https://cal.example.com:443/cal/removed.ics",
+            parent=calendar,
+            props={dav.GetEtag.tag: '"1"'},
+        )
+        collection = SynchronizableCalendarObjectCollection(
+            calendar=calendar,
+            objects=[cached],
+            sync_token="http://example.com/sync/1",
+            deleted_urls=["https://cal.example.com:443/cal/stale.ics"],
+        )
+        with patch.object(CalendarObjectResource, "load", new=AsyncMock()):
+            (updated, deleted) = await collection.sync()
+        assert [str(o.url) for o in deleted] == ["https://cal.example.com:443/cal/removed.ics"]
+        assert "https://cal.example.com:443/cal/removed.ics" not in {
+            str(o.url) for o in collection.objects
+        }
+        assert collection.deleted_urls == set()
+
+
 class TestAsyncSyncCollectionTruncated:
     """A truncated sync-collection reply (RFC 6578 section 3.6), async.
 
@@ -2170,6 +2237,18 @@ class TestAsyncSyncCollectionTruncated:
         ]
         by_name = {str(o.url.path).rsplit("/", 1)[1]: o for o in result}
         assert by_name["a.ics"].props.get(dav.GetEtag.tag) is None
+        assert [u.path for u in result.deleted_urls] == ["/dav/cal/a.ics"]
+
+    @pytest.mark.asyncio
+    async def test_a_member_removed_then_recreated_is_not_deleted(self) -> None:
+        from .test_caldav_unit import sync_page
+
+        client, calendar = self._calendar(
+            sync_page({"a.ics": None}, "tok-2", truncated=True),
+            sync_page({"a.ics": '"a2"'}, "tok-3", truncated=False),
+        )
+        result = await calendar.get_objects_by_sync_token("tok-1")
+        assert result.deleted_urls == set()
 
     @pytest.mark.asyncio
     async def test_iteration_cap(self) -> None:

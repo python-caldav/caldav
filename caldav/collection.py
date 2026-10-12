@@ -51,6 +51,7 @@ from .lib import error, vcal
 from .lib.error import errmsg
 from .lib.python_utilities import to_wire
 from .lib.url import URL, normalise_path, requote_path
+from .response import _status_to_code
 
 _CC = TypeVar("_CC", bound="CalendarObjectResource")
 log = logging.getLogger("caldav")
@@ -2334,15 +2335,29 @@ class Calendar(DAVObject):
         return True
 
     def _absorb_sync_page(
-        self, response: Any, objects: list, collected: dict, previous_token: Any
+        self, response: Any, objects: list, collected: dict, previous_token: Any, deleted: set
     ) -> tuple[Any, bool, bool]:
-        """Add one sync-collection page to ``collected`` (url -> object).
+        """Add one sync-collection page to ``collected`` (url -> object), and
+        the URLs of removed members to ``deleted``.
 
         A member may turn up on more than one page; the later page wins.
+        Within one page, an ETag in any of its entries makes it changed.
+        A removed member has a 404 status and no propstat (RFC 6578 section
+        3.2), so no ETag; one also listed as changed (Cyrus) has one.
         Returns ``(sync_token, truncated, fetch_another_page)``.
         """
+        removed = {
+            self.url.join(self._href_to_url(href)).canonical()
+            for (href, status) in response.statuses.items()
+            if _status_to_code(status) == 404
+        }
         for obj in objects:
-            collected[obj.url.canonical()] = obj
+            url = obj.url.canonical()
+            collected[url] = obj
+            if url in removed and dav.GetEtag.tag not in obj.props:
+                deleted.add(url)
+            else:
+                deleted.discard(url)
         token = response.sync_token
         truncated = self._sync_page_truncated(response)
         again = truncated and bool(token) and token != previous_token
@@ -2501,6 +2516,7 @@ class Calendar(DAVObject):
                 ## A truncated reply (RFC 6578 section 3.6) is followed up
                 ## with the new token until the server says it is complete
                 collected: dict = {}
+                deleted: set = set()
                 token = sync_token
                 for _page in range(max(1, self.sync_max_pages)):
                     root = self.client._build_sync_collection_body(
@@ -2510,7 +2526,7 @@ class Calendar(DAVObject):
                         root, props=[dav.GetEtag()], no_calendardata=True
                     )
                     (token, truncated, again) = self._absorb_sync_page(
-                        response, objects, collected, token
+                        response, objects, collected, token, deleted
                     )
                     if self._initial_sync_cannot_be_paged(sync_token, truncated):
                         token = sync_token
@@ -2524,13 +2540,19 @@ class Calendar(DAVObject):
                 ## this is not quite right - the etag we've fetched can already be outdated
                 if load_objects:
                     for obj in objects:
+                        if obj.url.canonical() in deleted:
+                            continue
                         try:
                             obj.load()
                         except error.NotFoundError:
                             ## The object was deleted
                             pass
                 return SynchronizableCalendarObjectCollection(
-                    calendar=self, objects=objects, sync_token=token, truncated=truncated
+                    calendar=self,
+                    objects=objects,
+                    sync_token=token,
+                    truncated=truncated,
+                    deleted_urls=deleted,
                 )
             except (error.ReportError, error.DAVError) as e:
                 ## Server doesn't support sync tokens or the sync-collection REPORT failed
@@ -2595,6 +2617,7 @@ class Calendar(DAVObject):
         if self._should_use_sync_token(sync_token, disable_fallback):
             try:
                 collected: dict = {}
+                deleted: set = set()
                 token = sync_token
                 for _page in range(max(1, self.sync_max_pages)):
                     root = self.client._build_sync_collection_body(
@@ -2604,7 +2627,7 @@ class Calendar(DAVObject):
                         root, props=[dav.GetEtag()], no_calendardata=True
                     )
                     (token, truncated, again) = self._absorb_sync_page(
-                        response, objects, collected, token
+                        response, objects, collected, token, deleted
                     )
                     if self._initial_sync_cannot_be_paged(sync_token, truncated):
                         token = sync_token
@@ -2616,12 +2639,18 @@ class Calendar(DAVObject):
                 objects = list(collected.values())
                 if load_objects:
                     for obj in objects:
+                        if obj.url.canonical() in deleted:
+                            continue
                         try:
                             await obj.load()
                         except error.NotFoundError:
                             pass
                 return SynchronizableCalendarObjectCollection(
-                    calendar=self, objects=objects, sync_token=token, truncated=truncated
+                    calendar=self,
+                    objects=objects,
+                    sync_token=token,
+                    truncated=truncated,
+                    deleted_urls=deleted,
                 )
             except (error.ReportError, error.DAVError) as e:
                 if self._is_genuine_authorization_error(e):
@@ -2832,13 +2861,28 @@ class SynchronizableCalendarObjectCollection:
     reply (RFC 6578 section 3.6) beyond ``Calendar.sync_max_pages`` pages,
     or without moving the token on: the collection is then incomplete, and
     ``sync()`` will continue from ``sync_token``.
+
+    ``deleted_urls`` holds the canonical URLs of the members the server
+    reported as removed, as RFC 6578 section 3.2 specifies: a 404 status
+    and no properties.  Their objects are among the ``objects`` too, without
+    data or ETag.  It is empty after the full-retrieval fallback, which
+    reports no removals, and after ``sync()``, which returns the removed
+    objects and drops them from ``objects``.
     """
 
-    def __init__(self, calendar, objects, sync_token, truncated: bool = False) -> None:
+    def __init__(
+        self,
+        calendar,
+        objects,
+        sync_token,
+        truncated: bool = False,
+        deleted_urls: Iterable[URL] | None = None,
+    ) -> None:
         self.calendar = calendar
         self.sync_token = sync_token
         self.objects = objects
         self.truncated = truncated
+        self.deleted_urls = set(deleted_urls) if deleted_urls else set()
         self._objects_by_url = None
 
     def __iter__(self) -> Iterator[Any]:
@@ -2885,6 +2929,7 @@ class SynchronizableCalendarObjectCollection:
         self._objects_by_url = None
         self.sync_token = self.calendar._generate_fake_sync_token(self.objects)
         self.truncated = False
+        self.deleted_urls = set()
         return (updated_objs, deleted_objs)
 
     def sync(
@@ -2928,6 +2973,10 @@ class SynchronizableCalendarObjectCollection:
                         ):
                             if obu[obj.url].props[dav.GetEtag.tag] == obj.props[dav.GetEtag.tag]:
                                 continue
+                        if obj.url in updates.deleted_urls:
+                            deleted_objs.append(obj)
+                            obu.pop(obj.url, None)
+                            continue
                         obu[obj.url] = obj
                         try:
                             obj.load()
@@ -2940,6 +2989,8 @@ class SynchronizableCalendarObjectCollection:
                     self._objects_by_url = None
                     self.sync_token = updates.sync_token
                     self.truncated = updates.truncated
+                    ## the removed members are handed back and dropped
+                    self.deleted_urls = set()
                     return (updated_objs, deleted_objs)
             except (error.ReportError, error.DAVError) as e:
                 if self.calendar._is_genuine_authorization_error(e):
@@ -2987,6 +3038,10 @@ class SynchronizableCalendarObjectCollection:
                         ):
                             if obu[obj.url].props[dav.GetEtag.tag] == obj.props[dav.GetEtag.tag]:
                                 continue
+                        if obj.url in updates.deleted_urls:
+                            deleted_objs.append(obj)
+                            obu.pop(obj.url, None)
+                            continue
                         obu[obj.url] = obj
                         try:
                             await obj.load()
@@ -2999,6 +3054,8 @@ class SynchronizableCalendarObjectCollection:
                     self._objects_by_url = None
                     self.sync_token = updates.sync_token
                     self.truncated = updates.truncated
+                    ## the removed members are handed back and dropped
+                    self.deleted_urls = set()
                     return (updated_objs, deleted_objs)
             except (error.ReportError, error.DAVError) as e:
                 if self.calendar._is_genuine_authorization_error(e):
