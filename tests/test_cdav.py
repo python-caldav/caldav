@@ -80,6 +80,9 @@ class TestRegressionUnitTestBot:
     def test_to_utc_date_string_min(self):
         input_datetime = datetime.datetime(1, 1, 1)
         res = _to_utc_date_string(input_datetime)
-        exp_dt = datetime.datetime(1, 1, 1, tzinfo=datetime.timezone.utc)
-        exp = exp_dt.strftime("%Y%m%dT%H%M%SZ")
-        assert res == exp
+        ## RFC 5545 DATE-TIME has a four-digit year; strftime("%Y")
+        ## does not zero-pad it on Linux with Python < 3.14
+        assert res == "00010101T000000Z"
+        assert _to_utc_date_string(datetime.date(999, 12, 31)) == "09991231T000000Z"
+        aware = datetime.datetime(5, 6, 7, tzinfo=datetime.timezone.utc)
+        assert _to_utc_date_string(aware) == "00050607T000000Z"

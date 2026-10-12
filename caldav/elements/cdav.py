@@ -38,7 +38,8 @@ def _to_utc_date_string(ts):
             else:
                 ts = ts.astimezone(utc_tz)
 
-    return ts.strftime("%Y%m%dT%H%M%SZ")
+    ## not strftime("%Y"): it does not zero-pad years before 1000 on Linux with Python < 3.14
+    return f"{ts.year:04d}" + ts.strftime("%m%dT%H%M%SZ")
 
 
 ## TODO: add RFC references to every class, like it's done in the Response class
