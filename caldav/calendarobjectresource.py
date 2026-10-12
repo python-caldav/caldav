@@ -1282,7 +1282,9 @@ class CalendarObjectResource(DAVObject):
             cls = error.UID_CONFLICT_ERRORS.get(type(e), error.UidConflictError)
             raise cls(e.url, e.reason, preconditions=e.preconditions, body=e.body) from e
 
-    def _post_put(self, r, retry_on_failure, precondition: Precondition = "auto"):
+    def _post_put(
+        self, r, retry_on_failure, precondition: Precondition = "auto"
+    ) -> "None | Coroutine[Any, Any, None]":
         if r.status >= 400:
             ## The UID is taken (RFC 4791 section 5.3.2.1): not something a
             ## retry would fix (issue #756).  A 412 on a conditional save
@@ -1317,6 +1319,7 @@ class CalendarObjectResource(DAVObject):
             else:
                 raise error.error_from_response(error.PutError, r)
         self._update_tag_props(r)
+        return None
 
     def _create(
         self, id=None, path=None, retry_on_failure=True, precondition: Precondition = "auto"
@@ -1326,6 +1329,7 @@ class CalendarObjectResource(DAVObject):
         if self.is_async_client:
             return self._async_create(retry_on_failure, precondition)
         self._put(retry_on_failure, precondition)
+        return None
 
     async def _async_create(
         self, retry_on_failure=True, precondition: Precondition = "auto"
