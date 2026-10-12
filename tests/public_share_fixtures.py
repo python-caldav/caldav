@@ -57,7 +57,8 @@ PUBLIC_SHARE_CALENDAR_DEPTH1_XML = """<?xml version="1.0"?>
 </d:multistatus>
 """
 
-## GMX-like server: no calendar-home-set, calendars live below the principal.
+## No calendar-home-set, calendars live below the principal.  (Named after
+## GMX, which was believed to work this way; it does advertise a home-set.)
 GMX_LIKE_PRINCIPAL_DEPTH1_XML = """<?xml version="1.0"?>
 <d:multistatus xmlns:d="DAV:" xmlns:cal="urn:ietf:params:xml:ns:caldav">
   <d:response>

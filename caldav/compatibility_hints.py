@@ -268,6 +268,11 @@ class FeatureSet:
             "default": {"support": "full"},
             "links": ["https://datatracker.ietf.org/doc/html/rfc4918#section-9.1"],
         },
+        "propfind.principal-depth-1": {
+            "description": "A Depth: 1 PROPFIND on the principal URL returns a multistatus response.  RFC3744 does not require a principal to be a collection, and a Depth: 1 PROPFIND on a non-collection has nothing to list, so 'unsupported' is not a protocol violation - GMX (Cosmo) answers 400 'Depth must be 0 for non-collection resources'.  The library lists the principal at depth 1 when the server gives no calendar-home-set, which can only work where this is supported.",
+            "default": {"support": "full"},
+            "links": ["https://datatracker.ietf.org/doc/html/rfc3744#section-2", "https://datatracker.ietf.org/doc/html/rfc4918#section-9.1"],
+        },
         "create-calendar.with-supported-component-types": {
             "description": "Server honours the supported-calendar-component-set restriction set at MKCALENDAR time.  When 'full', the server both advertises (or enforces) the restriction; when 'unsupported', the restriction is silently ignored (wrong-type objects can be saved to the calendar).  When 'ungraceful', the MKCALENDAR request itself fails when a component set is specified.",
         },
@@ -2450,6 +2455,10 @@ gmx = {
     'save.etag': {'support': 'quirk', 'behaviour': 'weak on PUT, strong on GET'},
     'search.text.comp-type-optional': {'support': 'full'},
     'search.time-range.comp-type-optional': {'support': 'full'},
+    ## The principal is not a collection.  GMX does advertise a
+    ## calendar-home-set, so the library never needs the depth-1 listing;
+    ## observed 2026-10-12.
+    'propfind.principal-depth-1': {'support': 'unsupported', 'behaviour': "400 'Depth must be 0 for non-collection resources'"},
     'calendar-color': {'support': 'full'},
     'calendar-order': {'support': 'full'},
     'well-known': {'support': 'unsupported', 'behaviour': 'redirects to https://caldav.gmx.net/begenda/dav/users, which does not advertise calendar-access'},
