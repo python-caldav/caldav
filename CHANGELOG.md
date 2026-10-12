@@ -36,6 +36,11 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 
 ### Fixed
 
+* When a server omits `calendar-home-set`, `Principal` now reuses the home
+  selected by `get_calendars()` for bare ID lookups and `make_calendar()` in
+  both sync and async clients. AI-assisted fix, checked with offline
+  regression tests. https://github.com/python-caldav/caldav/issues/749
+
 * Completing a recurring task with `Todo.complete(handle_rrule=True, rrule_mode="this_and_future")` raised `AttributeError`; only the undeclared `"thisandfuture"` worked.  Both spellings are now accepted.  Fix by @muratatar06 in https://github.com/python-caldav/caldav/pull/736 - https://github.com/python-caldav/caldav/issues/735
 * `change_attendee_status()` now awaits async principal and address discovery
   when the attendee is omitted or a Principal is passed, filters empty
