@@ -463,7 +463,9 @@ class BaseDAVClient(ABC):
         )
 
         _raise_unless_propfind_ok(home_set_response)
-        calendar_home_url = extract_home_set(home_set_response.results, features=self.features)
+        calendar_home_url = extract_home_set(
+            self._propfind_results(home_set_response), features=self.features
+        )
         if calendar_home_url:
             urls = [self._make_absolute_url(calendar_home_url)]
         else:
@@ -473,6 +475,14 @@ class BaseDAVClient(ABC):
                 urls.append(str(self.url))
         self._follow_calendar_home(urls[0])
         return urls
+
+    @staticmethod
+    def _propfind_results(response: Any) -> list[Any]:
+        """Return parsed PROPFIND results for protocol and legacy responses."""
+        results = getattr(response, "results", None)
+        if results is None and hasattr(response, "parse_propfind"):
+            results = response.parse_propfind()
+        return results or []
 
     def _follow_calendar_home(self, calendar_home_url: Any) -> None:
         """Move the client root to the host of the calendar-home-set.
@@ -509,7 +519,9 @@ class BaseDAVClient(ABC):
         if guess and not 200 <= list_response.status < 300:
             return []
         _raise_unless_propfind_ok(list_response)
-        calendar_infos = extract_calendars(list_response.results, features=self.features)
+        calendar_infos = extract_calendars(
+            self._propfind_results(list_response), features=self.features
+        )
         return [
             Calendar(client=self, url=info.url, name=info.name, id=info.cal_id)
             for info in calendar_infos

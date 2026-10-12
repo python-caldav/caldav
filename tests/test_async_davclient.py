@@ -1760,6 +1760,39 @@ class TestAsyncGetCalendarsWithoutHomeSet:
             created = await principal.make_calendar(cal_id="new")
         assert str(created.parent.url) == PUBLIC_SHARE_PRINCIPAL_URL
 
+    @pytest.mark.asyncio
+    async def test_missing_home_set_discovers_before_first_lookup(self) -> None:
+        from caldav.collection import Principal
+
+        from .public_share_fixtures import (
+            GMX_LIKE_PRINCIPAL_DEPTH1_XML,
+            PUBLIC_SHARE_PRINCIPAL_URL,
+        )
+
+        client = self._client(GMX_LIKE_PRINCIPAL_DEPTH1_XML)
+        principal = Principal(client=client, url=PUBLIC_SHARE_PRINCIPAL_URL)
+
+        looked_up = await principal.calendar(cal_id="work")
+
+        assert str(looked_up.url) == PUBLIC_SHARE_PRINCIPAL_URL + "work/"
+
+    @pytest.mark.asyncio
+    async def test_missing_home_set_discovers_before_first_creation(self) -> None:
+        from caldav.collection import Calendar, Principal
+
+        from .public_share_fixtures import (
+            GMX_LIKE_PRINCIPAL_DEPTH1_XML,
+            PUBLIC_SHARE_PRINCIPAL_URL,
+        )
+
+        client = self._client(GMX_LIKE_PRINCIPAL_DEPTH1_XML)
+        principal = Principal(client=client, url=PUBLIC_SHARE_PRINCIPAL_URL)
+
+        with patch.object(Calendar, "_async_create", new=AsyncMock()):
+            created = await principal.make_calendar(cal_id="new")
+
+        assert str(created.parent.url) == PUBLIC_SHARE_PRINCIPAL_URL
+
 
 class TestAsyncHttpLibrarySelection:
     """Which async HTTP library the module picks, and what happens when none is there.

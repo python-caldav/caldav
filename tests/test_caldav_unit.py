@@ -1150,6 +1150,25 @@ END:VCALENDAR
             created = principal.make_calendar(cal_id="new")
         assert str(created.parent.url) == PUBLIC_SHARE_PRINCIPAL_URL
 
+    def test_missing_home_set_discovers_before_first_lookup(self):
+        """A bare ID lookup discovers a missing home before building its URL."""
+        client = PublicShareDAVClient(principal_depth1_xml=GMX_LIKE_PRINCIPAL_DEPTH1_XML)
+        principal = Principal(client=client, url=PUBLIC_SHARE_PRINCIPAL_URL)
+
+        looked_up = principal.calendar(cal_id="work")
+
+        assert str(looked_up.url) == PUBLIC_SHARE_PRINCIPAL_URL + "work/"
+
+    def test_missing_home_set_discovers_before_first_creation(self):
+        """Creation uses the same missing-home discovery as a first lookup."""
+        client = PublicShareDAVClient(principal_depth1_xml=GMX_LIKE_PRINCIPAL_DEPTH1_XML)
+        principal = Principal(client=client, url=PUBLIC_SHARE_PRINCIPAL_URL)
+
+        with mock.patch.object(Calendar, "_create", autospec=True):
+            created = principal.make_calendar(cal_id="new")
+
+        assert str(created.parent.url) == PUBLIC_SHARE_PRINCIPAL_URL
+
     def test_xml_parsing(self):
         """
         DAVResponse has quite some code to parse the XML received from the
