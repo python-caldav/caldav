@@ -8,9 +8,11 @@ communication. We use mocked client objects as needed.
 Disclaimer: AI-generated tests
 """
 
+import time
 from datetime import datetime, timezone
 from unittest import mock
 from urllib.parse import quote
+from zoneinfo import ZoneInfo
 
 import icalendar
 import pytest
@@ -1171,8 +1173,8 @@ class TestCompTypeOptionalTimeRange:
         calendar._request_report_build_resultlist.side_effect = rep
 
         searcher = CalDAVSearcher(
-            start=datetime(2024, 1, 1, tzinfo=timezone.utc),
-            end=datetime(2024, 2, 1, tzinfo=timezone.utc),
+            start=datetime(2024, 6, 1, tzinfo=timezone.utc),
+            end=datetime(2024, 7, 1, tzinfo=timezone.utc),
         )
         result = searcher.search(calendar)
 
@@ -2044,3 +2046,155 @@ class TestNegatedOperators:
         xml = self._xml(searcher)
         assert b'negate-condition="yes"' in xml
         assert b'collation="i;ascii-casemap"' in xml
+
+
+def _all_day_event(day: int) -> str:
+    return (
+        "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Test//Test//EN\n"
+        f"BEGIN:VEVENT\nUID:oct-{day}@example.com\nDTSTAMP:20261001T000000Z\n"
+        f"DTSTART;VALUE=DATE:202610{day:02d}\nDTEND;VALUE=DATE:202610{day + 1:02d}\n"
+        f"SUMMARY:All day on Oct {day}\nEND:VEVENT\nEND:VCALENDAR"
+    )
+
+
+class TestAllDayTimeRange:
+    """Time-range searches and all-day (floating) events.
+
+    A CalDAV server compares DATE values as UTC midnights (RFC 4791
+    section 9.9), so it may leave out all-day events that fall in the
+    search range in the time zone of the search, and return some that
+    don't.  The server query is widened by a day on each side, and the
+    client-side filter makes the exact cut in the time zone of the
+    search range.  https://github.com/python-caldav/caldav/issues/545
+    """
+
+    _NS = {"C": "urn:ietf:params:xml:ns:caldav"}
+    _BERLIN = ZoneInfo("Europe/Berlin")
+
+    @pytest.fixture(params=["UTC", "America/New_York", "Pacific/Auckland"])
+    def process_tz(self, request, monkeypatch):
+        """Run the test with the Python process in another time zone."""
+        monkeypatch.setenv("TZ", request.param)
+        time.tzset()
+        yield request.param
+        monkeypatch.undo()
+        time.tzset()
+
+    def _calendar(self, mock_client: DAVClient, mock_url: str, calls: list) -> mock.Mock:
+        from caldav.compatibility_hints import FeatureSet
+
+        mock_client.features = FeatureSet(None)
+        calendar = mock.Mock()
+        calendar.client = mock_client
+
+        def rep(xml, comp_cls, props=None):
+            calls.append(xml)
+            return (
+                mock.Mock(),
+                [
+                    Event(client=mock_client, url=f"{mock_url}-{day}", data=_all_day_event(day))
+                    for day in (11, 12, 13)
+                ],
+            )
+
+        calendar._request_report_build_resultlist.side_effect = rep
+        return calendar
+
+    def _attrs(self, xml, element: str) -> list[dict]:
+        return [
+            dict(x.attrib) for x in xml.xmlelement().xpath(f"//C:{element}", namespaces=self._NS)
+        ]
+
+    def _oct12_berlin(self, **kwargs) -> CalDAVSearcher:
+        return CalDAVSearcher(
+            event=True,
+            start=datetime(2026, 10, 12, tzinfo=self._BERLIN),
+            end=datetime(2026, 10, 13, tzinfo=self._BERLIN),
+            **kwargs,
+        )
+
+    def test_server_range_is_widened_by_a_day(self, mock_client: DAVClient, mock_url: str) -> None:
+        calls = []
+        self._oct12_berlin().search(self._calendar(mock_client, mock_url, calls))
+        assert self._attrs(calls[0], "time-range") == [
+            {"start": "20261010T220000Z", "end": "20261013T220000Z"}
+        ]
+
+    def test_all_day_event_matched_in_search_time_zone(
+        self, mock_client: DAVClient, mock_url: str, process_tz: str
+    ) -> None:
+        calls = []
+        result = self._oct12_berlin().search(self._calendar(mock_client, mock_url, calls))
+        assert [str(o.icalendar_component["UID"]) for o in result] == ["oct-12@example.com"]
+
+    def test_expand_range_is_widened_and_cut_client_side(
+        self, mock_client: DAVClient, mock_url: str
+    ) -> None:
+        calls = []
+        result = self._oct12_berlin().search(
+            self._calendar(mock_client, mock_url, calls), server_expand=True
+        )
+        assert self._attrs(calls[0], "expand") == [
+            {"start": "20261010T220000Z", "end": "20261013T220000Z"}
+        ]
+        assert [str(o.icalendar_component["UID"]) for o in result] == ["oct-12@example.com"]
+
+    def test_alarm_range_is_widened(self, mock_client: DAVClient, mock_url: str) -> None:
+        calls = []
+        CalDAVSearcher(
+            event=True,
+            alarm_start=datetime(2026, 10, 12, tzinfo=self._BERLIN),
+            alarm_end=datetime(2026, 10, 13, tzinfo=self._BERLIN),
+        ).search(self._calendar(mock_client, mock_url, calls))
+        assert self._attrs(calls[0], "time-range") == [
+            {"start": "20261010T220000Z", "end": "20261013T220000Z"}
+        ]
+
+    @pytest.mark.parametrize(
+        "kwargs", [{"post_filter": False}, {"compatibility_workarounds": False}]
+    )
+    def test_no_widening_without_client_side_filter(
+        self, mock_client: DAVClient, mock_url: str, kwargs: dict
+    ) -> None:
+        """Without the client-side cut, the range is sent as given."""
+        calls = []
+        self._oct12_berlin().search(self._calendar(mock_client, mock_url, calls), **kwargs)
+        assert self._attrs(calls[0], "time-range") == [
+            {"start": "20261011T220000Z", "end": "20261012T220000Z"}
+        ]
+
+    def test_widening_does_not_overflow(self, mock_client: DAVClient, mock_url: str) -> None:
+        calls = []
+        calendar = self._calendar(mock_client, mock_url, calls)
+        calendar._request_report_build_resultlist.side_effect = lambda xml, *args, **kwargs: (
+            calls.append(xml) or (mock.Mock(), [])
+        )
+        CalDAVSearcher(
+            event=True,
+            start=datetime.min.replace(tzinfo=timezone.utc),
+            end=datetime.max.replace(tzinfo=timezone.utc),
+        ).search(calendar)
+        assert self._attrs(calls[0], "time-range") == [
+            {"start": "00010101T000000Z", "end": "99991231T235959Z"}
+        ]
+
+    def test_injected_sliding_window_range_is_not_widened(
+        self, mock_client: DAVClient, mock_url: str
+    ) -> None:
+        """The 1970-2126 range injected for servers with a sliding window
+        (search.unlimited-time-range broken) is no time range of the user's:
+        it is sent as is, and the result is not post-filtered (which would
+        expand every recurring event over 156 years)."""
+        from caldav.compatibility_hints import FeatureSet
+
+        calls = []
+        calendar = self._calendar(mock_client, mock_url, calls)
+        mock_client.features = FeatureSet({"search.unlimited-time-range": {"support": "broken"}})
+        with mock.patch.object(
+            CalDAVSearcher, "filter", autospec=True, side_effect=CalDAVSearcher.filter
+        ) as filter_:
+            CalDAVSearcher(event=True).search(calendar)
+        assert self._attrs(calls[0], "time-range") == [
+            {"start": "19700101T000000Z", "end": "21260101T000000Z"}
+        ]
+        assert not any(c.args[2] for c in filter_.call_args_list)

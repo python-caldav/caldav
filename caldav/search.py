@@ -2,7 +2,7 @@ import inspect
 import logging
 from copy import deepcopy
 from dataclasses import dataclass, field, replace
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from enum import Enum, auto
 from typing import TYPE_CHECKING, Any, Optional
 
@@ -25,6 +25,28 @@ if TYPE_CHECKING:
     from .collection import Calendar as AsyncCalendar
 
 _icalendar_types = TypesFactory()
+
+## Dates and floating times have no time zone, and a CalDAV server
+## compares them as if they were in UTC (RFC 4791 section 9.9).  In the
+## time zone of the user they may be up to 14 hours off.  When the result
+## is filtered client-side, the time range sent to the server is widened
+## by this margin, and the client-side filter does the exact cut.
+## https://github.com/python-caldav/caldav/issues/545
+_TIME_RANGE_MARGIN = timedelta(days=1)
+
+
+def _widen(start: Any, end: Any, margin: timedelta | None) -> tuple[Any, Any]:
+    """Widen the range start-end by margin on each side (open ends stay open)."""
+    if not margin:
+        return (start, end)
+
+    def _shift(value: Any, delta: timedelta) -> Any:
+        try:
+            return value and value + delta
+        except OverflowError:  ## datetime.min / datetime.max
+            return value
+
+    return (_shift(start, -margin), _shift(end, margin))
 
 
 def _collation_to_caldav(collation: Collation, case_sensitive: bool = True) -> str:
@@ -134,14 +156,22 @@ def _build_search_xml_query(
     props: list[Any] | None = None,
     filters: Any = None,
     _hacks: str | None = None,
+    time_range_margin: timedelta | None = None,
 ) -> tuple[Any, type | None]:
-    """Build a CalDAV calendar-query XML request body."""
+    """Build a CalDAV calendar-query XML request body.
+
+    ``time_range_margin`` widens the time ranges (also for expansion and
+    alarms) sent to the server; see ``_TIME_RANGE_MARGIN``.
+    """
+    alarm_margin = time_range_margin
+    if getattr(searcher, "_injected_range", False):
+        time_range_margin = None
     data = cdav.CalendarData()
     tag_props = [dav.GetEtag, cdav.ScheduleTag]
     if server_expand:
         if not searcher.start or not searcher.end:
             raise error.ReportError("can't expand without a date range")
-        data += cdav.Expand(searcher.start, searcher.end)
+        data += cdav.Expand(*_widen(searcher.start, searcher.end, time_range_margin))
         ## DAViCal ignores <C:expand> once schedule-tag is asked for.  An
         ## expanded occurrence is not saved as it is anyway.
         tag_props.remove(cdav.ScheduleTag)
@@ -183,11 +213,12 @@ def _build_search_xml_query(
         filters.extend([vStatusNeedsAction])
 
     if searcher.start or searcher.end:
-        filters.append(cdav.TimeRange(searcher.start, searcher.end))
+        filters.append(cdav.TimeRange(*_widen(searcher.start, searcher.end, time_range_margin)))
 
     if searcher.alarm_start or searcher.alarm_end:
         filters.append(
-            cdav.CompFilter("VALARM") + cdav.TimeRange(searcher.alarm_start, searcher.alarm_end)
+            cdav.CompFilter("VALARM")
+            + cdav.TimeRange(*_widen(searcher.alarm_start, searcher.alarm_end, alarm_margin))
         )
 
     comp_mappings = [
@@ -443,6 +474,10 @@ class CalDAVSearcher(Searcher):
     ## Used by the server-compatibility checker to observe raw server behaviour.
     ## Propagates to clones automatically via dataclasses.replace().
     _compatibility_workarounds: bool = True
+    ## True when start/end is the 1970-2126 range injected for servers with a
+    ## sliding window (search.unlimited-time-range), not a range of the
+    ## caller's: it is neither widened nor a reason to post-filter.
+    _injected_range: bool = field(default=False, repr=False)
 
     def add_property_filter(
         self,
@@ -616,6 +651,7 @@ class CalDAVSearcher(Searcher):
                 self,
                 start=datetime(1970, 1, 1, tzinfo=timezone.utc),
                 end=datetime(2126, 1, 1, tzinfo=timezone.utc),
+                _injected_range=True,
             )
             result = yield (
                 SearchAction.RECURSIVE_SEARCH,
@@ -676,6 +712,11 @@ class CalDAVSearcher(Searcher):
                 )
                 or not calendar.client.features.is_supported("search.text.case-sensitive")
                 or not calendar.client.features.is_supported("search.time-range.accurate")
+                ## the server can't place dates and floating times in the
+                ## time zone of the search, see _TIME_RANGE_MARGIN
+                or ((self.start or self.end) and not self._injected_range)
+                or self.alarm_start
+                or self.alarm_end
             )
         ):
             post_filter = True
@@ -903,7 +944,11 @@ class CalDAVSearcher(Searcher):
 
             if not xml or (not isinstance(xml, str) and not xml.tag.endswith("calendar-query")):
                 (xml, self.comp_class) = self.build_search_xml_query(
-                    server_expand, props=props, filters=xml, _hacks=_hacks
+                    server_expand,
+                    props=props,
+                    filters=xml,
+                    _hacks=_hacks,
+                    _time_range_margin=_TIME_RANGE_MARGIN if cw and post_filter else None,
                 )
 
             ## A CALDAV:time-range (and VALARM) filter is a component-level filter:
@@ -1111,9 +1156,12 @@ class CalDAVSearcher(Searcher):
 
         ``post_filter`` takes three values, ``True`` will always
         filter the results, ``False`` will never filter the results,
-        and the default ``None`` will cause automagics to happen (not
-        implemented yet).  Or perhaps I'll just set it to True as
-        default.  TODO - make a decision here
+        and the default ``None`` filters when the search needs it: a
+        time-range search, an expanded search, pending tasks, or a
+        filter the server is known not to handle.  When the results are
+        filtered, the time ranges sent to the server are widened by a
+        day on each side, so all-day events and floating times can be
+        matched in the time zone of the search.
 
         In the CalDAV protocol, a VCALENDAR object returned from the
         server may contain only one event/task/journal - but if the
@@ -1379,7 +1427,9 @@ class CalDAVSearcher(Searcher):
             return replace(self, include_completed=True)
         return self
 
-    def build_search_xml_query(self, server_expand=False, props=None, filters=None, _hacks=None):
+    def build_search_xml_query(
+        self, server_expand=False, props=None, filters=None, _hacks=None, _time_range_margin=None
+    ):
         """Build a CalDAV calendar-query XML request.
 
         Delegates to the operations layer for the actual XML building.
@@ -1390,6 +1440,7 @@ class CalDAVSearcher(Searcher):
         :param props: Additional CalDAV properties to request
         :param filters: Pre-built filter elements (or None to build from self)
         :param _hacks: Compatibility hack mode
+        :param _time_range_margin: Widen the time ranges by this timedelta
         :return: Tuple of (xml_element, comp_class)
         """
         xml, comp_class = _build_search_xml_query(
@@ -1398,6 +1449,7 @@ class CalDAVSearcher(Searcher):
             props=props,
             filters=filters,
             _hacks=_hacks,
+            time_range_margin=_time_range_margin,
         )
         # Update self.comp_class from the result (side effect for compatibility)
         self.comp_class = comp_class

@@ -1930,6 +1930,13 @@ class Calendar(DAVObject):
         horizon" of a year and ask for "everything from now and one
         year ahead") and get the data expanded.
 
+        All-day events and floating times have no time zone.  With a
+        timezone-aware ``start``/``end`` they are matched in that time
+        zone, otherwise in the time zone of the Python process; a plain
+        ``date`` is taken as midnight UTC.  As the server can't do this,
+        a time-range search asks it for one extra day on each side and
+        filters the result client-side, unless ``post_filter=False``.
+
         With the boolean ``expand`` set, you don't have to think too
         much about recurrences - they will be expanded, and with the
         (default) ``split_expanded`` set, each recurrence will be
