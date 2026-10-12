@@ -575,25 +575,13 @@ class Principal(DAVObject):
         if self._calendar_home_set:
             return self._calendar_home_set
 
-        if type(self).get_property is not DAVObject.get_property:
-            calendar_home_set_url = await self.get_property(cdav.CalendarHomeSet())
+        calendar_home_set_url = await self.get_property(cdav.CalendarHomeSet())
+        if calendar_home_set_url:
             self.calendar_home_set = _sanitize_calendar_home_set_url(
                 calendar_home_set_url, features=self.client.features
             )
-            return self._calendar_home_set
-
-        response = await self.get_properties(
-            [cdav.CalendarHomeSet()], parse_response_xml=False
-        )
-        _raise_unless_propfind_ok(response)
-        calendar_home_set_url = _extract_calendar_home_set_from_results(
-            self.client._propfind_results(response), features=self.client.features
-        )
-        self.props[cdav.CalendarHomeSet().tag] = calendar_home_set_url
-        if calendar_home_set_url:
-            self.calendar_home_set = calendar_home_set_url
         else:
-            await self.client._get_calendars_from_home_set_response(self, response)
+            await self.get_calendars()
         return self._calendar_home_set
 
     ## TODO: the parameter names name, cal_id and cal_url is quite inconsistent
@@ -700,24 +688,13 @@ class Principal(DAVObject):
     @property
     def calendar_home_set(self):
         if not self._calendar_home_set:
-            if type(self).get_property is not DAVObject.get_property:
-                calendar_home_set_url = self.get_property(cdav.CalendarHomeSet())
+            calendar_home_set_url = self.get_property(cdav.CalendarHomeSet())
+            if calendar_home_set_url:
                 self.calendar_home_set = _sanitize_calendar_home_set_url(
                     calendar_home_set_url, features=self.client.features
                 )
-                return self._calendar_home_set
-            response = self.get_properties(
-                [cdav.CalendarHomeSet()], parse_response_xml=False
-            )
-            _raise_unless_propfind_ok(response)
-            calendar_home_set_url = _extract_calendar_home_set_from_results(
-                self.client._propfind_results(response), features=self.client.features
-            )
-            self.props[cdav.CalendarHomeSet().tag] = calendar_home_set_url
-            if calendar_home_set_url:
-                self.calendar_home_set = calendar_home_set_url
             else:
-                self.client._get_calendars_from_home_set_response(self, response)
+                self.get_calendars()
         return self._calendar_home_set
 
     @calendar_home_set.setter

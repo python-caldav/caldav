@@ -989,12 +989,6 @@ class AsyncDAVClient(BaseDAVClient):
             props=self.CALENDAR_HOME_SET_PROPS,
             depth=0,
         )
-        return await self._get_calendars_from_home_set_response(principal, response)
-
-    async def _get_calendars_from_home_set_response(
-        self, principal: "Principal", response: Any
-    ) -> list["Calendar"]:
-        """Discover calendars from an already-fetched principal response."""
         # Fetch calendars via PROPFIND, from the first URL that has any
         calendars = []
         calendar_home_urls = self._calendar_home_urls(response, principal)
