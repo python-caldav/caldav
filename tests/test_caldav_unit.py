@@ -1128,7 +1128,7 @@ END:VCALENDAR
 
     def test_get_calendars_without_home_set_prefers_principal(self):
         """
-        No calendar-home-set, but calendars below the principal (GMX): those
+        No calendar-home-set, but calendars below the principal: those
         are returned and the client URL is not queried.
         """
         client = PublicShareDAVClient(principal_depth1_xml=GMX_LIKE_PRINCIPAL_DEPTH1_XML)
@@ -6417,7 +6417,7 @@ class TestGetCalendarsPropfindErrors:
     """A failing PROPFIND in ``get_calendars()`` must raise, not return ``[]``.
 
     The principal-URL fallback is for servers that do not advertise a
-    calendar-home-set (GMX), not for failed requests, ref
+    calendar-home-set, not for failed requests, ref
     https://github.com/python-caldav/caldav/issues/741
     """
 

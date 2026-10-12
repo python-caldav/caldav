@@ -29,6 +29,7 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 * `delete(if_match=...)` on events, todos and journals: with `if_match=True` the DELETE carries the same precondition `save()` sends (`If-Schedule-Tag-Match` if a Schedule-Tag is cached, else `If-Match` with the cached ETag); a string is sent as `If-Match`.  A 412 raises `ScheduleTagMismatchError` / `ETagMismatchError`, and a 404 raises `NotFoundError` instead of counting as success.  Plain `delete()` is unchanged.  `DAVClient.delete()` takes a `headers` argument, like `AsyncDAVClient.delete()` already did.  https://github.com/python-caldav/caldav/issues/740
 * A `features="icloud"` profile, from a caldav-server-tester run by a user - the documentation already referred to it, but it did not exist.  https://github.com/python-caldav/caldav/issues/730
 * Compatibility feature `sync-token.invalid-token`: whether a sync token the server never issued is refused with `DAV:valid-sync-token` as RFC 6578 section 3.2 says.  Xandikos and CCS answer some such tokens with a 500, and Stalwart and Ox with a report and no error.  https://github.com/jelmer/xandikos/issues/743
+* Compatibility feature `propfind.principal-depth-1`: whether a Depth: 1 PROPFIND on the principal URL works.  GMX answers it with a 400.  https://github.com/python-caldav/caldav/pull/755
 
 ### Changed
 
