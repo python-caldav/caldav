@@ -54,6 +54,12 @@ Consider this procedures to be a more of a guideline than a rigid procedure.  Us
 
 * Write up an issue at [GitHub](https://github.com/python-caldav/caldav/issues/new)
 
+* Make sure to flag your intention to make a pull request in the issue (or in a comment on an existing one) before you start working on it.  Reasons:
+
+  * To avoid duplicated work efforts, merge conflicts or other conflicts.  Perhaps the maintainer is working on a big reorg.  Perhaps there are other open pull requests or work in progress that would clash with the effort.
+
+  * To allow coordination - particularly with regard to the release cycle.  The release process sometimes takes days or even weeks - it involves running a huge test suite towards third-party servers, some of them rate-limiting requests, others doing things in a slightly async way requiring a sleep after every call - and if regressions are found and fixed, the whole process needs to be redone from scratch.  So if there are urgent bugfixes coming in, the maintainer should pause the release process - and if the issue is minor, the effort of making that pull request should probably wait until after the release.
+
 * Create your own [GitHub fork](https://github.com/python-caldav/caldav/fork)
 
 * Clone locally (`git clone https://github.com/$LOGNAME/caldav`) and run `pytest` for a quick run of the tests.  They should pass (you may need to replace `$LOGNAME`).

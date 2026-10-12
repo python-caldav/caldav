@@ -240,10 +240,15 @@ calendar explicitly requested by URL whose displayname is the empty string is
 silently omitted. The async counterpart (`async_davclient.py:1262`) correctly
 uses `is not None`.
 
-### 2.14 `async_davclient.py:957` — async `get_calendars()` lacks the GMX principal-URL fallback `[code]` ✅ FIXED
+### 2.14 `async_davclient.py:957` — async `get_calendars()` lacks the GMX principal-URL fallback `[code]` ✅ FIXED (see the correction below)
 Sync `get_calendars()` (`davclient.py:486–489`) falls back to the principal
 URL when `calendar-home-set` is missing; async returns `[]` for the same
 server. Parity gap.
+
+*Correction 2026-10-12:* GMX does advertise a `calendar-home-set`, so the
+principal-URL fallback never applied to it - and GMX answers a Depth: 1
+PROPFIND on the principal with 400 (`propfind.principal-depth-1`).  The only
+known case without a home-set is a Nextcloud public calendar share.
 
 ### 2.15 `async_davclient.py:487` — issue-#158 workaround can return the probe response as the real one `[code]` ✅ FIXED
 When the original request dies with a connection abort, the workaround sends
@@ -386,7 +391,7 @@ producing drift bugs.
    `_post_put`, `load`, and `_async_load`.
 3. **`async_davclient.py` re-implements ~200 lines of `DAVClient`**
    (init tail, get_calendars, rate-limit retry loop — byte-identical except
-   `time.sleep` vs `asyncio.sleep`). The §2.14 GMX gap and §1.3 retry bug
+   `time.sleep` vs `asyncio.sleep`). The §2.14 gap (see its correction) and §1.3 retry bug
    are direct drift products. Move into `BaseDAVClient` / `lib/error.py`.
    ✅ FIXED — the byte-identical pure logic is now shared via
    `BaseDAVClient`: `_init_rate_limit_config()` (the rate-limit init tail),

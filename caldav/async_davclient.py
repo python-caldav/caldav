@@ -1100,7 +1100,11 @@ class AsyncDAVClient(BaseDAVClient):
         body = self._build_principal_search_query(name)
         response = await self.report(str(self.url), body)
         if response.status >= 300:
-            raise error.ReportError(f"{response.status} {response.reason} - {response.raw}")
+            raise error.error_from_response(
+                error.ReportError,
+                response,
+                f"{response.status} {response.reason} - {response.raw}",
+            )
         return self._parse_principal_search_response(response._find_objects_and_props())
 
     async def principals(self, name: str | None = None) -> list["Principal"]:

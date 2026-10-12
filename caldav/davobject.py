@@ -282,7 +282,7 @@ class DAVObject:
             url = self.url
         ret = getattr(self.client, query_method)(url, body, depth)
         if ret.status == 404:
-            raise error.NotFoundError(errmsg(ret))
+            raise error.error_from_response(error.NotFoundError, ret)
         if _unexpected_status(ret.status, expected_return_value) or ret.status >= 400:
             ## COMPATIBILITY HACK - see https://github.com/python-caldav/caldav/issues/309
             ## TODO: server quirks!
@@ -290,7 +290,7 @@ class DAVObject:
             if ret.status == 500 and b"D:getetag" not in body and b"<C:calendar-data" in body:
                 body = body.replace(b"<C:calendar-data", b"<D:getetag/><C:calendar-data")
                 return self._query(body, depth, query_method, url, expected_return_value)
-            raise error.exception_by_method[query_method](errmsg(ret))
+            raise error.error_from_response(error.exception_by_method[query_method], ret)
         return ret
 
     async def _async_query(
@@ -307,14 +307,14 @@ class DAVObject:
             url = self.url
         ret = await getattr(self.client, query_method)(url, body, depth)
         if ret.status == 404:
-            raise error.NotFoundError(errmsg(ret))
+            raise error.error_from_response(error.NotFoundError, ret)
         if _unexpected_status(ret.status, expected_return_value) or ret.status >= 400:
             ## COMPATIBILITY HACK - see https://github.com/python-caldav/caldav/issues/309
             body = to_wire(body)
             if ret.status == 500 and b"D:getetag" not in body and b"<C:calendar-data" in body:
                 body = body.replace(b"<C:calendar-data", b"<D:getetag/><C:calendar-data")
                 return await self._query(body, depth, query_method, url, expected_return_value)
-            raise error.exception_by_method[query_method](errmsg(ret))
+            raise error.error_from_response(error.exception_by_method[query_method], ret)
         return ret
 
     def get_property(
@@ -589,7 +589,7 @@ class DAVObject:
 
     def _post_set_properties(self, r) -> Self:
         if r.status >= 400:
-            raise error.PropsetError(errmsg(r))
+            raise error.error_from_response(error.PropsetError, r)
         return self
 
     async def _async_set_properties(self, body, props) -> Self:
@@ -668,15 +668,15 @@ class DAVObject:
             if r.status == 412:
                 self._raise_precondition_failed(r, headers)
             if r.status == 404:
-                raise error.NotFoundError(errmsg(r))
+                raise error.error_from_response(error.NotFoundError, r)
         if r.status not in (200, 204, 404):
-            raise error.DeleteError(errmsg(r))
+            raise error.error_from_response(error.DeleteError, r)
 
     def _raise_precondition_failed(self, r, headers: dict[str, str]) -> None:
         """Raise the error matching the precondition header that failed."""
         if "if-schedule-tag-match" in headers:
-            raise error.ScheduleTagMismatchError(errmsg(r))
-        raise error.ETagMismatchError(errmsg(r))
+            raise error.error_from_response(error.ScheduleTagMismatchError, r)
+        raise error.error_from_response(error.ETagMismatchError, r)
 
     async def _async_delete(self, headers: dict[str, str] | None = None) -> None:
         """Async implementation of delete."""

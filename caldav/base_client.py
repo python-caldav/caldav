@@ -78,9 +78,9 @@ def _raise_unless_propfind_ok(response: Any) -> None:
     https://github.com/python-caldav/caldav/issues/741
     """
     if response.status == 404:
-        raise error.NotFoundError(error.errmsg(response))
+        raise error.error_from_response(error.NotFoundError, response)
     if not 200 <= response.status < 300:
-        raise error.PropfindError(error.errmsg(response))
+        raise error.error_from_response(error.PropfindError, response)
 
 
 class BaseDAVClient(ABC):
@@ -454,7 +454,7 @@ class BaseDAVClient(ABC):
     def _calendar_home_urls(self, home_set_response: Any, principal: Any) -> list[str]:
         """Return absolute URLs to search for calendars, in order of preference.
 
-        Without a calendar-home-set, try the principal URL (e.g. GMX), then the
+        Without a calendar-home-set, try the principal URL, then the
         client URL, which may be a calendar itself (e.g. Nextcloud public share).
         The client root is moved to the host of the first URL, if it differs.
         """

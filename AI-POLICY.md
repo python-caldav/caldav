@@ -7,6 +7,12 @@ The most important rule: be honest and inform about it!
 Tools should generally be used for improving the quality of the
 project, not for rapidly adding new features.
 
+Avoid asking your AI agent to "find some low-hanging fruit in the
+issue tracker and generate a PR".  The maintainer can probably do that
+himself, with a better overview of what needs to be prioritized.
+Reviewing an AI-generated PR often takes the maintainer more effort than
+doing the work directly.
+
 Keep a log of the prompts and/or commands used - this should be
 included verbatimely in the git commits as long as it's possible
 without making the messages too messy.  When relevant, chat-output may
