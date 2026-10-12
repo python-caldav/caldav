@@ -25,18 +25,19 @@ def _to_utc_date_string(ts):
             ## not able to treat it as localtime.
             import tzlocal
 
-            ts = ts.replace(tzinfo=tzlocal.get_localzone())
-
-            mindate = datetime.min.replace(tzinfo=utc_tz)
-            maxdate = datetime.max.replace(tzinfo=utc_tz)
-            if mindate + ts.tzinfo.utcoffset(ts) > ts:
-                logging.error("Cannot coerce datetime %s to UTC. Changed to min-date.", ts)
-                ts = mindate
-            elif ts > maxdate - ts.tzinfo.utcoffset(ts):
-                logging.error("Cannot coerce datetime %s to UTC. Changed to max-date.", ts)
-                ts = maxdate
-            else:
+            if ts.tzinfo is None:
+                ts = ts.replace(tzinfo=tzlocal.get_localzone())
+            try:
                 ts = ts.astimezone(utc_tz)
+            except OverflowError:
+                ## outside what UTC can hold, i.e. within a day of
+                ## datetime.min or datetime.max
+                if ts.year == datetime.min.year:
+                    logging.error("Cannot coerce datetime %s to UTC. Changed to min-date.", ts)
+                    ts = datetime.min.replace(tzinfo=utc_tz)
+                else:
+                    logging.error("Cannot coerce datetime %s to UTC. Changed to max-date.", ts)
+                    ts = datetime.max.replace(tzinfo=utc_tz)
 
     ## not strftime("%Y"): it does not zero-pad years before 1000 on Linux with Python < 3.14
     return f"{ts.year:04d}" + ts.strftime("%m%dT%H%M%SZ")

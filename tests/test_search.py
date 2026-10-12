@@ -8,7 +8,6 @@ communication. We use mocked client objects as needed.
 Disclaimer: AI-generated tests
 """
 
-import time
 from datetime import datetime, timezone
 from unittest import mock
 from urllib.parse import quote
@@ -2071,15 +2070,6 @@ class TestAllDayTimeRange:
     _NS = {"C": "urn:ietf:params:xml:ns:caldav"}
     _BERLIN = ZoneInfo("Europe/Berlin")
 
-    @pytest.fixture(params=["UTC", "America/New_York", "Pacific/Auckland"])
-    def process_tz(self, request, monkeypatch):
-        """Run the test with the Python process in another time zone."""
-        monkeypatch.setenv("TZ", request.param)
-        time.tzset()
-        yield request.param
-        monkeypatch.undo()
-        time.tzset()
-
     def _calendar(self, mock_client: DAVClient, mock_url: str, calls: list) -> mock.Mock:
         from caldav.compatibility_hints import FeatureSet
 
@@ -2120,6 +2110,9 @@ class TestAllDayTimeRange:
             {"start": "20261010T220000Z", "end": "20261013T220000Z"}
         ]
 
+    @pytest.mark.parametrize(
+        "process_tz", ["UTC", "America/New_York", "Pacific/Auckland"], indirect=True
+    )
     def test_all_day_event_matched_in_search_time_zone(
         self, mock_client: DAVClient, mock_url: str, process_tz: str
     ) -> None:
