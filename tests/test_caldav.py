@@ -1259,6 +1259,49 @@ class _TestSchedulingBase:
         with pytest.raises(error.ScheduleTagMismatchError):
             event.save(increase_seqno=False)
 
+    def testScheduleTagIgnoredWithPreconditionEtag(self):
+        """
+        save(precondition="etag") on a stale copy sends If-Match even with a
+        Schedule-Tag cached, and the 412 raises ETagMismatchError.
+        https://github.com/python-caldav/caldav/issues/762
+        """
+        self._skip_unless_support("scheduling.schedule-tag")
+        if len(self.principals) < 2:
+            pytest.skip("need 2 principals for Schedule-Tag to be assigned")
+
+        cal = self._getCalendar(0)
+        organizer_addr = self.principals[0].get_vcal_address()
+        attendee_addr = self.principals[1].get_vcal_address()
+        uid = str(uuid.uuid4())
+        ical = (
+            "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Test//Test//EN\r\n"
+            "BEGIN:VEVENT\r\n"
+            f"UID:{uid}\r\n"
+            "DTSTAMP:20260101T000000Z\r\n"
+            "DTSTART:20320601T100000Z\r\nDURATION:PT1H\r\n"
+            "SUMMARY:Original\r\n"
+            f"ORGANIZER:{organizer_addr}\r\n"
+            f"ATTENDEE;RSVP=TRUE;PARTSTAT=NEEDS-ACTION:{attendee_addr}\r\n"
+            "END:VEVENT\r\nEND:VCALENDAR\r\n"
+        )
+        cal.save_event(ical)
+        self._auto_scheduled_event_uids.append(uid)
+
+        stale = cal.event_by_uid(uid)
+        stale.load()
+        if not stale.etag or stale.etag.startswith("W/"):
+            pytest.skip("server gave no strong ETag, so there is no If-Match to send")
+        assert stale.schedule_tag is not None, "server did not return Schedule-Tag"
+
+        fresh = cal.event_by_uid(uid)
+        fresh.load()
+        fresh.icalendar_component["SUMMARY"] = "Changed elsewhere"
+        fresh.save(increase_seqno=False)
+
+        stale.icalendar_component["DESCRIPTION"] = "Stale edit"
+        with pytest.raises(error.ETagMismatchError):
+            stale.save(increase_seqno=False, precondition="etag")
+
     def testScheduleTagMatchSucceeds(self):
         """
         save() with the correct (current) tag must

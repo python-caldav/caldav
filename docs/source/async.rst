@@ -222,6 +222,7 @@ All methods that perform I/O are ``async`` and must be awaited:
 * ``await obj.save()`` - Save changes to server
 * ``await obj.delete()`` - Delete the object
 * ``await obj.delete(if_match=True)`` - Delete only if unchanged since last seen (412 raises ``ETagMismatchError`` or ``ScheduleTagMismatchError``, 404 raises ``NotFoundError``)
+* ``await obj.save(precondition="etag")`` / ``await obj.delete(if_match=True, precondition="etag")`` - Prefer ``If-Match`` over a cached Schedule-Tag, so an attendee's reply merged in by the server also counts as a change (for sync clients); with no strong ETag cached, the Schedule-Tag is used
 * ``await todo.complete()`` - Mark todo as complete
 
 Backward Compatibility
