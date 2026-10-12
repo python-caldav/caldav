@@ -1740,6 +1740,26 @@ class TestAsyncGetCalendarsWithoutHomeSet:
         assert [str(c.url) for c in calendars] == [PUBLIC_SHARE_PRINCIPAL_URL + "work/"]
         assert all(PUBLIC_SHARE_URL not in url for url, _ in client.requests)
 
+    @pytest.mark.asyncio
+    async def test_missing_home_set_reuses_discovered_principal_for_lookup_and_creation(self) -> None:
+        from caldav.collection import Calendar, Principal
+
+        from .public_share_fixtures import (
+            GMX_LIKE_PRINCIPAL_DEPTH1_XML,
+            PUBLIC_SHARE_PRINCIPAL_URL,
+        )
+
+        client = self._client(GMX_LIKE_PRINCIPAL_DEPTH1_XML)
+        principal = Principal(client=client, url=PUBLIC_SHARE_PRINCIPAL_URL)
+
+        calendars = await principal.get_calendars()
+        looked_up = await principal.calendar(cal_id=calendars[0].id)
+        assert str(looked_up.url) == str(calendars[0].url)
+
+        with patch.object(Calendar, "_async_create", new=AsyncMock()):
+            created = await principal.make_calendar(cal_id="new")
+        assert str(created.parent.url) == PUBLIC_SHARE_PRINCIPAL_URL
+
 
 class TestAsyncHttpLibrarySelection:
     """Which async HTTP library the module picks, and what happens when none is there.
@@ -2061,6 +2081,24 @@ class TestAsyncGetCalendarsPropfindErrors:
             refused,
         )
         assert calendars == []
+
+    @pytest.mark.asyncio
+    async def test_empty_account_creation_uses_principal_guess(self) -> None:
+        from caldav.collection import Calendar, Principal
+
+        client = AsyncDAVClient(url="https://cal.example.com/")
+        principal = Principal(client=client, url="https://cal.example.com/principals/user/")
+        responses = [
+            self._response(207, self.NO_HOME_SET_XML),
+            self._response(207, self.NO_HOME_SET_XML),
+            self._response(404),
+            self._response(207, self.NO_HOME_SET_XML),
+        ]
+        with patch.object(client, "propfind", new=AsyncMock(side_effect=responses)):
+            assert await client.get_calendars(principal) == []
+            with patch.object(Calendar, "_async_create", new=AsyncMock()):
+                created = await principal.make_calendar(cal_id="new")
+        assert str(created.parent.url) == str(principal.url)
 
     @pytest.mark.asyncio
     async def test_principal_refused_by_auth_without_home_set_raises(self) -> None:

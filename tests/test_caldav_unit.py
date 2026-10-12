@@ -1137,6 +1137,19 @@ END:VCALENDAR
         assert [str(c.url) for c in calendars] == [PUBLIC_SHARE_PRINCIPAL_URL + "work/"]
         assert all(PUBLIC_SHARE_URL not in url for url, _ in client.requests)
 
+    def test_missing_home_set_reuses_discovered_principal_for_lookup_and_creation(self):
+        """A successful principal fallback is also the lazy calendar home."""
+        client = PublicShareDAVClient(principal_depth1_xml=GMX_LIKE_PRINCIPAL_DEPTH1_XML)
+        principal = Principal(client=client, url=PUBLIC_SHARE_PRINCIPAL_URL)
+
+        calendars = principal.get_calendars()
+        looked_up = principal.calendar(cal_id=calendars[0].id)
+        assert str(looked_up.url) == str(calendars[0].url)
+
+        with mock.patch.object(Calendar, "_create", autospec=True):
+            created = principal.make_calendar(cal_id="new")
+        assert str(created.parent.url) == PUBLIC_SHARE_PRINCIPAL_URL
+
     def test_xml_parsing(self):
         """
         DAVResponse has quite some code to parse the XML received from the
@@ -6520,6 +6533,21 @@ class TestGetCalendarsPropfindErrors:
             )
             == []
         )
+
+    def test_empty_account_creation_uses_principal_guess(self):
+        client = DAVClient(url="https://cal.example.com/")
+        principal = Principal(client=client, url="https://cal.example.com/principals/user/")
+        responses = [
+            self._response(207, self.NO_HOME_SET_XML),
+            self._response(207, self.NO_HOME_SET_XML),
+            self._response(404),
+            self._response(207, self.NO_HOME_SET_XML),
+        ]
+        with mock.patch.object(client, "propfind", side_effect=responses):
+            assert client.get_calendars(principal) == []
+            with mock.patch.object(Calendar, "_create", autospec=True):
+                created = principal.make_calendar(cal_id="new")
+        assert str(created.parent.url) == str(principal.url)
 
     def test_principal_refused_by_auth_without_home_set_raises(self):
         refused = error.AuthorizationError(url="https://cal.example.com/", reason="Forbidden")
