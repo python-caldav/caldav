@@ -582,6 +582,8 @@ class Principal(DAVObject):
             )
         else:
             await self.get_calendars()
+            if self._calendar_home_set is None:
+                return CalendarSet(self.client, url=self.url)
         return self._calendar_home_set
 
     ## TODO: the parameter names name, cal_id and cal_url is quite inconsistent
@@ -695,6 +697,8 @@ class Principal(DAVObject):
                 )
             else:
                 self.get_calendars()
+                if self._calendar_home_set is None:
+                    return CalendarSet(self.client, url=self.url)
         return self._calendar_home_set
 
     @calendar_home_set.setter

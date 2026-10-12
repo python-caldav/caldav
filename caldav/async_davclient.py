@@ -1011,8 +1011,6 @@ class AsyncDAVClient(BaseDAVClient):
             if calendars:
                 self._cache_calendar_home(principal, calendar_home_url)
                 break
-        if not calendars:
-            self._cache_calendar_home(principal, calendar_home_urls[0])
         return calendars
 
     async def search_calendar(

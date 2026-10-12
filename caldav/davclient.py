@@ -502,8 +502,6 @@ class DAVClient(BaseDAVClient):
             if calendars:
                 self._cache_calendar_home(principal, calendar_home_url)
                 break
-        if not calendars:
-            self._cache_calendar_home(principal, calendar_home_urls[0])
         return calendars
 
     def search_calendar(

@@ -33,6 +33,7 @@ from caldav.lib.url import URL
 
 from .public_share_fixtures import (
     GMX_LIKE_PRINCIPAL_DEPTH1_XML,
+    PUBLIC_SHARE_PRINCIPAL_DEPTH0_XML,
     PUBLIC_SHARE_PRINCIPAL_DEPTH1_XML,
     PUBLIC_SHARE_PRINCIPAL_URL,
     PUBLIC_SHARE_URL,
@@ -1168,6 +1169,40 @@ END:VCALENDAR
             created = principal.make_calendar(cal_id="new")
 
         assert str(created.parent.url) == PUBLIC_SHARE_PRINCIPAL_URL
+
+    @pytest.mark.parametrize("failure", ["authorization", "server"])
+    def test_failed_client_fallback_does_not_poison_home_for_retry(self, failure):
+        """A failed public-share fallback must not block a later retry."""
+        client = PublicShareDAVClient()
+        principal = Principal(client=client, url=PUBLIC_SHARE_PRINCIPAL_URL)
+        original_request = client.request
+        calls = 0
+
+        def request(url, method="GET", body="", headers=None):
+            nonlocal calls
+            calls += 1
+            if calls == 3:
+                if failure == "authorization":
+                    raise error.AuthorizationError(url=str(url), reason="Forbidden")
+                response = mock.MagicMock()
+                response.status_code = 500
+                response.reason = "Server Error"
+                response.headers = {}
+                response.content = b""
+                return DAVResponse(response)
+            return original_request(url, method, body, headers)
+
+        client.request = request
+        assert client.get_calendars(principal) == []
+        assert principal._calendar_home_set is None
+
+        client.request = original_request
+        assert client.get_calendars(principal)
+        looked_up = principal.calendar(cal_id="work")
+        assert str(looked_up.url) == PUBLIC_SHARE_URL + "/work/"
+        with mock.patch.object(Calendar, "_create", autospec=True):
+            created = principal.make_calendar(cal_id="new")
+        assert str(created.parent.url) == PUBLIC_SHARE_URL
 
     def test_xml_parsing(self):
         """
@@ -6560,10 +6595,14 @@ class TestGetCalendarsPropfindErrors:
             self._response(207, self.NO_HOME_SET_XML),
             self._response(207, self.NO_HOME_SET_XML),
             self._response(404),
+            self._response(207, PUBLIC_SHARE_PRINCIPAL_DEPTH0_XML),
             self._response(207, self.NO_HOME_SET_XML),
+            self._response(207, self.NO_HOME_SET_XML),
+            self._response(404),
         ]
         with mock.patch.object(client, "propfind", side_effect=responses):
             assert client.get_calendars(principal) == []
+            assert principal._calendar_home_set is None
             with mock.patch.object(Calendar, "_create", autospec=True):
                 created = principal.make_calendar(cal_id="new")
         assert str(created.parent.url) == str(principal.url)

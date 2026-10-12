@@ -1795,6 +1795,43 @@ class TestAsyncGetCalendarsWithoutHomeSet:
 
         assert str(created.parent.url) == PUBLIC_SHARE_PRINCIPAL_URL
 
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("failure", ["authorization", "server"])
+    async def test_failed_client_fallback_does_not_poison_home_for_retry(self, failure) -> None:
+        from caldav.collection import Calendar, Principal
+
+        from .public_share_fixtures import (
+            PUBLIC_SHARE_PRINCIPAL_DEPTH1_XML,
+            PUBLIC_SHARE_PRINCIPAL_URL,
+            PUBLIC_SHARE_URL,
+        )
+
+        client = self._client(PUBLIC_SHARE_PRINCIPAL_DEPTH1_XML)
+        principal = Principal(client=client, url=PUBLIC_SHARE_PRINCIPAL_URL)
+        original_request = client.request
+        calls = 0
+
+        async def request(url, method="GET", body="", headers=None):
+            nonlocal calls
+            calls += 1
+            if calls == 3:
+                if failure == "authorization":
+                    raise error.AuthorizationError(url=str(url), reason="Forbidden")
+                return DAVResponse(create_mock_response(status_code=500))
+            return await original_request(url, method, body, headers)
+
+        client.request = request
+        assert await client.get_calendars(principal) == []
+        assert principal._calendar_home_set is None
+
+        client.request = original_request
+        assert await client.get_calendars(principal)
+        looked_up = await principal.calendar(cal_id="work")
+        assert str(looked_up.url) == PUBLIC_SHARE_URL + "/work/"
+        with patch.object(Calendar, "_async_create", new=AsyncMock()):
+            created = await principal.make_calendar(cal_id="new")
+        assert str(created.parent.url) == PUBLIC_SHARE_URL
+
 
 class TestAsyncHttpLibrarySelection:
     """Which async HTTP library the module picks, and what happens when none is there.
@@ -2120,17 +2157,22 @@ class TestAsyncGetCalendarsPropfindErrors:
     @pytest.mark.asyncio
     async def test_empty_account_creation_uses_principal_guess(self) -> None:
         from caldav.collection import Calendar, Principal
+        from tests.public_share_fixtures import PUBLIC_SHARE_PRINCIPAL_DEPTH0_XML
 
         client = AsyncDAVClient(url="https://cal.example.com/")
         principal = Principal(client=client, url="https://cal.example.com/principals/user/")
         responses = [
+            self._response(207, PUBLIC_SHARE_PRINCIPAL_DEPTH0_XML.encode()),
+            self._response(207, self.NO_HOME_SET_XML),
+            self._response(404),
+            self._response(207, PUBLIC_SHARE_PRINCIPAL_DEPTH0_XML.encode()),
             self._response(207, self.NO_HOME_SET_XML),
             self._response(207, self.NO_HOME_SET_XML),
             self._response(404),
-            self._response(207, self.NO_HOME_SET_XML),
         ]
         with patch.object(client, "propfind", new=AsyncMock(side_effect=responses)):
             assert await client.get_calendars(principal) == []
+            assert principal._calendar_home_set is None
             with patch.object(Calendar, "_async_create", new=AsyncMock()):
                 created = await principal.make_calendar(cal_id="new")
         assert str(created.parent.url) == str(principal.url)
