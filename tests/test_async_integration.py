@@ -1887,8 +1887,14 @@ class AsyncFunctionalTestsBaseClass:
         except (NotFoundError, AuthorizationError):
             pytest.skip("Cannot discover principal")
 
-        cal_id = "pythoncaldav-async-createdelete-test"
-        await adelete_calendar_if_present(principal, cal_id)
+        if self.is_supported("delete-calendar.free-namespace"):
+            cal_id = "pythoncaldav-async-createdelete-test"
+            await adelete_calendar_if_present(principal, cal_id)
+        else:
+            ## Deleting doesn't free the id (Nextcloud's trashbin), so a fixed
+            ## id can be created only once; a fresh id per run instead, as in
+            ## testCreateDeleteCalendar
+            cal_id = f"pythoncaldav-async-createdelete-{uuid.uuid4().hex[:8]}"
 
         c = await principal.make_calendar(name="Yep", cal_id=cal_id)
         try:
