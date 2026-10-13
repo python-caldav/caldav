@@ -1014,14 +1014,23 @@ class AsyncFunctionalTestsBaseClass:
 
         if is_time_based:
             await asyncio.sleep(1)
-        await c.add_event(near_now_ics(ev3_static))
+        obj3 = await c.add_event(near_now_ics(ev3_static))
         if is_time_based:
             await asyncio.sleep(1)
         my_changed_objects = await c.get_objects_by_sync_token(
             sync_token=my_changed_objects.sync_token
         )
         if not is_fragile:
-            assert len(list(my_changed_objects)) == 1
+            ## Nextcloud may also report a trashed ev3 from an earlier run as
+            ## removed when the same UID is added again; don't count it
+            changed = [
+                o
+                for o in my_changed_objects
+                if o.url.canonical() not in my_changed_objects.deleted_urls
+            ]
+            assert len(changed) == 1
+            if self.is_supported("save-load.stable-url"):
+                assert changed[0].url.canonical() == obj3.url.canonical()
 
         if is_time_based:
             await asyncio.sleep(1)

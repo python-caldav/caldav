@@ -2986,17 +2986,21 @@ class SynchronizableCalendarObjectCollection:
                         ):
                             if obu[obj.url].props[dav.GetEtag.tag] == obj.props[dav.GetEtag.tag]:
                                 continue
+                        ## A removal of something we never held (e.g.
+                        ## Nextcloud purging a trashed object) is no news
+                        known = obu.pop(obj.url, None) is not None
                         if obj.url in updates.deleted_urls:
-                            deleted_objs.append(obj)
-                            obu.pop(obj.url, None)
+                            if known:
+                                deleted_objs.append(obj)
                             continue
-                        obu[obj.url] = obj
                         try:
                             obj.load()
-                            updated_objs.append(obj)
                         except error.NotFoundError:
-                            deleted_objs.append(obj)
-                            obu.pop(obj.url)
+                            if known:
+                                deleted_objs.append(obj)
+                            continue
+                        obu[obj.url] = obj
+                        updated_objs.append(obj)
 
                     self.objects = list(obu.values())
                     self._objects_by_url = None
@@ -3051,17 +3055,21 @@ class SynchronizableCalendarObjectCollection:
                         ):
                             if obu[obj.url].props[dav.GetEtag.tag] == obj.props[dav.GetEtag.tag]:
                                 continue
+                        ## A removal of something we never held (e.g.
+                        ## Nextcloud purging a trashed object) is no news
+                        known = obu.pop(obj.url, None) is not None
                         if obj.url in updates.deleted_urls:
-                            deleted_objs.append(obj)
-                            obu.pop(obj.url, None)
+                            if known:
+                                deleted_objs.append(obj)
                             continue
-                        obu[obj.url] = obj
                         try:
                             await obj.load()
-                            updated_objs.append(obj)
                         except error.NotFoundError:
-                            deleted_objs.append(obj)
-                            obu.pop(obj.url)
+                            if known:
+                                deleted_objs.append(obj)
+                            continue
+                        obu[obj.url] = obj
+                        updated_objs.append(obj)
 
                     self.objects = list(obu.values())
                     self._objects_by_url = None

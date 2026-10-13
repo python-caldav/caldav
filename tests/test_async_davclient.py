@@ -2172,7 +2172,7 @@ class TestAsyncSyncReportsRemovals:
         return Calendar(client=client, url="https://cal.example.com/cal/")
 
     @pytest.mark.asyncio
-    async def test_sync_does_not_fetch_a_removed_member(self) -> None:
+    async def test_sync_ignores_removal_of_unknown_member(self) -> None:
         from caldav.calendarobjectresource import CalendarObjectResource
         from caldav.collection import SynchronizableCalendarObjectCollection
 
@@ -2184,9 +2184,28 @@ class TestAsyncSyncReportsRemovals:
         )
         with patch.object(CalendarObjectResource, "load", new=AsyncMock()) as mocked_load:
             (updated, deleted) = await collection.sync()
-        assert [str(o.url) for o in deleted] == ["https://cal.example.com:443/cal/removed.ics"]
+        ## removed.ics was never in the collection, so there is nothing to drop
+        assert deleted == []
         assert len(updated) == 2
         assert mocked_load.await_count == 2
+
+    @pytest.mark.asyncio
+    async def test_sync_ignores_unknown_member_gone_on_load(self) -> None:
+        from caldav.calendarobjectresource import CalendarObjectResource
+        from caldav.collection import SynchronizableCalendarObjectCollection
+
+        from .test_caldav_unit import SYNC_REPLY_WITH_REMOVAL, _dav_response
+
+        calendar = self._calendar(_dav_response(207, SYNC_REPLY_WITH_REMOVAL))
+        collection = SynchronizableCalendarObjectCollection(
+            calendar=calendar, objects=[], sync_token="http://example.com/sync/1"
+        )
+        ## listed as changed, but gone by the time it is fetched
+        load = AsyncMock(side_effect=error.NotFoundError("404"))
+        with patch.object(CalendarObjectResource, "load", new=load):
+            (updated, deleted) = await collection.sync()
+        assert updated == []
+        assert deleted == []
 
     @pytest.mark.asyncio
     async def test_deleted_urls(self) -> None:
