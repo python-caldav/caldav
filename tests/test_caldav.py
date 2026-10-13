@@ -2114,17 +2114,29 @@ END:VCALENDAR"""
     def testCreateDeleteCalendar(self):
         self.skip_unless_support("create-calendar")
         self.skip_unless_support("delete-calendar")
-        # Always try to delete the calendar first in case a previous test run
-        # was interrupted and left the calendar behind
-        self._teardownCalendar(cal_id=self.testcal_id)
-        c = self.principal.make_calendar(name="Yep", cal_id=self.testcal_id)
-
-        assert c.url is not None
-        events = c.get_events()
-        assert len(events) == 0
-        events = self.principal.calendar(name="Yep", cal_id=self.testcal_id).get_events()
-        assert len(events) == 0
-        c.delete()
+        if self.is_supported("delete-calendar.free-namespace"):
+            cal_id = self.testcal_id
+            name = "Yep"
+            # Always try to delete the calendar first in case a previous test run
+            # was interrupted and left the calendar behind
+            self._teardownCalendar(cal_id=cal_id)
+        else:
+            ## Deleting doesn't free the id (Nextcloud's trashbin), so a fixed
+            ## id can be created only once, and deleting the shared test
+            ## calendar would take it away from the tests reusing it.  A
+            ## fresh id per run instead, leaving one calendar per run in the
+            ## trashbin; its own name keeps it apart from the shared "Yep".
+            cal_id = f"pythoncaldav-test-{uuid.uuid4().hex[:8]}"
+            name = "Yep-createdelete"
+        c = self.principal.make_calendar(name=name, cal_id=cal_id)
+        try:
+            assert c.url is not None
+            events = c.get_events()
+            assert len(events) == 0
+            events = self.principal.calendar(name=name, cal_id=cal_id).get_events()
+            assert len(events) == 0
+        finally:
+            c.delete()
 
         if not self.is_supported("create-calendar.auto"):
             # Two separate pytest.raises blocks: with both probes in a single
@@ -2496,12 +2508,21 @@ END:VCALENDAR"""
         ## ADDING yet another object ... and it should also be reported
         if is_time_based:
             time.sleep(1)
-        c.add_event(near_now_ics(ev3))
+        obj3 = c.add_event(near_now_ics(ev3))
         if is_time_based:
             time.sleep(1)
         my_changed_objects = c.get_objects_by_sync_token(sync_token=my_changed_objects.sync_token)
         if not is_fragile:
-            assert len(list(my_changed_objects)) == 1
+            ## Nextcloud may also report a trashed ev3 from an earlier run as
+            ## removed when the same UID is added again; don't count it
+            changed = [
+                o
+                for o in my_changed_objects
+                if o.url.canonical() not in my_changed_objects.deleted_urls
+            ]
+            assert len(changed) == 1
+            if self.is_supported("save-load.stable-url"):
+                assert changed[0].url.canonical() == obj3.url.canonical()
 
         if is_time_based:
             time.sleep(1)

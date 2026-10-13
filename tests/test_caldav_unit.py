@@ -4154,19 +4154,34 @@ class TestSyncReportsRemovals:
         }
         assert len(result) == 3
 
-    def test_sync_does_not_fetch_a_removed_member(self):
+    def test_sync_ignores_removal_of_unknown_member(self):
         calendar = self._calendar()
         collection = SynchronizableCalendarObjectCollection(
             calendar=calendar, objects=[], sync_token="http://example.com/sync/1"
         )
         with mock.patch.object(CalendarObjectResource, "load") as mocked_load:
             (updated, deleted) = collection.sync()
-        assert [str(o.url) for o in deleted] == ["https://cal.example.com:443/cal/removed.ics"]
+        ## removed.ics was never in the collection, so there is nothing to
+        ## drop (Nextcloud reports purging a trashed object like this)
+        assert deleted == []
         assert sorted(str(o.url) for o in updated) == [
             "https://cal.example.com:443/cal/changed.ics",
             "https://cal.example.com:443/cal/recreated.ics",
         ]
         assert mocked_load.call_count == 2
+
+    def test_sync_ignores_unknown_member_gone_on_load(self):
+        ## listed as changed, but gone by the time it is fetched
+        calendar = self._calendar()
+        collection = SynchronizableCalendarObjectCollection(
+            calendar=calendar, objects=[], sync_token="http://example.com/sync/1"
+        )
+        with mock.patch.object(
+            CalendarObjectResource, "load", side_effect=error.NotFoundError("404")
+        ):
+            (updated, deleted) = collection.sync()
+        assert updated == []
+        assert deleted == []
 
     def _cached_collection(self, calendar):
         """A collection that holds removed.ics from an earlier sync."""

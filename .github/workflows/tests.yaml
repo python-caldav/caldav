@@ -376,6 +376,35 @@ jobs:
           key: pip|${{ hashFiles('pyproject.toml') }}|${{ hashFiles('tox.ini') }}
       - run: pip install tox
       - run: tox -e deptry
+  no-http-library:
+    # Every other job has `requests`: it is not in the `test` extra, but
+    # Radicale is, and Radicale requires it.  So "no HTTP library at all" is a
+    # state the fallback jobs never reach, and the import-time error message
+    # went untested.  It matters once niquests stops being a hard dependency
+    # and a plain `pip install caldav` brings no library.
+    # Uninstalling `requests` breaks Radicale, so this job starts no server.
+    name: no HTTP library
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies, then remove every HTTP library
+        run: |
+          pip install --editable .[test]
+          pip uninstall -y niquests requests httpx httpxyz httpx2
+      - name: Verify both clients explain what to install
+        run: |
+          for pair in caldav.davclient:sync caldav.async_davclient:async; do
+            module="${pair%:*}" mode="${pair#*:}"
+            out="$(python -c "import $module" 2>&1)" && { echo "$module imported without an HTTP library"; exit 1; }
+            grep -q 'caldav\[niquests\]' <<<"$out" || { echo "$module: unhelpful error: $out"; exit 1; }
+            grep -q "for $mode communication" <<<"$out" || { echo "$module: error is not about $mode: $out"; exit 1; }
+          done
+          echo "✓ both clients name caldav[niquests]"
+      - name: Run the HTTP-library tests
+        run: pytest tests/test_http_libraries.py -v
   # The three async-* jobs below exist to test the async backend *selection* logic,
   # not to re-run the async integration tests.  The async HTTP library
   # (_USE_HTTPX / _USE_NIQUESTS / _HTTPX_FLAVOUR) is chosen at import time based on

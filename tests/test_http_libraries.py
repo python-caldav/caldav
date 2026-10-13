@@ -7,6 +7,7 @@ rather than surfacing as ``No module named 'requests'``.
 """
 
 import ast
+import importlib.util
 import pathlib
 import subprocess
 import sys
@@ -21,6 +22,24 @@ from caldav.lib.http_libraries import (
     SYNC_CANDIDATES,
     no_http_library_error,
     required_library_error,
+)
+
+
+def _any_installed(names: tuple[str, ...]) -> bool:
+    return any(importlib.util.find_spec(name) for name in names)
+
+
+## The tests below that import a real client need a library to be there.  CI
+## has a job with none installed at all, where they skip and the rest of this
+## file - the part about the missing-library message - does the work.
+needs_sync_library = pytest.mark.skipif(
+    not _any_installed(SYNC_CANDIDATES), reason="no sync HTTP library installed"
+)
+needs_async_library = pytest.mark.skipif(
+    not _any_installed(ASYNC_CANDIDATES), reason="no async HTTP library installed"
+)
+needs_an_httpx = pytest.mark.skipif(
+    not _any_installed(ASYNC_HTTPX_CANDIDATES), reason="no httpx-family library installed"
 )
 
 ## Modules that reach the HTTP-library import on their own, so the message has
@@ -166,6 +185,7 @@ class TestOnlyOneModuleImportsTheHTTPLibrary:
 class TestSharedCandidateLists:
     """The point of the shared lists is that there is one copy."""
 
+    @needs_async_library
     def test_async_davclient_uses_the_shared_httpx_list(self) -> None:
         """A literal re-spelled here and in http_libraries drifts silently - and
         the tests below take their blocklist from the shared copy, so a drift
@@ -205,6 +225,7 @@ class TestRequiredLibraryMessage:
         assert DOCS_URL in message
 
 
+@needs_an_httpx
 class TestAsyncOnlyInstall:
     """niquests gone, an httpx present, requests gone - the shape an async-only
     consumer gets once caldav stops depending on niquests."""
@@ -233,6 +254,7 @@ class TestAsyncOnlyInstall:
         )
 
 
+@needs_sync_library
 class TestBackwardCompatibleReExports:
     """``caldav.davclient`` used to do the HTTP-library import itself, so a few
     of the library's own names have been reachable from it for years.  The
