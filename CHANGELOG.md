@@ -33,13 +33,12 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 * Compatibility feature `sync-token.invalid-token`: whether a sync token the server never issued is refused with `DAV:valid-sync-token` as RFC 6578 section 3.2 says.  Xandikos and CCS answer some such tokens with a 500, and Stalwart and Ox with a report and no error.  https://github.com/jelmer/xandikos/issues/743
 * Compatibility feature `propfind.principal-depth-1`: whether a Depth: 1 PROPFIND on the principal URL works.  GMX answers it with a 400.  https://github.com/python-caldav/caldav/pull/755
 * Negated searches: `add_property_filter()` passes the `!=` (alias `<>`), `!contains` and `def` operators of icalendar-searcher 1.1.0 on to the search.  They are decided client-side (unless `post_filter=False`): the server query leaves them out, as no server has been probed for `negate-condition` support yet.  `build_search_xml_query()` renders `!contains` as a negated `text-match`, and `!=` and `def` as a bare `prop-filter` - a negated `text-match` is a negated *substring* match, so it cannot express `!=`.  https://github.com/python-caldav/caldav/issues/568
+* Compatibility features `sync-token.limit` and `sync-token.limit.initial-sync`, for DAV:limit and the checkpoint tokens of a truncated sync-collection report (RFC 6578 sections 3.6 and 3.7).  Hints for Stalwart, Xandikos, Radicale, Baïkal, Davis, Nextcloud, CCS and Infomaniak.
 
 ### Changed
 
 * icalendar-searcher 1.1.0 or later is required (for the negated searches).
 * `search()` and `multiget()` (also used to load search results in bulk) ask the server for the ETag and the Schedule-Tag of each object, so a `save()` after a search or multiget now sends `If-Match` (or `If-Schedule-Tag-Match`, RFC 6638 section 3.2), and raises `ETagMismatchError` (or `ScheduleTagMismatchError`) if someone else changed the object in the meantime.  Previously such a save overwrote the other change silently.
-
-* Compatibility features `sync-token.limit` and `sync-token.limit.initial-sync`, for DAV:limit and the checkpoint tokens of a truncated sync-collection report (RFC 6578 sections 3.6 and 3.7).  Hints for Stalwart, Xandikos, Radicale and Baïkal.
 
 ### Fixed
 
