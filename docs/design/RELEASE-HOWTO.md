@@ -6,9 +6,13 @@ I have no clue on the proper procedures for doing releases, and I keep on doing 
 
 (And no - we cannot do auto-releases of CalDAV.  Every release has to be well-tested, some of the tests needs my private configuration with passwords and usernames for various caldav servers, and some of the docker containers included are sluggish, full test runs takes very long time).
 
+## One-off: after the switch to towncrier
+
+3.5.0 was the last release whose `CHANGELOG.md` section was written by hand.  Branches and pull requests still carrying an entry in `CHANGELOG.md` need it moved into a fragment in `changes/` before they are merged.  Delete this section once none are left.
+
 ## Checklist
 
-* Go through changes since last release and compare it with the `CHANGELOG.md`.  Any change should be logged.
+* Go through changes since last release and compare it with the changelog fragments in `changes/` (`towncrier build --draft --version X` shows them as they will end up in the `CHANGELOG.md`, see `changes/README.md`).  Any change should be logged.
 * Run tests towards as many servers as possible
   * Use the `PYTHON_CALDAV_DEBUGMODE=DEBUG_PDB` environment variable (or simply pass `--pdb` to pytest, which sets this automatically)!  Should do some research if we hit any "soft asserts" or "weirdness".
   * Do research on breakages.  If the test breaks also for the previous release of the caldav library, then it's likely to be due to some regression on the server side.  For patch-level releases such breakages may be allowed, for minor-level releases we should try to work around problems
@@ -17,11 +21,12 @@ I have no clue on the proper procedures for doing releases, and I keep on doing 
 * Look through github pull requests and see if there is anything that ought to be included in the release
 * For minor and major releases, look through the github issues, anything urgent there that should be fixed prior to doing a new release?
 * Any changes done, go back to the start of this list
-* Write up some release notes.  (I typically keep a short summary of the changes in the CHANGELOG, and use that as the release notes).
+* Write up some release notes.  (I typically keep a short summary of the changes in the CHANGELOG, and use that as the release notes - see the `towncrier build` step below).
 * Verify that we're on the right branch - `git checkout master`.  (`master` may not always be right - sometimes we may want to use a dedicated branch connected to the release-series, i.e. `v1.3`)
 * TODO - document needs to be updated - as the test runs on github now takes significant amounts of time, it's important to push the code first and wait for quite a while before tagging and pushing the tag.
 * Set the variable `VERSION=2.2.0`
-* Commit the changes (typically `CHANGELOG.md`, perhaps documentation): `git commit -am "docs: preparing for v${VERSION}"`
+* Collect the changelog fragments: `towncrier build --yes --version ${VERSION}` (`pip install towncrier`; without `--yes` it asks before removing the fragments).  It writes a `## [${VERSION}] - <date>` section into `CHANGELOG.md` at the `<!-- towncrier release notes start -->` marker and `git rm`s the fragments.  The date is the day of the build - fix it if the tag comes later.  The result is plain markdown - now edit it by hand: towncrier sorts the entries by issue number, so reorder them by importance, add the summary on top, and add the `[${VERSION}]: https://github.com/python-caldav/caldav/compare/vPREVIOUS...v${VERSION}` link at the bottom of the file.
+* Commit the changes (typically `CHANGELOG.md` and the removed fragments, perhaps documentation): `git commit -am "docs: preparing for v${VERSION}"`
 * Create a tag: `git tag -as v${VERSION}` - use the release notes in the tag message.  Don't push it yet.
 * Make a clone: `cd ~ ; rm -rf caldav-release ; git clone caldav/ caldav-release ; cd caldav-release ; git checkout v${VERSION}`
 * Run tests: `pytest --pdb ; tox -e style`.
@@ -56,4 +61,4 @@ This is most likely not complete, but should explain some of the "silly" steps a
 * Forgetting to push to pypi, or pushing something else than the tagged revision to pypi
 * Pushing out junk files in the pypi-release (i.e. .pyc-files, log files, temp files, `tests/conf_private.py`, `tests/caldav_test_servers.yaml`, an entire `venv/`, etc).  `tox -e package` now catches this - see the build step above
 * Not adding the release to the "github releases" (I don't care much about this feature, but apparently some people check there to find the latest release version)
-* Not committing after doing a s/unreleased/$VERSION/ on the CHANGELOG
+* Not committing after running `towncrier build` (or, up to and including 3.5.0, after doing a s/unreleased/$VERSION/ on the CHANGELOG)

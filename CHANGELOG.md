@@ -22,6 +22,10 @@ Changelogs prior to v3.0 are pruned, but are available in the v3.1 release
 
 This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html), though for pre-releases PEP 440 takes precedence.
 
+After 3.5.0, changes since the last release are kept as fragments in [changes/](changes/), and merged in here at release time.
+
+<!-- towncrier release notes start -->
+
 ## [3.5.0] - 2026-10-15
 
 Yet another release primarily focusing on bugfixes and compatibility.  iCloud has now been tested and got its compatibility profile in `compatibility_hints.py`.  Test runs towards GMX, Posteo and Purelymail have been skipped for the last few releases; with 3.5.0 the tests pass towards those.  More work on getting synchronization right, and on avoiding overwriting changes when multiple clients update the same object.
