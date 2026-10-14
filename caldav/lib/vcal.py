@@ -94,6 +94,13 @@ def fix(event):
     6) On FOSSDEM I was presented with icalendar data missing the
     DTSTAMP field.  This is mandatory according to the RFC.
 
+    7) An empty CATEGORIES line holds no category.  The icalendar
+    library inserts one when ``component.categories`` is read on a
+    component without categories
+    (https://github.com/collective/icalendar/issues/1722), and it ends up
+    stored next to the real CATEGORIES line.  Drop it.  This is a
+    temporary workaround until the upstream bug is fixed.
+
     All logic here is done with on the ical string, and not on
     icalendar objects.  There are two reasons for it, originally
     optimization (not having to parse the icalendar data and create an
@@ -122,6 +129,10 @@ def fix(event):
     ## part of the value; stripping it would join two words together.  The
     ## negative lookahead is what keeps that whitespace alone.
     fixed = re.sub(r"[ \t]+$(?!\n[ \t])", "", fixed, flags=re.MULTILINE)
+
+    ## 7) drop empty CATEGORIES lines (not followed by a folded continuation).
+    ## Temporary workaround for https://github.com/collective/icalendar/issues/1722
+    fixed = re.sub(r"^CATEGORIES(?:;[^:\n]*)?:\r?\n(?![ \t])", "", fixed, flags=re.MULTILINE)
 
     ## 6) add DTSTAMP if not given
     ## (corner case that DTSTAMP is given in one but not all the recurrences is ignored)
@@ -158,7 +169,7 @@ def fix(event):
 
         log_message = [
             "Ical data was modified to avoid compatibility issues",
-            "(Your calendar server breaks the icalendar standard)",
+            "(The icalendar data breaks the standard or has a known flaw)",
             "This is probably harmless, particularly if not editing events or tasks",
             f"(error count: {fixup_error_loggings} - this error is ratelimited)",
         ]
