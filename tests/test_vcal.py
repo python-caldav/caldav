@@ -348,9 +348,8 @@ END:VCALENDAR""",
         )
 
     def test_compliant_ical_with_folded_lines_is_left_alone(self) -> None:
-        """Modifying compliant data also fires the rate-limited "your calendar
-        server breaks the icalendar standard" warning at servers that did
-        nothing wrong."""
+        """Modifying compliant data also fires the rate-limited fixup
+        warning about data that did nothing wrong."""
         ical = (
             "BEGIN:VCALENDAR\n"
             "VERSION:2.0\n"
@@ -364,6 +363,37 @@ END:VCALENDAR""",
             "END:VCALENDAR\n"
         )
         assert vcal.fix(ical) == ical
+
+    def test_drop_empty_categories(self) -> None:
+        """An empty CATEGORIES line holds no category and is dropped.
+
+        icalendar's ``component.categories`` accessor inserts one when there
+        is none (https://github.com/collective/icalendar/issues/1722), so
+        tasks end up with ``CATEGORIES:`` next to the real CATEGORIES line.
+        """
+        head = "BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VTODO\nUID:test\nDTSTAMP:20190103T070319Z\n"
+        tail = "END:VTODO\nEND:VCALENDAR\n"
+        assert (
+            vcal.fix(head + "CATEGORIES:\nCATEGORIES:foo\n" + tail)
+            == head + "CATEGORIES:foo\n" + tail
+        )
+        assert vcal.fix(head + "CATEGORIES:\n" + tail) == head + tail
+        assert vcal.fix(head + "CATEGORIES;LANGUAGE=en:\n" + tail) == head + tail
+        ## a folded CATEGORIES line is not empty
+        folded = head + "CATEGORIES:\n foo\n" + tail
+        assert vcal.fix(folded) == folded
+        ## servers send CRLF; fix() relies on to_normal_str normalising it
+        crlf = (head + "CATEGORIES:\nCATEGORIES:foo\n" + tail).replace("\n", "\r\n")
+        assert vcal.fix(crlf) == head + "CATEGORIES:foo\n" + tail
+
+    def test_fixup_warning_blames_nobody(self) -> None:
+        """The fixup is logged as a warning, but the broken data may come from
+        the server, the client or a library in between - don't blame one."""
+        vcal.fixup_error_loggings = 0
+        ical = "BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VTODO\nUID:test\nDTSTAMP:20190103T070319Z\nCATEGORIES:\nEND:VTODO\nEND:VCALENDAR\n"
+        with self.assertLogs("caldav", level="WARNING") as logs:
+            vcal.fix(ical)
+        assert "server" not in "\n".join(logs.output).lower()
 
     def test_backslash_unescape_single_and_double_quotes(self) -> None:
         """Bug §2.4: re.sub(r"\\+('\")", r"\1", fixed) used a group ('\"')
