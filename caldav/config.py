@@ -413,12 +413,17 @@ def _get_test_server_config(
 
     for server in _collect_test_servers(name, config_file):
         was_already_started = server._started
+        # Servers from caldav.testing (pip-installed caldav) have no session lock
+        claim = getattr(server, "claim_server", None)
+        claimed = False
         try:
             # Another process using this server: try the next one rather than wait
-            server.claim_server(server.name, 0)
+            claimed = bool(claim and claim(server.name, 0))
             server.start()
         except Exception as e:
             logging.warning("Failed to start test server %s: %s", server.name, e)
+            if claimed:
+                server.release_server(server.name)
             continue
         logging.info("Using test server: %s at %s", server.name, server.url)
         return _test_server_to_params(server, was_already_started)

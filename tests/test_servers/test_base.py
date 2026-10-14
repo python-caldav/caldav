@@ -227,6 +227,48 @@ class TestSessionLock:
         assert time.monotonic() - t0 < 5
         assert params is not None and "Free" in params["url"]
 
+    def test_fallback_uses_servers_without_session_lock(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Pip-installed caldav has no tests/ and so no claim_server() on its servers."""
+        from caldav import config
+
+        server = config._ConfiguredServer("Lambda", {"url": "http://localhost:1/Lambda/"})
+        monkeypatch.setattr(config, "_collect_test_servers", lambda name, config_file: [server])
+        params = config._get_test_server_config(None, environment=False)
+        assert params is not None and "Lambda" in params["url"]
+
+    def test_fallback_releases_server_that_failed_to_start(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import fcntl
+
+        from caldav import config
+
+        class BrokenServer(base.ExternalTestServer):
+            def start(self) -> None:
+                self.claim()
+                raise RuntimeError("does not start")
+
+        broken = BrokenServer({"name": "Mu", "url": "http://localhost:1/Mu/"})
+        free = base.ExternalTestServer({"name": "Nu", "url": "http://localhost:1/Nu/"})
+        monkeypatch.setattr(
+            config, "_collect_test_servers", lambda name, config_file: [broken, free]
+        )
+        params = config._get_test_server_config(None, environment=False)
+        assert params is not None and "Nu" in params["url"]
+        assert "Mu" not in base._session_locks
+        with open(base._lock_path("Mu", ".session"), "a+") as other:
+            fcntl.flock(other, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+    def test_claim_without_fcntl(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """No fcntl (Windows): no lock between processes, but claims still work."""
+        import sys
+
+        monkeypatch.setitem(sys.modules, "fcntl", None)
+        assert base.TestServer.claim_server("Xi") is True
+        assert base.TestServer.claim_server("Xi") is False
+
     def test_waiting_run_restarts_container_stopped_meanwhile(self, tmp_path: Path) -> None:
         """Collection saw the container up, but its owner stopped it before we got the lock."""
         counter = tmp_path / "runs"

@@ -144,9 +144,15 @@ class TestServer(ABC):
         Returns True if the lock was taken just now, False if this process
         already held it.  Anything learned about the server before a fresh
         claim may be stale, since its previous user may have stopped it.
+
+        Without ``fcntl`` (Windows) nothing is locked between processes.
         """
-        import fcntl
         import time
+
+        try:
+            import fcntl
+        except ImportError:
+            fcntl = None  # type: ignore[assignment]
 
         with _session_locks_mutex:
             if name in _session_locks:
@@ -163,7 +169,7 @@ class TestServer(ABC):
             try:
                 deadline = time.monotonic() + timeout
                 announced = False
-                while True:
+                while fcntl:
                     try:
                         fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
                         break
@@ -190,6 +196,14 @@ class TestServer(ABC):
                 raise
             _session_locks[name] = lock_file
             return True
+
+    @staticmethod
+    def release_server(name: str) -> None:
+        """Give up a claim taken by ``claim_server()``, letting other runs have the server."""
+        with _session_locks_mutex:
+            lock_file = _session_locks.pop(name, None)
+        if lock_file:
+            lock_file.close()
 
     def claim(self) -> bool:
         """``claim_server()`` for this server."""
