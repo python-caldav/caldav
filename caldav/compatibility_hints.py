@@ -409,6 +409,7 @@ hence, "fragile".
             "default": { "support": "full" }
         },
         "save-load.event.no-summary": {"description": "The server stores a VEVENT without a SUMMARY property.  RFC 5545 section 3.6.1 makes SUMMARY optional.  'ungraceful' when the PUT is refused with an error (Bedework 5 answers 500 missingeventproperty).", "default": {"support": "full"}},
+        "save-load.event.no-dtend": {"description": "The server stores a VEVENT with neither DTEND nor DURATION.  RFC 5545 section 3.6.1 allows one: an event on a date lasts that day, an event at a date-time ends when it starts.  'ungraceful' when the PUT is refused with an error (iCloud answers 404, or 403).", "default": {"support": "full"}},
         "save-load.event.recurrences": {"description": "it's possible to save and load recurring events to the calendar - events with an RRULE property set, including recurrence sets", "default": {"support": "full"}},
         "save-load.event.recurrences.count": {"description": "The server will receive and store a recurring event with a count set in the RRULE", "default": {"support": "full"}},
         ## This was Claude's suggestion and it works as of today, the
@@ -1928,6 +1929,12 @@ cyrus = {
 ## iCloud (https://caldav.icloud.com/).  Not among the servers the maintainer
 ## tests against; probed 2026-10-09 by a user with caldav-server-tester 1.4.0
 ## (caldav 3.4.0), see https://github.com/python-caldav/caldav/issues/730 .
+## Partly re-probed 2026-10-14 (caldav master and caldav-server-tester
+## release-candidate, both with the no-dtend change), once the tester no
+## longer stopped at the first event without an end, see
+## https://github.com/python-caldav/caldav-server-tester/issues/24 .  Only the
+## entries marked 2026-10-14 come from that run; the search.recurrences and
+## old-dates lines from 2026-10-09 were removed after it.
 ## Earlier, older observations are in https://github.com/python-caldav/caldav/issues/3
 ##
 ## The calendar-home-set lives on a per-account partition host
@@ -1950,6 +1957,10 @@ icloud = {
     'freebusy-query': {'support': 'ungraceful', 'behaviour': '400 Bad Request'},
     'principal-search': {'support': 'ungraceful'},
     'propfind.allprop.resourcetype': {'support': 'unsupported'},
+    ## 2026-10-14
+    'propfind.principal-depth-1': {'support': 'unsupported', 'behaviour': 'HTTP 400'},
+    ## 2026-10-14
+    'save-load.event.no-dtend': {'support': 'ungraceful', 'behaviour': 'PUT refused with 404, or 403'},
     'save-load.journal': {'support': 'unsupported'},
     ## A task needs a calendar of its own
     'save-load.todo.mixed-calendar': {'support': 'unsupported'},
@@ -1959,26 +1970,27 @@ icloud = {
     },
     'save.duplicate-uid.cross-calendar': {'support': 'ungraceful', 'behaviour': 'PUT refused'},
     'scheduling.schedule-tag': {'support': 'unsupported', 'behaviour': 'no Schedule-Tag returned on GET or via PROPFIND'},
+    ## 2026-10-14: on another account, is-not-defined.category/class and
+    ## search.text.case-* found nothing (an empty 207) in two tester runs, and
+    ## SUMMARY and CATEGORIES filters by hand did not either, also 30 minutes
+    ## after saving.  Cause unknown; left as probed in #730.
     'search.is-not-defined': {'support': 'fragile', 'behaviour': 'works for category, class but not all properties'},
     'search.is-not-defined.category': {'support': 'full'},
     'search.is-not-defined.class': {'support': 'full'},
     'search.is-not-defined.dtend': {'support': 'unsupported'},
+    ## 2026-10-14: recurring events are found and expanded, and so are events
+    ## in year 2000.  Recurring tasks cannot be measured while time-range
+    ## searches for tasks do not work, so they are not left at the default.
+    'search.recurrences.includes-implicit.todo': {'support': 'unknown'},
+    'search.recurrences.expanded.todo': {'support': 'unknown'},
     'search.text.category': {'support': 'unsupported'},
     'search.time-range.alarm': {'support': 'unsupported'},
     'search.time-range.todo': {'support': 'unsupported'},
-    ## Like OX, the search window does not reach far into the past: objects in
-    ## year 2000 are not found, neither by an open search nor by a time-range
-    ## search.  The checker reports search.unlimited-time-range as broken, but
-    ## it is deliberately left at its default here: the workaround for it
-    ## (sending a 1970-2126 time range with every open search) cannot help when
-    ## old-dates time-range searches fail too, and with the recurrence search
-    ## problems below it might drop recurring events an open search returns.
-    'search.time-range.event.old-dates': {'support': 'unsupported'},
-    ## TODO: all recurrence searches came back unsupported.  This may be an
-    ## artifact of the search window above rather than missing recurrence
-    ## support - the save-load.*.recurrences checks were inconclusive in the
-    ## same run.  Needs a closer look.
-    'search.recurrences': {'support': 'unsupported'},
+    ## 2026-10-14
+    'sync-token.limit': {
+        'support': 'unsupported',
+        'behaviour': 'DAV:limit is ignored; lists the collection itself as a member',
+    },
 }
 
 ## See the synology profile above: Synology Calendar ships a modified DAViCal,
