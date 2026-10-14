@@ -697,7 +697,7 @@ hence, "fragile".
             "links": ["https://datatracker.ietf.org/doc/html/rfc6578#section-3.2"],
         },
         "sync-token.limit": {
-            "description": "Server honours DAV:limit in a sync-collection report from an issued token: it truncates the reply with a 507 for the collection and a checkpoint token, and following the checkpoints yields every change.  'unsupported' means the limit is ignored and everything comes in one reply, which is harmless.  'broken' means changes are lost, e.g. the reply is cut without a 507 (Xandikos) or a checkpoint token skips changes",
+            "description": "Server honours DAV:limit in a sync-collection report from an issued token: it truncates the reply with a 507 for the collection and a checkpoint token, and following the checkpoints yields every change.  'unsupported' means the limit is ignored and everything comes in one reply, or the request is refused with a 507 carrying DAV:number-of-matches-within-limits as section 3.7 allows (CCS); both are harmless, as the library never sends DAV:limit.  'broken' means changes are lost, e.g. the reply is cut without a 507 (Xandikos, Nextcloud) or a checkpoint token skips changes",
             "links": ["https://datatracker.ietf.org/doc/html/rfc6578#section-3.7"],
         },
         "sync-token.limit.initial-sync": {
@@ -1508,6 +1508,19 @@ nextcloud = {
     ## Observed with Nextcloud 33: server delivers iTIP notification to the inbox AND
     ## auto-schedules into the attendee's calendar.
     'scheduling.schedule-tag': False,
+    ## Probed 2026-10-13 by the server tester.  From an issued token the
+    ## reply is cut at DAV:limit without a 507, and the newest token comes
+    ## back, so the changes past the limit are never reported:
+    ## getChangesForCalendar() applies the limit to the query but always
+    ## returns the current token.
+    ## https://github.com/nextcloud/server/blob/5da6d15f5242717f792bd276339d3a7f95b0012b/apps/dav/lib/CalDAV/CalDavBackend.php#L2870-L2914
+    ## An initial sync with DAV:limit is refused with a 507 and
+    ## number-of-matches-within-limits, as RFC 6578 section 3.7 says.
+    'sync-token.limit': {
+        'support': 'broken',
+        'behaviour': 'the reply is cut at DAV:limit without a 507, and the token skips the rest',
+    },
+    'sync-token.limit.initial-sync': {'support': 'unsupported', 'behaviour': 'refused with 507 number-of-matches-within-limits'},
 }
 
 ecloud = nextcloud | {
@@ -2188,6 +2201,8 @@ posteo = {
     'sync-token': {'support': 'ungraceful'},
     'principal-search': {'support': 'unsupported'},
     "scheduling": {"support": "unsupported"},
+    ## Probed 2026-10-13.  The profile predates the If-Match: * probe, added 2026-09-15.
+    'save-load.mutable.if-match-wildcard': {'support': 'broken', 'behaviour': 'If-Match: * is ignored: it created a missing object (201)'},
 }
 
 #calendar_mail_ru = [
@@ -2225,7 +2240,11 @@ davis = {
     "calendar-color": {"support": "full"},
     "calendar-order": {"support": "full"},
     ## I'm surprised, I'm quite sure this was passing earlier.  Caldav commit a98d50490b872e9b9d8e93e2e401c936ad193003, caldav server checker commit 3cae24cf99da1702b851b5a74a9b88c8e5317dad
-    'search.combined-is-logical-and': False
+    'search.combined-is-logical-and': False,
+    ## Probed 2026-10-13 by the server tester: same as Baikal, from an issued
+    ## token the limit is honoured, on an initial sync it is ignored
+    "sync-token.limit": {"support": "full"},
+    "sync-token.limit.initial-sync": {"support": "unsupported", "behaviour": "DAV:limit is ignored"},
 }
 
 ## Apple CalendarServer (CCS) - archived 2019, Python 2/Twisted.
@@ -2233,6 +2252,10 @@ davis = {
 ## cannot be changed.  The pre-provisioned "tasks" calendar supports VTODO only.
 ## VJOURNAL is not supported at all.
 ccs = {
+    ## Probed 2026-10-13: DAV:limit is refused with a 507 and
+    ## number-of-matches-within-limits ("Report limit not supported"), as
+    ## RFC 6578 section 3.7 says
+    "sync-token.limit": {"support": "unsupported", "behaviour": "refused with 507 number-of-matches-within-limits"},
     ## Probed 2026-10-11: a 40-digit hex token gets 403 with valid-sync-token
     "sync-token.invalid-token": {"support": "ungraceful", "behaviour": "'http://example.invalid/never-issued': 500 without valid-sync-token"},
     "scheduling.freebusy-query": {"support": "ungraceful"},
@@ -2672,6 +2695,8 @@ infomaniak = {
     ## caldav's _validate_status turns into a ResponseError - the sync raises rather
     ## than silently coming back wrong, hence "ungraceful".
     'sync-token.delete': {'support': 'ungraceful', 'behaviour': "418 I'm a teapot"},
+    ## Probed 2026-10-13 by the server tester
+    'sync-token.limit': {'support': 'unsupported', 'behaviour': 'DAV:limit is ignored'},
 }
 
 ## Yahoo Calendar (https://caldav.calendar.yahoo.com/), a hosted service.

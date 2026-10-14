@@ -2143,7 +2143,8 @@ END:VCALENDAR"""
         ## search.time-range.event.old-dates) can still serve the time ranges.
         ## The integer passed to search()/summary_on() is a day offset from this
         ## anchor day; the values just need to be distinct future days.
-        base = (datetime.now() + timedelta(days=2)).replace(
+        ## UTC, as in the sync testEditSingleRecurrence (DST-safe there).
+        base = (datetime.now(timezone.utc) + timedelta(days=2)).replace(
             hour=8, minute=7, second=6, microsecond=0
         )
 
